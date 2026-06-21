@@ -14,8 +14,14 @@ from session_browser.attribution.core.models import ContentRef, Evidence
 
 # Qoder 已知工具列表（best-effort）
 _QODER_KNOWN_TOOLS = [
-    "Read", "Write", "Edit", "Bash", "Glob", "Grep",
-    "WebFetch", "WebSearch",
+    'Read',
+    'Write',
+    'Edit',
+    'Bash',
+    'Glob',
+    'Grep',
+    'WebFetch',
+    'WebSearch',
 ]
 
 
@@ -28,19 +34,21 @@ def extract_qoder_builtin_tools(
     """
     results = []
     for idx, tool_name in enumerate(_QODER_KNOWN_TOOLS):
-        results.append(Evidence(
-            evidence_id=f"qoder_tool_{evidence_counter + idx}",
-            scope="agent_app",
-            kind="tool_schema",
-            source_path="qoder_builtin_tools",
-            content_ref=ContentRef(
-                kind="inline",
-                preview=tool_name,
-                can_load_full=False,
-            ),
-            text_preview=tool_name,
-            precision="heuristic",  # 不标 exact
-            confidence=0.4,
-        ))
+        results.append(
+            Evidence(
+                evidence_id=f'qoder_tool_{evidence_counter + idx}',
+                scope='agent_app',
+                kind='tool_schema',
+                source_path='qoder_builtin_tools',
+                content_ref=ContentRef(
+                    kind='inline',
+                    preview=tool_name,
+                    can_load_full=False,
+                ),
+                text_preview=tool_name,
+                precision='heuristic',  # 不标 exact
+                confidence=0.4,
+            )
+        )
 
     return results

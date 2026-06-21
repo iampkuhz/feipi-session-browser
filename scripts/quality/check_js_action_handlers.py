@@ -20,26 +20,26 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TEMPLATE_DIR = REPO_ROOT / "src" / "session_browser" / "web" / "templates"
-JS_DIR = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "js"
+TEMPLATE_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates'
+JS_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'js'
 
 # 关键 action 必须存在 handler
 CRITICAL_ACTIONS = {
-    "toggle-all",       # Expand all / Collapse all
-    "status-failed",    # Failed filter
-    "toggle-round",     # Round lazy load/toggle
-    "open-payload",     # Payload modal
-    "payload-filter",   # Payload tab filter / coverage matrix
-    "tab-trace",        # Trace tab
-    "tab-payload",      # Payload tab
+    'toggle-all',  # Expand all / Collapse all
+    'status-failed',  # Failed filter
+    'toggle-round',  # Round lazy load/toggle
+    'open-payload',  # Payload modal
+    'payload-filter',  # Payload tab filter / coverage matrix
+    'tab-trace',  # Trace tab
+    'tab-payload',  # Payload tab
 }
 
 
 def _extract_template_actions() -> dict[str, list[str]]:
     """从所有模板中提取 data-action 值。"""
     actions: dict[str, list[str]] = {}
-    for html_file in TEMPLATE_DIR.rglob("*.html"):
-        text = html_file.read_text(encoding="utf-8", errors="replace")
+    for html_file in TEMPLATE_DIR.rglob('*.html'):
+        text = html_file.read_text(encoding='utf-8', errors='replace')
         found = re.findall(r'data-action="([^"]+)"', text)
         rel = html_file.relative_to(REPO_ROOT).as_posix()
         if found:
@@ -50,10 +50,13 @@ def _extract_template_actions() -> dict[str, list[str]]:
 def _extract_js_handlers() -> set[str]:
     """从所有 JS 文件中提取 handler 的 action key。"""
     handlers: set[str] = set()
-    for js_file in JS_DIR.rglob("*.js"):
-        text = js_file.read_text(encoding="utf-8", errors="replace")
+    for js_file in JS_DIR.rglob('*.js'):
+        text = js_file.read_text(encoding='utf-8', errors='replace')
         # 匹配 data-action 查找模式
-        found = re.findall(r'(?:data-action|getAttribute\(["\']data-action["\']\)|dataset\.action)\s*["\'=]\s*["\']?([a-z][a-z0-9_-]*)', text)
+        found = re.findall(
+            r'(?:data-action|getAttribute\(["\']data-action["\']\)|dataset\.action)\s*["\'=]\s*["\']?([a-z][a-z0-9_-]*)',
+            text,
+        )
         # 更通用的：查找 action 字符串引用
         found2 = re.findall(r'["\']([a-z][a-z0-9_-]*)["\']\s*(?:===|==|\.includes|\.indexOf)', text)
         found2b = re.findall(r'\baction\b\s*(?:===|==)\s*["\']([a-z][a-z0-9_-]*)["\']', text)
@@ -67,20 +70,37 @@ def _extract_js_handlers() -> set[str]:
         handlers.update(found3)
         handlers.update(found4)
         if "action.indexOf('tab-')" in text or 'action.indexOf("tab-")' in text:
-            handlers.update({"tab-trace", "tab-payload", "tab-metrics"})
+            handlers.update({'tab-trace', 'tab-payload', 'tab-metrics'})
     return handlers
 
 
 def main() -> None:
+    """Run the data-action to JavaScript handler contract check."""
     template_actions = _extract_template_actions()
     js_handlers = _extract_js_handlers()
 
     # 内置 action（浏览器行为或 CSS-only）不需要 JS handler
-    built_in = {"sort", "page-input", "go-dashboard", "go-sessions", "run-scan",
-                "open-project", "open-project-link", "open-agent", "clear-search",
-                "info", "metric-info", "close-modal", "prev-page", "next-page",
-                "nav-dashboard", "nav-projects",
-                "nav-sessions", "nav-glossary", "payload-mode"}
+    built_in = {
+        'sort',
+        'page-input',
+        'go-dashboard',
+        'go-sessions',
+        'run-scan',
+        'open-project',
+        'open-project-link',
+        'open-agent',
+        'clear-search',
+        'info',
+        'metric-info',
+        'close-modal',
+        'prev-page',
+        'next-page',
+        'nav-dashboard',
+        'nav-projects',
+        'nav-sessions',
+        'nav-glossary',
+        'payload-mode',
+    }
 
     errors: list[str] = []
     critical_missing: list[str] = []
@@ -100,15 +120,15 @@ def main() -> None:
                 errors.append(f"[WARN] action '{action}' 无 JS handler")
 
     if critical_missing:
-        print("")
+        print('')
         for e in errors:
             print(e)
-        print(f"\n关键缺失: {', '.join(critical_missing)}")
+        print(f'\n关键缺失: {", ".join(critical_missing)}')
         sys.exit(1)
     else:
-        print(f"[PASS] 全部 {len(all_actions)} 个 data-action 均有 handler 或豁免。")
+        print(f'[PASS] 全部 {len(all_actions)} 个 data-action 均有 handler 或豁免。')
         sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

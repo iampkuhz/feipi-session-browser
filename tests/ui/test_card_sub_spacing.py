@@ -5,29 +5,39 @@ parent gap) so subtitle text does not collide with the content below it.
 
 Covers P-24 / S-12: card-sub 没有 margin-bottom
 """
-import pytest
-from pathlib import Path
-import re
 
-CSS_PATH = Path(__file__).resolve().parents[2] / "src" / "session_browser" / "web" / "static" / "css" / "ui-primitives.css"
-CSS_DIR = CSS_PATH.parent / "ui-primitives"
+import re
+from pathlib import Path
+
+import pytest
+
+CSS_PATH = (
+    Path(__file__).resolve().parents[2]
+    / 'src'
+    / 'session_browser'
+    / 'web'
+    / 'static'
+    / 'css'
+    / 'ui-primitives.css'
+)
+CSS_DIR = CSS_PATH.parent / 'ui-primitives'
 
 
 def _read_source_with_splits(main_file, split_dir):
     """Read main file and all split subdirectory files (if they exist)."""
     parts = []
     if main_file.exists():
-        parts.append(main_file.read_text(encoding="utf-8"))
+        parts.append(main_file.read_text(encoding='utf-8'))
     if split_dir.is_dir():
-        for f in sorted(split_dir.glob("*.css")):
-            parts.append(f.read_text(encoding="utf-8"))
-    return "\n".join(parts)
+        for f in sorted(split_dir.glob('*.css')):
+            parts.append(f.read_text(encoding='utf-8'))
+    return '\n'.join(parts)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def css_text():
     if not CSS_PATH.exists():
-        pytest.fail(f"ui-primitives.css not found at {CSS_PATH}")
+        pytest.fail(f'ui-primitives.css not found at {CSS_PATH}')
     return _read_source_with_splits(CSS_PATH, CSS_DIR)
 
 
@@ -40,16 +50,16 @@ def _extract_canonical_card_sub_block(css_text: str) -> str:
     """
     # 查找所有 .card-sub 块（不包括带前缀的选择器如 .card .card-sub）
     # 模式：可选注释 + .card-sub { ... }
-    pattern = r"(?<![\w-])\.card-sub\s*\{([^}]+)\}"
+    pattern = r'(?<![\w-])\.card-sub\s*\{([^}]+)\}'
     matches = list(re.finditer(pattern, css_text))
     if not matches:
-        return ""
+        return ''
     # 规范定义是第一个不在迁移块中的出现
     # （迁移块附近有 "Originally at style.css" 注释）
     for m in matches:
         start = max(0, m.start() - 200)
-        preceding = css_text[start:m.start()]
-        if "Originally at style.css" not in preceding:
+        preceding = css_text[start : m.start()]
+        if 'Originally at style.css' not in preceding:
             return m.group(1)
     # 回退到第一个匹配
     return matches[0].group(1)
@@ -58,7 +68,7 @@ def _extract_canonical_card_sub_block(css_text: str) -> str:
 class TestCardSubSpacing:
     """规范的 .card-sub 必须有底部间距。"""
 
-    @pytest.mark.contract_case("UI-VISUAL-014")
+    @pytest.mark.contract_case('UI-VISUAL-014')
     def test_card_sub_has_margin_bottom_or_parent_gap(self, css_text):
         """规范的 .card-sub 块必须定义 margin-bottom，
         或在含 gap 的容器内（如 .table-toolbar 使用 flex gap）。
@@ -69,7 +79,7 @@ class TestCardSubSpacing:
         - 父容器（如 .table-toolbar）有 gap 覆盖间距
         """
         block = _extract_canonical_card_sub_block(css_text)
-        assert block, "No canonical .card-sub block found in ui-primitives.css"
+        assert block, 'No canonical .card-sub block found in ui-primitives.css'
 
         # 检查显式 margin-bottom
         has_margin_bottom = re.search(r'margin-bottom\s*:', block) is not None
@@ -83,14 +93,14 @@ class TestCardSubSpacing:
             if len(values) >= 3:
                 # 3 或 4 个值：第三个是 bottom
                 bottom_val = values[2]
-                has_margin_shorthand_bottom = bottom_val != "0" and bottom_val != "0px"
+                has_margin_shorthand_bottom = bottom_val != '0' and bottom_val != '0px'
             elif len(values) == 2:
                 # 2 个值：vertical（top=bottom），第二个是 bottom
                 bottom_val = values[1]
-                has_margin_shorthand_bottom = bottom_val != "0" and bottom_val != "0px"
+                has_margin_shorthand_bottom = bottom_val != '0' and bottom_val != '0px'
             elif len(values) == 1:
                 bottom_val = values[0]
-                has_margin_shorthand_bottom = bottom_val != "0" and bottom_val != "0px"
+                has_margin_shorthand_bottom = bottom_val != '0' and bottom_val != '0px'
 
         # 检查 .table-toolbar 父容器是否有 gap（flex 间距）
         toolbar_match = re.search(r'\.table-toolbar\s*\{([^}]+)\}', css_text)
@@ -101,19 +111,17 @@ class TestCardSubSpacing:
         # .card-sub 自身有 bottom margin，或父容器使用 gap，
         # 或存在 .section-head / .table-toolbar 模式通过自身布局提供间距
         assert has_margin_bottom or has_margin_shorthand_bottom or has_parent_gap, (
-            f"Canonical .card-sub lacks bottom spacing. "
+            f'Canonical .card-sub lacks bottom spacing. '
             f"Block content: '{block.strip()}'. "
-            f"margin-bottom: {bool(has_margin_bottom)}, "
-            f"margin-shorthand-bottom: {has_margin_shorthand_bottom}, "
-            f"parent-gap (.table-toolbar): {has_parent_gap}"
+            f'margin-bottom: {bool(has_margin_bottom)}, '
+            f'margin-shorthand-bottom: {has_margin_shorthand_bottom}, '
+            f'parent-gap (.table-toolbar): {has_parent_gap}'
         )
 
-    @pytest.mark.contract_case("UI-VISUAL-014")
+    @pytest.mark.contract_case('UI-VISUAL-014')
     def test_card_sub_no_zero_margin_bottom(self, css_text):
         """规范的 .card-sub 不应显式设置 margin-bottom: 0。"""
         block = _extract_canonical_card_sub_block(css_text)
         # 完全没有 margin-bottom 也可以；只是不要显式设为 0
         zero_bottom = re.search(r'margin-bottom\s*:\s*0', block)
-        assert zero_bottom is None, (
-            f"Canonical .card-sub explicitly sets margin-bottom: 0"
-        )
+        assert zero_bottom is None, 'Canonical .card-sub explicitly sets margin-bottom: 0'

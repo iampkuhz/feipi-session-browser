@@ -2,9 +2,9 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
 import argparse
 import sqlite3
+from contextlib import contextmanager
 
 import pytest
 
@@ -145,7 +145,9 @@ def test_successful_full_all_agent_scan_writes_logic_version(tmp_path, monkeypat
         conn.close()
 
 
-def test_failed_or_partial_full_scan_does_not_write_global_logic_version(tmp_path, monkeypatch, capsys):
+def test_failed_or_partial_full_scan_does_not_write_global_logic_version(
+    tmp_path, monkeypatch, capsys
+):
     monkeypatch.setenv("SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE", "1")
 
     partial_db = tmp_path / "partial.sqlite"

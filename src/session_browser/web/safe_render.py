@@ -1,4 +1,4 @@
-"""Jinja2 模板中 JSON/Code/HTML 的安全渲染辅助函数。
+"""Jinja2 模板中 JSON/Code/HTML 的安全渲染辅助函数..
 
 Purpose: ensure that JSON, code, and arbitrary data are never executed as
 HTML when embedded in <pre>, <code>, <script>, or attribute contexts.
@@ -13,28 +13,40 @@ from __future__ import annotations
 
 import html as html_mod
 import json
-from typing import Any
+from typing import TYPE_CHECKING
 
-import jinja2
+if TYPE_CHECKING:
+    import jinja2
 
 
-def safe_json_display(value: Any, indent: int | None = None) -> str:
+def safe_json_display(value: object, indent: int | None = None) -> str:
     """序列化 *value* to JSON 和 HTML-escape 该 result.
+
+    Args:
+        value: JSON-serializable value to render.
+        indent: Optional JSON indentation level.
+
+    Returns:
+        Escaped JSON string, or the literal string ``"null"`` when ``value`` is falsy.
 
     Safe for embedding inside <pre><code> … </code></pre> without
     allowing </pre>/<script> breakout or other HTML injection.
-
-    Returns the escaped JSON string, or the literal string ``"null"`` when
-    *value* is falsy (None / empty).
     """
     if not value:
-        return "null"
+        return 'null'
     raw = json.dumps(value, indent=indent, ensure_ascii=False)
     return html_mod.escape(raw)
 
 
-def safe_html_block(html_content: str, class_name: str = "safe-html-block") -> str:
-    """包装 *html_content* in 一个 <div>，使用 *class_name*.
+def safe_html_block(html_content: str, class_name: str = 'safe-html-block') -> str:
+    """包装 *html_content* in 一个 <div>,使用 *class_name*.
+
+    Args:
+        html_content: HTML content to wrap.
+        class_name: CSS class applied to the wrapper.
+
+    Returns:
+        Wrapped HTML block.
 
     The content itself is **not** escaped — the caller is responsible for
     deciding whether the HTML is trusted.  The wrapper provides a CSS hook
@@ -47,8 +59,15 @@ def safe_html_block(html_content: str, class_name: str = "safe-html-block") -> s
     return f'<div class="{safe_class}">{html_content}</div>'
 
 
-def tojson_safe_html(value: Any, indent: int | None = None) -> str:
+def tojson_safe_html(value: object, indent: int | None = None) -> str:
     """Like Jinja2's built-in ``|tojson`` but also HTML-escapes 该 result.
+
+    Args:
+        value: JSON-serializable value to render.
+        indent: Optional JSON indentation level.
+
+    Returns:
+        Escaped JSON string.
 
     Jinja2's native ``|tojson`` produces a JSON string that is safe inside
     <script> blocks, but it does NOT escape HTML entities — meaning
@@ -58,13 +77,17 @@ def tojson_safe_html(value: Any, indent: int | None = None) -> str:
     result is safe in any HTML context.
     """
     if value is None:
-        return "null"
+        return 'null'
     raw = json.dumps(value, indent=indent, ensure_ascii=False)
     return html_mod.escape(raw)
 
 
 def register_filters(env: jinja2.Environment) -> None:
-    """注册 safe-render filters onto 一个 Jinja2 Environment."""
-    env.filters["safe_json_display"] = safe_json_display
-    env.filters["safe_html_block"] = safe_html_block
-    env.filters["tojson_safe_html"] = tojson_safe_html
+    """注册 safe-render filters onto 一个 Jinja2 Environment.
+
+    Args:
+        env: Jinja2 environment to mutate.
+    """
+    env.filters['safe_json_display'] = safe_json_display
+    env.filters['safe_html_block'] = safe_html_block
+    env.filters['tojson_safe_html'] = tojson_safe_html

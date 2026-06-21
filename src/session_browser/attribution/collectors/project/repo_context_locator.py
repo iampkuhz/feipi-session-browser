@@ -32,7 +32,7 @@ def locate_project_dir(
     # 从当前工作目录向上查找
     current = Path.cwd()
     for _ in range(10):  # 最多向上 10 层
-        if (current / ".git").exists():
+        if (current / '.git').exists():
             return current
         parent = current.parent
         if parent == current:
@@ -48,11 +48,11 @@ def has_project_context(project_dir: Path) -> bool:
         return False
 
     indicators = [
-        project_dir / "CLAUDE.md",
-        project_dir / "AGENTS.md",
-        project_dir / ".claude" / "CLAUDE.md",
-        project_dir / ".qoder" / "rules",
-        project_dir / ".codex" / "AGENTS.md",
+        project_dir / 'CLAUDE.md',
+        project_dir / 'AGENTS.md',
+        project_dir / '.claude' / 'CLAUDE.md',
+        project_dir / '.qoder' / 'rules',
+        project_dir / '.codex' / 'AGENTS.md',
     ]
 
     return any(p.exists() for p in indicators)

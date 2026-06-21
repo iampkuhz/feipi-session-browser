@@ -1,4 +1,11 @@
-"""Shared normalized adapter，用于 Anthropic-style local chat JSONL agents."""
+"""Shared adapter for Anthropic-style local chat JSONL normalized sessions.
+
+Claude Code and compatible source parsers call this adapter after they have parsed
+local session payloads into ChatMessage, ToolCall, SessionSummary, and optional
+SubagentRun records. The adapter does not read raw session files; it converts the
+parsed payload boundary into normalized session records, call drafts, tool steps,
+and source file references for the semantic normalized model.
+"""
 
 from __future__ import annotations
 
@@ -11,7 +18,7 @@ from session_browser.domain.models import ChatMessage, SessionSummary, SubagentR
 from session_browser.normalized.semantic import build_normalized_session_model
 
 
-def build_chat_jsonl_normalized_session(
+def build_chat_jsonl_normalized_session(  # noqa: PLR0913 - Adapter entrypoint mirrors parsed session payload fields.
     *,
     agent: str,
     summary: SessionSummary,
@@ -22,31 +29,53 @@ def build_chat_jsonl_normalized_session(
     subagent_runs: list[SubagentRun] | None = None,
     parse_warnings: list[dict] | None = None,
 ) -> dict:
-    """构建 normalized session JSON，来源于 parsed local chat transcript models."""
+    """Build normalized records from parsed local chat transcript payloads.
+
+    Triggered by source-specific chat parsers after session payload extraction. It emits
+    normalized session records, call drafts, source files, and parse warnings, not raw
+    JSONL events.
+
+    Args:
+        agent: Input value for normalized adapter processing.
+        summary: Input value for normalized adapter processing.
+        messages: Input value for normalized adapter processing.
+        tool_calls: Input value for normalized adapter processing.
+        source_path: Input value for normalized adapter processing.
+        source_role: Input value for normalized adapter processing.
+        subagent_runs: Input value for normalized adapter processing.
+        parse_warnings: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     subagent_runs = subagent_runs or []
     parse_warnings = parse_warnings or []
-    main_tool_calls = [tc for tc in tool_calls if getattr(tc, "scope", "main") == "main"]
+    main_tool_calls = [tc for tc in tool_calls if getattr(tc, 'scope', 'main') == 'main']
     main_rounds = _build_rounds(
         agent=agent,
         messages=messages,
         tool_calls=main_tool_calls,
-        scope="main",
-        subagent_id="",
-        parent_tool_use_id="",
+        scope='main',
+        subagent_id='',
+        parent_tool_use_id='',
         subagent_runs=subagent_runs,
     )
-    source_files = [{
-        "role": source_role,
-        "path": source_path,
-    }]
+    source_files = [
+        {
+            'role': source_role,
+            'path': source_path,
+        }
+    ]
     for run in subagent_runs:
-        path = run.get("path", "")
-        source_files.append({
-            "role": "subagent_session",
-            "path": str(path) if path else "",
-            "subagent_id": (run.get("summary") or {}).get("agent_id", ""),
-            "parent_tool_use_id": _parent_tool_for_subagent(main_tool_calls, run),
-        })
+        path = run.get('path', '')
+        source_files.append(
+            {
+                'role': 'subagent_session',
+                'path': str(path) if path else '',
+                'subagent_id': (run.get('summary') or {}).get('agent_id', ''),
+                'parent_tool_use_id': _parent_tool_for_subagent(main_tool_calls, run),
+            }
+        )
 
     return build_normalized_session_model(
         agent=agent,
@@ -57,7 +86,7 @@ def build_chat_jsonl_normalized_session(
     )
 
 
-def _build_rounds(
+def _build_rounds(  # noqa: PLR0913 - Round builders need explicit normalized call context.
     *,
     agent: str,
     messages: list[ChatMessage],
@@ -67,30 +96,44 @@ def _build_rounds(
     parent_tool_use_id: str,
     subagent_runs: list[SubagentRun] | None = None,
 ) -> list[dict]:
+    """Support normalized adapter processing for _build_rounds.
+
+    Args:
+        agent: Input value for normalized adapter processing.
+        messages: Input value for normalized adapter processing.
+        tool_calls: Input value for normalized adapter processing.
+        scope: Input value for normalized adapter processing.
+        subagent_id: Input value for normalized adapter processing.
+        parent_tool_use_id: Input value for normalized adapter processing.
+        subagent_runs: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     rounds: list[dict] = []
     tool_by_id = {tc.tool_use_id: tc for tc in tool_calls if tc.tool_use_id}
     subagent_by_parent = _subagent_runs_by_parent(tool_calls, subagent_runs or [])
 
     for msg in messages:
-        if msg.role != "assistant" or not msg.llm_call_id:
+        if msg.role != 'assistant' or not msg.llm_call_id:
             continue
         round_id = len(rounds) + 1
         call_id = msg.llm_call_id
         tools = _tools_for_message(msg, tool_by_id, round_id)
         usage = _usage_from_message(msg)
         metrics = {
-            "tokens": {
-                "fresh": usage["fresh"],
-                "cache_read": usage["cache_read"],
-                "cache_write": usage["cache_write"],
-                "output": usage["output"],
-                "total": usage["total"],
+            'tokens': {
+                'fresh': usage['fresh'],
+                'cache_read': usage['cache_read'],
+                'cache_write': usage['cache_write'],
+                'output': usage['output'],
+                'total': usage['total'],
             },
         }
-        if usage.get("usage_source"):
-            metrics["usage_source"] = usage["usage_source"]
-        request = {"tool_result_ids": _tool_result_ids_from_request(msg.request_full or "")}
-        response = {"tool_call_ids": _tool_call_ids_from_message(msg, tools)}
+        if usage.get('usage_source'):
+            metrics['usage_source'] = usage['usage_source']
+        request = {'tool_result_ids': _tool_result_ids_from_request(msg.request_full or '')}
+        response = {'tool_call_ids': _tool_call_ids_from_message(msg, tools)}
         subagent_steps = _subagent_steps_for_tools(
             agent=agent,
             round_id=round_id,
@@ -102,23 +145,25 @@ def _build_rounds(
             tools=tools,
             subagent_steps=subagent_steps,
         )
-        rounds.append({
-            "round_id": round_id,
-            "round_key": f"R{round_id}",
-            "main_call": {
-                "call_id": call_id,
-                "turn_id": "",
-                "model": msg.model,
-                "timestamp": msg.timestamp,
-                "scope": scope,
-                "subagent_id": subagent_id,
-                "parent_tool_use_id": parent_tool_use_id,
-            },
-            "metrics": metrics,
-            "request": request,
-            "response": response,
-            "steps": steps,
-        })
+        rounds.append(
+            {
+                'round_id': round_id,
+                'round_key': f'R{round_id}',
+                'main_call': {
+                    'call_id': call_id,
+                    'turn_id': '',
+                    'model': msg.model,
+                    'timestamp': msg.timestamp,
+                    'scope': scope,
+                    'subagent_id': subagent_id,
+                    'parent_tool_use_id': parent_tool_use_id,
+                },
+                'metrics': metrics,
+                'request': request,
+                'response': response,
+                'steps': steps,
+            }
+        )
     return rounds
 
 
@@ -129,70 +174,102 @@ def _subagent_steps_for_tools(
     tools: list[dict],
     subagent_by_parent: dict[str, SubagentRun],
 ) -> list[dict]:
+    """Support normalized adapter processing for _subagent_steps_for_tools.
+
+    Args:
+        agent: Input value for normalized adapter processing.
+        round_id: Input value for normalized adapter processing.
+        tools: Input value for normalized adapter processing.
+        subagent_by_parent: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     steps: list[dict] = []
     for tool in tools:
-        parent_tool_id = tool.get("tool_call_id", "")
+        parent_tool_id = tool.get('tool_call_id', '')
         run = subagent_by_parent.get(parent_tool_id)
         if not run:
             continue
-        summary = run.get("summary") or {}
+        summary = run.get('summary') or {}
         sub_rounds = _build_rounds(
             agent=agent,
-            messages=run.get("messages") or [],
-            tool_calls=run.get("tool_calls") or [],
-            scope="subagent",
-            subagent_id=summary.get("agent_id", ""),
+            messages=run.get('messages') or [],
+            tool_calls=run.get('tool_calls') or [],
+            scope='subagent',
+            subagent_id=summary.get('agent_id', ''),
             parent_tool_use_id=parent_tool_id,
             subagent_runs=[],
         )
         for sub_round in sub_rounds:
-            sub_round["round_key"] = f"R{round_id}.{sub_round['round_id']}"
-        tool["subagent_id"] = summary.get("agent_id", "")
-        tool["subagent_summary"] = summary
-        tool["sub_round_count"] = len(sub_rounds)
-        steps.append({
-            "type": "subagent_run",
-            "step_id": f"R{round_id}-subagent-{summary.get('agent_id') or parent_tool_id}",
-            "parent_tool_call_id": parent_tool_id,
-            "subagent_id": summary.get("agent_id", ""),
-            "subagent_type": summary.get("agent_type", ""),
-            "description": summary.get("description", ""),
-            "sub_rounds": sub_rounds,
-        })
+            sub_round['round_key'] = f'R{round_id}.{sub_round["round_id"]}'
+        tool['subagent_id'] = summary.get('agent_id', '')
+        tool['subagent_summary'] = summary
+        tool['sub_round_count'] = len(sub_rounds)
+        steps.append(
+            {
+                'type': 'subagent_run',
+                'step_id': f'R{round_id}-subagent-{summary.get("agent_id") or parent_tool_id}',
+                'parent_tool_call_id': parent_tool_id,
+                'subagent_id': summary.get('agent_id', ''),
+                'subagent_type': summary.get('agent_type', ''),
+                'description': summary.get('description', ''),
+                'sub_rounds': sub_rounds,
+            }
+        )
     return steps
 
 
 def _session_payload(agent: str, summary: SessionSummary) -> dict:
+    """Support normalized adapter processing for _session_payload.
+
+    Args:
+        agent: Input value for normalized adapter processing.
+        summary: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     return {
-        "session_key": f"{agent}:{summary.session_id}",
-        "session_id": summary.session_id,
-        "title": _truncate_text(summary.title, 160),
-        "agent": agent,
-        "model": summary.model,
-        "cwd": summary.cwd,
-        "started_at": summary.started_at,
-        "ended_at": summary.ended_at,
-        "git_branch": summary.git_branch,
-        "source": summary.source,
-        "project_key": summary.project_key,
-        "project_name": summary.project_name,
+        'session_key': f'{agent}:{summary.session_id}',
+        'session_id': summary.session_id,
+        'title': _truncate_text(summary.title, 160),
+        'agent': agent,
+        'model': summary.model,
+        'cwd': summary.cwd,
+        'started_at': summary.started_at,
+        'ended_at': summary.ended_at,
+        'git_branch': summary.git_branch,
+        'source': summary.source,
+        'project_key': summary.project_key,
+        'project_name': summary.project_name,
     }
 
 
 def _usage_from_message(msg: ChatMessage) -> dict:
+    """Support normalized adapter processing for _usage_from_message.
+
+    Args:
+        msg: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     usage = msg.usage if isinstance(msg.usage, dict) else {}
     if usage:
-        fresh = _int(usage.get("input_tokens"))
-        cache_read = _int(usage.get("cache_read_input_tokens") or usage.get("cached_input_tokens"))
-        cache_write = _int(usage.get("cache_creation_input_tokens") or usage.get("cache_write_input_tokens"))
-        output = _int(usage.get("output_tokens"))
+        fresh = _int(usage.get('input_tokens'))
+        cache_read = _int(usage.get('cache_read_input_tokens') or usage.get('cached_input_tokens'))
+        cache_write = _int(
+            usage.get('cache_creation_input_tokens') or usage.get('cache_write_input_tokens')
+        )
+        output = _int(usage.get('output_tokens'))
         total = fresh + cache_read + cache_write + output
         return {
-            "fresh": fresh,
-            "cache_read": cache_read,
-            "cache_write": cache_write,
-            "output": output,
-            "total": total,
+            'fresh': fresh,
+            'cache_read': cache_read,
+            'cache_write': cache_write,
+            'output': output,
+            'total': total,
         }
 
     fresh = _estimate_tokens(msg.request_full)
@@ -201,44 +278,61 @@ def _usage_from_message(msg: ChatMessage) -> dict:
     output = _estimate_tokens(msg.content)
     total = fresh + cache_read + cache_write + output
     result = {
-        "fresh": fresh,
-        "cache_read": cache_read,
-        "cache_write": cache_write,
-        "output": output,
-        "total": total,
+        'fresh': fresh,
+        'cache_read': cache_read,
+        'cache_write': cache_write,
+        'output': output,
+        'total': total,
     }
     if total:
-        result["usage_source"] = {
-            "kind": "estimated",
-            "method": "chars_div_4",
-            "reason": "provider_usage_missing",
+        result['usage_source'] = {
+            'kind': 'estimated',
+            'method': 'chars_div_4',
+            'reason': 'provider_usage_missing',
         }
     return result
 
 
 def _tool_result_ids_from_request(request_text: str) -> list[str]:
+    """Support normalized adapter processing for _tool_result_ids_from_request.
+
+    Args:
+        request_text: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     if not request_text:
         return []
     tool_result_ids: list[str] = []
-    segments = re.split(r"\n{2,}", request_text)
+    segments = re.split(r'\n{2,}', request_text)
     for segment in segments:
         text = segment.strip()
         if not text:
             continue
-        match = re.match(r"Tool result for ([^:\n]+):\n?(.*)", text, re.DOTALL)
+        match = re.match(r'Tool result for ([^:\n]+):\n?(.*)', text, re.DOTALL)
         if match:
             tool_result_ids.append(match.group(1))
     return tool_result_ids
 
 
 def _tool_call_ids_from_message(msg: ChatMessage, tools: list[dict]) -> list[str]:
+    """Support normalized adapter processing for _tool_call_ids_from_message.
+
+    Args:
+        msg: Input value for normalized adapter processing.
+        tools: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     ids: list[str] = []
     for block in msg.content_blocks or []:
-        if isinstance(block, dict) and block.get("type") == "tool_use" and block.get("id"):
-            ids.append(str(block["id"]))
+        if isinstance(block, dict) and block.get('type') == 'tool_use' and block.get('id'):
+            ids.append(str(block['id']))
     known_tool_ids = set(ids)
     for tool in tools:
-        tid = tool.get("tool_call_id", "")
+        tid = tool.get('tool_call_id', '')
         if tid and tid not in known_tool_ids:
             ids.append(str(tid))
     return ids
@@ -250,27 +344,51 @@ def _steps_for_round(
     tools: list[dict],
     subagent_steps: list[dict],
 ) -> list[dict]:
+    """Support normalized adapter processing for _steps_for_round.
+
+    Args:
+        timestamp: Input value for normalized adapter processing.
+        tools: Input value for normalized adapter processing.
+        subagent_steps: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     steps: list[dict] = []
     if tools:
-        steps.append({
-            "type": "tool_batch",
-            "started_at": timestamp,
-            "ended_at": timestamp,
-            "duration_ms": sum(int(t.get("duration_ms") or 0) for t in tools),
-            "tools": tools,
-        })
+        steps.append(
+            {
+                'type': 'tool_batch',
+                'started_at': timestamp,
+                'ended_at': timestamp,
+                'duration_ms': sum(int(t.get('duration_ms') or 0) for t in tools),
+                'tools': tools,
+            }
+        )
     steps.extend(subagent_steps)
     return steps
 
 
-def _tools_for_message(msg: ChatMessage, tool_by_id: dict[str, ToolCall], round_id: int) -> list[dict]:
+def _tools_for_message(
+    msg: ChatMessage, tool_by_id: dict[str, ToolCall], round_id: int
+) -> list[dict]:
+    """Support normalized adapter processing for _tools_for_message.
+
+    Args:
+        msg: Input value for normalized adapter processing.
+        tool_by_id: Input value for normalized adapter processing.
+        round_id: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     tools: list[dict] = []
     for idx, raw in enumerate(msg.tool_calls or [], 1):
-        tool_id = str(raw.get("id") or raw.get("tool_use_id") or f"{msg.llm_call_id}-tool-{idx}")
+        tool_id = str(raw.get('id') or raw.get('tool_use_id') or f'{msg.llm_call_id}-tool-{idx}')
         tool = tool_by_id.get(tool_id)
         if tool is None:
             tool = ToolCall(
-                name=str(raw.get("name") or "tool"),
+                name=str(raw.get('name') or 'tool'),
                 timestamp=msg.timestamp,
                 tool_use_id=tool_id,
             )
@@ -279,26 +397,46 @@ def _tools_for_message(msg: ChatMessage, tool_by_id: dict[str, ToolCall], round_
 
 
 def _tool_payload(tool: ToolCall, round_id: int) -> dict:
+    """Support normalized adapter processing for _tool_payload.
+
+    Args:
+        tool: Input value for normalized adapter processing.
+        round_id: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     payload: dict[str, Any] = {
-        "tool_call_id": tool.tool_use_id or f"tool-{round_id}",
-        "name": tool.name,
-        "scope": tool.scope,
-        "exit_code": tool.exit_code,
-        "duration_ms": int(tool.duration_ms or 0),
-        "files_touched": list(tool.files_touched or []),
-        "parent_tool_use_id": tool.parent_tool_use_id,
-        "subagent_id": tool.subagent_id,
+        'tool_call_id': tool.tool_use_id or f'tool-{round_id}',
+        'name': tool.name,
+        'scope': tool.scope,
+        'exit_code': tool.exit_code,
+        'duration_ms': int(tool.duration_ms or 0),
+        'files_touched': list(tool.files_touched or []),
+        'parent_tool_use_id': tool.parent_tool_use_id,
+        'subagent_id': tool.subagent_id,
     }
-    if tool.status and tool.status != "completed":
-        payload["status"] = tool.status
+    if tool.status and tool.status != 'completed':
+        payload['status'] = tool.status
     return payload
 
 
-def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[SubagentRun]) -> dict[str, SubagentRun]:
-    by_id = {(run.get("summary") or {}).get("agent_id", ""): run for run in subagent_runs}
+def _subagent_runs_by_parent(
+    tool_calls: list[ToolCall], subagent_runs: list[SubagentRun]
+) -> dict[str, SubagentRun]:
+    """Support normalized adapter processing for _subagent_runs_by_parent.
+
+    Args:
+        tool_calls: Input value for normalized adapter processing.
+        subagent_runs: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
+    by_id = {(run.get('summary') or {}).get('agent_id', ''): run for run in subagent_runs}
     result: dict[str, SubagentRun] = {}
     for tc in tool_calls:
-        if tc.name != "Agent" or not tc.tool_use_id or not tc.subagent_id:
+        if tc.name != 'Agent' or not tc.tool_use_id or not tc.subagent_id:
             continue
         run = by_id.get(tc.subagent_id)
         if run:
@@ -307,13 +445,31 @@ def _subagent_runs_by_parent(tool_calls: list[ToolCall], subagent_runs: list[Sub
 
 
 def _parent_tool_for_subagent(tool_calls: list[ToolCall], run: SubagentRun) -> str:
-    agent_id = (run.get("summary") or {}).get("agent_id", "")
+    """Support normalized adapter processing for _parent_tool_for_subagent.
+
+    Args:
+        tool_calls: Input value for normalized adapter processing.
+        run: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
+    agent_id = (run.get('summary') or {}).get('agent_id', '')
     for tc in tool_calls:
         if tc.subagent_id == agent_id:
             return tc.tool_use_id
-    return ""
+    return ''
 
-def _int(value: Any) -> int:
+
+def _int(value: object) -> int:
+    """Support normalized adapter processing for _int.
+
+    Args:
+        value: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     try:
         if value is None:
             return 0
@@ -322,31 +478,64 @@ def _int(value: Any) -> int:
         return 0
 
 
-def _estimate_tokens(text: Any) -> int:
+def _estimate_tokens(text: object) -> int:
+    """Support normalized adapter processing for _estimate_tokens.
+
+    Args:
+        text: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     value = _stringify(text).strip()
     if not value:
         return 0
     return max(1, (len(value) + 3) // 4)
 
 
-def _stringify(value: Any) -> str:
+def _stringify(value: object) -> str:
+    """Support normalized adapter processing for _stringify.
+
+    Args:
+        value: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     if value is None:
-        return ""
+        return ''
     if isinstance(value, str):
         return value
     if isinstance(value, list):
-        return "\n".join(_stringify(v) for v in value)
+        return '\n'.join(_stringify(v) for v in value)
     if isinstance(value, dict):
         return json.dumps(value, ensure_ascii=False, sort_keys=True)
     return str(value)
 
 
-def _truncate_text(text: Any, limit: int = 240) -> str:
-    value = re.sub(r"\s+", " ", _stringify(text)).strip()
+def _truncate_text(text: object, limit: int = 240) -> str:
+    """Support normalized adapter processing for _truncate_text.
+
+    Args:
+        text: Input value for normalized adapter processing.
+        limit: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
+    value = re.sub(r'\s+', ' ', _stringify(text)).strip()
     if len(value) <= limit:
         return value
-    return value[: limit - 3] + "..."
+    return value[: limit - 3] + '...'
 
 
 def session_id_from_file(path: str | Path) -> str:
+    """Return the session identifier derived from a local session file path.
+
+    Args:
+        path: Input value for normalized adapter processing.
+
+    Returns:
+        Normalized adapter result.
+    """
     return Path(path).stem

@@ -4,7 +4,6 @@
 这确保增量路径不会偏离规范的完整重索引。
 """
 
-import pytest
 import json
 import os
 import shutil
@@ -13,12 +12,15 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 # ─── 常量 ───────────────────────────────────────────────────────────────
 
 FIXTURE_ROOT = Path(__file__).parent.parent / "fixtures" / "index_corpus" / "full_scan_claude"
 
 
 # ─── 辅助函数 ───────────────────────────────────────────────────────────
+
 
 def _setup_claude_env(data_dir: str):
     """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
@@ -98,6 +100,7 @@ def _touch_file(file_path: Path, delta_seconds: float = 1.0):
 
 # ─── 测试 ──────────────────────────────────────────────────────────────────
 
+
 class TestFullVsIncrementalConsistency:
     """full scan 与 incremental scan 路径之间的一致性断言。
 
@@ -151,7 +154,7 @@ class TestFullVsIncrementalConsistency:
         for key in snapshot_full_2:
             incr_row = snapshot_incr[key]
             full_row = snapshot_full_2[key]
-        # 对比应一致的关键指标
+            # 对比应一致的关键指标
             assert incr_row["fresh_input_tokens"] == full_row["fresh_input_tokens"], (
                 f"fresh_input_tokens mismatch for {key}: incr={incr_row['fresh_input_tokens']} "
                 f"vs full={full_row['fresh_input_tokens']}"
@@ -169,9 +172,7 @@ class TestFullVsIncrementalConsistency:
                 f"title mismatch for {key}: incr='{incr_row['title']}' "
                 f"vs full='{full_row['title']}'"
             )
-            assert incr_row["agent"] == full_row["agent"], (
-                f"agent mismatch for {key}"
-            )
+            assert incr_row["agent"] == full_row["agent"], f"agent mismatch for {key}"
             assert incr_row["project_key"] == full_row["project_key"], (
                 f"project_key mismatch for {key}"
             )
@@ -221,15 +222,11 @@ class TestFullVsIncrementalConsistency:
             assert incr_row["output_tokens"] == full_row["output_tokens"], (
                 f"output_tokens mismatch for {key}"
             )
-            assert incr_row["title"] == full_row["title"], (
-                f"title mismatch for {key}"
-            )
+            assert incr_row["title"] == full_row["title"], f"title mismatch for {key}"
             assert incr_row["started_at"] == full_row["started_at"], (
                 f"started_at mismatch for {key}"
             )
-            assert incr_row["ended_at"] == full_row["ended_at"], (
-                f"ended_at mismatch for {key}"
-            )
+            assert incr_row["ended_at"] == full_row["ended_at"], f"ended_at mismatch for {key}"
 
     @pytest.mark.contract_case("DATA-INDEX-003")
     def test_new_session_discovered_consistency(self, tmp_path):
@@ -258,7 +255,7 @@ class TestFullVsIncrementalConsistency:
             "sessionId": "sess-003",
             "project": "proj-gamma",
             "timestamp": int(time.time() * 1000),
-            "display": "New session test"
+            "display": "New session test",
         }
         with open(str(history_path), "a") as f:
             f.write(json.dumps(new_entry) + "\n")
@@ -273,7 +270,7 @@ class TestFullVsIncrementalConsistency:
             "timestamp": now_iso,
             "cwd": "/tmp/test",
             "entrypoint": "cli",
-            "gitBranch": "main"
+            "gitBranch": "main",
         }
         msg_assistant = {
             "type": "assistant",
@@ -282,9 +279,9 @@ class TestFullVsIncrementalConsistency:
                 "model": "claude-sonnet-4-20250514",
                 "role": "assistant",
                 "content": [{"type": "text", "text": "Hi!"}],
-                "usage": {"input_tokens": 300, "output_tokens": 100}
+                "usage": {"input_tokens": 300, "output_tokens": 100},
             },
-            "timestamp": now_iso
+            "timestamp": now_iso,
         }
         with open(str(sess_file), "w") as f:
             f.write(json.dumps(msg_user) + "\n")
@@ -306,9 +303,7 @@ class TestFullVsIncrementalConsistency:
         assert len(snapshot_incr) == 3, (
             f"Expected 3 sessions after incremental, got {len(snapshot_incr)}"
         )
-        assert len(snapshot_full) == 3, (
-            f"Expected 3 sessions after full, got {len(snapshot_full)}"
-        )
+        assert len(snapshot_full) == 3, f"Expected 3 sessions after full, got {len(snapshot_full)}"
         assert set(snapshot_incr.keys()) == set(snapshot_full.keys()), (
             "Session key sets differ between incremental and full"
         )
@@ -353,9 +348,7 @@ class TestFullVsIncrementalConsistency:
         assert result_incr["claude_count"] == 0, (
             f"Expected 0 re-indexed (no changes), got {result_incr['claude_count']}"
         )
-        assert result_incr["skipped"] == 2, (
-            f"Expected 2 skipped, got {result_incr['skipped']}"
-        )
+        assert result_incr["skipped"] == 2, f"Expected 2 skipped, got {result_incr['skipped']}"
 
         snapshot_incr = _snapshot_db(db_a)
 
@@ -400,9 +393,7 @@ class TestFullVsIncrementalConsistency:
 
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        logs = conn.execute(
-            "SELECT mode FROM scan_log ORDER BY id ASC"
-        ).fetchall()
+        logs = conn.execute("SELECT mode FROM scan_log ORDER BY id ASC").fetchall()
         conn.close()
 
         modes = [row["mode"] for row in logs]

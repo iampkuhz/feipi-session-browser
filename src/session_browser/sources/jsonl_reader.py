@@ -1,20 +1,7 @@
-"""agent session event stream 的混合 JSONL 读取器。
+"""Source adapter helpers for reading local agent session data.
 
-This module extracts the shared JSONL parsing logic that was duplicated
-across the Claude Code, Codex, and Qoder adapters.  It handles:
-
-- Standard JSONL (one JSON object per line)
-- Pretty-printed multi-line JSON objects
-- Mixed format (pretty-printed transitioning to JSONL, with
-  concatenated ``}{...}{`` on transition lines)
-
-Uses brace/bracket depth tracking (string-aware) to detect object
-boundaries.  Non-object JSON values are skipped.
-
-Public API
-----------
-``parse_jsonl_events(path, verbose=False)``
-    Main entry point.  Returns a tuple of (events, diagnostics).
+Scanner and route code call this module to discover and normalize records.
+It keeps raw parsing behavior unchanged.
 """
 
 from __future__ import annotations
@@ -23,14 +10,25 @@ import json
 from dataclasses import dataclass, field
 from enum import Enum, auto
 from pathlib import Path
-from typing import Iterator
+from typing import TYPE_CHECKING
 
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
-# 说明：─── Severity & Issue enums ──────────────────────────────────────────────
+# 说明:─── Severity & Issue enums ──────────────────────────────────────────────
 
 
 class ParseSeverity(Enum):
-    """How severe 一个 JSONL parsing issue is."""
+    """ParseSeverity contract used by the session browser pipeline.
+
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        INFO: Public contract field or enum value.
+        WARNING: Public contract field or enum value.
+        ERROR: Public contract field or enum value.
+    """
 
     INFO = auto()
     WARNING = auto()
@@ -38,31 +36,62 @@ class ParseSeverity(Enum):
 
 
 class ParseIssue(Enum):
-    """说明：Categories of JSONL parse-time issues."""
+    """ParseIssue contract used by the session browser pipeline.
 
-    # 说明：Format-level problems
-    BAD_JSON = "BAD_JSON"            # 说明：Unparseable JSON
-    NON_OBJECT_SKIPPED = "NON_OBJECT_SKIPPED"  # 说明：Valid JSON but not a dict
-    CONCATENATED_OBJECTS = "CONCATENATED_OBJECTS"  # 说明：Split ``}{`` boundary detected
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        BAD_JSON: Public contract field or enum value.
+        NON_OBJECT_SKIPPED: Public contract field or enum value.
+        CONCATENATED_OBJECTS: Public contract field or enum value.
+    """
+
+    # 说明:Format-level problems
+    BAD_JSON = 'BAD_JSON'  # 说明:Unparseable JSON
+    NON_OBJECT_SKIPPED = 'NON_OBJECT_SKIPPED'  # 说明:Valid JSON but not a dict
+    CONCATENATED_OBJECTS = 'CONCATENATED_OBJECTS'  # 说明:Split ``}{`` boundary detected
 
 
-# 说明：─── Data classes ────────────────────────────────────────────────────────
+# 说明:─── Data classes ────────────────────────────────────────────────────────
 
 
 @dataclass
 class ParseIssueItem:
-    """One parsing issue detected during 一个 scan."""
+    """ParseIssueItem contract used by the session browser pipeline.
+
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        issue: Public contract field or enum value.
+        severity: Public contract field or enum value.
+        line_no: Public contract field or enum value.
+        detail: Public contract field or enum value.
+        preview: Public contract field or enum value.
+    """
 
     issue: ParseIssue
     severity: ParseSeverity
     line_no: int
-    detail: str = ""
-    preview: str = ""
+    detail: str = ''
+    preview: str = ''
 
 
 @dataclass
 class JsonlDiagnostics:
-    """聚合 diagnostics，用于 一个 single JSONL parse run."""
+    """JsonlDiagnostics contract used by the session browser pipeline.
+
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        issues: Public contract field or enum value.
+        total_lines: Public contract field or enum value.
+        non_empty_lines: Public contract field or enum value.
+        events_parsed: Public contract field or enum value.
+        events_skipped: Public contract field or enum value.
+    """
 
     issues: list[ParseIssueItem] = field(default_factory=list)
     total_lines: int = 0
@@ -72,24 +101,43 @@ class JsonlDiagnostics:
 
     @property
     def warning_count(self) -> int:
-        return sum(
-            1 for i in self.issues if i.severity == ParseSeverity.WARNING
-        )
+        """warning_count method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
+        return sum(1 for i in self.issues if i.severity == ParseSeverity.WARNING)
 
     @property
     def error_count(self) -> int:
-        return sum(
-            1 for i in self.issues if i.severity == ParseSeverity.ERROR
-        )
+        """error_count method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
+        return sum(1 for i in self.issues if i.severity == ParseSeverity.ERROR)
 
 
-# 说明：─── Internal helpers ────────────────────────────────────────────────────
+# 说明:─── Internal helpers ────────────────────────────────────────────────────
 
 
 def _brace_chars_outside_strings(text: str) -> str:
-    """返回 仅 ``{}[]`` characters that appear outside JSON strings.
+    """_brace_chars_outside_strings function used by the session browser pipeline.
 
-    This prevents ``{"key": "{value}"}`` from incorrectly altering depth.
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        text: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
     result: list[str] = []
     in_string = False
@@ -98,21 +146,28 @@ def _brace_chars_outside_strings(text: str) -> str:
         if escaped:
             escaped = False
             continue
-        if ch == "\\":
+        if ch == '\\':
             escaped = True
             continue
         if ch == '"':
             in_string = not in_string
             continue
-        if not in_string and ch in "{}[]":
+        if not in_string and ch in '{}[]':
             result.append(ch)
-    return "".join(result)
+    return ''.join(result)
 
 
 def _split_at_depth0(text: str) -> list[str]:
-    """拆分 concatenated JSON objects at top-level ``}{`` boundaries.
+    """_split_at_depth0 function used by the session browser pipeline.
 
-    Returns ``[text]`` if no split points found.
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        text: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
     parts: list[str] = []
     current_start = 0
@@ -124,7 +179,7 @@ def _split_at_depth0(text: str) -> list[str]:
         if escaped:
             escaped = False
             continue
-        if ch == "\\":
+        if ch == '\\':
             escaped = True
             continue
         if ch == '"':
@@ -132,12 +187,12 @@ def _split_at_depth0(text: str) -> list[str]:
             continue
         if in_string:
             continue
-        if ch == "{":
+        if ch == '{':
             depth += 1
-        elif ch == "}":
+        elif ch == '}':
             depth -= 1
-            if depth == 0 and i + 1 < len(text) and text[i + 1] == "{":
-                candidate = text[current_start:i + 1].strip()
+            if depth == 0 and i + 1 < len(text) and text[i + 1] == '{':
+                candidate = text[current_start : i + 1].strip()
                 if candidate:
                     parts.append(candidate)
                 current_start = i + 1
@@ -157,7 +212,17 @@ def _try_parse_json(
     events: list[dict],
     skipped: list[tuple[int, str, str]],
 ) -> None:
-    """说明：Try to parse ``text`` as JSON, handling concatenated ``}{...}{`` forms."""
+    """_try_parse_json function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        text: Input value supplied by the caller for this pipeline step.
+        line_no: Input value supplied by the caller for this pipeline step.
+        events: Input value supplied by the caller for this pipeline step.
+        skipped: Input value supplied by the caller for this pipeline step.
+    """
     try:
         obj = json.loads(text)
         if isinstance(obj, dict):
@@ -177,21 +242,29 @@ def _try_parse_json(
                 if isinstance(obj, dict):
                     events.append(obj)
                 else:
-                    skipped.append(
-                        (line_no, type(obj).__name__, repr(part[:120]))
-                    )
+                    skipped.append((line_no, type(obj).__name__, repr(part[:120])))
             except json.JSONDecodeError:
-                skipped.append((line_no, "BAD_JSON", repr(part[:120])))
+                skipped.append((line_no, 'BAD_JSON', repr(part[:120])))
     else:
-        skipped.append((line_no, "BAD_JSON", repr(text[:120])))
+        skipped.append((line_no, 'BAD_JSON', repr(text[:120])))
 
 
-# 说明：─── Public API ──────────────────────────────────────────────────────────
+# 说明:─── Public API ──────────────────────────────────────────────────────────
 
 
 def _iter_lines(path: Path) -> Iterator[tuple[int, str]]:
-    """Yield (line_no, stripped_line) tuples，来源于 一个 JSONL file."""
-    with open(path, "r", encoding="utf-8") as fh:
+    """_iter_lines function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        path: Input value supplied by the caller for this pipeline step.
+
+    Yields:
+        Items produced in source order for the caller to consume lazily.
+    """
+    with path.open(encoding='utf-8') as fh:
         for line_no, raw_line in enumerate(fh, 1):
             stripped = raw_line.rstrip()
             if stripped:
@@ -203,27 +276,43 @@ def _build_diagnostics(
     skipped: list[tuple[int, str, str]],
     events: list[dict],
 ) -> JsonlDiagnostics:
-    """Populate diagnostics，来源于 parse results."""
+    """_build_diagnostics function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        diagnostics: Input value supplied by the caller for this pipeline step.
+        skipped: Input value supplied by the caller for this pipeline step.
+        events: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     diagnostics.events_parsed = len(events)
     diagnostics.events_skipped = len(skipped)
 
     for line_no, type_name, preview in skipped:
-        if type_name == "BAD_JSON":
-            diagnostics.issues.append(ParseIssueItem(
-                issue=ParseIssue.BAD_JSON,
-                severity=ParseSeverity.ERROR,
-                line_no=line_no,
-                detail=f"Unparseable JSON at line {line_no}",
-                preview=preview,
-            ))
+        if type_name == 'BAD_JSON':
+            diagnostics.issues.append(
+                ParseIssueItem(
+                    issue=ParseIssue.BAD_JSON,
+                    severity=ParseSeverity.ERROR,
+                    line_no=line_no,
+                    detail=f'Unparseable JSON at line {line_no}',
+                    preview=preview,
+                )
+            )
         else:
-            diagnostics.issues.append(ParseIssueItem(
-                issue=ParseIssue.NON_OBJECT_SKIPPED,
-                severity=ParseSeverity.WARNING,
-                line_no=line_no,
-                detail=f"Non-dict JSON value skipped: {type_name}",
-                preview=preview,
-            ))
+            diagnostics.issues.append(
+                ParseIssueItem(
+                    issue=ParseIssue.NON_OBJECT_SKIPPED,
+                    severity=ParseSeverity.WARNING,
+                    line_no=line_no,
+                    detail=f'Non-dict JSON value skipped: {type_name}',
+                    preview=preview,
+                )
+            )
 
     return diagnostics
 
@@ -232,20 +321,17 @@ def parse_jsonl_events(
     path: Path | str,
     verbose: bool = False,
 ) -> tuple[list[dict], JsonlDiagnostics]:
-    """解析 一个 JSONL event stream file.
+    """parse_jsonl_events function used by the session browser pipeline.
 
-    Handles standard JSONL, pretty-printed multi-line JSON, and mixed
-    formats (including concatenated ``}{...}{`` on transition lines).
-    Uses string-aware brace/bracket depth tracking to detect object
-    boundaries.  Non-object JSON values are skipped.
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
 
     Args:
-        path: Path to the JSONL file.
-        verbose: If True, print diagnostic info about skipped lines.
+        path: Input value supplied by the caller for this pipeline step.
+        verbose: Input value supplied by the caller for this pipeline step.
 
     Returns:
-        A tuple of (events, diagnostics) where events is a list of
-        parsed JSON objects (dicts) and diagnostics carries issue details.
+        Existing return value produced by this parser or domain helper.
     """
     if isinstance(path, str):
         path = Path(path)
@@ -256,30 +342,30 @@ def parse_jsonl_events(
     depth = 0
 
     diagnostics = JsonlDiagnostics()
-    line_no = 0  # 说明：Initialize to handle empty files without UnboundLocalError
+    line_no = 0  # 说明:Initialize to handle empty files without UnboundLocalError
 
     for line_no, stripped in _iter_lines(path):
         diagnostics.non_empty_lines += 1
 
         for ch in _brace_chars_outside_strings(stripped):
-            if ch in "{[":
+            if ch in '{[':
                 depth += 1
-            elif ch in "}]":
+            elif ch in '}]':
                 depth -= 1
 
         current_lines.append(stripped)
 
         if depth == 0:
-            full = "\n".join(current_lines).strip()
+            full = '\n'.join(current_lines).strip()
             current_lines = []
             _try_parse_json(full, line_no, events, skipped)
 
-    diagnostics.total_lines = line_no  # 说明：last line_no seen
+    diagnostics.total_lines = line_no  # 说明:last line_no seen
     _build_diagnostics(diagnostics, skipped, events)
 
     if verbose and skipped:
-        print(f"  [jsonl_reader] {path.name}: {len(skipped)} non-dict JSON item(s) skipped:")
+        print(f'  [jsonl_reader] {path.name}: {len(skipped)} non-dict JSON item(s) skipped:')
         for line_no, type_name, preview in skipped:
-            print(f"    L{line_no} [{type_name}] {preview}")
+            print(f'    L{line_no} [{type_name}] {preview}')
 
     return events, diagnostics

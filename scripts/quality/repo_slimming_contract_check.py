@@ -7,21 +7,21 @@
 3. 移动设备/平板视口支持
 4. 无实际作用的兼容垫片（只有注释的 CSS/JS、未引用的 display:none）
 """
+
 from __future__ import annotations
 
-from pathlib import Path
 import re
-
+from pathlib import Path
 
 # ── Rule 1: no-historical-version-comments ────────────────────────────
 
 # 禁止的历史版本注释模式
 HISTORICAL_VERSION_PATTERNS = [
-    re.compile(r"HIFI\s+v\d+", re.IGNORECASE),
-    re.compile(r"session_browser_hifi_v", re.IGNORECASE),
-    re.compile(r"session-detail-payload-v", re.IGNORECASE),
-    re.compile(r"DEPRECATED\s+T\d+", re.IGNORECASE),
-    re.compile(r"migrated\s+Task\s+\d+", re.IGNORECASE),
+    re.compile(r'HIFI\s+v\d+', re.IGNORECASE),
+    re.compile(r'session_browser_hifi_v', re.IGNORECASE),
+    re.compile(r'session-detail-payload-v', re.IGNORECASE),
+    re.compile(r'DEPRECATED\s+T\d+', re.IGNORECASE),
+    re.compile(r'migrated\s+Task\s+\d+', re.IGNORECASE),
 ]
 
 
@@ -36,16 +36,16 @@ def check_no_historical_version_comments(
     warnings: list[str] = []
     for path in files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding='utf-8', errors='replace')
         except Exception:
             continue
         for pattern in HISTORICAL_VERSION_PATTERNS:
             matches = pattern.findall(text)
             if matches:
                 errors.append(
-                    f"{path}: 发现历史版本注释模式 "
+                    f'{path}: 发现历史版本注释模式 '
                     f"'{matches[0]}'（共 {len(matches)} 处），"
-                    f"必须清理（rule: no-historical-version-comments）。"
+                    f'必须清理（rule: no-historical-version-comments）。'
                 )
     return errors, warnings
 
@@ -54,20 +54,20 @@ def check_no_historical_version_comments(
 
 # harness/ 中禁止出现的模式（描述当前状态即可，不需要历史痕迹）
 HARNESS_FORBIDDEN_PATTERNS = [
-    (re.compile(r"deleted", re.IGNORECASE), "deleted"),
-    (re.compile(r"已删除", re.IGNORECASE), "已删除"),
-    (re.compile(r"\bchangelog\b", re.IGNORECASE), "changelog"),
-    (re.compile(r"\.agent/quality", re.IGNORECASE), ".agent/quality"),
+    (re.compile(r'deleted', re.IGNORECASE), 'deleted'),
+    (re.compile(r'已删除', re.IGNORECASE), '已删除'),
+    (re.compile(r'\bchangelog\b', re.IGNORECASE), 'changelog'),
+    (re.compile(r'\.agent/quality', re.IGNORECASE), '.agent/quality'),
     # tmp/agent_logs/MMDD 是历史日志路径引用，应使用 current 或动态路径
-    (re.compile(r"tmp/agent_logs/MMDD", re.IGNORECASE), "tmp/agent_logs/MMDD"),
+    (re.compile(r'tmp/agent_logs/MMDD', re.IGNORECASE), 'tmp/agent_logs/MMDD'),
 ]
 
 # 允许出现 forbidden pattern 的上下文关键词（如文档说明）
 HARNESS_ALLOWED_CONTEXT = [
     # 如果是在描述「不允许删除」或「不存在」等语境中，可豁免
-    re.compile(r"禁止.*deleted", re.IGNORECASE),
-    re.compile(r"不存在.*deleted", re.IGNORECASE),
-    re.compile(r"no.*deleted", re.IGNORECASE),
+    re.compile(r'禁止.*deleted', re.IGNORECASE),
+    re.compile(r'不存在.*deleted', re.IGNORECASE),
+    re.compile(r'no.*deleted', re.IGNORECASE),
 ]
 
 
@@ -90,7 +90,7 @@ def check_harness_current_state(
     warnings: list[str] = []
     for path in harness_files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding='utf-8', errors='replace')
         except Exception:
             continue
         for pattern, label in HARNESS_FORBIDDEN_PATTERNS:
@@ -101,8 +101,8 @@ def check_harness_current_state(
                         continue
                     errors.append(
                         f"{path}:{lineno}: harness 中出现 '{label}' "
-                        f"（rule: harness-current-state-only），"
-                        f"harness 应只描述当前状态。"
+                        f'（rule: harness-current-state-only），'
+                        f'harness 应只描述当前状态。'
                     )
     return errors, warnings
 
@@ -111,12 +111,12 @@ def check_harness_current_state(
 
 # 禁止的移动/平板视口模式
 MOBILE_VIEWPORT_PATTERNS = [
-    re.compile(r"max-width\s*:\s*767px", re.IGNORECASE),
-    re.compile(r"max-width\s*:\s*768px", re.IGNORECASE),
-    re.compile(r"max-width\s*:\s*820px", re.IGNORECASE),
-    re.compile(r"min-width\s*:\s*768px.*max-width\s*:\s*1024px", re.IGNORECASE),
+    re.compile(r'max-width\s*:\s*767px', re.IGNORECASE),
+    re.compile(r'max-width\s*:\s*768px', re.IGNORECASE),
+    re.compile(r'max-width\s*:\s*820px', re.IGNORECASE),
+    re.compile(r'min-width\s*:\s*768px.*max-width\s*:\s*1024px', re.IGNORECASE),
     # 通用移动/平板关键词在 @media 上下文中
-    re.compile(r"@media[^{]*(?:mobile|tablet|ipad)", re.IGNORECASE),
+    re.compile(r'@media[^{]*(?:mobile|tablet|ipad)', re.IGNORECASE),
 ]
 
 # 允许的桌面视口宽度（出现在 @media 中是 OK 的）
@@ -126,7 +126,7 @@ ALLOWED_DESKTOP_VIEWPORTS = {1400, 1440, 1512, 1920, 2560}
 def _is_allowed_viewport(line: str) -> bool:
     """检查是否为允许的桌面视口 breakpoint。"""
     for vw in ALLOWED_DESKTOP_VIEWPORTS:
-        if f"{vw}px" in line:
+        if f'{vw}px' in line:
             return True
     return False
 
@@ -144,13 +144,13 @@ def check_supported_viewports_only(
     all_files = css_files + js_files
     for path in all_files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding='utf-8', errors='replace')
         except Exception:
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             # 跳过注释行中的提及（仅告警，不 block）
             stripped = line.strip()
-            if stripped.startswith("/*") or stripped.startswith("*") or stripped.startswith("//"):
+            if stripped.startswith('/*') or stripped.startswith('*') or stripped.startswith('//'):
                 continue
             # 检查禁止的视口模式
             for pattern in MOBILE_VIEWPORT_PATTERNS:
@@ -158,9 +158,9 @@ def check_supported_viewports_only(
                     if _is_allowed_viewport(line):
                         continue
                     errors.append(
-                        f"{path}:{lineno}: 禁止移动/平板视口支持 "
-                        f"（rule: supported-viewports-only），"
-                        f"仅支持桌面端视口。"
+                        f'{path}:{lineno}: 禁止移动/平板视口支持 '
+                        f'（rule: supported-viewports-only），'
+                        f'仅支持桌面端视口。'
                     )
     return errors, warnings
 
@@ -173,23 +173,23 @@ def _css_has_only_comments_or_empty(text: str) -> bool:
 
     豁免：纯 @import wrapper 文件（如拆分后的 ui-primitives.css）。
     """
-    stripped = re.sub(r"/\*.*?\*/", "", text, flags=re.DOTALL)
+    stripped = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
     stripped = stripped.strip()
     if not stripped:
         return True
     # Check if file is an @import wrapper: has @import but no rule bodies
     lines = [l.strip() for l in stripped.splitlines() if l.strip()]
-    has_import = any(l.startswith("@import") for l in lines)
-    has_rules = "{" in stripped and "}" in stripped
+    has_import = any(l.startswith('@import') for l in lines)
+    has_rules = '{' in stripped and '}' in stripped
     if has_import and not has_rules:
         return False  # @import wrapper, intentional
-    return not stripped or ("{" not in stripped and "}" not in stripped)
+    return not stripped or ('{' not in stripped and '}' not in stripped)
 
 
 def _js_is_only_comments_or_empty(text: str) -> bool:
     """去掉注释后，判断是否没有有效 JS 代码。"""
-    stripped = re.sub(r"//.*?$", "", text, flags=re.MULTILINE)
-    stripped = re.sub(r"/\*.*?\*/", "", stripped, flags=re.DOTALL)
+    stripped = re.sub(r'//.*?$', '', text, flags=re.MULTILINE)
+    stripped = re.sub(r'/\*.*?\*/', '', stripped, flags=re.DOTALL)
     # 去掉空白行
     lines = [l for l in stripped.splitlines() if l.strip()]
     return len(lines) == 0
@@ -213,38 +213,36 @@ def check_no_dead_compat_shim(
     # Check 4a: only-comments-or-empty files
     for path in css_files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding='utf-8', errors='replace')
         except Exception:
             continue
         if _css_has_only_comments_or_empty(text):
             errors.append(
-                f"{path}: 死 CSS 文件（只有注释或空白，"
-                f"无有效 rule，rule: no-dead-compat-shim）。"
+                f'{path}: 死 CSS 文件（只有注释或空白，无有效 rule，rule: no-dead-compat-shim）。'
             )
 
     for path in js_files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding='utf-8', errors='replace')
         except Exception:
             continue
         if _js_is_only_comments_or_empty(text):
             errors.append(
-                f"{path}: 死 JS 文件（只有注释或空白，"
-                f"无有效代码，rule: no-dead-compat-shim）。"
+                f'{path}: 死 JS 文件（只有注释或空白，无有效代码，rule: no-dead-compat-shim）。'
             )
 
     # Check 4b: display:none on selectors that look like compatibility aliases.
     legacy_like_pattern = re.compile(
-        r"\.(?:old[-_]?|legacy[-_]?|deprecated[-_]?|compat[-_]?|v\d[-_]?)",
+        r'\.(?:old[-_]?|legacy[-_]?|deprecated[-_]?|compat[-_]?|v\d[-_]?)',
         re.IGNORECASE,
     )
     for path in css_files:
         try:
-            text = path.read_text(encoding="utf-8", errors="replace")
+            text = path.read_text(encoding='utf-8', errors='replace')
         except Exception:
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
-            if "display" in line and "none" in line:
+            if 'display' in line and 'none' in line:
                 # Check if the preceding selector looks like a legacy shim
                 # Look backwards for the selector
                 all_lines = text.splitlines()
@@ -254,15 +252,15 @@ def check_no_dead_compat_shim(
                         continue
                     prev_line = all_lines[prev_idx]
                     selector_lines.append(prev_line)
-                    if "{" in prev_line:
+                    if '{' in prev_line:
                         break
 
-                selector_text = " ".join(selector_lines)
+                selector_text = ' '.join(selector_lines)
                 if legacy_like_pattern.search(selector_text):
                     errors.append(
-                        f"{path}:{lineno}: display:none 用于疑似兼容垫片选择器 "
-                        f"（rule: no-dead-compat-shim），"
-                        f"请删除垫片或改为当前选择器。"
+                        f'{path}:{lineno}: display:none 用于疑似兼容垫片选择器 '
+                        f'（rule: no-dead-compat-shim），'
+                        f'请删除垫片或改为当前选择器。'
                     )
 
     return errors, warnings
@@ -282,11 +280,21 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
     # Rule 1: no-historical-version-comments
     # Scan all tracked text files in the repo
     all_text_files: list[Path] = []
-    for ext in ("*.css", "*.js", "*.html", "*.py", "*.md", "*.sh", "*.yaml", "*.json", "*.txt"):
+    for ext in ('*.css', '*.js', '*.html', '*.py', '*.md', '*.sh', '*.yaml', '*.json', '*.txt'):
         all_text_files.extend(repo_root.rglob(ext))
     # Exclude build/cache dirs and the check file itself (patterns in regex source)
-    exclude_dirs = {".git", "node_modules", "__pycache__", ".pytest_cache", "tmp", ".mypy_cache", "dist", "venv", ".venv"}
-    excluded_files = {"repo_slimming_contract_check.py", "test_repo_slimming_contract.py"}
+    exclude_dirs = {
+        '.git',
+        'node_modules',
+        '__pycache__',
+        '.pytest_cache',
+        'tmp',
+        '.mypy_cache',
+        'dist',
+        'venv',
+        '.venv',
+    }
+    excluded_files = {'repo_slimming_contract_check.py', 'test_repo_slimming_contract.py'}
     filtered_files = []
     for f in all_text_files:
         if any(ex in f.parts for ex in exclude_dirs):
@@ -299,18 +307,18 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
     warnings.extend(w)
 
     # Rule 2: harness-current-state-only
-    harness_dir = repo_root / "harness"
+    harness_dir = repo_root / 'harness'
     if harness_dir.exists():
-        harness_files = list(harness_dir.rglob("*.md")) + list(harness_dir.rglob("*.yaml"))
+        harness_files = list(harness_dir.rglob('*.md')) + list(harness_dir.rglob('*.yaml'))
         e, w = check_harness_current_state(harness_files)
         errors.extend(e)
         warnings.extend(w)
 
     # Rule 3: supported-viewports-only
-    static = repo_root / "src/session_browser/web/static"
+    static = repo_root / 'src/session_browser/web/static'
     if static.exists():
-        css_files = list(static.rglob("*.css"))
-        js_files = list(static.rglob("*.js"))
+        css_files = list(static.rglob('*.css'))
+        js_files = list(static.rglob('*.js'))
         e, w = check_supported_viewports_only(css_files, js_files)
         errors.extend(e)
         warnings.extend(w)
@@ -327,16 +335,25 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
 
 
 def main() -> int:
+    """Run the repository slimming contract check for the current workspace.
+
+    Returns:
+        Process exit code where ``0`` means the contract passed.
+    """
     errors, warnings = check_repo_slimming(Path.cwd())
     for item in warnings:
-        print(f"[WARN] {item}")
+        print(f'[WARN] {item}')
     if errors:
         for item in errors:
-            print(f"[BLOCK] {item}")
+            print(f'[BLOCK] {item}')
         return 1
-    print("repo slimming contract PASS" if not warnings else "repo slimming contract PASS (with warnings)")
+    print(
+        'repo slimming contract PASS'
+        if not warnings
+        else 'repo slimming contract PASS (with warnings)'
+    )
     return 0
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())

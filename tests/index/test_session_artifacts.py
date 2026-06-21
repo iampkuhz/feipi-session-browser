@@ -76,7 +76,10 @@ def test_persist_normalized_session_artifact_writes_file_and_db_row(tmp_path):
     )
     conn.commit()
 
-    assert artifact_path == index_dir / "artifacts" / "normalized-sessions" / "codex" / "session_unsafe.json"
+    assert (
+        artifact_path
+        == index_dir / "artifacts" / "normalized-sessions" / "codex" / "session_unsafe.json"
+    )
     assert read_normalized_session_artifact(artifact_path) == normalized
     meta_path = artifact_path.with_suffix(artifact_path.suffix + ".meta.json")
     assert meta_path.is_file()
@@ -158,9 +161,7 @@ def test_ensure_schema_exists_creates_artifact_table_for_incremental_scan(tmp_pa
 
     tables = {
         row["name"]
-        for row in conn.execute(
-            "SELECT name FROM sqlite_master WHERE type = 'table'"
-        ).fetchall()
+        for row in conn.execute("SELECT name FROM sqlite_master WHERE type = 'table'").fetchall()
     }
     assert "sessions" in tables
     assert "scan_log" in tables
@@ -168,8 +169,7 @@ def test_ensure_schema_exists_creates_artifact_table_for_incremental_scan(tmp_pa
     assert "index_metadata" in tables
 
     session_columns = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
+        row["name"] for row in conn.execute("PRAGMA table_info(sessions)").fetchall()
     }
     assert {
         "fresh_input_tokens",
@@ -180,8 +180,7 @@ def test_ensure_schema_exists_creates_artifact_table_for_incremental_scan(tmp_pa
     }.issubset(session_columns)
 
     artifact_columns = {
-        row["name"]
-        for row in conn.execute("PRAGMA table_info(session_artifacts)").fetchall()
+        row["name"] for row in conn.execute("PRAGMA table_info(session_artifacts)").fetchall()
     }
     assert {
         "session_key",

@@ -7,7 +7,7 @@ from session_browser.attribution.core.models import UsageBreakdown
 
 def normalize_openai_responses_usage(breakdown: UsageBreakdown) -> UsageBreakdown:
     """标准化 OpenAI Responses UsageBreakdown。"""
-    if breakdown.usage_source == "unavailable":
+    if breakdown.usage_source == 'unavailable':
         return breakdown
 
     fresh = breakdown.fresh_input or 0
@@ -23,5 +23,5 @@ def normalize_openai_responses_usage(breakdown: UsageBreakdown) -> UsageBreakdow
         hidden_reasoning=breakdown.hidden_reasoning,
         usage_source=breakdown.usage_source,
         precision=breakdown.precision,
-        note=breakdown.note or "OpenAI Responses usage normalized",
+        note=breakdown.note or 'OpenAI Responses usage normalized',
     )

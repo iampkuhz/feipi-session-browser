@@ -6,11 +6,11 @@ Timeline tab and merges raw parse summaries into DB canonical summaries.
 
 from __future__ import annotations
 
-from session_browser.domain.models import ConversationRound
+from session_browser.domain.session_models import SessionSummary
 
 
 def compute_bar_scale(round_tokens: int, max_round_tokens: int) -> float:
-    """计算 该 proportional width，用于 一个 round's token bar.
+    """计算 该 proportional width,用于 一个 round's token bar.
 
     Returns a percentage (0-100) representing how wide this round's
     bar should be relative to the maximum round in the timeline.
@@ -22,11 +22,11 @@ def compute_bar_scale(round_tokens: int, max_round_tokens: int) -> float:
 
 
 def compute_round_signals(
-    round,  # 说明：ConversationRound
-    round_index: int,  # 说明：1-based
+    round,  # 说明:ConversationRound
+    round_index: int,  # 说明:1-based
     session_input_tokens: int = 0,
 ) -> list[dict]:
-    """计算 actionable round-level signals，用于 该 Timeline tab.
+    """计算 actionable round-level signals,用于 该 Timeline tab.
 
     Only returns signals that represent "worth opening to investigate" events.
     Normal/positive/low-value states (warm-up, cache-hit, low-output) are
@@ -37,66 +37,76 @@ def compute_round_signals(
     signals: list[dict] = []
 
     rb = round.token_breakdown()
-    round_input_total = rb["input"] + rb["cache_read"] + rb["cache_write"]
+    round_input_total = rb['input'] + rb['cache_read'] + rb['cache_write']
     round_tools = round.tool_calls
     failed_tools = [tc for tc in round_tools if tc.is_failed]
-    # 说明：The caller should pass session input-side total:
-    # 说明：fresh + cache read + cache write. Older callers may pass Fresh only;
-    # in that case 该 relative guard remains conservative，用于 tests.
+    # 说明:The caller should pass session input-side total:
+    # 说明:fresh + cache read + cache write. Older callers may pass Fresh only;
+    # in that case 该 relative guard remains conservative,用于 tests.
     total_session_input = session_input_tokens
 
-    # 说明：── Critical signals ────────────────────────────────────────────
+    # 说明:── Critical signals ────────────────────────────────────────────
 
     # Failed tool calls in 一个 single round: warning at 1-2, critical at >= 3
     if len(failed_tools) >= 3:
         count = len(failed_tools)
-        names = ", ".join(tc.name for tc in failed_tools[:3])
-        suffix = f" +{count - 3}" if count > 3 else ""
-        signals.append({
-            "key": "failed-tool",
-            "label": "failed tool",
-            "severity": "critical",
-            "reason": f"{count} failed tools: {names}{suffix}",
-        })
+        names = ', '.join(tc.name for tc in failed_tools[:3])
+        suffix = f' +{count - 3}' if count > 3 else ''
+        signals.append(
+            {
+                'key': 'failed-tool',
+                'label': 'failed tool',
+                'severity': 'critical',
+                'reason': f'{count} failed tools: {names}{suffix}',
+            }
+        )
     elif len(failed_tools) >= 1:
         count = len(failed_tools)
-        names = ", ".join(tc.name for tc in failed_tools[:3])
-        signals.append({
-            "key": "failed-tool",
-            "label": "failed tool",
-            "severity": "warning",
-            "reason": f"{count} failed tool{'s' if count != 1 else ''}: {names}",
-        })
+        names = ', '.join(tc.name for tc in failed_tools[:3])
+        signals.append(
+            {
+                'key': 'failed-tool',
+                'label': 'failed tool',
+                'severity': 'warning',
+                'reason': f'{count} failed tool{"s" if count != 1 else ""}: {names}',
+            }
+        )
 
     # LLM errors in 一个 single round: warning at 1-2, critical at >= 3
     if round.llm_error_count >= 3:
-        signals.append({
-            "key": "llm-error",
-            "label": "llm error",
-            "severity": "critical",
-            "reason": f"{round.llm_error_count} LLM errors in this round",
-        })
+        signals.append(
+            {
+                'key': 'llm-error',
+                'label': 'llm error',
+                'severity': 'critical',
+                'reason': f'{round.llm_error_count} LLM errors in this round',
+            }
+        )
     elif round.llm_error_count >= 1:
-        signals.append({
-            "key": "llm-error",
-            "label": "llm error",
-            "severity": "warning",
-            "reason": f"{round.llm_error_count} LLM error{'s' if round.llm_error_count != 1 else ''} in this round",
-        })
+        signals.append(
+            {
+                'key': 'llm-error',
+                'label': 'llm error',
+                'severity': 'warning',
+                'reason': f'{round.llm_error_count} LLM error{"s" if round.llm_error_count != 1 else ""} in this round',
+            }
+        )
 
-    # 说明：── Warning signals ─────────────────────────────────────────────
+    # 说明:── Warning signals ─────────────────────────────────────────────
 
-    # 说明：Single tool taking >= 5 minutes
+    # 说明:Single tool taking >= 5 minutes
     long_tools = [tc for tc in round_tools if tc.duration_ms >= 300_000]
     if long_tools:
-        names = ", ".join(tc.name for tc in long_tools[:2])
-        suffix = f" +{len(long_tools) - 2}" if len(long_tools) > 2 else ""
-        signals.append({
-            "key": "long-tool",
-            "label": "long tool",
-            "severity": "warning",
-            "reason": f"{len(long_tools)} tool{'s' if len(long_tools) != 1 else ''} >= 5 min: {names}{suffix}",
-        })
+        names = ', '.join(tc.name for tc in long_tools[:2])
+        suffix = f' +{len(long_tools) - 2}' if len(long_tools) > 2 else ''
+        signals.append(
+            {
+                'key': 'long-tool',
+                'label': 'long tool',
+                'severity': 'warning',
+                'reason': f'{len(long_tools)} tool{"s" if len(long_tools) != 1 else ""} >= 5 min: {names}{suffix}',
+            }
+        )
 
     # >= 20 tool calls in 一个 round (possible loop / efficiency issue)
     if len(round_tools) >= 20:
@@ -104,57 +114,65 @@ def compute_round_signals(
         tool_name_counts: dict[str, int] = {}
         for tc in round_tools:
             tool_name_counts[tc.name] = tool_name_counts.get(tc.name, 0) + 1
-        # If top 3 tools account，用于 >= 90% of calls, it's likely 一个 tight loop
+        # If top 3 tools account,用于 >= 90% of calls, it's likely 一个 tight loop
         sorted_counts = sorted(tool_name_counts.values(), reverse=True)
         top3 = sum(sorted_counts[:3])
         is_tight_loop = top3 >= int(len(round_tools) * 0.9)
         if not is_tight_loop or len(tool_name_counts) >= 5:
-            signals.append({
-                "key": "tool-burst",
-                "label": "tool burst",
-                "severity": "warning",
-                "reason": f"{len(round_tools)} tool calls in round {round_index}",
-            })
+            signals.append(
+                {
+                    'key': 'tool-burst',
+                    'label': 'tool burst',
+                    'severity': 'warning',
+                    'reason': f'{len(round_tools)} tool calls in round {round_index}',
+                }
+            )
 
     # Cache write >= 300K tokens in 一个 single round
-    # 说明：(100K is common in long sessions; 300K+ indicates unusual context accumulation)
-    if rb["cache_write"] >= 300_000:
-        signals.append({
-            "key": "high-write",
-            "label": "high write",
-            "severity": "warning",
-            "reason": f"{rb['cache_write']:,} cache write tokens in round {round_index}",
-        })
+    # 说明:(100K is common in long sessions; 300K+ indicates unusual context accumulation)
+    if rb['cache_write'] >= 300_000:
+        signals.append(
+            {
+                'key': 'high-write',
+                'label': 'high write',
+                'severity': 'warning',
+                'reason': f'{rb["cache_write"]:,} cache write tokens in round {round_index}',
+            }
+        )
 
-    # 说明：Large input: requires BOTH absolute (>= 200K) AND relative (>= 50% of session)
-    # 说明：thresholds. An absolute-only check fires constantly as session context grows;
-    # the percentage guard ensures it 仅 fires，当 该 round is truly
+    # 说明:Large input: requires BOTH absolute (>= 200K) AND relative (>= 50% of session)
+    # 说明:thresholds. An absolute-only check fires constantly as session context grows;
+    # the percentage guard ensures it 仅 fires,当 该 round is truly
     # disproportionate to 该 session overall.
-    if (round_input_total >= 200_000
-            and total_session_input > 0
-            and round_input_total / total_session_input >= 0.5):
+    if (
+        round_input_total >= 200_000
+        and total_session_input > 0
+        and round_input_total / total_session_input >= 0.5
+    ):
         pct = round_input_total / total_session_input * 100
-        signals.append({
-            "key": "large-input",
-            "label": "large input",
-            "severity": "warning",
-            "reason": f"{round_input_total:,} input tokens in round {round_index} ({pct:.0f}% of session)",
-        })
+        signals.append(
+            {
+                'key': 'large-input',
+                'label': 'large input',
+                'severity': 'warning',
+                'reason': f'{round_input_total:,} input tokens in round {round_index} ({pct:.0f}% of session)',
+            }
+        )
 
     return signals
 
 
 def _merge_raw_into_db_summary(
-    db_summary: "SessionSummary",
-    raw_summary: "SessionSummary | None",
-) -> "SessionSummary":
-    """把 raw parse summary 合并进 DB canonical summary。
+    db_summary: SessionSummary,
+    raw_summary: SessionSummary | None,
+) -> SessionSummary:
+    """把 raw parse summary 合并进 DB canonical summary..
 
-    DB 结构计数仍是权威来源；只有 DB 字段为空/0 时才使用 raw 值，
-    保持列表页和详情页 round count 一致。Claude Code 的详情页 token
-    组件例外：raw parse 会包含 subagent sidechain 合计，可能比索引摘要更完整。
+    DB 结构计数仍是权威来源;只有 DB 字段为空/0 时才使用 raw 值,
+    保持列表页和详情页 round count 一致.Claude Code 的详情页 token
+    组件例外:raw parse 会包含 subagent sidechain 合计,可能比索引摘要更完整.
 
-    返回可能已原地修改的 db_summary。
+    返回可能已原地修改的 db_summary.
     """
     if raw_summary is None:
         return db_summary
@@ -167,7 +185,7 @@ def _merge_raw_into_db_summary(
         db_summary.tool_call_count = raw_summary.tool_call_count
     if not db_summary.failed_tool_count:
         db_summary.failed_tool_count = raw_summary.failed_tool_count
-    if not getattr(db_summary, "file_path", "") and getattr(raw_summary, "file_path", ""):
+    if not getattr(db_summary, 'file_path', '') and getattr(raw_summary, 'file_path', ''):
         db_summary.file_path = raw_summary.file_path
     raw_token_total = (
         (raw_summary.fresh_input_tokens or 0)
@@ -175,7 +193,7 @@ def _merge_raw_into_db_summary(
         + (raw_summary.cache_write_tokens or 0)
         + (raw_summary.output_tokens or 0)
     )
-    if db_summary.agent == "claude_code" and raw_token_total:
+    if db_summary.agent == 'claude_code' and raw_token_total:
         db_summary.fresh_input_tokens = raw_summary.fresh_input_tokens
         db_summary.output_tokens = raw_summary.output_tokens
         db_summary.cache_read_tokens = raw_summary.cache_read_tokens

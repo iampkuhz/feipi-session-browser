@@ -1,85 +1,89 @@
-"""Token usage normalizer，用于 session-browser.
+"""Domain layer models and helpers for normalized session data.
 
-Maps provider-specific usage fields into a unified NormalizedTokenBreakdown
-with a canonical 5-field breakdown.
-
-Provider mappings:
-- Claude Code: input_tokens=Fresh, cache_read/cache_creation=separate buckets
-- Codex/OpenAI: input_tokens is Provider Request Input; cached_input_tokens is a subset
-- Qoder: input_tokens is Fresh unless an adapter has explicit inclusive-input evidence
-
-Rules:
-1. Every session/LLM call gets 5 int fields: fresh_input, cache_read, cache_write, output, total.
-2. No null/undefined/NaN — all fields default to 0.
-3. Direct fields take priority; aliases are normalized.
-4. Fresh means the mutually exclusive new-input component. For OpenAI/Codex
-   cache read is subtracted when it is a Provider Request Input subset.
-5. Metadata records precision, source_kind, total_semantics, and notes.
+Parser, attribution, and presenter flows import this module for stable contracts.
+It performs no I/O.
 """
 
 from __future__ import annotations
 
 import math
-from typing import Optional
 
 from session_browser.domain.models import (
     NormalizedTokenBreakdown,
     TokenPrecision,
     TokenProvider,
-    TokenTotalSemantics,
     TokenSourceKind,
+    TokenTotalSemantics,
 )
 from session_browser.domain.token_normalizers.codex_token_normalizer import (
     normalize_codex_from_delta,
     normalize_codex_usage,
 )
 
+# 说明:─── Provider inference ──────────────────────────────────────────────────
 
-# 说明：─── Provider inference ──────────────────────────────────────────────────
 
+def _infer_provider(model: str | None) -> str:
+    """_infer_provider function used by the session browser pipeline.
 
-def _infer_provider(model: Optional[str]) -> str:
-    """推断 provider，来源于 model string."""
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        model: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     if model is None:
         return TokenProvider.UNKNOWN
 
     model_lower = model.lower()
 
-    if "qwen" in model_lower:
+    if 'qwen' in model_lower:
         return TokenProvider.QWEN_ANTHROPIC_COMPATIBLE
 
-    if "claude" in model_lower:
+    if 'claude' in model_lower:
         return TokenProvider.ANTHROPIC
 
-    if any(x in model_lower for x in ["gpt-", "o1", "o3", "davinci", "curie", "babbage", "ada"]):
+    if any(x in model_lower for x in ['gpt-', 'o1', 'o3', 'davinci', 'curie', 'babbage', 'ada']):
         return TokenProvider.OPENAI
 
     return TokenProvider.UNKNOWN
 
 
-# 说明：─── Alias extraction helpers ────────────────────────────────────────────
+# 说明:─── Alias extraction helpers ────────────────────────────────────────────
 
 
 def normalize_tokens(
     usage: dict,
-    provider: Optional[str] = None,
-    model: Optional[str] = None,
+    provider: str | None = None,
+    model: str | None = None,
 ) -> NormalizedTokenBreakdown:
-    """归一化 provider usage，转换为 一个 unified 5-field breakdown.
+    """normalize_tokens function used by the session browser pipeline.
 
-    Every return has all 5 int fields set (never None/NaN).
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+        provider: Input value supplied by the caller for this pipeline step.
+        model: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
     if not usage or not isinstance(usage, dict):
         if provider == TokenProvider.QODER:
             return NormalizedTokenBreakdown(
                 precision=TokenPrecision.ESTIMATED,
                 source_kind=TokenSourceKind.QODER_TRANSCRIPT_ESTIMATED,
-                notes=["No usage data; zero-filled."],
+                notes=['No usage data; zero-filled.'],
             )
         return NormalizedTokenBreakdown(
             precision=TokenPrecision.UNKNOWN,
             source_kind=TokenSourceKind.UNKNOWN,
-            notes=["No usage data; zero-filled."],
+            notes=['No usage data; zero-filled.'],
         )
 
     if provider is None:
@@ -87,21 +91,32 @@ def normalize_tokens(
 
     if provider in (TokenProvider.ANTHROPIC, TokenProvider.QWEN_ANTHROPIC_COMPATIBLE):
         return _normalize_claude_code(usage)
-    elif provider == TokenProvider.CODEX:
+    if provider == TokenProvider.CODEX:
         return _normalize_codex(usage)
-    elif provider == TokenProvider.QODER:
+    if provider == TokenProvider.QODER:
         return _normalize_qoder(usage)
-    elif provider == TokenProvider.OPENAI:
+    if provider == TokenProvider.OPENAI:
         return _normalize_openai(usage)
 
     return _normalize_generic(usage)
 
 
-# 说明：─── Alias extraction helpers ────────────────────────────────────────────
+# 说明:─── Alias extraction helpers ────────────────────────────────────────────
 
 
 def _get_int(d: dict, *keys: str) -> int:
-    """返回 该 first int found among keys; 0，如果 none."""
+    """_get_int function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        d: Input value supplied by the caller for this pipeline step.
+        *keys: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     for k in keys:
         val = d.get(k)
         if val is not None:
@@ -112,8 +127,19 @@ def _get_int(d: dict, *keys: str) -> int:
     return 0
 
 
-def _get_int_or_none(d: dict, *keys: str) -> Optional[int]:
-    """返回 该 first int found among keys; None，如果 none."""
+def _get_int_or_none(d: dict, *keys: str) -> int | None:
+    """_get_int_or_none function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        d: Input value supplied by the caller for this pipeline step.
+        *keys: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     for k in keys:
         val = d.get(k)
         if val is not None:
@@ -125,6 +151,19 @@ def _get_int_or_none(d: dict, *keys: str) -> Optional[int]:
 
 
 def _get_nested_int(d: dict, outer: str, inner: str) -> int:
+    """_get_nested_int function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        d: Input value supplied by the caller for this pipeline step.
+        outer: Input value supplied by the caller for this pipeline step.
+        inner: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     outer_d = d.get(outer)
     if isinstance(outer_d, dict):
         val = outer_d.get(inner)
@@ -137,24 +176,41 @@ def _get_nested_int(d: dict, outer: str, inner: str) -> int:
 
 
 def _estimate_tokens(text: str) -> int:
-    """Estimate tokens，来源于 text using ceil(utf8_byte_len / 3.5)."""
+    """_estimate_tokens function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        text: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     if not text:
         return 0
-    return max(1, math.ceil(len(text.encode("utf-8")) / 3.5))
+    return max(1, math.ceil(len(text.encode('utf-8')) / 3.5))
 
 
-# 说明：─── Claude Code unified normalizer ──────────────────────────────────────
+# 说明:─── Claude Code unified normalizer ──────────────────────────────────────
 
 
 def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
-    """说明：Claude Code: input_tokens = fresh; cache buckets are separate.
+    """_normalize_claude_code function used by the session browser pipeline.
 
-    total = fresh + cache_read + cache_write + output (exclusive_components_sum).
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
-    fresh = _get_int(usage, "input_tokens")
-    cache_read = _get_int(usage, "cache_read_input_tokens")
-    cache_write = _get_int(usage, "cache_creation_input_tokens")
-    output = _get_int(usage, "output_tokens")
+    fresh = _get_int(usage, 'input_tokens')
+    cache_read = _get_int(usage, 'cache_read_input_tokens')
+    cache_write = _get_int(usage, 'cache_creation_input_tokens')
+    output = _get_int(usage, 'output_tokens')
     total = fresh + cache_read + cache_write + output
 
     return NormalizedTokenBreakdown(
@@ -170,37 +226,68 @@ def _normalize_claude_code(usage: dict) -> NormalizedTokenBreakdown:
     )
 
 
-# 说明：─── Codex unified normalizer ────────────────────────────────────────────
+# 说明:─── Codex unified normalizer ────────────────────────────────────────────
 
 
 def _normalize_codex(usage: dict) -> NormalizedTokenBreakdown:
-    """Codex 归一化委托给 agent 专属模块维护。"""
+    """_normalize_codex function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     return normalize_codex_usage(usage)
 
 
 def _normalize_codex_from_delta(
     current: dict,
-    previous: Optional[dict] = None,
+    previous: dict | None = None,
 ) -> NormalizedTokenBreakdown:
-    """Codex cumulative delta 归一化委托给 agent 专属模块维护。"""
+    """_normalize_codex_from_delta function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        current: Input value supplied by the caller for this pipeline step.
+        previous: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     return normalize_codex_from_delta(current, previous)
 
 
-# 说明：─── Qoder unified normalizer ────────────────────────────────────────────
+# 说明:─── Qoder unified normalizer ────────────────────────────────────────────
 
 
 def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
-    """Qoder structured logs: input_tokens is 该 logical request input size.
+    """_normalize_qoder function used by the session browser pipeline.
 
-    Fresh must remain the request input size. Cache read/write fields are
-    reported separately and are not subtracted from Fresh.
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
-    raw_input = _get_int(usage, "input_tokens", "prompt_tokens")
-    raw_cache_read = _get_int(usage, "cache_read_input_tokens", "cache_read_tokens", "cached_tokens")
-    raw_cache_write = _get_int(usage, "cache_creation_input_tokens", "cache_write_input_tokens", "cache_write_tokens")
-    raw_output = _get_int(usage, "output_tokens", "completion_tokens")
-    raw_thinking = _get_int(usage, "thinking_tokens", "reasoning_tokens", "reasoning_output_tokens")
-    raw_total = _get_int(usage, "total_tokens", "total_token_usage")
+    raw_input = _get_int(usage, 'input_tokens', 'prompt_tokens')
+    raw_cache_read = _get_int(
+        usage, 'cache_read_input_tokens', 'cache_read_tokens', 'cached_tokens'
+    )
+    raw_cache_write = _get_int(
+        usage, 'cache_creation_input_tokens', 'cache_write_input_tokens', 'cache_write_tokens'
+    )
+    raw_output = _get_int(usage, 'output_tokens', 'completion_tokens')
+    raw_thinking = _get_int(usage, 'thinking_tokens', 'reasoning_tokens', 'reasoning_output_tokens')
+    raw_total = _get_int(usage, 'total_tokens', 'total_token_usage')
 
     cache_read = raw_cache_read
     cache_write = raw_cache_write
@@ -212,7 +299,7 @@ def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
     output = raw_output
     if raw_thinking > 0:
         if raw_total > 0 and (raw_output + raw_thinking) > raw_total:
-            # 说明：Don't double-add thinking; keep in raw_fields only
+            # 说明:Don't double-add thinking; keep in raw_fields only
             pass
         else:
             output = raw_output + raw_thinking
@@ -233,14 +320,20 @@ def _normalize_qoder(usage: dict) -> NormalizedTokenBreakdown:
 
 
 def normalize_qoder_sqlite_unified(token_info: dict) -> NormalizedTokenBreakdown:
-    """Qoder SQLite token_info: prompt_tokens is 该 request input size.
+    """normalize_qoder_sqlite_unified function used by the session browser pipeline.
 
-    cached_tokens is tracked separately as cache read. UI total is the component
-    sum so the tokenbar uses the same semantics as JSONL-derived Qoder usage.
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        token_info: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
-    raw_prompt = _get_int(token_info, "prompt_tokens")
-    raw_cached = _get_int(token_info, "cached_tokens")
-    raw_completion = _get_int(token_info, "completion_tokens")
+    raw_prompt = _get_int(token_info, 'prompt_tokens')
+    raw_cached = _get_int(token_info, 'cached_tokens')
+    raw_completion = _get_int(token_info, 'completion_tokens')
 
     cache_read = min(raw_cached, raw_prompt)
     fresh = raw_prompt
@@ -259,51 +352,79 @@ def normalize_qoder_sqlite_unified(token_info: dict) -> NormalizedTokenBreakdown
         source_kind=TokenSourceKind.QODER_SQLITE_TOKEN_INFO,
         raw_fields={k: v for k, v in token_info.items() if isinstance(v, (int, float))},
         notes=[
-            "Qoder SQLite prompt_tokens is used as Fresh request input size.",
-            "Cache Write unavailable in Qoder SQLite; zero-filled.",
+            'Qoder SQLite prompt_tokens is used as Fresh request input size.',
+            'Cache Write unavailable in Qoder SQLite; zero-filled.',
         ],
     )
 
 
 def _normalize_qoder_with_text(
     usage: dict,
-    assistant_text: str = "",
-    request_text: str = "",
+    assistant_text: str = '',
+    request_text: str = '',
 ) -> NormalizedTokenBreakdown:
-    """Qoder fallback: use text estimation，用于 missing fields."""
+    """_normalize_qoder_with_text function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+        assistant_text: Input value supplied by the caller for this pipeline step.
+        request_text: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     bd = _normalize_qoder(usage)
 
-    # Fill output，来源于 text，如果 missing
+    # Fill output,来源于 text,如果 missing
     if bd.output_tokens == 0 and assistant_text:
         bd.output_tokens = _estimate_tokens(assistant_text)
         bd.precision = TokenPrecision.ESTIMATED_PARTIAL
-        bd.total_tokens = bd.fresh_input_tokens + bd.cache_read_tokens + bd.cache_write_tokens + bd.output_tokens
-        bd.notes.append("Output estimated from assistant text.")
+        bd.total_tokens = (
+            bd.fresh_input_tokens + bd.cache_read_tokens + bd.cache_write_tokens + bd.output_tokens
+        )
+        bd.notes.append('Output estimated from assistant text.')
 
-    # Fill input，来源于 text，如果 missing
+    # Fill input,来源于 text,如果 missing
     if bd.fresh_input_tokens == 0 and request_text:
         bd.fresh_input_tokens = _estimate_tokens(request_text)
         bd.cache_read_tokens = 0
         bd.cache_write_tokens = 0
         bd.precision = TokenPrecision.ESTIMATED_PARTIAL
-        bd.total_tokens = bd.fresh_input_tokens + bd.cache_read_tokens + bd.cache_write_tokens + bd.output_tokens
-        bd.notes.append("Fresh Input estimated from request text.")
+        bd.total_tokens = (
+            bd.fresh_input_tokens + bd.cache_read_tokens + bd.cache_write_tokens + bd.output_tokens
+        )
+        bd.notes.append('Fresh Input estimated from request text.')
 
     return bd
 
 
-# 说明：─── OpenAI unified normalizer ───────────────────────────────────────────
+# 说明:─── OpenAI unified normalizer ───────────────────────────────────────────
 
 
 def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
-    """OpenAI: cached input is 一个 subset of Provider Request Input."""
-    input_tokens = _get_int(usage, "input_tokens") or _get_int(usage, "prompt_tokens")
-    provider_output_total = _get_int(usage, "output_tokens") or _get_int(usage, "completion_tokens")
+    """_normalize_openai function used by the session browser pipeline.
 
-    cached = (_get_nested_int(usage, "input_tokens_details", "cached_tokens")
-              or _get_nested_int(usage, "prompt_tokens_details", "cached_tokens"))
-    reasoning = (_get_nested_int(usage, "output_tokens_details", "reasoning_tokens")
-                 or _get_nested_int(usage, "completion_tokens_details", "reasoning_tokens"))
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
+    input_tokens = _get_int(usage, 'input_tokens') or _get_int(usage, 'prompt_tokens')
+    provider_output_total = _get_int(usage, 'output_tokens') or _get_int(usage, 'completion_tokens')
+
+    cached = _get_nested_int(usage, 'input_tokens_details', 'cached_tokens') or _get_nested_int(
+        usage, 'prompt_tokens_details', 'cached_tokens'
+    )
+    reasoning = _get_nested_int(
+        usage, 'output_tokens_details', 'reasoning_tokens'
+    ) or _get_nested_int(usage, 'completion_tokens_details', 'reasoning_tokens')
 
     cached = min(cached, input_tokens) if input_tokens else cached
     fresh = max(input_tokens - cached, 0) if input_tokens else 0
@@ -315,8 +436,8 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     notes: list[str] = []
     if reasoning > 0:
         notes.append(
-            "Hidden reasoning tokens are retained as an output breakdown; "
-            "Output keeps the provider reported output_tokens total."
+            'Hidden reasoning tokens are retained as an output breakdown; '
+            'Output keeps the provider reported output_tokens total.'
         )
 
     return NormalizedTokenBreakdown(
@@ -333,28 +454,46 @@ def _normalize_openai(usage: dict) -> NormalizedTokenBreakdown:
     )
 
 
-# 说明：─── Generic unified normalizer ──────────────────────────────────────────
+# 说明:─── Generic unified normalizer ──────────────────────────────────────────
 
 
 def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
-    """Generic fallback，用于 unknown providers."""
-    total_only = _get_int(usage, "total_tokens", "total_token_usage", "tokens_used")
+    """_normalize_generic function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        usage: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
+    total_only = _get_int(usage, 'total_tokens', 'total_token_usage', 'tokens_used')
 
     # 提取 breakdown fields
-    raw_input = _get_int(usage, "input_tokens", "prompt_tokens", "input")
-    raw_cache_read = _get_int(usage, "cache_read_input_tokens", "cached_input_tokens", "cache_read_tokens", "cached_tokens")
-    raw_cache_write = _get_int(usage, "cache_creation_input_tokens", "cache_write_input_tokens", "cache_write_tokens")
-    raw_output = _get_int(usage, "output_tokens", "completion_tokens", "output")
+    raw_input = _get_int(usage, 'input_tokens', 'prompt_tokens', 'input')
+    raw_cache_read = _get_int(
+        usage,
+        'cache_read_input_tokens',
+        'cached_input_tokens',
+        'cache_read_tokens',
+        'cached_tokens',
+    )
+    raw_cache_write = _get_int(
+        usage, 'cache_creation_input_tokens', 'cache_write_input_tokens', 'cache_write_tokens'
+    )
+    raw_output = _get_int(usage, 'output_tokens', 'completion_tokens', 'output')
 
     if raw_input or raw_cache_read or raw_cache_write or raw_output:
-        # Has some breakdown — compute，来源于 components
+        # Has some breakdown — compute,来源于 components
         fresh = raw_input
         total = fresh + raw_cache_read + raw_cache_write + raw_output
         notes = []
         if total_only > 0 and total_only != total:
             notes.append(
-                f"Raw reported total ({total_only}) differs from component sum ({total}); "
-                "using component sum for UI token composition."
+                f'Raw reported total ({total_only}) differs from component sum ({total}); '
+                'using component sum for UI token composition.'
             )
         return NormalizedTokenBreakdown(
             fresh_input_tokens=fresh,
@@ -370,7 +509,7 @@ def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
         )
 
     if total_only > 0:
-        # 说明：Total-only fallback
+        # 说明:Total-only fallback
         return NormalizedTokenBreakdown(
             fresh_input_tokens=total_only,
             cache_read_tokens=0,
@@ -381,49 +520,79 @@ def _normalize_generic(usage: dict) -> NormalizedTokenBreakdown:
             total_semantics=TokenTotalSemantics.REPORTED_TOTAL,
             source_kind=TokenSourceKind.SESSION_TOTAL_ONLY_FALLBACK,
             raw_fields={k: v for k, v in usage.items() if isinstance(v, (int, float))},
-            notes=["Only total token value is available; assigned to Fresh Input as fallback."],
+            notes=['Only total token value is available; assigned to Fresh Input as fallback.'],
         )
 
     return NormalizedTokenBreakdown(
         precision=TokenPrecision.UNKNOWN,
         source_kind=TokenSourceKind.UNKNOWN,
-        notes=["No token source available."],
+        notes=['No token source available.'],
     )
 
 
-# 说明：─── Helpers ───────────────────────────────────────────────────────────────
+# 说明:─── Helpers ───────────────────────────────────────────────────────────────
 
 
-def format_tokens(n: Optional[int]) -> str:
-    """格式化 token count，用于 display. Unknown/None returns '—'."""
+def format_tokens(n: int | None) -> str:
+    """format_tokens function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        n: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     if n is None:
-        return "—"
+        return '—'
     if n >= 1_000_000:
-        return f"{n / 1_000_000:.1f}M"
+        return f'{n / 1_000_000:.1f}M'
     if n >= 1_000:
-        return f"{n / 1_000:.1f}K"
+        return f'{n / 1_000:.1f}K'
     return str(n)
 
 
 def precision_label(precision: str) -> str:
-    """返回 一个 human-readable precision label."""
+    """precision_label function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        precision: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     labels = {
-        TokenPrecision.EXACT: "exact",
-        TokenPrecision.PROVIDER_REPORTED: "provider_reported",
-        TokenPrecision.ESTIMATED: "estimated",
-        TokenPrecision.UNKNOWN: "unavailable",
-        TokenPrecision.ZERO_FILLED_UNAVAILABLE: "unavailable",
+        TokenPrecision.EXACT: 'exact',
+        TokenPrecision.PROVIDER_REPORTED: 'provider_reported',
+        TokenPrecision.ESTIMATED: 'estimated',
+        TokenPrecision.UNKNOWN: 'unavailable',
+        TokenPrecision.ZERO_FILLED_UNAVAILABLE: 'unavailable',
     }
-    return labels.get(precision, "unavailable")
+    return labels.get(precision, 'unavailable')
 
 
 def precision_color(precision: str) -> str:
-    """返回 一个 CSS color，用于 precision level."""
+    """precision_color function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        precision: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     colors = {
-        TokenPrecision.EXACT: "#10b981",
-        TokenPrecision.PROVIDER_REPORTED: "#3b82f6",
-        TokenPrecision.ESTIMATED: "#f59e0b",
-        TokenPrecision.UNKNOWN: "#6b7280",
-        TokenPrecision.ZERO_FILLED_UNAVAILABLE: "#6b7280",
+        TokenPrecision.EXACT: '#10b981',
+        TokenPrecision.PROVIDER_REPORTED: '#3b82f6',
+        TokenPrecision.ESTIMATED: '#f59e0b',
+        TokenPrecision.UNKNOWN: '#6b7280',
+        TokenPrecision.ZERO_FILLED_UNAVAILABLE: '#6b7280',
     }
-    return colors.get(precision, "#6b7280")
+    return colors.get(precision, '#6b7280')

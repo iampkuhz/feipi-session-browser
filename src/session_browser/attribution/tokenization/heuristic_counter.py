@@ -1,22 +1,25 @@
-"""Heuristic token counter：基于字符数的 fallback token 估算。
+"""Fallback token counters based on local character estimates.
 
-当 tiktoken 不可用时使用此策略。
-估算公式：~4 字符/token（英文文本的经验值）。
+These counters run when provider exact usage, provider count APIs, and local tokenizers
+are unavailable. They accept plain text or serialized request and response payloads and
+return non-negative estimated token counts for attribution buckets.
 """
 
 from __future__ import annotations
+
+import json
 
 _CHARS_PER_TOKEN = 4
 
 
 def estimate_tokens_heuristic(text: str) -> int:
-    """基于字符数的 heuristic token 估算。
+    """Estimate token count from text length.
 
     Args:
-        text: 输入文本
+        text: Request, response, or bucket text to estimate.
 
     Returns:
-        估算 token 数，至少为 0
+        Non-negative token estimate using roughly four characters per token.
     """
     if not text:
         return 0
@@ -24,18 +27,17 @@ def estimate_tokens_heuristic(text: str) -> int:
 
 
 def estimate_tokens_from_object(obj: object) -> int:
-    """从任意对象估算 token 数。
+    """Estimate token count from text or structured payload data.
 
-    策略：
-    - str: 直接估算
-    - dict/list: 转为 JSON 字符串后估算
-    - 其他: 转为字符串后估算
+    Args:
+        obj: Text, dict, list, or scalar payload captured for a call segment.
+
+    Returns:
+        Non-negative heuristic token estimate after stable JSON or string conversion.
     """
     if isinstance(obj, str):
         return estimate_tokens_heuristic(obj)
-    elif isinstance(obj, (dict, list)):
-        import json
+    if isinstance(obj, (dict, list)):
         text = json.dumps(obj, ensure_ascii=False)
         return estimate_tokens_heuristic(text)
-    else:
-        return estimate_tokens_heuristic(str(obj))
+    return estimate_tokens_heuristic(str(obj))

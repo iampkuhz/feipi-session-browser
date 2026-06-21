@@ -1,4 +1,4 @@
-"""Subagent prompt 读取器：读取 .claude/agents/{subagent_type}.md。"""
+"""Subagent prompt 读取器:读取 .claude/agents/{subagent_type}.md."""
 
 from __future__ import annotations
 
@@ -18,41 +18,58 @@ def read_subagent_prompt(
     subagent_type: str,
     evidence_counter: int = 0,
 ) -> Evidence | None:
-    """读取 subagent 的 prompt 文件。"""
+    """读取指定 subagent 的 prompt 文件.
+
+    Args:
+        project_dir: 项目根目录, 用于定位 `.claude/agents` 或
+            `.codex/agents`.
+        subagent_type: subagent 类型名, 对应 `{subagent_type}.md`.
+        evidence_counter: evidence ID 后缀, 用于调用方保持 ID 唯一.
+
+    Returns:
+        找到 prompt 文件时返回 subagent prompt evidence, 否则返回 None.
+    """
     path = Path(project_dir)
     candidates = [
-        path / ".claude" / "agents" / f"{subagent_type}.md",
-        path / ".codex" / "agents" / f"{subagent_type}.md",
+        path / '.claude' / 'agents' / f'{subagent_type}.md',
+        path / '.codex' / 'agents' / f'{subagent_type}.md',
     ]
 
     for candidate in candidates:
         try:
             if candidate.exists() and candidate.is_file():
-                text = candidate.read_text(encoding="utf-8", errors="replace")
+                text = candidate.read_text(encoding='utf-8', errors='replace')
                 text = text[:_MAX_PROMPT_SIZE]
                 return Evidence(
-                    evidence_id=f"subagent_prompt_{evidence_counter}",
-                    scope="project_repo",
-                    kind="subagent_prompt",
+                    evidence_id=f'subagent_prompt_{evidence_counter}',
+                    scope='project_repo',
+                    kind='subagent_prompt',
                     source_path=str(candidate),
                     content_ref=ContentRef(
-                        kind="file_slice",
+                        kind='file_slice',
                         pointer=str(candidate),
                         preview=text[:200],
                         can_load_full=True,
                     ),
                     text_preview=text[:200],
-                    precision="extracted",
+                    precision='extracted',
                     confidence=0.9,
                 )
         except (OSError, PermissionError) as exc:
-            logger.debug("无法读取 subagent prompt %s: %s", candidate, exc)
+            logger.debug('无法读取 subagent prompt %s: %s', candidate, exc)
 
     return None
 
 
 def parse_tools_from_frontmatter(text: str) -> list[str] | None:
-    """从 YAML frontmatter 中解析 tools: 字段。"""
+    """从 YAML frontmatter 中解析 tools 字段.
+
+    Args:
+        text: subagent prompt Markdown 原文.
+
+    Returns:
+        解析出的去重工具名列表; 没有 frontmatter 或 tools 字段时返回 None.
+    """
     m = re.match(r'---\s*\n(.*?)\n---\s*\n', text, re.DOTALL)
     if not m:
         return None
@@ -72,8 +89,8 @@ def parse_tools_from_frontmatter(text: str) -> list[str] | None:
         tools.append(pm.group(1))
 
     remaining = paren_re.sub('', tools_str)
-    for part in remaining.split(','):
-        part = part.strip()
+    for raw_part in remaining.split(','):
+        part = raw_part.strip()
         if part:
             tools.append(part)
 

@@ -1,28 +1,32 @@
-"""Percentile computation，用于 session-browser anomaly detection.
+"""Compute percentile thresholds for session-browser anomaly detection.
 
 Provides P90/P95 computation with fallback thresholds for small datasets.
 """
 
 from __future__ import annotations
 
-from typing import Optional
-
-
-# 兜底 thresholds，当 data is insufficient (< 20 rows)
-# 说明：Fixed thresholds — percentile-based computation is unreliable on skewed distributions.
+# Fallback thresholds used when data is insufficient or skewed.
 FALLBACK_THRESHOLDS = {
     "duration_seconds": {"warning": 3600, "critical": 7200},  # 1h / 2h
     "tool_call_count": {"warning": 200, "critical": 500},
-    "cache_write_tokens": {"warning": 200000, "critical": 500000},  # 说明：cache write hotspot
+    "cache_write_tokens": {"warning": 200000, "critical": 500000},
 }
 
 MIN_ROWS = 20
 
 
-def percentile(values: list[float], pct: float) -> Optional[float]:
-    """计算 该 given percentile of 一个 list of numbers.
+def percentile(values: list[float], pct: float) -> float | None:
+    """Compute one percentile from numeric values.
 
-    Returns None if the list is empty.
+    Anomaly threshold builders call this helper after filtering the metric values.
+    The interpolation formula is unchanged and returns no threshold for empty input.
+
+    Args:
+        values: Numeric observations for one metric.
+        pct: Percentile to compute, expressed from 0 to 100.
+
+    Returns:
+        Interpolated percentile value, or None when values is empty.
     """
     if not values:
         return None
@@ -41,10 +45,17 @@ def percentile(values: list[float], pct: float) -> Optional[float]:
 
 def compute_percentiles(
     values: list[float],
-) -> dict[str, Optional[float]]:
-    """计算 P90 和 P95，用于 一个 list of values.
+) -> dict[str, float | None]:
+    """Compute P90, P95, and sample count for one metric series.
 
-    Returns {"p90": ..., "p95": ..., "count": n}.
+    Anomaly threshold code uses the result to decide whether enough data exists for
+    percentile-based thresholds.
+
+    Args:
+        values: Numeric observations for one metric.
+
+    Returns:
+        Dictionary containing p90, p95, and count entries.
     """
     return {
         "p90": percentile(values, 90),
@@ -57,23 +68,26 @@ def get_threshold(
     metric: str,
     values: list[float],
     severity: str = "warning",
-) -> Optional[float]:
-    """Get threshold，用于 一个 metric, using percentile，如果 enough data, else fallback.
+) -> float | None:
+    """Return the configured fallback threshold for a metric and severity.
+
+    Callers use this helper when they need the static anomaly threshold table rather
+    than session-derived percentiles.
 
     Args:
-        metric: Key name (e.g., "duration_seconds").
-        values: List of observed values.
-        severity: "warning" or "critical".
+        metric: Metric key such as duration_seconds or tool_call_count.
+        values: Observed values kept for API compatibility; not used by fallback lookup.
+        severity: Threshold severity name, normally warning or critical.
 
     Returns:
-        Threshold value, or None if metric not recognized.
+        Fallback threshold as a float, or None when the metric/severity is unknown.
     """
     fb = FALLBACK_THRESHOLDS.get(metric, {})
     threshold = fb.get(severity)
     if threshold is not None:
         return float(threshold)
 
-    # 说明：For ratio-based metrics
+    # Ratio-based metrics may use severity-specific keys in the fallback table.
     ratio_key = f"{severity}_ratio"
     if ratio_key in fb:
         return fb[ratio_key]
@@ -84,13 +98,17 @@ def get_threshold(
 def compute_session_thresholds(
     sessions_data: list[dict],
 ) -> dict[str, dict]:
-    """计算 anomaly thresholds，用于 所有 session-level metrics.
+    """Compute warning and critical thresholds for session anomaly metrics.
+
+    The anomaly detector calls this function with current session rows. It uses P95
+    when enough positive observations exist and otherwise falls back to fixed
+    thresholds.
 
     Args:
-        sessions_data: List of dicts with session fields.
+        sessions_data: Session dictionaries containing metric fields from the index.
 
     Returns:
-        Dict of {metric: {"warning": float, "critical": float, "p90": float, "p95": float, "n": int}}.
+        Mapping from metric name to warning, critical, p90, p95, and n values.
     """
     result = {}
     metrics_map = {

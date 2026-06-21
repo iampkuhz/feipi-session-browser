@@ -10,29 +10,31 @@
 预期：测试 1 和 2 在当前代码上应 FAIL（标题为纯文本，rounds 硬编码）。
 测试 3 应 PASS（project.html 第 112 行已使用 table_card）。
 """
-import pytest
-from pathlib import Path
+
 import re
+from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
+TEMPLATE_DIR = ROOT / 'src' / 'session_browser' / 'web' / 'templates'
 
-PROJECT_HTML = TEMPLATE_DIR / "project.html"
-UI_PRIMITIVES = TEMPLATE_DIR / "components" / "ui_primitives.html"
+PROJECT_HTML = TEMPLATE_DIR / 'project.html'
+UI_PRIMITIVES = TEMPLATE_DIR / 'components' / 'ui_primitives.html'
 
 
 def _read_template(path: Path) -> str:
     if not path.exists():
-        pytest.fail(f"{path.name} not found at {path}")
-    return path.read_text(encoding="utf-8")
+        pytest.fail(f'{path.name} not found at {path}')
+    return path.read_text(encoding='utf-8')
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def project_html():
     return _read_template(PROJECT_HTML)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def ui_primitives_html():
     return _read_template(UI_PRIMITIVES)
 
@@ -54,50 +56,56 @@ class TestProjectDetailTitleLink:
         # 查找表格体
         table_match = re.search(
             r'<table[^>]*id="project-sessions-table"[^>]*>(.*?)</table>',
-            html, re.DOTALL,
+            html,
+            re.DOTALL,
         )
         if not table_match:
-            return ""
+            return ''
         tbody_match = re.search(r'<tbody>(.*?)</tbody>', table_match.group(1), re.DOTALL)
         if not tbody_match:
-            return ""
+            return ''
         tbody = tbody_match.group(1)
         # 提取 {% for s in sessions %} 循环内的第一个 <td>
         # 查找 Title 列 <td> 的内容
         td_match = re.search(r'<td>\s*<div class="title-main">(.*?)</div>', tbody, re.DOTALL)
-        return td_match.group(1) if td_match else ""
+        return td_match.group(1) if td_match else ''
 
-    @pytest.mark.contract_case("UI-PROJECTS-003")
+    @pytest.mark.contract_case('UI-PROJECTS-003')
     def test_title_cell_contains_link(self, project_html):
         """标题单元格必须包含指向会话详情页面的 <a href> 链接。"""
         title_content = self._extract_title_td_content(project_html)
-        assert title_content, "No Title <td> with <div class=\"title-main\"> found in project.html"
+        assert title_content, 'No Title <td> with <div class="title-main"> found in project.html'
 
-        has_link = "<a href" in title_content
+        has_link = '<a href' in title_content
         assert has_link, (
-            "Title cell in project.html lacks an <a href> link to session detail. "
-            f"Current title content: {title_content[:200]}. "
-            "Must include <a href=\"/sessions/{{ s.agent }}/{{ s.session_id }}\"> or equivalent."
+            'Title cell in project.html lacks an <a href> link to session detail. '
+            f'Current title content: {title_content[:200]}. '
+            'Must include <a href="/sessions/{{ s.agent }}/{{ s.session_id }}"> or equivalent.'
         )
 
-    @pytest.mark.contract_case("UI-PROJECTS-003")
+    @pytest.mark.contract_case('UI-PROJECTS-003')
     def test_title_link_follows_session_url_pattern(self, project_html):
         """如果链接存在，应遵循规范的会话 URL 模式。"""
         title_content = self._extract_title_td_content(project_html)
         if not title_content:
-            pytest.fail("No title cell content found")
+            pytest.fail('No title cell content found')
 
         # 检查规范模式：/sessions/{{ s.agent }}/{{ s.session_id }}
         # 或渲染等效形式：/sessions/
-        has_session_link = bool(re.search(
-            r'/sessions/\{\{.*?s\.agent.*?\}/\{\{.*?s\.session_id.*?\}\}',
-            title_content,
-        )) or "/sessions/" in title_content
+        has_session_link = (
+            bool(
+                re.search(
+                    r'/sessions/\{\{.*?s\.agent.*?\}/\{\{.*?s\.session_id.*?\}\}',
+                    title_content,
+                )
+            )
+            or '/sessions/' in title_content
+        )
 
         assert has_session_link, (
-            "Title link does not follow canonical session URL pattern "
-            "/sessions/<agent>/<session_id>. "
-            f"Current title content: {title_content[:200]}"
+            'Title link does not follow canonical session URL pattern '
+            '/sessions/<agent>/<session_id>. '
+            f'Current title content: {title_content[:200]}'
         )
 
 
@@ -128,22 +136,23 @@ class TestProjectDetailRoundsColumn:
         """
         table_match = re.search(
             r'<table[^>]*id="project-sessions-table"[^>]*>(.*?)</table>',
-            html, re.DOTALL,
+            html,
+            re.DOTALL,
         )
         if not table_match:
-            return ""
+            return ''
         tbody_match = re.search(r'<tbody>(.*?)</tbody>', table_match.group(1), re.DOTALL)
         if not tbody_match:
-            return ""
+            return ''
         tbody = tbody_match.group(1)
 
         # 查找所有 <td class="num mono"> — Rounds 是第一个
         num_mono_tds = re.findall(r'<td class="num mono">(.*?)</td>', tbody, re.DOTALL)
         if num_mono_tds:
             return num_mono_tds[0]  # Rounds 是 token-cell 后的第一个数值列
-        return ""
+        return ''
 
-    @pytest.mark.contract_case("UI-PROJECTS-003")
+    @pytest.mark.contract_case('UI-PROJECTS-003')
     def test_rounds_not_hardcoded_em_dash(self, project_html):
         """Rounds 列不得为硬编码的 em dash。"""
         rounds_td = self._extract_rounds_td(project_html)
@@ -157,26 +166,28 @@ class TestProjectDetailRoundsColumn:
 
         assert not hardcoded_em_dash, (
             "Rounds column in project.html uses a hardcoded em dash '—'. "
-            f"Current content: {rounds_td!r}. "
-            "Must use s.assistant_message_count or an explicit round_count variable."
+            f'Current content: {rounds_td!r}. '
+            'Must use s.assistant_message_count or an explicit round_count variable.'
         )
 
-    @pytest.mark.contract_case("UI-PROJECTS-003")
+    @pytest.mark.contract_case('UI-PROJECTS-003')
     def test_rounds_uses_session_data(self, project_html):
         """Rounds 列应引用会话数据如 assistant_message_count。"""
         rounds_td = self._extract_rounds_td(project_html)
 
         # 查找引用会话回合数据的模板变量
-        uses_session_data = bool(re.search(
-            r's\.assistant_message_count|s\.round_count|s\.num_rounds|round_count',
-            rounds_td,
-        ))
+        uses_session_data = bool(
+            re.search(
+                r's\.assistant_message_count|s\.round_count|s\.num_rounds|round_count',
+                rounds_td,
+            )
+        )
 
         assert uses_session_data, (
-            "Rounds column does not reference any session data variable "
-            "(s.assistant_message_count or similar). "
-            f"Current content: {rounds_td[:200]!r}. "
-            "Must display actual round counts from session data."
+            'Rounds column does not reference any session data variable '
+            '(s.assistant_message_count or similar). '
+            f'Current content: {rounds_td[:200]!r}. '
+            'Must display actual round counts from session data.'
         )
 
 
@@ -192,24 +203,25 @@ class TestProjectDetailTableCardWrapper:
     - 在表格包裹的 section 上产生 class="table-card" 的 HTML
     """
 
-    @pytest.mark.contract_case("UI-PROJECTS-003")
+    @pytest.mark.contract_case('UI-PROJECTS-003')
     def test_uses_table_card_macro(self, project_html):
         """project.html 必须调用 ui.table_card 宏。"""
-        uses_macro = "ui.table_card" in project_html
+        uses_macro = 'ui.table_card' in project_html
         assert uses_macro, (
-            "project.html does not call ui.table_card macro. "
-            "The session table must be wrapped in the table_card composite."
+            'project.html does not call ui.table_card macro. '
+            'The session table must be wrapped in the table_card composite.'
         )
 
-    @pytest.mark.contract_case("UI-PROJECTS-003")
+    @pytest.mark.contract_case('UI-PROJECTS-003')
     def test_table_card_produces_correct_class(self, ui_primitives_html):
         """ui_primitives 中的 table_card 宏必须产生 .table-card 类。"""
         # 查找 table_card 宏定义并检查它产生 card table-card
         macro_match = re.search(
             r'{% macro table_card\(.*?%}(.*?){%- endmacro %}',
-            ui_primitives_html, re.DOTALL,
+            ui_primitives_html,
+            re.DOTALL,
         )
-        assert macro_match, "table_card macro not found in ui_primitives.html"
+        assert macro_match, 'table_card macro not found in ui_primitives.html'
 
         macro_body = macro_match.group(1)
         has_table_card_class = "'table-card'" in macro_body or '"table-card"' in macro_body

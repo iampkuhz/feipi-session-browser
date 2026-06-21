@@ -1,6 +1,19 @@
 -r requirements.txt
 beautifulsoup4
+bandit
 build
+coverage
+deptry
+interrogate
+pip-audit
 pytest
+pytest-cov
 pytest-xdist
+pydoclint
+pyright
 playwright
+pre-commit
+radon
+ruff
+vulture
+xenon

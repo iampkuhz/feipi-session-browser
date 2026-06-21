@@ -9,12 +9,13 @@
 
 from __future__ import annotations
 
-import pytest
 import json
 import os
 import sqlite3
 import sys
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ─────────────────────────────────────────────────────────────────────
 
@@ -23,56 +24,72 @@ PROJECT_NAME = "testproj"
 
 # 最小 Qoder CLI JSONL（含 usage 数据 + tool 调用，可产生 timing + model）
 CLI_JSONL_LINES = [
-    json.dumps({
-        "type": "user",
-        "message": {"role": "user", "content": "Hello"},
-        "timestamp": "2026-05-01T10:00:00.000Z",
-        "cwd": "/tmp/testproj",
-        "entrypoint": "cli",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [
-                {"type": "tool_use", "id": "tool-001", "name": "Read", "input": {"file_path": "/tmp/test.py"}}
-            ],
-            "usage": {"input_tokens": 50, "output_tokens": 20},
-        },
-        "timestamp": "2026-05-01T10:00:02.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "user",
-        "message": {
-            "role": "user",
-            "content": [{"type": "tool_result", "tool_use_id": "tool-001", "content": "file content"}],
-        },
-        "timestamp": "2026-05-01T10:00:04.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [{"type": "text", "text": "Hi there!"}],
-            "usage": {"input_tokens": 100, "output_tokens": 30},
-        },
-        "timestamp": "2026-05-01T10:00:05.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Hello"},
+            "timestamp": "2026-05-01T10:00:00.000Z",
+            "cwd": "/tmp/testproj",
+            "entrypoint": "cli",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [
+                    {
+                        "type": "tool_use",
+                        "id": "tool-001",
+                        "name": "Read",
+                        "input": {"file_path": "/tmp/test.py"},
+                    }
+                ],
+                "usage": {"input_tokens": 50, "output_tokens": 20},
+            },
+            "timestamp": "2026-05-01T10:00:02.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {
+                "role": "user",
+                "content": [
+                    {"type": "tool_result", "tool_use_id": "tool-001", "content": "file content"}
+                ],
+            },
+            "timestamp": "2026-05-01T10:00:04.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hi there!"}],
+                "usage": {"input_tokens": 100, "output_tokens": 30},
+            },
+            "timestamp": "2026-05-01T10:00:05.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
 ]
 CLI_JSONL_CONTENT = "\n".join(CLI_JSONL_LINES) + "\n"
 
 
 # ─── 辅助函数 ─────────────────────────────────────────────────────────────────
+
 
 def _setup_qoder_env(data_dir: str):
     """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
@@ -130,8 +147,9 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
         _restore_qoder_env(old)
 
 
-def _create_qoder_project(data_dir: Path, project_name: str, session_id: str,
-                          jsonl_content: str) -> Path:
+def _create_qoder_project(
+    data_dir: Path, project_name: str, session_id: str, jsonl_content: str
+) -> Path:
     """创建 Qoder 项目目录及会话文件。"""
     proj_dir = data_dir / "projects" / project_name
     proj_dir.mkdir(parents=True, exist_ok=True)
@@ -141,6 +159,7 @@ def _create_qoder_project(data_dir: Path, project_name: str, session_id: str,
 
 
 # ─── 测试 ─────────────────────────────────────────────────────────────────────
+
 
 class TestQoderIncrementalCurrentRecords:
     """验证增量扫描跳过未变化的完整记录。"""

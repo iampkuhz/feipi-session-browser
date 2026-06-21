@@ -21,6 +21,6 @@ def get_builtins_catalog() -> dict[str, dict]:
 
     result = {}
     for tool_name in ALL_CLAUDE_CODE_TOOLS:
-        result[tool_name] = schemas.get(tool_name, {"name": tool_name})
+        result[tool_name] = schemas.get(tool_name, {'name': tool_name})
 
     return result

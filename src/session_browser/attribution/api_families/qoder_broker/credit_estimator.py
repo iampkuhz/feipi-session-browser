@@ -13,7 +13,7 @@ def estimate_qoder_credits(
     *,
     input_tokens: int,
     output_tokens: int = 0,
-    model_tier: str = "unknown",
+    model_tier: str = 'unknown',
     calibration_rates: dict[str, float] | None = None,
 ) -> dict:
     """基于 token 数估算 Qoder credit。
@@ -35,16 +35,16 @@ def estimate_qoder_credits(
             total_tokens = input_tokens + output_tokens
             estimated_credits = total_tokens * rate
             return {
-                "total_credits": estimated_credits,
-                "precision": "estimated",
-                "source": f"estimated_from_calibrated_rates_{model_tier}",
-                "note": f"使用本地校准费率 {rate} credits/token，共 {total_tokens} tokens",
+                'total_credits': estimated_credits,
+                'precision': 'estimated',
+                'source': f'estimated_from_calibrated_rates_{model_tier}',
+                'note': f'使用本地校准费率 {rate} credits/token，共 {total_tokens} tokens',
             }
 
     # 无校准费率时：不输出伪精确值
     return {
-        "total_credits": None,
-        "precision": "unavailable",
-        "source": "unavailable",
-        "note": "Qoder credit 与 token/model tier 相关，但当前缺少 exact credit delta 或本地校准费率",
+        'total_credits': None,
+        'precision': 'unavailable',
+        'source': 'unavailable',
+        'note': 'Qoder credit 与 token/model tier 相关，但当前缺少 exact credit delta 或本地校准费率',
     }

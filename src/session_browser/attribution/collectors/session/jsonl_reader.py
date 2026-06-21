@@ -7,8 +7,8 @@ from __future__ import annotations
 
 import json
 import logging
+from collections.abc import Iterator
 from pathlib import Path
-from typing import Iterator
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +24,12 @@ def read_jsonl_events(file_path: str | Path) -> list[dict]:
     """
     path = Path(file_path)
     if not path.exists():
-        logger.debug("JSONL 文件不存在: %s", path)
+        logger.debug('JSONL 文件不存在: %s', path)
         return []
 
     events: list[dict] = []
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with open(path, encoding='utf-8', errors='replace') as f:
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
                 if not line:
@@ -37,12 +37,12 @@ def read_jsonl_events(file_path: str | Path) -> list[dict]:
                 try:
                     event = json.loads(line)
                     if isinstance(event, dict):
-                        event["_line"] = line_num
+                        event['_line'] = line_num
                         events.append(event)
                 except json.JSONDecodeError as exc:
-                    logger.debug("JSONL 第 %d 行解析失败: %s", line_num, exc)
+                    logger.debug('JSONL 第 %d 行解析失败: %s', line_num, exc)
     except (OSError, PermissionError) as exc:
-        logger.debug("无法读取 JSONL 文件 %s: %s", path, exc)
+        logger.debug('无法读取 JSONL 文件 %s: %s', path, exc)
 
     return events
 
@@ -57,7 +57,7 @@ def iter_jsonl_events(file_path: str | Path) -> Iterator[dict]:
         return
 
     try:
-        with open(path, "r", encoding="utf-8", errors="replace") as f:
+        with open(path, encoding='utf-8', errors='replace') as f:
             for line_num, line in enumerate(f, 1):
                 line = line.strip()
                 if not line:
@@ -65,7 +65,7 @@ def iter_jsonl_events(file_path: str | Path) -> Iterator[dict]:
                 try:
                     event = json.loads(line)
                     if isinstance(event, dict):
-                        event["_line"] = line_num
+                        event['_line'] = line_num
                         yield event
                 except json.JSONDecodeError:
                     pass

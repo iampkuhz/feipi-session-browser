@@ -1,9 +1,7 @@
-"""Compatibility exports for session-browser domain models.
+"""Domain layer models and helpers for normalized session data.
 
-New code should import from the responsibility-scoped modules in this package:
-``enums``, ``token_models``, ``session_models``, ``message_models``,
-``tool_models``, ``llm_models``, ``subagent_models`` and ``project_models``.
-This module remains as an import-stability layer for existing callers.
+Parser, attribution, and presenter flows import this module for stable contracts.
+It performs no I/O.
 """
 
 from __future__ import annotations
@@ -32,24 +30,24 @@ from session_browser.domain.token_models import NormalizedTokenBreakdown
 from session_browser.domain.tool_models import ToolCall
 
 __all__ = [
-    "CallScope",
-    "CallStatus",
-    "TokenPrecision",
-    "TokenProvider",
-    "TokenSourceKind",
-    "TokenTotalSemantics",
-    "NormalizedTokenBreakdown",
-    "SessionSummary",
-    "ChatMessage",
-    "ToolCall",
-    "LLMCall",
-    "LLMCallIdentity",
-    "LLMCallUsage",
-    "LLMCallPayloadRefs",
-    "LLMCallContent",
-    "LLMCallStats",
-    "ConversationRound",
-    "ProjectStats",
-    "SubagentRun",
-    "SubagentSummary",
+    'CallScope',
+    'CallStatus',
+    'ChatMessage',
+    'ConversationRound',
+    'LLMCall',
+    'LLMCallContent',
+    'LLMCallIdentity',
+    'LLMCallPayloadRefs',
+    'LLMCallStats',
+    'LLMCallUsage',
+    'NormalizedTokenBreakdown',
+    'ProjectStats',
+    'SessionSummary',
+    'SubagentRun',
+    'SubagentSummary',
+    'TokenPrecision',
+    'TokenProvider',
+    'TokenSourceKind',
+    'TokenTotalSemantics',
+    'ToolCall',
 ]

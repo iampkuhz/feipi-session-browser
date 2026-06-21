@@ -14,197 +14,242 @@ Usage:
     python3 scripts/quality/run_session_detail_layout_gate.py --self-test
     python3 scripts/quality/run_session_detail_layout_gate.py --allow-missing-service
 """
+
 import argparse
+import asyncio
+import contextlib
 import json
 import sys
-import tempfile
-from datetime import datetime, timezone
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+HTTP_CLIENT_ERROR = 400
 
 # ── Hard thresholds (1440x1100 viewport) ──
 THRESHOLDS = {
-    "main_width_min": 1200,
-    "detail_width_min": 1100,
-    "hero_width_min": 900,
-    "title_height_max": 180,
+    'main_width_min': 1200,
+    'detail_width_min': 1100,
+    'hero_width_min': 900,
+    'title_height_max': 180,
 }
 
 # ── Default selectors (scoped to .session-detail-phase1) ──
 SELECTORS = {
-    "shell": ".shell",
-    "main": ".main",
-    "detail": ".session-detail-phase1",
-    "hero_main": ".session-detail-phase1 .hero-main, .session-detail-phase1 .page-header__main",
-    "hero": ".session-detail-phase1 .hero, .session-detail-phase1 .page-header",
-    "title": ".session-detail-phase1 .hero-title, .session-detail-phase1 .page-header__title",
-    "kpis": ".session-detail-phase1 .kpis, .session-detail-phase1 .metrics-strip",
+    'shell': '.shell',
+    'main': '.main',
+    'detail': '.session-detail-phase1',
+    'hero_main': ('.session-detail-phase1 .hero-main, .session-detail-phase1 .page-header__main'),
+    'hero': '.session-detail-phase1 .hero, .session-detail-phase1 .page-header',
+    'title': '.session-detail-phase1 .hero-title, .session-detail-phase1 .page-header__title',
+    'kpis': '.session-detail-phase1 .kpis, .session-detail-phase1 .metrics-strip',
 }
 
 # ── Failure codes ──
 FAILURE_CODES = {
-    "MISSING_SESSION_DETAIL_ROOT": "No .session-detail-phase1 element found.",
-    "SHELL_ZERO_COLUMN": ".shell grid starts with 0px; .main may be placed into collapsed sidebar column.",
-    "MAIN_WIDTH_TOO_SMALL": ".main computed width is below threshold.",
-    "DETAIL_WIDTH_TOO_SMALL": ".session-detail-phase1 computed width is below threshold.",
-    "HERO_WIDTH_TOO_SMALL": ".hero computed width is below threshold.",
-    "TITLE_OVERLAPS_KPIS": ".hero-title bottom overlaps .kpis top.",
-    "HORIZONTAL_SCROLL": "Page scrollWidth exceeds viewport width.",
-    "TITLE_TOO_TALL": ".hero-title height exceeds threshold.",
-    "SERVICE_UNAVAILABLE": "Cannot reach target URL.",
-    "PLAYWRIGHT_UNAVAILABLE": "Playwright browser is not available.",
+    'MISSING_SESSION_DETAIL_ROOT': 'No .session-detail-phase1 element found.',
+    'SHELL_ZERO_COLUMN': (
+        '.shell grid starts with 0px; .main may be placed into collapsed sidebar column.'
+    ),
+    'MAIN_WIDTH_TOO_SMALL': '.main computed width is below threshold.',
+    'DETAIL_WIDTH_TOO_SMALL': '.session-detail-phase1 computed width is below threshold.',
+    'HERO_WIDTH_TOO_SMALL': '.hero computed width is below threshold.',
+    'TITLE_OVERLAPS_KPIS': '.hero-title bottom overlaps .kpis top.',
+    'HORIZONTAL_SCROLL': 'Page scrollWidth exceeds viewport width.',
+    'TITLE_TOO_TALL': '.hero-title height exceeds threshold.',
+    'SERVICE_UNAVAILABLE': 'Cannot reach target URL.',
+    'PLAYWRIGHT_UNAVAILABLE': 'Playwright browser is not available.',
 }
 
 
 def parse_viewport(spec: str) -> tuple[int, int]:
-    """Parse 'WxH' into (width, height)."""
-    parts = spec.split("x")
+    """Parse 'WxH' into (width, height).
+
+    Args:
+        spec: Input value for spec.
+
+    Returns:
+        Computed result.
+    """
+    parts = spec.split('x')
     return int(parts[0]), int(parts[1])
 
 
 def check_layout(metrics: dict) -> list[dict]:
-    """Evaluate metrics against thresholds. Return list of failures."""
+    """Evaluate metrics against thresholds. Return list of failures.
+
+    Args:
+        metrics: Input value for metrics.
+
+    Returns:
+        Computed result.
+    """
     failures = []
 
     # Check scroll
-    if not metrics.get("scrollOk", True):
-        failures.append({
-            "code": "HORIZONTAL_SCROLL",
-            "message": FAILURE_CODES["HORIZONTAL_SCROLL"],
-            "observed": {
-                "scrollWidth": metrics.get("scrollWidth"),
-                "viewportWidth": metrics.get("viewportWidth"),
-            },
-            "likelyRootCause": [
-                "Element wider than viewport causing horizontal scroll.",
-                "Check .shell grid or .session-detail-phase1 width.",
-            ],
-            "nextInspection": [
-                "Inspect computed width of .shell and .session-detail-phase1.",
-                "Check for fixed-width elements inside grid.",
-            ],
-        })
+    if not metrics.get('scrollOk', True):
+        failures.append(
+            {
+                'code': 'HORIZONTAL_SCROLL',
+                'message': FAILURE_CODES['HORIZONTAL_SCROLL'],
+                'observed': {
+                    'scrollWidth': metrics.get('scrollWidth'),
+                    'viewportWidth': metrics.get('viewportWidth'),
+                },
+                'likelyRootCause': [
+                    'Element wider than viewport causing horizontal scroll.',
+                    'Check .shell grid or .session-detail-phase1 width.',
+                ],
+                'nextInspection': [
+                    'Inspect computed width of .shell and .session-detail-phase1.',
+                    'Check for fixed-width elements inside grid.',
+                ],
+            }
+        )
 
     # Check shell grid
-    shell_grid = metrics.get("shellGrid", "")
-    if shell_grid and shell_grid.startswith("0px"):
-        failures.append({
-            "code": "SHELL_ZERO_COLUMN",
-            "message": FAILURE_CODES["SHELL_ZERO_COLUMN"],
-            "observed": {
-                "shellGrid": shell_grid,
-                "mainWidth": metrics.get("main", {}).get("width") if metrics.get("main") else None,
-            },
-            "likelyRootCause": [
-                "body.hide-left .shell.no-inspector overrides .shell.phase1-shell",
-                ".shell.phase1-shell .main may lack grid-column: 1 / -1",
-            ],
-            "nextInspection": [
-                "Inspect shell.css around shell/no-inspector/hide-left rules.",
-                "Inspect base.html shell class composition.",
-                "Verify session.html declares shell_class including phase1-shell and no-inspector.",
-            ],
-        })
+    shell_grid = metrics.get('shellGrid', '')
+    if shell_grid and shell_grid.startswith('0px'):
+        failures.append(
+            {
+                'code': 'SHELL_ZERO_COLUMN',
+                'message': FAILURE_CODES['SHELL_ZERO_COLUMN'],
+                'observed': {
+                    'shellGrid': shell_grid,
+                    'mainWidth': metrics.get('main', {}).get('width')
+                    if metrics.get('main')
+                    else None,
+                },
+                'likelyRootCause': [
+                    'body.hide-left .shell.no-inspector overrides .shell.phase1-shell',
+                    '.shell.phase1-shell .main may lack grid-column: 1 / -1',
+                ],
+                'nextInspection': [
+                    'Inspect shell.css around shell/no-inspector/hide-left rules.',
+                    'Inspect base.html shell class composition.',
+                    (
+                        'Verify session.html declares shell_class including '
+                        'phase1-shell and no-inspector.'
+                    ),
+                ],
+            }
+        )
 
     # Check main width
-    main_rect = metrics.get("main")
-    if main_rect and main_rect.get("width", 0) < THRESHOLDS["main_width_min"]:
-        failures.append({
-            "code": "MAIN_WIDTH_TOO_SMALL",
-            "message": FAILURE_CODES["MAIN_WIDTH_TOO_SMALL"],
-            "observed": {
-                "mainWidth": main_rect.get("width"),
-                "threshold": THRESHOLDS["main_width_min"],
-            },
-            "likelyRootCause": [
-                ".main is constrained by parent grid or width rule.",
-                "body.hide-left cascade may be active.",
-            ],
-            "nextInspection": [
-                "Inspect computed width of .main parent chain.",
-            ],
-        })
+    main_rect = metrics.get('main')
+    if main_rect and main_rect.get('width', 0) < THRESHOLDS['main_width_min']:
+        failures.append(
+            {
+                'code': 'MAIN_WIDTH_TOO_SMALL',
+                'message': FAILURE_CODES['MAIN_WIDTH_TOO_SMALL'],
+                'observed': {
+                    'mainWidth': main_rect.get('width'),
+                    'threshold': THRESHOLDS['main_width_min'],
+                },
+                'likelyRootCause': [
+                    '.main is constrained by parent grid or width rule.',
+                    'body.hide-left cascade may be active.',
+                ],
+                'nextInspection': [
+                    'Inspect computed width of .main parent chain.',
+                ],
+            }
+        )
 
     # Check detail width
-    detail_rect = metrics.get("detail")
-    if detail_rect and detail_rect.get("width", 0) < THRESHOLDS["detail_width_min"]:
-        failures.append({
-            "code": "DETAIL_WIDTH_TOO_SMALL",
-            "message": FAILURE_CODES["DETAIL_WIDTH_TOO_SMALL"],
-            "observed": {
-                "detailWidth": detail_rect.get("width"),
-                "threshold": THRESHOLDS["detail_width_min"],
-            },
-            "likelyRootCause": [
-                ".session-detail-phase1 width rule missing or too narrow.",
-            ],
-            "nextInspection": [
-                "Inspect shell.css for .session-detail-phase1 width/max-width.",
-            ],
-        })
+    detail_rect = metrics.get('detail')
+    if detail_rect and detail_rect.get('width', 0) < THRESHOLDS['detail_width_min']:
+        failures.append(
+            {
+                'code': 'DETAIL_WIDTH_TOO_SMALL',
+                'message': FAILURE_CODES['DETAIL_WIDTH_TOO_SMALL'],
+                'observed': {
+                    'detailWidth': detail_rect.get('width'),
+                    'threshold': THRESHOLDS['detail_width_min'],
+                },
+                'likelyRootCause': [
+                    '.session-detail-phase1 width rule missing or too narrow.',
+                ],
+                'nextInspection': [
+                    'Inspect shell.css for .session-detail-phase1 width/max-width.',
+                ],
+            }
+        )
 
     # Check hero width
-    hero_rect = metrics.get("hero")
-    if hero_rect and hero_rect.get("width", 0) < THRESHOLDS["hero_width_min"]:
-        failures.append({
-            "code": "HERO_WIDTH_TOO_SMALL",
-            "message": FAILURE_CODES["HERO_WIDTH_TOO_SMALL"],
-            "observed": {
-                "heroWidth": hero_rect.get("width"),
-                "threshold": THRESHOLDS["hero_width_min"],
-            },
-            "likelyRootCause": [
-                ".hero is constrained by parent container.",
-            ],
-            "nextInspection": [
-                "Inspect .hero-main and .hero width chain.",
-            ],
-        })
+    hero_rect = metrics.get('hero')
+    if hero_rect and hero_rect.get('width', 0) < THRESHOLDS['hero_width_min']:
+        failures.append(
+            {
+                'code': 'HERO_WIDTH_TOO_SMALL',
+                'message': FAILURE_CODES['HERO_WIDTH_TOO_SMALL'],
+                'observed': {
+                    'heroWidth': hero_rect.get('width'),
+                    'threshold': THRESHOLDS['hero_width_min'],
+                },
+                'likelyRootCause': [
+                    '.hero is constrained by parent container.',
+                ],
+                'nextInspection': [
+                    'Inspect .hero-main and .hero width chain.',
+                ],
+            }
+        )
 
     # Check title overlaps KPIs
-    if metrics.get("titleBeforeKpis") is False:
-        failures.append({
-            "code": "TITLE_OVERLAPS_KPIS",
-            "message": FAILURE_CODES["TITLE_OVERLAPS_KPIS"],
-            "observed": {
-                "titleRect": metrics.get("title"),
-                "kpisRect": metrics.get("kpis"),
-            },
-            "likelyRootCause": [
-                "Hero layout is not single-column, causing title and KPIs side by side.",
-                "KPIs may render above title due to flex order.",
-            ],
-            "nextInspection": [
-                "Inspect .hero-main grid-template-columns.",
-                "Verify .hero-title DOM order relative to .kpis.",
-            ],
-        })
+    if metrics.get('titleBeforeKpis') is False:
+        failures.append(
+            {
+                'code': 'TITLE_OVERLAPS_KPIS',
+                'message': FAILURE_CODES['TITLE_OVERLAPS_KPIS'],
+                'observed': {
+                    'titleRect': metrics.get('title'),
+                    'kpisRect': metrics.get('kpis'),
+                },
+                'likelyRootCause': [
+                    'Hero layout is not single-column, causing title and KPIs side by side.',
+                    'KPIs may render above title due to flex order.',
+                ],
+                'nextInspection': [
+                    'Inspect .hero-main grid-template-columns.',
+                    'Verify .hero-title DOM order relative to .kpis.',
+                ],
+            }
+        )
 
     # Check title height
-    title_rect = metrics.get("title")
-    if title_rect and title_rect.get("height", 0) > THRESHOLDS["title_height_max"]:
-        failures.append({
-            "code": "TITLE_TOO_TALL",
-            "message": FAILURE_CODES["TITLE_TOO_TALL"],
-            "observed": {
-                "titleHeight": title_rect.get("height"),
-                "threshold": THRESHOLDS["title_height_max"],
-            },
-            "likelyRootCause": [
-                "Title text is wrapping to multiple lines.",
-                "overflow-wrap or line-clamp may be missing.",
-            ],
-            "nextInspection": [
-                "Inspect .hero-title overflow-wrap, line-clamp, max-width.",
-            ],
-        })
+    title_rect = metrics.get('title')
+    if title_rect and title_rect.get('height', 0) > THRESHOLDS['title_height_max']:
+        failures.append(
+            {
+                'code': 'TITLE_TOO_TALL',
+                'message': FAILURE_CODES['TITLE_TOO_TALL'],
+                'observed': {
+                    'titleHeight': title_rect.get('height'),
+                    'threshold': THRESHOLDS['title_height_max'],
+                },
+                'likelyRootCause': [
+                    'Title text is wrapping to multiple lines.',
+                    'overflow-wrap or line-clamp may be missing.',
+                ],
+                'nextInspection': [
+                    'Inspect .hero-title overflow-wrap, line-clamp, max-width.',
+                ],
+            }
+        )
 
     return failures
 
 
-async def collect_metrics(page, selectors: dict) -> dict:
-    """Collect computed layout metrics from the page."""
+async def collect_metrics(page: object, selectors: dict[str, str]) -> dict[str, object]:
+    """Collect computed layout metrics from the page.
+
+    Args:
+        page: Input value for page.
+        selectors: Input value for selectors.
+
+    Returns:
+        Computed result.
+    """
     return await page.evaluate(f"""
     () => {{
         const q = (sel) => {{
@@ -219,7 +264,14 @@ async def collect_metrics(page, selectors: dict) -> dict:
             const el = q(sel);
             if (!el) return null;
             const r = el.getBoundingClientRect();
-            return {{ left: r.left, right: r.right, top: r.top, bottom: r.bottom, width: r.width, height: r.height }};
+            return {{
+                left: r.left,
+                right: r.right,
+                top: r.top,
+                bottom: r.bottom,
+                width: r.width,
+                height: r.height
+            }};
         }};
 
         const shell = q("{selectors['shell']}");
@@ -248,7 +300,10 @@ async def collect_metrics(page, selectors: dict) -> dict:
             scrollOk: document.documentElement.scrollWidth <= window.innerWidth + 2,
             shellGrid: shell ? getComputedStyle(shell).gridTemplateColumns : null,
             mainGridColumn: main
-                ? `${{getComputedStyle(main).gridColumnStart}}/${{getComputedStyle(main).gridColumnEnd}}`
+                ? (
+                    `${{getComputedStyle(main).gridColumnStart}}/` +
+                    `${{getComputedStyle(main).gridColumnEnd}}`
+                )
                 : null,
             main: rect("{selectors['main']}"),
             detail: rect("{selectors['detail']}"),
@@ -268,183 +323,224 @@ async def collect_metrics(page, selectors: dict) -> dict:
     """)
 
 
-async def run_browser_gate(url: str, viewport: str, out_dir: Path, allow_missing: bool = False) -> dict:
-    """Run the browser layout gate. Returns result dict."""
-    from playwright.async_api import async_playwright
+async def run_browser_gate(
+    url: str, viewport: str, out_dir: Path, allow_missing: bool = False
+) -> dict[str, object]:
+    """Run the browser layout gate. Returns result dict.
+
+    Args:
+        url: Input value for url.
+        viewport: Input value for viewport.
+        out_dir: Input value for out_dir.
+        allow_missing: Input value for allow_missing.
+
+    Returns:
+        Computed result.
+    """
+    from playwright.async_api import async_playwright  # noqa: PLC0415 - optional browser gate.
 
     vw, vh = parse_viewport(viewport)
     result = {
-        "status": "PASS",
-        "gate": "session-detail-layout",
-        "url": url,
-        "viewport": viewport,
-        "metrics": {},
-        "failures": [],
-        "artifacts": {},
+        'status': 'PASS',
+        'gate': 'session-detail-layout',
+        'url': url,
+        'viewport': viewport,
+        'metrics': {},
+        'failures': [],
+        'artifacts': {},
     }
 
     browser = None
     try:
         async with async_playwright() as pw:
             browser = await pw.chromium.launch(headless=True)
-            context = await browser.new_context(viewport={"width": vw, "height": vh})
+            context = await browser.new_context(viewport={'width': vw, 'height': vh})
             page = await context.new_page()
 
             try:
-                resp = await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                if resp and resp.status >= 400:
-                    result["status"] = "FAIL"
-                    result["failures"].append({
-                        "code": "SERVICE_UNAVAILABLE",
-                        "message": f"Server returned HTTP {resp.status}.",
-                        "observed": {"status": resp.status, "url": url},
-                        "likelyRootCause": ["Server not running or session not found."],
-                        "nextInspection": [
-                            f"Start the fixture server and ensure {url} is accessible.",
-                        ],
-                    })
+                resp = await page.goto(url, wait_until='domcontentloaded', timeout=15000)
+                if resp and resp.status >= HTTP_CLIENT_ERROR:
+                    result['status'] = 'FAIL'
+                    result['failures'].append(
+                        {
+                            'code': 'SERVICE_UNAVAILABLE',
+                            'message': f'Server returned HTTP {resp.status}.',
+                            'observed': {'status': resp.status, 'url': url},
+                            'likelyRootCause': ['Server not running or session not found.'],
+                            'nextInspection': [
+                                f'Start the fixture server and ensure {url} is accessible.',
+                            ],
+                        }
+                    )
                     return result
             except Exception as e:
                 if allow_missing:
-                    result["status"] = "BLOCKED"
-                    result["failures"].append({
-                        "code": "SERVICE_UNAVAILABLE",
-                        "message": f"Cannot reach {url}: {e}",
-                        "observed": {"url": url},
-                        "likelyRootCause": ["Fixture server not running."],
-                        "nextInspection": [
-                            "Start the fixture server with: ./scripts/session-browser.sh serve",
-                        ],
-                    })
+                    result['status'] = 'BLOCKED'
+                    result['failures'].append(
+                        {
+                            'code': 'SERVICE_UNAVAILABLE',
+                            'message': f'Cannot reach {url}: {e}',
+                            'observed': {'url': url},
+                            'likelyRootCause': ['Fixture server not running.'],
+                            'nextInspection': [
+                                'Start the fixture server with: ./scripts/session-browser.sh serve',
+                            ],
+                        }
+                    )
                     return result
-                else:
-                    result["status"] = "FAIL"
-                    result["failures"].append({
-                        "code": "SERVICE_UNAVAILABLE",
-                        "message": f"Cannot reach {url}: {e}",
-                        "observed": {"url": url},
-                        "likelyRootCause": ["Fixture server not running."],
-                        "nextInspection": [
-                            "Start the fixture server with: ./scripts/session-browser.sh serve",
+                result['status'] = 'FAIL'
+                result['failures'].append(
+                    {
+                        'code': 'SERVICE_UNAVAILABLE',
+                        'message': f'Cannot reach {url}: {e}',
+                        'observed': {'url': url},
+                        'likelyRootCause': ['Fixture server not running.'],
+                        'nextInspection': [
+                            'Start the fixture server with: ./scripts/session-browser.sh serve',
                         ],
-                    })
-                    return result
+                    }
+                )
+                return result
 
             # Collect metrics
             metrics = await collect_metrics(page, SELECTORS)
-            result["metrics"] = metrics
+            result['metrics'] = metrics
 
             # Check for missing root
-            if metrics.get("detail") is None:
-                result["status"] = "FAIL"
-                result["failures"].append({
-                    "code": "MISSING_SESSION_DETAIL_ROOT",
-                    "message": FAILURE_CODES["MISSING_SESSION_DETAIL_ROOT"],
-                    "observed": {"url": url},
-                    "likelyRootCause": [
-                        "session.html template missing or not rendered.",
-                        "Wrong URL — not a session detail page.",
-                    ],
-                    "nextInspection": [
-                        "Verify URL points to a session detail page.",
-                    ],
-                })
+            if metrics.get('detail') is None:
+                result['status'] = 'FAIL'
+                result['failures'].append(
+                    {
+                        'code': 'MISSING_SESSION_DETAIL_ROOT',
+                        'message': FAILURE_CODES['MISSING_SESSION_DETAIL_ROOT'],
+                        'observed': {'url': url},
+                        'likelyRootCause': [
+                            'session.html template missing or not rendered.',
+                            'Wrong URL — not a session detail page.',
+                        ],
+                        'nextInspection': [
+                            'Verify URL points to a session detail page.',
+                        ],
+                    }
+                )
                 return result
 
             # Run checks
             failures = check_layout(metrics)
-            result["failures"] = failures
+            result['failures'] = failures
 
             # Take screenshot
-            screenshot_path = out_dir / "session-detail-layout-1440.png"
+            screenshot_path = out_dir / 'session-detail-layout-1440.png'
             await page.screenshot(path=str(screenshot_path), full_page=False)
-            result["artifacts"]["screenshot"] = str(screenshot_path)
+            result['artifacts']['screenshot'] = str(screenshot_path)
 
             if failures:
-                result["status"] = "FAIL"
+                result['status'] = 'FAIL'
             else:
-                result["status"] = "PASS"
+                result['status'] = 'PASS'
 
     except Exception as e:
         error_msg = str(e)
-        if "playwright" in error_msg.lower() or "executable" in error_msg.lower():
-            result["status"] = "BLOCKED"
-            result["failures"].append({
-                "code": "PLAYWRIGHT_UNAVAILABLE",
-                "message": f"Playwright browser not available: {error_msg}",
-                "observed": {},
-                "likelyRootCause": ["Playwright browsers not installed."],
-                "nextInspection": [
-                    "Run: python3 -m playwright install chromium",
-                ],
-            })
+        if 'playwright' in error_msg.lower() or 'executable' in error_msg.lower():
+            result['status'] = 'BLOCKED'
+            result['failures'].append(
+                {
+                    'code': 'PLAYWRIGHT_UNAVAILABLE',
+                    'message': f'Playwright browser not available: {error_msg}',
+                    'observed': {},
+                    'likelyRootCause': ['Playwright browsers not installed.'],
+                    'nextInspection': [
+                        'Run: python3 -m playwright install chromium',
+                    ],
+                }
+            )
         else:
-            result["status"] = "FAIL"
-            result["failures"].append({
-                "code": "SERVICE_UNAVAILABLE",
-                "message": f"Browser error: {error_msg}",
-                "observed": {},
-                "likelyRootCause": [error_msg],
-                "nextInspection": ["Check Playwright installation."],
-            })
+            result['status'] = 'FAIL'
+            result['failures'].append(
+                {
+                    'code': 'SERVICE_UNAVAILABLE',
+                    'message': f'Browser error: {error_msg}',
+                    'observed': {},
+                    'likelyRootCause': [error_msg],
+                    'nextInspection': ['Check Playwright installation.'],
+                }
+            )
     finally:
         if browser:
-            try:
+            with contextlib.suppress(Exception):
                 await browser.close()
-            except Exception:
-                pass
 
     return result
 
 
-def _run_gate_sync(url: str, viewport: str, out_dir: Path, allow_missing: bool = False) -> dict:
-    """Synchronous wrapper for the async browser gate."""
-    import asyncio
+def _run_gate_sync(
+    url: str,
+    viewport: str,
+    out_dir: Path,
+    allow_missing: bool = False,
+) -> dict[str, object]:
+    """Synchronous wrapper for the async browser gate.
+
+    Args:
+        url: Input value for url.
+        viewport: Input value for viewport.
+        out_dir: Input value for out_dir.
+        allow_missing: Input value for allow_missing.
+
+    Returns:
+        Computed result.
+    """
     return asyncio.get_event_loop().run_until_complete(
         run_browser_gate(url, viewport, out_dir, allow_missing)
     )
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Browser layout gate for session detail")
-    parser.add_argument("--url", default=None, help="Target session detail URL")
-    parser.add_argument("--viewport", default="1440x1100", help="Viewport size (WxH)")
-    parser.add_argument("--out", default=None, help="Output directory for artifacts")
-    parser.add_argument("--allow-missing-service", action="store_true",
-                        help="Report BLOCKED instead of FAIL when service is unavailable")
-    parser.add_argument("--self-test", action="store_true", help="Run self-tests")
+def main() -> None:
+    """Run the session-detail browser layout quality gate."""
+    parser = argparse.ArgumentParser(description='Browser layout gate for session detail')
+    parser.add_argument('--url', default=None, help='Target session detail URL')
+    parser.add_argument('--viewport', default='1440x1100', help='Viewport size (WxH)')
+    parser.add_argument('--out', default=None, help='Output directory for artifacts')
+    parser.add_argument(
+        '--allow-missing-service',
+        action='store_true',
+        help='Report BLOCKED instead of FAIL when service is unavailable',
+    )
+    parser.add_argument('--self-test', action='store_true', help='Run self-tests')
     args = parser.parse_args()
 
     if args.self_test:
         _self_test()
         return
 
-    out_dir = Path(args.out) if args.out else REPO_ROOT / "tmp" / "quality" / "browser-gate"
+    out_dir = Path(args.out) if args.out else REPO_ROOT / 'tmp' / 'quality' / 'browser-gate'
     out_dir.mkdir(parents=True, exist_ok=True)
 
     if not args.url:
-        print("ERROR: --url is required (unless --self-test)", file=sys.stderr)
+        print('ERROR: --url is required (unless --self-test)', file=sys.stderr)
         sys.exit(2)
 
     result = _run_gate_sync(args.url, args.viewport, out_dir, args.allow_missing_service)
 
     # Write artifact
-    result_path = out_dir / "session-detail-layout-result.json"
-    result_path.write_text(json.dumps(result, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    result_path = out_dir / 'session-detail-layout-result.json'
+    result_path.write_text(
+        json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+    )
 
     # Print summary
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
-    if result["status"] == "PASS":
-        print("\nPASS: Browser layout gate passed")
+    if result['status'] == 'PASS':
+        print('\nPASS: Browser layout gate passed')
         sys.exit(0)
-    elif result["status"] == "BLOCKED":
-        print("\nBLOCKED: Browser layout gate blocked (external condition)")
+    elif result['status'] == 'BLOCKED':
+        print('\nBLOCKED: Browser layout gate blocked (external condition)')
         sys.exit(2)
     else:
-        print(f"\nFAIL: {len(result['failures'])} failure(s)")
-        for f in result["failures"]:
-            print(f"  [{f['code']}] {f['message']}")
+        print(f'\nFAIL: {len(result["failures"])} failure(s)')
+        for f in result['failures']:
+            print(f'  [{f["code"]}] {f["message"]}')
         sys.exit(1)
 
 
@@ -452,50 +548,79 @@ def main():
 # Self-test
 # ---------------------------------------------------------------------------
 
-def _self_test():
-    """Run self-tests using temporary HTML fixtures loaded via set_content."""
-    import asyncio
 
-    def _run(name, html_content, expect_pass, expect_codes=None):
-        """Run a single self-test with given HTML content."""
-        async def _inner():
-            from playwright.async_api import async_playwright
+def _self_test() -> None:
+    """Run self-tests using temporary HTML fixtures loaded via set_content.
+
+    Returns:
+        Computed result.
+    """
+
+    def _run(
+        name: str,
+        html_content: str,
+        expect_pass: bool,
+        expect_codes: list[str] | None = None,
+    ) -> bool:
+        """Run a single self-test with given HTML content.
+
+        Args:
+            name: Input value for name.
+            html_content: Input value for html_content.
+            expect_pass: Input value for expect_pass.
+            expect_codes: Input value for expect_codes.
+
+        Returns:
+            Computed result.
+        """
+
+        async def _inner() -> tuple[dict[str, object], list[dict[str, object]]]:
+            """Render one fixture and collect browser layout failures.
+
+            Returns:
+                Computed result.
+            """
+            from playwright.async_api import async_playwright  # noqa: PLC0415
+
             async with async_playwright() as pw:
                 browser = await pw.chromium.launch(headless=True)
-                context = await browser.new_context(viewport={"width": 1440, "height": 1100})
+                context = await browser.new_context(viewport={'width': 1440, 'height': 1100})
                 page = await context.new_page()
-                await page.set_content(html_content, wait_until="domcontentloaded")
+                await page.set_content(html_content, wait_until='domcontentloaded')
                 metrics = await collect_metrics(page, SELECTORS)
                 failures = []
-                if metrics.get("detail") is None:
-                    failures.append({"code": "MISSING_SESSION_DETAIL_ROOT", "message": "missing root"})
+                if metrics.get('detail') is None:
+                    failures.append(
+                        {'code': 'MISSING_SESSION_DETAIL_ROOT', 'message': 'missing root'}
+                    )
                 else:
                     failures = check_layout(metrics)
                 await browser.close()
                 return metrics, failures
 
-        metrics, failures = asyncio.get_event_loop().run_until_complete(_inner())
-        codes = [f["code"] for f in failures]
+        _metrics, failures = asyncio.get_event_loop().run_until_complete(_inner())
+        codes = [f['code'] for f in failures]
         actual_pass = len(failures) == 0
 
         if actual_pass == expect_pass:
             if expect_codes:
                 for ec in expect_codes:
                     if ec in codes:
-                        print(f"  PASS: {name} ({ec})")
+                        print(f'  PASS: {name} ({ec})')
                         return True
                 # If no expected code matched but pass/fail is correct, still pass
-                print(f"  PASS: {name}")
+                print(f'  PASS: {name}')
                 return True
-            else:
-                print(f"  PASS: {name}")
-                return True
-        else:
-            print(f"  FAIL: {name} — expected {'PASS' if expect_pass else 'FAIL'}, got {'PASS' if actual_pass else 'FAIL'}, codes: {codes}")
-            return False
+            print(f'  PASS: {name}')
+            return True
+        print(
+            f'  FAIL: {name} — expected {"PASS" if expect_pass else "FAIL"}, '
+            f'got {"PASS" if actual_pass else "FAIL"}, codes: {codes}'
+        )
+        return False
 
     # Good fixture: all thresholds met
-    GOOD_HTML = """
+    good_html = """
     <!DOCTYPE html>
     <html>
     <head><style>
@@ -526,7 +651,7 @@ def _self_test():
     """
 
     # Shell zero column fixture
-    SHELL_ZERO_HTML = """
+    shell_zero_html = """
     <!DOCTYPE html>
     <html>
     <head><style>
@@ -552,7 +677,7 @@ def _self_test():
     """
 
     # Title overlaps KPIs fixture
-    OVERLAP_HTML = """
+    overlap_html = """
     <!DOCTYPE html>
     <html>
     <head><style>
@@ -578,7 +703,7 @@ def _self_test():
     """
 
     # Horizontal scroll fixture
-    SCROLL_HTML = """
+    scroll_html = """
     <!DOCTYPE html>
     <html>
     <head><style>
@@ -604,19 +729,33 @@ def _self_test():
     """
 
     # Missing root fixture
-    MISSING_HTML = """
+    missing_html = """
     <!DOCTYPE html>
     <html><body><div class="shell"><div class="main">No detail</div></div></body></html>
     """
 
     failures = 0
     tests = [
-        ("good fixture => PASS", GOOD_HTML, True, None),
-        ("shell zero column => SHELL_ZERO_COLUMN or MAIN_WIDTH_TOO_SMALL", SHELL_ZERO_HTML, False,
-         ["SHELL_ZERO_COLUMN", "MAIN_WIDTH_TOO_SMALL"]),
-        ("title/kpi overlap => TITLE_OVERLAPS_KPIS", OVERLAP_HTML, False, ["TITLE_OVERLAPS_KPIS"]),
-        ("horizontal scroll => HORIZONTAL_SCROLL", SCROLL_HTML, False, ["HORIZONTAL_SCROLL"]),
-        ("missing root => MISSING_SESSION_DETAIL_ROOT", MISSING_HTML, False, ["MISSING_SESSION_DETAIL_ROOT"]),
+        ('good fixture => PASS', good_html, True, None),
+        (
+            'shell zero column => SHELL_ZERO_COLUMN or MAIN_WIDTH_TOO_SMALL',
+            shell_zero_html,
+            False,
+            ['SHELL_ZERO_COLUMN', 'MAIN_WIDTH_TOO_SMALL'],
+        ),
+        (
+            'title/kpi overlap => TITLE_OVERLAPS_KPIS',
+            overlap_html,
+            False,
+            ['TITLE_OVERLAPS_KPIS'],
+        ),
+        ('horizontal scroll => HORIZONTAL_SCROLL', scroll_html, False, ['HORIZONTAL_SCROLL']),
+        (
+            'missing root => MISSING_SESSION_DETAIL_ROOT',
+            missing_html,
+            False,
+            ['MISSING_SESSION_DETAIL_ROOT'],
+        ),
     ]
 
     for name, html, expect_pass, expect_codes in tests:
@@ -624,12 +763,12 @@ def _self_test():
             failures += 1
 
     if failures:
-        print(f"\n{failures} test(s) failed")
+        print(f'\n{failures} test(s) failed')
         sys.exit(1)
     else:
-        print(f"\nAll self-tests passed")
+        print('\nAll self-tests passed')
         sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

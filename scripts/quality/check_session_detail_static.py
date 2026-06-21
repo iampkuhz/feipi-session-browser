@@ -18,76 +18,116 @@ Usage:
     python3 scripts/quality/check_session_detail_static.py
     python3 scripts/quality/check_session_detail_static.py --self-test
 """
+
 import json
 import re
 import sys
+import tempfile
+from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Modular CSS files that replace the monolithic style.css
-CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
-SHELL_CSS_FILE = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "shell.css"
-SESSION_DETAIL_CSS = REPO_ROOT / "src" / "session_browser" / "web" / "static" / "css" / "session-detail.css"
-BASE_HTML = REPO_ROOT / "src" / "session_browser" / "web" / "templates" / "base.html"
-SESSION_HTML = REPO_ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
+CSS_FILE = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'shell.css'
+SHELL_CSS_FILE = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'shell.css'
+SESSION_DETAIL_CSS = (
+    REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'session-detail.css'
+)
+BASE_HTML = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates' / 'base.html'
+SESSION_HTML = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates' / 'session.html'
+MIN_GRID_COLUMNS = 2
 
 
+@dataclass
 class StaticCheckResult:
-    def __init__(self):
-        self.failures: list[dict] = []
-        self.observed: dict = {}
+    """Collect static session-detail layout failures and observed evidence.
 
-    def fail(self, code: str, message: str, next_inspection: list[str] | None = None):
-        self.failures.append({
-            "code": code,
-            "message": message,
-            "nextInspection": next_inspection or [],
-        })
+    The static quality gate creates this object once per run. Check helpers
+    append deterministic failure records while preserving observed selectors
+    for downstream JSON artifacts.
 
-    def pass_check(self):
+    Attributes:
+        failures: Hard layout or template contract failures.
+        observed: Evidence collected from CSS and template scans.
+    """
+
+    failures: list[dict] = field(default_factory=list)
+    observed: dict = field(default_factory=dict)
+
+    def fail(self, code: str, message: str, next_inspection: list[str] | None = None) -> None:
+        """Append one hard static contract failure.
+
+        Args:
+            code: Stable machine-readable failure code.
+            message: Human-readable reason printed by the CLI.
+            next_inspection: Optional follow-up files or rules for debugging.
+        """
+        self.failures.append(
+            {
+                'code': code,
+                'message': message,
+                'nextInspection': next_inspection or [],
+            }
+        )
+
+    def pass_check(self) -> None:
+        """Keep a no-op pass hook for callers that need symmetric check APIs."""
         pass
 
     def to_dict(self) -> dict:
-        status = "PASS" if not self.failures else "FAIL"
+        """Serialize the static gate result for stdout and quality artifacts.
+
+        Returns:
+            JSON-ready mapping containing status, failures, and observed
+            selectors. No files are written by this method.
+        """
+        status = 'PASS' if not self.failures else 'FAIL'
         return {
-            "schemaVersion": 1,
-            "status": status,
-            "gate": "session-detail-static-css",
-            "failures": self.failures,
-            "observed": self.observed,
+            'schemaVersion': 1,
+            'status': status,
+            'gate': 'session-detail-static-css',
+            'failures': self.failures,
+            'observed': self.observed,
         }
 
 
-def check_phase1_hide_left_override(css: str, result: StaticCheckResult):
-    """Check 1: High-specificity body.hide-left override for phase1 shell."""
+def check_phase1_hide_left_override(css: str, result: StaticCheckResult) -> None:
+    """Check the phase1 shell override that prevents hidden-left collapse.
+
+    Args:
+        css: Combined CSS text read by the static quality gate.
+        result: Accumulator receiving observed selectors or failures.
+    """
     # Need: body.hide-left .shell.no-inspector or body.hide-left .shell.phase1-shell
     # with grid-template-columns and minmax(0, 1fr)
-    hide_left_phase1 = bool(re.search(
-        r'body\.hide-left\s+\.shell\.(?:phase1-shell|no-inspector\.phase1-shell)',
-        css,
-    ))
-    hide_left_noinspector = bool(re.search(
-        r'body\.hide-left\s+\.shell\.no-inspector',
-        css,
-    ))
-    has_grid_tmpl = "grid-template-columns" in css
-    has_minmax = "minmax(0, 1fr)" in css
-
+    hide_left_phase1 = bool(
+        re.search(
+            r'body\.hide-left\s+\.shell\.(?:phase1-shell|no-inspector\.phase1-shell)',
+            css,
+        )
+    )
+    hide_left_noinspector = bool(
+        re.search(
+            r'body\.hide-left\s+\.shell\.no-inspector',
+            css,
+        )
+    )
+    has_grid_tmpl = 'grid-template-columns' in css
     if (hide_left_phase1 or hide_left_noinspector) and has_grid_tmpl:
-        result.observed["phase1HideLeftOverride"] = True
+        result.observed['phase1HideLeftOverride'] = True
     else:
         result.fail(
-            "MISSING_PHASE1_HIDE_LEFT_OVERRIDE",
-            "No high-specificity phase1 shell override for body.hide-left .shell.no-inspector.",
+            'MISSING_PHASE1_HIDE_LEFT_OVERRIDE',
+            'No high-specificity phase1 shell override for body.hide-left .shell.no-inspector.',
             [
-                "Inspect shell.css for body.hide-left .shell.no-inspector override.",
-                "Add body.hide-left .shell.no-inspector.phase1-shell override.",
+                'Inspect shell.css for body.hide-left .shell.no-inspector override.',
+                'Add body.hide-left .shell.no-inspector.phase1-shell override.',
             ],
         )
 
 
-def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
+def check_phase1_main_grid_column(css: str, result: StaticCheckResult) -> None:
     """Check 2: .main must span full grid width in phase1 shell context.
 
     Accepts either:
@@ -96,6 +136,10 @@ def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
 
     The legacy .shell.phase1-shell .main selector was in the deleted style.css.
     Current layout uses .main with width: 100% + min-width: 0 for full spanning.
+
+    Args:
+        css: Combined CSS text read by the static quality gate.
+        result: Accumulator receiving observed selectors or failures.
     """
     has_main_rule = bool(re.search(r'\.shell\.phase1-shell\s+\.main', css))
     has_main_base = bool(re.search(r'\.main\b', css))  # .main rule exists
@@ -105,16 +149,16 @@ def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
 
     selectors = []
     if has_main_rule:
-        selectors.append(".shell.phase1-shell .main")
+        selectors.append('.shell.phase1-shell .main')
     if has_main_base:
-        selectors.append(".main (base)")
+        selectors.append('.main (base)')
     if has_grid_col:
-        selectors.append("grid-column: 1 / -1")
+        selectors.append('grid-column: 1 / -1')
     if has_width_full:
-        selectors.append("width: 100%")
+        selectors.append('width: 100%')
     if has_min_width_zero:
-        selectors.append("min-width: 0")
-    result.observed["phase1MainRules"] = selectors
+        selectors.append('min-width: 0')
+    result.observed['phase1MainRules'] = selectors
 
     # Accept either:
     # 1. grid-column: 1 / -1 (legacy), or
@@ -122,50 +166,66 @@ def check_phase1_main_grid_column(css: str, result: StaticCheckResult):
     spans_full = has_grid_col or (has_main_base and has_width_full and has_min_width_zero)
     if not spans_full:
         result.fail(
-            "MISSING_PHASE1_MAIN_GRID_COLUMN",
-            "Missing .main spanning full width.",
+            'MISSING_PHASE1_MAIN_GRID_COLUMN',
+            'Missing .main spanning full width.',
             [
-                "Inspect shell.css for .main rule.",
-                "Add width: 100% + min-width: 0 or grid-column: 1 / -1.",
+                'Inspect shell.css for .main rule.',
+                'Add width: 100% + min-width: 0 or grid-column: 1 / -1.',
             ],
         )
 
 
-def check_detail_width_contract(css: str, result: StaticCheckResult):
-    """Check 3: .session-detail-phase1 must have width contract."""
+def check_detail_width_contract(css: str, result: StaticCheckResult) -> None:
+    """Check the session detail root has a width or max-width contract.
+
+    Args:
+        css: Combined CSS text read by the static quality gate.
+        result: Accumulator receiving observed width evidence or failures.
+    """
     # Look for session-detail-phase1 with width/max-width
     has_detail = bool(re.search(r'\.session-detail-phase1', css))
-    has_width = bool(re.search(
-        r'\.session-detail-phase1[^}]*?(?:width|max-width)',
-        css,
-        re.DOTALL,
-    ))
-    # Also accept width within a block near session-detail-phase1
-    if not has_width:
-        has_width = bool(re.search(
-            r'\.session-detail-phase1\s*\{[^}]*width',
+    has_width = bool(
+        re.search(
+            r'\.session-detail-phase1[^}]*?(?:width|max-width)',
             css,
             re.DOTALL,
-        ))
+        )
+    )
+    # Also accept width within a block near session-detail-phase1
+    if not has_width:
+        has_width = bool(
+            re.search(
+                r'\.session-detail-phase1\s*\{[^}]*width',
+                css,
+                re.DOTALL,
+            )
+        )
 
-    result.observed["detailWidthRule"] = has_detail and has_width
+    result.observed['detailWidthRule'] = has_detail and has_width
 
     if has_detail and not has_width:
         result.fail(
-            "MISSING_SESSION_DETAIL_WIDTH_CONTRACT",
-            ".session-detail-phase1 exists but lacks width/max-width rule.",
+            'MISSING_SESSION_DETAIL_WIDTH_CONTRACT',
+            '.session-detail-phase1 exists but lacks width/max-width rule.',
             [
-                "Inspect shell.css for .session-detail-phase1 width rule.",
-                "Add width: min(100%, 1360px) or max-width with margin: 0 auto.",
+                'Inspect shell.css for .session-detail-phase1 width rule.',
+                'Add width: min(100%, 1360px) or max-width with margin: 0 auto.',
             ],
         )
 
 
 def _is_two_column_grid(value: str) -> bool:
-    """Check if a grid-template-columns value defines two columns."""
-    val = value.strip().rstrip(";").strip()
+    """Check if a grid-template-columns value defines two or more columns.
+
+    Args:
+        value: Raw ``grid-template-columns`` declaration value.
+
+    Returns:
+        True when the declaration can create a multi-column hero layout.
+    """
+    val = value.strip().rstrip(';').strip()
     # Single column patterns
-    if val in ("1fr", "100%", "auto", "none"):
+    if val in ('1fr', '100%', 'auto', 'none'):
         return False
     # repeat(1, ...) is single
     if re.match(r'repeat\s*\(\s*1\s*,', val):
@@ -177,27 +237,38 @@ def _is_two_column_grid(value: str) -> bool:
     # Split by spaces but respect function call nesting
     depth = 0
     tokens: list[str] = []
-    current = ""
+    current = ''
     for ch in val:
-        if ch == "(":
+        if ch == '(':
             depth += 1
             current += ch
-        elif ch == ")":
+        elif ch == ')':
             depth -= 1
             current += ch
-        elif ch == " " and depth == 0:
+        elif ch == ' ' and depth == 0:
             if current.strip():
                 tokens.append(current.strip())
-            current = ""
+            current = ''
         else:
             current += ch
     if current.strip():
         tokens.append(current.strip())
-    return len(tokens) >= 2
+    return len(tokens) >= MIN_GRID_COLUMNS
 
 
-def check_hero_main_single_column(css: str, result: None | StaticCheckResult = None):
-    """Check 4: .session-detail-phase1 .hero-main must NOT be two-column."""
+def check_hero_main_single_column(
+    css: str, result: None | StaticCheckResult = None
+) -> StaticCheckResult:
+    """Check the session detail hero remains single-column.
+
+    Args:
+        css: Combined CSS text read by the static quality gate.
+        result: Optional accumulator. A new one is created for self-test helper
+            calls when omitted.
+
+    Returns:
+        Accumulator containing observed hero rules and any layout failures.
+    """
     result = result or StaticCheckResult()
 
     # Check .session-detail-phase1 .hero-main specifically
@@ -211,11 +282,11 @@ def check_hero_main_single_column(css: str, result: None | StaticCheckResult = N
         col_match = re.search(r'grid-template-columns:\s*([^;]+)', block)
         if col_match and _is_two_column_grid(col_match.group(1)):
             result.fail(
-                "HERO_MAIN_STILL_TWO_COLUMN",
-                ".session-detail-phase1 .hero-main has a two-column grid-template-columns.",
+                'HERO_MAIN_STILL_TWO_COLUMN',
+                '.session-detail-phase1 .hero-main has a two-column grid-template-columns.',
                 [
-                    "Inspect shell.css for .session-detail-phase1 .hero-main.",
-                    "Change to grid-template-columns: 1fr.",
+                    'Inspect shell.css for .session-detail-phase1 .hero-main.',
+                    'Change to grid-template-columns: 1fr.',
                 ],
             )
 
@@ -227,21 +298,26 @@ def check_hero_main_single_column(css: str, result: None | StaticCheckResult = N
             col_match = re.search(r'grid-template-columns:\s*([^;]+)', block)
             if col_match and _is_two_column_grid(col_match.group(1)):
                 result.fail(
-                    "HERO_MAIN_STILL_TWO_COLUMN",
-                    "No .session-detail-phase1 .hero-main override exists, and base "
-                    ".hero-main is two-column.",
+                    'HERO_MAIN_STILL_TWO_COLUMN',
+                    'No .session-detail-phase1 .hero-main override exists, and base '
+                    '.hero-main is two-column.',
                     [
-                        "Add .session-detail-phase1 .hero-main { grid-template-columns: 1fr; }.",
+                        'Add .session-detail-phase1 .hero-main { grid-template-columns: 1fr; }.',
                     ],
                 )
                 break
 
-    result.observed["heroMainRules"] = observed_rules
+    result.observed['heroMainRules'] = observed_rules
     return result
 
 
-def check_hero_title_wrapping(css: str, result: StaticCheckResult):
-    """Check 5: hero-title must NOT use overflow-wrap:anywhere or word-break:break-all."""
+def check_hero_title_wrapping(css: str, result: StaticCheckResult) -> None:
+    """Check hero title wrapping avoids unsafe character-level breaking.
+
+    Args:
+        css: Combined CSS text read by the static quality gate.
+        result: Accumulator receiving wrapping failures.
+    """
     title_blocks = re.findall(
         r'\.hero-title\s*\{([^}]*)\}',
         css,
@@ -249,110 +325,134 @@ def check_hero_title_wrapping(css: str, result: StaticCheckResult):
     for block in title_blocks:
         if re.search(r'overflow-wrap\s*:\s*anywhere', block):
             result.fail(
-                "HERO_TITLE_UNSAFE_ANYWHERE_WRAP",
-                ".hero-title uses overflow-wrap: anywhere — unsafe for long session titles.",
+                'HERO_TITLE_UNSAFE_ANYWHERE_WRAP',
+                '.hero-title uses overflow-wrap: anywhere — unsafe for long session titles.',
                 [
-                    "Inspect shell.css .hero-title overflow-wrap.",
-                    "Use overflow-wrap: break-word or line-clamp instead.",
+                    'Inspect shell.css .hero-title overflow-wrap.',
+                    'Use overflow-wrap: break-word or line-clamp instead.',
                 ],
             )
         if re.search(r'word-break\s*:\s*break-all', block):
             result.fail(
-                "HERO_TITLE_UNSAFE_ANYWHERE_WRAP",
-                ".hero-title uses word-break: break-all — unsafe for long session titles.",
+                'HERO_TITLE_UNSAFE_ANYWHERE_WRAP',
+                '.hero-title uses word-break: break-all — unsafe for long session titles.',
                 [
-                    "Inspect shell.css .hero-title word-break.",
-                    "Use word-break: normal or overflow-wrap: break-word instead.",
+                    'Inspect shell.css .hero-title word-break.',
+                    'Use word-break: normal or overflow-wrap: break-word instead.',
                 ],
             )
 
 
-def check_session_shell_class_hook(session_text: str, result: StaticCheckResult):
+def check_session_shell_class_hook(session_text: str, result: StaticCheckResult) -> None:
     """Check 6: session.html must declare shell_class block with appropriate classes.
 
     Accepts either:
     - Phase 1: phase1-shell + no-inspector
     - Legacy: sd-shell (with session-detail-page or similar)
+
+    Args:
+        session_text: Contents of ``session.html``.
+        result: Accumulator receiving template hook failures.
     """
     has_block = bool(re.search(r'\{%\s*block\s+shell_class\s*%\}', session_text))
-    has_phase1 = "phase1-shell" in session_text
-    has_no_inspector = "no-inspector" in session_text
-    has_v9_shell = "sd-shell" in session_text
+    has_phase1 = 'phase1-shell' in session_text
+    has_no_inspector = 'no-inspector' in session_text
+    has_v9_shell = 'sd-shell' in session_text
 
-    result.observed["sessionShellClassHook"] = {
-        "hasBlock": has_block,
-        "hasPhase1Shell": has_phase1,
-        "hasNoInspector": has_no_inspector,
-        "hasV9Shell": has_v9_shell,
+    result.observed['sessionShellClassHook'] = {
+        'hasBlock': has_block,
+        'hasPhase1Shell': has_phase1,
+        'hasNoInspector': has_no_inspector,
+        'hasV9Shell': has_v9_shell,
     }
 
     if not has_block:
         result.fail(
-            "MISSING_SESSION_SHELL_CLASS_HOOK",
-            "session.html lacks {% block shell_class %} — shell class injection not possible.",
+            'MISSING_SESSION_SHELL_CLASS_HOOK',
+            'session.html lacks {% block shell_class %} — shell class injection not possible.',
             [
-                "Inspect session.html for {% block shell_class %}.",
-                "Add {% block shell_class %} with phase1-shell no-inspector or sd-shell.",
+                'Inspect session.html for {% block shell_class %}.',
+                'Add {% block shell_class %} with phase1-shell no-inspector or sd-shell.',
             ],
         )
     elif not has_phase1 and not has_v9_shell:
         result.fail(
-            "MISSING_SESSION_SHELL_CLASS_HOOK",
-            "session.html shell_class block lacks phase1-shell or sd-shell.",
+            'MISSING_SESSION_SHELL_CLASS_HOOK',
+            'session.html shell_class block lacks phase1-shell or sd-shell.',
             [
-                "Ensure session.html shell_class includes phase1-shell (or sd-shell).",
+                'Ensure session.html shell_class includes phase1-shell (or sd-shell).',
             ],
         )
 
 
-def check_base_shell_class_application(base_text: str, result: StaticCheckResult):
-    """Check 7: base.html must apply shell_class to .shell container."""
-    # Check: .shell container uses shell_class block
-    has_shell_with_block = bool(re.search(
-        r'class="shell[^"]*\{%\s*block\s+shell_class',
-        base_text,
-    ))
-    has_data_shell = "data-session-detail-shell" in base_text
+def check_base_shell_class_application(base_text: str, result: StaticCheckResult) -> None:
+    """Check base.html applies shell_class to the shell container.
 
-    result.observed["baseShellClassApplication"] = {
-        "hasShellWithBlock": has_shell_with_block,
-        "hasDataShellAttr": has_data_shell,
+    Args:
+        base_text: Contents of ``base.html``.
+        result: Accumulator receiving template application failures.
+    """
+    # Check: .shell container uses shell_class block
+    has_shell_with_block = bool(
+        re.search(
+            r'class="shell[^"]*\{%\s*block\s+shell_class',
+            base_text,
+        )
+    )
+    has_data_shell = 'data-session-detail-shell' in base_text
+
+    result.observed['baseShellClassApplication'] = {
+        'hasShellWithBlock': has_shell_with_block,
+        'hasDataShellAttr': has_data_shell,
     }
 
     if not has_shell_with_block:
         result.fail(
-            "MISSING_BASE_SHELL_CLASS_APPLICATION",
-            "base.html does not apply {% block shell_class %} to .shell container.",
+            'MISSING_BASE_SHELL_CLASS_APPLICATION',
+            'base.html does not apply {% block shell_class %} to .shell container.',
             [
-                "Inspect base.html .shell element.",
-                "Add {% block shell_class %}{% endblock %} inside .shell class attribute.",
+                'Inspect base.html .shell element.',
+                'Add {% block shell_class %}{% endblock %} inside .shell class attribute.',
             ],
         )
 
 
-def run_checks(css_path: Path, base_path: Path, session_path: Path,
-               shell_css_path: Path | None = None) -> dict:
-    """Run all static checks and return result dict."""
+def run_checks(
+    css_path: Path, base_path: Path, session_path: Path, shell_css_path: Path | None = None
+) -> dict:
+    """Run all session-detail static checks and return a JSON-ready result.
+
+    Args:
+        css_path: Primary CSS file used by the static gate.
+        base_path: Base template path that owns the shell element.
+        session_path: Session detail template path that injects shell classes.
+        shell_css_path: Optional secondary shell CSS path for compatibility.
+
+    Returns:
+        JSON-ready result with PASS/FAIL status, observed evidence, and failure
+        records. Missing input files are hard failures; no source files are
+        modified by this gate.
+    """
     result = StaticCheckResult()
 
     if not css_path.exists():
-        result.fail("MISSING_CSS_FILE", f"CSS file not found: {css_path}")
+        result.fail('MISSING_CSS_FILE', f'CSS file not found: {css_path}')
         return result.to_dict()
     if not base_path.exists():
-        result.fail("MISSING_BASE_HTML", f"base.html not found: {base_path}")
+        result.fail('MISSING_BASE_HTML', f'base.html not found: {base_path}')
         return result.to_dict()
     if not session_path.exists():
-        result.fail("MISSING_SESSION_HTML", f"session.html not found: {session_path}")
+        result.fail('MISSING_SESSION_HTML', f'session.html not found: {session_path}')
         return result.to_dict()
 
     # Read primary CSS (shell.css)
     css = css_path.read_text()
     # Also read shell.css if a different primary was passed
     if shell_css_path is not None and shell_css_path.exists() and shell_css_path != css_path:
-        css += "\n" + shell_css_path.read_text()
+        css += '\n' + shell_css_path.read_text()
     # Read session-detail.css for detail-specific rules
     if SESSION_DETAIL_CSS.exists():
-        css += "\n" + SESSION_DETAIL_CSS.read_text()
+        css += '\n' + SESSION_DETAIL_CSS.read_text()
     base_text = base_path.read_text()
     session_text = session_path.read_text()
 
@@ -367,19 +467,20 @@ def run_checks(css_path: Path, base_path: Path, session_path: Path,
     return result.to_dict()
 
 
-def main():
-    if "--self-test" in sys.argv:
+def main() -> None:
+    """Run the static gate CLI and exit with the gate status."""
+    if '--self-test' in sys.argv:
         return _self_test()
 
     out = run_checks(CSS_FILE, BASE_HTML, SESSION_HTML, SHELL_CSS_FILE)
     print(json.dumps(out, ensure_ascii=False, indent=2))
 
-    if out["status"] == "FAIL":
-        for f in out["failures"]:
-            print(f"  FAIL: [{f['code']}] {f['message']}", file=sys.stderr)
+    if out['status'] == 'FAIL':
+        for f in out['failures']:
+            print(f'  FAIL: [{f["code"]}] {f["message"]}', file=sys.stderr)
         sys.exit(1)
     else:
-        print("PASS: All static CSS/template checks passed")
+        print('PASS: All static CSS/template checks passed')
         sys.exit(0)
 
 
@@ -387,11 +488,10 @@ def main():
 # Self-test
 # ---------------------------------------------------------------------------
 
-def _self_test():
-    """Run self-tests using temporary CSS/HTML fixtures."""
-    import tempfile
 
-    GOOD_CSS = """
+def _self_test() -> None:
+    """Run self-tests using temporary CSS/HTML fixtures."""
+    good_css = """
 body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
 .shell.phase1-shell .main {
     grid-column: 1 / -1;
@@ -403,37 +503,51 @@ body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
 .hero-title { overflow-wrap: break-word; word-break: normal; }
 """
 
-    GOOD_BASE = """
+    good_base = """
 <div class="shell{% block shell_class %}{% endblock %}" data-session-detail-shell>
 """
 
-    GOOD_SESSION = """
+    good_session = """
 {% extends "base.html" %}
 {% block shell_class %} no-inspector phase1-shell{% endblock %}
 """
 
-    def _run(name, css_text, base_text, session_text, expect_pass):
+    def _run(
+        name: str, css_text: str, base_text: str, session_text: str, expect_pass: bool
+    ) -> bool:
+        """Run one temporary fixture case for the static gate self-test.
+
+        Args:
+            name: Case label printed to the CLI.
+            css_text: CSS fixture content.
+            base_text: Base template fixture content.
+            session_text: Session template fixture content.
+            expect_pass: Expected PASS/FAIL status.
+
+        Returns:
+            True when the observed status matches the expectation.
+        """
         with tempfile.TemporaryDirectory() as td:
-            css_p = Path(td) / "shell.css"
-            base_p = Path(td) / "base.html"
-            session_p = Path(td) / "session.html"
+            css_p = Path(td) / 'shell.css'
+            base_p = Path(td) / 'base.html'
+            session_p = Path(td) / 'session.html'
             css_p.write_text(css_text)
             base_p.write_text(base_text)
             session_p.write_text(session_text)
             out = run_checks(css_p, base_p, session_p)
-            actual_pass = out["status"] == "PASS"
+            actual_pass = out['status'] == 'PASS'
             if actual_pass == expect_pass:
-                print(f"  PASS: {name}")
+                print(f'  PASS: {name}')
                 return True
-            else:
-                codes = [f["code"] for f in out.get("failures", [])]
-                print(f"  FAIL: {name} — expected {'PASS' if expect_pass else 'FAIL'}, got {out['status']}, failures: {codes}")
-                return False
+            codes = [f['code'] for f in out.get('failures', [])]
+            expected = 'PASS' if expect_pass else 'FAIL'
+            print(f'  FAIL: {name} - expected {expected}, got {out["status"]}, failures: {codes}')
+            return False
 
     failures = 0
 
     # 1. Full contract => PASS
-    if not _run("full contract => PASS", GOOD_CSS, GOOD_BASE, GOOD_SESSION, True):
+    if not _run('full contract => PASS', good_css, good_base, good_session, True):
         failures += 1
 
     # 2. Missing hide-left override => FAIL
@@ -443,7 +557,7 @@ body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
 .hero-main { grid-template-columns: 1fr; }
 .hero-title { overflow-wrap: break-word; }
 """
-    if not _run("missing hide-left override => FAIL", bad_css_2, GOOD_BASE, GOOD_SESSION, False):
+    if not _run('missing hide-left override => FAIL', bad_css_2, good_base, good_session, False):
         failures += 1
 
     # 3. Missing main grid-column => FAIL
@@ -454,46 +568,49 @@ body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
 .hero-main { grid-template-columns: 1fr; }
 .hero-title { overflow-wrap: break-word; }
 """
-    if not _run("missing main grid-column => FAIL", bad_css_3, GOOD_BASE, GOOD_SESSION, False):
+    if not _run('missing main grid-column => FAIL', bad_css_3, good_base, good_session, False):
         failures += 1
 
     # 4. Hero two-column => FAIL (scoped to .session-detail-phase1)
-    bad_css_4 = GOOD_CSS.replace(
-        ".hero-main { grid-template-columns: 1fr; }",
-        ".session-detail-phase1 .hero-main { grid-template-columns: minmax(0, 1fr) minmax(360px, 520px); }",
+    bad_css_4 = good_css.replace(
+        '.hero-main { grid-template-columns: 1fr; }',
+        '.session-detail-phase1 .hero-main { '
+        'grid-template-columns: minmax(0, 1fr) minmax(360px, 520px); }',
     )
-    if not _run("hero two-column => FAIL", bad_css_4, GOOD_BASE, GOOD_SESSION, False):
+    if not _run('hero two-column => FAIL', bad_css_4, good_base, good_session, False):
         failures += 1
 
     # 5. Hero title overflow-wrap:anywhere => FAIL
-    bad_css_5 = GOOD_CSS.replace(
-        ".hero-title { overflow-wrap: break-word; word-break: normal; }",
-        ".hero-title { overflow-wrap: anywhere; }",
+    bad_css_5 = good_css.replace(
+        '.hero-title { overflow-wrap: break-word; word-break: normal; }',
+        '.hero-title { overflow-wrap: anywhere; }',
     )
-    if not _run("hero title overflow-wrap:anywhere => FAIL", bad_css_5, GOOD_BASE, GOOD_SESSION, False):
+    if not _run(
+        'hero title overflow-wrap:anywhere => FAIL', bad_css_5, good_base, good_session, False
+    ):
         failures += 1
 
     # 6. Missing session shell_class hook => FAIL
     bad_session = """
 {% extends "base.html" %}
 """
-    if not _run("missing session shell_class => FAIL", GOOD_CSS, GOOD_BASE, bad_session, False):
+    if not _run('missing session shell_class => FAIL', good_css, good_base, bad_session, False):
         failures += 1
 
     # 7. Missing base shell class application => FAIL
     bad_base = """
 <div class="shell" data-session-detail-shell>
 """
-    if not _run("missing base shell application => FAIL", GOOD_CSS, bad_base, GOOD_SESSION, False):
+    if not _run('missing base shell application => FAIL', good_css, bad_base, good_session, False):
         failures += 1
 
     if failures:
-        print(f"\n{failures} test(s) failed")
+        print(f'\n{failures} test(s) failed')
         sys.exit(1)
     else:
-        print(f"\nAll self-tests passed")
+        print('\nAll self-tests passed')
         sys.exit(0)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

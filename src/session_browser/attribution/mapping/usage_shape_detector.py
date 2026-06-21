@@ -1,72 +1,72 @@
-"""Usage 字段形状识别。
+"""Detect API-family hints from provider usage payload shape.
 
-通过分析 provider usage dict 中的字段名，推断该 call 使用的
-API Family 语义（Anthropic-like / OpenAI-like / unknown）。
-不依赖 agent string，只看 usage 数据结构本身。
+The detector runs before model-string fallback when attribution has a usage payload. It
+inspects only field names and nested detail objects, so it can classify Anthropic-like,
+OpenAI Responses-like, OpenAI Chat-like, basic-token, or unavailable usage without
+depending on agent runtime strings.
 """
 
 from __future__ import annotations
 
+from typing import Any
 
-def detect_usage_shape(usage: dict | None) -> str:
-    """识别 usage dict 的字段形状。
 
-    返回值：
-    - "anthropic_messages_like": 包含 cache_read_input_tokens / cache_creation_input_tokens
-    - "openai_responses_like": 包含 input_tokens_details.cached_tokens / output_tokens_details.reasoning_tokens
-    - "openai_chat_like": 包含 prompt_tokens_details.cached_tokens / completion_tokens_details.reasoning_tokens
-    - "token_reported_unknown_cache": 只有 input_tokens/output_tokens，无 cache 信息
-    - "unavailable": 无 usage 数据
+def detect_usage_shape(usage: dict[str, Any] | None) -> str:
+    """Classify the API-family shape of a provider usage payload.
+
+    Args:
+        usage: Provider or broker usage payload for a single LLM call.
+
+    Returns:
+        Shape label such as ``anthropic_messages_like``, ``openai_responses_like``,
+        ``openai_chat_like``, ``token_reported_unknown_cache``, or ``unavailable``.
     """
+    usage_shape = 'unavailable'
     if not usage or not isinstance(usage, dict):
-        return "unavailable"
+        return usage_shape
 
-    # 说明：Anthropic-style fields
     has_anthropic_cache = (
-        "cache_read_input_tokens" in usage
-        or "cache_creation_input_tokens" in usage
+        'cache_read_input_tokens' in usage or 'cache_creation_input_tokens' in usage
     )
-    if has_anthropic_cache:
-        return "anthropic_messages_like"
-
-    # 说明：OpenAI Responses-style fields
-    input_details = usage.get("input_tokens_details")
-    if isinstance(input_details, dict) and "cached_tokens" in input_details:
-        return "openai_responses_like"
-
-    # 说明：OpenAI Chat Completions-style fields
-    prompt_details = usage.get("prompt_tokens_details")
-    if isinstance(prompt_details, dict) and "cached_tokens" in prompt_details:
-        return "openai_chat_like"
-
-    # 检查 nested details，用于 reasoning tokens (OpenAI Responses indicator)
-    output_details = usage.get("output_tokens_details")
-    if isinstance(output_details, dict) and "reasoning_tokens" in output_details:
-        return "openai_responses_like"
-
-    completion_details = usage.get("completion_tokens_details")
-    if isinstance(completion_details, dict) and "reasoning_tokens" in completion_details:
-        return "openai_chat_like"
-
-    # 说明：Has basic token fields but no cache info
+    input_details = usage.get('input_tokens_details')
+    prompt_details = usage.get('prompt_tokens_details')
+    output_details = usage.get('output_tokens_details')
+    completion_details = usage.get('completion_tokens_details')
     has_basic_tokens = (
-        "input_tokens" in usage
-        or "prompt_tokens" in usage
-        or "output_tokens" in usage
-        or "completion_tokens" in usage
+        'input_tokens' in usage
+        or 'prompt_tokens' in usage
+        or 'output_tokens' in usage
+        or 'completion_tokens' in usage
     )
-    if has_basic_tokens:
-        return "token_reported_unknown_cache"
 
-    return "unavailable"
+    if has_anthropic_cache:
+        usage_shape = 'anthropic_messages_like'
+    elif isinstance(input_details, dict) and 'cached_tokens' in input_details:
+        usage_shape = 'openai_responses_like'
+    elif isinstance(prompt_details, dict) and 'cached_tokens' in prompt_details:
+        usage_shape = 'openai_chat_like'
+    elif isinstance(output_details, dict) and 'reasoning_tokens' in output_details:
+        usage_shape = 'openai_responses_like'
+    elif isinstance(completion_details, dict) and 'reasoning_tokens' in completion_details:
+        usage_shape = 'openai_chat_like'
+    elif has_basic_tokens:
+        usage_shape = 'token_reported_unknown_cache'
+
+    return usage_shape
 
 
-def get_nested_int(d: dict, *keys: str) -> int:
-    """安全获取嵌套 dict 中的 int 值。
+def get_nested_int(data: dict[str, Any], *keys: str) -> int:
+    """Return an integer value from a nested usage payload path.
 
-    例如: get_nested_int(usage, "input_tokens_details", "cached_tokens")
+    Args:
+        data: Usage payload or nested detail dictionary to inspect.
+        *keys: Ordered key path, for example ``input_tokens_details`` then
+            ``cached_tokens``.
+
+    Returns:
+        Parsed integer when the full path exists and is numeric, otherwise ``0``.
     """
-    current = d
+    current: Any = data
     for key in keys:
         if isinstance(current, dict):
             current = current.get(key)

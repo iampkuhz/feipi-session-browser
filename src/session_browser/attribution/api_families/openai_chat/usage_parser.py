@@ -20,15 +20,15 @@ def parse_openai_chat_usage(usage: dict | None) -> UsageBreakdown:
     """解析 OpenAI Chat Completions usage dict 为 UsageBreakdown。"""
     if not usage or not isinstance(usage, dict):
         return UsageBreakdown(
-            usage_source="unavailable",
-            precision="unavailable",
-            note="无 OpenAI Chat usage 数据",
+            usage_source='unavailable',
+            precision='unavailable',
+            note='无 OpenAI Chat usage 数据',
         )
 
-    provider_request_input = get_nested_int(usage, "prompt_tokens")
-    cache_read = get_nested_int(usage, "prompt_tokens_details", "cached_tokens")
-    provider_output_total = get_nested_int(usage, "completion_tokens")
-    hidden_reasoning = get_nested_int(usage, "completion_tokens_details", "reasoning_tokens")
+    provider_request_input = get_nested_int(usage, 'prompt_tokens')
+    cache_read = get_nested_int(usage, 'prompt_tokens_details', 'cached_tokens')
+    provider_output_total = get_nested_int(usage, 'completion_tokens')
+    hidden_reasoning = get_nested_int(usage, 'completion_tokens_details', 'reasoning_tokens')
 
     if provider_request_input > 0:
         cache_read = min(cache_read, provider_request_input)
@@ -45,7 +45,7 @@ def parse_openai_chat_usage(usage: dict | None) -> UsageBreakdown:
         cache_write=None,
         output=output if output > 0 else None,
         hidden_reasoning=hidden_reasoning if hidden_reasoning > 0 else None,
-        usage_source="provider_reported" if provider_request_input > 0 else "unavailable",
-        precision="provider_reported" if provider_request_input > 0 else "unavailable",
-        note="OpenAI Chat usage：Fresh 已扣除 Cache Read；cache_write 不可用",
+        usage_source='provider_reported' if provider_request_input > 0 else 'unavailable',
+        precision='provider_reported' if provider_request_input > 0 else 'unavailable',
+        note='OpenAI Chat usage：Fresh 已扣除 Cache Read；cache_write 不可用',
     )

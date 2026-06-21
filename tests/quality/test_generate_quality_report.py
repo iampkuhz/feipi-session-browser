@@ -1,15 +1,9 @@
-"""scripts/quality/generate_quality_report.py 测试。"""
+"""scripts/quality/generate_quality_report.py tests."""
+
 from __future__ import annotations
 
 import pytest
-import json
-import sys
-from pathlib import Path
-
-ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / "scripts" / "quality"))
-
-from generate_quality_report import (
+from scripts.quality.generate_quality_report import (
     format_duration,
     generate_report,
     status_badge,
@@ -17,165 +11,170 @@ from generate_quality_report import (
 
 
 class TestStatusBadge:
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_pass(self):
-        assert status_badge("PASS") == "PASS"
+        assert status_badge('PASS') == 'PASS'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_fail(self):
-        assert status_badge("FAIL") == "FAIL"
+        assert status_badge('FAIL') == 'FAIL'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_blocked(self):
-        assert status_badge("BLOCKED") == "BLOCKED"
+        assert status_badge('BLOCKED') == 'BLOCKED'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_skipped(self):
-        assert status_badge("SKIPPED") == "SKIPPED"
+        assert status_badge('SKIPPED') == 'SKIPPED'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_case_insensitive(self):
-        assert status_badge("pass") == "PASS"
+        assert status_badge('pass') == 'PASS'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_unknown(self):
-        assert status_badge("UNKNOWN") == "UNKNOWN"
+        assert status_badge('UNKNOWN') == 'UNKNOWN'
 
 
 class TestFormatDuration:
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_none(self):
-        assert format_duration(None) == "N/A"
+        assert format_duration(None) == 'N/A'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_milliseconds(self):
-        assert format_duration(500) == "500ms"
+        assert format_duration(500) == '500ms'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_seconds(self):
-        assert format_duration(1500) == "1.5s"
+        assert format_duration(1500) == '1.5s'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_exact_second(self):
-        assert format_duration(1000) == "1.0s"
+        assert format_duration(1000) == '1.0s'
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_large_duration(self):
-        assert format_duration(123456) == "123.5s"
+        assert format_duration(123456) == '123.5s'
 
 
 class TestGenerateReport:
-    def _sample(self, **overrides) -> dict:
+    def _sample(self, **overrides: object) -> dict[str, object]:
         data = {
-            "schemaVersion": 3,
-            "status": "PASS",
-            "target": "session-detail",
-            "changeId": "test-change",
-            "startedAt": "2026-01-01T00:00:00+00:00",
-            "finishedAt": "2026-01-01T00:01:00+00:00",
-            "requiredGates": {"pytest": "PASS"},
-            "blockingFailures": [],
-            "warnings": [],
-            "artifacts": {},
-            "gateDetails": [
+            'schemaVersion': 3,
+            'status': 'PASS',
+            'target': 'session-detail',
+            'changeId': 'test-change',
+            'startedAt': '2026-01-01T00:00:00+00:00',
+            'finishedAt': '2026-01-01T00:01:00+00:00',
+            'requiredGates': {'pytest': 'PASS'},
+            'blockingFailures': [],
+            'warnings': [],
+            'artifacts': {},
+            'gateDetails': [
                 {
-                    "name": "pytest",
-                    "status": "PASS",
-                    "command": ["pytest", "-q"],
-                    "exitCode": 0,
-                    "durationMs": 1500,
-                    "output": "",
+                    'name': 'pytest',
+                    'status': 'PASS',
+                    'command': ['pytest', '-q'],
+                    'exitCode': 0,
+                    'durationMs': 1500,
+                    'output': '',
                 }
             ],
         }
         data.update(overrides)
         return data
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_basic_report(self):
         report = generate_report(self._sample())
-        assert "# Quality Report: session-detail" in report
-        assert "**PASS**" in report
-        assert "`test-change`" in report
+        assert '# Quality Report: session-detail' in report
+        assert '**PASS**' in report
+        assert '`test-change`' in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_failed_status(self):
-        report = generate_report(self._sample(status="FAIL", blockingFailures=["pytest failed"]))
-        assert "**FAIL**" in report
-        assert "## 阻断失败" in report
-        assert "pytest failed" in report
+        report = generate_report(self._sample(status='FAIL', blockingFailures=['pytest failed']))
+        assert '**FAIL**' in report
+        assert '## 阻断失败' in report
+        assert 'pytest failed' in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_gate_table(self):
         report = generate_report(self._sample())
-        assert "| Gate | 状态 | 耗时 | 退出码 |" in report
-        assert "pytest" in report
-        assert "1.5s" in report
+        assert '| Gate | 状态 | 耗时 | 退出码 |' in report
+        assert 'pytest' in report
+        assert '1.5s' in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_failed_gate_details(self):
         sample = self._sample(
-            status="FAIL",
-            blockingFailures=["css failed"],
+            status='FAIL',
+            blockingFailures=['css failed'],
             gateDetails=[
                 {
-                    "name": "cssOwnership",
-                    "status": "FAIL",
-                    "command": ["python3", "check.py"],
-                    "exitCode": 1,
-                    "durationMs": 200,
-                    "output": "BLOCK: violation found",
+                    'name': 'cssOwnership',
+                    'status': 'FAIL',
+                    'command': ['python3', 'check.py'],
+                    'exitCode': 1,
+                    'durationMs': 200,
+                    'output': 'BLOCK: violation found',
                 }
             ],
         )
         report = generate_report(sample)
-        assert "## 失败详情" in report
-        assert "### cssOwnership (FAIL)" in report
-        assert "BLOCK: violation found" in report
+        assert '## 失败详情' in report
+        assert '### cssOwnership (FAIL)' in report
+        assert 'BLOCK: violation found' in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_warnings_section(self):
-        sample = self._sample(warnings=["legacy alias found"])
+        sample = self._sample(warnings=['legacy alias found'])
         report = generate_report(sample)
-        assert "## 警告" in report
-        assert "legacy alias found" in report
+        assert '## 警告' in report
+        assert 'legacy alias found' in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_blocked_gate(self):
         sample = self._sample(
             gateDetails=[
-                {"name": "browserLayout", "status": "BLOCKED", "command": [], "output": "playwright not installed"}
+                {
+                    'name': 'browserLayout',
+                    'status': 'BLOCKED',
+                    'command': [],
+                    'output': 'playwright not installed',
+                }
             ],
-            blockingFailures=["browserLayout=BLOCKED"],
+            blockingFailures=['browserLayout=BLOCKED'],
         )
         report = generate_report(sample)
-        assert "BLOCKED" in report
-        assert "browserLayout" in report
+        assert 'BLOCKED' in report
+        assert 'browserLayout' in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_long_output_truncated(self):
-        long_output = "x" * 5000
+        long_output = 'x' * 5000
         sample = self._sample(
-            status="FAIL",
-            blockingFailures=["test failed"],
+            status='FAIL',
+            blockingFailures=['test failed'],
             gateDetails=[
                 {
-                    "name": "pytest",
-                    "status": "FAIL",
-                    "command": ["pytest"],
-                    "exitCode": 1,
-                    "output": long_output,
+                    'name': 'pytest',
+                    'status': 'FAIL',
+                    'command': ['pytest'],
+                    'exitCode': 1,
+                    'output': long_output,
                 }
             ],
         )
         report = generate_report(sample)
-        assert "(truncated)" in report
+        assert '(truncated)' in report
         # 不应包含完整的 5000 字符
         assert long_output not in report
 
-    @pytest.mark.contract_case("HOOK-HARNESS-007")
+    @pytest.mark.contract_case('HOOK-HARNESS-007')
     def test_no_gate_details(self):
         sample = self._sample(gateDetails=[])
         report = generate_report(sample)
         # 无 gate 详情时不应有 gate 表格
-        assert "| Gate |" not in report
+        assert '| Gate |' not in report

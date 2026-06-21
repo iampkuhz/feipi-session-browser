@@ -20,12 +20,14 @@ def build_message_timeline(
     for msg in all_messages:
         if isinstance(msg, dict):
             timeline.append(msg)
-        elif hasattr(msg, "role"):
-            timeline.append({
-                "role": getattr(msg, "role", ""),
-                "content": getattr(msg, "content", "") or "",
-                "timestamp": getattr(msg, "timestamp", None),
-            })
+        elif hasattr(msg, 'role'):
+            timeline.append(
+                {
+                    'role': getattr(msg, 'role', ''),
+                    'content': getattr(msg, 'content', '') or '',
+                    'timestamp': getattr(msg, 'timestamp', None),
+                }
+            )
 
     return timeline[:max_messages]
 

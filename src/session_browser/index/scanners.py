@@ -1,35 +1,124 @@
-"""Scanning functions，用于 该 session index: full scan, incremental scan,
-file locators, and Qoder project key normalization."""
+"""Scan local agent session files into the SQLite session index.
+
+This module owns full and incremental scan lifecycles for Claude Code, Codex,
+and Qoder.  The scanner locates source JSONL files, reuses fresh normalized
+artifacts when possible, writes index rows, records scan logs, and normalizes
+Qoder cache project keys after scan completion.
+"""
 
 from __future__ import annotations
 
+import importlib
 import os
+import re
 import time
-from datetime import datetime
+from datetime import datetime, timedelta, timezone
+from functools import partial
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 from session_browser.domain.models import SessionSummary
-from session_browser.index.schema import _get_connection, ensure_session_artifacts_schema, init_schema
+from session_browser.index.schema import (
+    _get_connection,
+    ensure_session_artifacts_schema,
+    init_schema,
+)
 from session_browser.index.writers import upsert_session
 from session_browser.normalized.artifacts import (
-    NORMALIZED_SESSION_ARTIFACT_TYPE,
     find_current_normalized_session_artifact,
     persist_current_normalized_session_artifact_reference,
     persist_normalized_session_artifact,
     read_normalized_session_artifact,
 )
+from session_browser.sources import claude as claude_source
+from session_browser.sources import codex_session_source as codex_source
+from session_browser.sources import qoder as qoder_source
+from session_browser.sources.qoder_parts import discovery as qoder_discovery
+from session_browser.sources.qoder_parts import model_config as qoder_model_config
+from session_browser.sources.qoder_parts import parse as qoder_parse
 
+if TYPE_CHECKING:
+    import sqlite3
+    from collections.abc import Callable
+    from types import ModuleType
+    from typing import Any
 
 SCAN_COMMIT_EVERY = 25
 
 
-def _commit_periodically(conn, count: int) -> None:
+def _runtime_config() -> ModuleType:
+    """Return the currently loaded config module.
+
+    Tests reload ``session_browser.config`` after changing data-directory
+    environment variables.  Scanner helpers call this instead of holding a
+    module reference captured at import time so each scan reads the active
+    runtime configuration.
+
+    Returns:
+        Current ``session_browser.config`` module from ``sys.modules``.
+    """
+    return importlib.import_module("session_browser.config")
+
+
+def _sync_source_data_dirs() -> ModuleType:
+    """Refresh source module data directories after test or CLI config reloads.
+
+    Index tests and command wrappers update environment variables and reload
+    ``session_browser.config`` between scans.  Because this module imports
+    source adapters at module load time to satisfy lint import rules, scan entry
+    points call this helper before source discovery so adapters keep using the
+    current configured directories.  It mutates only module-level directory
+    constants.
+
+    Returns:
+        Current ``session_browser.config`` module used for the synchronization.
+    """
+    cfg = _runtime_config()
+    claude_source.CLAUDE_DATA_DIR = cfg.CLAUDE_DATA_DIR
+    codex_source.CODEX_DATA_DIR = cfg.CODEX_DATA_DIR
+    qoder_source.QODER_DATA_DIR = cfg.QODER_DATA_DIR
+    qoder_discovery.QODER_DATA_DIR = cfg.QODER_DATA_DIR
+    qoder_model_config.QODER_DATA_DIR = cfg.QODER_DATA_DIR
+    qoder_parse.QODER_DATA_DIR = cfg.QODER_DATA_DIR
+    return cfg
+
+
+def _commit_periodically(conn: sqlite3.Connection, count: int) -> None:
+    """Commit batched scan writes after every configured number of rows.
+
+    Full and incremental scan loops call this after each successful index
+    upsert.  The helper has no return value; its side effect is a SQLite commit
+    when ``count`` is a positive multiple of ``SCAN_COMMIT_EVERY``.
+
+    Args:
+        conn: SQLite connection used by the active scan.
+        count: Number of rows written by the current scan loop.
+    """
     if count > 0 and count % SCAN_COMMIT_EVERY == 0:
         conn.commit()
 
 
-def _delete_indexed_sessions(conn, agent: str, session_ids: set[str] | list[str]) -> int:
-    """Delete stale indexed rows for session IDs that are no longer top-level."""
+def _delete_indexed_sessions(
+    conn: sqlite3.Connection,
+    agent: str,
+    session_ids: set[str] | list[str],
+) -> int:
+    """Delete stale indexed sessions that should no longer be listed.
+
+    Incremental Codex scans call this when a previously indexed top-level
+    session is later classified as a subagent thread.  It deletes artifact rows
+    before session rows and returns the number of session rows removed; SQLite
+    errors propagate to the scan caller.
+
+    Args:
+        conn: SQLite connection that owns the current index.
+        agent: Agent prefix used to build ``session_key`` values.
+        session_ids: Session IDs that should be removed from the top-level
+            index.
+
+    Returns:
+        Number of deleted rows from the ``sessions`` table.
+    """
     deleted = 0
     for sid in session_ids:
         session_key = f"{agent}:{sid}"
@@ -40,18 +129,31 @@ def _delete_indexed_sessions(conn, agent: str, session_ids: set[str] | list[str]
     return deleted
 
 
-# 说明：--- File location helpers ---------------------------------------------------
+# --- File location helpers ---------------------------------------------------
 
 
 def _locate_claude_session_file(project_key: str, session_id: str) -> Path | None:
-    """查找 一个 Claude session .jsonl file on disk."""
-    from session_browser.config import CLAUDE_DATA_DIR
+    """Locate a Claude Code source JSONL file for scan parsing.
 
-    projects_dir = CLAUDE_DATA_DIR / "projects"
+    Full and incremental scans call this with a history entry's project key and
+    session ID before parsing details.  It first checks the direct
+    ``projects/<project_key>/<session_id>.jsonl`` path, then searches other
+    project folders for continuation history; it returns ``None`` when no
+    source file is available and does not mutate the index.
+
+    Args:
+        project_key: Claude project directory key from history.
+        session_id: Claude session UUID to locate.
+
+    Returns:
+        Path to the JSONL source file, or ``None`` when it is absent.
+    """
+    cfg = _sync_source_data_dirs()
+    projects_dir = cfg.CLAUDE_DATA_DIR / "projects"
     if not projects_dir.exists():
         return None
 
-    # 说明：Try direct match
+    # Prefer the project recorded by history.jsonl before scanning fallbacks.
     candidate = projects_dir / project_key / f"{session_id}.jsonl"
     if candidate.exists():
         return candidate
@@ -67,15 +169,27 @@ def _locate_claude_session_file(project_key: str, session_id: str) -> Path | Non
 
 
 def _locate_codex_session_file(session_id: str, rollout_path: str = "") -> Path | None:
-    """查找 一个 Codex session .jsonl file on disk."""
-    from session_browser.config import CODEX_DATA_DIR
+    """Locate a Codex rollout JSONL file for a scan candidate.
 
+    Codex scans use the thread database rollout path when available, then walk
+    the dated sessions directory for ``rollout-*-<session_id>.jsonl``.  The
+    function returns the first matching path or ``None`` and has no database
+    side effects.
+
+    Args:
+        session_id: Codex thread ID to locate.
+        rollout_path: Optional rollout path recorded in the threads database.
+
+    Returns:
+        Path to the rollout JSONL file, or ``None`` when no match is found.
+    """
     if rollout_path:
         p = Path(rollout_path)
         if p.exists():
             return p
 
-    sessions_dir = CODEX_DATA_DIR / "sessions"
+    cfg = _sync_source_data_dirs()
+    sessions_dir = cfg.CODEX_DATA_DIR / "sessions"
     if not sessions_dir.exists():
         return None
 
@@ -95,44 +209,47 @@ def _locate_codex_session_file(session_id: str, rollout_path: str = "") -> Path 
 
 
 def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None:
-    """查找 一个 Qoder session .jsonl file on disk.
+    """Locate a Qoder source JSONL file across CLI and GUI storage.
 
-    Searches both projects/ (CLI) and cache/projects/ (GUI) directories.
+    Incremental scans call this when a stored Qoder path disappeared.  It
+    resolves short cache IDs through Qoder's canonical map, checks
+    ``projects/`` for direct CLI sessions, then recursively searches
+    ``cache/projects/`` for GUI sessions.  It returns ``None`` if the source
+    file is not present and does not write to the index.
 
-    Search order:
-    1. Resolve short ID alias -> full UUID via canonical map, then search projects/.
-    2. Search projects/ by session_id.
-    3. Fall back to cache/projects/ -- recursive walk.
+    Args:
+        project_key: Qoder project key or cache project directory.
+        session_id: Qoder session ID or short cache alias.
+
+    Returns:
+        Path to the Qoder JSONL source file, or ``None`` when not found.
     """
-    import re
-
-    from session_browser.config import QODER_DATA_DIR
-    from session_browser.sources import qoder as qoder_source
-
+    cfg = _sync_source_data_dirs()
     uuid_pattern = re.compile(
-        r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$'
+        r"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-"
+        r"[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$",
     )
 
-    # 说明：Step 1: resolve short ID alias -> full UUID, then try projects/ direct
+    # Step 1: resolve short ID alias to full UUID, then try projects/ directly.
     if not uuid_pattern.match(session_id):
         canonical_map = qoder_source._build_canonical_id_map()
         resolved_id = canonical_map.get(session_id.lower(), session_id)
         if resolved_id != session_id.lower():
-            projects_dir = QODER_DATA_DIR / "projects"
+            projects_dir = cfg.QODER_DATA_DIR / "projects"
             if projects_dir.exists():
                 candidate = projects_dir / project_key / f"{resolved_id}.jsonl"
                 if candidate.exists():
                     return candidate
 
-    # 说明：Step 2: search projects/ by original session_id
-    projects_dir = QODER_DATA_DIR / "projects"
+    # Step 2: search projects/ by original session_id.
+    projects_dir = cfg.QODER_DATA_DIR / "projects"
     if projects_dir.exists():
         candidate = projects_dir / project_key / f"{session_id}.jsonl"
         if candidate.exists():
             return candidate
 
-    # 说明：Step 3: fall back to cache/projects/
-    cache_dir = QODER_DATA_DIR / "cache" / "projects"
+    # Step 3: fall back to cache/projects/.
+    cache_dir = cfg.QODER_DATA_DIR / "cache" / "projects"
     if cache_dir.exists():
         for root, _dirs, files in os.walk(cache_dir):
             if f"{session_id}.jsonl" in files:
@@ -141,17 +258,34 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
     return None
 
 
-def _persist_normalized_artifact_safe(
-    conn,
+def _persist_normalized_artifact_safe(  # noqa: PLR0913 - Scan callers pass immutable artifact context explicitly.
+    conn: sqlite3.Connection,
     *,
     session_key: str,
     file_path: str,
     file_mtime: float,
-    build_normalized,
+    build_normalized: Callable[[], dict[str, Any]],
     verbose: bool,
     summary: SessionSummary | None = None,
 ) -> None:
-    """Persist normalized JSON，用于 一个 session without blocking 该 index scan."""
+    """Persist normalized JSON for one scanned session without aborting scans.
+
+    Scan loops call this after upserting a ``SessionSummary``.  It first reuses
+    a current artifact reference unless forced rebuild is enabled, otherwise it
+    calls ``build_normalized`` and persists the normalized payload with optional
+    validation.  Normalization exceptions are swallowed after optional verbose
+    logging so index rows remain available even when artifact generation fails.
+
+    Args:
+        conn: SQLite connection used for artifact reference writes.
+        session_key: Stable ``agent:session_id`` key for the indexed session.
+        file_path: Source JSONL path associated with the summary.
+        file_mtime: Source file modification time captured by the scan.
+        build_normalized: Callable that parses or returns normalized session
+            JSON only after reuse checks fail.
+        verbose: Whether to print non-fatal artifact persistence failures.
+        summary: Optional summary snapshot to embed in the artifact.
+    """
     if not file_path:
         return
     try:
@@ -189,7 +323,23 @@ def _summary_from_current_artifact(
     file_mtime: float,
     index_dir: Path | None,
 ) -> SessionSummary | None:
-    """Build an index row from a current normalized artifact, skipping source parse."""
+    """Build an index row from a current normalized artifact.
+
+    Full and incremental scans call this before reparsing source JSONL.  It
+    checks whether the normalized artifact matches the source path and mtime,
+    reads that artifact if present, and returns a ``SessionSummary`` for
+    ``upsert_session``.  Missing or unreadable artifacts return ``None`` so the
+    caller can fall back to source parsing.
+
+    Args:
+        session_key: Stable ``agent:session_id`` key for artifact lookup.
+        file_path: Source JSONL path recorded for the candidate session.
+        file_mtime: Source file modification time used for freshness checks.
+        index_dir: Directory containing the SQLite index and artifact store.
+
+    Returns:
+        Reconstructed summary, or ``None`` when reuse is unavailable.
+    """
     artifact_path = find_current_normalized_session_artifact(
         session_key=session_key,
         source_path=file_path,
@@ -205,19 +355,37 @@ def _summary_from_current_artifact(
     return _summary_from_normalized_artifact(normalized)
 
 
-def _summary_from_normalized_artifact(normalized: dict) -> SessionSummary | None:
+def _summary_from_normalized_artifact(
+    normalized: dict[str, Any],
+) -> SessionSummary | None:
+    """Translate a normalized artifact payload back into index summary fields.
+
+    Artifact reuse calls this after reading normalized JSON from disk.  It
+    derives token counts, duration, project labels, and subagent counts from
+    normalized calls plus the optional ``index_summary`` snapshot.  It returns
+    ``None`` when mandatory agent or session identifiers are missing and does
+    not mutate the normalized payload.
+
+    Args:
+        normalized: Normalized session artifact payload read from disk.
+
+    Returns:
+        Reconstructed session summary, or ``None`` for invalid payloads.
+    """
     session = normalized.get("session") if isinstance(normalized.get("session"), dict) else {}
     index_summary = (
-        normalized.get("index_summary")
-        if isinstance(normalized.get("index_summary"), dict)
-        else {}
+        normalized.get("index_summary") if isinstance(normalized.get("index_summary"), dict) else {}
     )
     agent = str(normalized.get("agent") or session.get("agent") or "")
     session_id = str(session.get("session_id") or "")
     if not agent or not session_id:
         return None
     calls = normalized.get("calls") if isinstance(normalized.get("calls"), list) else []
-    tools = normalized.get("tool_executions") if isinstance(normalized.get("tool_executions"), list) else []
+    tools = (
+        normalized.get("tool_executions")
+        if isinstance(normalized.get("tool_executions"), list)
+        else []
+    )
     usage_totals = {"fresh": 0, "cache_read": 0, "cache_write": 0, "output": 0, "total": 0}
     for call in calls:
         if not isinstance(call, dict):
@@ -235,7 +403,9 @@ def _summary_from_normalized_artifact(normalized: dict) -> SessionSummary | None
         if isinstance(call, dict) and str(call.get("scope") or "") == "subagent"
     }
     project_key = str(session.get("project_key") or session.get("cwd") or "")
-    project_name = str(session.get("project_name") or (Path(project_key).name if project_key else ""))
+    project_name = str(
+        session.get("project_name") or (Path(project_key).name if project_key else ""),
+    )
     return SessionSummary(
         agent=agent,
         session_id=session_id,
@@ -251,17 +421,38 @@ def _summary_from_normalized_artifact(normalized: dict) -> SessionSummary | None
         model=str(session.get("model") or ""),
         git_branch=str(session.get("git_branch") or ""),
         source=str(session.get("source") or ""),
-        user_message_count=_summary_count(index_summary, "user_message_count", max(1, len(calls)) if calls else 0),
-        assistant_message_count=_summary_count(index_summary, "assistant_message_count", len(calls)),
+        user_message_count=_summary_count(
+            index_summary,
+            "user_message_count",
+            max(1, len(calls)) if calls else 0,
+        ),
+        assistant_message_count=_summary_count(
+            index_summary,
+            "assistant_message_count",
+            len(calls),
+        ),
         tool_call_count=_summary_count(index_summary, "tool_call_count", len(tools)),
         output_tokens=_summary_count(index_summary, "output_tokens", usage_totals["output"]),
-        fresh_input_tokens=_summary_count(index_summary, "fresh_input_tokens", usage_totals["fresh"]),
-        cache_read_tokens=_summary_count(index_summary, "cache_read_tokens", usage_totals["cache_read"]),
-        cache_write_tokens=_summary_count(index_summary, "cache_write_tokens", usage_totals["cache_write"]),
+        fresh_input_tokens=_summary_count(
+            index_summary,
+            "fresh_input_tokens",
+            usage_totals["fresh"],
+        ),
+        cache_read_tokens=_summary_count(
+            index_summary,
+            "cache_read_tokens",
+            usage_totals["cache_read"],
+        ),
+        cache_write_tokens=_summary_count(
+            index_summary,
+            "cache_write_tokens",
+            usage_totals["cache_write"],
+        ),
         total_tokens=_summary_count(
             index_summary,
             "total_tokens",
-            usage_totals["total"] or sum(usage_totals[k] for k in ("fresh", "cache_read", "cache_write", "output")),
+            usage_totals["total"]
+            or sum(usage_totals[k] for k in ("fresh", "cache_read", "cache_write", "output")),
         ),
         failed_tool_count=_summary_count(index_summary, "failed_tool_count", 0),
         subagent_instance_count=_summary_count(
@@ -272,8 +463,21 @@ def _summary_from_normalized_artifact(normalized: dict) -> SessionSummary | None
     )
 
 
-def _summary_payload(summary: SessionSummary) -> dict:
-    """Persist scan-index facts that cannot be losslessly inferred from calls."""
+def _summary_payload(summary: SessionSummary) -> dict[str, Any]:
+    """Serialize index-only fields into a normalized artifact.
+
+    Normalized artifact persistence calls this after each source parse.  The
+    returned dictionary preserves scan-time facts that are expensive or lossy to
+    recompute from raw calls, such as final title and aggregate counters; it has
+    no database side effects.
+
+    Args:
+        summary: Parsed session summary whose index-only fields should be
+            stored with the normalized artifact.
+
+    Returns:
+        JSON-serializable mapping of summary fields for artifact reuse.
+    """
     return {
         "title": summary.title,
         "duration_seconds": summary.duration_seconds,
@@ -292,13 +496,40 @@ def _summary_payload(summary: SessionSummary) -> dict:
     }
 
 
-def _summary_count(index_summary: dict, key: str, fallback: int) -> int:
+def _summary_count(index_summary: dict[str, Any], key: str, fallback: int) -> int:
+    """Read an integer count from artifact metadata with scan fallback.
+
+    Artifact reuse uses this for each aggregate counter in ``SessionSummary``.
+    If ``key`` is absent, the caller-provided fallback is returned; malformed
+    values are coerced to zero by ``_int_or_zero``.
+
+    Args:
+        index_summary: Optional summary mapping stored in a normalized artifact.
+        key: Counter name to read.
+        fallback: Value to return when the counter is absent.
+
+    Returns:
+        Integer counter value for the rebuilt index row.
+    """
     if key in index_summary:
         return _int_or_zero(index_summary.get(key))
     return fallback
 
 
 def _duration_seconds(started_at: str, ended_at: str) -> float:
+    """Compute a non-negative scan duration from ISO timestamps.
+
+    Normalized artifact reuse calls this when no stored duration is available.
+    It accepts ``Z`` or offset ISO strings, returns seconds rounded to one
+    decimal, and returns ``0`` for missing or invalid timestamps.
+
+    Args:
+        started_at: ISO timestamp for the first session event.
+        ended_at: ISO timestamp for the final session event.
+
+    Returns:
+        Non-negative duration in seconds, or ``0`` when timestamps are invalid.
+    """
     try:
         if not started_at or not ended_at:
             return 0
@@ -309,7 +540,19 @@ def _duration_seconds(started_at: str, ended_at: str) -> float:
         return 0
 
 
-def _int_or_zero(value) -> int:
+def _int_or_zero(value: object) -> int:
+    """Coerce a normalized numeric field to ``int`` for index counters.
+
+    Scan summary construction uses this for token and message totals.  Missing
+    or invalid values return ``0`` instead of raising so corrupt optional
+    counters do not block artifact reuse.
+
+    Args:
+        value: Raw value read from normalized artifact metadata.
+
+    Returns:
+        Integer representation of ``value``, or ``0`` on failure.
+    """
     try:
         if value is None:
             return 0
@@ -318,7 +561,18 @@ def _int_or_zero(value) -> int:
         return 0
 
 
-def _float_or_zero(value) -> float:
+def _float_or_zero(value: object) -> float:
+    """Coerce a normalized numeric field to ``float`` for timing metrics.
+
+    Artifact reuse uses this for model and tool execution seconds.  Missing or
+    invalid values return ``0`` and do not affect database state.
+
+    Args:
+        value: Raw value read from normalized artifact metadata.
+
+    Returns:
+        Floating point representation of ``value``, or ``0`` on failure.
+    """
     try:
         if value is None:
             return 0
@@ -327,15 +581,36 @@ def _float_or_zero(value) -> float:
         return 0
 
 
-def _build_codex_normalized_for_scan(codex_source, summary, thread_info: dict, file_path: str) -> dict:
-    """Build Codex normalized artifact only after reuse checks fail."""
+def _build_codex_normalized_for_scan(
+    codex_source_module: ModuleType,
+    summary: SessionSummary,
+    thread_info: dict[str, Any],
+    file_path: str,
+) -> dict[str, Any]:
+    """Build Codex normalized artifact only after reuse checks fail.
+
+    Incremental Codex scans pass this as the artifact builder when a rollout has
+    changed.  It merges thread metadata with the parsed summary, delegates to
+    the Codex source parser, and backfills the session title when the normalized
+    payload omitted one.  Parser exceptions propagate to the safe persistence
+    wrapper, which logs and skips artifact persistence.
+
+    Args:
+        codex_source_module: Imported Codex source module that owns the parser.
+        summary: Parsed session summary used to seed normalized metadata.
+        thread_info: Threads database metadata for this Codex session.
+        file_path: Rollout JSONL path to normalize.
+
+    Returns:
+        Normalized Codex session payload ready for artifact persistence.
+    """
     normalized_thread_info = dict(thread_info or {})
     normalized_thread_info.setdefault("id", summary.session_id)
     normalized_thread_info.setdefault("title", summary.title)
     normalized_thread_info.setdefault("cwd", summary.cwd)
     normalized_thread_info.setdefault("git_branch", summary.git_branch)
     normalized_thread_info.setdefault("model", summary.model)
-    normalized = codex_source.parse_normalized_session_file(
+    normalized = codex_source_module.parse_normalized_session_file(
         file_path,
         thread_info=normalized_thread_info,
     )
@@ -344,8 +619,19 @@ def _build_codex_normalized_for_scan(codex_source, summary, thread_info: dict, f
     return normalized
 
 
-def _index_dir_from_connection(conn) -> Path | None:
-    """返回 该 directory containing 该 active SQLite main database."""
+def _index_dir_from_connection(conn: sqlite3.Connection) -> Path | None:
+    """Return the directory that contains the active SQLite main database.
+
+    Artifact persistence calls this so normalized files can live beside the
+    index database.  It inspects ``PRAGMA database_list`` and returns ``None``
+    when the connection is in-memory or cannot be queried.
+
+    Args:
+        conn: SQLite connection whose main database path should be inspected.
+
+    Returns:
+        Parent directory of the main database file, or ``None`` when unknown.
+    """
     try:
         for row in conn.execute("PRAGMA database_list").fetchall():
             seq = row[0]
@@ -359,6 +645,15 @@ def _index_dir_from_connection(conn) -> Path | None:
 
 
 def _should_validate_normalized_artifacts() -> bool:
+    """Read the normalized-artifact validation flag for scan persistence.
+
+    The artifact writer calls this immediately before persisting normalized
+    JSON.  Truthy environment values enable schema validation; unset or
+    unrecognized values keep scans fast and return ``False``.
+
+    Returns:
+        ``True`` when normalized artifact validation should run.
+    """
     return os.environ.get("SESSION_BROWSER_VALIDATE_NORMALIZED_ARTIFACTS", "").strip().lower() in {
         "1",
         "true",
@@ -369,6 +664,15 @@ def _should_validate_normalized_artifacts() -> bool:
 
 
 def _should_force_normalized_artifact_rebuild() -> bool:
+    """Read the environment flag that disables normalized-artifact reuse.
+
+    Full and incremental scans use this before checking current artifact
+    references.  Truthy values force parser execution and artifact rewrite; the
+    function has no side effects beyond reading ``os.environ``.
+
+    Returns:
+        ``True`` when normalized artifact reuse should be bypassed.
+    """
     return os.environ.get("SESSION_BROWSER_FORCE_NORMALIZED_ARTIFACTS", "").strip().lower() in {
         "1",
         "true",
@@ -378,11 +682,11 @@ def _should_force_normalized_artifact_rebuild() -> bool:
     }
 
 
-# 说明：--- Qoder cache project key normalization -----------------------------------
+# --- Qoder cache project key normalization -----------------------------------
 
 
-def _normalize_qoder_cache_projects(conn) -> None:
-    """说明：Fix Qoder cache session project_keys to match other agents.
+def _normalize_qoder_cache_projects(conn: sqlite3.Connection) -> None:
+    """Fix Qoder cache session project keys after scan writes finish.
 
     Qoder cache sessions (from ~/.qoder/cache/projects/) have no ``cwd``
     and use a hash-stripped directory name as ``project_key`` (e.g.
@@ -395,7 +699,11 @@ def _normalize_qoder_cache_projects(conn) -> None:
     up a matching project path from sessions that already have an absolute
     ``project_key`` (Claude Code, Codex, or Qoder CLI) by ``project_name``.
     If exactly one match exists, update the session's ``project_key`` so
-    the same repo is grouped under a single project.
+    the same repo is grouped under a single project; ambiguous matches are left
+    unchanged and SQLite errors propagate to the scan caller.
+
+    Args:
+        conn: SQLite connection containing the sessions table to normalize.
     """
     rows = conn.execute(
         "SELECT session_key, project_key, project_name "
@@ -414,9 +722,7 @@ def _normalize_qoder_cache_projects(conn) -> None:
         if project_name in resolved_cache:
             resolved = resolved_cache[project_name]
         else:
-            # Look，用于 一个 unique absolute project_key，来源于 sessions
-            # 说明：that already have proper paths. Priority: Claude Code + Codex
-            # 说明：first, then Qoder CLI (which has cwd != '').
+            # Prefer project paths from agents that already have reliable cwd.
             matches = conn.execute(
                 "SELECT DISTINCT project_key FROM sessions "
                 "WHERE project_name = ? "
@@ -437,27 +743,31 @@ def _normalize_qoder_cache_projects(conn) -> None:
     conn.commit()
 
 
-# 说明：--- Full scan ----------------------------------------------------------------
+# --- Full scan ----------------------------------------------------------------
 
 
-def full_scan(
-    conn=None,
+def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all agents.
+    conn: sqlite3.Connection | None = None,
     verbose: bool = False,
     agent: str | None = None,
-) -> dict:
-    """Run 一个 full scan of both Claude Code 和 Codex data sources.
+) -> dict[str, int]:
+    """Run the full source discovery and index rebuild lifecycle.
+
+    CLI and application startup flows call this when the index needs to inspect
+    every configured agent source.  It initializes schema, records a running
+    scan log, discovers Claude Code, Codex, and Qoder sessions subject to the
+    optional agent filter, upserts session rows, persists normalized artifacts,
+    normalizes Qoder cache project keys, and marks the scan log done.
 
     Args:
         conn: SQLite connection. If None, creates a new one.
         verbose: Print progress messages.
-        agent: If provided, only scan this agent ("claude_code" or "codex").
+        agent: If provided, only scan this agent.
 
-    Returns a dict with scan statistics.
+    Returns:
+        Counts for each agent and the total number of indexed sessions.
     """
-    from session_browser.sources import claude as claude_source
-    from session_browser.sources import codex_session_source as codex_source
-    from session_browser.sources import qoder as qoder_source
-
+    cfg = _sync_source_data_dirs()
     if conn is None:
         conn = _get_connection()
 
@@ -478,20 +788,17 @@ def full_scan(
     scan_codex = agent is None or agent == "codex"
     scan_qoder = agent is None or agent == "qoder"
 
-    # 扫描 Claude Code
+    # Scan Claude Code.
     if scan_claude:
         if verbose:
             print("Scanning Claude Code...")
-        # 说明：Pre-load history to build session->project mapping
+        # Pre-load history to build session-to-project mapping.
         history = claude_source.parse_history()
-        # 去重 by session_id -- history.jsonl can have multiple entries
-        # for 该 same session (continuations). Keep 该 last (most recent).
+        # history.jsonl can contain repeated continuations; keep the latest.
         seen = {}
         for entry in history:
             seen[entry["session_id"]] = entry
         unique_history = list(seen.values())
-
-        session_projects = {e["session_id"]: e["project"] for e in unique_history}
 
         for entry in unique_history:
             sid = entry["session_id"]
@@ -501,14 +808,18 @@ def full_scan(
             fpath = _locate_claude_session_file(project, sid)
             if fpath and fpath.exists():
                 file_path = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
+                file_mtime = fpath.stat().st_mtime
 
-            cached_summary = _summary_from_current_artifact(
-                session_key=f"claude_code:{sid}",
-                file_path=file_path,
-                file_mtime=file_mtime,
-                index_dir=index_dir,
-            ) if file_path else None
+            cached_summary = (
+                _summary_from_current_artifact(
+                    session_key=f"claude_code:{sid}",
+                    file_path=file_path,
+                    file_mtime=file_mtime,
+                    index_dir=index_dir,
+                )
+                if file_path
+                else None
+            )
             if cached_summary is not None:
                 if not cached_summary.title and entry.get("display"):
                     cached_summary.title = claude_source._extract_readable_title(entry["display"])
@@ -533,7 +844,7 @@ def full_scan(
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
 
-            # 跳过 sessions，使用 no valid timestamps (e.g., 所有 events were non-dict JSON)
+            # Skip sessions with no valid timestamps, such as non-dict JSON events.
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {sid}: no valid ended_at timestamp")
@@ -545,7 +856,8 @@ def full_scan(
                 session_key=summary.session_key,
                 file_path=file_path,
                 file_mtime=file_mtime,
-                build_normalized=lambda: claude_source.build_normalized_session(
+                build_normalized=partial(
+                    claude_source.build_normalized_session,
                     summary=summary,
                     messages=_msgs,
                     tool_calls=_tcs,
@@ -562,7 +874,7 @@ def full_scan(
 
         conn.commit()
 
-    # 扫描 Codex (pre-load threads DB once)
+    # Scan Codex after preloading the threads DB once.
     if scan_codex:
         if verbose:
             print("Scanning Codex...")
@@ -570,10 +882,11 @@ def full_scan(
         threads_db = codex_source.read_threads_db()
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
         subagent_ids = {
-            sid for sid, info in threads_db.items()
+            sid
+            for sid, info in threads_db.items()
             if codex_source.is_codex_subagent_thread_info(info)
         }
-        codex_ids = [sid for sid in threads_db.keys() if sid not in subagent_ids]
+        codex_ids = [sid for sid in threads_db if sid not in subagent_ids]
         codex_ids.extend(sid for sid in index_entries if sid not in threads_db)
         for sid in codex_ids:
             if sid in threads_db:
@@ -604,18 +917,25 @@ def full_scan(
                 }
                 parse_threads_db = {sid: thread_info}
 
-            fpath = fallback_file or _locate_codex_session_file(sid, thread_info.get("rollout_path", ""))
+            fpath = fallback_file or _locate_codex_session_file(
+                sid,
+                thread_info.get("rollout_path", ""),
+            )
             file_mtime = 0.0
             file_path = ""
             if fpath and fpath.exists():
                 file_path = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
-            cached_summary = _summary_from_current_artifact(
-                session_key=f"codex:{sid}",
-                file_path=file_path,
-                file_mtime=file_mtime,
-                index_dir=index_dir,
-            ) if file_path else None
+                file_mtime = fpath.stat().st_mtime
+            cached_summary = (
+                _summary_from_current_artifact(
+                    session_key=f"codex:{sid}",
+                    file_path=file_path,
+                    file_mtime=file_mtime,
+                    index_dir=index_dir,
+                )
+                if file_path
+                else None
+            )
             if cached_summary is not None:
                 if not cached_summary.title:
                     idx_entry = index_entries.get(sid)
@@ -644,24 +964,24 @@ def full_scan(
                     verbose=verbose,
                 )
             )
-            # Enrich title，来源于 index，如果 empty, matching scan_all_sessions.
+            # Enrich empty titles from the session index, matching scan_all_sessions.
             if not summary.title:
                 idx_entry = index_entries.get(sid)
                 if idx_entry and idx_entry.get("thread_name"):
                     summary.title = idx_entry["thread_name"][:120]
                 elif thread_info.get("first_user_message"):
                     summary.title = thread_info["first_user_message"][:120]
-            # 跳过 sessions，使用 no valid timestamps
+            # Skip sessions with no valid timestamps.
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {summary.session_id}: no valid ended_at timestamp")
                 continue
 
-            # 记录 file mtime + path，用于 future incremental scans
+            # Store file mtime and path for future incremental scans.
             fpath = session_file or (Path(summary.file_path) if summary.file_path else fpath)
             if fpath and fpath.exists():
                 file_path = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
+                file_mtime = fpath.stat().st_mtime
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             _persist_normalized_artifact_safe(
@@ -680,10 +1000,8 @@ def full_scan(
 
         conn.commit()
 
-    # 扫描 Qoder (walk projects/ directory)
+    # Scan Qoder from projects/ and cache/projects/.
     if scan_qoder:
-        from session_browser.config import QODER_DATA_DIR
-
         if verbose:
             print("Scanning Qoder...")
         discovered = qoder_source._discover_sessions()
@@ -698,14 +1016,18 @@ def full_scan(
             all_discovered.append((project_key, canonical_id, fpath))
 
         for project_key, sid, fpath in all_discovered:
-            file_mtime = os.path.getmtime(fpath) if fpath.exists() else 0.0
+            file_mtime = fpath.stat().st_mtime if fpath.exists() else 0.0
             file_path = str(fpath) if fpath and fpath.exists() else ""
-            cached_summary = _summary_from_current_artifact(
-                session_key=f"qoder:{sid}",
-                file_path=file_path,
-                file_mtime=file_mtime,
-                index_dir=index_dir,
-            ) if file_path else None
+            cached_summary = (
+                _summary_from_current_artifact(
+                    session_key=f"qoder:{sid}",
+                    file_path=file_path,
+                    file_mtime=file_mtime,
+                    index_dir=index_dir,
+                )
+                if file_path
+                else None
+            )
             if cached_summary is not None:
                 upsert_session(conn, cached_summary, file_mtime=file_mtime, file_path=file_path)
                 persist_current_normalized_session_artifact_reference(
@@ -721,7 +1043,7 @@ def full_scan(
                     print(f"  Qoder: {qoder_count} sessions")
                 continue
 
-            is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
+            is_cache = str(fpath).startswith(str(cfg.QODER_DATA_DIR / "cache"))
             summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
                 project_key, sid, session_file=fpath, verbose=verbose
             )
@@ -729,7 +1051,7 @@ def full_scan(
             if is_cache:
                 summary.file_path = str(fpath)
 
-            # 跳过 sessions，使用 no valid timestamps
+            # Skip sessions with no valid timestamps.
             if not summary.ended_at:
                 if verbose:
                     print(f"  Skipping {summary.session_id}: no valid ended_at timestamp")
@@ -741,7 +1063,8 @@ def full_scan(
                 session_key=summary.session_key,
                 file_path=file_path,
                 file_mtime=file_mtime,
-                build_normalized=lambda: qoder_source.build_normalized_session(
+                build_normalized=partial(
+                    qoder_source.build_normalized_session,
                     summary=summary,
                     messages=_msgs,
                     tool_calls=_tcs,
@@ -758,20 +1081,14 @@ def full_scan(
 
         conn.commit()
 
-    # 说明：-- Normalize Qoder cache project keys --------------------------------
-    # 说明：Qoder cache sessions (from ~/.qoder/cache/projects/) have no cwd
-    # and use 一个 hash-stripped directory name as project_key (e.g.
-    # "openspec-research-blockchain").  This diverges，来源于 Claude Code
-    # and Codex which use 该 full filesystem path as project_key.
-    # After 所有 agents are scanned, look up matching project paths from
-    # non-Qoder sessions 和 update Qoder cache sessions so 该 same
-    # repo is grouped under 一个 single project_key.
+    # Normalize Qoder cache project keys after all agents have been scanned.
     if scan_qoder:
         _normalize_qoder_cache_projects(conn)
 
-    # 说明：Update log
+    # Update scan log.
     conn.execute(
-        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, qoder_count=?, status='done' WHERE id=?",
+        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, "
+        "qoder_count=?, status='done' WHERE id=?",
         (time.time(), claude_count, codex_count, qoder_count, log_id),
     )
     conn.commit()
@@ -784,20 +1101,22 @@ def full_scan(
     }
 
 
-# 说明：--- Incremental scan ---------------------------------------------------------
+# --- Incremental scan ---------------------------------------------------------
 
 
-def incremental_scan(
-    conn=None,
+def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordinate all agent stores.
+    conn: sqlite3.Connection | None = None,
     verbose: bool = False,
     agent: str | None = None,
     max_age_seconds: float | None = None,
-) -> dict:
-    """扫描 仅 sessions whose source files have changed.
+) -> dict[str, int]:
+    """Scan only sessions whose source files changed since the last index.
 
-    Uses file mtime comparison to skip sessions that haven't been modified
-    since the last index. Only scans sessions within max_age_seconds (by
-    ended_at) if specified; older sessions are skipped.
+    CLI refresh flows call this for routine updates.  It compares stored file
+    mtimes and paths against Claude Code, Codex, and Qoder sources, skips rows
+    outside the optional age window, reparses changed or newly discovered
+    sessions, prunes Codex subagent rows, writes normalized artifacts, and
+    closes the scan log with per-agent counters.
 
     Args:
         conn: SQLite connection.
@@ -806,13 +1125,11 @@ def incremental_scan(
         max_age_seconds: If set, only scan sessions whose ended_at is within
             this many seconds from now. Sessions older than this are skipped.
 
-    Returns a dict with scan statistics.
+    Returns:
+        Counts for updated sessions, new sessions, skipped sessions, and pruned
+        Codex subagent rows.
     """
-    from session_browser.config import QODER_DATA_DIR
-    from session_browser.sources import claude as claude_source
-    from session_browser.sources import codex_session_source as codex_source
-    from session_browser.sources import qoder as qoder_source
-
+    cfg = _sync_source_data_dirs()
     if conn is None:
         conn = _get_connection()
 
@@ -825,15 +1142,13 @@ def incremental_scan(
     ).lastrowid
     conn.commit()
 
-    now = time.time()
     cutoff_iso = None
     if max_age_seconds is not None:
-        from datetime import datetime, timezone, timedelta
         cutoff_dt = datetime.now(timezone.utc) - timedelta(seconds=max_age_seconds)
         cutoff_iso = cutoff_dt.isoformat()
 
-    # 加载 existing sessions，来源于 DB: session_key -> {ended_at, file_mtime, file_path, agent, model_execution_seconds, tool_execution_seconds, model}
-    existing = {}
+    # Load existing sessions keyed by session_key for mtime and age decisions.
+    existing: dict[str, dict[str, Any]] = {}
     columns = [r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()]
     has_model_exec = "model_execution_seconds" in columns
     has_tool_exec = "tool_execution_seconds" in columns
@@ -853,13 +1168,6 @@ def incremental_scan(
             "tool_execution_seconds": row["tool_execution_seconds"] if has_tool_exec else 0,
         }
 
-    # Also load session_id -> project_key mapping，来源于 DB，用于 Claude sessions
-    claude_project_map = {}
-    for row in conn.execute(
-        "SELECT session_id, project_key FROM sessions WHERE agent='claude_code'"
-    ).fetchall():
-        claude_project_map[row["session_id"]] = row["project_key"]
-
     claude_count = 0
     codex_count = 0
     qoder_count = 0
@@ -871,10 +1179,10 @@ def incremental_scan(
     scan_codex = agent is None or agent == "codex"
     scan_qoder = agent is None or agent == "qoder"
 
-    # -- 扫描 Claude Code --------------------------------------------------
+    # -- Scan Claude Code --------------------------------------------------
     if scan_claude:
         history = claude_source.parse_history()
-        # history.jsonl 可能为同一 session 记录多次 continuation；保留最后一条作为最新入口。
+        # history.jsonl can contain repeated continuations; keep the latest.
         seen = {}
         for entry in history:
             seen[entry["session_id"]] = entry
@@ -887,7 +1195,7 @@ def incremental_scan(
             project = entry["project"]
             skey = f"claude_code:{sid}"
 
-            # 已索引 session 先检查年龄窗口，过旧时本轮增量扫描不再解析源文件。
+            # Existing sessions outside the age window are not reparsed.
             info = existing.get(skey)
             if info:
                 ended_at = info["ended_at"] or ""
@@ -895,19 +1203,19 @@ def incremental_scan(
                     skipped_count += 1
                     continue
 
-                # mtime 未变化即可跳过；路径失效时尝试重新定位，避免移动文件后永久失联。
+                # Relocate missing source paths so moved files can refresh.
                 stored_mtime = info["file_mtime"]
                 stored_path = info["file_path"]
                 path_relocated = False
                 if stored_path:
                     fpath = Path(stored_path)
                     if fpath.exists():
-                        current_mtime = os.path.getmtime(fpath)
+                        current_mtime = fpath.stat().st_mtime
                         if current_mtime <= stored_mtime:
                             skipped_count += 1
                             continue
                     else:
-                        # 记录路径已删除时，用 project/session_id 再定位一次源文件。
+                        # Relocate deleted paths by project and session ID.
                         fpath = _locate_claude_session_file(project, sid)
                         if fpath and fpath.exists() and str(fpath) != stored_path:
                             path_relocated = True
@@ -916,19 +1224,19 @@ def incremental_scan(
                     continue
 
                 if fpath and fpath.exists():
-                    current_mtime = os.path.getmtime(fpath)
-                    # 路径迁移即使 mtime 未变也要重写索引中的 file_path。
+                    current_mtime = fpath.stat().st_mtime
+                    # Path relocation rewrites file_path even if mtime is unchanged.
                     if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
                 else:
-                    # 找不到源文件时只能跳过，避免用旧路径覆盖当前索引。
+                    # Missing sources are skipped to avoid overwriting valid paths.
                     skipped_count += 1
                     continue
             else:
                 new_count += 1
 
-            # 只有新增、变更或重新定位的 session 才解析详情。
+            # Only new, changed, or relocated sessions need source parsing.
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
                 project, sid, history_entry=entry
             )
@@ -936,13 +1244,13 @@ def incremental_scan(
             if not summary.title and entry.get("display"):
                 summary.title = claude_source._extract_readable_title(entry["display"])
 
-            # 记录当前源文件路径和 mtime，供下一轮增量扫描判定。
+            # Store source path and mtime for the next incremental scan.
             file_mtime = 0.0
             file_path_str = ""
             fpath = _locate_claude_session_file(project, sid)
             if fpath and fpath.exists():
                 file_path_str = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
+                file_mtime = fpath.stat().st_mtime
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             _persist_normalized_artifact_safe(
@@ -950,7 +1258,8 @@ def incremental_scan(
                 session_key=summary.session_key,
                 file_path=file_path_str,
                 file_mtime=file_mtime,
-                build_normalized=lambda: claude_source.build_normalized_session(
+                build_normalized=partial(
+                    claude_source.build_normalized_session,
                     summary=summary,
                     messages=_msgs,
                     tool_calls=_tcs,
@@ -965,15 +1274,16 @@ def incremental_scan(
 
         conn.commit()
 
-    # -- 扫描 Codex --------------------------------------------------------
+    # -- Scan Codex --------------------------------------------------------
     if scan_codex:
         codex_source.clear_codex_subagent_index_cache()
         threads_db = codex_source.read_threads_db()
-        # threads DB 不完整时，用 session_index.jsonl 作为发现兜底。
+        # Fall back to session_index.jsonl when threads DB is incomplete.
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
 
         subagent_ids = {
-            sid for sid, info in threads_db.items()
+            sid
+            for sid, info in threads_db.items()
             if codex_source.is_codex_subagent_thread_info(info)
         }
         pruned = _delete_indexed_sessions(conn, "codex", subagent_ids)
@@ -981,7 +1291,7 @@ def incremental_scan(
             pruned_subagent_count += pruned
             conn.commit()
 
-        all_ids = [sid for sid in threads_db.keys() if sid not in subagent_ids]
+        all_ids = [sid for sid in threads_db if sid not in subagent_ids]
         all_ids.extend(sid for sid in index_entries if sid not in threads_db)
         if verbose:
             print(f"Incremental scan: {len(all_ids)} Codex sessions...")
@@ -992,7 +1302,11 @@ def incremental_scan(
 
             if sid not in threads_db:
                 stored_path = (info or {}).get("file_path", "")
-                fallback_file = Path(stored_path) if stored_path and Path(stored_path).exists() else _locate_codex_session_file(sid, "")
+                fallback_file = (
+                    Path(stored_path)
+                    if stored_path and Path(stored_path).exists()
+                    else _locate_codex_session_file(sid, "")
+                )
                 if codex_source.is_codex_subagent_session_file(fallback_file):
                     pruned_subagent_count += _delete_indexed_sessions(conn, "codex", [sid])
                     skipped_count += 1
@@ -1010,12 +1324,12 @@ def incremental_scan(
                 if stored_path:
                     fpath = Path(stored_path)
                     if fpath.exists():
-                        current_mtime = os.path.getmtime(fpath)
+                        current_mtime = fpath.stat().st_mtime
                         if current_mtime <= stored_mtime:
                             skipped_count += 1
                             continue
                     else:
-                        # rollout 文件被移动或删除时，结合 threads DB 路径提示重新定位。
+                        # Relocate moved rollouts with the threads DB path hint.
                         thread_info = threads_db.get(sid, {})
                         rollout_path = thread_info.get("rollout_path", "")
                         fpath = _locate_codex_session_file(sid, rollout_path)
@@ -1026,8 +1340,8 @@ def incremental_scan(
                     continue
 
                 if fpath and fpath.exists():
-                    current_mtime = os.path.getmtime(fpath)
-                    # 路径迁移即使 mtime 未变也要刷新 DB 中的 file_path。
+                    current_mtime = fpath.stat().st_mtime
+                    # Path relocation refreshes file_path even if mtime is unchanged.
                     if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
@@ -1037,7 +1351,7 @@ def incremental_scan(
             else:
                 new_count += 1
 
-            # 同一次 rollout 读取同时产出 summary 和 normalized JSON，避免重复读大文件。
+            # One rollout read produces the summary and normalized JSON inputs.
             if sid in threads_db:
                 thread_info = threads_db.get(sid, {})
                 parse_threads_db = threads_db
@@ -1059,13 +1373,11 @@ def incremental_scan(
                     "first_user_message": "",
                 }
                 parse_threads_db = {sid: thread_info}
-            summary, _msgs, _tcs, _sa = (
-                codex_source.parse_session_detail(
-                    sid,
-                    parse_threads_db,
-                )
+            summary, _msgs, _tcs, _sa = codex_source.parse_session_detail(
+                sid,
+                parse_threads_db,
             )
-            # Enrich title，来源于 index，如果 empty
+            # Enrich empty titles from the session index.
             if not summary.title:
                 idx_entry = index_entries.get(sid)
                 if idx_entry and idx_entry.get("thread_name"):
@@ -1073,13 +1385,13 @@ def incremental_scan(
                 elif thread_info.get("first_user_message"):
                     summary.title = thread_info["first_user_message"][:120]
 
-            # 记录 file info
+            # Store file info for the next incremental scan.
             file_mtime = 0.0
             file_path_str = ""
             fpath = Path(summary.file_path) if summary.file_path else None
             if fpath and fpath.exists():
                 file_path_str = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
+                file_mtime = fpath.stat().st_mtime
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             _persist_normalized_artifact_safe(
@@ -1087,8 +1399,12 @@ def incremental_scan(
                 session_key=summary.session_key,
                 file_path=file_path_str,
                 file_mtime=file_mtime,
-                build_normalized=lambda summary=summary, thread_info=thread_info, file_path=file_path_str: (
-                    _build_codex_normalized_for_scan(codex_source, summary, thread_info, file_path)
+                build_normalized=partial(
+                    _build_codex_normalized_for_scan,
+                    codex_source,
+                    summary,
+                    thread_info,
+                    file_path_str,
                 ),
                 verbose=verbose,
                 summary=summary,
@@ -1098,28 +1414,29 @@ def incremental_scan(
 
         conn.commit()
 
-    # -- 扫描 Qoder --------------------------------------------------------
+    # -- Scan Qoder --------------------------------------------------------
     if scan_qoder:
         discovered = qoder_source._discover_sessions()
         cache_discovered = qoder_source._discover_cache_sessions()
-        # cache 目录可能只有短 ID，先映射到 canonical UUID 再和 projects/ 结果去重。
+        # Cache can expose short IDs; map them to canonical UUIDs before dedupe.
         canonical_map = qoder_source._build_canonical_id_map()
-        # projects/ 中已有完整 session 时，跳过同一 UUID 对应的 cache 副本。
+        # Skip cache duplicates when projects/ already has the full session.
         projects_ids = {sid.lower() for _pk, sid, _fp in discovered}
         all_discovered = []
         for project_key, sid, fpath in discovered:
             all_discovered.append((project_key, sid, fpath))
         for project_key, sid, fpath in cache_discovered:
             canonical_id = canonical_map.get(sid.lower(), sid)
-            # 跳过 cache sessions that resolve to 一个 projects/ session
+            # Skip cache sessions that resolve to a projects/ session.
             if canonical_id != sid.lower() and canonical_id in projects_ids:
                 continue
             all_discovered.append((project_key, canonical_id, fpath))
         if verbose:
             print(f"Incremental scan: {len(all_discovered)} Qoder sessions...")
 
-        for project_key, sid, fpath in all_discovered:
+        for project_key, sid, source_file in all_discovered:
             skey = f"qoder:{sid}"
+            active_file = source_file
 
             info = existing.get(skey)
             if info:
@@ -1134,22 +1451,27 @@ def incremental_scan(
                 if stored_path:
                     p = Path(stored_path)
                     if p.exists():
-                        current_mtime = os.path.getmtime(p)
+                        current_mtime = p.stat().st_mtime
                         if current_mtime <= stored_mtime:
                             skipped_count += 1
                             continue
                     else:
-                        # 记录路径失效时重新定位，防止 cache/projects 迁移后索引卡在旧路径。
-                        fpath = _locate_qoder_session_file(project_key, sid)
-                        if fpath and fpath.exists() and str(fpath) != stored_path:
+                        # Relocate missing paths so cache migrations refresh.
+                        relocated_path = _locate_qoder_session_file(project_key, sid)
+                        if (
+                            relocated_path
+                            and relocated_path.exists()
+                            and str(relocated_path) != stored_path
+                        ):
+                            active_file = relocated_path
                             path_relocated = True
                 else:
                     skipped_count += 1
                     continue
 
-                if fpath and fpath.exists():
-                    current_mtime = os.path.getmtime(fpath)
-                    # 路径迁移即使 mtime 未变也要刷新 DB 中的 file_path。
+                if active_file and active_file.exists():
+                    current_mtime = active_file.stat().st_mtime
+                    # Path relocation refreshes file_path even if mtime is unchanged.
                     if current_mtime <= stored_mtime and not path_relocated:
                         skipped_count += 1
                         continue
@@ -1159,21 +1481,21 @@ def incremental_scan(
             else:
                 new_count += 1
 
-            # Qoder cache session 格式较简化，缺少完整 timing 数据。
-            is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
+            # Qoder cache sessions have simplified timing data.
+            is_cache = str(active_file).startswith(str(cfg.QODER_DATA_DIR / "cache"))
             file_mtime = 0.0
             file_path_str = ""
-            if fpath and fpath.exists():
-                file_path_str = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
+            if active_file and active_file.exists():
+                file_path_str = str(active_file)
+                file_mtime = active_file.stat().st_mtime
 
             if is_cache:
                 summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
-                    project_key, sid, session_file=fpath
+                    project_key, sid, session_file=active_file
                 )
             else:
                 summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
-                    project_key, sid, session_file=fpath
+                    project_key, sid, session_file=active_file
                 )
             summary.subagent_instance_count = len(_sa)
 
@@ -1183,7 +1505,8 @@ def incremental_scan(
                 session_key=summary.session_key,
                 file_path=file_path_str,
                 file_mtime=file_mtime,
-                build_normalized=lambda: qoder_source.build_normalized_session(
+                build_normalized=partial(
+                    qoder_source.build_normalized_session,
                     summary=summary,
                     messages=_msgs,
                     tool_calls=_tcs,
@@ -1198,13 +1521,14 @@ def incremental_scan(
 
         conn.commit()
 
-    # 说明：-- Normalize Qoder cache project keys (same as full_scan) -----------
+    # Normalize Qoder cache project keys after all agent scans.
     if scan_qoder:
         _normalize_qoder_cache_projects(conn)
 
-    # 说明：Update log
+    # Update scan log.
     conn.execute(
-        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, qoder_count=?, status='done' WHERE id=?",
+        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, "
+        "qoder_count=?, status='done' WHERE id=?",
         (time.time(), claude_count, codex_count, qoder_count, log_id),
     )
     conn.commit()

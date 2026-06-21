@@ -156,6 +156,21 @@ raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 }
 
+run_dev_tool() {
+    local tool="$1"
+    shift || true
+    cd "$PROJECT_DIR"
+    if command -v uv >/dev/null 2>&1; then
+        uv run "$tool" "$@"
+        return $?
+    fi
+    if [[ -x "$VENV_DIR/bin/$tool" ]]; then
+        "$VENV_DIR/bin/$tool" "$@"
+        return $?
+    fi
+    PATH="$VENV_DIR/bin:${PATH:-}" "$tool" "$@"
+}
+
 run_tests() {
     cd "$PROJECT_DIR"
     "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" check-installed --profile test
@@ -176,10 +191,70 @@ install_deps() {
         echo "[DRY-RUN] 未安装依赖；锁文件一致性检查完成。"
         return 0
     fi
+    if command -v uv >/dev/null 2>&1 && [[ "${SESSION_BROWSER_DEPS_INSTALLER:-uv}" == "uv" ]]; then
+        uv sync --extra dev "$@"
+        return $?
+    fi
     if [[ ! -x "$VENV_DIR/bin/python" ]]; then
         python3 -m venv "$VENV_DIR"
     fi
     "$(python_bin)" -m pip install -r requirements-dev.txt "$@"
+}
+
+run_format() {
+    run_dev_tool ruff format .
+    run_dev_tool ruff check --select I --fix .
+}
+
+run_format_check() {
+    run_dev_tool ruff format --check .
+    run_dev_tool ruff check --select I .
+}
+
+run_lint() {
+    run_dev_tool ruff check .
+}
+
+run_type_check() {
+    run_dev_tool pyright
+}
+
+run_doc_checks() {
+    run_dev_tool interrogate src/session_browser scripts
+    run_dev_tool pydoclint src/session_browser scripts
+}
+
+run_coverage() {
+    run_dev_tool pytest -W error --cov=session_browser --cov-branch --cov-report=term-missing --cov-report=xml "$@"
+}
+
+run_audit() {
+    run_dev_tool pip-audit
+    run_dev_tool bandit -r src/session_browser scripts
+}
+
+run_complexity() {
+    run_dev_tool xenon --max-absolute B --max-modules B --max-average A src/session_browser scripts
+}
+
+run_dead_code() {
+    run_dev_tool vulture --min-confidence 90 src/session_browser scripts tests
+}
+
+run_deps_check() {
+    run_dev_tool deptry src/session_browser
+}
+
+run_quality() {
+    run_format_check
+    run_lint
+    run_type_check
+    run_doc_checks
+    run_coverage
+    run_audit
+    run_complexity
+    run_dead_code
+    run_deps_check
 }
 
 ensure_runtime_deps() {
@@ -426,6 +501,17 @@ print_usage() {
 本地验证：
   deps [pip options]               安装本地运行/测试依赖
   deps --dry-run                   仅检查 Python、依赖声明和锁文件一致性
+  format                           使用 Ruff Formatter/Ruff import 规则自动格式化
+  format-check                     检查 Ruff 格式和 import 排序，不修改文件
+  lint                             执行 Ruff lint
+  type                             执行 Pyright 类型检查
+  doc                              执行 interrogate 与 pydoclint 文档检查
+  coverage [pytest options]        执行 pytest-cov/Coverage.py 覆盖率检查
+  audit                            执行 pip-audit 与 Bandit 安全检查
+  complexity                       执行 Xenon/Radon 复杂度检查
+  dead-code                        执行 Vulture 死代码检查
+  deps-check                       执行 Deptry 依赖声明检查
+  quality                          执行完整 Python 标准质量门禁
   serve [serve options]            前台启动本地服务，默认 DEBUG 日志
   scan [scan options]              扫描到本地测试索引
   stop [--port 18999]              按端口停止本地测试服务进程
@@ -441,6 +527,7 @@ print_usage() {
 常用环境变量：
   SESSION_BROWSER_VENV_DIR         默认：./.venv
   SESSION_BROWSER_PYTHON           显式 Python；优先级高于虚拟环境
+  SESSION_BROWSER_DEPS_INSTALLER   默认：uv；设为 pip 可使用 requirements-dev.txt 安装
   SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
   SESSION_BROWSER_LOCAL_PORT       默认：18999
   SESSION_BROWSER_LOCAL_DATA_DIR   默认：~/.local/share/feipi/session-browser/local-test-index
@@ -470,6 +557,39 @@ case "$CMD" in
         ;;
     deps)
         install_deps "$@"
+        ;;
+    format)
+        run_format "$@"
+        ;;
+    format-check)
+        run_format_check "$@"
+        ;;
+    lint)
+        run_lint "$@"
+        ;;
+    type)
+        run_type_check "$@"
+        ;;
+    doc)
+        run_doc_checks "$@"
+        ;;
+    coverage)
+        run_coverage "$@"
+        ;;
+    audit)
+        run_audit "$@"
+        ;;
+    complexity)
+        run_complexity "$@"
+        ;;
+    dead-code)
+        run_dead_code "$@"
+        ;;
+    deps-check)
+        run_deps_check "$@"
+        ;;
+    quality)
+        run_quality "$@"
         ;;
     scan)
         run_scan "$@"

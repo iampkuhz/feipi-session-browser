@@ -4,7 +4,6 @@
 仅重新索引修改过的会话，并跳过未变化的会话。
 """
 
-import pytest
 import importlib
 import os
 import shutil
@@ -12,6 +11,8 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ EXPECTED_SESSIONS = [
 
 
 # ─── 辅助函数 ───────────────────────────────────────────────────────────
+
 
 def _setup_claude_env(data_dir: str):
     """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
@@ -83,6 +85,7 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
 
 # ─── 测试 ─────────────────────────────────────────────────────────────────────
 
+
 class TestIncrementalScanMtime:
     """I01: incremental_scan 检测 mtime 变化并仅重新索引修改过的文件。"""
 
@@ -101,9 +104,7 @@ class TestIncrementalScanMtime:
         assert result["claude_count"] == 0, (
             f"Expected 0 re-indexed sessions (no changes), got {result['claude_count']}"
         )
-        assert result["skipped"] == 2, (
-            f"Expected 2 skipped sessions, got {result['skipped']}"
-        )
+        assert result["skipped"] == 2, f"Expected 2 skipped sessions, got {result['skipped']}"
 
     @pytest.mark.contract_case("DATA-INDEX-002")
     def test_one_file_changed_reindexed_only(self, tmp_path):
@@ -128,9 +129,7 @@ class TestIncrementalScanMtime:
         assert result["claude_count"] == 1, (
             f"Expected 1 re-indexed session, got {result['claude_count']}"
         )
-        assert result["skipped"] == 1, (
-            f"Expected 1 skipped session, got {result['skipped']}"
-        )
+        assert result["skipped"] == 1, f"Expected 1 skipped session, got {result['skipped']}"
 
         # 验证正确的会话被重新索引，通过检查 indexed_at 发生变化
         conn = sqlite3.connect(db_path)
@@ -180,9 +179,7 @@ class TestIncrementalScanMtime:
         assert result["claude_count"] == 2, (
             f"Expected 2 re-indexed sessions, got {result['claude_count']}"
         )
-        assert result["skipped"] == 0, (
-            f"Expected 0 skipped sessions, got {result['skipped']}"
-        )
+        assert result["skipped"] == 0, f"Expected 0 skipped sessions, got {result['skipped']}"
 
     @pytest.mark.contract_case("DATA-INDEX-002")
     def test_new_session_discovered(self, tmp_path):
@@ -197,11 +194,12 @@ class TestIncrementalScanMtime:
         # 并创建对应的会话文件
         history_path = data_dir / "history.jsonl"
         import json
+
         new_entry = {
             "sessionId": "sess-003",
             "project": "proj-gamma",
             "timestamp": int(time.time() * 1000),
-            "display": "New session test"
+            "display": "New session test",
         }
         with open(str(history_path), "a") as f:
             f.write(json.dumps(new_entry) + "\n")
@@ -218,7 +216,7 @@ class TestIncrementalScanMtime:
             "timestamp": now_iso,
             "cwd": "/tmp/test",
             "entrypoint": "cli",
-            "gitBranch": "main"
+            "gitBranch": "main",
         }
         msg_assistant = {
             "type": "assistant",
@@ -227,9 +225,9 @@ class TestIncrementalScanMtime:
                 "model": "claude-sonnet-4-20250514",
                 "role": "assistant",
                 "content": [{"type": "text", "text": "Hi there!"}],
-                "usage": {"input_tokens": 500, "output_tokens": 200}
+                "usage": {"input_tokens": 500, "output_tokens": 200},
             },
-            "timestamp": now_iso
+            "timestamp": now_iso,
         }
         with open(str(sess_file), "w") as f:
             f.write(json.dumps(msg_user) + "\n")
@@ -262,9 +260,7 @@ class TestIncrementalScanMtime:
         conn.row_factory = sqlite3.Row
 
         # 应至少有 2 条日志记录（full + incremental）
-        logs = conn.execute(
-            "SELECT * FROM scan_log ORDER BY id DESC LIMIT 2"
-        ).fetchall()
+        logs = conn.execute("SELECT * FROM scan_log ORDER BY id DESC LIMIT 2").fetchall()
         assert len(logs) >= 2, f"Expected at least 2 scan_log entries, got {len(logs)}"
 
         # 最近的应为 incremental

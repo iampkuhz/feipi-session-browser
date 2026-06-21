@@ -1,9 +1,9 @@
-"""Estimate-only usage estimator：无 provider/broker usage 时的本地重建。
+"""Reconstruct usage when no provider or broker usage payload exists.
 
-当无 provider 数据时：
-  total_input = reconstructed_prompt_span_tokens + residual_estimate
-  fresh/cache_read/cache_write = unavailable 或 heuristic-inferred
-  output = reconstructed visible text/tool_use/reasoning metadata estimate
+This API-family estimator is triggered by estimate-only attribution paths after
+prompt and output spans have been locally tokenized. It emits normalized usage
+boundaries from local span totals: input span tokens plus optional residual
+input, no cache-read or cache-write buckets, and visible output span tokens.
 """
 
 from __future__ import annotations
@@ -17,17 +17,26 @@ def estimate_usage_from_spans(
     output_spans_token_sum: int = 0,
     residual_estimate: int = 0,
 ) -> UsageBreakdown:
-    """从 reconstructed spans 估算 usage。
+    """Estimate usage from reconstructed prompt and response spans.
 
     Args:
-        input_spans_token_sum: 所有 input spans 的 token 估算总和
-        output_spans_token_sum: 所有 output spans 的 token 估算总和
-        residual_estimate: 额外残差估算（hidden system prompt、tokenizer overhead 等）
+        input_spans_token_sum: Estimated token total across all input prompt
+            spans.
+        output_spans_token_sum: Estimated token total across visible output
+            spans.
+        residual_estimate: Extra input estimate for hidden system prompts,
+            tokenizer overhead, or other residual provider-side input.
 
     Returns:
-        UsageBreakdown，precision=estimated/heuristic
+        A ``UsageBreakdown`` with estimated ``total_input`` and ``output`` when
+        the corresponding local totals are positive. Cache buckets remain
+        unavailable because no usage payload confirms provider cache behavior.
     """
-    total_input = input_spans_token_sum + residual_estimate if residual_estimate > 0 else input_spans_token_sum
+    total_input = (
+        input_spans_token_sum + residual_estimate
+        if residual_estimate > 0
+        else input_spans_token_sum
+    )
 
     return UsageBreakdown(
         total_input=total_input if total_input > 0 else None,
@@ -35,11 +44,11 @@ def estimate_usage_from_spans(
         cache_read=None,
         cache_write=None,
         output=output_spans_token_sum if output_spans_token_sum > 0 else None,
-        usage_source="local_reconstruction",
-        precision="estimated",
+        usage_source='local_reconstruction',
+        precision='estimated',
         note=(
-            f"本地重建：{input_spans_token_sum} input spans + {residual_estimate} residual"
+            f'本地重建: {input_spans_token_sum} input spans + {residual_estimate} residual'
             if residual_estimate > 0
-            else f"本地重建：{input_spans_token_sum} input spans"
+            else f'本地重建: {input_spans_token_sum} input spans'
         ),
     )

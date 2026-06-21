@@ -1,46 +1,46 @@
 """Tests for the no-test-skips quality gate and pytest runtime enforcement."""
+
 from __future__ import annotations
 
-from pathlib import Path
 import subprocess
+from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-
 from scripts.quality import check_no_test_skips
 from tests import conftest as test_conftest
 
 
 def _write(path: Path, text: str) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(text, encoding="utf-8")
+    path.write_text(text, encoding='utf-8')
 
 
-def test_scanner_reports_pytest_runtime_and_marker_skips(tmp_path):
-    bad_runtime = "pytest." + "skip("
-    bad_marker = "pytest.mark." + "skipif"
+def test_scanner_reports_pytest_runtime_and_marker_skips(tmp_path: Path):
+    bad_runtime = 'pytest.' + 'skip('
+    bad_marker = 'pytest.mark.' + 'skipif'
     _write(
-        tmp_path / "tests" / "test_bad.py",
-        "import pytest\n"
+        tmp_path / 'tests' / 'test_bad.py',
+        'import pytest\n'
         f"def test_runtime():\n    {bad_runtime}'missing fixture')\n"
         f"@{bad_marker}(True, reason='legacy')\n"
-        "def test_marker():\n    assert True\n",
+        'def test_marker():\n    assert True\n',
     )
 
     findings = check_no_test_skips.scan_repo(tmp_path)
 
     assert {finding.rule for finding in findings} == {
-        "pytest-runtime-skip",
-        "pytest-skip-marker",
+        'pytest-runtime-skip',
+        'pytest-skip-marker',
     }
 
 
-def test_scanner_reports_playwright_skip_and_fixme(tmp_path):
-    bad_skip = "test." + "skip("
-    bad_describe = "test.describe." + "skip"
-    bad_fixme = "test." + "fixme("
+def test_scanner_reports_playwright_skip_and_fixme(tmp_path: Path):
+    bad_skip = 'test.' + 'skip('
+    bad_describe = 'test.describe.' + 'skip'
+    bad_fixme = 'test.' + 'fixme('
     _write(
-        tmp_path / "tests" / "playwright" / "bad.spec.js",
+        tmp_path / 'tests' / 'playwright' / 'bad.spec.js',
         "const { test } = require('@playwright/test');\n"
         f"{bad_skip}'legacy path', async () => {{}});\n"
         f"{bad_describe}('group', () => {{}});\n"
@@ -50,9 +50,9 @@ def test_scanner_reports_playwright_skip_and_fixme(tmp_path):
     findings = check_no_test_skips.scan_repo(tmp_path)
 
     assert {finding.rule for finding in findings} == {
-        "playwright-test-skip",
-        "playwright-describe-skip",
-        "playwright-fixme",
+        'playwright-test-skip',
+        'playwright-describe-skip',
+        'playwright-fixme',
     }
 
 
@@ -62,16 +62,16 @@ def test_scanner_passes_for_repo_sources():
     assert findings == []
 
 
-def test_pytest_runtime_skip_enforcement_fails_session(monkeypatch):
+def test_pytest_runtime_skip_enforcement_fails_session(monkeypatch: pytest.MonkeyPatch):
     config = SimpleNamespace(pluginmanager=SimpleNamespace(get_plugin=lambda _name: None))
     setattr(config, test_conftest._SKIP_REPORTS_ATTR, [])
-    monkeypatch.setattr(test_conftest, "_PYTEST_CONFIG", config)
+    monkeypatch.setattr(test_conftest, '_PYTEST_CONFIG', config)
     session = SimpleNamespace(config=config, exitstatus=0)
     report = SimpleNamespace(
         skipped=True,
-        nodeid="tests/example/test_case.py::test_runtime_condition",
-        when="call",
-        location=("tests/example/test_case.py", 12, "test_runtime_condition"),
+        nodeid='tests/example/test_case.py::test_runtime_condition',
+        when='call',
+        location=('tests/example/test_case.py', 12, 'test_runtime_condition'),
     )
 
     test_conftest.pytest_runtest_logreport(report)
@@ -81,9 +81,9 @@ def test_pytest_runtime_skip_enforcement_fails_session(monkeypatch):
 
 
 def test_playwright_no_skip_reporter_is_configured():
-    config_text = Path("playwright.config.js").read_text(encoding="utf-8")
+    config_text = Path('playwright.config.js').read_text(encoding='utf-8')
 
-    assert "./tests/playwright/no-skip-reporter.js" in config_text
+    assert './tests/playwright/no-skip-reporter.js' in config_text
 
 
 def test_playwright_no_skip_reporter_fails_skipped_results():
@@ -99,12 +99,12 @@ Promise.resolve(reporter.onEnd({ status: 'passed' })).then((result) => {
 });
 """
     proc = subprocess.run(
-        ["node", "-e", script],
+        ['node', '-e', script],
         cwd=Path(__file__).resolve().parents[2],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         timeout=10,
+        check=False,
     )
 
     assert proc.returncode == 0, proc.stderr

@@ -1,16 +1,24 @@
-"""session index SQLite 数据库的 schema 和连接管理。"""
+"""Manage SQLite schema and metadata tables for the session index.
+
+Scan lifecycle code uses this module to open the index database, rebuild the
+current schema, and maintain lightweight metadata such as scan logic version.
+The SQL strings are kept here so index writers share one schema contract.
+"""
 
 from __future__ import annotations
 
 import sqlite3
-from pathlib import Path
+import time
+from typing import TYPE_CHECKING
 
-# 说明：--- Tiered background scan config -------------------------------------------
+if TYPE_CHECKING:
+    from pathlib import Path
 
-TIER_HOT_SECONDS = 30 * 60       # 说明：ended_at < 30min -> scan every 30s
-TIER_HOT_INTERVAL = 30            # 说明：seconds between hot scans
-TIER_WARM_SECONDS = 24 * 3600    # 说明：ended_at 30min~24h -> scan every 5min
-TIER_WARM_INTERVAL = 5 * 60       # 说明：seconds between warm scans
+
+TIER_HOT_SECONDS = 30 * 60
+TIER_HOT_INTERVAL = 30
+TIER_WARM_SECONDS = 24 * 3600
+TIER_WARM_INTERVAL = 5 * 60
 
 SCAN_LOGIC_VERSION = 4
 SCAN_LOGIC_VERSION_KEY = "scan_logic_version"
@@ -47,8 +55,20 @@ SESSION_ARTIFACTS_SCHEMA_SQL = """
 
 
 def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
-    """打开会话索引 SQLite 连接。"""
-    from session_browser.config import INDEX_PATH, ensure_index_dir
+    """Open a configured SQLite connection for the session index.
+
+    Scan and index setup code call this helper when no connection is supplied by
+    the caller. It ensures the index directory exists, enables WAL mode, applies
+    the busy timeout, and turns on foreign keys for writer operations.
+
+    Args:
+        db_path: Optional database path used by tests or alternate callers;
+            defaults to the configured index path.
+
+    Returns:
+        SQLite connection configured with row access by column name.
+    """
+    from session_browser.config import INDEX_PATH, ensure_index_dir  # noqa: PLC0415
 
     ensure_index_dir()
     path = db_path or INDEX_PATH
@@ -61,16 +81,42 @@ def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def ensure_session_artifacts_schema(conn: sqlite3.Connection) -> None:
-    """创建会话产物附表，不修改 session 行。"""
+    """Create the session artifact table and indexes if they are missing.
+
+    Index setup and migration-safe callers use this helper to add artifact
+    storage without changing existing session rows.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+    """
     conn.executescript(SESSION_ARTIFACTS_SCHEMA_SQL)
 
 
 def ensure_index_metadata_schema(conn: sqlite3.Connection) -> None:
-    """创建全局索引 metadata 表，不修改 session 行。"""
+    """Create the global index metadata table if it is missing.
+
+    Metadata readers and writers call this helper before touching the metadata
+    table so incremental upgrades can run against older local databases.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+    """
     conn.executescript(INDEX_METADATA_SCHEMA_SQL)
 
 
 def get_index_metadata(conn: sqlite3.Connection, key: str) -> str | None:
+    """Read one metadata value from the index metadata table.
+
+    Scan lifecycle code calls this function to inspect persisted version markers
+    and other global index state. Missing keys return ``None``.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+        key: Metadata key to look up.
+
+    Returns:
+        Stored metadata value as a string, or ``None`` when the key is absent.
+    """
     ensure_index_metadata_schema(conn)
     row = conn.execute(
         "SELECT value FROM index_metadata WHERE key = ?",
@@ -80,8 +126,17 @@ def get_index_metadata(conn: sqlite3.Connection, key: str) -> str | None:
 
 
 def set_index_metadata(conn: sqlite3.Connection, key: str, value: str) -> None:
-    import time
+    """Write one metadata value into the index metadata table.
 
+    Scan lifecycle code calls this function to persist global index state. The
+    function upserts by key and updates the timestamp using the current process
+    clock.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+        key: Metadata key to create or update.
+        value: Metadata value to store as text.
+    """
     ensure_index_metadata_schema(conn)
     conn.execute(
         """
@@ -96,17 +151,49 @@ def set_index_metadata(conn: sqlite3.Connection, key: str, value: str) -> None:
 
 
 def get_stored_scan_logic_version(conn: sqlite3.Connection) -> str | None:
+    """Read the persisted scan logic version from index metadata.
+
+    Incremental scan orchestration calls this helper to decide whether local rows
+    were produced by the current scan logic.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+
+    Returns:
+        Stored scan logic version, or ``None`` when no marker exists.
+    """
     return get_index_metadata(conn, SCAN_LOGIC_VERSION_KEY)
 
 
-def set_stored_scan_logic_version(conn: sqlite3.Connection, version: int | str = SCAN_LOGIC_VERSION) -> None:
+def set_stored_scan_logic_version(
+    conn: sqlite3.Connection,
+    version: int | str = SCAN_LOGIC_VERSION,
+) -> None:
+    """Persist the scan logic version into index metadata.
+
+    Full schema initialization and scan lifecycle code call this after creating
+    or validating rows so future scans can detect stale index data.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+        version: Version value to store; defaults to the current logic version.
+    """
     set_index_metadata(conn, SCAN_LOGIC_VERSION_KEY, str(version))
 
 
 def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
-    """重建当前索引结构。
+    """Rebuild the current session index schema from scratch.
 
-    本函数会清空旧数据并创建当前 schema；升级后请重新执行 full scan。
+    Full reindex flows call this function when the local index must be reset. It
+    drops existing index tables, recreates the current schema, initializes helper
+    tables, commits the transaction, and returns the active connection.
+
+    Args:
+        conn: Existing SQLite connection to initialize; when omitted, a new index
+            connection is opened with ``_get_connection``.
+
+    Returns:
+        SQLite connection containing the freshly initialized schema.
     """
     if conn is None:
         conn = _get_connection()

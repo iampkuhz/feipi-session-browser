@@ -5,9 +5,10 @@ both title and session_id as substrings (S-13: session id 搜索支持
 不区分大小写子串匹配).
 """
 
-import pytest
 import sqlite3
 from contextlib import closing
+
+import pytest
 
 from session_browser.domain.models import SessionSummary
 from session_browser.index.indexer import (
@@ -17,8 +18,8 @@ from session_browser.index.indexer import (
     upsert_session,
 )
 
-
 # ─── 辅助函数 ────────────────────────────────────────────────────────────────
+
 
 def _make_conn() -> sqlite3.Connection:
     """创建带有 sessions schema 的内存 SQLite 连接。"""
@@ -47,6 +48,7 @@ def _insert(conn: sqlite3.Connection, session_id: str, title: str, **kw) -> Sess
 
 
 # ─── 不区分大小写的标题搜索（现有行为，回归防护） ────────
+
 
 class TestTitleCaseInsensitive:
     """验证标题 LIKE 不区分大小写（SQLite LIKE 默认行为）。"""
@@ -98,6 +100,7 @@ class TestTitleCaseInsensitive:
 
 
 # ─── Session ID substring search (S-13) ─────────────────────────────────────
+
 
 class TestSessionIdCaseInsensitiveSubstring:
     """S-13: q 参数应同时匹配 title 和 session_id，大小写不敏感。"""
@@ -155,6 +158,7 @@ class TestSessionIdCaseInsensitiveSubstring:
 
 
 # ─── 双重匹配：title 或 session_id 均可匹配 ──────────────────────────
+
 
 class TestDualMatchTitleOrSessionId:
     """验证查询匹配 title 或 session_id。"""

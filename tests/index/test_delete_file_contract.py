@@ -13,7 +13,6 @@
 - 只有通过手动删除数据库记录或从 history.jsonl 中移除条目才能清理。
 """
 
-import pytest
 import json
 import os
 import shutil
@@ -22,12 +21,15 @@ import sys
 import time
 from pathlib import Path
 
+import pytest
+
 # ─── 常量 ─────────────────────────────────────────────────────────────────────
 
 FIXTURE_ROOT = Path(__file__).parent.parent / "fixtures" / "index_corpus" / "full_scan_claude"
 
 
 # ─── 辅助函数 ─────────────────────────────────────────────────────────────────
+
 
 def _setup_claude_env(data_dir: str):
     """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
@@ -87,6 +89,7 @@ def _run_incremental_scan(data_dir: str, db_path: str) -> dict:
 
 # ─── 测试 ─────────────────────────────────────────────────────────────────────
 
+
 class TestDeleteFileContract:
     """D01: 源文件删除 — 两种扫描方式都不会从索引中移除已删除的会话。
 
@@ -97,9 +100,7 @@ class TestDeleteFileContract:
     """
 
     @pytest.mark.contract_case("DATA-INDEX-007")
-    def test_incremental_scan_does_not_clean_deleted_files_known_limitation(
-        self, tmp_path
-    ):
+    def test_incremental_scan_does_not_clean_deleted_files_known_limitation(self, tmp_path):
         """D01-A: incremental_scan 不清理已删除文件的陈旧条目。
 
         已知限制：incremental_scan 跳过已删除文件的重新索引，
@@ -267,9 +268,7 @@ class TestDeleteFileContract:
         assert result["skipped"] >= 2, (
             f"Expected all 2 sessions skipped (all files deleted), got skipped={result['skipped']}"
         )
-        assert result["claude_count"] == 0, (
-            f"Expected 0 re-indexed, got {result['claude_count']}"
-        )
+        assert result["claude_count"] == 0, f"Expected 0 re-indexed, got {result['claude_count']}"
 
         # 已知限制：陈旧条目仍然保留
         conn = sqlite3.connect(db_path)

@@ -10,11 +10,12 @@
 
 from __future__ import annotations
 
-import pytest
 import json
 import os
 import sys
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
 
@@ -24,39 +25,46 @@ PROJECT_NAME = "myproj"
 
 # 最小化 Qoder CLI JSONL（含时间戳、type 字段、usage）
 CLI_JSONL_LINES = [
-    json.dumps({
-        "type": "user",
-        "message": {"role": "user", "content": "Hello"},
-        "timestamp": "2026-05-01T10:00:00.000Z",
-        "cwd": "/tmp/myproj",
-        "entrypoint": "cli",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [{"type": "text", "text": "Hi!"}],
-            "usage": {"input_tokens": 50, "output_tokens": 20},
-        },
-        "timestamp": "2026-05-01T10:00:05.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Hello"},
+            "timestamp": "2026-05-01T10:00:00.000Z",
+            "cwd": "/tmp/myproj",
+            "entrypoint": "cli",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hi!"}],
+                "usage": {"input_tokens": 50, "output_tokens": 20},
+            },
+            "timestamp": "2026-05-01T10:00:05.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
 ]
 CLI_JSONL_CONTENT = "\n".join(CLI_JSONL_LINES) + "\n"
 
 # 缓存格式的最小化 Qoder JSONL（无时间戳、role 字段）
 CACHE_JSONL_LINES = [
     json.dumps({"role": "user", "message": {"content": "Hello from cache"}}),
-    json.dumps({"role": "assistant", "message": {"content": [{"type": "text", "text": "Cache hi"}]}}),
+    json.dumps(
+        {"role": "assistant", "message": {"content": [{"type": "text", "text": "Cache hi"}]}}
+    ),
 ]
 CACHE_JSONL_CONTENT = "\n".join(CACHE_JSONL_LINES) + "\n"
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
+
 
 def _setup_qoder_env(data_dir: str):
     """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
@@ -87,11 +95,14 @@ def _restore_qoder_env(old: str | None):
 def _reload_qoder_module():
     """环境变量变更后重新加载 Qoder 源模块。"""
     for _mod in list(sys.modules):
-        if _mod == "session_browser.sources.qoder" or _mod.startswith("session_browser.sources.qoder"):
+        if _mod == "session_browser.sources.qoder" or _mod.startswith(
+            "session_browser.sources.qoder"
+        ):
             del sys.modules[_mod]
 
 
 # ─── Fixtures ───────────────────────────────────────────────────────────────
+
 
 @pytest.fixture()
 def full_uuid_in_projects(tmp_path: Path) -> Path:
@@ -140,6 +151,7 @@ def cache_only_full_uuid(tmp_path: Path) -> Path:
 
 # ─── 测试：_find_session_file (qoder.py) ──────────────────────────────────
 
+
 class TestFindSessionFile:
     """qoder._find_session_file 的测试。"""
 
@@ -172,7 +184,10 @@ class TestFindSessionFile:
             assert result is not None, "Short ID should resolve and find session"
             assert result.name == f"{FULL_UUID}.jsonl"
             # 应优先选择 projects/ 而非 cache
-            assert "projects" in str(result) and "cache" not in str(result).split("projects")[0].split("/")[-1:]
+            assert (
+                "projects" in str(result)
+                and "cache" not in str(result).split("projects")[0].split("/")[-1:]
+            )
         finally:
             _restore_qoder_env(old)
 
@@ -225,6 +240,7 @@ class TestFindSessionFile:
 
 
 # ─── 测试：_locate_qoder_session_file (indexer.py) ────────────────────────
+
 
 class TestLocateQoderSessionFile:
     """indexer._locate_qoder_session_file 的测试。"""

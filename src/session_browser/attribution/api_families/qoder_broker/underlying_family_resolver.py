@@ -12,13 +12,13 @@ def resolve_qoder_underlying_family(usage: dict | None) -> str:
         "anthropic_messages_like" / "openai_like" / "estimate_only" / "unknown"
     """
     shape = detect_usage_shape(usage)
-    if shape == "anthropic_messages_like":
-        return "anthropic_messages_like"
-    elif shape in ("openai_responses_like", "openai_chat_like"):
-        return "openai_like"
-    elif shape == "token_reported_unknown_cache":
-        return "token_reported_unknown_cache"
-    return "estimate_only"
+    if shape == 'anthropic_messages_like':
+        return 'anthropic_messages_like'
+    if shape in ('openai_responses_like', 'openai_chat_like'):
+        return 'openai_like'
+    if shape == 'token_reported_unknown_cache':
+        return 'token_reported_unknown_cache'
+    return 'estimate_only'
 
 
 def resolve_qoder_cache_allocator(api_family: str) -> str:
@@ -27,8 +27,8 @@ def resolve_qoder_cache_allocator(api_family: str) -> str:
     Returns:
         allocator 模块名称
     """
-    if api_family == "anthropic_messages_like":
-        return "anthropic_messages"
-    elif api_family == "openai_like":
-        return "openai_responses"
-    return "estimate_only"
+    if api_family == 'anthropic_messages_like':
+        return 'anthropic_messages'
+    if api_family == 'openai_like':
+        return 'openai_responses'
+    return 'estimate_only'

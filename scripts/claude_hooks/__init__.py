@@ -1,1 +1,1 @@
-"""feipi-session-browser Claude Hook Runtime。"""
+"""feipi-session-browser Claude hook runtime."""

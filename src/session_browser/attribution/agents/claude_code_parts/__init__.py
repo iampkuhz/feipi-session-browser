@@ -8,8 +8,8 @@ from session_browser.attribution.agents.claude_code_parts.utils import (
 )
 
 __all__ = [
-    "mask_sensitive_keys",
-    "truncate_preview",
-    "extract_tool_name",
-    "tool_description",
+    'extract_tool_name',
+    'mask_sensitive_keys',
+    'tool_description',
+    'truncate_preview',
 ]

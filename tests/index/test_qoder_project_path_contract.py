@@ -10,12 +10,13 @@ a full project path when cwd is missing.
 
 from __future__ import annotations
 
-import pytest
 import json
 import os
 import sqlite3
 import sys
 from pathlib import Path, PurePosixPath
+
+import pytest
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
 
@@ -24,74 +25,87 @@ PROJECT_DIR_NAME = "my-cool-project"
 
 # CLI 格式的最小化 Qoder JSONL 事件（含 cwd）
 CLI_JSONL_LINES = [
-    json.dumps({
-        "type": "user",
-        "message": {"role": "user", "content": "Hello"},
-        "timestamp": "2026-05-01T10:00:00.000Z",
-        "cwd": "/Users/zhehan/workspace/my-cool-project",
-        "entrypoint": "cli",
-        "sessionId": SESSION_ID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [{"type": "text", "text": "Hi there!"}],
-            "usage": {"input_tokens": 50, "output_tokens": 20},
-        },
-        "timestamp": "2026-05-01T10:00:05.000Z",
-        "sessionId": SESSION_ID,
-        "version": "1.0.0",
-    }),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Hello"},
+            "timestamp": "2026-05-01T10:00:00.000Z",
+            "cwd": "/Users/zhehan/workspace/my-cool-project",
+            "entrypoint": "cli",
+            "sessionId": SESSION_ID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Hi there!"}],
+                "usage": {"input_tokens": 50, "output_tokens": 20},
+            },
+            "timestamp": "2026-05-01T10:00:05.000Z",
+            "sessionId": SESSION_ID,
+            "version": "1.0.0",
+        }
+    ),
 ]
 
 CLI_JSONL_CONTENT = "\n".join(CLI_JSONL_LINES) + "\n"
 
 # 缓存格式的最小化 Qoder JSONL 事件（无 cwd 字段）
 CACHE_JSONL_LINES = [
-    json.dumps({
-        "role": "user",
-        "message": {"content": "Hello from cache"},
-    }),
-    json.dumps({
-        "role": "assistant",
-        "message": {"content": [{"type": "text", "text": "Cache response"}]},
-    }),
+    json.dumps(
+        {
+            "role": "user",
+            "message": {"content": "Hello from cache"},
+        }
+    ),
+    json.dumps(
+        {
+            "role": "assistant",
+            "message": {"content": [{"type": "text", "text": "Cache response"}]},
+        }
+    ),
 ]
 
 CACHE_JSONL_CONTENT = "\n".join(CACHE_JSONL_LINES) + "\n"
 
 # 缺少 cwd 的 CLI 风格缓存格式事件（用户事件中无 cwd）
 NO_CWD_CLI_JSONL_LINES = [
-    json.dumps({
-        "type": "user",
-        "message": {"role": "user", "content": "Hello no cwd"},
-        "timestamp": "2026-05-01T10:00:00.000Z",
-        # 故意不包含 "cwd" 字段
-        "entrypoint": "cli",
-        "sessionId": SESSION_ID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [{"type": "text", "text": "Response without cwd"}],
-            "usage": {"input_tokens": 30, "output_tokens": 10},
-        },
-        "timestamp": "2026-05-01T10:00:05.000Z",
-        "sessionId": SESSION_ID,
-        "version": "1.0.0",
-    }),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Hello no cwd"},
+            "timestamp": "2026-05-01T10:00:00.000Z",
+            # 故意不包含 "cwd" 字段
+            "entrypoint": "cli",
+            "sessionId": SESSION_ID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Response without cwd"}],
+                "usage": {"input_tokens": 30, "output_tokens": 10},
+            },
+            "timestamp": "2026-05-01T10:00:05.000Z",
+            "sessionId": SESSION_ID,
+            "version": "1.0.0",
+        }
+    ),
 ]
 
 NO_CWD_CLI_JSONL_CONTENT = "\n".join(NO_CWD_CLI_JSONL_LINES) + "\n"
 
 
 # ─── Helpers ────────────────────────────────────────────────────────────────
+
 
 def _setup_qoder_env(data_dir: str):
     """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
@@ -149,6 +163,7 @@ def _query_session(db_path: str, session_key: str) -> dict | None:
 
 # ─── Fixtures ───────────────────────────────────────────────────────────────
 
+
 @pytest.fixture()
 def cli_cwd_fixture(tmp_path: Path) -> tuple[Path, str]:
     """创建带 cwd 字段的 Qoder CLI 会话。"""
@@ -173,13 +188,16 @@ def no_cwd_cli_fixture(tmp_path: Path) -> tuple[Path, str]:
 def cache_fixture(tmp_path: Path) -> tuple[Path, str]:
     """创建 Qoder cache 格式会话（无 cwd）。"""
     data_dir = tmp_path / "qoder_cache"
-    cache_dir = data_dir / "cache" / "projects" / PROJECT_DIR_NAME / "conversation-history" / SESSION_ID
+    cache_dir = (
+        data_dir / "cache" / "projects" / PROJECT_DIR_NAME / "conversation-history" / SESSION_ID
+    )
     cache_dir.mkdir(parents=True, exist_ok=True)
     (cache_dir / f"{SESSION_ID}.jsonl").write_text(CACHE_JSONL_CONTENT)
     return data_dir, PROJECT_DIR_NAME
 
 
 # ─── Tests ──────────────────────────────────────────────────────────────────
+
 
 class TestQoderProjectPathContract:
     """T027: Qoder project path normalization contract.
@@ -203,12 +221,10 @@ class TestQoderProjectPathContract:
             f"cwd should be '{expected_cwd}', got '{session['cwd']}'"
         )
         assert session["project_key"] == expected_cwd, (
-            f"project_key should be cwd '{expected_cwd}', "
-            f"got '{session['project_key']}'"
+            f"project_key should be cwd '{expected_cwd}', got '{session['project_key']}'"
         )
         assert session["project_name"] == "my-cool-project", (
-            f"project_name should be last segment of cwd, "
-            f"got '{session['project_name']}'"
+            f"project_name should be last segment of cwd, got '{session['project_name']}'"
         )
 
     @pytest.mark.contract_case("DATA-INDEX-011")
@@ -236,8 +252,7 @@ class TestQoderProjectPathContract:
             f"got '{session['project_key']}'"
         )
         assert session["project_name"] == PROJECT_DIR_NAME, (
-            f"project_name should be '{PROJECT_DIR_NAME}', "
-            f"got '{session['project_name']}'"
+            f"project_name should be '{PROJECT_DIR_NAME}', got '{session['project_name']}'"
         )
 
     @pytest.mark.contract_case("DATA-INDEX-011")
@@ -250,12 +265,9 @@ class TestQoderProjectPathContract:
         session = _query_session(db_path, f"qoder:{SESSION_ID}")
         assert session is not None, "Cache session should be indexed"
 
-        assert session["cwd"] == "", (
-            f"cache session cwd should be empty, got '{session['cwd']}'"
-        )
+        assert session["cwd"] == "", f"cache session cwd should be empty, got '{session['cwd']}'"
         assert session["project_key"] != ".", (
-            f"cache session project_key should not be '.', "
-            f"got '{session['project_key']}'"
+            f"cache session project_key should not be '.', got '{session['project_key']}'"
         )
         assert session["project_key"] == PROJECT_DIR_NAME, (
             f"cache session project_key should be '{PROJECT_DIR_NAME}', "
@@ -283,6 +295,5 @@ class TestQoderProjectPathContract:
             f"project_name should never be '.', got '{session['project_name']}'"
         )
         assert len(session["project_name"]) > 1, (
-            f"project_name should be meaningful (len > 1), "
-            f"got '{session['project_name']}'"
+            f"project_name should be meaningful (len > 1), got '{session['project_name']}'"
         )

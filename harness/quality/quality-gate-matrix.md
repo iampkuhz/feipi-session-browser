@@ -17,6 +17,7 @@
 |---|---|---|
 | `session-detail` | UI 模板、CSS、前端 JS | 模板契约、CSS 契约、浏览器布局、pytest |
 | `python-src` | `src/session_browser/**/*.py` | Python compile、pytest |
+| `python-standard` | 手动标准 Python 工具体系验证 | Ruff Formatter/Ruff、Pyright、interrogate/pydoclint、pytest-cov/Coverage.py、pip-audit/Bandit、Xenon、Vulture、Deptry |
 | `hook-runtime` | hooks、agent 配置、质量脚本 | settings、bash syntax、python compile、policy、pytest、doctor、noTestSkips |
 | `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局、noTestSkips |
 | `acceptance-contracts` | `docs/acceptance-contracts/**`、`tests/**` | 验收契约映射、pytest、noTestSkips |
@@ -25,6 +26,7 @@
 ## 修改规则
 
 - 新增 target 时同步 `QUALITY_TARGETS`、`GATE_PATTERNS`、分类规则和测试。
+- `python-standard` 是历史负债修复前的手动能力 target；不得在 Ruff、Pyright、docstring、coverage、audit、complexity、dead-code 和依赖声明问题全量清零前映射为自动 required gate。
 - 改 agent、skill、hook 或 prompt 文件时，必须触发 `hook-runtime` 或 `harness`。
 - 改测试或验收契约时，必须触发 `acceptance-contracts`。
 - 改 UI 页面时，不得只跑静态检查；需要包含对应浏览器或交互 gate。

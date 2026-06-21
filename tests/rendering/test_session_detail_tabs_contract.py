@@ -10,23 +10,25 @@
 
 这是纯静态（文本）审计；不涉及渲染或运行时执行。
 """
-import pytest
-from pathlib import Path
+
 import re
+from pathlib import Path
+
+import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-SESSION_HTML = ROOT / "src" / "session_browser" / "web" / "templates" / "session.html"
+SESSION_HTML = ROOT / 'src' / 'session_browser' / 'web' / 'templates' / 'session.html'
 
 # 所需的标签页和面板
-REQUIRED_TABS = {"trace"}
+REQUIRED_TABS = {'trace'}
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def session_source():
     """加载完整的 session.html 模板源码。"""
     if not SESSION_HTML.exists():
-        pytest.fail(f"Template not found at {SESSION_HTML}")
-    return SESSION_HTML.read_text(encoding="utf-8")
+        pytest.fail(f'Template not found at {SESSION_HTML}')
+    return SESSION_HTML.read_text(encoding='utf-8')
 
 
 def _find_data_tabs(source):
@@ -52,40 +54,44 @@ def _find_data_panels(source):
 class TestTabsPanelsContract:
     """Every required tab must have a matching panel."""
 
-    @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.contract_case('UI-SD-023')
     def test_tabs_contain_trace(self, session_source):
         """Tabs must include 'trace'."""
         tabs = _find_data_tabs(session_source)
-        assert "trace" in tabs, f"Missing data-tab=\"trace\" in session.html. Found tabs: {tabs}"
+        assert 'trace' in tabs, f'Missing data-tab="trace" in session.html. Found tabs: {tabs}'
 
-    @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.contract_case('UI-SD-023')
     def test_tabs_do_not_contain_payload(self, session_source):
         """Tabs must not include the removed top-level Payload view."""
         tabs = _find_data_tabs(session_source)
-        assert "payload" not in tabs, f"Unexpected data-tab=\"payload\" in session.html. Found tabs: {tabs}"
+        assert 'payload' not in tabs, (
+            f'Unexpected data-tab="payload" in session.html. Found tabs: {tabs}'
+        )
 
-    @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.contract_case('UI-SD-023')
     def test_panels_contain_trace(self, session_source):
         """Panels must include 'trace'."""
         panels = _find_data_panels(session_source)
-        assert "trace" in panels, (
-            f"Missing trace panel (data-panel=\"trace\" or data-trace-panel) in session.html. "
-            f"Found panels: {panels}"
+        assert 'trace' in panels, (
+            f'Missing trace panel (data-panel="trace" or data-trace-panel) in session.html. '
+            f'Found panels: {panels}'
         )
 
-    @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.contract_case('UI-SD-023')
     def test_panels_do_not_contain_payload(self, session_source):
         """Panels must not include the removed persistent Payload panel."""
         panels = _find_data_panels(session_source)
-        assert "payload" not in panels, f"Unexpected payload panel in session.html. Found panels: {panels}"
+        assert 'payload' not in panels, (
+            f'Unexpected payload panel in session.html. Found panels: {panels}'
+        )
 
-    @pytest.mark.contract_case("UI-SD-023")
+    @pytest.mark.contract_case('UI-SD-023')
     def test_tab_panel_one_to_one(self, session_source):
         """Every required tab must have a matching panel (bijection check)."""
         tabs = _find_data_tabs(session_source)
         panels = _find_data_panels(session_source)
         missing = REQUIRED_TABS - panels
         assert not missing, (
-            f"The following required tabs have no matching panel: {missing}. "
-            f"Found tabs: {tabs}, found panels: {panels}"
+            f'The following required tabs have no matching panel: {missing}. '
+            f'Found tabs: {tabs}, found panels: {panels}'
         )

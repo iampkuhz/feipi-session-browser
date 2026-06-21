@@ -4,13 +4,14 @@
 并填充所有索引列。
 """
 
-import pytest
 import json
 import os
 import shutil
 import sqlite3
 import sys
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ─────────────────────────────────────────────────────────────────────
 
@@ -24,6 +25,7 @@ EXPECTED_SESSIONS = [
 
 # ─── 辅助函数 ─────────────────────────────────────────────────────────────────
 
+
 def _setup_claude_env(data_dir: str):
     """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
     old = os.environ.get("CLAUDE_DATA_DIR", None)
@@ -34,6 +36,7 @@ def _setup_claude_env(data_dir: str):
         importlib_reload = sys.modules.get("importlib")
         if importlib_reload is None:
             import importlib
+
             sys.modules["importlib"] = importlib
             importlib_reload = importlib
         importlib_reload.reload(sys.modules["session_browser.config"])
@@ -72,6 +75,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 # ─── 测试 ──────────────────────────────────────────────────────────────────
 
+
 class TestFullScanClaudeBasic:
     """C01: full_scan_basic —— 从 fixture 数据构建基本索引。"""
 
@@ -84,7 +88,9 @@ class TestFullScanClaudeBasic:
         db_path = str(tmp_path / "index.sqlite")
         result = _run_full_scan(str(data_dir), db_path)
 
-        assert result["claude_count"] == 2, f"Expected 2 Claude sessions, got {result['claude_count']}"
+        assert result["claude_count"] == 2, (
+            f"Expected 2 Claude sessions, got {result['claude_count']}"
+        )
         assert result["codex_count"] == 0
         assert result["qoder_count"] == 0
         assert result["total"] == 2
@@ -250,9 +256,7 @@ class TestFullScanClaudeBasic:
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
 
-        log = conn.execute(
-            "SELECT * FROM scan_log ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        log = conn.execute("SELECT * FROM scan_log ORDER BY id DESC LIMIT 1").fetchone()
         assert log is not None, "No scan_log entry found"
         assert log["mode"] == "full"
         assert log["status"] == "done"

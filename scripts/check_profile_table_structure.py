@@ -27,27 +27,47 @@ import re
 import sys
 from pathlib import Path
 
+MAX_INLINE_PRE_CHARS = 200
 
 # ── locate template ──────────────────────────────────────────────────
 
+
 def find_session_html() -> Path:
-    """Return the path to session.html template."""
+    """Locate the session.html template for the profile table static gate.
+
+    Returns:
+        Path to the first existing session.html candidate.
+
+    Raises:
+        FileNotFoundError: When neither repo-root nor cwd-based candidate exists.
+    """
     candidates = [
-        Path(__file__).resolve().parent.parent / "src" / "session_browser" / "web" / "templates" / "session.html",
-        Path.cwd() / "src" / "session_browser" / "web" / "templates" / "session.html",
+        Path(__file__).resolve().parent.parent
+        / 'src'
+        / 'session_browser'
+        / 'web'
+        / 'templates'
+        / 'session.html',
+        Path.cwd() / 'src' / 'session_browser' / 'web' / 'templates' / 'session.html',
     ]
     for p in candidates:
         if p.exists():
             return p
-    raise FileNotFoundError(
-        "Cannot find session.html. Run from repo root or set PYTHONPATH."
-    )
+    raise FileNotFoundError('Cannot find session.html. Run from repo root or set PYTHONPATH.')
 
 
 # ── extraction ───────────────────────────────────────────────────────
 
+
 def extract_profile_template(source: str) -> str | None:
-    """Extract the content of <template id="profile-template">."""
+    """Extract the profile template block from session.html for focused checks.
+
+    Args:
+        source: Full session.html source text.
+
+    Returns:
+        Inner profile template HTML, or None when the template block is absent.
+    """
     m = re.search(
         r'<template id="profile-template">(.*?)</template>',
         source,
@@ -57,36 +77,84 @@ def extract_profile_template(source: str) -> str | None:
 
 
 def extract_profile_table(template: str) -> str | None:
-    """Extract the profile table block (from <table> to </table>)."""
+    """Extract the profile table block from the profile template.
+
+    Args:
+        template: Profile template HTML.
+
+    Returns:
+        Table HTML, or None when no table block exists.
+    """
     m = re.search(r'(<table.*?</table>)', template, re.DOTALL)
     return m.group(1) if m else None
 
 
 # ── checks ───────────────────────────────────────────────────────────
 
+
 def check_no_inline_detail_rows(template: str) -> tuple[bool, str]:
-    """FAIL if <tr class="llm-call-detail ..."> exists — Profile should not expand inline."""
+    """Check that the Profile table does not contain inline detail expansion rows.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     if re.search(r'class="[^"]*\bllm-call-detail\b[^"]*"', template):
-        return False, 'Found <tr class="... llm-call-detail ..."> — Profile should not have inline detail expansion rows'
+        return (
+            False,
+            'Found <tr class="... llm-call-detail ..."> — Profile should not have inline '
+            'detail expansion rows',
+        )
     return True, 'No inline llm-call-detail expansion rows'
 
 
 def check_no_pre_blocks(template: str) -> tuple[bool, str]:
-    """FAIL if .llm-call-detail__pre-block exists — no large inline <pre> blocks."""
+    """Check that Profile markup omits legacy inline pre-block containers.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     if 'llm-call-detail__pre-block' in template:
-        return False, 'Found .llm-call-detail__pre-block — Profile should not contain large inline <pre> blocks'
+        return (
+            False,
+            'Found .llm-call-detail__pre-block — Profile should not contain large inline '
+            '<pre> blocks',
+        )
     return True, 'No .llm-call-detail__pre-block elements'
 
 
 def check_no_request_context_label(template: str) -> tuple[bool, str]:
-    """FAIL if 'Request Context:' label exists — rendered context != request payload."""
+    """Check that Profile markup does not expose request context labels inline.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     if 'Request Context:' in template:
-        return False, 'Found "Request Context:" label — Profile should not expose inline request context labels'
+        return (
+            False,
+            'Found "Request Context:" label — Profile should not expose inline request '
+            'context labels',
+        )
     return True, 'No "Request Context:" inline label'
 
 
 def check_inspect_buttons_exist(template: str) -> tuple[bool, str]:
-    """OK if each row has an Inspect button calling openLLMInspector."""
+    """Check that Profile rows provide Inspect buttons wired to the inspector.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     buttons = re.findall(
         r'<button[^>]*class="[^"]*inspect-btn[^"]*"[^>]*>',
         template,
@@ -103,7 +171,14 @@ def check_inspect_buttons_exist(template: str) -> tuple[bool, str]:
 
 
 def check_marker_container(template: str) -> tuple[bool, str]:
-    """OK if a marker container exists in the profile template."""
+    """Check that Profile markup exposes a marker container for row indicators.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     # Look for a marker-style container (data-marker, or a div with marker class)
     if 'data-marker' in template or 'marker-container' in template or 'profile-marker' in template:
         return True, 'Marker container found'
@@ -111,15 +186,33 @@ def check_marker_container(template: str) -> tuple[bool, str]:
 
 
 def check_preview_truncation(template: str) -> tuple[bool, str]:
-    """OK if preview column has truncation class."""
+    """Check that the Profile preview column uses truncation styling.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     # Look for truncate class on preview cells
-    if 'class="text-xs mono truncate"' in template or 'class="truncate"' in template or 'truncate' in template:
+    if (
+        'class="text-xs mono truncate"' in template
+        or 'class="truncate"' in template
+        or 'truncate' in template
+    ):
         return True, 'Preview column has truncation class'
     return False, 'Preview column missing truncation class'
 
 
 def check_no_large_inline_pre(template: str) -> tuple[bool, str]:
-    """FAIL if <pre> blocks inside the detail grid contain > 200 chars of template content."""
+    """Check that Profile detail markup does not embed large inline pre blocks.
+
+    Args:
+        template: Profile template HTML to inspect.
+
+    Returns:
+        Tuple of pass status and diagnostic detail.
+    """
     # Find <pre> blocks inside llm-call-detail__grid area
     detail_section = re.search(
         r'llm-call-detail__grid.*?(?=</template>)',
@@ -135,8 +228,13 @@ def check_no_large_inline_pre(template: str) -> tuple[bool, str]:
         # Strip Jinja2 template syntax for length check
         stripped = re.sub(r'\{\{.*?\}\}', '', content)
         stripped = re.sub(r'\{%.*?%\}', '', stripped)
-        if len(stripped.strip()) > 200:
-            return False, f'Large inline <pre> block #{i+1} in detail grid ({len(stripped.strip())} chars of static content)'
+        stripped_len = len(stripped.strip())
+        if stripped_len > MAX_INLINE_PRE_CHARS:
+            return (
+                False,
+                f'Large inline <pre> block #{i + 1} in detail grid '
+                f'({stripped_len} chars of static content)',
+            )
 
     return True, 'No large inline <pre> blocks in detail grid'
 
@@ -144,27 +242,36 @@ def check_no_large_inline_pre(template: str) -> tuple[bool, str]:
 # ── runner ───────────────────────────────────────────────────────────
 
 CHECKS = [
-    ("No inline detail rows", check_no_inline_detail_rows),
-    ("No pre-blocks", check_no_pre_blocks),
-    ("No Request Context label", check_no_request_context_label),
-    ("Inspect buttons exist", check_inspect_buttons_exist),
-    ("Marker container", check_marker_container),
-    ("Preview truncation", check_preview_truncation),
-    ("No large inline <pre>", check_no_large_inline_pre),
+    ('No inline detail rows', check_no_inline_detail_rows),
+    ('No pre-blocks', check_no_pre_blocks),
+    ('No Request Context label', check_no_request_context_label),
+    ('Inspect buttons exist', check_inspect_buttons_exist),
+    ('Marker container', check_marker_container),
+    ('Preview truncation', check_preview_truncation),
+    ('No large inline <pre>', check_no_large_inline_pre),
 ]
 
 
 def run(template_path: Path) -> int:
-    """Run all checks. Returns exit code."""
-    source = template_path.read_text(encoding="utf-8")
+    """Run all Profile table structure checks against a template path.
+
+    Args:
+        template_path: session.html path selected by find_session_html.
+
+    Returns:
+        Exit code 0 when all checks pass, 1 for contract failures, or 2 for input errors.
+    """
+    source = template_path.read_text(encoding='utf-8')
     template = extract_profile_template(source)
 
     if template is None:
-        print("[ERROR] Cannot find <template id=\"profile-template\"> in session.html", file=sys.stderr)
+        print(
+            '[ERROR] Cannot find <template id="profile-template"> in session.html', file=sys.stderr
+        )
         return 2
 
-    print(f"Checking profile table structure in: {template_path}")
-    print(f"Template length: {len(template)} chars")
+    print(f'Checking profile table structure in: {template_path}')
+    print(f'Template length: {len(template)} chars')
     print()
 
     failures = 0
@@ -173,27 +280,32 @@ def run(template_path: Path) -> int:
     for name, check_fn in CHECKS:
         ok, msg = check_fn(template)
         if ok:
-            print(f"[OK]   {name}: {msg}")
+            print(f'[OK]   {name}: {msg}')
             passes += 1
         else:
-            print(f"[FAIL] {name}: {msg}")
+            print(f'[FAIL] {name}: {msg}')
             failures += 1
 
     print()
-    print(f"Result: {passes} passed, {failures} failed out of {len(CHECKS)} checks")
+    print(f'Result: {passes} passed, {failures} failed out of {len(CHECKS)} checks')
 
     return 1 if failures > 0 else 0
 
 
 def main() -> int:
+    """Locate session.html and run the Profile table structure gate.
+
+    Returns:
+        Exit code from run, or 2 when the template cannot be located.
+    """
     try:
         path = find_session_html()
     except FileNotFoundError as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        print(f'[ERROR] {exc}', file=sys.stderr)
         return 2
 
     return run(path)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

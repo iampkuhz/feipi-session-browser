@@ -19,14 +19,14 @@ def extract_prior_messages(
         messages = messages[-max_messages:]
 
     for idx, msg in enumerate(messages):
-        role = ""
-        content = ""
+        role = ''
+        content = ''
         if isinstance(msg, dict):
-            role = msg.get("role", "")
-            content = msg.get("content", "") or ""
-        elif hasattr(msg, "role"):
-            role = getattr(msg, "role", "")
-            content = getattr(msg, "content", "") or ""
+            role = msg.get('role', '')
+            content = msg.get('content', '') or ''
+        elif hasattr(msg, 'role'):
+            role = getattr(msg, 'role', '')
+            content = getattr(msg, 'content', '') or ''
 
         if not role:
             continue
@@ -34,19 +34,21 @@ def extract_prior_messages(
         content_str = str(content)
         preview = content_str[:200]
 
-        results.append(Evidence(
-            evidence_id=f"prior_msg_{evidence_counter + idx}",
-            scope="prior_session",
-            kind="conversation_history",
-            content_ref=ContentRef(
-                kind="session_event",
-                preview=preview,
-                can_load_full=True,
-            ),
-            text_preview=preview,
-            precision="extracted",
-            confidence=0.8,
-            raw_value={"role": role, "original_index": idx},
-        ))
+        results.append(
+            Evidence(
+                evidence_id=f'prior_msg_{evidence_counter + idx}',
+                scope='prior_session',
+                kind='conversation_history',
+                content_ref=ContentRef(
+                    kind='session_event',
+                    preview=preview,
+                    can_load_full=True,
+                ),
+                text_preview=preview,
+                precision='extracted',
+                confidence=0.8,
+                raw_value={'role': role, 'original_index': idx},
+            )
+        )
 
     return results

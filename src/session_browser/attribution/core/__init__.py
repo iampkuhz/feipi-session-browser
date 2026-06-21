@@ -1,1 +1,1 @@
-# 说明：Attribution core models.
+"""Provide core attribution models, span builders, bucket aggregation, and validators."""

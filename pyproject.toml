@@ -14,12 +14,28 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+tokenization = [
+  "tiktoken",
+]
 dev = [
   "beautifulsoup4",
+  "bandit",
   "build",
+  "coverage",
+  "deptry",
+  "interrogate",
+  "pip-audit",
   "pytest",
+  "pytest-cov",
   "pytest-xdist",
+  "pydoclint",
+  "pyright",
   "playwright",
+  "pre-commit",
+  "radon",
+  "ruff",
+  "vulture",
+  "xenon",
 ]
 
 [project.scripts]
@@ -51,3 +67,143 @@ markers = [
     "contract_case: Mark test with acceptance contract case ID(s)",
     "playwright: Mark pytest tests that exercise browser DOM via Playwright",
 ]
+
+[tool.coverage.run]
+branch = true
+source = ["src/session_browser"]
+omit = [
+  "tests/*",
+  "tmp/*",
+]
+
+[tool.coverage.report]
+fail_under = 80
+show_missing = true
+skip_covered = false
+exclude_lines = [
+  "pragma: no cover",
+  "if TYPE_CHECKING:",
+  "if __name__ == .__main__.:",
+]
+
+[tool.ruff]
+target-version = "py310"
+line-length = 100
+src = ["src", "scripts", "tests"]
+extend-exclude = [
+  "tmp",
+  "data",
+  "output",
+  ".venv",
+  ".pytest_cache",
+  "__pycache__",
+]
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "W",
+  "F",
+  "I",
+  "N",
+  "D",
+  "UP",
+  "B",
+  "A",
+  "C4",
+  "SIM",
+  "RET",
+  "PTH",
+  "TCH",
+  "RUF",
+  "ANN",
+  "PL",
+]
+ignore = [
+  "D203",
+  "D213",
+]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**/*.py" = [
+  "D100",
+  "D101",
+  "D102",
+  "D103",
+  "ANN201",
+]
+
+[tool.pyright]
+include = ["src/session_browser", "scripts", "tests"]
+exclude = [
+  "tmp",
+  "data",
+  "output",
+  ".venv",
+  "**/__pycache__",
+]
+pythonVersion = "3.10"
+typeCheckingMode = "standard"
+reportMissingImports = true
+reportMissingTypeStubs = false
+reportUnknownMemberType = "warning"
+reportUnknownArgumentType = "warning"
+reportUnknownVariableType = "warning"
+reportPrivateUsage = "none"
+
+[tool.interrogate]
+paths = ["src/session_browser", "scripts"]
+ignore-init-method = false
+ignore-init-module = true
+ignore-magic = true
+ignore-module = false
+ignore-nested-functions = false
+ignore-private = false
+ignore-property-decorators = false
+fail-under = 100
+verbose = 1
+quiet = false
+color = true
+
+[tool.pydoclint]
+style = "google"
+arg-type-hints-in-docstring = false
+check-return-types = false
+check-yield-types = false
+skip-checking-short-docstrings = false
+exclude = "\\.venv|tmp|data|output|__pycache__"
+
+[tool.bandit]
+targets = ["src/session_browser", "scripts"]
+exclude_dirs = ["tests", "tmp", "data", "output", ".venv"]
+skips = []
+
+[tool.deptry]
+known_first_party = ["session_browser"]
+optional_dependencies_dev_groups = ["dev"]
+package_module_name_map = {"markdown-it-py" = ["markdown_it"], "tiktoken" = ["tiktoken"]}
+extend_exclude = [
+  "tmp",
+  "data",
+  "output",
+  "build",
+  "dist",
+]
+
+[tool.vulture]
+paths = ["src/session_browser", "scripts", "tests"]
+exclude = [
+  "tmp",
+  "data",
+  "output",
+  ".venv",
+]
+min_confidence = 90

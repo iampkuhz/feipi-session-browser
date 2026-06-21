@@ -1,55 +1,81 @@
-"""Tiktoken counter：使用 tiktoken 库进行精确 token 计数。
+"""Count tokens with the optional tiktoken library.
 
-如果 tiktoken 未安装，自动 fallback 到 heuristic counter。
+The counter is triggered by the tokenization router when local tokenizer precision is
+preferred over heuristic estimates. It accepts request or response text and returns a
+model-specific count when tiktoken is installed, otherwise ``None`` so callers can fall
+back without treating the count as exact provider usage.
 """
 
 from __future__ import annotations
 
 import logging
+from functools import cache
+from typing import Protocol, cast
 
 logger = logging.getLogger(__name__)
 
-_tiktoken_encoder = None
+try:
+    import tiktoken
+except ImportError:
+    tiktoken = None
 
 
-def _get_tiktoken_encoder():
-    """惰性加载 tiktoken。"""
-    global _tiktoken_encoder
-    if _tiktoken_encoder is not None:
-        return _tiktoken_encoder
+class _TiktokenEncoder(Protocol):
+    """Minimal tiktoken encoder protocol used by this module."""
 
-    try:
-        import tiktoken
-        _tiktoken_encoder = tiktoken.encoding_for_model("gpt-4o")
-    except ImportError:
-        logger.debug("tiktoken 未安装，将使用 heuristic counter")
-        _tiktoken_encoder = False  # 标记为不可用
-    except Exception as exc:
-        logger.debug("tiktoken 加载失败: %s", exc)
-        _tiktoken_encoder = False
+    def encode(self, text: str) -> list[int]:
+        """Encode text into token ids.
 
-    return _tiktoken_encoder
+        Args:
+            text: Text to tokenize.
+
+        Returns:
+            Token id list produced by the encoder.
+        """
 
 
-def count_tokens_tiktoken(text: str, model: str = "gpt-4o") -> int | None:
-    """使用 tiktoken 精确计数。
+@cache
+def _get_tiktoken_encoder(model: str) -> _TiktokenEncoder | None:
+    """Load and cache a tiktoken encoder for a model.
 
     Args:
-        text: 输入文本
-        model: 模型名
+        model: Model name used to select a tiktoken encoding.
 
     Returns:
-        精确 token 数，如果 tiktoken 不可用则返回 None
+        Encoder object when tiktoken is installed and can load the model, otherwise
+        ``None``.
+    """
+    if tiktoken is None:
+        logger.debug('tiktoken is not installed; using heuristic counter')
+        return None
+
+    try:
+        return cast('_TiktokenEncoder', tiktoken.encoding_for_model(model))
+    except Exception as exc:
+        logger.debug('tiktoken load failed: %s', exc)
+        return None
+
+
+def count_tokens_tiktoken(text: str, model: str = 'gpt-4o') -> int | None:
+    """Count text tokens with tiktoken.
+
+    Args:
+        text: Request, response, or attribution bucket text to count.
+        model: Model name used to select the tiktoken encoding.
+
+    Returns:
+        Exact local tokenizer count when available, ``0`` for empty text, or ``None``
+        when tiktoken cannot be loaded or cannot encode the text.
     """
     if not text:
         return 0
 
-    encoder = _get_tiktoken_encoder()
-    if encoder is False:
+    encoder = _get_tiktoken_encoder(model)
+    if encoder is None:
         return None
 
     try:
         return len(encoder.encode(text))
     except Exception as exc:
-        logger.debug("tiktoken 计数失败: %s", exc)
+        logger.debug('tiktoken count failed: %s', exc)
         return None

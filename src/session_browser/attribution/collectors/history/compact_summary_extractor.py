@@ -30,16 +30,16 @@ def extract_compact_summary(
     preview = content[:200]
 
     return Evidence(
-        evidence_id=f"compact_summary_{evidence_counter}",
-        scope="prior_session",
-        kind="compact_summary",
+        evidence_id=f'compact_summary_{evidence_counter}',
+        scope='prior_session',
+        kind='compact_summary',
         content_ref=ContentRef(
-            kind="inline",
+            kind='inline',
             preview=preview,
             can_load_full=True,
         ),
         content_preview=preview,
         token_estimate=len(content) // 4 if content else 0,
-        precision="extracted",
+        precision='extracted',
         confidence=0.7,
     )

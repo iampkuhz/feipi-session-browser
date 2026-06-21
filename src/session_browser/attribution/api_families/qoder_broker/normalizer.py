@@ -1,12 +1,13 @@
 """说明：Qoder Broker normalizer。"""
 
 from __future__ import annotations
+
 from session_browser.attribution.core.models import UsageBreakdown
 
 
 def normalize_qoder_broker_usage(breakdown: UsageBreakdown) -> UsageBreakdown:
     """标准化 Qoder Broker UsageBreakdown。"""
-    if breakdown.usage_source == "unavailable":
+    if breakdown.usage_source == 'unavailable':
         return breakdown
 
     fresh = breakdown.fresh_input or 0
@@ -23,5 +24,5 @@ def normalize_qoder_broker_usage(breakdown: UsageBreakdown) -> UsageBreakdown:
         hidden_reasoning=breakdown.hidden_reasoning,
         usage_source=breakdown.usage_source,
         precision=breakdown.precision,
-        note=breakdown.note or "Qoder broker usage normalized",
+        note=breakdown.note or 'Qoder broker usage normalized',
     )

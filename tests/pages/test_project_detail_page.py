@@ -9,16 +9,17 @@ T122 — Project Detail：添加页面专属 pytest。
 
 from __future__ import annotations
 
-import pytest
+import glob as _glob
 import os
 import re
-import glob as _glob
 
-_PROJECT_PATH = "src/session_browser/web/templates/project.html"
-_PROJECTS_CSS_PATH = "src/session_browser/web/static/css/projects.css"
-_PROJECTS_JS_PATH = "src/session_browser/web/static/js/projects.js"
-_UI_PRIMITIVES_PATH = "src/session_browser/web/templates/components/ui_primitives.html"
-_UI_PRIMITIVES_DIR = "src/session_browser/web/templates/components/ui_primitives"
+import pytest
+
+_PROJECT_PATH = 'src/session_browser/web/templates/project.html'
+_PROJECTS_CSS_PATH = 'src/session_browser/web/static/css/projects.css'
+_PROJECTS_JS_PATH = 'src/session_browser/web/static/js/projects.js'
+_UI_PRIMITIVES_PATH = 'src/session_browser/web/templates/components/ui_primitives.html'
+_UI_PRIMITIVES_DIR = 'src/session_browser/web/templates/components/ui_primitives'
 
 
 def _read(path: str) -> str:
@@ -29,9 +30,9 @@ def _read(path: str) -> str:
 def _read_ui_primitives_with_splits() -> str:
     """Read ui_primitives wrapper + all split sub-components."""
     parts = [_read(_UI_PRIMITIVES_PATH)]
-    for fp in sorted(_glob.glob(os.path.join(_UI_PRIMITIVES_DIR, "*.html"))):
+    for fp in sorted(_glob.glob(os.path.join(_UI_PRIMITIVES_DIR, '*.html'))):
         parts.append(_read(fp))
-    return "\n".join(parts)
+    return '\n'.join(parts)
 
 
 def _read_template() -> str:
@@ -40,710 +41,720 @@ def _read_template() -> str:
 
 # ── TestProjectDetailTemplate ─────────────────────────────────────
 
+
 class TestProjectDetailTemplate:
     """验证 project Jinja2 模板的结构化渲染。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_template_file_exists(self):
         """project.html 必须存在于磁盘上。"""
-        assert os.path.isfile(_PROJECT_PATH), \
-            f"{_PROJECT_PATH} must exist"
+        assert os.path.isfile(_PROJECT_PATH), f'{_PROJECT_PATH} must exist'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_extends_base(self):
         """Project 必须继承 base.html。"""
         content = _read_template()
-        assert '{% extends "base.html" %}' in content, \
-            "Project must extend base.html"
+        assert '{% extends "base.html" %}' in content, 'Project must extend base.html'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_active_page_set(self):
         """Project 必须设置 active_page = 'projects'。"""
         content = _read_template()
-        assert "active_page = 'projects'" in content, \
-            "Project must set active_page = 'projects'"
+        assert "active_page = 'projects'" in content, "Project must set active_page = 'projects'"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_ui_primitives_imported(self):
         """Project 必须导入 ui_primitives.html。"""
         content = _read_template()
-        assert 'import "components/ui_primitives.html"' in content, \
-            "Project must import ui_primitives.html"
+        assert 'import "components/ui_primitives.html"' in content, (
+            'Project must import ui_primitives.html'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_inline_onclick(self):
         """Project 不得使用 inline onclick 处理器。"""
         content = _read_template()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
-        assert len(matches) == 0, \
-            f"Project must not have inline onclick, found {len(matches)} occurrences"
+        assert len(matches) == 0, (
+            f'Project must not have inline onclick, found {len(matches)} occurrences'
+        )
 
 
 # ── TestProjectDetailImports ──────────────────────────────────────
 
+
 class TestProjectDetailImports:
     """验证 CSS 和 JS 导入语句。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_css_import_projects_css(self):
         """Project 必须导入 projects.css。"""
         content = _read_template()
-        assert 'href="/static/css/projects.css"' in content, \
-            "Project must import projects.css"
+        assert 'href="/static/css/projects.css"' in content, 'Project must import projects.css'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_js_import_projects_js(self):
         """Project 必须导入 projects.js。"""
         content = _read_template()
-        assert 'src="/static/js/projects.js"' in content, \
-            "Project must import projects.js"
+        assert 'src="/static/js/projects.js"' in content, 'Project must import projects.js'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_css_file_exists_on_disk(self):
         """projects.css 必须存在于磁盘上。"""
-        assert os.path.isfile(_PROJECTS_CSS_PATH), \
-            "projects.css must exist on disk"
+        assert os.path.isfile(_PROJECTS_CSS_PATH), 'projects.css must exist on disk'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_js_file_exists_on_disk(self):
         """projects.js 必须存在于磁盘上。"""
-        assert os.path.isfile(_PROJECTS_JS_PATH), \
-            "projects.js must exist on disk"
+        assert os.path.isfile(_PROJECTS_JS_PATH), 'projects.js must exist on disk'
 
 
 # ── TestProjectDetailPageHead ─────────────────────────────────────
 
+
 class TestProjectDetailPageHead:
     """验证 page-head 结构（使用 ui.page_head 宏，T15）。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_page_head_macro_used(self):
         """Project 必须使用 ui.page_head() 宏。"""
         content = _read_template()
-        assert 'ui.page_head(' in content, \
-            "Project must use ui.page_head() macro"
+        assert 'ui.page_head(' in content, 'Project must use ui.page_head() macro'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_back_button_present(self):
         """page-head 必须使用 ui.back_button 宏并链接到 /projects。"""
         content = _read_template()
-        assert "ui.back_button(" in content, \
-            "Page-head must use ui.back_button macro"
-        assert "'/projects'" in content, \
-            "Back button must link to /projects"
+        assert 'ui.back_button(' in content, 'Page-head must use ui.back_button macro'
+        assert "'/projects'" in content, 'Back button must link to /projects'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_h1_title_present(self):
         """page-head 必须以项目名称作为标题参数。"""
         content = _read_template()
-        assert "project.project_name" in content, \
-            "Page-head must have project name as title"
+        assert 'project.project_name' in content, 'Page-head must have project name as title'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_path_row_macro_used(self):
         """page-head 必须使用 ui.path_row 宏渲染路径行。"""
         content = _read_template()
-        assert 'ui.path_row(' in content, \
-            "Page-head must use ui.path_row() macro"
-        assert 'project.project_key' in content, \
-            "path_row must receive project.project_key as argument"
+        assert 'ui.path_row(' in content, 'Page-head must use ui.path_row() macro'
+        assert 'project.project_key' in content, (
+            'path_row must receive project.project_key as argument'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_path_chip_in_macro(self):
         """path_row 宏必须生成带 mono 类的 path-chip。"""
         primitives = _read_ui_primitives_with_splits()
-        assert 'class="path-chip mono"' in primitives, \
-            "path_row macro must produce path-chip with mono class"
+        assert 'class="path-chip mono"' in primitives, (
+            'path_row macro must produce path-chip with mono class'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_subtitle_parameter(self):
         """page-head 必须传递 subtitle 参数。"""
         content = _read_template()
-        assert "subtitle=" in content, \
-            "Page-head must have a subtitle parameter"
+        assert 'subtitle=' in content, 'Page-head must have a subtitle parameter'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_copy_path_in_macro(self):
         """path_row 宏必须生成标准 copy 按钮。"""
         primitives = _read_ui_primitives_with_splits()
-        assert 'data-action="copy"' in primitives and 'data-copy-text="{{ path }}"' in primitives, \
-            "path_row macro must produce a canonical copy button"
+        assert 'data-action="copy"' in primitives and 'data-copy-text="{{ path }}"' in primitives, (
+            'path_row macro must produce a canonical copy button'
+        )
 
 
 # ── TestProjectDetailMetricCards ──────────────────────────────────
+
 
 class TestProjectDetailMetricCards:
     """验证 5 个指标卡片的标签和结构正确性。"""
 
     _EXPECTED_LABELS = [
-        "Sessions",
-        "Agents",
-        "Total Tokens",
-        "Cache Read Ratio",
-        "Failed Tools",
+        'Sessions',
+        'Agents',
+        'Total Tokens',
+        'Cache Read Ratio',
+        'Failed Tools',
     ]
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_grid_present(self):
         """Project 必须有 metric-grid 区域。"""
         content = _read_template()
-        assert 'class="metric-grid project-detail-kpis"' in content, \
-            "Project must have a metric-grid section"
+        assert 'class="metric-grid project-detail-kpis"' in content, (
+            'Project must have a metric-grid section'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_five_metric_cards(self):
         """Project 必须恰好渲染 5 个指标卡片。"""
         content = _read_template()
         cards = re.findall(r'class="metric-card"', content)
-        assert len(cards) == 5, \
-            f"Project must have exactly 5 metric cards, found {len(cards)}"
+        assert len(cards) == 5, f'Project must have exactly 5 metric cards, found {len(cards)}'
 
-    @pytest.mark.parametrize("label", _EXPECTED_LABELS)
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.parametrize('label', _EXPECTED_LABELS)
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_card_labels(self, label):
         """每个指标卡片必须有预期的标签文本。"""
         content = _read_template()
-        assert f">{label}" in content, \
-            f"Project must have a metric card labeled '{label}'"
+        assert f'>{label}' in content, f"Project must have a metric card labeled '{label}'"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_cards_have_icons(self):
         """每个指标卡片必须有 metric-icon 元素。"""
         content = _read_template()
         icons = re.findall(r'class="metric-icon', content)
-        assert len(icons) >= 5, \
-            f"Project must have at least 5 metric-icon elements, found {len(icons)}"
+        assert len(icons) >= 5, (
+            f'Project must have at least 5 metric-icon elements, found {len(icons)}'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_icons_have_emoji_aria_hidden(self):
         """每个 metric-icon 必须有 aria-hidden 属性。"""
         content = _read_template()
-        icons = re.findall(
-            r'class="metric-icon[^"]*"[^>]*aria-hidden="true"', content
+        icons = re.findall(r'class="metric-icon[^"]*"[^>]*aria-hidden="true"', content)
+        assert len(icons) >= 5, (
+            f'Project must have at least 5 metric-icon elements with aria-hidden, found {len(icons)}'
         )
-        assert len(icons) >= 5, \
-            f"Project must have at least 5 metric-icon elements with aria-hidden, found {len(icons)}"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_cards_have_label_class(self):
         """每个指标卡片必须有 metric-card__label 元素。"""
         content = _read_template()
         labels = re.findall(r'class="metric-card__label"', content)
-        assert len(labels) >= 5, \
-            f"Project must have at least 5 metric-card__label elements, found {len(labels)}"
+        assert len(labels) >= 5, (
+            f'Project must have at least 5 metric-card__label elements, found {len(labels)}'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_cards_have_value_class(self):
         """每个指标卡片必须有 metric-card__value 元素。"""
         content = _read_template()
         # 匹配 class="metric-card__value" 和 class="metric-card__value mono"
         values = re.findall(r'class="metric-card__value(?: mono)?"', content)
-        assert len(values) >= 5, \
-            f"Project must have at least 5 metric-card__value elements, found {len(values)}"
+        assert len(values) >= 5, (
+            f'Project must have at least 5 metric-card__value elements, found {len(values)}'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_metric_cards_have_secondary_rows(self):
         """KPI 卡片必须有二级指标行。"""
         content = _read_template()
-        assert 'class="metric-card__secondary-row"' in content, \
-            "KPI cards must have secondary metric rows"
+        assert 'class="metric-card__secondary-row"' in content, (
+            'KPI cards must have secondary metric rows'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_agent_kpi_has_agent_labels(self):
         """Agents KPI 必须包含三个固定 agent 二级指标。"""
         content = _read_template()
-        for label in ["Claude Code", "Qoder", "Codex"]:
-            assert label in content, f"Agents KPI must include {label}"
+        for label in ['Claude Code', 'Qoder', 'Codex']:
+            assert label in content, f'Agents KPI must include {label}'
 
 
 # ── TestProjectDetailInfoButtons ──────────────────────────────────
 
+
 class TestProjectDetailInfoButtons:
     """验证 Project Detail 不再渲染无命令信息按钮。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_info_buttons(self):
         """Project Detail KPI 不应渲染无实际命令的 info 按钮。"""
         content = _read_template()
         buttons = re.findall(r'data-action="info"', content)
-        assert len(buttons) == 0, \
-            f"Project must not have info buttons, found {len(buttons)}"
+        assert len(buttons) == 0, f'Project must not have info buttons, found {len(buttons)}'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_info_icon_class(self):
         """Project Detail 不应使用 icon-button--info。"""
         content = _read_template()
-        assert 'icon-button--info' not in content, \
-            "Project must not use icon-button--info"
+        assert 'icon-button--info' not in content, 'Project must not use icon-button--info'
 
 
 # ── TestProjectDetailTableToolbar ─────────────────────────────────
 
+
 class TestProjectDetailTableToolbar:
     """验证表格工具栏结构。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_table_toolbar_present(self):
         """Project 必须使用 ui.table_card 宏来渲染 table-toolbar。"""
         content = _read_template()
-        assert "ui.table_card(" in content, \
-            "Project must use ui.table_card macro which renders table-toolbar"
+        assert 'ui.table_card(' in content, (
+            'Project must use ui.table_card macro which renders table-toolbar'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_card_title_present(self):
         """表格工具栏必须有 card-title 用于 Sessions（通过 table_card）。"""
         content = _read_template()
-        assert "ui.table_card(" in content, \
-            "Table toolbar must use ui.table_card macro which renders card-title"
-        assert ">Sessions" in content or "'Sessions'" in content, \
-            "Card title must reference Sessions"
+        assert 'ui.table_card(' in content, (
+            'Table toolbar must use ui.table_card macro which renders card-title'
+        )
+        assert '>Sessions' in content or "'Sessions'" in content, (
+            'Card title must reference Sessions'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_card_sub_present(self):
         """表格工具栏必须有 card-sub（通过 table_card 的 subtitle 参数）。"""
         content = _read_template()
-        assert "ui.table_card(" in content, \
-            "Project must use ui.table_card macro which renders card-sub"
-        assert "subtitle=" in content, \
-            "table_card call must pass subtitle parameter"
+        assert 'ui.table_card(' in content, (
+            'Project must use ui.table_card macro which renders card-sub'
+        )
+        assert 'subtitle=' in content, 'table_card call must pass subtitle parameter'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_search_input_present(self):
         """表格工具栏必须有项目内搜索输入。"""
         content = _read_template()
-        assert "ui.table_card(" in content, \
-            "Project must use ui.table_card macro"
-        assert 'id="project-session-search"' in content, \
-            "Project sessions toolbar must render project-session-search"
+        assert 'ui.table_card(' in content, 'Project must use ui.table_card macro'
+        assert 'id="project-session-search"' in content, (
+            'Project sessions toolbar must render project-session-search'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_search_input_has_placeholder(self):
         """搜索输入必须有占位文本。"""
         content = _read_template()
-        assert 'placeholder=' in content, \
-            "Search input must have a placeholder"
-        assert 'Search' in content, \
-            "Search placeholder must mention Search"
+        assert 'placeholder=' in content, 'Search input must have a placeholder'
+        assert 'Search' in content, 'Search placeholder must mention Search'
 
 
 # ── TestProjectDetailTableStructure ───────────────────────────────
+
 
 class TestProjectDetailTableStructure:
     """验证表格结构和列表头。"""
 
     _EXPECTED_COLUMNS = [
-        "Session", "Agent", "Model", "Tokens",
-        "Rounds", "Tools", "Subagents", "Duration",
-        "Process Time", "Failure", "Created", "Updated",
+        'Session',
+        'Agent',
+        'Model',
+        'Tokens',
+        'Rounds',
+        'Tools',
+        'Subagents',
+        'Duration',
+        'Process Time',
+        'Failure',
+        'Created',
+        'Updated',
     ]
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_table_has_id(self):
         """表格必须有 id='project-sessions-table'。"""
         content = _read_template()
-        assert 'id="project-sessions-table"' in content, \
+        assert 'id="project-sessions-table"' in content, (
             "Table must have id='project-sessions-table'"
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_table_has_data_enhanced(self):
         """表格必须有 data-table-enhanced 属性。"""
         content = _read_template()
-        assert 'data-table-enhanced' in content, \
-            "Table must have data-table-enhanced attribute"
+        assert 'data-table-enhanced' in content, 'Table must have data-table-enhanced attribute'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_table_has_data_table_attribute(self):
         """表格必须有 data-table 属性。"""
         content = _read_template()
-        assert 'data-table' in content, \
-            "Table must have data-table attribute"
+        assert 'data-table' in content, 'Table must have data-table attribute'
 
-    @pytest.mark.parametrize("column", _EXPECTED_COLUMNS)
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.parametrize('column', _EXPECTED_COLUMNS)
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_column_headers_present(self, column):
         """表格必须有所有预期的列表头。"""
         content = _read_template()
-        assert f"<th" in content and column in content, \
-            f"Table must have '{column}' column header"
+        assert '<th' in content and column in content, f"Table must have '{column}' column header"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_twelve_column_headers(self):
         """表格必须恰好有 12 个列表头。"""
         content = _read_template()
         # 匹配 <th...> 但排除 <thead>
         ths = re.findall(r'<th(?!\w)', content)
-        assert len(ths) == 12, \
-            f"Table must have 12 column headers, found {len(ths)}"
+        assert len(ths) == 12, f'Table must have 12 column headers, found {len(ths)}'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_sortable_columns_have_data_action_sort(self):
         """可排序列必须有 data-action='sort'。"""
         content = _read_template()
         sorts = re.findall(r'data-action="sort"', content)
-        assert len(sorts) >= 9, \
-            f"Table must have at least 9 sortable columns, found {len(sorts)}"
+        assert len(sorts) >= 9, f'Table must have at least 9 sortable columns, found {len(sorts)}'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_sortable_columns_have_data_sort(self):
         """可排序列必须有 data-sort 值。"""
         content = _read_template()
-        for sort_key in ["tokens", "rounds", "tools", "subagents", "duration", "process-time", "failure", "created", "updated"]:
-            assert f'data-sort="{sort_key}"' in content, \
-                f"Table must have data-sort='{sort_key}'"
+        for sort_key in [
+            'tokens',
+            'rounds',
+            'tools',
+            'subagents',
+            'duration',
+            'process-time',
+            'failure',
+            'created',
+            'updated',
+        ]:
+            assert f'data-sort="{sort_key}"' in content, f"Table must have data-sort='{sort_key}'"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_data_class_present(self):
         """表格必须使用 data-table 属性供 JS 增强。"""
         content = _read_template()
-        assert 'data-table-enhanced' in content, \
-            "Table must have data-table-enhanced attribute"
+        assert 'data-table-enhanced' in content, 'Table must have data-table-enhanced attribute'
 
 
 # ── TestProjectDetailRowStructure ─────────────────────────────────
 
+
 class TestProjectDetailRowStructure:
     """验证表格行结构和数据属性。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_row_has_open_session_action(self):
         """行必须有 data-action='open-session'。"""
         content = _read_template()
-        assert 'data-action="open-session"' in content, \
-            "Row must have data-action='open-session'"
+        assert 'data-action="open-session"' in content, "Row must have data-action='open-session'"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_row_has_data_href(self):
         """行必须有 data-href 属性。"""
         content = _read_template()
-        assert 'data-href=' in content, \
-            "Row must have data-href attribute"
+        assert 'data-href=' in content, 'Row must have data-href attribute'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_title_main_present(self):
         """行必须有 title-main 元素。"""
         content = _read_template()
-        assert 'class="title-main"' in content, \
-            "Row must have a title-main element"
+        assert 'class="title-main"' in content, 'Row must have a title-main element'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_title_sub_present(self):
         """行必须有 title-sub 元素。"""
         content = _read_template()
-        assert 'class="title-sub mono"' in content, \
-            "Row must have a title-sub mono element"
+        assert 'class="title-sub mono"' in content, 'Row must have a title-sub mono element'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_title_sub_has_mono_class(self):
         """title-sub 必须有 mono 类。"""
         content = _read_template()
-        assert 'class="title-sub mono"' in content, \
-            "Title-sub must have mono class"
+        assert 'class="title-sub mono"' in content, 'Title-sub must have mono class'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_copy_session_button_present(self):
         """行必须有标准 copy 按钮。"""
         content = _read_template()
-        assert 'data-action="copy"' in content and 'data-copy-text="{{ s.session_id }}"' in content, \
-            "Row must have canonical copy button"
+        assert (
+            'data-action="copy"' in content and 'data-copy-text="{{ s.session_id }}"' in content
+        ), 'Row must have canonical copy button'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_agent_badge_cc(self):
         """行必须通过标准 agent_badge 宏渲染 agent。"""
         content = _read_template()
-        assert "ui.agent_badge(s.agent)" in content, \
-            "Row must use ui.agent_badge(s.agent)"
+        assert 'ui.agent_badge(s.agent)' in content, 'Row must use ui.agent_badge(s.agent)'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_agent_badge_cx(self):
         """Agent Mix 必须引用 Codex agent。"""
         content = _read_template()
-        assert "codex" in content and "Codex" in content, \
-            "Template must reference Codex"
+        assert 'codex' in content and 'Codex' in content, 'Template must reference Codex'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_agent_badge_qd(self):
         """Agent Mix 必须引用 Qoder agent。"""
         content = _read_template()
-        assert "qoder" in content and "Qoder" in content, \
-            "Template must reference Qoder"
+        assert 'qoder' in content and 'Qoder' in content, 'Template must reference Qoder'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_agent_dot_indicators(self):
         """Agent Mix 必须链接到三个 Dashboard agent scope。"""
         content = _read_template()
-        for scope in ["claude", "qoder", "codex"]:
-            assert f"/dashboard?agent={{{{ agent.scope }}}}" in content or scope in content, \
+        for scope in ['claude', 'qoder', 'codex']:
+            assert '/dashboard?agent={{ agent.scope }}' in content or scope in content, (
                 f"Template must reference '{scope}' dashboard scope"
+            )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_token_cell_present(self):
         """行必须通过 ui.token_cell 宏生成 token-cell 元素。"""
         content = _read_template()
-        assert "ui.token_cell" in content, \
-            "Token column must use ui.token_cell macro (which produces token-cell)"
+        assert 'ui.token_cell' in content, (
+            'Token column must use ui.token_cell macro (which produces token-cell)'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_token_total_present(self):
         """token-cell 必须生成 token-total 元素（通过 ui.token_cell 宏）。"""
         primitives = _read_ui_primitives_with_splits()
-        assert 'class="token-total"' in primitives, \
-            "ui.token_cell macro must produce a token-total element"
+        assert 'class="token-total"' in primitives, (
+            'ui.token_cell macro must produce a token-total element'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_tokenbar_in_macro(self):
         """Token 条段由 ui_primitives 中的 ui.token_cell 宏生成。"""
         content = _read_template()
-        assert "ui.token_cell" in content, \
-            "Token column must use ui.token_cell macro"
+        assert 'ui.token_cell' in content, 'Token column must use ui.token_cell macro'
         # 验证 ui_primitives 中的宏生成 tokenbar 段（split-aware）
         primitives = _read_ui_primitives_with_splits()
-        assert 'class="tokenbar"' in primitives, \
-            "ui.token_cell macro must produce a tokenbar element"
+        assert 'class="tokenbar"' in primitives, (
+            'ui.token_cell macro must produce a tokenbar element'
+        )
         segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', primitives)
-        assert len(segs) >= 4, \
-            f"ui.token_cell macro must have 4 segment classes, found {len(segs)}"
+        assert len(segs) >= 4, f'ui.token_cell macro must have 4 segment classes, found {len(segs)}'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_tokenbar_has_four_segments_in_macro(self):
         """ui.token_cell 宏必须定义全部 4 种段类型。"""
         primitives = _read_ui_primitives_with_splits()
         segs = re.findall(r'class="tokenbar-seg (fresh|read|write|out)"', primitives)
-        assert len(segs) >= 4, \
-            f"ui.token_cell macro must have 4 segments (fresh/read/write/out), found {len(segs)}"
+        assert len(segs) >= 4, (
+            f'ui.token_cell macro must have 4 segments (fresh/read/write/out), found {len(segs)}'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_tokenbar_segment_classes_in_macro(self):
         """每个 tokenbar 段类都必须出现在 ui.token_cell 宏中。"""
         primitives = _read_ui_primitives_with_splits()
-        for seg_class in ["fresh", "read", "write", "out"]:
-            assert f'tokenbar-seg {seg_class}' in primitives, \
+        for seg_class in ['fresh', 'read', 'write', 'out']:
+            assert f'tokenbar-seg {seg_class}' in primitives, (
                 f"ui.token_cell macro must have segment class '{seg_class}'"
+            )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_failed_badge_present(self):
         """当有失败工具时，行必须有失败徽章。"""
         content = _read_template()
-        assert 'class="badge err"' in content, \
-            "Failed tools must use badge err class"
+        assert 'class="badge err"' in content, 'Failed tools must use badge err class'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_row_failed_state_class(self):
         """行必须有 row--failed 条件类。"""
         content = _read_template()
-        assert "row--failed" in content, \
-            "Row must have row--failed conditional class"
+        assert 'row--failed' in content, 'Row must have row--failed conditional class'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_relative_time_filter_used(self):
         """Updated 列必须使用 relative_time 过滤器。"""
         content = _read_template()
-        assert "relative_time" in content, \
-            "Table must use relative_time filter"
+        assert 'relative_time' in content, 'Table must use relative_time filter'
 
 
 # ── TestProjectDetailPagination ───────────────────────────────────
 
+
 class TestProjectDetailPagination:
     """验证分页使用 ui.pagination 宏。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_pagination_uses_macro(self):
         """Project 必须使用 ui.pagination 宏。"""
         content = _read_template()
-        assert "ui.pagination(" in content, \
-            "Project must use ui.pagination macro for pagination"
+        assert 'ui.pagination(' in content, 'Project must use ui.pagination macro for pagination'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_pagination_passes_page(self):
         """分页宏调用必须传递页面参数。"""
         content = _read_template()
-        assert "current_page" in content or "cp" in content, \
-            "Pagination macro call must pass current_page"
-        assert "total_pages" in content or "tp" in content, \
-            "Pagination macro call must pass total_pages"
+        assert 'current_page' in content or 'cp' in content, (
+            'Pagination macro call must pass current_page'
+        )
+        assert 'total_pages' in content or 'tp' in content, (
+            'Pagination macro call must pass total_pages'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_pagination_has_aria_label(self):
         """分页必须有用于可访问性的 aria-label。"""
         content = _read_template()
-        assert "custom_label='Project sessions pagination'" in content or 'custom_label="Project sessions pagination"' in content, \
-            "Pagination must pass an accessible custom label"
+        assert (
+            "custom_label='Project sessions pagination'" in content
+            or 'custom_label="Project sessions pagination"' in content
+        ), 'Pagination must pass an accessible custom label'
 
 
 # ── TestProjectDetailEmptyState ───────────────────────────────────
 
+
 class TestProjectDetailEmptyState:
     """验证空态渲染。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_empty_state_macro_used(self):
         """Project 必须使用 ui.empty_state 宏。"""
         content = _read_template()
-        assert "ui.empty_state" in content, \
-            "Project must use ui.empty_state macro"
+        assert 'ui.empty_state' in content, 'Project must use ui.empty_state macro'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_empty_state_message(self):
         """空态必须显示 'No sessions in this project yet'。"""
         content = _read_template()
-        assert "No sessions in this project yet" in content, \
+        assert 'No sessions in this project yet' in content, (
             "Empty state must say 'No sessions in this project yet'"
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_empty_state_has_view_all_action(self):
         """空态必须有 data-action='view-all'。"""
         content = _read_template()
-        assert "view-all" in content, \
-            "Empty state must have view-all action"
+        assert 'view-all' in content, 'Empty state must have view-all action'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_empty_state_has_icon(self):
         """空态必须有 state-icon 元素。"""
         content = _read_template()
-        assert 'class="state-icon"' in content or "ui.empty_state" in content, \
-            "Empty state must have a state-icon element"
+        assert 'class="state-icon"' in content or 'ui.empty_state' in content, (
+            'Empty state must have a state-icon element'
+        )
 
 
 # ── TestProjectDetailErrorState ───────────────────────────────────
 
+
 class TestProjectDetailErrorState:
     """验证错误态渲染。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_error_state_condition(self):
         """Project 必须检查 error 变量。"""
         content = _read_template()
-        assert "{% if error %}" in content, \
-            "Project must check for error variable"
+        assert '{% if error %}' in content, 'Project must check for error variable'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_error_state_uses_ui_macro(self):
         """错误态必须使用 ui.error_state 宏。"""
         content = _read_template()
-        assert "ui.error_state" in content, \
-            "Error state must use ui.error_state macro"
+        assert 'ui.error_state' in content, 'Error state must use ui.error_state macro'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_error_state_has_go_projects_action(self):
         """错误态必须有 data-action='go-projects'。"""
         content = _read_template()
-        assert "go-projects" in content, \
-            "Error state must have go-projects action"
+        assert 'go-projects' in content, 'Error state must have go-projects action'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_error_state_links_to_projects(self):
         """错误态按钮必须链接到 /projects。"""
         content = _read_template()
-        assert "href='/projects'" in content, \
-            "Error state must link back to /projects"
+        assert "href='/projects'" in content, 'Error state must link back to /projects'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_error_state_has_icon(self):
         """错误态必须有图标（插头表情）。"""
         content = _read_template()
         # 模板传递 icon='plug' 给 ui.error_state
-        assert "'go-projects'" in content or "go-projects" in content, \
-            "Error state must have a go-projects action button"
+        assert "'go-projects'" in content or 'go-projects' in content, (
+            'Error state must have a go-projects action button'
+        )
 
 
 # ── TestProjectDetailNoStalePatterns ──────────────────────────────
 
+
 class TestProjectDetailNoStalePatterns:
     """验证不存在的陈旧模式。"""
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_page_header_bem_class(self):
         """Project 不得使用 page-header BEM 类（使用 page-head）。"""
         content = _read_template()
-        assert 'class="page-header"' not in content, \
-            "Project must not have page-header BEM class"
+        assert 'class="page-header"' not in content, 'Project must not have page-header BEM class'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_inline_onclick(self):
         """Project 不得有 inline onclick。"""
         content = _read_template()
         matches = re.findall(r'\bonclick\s*=', content, re.IGNORECASE)
-        assert len(matches) == 0, \
-            f"Project must not have inline onclick, found {len(matches)}"
+        assert len(matches) == 0, f'Project must not have inline onclick, found {len(matches)}'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_inline_script(self):
         """模板不得有 inline script 块。"""
         content = _read_template()
         script_tags = re.findall(r'<script(?! src)[^>]*>', content)
-        assert len(script_tags) == 0, \
-            f"Project must not have inline script tags, found {len(script_tags)}"
+        assert len(script_tags) == 0, (
+            f'Project must not have inline script tags, found {len(script_tags)}'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_inline_style(self):
         """模板不得有 inline style 块。"""
         content = _read_template()
         style_blocks = re.findall(r'<style[^>]*>', content)
-        assert len(style_blocks) == 0, \
-            f"Project must not have inline style blocks, found {len(style_blocks)}"
+        assert len(style_blocks) == 0, (
+            f'Project must not have inline style blocks, found {len(style_blocks)}'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_cache_r_column(self):
         """Project 不得有 Cache R 列表头。"""
         content = _read_template()
         # "Cache R:" 出现在指标卡片 delta 中（合法），不作为列表头
-        assert ">Cache R</th>" not in content, \
-            "Project must not have Cache R column header"
+        assert '>Cache R</th>' not in content, 'Project must not have Cache R column header'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_cache_w_column(self):
         """Project 不得有 Cache W 列。"""
         content = _read_template()
-        assert ">Cache W</th>" not in content, \
-            "Project must not have Cache W column header"
+        assert '>Cache W</th>' not in content, 'Project must not have Cache W column header'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_output_column(self):
         """Project 不得有 Output 列表头（指标中使用 Output Tokens）。"""
         content = _read_template()
         # 确保表格中没有独立的 "Output" 列表头
-        thead_section = content.split("</thead>")[0] if "</thead>" in content else ""
-        assert "<th>Output</th>" not in thead_section, \
-            "Project must not have Output column header"
+        thead_section = content.split('</thead>')[0] if '</thead>' in content else ''
+        assert '<th>Output</th>' not in thead_section, 'Project must not have Output column header'
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_no_messages_column(self):
         """Project 不得有 Messages 列。"""
         content = _read_template()
-        assert "<th>Messages</th>" not in content, \
-            "Project must not have Messages column"
+        assert '<th>Messages</th>' not in content, 'Project must not have Messages column'
 
 
 # ── TestProjectDetailDataActions ──────────────────────────────────
+
 
 class TestProjectDetailDataActions:
     """验证所有必需的 data-action 属性都存在。"""
 
     _EXPECTED_ACTIONS = [
-        "copy",
-        "sort",
-        "open-session",
-        "apply-search",
+        'copy',
+        'sort',
+        'open-session',
+        'apply-search',
     ]
 
-    @pytest.mark.parametrize("action", _EXPECTED_ACTIONS)
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.parametrize('action', _EXPECTED_ACTIONS)
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_data_action_present(self, action):
         """模板必须有预期的 data-action 属性。"""
         content = _read_template()
-        assert f'data-action="{action}"' in content, \
-            f"Template must have data-action='{action}'"
+        assert f'data-action="{action}"' in content, f"Template must have data-action='{action}'"
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_data_action_view_all(self):
         """空态使用 Jinja2 宏参数 data_action='view-all'。"""
         content = _read_template()
-        assert "data_action='view-all'" in content or 'data_action="view-all"' in content, \
-            "Template must have view-all action (via ui.button macro)"
+        assert "data_action='view-all'" in content or 'data_action="view-all"' in content, (
+            'Template must have view-all action (via ui.button macro)'
+        )
 
-    @pytest.mark.contract_case("UI-PROJECTS-002")
+    @pytest.mark.contract_case('UI-PROJECTS-002')
     def test_data_action_go_projects(self):
         """错误态使用 Jinja2 宏参数 data_action='go-projects'。"""
         content = _read_template()
-        assert "data_action='go-projects'" in content or 'data_action="go-projects"' in content, \
-            "Template must have go-projects action (via ui.button macro)"
+        assert "data_action='go-projects'" in content or 'data_action="go-projects"' in content, (
+            'Template must have go-projects action (via ui.button macro)'
+        )

@@ -18,10 +18,10 @@ from session_browser.attribution.api_families.openai_responses.usage_parser impo
 
 def test_openai_responses_fresh_subtracts_cache_read_subset():
     usage = {
-        "input_tokens": 3500,
-        "input_tokens_details": {"cached_tokens": 1200},
-        "output_tokens": 780,
-        "output_tokens_details": {"reasoning_tokens": 100},
+        'input_tokens': 3500,
+        'input_tokens_details': {'cached_tokens': 1200},
+        'output_tokens': 780,
+        'output_tokens_details': {'reasoning_tokens': 100},
     }
 
     parsed = parse_openai_responses_usage(usage)
@@ -36,10 +36,10 @@ def test_openai_responses_fresh_subtracts_cache_read_subset():
 
 def test_openai_chat_fresh_subtracts_cache_read_subset():
     usage = {
-        "prompt_tokens": 2000,
-        "prompt_tokens_details": {"cached_tokens": 500},
-        "completion_tokens": 300,
-        "completion_tokens_details": {"reasoning_tokens": 40},
+        'prompt_tokens': 2000,
+        'prompt_tokens_details': {'cached_tokens': 500},
+        'completion_tokens': 300,
+        'completion_tokens_details': {'reasoning_tokens': 40},
     }
 
     parsed = parse_openai_chat_usage(usage)

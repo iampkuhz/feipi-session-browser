@@ -21,53 +21,82 @@ from __future__ import annotations
 
 import sqlite3
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 
 # Ensure src/ and repo_root are on sys.path so `session_browser.*` imports work
 # when this gate is launched directly by hooks.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SRC_ROOT = REPO_ROOT / "src"
+SRC_ROOT = REPO_ROOT / 'src'
 for path in (SRC_ROOT, REPO_ROOT):
     value = str(path)
     if value not in sys.path:
         sys.path.insert(0, value)
 
-from session_browser.config import INDEX_PATH, ensure_index_dir
+from session_browser.config import INDEX_PATH  # noqa: E402
 
-KNOWN_AGENTS = {"claude_code", "codex", "qoder"}
+KNOWN_AGENTS = {'claude_code', 'codex', 'qoder'}
 
 # Required columns that must not be empty for every session row
 REQUIRED_NONEMPTY_COLS = [
-    "session_key",
-    "agent",
-    "session_id",
-    "project_key",
-    "ended_at",
+    'session_key',
+    'agent',
+    'session_id',
+    'project_key',
+    'ended_at',
 ]
 
 
+@dataclass
 class IntegrityResult:
-    """Accumulates pass/fail results."""
+    """Accumulate index gate checks for the CLI summary.
 
-    def __init__(self) -> None:
-        self.checks: list[tuple[str, str]] = []  # (check_name, status)
+    The index integrity quality gate creates one instance per run. It preserves
+    check ordering, prints immediate diagnostics, and exposes aggregate pass
+    state without mutating the SQLite index.
+
+    Attributes:
+        checks: Ordered ``(check_name, status)`` pairs recorded during the gate.
+    """
+
+    checks: list[tuple[str, str]] = field(default_factory=list)
 
     def ok(self, name: str) -> None:
-        print(f"  [PASS] {name}")
-        self.checks.append((name, "PASS"))
+        """Record a passing check and print its CLI evidence.
 
-    def fail(self, name: str, detail: str = "") -> None:
-        msg = f"{name}: {detail}" if detail else name
-        print(f"  [FAIL] {msg}")
-        self.checks.append((name, "FAIL"))
+        Args:
+            name: Stable check label shown in gate output.
+        """
+        print(f'  [PASS] {name}')
+        self.checks.append((name, 'PASS'))
+
+    def fail(self, name: str, detail: str = '') -> None:
+        """Record a failing check and print the failure reason.
+
+        Args:
+            name: Stable check label shown in gate output.
+            detail: Optional diagnostic explaining the observed index problem.
+        """
+        msg = f'{name}: {detail}' if detail else name
+        print(f'  [FAIL] {msg}')
+        self.checks.append((name, 'FAIL'))
 
     @property
     def all_passed(self) -> bool:
-        return all(status == "PASS" for _, status in self.checks)
+        """Return whether every recorded hard check passed."""
+        return all(status == 'PASS' for _, status in self.checks)
 
 
 def _get_connection(db_path: Path) -> sqlite3.Connection | None:
-    """Try to open the index database. Returns None if it cannot be opened."""
+    """Open the SQLite index used by the session browser gate.
+
+    Args:
+        db_path: Configured index path from ``session_browser.config``.
+
+    Returns:
+        SQLite connection with row access enabled, or ``None`` when the file
+        cannot be opened. The caller reports that condition as a hard failure.
+    """
     try:
         conn = sqlite3.connect(str(db_path))
         conn.row_factory = sqlite3.Row
@@ -77,77 +106,109 @@ def _get_connection(db_path: Path) -> sqlite3.Connection | None:
 
 
 def check_index_file_exists(result: IntegrityResult) -> None:
-    """Check 1: index file exists."""
+    """Check that the configured index file exists before SQL checks.
+
+    Args:
+        result: Accumulator receiving the pass/fail outcome.
+    """
     if INDEX_PATH.is_file():
-        result.ok("index file exists")
+        result.ok('index file exists')
     else:
-        result.fail("index file exists", f"not found at {INDEX_PATH}")
+        result.fail('index file exists', f'not found at {INDEX_PATH}')
 
 
 def check_session_count(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check 2: sessions table has > 0 rows."""
+    """Check that the sessions table exists and contains indexed rows.
+
+    Args:
+        result: Accumulator receiving the pass/fail outcome.
+        conn: Open SQLite connection to the session index.
+    """
     try:
-        row = conn.execute("SELECT COUNT(*) AS cnt FROM sessions").fetchone()
-        cnt = row["cnt"]
+        row = conn.execute('SELECT COUNT(*) AS cnt FROM sessions').fetchone()
+        cnt = row['cnt']
         if cnt > 0:
-            result.ok(f"session count > 0 (total={cnt})")
+            result.ok(f'session count > 0 (total={cnt})')
         else:
-            result.fail("session count > 0", "index is empty")
+            result.fail('session count > 0', 'index is empty')
     except sqlite3.OperationalError as exc:
-        result.fail("session count > 0", f"sessions table query failed: {exc}")
+        result.fail('session count > 0', f'sessions table query failed: {exc}')
 
 
 def check_required_fields(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check 3: every session row has non-empty required fields."""
+    """Check required session columns for empty values.
+
+    Args:
+        result: Accumulator receiving the pass/fail outcome.
+        conn: Open SQLite connection queried by the quality gate.
+    """
     try:
         # Build query to find rows where any required column is empty
-        clauses = " OR ".join(f"COALESCE({col}, '') = ''" for col in REQUIRED_NONEMPTY_COLS)
-        query = f"SELECT session_key, {', '.join(REQUIRED_NONEMPTY_COLS)} FROM sessions WHERE {clauses}"
+        clauses = ' OR '.join(f"COALESCE({col}, '') = ''" for col in REQUIRED_NONEMPTY_COLS)
+        query = (
+            f'SELECT session_key, {", ".join(REQUIRED_NONEMPTY_COLS)} FROM sessions WHERE {clauses}'
+        )
         bad_rows = conn.execute(query).fetchall()
         if not bad_rows:
-            result.ok("required fields non-empty (all rows)")
+            result.ok('required fields non-empty (all rows)')
         else:
-            sample_keys = [r["session_key"] for r in bad_rows[:5]]
-            detail = f"{len(bad_rows)} rows have empty required fields; sample: {sample_keys}"
-            result.fail("required fields non-empty", detail)
+            sample_keys = [r['session_key'] for r in bad_rows[:5]]
+            detail = f'{len(bad_rows)} rows have empty required fields; sample: {sample_keys}'
+            result.fail('required fields non-empty', detail)
     except sqlite3.OperationalError as exc:
-        result.fail("required fields non-empty", f"query failed: {exc}")
+        result.fail('required fields non-empty', f'query failed: {exc}')
 
 
 def check_no_orphan_agents(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check 4: every agent value is a known agent."""
+    """Check every indexed session references a known agent adapter.
+
+    Args:
+        result: Accumulator receiving the pass/fail outcome.
+        conn: Open SQLite connection queried for distinct agent values.
+    """
     try:
         row = conn.execute(
-            "SELECT DISTINCT agent FROM sessions WHERE agent NOT IN ({})".format(
-                ", ".join("?" for _ in KNOWN_AGENTS)
+            'SELECT DISTINCT agent FROM sessions WHERE agent NOT IN ({})'.format(
+                ', '.join('?' for _ in KNOWN_AGENTS)
             ),
             tuple(KNOWN_AGENTS),
         ).fetchall()
         if not row:
-            result.ok("no orphan agents")
+            result.ok('no orphan agents')
         else:
-            unknown = [r["agent"] for r in row]
-            result.fail("no orphan agents", f"unknown agents: {unknown}")
+            unknown = [r['agent'] for r in row]
+            result.fail('no orphan agents', f'unknown agents: {unknown}')
     except sqlite3.OperationalError as exc:
-        result.fail("no orphan agents", f"query failed: {exc}")
+        result.fail('no orphan agents', f'query failed: {exc}')
 
 
 def check_scan_log_exists(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check 5 (warn-only): scan_log table exists."""
+    """Check whether scan_log exists while keeping missing table warn-only.
+
+    Args:
+        result: Accumulator receiving a passing warn-only outcome.
+        conn: Open SQLite connection queried by the quality gate.
+    """
     try:
-        conn.execute("SELECT COUNT(*) FROM scan_log").fetchone()
-        result.ok("scan_log table exists")
+        conn.execute('SELECT COUNT(*) FROM scan_log').fetchone()
+        result.ok('scan_log table exists')
     except sqlite3.OperationalError:
         # Non-blocking — the table may not exist if the schema hasn't been initialized.
-        print("  [WARN] scan_log table missing (non-blocking)")
-        result.ok("scan_log table exists (warn-only, missing is acceptable)")
+        print('  [WARN] scan_log table missing (non-blocking)')
+        result.ok('scan_log table exists (warn-only, missing is acceptable)')
 
 
 def main() -> int:
-    print(f"\n{'='*60}")
-    print("index integrity gate")
-    print(f"index path: {INDEX_PATH}")
-    print(f"{'='*60}\n")
+    """Run all index integrity checks and return shell-style status.
+
+    Returns:
+        ``0`` when all hard index checks pass, otherwise ``1``. The gate only
+        reads SQLite metadata and rows; it does not repair or mutate the index.
+    """
+    print(f'\n{"=" * 60}')
+    print('index integrity gate')
+    print(f'index path: {INDEX_PATH}')
+    print(f'{"=" * 60}\n')
 
     result = IntegrityResult()
 
@@ -155,13 +216,13 @@ def main() -> int:
     check_index_file_exists(result)
 
     if not INDEX_PATH.is_file():
-        print("\nIndex file does not exist — cannot run further checks.\n")
+        print('\nIndex file does not exist — cannot run further checks.\n')
         return 1
 
     conn = _get_connection(INDEX_PATH)
     if conn is None:
-        result.fail("database connection", "cannot open SQLite connection")
-        print(f"\nResult: FAIL\n")
+        result.fail('database connection', 'cannot open SQLite connection')
+        print('\nResult: FAIL\n')
         return 1
 
     try:
@@ -180,16 +241,16 @@ def main() -> int:
         conn.close()
 
     # Summary
-    passed = sum(1 for _, s in result.checks if s == "PASS")
-    failed = sum(1 for _, s in result.checks if s == "FAIL")
+    passed = sum(1 for _, s in result.checks if s == 'PASS')
+    failed = sum(1 for _, s in result.checks if s == 'FAIL')
     total = passed + failed
 
-    print(f"\n{'='*60}")
-    print(f"summary: {passed}/{total} passed, {failed} failures")
-    print(f"{'='*60}\n")
+    print(f'\n{"=" * 60}')
+    print(f'summary: {passed}/{total} passed, {failed} failures')
+    print(f'{"=" * 60}\n')
 
     return 0 if result.all_passed else 1
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     raise SystemExit(main())

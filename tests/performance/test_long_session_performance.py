@@ -7,124 +7,132 @@
 - DOM 规模保持合理
 """
 
-import pytest
+import glob
 import os
-import subprocess
-import sys
 import time
 import urllib.request
-import glob
+
+import pytest
 
 SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SRC_DIR = os.path.join(SB_ROOT, "src")
+SRC_DIR = os.path.join(SB_ROOT, 'src')
 
 
 def _read_css_with_splits():
     """Read session-detail.css with split-aware reading."""
-    css_path = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css", "session-detail.css")
-    css_dir = os.path.join(SB_ROOT, "src", "session_browser", "web", "static", "css", "session-detail")
+    css_path = os.path.join(
+        SB_ROOT, 'src', 'session_browser', 'web', 'static', 'css', 'session-detail.css'
+    )
+    css_dir = os.path.join(
+        SB_ROOT, 'src', 'session_browser', 'web', 'static', 'css', 'session-detail'
+    )
     parts = []
     if os.path.exists(css_path):
         with open(css_path) as f:
             parts.append(f.read())
     if os.path.isdir(css_dir):
-        for fp in sorted(glob.glob(os.path.join(css_dir, "*.css"))):
+        for fp in sorted(glob.glob(os.path.join(css_dir, '*.css'))):
             with open(fp) as f:
                 parts.append(f.read())
-    return "\n".join(parts)
+    return '\n'.join(parts)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def long_session_url(long_fixture_session):
     """生成 100 轮 fixture 会话的 session detail URL。"""
     base_url, agent, session_id = long_fixture_session
-    yield f"{base_url}/sessions/{agent}/{session_id}"
+    yield f'{base_url}/sessions/{agent}/{session_id}'
 
 
 class TestLongSessionRendering:
     """验证 100 轮会话的正确渲染。"""
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_long_session_returns_200(self, long_session_url):
         """长会话详情页必须返回 HTTP 200。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
         assert resp.status == 200
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_long_session_contains_trace_panel(self, long_session_url):
         """长会话必须包含 trace 面板结构。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
-        assert "data-trace-panel" in html
-        assert "sd-trace-head" in html
+        html = resp.read().decode('utf-8')
+        assert 'data-trace-panel' in html
+        assert 'sd-trace-head' in html
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_trace_view_present(self, long_session_url):
         """Trace 视图容器必须存在。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
+        html = resp.read().decode('utf-8')
         assert 'class="trace"' in html or 'trace' in html
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_round_count_matches_100(self, long_session_url):
         """渲染的 HTML 应包含 100 个 trace 行对应 100 轮。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
+        html = resp.read().decode('utf-8')
         # 使用 data-trace-round-row 统计 trace 行数
         count = html.count('data-trace-round-row')
-        assert count == 100, f"预期 100 个 trace 行，实际找到 {count}"
+        assert count == 100, f'预期 100 个 trace 行，实际找到 {count}'
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_no_server_error(self, long_session_url):
         """长会话不得触发错误模板。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
-        assert "<title>Error - Agent Run Profiler</title>" not in html
+        html = resp.read().decode('utf-8')
+        assert '<title>Error - Agent Run Profiler</title>' not in html
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_trace_detail_hidden_by_default(self, long_session_url):
         """渐进式加载：初始 HTML 不应包含 trace-detail 元素（按需加载）。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
+        html = resp.read().decode('utf-8')
         # 使用 data-trace-detail 统计 trace-detail div 数量
         total = html.count('data-trace-detail')
         # 渐进式加载：初始 HTML 不应包含展开的详情行
-        assert total == 0, f"渐进式加载模式下，初始 HTML 不应包含 data-trace-detail 元素，实际找到 {total}"
+        assert total == 0, (
+            f'渐进式加载模式下，初始 HTML 不应包含 data-trace-detail 元素，实际找到 {total}'
+        )
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_preview_text_not_full_content(self, long_session_url):
         """Trace 行应使用紧凑的 preview_text，而非完整消息内容。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
+        html = resp.read().decode('utf-8')
         # 表结构使用 .summary-title 展示预览文本
-        assert "summary-title" in html or "sd-round-preview" in html or "sd-round-preview__title" in html, \
-            "Trace 行应使用紧凑的预览元素"
+        assert (
+            'summary-title' in html
+            or 'sd-round-preview' in html
+            or 'sd-round-preview__title' in html
+        ), 'Trace 行应使用紧凑的预览元素'
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_css_contain_property(self, long_session_url):
         """CSS 应在 trace 元素上包含 contain: layout style。"""
         css = _read_css_with_splits()
-        assert "contain: layout style" in css
+        assert 'contain: layout style' in css
 
 
 class TestLongSessionPerformance:
     """100 轮会话的粗略性能检查。"""
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_page_loads_under_time_budget(self, long_session_url):
         """服务器响应加渲染应在 10 秒内完成。"""
         start = time.monotonic()
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
+        html = resp.read().decode('utf-8')
         elapsed = time.monotonic() - start
 
-        assert elapsed < 10, f"页面加载耗时 {elapsed:.2f}s（预算：10s）"
-        assert len(html) > 10000, "页面 HTML 体积异常偏小"
+        assert elapsed < 10, f'页面加载耗时 {elapsed:.2f}s（预算：10s）'
+        assert len(html) > 10000, '页面 HTML 体积异常偏小'
 
-    @pytest.mark.contract_case("UI-SD-027", "UI-SD-028")
+    @pytest.mark.contract_case('UI-SD-027', 'UI-SD-028')
     def test_html_size_reasonable(self, long_session_url):
         """100 轮的 HTML payload 应低于 5MB。"""
         resp = urllib.request.urlopen(long_session_url, timeout=15)
-        html = resp.read().decode("utf-8")
-        size_kb = len(html.encode("utf-8")) / 1024
-        assert size_kb < 5000, f"HTML 体积 {size_kb:.0f}KB 超过 5MB 预算"
+        html = resp.read().decode('utf-8')
+        size_kb = len(html.encode('utf-8')) / 1024
+        assert size_kb < 5000, f'HTML 体积 {size_kb:.0f}KB 超过 5MB 预算'

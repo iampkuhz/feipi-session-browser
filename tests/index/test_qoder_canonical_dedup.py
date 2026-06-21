@@ -12,12 +12,13 @@ sessions 表应仅包含一条以完整 UUID 为键的记录，
 
 from __future__ import annotations
 
-import pytest
 import json
 import os
 import sqlite3
 import sys
 from pathlib import Path
+
+import pytest
 
 # ─── 测试夹具 ───────────────────────────────────────────────────────────
 
@@ -32,52 +33,61 @@ PROJECT_NAME = "myproj"
 
 # 最小 Qoder JSONL 会话内容（含时间戳和 usage 的有效事件）
 SESSION_JSONL_LINES = [
-    json.dumps({
-        "type": "user",
-        "message": {"role": "user", "content": "Hello, help me write a test."},
-        "timestamp": "2026-05-01T10:00:00.000Z",
-        "cwd": "/tmp/myproj",
-        "entrypoint": "cli",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [{"type": "text", "text": "Sure, here is a test."}],
-            "usage": {"input_tokens": 100, "output_tokens": 50},
-        },
-        "timestamp": "2026-05-01T10:00:05.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "user",
-        "message": {"role": "user", "content": "Thanks!"},
-        "timestamp": "2026-05-01T10:00:10.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
-    json.dumps({
-        "type": "assistant",
-        "message": {
-            "model": "qwen3.6-plus",
-            "role": "assistant",
-            "content": [{"type": "text", "text": "You are welcome!"}],
-            "usage": {"input_tokens": 150, "output_tokens": 30},
-        },
-        "timestamp": "2026-05-01T10:00:15.000Z",
-        "sessionId": FULL_UUID,
-        "version": "1.0.0",
-    }),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Hello, help me write a test."},
+            "timestamp": "2026-05-01T10:00:00.000Z",
+            "cwd": "/tmp/myproj",
+            "entrypoint": "cli",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "Sure, here is a test."}],
+                "usage": {"input_tokens": 100, "output_tokens": 50},
+            },
+            "timestamp": "2026-05-01T10:00:05.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "user",
+            "message": {"role": "user", "content": "Thanks!"},
+            "timestamp": "2026-05-01T10:00:10.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
+    json.dumps(
+        {
+            "type": "assistant",
+            "message": {
+                "model": "qwen3.6-plus",
+                "role": "assistant",
+                "content": [{"type": "text", "text": "You are welcome!"}],
+                "usage": {"input_tokens": 150, "output_tokens": 30},
+            },
+            "timestamp": "2026-05-01T10:00:15.000Z",
+            "sessionId": FULL_UUID,
+            "version": "1.0.0",
+        }
+    ),
 ]
 
 SESSION_JSONL_CONTENT = "\n".join(SESSION_JSONL_LINES) + "\n"
 
 
 # ─── 辅助函数 ───────────────────────────────────────────────────────────
+
 
 def _setup_qoder_env(data_dir: str):
     """设置 QODER_DATA_DIR 并重新加载依赖模块。"""
@@ -140,6 +150,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 # ─── 测试 ──────────────────────────────────────────────────────────────────
 
+
 class TestQoderCanonicalDedup:
     """T012: Qoder short ID vs full UUID dedup — projects/cache overlap."""
 
@@ -186,8 +197,7 @@ class TestQoderCanonicalDedup:
             f"The full UUID should be the canonical key, not the short ID."
         )
         assert row["session_id"] == FULL_UUID, (
-            f"session_id should be the full UUID ({FULL_UUID}), "
-            f"got '{row['session_id']}'."
+            f"session_id should be the full UUID ({FULL_UUID}), got '{row['session_id']}'."
         )
 
         # 短 ID 不应产生独立的记录
@@ -213,9 +223,7 @@ class TestQoderCanonicalDedup:
         assert result["qoder_count"] == 1, (
             f"Expected qoder_count=1 after dedup, got {result['qoder_count']}"
         )
-        assert result["total"] == 1, (
-            f"Expected total=1 after dedup, got {result['total']}"
-        )
+        assert result["total"] == 1, f"Expected total=1 after dedup, got {result['total']}"
 
     @pytest.mark.contract_case("DATA-INDEX-008")
     def test_fixture_data_isolated(self, tmp_path):
@@ -225,6 +233,4 @@ class TestQoderCanonicalDedup:
         result = _run_full_scan(str(data_dir), db_path)
 
         # 应仅看到我们的 1 个规范会话，不包含真实 ~/.qoder/ 的数据
-        assert result["total"] == 1, (
-            "Index should only contain the fixture session, not real data"
-        )
+        assert result["total"] == 1, "Index should only contain the fixture session, not real data"

@@ -30,7 +30,7 @@ def allocate_openai_responses_cache(
 
     if total_input == 0:
         for span in spans:
-            span.precision = "unavailable"
+            span.precision = 'unavailable'
         return spans
 
     span_total = sum(s.token_estimate for s in spans)
@@ -56,17 +56,19 @@ def allocate_openai_responses_cache(
     # residual 插入
     if span_total < total_input:
         residual = total_input - span_total
-        spans.append(PromptSpan(
-            span_id=f"residual_{len(spans)}",
-            order_index=len(spans),
-            api_family="openai_responses",
-            api_path="residual",
-            semantic_kind="unknown_residual",
-            token_estimate=residual,
-            token_count_method="residual",
-            precision="residual",
-            confidence=0.3,
-            fresh_tokens=residual,
-        ))
+        spans.append(
+            PromptSpan(
+                span_id=f'residual_{len(spans)}',
+                order_index=len(spans),
+                api_family='openai_responses',
+                api_path='residual',
+                semantic_kind='unknown_residual',
+                token_estimate=residual,
+                token_count_method='residual',
+                precision='residual',
+                confidence=0.3,
+                fresh_tokens=residual,
+            )
+        )
 
     return spans

@@ -5,8 +5,8 @@ from __future__ import annotations
 import logging
 from pathlib import Path
 
-from session_browser.attribution.core.models import ContentRef, Evidence
 from session_browser.attribution.collectors.project.qoder_rules_reader import read_qoder_rules
+from session_browser.attribution.core.models import Evidence
 
 logger = logging.getLogger(__name__)
 

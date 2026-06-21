@@ -1,4 +1,4 @@
-"""URL builder helpers，用于 /sessions query state.
+"""URL builder helpers,用于 /sessions query state.
 
 Extracted from routes.py. Preserves query params across filter/sort/page
 changes to build consistent pagination and filter URLs.
@@ -9,8 +9,15 @@ from __future__ import annotations
 import urllib.parse
 
 _SESSIONS_URL_PARAM_ORDER = [
-    "q", "agent", "model", "project", "status",
-    "sort", "dir", "page", "page_size",
+    'q',
+    'agent',
+    'model',
+    'project',
+    'status',
+    'sort',
+    'dir',
+    'page',
+    'page_size',
 ]
 
 
@@ -32,7 +39,7 @@ def build_sessions_url(
 
     merged = dict(current)
 
-    # 说明：Apply updates (None means delete)
+    # 说明:Apply updates (None means delete)
     for key, value in updates.items():
         if value is None:
             merged.pop(key, None)
@@ -40,12 +47,12 @@ def build_sessions_url(
             merged[key] = str(value)
 
     if reset_page:
-        merged.pop("page", None)
+        merged.pop('page', None)
 
-    # 说明：Filter out empty values
+    # 说明:Filter out empty values
     params = [(k, v) for k, v in merged.items() if v and v.strip()]
 
-    # 说明：Stable ordering
+    # 说明:Stable ordering
     ordered = []
     for key in _SESSIONS_URL_PARAM_ORDER:
         if key in {k for k, _ in params}:
@@ -57,7 +64,7 @@ def build_sessions_url(
             ordered.append((k, v))
 
     qs = urllib.parse.urlencode(ordered)
-    return "/sessions" + ("?" + qs if qs else "")
+    return '/sessions' + ('?' + qs if qs else '')
 
 
 def _build_view_actions(
@@ -69,57 +76,64 @@ def _build_view_actions(
     has_prev: bool,
     has_next: bool,
 ) -> dict:
-    """构建 action URLs，用于 template rendering."""
+    """构建 action URLs,用于 template rendering."""
     current = {k: v for k, v in filters.items() if v}
     if sort_key:
-        current["sort"] = sort_key
+        current['sort'] = sort_key
     if sort_dir:
-        current["dir"] = sort_dir
+        current['dir'] = sort_dir
     if page > 1:
-        current["page"] = str(page)
+        current['page'] = str(page)
     if page_size and page_size != 25:
-        current["page_size"] = str(page_size)
+        current['page_size'] = str(page_size)
 
-    # 说明：Sort URLs: toggle dir on active column, set new column otherwise
+    # 说明:Sort URLs: toggle dir on active column, set new column otherwise
     sort_keys = [
-        "tokens", "rounds", "tools", "subagents", "duration",
-        "process-time", "failure", "created", "updated",
+        'tokens',
+        'rounds',
+        'tools',
+        'subagents',
+        'duration',
+        'process-time',
+        'failure',
+        'created',
+        'updated',
     ]
     sort_urls = {}
     for sk in sort_keys:
-        new_dir = "asc" if (sk == sort_key and sort_dir == "asc") else "desc"
+        new_dir = 'asc' if (sk == sort_key and sort_dir == 'asc') else 'desc'
         sort_urls[sk] = build_sessions_url(
             current=current,
-            updates={"sort": sk, "dir": new_dir},
+            updates={'sort': sk, 'dir': new_dir},
             reset_page=True,
         )
 
-    # 说明：Pagination URLs
-    prev_url = ""
-    next_url = ""
+    # 说明:Pagination URLs
+    prev_url = ''
+    next_url = ''
     if has_prev:
         prev_url = build_sessions_url(
             current=current,
-            updates={"page": str(page - 1)},
+            updates={'page': str(page - 1)},
         )
     if has_next:
         next_url = build_sessions_url(
             current=current,
-            updates={"page": str(page + 1)},
+            updates={'page': str(page + 1)},
         )
 
-    # 说明：Page size URLs
+    # 说明:Page size URLs
     page_size_urls = {}
-    for ps in ("25", "50", "100"):
+    for ps in ('25', '50', '100'):
         page_size_urls[ps] = build_sessions_url(
             current=current,
-            updates={"page_size": ps},
+            updates={'page_size': ps},
             reset_page=True,
         )
 
-    # 说明：Filter chip removal URLs
+    # 说明:Filter chip removal URLs
     remove_urls = {}
-    for fk in ("q", "agent", "model", "project", "status"):
+    for fk in ('q', 'agent', 'model', 'project', 'status'):
         if filters.get(fk):
             remove_urls[fk] = build_sessions_url(
                 current=current,
@@ -130,22 +144,22 @@ def _build_view_actions(
     # Clear All: remove 所有 filters, keep sort
     clear_all_url = build_sessions_url(
         current={},
-        updates={"sort": sort_key} if sort_key else None,
+        updates={'sort': sort_key} if sort_key else None,
     )
 
-    # 说明：Clear Session ID only
+    # 说明:Clear Session ID only
     clear_session_id_url = build_sessions_url(
         current=current,
-        updates={"q": None},
+        updates={'q': None},
         reset_page=True,
     )
 
     return {
-        "clear_session_id_url": clear_session_id_url,
-        "clear_all_url": clear_all_url,
-        "sort_urls": sort_urls,
-        "remove_filter_urls": remove_urls,
-        "prev_url": prev_url,
-        "next_url": next_url,
-        "page_size_urls": page_size_urls,
+        'clear_session_id_url': clear_session_id_url,
+        'clear_all_url': clear_all_url,
+        'sort_urls': sort_urls,
+        'remove_filter_urls': remove_urls,
+        'prev_url': prev_url,
+        'next_url': next_url,
+        'page_size_urls': page_size_urls,
     }

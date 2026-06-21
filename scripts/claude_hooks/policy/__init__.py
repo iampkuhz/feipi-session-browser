@@ -1,1 +1,1 @@
-"""Claude hook policy 模块。"""
+"""Claude hook policy modules."""

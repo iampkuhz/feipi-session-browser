@@ -8,7 +8,6 @@ from pathlib import Path
 
 import pytest
 
-
 PARENT_ID = "parent-thread"
 CHILD_ID = "child-thread"
 
@@ -62,53 +61,57 @@ def _rollout_events(session_id: str, *, parent_id: str = "") -> list[dict]:
         },
     ]
     if not is_child:
-        events.extend([
+        events.extend(
+            [
+                {
+                    "timestamp": "2026-06-19T00:00:02.000Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call",
+                        "call_id": "call_spawn",
+                        "name": "spawn_agent",
+                        "arguments": json.dumps({"agent_type": "implementer", "message": "work"}),
+                    },
+                },
+                {
+                    "timestamp": "2026-06-19T00:00:03.000Z",
+                    "type": "response_item",
+                    "payload": {
+                        "type": "function_call_output",
+                        "call_id": "call_spawn",
+                        "output": json.dumps({"agent_id": CHILD_ID, "nickname": "Child"}),
+                    },
+                },
+            ]
+        )
+    events.extend(
+        [
             {
-                "timestamp": "2026-06-19T00:00:02.000Z",
+                "timestamp": "2026-06-19T00:00:04.000Z",
+                "type": "event_msg",
+                "payload": {
+                    "type": "token_count",
+                    "info": {
+                        "total_token_usage": {
+                            "input_tokens": 100,
+                            "cached_input_tokens": 20,
+                            "output_tokens": 10,
+                            "total_tokens": 110,
+                        }
+                    },
+                },
+            },
+            {
+                "timestamp": "2026-06-19T00:00:05.000Z",
                 "type": "response_item",
                 "payload": {
-                    "type": "function_call",
-                    "call_id": "call_spawn",
-                    "name": "spawn_agent",
-                    "arguments": json.dumps({"agent_type": "implementer", "message": "work"}),
+                    "type": "message",
+                    "role": "assistant",
+                    "content": [{"type": "output_text", "text": f"done {session_id}"}],
                 },
             },
-            {
-                "timestamp": "2026-06-19T00:00:03.000Z",
-                "type": "response_item",
-                "payload": {
-                    "type": "function_call_output",
-                    "call_id": "call_spawn",
-                    "output": json.dumps({"agent_id": CHILD_ID, "nickname": "Child"}),
-                },
-            },
-        ])
-    events.extend([
-        {
-            "timestamp": "2026-06-19T00:00:04.000Z",
-            "type": "event_msg",
-            "payload": {
-                "type": "token_count",
-                "info": {
-                    "total_token_usage": {
-                        "input_tokens": 100,
-                        "cached_input_tokens": 20,
-                        "output_tokens": 10,
-                        "total_tokens": 110,
-                    }
-                },
-            },
-        },
-        {
-            "timestamp": "2026-06-19T00:00:05.000Z",
-            "type": "response_item",
-            "payload": {
-                "type": "message",
-                "role": "assistant",
-                "content": [{"type": "output_text", "text": f"done {session_id}"}],
-            },
-        },
-    ])
+        ]
+    )
     return events
 
 
@@ -173,15 +176,17 @@ def _setup_codex_fixture(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> tup
             2,
             4,
             "main",
-            json.dumps({
-                "subagent": {
-                    "thread_spawn": {
-                        "parent_thread_id": PARENT_ID,
-                        "depth": 1,
-                        "agent_role": "implementer",
+            json.dumps(
+                {
+                    "subagent": {
+                        "thread_spawn": {
+                            "parent_thread_id": PARENT_ID,
+                            "depth": 1,
+                            "agent_role": "implementer",
+                        }
                     }
                 }
-            }),
+            ),
             "openai",
             "test",
             str(child_path),
@@ -224,11 +229,15 @@ def _remove_child_thread_db_row(data_dir: Path) -> None:
 
 def _write_child_session_index(data_dir: Path) -> None:
     (data_dir / "session_index.jsonl").write_text(
-        json.dumps({
-            "id": CHILD_ID,
-            "thread_name": "Child subagent",
-            "updated_at": "2026-06-19T00:00:05.000Z",
-        }, ensure_ascii=False) + "\n",
+        json.dumps(
+            {
+                "id": CHILD_ID,
+                "thread_name": "Child subagent",
+                "updated_at": "2026-06-19T00:00:05.000Z",
+            },
+            ensure_ascii=False,
+        )
+        + "\n",
         encoding="utf-8",
     )
 

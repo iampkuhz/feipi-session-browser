@@ -30,61 +30,99 @@ from pathlib import Path
 
 # ── locate files ─────────────────────────────────────────────────────
 
-BASE_DIR = Path(__file__).resolve().parent.parent / "src" / "session_browser" / "web"
+BASE_DIR = Path(__file__).resolve().parent.parent / 'src' / 'session_browser' / 'web'
 
 
 def find_file(rel: str) -> Path:
-    """Return the path to a template/JS file."""
+    """Resolve a required Inspector/Viewer source file.
+
+    Args:
+        rel: Path relative to the web directory, such as a template or JS asset.
+
+    Returns:
+        Absolute Path to the required source file.
+
+    Raises:
+        FileNotFoundError: Raised when the QA gate input is missing.
+    """
     p = BASE_DIR / rel
     if not p.exists():
-        raise FileNotFoundError(f"Cannot find {rel} at {p}")
+        raise FileNotFoundError(f'Cannot find {rel} at {p}')
     return p
 
 
 def read(rel: str) -> str:
-    return find_file(rel).read_text(encoding="utf-8")
+    """Read one Inspector/Viewer source file for static QA checks.
+
+    Args:
+        rel: Path relative to the web directory.
+
+    Returns:
+        UTF-8 source text consumed by structure checks.
+    """
+    return find_file(rel).read_text(encoding='utf-8')
 
 
 # ── extraction helpers ───────────────────────────────────────────────
 
 _REQUIRED_TABS = [
-    "Overview",
-    "Rendered Context",
-    "Request Payload",
-    "Rendered Response",
-    "Response Payload",
-    "Tools",
-    "Raw",
+    'Overview',
+    'Rendered Context',
+    'Request Payload',
+    'Rendered Response',
+    'Response Payload',
+    'Tools',
+    'Raw',
 ]
 
 _INSPECTOR_FILES = [
-    "templates/components/inspector.html",
-    "templates/components/viewer.html",
-    "templates/session.html",
-    "static/js/inspector.js",
+    'templates/components/inspector.html',
+    'templates/components/viewer.html',
+    'templates/session.html',
+    'static/js/inspector.js',
 ]
 
 
 def _read_all() -> dict[str, str]:
-    """Read all inspector-related source files."""
+    """Read all Inspector/Viewer inputs for one QA run.
+
+    Returns:
+        Mapping of configured relative paths to source text used by checks.
+    """
     result = {}
     for rel in _INSPECTOR_FILES:
         try:
             result[rel] = read(rel)
         except FileNotFoundError as exc:
-            print(f"[ERROR] {exc}", file=sys.stderr)
+            print(f'[ERROR] {exc}', file=sys.stderr)
             sys.exit(2)
     return result
 
 
 def _combined_source(sources: dict[str, str]) -> str:
-    return "\n".join(sources.values())
+    """Join inspected source files for cross-file static assertions.
+
+    Args:
+        sources: Mapping returned by _read_all for the current QA run.
+
+    Returns:
+        Combined source text separated by newlines.
+    """
+    return '\n'.join(sources.values())
 
 
 # ── checks ───────────────────────────────────────────────────────────
 
+
 def check_required_tabs(sources: dict[str, str]) -> tuple[bool, str]:
-    """FAIL if any of the 7 required tab labels are missing."""
+    """Check that all required Inspector tab labels are present.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status with missing tab labels or success detail.
+    """
     combined = _combined_source(sources)
     missing = []
     for tab in _REQUIRED_TABS:
@@ -92,29 +130,43 @@ def check_required_tabs(sources: dict[str, str]) -> tuple[bool, str]:
         if tab not in combined:
             missing.append(tab)
     if missing:
-        return False, f"Missing tab labels: {', '.join(missing)}"
-    return True, f"All {_REQUIRED_TABS.__len__()} required tabs found"
+        return False, f'Missing tab labels: {", ".join(missing)}'
+    return True, f'All {_REQUIRED_TABS.__len__()} required tabs found'
 
 
 def check_tab_aria_and_active(sources: dict[str, str]) -> tuple[bool, str]:
-    """FAIL if tab buttons lack role/tab or tabpanels lack role/tabpanel, or no active state."""
+    """Check basic tab ARIA, tabpanel, and active-state structure.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status with structural issues or success detail.
+    """
     combined = _combined_source(sources)
 
     # Check for tab button pattern: <button ... class="tab ..."> with role="tab" or data-tab
-    has_tab_buttons = bool(re.search(
-        r'<button[^>]*class="[^"]*\btab\b[^"]*"[^>]*>',
-        combined,
-    ))
+    has_tab_buttons = bool(
+        re.search(
+            r'<button[^>]*class="[^"]*\btab\b[^"]*"[^>]*>',
+            combined,
+        )
+    )
     # Check for ARIA role on buttons
     has_aria_tab = 'role="tab"' in combined or "role='tab'" in combined
     # Check for tabpanel
-    has_tabpanel = 'role="tabpanel"' in combined or "role='tabpanel'" in combined or 'class="tab-content"' in combined or 'class="tabpanel"' in combined
+    has_tabpanel = (
+        'role="tabpanel"' in combined
+        or "role='tabpanel'" in combined
+        or 'class="tab-content"' in combined
+        or 'class="tabpanel"' in combined
+    )
     # Check for active state class
     has_active = bool(re.search(r'class="[^"]*\bactive\b[^"]*"', combined))
 
     issues = []
     if not has_tab_buttons:
-        issues.append("no tab button elements")
+        issues.append('no tab button elements')
     if not has_aria_tab:
         issues.append("no role='tab' ARIA attribute")
     if not has_tabpanel:
@@ -123,12 +175,19 @@ def check_tab_aria_and_active(sources: dict[str, str]) -> tuple[bool, str]:
         issues.append("no 'active' state class")
 
     if issues:
-        return False, f"Tab structure issues: {'; '.join(issues)}"
-    return True, "Tab buttons and tabpanels have active state and ARIA attributes"
+        return False, f'Tab structure issues: {"; ".join(issues)}'
+    return True, 'Tab buttons and tabpanels have active state and ARIA attributes'
 
 
 def check_request_payload_unavailable(sources: dict[str, str]) -> tuple[bool, str]:
-    """FAIL if 'Request Payload unavailable' empty-state text cannot be rendered."""
+    """Check that request-payload empty-state text is renderable.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status describing the matched empty-state wording.
+    """
     combined = _combined_source(sources)
     # Look for an explicit "unavailable" empty-state marker for request payload
     patterns = [
@@ -143,14 +202,26 @@ def check_request_payload_unavailable(sources: dict[str, str]) -> tuple[bool, st
             return True, "'Request Payload unavailable' empty-state text found"
 
     # Broader: just check for "unavailable" near "payload" or "request"
-    if 'unavailable' in combined.lower() and ('payload' in combined.lower() or 'request' in combined.lower()):
-        return True, "Generic unavailable text exists (but not specific 'Request Payload unavailable')"
+    if 'unavailable' in combined.lower() and (
+        'payload' in combined.lower() or 'request' in combined.lower()
+    ):
+        return (
+            True,
+            "Generic unavailable text exists (but not specific 'Request Payload unavailable')",
+        )
 
     return False, "No 'Request Payload unavailable' empty-state text found"
 
 
 def check_raw_content_escaping(sources: dict[str, str]) -> tuple[bool, str]:
-    """FAIL if raw JSON/<pre> content is not safely HTML-escaped."""
+    """Check that raw JSON and preformatted content are HTML-escaped.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status with missing escaping patterns or success detail.
+    """
     combined = _combined_source(sources)
 
     # Check for HTML escaping patterns: .replace(/&/g, '&amp;'), .replace(/</g, '&lt;')
@@ -158,113 +229,154 @@ def check_raw_content_escaping(sources: dict[str, str]) -> tuple[bool, str]:
     has_lt_escape = bool(re.search(r"replace\s*\(/</g\s*,\s*['\"]&lt;['\"]", combined))
     has_gt_escape = bool(re.search(r"/>/g\s*,\s*['\"]&gt;['\"]", combined))
 
-    # Also check Jinja2 autoescape / |e filter usage
-    has_jinja_escape = '|e' in combined or 'autoescape' in combined or '|safe' not in combined or 'safe_json_display' in combined
-
     issues = []
     if not has_amp_escape:
-        issues.append("missing & -> &amp; escaping in JS")
+        issues.append('missing & -> &amp; escaping in JS')
     if not has_lt_escape:
-        issues.append("missing < -> &lt; escaping in JS")
+        issues.append('missing < -> &lt; escaping in JS')
     if not has_gt_escape:
-        issues.append("missing > -> &gt; escaping in JS")
+        issues.append('missing > -> &gt; escaping in JS')
 
     if issues:
-        return False, f"Raw content escaping issues: {'; '.join(issues)}"
-    return True, "Raw JSON/<pre> content is safely HTML-escaped"
+        return False, f'Raw content escaping issues: {"; ".join(issues)}'
+    return True, 'Raw JSON/<pre> content is safely HTML-escaped'
 
 
 def check_viewerhtml_fallback(sources: dict[str, str]) -> tuple[bool, str]:
-    """OK if viewerHtml fallback in inspector.js does not break non-LLM Inspector."""
-    js_source = sources.get("static/js/inspector.js", "")
+    """Check guarded viewerHtml fallback behavior for non-LLM inspectors.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status describing guard and fallback availability.
+    """
+    js_source = sources.get('static/js/inspector.js', '')
 
     # Check that viewerHtml injection is guarded (conditional, not unconditional)
     # The pattern should be: if (payload.viewerHtml) { ... } — not direct assignment
-    has_guarded_viewerhtml = bool(re.search(
-        r'if\s*\(\s*payload\.viewerHtml\s*\)',
-        js_source,
-    ))
+    has_guarded_viewerhtml = bool(
+        re.search(
+            r'if\s*\(\s*payload\.viewerHtml\s*\)',
+            js_source,
+        )
+    )
 
     if not has_guarded_viewerhtml:
-        return False, "viewerHtml injection is not guarded by a conditional check"
+        return False, 'viewerHtml injection is not guarded by a conditional check'
 
     # Check that the inspector has default/empty state for when viewerHtml is absent
-    inspector_html = sources.get("templates/components/inspector.html", "")
-    has_fallback = bool(re.search(
-        r'(No .*? available|Not available|—|viewer__fallback|inspector-viewer-slot)',
-        inspector_html,
-    ))
+    inspector_html = sources.get('templates/components/inspector.html', '')
+    has_fallback = bool(
+        re.search(
+            r'(No .*? available|Not available|—|viewer__fallback|inspector-viewer-slot)',
+            inspector_html,
+        )
+    )
 
     if not has_fallback:
-        return False, "No fallback content for absent viewerHtml in inspector template"
+        return False, 'No fallback content for absent viewerHtml in inspector template'
 
-    return True, "viewerHtml fallback is guarded and has default content"
+    return True, 'viewerHtml fallback is guarded and has default content'
 
 
 # ── inspector-specific tab structure check ───────────────────────────
 
+
 def check_inspector_tab_shell(sources: dict[str, str]) -> tuple[bool, str]:
-    """FAIL if inspector.html lacks a dedicated tab shell for LLM Call Inspector."""
-    inspector = sources.get("templates/components/inspector.html", "")
+    """Check that LLM Call Inspector has a dedicated tab shell.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status identifying whether HTML or JS provides inspector tabs.
+    """
+    inspector = sources.get('templates/components/inspector.html', '')
 
     # Inspector should have its own tab container (not just the session-level tabs)
-    has_inspector_tabs = bool(re.search(
-        r'(inspector-tab|data-inspector-tab|class="inspector.*tab)',
-        inspector,
-        re.IGNORECASE,
-    ))
+    has_inspector_tabs = bool(
+        re.search(
+            r'(inspector-tab|data-inspector-tab|class="inspector.*tab)',
+            inspector,
+            re.IGNORECASE,
+        )
+    )
 
     # Or tabs injected via JS in inspector.js
-    js_source = sources.get("static/js/inspector.js", "")
-    has_js_tabs = bool(re.search(
-        r'(inspector-tab|tab.*panel|tabpanel|role.*tab)',
-        js_source,
-        re.IGNORECASE,
-    ))
+    js_source = sources.get('static/js/inspector.js', '')
+    has_js_tabs = bool(
+        re.search(
+            r'(inspector-tab|tab.*panel|tabpanel|role.*tab)',
+            js_source,
+            re.IGNORECASE,
+        )
+    )
 
     if not has_inspector_tabs and not has_js_tabs:
-        return False, "Inspector lacks a dedicated tab shell (no inspector-level tabs in HTML or JS)"
-    return True, "Inspector has a dedicated tab shell"
+        return (
+            False,
+            'Inspector lacks a dedicated tab shell (no inspector-level tabs in HTML or JS)',
+        )
+    return True, 'Inspector has a dedicated tab shell'
 
 
 def check_rendered_raw_separation(sources: dict[str, str]) -> tuple[bool, str]:
-    """FAIL if rendered and raw content are confused (same class/element for both)."""
+    """Check rendered and raw Inspector content use separate containers.
+
+    Args:
+        sources: Template and JavaScript source text for the current QA run.
+
+    Returns:
+        Pass/fail status with separation evidence or failure detail.
+    """
     combined = _combined_source(sources)
 
     # Check that there are distinct classes/containers for rendered vs raw
-    has_rendered_container = bool(re.search(
-        r'(rendered|markdown|viewer__markdown|viewer__part-markdown)',
-        combined,
-    ))
-    has_raw_container = bool(re.search(
-        r'(viewer__raw|raw-pre|raw-json|__raw)',
-        combined,
-    ))
+    has_rendered_container = bool(
+        re.search(
+            r'(rendered|markdown|viewer__markdown|viewer__part-markdown)',
+            combined,
+        )
+    )
+    has_raw_container = bool(
+        re.search(
+            r'(viewer__raw|raw-pre|raw-json|__raw)',
+            combined,
+        )
+    )
 
     if not has_rendered_container or not has_raw_container:
-        return False, "Rendered and raw containers are not clearly separated"
+        return False, 'Rendered and raw containers are not clearly separated'
 
-    return True, "Rendered and raw content have separate containers"
+    return True, 'Rendered and raw content have separate containers'
 
 
 # ── runner ───────────────────────────────────────────────────────────
 
 CHECKS = [
-    ("7 required tabs", check_required_tabs),
-    ("Tab ARIA and active state", check_tab_aria_and_active),
-    ("Request Payload unavailable", check_request_payload_unavailable),
-    ("Raw content escaping", check_raw_content_escaping),
-    ("viewerHtml fallback", check_viewerhtml_fallback),
-    ("Inspector tab shell", check_inspector_tab_shell),
-    ("Rendered/raw separation", check_rendered_raw_separation),
+    ('7 required tabs', check_required_tabs),
+    ('Tab ARIA and active state', check_tab_aria_and_active),
+    ('Request Payload unavailable', check_request_payload_unavailable),
+    ('Raw content escaping', check_raw_content_escaping),
+    ('viewerHtml fallback', check_viewerhtml_fallback),
+    ('Inspector tab shell', check_inspector_tab_shell),
+    ('Rendered/raw separation', check_rendered_raw_separation),
 ]
 
 
 def run(sources: dict[str, str]) -> int:
-    """Run all checks. Returns exit code."""
+    """Run all Inspector/Viewer structure checks and print their results.
+
+    Args:
+        sources: Template and JavaScript source text keyed by configured path.
+
+    Returns:
+        Process exit code 0 when all checks pass, otherwise 1.
+    """
     # Print file info
     for rel, content in sources.items():
-        print(f"  {rel}: {len(content)} chars")
+        print(f'  {rel}: {len(content)} chars')
     print()
 
     failures = 0
@@ -273,31 +385,43 @@ def run(sources: dict[str, str]) -> int:
     for name, check_fn in CHECKS:
         ok, msg = check_fn(sources)
         if ok:
-            print(f"[OK]   {name}: {msg}")
+            print(f'[OK]   {name}: {msg}')
             passes += 1
         else:
-            print(f"[FAIL] {name}: {msg}")
+            print(f'[FAIL] {name}: {msg}')
             failures += 1
 
     print()
-    print(f"Result: {passes} passed, {failures} failed out of {len(CHECKS)} checks")
+    print(f'Result: {passes} passed, {failures} failed out of {len(CHECKS)} checks')
 
     return 1 if failures > 0 else 0
 
 
 def main() -> int:
+    """Run the Inspector/Viewer static QA CLI.
+
+    The quality gate calls this entry point from the repo root. It reads required
+    templates and JavaScript, prints missing-input errors as exit 2, and returns
+    non-zero when structural checks fail.
+
+    Returns:
+        Process exit code for the Inspector/Viewer structure gate.
+
+    Raises:
+        SystemExit: Re-raised when _read_all reports missing required inputs.
+    """
     try:
         sources = _read_all()
     except SystemExit:
         raise
     except Exception as exc:
-        print(f"[ERROR] {exc}", file=sys.stderr)
+        print(f'[ERROR] {exc}', file=sys.stderr)
         return 2
 
-    print("Checking Inspector/Viewer structure...")
+    print('Checking Inspector/Viewer structure...')
     print()
     return run(sources)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     sys.exit(main())

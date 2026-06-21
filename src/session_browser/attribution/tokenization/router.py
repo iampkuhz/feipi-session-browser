@@ -1,11 +1,8 @@
-"""Token counter router：根据可用性和配置选择 token 计数策略。
+"""Select and run the token counting strategy for attribution inputs.
 
-优先级：
-1. provider exact usage summary -> exact total only，不直接给每个 span
-2. provider count_tokens API -> optional / disabled unless configured
-3. local tokenizer -> tiktoken if installed
-4. qoder estimator -> qoder-fast-bytes-v1 或现有策略
-5. heuristic counter -> fallback
+The router is triggered when attribution needs a token count for text spans or payload
+fragments. It chooses provider-reported totals first, then provider count APIs, then
+local tiktoken, then Qoder byte estimation, and finally heuristic character counts.
 """
 
 from __future__ import annotations
@@ -13,16 +10,29 @@ from __future__ import annotations
 import logging
 from enum import Enum
 
+from session_browser.attribution.tokenization.heuristic_counter import estimate_tokens_heuristic
+from session_browser.attribution.tokenization.qoder_estimator import estimate_qoder_tokens
+from session_browser.attribution.tokenization.tiktoken_counter import count_tokens_tiktoken
+
 logger = logging.getLogger(__name__)
 
 
 class TokenStrategy(Enum):
-    """Token 计数策略。"""
-    PROVIDER_EXACT = "provider_exact"
-    PROVIDER_API = "provider_api"
-    TIKTOKEN = "tiktoken"
-    QODER_ESTIMATOR = "qoder_estimator"
-    HEURISTIC = "heuristic"
+    """Available token counting strategies and their precision boundaries.
+
+    Attributes:
+        PROVIDER_EXACT: Provider-reported total usage; this router only labels fallback spans.
+        PROVIDER_API: Provider count-tokens API strategy selected by callers.
+        TIKTOKEN: Local tiktoken strategy for model-aware tokenization.
+        QODER_ESTIMATOR: Qoder-specific byte-based estimate strategy.
+        HEURISTIC: Generic character-based fallback strategy.
+    """
+
+    PROVIDER_EXACT = 'provider_exact'
+    PROVIDER_API = 'provider_api'
+    TIKTOKEN = 'tiktoken'
+    QODER_ESTIMATOR = 'qoder_estimator'
+    HEURISTIC = 'heuristic'
 
 
 def select_strategy(
@@ -31,16 +41,16 @@ def select_strategy(
     tiktoken_available: bool = False,
     is_qoder: bool = False,
 ) -> TokenStrategy:
-    """选择最佳 token 计数策略。
+    """Select the highest-confidence token counting strategy for one call.
 
     Args:
-        has_provider_usage: 是否有 provider 报告的 usage
-        provider_has_count_api: provider 是否支持 count_tokens API
-        tiktoken_available: tiktoken 是否可用
-        is_qoder: 是否为 Qoder agent
+        has_provider_usage: Whether provider usage already reports exact totals.
+        provider_has_count_api: Whether the provider can count the request payload.
+        tiktoken_available: Whether local tiktoken encoding is importable.
+        is_qoder: Whether the call came through Qoder-specific estimation rules.
 
     Returns:
-        选定的策略
+        Token strategy to use for the available payload and precision boundary.
     """
     if has_provider_usage:
         return TokenStrategy.PROVIDER_EXACT
@@ -56,36 +66,45 @@ def select_strategy(
 def count_tokens(
     text: str,
     strategy: TokenStrategy = TokenStrategy.HEURISTIC,
-    **kwargs,
+    **kwargs: object,
 ) -> tuple[int, str]:
-    """根据策略计数。
+    """Count tokens for a text span with a selected strategy.
+
+    Args:
+        text: Request, response, or attribution bucket text to count.
+        strategy: Selected token counting strategy.
+        **kwargs: Reserved strategy-specific options from callers.
 
     Returns:
-        (token_count, precision_label)
-        precision_label: "exact" / "tiktoken" / "estimated" / "heuristic"
+        Pair of token count and precision label such as ``exact``, ``tiktoken``,
+        ``estimated``, or ``heuristic``.
     """
+    _ = kwargs
     if not text:
-        return 0, "exact"
+        return 0, 'exact'
 
     if strategy == TokenStrategy.PROVIDER_EXACT:
-        # provider exact 需要外部传入 usage，这里作为 fallback
-        return _heuristic_count(text), "estimated"
+        return _heuristic_count(text), 'estimated'
 
-    elif strategy == TokenStrategy.TIKTOKEN:
-        from session_browser.attribution.tokenization.tiktoken_counter import count_tokens_tiktoken
+    if strategy == TokenStrategy.TIKTOKEN:
         result = count_tokens_tiktoken(text)
         if result is not None:
-            return result, "tiktoken"
-        return _heuristic_count(text), "heuristic"
+            return result, 'tiktoken'
+        return _heuristic_count(text), 'heuristic'
 
-    elif strategy == TokenStrategy.QODER_ESTIMATOR:
-        from session_browser.attribution.tokenization.qoder_estimator import estimate_qoder_tokens
-        return estimate_qoder_tokens(text), "estimated"
+    if strategy == TokenStrategy.QODER_ESTIMATOR:
+        return estimate_qoder_tokens(text), 'estimated'
 
-    else:
-        return _heuristic_count(text), "heuristic"
+    return _heuristic_count(text), 'heuristic'
 
 
 def _heuristic_count(text: str) -> int:
-    from session_browser.attribution.tokenization.heuristic_counter import estimate_tokens_heuristic
+    """Return the shared heuristic count for router fallback paths.
+
+    Args:
+        text: Text span to estimate with the shared heuristic counter.
+
+    Returns:
+        Non-negative heuristic token estimate.
+    """
     return estimate_tokens_heuristic(text)

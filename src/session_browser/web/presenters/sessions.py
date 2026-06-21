@@ -1,50 +1,52 @@
-"""说明：Sessions list presenter。
+"""说明:Sessions list presenter..
 
 Extracted view-model construction logic for the /sessions list page.
 Kept in a separate module so it can be unit-tested in isolation and
 does not clutter the HTTP routes handler.
 """
+
 from __future__ import annotations
 
-import sqlite3
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from session_browser.domain.serializers import session_summary_to_dict
-from session_browser.web.view_models import SessionsViewModel
-
-from session_browser.index.indexer import (
-    list_sessions,
-    count_sessions,
-    get_sessions_list_aggregate,
-)
-from session_browser.index.metrics import compute_derived_metrics
 from session_browser.index.anomalies import (
     detect_all_anomalies,
     enrich_sessions_with_anomalies,
 )
+from session_browser.index.indexer import (
+    count_sessions,
+    get_sessions_list_aggregate,
+    list_sessions,
+)
+from session_browser.index.metrics import compute_derived_metrics
 
+if TYPE_CHECKING:
+    import sqlite3
 
-# 说明：── Query parameter defaults ─────────────────────────────────────────
+    from session_browser.web.view_models import SessionsViewModel
+
+# 说明:── Query parameter defaults ─────────────────────────────────────────
 
 VALID_PAGE_SIZES = {25, 50, 100}
 
 SORT_KEY_MAP = {
-    "ended-at": "ended_at",
-    "updated": "ended_at",
-    "created": "started_at",
-    "duration": "duration_seconds",
-    "process-time": "process_seconds",
-    "tokens": "total_tokens",
-    "total-tokens": "total_tokens",
-    "rounds": "assistant_message_count",
-    "tools": "tool_call_count",
-    "subagents": "subagent_instance_count",
-    "failure": "failed_tool_count",
+    'ended-at': 'ended_at',
+    'updated': 'ended_at',
+    'created': 'started_at',
+    'duration': 'duration_seconds',
+    'process-time': 'process_seconds',
+    'tokens': 'total_tokens',
+    'total-tokens': 'total_tokens',
+    'rounds': 'assistant_message_count',
+    'tools': 'tool_call_count',
+    'subagents': 'subagent_instance_count',
+    'failure': 'failed_tool_count',
 }
 
 
 def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, Any]:
-    """解析 URL query parameters，转换为 一个 typed dict.
+    """解析 URL query parameters,转换为 一个 typed dict.
 
     Args:
         raw_params: Result of urllib.parse.parse_qs().
@@ -53,16 +55,15 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
         Dict with keys: page, page_size, filter_agent, filter_model,
         filter_project, filter_q, sort_by, raw_sort, sort_dir.
     """
-    # 说明：Pagination — page
+    # 说明:Pagination — page
     try:
-        page = int(raw_params.get("page", ["1"])[0])
-        if page < 1:
-            page = 1
+        page = int(raw_params.get('page', ['1'])[0])
+        page = max(page, 1)
     except (ValueError, IndexError):
         page = 1
 
-    # 说明：Pagination — page_size
-    raw_size = raw_params.get("page_size", ["25"])[0].strip().lower()
+    # 说明:Pagination — page_size
+    raw_size = raw_params.get('page_size', ['25'])[0].strip().lower()
     try:
         page_size_int = int(raw_size)
         if page_size_int in VALID_PAGE_SIZES:
@@ -72,32 +73,32 @@ def parse_sessions_query_params(raw_params: dict[str, list[str]]) -> dict[str, A
     except ValueError:
         page_size = 25
 
-    # 说明：Filters
-    filter_agent = raw_params.get("agent", [""])[0].strip() or None
-    filter_model = raw_params.get("model", [""])[0].strip() or None
-    filter_project = raw_params.get("project", [""])[0].strip() or None
-    filter_q = raw_params.get("q", [""])[0].strip() or None
-    raw_status = raw_params.get("status", [""])[0].strip().lower()
-    filter_status = raw_status if raw_status in {"failed", "no-failures"} else None
+    # 说明:Filters
+    filter_agent = raw_params.get('agent', [''])[0].strip() or None
+    filter_model = raw_params.get('model', [''])[0].strip() or None
+    filter_project = raw_params.get('project', [''])[0].strip() or None
+    filter_q = raw_params.get('q', [''])[0].strip() or None
+    raw_status = raw_params.get('status', [''])[0].strip().lower()
+    filter_status = raw_status if raw_status in {'failed', 'no-failures'} else None
 
-    # 说明：Sort
-    raw_sort = raw_params.get("sort", [""])[0].strip().lower()
-    raw_dir = raw_params.get("dir", ["desc"])[0].strip().lower()
-    if raw_dir not in ("asc", "desc"):
-        raw_dir = "desc"
-    sort_by = SORT_KEY_MAP.get(raw_sort, "ended_at")
+    # 说明:Sort
+    raw_sort = raw_params.get('sort', [''])[0].strip().lower()
+    raw_dir = raw_params.get('dir', ['desc'])[0].strip().lower()
+    if raw_dir not in ('asc', 'desc'):
+        raw_dir = 'desc'
+    sort_by = SORT_KEY_MAP.get(raw_sort, 'ended_at')
 
     return {
-        "page": page,
-        "page_size": page_size,
-        "filter_agent": filter_agent,
-        "filter_model": filter_model,
-        "filter_project": filter_project,
-        "filter_q": filter_q,
-        "filter_status": filter_status,
-        "sort_by": sort_by,
-        "raw_sort": raw_sort,
-        "sort_dir": raw_dir,
+        'page': page,
+        'page_size': page_size,
+        'filter_agent': filter_agent,
+        'filter_model': filter_model,
+        'filter_project': filter_project,
+        'filter_q': filter_q,
+        'filter_status': filter_status,
+        'sort_by': sort_by,
+        'raw_sort': raw_sort,
+        'sort_dir': raw_dir,
     }
 
 
@@ -112,7 +113,7 @@ def compute_pagination(
         Dict with keys: limit, offset, effective_page_size, total_pages,
         page_start, page_end, has_prev, has_next.
     """
-    if page_size == "all":
+    if page_size == 'all':
         limit = total_count if total_count > 0 else 2000
         offset = 0
         effective_page_size = total_count
@@ -120,12 +121,11 @@ def compute_pagination(
     else:
         limit = page_size
         total_pages = max(1, (total_count + page_size - 1) // page_size)
-        if page > total_pages:
-            page = total_pages
+        page = min(page, total_pages)
         offset = (page - 1) * page_size
         effective_page_size = page_size
 
-    # 说明：page_start / page_end
+    # 说明:page_start / page_end
     if total_count == 0:
         page_start = 0
         page_end = 0
@@ -134,18 +134,18 @@ def compute_pagination(
         page_end = min(offset + limit, total_count)
 
     has_prev = page > 1
-    has_next = page < total_pages if page_size != "all" else False
+    has_next = page < total_pages if page_size != 'all' else False
 
     return {
-        "limit": limit,
-        "offset": offset,
-        "effective_page_size": effective_page_size,
-        "total_pages": total_pages,
-        "page_start": page_start,
-        "page_end": page_end,
-        "has_prev": has_prev,
-        "has_next": has_next,
-        "page": page,  # 说明：possibly clamped
+        'limit': limit,
+        'offset': offset,
+        'effective_page_size': effective_page_size,
+        'total_pages': total_pages,
+        'page_start': page_start,
+        'page_end': page_end,
+        'has_prev': has_prev,
+        'has_next': has_next,
+        'page': page,  # 说明:possibly clamped
     }
 
 
@@ -161,7 +161,7 @@ def fetch_sessions_view_model(
     limit: int,
     offset: int,
 ) -> dict[str, Any]:
-    """Fetch data needed，用于 该 sessions list view model.
+    """Fetch data needed,用于 该 sessions list view model.
 
     Args:
         conn: SQLite connection.
@@ -174,7 +174,7 @@ def fetch_sessions_view_model(
         Dict with keys: sessions_enriched, total_count, sessions_aggregate,
         model_list, project_list.
     """
-    # 说明：Total count
+    # 说明:Total count
     total_count = count_sessions(
         conn,
         agent=filter_agent,
@@ -194,7 +194,7 @@ def fetch_sessions_view_model(
         failure_status=filter_status,
     )
 
-    # 说明：Paginated sessions
+    # 说明:Paginated sessions
     sessions = list_sessions(
         conn,
         agent=filter_agent,
@@ -208,35 +208,35 @@ def fetch_sessions_view_model(
         order_dir=sort_dir,
     )
 
-    # 说明：Filter dropdowns
+    # 说明:Filter dropdowns
     models = conn.execute(
         "SELECT DISTINCT model FROM sessions WHERE model != '' ORDER BY model"
     ).fetchall()
     projects = conn.execute(
-        "SELECT DISTINCT project_key, project_name FROM sessions ORDER BY project_name"
+        'SELECT DISTINCT project_key, project_name FROM sessions ORDER BY project_name'
     ).fetchall()
 
-    # Anomaly detection (scoped to filtered set，用于 performance)
-    all_sessions_raw = list_sessions(conn, limit=2000, order_by="ended_at")
+    # Anomaly detection (scoped to filtered set,用于 performance)
+    all_sessions_raw = list_sessions(conn, limit=2000, order_by='ended_at')
     sessions_data = []
     sessions_lookup = {}
     for s in all_sessions_raw:
         d = compute_derived_metrics(session_summary_to_dict(s))
         sessions_data.append(d)
-        sessions_lookup[d["session_key"]] = d
+        sessions_lookup[d['session_key']] = d
 
     anomalies_map = detect_all_anomalies(sessions_data)
     sessions_enriched = enrich_sessions_with_anomalies(sessions, anomalies_map)
 
-    model_list = [r["model"] for r in models]
+    model_list = [r['model'] for r in models]
     project_list = [p[0] for p in projects]
 
     return {
-        "sessions_enriched": sessions_enriched,
-        "total_count": total_count,
-        "sessions_aggregate": sessions_aggregate,
-        "model_list": model_list,
-        "project_list": project_list,
+        'sessions_enriched': sessions_enriched,
+        'total_count': total_count,
+        'sessions_aggregate': sessions_aggregate,
+        'model_list': model_list,
+        'project_list': project_list,
     }
 
 
@@ -244,7 +244,7 @@ def build_sessions_context(
     raw_params: dict[str, list[str]],
     conn: sqlite3.Connection,
 ) -> SessionsViewModel:
-    """说明：High-level helper: parse params, fetch data, return template context.
+    """说明:High-level helper: parse params, fetch data, return template context.
 
     This is the main entry point for the /sessions page presenter.
     It returns everything the template needs (minus the actions URLs,
@@ -263,51 +263,51 @@ def build_sessions_context(
         # We need total_count first, so do 一个 preliminary fetch
         total_count=count_sessions(
             conn,
-            agent=params["filter_agent"],
-            project_key=params["filter_project"],
-            model=params["filter_model"],
-            title_like=params["filter_q"],
-            failure_status=params["filter_status"],
+            agent=params['filter_agent'],
+            project_key=params['filter_project'],
+            model=params['filter_model'],
+            title_like=params['filter_q'],
+            failure_status=params['filter_status'],
         ),
-        page=params["page"],
-        page_size=params["page_size"],
+        page=params['page'],
+        page_size=params['page_size'],
     )
 
     vm = fetch_sessions_view_model(
         conn=conn,
-        filter_agent=params["filter_agent"],
-        filter_model=params["filter_model"],
-        filter_project=params["filter_project"],
-        filter_q=params["filter_q"],
-        filter_status=params["filter_status"],
-        sort_by=params["sort_by"],
-        sort_dir=params["sort_dir"],
-        limit=pagination["limit"],
-        offset=pagination["offset"],
+        filter_agent=params['filter_agent'],
+        filter_model=params['filter_model'],
+        filter_project=params['filter_project'],
+        filter_q=params['filter_q'],
+        filter_status=params['filter_status'],
+        sort_by=params['sort_by'],
+        sort_dir=params['sort_dir'],
+        limit=pagination['limit'],
+        offset=pagination['offset'],
     )
 
-    # 归一化 sort key，用于 template (ui uses 'updated'，用于 'ended-at')
-    ui_sort = "updated" if params["raw_sort"] == "ended-at" else (params["raw_sort"] or "ended-at")
+    # 归一化 sort key,用于 template (ui uses 'updated',用于 'ended-at')
+    ui_sort = 'updated' if params['raw_sort'] == 'ended-at' else (params['raw_sort'] or 'ended-at')
 
     return {
-        "sessions": vm["sessions_enriched"],
-        "total_count": vm["total_count"],
-        "page": pagination["page"],
-        "current_page": pagination["page"],
-        "page_size": params["page_size"],
-        "total_pages": pagination["total_pages"],
-        "page_start": pagination["page_start"],
-        "page_end": pagination["page_end"],
-        "has_prev": pagination["has_prev"],
-        "has_next": pagination["has_next"],
-        "filter_agent": params["filter_agent"] or "",
-        "filter_model": params["filter_model"] or "",
-        "filter_project": params["filter_project"] or "",
-        "filter_q": params["filter_q"] or "",
-        "filter_status": params["filter_status"] or "",
-        "sort_by": ui_sort,
-        "sort_dir": params["sort_dir"],
-        "model_list": vm["model_list"],
-        "project_list": vm["project_list"],
-        "sessions_aggregate": vm["sessions_aggregate"],
+        'sessions': vm['sessions_enriched'],
+        'total_count': vm['total_count'],
+        'page': pagination['page'],
+        'current_page': pagination['page'],
+        'page_size': params['page_size'],
+        'total_pages': pagination['total_pages'],
+        'page_start': pagination['page_start'],
+        'page_end': pagination['page_end'],
+        'has_prev': pagination['has_prev'],
+        'has_next': pagination['has_next'],
+        'filter_agent': params['filter_agent'] or '',
+        'filter_model': params['filter_model'] or '',
+        'filter_project': params['filter_project'] or '',
+        'filter_q': params['filter_q'] or '',
+        'filter_status': params['filter_status'] or '',
+        'sort_by': ui_sort,
+        'sort_dir': params['sort_dir'],
+        'model_list': vm['model_list'],
+        'project_list': vm['project_list'],
+        'sessions_aggregate': vm['sessions_aggregate'],
     }

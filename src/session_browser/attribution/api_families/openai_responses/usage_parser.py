@@ -30,15 +30,15 @@ def parse_openai_responses_usage(usage: dict | None) -> UsageBreakdown:
     """
     if not usage or not isinstance(usage, dict):
         return UsageBreakdown(
-            usage_source="unavailable",
-            precision="unavailable",
-            note="无 OpenAI Responses usage 数据",
+            usage_source='unavailable',
+            precision='unavailable',
+            note='无 OpenAI Responses usage 数据',
         )
 
-    provider_request_input = get_nested_int(usage, "input_tokens")
-    cache_read = get_nested_int(usage, "input_tokens_details", "cached_tokens")
-    provider_output_total = get_nested_int(usage, "output_tokens")
-    hidden_reasoning = get_nested_int(usage, "output_tokens_details", "reasoning_tokens")
+    provider_request_input = get_nested_int(usage, 'input_tokens')
+    cache_read = get_nested_int(usage, 'input_tokens_details', 'cached_tokens')
+    provider_output_total = get_nested_int(usage, 'output_tokens')
+    hidden_reasoning = get_nested_int(usage, 'output_tokens_details', 'reasoning_tokens')
 
     if provider_request_input > 0:
         cache_read = min(cache_read, provider_request_input)
@@ -48,8 +48,8 @@ def parse_openai_responses_usage(usage: dict | None) -> UsageBreakdown:
 
     # cache_write: OpenAI 不报告，标记 unavailable
     note = (
-        "OpenAI Responses usage：input_tokens 是 Provider Request Input；"
-        "Fresh 已扣除 Cache Read；cache_write 不可用（not_reported）"
+        'OpenAI Responses usage：input_tokens 是 Provider Request Input；'
+        'Fresh 已扣除 Cache Read；cache_write 不可用（not_reported）'
     )
 
     return UsageBreakdown(
@@ -59,7 +59,7 @@ def parse_openai_responses_usage(usage: dict | None) -> UsageBreakdown:
         cache_write=None,  # unavailable，不能用 0 exact
         output=output if output > 0 else None,
         hidden_reasoning=hidden_reasoning if hidden_reasoning > 0 else None,
-        usage_source="provider_reported" if provider_request_input > 0 else "unavailable",
-        precision="provider_reported" if provider_request_input > 0 else "unavailable",
+        usage_source='provider_reported' if provider_request_input > 0 else 'unavailable',
+        precision='provider_reported' if provider_request_input > 0 else 'unavailable',
         note=note,
     )

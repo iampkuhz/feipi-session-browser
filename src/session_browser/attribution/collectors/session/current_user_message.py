@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
-from session_browser.attribution.core.models import ContentRef, Evidence
 from session_browser.attribution.collectors.session.llm_call_locator import locate_call_boundary
+from session_browser.attribution.core.models import ContentRef, Evidence
 
 
 def extract_current_user_message(
@@ -21,26 +21,26 @@ def extract_current_user_message(
 
     for i in range(max(0, start - 5), end + 1):
         ev = events[i]
-        role = ev.get("role", "")
-        content = ev.get("content", "") or ""
+        role = ev.get('role', '')
+        content = ev.get('content', '') or ''
 
-        if role in ("user", "human") and content:
+        if role in ('user', 'human') and content:
             content_str = str(content)
             preview = content_str[:200]
 
             return Evidence(
-                evidence_id=f"session_user_msg_{evidence_counter}",
-                scope="current_session",
-                kind="user_message",
-                source_event_id=ev.get("id", ""),
+                evidence_id=f'session_user_msg_{evidence_counter}',
+                scope='current_session',
+                kind='user_message',
+                source_event_id=ev.get('id', ''),
                 content_ref=ContentRef(
-                    kind="session_event",
-                    pointer=f"line_{ev.get('_line', i)}",
+                    kind='session_event',
+                    pointer=f'line_{ev.get("_line", i)}',
                     preview=preview,
                     can_load_full=True,
                 ),
                 text_preview=preview,
-                precision="extracted",
+                precision='extracted',
                 confidence=0.9,
             )
 

@@ -10,12 +10,13 @@
 对应 bad JSON 隔离规范。
 """
 
-import pytest
 import os
 import shutil
 import sqlite3
 import sys
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ──────────────────────────────────────────────────────────────
 
@@ -27,6 +28,7 @@ GOOD_LINE_COUNT = 6  # fixture 中包含 6 个有效的 JSON 对象
 
 
 # ─── 辅助函数 ────────────────────────────────────────────────────────────
+
 
 def _setup_claude_env(data_dir: str):
     """设置 CLAUDE_DATA_DIR 并重新加载依赖模块。"""
@@ -68,6 +70,7 @@ def _run_full_scan(data_dir: str, db_path: str) -> dict:
 
 
 # ─── 测试：jsonl_reader 层级 ─────────────────────────────────────────────
+
 
 class TestJsonlReaderBadJsonIsolation:
     """验证 parse_jsonl_events 对坏 JSON 行的隔离能力。"""
@@ -123,7 +126,9 @@ class TestJsonlReaderBadJsonIsolation:
     def test_bad_json_issues_have_correct_severity(self, tmp_path):
         """每个坏 JSON 问题都应标记为 ERROR 严重级别。"""
         from session_browser.sources.jsonl_reader import (
-            parse_jsonl_events, ParseIssue, ParseSeverity,
+            ParseIssue,
+            ParseSeverity,
+            parse_jsonl_events,
         )
 
         src = FIXTURE_ROOT / "projects" / "bad-proj" / "bad-sess-001.jsonl"
@@ -172,6 +177,7 @@ class TestJsonlReaderBadJsonIsolation:
 
 
 # ─── 测试：full scan / indexer 层级 ──────────────────────────────────────
+
 
 class TestBadJsonSessionIndexing:
     """验证包含坏 JSON 行的会话仍能被索引。"""
@@ -299,9 +305,7 @@ class TestBadJsonSessionIndexing:
 
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
-        log = conn.execute(
-            "SELECT * FROM scan_log ORDER BY id DESC LIMIT 1"
-        ).fetchone()
+        log = conn.execute("SELECT * FROM scan_log ORDER BY id DESC LIMIT 1").fetchone()
         conn.close()
 
         assert log is not None

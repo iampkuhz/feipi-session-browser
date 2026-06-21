@@ -24,48 +24,48 @@ def extract_default_prompt(
     if raw_request:
         preview = raw_request[:200]
         return Evidence(
-            evidence_id=f"codex_system_prompt_{evidence_counter}",
-            scope="provider_usage",
-            kind="system_prompt",
+            evidence_id=f'codex_system_prompt_{evidence_counter}',
+            scope='provider_usage',
+            kind='system_prompt',
             content_ref=ContentRef(
-                kind="inline",
+                kind='inline',
                 preview=preview,
                 can_load_full=True,
                 redaction_applied=True,
             ),
             text_preview=preview,
-            precision="extracted",
+            precision='extracted',
             confidence=0.85,
         )
 
     # 策略 2：session context
     if session_context:
-        local = session_context.get("local_instructions", "")
+        local = session_context.get('local_instructions', '')
         if local:
             return Evidence(
-                evidence_id=f"codex_system_prompt_{evidence_counter}",
-                scope="project_repo",
-                kind="system_prompt",
+                evidence_id=f'codex_system_prompt_{evidence_counter}',
+                scope='project_repo',
+                kind='system_prompt',
                 content_ref=ContentRef(
-                    kind="inline",
+                    kind='inline',
                     preview=local[:200],
                     can_load_full=True,
                 ),
                 text_preview=local[:200],
-                precision="extracted",
+                precision='extracted',
                 confidence=0.7,
             )
 
     # 策略 3：heuristic
     return Evidence(
-        evidence_id=f"codex_system_prompt_{evidence_counter}",
-        scope="agent_app",
-        kind="system_prompt",
+        evidence_id=f'codex_system_prompt_{evidence_counter}',
+        scope='agent_app',
+        kind='system_prompt',
         content_ref=ContentRef(
-            kind="unavailable",
-            preview="Codex system prompt (heuristic)",
+            kind='unavailable',
+            preview='Codex system prompt (heuristic)',
         ),
-        text_preview="Codex system prompt (heuristic)",
-        precision="heuristic",
+        text_preview='Codex system prompt (heuristic)',
+        precision='heuristic',
         confidence=0.3,
     )

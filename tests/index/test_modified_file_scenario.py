@@ -5,7 +5,6 @@
 反映新内容。
 """
 
-import pytest
 import json
 import os
 import shutil
@@ -13,6 +12,8 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ─────────────────────────────────────────────────────────────────────
 
@@ -81,9 +82,7 @@ def _get_session_row(db_path: str, session_key: str) -> dict | None:
     """从数据库获取单个会话行。"""
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
-    row = conn.execute(
-        "SELECT * FROM sessions WHERE session_key = ?", (session_key,)
-    ).fetchone()
+    row = conn.execute("SELECT * FROM sessions WHERE session_key = ?", (session_key,)).fetchone()
     result = dict(row) if row else None
     conn.close()
     return result
@@ -194,7 +193,9 @@ class TestModifiedFileScenario:
         # sess-002 未被修改，所以如果增量扫描跳过了它，指标保持不变
         # （我们无法与之前的精确值比较，因为没有做快照，
         #  但可以验证它仍有非零值）
-        assert row_sess002["fresh_input_tokens"] > 0, "sess-002 should still have fresh_input_tokens"
+        assert row_sess002["fresh_input_tokens"] > 0, (
+            "sess-002 should still have fresh_input_tokens"
+        )
         assert row_sess002["output_tokens"] > 0, "sess-002 should still have output_tokens"
 
     @pytest.mark.contract_case("DATA-INDEX-005")

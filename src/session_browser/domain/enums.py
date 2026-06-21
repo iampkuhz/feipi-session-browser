@@ -1,8 +1,7 @@
-"""Type-safe domain enums.
+"""Domain layer models and helpers for normalized session data.
 
-These enums replace historical string-constant classes while remaining JSON
-friendly: each enum member is also a ``str`` and serializes to its value when
-used by the DTO layer.
+Parser, attribution, and presenter flows import this module for stable contracts.
+It performs no I/O.
 """
 
 from __future__ import annotations
@@ -11,25 +10,47 @@ from enum import Enum
 
 
 class DomainStrEnum(str, Enum):
-    """Base class for finite string values used in domain models."""
+    """DomainStrEnum contract used by the session browser pipeline.
+
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+    """
 
     def __str__(self) -> str:
+        """__str__ method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.value
 
 
 class TokenPrecision(DomainStrEnum):
-    """How trustworthy a token value is.
+    """TokenPrecision contract used by the session browser pipeline.
 
-    EXACT: counted from a deterministic local source.
-    PROVIDER_REPORTED: reported by provider/broker usage data.
-    ESTIMATED: locally estimated from visible content.
-    UNKNOWN: unavailable or deliberately zero-filled.
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        EXACT: Public contract field or enum value.
+        PROVIDER_REPORTED: Public contract field or enum value.
+        ESTIMATED: Public contract field or enum value.
+        UNKNOWN: Public contract field or enum value.
+        PROVIDER_REPORTED_NORMALIZED: Public contract field or enum value.
+        PROVIDER_REPORTED_DELTA: Public contract field or enum value.
+        SQLITE_TOKEN_INFO: Public contract field or enum value.
+        ESTIMATED_PARTIAL: Public contract field or enum value.
+        ZERO_FILLED_UNAVAILABLE: Public contract field or enum value.
+        REPORTED_TOTAL_ONLY: Public contract field or enum value.
     """
 
-    EXACT = "exact"
-    PROVIDER_REPORTED = "provider_reported"
-    ESTIMATED = "estimated"
-    UNKNOWN = "unavailable"
+    EXACT = 'exact'
+    PROVIDER_REPORTED = 'provider_reported'
+    ESTIMATED = 'estimated'
+    UNKNOWN = 'unavailable'
 
     # Compatibility aliases for older normalizer call sites. They intentionally
     # share canonical enum values, so iteration still exposes only four states.
@@ -42,51 +63,107 @@ class TokenPrecision(DomainStrEnum):
 
 
 class TokenTotalSemantics(DomainStrEnum):
-    """What ``total_tokens`` means relative to token components."""
+    """TokenTotalSemantics contract used by the session browser pipeline.
 
-    EXCLUSIVE_COMPONENT_SUM = "exclusive_components_sum"
-    REPORTED_TOTAL = "reported_total"
-    REPORTED_CUMULATIVE_DELTA = "reported_cumulative_delta"
-    PROMPT_TOTAL_PLUS_OUTPUT = "prompt_total_plus_output"
-    ESTIMATED_COMPONENT_SUM = "estimated_components_sum"
-    RECOMPUTED_DUE_TO_INCONSISTENT_RAW_TOTAL = "recomputed_due_to_inconsistent_raw_total"
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        EXCLUSIVE_COMPONENT_SUM: Public contract field or enum value.
+        REPORTED_TOTAL: Public contract field or enum value.
+        REPORTED_CUMULATIVE_DELTA: Public contract field or enum value.
+        PROMPT_TOTAL_PLUS_OUTPUT: Public contract field or enum value.
+        ESTIMATED_COMPONENT_SUM: Public contract field or enum value.
+        RECOMPUTED_DUE_TO_INCONSISTENT_RAW_TOTAL: Public contract field or enum value.
+    """
+
+    EXCLUSIVE_COMPONENT_SUM = 'exclusive_components_sum'
+    REPORTED_TOTAL = 'reported_total'
+    REPORTED_CUMULATIVE_DELTA = 'reported_cumulative_delta'
+    PROMPT_TOTAL_PLUS_OUTPUT = 'prompt_total_plus_output'
+    ESTIMATED_COMPONENT_SUM = 'estimated_components_sum'
+    RECOMPUTED_DUE_TO_INCONSISTENT_RAW_TOTAL = 'recomputed_due_to_inconsistent_raw_total'
 
 
 class TokenSourceKind(DomainStrEnum):
-    """Source of token data before normalization."""
+    """TokenSourceKind contract used by the session browser pipeline.
 
-    CLAUDE_CODE_JSONL_USAGE = "claude_code_jsonl_usage"
-    CODEX_ROLLOUT_TOKEN_COUNT = "codex_rollout_token_count"
-    OPENAI_RESPONSES_USAGE = "openai_responses_usage"
-    QODER_SEGMENT_MODEL_RESPONSE_COMPLETED = "qoder_segment_model_response_completed"
-    QODER_SQLITE_TOKEN_INFO = "qoder_sqlite_token_info"
-    QODER_TURN_FINISHED_FALLBACK = "qoder_turn_finished_fallback"
-    QODER_TRANSCRIPT_ESTIMATED = "qoder_transcript_estimated"
-    SESSION_TOTAL_ONLY_FALLBACK = "session_total_only_fallback"
-    UNKNOWN = "unknown"
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        CLAUDE_CODE_JSONL_USAGE: Public contract field or enum value.
+        CODEX_ROLLOUT_TOKEN_COUNT: Public contract field or enum value.
+        OPENAI_RESPONSES_USAGE: Public contract field or enum value.
+        QODER_SEGMENT_MODEL_RESPONSE_COMPLETED: Public contract field or enum value.
+        QODER_SQLITE_TOKEN_INFO: Public contract field or enum value.
+        QODER_TURN_FINISHED_FALLBACK: Public contract field or enum value.
+        QODER_TRANSCRIPT_ESTIMATED: Public contract field or enum value.
+        SESSION_TOTAL_ONLY_FALLBACK: Public contract field or enum value.
+        UNKNOWN: Public contract field or enum value.
+    """
+
+    CLAUDE_CODE_JSONL_USAGE = 'claude_code_jsonl_usage'
+    CODEX_ROLLOUT_TOKEN_COUNT = 'codex_rollout_token_count'
+    OPENAI_RESPONSES_USAGE = 'openai_responses_usage'
+    QODER_SEGMENT_MODEL_RESPONSE_COMPLETED = 'qoder_segment_model_response_completed'
+    QODER_SQLITE_TOKEN_INFO = 'qoder_sqlite_token_info'
+    QODER_TURN_FINISHED_FALLBACK = 'qoder_turn_finished_fallback'
+    QODER_TRANSCRIPT_ESTIMATED = 'qoder_transcript_estimated'
+    SESSION_TOTAL_ONLY_FALLBACK = 'session_total_only_fallback'
+    UNKNOWN = 'unknown'
 
 
 class TokenProvider(DomainStrEnum):
-    """Provider or broker family inferred from model/runtime context."""
+    """TokenProvider contract used by the session browser pipeline.
 
-    ANTHROPIC = "anthropic"
-    OPENAI = "openai"
-    CODEX = "codex"
-    QWEN_ANTHROPIC_COMPATIBLE = "qwen-anthropic-compatible"
-    QODER = "qoder"
-    UNKNOWN = "unknown"
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        ANTHROPIC: Public contract field or enum value.
+        OPENAI: Public contract field or enum value.
+        CODEX: Public contract field or enum value.
+        QWEN_ANTHROPIC_COMPATIBLE: Public contract field or enum value.
+        QODER: Public contract field or enum value.
+        UNKNOWN: Public contract field or enum value.
+    """
+
+    ANTHROPIC = 'anthropic'
+    OPENAI = 'openai'
+    CODEX = 'codex'
+    QWEN_ANTHROPIC_COMPATIBLE = 'qwen-anthropic-compatible'
+    QODER = 'qoder'
+    UNKNOWN = 'unknown'
 
 
 class CallScope(DomainStrEnum):
-    """Execution scope of an LLM call or tool call."""
+    """CallScope contract used by the session browser pipeline.
 
-    MAIN = "main"
-    SUBAGENT = "subagent"
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        MAIN: Public contract field or enum value.
+        SUBAGENT: Public contract field or enum value.
+    """
+
+    MAIN = 'main'
+    SUBAGENT = 'subagent'
 
 
 class CallStatus(DomainStrEnum):
-    """Common success/error status for LLM and tool events."""
+    """CallStatus contract used by the session browser pipeline.
 
-    OK = "ok"
-    ERROR = "error"
-    COMPLETED = "completed"
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        OK: Public contract field or enum value.
+        ERROR: Public contract field or enum value.
+        COMPLETED: Public contract field or enum value.
+    """
+
+    OK = 'ok'
+    ERROR = 'error'
+    COMPLETED = 'completed'

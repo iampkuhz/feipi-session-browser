@@ -1,6 +1,8 @@
-"""Model 字符串辅助识别。
+"""Infer provider hints from captured model strings.
 
-用于从 model 字符串中推断 provider 和 model family 信息。
+These helpers run when a mapping resolver has a model name but weak or missing usage
+payload evidence. They never choose an API family alone; they only return provider and
+reasoning-model hints that can raise confidence for later resolver decisions.
 """
 
 from __future__ import annotations
@@ -9,34 +11,41 @@ import re
 
 
 def detect_model_family(model_string: str) -> dict[str, str]:
-    """从 model 字符串推断 provider 和 model family。
+    """Infer provider and normalized model hints from a model string.
+
+    Args:
+        model_string: Raw model string captured from request, response, or metadata.
 
     Returns:
-        {"provider_hint": "anthropic" | "openai" | "qoder" | "unknown",
-         "model_hint": cleaned model string or ""}
+        Dictionary with ``provider_hint`` set to ``anthropic``, ``openai``, ``qoder``,
+        or ``unknown``, and ``model_hint`` preserving the usable model value.
     """
     if not model_string:
-        return {"provider_hint": "unknown", "model_hint": ""}
+        return {'provider_hint': 'unknown', 'model_hint': ''}
 
     s = model_string.lower()
 
-    # 说明：Anthropic models
-    if "claude" in s:
-        return {"provider_hint": "anthropic", "model_hint": model_string}
+    if 'claude' in s:
+        return {'provider_hint': 'anthropic', 'model_hint': model_string}
 
-    # 说明：OpenAI models
-    if "gpt" in s or "o1" in s or "o3" in s or "o4" in s:
-        return {"provider_hint": "openai", "model_hint": model_string}
+    if 'gpt' in s or 'o1' in s or 'o3' in s or 'o4' in s:
+        return {'provider_hint': 'openai', 'model_hint': model_string}
 
-    # 说明：Qoder models (performance/standard, etc.)
-    if "performance" in s or "standard" in s or "qoder" in s:
-        return {"provider_hint": "qoder", "model_hint": model_string}
+    if 'performance' in s or 'standard' in s or 'qoder' in s:
+        return {'provider_hint': 'qoder', 'model_hint': model_string}
 
-    return {"provider_hint": "unknown", "model_hint": model_string}
+    return {'provider_hint': 'unknown', 'model_hint': model_string}
 
 
 def is_reasoning_model(model_string: str) -> bool:
-    """判断 model 是否为 reasoning model（可能有 hidden reasoning tokens）。"""
+    """Return whether a model string may include hidden reasoning tokens.
+
+    Args:
+        model_string: Raw model string captured for a call.
+
+    Returns:
+        ``True`` for known OpenAI reasoning prefixes or Claude Sonnet/Opus families.
+    """
     if not model_string:
         return False
     s = model_string.lower()

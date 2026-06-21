@@ -4,7 +4,6 @@
 初始全量扫描后新出现的会话 JSONL 文件。
 """
 
-import pytest
 import json
 import os
 import shutil
@@ -12,6 +11,8 @@ import sqlite3
 import sys
 import time
 from pathlib import Path
+
+import pytest
 
 # ─── 常量 ─────────────────────────────────────────────────────────────────────
 

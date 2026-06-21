@@ -1,12 +1,20 @@
-"""会话索引写入函数。"""
+"""Write and read SQLite rows for the session index.
+
+Index scan code uses this module to upsert session summaries and generated
+artifact records. Query code reuses ``_row_to_summary`` to convert SQLite rows
+back into the domain summary shape without changing persistence semantics.
+"""
 
 from __future__ import annotations
 
-import sqlite3
 import time
+from typing import TYPE_CHECKING
 
 from session_browser.domain.models import SessionSummary
 from session_browser.domain.normalizer import sanitize_list_title
+
+if TYPE_CHECKING:
+    import sqlite3
 
 
 def upsert_session(
@@ -15,7 +23,18 @@ def upsert_session(
     file_mtime: float = 0,
     file_path: str = "",
 ) -> None:
-    """写入或更新一条会话索引记录。"""
+    """Insert or update one session summary row in the index.
+
+    Full and incremental scans call this writer after normalizing a source
+    session. It preserves the existing ``session_key`` conflict behavior and
+    updates file metadata and ``indexed_at`` on every write.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+        summary: Normalized session summary to persist.
+        file_mtime: Source file modification time associated with the row.
+        file_path: Source file path associated with the row.
+    """
     conn.execute(
         """
         INSERT INTO sessions (
@@ -24,9 +43,12 @@ def upsert_session(
             tool_execution_seconds,
             model, git_branch, source, user_message_count, assistant_message_count,
             tool_call_count, output_tokens, fresh_input_tokens, cache_read_tokens,
-            cache_write_tokens, total_tokens, failed_tool_count, subagent_instance_count, indexed_at,
-            file_mtime, file_path
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            cache_write_tokens, total_tokens, failed_tool_count,
+            subagent_instance_count, indexed_at, file_mtime, file_path
+        ) VALUES (
+            ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
+            ?, ?, ?, ?
+        )
         ON CONFLICT(session_key) DO UPDATE SET
             title=excluded.title,
             project_key=excluded.project_key,
@@ -87,7 +109,7 @@ def upsert_session(
     )
 
 
-def upsert_session_artifact(
+def upsert_session_artifact(  # noqa: PLR0913
     conn: sqlite3.Connection,
     *,
     session_key: str,
@@ -98,7 +120,23 @@ def upsert_session_artifact(
     source_mtime: float = 0,
     size_bytes: int = 0,
 ) -> None:
-    """Insert 或 update 一个 generated artifact associated，使用 一个 session."""
+    """Insert or update a generated artifact record for one session.
+
+    Artifact generation flows call this writer after creating derived files. The
+    keyword-only field list mirrors the artifact table columns, so keeping the
+    explicit API avoids changing existing callers while preserving upsert
+    semantics.
+
+    Args:
+        conn: Open SQLite connection for the session index.
+        session_key: Stable key of the session that owns the artifact.
+        artifact_type: Artifact category stored in the composite primary key.
+        path: Stored artifact path.
+        schema_version: Optional schema version associated with the artifact.
+        source_path: Optional source path used to generate the artifact.
+        source_mtime: Optional source modification time used for freshness.
+        size_bytes: Optional artifact size in bytes.
+    """
     now = time.time()
     conn.execute(
         """
@@ -130,7 +168,19 @@ def upsert_session_artifact(
 
 
 def _row_to_summary(row: sqlite3.Row, truncate_title: bool = False) -> SessionSummary:
-    """把当前 schema 的 DB 行转换为 SessionSummary。"""
+    """Convert one SQLite session row into a ``SessionSummary`` object.
+
+    Query helpers call this after reading rows from the current schema. The
+    optional truncation flag preserves list-view title behavior while leaving the
+    stored row untouched.
+
+    Args:
+        row: SQLite row from the ``sessions`` table.
+        truncate_title: Whether to sanitize the title for list display.
+
+    Returns:
+        Domain ``SessionSummary`` populated from the row columns.
+    """
     title = row["title"]
     if truncate_title:
         title = sanitize_list_title(title)

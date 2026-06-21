@@ -1,6 +1,8 @@
-"""Qoder model policy reader：读取 Qoder model policy 配置。
+"""Read redacted Qoder model-policy files for attribution evidence.
 
-不默认读真实用户账号 token，只接受测试 fixture 或显式传入。
+Agent-app collectors call this only with an explicit policy path, typically a
+fixture or caller-approved file. It avoids account-wide discovery, redacts
+credential-like keys, and returns one Evidence row for the parsed policy.
 """
 
 from __future__ import annotations
@@ -18,13 +20,20 @@ def read_model_policy(
     policy_path: str | Path | None = None,
     evidence_counter: int = 0,
 ) -> Evidence | None:
-    """读取 Qoder model policy 配置。
+    """Read an explicit Qoder model-policy JSON file as Evidence.
+
+    Agent-app attribution collection calls this when a policy fixture or
+    approved path is available. Missing paths, unreadable files, and malformed
+    JSON are treated as absent evidence and logged at debug level.
 
     Args:
-        policy_path: 显式传入的政策文件路径（测试 fixture）
+        policy_path: Explicit policy JSON path; ``None`` disables collection so
+            real user account locations are not probed.
+        evidence_counter: Offset used to build a deterministic Evidence ID.
 
     Returns:
-        Evidence 对象或 None
+        Redacted model-policy Evidence, or ``None`` when no readable policy is
+        available.
     """
     if not policy_path:
         return None
@@ -34,37 +43,48 @@ def read_model_policy(
         if not path.exists() or not path.is_file():
             return None
 
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = path.read_text(encoding='utf-8', errors='replace')
         data = json.loads(text)
         safe_data = _redact_sensitive(data)
 
         return Evidence(
-            evidence_id=f"qoder_model_policy_{evidence_counter}",
-            scope="agent_app",
-            kind="model_policy",
+            evidence_id=f'qoder_model_policy_{evidence_counter}',
+            scope='agent_app',
+            kind='model_policy',
             source_path=str(path),
             content_ref=ContentRef(
-                kind="file_slice",
+                kind='file_slice',
                 pointer=str(path),
                 preview=str(safe_data)[:200],
                 can_load_full=True,
                 redaction_applied=True,
             ),
             text_preview=str(safe_data)[:200],
-            precision="extracted",
+            precision='extracted',
             confidence=0.7,
         )
     except (OSError, PermissionError, json.JSONDecodeError) as exc:
-        logger.debug("无法读取 model policy %s: %s", path, exc)
+        logger.debug('无法读取 model policy %s: %s', path, exc)
         return None
 
 
 def _redact_sensitive(data: dict) -> dict:
-    sensitive = frozenset({"token", "api_key", "secret", "password", "credential"})
+    """Redact credential-like keys in a parsed Qoder model policy.
+
+    ``read_model_policy`` calls this before storing previews in Evidence.
+    Dictionaries are copied recursively while non-sensitive values are preserved.
+
+    Args:
+        data: Parsed JSON object from the policy file.
+
+    Returns:
+        New dictionary with token, key, and credential values redacted.
+    """
+    sensitive = frozenset({'token', 'api_key', 'secret', 'password', 'credential'})
     result = {}
     for k, v in data.items():
         if k.lower() in sensitive:
-            result[k] = "***REDACTED***"
+            result[k] = '***REDACTED***'
         elif isinstance(v, dict):
             result[k] = _redact_sensitive(v)
         else:

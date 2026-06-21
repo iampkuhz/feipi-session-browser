@@ -1,103 +1,192 @@
-"""Centralized tag registry，用于 session diagnostics.
+"""Define diagnostic registries and parse diagnostics for indexed sessions.
 
-Two distinct groups:
-- SESSION_ANOMALY_DEFINITIONS: session-level "needs attention" tags
-- ROUND_SIGNAL_DEFINITIONS: round-level "worth investigating" tags
-
-Templates and filters must derive their candidate values from these definitions,
-not hard-code them.
-
-ParseDiagnostics bridges JSONL-level parse diagnostics (from jsonl_reader.JsonlDiagnostics)
-to the domain layer, enabling the indexer and anomaly engine to see parse-time issues.
+The indexer, anomaly engine, and templates use this module as the shared source
+of truth for parse issues, session anomaly tags, and round-level signal tags.
+Registry values are data contracts for filters and display labels, not runtime
+business logic.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, field
 from enum import Enum, auto
+from typing import TYPE_CHECKING
 
-
-# 说明：─── Parse-level severity & issues ────────────────────────────────────────
+if TYPE_CHECKING:
+    from session_browser.sources.jsonl_reader import JsonlDiagnostics
 
 
 class ParseSeverity(Enum):
-    """Parse-diagnostic severity (domain-level, decoupled，来源于 JSONL reader)."""
+    """Domain severity levels for parse diagnostics.
+
+    Source adapters create JSONL-reader severities first, then
+    ``build_parse_diagnostics`` maps them into this domain enum for index and
+    display code.
+
+    Attributes:
+        INFO: Informational issue that does not indicate data loss.
+        WARNING: Recoverable issue that may affect displayed session quality.
+        CRITICAL: Parse failure that should be treated as a critical session
+            issue.
+    """
+
     INFO = auto()
     WARNING = auto()
     CRITICAL = auto()
 
 
 class ParseIssue(Enum):
-    """说明：Categories of parse-time issues that affect session quality."""
-    # JSONL-level issues (mapped，来源于 jsonl_reader.ParseIssue)
+    """Domain issue categories that can affect indexed session quality.
+
+    The parse diagnostics bridge and source adapters use these stable values to
+    expose file-level, JSONL-level, and data-quality issues to the index layer.
+
+    Attributes:
+        BAD_JSON: A JSONL line could not be parsed as JSON.
+        NON_OBJECT_SKIPPED: A JSONL line parsed but was not an object event.
+        FILE_NOT_FOUND: A source file expected by discovery was missing.
+        EMPTY_FILE: A source file had no parseable events.
+        MISSING_TIMESTAMP: An event or session lacked expected timestamp data.
+        TOKEN_ESTIMATED: Token values were estimated instead of read directly.
+    """
+
     BAD_JSON = "BAD_JSON"
     NON_OBJECT_SKIPPED = "NON_OBJECT_SKIPPED"
-
-    # 说明：File-level issues
     FILE_NOT_FOUND = "FILE_NOT_FOUND"
     EMPTY_FILE = "EMPTY_FILE"
-
-    # 说明：Data-quality issues
     MISSING_TIMESTAMP = "MISSING_TIMESTAMP"
     TOKEN_ESTIMATED = "TOKEN_ESTIMATED"
 
 
 @dataclass
 class ParseIssueItem:
-    """Single parse-level issue attached to 一个 session."""
+    """Single parse-level issue attached to one session.
+
+    The JSONL diagnostics bridge creates these items while converting raw reader
+    diagnostics. Line number ``0`` represents a file-level issue; positive values
+    identify a JSONL line.
+
+    Attributes:
+        issue: Stable domain issue category.
+        severity: Domain severity assigned to the issue.
+        message: Human-readable issue message.
+        line_no: Source line number, or ``0`` for file-level issues.
+        detail: Optional context such as a bad JSON preview.
+    """
+
     issue: ParseIssue
     severity: ParseSeverity
     message: str
-    line_no: int = 0          # 阈值说明：0 = file-level; >0 = JSONL line number
-    detail: str = ""          # 可选上下文（bad JSON 预览等）
+    line_no: int = 0
+    detail: str = ""
 
 
 @dataclass
 class ParseDiagnostics:
-    """Domain-level parse diagnostics，用于 一个 single session.
+    """Domain-level parse diagnostics for one indexed session.
 
-    Produced by converting jsonl_reader.JsonlDiagnostics via build_parse_diagnostics(),
-    optionally enriched with adapter-specific issues (FILE_NOT_FOUND, TOKEN_ESTIMATED, etc.).
+    Source adapters build this object from ``JsonlDiagnostics`` and may append
+    adapter-specific issues before index writers or presenters inspect it. Count
+    properties derive from the mutable ``issues`` list.
+
+    Attributes:
+        session_key: Stable key for the affected session.
+        file_path: Source file path for the parsed session.
+        total_lines: Number of lines seen by the source reader.
+        events_parsed: Number of event objects accepted by the reader.
+        events_skipped: Number of source entries skipped during parsing.
+        issues: Parse issue items collected for the session.
     """
+
     session_key: str = ""
     file_path: str = ""
-
     total_lines: int = 0
     events_parsed: int = 0
     events_skipped: int = 0
-
     issues: list[ParseIssueItem] = field(default_factory=list)
-
-    # 说明：─── Computed properties ──────────────────────────────────────────
 
     @property
     def has_critical(self) -> bool:
+        """Return whether any critical parse issue is present.
+
+        Presenters call this property when deciding whether a session needs a
+        critical parse warning.
+
+        Returns:
+            ``True`` when at least one issue has critical severity.
+        """
         return any(i.severity == ParseSeverity.CRITICAL for i in self.issues)
 
     @property
     def has_warnings(self) -> bool:
+        """Return whether any warning parse issue is present.
+
+        Presenters call this property when deciding whether to show recoverable
+        parse warnings for the session.
+
+        Returns:
+            ``True`` when at least one issue has warning severity.
+        """
         return any(i.severity == ParseSeverity.WARNING for i in self.issues)
 
     @property
     def critical_count(self) -> int:
+        """Return the number of critical parse issues.
+
+        Dashboard summaries call this property to display severity counts derived
+        from the current issue list.
+
+        Returns:
+            Count of issues with critical severity.
+        """
         return sum(1 for i in self.issues if i.severity == ParseSeverity.CRITICAL)
 
     @property
     def warning_count(self) -> int:
+        """Return the number of warning parse issues.
+
+        Dashboard summaries call this property to display severity counts derived
+        from the current issue list.
+
+        Returns:
+            Count of issues with warning severity.
+        """
         return sum(1 for i in self.issues if i.severity == ParseSeverity.WARNING)
 
     @property
     def info_count(self) -> int:
+        """Return the number of informational parse issues.
+
+        Dashboard summaries call this property to display severity counts derived
+        from the current issue list.
+
+        Returns:
+            Count of issues with informational severity.
+        """
         return sum(1 for i in self.issues if i.severity == ParseSeverity.INFO)
 
-    # 说明：─── Mutators ─────────────────────────────────────────────────────
-
     def add(self, item: ParseIssueItem) -> None:
+        """Append one parse issue to this diagnostics object.
+
+        Source adapters call this mutator when adding adapter-specific issues
+        after the JSONL-reader bridge has populated base diagnostics.
+
+        Args:
+            item: Parse issue item to append to ``issues``.
+        """
         self.issues.append(item)
 
-    # 说明：─── Serialization ────────────────────────────────────────────────
-
     def to_dict(self) -> dict:
+        """Serialize parse diagnostics for templates and API-style consumers.
+
+        Presenters call this before rendering parse details. Enum fields are
+        converted to stable string values while counts are computed from the
+        current issue list.
+
+        Returns:
+            Dictionary containing session identity, line and event counts,
+            severity booleans, severity counts, and serialized issue entries.
+        """
         return {
             "session_key": self.session_key,
             "file_path": self.file_path,
@@ -112,7 +201,9 @@ class ParseDiagnostics:
             "issues": [
                 {
                     "issue": item.issue.value if isinstance(item.issue, Enum) else item.issue,
-                    "severity": item.severity.name if isinstance(item.severity, Enum) else item.severity,
+                    "severity": (
+                        item.severity.name if isinstance(item.severity, Enum) else item.severity
+                    ),
                     "message": item.message,
                     "line_no": item.line_no,
                     "detail": item.detail,
@@ -122,17 +213,24 @@ class ParseDiagnostics:
         }
 
 
-# 说明：─── Builder: JSONL reader → domain ParseDiagnostics ─────────────────────
-
-
 def build_parse_diagnostics(
     session_key: str,
     file_path: str,
-    jsonl_diag,                       # jsonl_reader.JsonlDiagnostics 对象
+    jsonl_diag: JsonlDiagnostics,
 ) -> ParseDiagnostics:
-    """转换 一个 JsonlDiagnostics，来源于 该 JSONL reader，转换为 domain-level ParseDiagnostics.
+    """Convert JSONL-reader diagnostics into domain parse diagnostics.
 
-    This is the primary bridge between the parsing layer and the domain layer.
+    Source adapters call this bridge after reading a JSONL session file. It keeps
+    reader counts unchanged, maps reader severities into domain severities, and
+    copies issue detail and preview text for display.
+
+    Args:
+        session_key: Stable key of the parsed session.
+        file_path: Source path used by the reader.
+        jsonl_diag: Diagnostics object returned by the JSONL reader.
+
+    Returns:
+        Domain parse diagnostics populated with counts and mapped issue items.
     """
     diag = ParseDiagnostics(
         session_key=session_key,
@@ -143,7 +241,6 @@ def build_parse_diagnostics(
     )
 
     for item in jsonl_diag.issues:
-        # 映射 jsonl_reader ParseSeverity → domain ParseSeverity
         if item.severity.name == "ERROR":
             sev = ParseSeverity.CRITICAL
         elif item.severity.name == "WARNING":
@@ -151,20 +248,18 @@ def build_parse_diagnostics(
         else:
             sev = ParseSeverity.INFO
 
-        diag.issues.append(ParseIssueItem(
-            issue=ParseIssue(item.issue.value),
-            severity=sev,
-            message=item.detail,
-            line_no=item.line_no,
-            detail=item.preview,
-        ))
+        diag.issues.append(
+            ParseIssueItem(
+                issue=ParseIssue(item.issue.value),
+                severity=sev,
+                message=item.detail,
+                line_no=item.line_no,
+                detail=item.preview,
+            )
+        )
 
     return diag
 
-
-# 说明：─── Session-level anomaly tags ─────────────────────────────────────────
-# 说明：Used by: /dashboard Needs Attention, /sessions anomaly filter,
-# 说明：session detail anomaly banner, glossary anomaly docs.
 
 SESSION_ANOMALY_DEFINITIONS: dict[str, dict] = {
     "long_duration": {
@@ -174,10 +269,13 @@ SESSION_ANOMALY_DEFINITIONS: dict[str, dict] = {
         "filter_value": "long_duration",
         "severity_levels": ("warning", "critical"),
         "thresholds": {
-            "warning": 3600,    # 阈值说明：>= 1h model execution time
-            "critical": 7200,   # 阈值说明：>= 2h model execution time
+            "warning": 3600,
+            "critical": 7200,
         },
-        "description": "Combined active time (LLM response intervals + tool execution with parallel overlap merged) exceeds thresholds. Warning at >= 1h, critical at >= 2h.",
+        "description": (
+            "Combined active time (LLM response intervals + tool execution with parallel "
+            "overlap merged) exceeds thresholds. Warning at >= 1h, critical at >= 2h."
+        ),
     },
     "failed_run": {
         "key": "failed_run",
@@ -189,8 +287,10 @@ SESSION_ANOMALY_DEFINITIONS: dict[str, dict] = {
             "warning": {"min_ratio": 0.15},
             "critical": {"min_ratio": 0.25},
         },
-        "description": "Session has a high ratio of failed tool calls. "
-                       "Warning at >= 15% failure ratio; critical at >= 25%.",
+        "description": (
+            "Session has a high ratio of failed tool calls. Warning at >= 15% failure "
+            "ratio; critical at >= 25%."
+        ),
     },
     "cache_write_spike": {
         "key": "cache_write_spike",
@@ -201,15 +301,15 @@ SESSION_ANOMALY_DEFINITIONS: dict[str, dict] = {
         "thresholds": {
             "warning": 200_000,
         },
-        "description": "High cache creation tokens (cache_creation_input_tokens) indicate that this session generated "
-                       "a large amount of context being written to the prompt cache for future rounds. "
-                       "This is expected for multi-turn sessions with growing context — info/warning level only, "
-                       "not a problem indicator like failures.",
+        "description": (
+            "High cache creation tokens (cache_creation_input_tokens) indicate that this "
+            "session generated a large amount of context being written to the prompt "
+            "cache for future rounds. This is expected for multi-turn sessions with "
+            "growing context - info/warning level only, not a problem indicator like "
+            "failures."
+        ),
     },
 }
-
-# 说明：─── Round-level signal tags ────────────────────────────────────────────
-# 说明：Used by: session detail Timeline SIGNALS column.
 
 ROUND_SIGNAL_DEFINITIONS: dict[str, dict] = {
     "failed-tool": {
@@ -220,7 +320,9 @@ ROUND_SIGNAL_DEFINITIONS: dict[str, dict] = {
             "warning": {"min_count": 1},
             "critical": {"min_count": 3},
         },
-        "description": "Single round has failed tool calls. Warning at 1-2 failures; critical at >= 3.",
+        "description": (
+            "Single round has failed tool calls. Warning at 1-2 failures; critical at >= 3."
+        ),
     },
     "llm-error": {
         "key": "llm-error",
@@ -237,7 +339,7 @@ ROUND_SIGNAL_DEFINITIONS: dict[str, dict] = {
         "label": "long tool",
         "severity_levels": ("warning",),
         "thresholds": {
-            "warning": {"duration_ms": 300_000},  # 阈值说明：>= 5 min
+            "warning": {"duration_ms": 300_000},
         },
         "description": "A single tool call in the round took >= 5 minutes.",
     },
@@ -248,7 +350,10 @@ ROUND_SIGNAL_DEFINITIONS: dict[str, dict] = {
         "thresholds": {
             "warning": {"min_count": 20},
         },
-        "description": "Round has >= 20 tool calls (excluding tight loops where top 3 tools are >= 90% of calls).",
+        "description": (
+            "Round has >= 20 tool calls (excluding tight loops where top 3 tools are "
+            ">= 90% of calls)."
+        ),
     },
     "high-write": {
         "key": "high-write",
@@ -270,23 +375,46 @@ ROUND_SIGNAL_DEFINITIONS: dict[str, dict] = {
     },
 }
 
-# 说明：─── Helpers ────────────────────────────────────────────────────────────
-
 
 def get_session_anomaly_filter_options() -> list[dict]:
-    """返回 filter dropdown options，用于 session anomaly filters."""
+    """Return dropdown options for session anomaly filters.
+
+    Session list routes call this helper to derive filter values from the shared
+    anomaly registry instead of hard-coding template options.
+
+    Returns:
+        List of option dictionaries with ``value`` and ``label`` keys.
+    """
     options = []
     for defn in SESSION_ANOMALY_DEFINITIONS.values():
-        options.append({
-            "value": defn["filter_value"],
-            "label": defn["filter_label"],
-        })
+        options.append(
+            {
+                "value": defn["filter_value"],
+                "label": defn["filter_label"],
+            }
+        )
     return options
 
 
 def get_session_anomaly_keys() -> set[str]:
+    """Return all registered session-level anomaly keys.
+
+    Filters and validation helpers call this function when they need the stable
+    set of supported session anomaly identifiers.
+
+    Returns:
+        Set of keys from ``SESSION_ANOMALY_DEFINITIONS``.
+    """
     return set(SESSION_ANOMALY_DEFINITIONS.keys())
 
 
 def get_round_signal_keys() -> set[str]:
+    """Return all registered round-level signal keys.
+
+    Session-detail presenters call this function when validating or documenting
+    round signal tags.
+
+    Returns:
+        Set of keys from ``ROUND_SIGNAL_DEFINITIONS``.
+    """
     return set(ROUND_SIGNAL_DEFINITIONS.keys())

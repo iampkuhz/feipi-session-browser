@@ -1,8 +1,4 @@
-"""归因核心数据模型。
-
-定义 Evidence、PromptSpan、UsageBreakdown、AttributionResult 等
-四层归因架构所需的核心数据结构。
-"""
+"""Define core data models for LLM attribution results."""
 
 from __future__ import annotations
 
@@ -10,78 +6,107 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
-# ─── ContentRef：内容引用 ────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class ContentRef:
-    """指向归因内容的安全引用。
+    """Reference attribution content without exposing unsafe full payloads.
 
-    kind: inline | file_slice | session_event | unavailable
-    pointer: 具体定位（文件路径 / event ID / byte range）
-    preview: 安全截断的预览文本
-    can_load_full: 是否支持动态加载全文
-    redaction_applied: 是否已脱敏
+    Attribution collectors attach this object when evidence can point to inline text,
+    a session event, or a file slice. Consumers use it to render safe previews and to
+    decide whether a separate full-content loader can be called.
+
+    Attributes:
+        kind: Reference type such as inline, file_slice, session_event, or unavailable.
+        pointer: Optional file path, event id, or byte range locator.
+        preview: Redacted or truncated text safe for UI display.
+        can_load_full: Whether a caller may request the full referenced content.
+        redaction_applied: Whether sensitive content was redacted before storage.
     """
-    kind: str                           # 枚举值：inline / file_slice / session_event / unavailable
+
+    kind: str
     pointer: str | None = None
-    preview: str = ""
+    preview: str = ''
     can_load_full: bool = False
     redaction_applied: bool = False
 
 
-# ─── Evidence：取证事实 ──────────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class Evidence:
-    """一条归因输入来源的取证事实。
+    """Record one attribution fact extracted from a session or runtime source.
 
-    scope: 数据来源范围
-        - current_session: 当前 session 的事实
-        - prior_session: 前序 session 的事实
-        - project_repo: 项目仓库文件
-        - agent_app: agent 软件内置信息
-        - provider_usage: provider/broker usage 数据
-        - inferred: 推断信息
-    kind: 证据类型（user_message / tool_result / tool_schema / system_prompt / …）
-    precision: 精确度（exact / provider_reported / transcript_exact / estimated / heuristic / residual / unavailable）
-    confidence: 0.0–1.0 置信度
+    Collectors create evidence before API-family normalizers build ordered prompt spans.
+    Each fact captures source scope, semantic kind, optional content reference, and the
+    confidence level used later by bucket aggregation and validation.
+
+    Attributes:
+        evidence_id: Stable identifier used by spans and UI payloads.
+        scope: Source scope, for example current_session, prior_session, project_repo,
+            agent_app, provider_usage, or inferred.
+        kind: Semantic evidence kind such as user_message, tool_result, tool_schema, or
+            system_prompt.
+        source_path: Optional source file path for evidence loaded from disk.
+        source_event_id: Optional session event id for trace correlation.
+        content_ref: Optional safe locator for full or preview content.
+        text_preview: Short text used for token estimation and UI display.
+        raw_value: Optional provider or collector value kept for diagnostics.
+        precision: Precision label such as exact, estimated, heuristic, or residual.
+        confidence: Confidence score between 0.0 and 1.0.
+        redaction_state: Redaction note attached by the collector.
     """
+
     evidence_id: str
-    scope: str                          # 枚举值：current_session / prior_session / project_repo / agent_app / provider_usage / inferred
-    kind: str                           # 枚举值：user_message / tool_result / tool_schema / system_prompt / …
+    scope: str
+    kind: str
     source_path: str | None = None
     source_event_id: str | None = None
     content_ref: ContentRef | None = None
-    text_preview: str = ""
+    text_preview: str = ''
     raw_value: Any = None
-    precision: str = "heuristic"
+    precision: str = 'heuristic'
     confidence: float = 0.5
-    redaction_state: str = ""
-
-
-# ─── PromptSpan：API 请求/响应的有序片段 ─────────────────────────────
+    redaction_state: str = ''
 
 
 @dataclass
 class PromptSpan:
-    """API 请求或响应中的一个有序片段。
+    """Represent one ordered request or response fragment for attribution.
 
-    span 按真实 API 顺序排列，携带 token 计数和 cache 分配。
+    API-family normalizers create spans after collectors emit evidence. A span preserves
+    API ordering, semantic meaning, token estimates, cache allocation, and whether the
+    tokens contribute to request or response totals.
+
+    Attributes:
+        span_id: Stable span identifier for buckets and UI payloads.
+        order_index: Zero-based API order after normalizer sorting.
+        api_family: API family that owns the path semantics.
+        api_path: Provider-specific path such as tools[3].input_schema.
+        semantic_kind: Semantic kind such as tool_schema, user_text, or tool_result.
+        evidence_ids: Evidence identifiers that produced this span.
+        content_ref: Optional safe content reference for this span.
+        text_preview: Safe text preview used by rendering and token estimation.
+        raw_json_preview: Optional redacted JSON preview for provider payloads.
+        token_estimate: Token count assigned to this span.
+        token_count_method: Counting method, for example heuristic or tiktoken.
+        precision: Precision label inherited from evidence or provider usage.
+        confidence: Confidence score for the span.
+        contributes_to_input: Whether the span contributes to input tokens.
+        contributes_to_output: Whether the span contributes to output tokens.
+        cache_read_tokens: Cache-read tokens assigned to the span.
+        cache_write_tokens: Cache-write tokens assigned to the span.
+        fresh_tokens: Fresh input tokens assigned to the span.
     """
+
     span_id: str
     order_index: int
     api_family: str
-    api_path: str                       # 如 tools[3].input_schema / system[0] / messages[12].content[1]
-    semantic_kind: str                  # 枚举值：tool_schema / system_prompt / user_text / tool_result / assistant_text / tool_use / …
+    api_path: str
+    semantic_kind: str
     evidence_ids: list[str] = field(default_factory=list)
     content_ref: ContentRef | None = None
-    text_preview: str = ""
+    text_preview: str = ''
     raw_json_preview: str | None = None
     token_estimate: int = 0
-    token_count_method: str = "heuristic"
-    precision: str = "heuristic"
+    token_count_method: str = 'heuristic'
+    precision: str = 'heuristic'
     confidence: float = 0.5
     contributes_to_input: bool = True
     contributes_to_output: bool = False
@@ -90,37 +115,56 @@ class PromptSpan:
     fresh_tokens: int = 0
 
 
-# ─── UsageBreakdown：用量分解 ────────────────────────────────────────
-
-
 @dataclass(frozen=True)
 class UsageBreakdown:
-    """Provider/broker 报告的用量分解。
+    """Describe provider or broker usage values for one model call.
 
-    所有字段带 precision/source 语义，由 API Family parser 填充。
+    API-family parsers fill this structure from provider payloads or local
+    reconstruction. Validators compare it with spans to detect allocation drift and
+    unsupported cache semantics.
+
+    Attributes:
+        total_input: Total input tokens reported or reconstructed.
+        fresh_input: Non-cache input tokens.
+        cache_read: Cache-read tokens when the provider exposes them.
+        cache_write: Cache-write tokens when the provider exposes them.
+        output: Output tokens.
+        hidden_reasoning: Hidden reasoning tokens when available.
+        usage_source: Source label such as provider_reported or local_reconstruction.
+        precision: Precision label for the usage payload.
+        note: Human-readable diagnostic note.
     """
+
     total_input: int | None = None
     fresh_input: int | None = None
     cache_read: int | None = None
     cache_write: int | None = None
     output: int | None = None
     hidden_reasoning: int | None = None
-
-    # 元数据
-    usage_source: str = "unknown"       # 枚举值：provider_reported / local_reconstruction / unavailable
-    precision: str = "unavailable"
-    note: str = ""
-
-
-# ─── AttributionResult：归因结果 ─────────────────────────────────────
+    usage_source: str = 'unknown'
+    precision: str = 'unavailable'
+    note: str = ''
 
 
 @dataclass
 class AttributionResult:
-    """单次 LLM call 的完整归因结果。
+    """Hold the complete attribution result for one LLM call.
 
-    同时包含 request 和 response 归因，供 service 层使用。
+    The attribution service returns this object after collectors, normalizers, bucket
+    aggregation, and invariant checks finish. UI serializers read it to render request
+    and response attribution with supporting evidence.
+
+    Attributes:
+        request_spans: Ordered input spans for the call.
+        response_spans: Ordered output spans for the call.
+        request_buckets: Aggregated request buckets for display.
+        response_buckets: Aggregated response buckets for display.
+        usage_breakdown: Optional provider or broker usage values.
+        evidence_map: Evidence indexed by evidence id.
+        invariants: Validation results emitted by the core validator.
+        warnings: Recoverable attribution warnings.
     """
+
     request_spans: list[PromptSpan] = field(default_factory=list)
     response_spans: list[PromptSpan] = field(default_factory=list)
     request_buckets: list[dict] = field(default_factory=list)
@@ -131,24 +175,45 @@ class AttributionResult:
     warnings: list[str] = field(default_factory=list)
 
 
-# ─── CreditAttribution：Credit 归因 ─────────────────────────────────
-
-
 @dataclass
 class CallCreditSlice:
-    """单个 LLM call 的 credit 切片。"""
+    """Represent credit usage attributed to one model call.
+
+    Qoder broker attribution creates these slices when credits, rather than token-only
+    usage, are available. The slice keeps precision and source metadata for UI display.
+
+    Attributes:
+        call_id: Model call identifier receiving the credit allocation.
+        credits: Credits attributed to the call, or None when unavailable.
+        precision: Precision label such as exact, estimated, or unavailable.
+        source: Broker or estimator source for the credit value.
+    """
+
     call_id: str
     credits: float | None
-    precision: str                      # 枚举值：exact / estimated / unavailable
-    source: str = ""
+    precision: str
+    source: str = ''
 
 
 @dataclass
 class CreditAttribution:
-    """Qoder 等使用 credit 作为计费单位的 credit 归因。"""
+    """Describe broker credit attribution for runtimes that bill by credits.
+
+    Qoder-specific parsers attach this object when provider token usage is incomplete
+    but broker credit fields can still explain the model call cost.
+
+    Attributes:
+        total_credits: Total credits reported for the request.
+        precision: Precision label for credit attribution.
+        credit_source: Source field or extractor that produced the credits.
+        by_model_call: Per-call credit slices.
+        effective_rates: Derived token-to-credit rates keyed by model or family.
+        notes: Diagnostic notes for missing or estimated credit fields.
+    """
+
     total_credits: float | None = None
-    precision: str = "unavailable"
-    credit_source: str = ""
+    precision: str = 'unavailable'
+    credit_source: str = ''
     by_model_call: list[CallCreditSlice] = field(default_factory=list)
     effective_rates: dict[str, float] = field(default_factory=dict)
     notes: list[str] = field(default_factory=list)

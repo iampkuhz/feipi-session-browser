@@ -21,16 +21,15 @@ Exits non-zero if any critical violation found.
 from __future__ import annotations
 
 import argparse
-import re
 import sys
-import urllib.request
 import urllib.error
+import urllib.request
 from pathlib import Path
 
 try:
     from bs4 import BeautifulSoup
 except ImportError:
-    print("ERROR: beautifulsoup4 is required. Install with: pip install beautifulsoup4")
+    print('ERROR: beautifulsoup4 is required. Install with: pip install beautifulsoup4')
     sys.exit(2)
 
 # ---------------------------------------------------------------------------
@@ -38,42 +37,67 @@ except ImportError:
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = (
-    REPO_ROOT / "reports" / "session-detail-hifi-layout-quality" / "baseline" / "current.html"
+    REPO_ROOT / 'reports' / 'session-detail-hifi-layout-quality' / 'baseline' / 'current.html'
 )
-DEFAULT_URL = "http://localhost:18999/session/93ecbcf2"
+DEFAULT_URL = 'http://localhost:18999/session/93ecbcf2'
 
 # ---------------------------------------------------------------------------
 # Data fetching (mirrors check_layout_quality.py pattern)
 # ---------------------------------------------------------------------------
 
+
 def fetch_html(url: str, timeout: float = 3.0) -> str | None:
-    """Try to fetch HTML from a running local server."""
+    """Fetch session-detail HTML from a running app for the token chart layout gate.
+
+    Args:
+        url: HTTP URL to request.
+        timeout: Request timeout in seconds.
+
+    Returns:
+        HTML text when the request succeeds; None after printing the fetch error.
+    """
     try:
-        req = urllib.request.Request(url, headers={"User-Agent": "token-metrics-check/2.0"})
+        req = urllib.request.Request(url, headers={'User-Agent': 'token-metrics-check/2.0'})
         with urllib.request.urlopen(req, timeout=timeout) as resp:
-            return resp.read().decode("utf-8", errors="replace")
+            return resp.read().decode('utf-8', errors='replace')
     except (urllib.error.URLError, OSError, TimeoutError):
         return None
 
 
 def read_html(path: Path) -> str | None:
-    """Read HTML from a local file."""
+    """Read a saved HTML fixture for the token chart layout gate.
+
+    Args:
+        path: Local HTML file path supplied on the CLI.
+
+    Returns:
+        HTML text when the file exists; None after printing the file error.
+    """
     try:
-        return path.read_text(encoding="utf-8", errors="replace")
+        return path.read_text(encoding='utf-8', errors='replace')
     except (OSError, FileNotFoundError):
         return None
 
 
-def load_source(url: str | None, html_path: Path | None):
-    """Fetch from URL, fall back to file, return (html_text, source_label)."""
+def load_source(url: str | None, html_path: Path | None) -> tuple[str | None, str]:
+    """Load token chart QA input from either a URL or an HTML file.
+
+    Args:
+        url: Optional HTTP source selected by the CLI.
+        html_path: Optional local fixture path selected by the CLI.
+
+    Returns:
+        Tuple of HTML text and source label; exits with status 2 when no readable source
+        is available.
+    """
     if url:
         content = fetch_html(url)
         if content:
-            return content, f"server ({url})"
+            return content, f'server ({url})'
     if html_path and html_path.is_file():
         content = read_html(html_path)
         if content:
-            return content, f"file ({html_path})"
+            return content, f'file ({html_path})'
     return None, None
 
 
@@ -81,173 +105,202 @@ def load_source(url: str | None, html_path: Path | None):
 # Individual checks
 # ---------------------------------------------------------------------------
 
-def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Check that token total appears in hero KPIs."""
+
+def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
+    """Check that token totals moved into the KPI area of the session detail page.
+
+    Args:
+        soup: Parsed session-detail HTML document.
+
+    Returns:
+        Status label and diagnostic messages for the token-total KPI contract.
+    """
     notes: list[str] = []
     pass_count = 0
 
     # Check for KPIs section
-    kpis = soup.select_one(".kpis")
+    kpis = soup.select_one('.kpis')
     if kpis:
-        notes.append("hero KPIs section found")
+        notes.append('hero KPIs section found')
         pass_count += 1
 
         # Look for a KPI label containing "token"
-        kpi_labels = kpis.select(".kpi .l")
+        kpi_labels = kpis.select('.kpi .l')
         token_kpi = None
         for label in kpi_labels:
             text = label.get_text(strip=True).lower()
-            if "token" in text:
+            if 'token' in text:
                 token_kpi = label
                 break
 
         if token_kpi:
             # Check the corresponding value
-            value_el = token_kpi.find_previous_sibling(class_="v")
+            value_el = token_kpi.find_previous_sibling(class_='v')
             if value_el:
                 val_text = value_el.get_text(strip=True)
-                notes.append(f"token KPI value: '{val_text}' (label: '{token_kpi.get_text(strip=True)}')")
+                notes.append(
+                    f"token KPI value: '{val_text}' (label: '{token_kpi.get_text(strip=True)}')"
+                )
                 pass_count += 1
             else:
-                notes.append(f"token KPI label found but no value sibling")
+                notes.append('token KPI label found but no value sibling')
         else:
             notes.append("No KPI label contains 'token'")
 
         # Also check secondary metrics strip for total tokens
-        secondary = soup.select_one(".hero-secondary-metrics")
+        secondary = soup.select_one('.hero-secondary-metrics')
         if secondary:
             sec_text = secondary.get_text()
-            if "总 Token" in sec_text or "total token" in sec_text.lower():
-                notes.append("total tokens present in secondary metrics strip")
+            if '总 Token' in sec_text or 'total token' in sec_text.lower():
+                notes.append('total tokens present in secondary metrics strip')
                 pass_count += 1
     else:
-        notes.append("hero KPIs section NOT found")
+        notes.append('hero KPIs section NOT found')
 
     if pass_count >= 2:
-        return "PASS", notes
-    elif pass_count >= 1:
-        return "WARN", notes
-    else:
-        notes.append("FAIL: no token total found in hero KPIs")
-        return "FAIL", notes
+        return 'PASS', notes
+    if pass_count >= 1:
+        return 'WARN', notes
+    notes.append('FAIL: no token total found in hero KPIs')
+    return 'FAIL', notes
 
 
-def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Check that highest token round appears in issue summary (if data warrants it)."""
+def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
+    """Check that highest-token-round information appears in issue cards instead of a chart card.
+
+    Args:
+        soup: Parsed session-detail HTML document.
+
+    Returns:
+        Status label and diagnostic messages for the highest-round contract.
+    """
     notes: list[str] = []
     pass_count = 0
 
     # Check for issue summary section
-    issue_section = soup.select_one("[data-issue-summary], .issue-summary")
+    issue_section = soup.select_one('[data-issue-summary], .issue-summary')
     if issue_section:
-        notes.append("issue summary section found")
+        notes.append('issue summary section found')
         pass_count += 1
     else:
-        notes.append("issue summary section NOT found")
-        return "WARN", notes  # Not a hard failure
+        notes.append('issue summary section NOT found')
+        return 'WARN', notes  # Not a hard failure
 
     # Look for highest token round card (issue-card--cost)
-    cost_card = issue_section.select_one(".issue-card--cost")
+    cost_card = issue_section.select_one('.issue-card--cost')
     if cost_card:
-        title = cost_card.select_one(".issue-card__title")
-        sub = cost_card.select_one(".issue-card__sub")
+        title = cost_card.select_one('.issue-card__title')
+        sub = cost_card.select_one('.issue-card__sub')
         if title:
             title_text = title.get_text(strip=True)
             notes.append(f"highest token round card title: '{title_text}'")
             pass_count += 1
 
             # Check if it mentions "tokens"
-            if "token" in title_text.lower():
+            if 'token' in title_text.lower():
                 notes.append("card title contains 'tokens' keyword")
                 pass_count += 1
 
         if sub:
             notes.append(f"card subtitle: '{sub.get_text(strip=True)}'")
     else:
-        notes.append("No highest-token-round cost card found (may be OK if no data or round < 2)")
+        notes.append('No highest-token-round cost card found (may be OK if no data or round < 2)')
 
     # Also check for data-action="jump-round" buttons that reference rounds
     jump_buttons = issue_section.select('[data-action="jump-round"][data-round]')
     if jump_buttons:
-        notes.append(f"jump-round buttons in issue summary: {len(jump_buttons)}")
+        notes.append(f'jump-round buttons in issue summary: {len(jump_buttons)}')
 
     if pass_count >= 2:
-        return "PASS", notes
-    elif pass_count >= 1:
-        return "WARN", notes
-    else:
-        return "WARN", notes
+        return 'PASS', notes
+    if pass_count >= 1:
+        return 'WARN', notes
+    return 'WARN', notes
 
 
-def check_per_round_token_data(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Check that per-round token data appears in trace rows."""
+def check_per_round_token_data(soup: BeautifulSoup) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
+    """Check that per-round token data remains available without the removed chart card.
+
+    Args:
+        soup: Parsed session-detail HTML document.
+
+    Returns:
+        Status label and diagnostic messages for per-round token visibility.
+    """
     notes: list[str] = []
     pass_count = 0
 
-    trace_rows = soup.select(".trace-row")
+    trace_rows = soup.select('.trace-row')
     if not trace_rows:
-        notes.append("No trace rows found")
-        return "FAIL", notes
+        notes.append('No trace rows found')
+        return 'FAIL', notes
 
-    notes.append(f"trace rows found (count={len(trace_rows)})")
+    notes.append(f'trace rows found (count={len(trace_rows)})')
     pass_count += 1
 
     # Check for .mixval in trace rows
-    rows_with_mixval = soup.select(".trace-row .mixval")
+    rows_with_mixval = soup.select('.trace-row .mixval')
     if rows_with_mixval:
-        notes.append(f".mixval elements found in trace rows (count={len(rows_with_mixval)})")
+        notes.append(f'.mixval elements found in trace rows (count={len(rows_with_mixval)})')
         pass_count += 1
 
         # Verify values are non-empty
         sample_values = [el.get_text(strip=True) for el in rows_with_mixval[:3]]
-        notes.append(f"sample mixval values: {sample_values}")
+        notes.append(f'sample mixval values: {sample_values}')
     else:
-        notes.append("No .mixval elements found in trace rows")
+        notes.append('No .mixval elements found in trace rows')
 
     # Check for data-round-tokens attribute on trace rows
-    rows_with_token_data = [r for r in trace_rows if r.get("data-round-tokens")]
+    rows_with_token_data = [r for r in trace_rows if r.get('data-round-tokens')]
     if rows_with_token_data:
-        notes.append(f"trace rows with data-round-tokens: {len(rows_with_token_data)}")
+        notes.append(f'trace rows with data-round-tokens: {len(rows_with_token_data)}')
         pass_count += 1
 
         # Sample values
-        sample = [r["data-round-tokens"] for r in rows_with_token_data[:3]]
-        notes.append(f"sample data-round-tokens values: {sample}")
+        sample = [r['data-round-tokens'] for r in rows_with_token_data[:3]]
+        notes.append(f'sample data-round-tokens values: {sample}')
     else:
-        notes.append("No data-round-tokens attributes on trace rows")
+        notes.append('No data-round-tokens attributes on trace rows')
 
     # Check for mixbar (token composition bar)
-    mixbars = soup.select(".trace-row .mixbar")
+    mixbars = soup.select('.trace-row .mixbar')
     if mixbars:
-        notes.append(f"mixbar elements found (count={len(mixbars)})")
+        notes.append(f'mixbar elements found (count={len(mixbars)})')
         pass_count += 1
     else:
-        notes.append("No mixbar elements found")
+        notes.append('No mixbar elements found')
 
     if pass_count >= 3:
-        return "PASS", notes
-    elif pass_count >= 2:
-        return "WARN", notes
-    else:
-        return "FAIL", notes
+        return 'PASS', notes
+    if pass_count >= 2:
+        return 'WARN', notes
+    return 'FAIL', notes
 
 
 def check_token_charts_card_removed(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Negative check: token-charts-card should NOT be present in Phase 1."""
+    """Verify the legacy token charts card is absent from session detail HTML.
+
+    Args:
+        soup: Parsed session-detail HTML document.
+
+    Returns:
+        Status label and diagnostic messages for removed-card enforcement.
+    """
     notes: list[str] = []
 
-    chart_cards = soup.select(".token-charts-card")
-    chart_bodies = soup.select("div.token-charts-card__body")
+    chart_cards = soup.select('.token-charts-card')
+    chart_bodies = soup.select('div.token-charts-card__body')
 
     if chart_cards:
-        notes.append(f"VIOLATION: .token-charts-card still present (count={len(chart_cards)})")
-        return "FAIL", notes
-    elif chart_bodies:
-        notes.append(f"VIOLATION: .token-charts-card__body still present (count={len(chart_bodies)})")
-        return "FAIL", notes
-    else:
-        notes.append("OK: token-charts-card fully removed (Phase 1 target state)")
-        return "PASS", notes
+        notes.append(f'VIOLATION: .token-charts-card still present (count={len(chart_cards)})')
+        return 'FAIL', notes
+    if chart_bodies:
+        notes.append(
+            f'VIOLATION: .token-charts-card__body still present (count={len(chart_bodies)})'
+        )
+        return 'FAIL', notes
+    notes.append('OK: token-charts-card fully removed (Phase 1 target state)')
+    return 'PASS', notes
 
 
 # ---------------------------------------------------------------------------
@@ -255,72 +308,93 @@ def check_token_charts_card_removed(soup: BeautifulSoup) -> tuple[str, list[str]
 # ---------------------------------------------------------------------------
 
 CHECKS = [
-    ("Token total in hero KPIs", check_token_total_in_kpis),
-    ("Highest token round in issues", check_highest_token_round_in_issues),
-    ("Per-round token data in traces", check_per_round_token_data),
-    ("token-charts-card removed", check_token_charts_card_removed),
+    ('Token total in hero KPIs', check_token_total_in_kpis),
+    ('Highest token round in issues', check_highest_token_round_in_issues),
+    ('Per-round token data in traces', check_per_round_token_data),
+    ('token-charts-card removed', check_token_charts_card_removed),
 ]
 
 
 def run_checks(html: str, source: str) -> dict:
-    soup = BeautifulSoup(html, "html.parser")
+    """Run all token chart layout contract checks against one HTML source.
+
+    Args:
+        html: Session-detail HTML to inspect.
+        source: Human-readable label printed in reports.
+
+    Returns:
+        Mapping from check name to status and diagnostic messages.
+    """
+    soup = BeautifulSoup(html, 'html.parser')
     results = {}
     for name, fn in CHECKS:
         status, notes = fn(soup)
-        results[name] = {"status": status, "notes": notes}
+        results[name] = {'status': status, 'notes': notes}
     return results
 
 
 def print_report(results: dict, source: str) -> bool:
-    """Print compact report. Returns True if no FAIL."""
-    print(f"\n{'='*60}")
-    print(f"  Token Metrics Placement Check (Phase 1)")
-    print(f"  Source: {source}")
-    print(f"{'='*60}\n")
+    """Print token chart layout check results for CLI and quality gate logs.
+
+    Args:
+        results: Mapping produced by run_checks.
+        source: Human-readable source label.
+
+    Returns:
+        True when every check passed; False when any check failed.
+    """
+    print(f'\n{"=" * 60}')
+    print('  Token Metrics Placement Check (Phase 1)')
+    print(f'  Source: {source}')
+    print(f'{"=" * 60}\n')
 
     any_fail = False
     for name, data in results.items():
-        status = data["status"]
-        if status == "FAIL":
+        status = data['status']
+        if status == 'FAIL':
             any_fail = True
-        icon = {"PASS": "[PASS]", "WARN": "[WARN]", "FAIL": "[FAIL]"}.get(status, "[??]")
-        print(f"  {icon}  {name}")
-        for note in data["notes"]:
-            print(f"        {note}")
+        icon = {'PASS': '[PASS]', 'WARN': '[WARN]', 'FAIL': '[FAIL]'}.get(status, '[??]')
+        print(f'  {icon}  {name}')
+        for note in data['notes']:
+            print(f'        {note}')
         print()
 
     # Summary
-    counts = {"PASS": 0, "WARN": 0, "FAIL": 0}
+    counts = {'PASS': 0, 'WARN': 0, 'FAIL': 0}
     for data in results.values():
-        s = data["status"]
+        s = data['status']
         if s in counts:
             counts[s] += 1
 
-    total_checked = counts["PASS"] + counts["WARN"] + counts["FAIL"]
-    print(f"{'='*60}")
-    print(f"  Checked: {counts['PASS']} PASS, {counts['WARN']} WARN, {counts['FAIL']} FAIL")
-    print(f"  Verdict: {'PASS' if not any_fail else 'FAIL'}")
-    print(f"{'='*60}\n")
+    print(f'{"=" * 60}')
+    print(f'  Checked: {counts["PASS"]} PASS, {counts["WARN"]} WARN, {counts["FAIL"]} FAIL')
+    print(f'  Verdict: {"PASS" if not any_fail else "FAIL"}')
+    print(f'{"=" * 60}\n')
 
     return not any_fail
 
 
-def main():
-    parser = argparse.ArgumentParser(description="Token metrics placement check for Phase 1")
-    parser.add_argument("--url", default=DEFAULT_URL, help="URL to fetch page from (default: %(default)s)")
-    parser.add_argument("--html", default=str(DEFAULT_BASELINE), help="Path to baseline HTML file (fallback)")
+def main() -> None:
+    """Parse token chart layout QA options and exit with the contract result."""
+    parser = argparse.ArgumentParser(description='Token metrics placement check for Phase 1')
+    parser.add_argument(
+        '--url', default=DEFAULT_URL, help='URL to fetch page from (default: %(default)s)'
+    )
+    parser.add_argument(
+        '--html', default=str(DEFAULT_BASELINE), help='Path to baseline HTML file (fallback)'
+    )
     args = parser.parse_args()
 
     html_path = Path(args.html) if args.html else None
     content, source = load_source(args.url, html_path)
 
     if content is None:
-        print(f"ERROR: Could not load HTML from {args.url} or {html_path}")
-        print("Start the local server or provide a valid HTML file path.")
+        print(f'ERROR: Could not load HTML from {args.url} or {html_path}')
+        print('Start the local server or provide a valid HTML file path.')
         sys.exit(2)
 
-    print(f"Loaded HTML from: {source}")
-    print(f"  Size: {len(content):,} bytes, {content.count(chr(10)):,} lines")
+    print(f'Loaded HTML from: {source}')
+    print(f'  Size: {len(content):,} bytes, {content.count(chr(10)):,} lines')
 
     results = run_checks(content, source)
     success = print_report(results, source)
@@ -328,5 +402,5 @@ def main():
     sys.exit(0 if success else 1)
 
 
-if __name__ == "__main__":
+if __name__ == '__main__':
     main()

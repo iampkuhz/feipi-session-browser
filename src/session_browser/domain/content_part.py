@@ -1,10 +1,7 @@
-"""ContentPart — typed content model，用于 chat message rendering.
+"""Domain layer models and helpers for normalized session data.
 
-Defines a ContentPart dataclass and detection helpers so downstream viewers
-can safely render text / markdown / json / image / code / html payloads
-without guessing the format.
-
-All detection functions are pure and side-effect free.
+Parser, attribution, and presenter flows import this module for stable contracts.
+It performs no I/O.
 """
 
 from __future__ import annotations
@@ -12,47 +9,68 @@ from __future__ import annotations
 import json
 import re
 from dataclasses import dataclass, field
-from typing import Optional
 
 from session_browser.domain.enums import DomainStrEnum
 
-# 说明：─── ContentPart type constants ──────────────────────────────────────────
+# 说明:─── ContentPart type constants ──────────────────────────────────────────
 
 
 class ContentPartType(DomainStrEnum):
-    """说明：Allowed content part types (format-level)."""
+    """ContentPartType contract used by the session browser pipeline.
 
-    TEXT = "text"
-    MARKDOWN = "markdown"
-    JSON = "json"
-    IMAGE = "image"
-    CODE = "code"
-    HTML = "html"
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        TEXT: Public contract field or enum value.
+        MARKDOWN: Public contract field or enum value.
+        JSON: Public contract field or enum value.
+        IMAGE: Public contract field or enum value.
+        CODE: Public contract field or enum value.
+        HTML: Public contract field or enum value.
+    """
+
+    TEXT = 'text'
+    MARKDOWN = 'markdown'
+    JSON = 'json'
+    IMAGE = 'image'
+    CODE = 'code'
+    HTML = 'html'
 
 
-# 说明：─── Context-level part roles (structural, within API messages) ──────────
+# 说明:─── Context-level part roles (structural, within API messages) ──────────
 
 
 class ContextPartType(DomainStrEnum):
-    """Structural roles，用于 multipart context parts.
+    """ContextPartType contract used by the session browser pipeline.
 
-    These describe where a part sits in the API message structure
-    (system prompt, user message, tool result, etc.), independently
-    from ContentPartType which describes the content format.
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
+
+    Attributes:
+        SYSTEM_PROMPT: Public contract field or enum value.
+        USER_MESSAGE: Public contract field or enum value.
+        ASSISTANT_MESSAGE: Public contract field or enum value.
+        TOOL_RESULT: Public contract field or enum value.
+        TOOL_USE: Public contract field or enum value.
+        ATTACHMENT: Public contract field or enum value.
+        IMAGE_CONTENT: Public contract field or enum value.
+        DOCUMENT_CONTENT: Public contract field or enum value.
+        UNKNOWN: Public contract field or enum value.
     """
 
-    SYSTEM_PROMPT = "system_prompt"
-    USER_MESSAGE = "user_message"
-    ASSISTANT_MESSAGE = "assistant_message"
-    TOOL_RESULT = "tool_result"
-    TOOL_USE = "tool_use"
-    ATTACHMENT = "attachment"
-    IMAGE_CONTENT = "image_content"
-    DOCUMENT_CONTENT = "document_content"
-    UNKNOWN = "unknown"
+    SYSTEM_PROMPT = 'system_prompt'
+    USER_MESSAGE = 'user_message'
+    ASSISTANT_MESSAGE = 'assistant_message'
+    TOOL_RESULT = 'tool_result'
+    TOOL_USE = 'tool_use'
+    ATTACHMENT = 'attachment'
+    IMAGE_CONTENT = 'image_content'
+    DOCUMENT_CONTENT = 'document_content'
+    UNKNOWN = 'unknown'
 
 
-# 说明：─── Detection helpers ───────────────────────────────────────────────────
+# 说明:─── Detection helpers ───────────────────────────────────────────────────
 
 # Image URL patterns: common image extensions 或 data URIs
 _IMAGE_URL_RE = re.compile(
@@ -63,16 +81,16 @@ _IMAGE_URL_RE = re.compile(
     r'!\[.*?\]\(https?://\S+\)'  # Markdown 图片语法
 )
 
-# JSON detection: starts，使用 { 或 [ 和 parses successfully
+# JSON detection: starts,使用 { 或 [ 和 parses successfully
 _JSON_START_RE = re.compile(r'^\s*[\{\[]')
 
-# HTML detection: starts，使用 一个 tag (possibly，在之后 whitespace/BOM)
+# HTML detection: starts,使用 一个 tag (possibly,在之后 whitespace/BOM)
 _HTML_TAG_RE = re.compile(r'^\s*<[a-zA-Z!/][\s\S]*>', re.DOTALL)
 
 # Code block indicators: fenced code block 或 known code patterns at start
 _FENCED_CODE_RE = re.compile(r'^```', re.MULTILINE)
 
-# 说明：Python / JS / etc. patterns that strongly suggest code (not prose)
+# 说明:Python / JS / etc. patterns that strongly suggest code (not prose)
 _CODE_PATTERNS = [
     re.compile(r'^(def |class |async def |import |from .+ import )', re.MULTILINE),
     re.compile(r'^(const |let |var |function |export |import \{)', re.MULTILINE),
@@ -80,32 +98,110 @@ _CODE_PATTERNS = [
     re.compile(r'^(pub (fn|struct|enum|mod|use|impl|trait))', re.MULTILINE),  # Rust 语法模式
 ]
 
-# 说明：Common file extensions that indicate code
+# 说明:Common file extensions that indicate code
 _CODE_EXTENSIONS = {
-    '.py', '.ts', '.tsx', '.js', '.jsx', '.rb', '.rs', '.go', '.java',
-    '.cpp', '.c', '.cs', '.swift', '.kt', '.scala', '.php', '.sh', '.bash',
-    '.zsh', '.R', '.pl', '.lua', '.dart', '.ex', '.exs', '.erl', '.hs',
-    '.ml', '.fs', '.clj', '.lisp', '.rkt', '.sql', '.proto', '.graphql',
-    '.tf', '.hcl', '.nix', '.d', '.nim', '.zig', '.v', '.vim', '.el',
-    '.cmake', '.gradle', '.groovy', '.bat', '.cmd', '.ps1', '.awk', '.sed',
+    '.py',
+    '.ts',
+    '.tsx',
+    '.js',
+    '.jsx',
+    '.rb',
+    '.rs',
+    '.go',
+    '.java',
+    '.cpp',
+    '.c',
+    '.cs',
+    '.swift',
+    '.kt',
+    '.scala',
+    '.php',
+    '.sh',
+    '.bash',
+    '.zsh',
+    '.R',
+    '.pl',
+    '.lua',
+    '.dart',
+    '.ex',
+    '.exs',
+    '.erl',
+    '.hs',
+    '.ml',
+    '.fs',
+    '.clj',
+    '.lisp',
+    '.rkt',
+    '.sql',
+    '.proto',
+    '.graphql',
+    '.tf',
+    '.hcl',
+    '.nix',
+    '.d',
+    '.nim',
+    '.zig',
+    '.v',
+    '.vim',
+    '.el',
+    '.cmake',
+    '.gradle',
+    '.groovy',
+    '.bat',
+    '.cmd',
+    '.ps1',
+    '.awk',
+    '.sed',
 }
 
-# 说明：Extensions that are NOT code (documents, data, config-as-doc)
+# 说明:Extensions that are NOT code (documents, data, config-as-doc)
 _NOT_CODE_EXTENSIONS = {
-    '.md', '.markdown', '.mdx', '.txt', '.rst', '.org', '.adoc',
-    '.pdf', '.doc', '.docx', '.xls', '.xlsx', '.ppt', '.pptx',
+    '.md',
+    '.markdown',
+    '.mdx',
+    '.txt',
+    '.rst',
+    '.org',
+    '.adoc',
+    '.pdf',
+    '.doc',
+    '.docx',
+    '.xls',
+    '.xlsx',
+    '.ppt',
+    '.pptx',
 }
 
 
 def is_image_url(payload: str) -> bool:
-    """返回 True，如果 payload looks like 一个 image URL 或 markdown image."""
+    """is_image_url function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        payload: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     if not payload:
         return False
     return bool(_IMAGE_URL_RE.search(payload))
 
 
 def is_json(payload: str) -> bool:
-    """返回 True，如果 payload is valid JSON (object 或 array)."""
+    """is_json function used by the session browser pipeline.
+
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        payload: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
+    """
     if not payload:
         return False
     if not _JSON_START_RE.match(payload):
@@ -118,41 +214,52 @@ def is_json(payload: str) -> bool:
 
 
 def is_html(payload: str) -> bool:
-    """返回 True，如果 payload starts，使用 一个 HTML tag.
+    """is_html function used by the session browser pipeline.
 
-    Requires the first non-whitespace characters to be '<tag' or '</tag'
-    or '<!--comment' to avoid false positives on markdown angle brackets.
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        payload: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
     if not payload:
         return False
     m = _HTML_TAG_RE.match(payload)
     if not m:
         return False
-    # Reject，如果 it looks like 一个 single short inline tag in prose
-    # (e.g. "Use <code>，用于 inline code")
+    # Reject,如果 it looks like 一个 single short inline tag in prose
+    # (e.g. "Use <code>,用于 inline code")
     first_tag = m.group(0).strip()
     if len(payload.strip()) < 200 and first_tag.count('<') == 1 and first_tag.count('>') == 1:
-        # Short text，使用 一个 inline tag — likely prose, not 一个 full HTML doc
+        # Short text,使用 一个 inline tag — likely prose, not 一个 full HTML doc
         return False
     return True
 
 
-def is_code_block(payload: str, filename_hint: str = "") -> bool:
-    """返回 True，如果 payload looks like 一个 code block.
+def is_code_block(payload: str, filename_hint: str = '') -> bool:
+    """is_code_block function used by the session browser pipeline.
 
-    Checks for:
-    1. Fenced code blocks (```)
-    2. File extension hint in _CODE_EXTENSIONS (not in _NOT_CODE_EXTENSIONS)
-    3. Strong code patterns at the start of content
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
+
+    Args:
+        payload: Input value supplied by the caller for this pipeline step.
+        filename_hint: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
     if not payload:
         return False
 
-    # 说明：Fenced code
+    # 说明:Fenced code
     if _FENCED_CODE_RE.match(payload):
         return True
 
-    # 说明：File extension hint
+    # 说明:File extension hint
     if filename_hint:
         lower = filename_hint.lower()
         for ext in _CODE_EXTENSIONS:
@@ -163,27 +270,22 @@ def is_code_block(payload: str, filename_hint: str = "") -> bool:
                 return False
 
     # Code pattern heuristics (at least 一个 pattern must match near 该 start)
-    first_lines = "\n".join(payload.splitlines()[:10])
-    for pattern in _CODE_PATTERNS:
-        if pattern.search(first_lines):
-            return True
-
-    return False
+    first_lines = '\n'.join(payload.splitlines()[:10])
+    return any(pattern.search(first_lines) for pattern in _CODE_PATTERNS)
 
 
-def detect_content_type(payload: str, filename_hint: str = "") -> str:
-    """Detect 该 ContentPartType，用于 一个 payload string.
+def detect_content_type(payload: str, filename_hint: str = '') -> str:
+    """detect_content_type function used by the session browser pipeline.
 
-    Order of checks (first match wins):
-    1. image URL → "image"
-    2. JSON → "json"
-    3. HTML → "html"
-    4. code block → "code"
-    5. non-empty text → "markdown"
-    6. empty → "text"
+    The active parsing or normalization flow calls this entry point.
+    It preserves the existing domain behavior and return shape.
 
-    This ordering ensures that structured formats are detected before
-    falling back to the markdown default.
+    Args:
+        payload: Input value supplied by the caller for this pipeline step.
+        filename_hint: Input value supplied by the caller for this pipeline step.
+
+    Returns:
+        Existing return value produced by this parser or domain helper.
     """
     if not payload or not payload.strip():
         return ContentPartType.TEXT
@@ -203,170 +305,190 @@ def detect_content_type(payload: str, filename_hint: str = "") -> str:
     return ContentPartType.MARKDOWN
 
 
-# 说明：─── ContentPart model ───────────────────────────────────────────────────
+# 说明:─── ContentPart model ───────────────────────────────────────────────────
 
 
 @dataclass
 class ContentPart:
-    """说明：A single typed piece of message content.
+    """ContentPart contract used by the session browser pipeline.
 
-    Fields
-    ------
-    part_type : str
-        One of ContentPartType values: text, markdown, json, image, code, html.
-    content : str
-        The actual payload. For 'image' this is the URL or data URI.
-        For 'json' this is the raw JSON string.
-    language : str, optional
-        Language hint for 'code' parts (e.g. "python", "yaml"). Empty otherwise.
-    filename : str, optional
-        Source filename if the part originated from a file read.
-    metadata : dict, optional
-        Free-form key/value for additional context (e.g. image dimensions,
-        JSON schema reference, HTML sandbox flag).
+    Callers create or import this class to carry normalized domain state while
+    preserving existing parsing invariants.
 
-    Multipart context fields (I-08):
-    context_type : str
-        One of ContextPartType values describing the structural role
-        (system_prompt, user_message, tool_result, attachment, etc.).
-    title : str, optional
-        Human-readable label for the part header in the viewer.
-    content_bytes : int
-        Approximate byte size of the content (len(content.encode)).
-    token_hint : int
-        Approximate token count (heuristic: ~4 chars/token for English text).
-
-    Examples
-    --------
-    Text (fallback for empty or plain prose)::
-
-        ContentPart(part_type="text", content="")
-
-    Markdown (default for user-facing prose)::
-
-        ContentPart(
-            part_type="markdown",
-            content="# Hello\\n\\nThis is **bold** text.",
-        )
-
-    JSON (parsed tool result)::
-
-        ContentPart(
-            part_type="json",
-            content='{"key": "value", "count": 42}',
-        )
-
-    Image (URL or data URI)::
-
-        ContentPart(
-            part_type="image",
-            content="https://example.com/diagram.png",
-            metadata={"alt": "System architecture", "width": 800},
-        )
-
-    Code (with language hint)::
-
-        ContentPart(
-            part_type="code",
-            content="def hello():\\n    print('world')",
-            language="python",
-            filename="main.py",
-        )
-
-    HTML (sandboxed rendering)::
-
-        ContentPart(
-            part_type="html",
-            content="<table><tr><td>Cell</td></tr></table>",
-            metadata={"sandbox": True},
-        )
-
-    With multipart context fields::
-
-        ContentPart(
-            part_type="markdown",
-            content="You are a helpful assistant...",
-            context_type=ContextPartType.SYSTEM_PROMPT,
-            title="System Prompt",
-            content_bytes=1200,
-            token_hint=300,
-        )
+    Attributes:
+        part_type: Public contract field or enum value.
+        content: Public contract field or enum value.
+        language: Public contract field or enum value.
+        filename: Public contract field or enum value.
+        metadata: Public contract field or enum value.
+        context_type: Public contract field or enum value.
+        title: Public contract field or enum value.
+        content_bytes: Public contract field or enum value.
+        token_hint: Public contract field or enum value.
     """
 
     part_type: str
     content: str
-    language: str = ""
-    filename: str = ""
+    language: str = ''
+    filename: str = ''
     metadata: dict = field(default_factory=dict)
 
-    # 说明：Multipart context fields (I-08)
+    # 说明:Multipart context fields (I-08)
     context_type: str = ContextPartType.UNKNOWN
-    title: str = ""
+    title: str = ''
     content_bytes: int = 0
     token_hint: int = 0
 
     @property
     def is_text(self) -> bool:
+        """is_text method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.part_type == ContentPartType.TEXT
 
     @property
     def is_markdown(self) -> bool:
+        """is_markdown method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.part_type == ContentPartType.MARKDOWN
 
     @property
     def is_json(self) -> bool:
+        """is_json method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.part_type == ContentPartType.JSON
 
     @property
     def is_image(self) -> bool:
+        """is_image method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.part_type == ContentPartType.IMAGE
 
     @property
     def is_code(self) -> bool:
+        """is_code method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.part_type == ContentPartType.CODE
 
     @property
     def is_html(self) -> bool:
+        """is_html method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.part_type == ContentPartType.HTML
 
-    # 说明：─── Context type convenience properties ────────────────────────────
+    # 说明:─── Context type convenience properties ────────────────────────────
 
     @property
     def is_system_prompt(self) -> bool:
+        """is_system_prompt method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.context_type == ContextPartType.SYSTEM_PROMPT
 
     @property
     def is_user_message(self) -> bool:
+        """is_user_message method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.context_type == ContextPartType.USER_MESSAGE
 
     @property
     def is_tool_result(self) -> bool:
+        """is_tool_result method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.context_type == ContextPartType.TOOL_RESULT
 
     @property
     def is_attachment(self) -> bool:
+        """is_attachment method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         return self.context_type == ContextPartType.ATTACHMENT
 
-    # 说明：─── Auto-computed metadata ────────────────────────────────────────
+    # 说明:─── Auto-computed metadata ────────────────────────────────────────
 
     def compute_metadata(self) -> None:
-        """Set content_bytes 和 token_hint，来源于 current content.
+        """compute_metadata method used by the session browser pipeline.
 
-        This is a no-op if the fields are already populated (preserves
-        any values that were set by the caller during parsing).
-        - content_bytes = len(content.encode("utf-8"))
-        - token_hint = heuristic ~4 chars/token for English text.
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
         """
         if self.content_bytes == 0 and self.content:
-            self.content_bytes = len(self.content.encode("utf-8"))
+            self.content_bytes = len(self.content.encode('utf-8'))
         if self.token_hint == 0 and self.content:
-            # 说明：Heuristic: ~4 chars per token (English text average).
-            # For JSON/code 该 ratio is closer to 3-3.5;，用于 prose ~4-5.
+            # 说明:Heuristic: ~4 chars per token (English text average).
+            # For JSON/code 该 ratio is closer to 3-3.5;,用于 prose ~4-5.
             self.token_hint = max(1, len(self.content) // 4)
 
     @staticmethod
-    def compute_all(parts: list["ContentPart"]) -> list["ContentPart"]:
-        """计算 metadata，用于 所有 parts in place 和 return 该 list."""
+    def compute_all(parts: list[ContentPart]) -> list[ContentPart]:
+        """compute_all method used by the session browser pipeline.
+
+        The active parsing or normalization flow calls this entry point.
+        It preserves the existing domain behavior and return shape.
+
+        Args:
+            parts: Input value supplied by the caller for this pipeline step.
+
+        Returns:
+            Existing return value produced by this parser or domain helper.
+        """
         for part in parts:
             part.compute_metadata()
         return parts

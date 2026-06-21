@@ -6,31 +6,33 @@
 
 覆盖 P-25：页面有乱码/特殊字符图标 ⓘ
 """
-import pytest
+
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-TEMPLATE_DIR = ROOT / "src" / "session_browser" / "web" / "templates"
+import pytest
 
-PROJECTS_HTML = TEMPLATE_DIR / "projects.html"
-PROJECT_HTML = TEMPLATE_DIR / "project.html"
+ROOT = Path(__file__).resolve().parents[2]
+TEMPLATE_DIR = ROOT / 'src' / 'session_browser' / 'web' / 'templates'
+
+PROJECTS_HTML = TEMPLATE_DIR / 'projects.html'
+PROJECT_HTML = TEMPLATE_DIR / 'project.html'
 
 # 问题 Unicode 字符
-INFO_CHAR = "ⓘ"  # ⓘ
+INFO_CHAR = 'ⓘ'  # ⓘ
 
 
 def _read_template(path: Path) -> str:
     if not path.exists():
-        pytest.fail(f"{path.name} not found at {path}")
-    return path.read_text(encoding="utf-8")
+        pytest.fail(f'{path.name} not found at {path}')
+    return path.read_text(encoding='utf-8')
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def projects_html():
     return _read_template(PROJECTS_HTML)
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope='module')
 def project_html():
     return _read_template(PROJECT_HTML)
 
@@ -42,23 +44,23 @@ class TestInfoIconNotRawEmbedded:
     粘贴到模板源码中。
     """
 
-    @pytest.mark.contract_case("UI-SD-001")
+    @pytest.mark.contract_case('UI-SD-001')
     def test_projects_no_raw_info_icon(self, projects_html):
         """projects.html 不得包含原始 ⓘ 字符。"""
         assert INFO_CHAR not in projects_html, (
-            "projects.html contains raw ⓘ (U+24D8) character. "
-            "Use a macro/component or SVG icon instead."
+            'projects.html contains raw ⓘ (U+24D8) character. '
+            'Use a macro/component or SVG icon instead.'
         )
 
-    @pytest.mark.contract_case("UI-SD-001")
+    @pytest.mark.contract_case('UI-SD-001')
     def test_project_no_raw_info_icon(self, project_html):
         """project.html 不得包含原始 ⓘ 字符。"""
         assert INFO_CHAR not in project_html, (
-            "project.html contains raw ⓘ (U+24D8) character. "
-            "Use a macro/component or SVG icon instead."
+            'project.html contains raw ⓘ (U+24D8) character. '
+            'Use a macro/component or SVG icon instead.'
         )
 
-    @pytest.mark.contract_case("UI-SD-001")
+    @pytest.mark.contract_case('UI-SD-001')
     def test_projects_uses_info_button_component(self, projects_html):
         """projects.html 应使用语义化 info 按钮模式。
 
@@ -67,20 +69,20 @@ class TestInfoIconNotRawEmbedded:
         - icon-button 类 + info 变体
         - data-action="metric-info" 或 data-action="info"
         """
-        has_icon_button = "icon-button--info" in projects_html or "icon_button" in projects_html
-        has_data_action = "metric-info" in projects_html or 'data-action="info"' in projects_html
+        has_icon_button = 'icon-button--info' in projects_html or 'icon_button' in projects_html
+        has_data_action = 'metric-info' in projects_html or 'data-action="info"' in projects_html
         assert has_icon_button or has_data_action, (
-            "projects.html lacks a semantic info button pattern. "
-            "Expected icon-button--info class or icon_button macro usage."
+            'projects.html lacks a semantic info button pattern. '
+            'Expected icon-button--info class or icon_button macro usage.'
         )
 
-    @pytest.mark.contract_case("UI-SD-001")
+    @pytest.mark.contract_case('UI-SD-001')
     def test_project_uses_info_button_component(self, project_html):
         """project.html 应使用语义化说明模式。"""
-        has_icon_button = "icon-button--info" in project_html or "icon_button" in project_html
+        has_icon_button = 'icon-button--info' in project_html or 'icon_button' in project_html
         has_data_action = 'data-action="info"' in project_html
-        has_tooltip = "data-tooltip=" in project_html
+        has_tooltip = 'data-tooltip=' in project_html
         assert has_icon_button or has_data_action or has_tooltip, (
-            "project.html lacks a semantic info button pattern. "
-            "Expected icon-button--info, icon_button macro, info action, or data-tooltip usage."
+            'project.html lacks a semantic info button pattern. '
+            'Expected icon-button--info, icon_button macro, info action, or data-tooltip usage.'
         )

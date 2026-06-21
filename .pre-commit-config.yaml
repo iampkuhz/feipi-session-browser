@@ -1,0 +1,45 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.15.18
+    hooks:
+      - id: ruff-format
+      - id: ruff
+        args: ["--fix"]
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: bash -c './scripts/session-browser.sh type'
+        language: system
+        pass_filenames: false
+
+      - id: python-docstrings
+        name: python docstrings
+        entry: bash -c './scripts/session-browser.sh doc'
+        language: system
+        pass_filenames: false
+
+      - id: python-security
+        name: python security
+        entry: bash -c './scripts/session-browser.sh audit'
+        language: system
+        pass_filenames: false
+
+      - id: python-complexity
+        name: python complexity
+        entry: bash -c './scripts/session-browser.sh complexity'
+        language: system
+        pass_filenames: false
+
+      - id: python-dead-code
+        name: python dead code
+        entry: bash -c './scripts/session-browser.sh dead-code'
+        language: system
+        pass_filenames: false
+
+      - id: python-deps
+        name: python dependencies
+        entry: bash -c './scripts/session-browser.sh deps-check'
+        language: system
+        pass_filenames: false
