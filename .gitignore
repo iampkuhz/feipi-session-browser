@@ -65,3 +65,4 @@ node_modules/
 /.refactor-artifacts/
 
 /docs/session-samples/*/*/litellm_calls/
+/.gradle/
