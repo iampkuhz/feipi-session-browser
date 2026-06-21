@@ -69,5 +69,6 @@ node_modules/
 .kotlin/
 .idea/
 out/
+gradle/verification-metadata.xml
 
 **/build/**
