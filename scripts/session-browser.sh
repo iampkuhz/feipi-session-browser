@@ -403,6 +403,7 @@ run_scan() {
     mkdir -p "$index_dir"
 
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
+    export SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE="${SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE:-1}"
     echo "使用本地测试索引目录：$index_dir"
     INDEX_DIR="$index_dir" exec "$(python_bin)" -m session_browser scan "$@"
 }
@@ -444,6 +445,8 @@ print_usage() {
   SESSION_BROWSER_LOCAL_PORT       默认：18999
   SESSION_BROWSER_LOCAL_DATA_DIR   默认：~/.local/share/feipi/session-browser/local-test-index
   SESSION_BROWSER_LOG_LEVEL        默认：INFO；本地 serve 使用 DEBUG
+  SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE
+                                   本地 scan 默认启用；内部逻辑版本变化时自动 full scan
   CLAUDE_DATA_DIR                  默认：~/.claude
   CODEX_DATA_DIR                   默认：~/.codex
   QODER_DATA_DIR                   默认：~/.qoder
@@ -451,7 +454,8 @@ print_usage() {
 
 示例：
   ./scripts/session-browser.sh serve
-  ./scripts/session-browser.sh scan --incremental
+  ./scripts/session-browser.sh scan
+  ./scripts/session-browser.sh scan --full
   ./scripts/session-browser.sh release-check 0.4
 EOF
 }

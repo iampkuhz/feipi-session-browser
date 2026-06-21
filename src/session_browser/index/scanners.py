@@ -5,13 +5,18 @@ from __future__ import annotations
 
 import os
 import time
+from datetime import datetime
 from pathlib import Path
 
+from session_browser.domain.models import SessionSummary
 from session_browser.index.schema import _get_connection, ensure_session_artifacts_schema, init_schema
 from session_browser.index.writers import upsert_session
 from session_browser.normalized.artifacts import (
+    NORMALIZED_SESSION_ARTIFACT_TYPE,
+    find_current_normalized_session_artifact,
     persist_current_normalized_session_artifact_reference,
     persist_normalized_session_artifact,
+    read_normalized_session_artifact,
 )
 
 
@@ -144,6 +149,7 @@ def _persist_normalized_artifact_safe(
     file_mtime: float,
     build_normalized,
     verbose: bool,
+    summary: SessionSummary | None = None,
 ) -> None:
     """Persist normalized JSON，用于 一个 session without blocking 该 index scan."""
     if not file_path:
@@ -161,6 +167,8 @@ def _persist_normalized_artifact_safe(
             if reused is not None:
                 return
         normalized = build_normalized()
+        if isinstance(normalized, dict) and summary is not None:
+            normalized["index_summary"] = _summary_payload(summary)
         persist_normalized_session_artifact(
             conn,
             normalized,
@@ -172,6 +180,168 @@ def _persist_normalized_artifact_safe(
     except Exception as exc:
         if verbose:
             print(f"  Normalized JSON skipped for {session_key}: {exc}")
+
+
+def _summary_from_current_artifact(
+    *,
+    session_key: str,
+    file_path: str,
+    file_mtime: float,
+    index_dir: Path | None,
+) -> SessionSummary | None:
+    """Build an index row from a current normalized artifact, skipping source parse."""
+    artifact_path = find_current_normalized_session_artifact(
+        session_key=session_key,
+        source_path=file_path,
+        source_mtime=file_mtime,
+        index_dir=index_dir,
+    )
+    if artifact_path is None:
+        return None
+    try:
+        normalized = read_normalized_session_artifact(artifact_path)
+    except Exception:
+        return None
+    return _summary_from_normalized_artifact(normalized)
+
+
+def _summary_from_normalized_artifact(normalized: dict) -> SessionSummary | None:
+    session = normalized.get("session") if isinstance(normalized.get("session"), dict) else {}
+    index_summary = (
+        normalized.get("index_summary")
+        if isinstance(normalized.get("index_summary"), dict)
+        else {}
+    )
+    agent = str(normalized.get("agent") or session.get("agent") or "")
+    session_id = str(session.get("session_id") or "")
+    if not agent or not session_id:
+        return None
+    calls = normalized.get("calls") if isinstance(normalized.get("calls"), list) else []
+    tools = normalized.get("tool_executions") if isinstance(normalized.get("tool_executions"), list) else []
+    usage_totals = {"fresh": 0, "cache_read": 0, "cache_write": 0, "output": 0, "total": 0}
+    for call in calls:
+        if not isinstance(call, dict):
+            continue
+        usage = call.get("usage") if isinstance(call.get("usage"), dict) else {}
+        for key in usage_totals:
+            usage_totals[key] += _int_or_zero(usage.get(key))
+
+    started_at = str(session.get("started_at") or "")
+    ended_at = str(session.get("ended_at") or "")
+    duration_seconds = _duration_seconds(started_at, ended_at)
+    subagent_ids = {
+        str(call.get("subagent_id") or "")
+        for call in calls
+        if isinstance(call, dict) and str(call.get("scope") or "") == "subagent"
+    }
+    project_key = str(session.get("project_key") or session.get("cwd") or "")
+    project_name = str(session.get("project_name") or (Path(project_key).name if project_key else ""))
+    return SessionSummary(
+        agent=agent,
+        session_id=session_id,
+        title=str(index_summary.get("title") or session.get("title") or ""),
+        project_key=project_key,
+        project_name=project_name,
+        cwd=str(session.get("cwd") or ""),
+        started_at=started_at,
+        ended_at=ended_at,
+        duration_seconds=_float_or_zero(index_summary.get("duration_seconds")) or duration_seconds,
+        model_execution_seconds=_float_or_zero(index_summary.get("model_execution_seconds")),
+        tool_execution_seconds=_float_or_zero(index_summary.get("tool_execution_seconds")),
+        model=str(session.get("model") or ""),
+        git_branch=str(session.get("git_branch") or ""),
+        source=str(session.get("source") or ""),
+        user_message_count=_summary_count(index_summary, "user_message_count", max(1, len(calls)) if calls else 0),
+        assistant_message_count=_summary_count(index_summary, "assistant_message_count", len(calls)),
+        tool_call_count=_summary_count(index_summary, "tool_call_count", len(tools)),
+        output_tokens=_summary_count(index_summary, "output_tokens", usage_totals["output"]),
+        fresh_input_tokens=_summary_count(index_summary, "fresh_input_tokens", usage_totals["fresh"]),
+        cache_read_tokens=_summary_count(index_summary, "cache_read_tokens", usage_totals["cache_read"]),
+        cache_write_tokens=_summary_count(index_summary, "cache_write_tokens", usage_totals["cache_write"]),
+        total_tokens=_summary_count(
+            index_summary,
+            "total_tokens",
+            usage_totals["total"] or sum(usage_totals[k] for k in ("fresh", "cache_read", "cache_write", "output")),
+        ),
+        failed_tool_count=_summary_count(index_summary, "failed_tool_count", 0),
+        subagent_instance_count=_summary_count(
+            index_summary,
+            "subagent_instance_count",
+            len([sid for sid in subagent_ids if sid]),
+        ),
+    )
+
+
+def _summary_payload(summary: SessionSummary) -> dict:
+    """Persist scan-index facts that cannot be losslessly inferred from calls."""
+    return {
+        "title": summary.title,
+        "duration_seconds": summary.duration_seconds,
+        "model_execution_seconds": summary.model_execution_seconds,
+        "tool_execution_seconds": summary.tool_execution_seconds,
+        "user_message_count": summary.user_message_count,
+        "assistant_message_count": summary.assistant_message_count,
+        "tool_call_count": summary.tool_call_count,
+        "output_tokens": summary.output_tokens,
+        "fresh_input_tokens": summary.fresh_input_tokens,
+        "cache_read_tokens": summary.cache_read_tokens,
+        "cache_write_tokens": summary.cache_write_tokens,
+        "total_tokens": summary.total_tokens,
+        "failed_tool_count": summary.failed_tool_count,
+        "subagent_instance_count": summary.subagent_instance_count,
+    }
+
+
+def _summary_count(index_summary: dict, key: str, fallback: int) -> int:
+    if key in index_summary:
+        return _int_or_zero(index_summary.get(key))
+    return fallback
+
+
+def _duration_seconds(started_at: str, ended_at: str) -> float:
+    try:
+        if not started_at or not ended_at:
+            return 0
+        start = datetime.fromisoformat(started_at.replace("Z", "+00:00"))
+        end = datetime.fromisoformat(ended_at.replace("Z", "+00:00"))
+        return max(0.0, round((end - start).total_seconds(), 1))
+    except ValueError:
+        return 0
+
+
+def _int_or_zero(value) -> int:
+    try:
+        if value is None:
+            return 0
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _float_or_zero(value) -> float:
+    try:
+        if value is None:
+            return 0
+        return float(value)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _build_codex_normalized_for_scan(codex_source, summary, thread_info: dict, file_path: str) -> dict:
+    """Build Codex normalized artifact only after reuse checks fail."""
+    normalized_thread_info = dict(thread_info or {})
+    normalized_thread_info.setdefault("id", summary.session_id)
+    normalized_thread_info.setdefault("title", summary.title)
+    normalized_thread_info.setdefault("cwd", summary.cwd)
+    normalized_thread_info.setdefault("git_branch", summary.git_branch)
+    normalized_thread_info.setdefault("model", summary.model)
+    normalized = codex_source.parse_normalized_session_file(
+        file_path,
+        thread_info=normalized_thread_info,
+    )
+    if normalized and summary.title and not (normalized.get("session") or {}).get("title"):
+        normalized["session"]["title"] = summary.title[:160]
+    return normalized
 
 
 def _index_dir_from_connection(conn) -> Path | None:
@@ -302,6 +472,7 @@ def full_scan(
     claude_count = 0
     codex_count = 0
     qoder_count = 0
+    index_dir = _index_dir_from_connection(conn)
 
     scan_claude = agent is None or agent == "claude_code"
     scan_codex = agent is None or agent == "codex"
@@ -325,6 +496,36 @@ def full_scan(
         for entry in unique_history:
             sid = entry["session_id"]
             project = entry["project"]
+            file_mtime = 0.0
+            file_path = ""
+            fpath = _locate_claude_session_file(project, sid)
+            if fpath and fpath.exists():
+                file_path = str(fpath)
+                file_mtime = os.path.getmtime(fpath)
+
+            cached_summary = _summary_from_current_artifact(
+                session_key=f"claude_code:{sid}",
+                file_path=file_path,
+                file_mtime=file_mtime,
+                index_dir=index_dir,
+            ) if file_path else None
+            if cached_summary is not None:
+                if not cached_summary.title and entry.get("display"):
+                    cached_summary.title = claude_source._extract_readable_title(entry["display"])
+                upsert_session(conn, cached_summary, file_mtime=file_mtime, file_path=file_path)
+                persist_current_normalized_session_artifact_reference(
+                    conn,
+                    session_key=cached_summary.session_key,
+                    source_path=file_path,
+                    source_mtime=file_mtime,
+                    index_dir=index_dir,
+                )
+                claude_count += 1
+                _commit_periodically(conn, claude_count)
+                if verbose and claude_count % 50 == 0:
+                    print(f"  Claude: {claude_count} sessions")
+                continue
+
             summary, _msgs, _tcs, _sa = claude_source.parse_session_detail(
                 project, sid, history_entry=entry, verbose=verbose
             )
@@ -337,14 +538,6 @@ def full_scan(
                 if verbose:
                     print(f"  Skipping {sid}: no valid ended_at timestamp")
                 continue
-
-            # 记录 file mtime + path，用于 future incremental scans
-            file_mtime = 0.0
-            file_path = ""
-            fpath = _locate_claude_session_file(project, sid)
-            if fpath and fpath.exists():
-                file_path = str(fpath)
-                file_mtime = os.path.getmtime(fpath)
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             _persist_normalized_artifact_safe(
@@ -360,6 +553,7 @@ def full_scan(
                     source_path=file_path,
                 ),
                 verbose=verbose,
+                summary=summary,
             )
             claude_count += 1
             _commit_periodically(conn, claude_count)
@@ -372,6 +566,7 @@ def full_scan(
     if scan_codex:
         if verbose:
             print("Scanning Codex...")
+        codex_source.clear_codex_subagent_index_cache()
         threads_db = codex_source.read_threads_db()
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
         subagent_ids = {
@@ -384,6 +579,7 @@ def full_scan(
             if sid in threads_db:
                 parse_threads_db = threads_db
                 thread_info = threads_db.get(sid, {})
+                fallback_file = None
             else:
                 fallback_file = _locate_codex_session_file(sid, "")
                 if codex_source.is_codex_subagent_session_file(fallback_file):
@@ -408,6 +604,39 @@ def full_scan(
                 }
                 parse_threads_db = {sid: thread_info}
 
+            fpath = fallback_file or _locate_codex_session_file(sid, thread_info.get("rollout_path", ""))
+            file_mtime = 0.0
+            file_path = ""
+            if fpath and fpath.exists():
+                file_path = str(fpath)
+                file_mtime = os.path.getmtime(fpath)
+            cached_summary = _summary_from_current_artifact(
+                session_key=f"codex:{sid}",
+                file_path=file_path,
+                file_mtime=file_mtime,
+                index_dir=index_dir,
+            ) if file_path else None
+            if cached_summary is not None:
+                if not cached_summary.title:
+                    idx_entry = index_entries.get(sid)
+                    if idx_entry and idx_entry.get("thread_name"):
+                        cached_summary.title = idx_entry["thread_name"][:120]
+                    elif thread_info.get("first_user_message"):
+                        cached_summary.title = thread_info["first_user_message"][:120]
+                upsert_session(conn, cached_summary, file_mtime=file_mtime, file_path=file_path)
+                persist_current_normalized_session_artifact_reference(
+                    conn,
+                    session_key=cached_summary.session_key,
+                    source_path=file_path,
+                    source_mtime=file_mtime,
+                    index_dir=index_dir,
+                )
+                codex_count += 1
+                _commit_periodically(conn, codex_count)
+                if verbose and codex_count % 50 == 0:
+                    print(f"  Codex: {codex_count} sessions")
+                continue
+
             summary, _msgs, _tcs, _sa, normalized, session_file = (
                 codex_source.parse_session_detail_with_normalized(
                     sid,
@@ -422,9 +651,6 @@ def full_scan(
                     summary.title = idx_entry["thread_name"][:120]
                 elif thread_info.get("first_user_message"):
                     summary.title = thread_info["first_user_message"][:120]
-            if normalized and summary.title and not (normalized.get("session") or {}).get("title"):
-                normalized["session"]["title"] = summary.title[:160]
-
             # 跳过 sessions，使用 no valid timestamps
             if not summary.ended_at:
                 if verbose:
@@ -432,9 +658,7 @@ def full_scan(
                 continue
 
             # 记录 file mtime + path，用于 future incremental scans
-            file_mtime = 0.0
-            file_path = ""
-            fpath = session_file
+            fpath = session_file or (Path(summary.file_path) if summary.file_path else fpath)
             if fpath and fpath.exists():
                 file_path = str(fpath)
                 file_mtime = os.path.getmtime(fpath)
@@ -445,8 +669,9 @@ def full_scan(
                 session_key=summary.session_key,
                 file_path=file_path,
                 file_mtime=file_mtime,
-                build_normalized=lambda: normalized,
+                build_normalized=lambda normalized=normalized: normalized,
                 verbose=verbose,
+                summary=summary,
             )
             codex_count += 1
             _commit_periodically(conn, codex_count)
@@ -474,6 +699,28 @@ def full_scan(
 
         for project_key, sid, fpath in all_discovered:
             file_mtime = os.path.getmtime(fpath) if fpath.exists() else 0.0
+            file_path = str(fpath) if fpath and fpath.exists() else ""
+            cached_summary = _summary_from_current_artifact(
+                session_key=f"qoder:{sid}",
+                file_path=file_path,
+                file_mtime=file_mtime,
+                index_dir=index_dir,
+            ) if file_path else None
+            if cached_summary is not None:
+                upsert_session(conn, cached_summary, file_mtime=file_mtime, file_path=file_path)
+                persist_current_normalized_session_artifact_reference(
+                    conn,
+                    session_key=cached_summary.session_key,
+                    source_path=file_path,
+                    source_mtime=file_mtime,
+                    index_dir=index_dir,
+                )
+                qoder_count += 1
+                _commit_periodically(conn, qoder_count)
+                if verbose and qoder_count % 50 == 0:
+                    print(f"  Qoder: {qoder_count} sessions")
+                continue
+
             is_cache = str(fpath).startswith(str(QODER_DATA_DIR / "cache"))
             summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
                 project_key, sid, session_file=fpath, verbose=verbose
@@ -488,7 +735,6 @@ def full_scan(
                     print(f"  Skipping {summary.session_id}: no valid ended_at timestamp")
                 continue
 
-            file_path = str(fpath) if fpath and fpath.exists() else ""
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             _persist_normalized_artifact_safe(
                 conn,
@@ -503,6 +749,7 @@ def full_scan(
                     source_path=file_path,
                 ),
                 verbose=verbose,
+                summary=summary,
             )
             qoder_count += 1
             _commit_periodically(conn, qoder_count)
@@ -711,6 +958,7 @@ def incremental_scan(
                     source_path=file_path_str,
                 ),
                 verbose=verbose,
+                summary=summary,
             )
             claude_count += 1
             _commit_periodically(conn, claude_count)
@@ -719,6 +967,7 @@ def incremental_scan(
 
     # -- 扫描 Codex --------------------------------------------------------
     if scan_codex:
+        codex_source.clear_codex_subagent_index_cache()
         threads_db = codex_source.read_threads_db()
         # threads DB 不完整时，用 session_index.jsonl 作为发现兜底。
         index_entries = {e["id"]: e for e in codex_source.parse_session_index()}
@@ -810,8 +1059,8 @@ def incremental_scan(
                     "first_user_message": "",
                 }
                 parse_threads_db = {sid: thread_info}
-            summary, _msgs, _tcs, _sa, normalized, session_file = (
-                codex_source.parse_session_detail_with_normalized(
+            summary, _msgs, _tcs, _sa = (
+                codex_source.parse_session_detail(
                     sid,
                     parse_threads_db,
                 )
@@ -823,13 +1072,11 @@ def incremental_scan(
                     summary.title = idx_entry["thread_name"][:120]
                 elif thread_info.get("first_user_message"):
                     summary.title = thread_info["first_user_message"][:120]
-            if normalized and summary.title and not (normalized.get("session") or {}).get("title"):
-                normalized["session"]["title"] = summary.title[:160]
 
             # 记录 file info
             file_mtime = 0.0
             file_path_str = ""
-            fpath = session_file
+            fpath = Path(summary.file_path) if summary.file_path else None
             if fpath and fpath.exists():
                 file_path_str = str(fpath)
                 file_mtime = os.path.getmtime(fpath)
@@ -840,8 +1087,11 @@ def incremental_scan(
                 session_key=summary.session_key,
                 file_path=file_path_str,
                 file_mtime=file_mtime,
-                build_normalized=lambda: normalized,
+                build_normalized=lambda summary=summary, thread_info=thread_info, file_path=file_path_str: (
+                    _build_codex_normalized_for_scan(codex_source, summary, thread_info, file_path)
+                ),
                 verbose=verbose,
+                summary=summary,
             )
             codex_count += 1
             _commit_periodically(conn, codex_count)
@@ -941,6 +1191,7 @@ def incremental_scan(
                     source_path=file_path_str,
                 ),
                 verbose=verbose,
+                summary=summary,
             )
             qoder_count += 1
             _commit_periodically(conn, qoder_count)

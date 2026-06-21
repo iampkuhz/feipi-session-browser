@@ -19,7 +19,12 @@ from __future__ import annotations
 # 说明：--- Schema & connection ------------------------------------------------------
 from session_browser.index.schema import (
     _get_connection,
+    SCAN_LOGIC_VERSION,
+    SCAN_LOGIC_VERSION_KEY,
+    ensure_index_metadata_schema,
     init_schema,
+    get_stored_scan_logic_version,
+    set_stored_scan_logic_version,
     TIER_HOT_SECONDS,
     TIER_HOT_INTERVAL,
     TIER_WARM_SECONDS,

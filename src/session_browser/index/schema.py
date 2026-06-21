@@ -12,6 +12,17 @@ TIER_HOT_INTERVAL = 30            # 说明：seconds between hot scans
 TIER_WARM_SECONDS = 24 * 3600    # 说明：ended_at 30min~24h -> scan every 5min
 TIER_WARM_INTERVAL = 5 * 60       # 说明：seconds between warm scans
 
+SCAN_LOGIC_VERSION = 4
+SCAN_LOGIC_VERSION_KEY = "scan_logic_version"
+
+
+INDEX_METADATA_SCHEMA_SQL = """
+    CREATE TABLE IF NOT EXISTS index_metadata (
+        key TEXT PRIMARY KEY,
+        value TEXT NOT NULL DEFAULT '',
+        updated_at REAL NOT NULL DEFAULT 0
+    );
+"""
 
 SESSION_ARTIFACTS_SCHEMA_SQL = """
     CREATE TABLE IF NOT EXISTS session_artifacts (
@@ -54,6 +65,44 @@ def ensure_session_artifacts_schema(conn: sqlite3.Connection) -> None:
     conn.executescript(SESSION_ARTIFACTS_SCHEMA_SQL)
 
 
+def ensure_index_metadata_schema(conn: sqlite3.Connection) -> None:
+    """创建全局索引 metadata 表，不修改 session 行。"""
+    conn.executescript(INDEX_METADATA_SCHEMA_SQL)
+
+
+def get_index_metadata(conn: sqlite3.Connection, key: str) -> str | None:
+    ensure_index_metadata_schema(conn)
+    row = conn.execute(
+        "SELECT value FROM index_metadata WHERE key = ?",
+        (key,),
+    ).fetchone()
+    return str(row["value"]) if row else None
+
+
+def set_index_metadata(conn: sqlite3.Connection, key: str, value: str) -> None:
+    import time
+
+    ensure_index_metadata_schema(conn)
+    conn.execute(
+        """
+        INSERT INTO index_metadata (key, value, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(key) DO UPDATE SET
+            value=excluded.value,
+            updated_at=excluded.updated_at
+        """,
+        (key, str(value), time.time()),
+    )
+
+
+def get_stored_scan_logic_version(conn: sqlite3.Connection) -> str | None:
+    return get_index_metadata(conn, SCAN_LOGIC_VERSION_KEY)
+
+
+def set_stored_scan_logic_version(conn: sqlite3.Connection, version: int | str = SCAN_LOGIC_VERSION) -> None:
+    set_index_metadata(conn, SCAN_LOGIC_VERSION_KEY, str(version))
+
+
 def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
     """重建当前索引结构。
 
@@ -64,6 +113,7 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
 
     conn.executescript("""
         DROP TABLE IF EXISTS session_artifacts;
+        DROP TABLE IF EXISTS index_metadata;
         DROP TABLE IF EXISTS sessions;
         DROP TABLE IF EXISTS scan_log;
 
@@ -115,6 +165,7 @@ def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
             status TEXT DEFAULT 'running'
         );
     """)
+    ensure_index_metadata_schema(conn)
     ensure_session_artifacts_schema(conn)
     conn.commit()
     return conn

@@ -156,6 +156,44 @@ class TestFullScanClaudeBasic:
             assert data["session"]["session_key"] == row["session_key"]
 
     @pytest.mark.contract_case("DATA-INDEX-001")
+    def test_full_scan_reuses_current_artifacts_without_detail_parse(self, tmp_path, monkeypatch):
+        """current sidecar 存在时，full scan 可从 artifact 恢复索引行。"""
+        data_dir = tmp_path / "claude_data"
+        shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
+        old_env = _setup_claude_env(str(data_dir))
+        try:
+            from session_browser.index.indexer import full_scan
+            from session_browser.sources import claude as claude_source
+
+            db_path = tmp_path / "index.sqlite"
+            conn = sqlite3.connect(str(db_path))
+            conn.row_factory = sqlite3.Row
+            first = full_scan(conn, verbose=False, agent="claude_code")
+            assert first["claude_count"] == 2
+
+            def fail_detail_parse(*_args, **_kwargs):  # pragma: no cover - should not run
+                raise AssertionError("full scan should reuse current normalized artifact")
+
+            monkeypatch.setattr(claude_source, "parse_session_detail", fail_detail_parse)
+            second = full_scan(conn, verbose=False, agent="claude_code")
+
+            rows = conn.execute(
+                """
+                SELECT s.session_key, a.path
+                FROM sessions s
+                JOIN session_artifacts a ON a.session_key = s.session_key
+                ORDER BY s.session_key
+                """
+            ).fetchall()
+            conn.close()
+        finally:
+            _restore_claude_env(old_env)
+
+        assert second["claude_count"] == 2
+        assert len(rows) == 2
+        assert all(Path(row["path"]).is_file() for row in rows)
+
+    @pytest.mark.contract_case("DATA-INDEX-001")
     def test_all_columns_populated(self, tmp_path):
         """每个被索引的会话在所有 26 列中都应有非空值。"""
         data_dir = tmp_path / "claude_data"

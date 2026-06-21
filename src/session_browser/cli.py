@@ -1,8 +1,9 @@
 """session-browser CLI 入口。
 
 Usage:
-    python -m session_browser scan        # Full scan
+    python -m session_browser scan        # Auto scan (incremental when safe)
     python -m session_browser scan --incremental   # Incremental scan
+    python -m session_browser scan --full # Full scan
     python -m session_browser serve       # Start web server
     python -m session_browser serve --port 18999
     python -m session_browser stop        # Stop web server
@@ -276,8 +277,61 @@ def _print_scan_lock_help(exc: ScanLockUnavailable) -> None:
     print("  3. 如确认没有扫描运行，可删除同目录 scan.lock 后重试。", file=sys.stderr)
 
 
+def _scan_logic_version_gate_enabled() -> bool:
+    return (
+        _truthy_env("SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE")
+        or _truthy_env("SESSION_BROWSER_ENABLE_SCAN_LOGIC_VERSION_GATE")
+    )
+
+
+def _decide_scan_mode(conn, args: argparse.Namespace) -> tuple[str, str]:
+    """Return (mode, reason) for foreground scan."""
+    if getattr(args, "full", False):
+        return "full", "explicit --full"
+    if getattr(args, "incremental", False):
+        return "incremental", "explicit --incremental"
+
+    if not _table_exists(conn, "sessions"):
+        return "full", "index schema missing"
+    missing = _missing_current_session_columns(conn)
+    if missing:
+        return "full", "index schema incompatible"
+    count = conn.execute("SELECT COUNT(*) FROM sessions").fetchone()[0]
+    if count == 0:
+        return "full", "index empty"
+
+    if _scan_logic_version_gate_enabled():
+        from session_browser.index.schema import (
+            SCAN_LOGIC_VERSION,
+            get_stored_scan_logic_version,
+        )
+
+        stored = get_stored_scan_logic_version(conn)
+        current = str(SCAN_LOGIC_VERSION)
+        if stored != current:
+            before = stored if stored is not None else "missing"
+            return "full", f"scan logic version changed {before} -> {current}"
+
+    return "incremental", "auto"
+
+
+def _table_exists(conn, table_name: str) -> bool:
+    row = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (table_name,),
+    ).fetchone()
+    return row is not None
+
+
+def _missing_current_session_columns(conn) -> list[str]:
+    if not _table_exists(conn, "sessions"):
+        return sorted(_CURRENT_SESSION_COLUMNS)
+    columns = {r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()}
+    return sorted(_CURRENT_SESSION_COLUMNS - columns)
+
+
 def cmd_scan(args: argparse.Namespace) -> None:
-    """执行 full scan 或 incremental scan。"""
+    """执行 auto/full/incremental scan。"""
     from session_browser.index.indexer import full_scan, incremental_scan, _get_connection
 
     # 启动前检查是否已有 scan 进程。
@@ -307,14 +361,16 @@ def cmd_scan(args: argparse.Namespace) -> None:
 
     conn = None
     try:
-        owner = "foreground incremental scan" if args.incremental else "foreground full scan"
+        owner = "foreground scan"
         with _scan_lock(owner, blocking=True, timeout_seconds=_scan_lock_timeout_seconds()):
             conn = _get_connection()
+            mode, reason = _decide_scan_mode(conn, args)
+            label_reason = f": {reason}" if reason else ""
 
-            if args.incremental:
+            if mode == "incremental":
                 # 只创建缺失表；不清空现有数据。
                 _ensure_schema_exists(conn)
-                print(f"Starting incremental scan{label}...")
+                print(f"Starting incremental scan{label}{label_reason}...")
                 start = time.time()
                 result = incremental_scan(conn, verbose=True, agent=agent)
                 elapsed = time.time() - start
@@ -326,9 +382,17 @@ def cmd_scan(args: argparse.Namespace) -> None:
                 print(f"  Skipped:        {result['skipped']} sessions")
                 print(f"  Total updated:  {result['total']} sessions")
             else:
-                print(f"Starting full scan{label}...")
+                print(f"Starting full scan{label}{label_reason}...")
                 start = time.time()
                 result = full_scan(conn, verbose=True, agent=agent)
+                if _scan_logic_version_gate_enabled() and agent is None:
+                    from session_browser.index.schema import (
+                        SCAN_LOGIC_VERSION,
+                        set_stored_scan_logic_version,
+                    )
+
+                    set_stored_scan_logic_version(conn, SCAN_LOGIC_VERSION)
+                    conn.commit()
                 elapsed = time.time() - start
                 print(f"\nScan complete in {elapsed:.1f}s")
                 print(f"  Claude Code: {result['claude_count']} sessions")
@@ -383,8 +447,7 @@ _CURRENT_SESSION_COLUMNS = {
 
 def _assert_current_session_schema(conn) -> None:
     """确认索引表已经是当前 schema；旧索引需要重新扫描。"""
-    columns = {r[1] for r in conn.execute("PRAGMA table_info(sessions)").fetchall()}
-    missing = sorted(_CURRENT_SESSION_COLUMNS - columns)
+    missing = _missing_current_session_columns(conn)
     if missing:
         raise RuntimeError(
             "当前本地索引 schema 缺少列 "
@@ -395,7 +458,10 @@ def _assert_current_session_schema(conn) -> None:
 
 def _ensure_schema_exists(conn) -> None:
     """按当前 schema 创建索引表；旧索引请通过 full scan 重建。"""
-    from session_browser.index.schema import ensure_session_artifacts_schema
+    from session_browser.index.schema import (
+        ensure_index_metadata_schema,
+        ensure_session_artifacts_schema,
+    )
 
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS sessions (
@@ -444,6 +510,7 @@ def _ensure_schema_exists(conn) -> None:
             status TEXT DEFAULT 'running'
         );
     """)
+    ensure_index_metadata_schema(conn)
     ensure_session_artifacts_schema(conn)
     _assert_current_session_schema(conn)
     conn.commit()
@@ -754,8 +821,11 @@ def main() -> None:
 
     # scan 命令
     scan_p = sub.add_parser("scan", help="Scan and index all local sessions")
-    scan_p.add_argument("--incremental", action="store_true",
-                        help="Only scan sessions whose source files have changed")
+    scan_mode = scan_p.add_mutually_exclusive_group()
+    scan_mode.add_argument("--incremental", action="store_true",
+                           help="Only scan sessions whose source files have changed")
+    scan_mode.add_argument("--full", action="store_true",
+                           help="Force a full index rebuild")
     scan_p.add_argument("--agent", choices=["claude_code", "codex", "qoder"],
                         help="Scan only a specific agent (claude_code, codex, or qoder)")
     scan_p.add_argument("--force", "-f", action="store_true",

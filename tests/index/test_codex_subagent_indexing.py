@@ -328,3 +328,37 @@ def test_incremental_scan_prunes_stale_codex_subagent_row(tmp_path, monkeypatch)
     assert result["pruned_subagents"] == 1
     assert session_keys == [f"codex:{PARENT_ID}"]
     assert artifact is None
+
+
+def test_codex_subagent_child_index_scans_day_directory_once(tmp_path, monkeypatch):
+    """Multiple parent lookups in one day directory reuse the child index."""
+    from session_browser.sources import codex_session_source as codex_source
+
+    day_dir = tmp_path / "codex_data" / "sessions" / "2026" / "06" / "19"
+    parent_1 = day_dir / "rollout-2026-06-19T00-00-00-parent-1.jsonl"
+    child_1 = day_dir / "rollout-2026-06-19T00-00-01-child-1.jsonl"
+    parent_2 = day_dir / "rollout-2026-06-19T00-00-02-parent-2.jsonl"
+    child_2 = day_dir / "rollout-2026-06-19T00-00-03-child-2.jsonl"
+    unrelated_child = day_dir / "rollout-2026-06-19T00-00-04-child-3.jsonl"
+
+    _write_jsonl(parent_1, _rollout_events("parent-1"))
+    _write_jsonl(child_1, _rollout_events("child-1", parent_id="parent-1"))
+    _write_jsonl(parent_2, _rollout_events("parent-2"))
+    _write_jsonl(child_2, _rollout_events("child-2", parent_id="parent-2"))
+    _write_jsonl(unrelated_child, _rollout_events("child-3", parent_id="other-parent"))
+
+    original_peek = codex_source.peek_codex_session_meta
+    peeked: list[Path] = []
+
+    def counted_peek(path):
+        peeked.append(Path(path))
+        return original_peek(path)
+
+    monkeypatch.setattr(codex_source, "peek_codex_session_meta", counted_peek)
+    codex_source.clear_codex_subagent_index_cache()
+
+    assert codex_source.get_codex_subagent_child_paths(parent_1, "parent-1") == [child_1]
+    assert codex_source.get_codex_subagent_child_paths(parent_2, "parent-2") == [child_2]
+    assert codex_source.get_codex_subagent_child_paths(parent_1, "parent-1") == [child_1]
+
+    assert len(peeked) == len(list(day_dir.glob("rollout-*.jsonl")))

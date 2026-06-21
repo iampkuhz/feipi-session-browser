@@ -1,5 +1,7 @@
 # TODO
 
+- [ ] normalized json 必须添加 结构定义的类
+
 - [ ] codex subagent 识别问题：http://127.0.0.1:18999/sessions/codex/019edb11-581d-7070-83c7-500239a85403
   - [ ] 提取原始信息到 docs/agent-token-attribution/ ，作为样例分析
 - [ ] ./scripts/session-browser.sh test 出现 warning，后续添加门禁拒绝出现类似问题
