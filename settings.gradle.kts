@@ -16,6 +16,7 @@ include(
     "java:core-domain",
     "java:source-spi",
     "java:source-json",
+    "java:artifact-normalized",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",
