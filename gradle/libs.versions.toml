@@ -24,6 +24,9 @@ checkstyle = "10.21.4"
 slf4j = "2.0.16"
 logback = "1.5.12"
 
+# SQLite
+sqlite-jdbc = "3.49.1.0"
+
 [libraries]
 # CLI
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
@@ -59,6 +62,9 @@ slf4j-api = { module = "org.slf4j:slf4j-api", version.ref = "slf4j" }
 # Logging - Logback
 logback-classic = { module = "ch.qos.logback:logback-classic", version.ref = "logback" }
 logback-core = { module = "ch.qos.logback:logback-core", version.ref = "logback" }
+
+# SQLite
+sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

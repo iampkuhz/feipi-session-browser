@@ -18,6 +18,7 @@ include(
     "java:source-json",
     "java:artifact-normalized",
     "java:source-claude",
+    "java:source-codex",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",

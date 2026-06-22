@@ -17,7 +17,7 @@ public final class JsonlConstants {
   /** 单次解析操作的默认最大记录数。 */
   public static final int DEFAULT_MAX_RECORDS = 1_000_000;
 
-  /** UTF-8 BOM 字符（{@code U+FEFF}）。 */
+  /** 字节顺序标记字符（统一码 {@code U+FEFF}）。 */
   static final char BOM = '﻿';
 
   private JsonlConstants() {
