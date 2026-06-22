@@ -20,6 +20,7 @@ include(
     "java:source-claude",
     "java:source-codex",
     "java:source-qoder",
+    "java:normalization-engine",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",
