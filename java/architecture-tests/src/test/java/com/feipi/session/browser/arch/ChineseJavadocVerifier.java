@@ -39,8 +39,8 @@ import javax.tools.ToolProvider;
  */
 final class ChineseJavadocVerifier {
 
-  /** 已知的既有文件排除列表（留给 J1-060 文档同步修复）。 */
-  private static final List<String> PRE_EXISTING_EXCLUSIONS = List.of("DomainMarker.java");
+  /** 已知的既有文件排除列表（J1-010 已修复，保留空列表供后续使用）。 */
+  private static final List<String> PRE_EXISTING_EXCLUSIONS = List.of();
 
   private static final Pattern HAN_PATTERN = Pattern.compile("\\p{IsHan}");
 
@@ -187,7 +187,10 @@ final class ChineseJavadocVerifier {
           scan(member, null);
         } else if (memberKind == Tree.Kind.METHOD) {
           MethodTree method = (MethodTree) member;
-          if (isConstructor(method)) {
+          if (isStaticMethod(method)) {
+            // 静态方法不是构造器，按普通方法检查
+            checkMethod(method);
+          } else if (isConstructor(method)) {
             if (!isImplicitConstructor(method, classTree)) {
               checkConstructor(method);
             }
@@ -197,6 +200,13 @@ final class ChineseJavadocVerifier {
         } else if (memberKind == Tree.Kind.VARIABLE) {
           VariableTree var = (VariableTree) member;
           if (isEnum) {
+            // 只检查枚举常量，跳过 private 实例字段
+            if (var.getModifiers() != null
+                && var.getModifiers()
+                    .getFlags()
+                    .contains(javax.lang.model.element.Modifier.PRIVATE)) {
+              continue;
+            }
             checkEnumConstantHasChineseJavadoc(var);
           } else if (isRecord) {
             checkRecordComponentParam(var, recordDoc);
@@ -389,15 +399,24 @@ final class ChineseJavadocVerifier {
     }
 
     private static boolean isConstructor(MethodTree method) {
-      return method.getReturnType() == null;
+      // 构造器的名称为 <init>，或者名称与外层类同名
+      // 使用名称匹配比返回类型为空检查更可靠
+      return "<init>".equals(method.getName().toString());
     }
 
     /**
      * 判断构造器是否为编译器隐式生成的默认构造器。 对于 record，canonical 构造器（与 record header 签名相同）视为隐式。 对于普通
-     * class，通过源码中是否包含 "类名(" 来判断。
+     * class，通过源码中是否包含 "类名(" 来判断。 对于 enum，隐式构造器参数数为 0。
      */
     private boolean isImplicitConstructor(MethodTree ctor, ClassTree enclosingClass) {
+      boolean isEnum = enclosingClass.getKind() == Tree.Kind.ENUM;
       boolean isRecord = enclosingClass.getKind() == Tree.Kind.RECORD;
+
+      if (isEnum) {
+        // 枚举隐式构造器：无参数、private。显式声明的构造器至少有 1 个参数。
+        return ctor.getParameters().isEmpty();
+      }
+
       if (isRecord) {
         // Record 的规范构造器是隐式的，除非显式重新声明
         // 通过比较参数数量：规范构造器参数数 = record 组件数
@@ -419,13 +438,17 @@ final class ChineseJavadocVerifier {
         if (ctorParamCount != componentCount) {
           return false;
         }
-        // 参数数匹配，检查源码中是否有多余的构造器声明
-        // record 头已经包含类名加左括号，需要查找额外的构造器声明
+        // 参数数匹配，检查 record 头后是否有紧凑构造器声明。
+        // 紧凑构造器特征：类名 + 可选空白 + "{"（而非 "("）。
         String className = enclosingClass.getSimpleName().toString();
-        String recordHeaderPattern = "record\\s+" + className + "\\s*\\(";
+        String recordHeaderPattern = "record\\s+" + className + "\\s*\\([^)]*\\)";
         String sourceAfterHeader = sourceContent.replaceFirst(recordHeaderPattern, "");
-        return !sourceAfterHeader.contains(className + "(");
+        java.util.regex.Pattern compactCtorPattern =
+            java.util.regex.Pattern.compile(
+                "\\b" + java.util.regex.Pattern.quote(className) + "\\s*\\{");
+        return !compactCtorPattern.matcher(sourceAfterHeader).find();
       }
+
       String className = enclosingClass.getSimpleName().toString();
       return !sourceContent.contains(className + "(");
     }
@@ -444,6 +467,15 @@ final class ChineseJavadocVerifier {
         }
       }
       return false;
+    }
+
+    /** 判断方法是否为 static 方法（用于区分工厂方法与构造器）。 */
+    private static boolean isStaticMethod(MethodTree method) {
+      ModifiersTree mods = method.getModifiers();
+      if (mods == null) {
+        return false;
+      }
+      return mods.getFlags().contains(javax.lang.model.element.Modifier.STATIC);
     }
 
     private static String getParamText(DocCommentTree doc, String paramName) {

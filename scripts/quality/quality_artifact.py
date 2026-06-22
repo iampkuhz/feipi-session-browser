@@ -11,6 +11,7 @@ blocking failures instead of being normalized to pass.
 from __future__ import annotations
 
 import json
+import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
@@ -34,6 +35,73 @@ def utc_now() -> str:
         An ISO-8601 timestamp with timezone information.
     """
     return datetime.now(timezone.utc).isoformat()
+
+
+def resolve_base_commit(repo_root: str = '.') -> str:
+    """Return the current HEAD commit hash for artifact traceability.
+
+    Args:
+        repo_root: Repository root for git command execution.
+
+    Returns:
+        Short commit hash or empty string when git is unavailable.
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'rev-parse', '--short', 'HEAD'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        return result.stdout.strip() if result.returncode == 0 else ''
+    except Exception:
+        return ''
+
+
+def resolve_dirty_hash(repo_root: str = '.') -> str:
+    """Return a short hash of the working tree dirty state.
+
+    Args:
+        repo_root: Repository root for git command execution.
+
+    Returns:
+        Short dirty hash or empty string when clean or git is unavailable.
+    """
+    try:
+        result = subprocess.run(
+            ['git', 'diff', '--shortstat'],
+            cwd=repo_root,
+            capture_output=True,
+            text=True,
+            timeout=5,
+            check=False,
+        )
+        if result.returncode == 0 and result.stdout.strip():
+            import hashlib
+            return hashlib.sha256(result.stdout.encode()).hexdigest()[:12]
+        return ''
+    except Exception:
+        return ''
+
+
+def is_artifact_fresh(artifact_path: str, max_age_seconds: int = 3600) -> bool:
+    """Check whether a quality artifact is still fresh enough to use as evidence.
+
+    Args:
+        artifact_path: Path to the artifact JSON file.
+        max_age_seconds: Maximum acceptable age in seconds.
+
+    Returns:
+        True when the artifact exists and was generated within the freshness window.
+    """
+    from pathlib import Path as _Path
+    p = _Path(artifact_path)
+    if not p.exists():
+        return False
+    age = datetime.now(timezone.utc).timestamp() - p.stat().st_mtime
+    return age <= max_age_seconds
 
 
 # 03. Gate detail
@@ -88,6 +156,12 @@ class QualitySummary:
     warnings: list[str] = field(default_factory=list)
     artifacts: dict[str, Any] = field(default_factory=dict)
     gateDetails: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815 - Preserve schema.
+    # 04b. 新增 artifact 元数据字段
+    runId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
+    baseCommit: str = ''  # noqa: N815 - Preserve JSON artifact schema.
+    dirtyHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
+    generatedAt: str = ''  # noqa: N815 - Preserve JSON artifact schema.
+    freshness: str = ''
 
 
 # 05. Overall status computation

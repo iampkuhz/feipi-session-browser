@@ -1,3 +1,6 @@
+# Java 质量门 —— 三平台 CI 与供应链安全
+# 所有平台并行执行 compile/test/check/launcher smoke；
+# Linux 额外运行 qualityFull + distribution + 中文注释检查。
 name: Java Quality
 
 on:
@@ -17,13 +20,20 @@ on:
       - 'gradle/**'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
+      - '.github/workflows/java-quality.yml'
   workflow_dispatch:
 
 concurrency:
   group: java-quality-${{ github.ref }}
   cancel-in-progress: true
 
+permissions:
+  contents: read
+
 jobs:
+  # ============================================================
+  # 三平台并行 —— compile / test / check / launcher smoke
+  # ============================================================
   java-check:
     strategy:
       fail-fast: false
@@ -34,6 +44,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      # 验证 Gradle Wrapper JAR 完整性
       - name: Validate Gradle Wrapper
         uses: gradle/actions/wrapper-validation@v4
 
@@ -43,18 +54,49 @@ jobs:
           distribution: zulu
           java-version: '25'
 
+      # 仅缓存 Gradle 数据，禁止 session/index/secret 进入缓存
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/main_java' }}
+          build-scan-publish: false
 
+      # 依赖校验：Gradle 9.x 默认不写入 lock/checksum（只验证）
       - name: Gradle check
         run: ./gradlew check
 
-      - name: CLI smoke test
+      # Launcher smoke test —— 三平台均执行（跨平台路径处理）
+      - name: CLI smoke test (POSIX)
+        if: runner.os != 'Windows'
         run: |
           ./gradlew :java:app-cli:installDist
           ./java/app-cli/build/install/app-cli/bin/app-cli --help
           ./java/app-cli/build/install/app-cli/bin/app-cli --version
 
+      - name: CLI smoke test (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          .\gradlew.bat :java:app-cli:installDist
+          java\app-cli\build\install\app-cli\bin\app-cli.bat --help
+          java\app-cli\build\install\app-cli\bin\app-cli.bat --version
+
+      # 上传测试结果 artifact（有限 retention）
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-${{ matrix.os }}
+          path: |
+            **/build/test-results/test/*.xml
+            **/build/reports/tests/
+          retention-days: 7
+          if-no-files-found: warn
+
+  # ============================================================
+  # Linux only —— qualityFull + 中文注释检查 + distribution
+  # ============================================================
   java-full:
     runs-on: ubuntu-latest
     needs: java-check
@@ -73,9 +115,42 @@ jobs:
 
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: wrapper
+          cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/main_java' }}
+          build-scan-publish: false
 
+      # qualityFull —— check + JaCoCo 根报告 + functional fixtures
       - name: qualityFull
         run: ./gradlew qualityFull
 
+      # 中文注释检查
       - name: verifyChineseJavaComments
         run: ./gradlew verifyChineseJavaComments
+
+      # Distribution 构建
+      - name: Build distribution
+        run: |
+          ./gradlew :java:app-cli:installDist :java:app-cli:distZip
+          ./java/app-cli/build/install/app-cli/bin/app-cli --help
+          ./java/app-cli/build/install/app-cli/bin/app-cli --version
+
+      # 上传质量报告 artifact
+      - name: Upload quality reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: quality-reports
+          path: |
+            **/build/reports/
+          retention-days: 7
+          if-no-files-found: warn
+
+      # 上传 distribution artifact
+      - name: Upload distribution
+        uses: actions/upload-artifact@v4
+        with:
+          name: distribution
+          path: java/app-cli/build/distributions/*.zip
+          retention-days: 14
+          if-no-files-found: error

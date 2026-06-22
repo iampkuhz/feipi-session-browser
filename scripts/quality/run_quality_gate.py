@@ -42,6 +42,8 @@ from scripts.quality.quality_artifact import (  # noqa: E402
     GateDetail,
     QualitySummary,
     compute_overall,
+    resolve_base_commit,
+    resolve_dirty_hash,
     utc_now,
     write_quality_summary,
 )
@@ -933,6 +935,7 @@ def build_summary(
     started_at: str,
     details: list[GateDetail],
     not_triggered_gates: list[str] | None = None,
+    repo_root: Path | None = None,
 ) -> QualitySummary:
     """Build the persisted summary artifact from gate details.
 
@@ -942,6 +945,7 @@ def build_summary(
         started_at: UTC timestamp captured before gate execution.
         details: Gate results collected from ``run_target``.
         not_triggered_gates: Required gates omitted by changed-file mapping.
+        repo_root: Repository root for git metadata resolution.
 
     Returns:
         Summary object ready for ``write_quality_summary``.
@@ -953,6 +957,8 @@ def build_summary(
         for detail in details
         if 'warning after trigger' in (detail.output or '')
     ]
+    base_commit = resolve_base_commit(str(repo_root)) if repo_root else ''
+    dirty_hash = resolve_dirty_hash(str(repo_root)) if repo_root else ''
     return QualitySummary(
         schemaVersion=3,
         status=status,
@@ -965,6 +971,11 @@ def build_summary(
         warnings=warning_failures,
         artifacts={'notTriggeredGates': not_triggered_gates or []},
         gateDetails=[detail.__dict__ for detail in details],
+        runId=f'{change_id}-{target}-{started_at}',
+        baseCommit=base_commit,
+        dirtyHash=dirty_hash,
+        generatedAt=started_at,
+        freshness='0s',
     )
 
 
@@ -1030,7 +1041,7 @@ def main() -> int:
             )
 
     details = run_target(repo_root, args.target, changed_files)
-    summary = build_summary(args.target, args.change_id, started_at, details, not_triggered_gates)
+    summary = build_summary(args.target, args.change_id, started_at, details, not_triggered_gates, repo_root)
     out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
     print(f'quality summary: {out}')
     print(f'status: {summary.status}')

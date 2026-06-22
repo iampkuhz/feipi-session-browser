@@ -16,6 +16,10 @@
 | `harness/` | agent 规约的渐进式加载扩展 |
 | `openspec/` | 长期规格与本地待实施变更 |
 | `docs/` | UI、验收契约、样例和 token 语义文档 |
+| `java/` | Java 产品源码、测试和 Gradle 子项目 |
+| `build-logic/` | 共享 Gradle 构建逻辑（convention plugins） |
+| `gradle/` | Gradle wrapper 与依赖锁定、verification metadata 等构建供应链文件 |
+| `.github/workflows/` | 跨平台 CI workflow（java-quality.yml） |
 
 ## 本地运行态
 

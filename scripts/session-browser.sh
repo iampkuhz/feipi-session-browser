@@ -98,6 +98,25 @@ expand_path() {
     esac
 }
 
+# Java launcher 定位（help/version cutover）。
+# 不执行 Gradle build；launcher 必须已预构建。
+java_launcher_path() {
+    printf '%s\n' "$PROJECT_DIR/java/app-cli/build/install/app-cli/bin/app-cli"
+}
+
+# 通过 Java launcher 执行 help/version。
+# launcher 缺失时中文报错、非零退出、不 fallback 到 Python。
+run_java_help_version() {
+    local launcher
+    launcher="$(java_launcher_path)"
+    if [[ ! -x "$launcher" ]]; then
+        echo "错误：Java launcher 未找到：$launcher" >&2
+        echo "请先执行构建：./gradlew :java:app-cli:installDist" >&2
+        exit 1
+    fi
+    exec "$launcher" "$@"
+}
+
 require_podman() {
     if ! command -v "${PODMAN_BIN:-podman}" >/dev/null 2>&1; then
         echo "未找到 podman。请安装 Podman，或设置 PODMAN_BIN=/path/to/podman。" >&2
@@ -549,7 +568,7 @@ EOF
 
 case "$CMD" in
     help|-h|--help)
-        print_usage
+        run_java_help_version "--help"
         ;;
     dev)
         echo "提示：dev 已合并到 serve；等同执行 ./scripts/session-browser.sh serve。" >&2
@@ -604,7 +623,7 @@ case "$CMD" in
         run_tests "$@"
         ;;
     version)
-        read_version
+        run_java_help_version "--version"
         ;;
     set-version)
         if [[ $# -lt 1 ]]; then

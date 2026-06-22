@@ -26,7 +26,7 @@ http://127.0.0.1:18999
 ## 常用命令
 
 ```bash
-# 查看当前版本
+# 查看当前版本（由 Java CLI 提供，需先构建 Java launcher）
 ./scripts/session-browser.sh version
 
 # 重新扫描会话数据
@@ -38,7 +38,7 @@ http://127.0.0.1:18999
 # 按端口停止本地服务进程
 ./scripts/session-browser.sh stop --port 18999
 
-# 查看所有可用命令
+# 查看所有可用命令（由 Java CLI 提供，需先构建 Java launcher）
 ./scripts/session-browser.sh help
 ```
 

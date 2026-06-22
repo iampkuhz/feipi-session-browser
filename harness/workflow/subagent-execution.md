@@ -45,3 +45,16 @@
 - 已运行或建议运行的验证命令；
 - 剩余风险；
 - 若阻断，给出下一步可执行动作。
+
+## Compact handoff
+
+- 每个任务输出 `handoff.md`（完整证据索引）和 `handoff.compact.md`（下一任务可读，最大 12,000 字符）。
+- compact handoff 只包含：已完成边界、新增/冻结 API、关键路径、真实验证结果、后续风险、snapshot 和 artifact 路径。
+- 不传递完整对话、全量日志或无关任务正文。
+
+## 独立任务 Agent
+
+- 每个任务由一个全新 Root Agent 会话独立执行；不复用上一任务对话。
+- 任务间通过 compact handoff 传递上下文，不传递完整对话或日志。
+- 任务内 Subagent 严格串行；每个 Subagent 使用独立 context manifest。
+- LLM 调用并发固定为 1；本地确定性测试可按共享合同有界并行。

@@ -60,6 +60,9 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
             'build-logic/**',
             'gradle/**',
             'settings.gradle.kts',
+            'gradlew',
+            'gradlew.bat',
+            '*.lockfile',
         ],
         True,
         'java-build',
@@ -195,6 +198,23 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
         'local',
         True,
     ),
+    # 未知 Java/Gradle 路径 fail closed：不在已知模式内的 Java 文件仍需质量门控
+    (
+        'java-src-unknown',
+        ['**/*.java'],
+        True,
+        'java-src',
+        'high',
+        False,
+    ),
+    (
+        'java-build-unknown',
+        ['**/*.gradle', '**/*.gradle.kts'],
+        True,
+        'java-build',
+        'high',
+        False,
+    ),
 ]
 
 
@@ -300,7 +320,34 @@ def required_quality_targets(files: list[str]) -> list[str]:
     return targets
 
 
-# 07. 自测试
+# 07. target dominance 声明: 当 java-src 触发时自动包含 java-build，避免重复 Gradle 基线
+DOMINANCE: dict[str, dict[str, list[str]]] = {
+    'java-src': {'includes': ['java-build']},
+}
+
+
+def effective_targets(targets: list[str]) -> list[str]:
+    """Apply dominance rules to de-duplicate quality targets.
+
+    当一个 target 声明 includes 另一个 target 时，被包含的 target 不需要单独运行
+    重复的 Gradle 基线检查。
+
+    Args:
+        targets: 初始质量目标列表。
+
+    Returns:
+        去重后的目标列表，保留原始顺序。
+    """
+    expanded: list[str] = list(targets)
+    for t in targets:
+        if t in DOMINANCE:
+            for included in DOMINANCE[t]['includes']:
+                if included in expanded:
+                    expanded.remove(included)
+    return expanded
+
+
+# 08. 自测试
 def _self_test() -> None:
     """Run local assertions for path classification edge cases."""
     assert (
@@ -356,3 +403,21 @@ def _self_test() -> None:
     assert classify_file('settings.gradle.kts').quality_target == 'java-build'
     # Windows path normalization
     assert classify_file('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java').quality_target == 'java-src'
+    # Gradle wrapper and lockfile classification
+    assert classify_file('gradlew').quality_target == 'java-build'
+    assert classify_file('gradlew').category == 'java-build'
+    assert classify_file('gradlew.bat').quality_target == 'java-build'
+    assert classify_file('settings-gradle.lockfile').quality_target == 'java-build'
+    # Fail-closed for unknown Java/Gradle paths
+    c_unknown_java = classify_file('some/random/file.java')
+    assert c_unknown_java.quality_target == 'java-src'
+    assert c_unknown_java.requires_quality_gate is True
+    assert c_unknown_java.allowed_by_default is False
+    c_unknown_gradle = classify_file('random.gradle.kts')
+    assert c_unknown_gradle.quality_target == 'java-build'
+    assert c_unknown_gradle.requires_quality_gate is True
+    assert c_unknown_gradle.allowed_by_default is False
+    # Dominance: java-src includes java-build
+    assert effective_targets(['java-src', 'java-build']) == ['java-src']
+    assert effective_targets(['java-build']) == ['java-build']
+    assert effective_targets(['java-src', 'hook-runtime']) == ['java-src', 'hook-runtime']

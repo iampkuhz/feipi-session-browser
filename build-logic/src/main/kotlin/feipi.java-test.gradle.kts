@@ -4,7 +4,7 @@ plugins {
     id("feipi.java-quality")
 }
 
-// --- JUnit Platform for all test tasks ---
+// --- 所有测试任务使用 JUnit Platform ---
 dependencies {
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
@@ -22,7 +22,7 @@ tasks.withType<Test>().configureEach {
     }
 }
 
-// --- JaCoCo ---
+// --- JaCoCo 覆盖率 ---
 apply(plugin = "jacoco")
 
 tasks.withType<JacocoReport>().configureEach {

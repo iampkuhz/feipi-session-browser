@@ -2,14 +2,14 @@ plugins {
     `java`
 }
 
-// --- Java toolchain ---
+// --- Java 工具链 ---
 java {
     toolchain {
         languageVersion.set(JavaLanguageVersion.of(25))
     }
 }
 
-// --- Compiler encoding and warnings ---
+// --- 编译器编码与告警 ---
 tasks.withType<JavaCompile>().configureEach {
     options.encoding = "UTF-8"
     options.release.set(25)
@@ -21,13 +21,13 @@ tasks.withType<JavaCompile>().configureEach {
     )
 }
 
-// --- Common repositories ---
+// --- 公共仓库 ---
 repositories {
     maven("https://maven.aliyun.com/repository/central")
     mavenCentral()
 }
 
-// --- Reproducible build defaults ---
+// --- 可复现构建默认值 ---
 tasks.withType<AbstractArchiveTask>().configureEach {
     isPreserveFileTimestamps = false
     isReproducibleFileOrder = true

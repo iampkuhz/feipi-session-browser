@@ -14,16 +14,16 @@ dependencyLocking {
     lockAllConfigurations()
 }
 
-// Only leaf subprojects have check tasks.
+// 只有叶子子项目才有 check 任务。
 val leafSubprojects by lazy { subprojects.filter { it.childProjects.isEmpty() } }
 
-// Root `check` aggregates all subproject checks.
+// 根项目 check 聚合所有子项目的 check 任务。
 tasks.named("check") {
     dependsOn(leafSubprojects.map { "${it.path}:check" })
 }
 
 // ============================================================
-// qualityFull – slow gate aggregating check + reports + fixtures
+// qualityFull —— 慢速质量门，聚合 check + 报告 + fixture。
 // ============================================================
 val qualityFull = tasks.register("qualityFull") {
     group = "verification"
@@ -32,14 +32,14 @@ val qualityFull = tasks.register("qualityFull") {
 }
 
 // ============================================================
-// jacocoRootReport – aggregated JaCoCo coverage report
+// jacocoRootReport —— 跨模块聚合 JaCoCo 覆盖率报告。
 // ============================================================
 val jacocoRootReport = tasks.register("jacocoRootReport") {
     group = "verification"
     description = "Aggregated JaCoCo report across all modules."
 }
 
-// Wire JaCoCo root report to depend on subproject JaCoCo reports
+// 让 JaCoCo 根报告依赖各子项目的 JaCoCo 报告。
 gradle.projectsEvaluated {
     jacocoRootReport.configure {
         dependsOn(leafSubprojects.mapNotNull { sub ->
@@ -53,7 +53,7 @@ gradle.projectsEvaluated {
 }
 
 // ============================================================
-// javadocVerify – aggregated Javadoc verification
+// javadocVerify —— 聚合 Javadoc 验证。
 // ============================================================
 val javadocVerify = tasks.register("javadocVerify") {
     group = "verification"
@@ -73,7 +73,8 @@ tasks.named("check") {
 }
 
 // ============================================================
-// verifyNoSkippedJavaTests – zero skipped/aborted enforcement
+// verifyNoSkippedJavaTests —— 零跳过/零中止强制检查。
+// 配置缓存兼容：动作逻辑提取到顶层函数，避免捕获脚本对象。
 // ============================================================
 val verifyNoSkippedJavaTests = tasks.register("verifyNoSkippedJavaTests") {
     group = "verification"
@@ -86,53 +87,11 @@ gradle.projectsEvaluated {
             sub.tasks.names.takeIf { "test" in it }?.let { "${sub.path}:test" }
         })
 
-        doLast {
-            var totalSkipped = 0
-            var totalErrors = 0
-            var totalTests = 0
-            var filesFound = 0
-
-            leafSubprojects.forEach { sub ->
-                val testResultsDir =
-                    sub.layout.buildDirectory.dir("test-results/test").get().asFile
-                if (testResultsDir.exists()) {
-                    testResultsDir.walkTopDown()
-                        .filter { it.name.startsWith("TEST-") && it.extension == "xml" }
-                        .forEach { file ->
-                            filesFound++
-                            val content = file.readText()
-                            val skippedMatch = Regex("""skipped="(\d+)"""").find(content)
-                            val errorsMatch = Regex("""errors="(\d+)"""").find(content)
-                            val testsMatch = Regex("""tests="(\d+)"""").find(content)
-                            totalSkipped += skippedMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                            totalErrors += errorsMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                            totalTests += testsMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
-                        }
-                }
-            }
-
-            if (totalSkipped > 0) {
-                throw GradleException(
-                    "Found $totalSkipped skipped test(s). Skipped tests are not allowed."
-                )
-            }
-            if (totalErrors > 0) {
-                throw GradleException(
-                    "Found $totalErrors aborted/errored test(s). Aborted tests are not allowed."
-                )
-            }
-            if (filesFound == 0) {
-                logger.lifecycle(
-                    "verifyNoSkippedJavaTests: No test result XMLs found. " +
-                        "This may be expected if no modules have test sources."
-                )
-            } else {
-                logger.lifecycle(
-                    "verifyNoSkippedJavaTests: $totalTests test(s) in $filesFound file(s), " +
-                        "0 skipped, 0 aborted."
-                )
-            }
+        // 配置时解析所有测试目录路径为字符串列表，避免执行时引用脚本对象。
+        val testDirs: List<String> = leafSubprojects.map { sub ->
+            sub.layout.buildDirectory.dir("test-results/test").get().asFile.absolutePath
         }
+        doLast(checkNoSkippedTestsAction(testDirs))
     }
 }
 
@@ -141,13 +100,96 @@ tasks.named("check") {
 }
 
 // ============================================================
-// verifyLeanQualityStack – ensure excluded tools are absent
+// verifyLeanQualityStack —— 确保被排除的质量工具不存在。
+// 配置缓存兼容：动作逻辑提取到顶层函数。
 // ============================================================
 val verifyLeanQualityStack = tasks.register("verifyLeanQualityStack") {
     group = "verification"
     description = "Verifies that excluded quality tools are not present in the build."
-    doLast {
-        val catalogFile = file("gradle/libs.versions.toml")
+
+    // 配置时解析路径，避免执行时引用脚本对象。
+    val catalogPath = file("gradle/libs.versions.toml").absolutePath
+    doLast(checkLeanQualityStackAction(catalogPath))
+}
+
+tasks.named("check") {
+    dependsOn(verifyLeanQualityStack)
+}
+
+// ============================================================
+// benchmark —— 独立生命周期，当前仅支持 dry-run。
+// ============================================================
+tasks.register("benchmark") {
+    group = "benchmark"
+    description = "Benchmark lifecycle. Placeholder until JMH provider is created."
+}
+
+// ============================================================
+// verifyChineseJavaComments —— 全量扫描项目自有 Java 源码注释。
+// 配置缓存兼容：动作逻辑提取到顶层函数。
+// ============================================================
+val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
+    group = "verification"
+    description = "扫描项目自有 Java 源码注释，验证中文为主体、术语允许英文。"
+
+    val checkerScript = file("scripts/quality/check_code_comment_language.py")
+    val policyFile = file("config/technical-terms.json")
+    val cacheFile = layout.buildDirectory.file("reports/chinese-comments/cache.json")
+    val reportDir = layout.buildDirectory.dir("reports/chinese-comments")
+
+    inputs.files(checkerScript, policyFile)
+    outputs.file(cacheFile)
+    outputs.file(layout.buildDirectory.file("reports/chinese-comments/report.json"))
+
+    // 配置时解析所有路径为绝对路径字符串，避免执行时引用脚本对象。
+    val scriptPath = checkerScript.absolutePath
+    val policyPath = policyFile.absolutePath
+    val cachePath = cacheFile.get().asFile.absolutePath
+    val reportPath = reportDir.get().asFile.absolutePath
+
+    doLast(runChineseCommentCheckAction(scriptPath, policyPath, cachePath, reportPath))
+}
+
+// ============================================================
+// verifyChineseJavaCommentsChanged —— 仅扫描变更文件的快速检查。
+// ============================================================
+val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaCommentsChanged") {
+    group = "verification"
+    description = "仅扫描 Git changed Java 文件的中文注释。"
+
+    val checkerScript = file("scripts/quality/check_code_comment_language.py")
+    val policyFile = file("config/technical-terms.json")
+    val changedFilesJson = layout.buildDirectory.file("tmp/changed-java-files.json")
+    val reportDir = layout.buildDirectory.dir("reports/chinese-comments-changed")
+
+    inputs.files(checkerScript, policyFile)
+
+    // 配置时解析路径，避免执行时引用脚本对象。
+    val scriptPath = checkerScript.absolutePath
+    val policyPath = policyFile.absolutePath
+    val changedFilesPath = changedFilesJson.get().asFile.absolutePath
+    val reportPath = reportDir.get().asFile.absolutePath
+
+    doLast(runChineseCommentCheckChangedAction(scriptPath, policyPath, changedFilesPath, reportPath))
+}
+
+tasks.named("check") {
+    dependsOn(verifyChineseJavaComments)
+}
+
+// ============================================================
+// 顶层动作函数 —— 配置缓存兼容。
+// 这些函数编译为静态方法，不持有构建脚本引用。
+// doLast 通过返回 Action<Task> 的 lambda 只捕获局部变量。
+// ============================================================
+
+/**
+ * verifyLeanQualityStack 的执行动作。
+ * 检查版本目录不包含被排除的质量工具条目。
+ */
+private fun checkLeanQualityStackAction(catalogPath: String): org.gradle.api.Action<Task> {
+    return org.gradle.api.Action<Task> {
+        val catalogFile = java.io.File(catalogPath)
         if (catalogFile.exists()) {
             val catalogContent = catalogFile.readText()
             val forbiddenEntries = listOf(
@@ -156,7 +198,7 @@ val verifyLeanQualityStack = tasks.register("verifyLeanQualityStack") {
             )
             forbiddenEntries.forEach { entry ->
                 if (catalogContent.contains(Regex("""\b${Regex.escape(entry)}\b"""))) {
-                    throw GradleException("Version catalog contains excluded tool entry: $entry")
+                    throw org.gradle.api.GradleException("Version catalog contains excluded tool entry: $entry")
                 }
             }
         }
@@ -164,52 +206,85 @@ val verifyLeanQualityStack = tasks.register("verifyLeanQualityStack") {
     }
 }
 
-tasks.named("check") {
-    dependsOn(verifyLeanQualityStack)
+/**
+ * verifyNoSkippedJavaTests 的执行动作。
+ * 扫描所有测试目录的 XML 结果，确保无跳过/中止测试。
+ */
+private fun checkNoSkippedTestsAction(testResultDirs: List<String>): org.gradle.api.Action<Task> {
+    return org.gradle.api.Action<Task> {
+        var totalSkipped = 0
+        var totalErrors = 0
+        var totalTests = 0
+        var filesFound = 0
+
+        testResultDirs.forEach { dirPath ->
+            val testResultsDir = java.io.File(dirPath)
+            if (testResultsDir.exists()) {
+                testResultsDir.walkTopDown()
+                    .filter { it.name.startsWith("TEST-") && it.extension == "xml" }
+                    .forEach { file ->
+                        filesFound++
+                        val content = file.readText()
+                        val skippedMatch = Regex("""skipped="(\d+)"""").find(content)
+                        val errorsMatch = Regex("""errors="(\d+)"""").find(content)
+                        val testsMatch = Regex("""tests="(\d+)"""").find(content)
+                        totalSkipped += skippedMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        totalErrors += errorsMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        totalTests += testsMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                    }
+            }
+        }
+
+        if (totalSkipped > 0) {
+            throw org.gradle.api.GradleException(
+                "Found $totalSkipped skipped test(s). Skipped tests are not allowed."
+            )
+        }
+        if (totalErrors > 0) {
+            throw org.gradle.api.GradleException(
+                "Found $totalErrors aborted/errored test(s). Aborted tests are not allowed."
+            )
+        }
+        if (filesFound == 0) {
+            logger.lifecycle(
+                "verifyNoSkippedJavaTests: No test result XMLs found. " +
+                    "This may be expected if no modules have test sources."
+            )
+        } else {
+            logger.lifecycle(
+                "verifyNoSkippedJavaTests: $totalTests test(s) in $filesFound file(s), " +
+                    "0 skipped, 0 aborted."
+            )
+        }
+    }
 }
 
-// ============================================================
-// benchmark – independent lifecycle, dry-run only for now
-// ============================================================
-tasks.register("benchmark") {
-    group = "benchmark"
-    description = "Benchmark lifecycle. Placeholder until JMH provider is created."
-}
-
-// ============================================================
-// verifyChineseJavaComments – full scan of project-owned Java sources
-// ============================================================
-val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
-    group = "verification"
-    description = "扫描项目自有 Java 源码注释，验证中文为主体、术语允许英文。"
-
-    val termsFile = file("tmp/feipi-java-migration-final/terminology/java-comment-terms.txt")
-    val directivesFile = file("tmp/feipi-java-migration-final/terminology/comment-machine-directives.txt")
-    val checkerScript = file("tmp/feipi-java-migration-final/tools/validate_java_chinese_comments.py")
-    val cacheFile = layout.buildDirectory.file("reports/chinese-comments/cache.json")
-
-    inputs.files(termsFile, directivesFile, checkerScript)
-    outputs.file(cacheFile)
-    outputs.file(layout.buildDirectory.file("reports/chinese-comments/report.json"))
-
-    doLast {
-        val reportDir = layout.buildDirectory.dir("reports/chinese-comments").get().asFile
+/**
+ * verifyChineseJavaComments 的执行动作。
+ * 调用中文注释检查脚本对全量 Java 源文件进行扫描。
+ */
+private fun runChineseCommentCheckAction(
+    scriptPath: String,
+    policyPath: String,
+    cachePath: String,
+    reportDirPath: String,
+): org.gradle.api.Action<Task> {
+    return org.gradle.api.Action<Task> {
+        val reportDir = java.io.File(reportDirPath)
         reportDir.mkdirs()
-        val reportFile = File(reportDir, "report.json")
+        val reportFile = java.io.File(reportDir, "report.json")
         val cmd = listOf(
-            "python3", checkerScript.absolutePath,
-            "--root", file("java").absolutePath,
-            "--root", file("build-logic/src").absolutePath,
-            "--terms", termsFile.absolutePath,
-            "--directives", directivesFile.absolutePath,
+            "python3", scriptPath,
+            "java", "build-logic", "build.gradle.kts", "settings.gradle.kts",
+            "--policy", policyPath,
             "--json-report", reportFile.absolutePath,
-            "--cache", cacheFile.get().asFile.absolutePath,
+            "--cache", cachePath,
         )
         val pb = ProcessBuilder(cmd).inheritIO()
         val process = pb.start()
         val exitCode = process.waitFor()
         if (exitCode != 0) {
-            throw GradleException(
+            throw org.gradle.api.GradleException(
                 "verifyChineseJavaComments: 中文注释检查失败（exit=$exitCode），详见 ${reportFile.absolutePath}"
             )
         }
@@ -217,20 +292,17 @@ val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
     }
 }
 
-// ============================================================
-// verifyChineseJavaCommentsChanged – changed-only fast scan
-// ============================================================
-val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaCommentsChanged") {
-    group = "verification"
-    description = "仅扫描 Git changed Java 文件的中文注释。"
-
-    val termsFile = file("tmp/feipi-java-migration-final/terminology/java-comment-terms.txt")
-    val directivesFile = file("tmp/feipi-java-migration-final/terminology/comment-machine-directives.txt")
-    val checkerScript = file("tmp/feipi-java-migration-final/tools/validate_java_chinese_comments.py")
-
-    inputs.files(termsFile, directivesFile, checkerScript)
-
-    doLast {
+/**
+ * verifyChineseJavaCommentsChanged 的执行动作。
+ * 仅扫描 Git 变更的 Java 文件的中文注释。
+ */
+private fun runChineseCommentCheckChangedAction(
+    scriptPath: String,
+    policyPath: String,
+    changedFilesJsonPath: String,
+    reportDirPath: String,
+): org.gradle.api.Action<Task> {
+    return org.gradle.api.Action<Task> {
         val changedFiles = try {
             val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
                 .redirectErrorStream(true).start()
@@ -241,25 +313,24 @@ val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaComments
         }
         if (changedFiles != null && changedFiles.isEmpty()) {
             logger.lifecycle("verifyChineseJavaCommentsChanged: 无 Java 文件变更，跳过。")
-            return@doLast
+            return@Action
         }
         val filesJson = changedFiles?.joinToString(",") { "\"$it\"" }
         val filesFrom = if (filesJson != null) {
-            val tmpFile = layout.buildDirectory.file("tmp/changed-java-files.json").get().asFile
+            val tmpFile = java.io.File(changedFilesJsonPath)
             tmpFile.parentFile.mkdirs()
             tmpFile.writeText("[$filesJson]", Charsets.UTF_8)
             tmpFile
         } else null
 
-        val reportDir = layout.buildDirectory.dir("reports/chinese-comments-changed").get().asFile
+        val reportDir = java.io.File(reportDirPath)
         reportDir.mkdirs()
-        val reportFile = File(reportDir, "report.json")
+        val reportFile = java.io.File(reportDir, "report.json")
 
         val cmd = mutableListOf(
-            "python3", checkerScript.absolutePath,
-            "--root", file("java").absolutePath,
-            "--terms", termsFile.absolutePath,
-            "--directives", directivesFile.absolutePath,
+            "python3", scriptPath,
+            "java", "build-logic",
+            "--policy", policyPath,
             "--json-report", reportFile.absolutePath,
         )
         if (filesFrom != null) {
@@ -269,14 +340,10 @@ val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaComments
         val process = pb.start()
         val exitCode = process.waitFor()
         if (exitCode != 0) {
-            throw GradleException(
+            throw org.gradle.api.GradleException(
                 "verifyChineseJavaCommentsChanged: 中文注释检查失败（exit=$exitCode），详见 ${reportFile.absolutePath}"
             )
         }
         logger.lifecycle("verifyChineseJavaCommentsChanged: PASSED")
     }
-}
-
-tasks.named("check") {
-    dependsOn(verifyChineseJavaComments)
 }

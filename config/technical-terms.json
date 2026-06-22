@@ -1,0 +1,11 @@
+{
+  "canonical_terms": [
+    "Java", "JVM", "Gradle", "Kotlin DSL", "JUnit", "Javadoc", "DocLint",
+    "JSON", "JSONL", "NDJSON", "SQLite", "Jackson", "Picocli", "API", "CLI",
+    "record", "enum", "sealed interface", "token", "tool", "agent", "session",
+    "SHA-256", "UTF-8", "stdout", "stderr", "fixture", "artifact", "schema",
+    "private", "static", "Anthropic", "Qwen", "Claude", "OpenAI", "Codex", "Qoder",
+    "web", "link", "subcommand", "Unmatched argument", "enclosing", "return type"
+  ],
+  "forbidden_translations": ["爪哇", "杰克逊框架", "格雷德尔", "皮科克利"]
+}

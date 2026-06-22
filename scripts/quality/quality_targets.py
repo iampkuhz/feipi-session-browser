@@ -85,6 +85,28 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     ],
 }
 
+# 01b. target 并行执行元数据
+# parallel_safe: 是否可与其他无冲突 target 并行执行
+# exclusive_resources: 互斥资源列表（如 gradle-daemon），同一资源同时只允许一个 target 使用
+# timeout: 单 target 最大执行时间（秒）
+TARGET_META: dict[str, dict[str, object]] = {
+    'session-detail': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
+    'python-src': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
+    'python-standard': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
+    'hook-runtime': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
+    'harness': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
+    'acceptance-contracts': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
+    'index': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
+    'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 600},
+    'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 300},
+}
+
+# 01c. target dominance 声明: 当 dominant target 触发时自动包含 dominated target
+# java-src 包含 java-build，避免两个 target 各自运行一次 Gradle baseline
+TARGET_DOMINANCE: dict[str, dict[str, list[str]]] = {
+    'java-src': {'includes': ['java-build']},
+}
+
 
 # 02. gate -> file pattern map (incremental trigger)
 # A gate runs only when at least one changed file matches one of its patterns.
@@ -378,10 +400,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'javaCheck': [
             'java/**/src/main/java/**/*.java',
             'java/**/src/test/java/**/*.java',
+            '**/*.java',
         ],
         'javaChineseComments': [
             'java/**/src/main/java/**/*.java',
             'java/**/src/test/java/**/*.java',
+            '**/*.java',
         ],
         'noJavaTestSkips': [
             'java/**/src/test/java/**/*.java',
@@ -394,6 +418,9 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'build.gradle.kts',
             'settings.gradle.kts',
             'gradle.properties',
+            'gradlew',
+            'gradlew.bat',
+            '*.lockfile',
         ],
     },
 }
@@ -506,3 +533,38 @@ def validate_target(target: str) -> None:
     """
     if target not in QUALITY_TARGETS:
         raise ValueError(f'Unknown quality target: {target}')
+
+
+# 06. dominance 去重
+def effective_targets(targets: list[str]) -> list[str]:
+    """Apply dominance rules to remove redundant quality targets.
+
+    当 java-src 在列表中时，java-build 会被移除，因为 java-src 的 Gradle
+    检查已经覆盖了 java-build 需要的全部检查。
+
+    Args:
+        targets: 初始质量目标列表。
+
+    Returns:
+        去重后的目标列表，保留原始顺序。
+    """
+    result: list[str] = list(targets)
+    for t in targets:
+        if t in TARGET_DOMINANCE:
+            for included in TARGET_DOMINANCE[t]['includes']:
+                if included in result:
+                    result.remove(included)
+    return result
+
+
+# 07. 并行元数据查询
+def target_parallel_meta(target: str) -> dict[str, object]:
+    """Return parallel execution metadata for a quality target.
+
+    Args:
+        target: Quality target name.
+
+    Returns:
+        Metadata dict with parallel_safe, exclusive_resources, and timeout.
+    """
+    return dict(TARGET_META.get(target, {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300}))

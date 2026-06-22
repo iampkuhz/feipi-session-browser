@@ -1,0 +1,97 @@
+{
+  "schema_version": 1,
+  "change_id": "java-s2-normalized-contract-foundation",
+  "generated_from": "J2-000-repo-auditor",
+  "pipeline_layers": {
+    "L1_sources": {
+      "writer": "sources/claude.py, sources/codex_session_source.py, sources/qoder.py",
+      "reader": "normalized/agents/*, index/scanners.py",
+      "freshness": "file_mtime",
+      "consumer": "normalized_adapters",
+      "repair": "jsonl_reader skips malformed lines"
+    },
+    "L2_domain": {
+      "writer": "domain/normalizer.py, domain/token_normalizer.py",
+      "reader": "sources/*, normalized/*, attribution/*, web/*",
+      "freshness": "stateless_pure_functions",
+      "consumer": "normalized, attribution, index, web",
+      "repair": "none"
+    },
+    "L3_normalized": {
+      "writer": "normalized/agents/{claude_code,codex,qoder}_normalization.py",
+      "reader": "index/scanners.py, attribution/service.py, web/routes.py",
+      "freshness": "schema_version=session-detail.normalized.v3",
+      "consumer": "index_writers, attribution, web_presenters",
+      "repair": "persist_normalized_session_artifact mtime_tolerance"
+    },
+    "L4_index": {
+      "writer": "index/writers.py (upsert_session, upsert_session_artifact)",
+      "reader": "index/queries.py",
+      "freshness": "SCAN_LOGIC_VERSION",
+      "consumer": "web/dashboard, web/projects, web/sessions",
+      "repair": "init_schema full_rebuild_on_version_mismatch"
+    },
+    "L5_attribution": {
+      "writer": "attribution/service.py",
+      "reader": "web/routes.py, web/view_model.py",
+      "freshness": "request_time_rebuild",
+      "consumer": "web_layer",
+      "repair": "fallback_to_base_builder"
+    }
+  },
+  "behaviors": [
+    {"id": "B01", "behavior": "JSONL 事件解析", "decision": "KEEP", "layer": "L1", "tests": "test_jsonl_reader.py"},
+    {"id": "B02", "behavior": "Claude Code source adapter", "decision": "KEEP", "layer": "L1", "tests": "test_claude_source.py"},
+    {"id": "B03", "behavior": "Codex source adapter", "decision": "KEEP", "layer": "L1", "tests": "test_codex_source.py"},
+    {"id": "B04", "behavior": "Qoder source adapter", "decision": "KEEP", "layer": "L1", "tests": "test_qoder_source.py"},
+    {"id": "B05", "behavior": "消息内容归一化", "decision": "KEEP", "layer": "L2", "tests": "test_normalizer.py"},
+    {"id": "B06", "behavior": "内容分段检测", "decision": "KEEP", "layer": "L2", "tests": "test_content_part.py"},
+    {"id": "B07", "behavior": "Token 归一化", "decision": "KEEP", "layer": "L2", "tests": "test_token_normalizer.py"},
+    {"id": "B08", "behavior": "Codex delta token 归一化", "decision": "KEEP", "layer": "L2", "tests": "test_codex_token_normalizer.py"},
+    {"id": "B09", "behavior": "Normalized session artifact 模型", "decision": "KEEP", "layer": "L3", "tests": "test_normalized_models.py"},
+    {"id": "B10", "behavior": "Schema validation (v3)", "decision": "KEEP", "layer": "L3", "tests": "test_normalized_schema.py"},
+    {"id": "B11", "behavior": "Semantic model 构建", "decision": "KEEP", "layer": "L3", "tests": "test_semantic.py"},
+    {"id": "B12", "behavior": "Artifact 持久化与 mtime 检查", "decision": "KEEP", "layer": "L3", "tests": "test_normalized_artifacts.py"},
+    {"id": "B13", "behavior": "Source unit catalog 管理", "decision": "KEEP", "layer": "L3", "tests": "test_source_units.py"},
+    {"id": "B14", "behavior": "Claude Code 归一化 adapter", "decision": "KEEP", "layer": "L3", "tests": "test_claude_code_adapter_snapshots.py"},
+    {"id": "B15", "behavior": "Codex 归一化 adapter", "decision": "KEEP", "layer": "L3", "tests": "test_codex_adapter_snapshots.py"},
+    {"id": "B16", "behavior": "Qoder 归一化 adapter", "decision": "KEEP", "layer": "L3", "tests": "test_qoder_adapter_snapshots.py"},
+    {"id": "B17", "behavior": "SQLite schema 管理", "decision": "KEEP", "layer": "L4", "tests": "test_indexer.py"},
+    {"id": "B18", "behavior": "Session upsert writer", "decision": "KEEP", "layer": "L4", "tests": "test_writers.py"},
+    {"id": "B19", "behavior": "Full/incremental scan", "decision": "KEEP", "layer": "L4", "tests": "test_scanners.py"},
+    {"id": "B20", "behavior": "Session queries", "decision": "KEEP", "layer": "L4", "tests": "test_queries.py"},
+    {"id": "B21", "behavior": "Artifact 存储与检索", "decision": "KEEP", "layer": "L4", "tests": "test_artifact_persistence.py"},
+    {"id": "B22", "behavior": "Attribution service dispatch", "decision": "KEEP", "layer": "L5", "tests": "test_attribution_service.py"},
+    {"id": "B23", "behavior": "Claude Code attribution builder", "decision": "KEEP", "layer": "L5", "tests": "test_claude_code_attribution.py"},
+    {"id": "B24", "behavior": "Codex attribution builder", "decision": "KEEP", "layer": "L5", "tests": "test_codex_attribution.py"},
+    {"id": "B25", "behavior": "Qoder attribution builder", "decision": "KEEP", "layer": "L5", "tests": "test_qoder_attribution.py"},
+    {"id": "B26", "behavior": "API family normalizer", "decision": "KEEP", "layer": "L5", "tests": "test_api_families.py"},
+    {"id": "B27", "behavior": "Token estimation", "decision": "KEEP", "layer": "L5", "tests": "test_token_estimator.py"},
+    {"id": "B28", "behavior": "Web 展示层", "decision": "DROP", "layer": "L6", "note": "S2 不涉及 web 层 Java 迁移"}
+  ],
+  "module_topology": {
+    "existing_s1": ["java:core-domain", "java:app-cli", "java:test-support", "java:architecture-tests"],
+    "new_s2": ["java:contract-tests"],
+    "future_s3_plus": ["java:normalized-contract", "java:normalized-io", "java:attribution-core", "java:index-core"]
+  },
+  "acceptance_contracts": [
+    {"id": "AC-01", "behavior": "Schema version 一致性", "expected": "schema_version == session-detail.normalized.v3", "owning_task": "J2-010", "test_id": "normalized-schema-version-contract"},
+    {"id": "AC-02", "behavior": "Agent 枚举约束", "expected": "agent in {codex, claude_code, qoder}", "owning_task": "J2-010", "test_id": "normalized-agent-enum-contract"},
+    {"id": "AC-03", "behavior": "Session key 格式", "expected": "session_key == {agent}:{session_id}", "owning_task": "J2-010", "test_id": "normalized-session-key-contract"},
+    {"id": "AC-04", "behavior": "Call index 顺序", "expected": "call_index sequential from 1", "owning_task": "J2-020", "test_id": "normalized-call-index-contract"},
+    {"id": "AC-05", "behavior": "Usage total 一致性", "expected": "total == fresh + cache_read + cache_write + output", "owning_task": "J2-020", "test_id": "normalized-usage-total-contract"},
+    {"id": "AC-06", "behavior": "Tool edge 引用完整性", "expected": "declared_by_call_id in known_call_ids", "owning_task": "J2-020", "test_id": "normalized-tool-edge-contract"},
+    {"id": "AC-07", "behavior": "Source unit catalog key 一致性", "expected": "unit_key matches catalog key", "owning_task": "J2-030", "test_id": "normalized-source-unit-catalog-contract"},
+    {"id": "AC-08", "behavior": "Source unit sequence 引用", "expected": "sequence refs exist in catalog", "owning_task": "J2-030", "test_id": "normalized-source-unit-sequence-contract"},
+    {"id": "AC-09", "behavior": "Direction 枚举约束", "expected": "direction in {request, response}", "owning_task": "J2-020", "test_id": "normalized-direction-contract"},
+    {"id": "AC-10", "behavior": "Claude Code adapter snapshot", "fixture": "fixtures/normalized/claude_code/tool_loop.input", "expected": "fixtures/normalized/claude_code/tool_loop.expected.json", "owning_task": "J2-040", "test_id": "claude-code-adapter-snapshot"},
+    {"id": "AC-11", "behavior": "Claude Code subagent snapshot", "fixture": "fixtures/normalized/claude_code/subagent_tool.input", "expected": "fixtures/normalized/claude_code/subagent_tool.expected.json", "owning_task": "J2-040", "test_id": "claude-code-subagent-snapshot"},
+    {"id": "AC-12", "behavior": "Codex adapter snapshot", "fixture": "fixtures/normalized/codex/tool_loop.input", "expected": "fixtures/normalized/codex/tool_loop.expected.json", "owning_task": "J2-050", "test_id": "codex-adapter-snapshot"},
+    {"id": "AC-13", "behavior": "Qoder adapter snapshot", "fixture": "fixtures/normalized/qoder/tool_loop.input", "expected": "fixtures/normalized/qoder/tool_loop.expected.json", "owning_task": "J2-060", "test_id": "qoder-adapter-snapshot"},
+    {"id": "AC-14", "behavior": "Usage source 估算溯源", "expected": "kind=estimated requires method and reason", "owning_task": "J2-020", "test_id": "normalized-usage-source-contract"},
+    {"id": "AC-15", "behavior": "Byte range 非负约束", "expected": "byte_range [start,end] start>=0 end>=start", "owning_task": "J2-030", "test_id": "normalized-byte-range-contract"},
+    {"id": "AC-16", "behavior": "Diagnostics 容器类型", "expected": "diagnostics must be array", "owning_task": "J2-020", "test_id": "normalized-diagnostics-contract"},
+    {"id": "AC-17", "behavior": "Java core-domain 零外部依赖", "expected": "core-domain depends only on JDK", "owning_task": "J2-000", "test_id": "core-domain-dependency-contract"},
+    {"id": "AC-18", "behavior": "Java contract-tests 模块拓扑", "expected": "contract-tests depends on test-support only", "owning_task": "J2-000", "test_id": "contract-tests-topology-contract"}
+  ]
+}

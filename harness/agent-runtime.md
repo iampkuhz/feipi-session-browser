@@ -46,9 +46,13 @@
 
 - `java-src` target：`java/**/src/**/*.java` 变更触发，运行 `javaCheck`、`javaChineseComments`、`noJavaTestSkips`。
 - `java-build` target：`build-logic/**`、`gradle/**`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties` 变更触发，运行 `javaCheck`。
+- `java-src` 包含 `java-build`（dominance）：避免两个 target 各自运行一次 Gradle baseline。
 - Java 注释必须通过中文近似校验，术语允许英文；术语表变更需单独列出理由。
+- Javadoc Day 0：production type、public method、public constructor 必须中文 Javadoc；核心字段和 record component 必须说明业务语义。
 - Java 测试 0 skipped、0 aborted、非预期 0 discovered 时失败。
 - 精简质量栈：javac、Spotless、Checkstyle、DocLint、PMD、ArchUnit、JUnit、JaCoCo；禁止 Error Prone、Lombok、preview。
+- artifact freshness：Gradle build cache 和 configuration cache 复用 daemon；普通任务不执行 clean；仅 checkpoint 执行完整冷构建。
+- 本地有界并行：Gradle class-level fork 并行，JUnit 方法级并行关闭；建议 fork 数 `min(4, max(1, CPU/2))`。LLM 调用严格串行。
 
 ## Agent 入口职责
 

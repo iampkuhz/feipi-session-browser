@@ -6,14 +6,14 @@ plugins {
     pmd
 }
 
-// Access version catalog from the consuming project
+// 从消费项目的版本目录获取工具版本号
 val catalog = project.extensions.getByType<VersionCatalogsExtension>().named("libs")
 val googleJavaFormatVersion = catalog.findVersion("google-java-format").get().requiredVersion
 val checkstyleVersion = catalog.findVersion("checkstyle").get().requiredVersion
 val pmdVersion = catalog.findVersion("pmd").get().requiredVersion
 
 // ============================================================
-// Spotless – single auto-formatting entry point
+// Spotless —— 统一自动格式化入口
 // ============================================================
 spotless {
     java {
@@ -31,7 +31,7 @@ spotless {
     }
 }
 
-// spotlessApply must NOT be wired to check. Only spotlessCheck.
+// spotlessApply 不能挂到 check，只挂 spotlessCheck。
 
 // ============================================================
 // Checkstyle
@@ -70,7 +70,7 @@ tasks.withType<Pmd>().configureEach {
 }
 
 // ============================================================
-// Javadoc / DocLint verification
+// Javadoc / DocLint 验证
 // ============================================================
 tasks.withType<Javadoc>().configureEach {
     val opts = options as StandardJavadocDocletOptions

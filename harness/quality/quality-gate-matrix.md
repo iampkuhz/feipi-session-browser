@@ -22,6 +22,10 @@
 | `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局、noTestSkips |
 | `acceptance-contracts` | `docs/acceptance-contracts/**`、`tests/**` | 验收契约映射、pytest、noTestSkips |
 | `index` | index 相关源码 | index integrity |
+| `java-src` | `java/**/src/**/*.java` | Java 编译检查、中文注释校验、测试零跳过 |
+| `java-build` | `build-logic/**`、`gradle/**`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties` | Java 编译检查 |
+
+`java-src` 包含 `java-build`（dominance）：当 java-src 触发时自动覆盖 java-build，避免重复运行 Gradle baseline。
 
 ## 修改规则
 

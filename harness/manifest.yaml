@@ -1,7 +1,7 @@
 schemaVersion: 1
 project:
   name: feipi-session-browser
-  type: python-web-tool
+  type: python-web-tool-with-java-migration
   description: Local session browser for Claude Code, Codex, and Qoder session data.
 
 runtime:
@@ -36,6 +36,10 @@ quality:
     - acceptance-contracts
     - java-src
     - java-build
+  # target dominance 声明: 避免重复运行 Gradle baseline
+  dominance:
+    java-src:
+      includes: [java-build]
 
 quality_gates:
   - name: python-compile
