@@ -11,7 +11,15 @@ application {
 
 dependencies {
     implementation(project(":java:core-domain"))
+    implementation(project(":java:source-spi"))
+    implementation(project(":java:source-json"))
+    implementation(project(":java:source-claude"))
+    implementation(project(":java:source-codex"))
+    implementation(project(":java:source-qoder"))
+    implementation(project(":java:normalization-engine"))
+    implementation(project(":java:artifact-normalized"))
     implementation(libs.picocli)
+    implementation(libs.bundles.jackson)
 
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)

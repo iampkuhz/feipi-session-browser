@@ -105,12 +105,12 @@ class CliContractTest {
     }
 
     @Test
-    @DisplayName("help 输出不包含内部命令（当前无子命令注册）")
+    @DisplayName("help 输出不包含内部命令（normalized-batch 为隐藏命令）")
     void helpHidesInternalCommands() {
       CliExecution result = execute("--help");
 
       assertThat(result.exitCode()).isEqualTo(0);
-      // 当前无子命令，help 应仅显示顶层选项
+      // 隐藏子命令 normalized-batch 不应出现在 help 输出中
       assertThat(result.stdout()).doesNotContain("Commands:");
     }
   }

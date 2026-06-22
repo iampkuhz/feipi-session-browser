@@ -11,6 +11,7 @@ import picocli.CommandLine.Command;
     name = "session-browser",
     mixinStandardHelpOptions = true,
     versionProvider = BuildInfoVersionProvider.class,
+    subcommands = {NormalizedBatchCommand.class},
     description = "本地 agent 会话浏览器，索引和分析 Claude Code、Codex、Qoder 等会话数据。")
 final class SessionBrowserCommand implements Runnable {
 
