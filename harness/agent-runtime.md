@@ -42,6 +42,14 @@
 - `acceptance-contracts` target 必须运行 `scripts/quality/validate_acceptance_contracts.py`。
 - 测试代码中的 `contract_case` ID 必须能在 `docs/acceptance-contracts/features/*.md` 找到；活跃自动化用例也必须有测试绑定。
 
+## Java 质量生命周期
+
+- `java-src` target：`java/**/src/**/*.java` 变更触发，运行 `javaCheck`、`javaChineseComments`、`noJavaTestSkips`。
+- `java-build` target：`build-logic/**`、`gradle/**`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties` 变更触发，运行 `javaCheck`。
+- Java 注释必须通过中文近似校验，术语允许英文；术语表变更需单独列出理由。
+- Java 测试 0 skipped、0 aborted、非预期 0 discovered 时失败。
+- 精简质量栈：javac、Spotless、Checkstyle、DocLint、PMD、ArchUnit、JUnit、JaCoCo；禁止 Error Prone、Lombok、preview。
+
 ## Agent 入口职责
 
 - `.claude/hooks/*.sh`、`.codex/hooks/*.sh`、`.qoder/hooks/*.sh` 只负责定位仓库根目录并转发到共享脚本。
