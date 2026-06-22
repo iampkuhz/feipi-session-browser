@@ -1,17 +1,17 @@
 package com.feipi.session.browser.cli;
 
 /**
- * CLI application entry point for Feipi Session Browser.
+ * Session 会话浏览器的 CLI 应用入口。
  *
- * <p>Bootstraps the command-line interface and delegates to Picocli command handlers.
+ * <p>负责引导命令行界面并委托给 Picocli 命令处理器。
  */
 public final class App {
   private App() {}
 
   /**
-   * Application entry point.
+   * 应用程序主入口。
    *
-   * @param args command-line arguments
+   * @param args 命令行参数
    */
   public static void main(String[] args) {
     System.out.println("Feipi Session Browser");

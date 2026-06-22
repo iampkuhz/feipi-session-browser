@@ -9,9 +9,9 @@ import java.lang.annotation.Target;
 /**
  * 标识领域模型中影响业务语义的核心字段。
  *
- * <p>核心字段是指影响以下维度的字段：业务标识、状态、顺序、归属、计量、 时间或外部契约。典型核心字段包括：ID、session key、agent/source
- * {@code type}、status、{@code scope}、parent/child 关系、timestamp、duration、token/{@code count}/{@code size}、path、
- * {@code locator}、hash、schema/{@code version}、持久化或序列化字段、跨模块传递的契约字段、 以及默认值或空值语义会影响行为的字段。
+ * <p>核心字段是指影响以下维度的字段：业务标识、状态、顺序、归属、计量、 时间或外部契约。典型核心字段包括：ID、session key、agent/source {@code
+ * type}、status、{@code scope}、parent/child 关系、timestamp、duration、token/{@code count}/{@code
+ * size}、path、 {@code locator}、hash、schema/{@code version}、持久化或序列化字段、跨模块传递的契约字段、 以及默认值或空值语义会影响行为的字段。
  *
  * <p>该注解被中文 Javadoc source-level 验证测试消费：标注字段必须有中文 Javadoc 或对应的中文 {@code @param}
  * 文档。标注但未提供中文文档的字段会导致验证失败。

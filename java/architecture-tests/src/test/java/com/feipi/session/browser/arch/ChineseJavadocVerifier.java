@@ -34,7 +34,8 @@ import javax.tools.ToolProvider;
 /**
  * 中文 Javadoc 源码验证器。
  *
- * <p>使用 JDK {@code compiler} API 解析 Java 源文件，验证所有显式类型、方法、构造器、 record 组件、枚举常量和注解元素均有包含中文语义的 Javadoc 文档。
+ * <p>使用 JDK {@code compiler} API 解析 Java 源文件，验证所有显式类型、方法、构造器、 record 组件、枚举常量和注解元素均有包含中文语义的 Javadoc
+ * 文档。
  */
 final class ChineseJavadocVerifier {
 

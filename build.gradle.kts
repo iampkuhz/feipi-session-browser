@@ -175,3 +175,108 @@ tasks.register("benchmark") {
     group = "benchmark"
     description = "Benchmark lifecycle. Placeholder until JMH provider is created."
 }
+
+// ============================================================
+// verifyChineseJavaComments – full scan of project-owned Java sources
+// ============================================================
+val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
+    group = "verification"
+    description = "扫描项目自有 Java 源码注释，验证中文为主体、术语允许英文。"
+
+    val termsFile = file("tmp/feipi-java-migration-final/terminology/java-comment-terms.txt")
+    val directivesFile = file("tmp/feipi-java-migration-final/terminology/comment-machine-directives.txt")
+    val checkerScript = file("tmp/feipi-java-migration-final/tools/validate_java_chinese_comments.py")
+    val cacheFile = layout.buildDirectory.file("reports/chinese-comments/cache.json")
+
+    inputs.files(termsFile, directivesFile, checkerScript)
+    outputs.file(cacheFile)
+    outputs.file(layout.buildDirectory.file("reports/chinese-comments/report.json"))
+
+    doLast {
+        val reportDir = layout.buildDirectory.dir("reports/chinese-comments").get().asFile
+        reportDir.mkdirs()
+        val reportFile = File(reportDir, "report.json")
+        val cmd = listOf(
+            "python3", checkerScript.absolutePath,
+            "--root", file("java").absolutePath,
+            "--root", file("build-logic/src").absolutePath,
+            "--terms", termsFile.absolutePath,
+            "--directives", directivesFile.absolutePath,
+            "--json-report", reportFile.absolutePath,
+            "--cache", cacheFile.get().asFile.absolutePath,
+        )
+        val pb = ProcessBuilder(cmd).inheritIO()
+        val process = pb.start()
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw GradleException(
+                "verifyChineseJavaComments: 中文注释检查失败（exit=$exitCode），详见 ${reportFile.absolutePath}"
+            )
+        }
+        logger.lifecycle("verifyChineseJavaComments: PASSED – 全部 Java 注释通过中文近似检查。")
+    }
+}
+
+// ============================================================
+// verifyChineseJavaCommentsChanged – changed-only fast scan
+// ============================================================
+val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaCommentsChanged") {
+    group = "verification"
+    description = "仅扫描 Git changed Java 文件的中文注释。"
+
+    val termsFile = file("tmp/feipi-java-migration-final/terminology/java-comment-terms.txt")
+    val directivesFile = file("tmp/feipi-java-migration-final/terminology/comment-machine-directives.txt")
+    val checkerScript = file("tmp/feipi-java-migration-final/tools/validate_java_chinese_comments.py")
+
+    inputs.files(termsFile, directivesFile, checkerScript)
+
+    doLast {
+        val changedFiles = try {
+            val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
+                .redirectErrorStream(true).start()
+            proc.inputStream.bufferedReader().readLines().filter { it.endsWith(".java") }
+        } catch (e: Exception) {
+            logger.lifecycle("verifyChineseJavaCommentsChanged: 无法获取 changed files，回退到全量扫描。")
+            null
+        }
+        if (changedFiles != null && changedFiles.isEmpty()) {
+            logger.lifecycle("verifyChineseJavaCommentsChanged: 无 Java 文件变更，跳过。")
+            return@doLast
+        }
+        val filesJson = changedFiles?.joinToString(",") { "\"$it\"" }
+        val filesFrom = if (filesJson != null) {
+            val tmpFile = layout.buildDirectory.file("tmp/changed-java-files.json").get().asFile
+            tmpFile.parentFile.mkdirs()
+            tmpFile.writeText("[$filesJson]", Charsets.UTF_8)
+            tmpFile
+        } else null
+
+        val reportDir = layout.buildDirectory.dir("reports/chinese-comments-changed").get().asFile
+        reportDir.mkdirs()
+        val reportFile = File(reportDir, "report.json")
+
+        val cmd = mutableListOf(
+            "python3", checkerScript.absolutePath,
+            "--root", file("java").absolutePath,
+            "--terms", termsFile.absolutePath,
+            "--directives", directivesFile.absolutePath,
+            "--json-report", reportFile.absolutePath,
+        )
+        if (filesFrom != null) {
+            cmd.addAll(listOf("--files-from", filesFrom.absolutePath))
+        }
+        val pb = ProcessBuilder(cmd).inheritIO()
+        val process = pb.start()
+        val exitCode = process.waitFor()
+        if (exitCode != 0) {
+            throw GradleException(
+                "verifyChineseJavaCommentsChanged: 中文注释检查失败（exit=$exitCode），详见 ${reportFile.absolutePath}"
+            )
+        }
+        logger.lifecycle("verifyChineseJavaCommentsChanged: PASSED")
+    }
+}
+
+tasks.named("check") {
+    dependsOn(verifyChineseJavaComments)
+}

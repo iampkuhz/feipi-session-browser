@@ -1,9 +1,9 @@
 package com.feipi.session.browser.testsupport;
 
 /**
- * Marker class for the test-support module.
+ * test-support 模块的标记类。
  *
- * <p>Provides shared test utilities and fixtures for other modules.
+ * <p>为其他模块提供共享测试工具类和 fixture。
  */
 public final class TestSupportMarker {
   private TestSupportMarker() {}

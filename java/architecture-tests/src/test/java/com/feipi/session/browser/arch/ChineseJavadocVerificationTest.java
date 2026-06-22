@@ -15,7 +15,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 中文 Javadoc 验证测试。
  *
- * <p>包含正向测试（验证合规源码通过）和负向测试（验证各种违规场景被正确检测）。 使用临时目录写入 Java 源文件并通过 {@link ChineseJavadocVerifier} 验证。
+ * <p>包含正向测试（验证合规源码通过）和负向测试（验证各种违规场景被正确检测）。 使用临时目录写入 Java 源文件并通过 {@code ChineseJavadocVerifier} 验证。
  */
 @DisplayName("Chinese Javadoc verification")
 class ChineseJavadocVerificationTest {

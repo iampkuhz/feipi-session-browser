@@ -1,10 +1,9 @@
 package com.feipi.session.browser.domain;
 
 /**
- * Marker class for the core-domain module.
+ * core-domain 模块的标记类。
  *
- * <p>This class serves as a placeholder to ensure the module has at least one production source
- * file until real domain types are introduced.
+ * <p>该类作为占位符，确保模块至少有一个生产源文件， 直到引入正式领域类型。
  */
 public final class DomainMarker {
   private DomainMarker() {}
