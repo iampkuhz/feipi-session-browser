@@ -1,9 +1,11 @@
 package com.feipi.session.browser.cli;
 
+import picocli.CommandLine;
+
 /**
  * Session 会话浏览器的 CLI 应用入口。
  *
- * <p>负责引导命令行界面并委托给 Picocli 命令处理器。
+ * <p>负责引导 Picocli 命令行框架并委托给 {@link SessionBrowserCommand} 处理。
  */
 public final class App {
   private App() {}
@@ -14,6 +16,7 @@ public final class App {
    * @param args 命令行参数
    */
   public static void main(String[] args) {
-    System.out.println("Feipi Session Browser");
+    final int exitCode = new CommandLine(new SessionBrowserCommand()).execute(args);
+    System.exit(exitCode);
   }
 }
