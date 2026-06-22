@@ -34,6 +34,8 @@ quality:
     - hook-runtime
     - harness
     - acceptance-contracts
+    - java-src
+    - java-build
 
 quality_gates:
   - name: python-compile

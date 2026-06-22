@@ -75,6 +75,14 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     'index': [
         'indexIntegrity',
     ],
+    'java-src': [
+        'javaCheck',
+        'javaChineseComments',
+        'noJavaTestSkips',
+    ],
+    'java-build': [
+        'javaCheck',
+    ],
 }
 
 
@@ -364,6 +372,28 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'scripts/quality/validate_acceptance_contracts.py',
             'tests/quality/test_contract_case_specs.py',
             'pyproject.toml',
+        ],
+    },
+    'java-src': {
+        'javaCheck': [
+            'java/**/src/main/java/**/*.java',
+            'java/**/src/test/java/**/*.java',
+        ],
+        'javaChineseComments': [
+            'java/**/src/main/java/**/*.java',
+            'java/**/src/test/java/**/*.java',
+        ],
+        'noJavaTestSkips': [
+            'java/**/src/test/java/**/*.java',
+        ],
+    },
+    'java-build': {
+        'javaCheck': [
+            'build-logic/**',
+            'gradle/**',
+            'build.gradle.kts',
+            'settings.gradle.kts',
+            'gradle.properties',
         ],
     },
 }

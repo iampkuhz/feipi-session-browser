@@ -808,6 +808,27 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return [python, 'scripts/quality/check_layout_inline_style.py', '--check']
     if gate == 'acceptanceContracts':
         return [python, 'scripts/quality/validate_acceptance_contracts.py']
+    if gate == 'javaCheck':
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
+            return []
+        return [str(gradlew), 'check']
+    if gate == 'javaChineseComments':
+        terms_file = repo_root / 'tmp' / 'feipi-java-migration-final' / 'terminology' / 'java-comment-terms.txt'
+        checker = repo_root / 'tmp' / 'feipi-java-migration-final' / 'tools' / 'validate_java_chinese_comments.py'
+        if not checker.exists() or not terms_file.exists():
+            return []
+        return [
+            python, str(checker),
+            '--root', str(repo_root / 'java'),
+            '--root', str(repo_root / 'build-logic'),
+            '--terms', str(terms_file),
+        ]
+    if gate == 'noJavaTestSkips':
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
+            return []
+        return [str(gradlew), 'verifyNoSkippedJavaTests']
     return []
 
 
@@ -967,6 +988,8 @@ def main() -> int:
             'harness',
             'acceptance-contracts',
             'index',
+            'java-src',
+            'java-build',
         ],
     )
     parser.add_argument('--change-id', required=True)

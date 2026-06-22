@@ -44,6 +44,40 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
         True,
     ),
     (
+        'java-src',
+        [
+            'java/**/src/main/java/**/*.java',
+            'java/**/src/test/java/**/*.java',
+        ],
+        True,
+        'java-src',
+        'medium',
+        True,
+    ),
+    (
+        'java-build',
+        [
+            'build-logic/**',
+            'gradle/**',
+            'settings.gradle.kts',
+        ],
+        True,
+        'java-build',
+        'medium',
+        True,
+    ),
+    (
+        'java-root-dsl',
+        [
+            'build.gradle.kts',
+            'gradle.properties',
+        ],
+        True,
+        'java-build',
+        'medium',
+        True,
+    ),
+    (
         'ui-template',
         ['src/session_browser/web/templates/**/*.html', 'src/session_browser/web/templates/*.html'],
         True,
@@ -312,3 +346,13 @@ def _self_test() -> None:
     assert classify_file('AGENTS.md').quality_target == 'hook-runtime'
     assert classify_file('CLAUDE.md').quality_target == 'hook-runtime'
     assert classify_file('tmp/agent_logs/session1/x.jsonl').category == 'local-or-generated'
+    # Java/Gradle classification self-tests
+    assert classify_file('java/core-domain/src/main/java/com/feipi/Foo.java').quality_target == 'java-src'
+    assert classify_file('java/architecture-tests/src/test/java/com/feipi/BarTest.java').quality_target == 'java-src'
+    assert classify_file('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target == 'java-build'
+    assert classify_file('gradle/libs.versions.toml').quality_target == 'java-build'
+    assert classify_file('build.gradle.kts').quality_target == 'java-build'
+    assert classify_file('gradle.properties').quality_target == 'java-build'
+    assert classify_file('settings.gradle.kts').quality_target == 'java-build'
+    # Windows path normalization
+    assert classify_file('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java').quality_target == 'java-src'
