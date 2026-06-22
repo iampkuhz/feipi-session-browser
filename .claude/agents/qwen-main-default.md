@@ -51,6 +51,14 @@ color: cyan
 - 不读取、输出或提交 secrets、token、local config、real session data 或 private runtime data。
 - 不回滚用户未提交改动。
 
+## Subagent failure handling
+
+- subagent 被拒绝（用户取消、系统拒绝、超时）时，main agent **不得停顿或等待**。
+- 降级策略：立即用直接 tool 调用（Read、Bash）完成等价的最小信息收集，然后继续推进任务。
+- 同一 subagent 最多重试 1 次；第二次失败后完全降级为直接调用。
+- 降级不影响任务目标；只是改变信息收集方式。
+- 如果降级后发现信息不足以继续，向用户报告具体缺口并请求指导，而不是静默停滞。
+
 ## Delegation protocol
 
 只有当 task 需要 isolated context、专项分析、有界实现或独立验证时，才使用 `Agent(...)`。
