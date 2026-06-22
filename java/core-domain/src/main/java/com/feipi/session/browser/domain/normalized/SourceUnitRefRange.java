@@ -4,21 +4,19 @@ import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
  * 调用级别的源单元引用范围。
  *
- * <p>建模调用对目录源单元或命名源单元序列的引用，避免重复携带载荷内容。
- * 范围索引必须非负，并保持适配器提供的命名序列顺序。
+ * <p>建模调用对目录源单元或命名源单元序列的引用，避免重复携带载荷内容。 范围索引必须非负，并保持适配器提供的命名序列顺序。
  *
  * <p>不变量：
  *
  * <ul>
  *   <li>{@code start} 和 {@code end} 必须非负，{@code end >= start}。
  *   <li>{@code refs} 使用不可变副本。
- *   <li>{@code sequence} 和 {@code role} 使用 {@code Optional} 区分 absent。
+ *   <li>{@code sequence} 和 {@code role} 使用 {@code Optional} 区分空值。
  * </ul>
  *
  * @param sequence 可选的源单元序列名称
@@ -38,14 +36,16 @@ public record SourceUnitRefRange(
   /**
    * 紧凑构造器，验证范围不变量并执行防御性拷贝。
    *
-   * @throws IllegalArgumentException 当索引为负数或 end 小于 start 时
+   * @throws IllegalArgumentException 当索引为负数或 {@code end} 小于 {@code start} 时
    */
   public SourceUnitRefRange {
     if (start < 0) {
-      throw new IllegalArgumentException("source_unit_ref_range.start must be non-negative; got " + start);
+      throw new IllegalArgumentException(
+          "source_unit_ref_range.start must be non-negative; got " + start);
     }
     if (end < 0) {
-      throw new IllegalArgumentException("source_unit_ref_range.end must be non-negative; got " + end);
+      throw new IllegalArgumentException(
+          "source_unit_ref_range.end must be non-negative; got " + end);
     }
     if (end < start) {
       throw new IllegalArgumentException(

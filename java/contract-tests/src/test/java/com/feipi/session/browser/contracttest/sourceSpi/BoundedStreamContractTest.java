@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;

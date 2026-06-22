@@ -11,15 +11,13 @@ import java.util.Optional;
 /**
  * 与调用无关的源单元目录条目。
  *
- * <p>建模归因源内容的可见目录条目。适配器在归一化阶段填充目录，
- * 制品验证器将条目水合为不可变记录。目录键、方向、事件顺序、字节范围和内容哈希
- * 构成稳定的溯源合约，被 UI 归因功能消费。
+ * <p>建模归因源内容的可见目录条目。适配器在归一化阶段填充目录， 制品验证器将条目水合为不可变记录。目录键、方向、事件顺序、字节范围和内容哈希 构成稳定的溯源合约，被 UI 归因功能消费。
  *
  * <p>不变量：
  *
  * <ul>
- *   <li>{@code unitKey}、{@code originPath}、{@code canonicalSourceLocator}、
- *       {@code unitType}、{@code candidate}、{@code contentHash} 不得为 null。
+ *   <li>{@code unitKey}、{@code originPath}、{@code canonicalSourceLocator}、 {@code unitType}、{@code
+ *       candidate}、{@code contentHash} 不得为 null。
  *   <li>{@code direction} 必须为合法值（request/response）。
  *   <li>{@code eventOrder}、{@code partIndex} 必须非负。
  *   <li>{@code priority} 必须非负，默认值 50。
@@ -86,7 +84,7 @@ public record SourceUnitCatalogEntry(
     Objects.requireNonNull(byteRange, "byteRange 不得为 null");
     Objects.requireNonNull(contentHash, "contentHash 不得为 null");
 
-    // 验证 direction 合法性
+    // 验证方向合法性
     SourceUnitDirection.fromValue(direction);
 
     if (eventOrder < 0) {
@@ -110,12 +108,15 @@ public record SourceUnitCatalogEntry(
     subSource = subSource == null ? Optional.empty() : subSource;
     sourceCandidate = sourceCandidate == null ? Optional.empty() : sourceCandidate;
 
-    // diagnostics 防御性拷贝
+    // 诊断信息防御性拷贝
     List<Map<String, Object>> diagCopy =
         diagnostics == null ? Collections.emptyList() : List.copyOf(diagnostics);
     if (diagCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
       throw new IllegalArgumentException(
-          "diagnostics size " + diagCopy.size() + " exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+          "diagnostics size "
+              + diagCopy.size()
+              + " exceeds limit "
+              + NormalizedConstants.MAX_COLLECTION_SIZE);
     }
     diagnostics = diagCopy;
   }

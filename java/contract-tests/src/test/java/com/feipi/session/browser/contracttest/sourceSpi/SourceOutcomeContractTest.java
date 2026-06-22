@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -94,7 +94,11 @@ class SourceOutcomeContractTest {
   void resultWithDiagnostics() {
     SourceDiagnostic diag =
         new SourceDiagnostic(
-            ParseSeverity.WARNING, ParseIssueType.NON_OBJECT_SKIPPED, "跳过非对象", 10, Optional.empty());
+            ParseSeverity.WARNING,
+            ParseIssueType.NON_OBJECT_SKIPPED,
+            "跳过非对象",
+            10,
+            Optional.empty());
     SourceResult.Success result = new SourceResult.Success(List.of(diag), 3);
     assertThat(result.diagnostics()).hasSize(1);
     assertThat(result.diagnostics().get(0).severity()).isEqualTo(ParseSeverity.WARNING);
@@ -141,12 +145,13 @@ class SourceOutcomeContractTest {
       new SourceResult.Fatal(List.of(), "fatal")
     };
     for (SourceResult r : results) {
-      String label = switch (r) {
-        case SourceResult.Success s -> "success:" + s.candidateCount();
-        case SourceResult.RetryableIncomplete ri -> "retry:" + ri.reason();
-        case SourceResult.Skipped sk -> "skip:" + sk.reason();
-        case SourceResult.Fatal f -> "fatal:" + f.errorDetail();
-      };
+      String label =
+          switch (r) {
+            case SourceResult.Success s -> "success:" + s.candidateCount();
+            case SourceResult.RetryableIncomplete ri -> "retry:" + ri.reason();
+            case SourceResult.Skipped sk -> "skip:" + sk.reason();
+            case SourceResult.Fatal f -> "fatal:" + f.errorDetail();
+          };
       assertThat(label).isNotEmpty();
     }
   }
@@ -155,8 +160,13 @@ class SourceOutcomeContractTest {
   @DisplayName("诊断列表不可变")
   void diagnosticsImmutable() {
     SourceResult.Success result = new SourceResult.Success(List.of(), 0);
-    assertThatThrownBy(() -> result.diagnostics().add(
-            new SourceDiagnostic(ParseSeverity.INFO, ParseIssueType.BAD_JSON, "x", 1, Optional.empty())))
+    assertThatThrownBy(
+            () ->
+                result
+                    .diagnostics()
+                    .add(
+                        new SourceDiagnostic(
+                            ParseSeverity.INFO, ParseIssueType.BAD_JSON, "x", 1, Optional.empty())))
         .isInstanceOf(UnsupportedOperationException.class);
   }
 }

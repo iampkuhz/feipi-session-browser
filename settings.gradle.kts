@@ -15,6 +15,7 @@ include(
     "java:app-cli",
     "java:core-domain",
     "java:source-spi",
+    "java:source-json",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",

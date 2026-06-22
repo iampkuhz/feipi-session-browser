@@ -6,8 +6,7 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
 /**
  * 单次归一化调用的 token 用量。
  *
- * <p>建模一次 LLM 调用的五字段 token 用量，语义构建器和制品验证器为每次调用创建该不可变值对象。
- * 分量计数必须非负，且 {@code total} 必须等于各分量之和。
+ * <p>建模一次 LLM 调用的五字段 token 用量，语义构建器和制品验证器为每次调用创建该不可变值对象。 分量计数必须非负，且 {@code total} 必须等于各分量之和。
  *
  * <p>不变量：
  *
@@ -33,7 +32,7 @@ public record NormalizedCallUsage(
   /**
    * 紧凑构造器，验证 token 计数不变量。
    *
-   * @throws IllegalArgumentException 当任何计数为负数或 total 不等于分量之和时
+   * @throws IllegalArgumentException 当任何计数为负数或 {@code total} 不等于分量之和时
    */
   public NormalizedCallUsage {
     if (fresh < 0) {

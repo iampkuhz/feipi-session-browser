@@ -6,8 +6,7 @@ import java.util.Optional;
 /**
  * 会话源适配器 SPI 接口。
  *
- * <p>定义三种 agent 会话源（Claude Code、Codex、Qoder）的统一操作契约。
- * 每个适配器实现负责从特定源发现候选会话、生成文件指纹和执行解析。
+ * <p>定义三种 agent 会话源（Claude Code、Codex、Qoder）的统一操作契约。 每个适配器实现负责从特定源发现候选会话、生成文件指纹和执行解析。
  *
  * <p>SPI 设计原则：
  *
@@ -48,8 +47,7 @@ public interface SourceAdapter {
   /**
    * 从源根目录发现候选会话。
    *
-   * <p>返回按确定性排序的有界候选项流。排序规则由实现定义但必须一致。
-   * 目录不存在或为空时返回空的 {@link BoundedStream}。
+   * <p>返回按确定性排序的有界候选项流。排序规则由实现定义但必须一致。 目录不存在或为空时返回空的 {@link BoundedStream}。
    *
    * @param rootPath 源根目录路径
    * @return 有界确定性候选项流
@@ -59,9 +57,7 @@ public interface SourceAdapter {
   /**
    * 为指定源文件生成指纹。
    *
-   * <p>指纹必须包含路径、源标识、文件大小和修改时间。
-   * 当实现支持内容哈希时，应填充 {@code contentHash} 字段，
-   * 使其作为 mtime 之外的独立一致性证据。
+   * <p>指纹必须包含路径、源标识、文件大小和修改时间。 当实现支持内容哈希时，应填充 {@code contentHash} 字段， 使其作为 mtime 之外的独立一致性证据。
    *
    * @param filePath 源文件路径
    * @return 文件指纹
@@ -71,8 +67,7 @@ public interface SourceAdapter {
   /**
    * 解析指定候选项的会话数据。
    *
-   * <p>解析结果封装为密封类型，明确区分成功、可重试、跳过和致命错误。
-   * 实现不得抛出异常来表示可预期的解析失败，应通过 {@link SourceResult} 返回。
+   * <p>解析结果封装为密封类型，明确区分成功、可重试、跳过和致命错误。 实现不得抛出异常来表示可预期的解析失败，应通过 {@link SourceResult} 返回。
    *
    * @param candidate 待解析的候选项
    * @param cancellation 可选的取消信号

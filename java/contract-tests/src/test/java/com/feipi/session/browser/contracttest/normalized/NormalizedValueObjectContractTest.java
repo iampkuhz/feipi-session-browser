@@ -15,9 +15,8 @@ import org.junit.jupiter.api.Test;
 /**
  * 归一化基础值对象合约测试。
  *
- * <p>覆盖 {@link ByteRange}、{@link NormalizedCallUsage}、
- * {@link NormalizedCallRequest}、{@link NormalizedCallResponse} 的不变量正负向路径。
- * 每条不变量均有正向构造验证和负向异常验证。
+ * <p>覆盖 {@link ByteRange}、{@link NormalizedCallUsage}、 {@link NormalizedCallRequest}、{@link
+ * NormalizedCallResponse} 的不变量正负向路径。 每条不变量均有正向构造验证和负向异常验证。
  */
 @DisplayName("归一化基础值对象合约测试")
 class NormalizedValueObjectContractTest {

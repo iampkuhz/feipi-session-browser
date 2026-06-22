@@ -9,11 +9,9 @@ import java.util.Objects;
 /**
  * 候选会话发现项。
  *
- * <p>表示源适配器从根目录中发现的一个待处理会话。每个候选项携带指纹用于
- * 增量扫描判断，以及源标识和会话键用于后续归一化。
+ * <p>表示源适配器从根目录中发现的一个待处理会话。每个候选项携带指纹用于 增量扫描判断，以及源标识和会话键用于后续归一化。
  *
- * <p>批次处理层接收候选项（而非原始根目录），因为候选项已包含发现阶段
- * 产生的元数据，可直接驱动后续解析流程。
+ * <p>批次处理层接收候选项（而非原始根目录），因为候选项已包含发现阶段 产生的元数据，可直接驱动后续解析流程。
  *
  * <p>不变量：
  *
@@ -54,8 +52,7 @@ public record Candidate(
     Map<String, String> metadataCopy =
         metadata == null ? Collections.emptyMap() : Map.copyOf(metadata);
     if (metadataCopy.size() > MAX_METADATA_SIZE) {
-      throw new IllegalArgumentException(
-          "metadata size exceeds limit " + MAX_METADATA_SIZE);
+      throw new IllegalArgumentException("metadata size exceeds limit " + MAX_METADATA_SIZE);
     }
     metadata = metadataCopy;
   }

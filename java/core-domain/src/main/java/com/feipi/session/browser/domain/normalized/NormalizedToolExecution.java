@@ -10,8 +10,7 @@ import java.util.Optional;
 /**
  * 工具执行边表行。
  *
- * <p>建模由一次调用声明并被另一次调用消费的工具调用边。语义构建器在遍历工具批次时生成这些记录，
- * 制品验证器将它们水合为不可变边元数据。当 provider 未报告执行详情时，可选字段为空。
+ * <p>建模由一次调用声明并被另一次调用消费的工具调用边。语义构建器在遍历工具批次时生成这些记录， 制品验证器将它们水合为不可变边元数据。当 provider 未报告执行详情时，可选字段为空。
  *
  * <p>不变量：
  *
@@ -61,21 +60,25 @@ public record NormalizedToolExecution(
     Objects.requireNonNull(scope, "scope 不得为 null");
     Objects.requireNonNull(declaredByCallId, "declaredByCallId 不得为 null");
     if (durationMs < 0) {
-      throw new IllegalArgumentException(
-          "tool.durationMs must be non-negative; got " + durationMs);
+      throw new IllegalArgumentException("tool.durationMs must be non-negative; got " + durationMs);
     }
 
     // Optional 字段规范化
-    resultConsumedByCallId = resultConsumedByCallId == null ? Optional.empty() : resultConsumedByCallId;
+    resultConsumedByCallId =
+        resultConsumedByCallId == null ? Optional.empty() : resultConsumedByCallId;
     status = status == null ? Optional.empty() : status;
     exitCode = exitCode == null ? Optional.empty() : exitCode;
     subagentId = subagentId == null ? Optional.empty() : subagentId;
 
     // 集合防御性拷贝
-    List<String> filesCopy = filesTouched == null ? Collections.emptyList() : List.copyOf(filesTouched);
+    List<String> filesCopy =
+        filesTouched == null ? Collections.emptyList() : List.copyOf(filesTouched);
     if (filesCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
       throw new IllegalArgumentException(
-          "filesTouched size " + filesCopy.size() + " exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+          "filesTouched size "
+              + filesCopy.size()
+              + " exceeds limit "
+              + NormalizedConstants.MAX_COLLECTION_SIZE);
     }
     filesTouched = filesCopy;
   }

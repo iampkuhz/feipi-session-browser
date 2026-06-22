@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -11,8 +11,7 @@ import org.junit.jupiter.api.Test;
 /**
  * {@link SourceRoot} 契约测试。
  *
- * <p>验证源根安全检查：符号链接检测、路径逃逸判定和只读状态。
- * 包含正向路径和负向路径（路径逃逸导致不安全）。
+ * <p>验证源根安全检查：符号链接检测、路径逃逸判定和只读状态。 包含正向路径和负向路径（路径逃逸导致不安全）。
  */
 @DisplayName("Source SPI — SourceRoot 安全契约")
 class SourceRootContractTest {

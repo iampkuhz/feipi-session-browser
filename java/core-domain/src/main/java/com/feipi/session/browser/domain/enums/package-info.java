@@ -8,17 +8,17 @@
  * <p>以下枚举已在 S1 冻结，{@code getValue()} 返回的字符串必须与 Python 端保持一致：
  *
  * <ul>
- *   <li>{@link com.feipi.session.browser.domain.enums.CallScope} &mdash; main, subagent
- *   <li>{@link com.feipi.session.browser.domain.enums.CallStatus} &mdash; success, error, timeout,
- *       cancelled
- *   <li>{@link com.feipi.session.browser.domain.enums.TokenPrecision} &mdash; exact,
- *       provider_reported, estimated, heuristic, unknown
- *   <li>{@link com.feipi.session.browser.domain.enums.TokenProvider} &mdash; anthropic, openai,
- *       qoder_broker, unknown
- *   <li>{@link com.feipi.session.browser.domain.enums.TokenSourceKind} &mdash; provider_usage,
- *       transcript_reconstruction, estimation, residual, unknown
- *   <li>{@link com.feipi.session.browser.domain.enums.TokenTotalSemantics} &mdash;
- *       exclusive_component_sum, inclusive_of_cache, unknown
+ *   <li>{@link com.feipi.session.browser.domain.enums.CallScope} — {@code main, subagent}
+ *   <li>{@link com.feipi.session.browser.domain.enums.CallStatus} — {@code success, error, timeout,
+ *       cancelled}
+ *   <li>{@link com.feipi.session.browser.domain.enums.TokenPrecision} — {@code exact,
+ *       provider_reported, estimated, heuristic, unknown}
+ *   <li>{@link com.feipi.session.browser.domain.enums.TokenProvider} — {@code anthropic, openai,
+ *       qoder_broker, unknown}
+ *   <li>{@link com.feipi.session.browser.domain.enums.TokenSourceKind} — {@code provider_usage,
+ *       transcript_reconstruction, estimation, residual, unknown}
+ *   <li>{@link com.feipi.session.browser.domain.enums.TokenTotalSemantics} — {@code
+ *       exclusive_component_sum, inclusive_of_cache, unknown}
  * </ul>
  */
 package com.feipi.session.browser.domain.enums;

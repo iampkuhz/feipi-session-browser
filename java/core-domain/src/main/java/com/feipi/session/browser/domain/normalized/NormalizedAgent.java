@@ -5,18 +5,18 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
 /**
  * 归一化 agent 来源枚举。
  *
- * <p>标识产生归一化制品的源适配器类型。与 Python 端 {@code _AGENT_VALUES} 集合对应，
- * 仅允许 {@code claude_code}、{@code codex} 和 {@code qoder} 三个合法值。
+ * <p>标识产生归一化制品的源适配器类型。与 Python 端 {@code _AGENT_VALUES} 集合对应， 仅允许 {@code claude_code}、{@code codex}
+ * 和 {@code qoder} 三个合法值。
  */
 @DomainModel
 public enum NormalizedAgent {
-  /** Claude Code JSONL 日志适配器。 */
+  /** {@code Claude Code} 产生的 JSONL 格式日志适配器。 */
   CLAUDE_CODE("claude_code"),
 
-  /** Codex rollout 适配器。 */
+  /** {@code Codex} 产生的展开格式日志适配器。 */
   CODEX("codex"),
 
-  /** Qoder 适配器。 */
+  /** {@code Qoder} 产生的日志适配器。 */
   QODER("qoder");
 
   private final String value;

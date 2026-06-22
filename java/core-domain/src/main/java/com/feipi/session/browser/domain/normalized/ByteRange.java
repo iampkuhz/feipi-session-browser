@@ -6,8 +6,7 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
 /**
  * 源内容字节偏移范围。
  *
- * <p>表示源单元在原始文件中的字节偏移区间，用于精确定位归因内容。
- * {@code start} 为包含起始偏移，{@code end} 为排除结束偏移。
+ * <p>表示源单元在原始文件中的字节偏移区间，用于精确定位归因内容。 {@code start} 为包含起始偏移，{@code end} 为排除结束偏移。
  *
  * <p>不变量：
  *
@@ -25,7 +24,7 @@ public record ByteRange(@CoreField long start, @CoreField long end) {
   /**
    * 紧凑构造器，验证字节范围不变量。
    *
-   * @throws IllegalArgumentException 当偏移为负数或 end 小于 start 时
+   * @throws IllegalArgumentException 当偏移为负数或 {@code end} 小于 {@code start} 时
    */
   public ByteRange {
     if (start < 0) {
@@ -43,7 +42,7 @@ public record ByteRange(@CoreField long start, @CoreField long end) {
   /**
    * 创建零长度的空字节范围。
    *
-   * @return start 和 end 均为 0 的空范围
+   * @return {@code start} 和 {@code end} 均为 0 的空范围
    */
   public static ByteRange empty() {
     return new ByteRange(0, 0);

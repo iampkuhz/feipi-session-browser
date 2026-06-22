@@ -8,7 +8,7 @@
  * <ul>
  *   <li>{@code @DomainModel} 仅用于 record、enum、sealed interface 或不可变类。
  *   <li>{@code @CoreField} 仅用于影响业务语义的字段或 record 组件。
- *   <li>标注类型不得依赖 Lombok、Jackson、JPA、Spring 等框架注解。
+ *   <li>标注类型不得依赖 {@code Lombok}、{@code Jackson}、{@code JPA}、{@code Spring} 等框架注解。
  * </ul>
  */
 package com.feipi.session.browser.domain.annotation;

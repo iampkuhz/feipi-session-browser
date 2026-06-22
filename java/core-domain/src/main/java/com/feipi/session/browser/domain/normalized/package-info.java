@@ -20,7 +20,7 @@
  *   <li>影响业务语义的字段使用 {@code @CoreField} 注解。
  *   <li>集合类型使用不可变副本防御，大小上限为 {@link
  *       com.feipi.session.browser.domain.normalized.NormalizedConstants#MAX_COLLECTION_SIZE}。
- *   <li>区分 absent（{@code Optional} 为空）和 empty（空字符串）。
+ *   <li>区分 {@code absent}（{@code Optional} 为空）和 {@code empty}（空字符串）。
  *   <li>所有 record 紧凑构造器执行非空约束和不变量校验。
  * </ul>
  */

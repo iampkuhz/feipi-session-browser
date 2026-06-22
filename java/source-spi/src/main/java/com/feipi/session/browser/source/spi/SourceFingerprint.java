@@ -8,8 +8,7 @@ import java.util.Optional;
 /**
  * 会话源文件指纹。
  *
- * <p>标识一个物理源文件的唯一性证据。mtime 不是唯一一致性证据；
- * 当 {@code contentHash} 存在时，调用方应优先使用内容哈希判断文件是否变化。
+ * <p>标识一个物理源文件的唯一性证据。mtime 不是唯一一致性证据； 当 {@code contentHash} 存在时，调用方应优先使用内容哈希判断文件是否变化。
  *
  * <p>不变量：
  *
@@ -24,7 +23,7 @@ import java.util.Optional;
  * @param sourceId 所属源适配器标识
  * @param sizeBytes 文件大小（字节）
  * @param lastModifiedMs 最后修改时间（毫秒时间戳）
- * @param contentHash 内容哈希值，Absent 表示未计算
+ * @param contentHash 内容哈希值，{@code Absent} 表示未计算
  */
 @DomainModel
 public record SourceFingerprint(
@@ -77,8 +76,7 @@ public record SourceFingerprint(
   /**
    * 判断该指纹是否可能已过期（基于 mtime 和内容哈希双重检查）。
    *
-   * <p>当内容哈希一致时，即使 mtime 变化也视为未过期。
-   * 当无内容哈希时，仅比较 mtime 和 size。
+   * <p>当内容哈希一致时，即使 mtime 变化也视为未过期。 当无内容哈希时，仅比较 mtime 和文件大小。
    *
    * @param other 另一个指纹，代表文件的当前状态
    * @return 指纹可能已过期时返回 {@code true}
@@ -94,7 +92,7 @@ public record SourceFingerprint(
     if (contentHash.isPresent() && other.contentHash.isPresent()) {
       return !contentHash.get().equals(other.contentHash.get());
     }
-    // 回退到 size + mtime 比较
+    // 回退到文件大小加修改时间比较
     return sizeBytes != other.sizeBytes || lastModifiedMs != other.lastModifiedMs;
   }
 }

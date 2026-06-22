@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -12,7 +12,6 @@ import com.feipi.session.browser.source.spi.SourceOutcome;
 import com.feipi.session.browser.source.spi.SourceResult;
 import com.feipi.session.browser.source.spi.SourceRoot;
 import java.nio.file.Path;
-import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
@@ -21,8 +20,7 @@ import org.junit.jupiter.api.Test;
 /**
  * {@link SourceAdapter} SPI 契约测试。
  *
- * <p>使用 {@link FakeSourceAdapter} 验证 SPI 接口的完整行为契约。
- * 覆盖三来源中性、确定性排序、路径安全检查和取消信号。
+ * <p>使用 {@link FakeSourceAdapter} 验证 SPI 接口的完整行为契约。 覆盖三来源中性、确定性排序、路径安全检查和取消信号。
  */
 @DisplayName("Source SPI — SourceAdapter SPI 契约")
 class SourceAdapterContractTest {

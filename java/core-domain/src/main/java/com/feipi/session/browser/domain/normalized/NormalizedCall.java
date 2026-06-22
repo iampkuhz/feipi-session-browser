@@ -11,8 +11,7 @@ import java.util.Optional;
 /**
  * 单次归一化逻辑 LLM 调用及其轻量级边引用。
  *
- * <p>语义构建器为主会话和子 agent 轮次创建这些记录，制品验证从 JSON 水合。
- * 调用是不可变传输对象，其索引和键必须在制品内保持顺序。
+ * <p>语义构建器为主会话和子 agent 轮次创建这些记录，制品验证从 JSON 水合。 调用是不可变传输对象，其索引和键必须在制品内保持顺序。
  *
  * <p>不变量：
  *
@@ -72,8 +71,7 @@ public record NormalizedCall(
       throw new IllegalArgumentException("callId 不得为空");
     }
     if (callIndex < 1) {
-      throw new IllegalArgumentException(
-          "callIndex must be >= 1; got " + callIndex);
+      throw new IllegalArgumentException("callIndex must be >= 1; got " + callIndex);
     }
     Objects.requireNonNull(callKey, "callKey 不得为 null");
     String expectedKey = "C" + callIndex;

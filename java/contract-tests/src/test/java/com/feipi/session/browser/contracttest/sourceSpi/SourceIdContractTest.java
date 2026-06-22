@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -10,8 +10,7 @@ import org.junit.jupiter.api.Test;
 /**
  * {@link SourceId} 枚举契约测试。
  *
- * <p>验证三种源标识的完整性、序列化值和反序列化行为。
- * 覆盖正向路径和负向路径。
+ * <p>验证三种源标识的完整性、序列化值和反序列化行为。 覆盖正向路径和负向路径。
  */
 @DisplayName("Source SPI — SourceId 枚举契约")
 class SourceIdContractTest {
@@ -44,8 +43,7 @@ class SourceIdContractTest {
   @Test
   @DisplayName("fromValue 对 null 抛出 NullPointerException")
   void fromValueRejectsNull() {
-    assertThatThrownBy(() -> SourceId.fromValue(null))
-        .isInstanceOf(NullPointerException.class);
+    assertThatThrownBy(() -> SourceId.fromValue(null)).isInstanceOf(NullPointerException.class);
   }
 
   @Test

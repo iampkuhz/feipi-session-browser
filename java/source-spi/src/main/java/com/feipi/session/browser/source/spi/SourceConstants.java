@@ -3,8 +3,7 @@ package com.feipi.session.browser.source.spi;
 /**
  * Source SPI 共享常量。
  *
- * <p>集中定义源适配器和相关类型使用的常量值，
- * 避免硬编码和魔法数字散落在各实现类中。
+ * <p>集中定义源适配器和相关类型使用的常量值， 避免硬编码和魔法数字散落在各实现类中。
  */
 public final class SourceConstants {
 

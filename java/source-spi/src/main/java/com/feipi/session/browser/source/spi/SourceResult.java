@@ -8,8 +8,7 @@ import java.util.Objects;
 /**
  * 源操作结果的密封类型。
  *
- * <p>将源适配器操作的最终状态封装为不可变的密封接口，禁止使用 null 或 boolean
- * 表达模糊语义。每种状态对应一个 record 实现：
+ * <p>将源适配器操作的最终状态封装为不可变的密封接口，禁止使用 null 或 boolean 表达模糊语义。每种状态对应一个 record 实现：
  *
  * <ul>
  *   <li>{@link Success} — 操作成功完成。
@@ -21,11 +20,11 @@ import java.util.Objects;
  * <p>使用 {@link #outcome()} 获取状态枚举值，或使用模式匹配处理各分支。
  */
 @DomainModel
-public sealed interface SourceResult permits
-    SourceResult.Success,
-    SourceResult.RetryableIncomplete,
-    SourceResult.Skipped,
-    SourceResult.Fatal {
+public sealed interface SourceResult
+    permits SourceResult.Success,
+        SourceResult.RetryableIncomplete,
+        SourceResult.Skipped,
+        SourceResult.Fatal {
 
   /** 最大诊断列表大小。 */
   int MAX_DIAGNOSTICS = 1000;
@@ -69,13 +68,11 @@ public sealed interface SourceResult permits
       Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException(
-            "diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       if (candidateCount < 0) {
-        throw new IllegalArgumentException(
-            "candidateCount 不得为负: " + candidateCount);
+        throw new IllegalArgumentException("candidateCount 不得为负: " + candidateCount);
       }
     }
 
@@ -109,8 +106,7 @@ public sealed interface SourceResult permits
       Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException(
-            "diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       Objects.requireNonNull(reason, "reason 不得为 null");
@@ -149,8 +145,7 @@ public sealed interface SourceResult permits
       Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException(
-            "diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       Objects.requireNonNull(reason, "reason 不得为 null");
@@ -189,8 +184,7 @@ public sealed interface SourceResult permits
       Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException(
-            "diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       Objects.requireNonNull(errorDetail, "errorDetail 不得为 null");

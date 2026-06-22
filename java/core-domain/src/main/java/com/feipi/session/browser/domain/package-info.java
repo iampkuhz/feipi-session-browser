@@ -17,12 +17,12 @@
  * <p>以下类型已在 S1 冻结，S2 仅记录其消费者与生产者关系：
  *
  * <ul>
- *   <li>{@link com.feipi.session.browser.domain.SessionSummary} &mdash; writer: index/writers;
- *       consumer: web, attribution
- *   <li>{@link com.feipi.session.browser.domain.NormalizedTokenBreakdown} &mdash; writer:
- *       domain/token_normalizer; consumer: attribution, web
- *   <li>{@link com.feipi.session.browser.domain.ProjectStats} &mdash; writer: index/queries;
- *       consumer: web/dashboard
+ *   <li>{@link com.feipi.session.browser.domain.SessionSummary} — 写入方: {@code index/writers}; 消费方:
+ *       {@code web}、{@code attribution}
+ *   <li>{@link com.feipi.session.browser.domain.NormalizedTokenBreakdown} — 写入方: {@code
+ *       domain/token_normalizer}; 消费方: {@code attribution}、{@code web}
+ *   <li>{@link com.feipi.session.browser.domain.ProjectStats} — 写入方: {@code index/queries}; 消费方:
+ *       {@code web/dashboard}
  * </ul>
  */
 package com.feipi.session.browser.domain;

@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -12,8 +12,7 @@ import org.junit.jupiter.api.Test;
 /**
  * {@link SourceFingerprint} 契约测试。
  *
- * <p>验证指纹不变量：路径非空、源标识非 null、数值非负、
- * 内容哈希一致性比较和 mtime 非唯一证据。
+ * <p>验证指纹不变量：路径非空、源标识非 null、数值非负、 内容哈希一致性比较和 mtime 非唯一证据。
  */
 @DisplayName("Source SPI — SourceFingerprint 契约")
 class SourceFingerprintContractTest {
@@ -22,7 +21,8 @@ class SourceFingerprintContractTest {
   @DisplayName("合法指纹可正常创建")
   void validFingerprintCreated() {
     SourceFingerprint fp =
-        new SourceFingerprint("/data/test.jsonl", SourceId.CLAUDE_CODE, 1024, 1700000L, Optional.of("sha256:abc"));
+        new SourceFingerprint(
+            "/data/test.jsonl", SourceId.CLAUDE_CODE, 1024, 1700000L, Optional.of("sha256:abc"));
     assertThat(fp.path()).isEqualTo("/data/test.jsonl");
     assertThat(fp.sourceId()).isEqualTo(SourceId.CLAUDE_CODE);
     assertThat(fp.sizeBytes()).isEqualTo(1024);
@@ -74,8 +74,7 @@ class SourceFingerprintContractTest {
   @Test
   @DisplayName("空字符串 contentHash 抛出 IllegalArgumentException")
   void emptyStringHashRejected() {
-    assertThatThrownBy(
-            () -> new SourceFingerprint("/test", SourceId.QODER, 0, 0, Optional.of("")))
+    assertThatThrownBy(() -> new SourceFingerprint("/test", SourceId.QODER, 0, 0, Optional.of("")))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("contentHash");
   }
@@ -84,11 +83,14 @@ class SourceFingerprintContractTest {
   @DisplayName("sameFile 比较路径和源标识")
   void sameFileComparesPathAndSource() {
     SourceFingerprint a =
-        new SourceFingerprint("/data/test.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.of("h1"));
+        new SourceFingerprint(
+            "/data/test.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.of("h1"));
     SourceFingerprint b =
-        new SourceFingerprint("/data/test.jsonl", SourceId.CLAUDE_CODE, 200, 2000L, Optional.of("h2"));
+        new SourceFingerprint(
+            "/data/test.jsonl", SourceId.CLAUDE_CODE, 200, 2000L, Optional.of("h2"));
     SourceFingerprint c =
-        new SourceFingerprint("/data/other.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.empty());
+        new SourceFingerprint(
+            "/data/other.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.empty());
 
     assertThat(a.sameFile(b)).isTrue();
     assertThat(a.sameFile(c)).isFalse();
@@ -100,14 +102,17 @@ class SourceFingerprintContractTest {
   void isStaleUsesContentHashOverMtime() {
     // 相同哈希但不同 mtime -> 未过期
     SourceFingerprint withHash1 =
-        new SourceFingerprint("/data/test.jsonl", SourceId.CODEX, 100, 1000L, Optional.of("same-hash"));
+        new SourceFingerprint(
+            "/data/test.jsonl", SourceId.CODEX, 100, 1000L, Optional.of("same-hash"));
     SourceFingerprint withHash2 =
-        new SourceFingerprint("/data/test.jsonl", SourceId.CODEX, 100, 9999L, Optional.of("same-hash"));
+        new SourceFingerprint(
+            "/data/test.jsonl", SourceId.CODEX, 100, 9999L, Optional.of("same-hash"));
     assertThat(withHash1.isStaleComparedTo(withHash2)).isFalse();
 
     // 不同哈希 -> 已过期（即使 mtime 相同）
     SourceFingerprint withDifferentHash =
-        new SourceFingerprint("/data/test.jsonl", SourceId.CODEX, 100, 1000L, Optional.of("different-hash"));
+        new SourceFingerprint(
+            "/data/test.jsonl", SourceId.CODEX, 100, 1000L, Optional.of("different-hash"));
     assertThat(withHash1.isStaleComparedTo(withDifferentHash)).isTrue();
 
     // 无内容哈希时回退到 size+mtime
@@ -125,8 +130,7 @@ class SourceFingerprintContractTest {
   @Test
   @DisplayName("null contentHash 参数被规范化为 Optional.empty")
   void nullContentHashNormalized() {
-    SourceFingerprint fp =
-        new SourceFingerprint("/test", SourceId.QODER, 0, 0, null);
+    SourceFingerprint fp = new SourceFingerprint("/test", SourceId.QODER, 0, 0, null);
     assertThat(fp.contentHash()).isEmpty();
   }
 }

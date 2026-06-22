@@ -1,4 +1,4 @@
-package com.feipi.session.browser.contracttest.sourceSpi;
+package com.feipi.session.browser.contracttest.sourcespi;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -21,7 +21,8 @@ import org.junit.jupiter.api.Test;
 class CandidateContractTest {
 
   private static SourceFingerprint testFingerprint() {
-    return new SourceFingerprint("/test.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.of("hash"));
+    return new SourceFingerprint(
+        "/test.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.of("hash"));
   }
 
   @Test
@@ -89,8 +90,7 @@ class CandidateContractTest {
     for (int i = 0; i < 101; i++) {
       tooLarge.put("key" + i, "val" + i);
     }
-    assertThatThrownBy(
-            () -> new Candidate(testFingerprint(), "session-1", "proj", tooLarge))
+    assertThatThrownBy(() -> new Candidate(testFingerprint(), "session-1", "proj", tooLarge))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("metadata size");
   }
@@ -101,7 +101,9 @@ class CandidateContractTest {
     Candidate codexCandidate =
         new Candidate(
             new SourceFingerprint("/test.jsonl", SourceId.CODEX, 0, 0, Optional.empty()),
-            "session-1", "", Map.of());
+            "session-1",
+            "",
+            Map.of());
     assertThat(codexCandidate.sourceId()).isEqualTo(SourceId.CODEX);
   }
 }

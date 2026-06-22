@@ -12,9 +12,8 @@ import java.util.Set;
 /**
  * 顶层归一化会话制品。
  *
- * <p>建模持久化在 SQLite 索引旁的归一化会话制品。索引扫描在 JSON 持久化之前创建该数据传输根对象，
- * 查询和验证路径水合它以强制执行公开的制品合约。制品是不可变的、带 schema 版本的，
- * 并要求调用标识符唯一。
+ * <p>建模持久化在 SQLite 索引旁的归一化会话制品。索引扫描在 JSON 持久化之前创建该数据传输根对象， 查询和验证路径水合它以强制执行公开的制品合约。制品是不可变的、带 schema
+ * 版本的， 并要求调用标识符唯一。
  *
  * <p>不变量：
  *
@@ -78,7 +77,7 @@ public record NormalizedSessionArtifact(
     // session 不可变副本
     session = Map.copyOf(session);
 
-    // calls 防御性拷贝 + callId 唯一性验证
+    // 调用列表防御性拷贝 + callId 唯一性验证
     Objects.requireNonNull(calls, "calls 不得为 null");
     List<NormalizedCall> callsCopy = List.copyOf(calls);
     if (callsCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
@@ -88,7 +87,8 @@ public record NormalizedSessionArtifact(
     Set<String> callIds = new HashSet<>();
     for (NormalizedCall call : callsCopy) {
       if (!callIds.add(call.callId())) {
-        throw new IllegalArgumentException("normalized callId values must be unique; duplicate: " + call.callId());
+        throw new IllegalArgumentException(
+            "normalized callId values must be unique; duplicate: " + call.callId());
       }
     }
     calls = callsCopy;
@@ -102,7 +102,7 @@ public record NormalizedSessionArtifact(
     }
     toolExecutions = toolsCopy;
 
-    // diagnostics 防御性拷贝
+    // 诊断信息防御性拷贝
     List<Map<String, Object>> diagCopy =
         diagnostics == null ? Collections.emptyList() : List.copyOf(diagnostics);
     if (diagCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
@@ -112,11 +112,9 @@ public record NormalizedSessionArtifact(
     diagnostics = diagCopy;
 
     // sourceUnitCatalog 防御性拷贝
-    sourceUnitCatalog =
-        sourceUnitCatalog == null ? Map.of() : Map.copyOf(sourceUnitCatalog);
+    sourceUnitCatalog = sourceUnitCatalog == null ? Map.of() : Map.copyOf(sourceUnitCatalog);
 
     // sourceUnitSequences 防御性拷贝
-    sourceUnitSequences =
-        sourceUnitSequences == null ? Map.of() : Map.copyOf(sourceUnitSequences);
+    sourceUnitSequences = sourceUnitSequences == null ? Map.of() : Map.copyOf(sourceUnitSequences);
   }
 }

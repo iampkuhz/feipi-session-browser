@@ -7,8 +7,7 @@ import java.util.List;
 /**
  * 单次调用的响应侧工具调用边。
  *
- * <p>建模一次 LLM 调用响应侧声明的工具调用标识符列表。语义构建器仅存储工具调用标识符，
- * 该模型是短生命周期的不可变传输对象，用于制品验证阶段。
+ * <p>建模一次 LLM 调用响应侧声明的工具调用标识符列表。语义构建器仅存储工具调用标识符， 该模型是短生命周期的不可变传输对象，用于制品验证阶段。
  *
  * <p>不变量：
  *
@@ -30,7 +29,10 @@ public record NormalizedCallResponse(List<String> toolCallIds) {
     List<String> copy = toolCallIds == null ? Collections.emptyList() : List.copyOf(toolCallIds);
     if (copy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
       throw new IllegalArgumentException(
-          "toolCallIds size " + copy.size() + " exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+          "toolCallIds size "
+              + copy.size()
+              + " exceeds limit "
+              + NormalizedConstants.MAX_COLLECTION_SIZE);
     }
     toolCallIds = copy;
   }

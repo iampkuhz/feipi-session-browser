@@ -16,7 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 模块拓扑与契约清单验证测试。
  *
- * <p>验证 contract-inventory.json 中的行为全部已归类（decision 不为空）， 并且模块拓扑声明的 S2 新模块存在于 Gradle 配置中。
+ * <p>验证 contract-inventory.json 中的行为全部已归类（{@code decision} 不为空）， 并且模块拓扑声明的 S2 新模块存在于 Gradle 配置中。
  * 该测试保证契约审计无遗漏项，且 S2 冻结的模块边界可被脚本验证。
  *
  * <p>对应验收契约：AC-17、AC-18。
@@ -45,7 +45,7 @@ class ModuleTopologyContractTest {
     assertThat(uncategorized).as("所有行为必须有 KEEP/FIX/DROP/NEEDS_DECISION 决策").isEmpty();
   }
 
-  /** 验证契约清单中所有 acceptance contract 都绑定了 owning_task 和 test_id。 */
+  /** 验证契约清单中所有验收契约都绑定了 owning_task 和 test_id。 */
   @Test
   @DisplayName("每条 acceptance contract 绑定 owning_task 和 test_id")
   void allContractsHaveOwnerAndTestId() throws Exception {

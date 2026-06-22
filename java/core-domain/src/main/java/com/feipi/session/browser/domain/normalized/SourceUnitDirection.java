@@ -5,8 +5,8 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
 /**
  * 源单元方向枚举。
  *
- * <p>标识源单元属于调用的请求侧还是响应侧。与 Python 端 {@code _DIRECTION_VALUES} 集合对应，
- * 仅允许 {@code request} 和 {@code response} 两个合法值。
+ * <p>标识源单元属于调用的请求侧还是响应侧。与 Python 端 {@code _DIRECTION_VALUES} 集合对应， 仅允许 {@code request} 和 {@code
+ * response} 两个合法值。
  */
 @DomainModel
 public enum SourceUnitDirection {

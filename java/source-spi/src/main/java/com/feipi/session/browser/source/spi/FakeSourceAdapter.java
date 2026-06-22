@@ -1,7 +1,6 @@
 package com.feipi.session.browser.source.spi;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
@@ -10,8 +9,7 @@ import java.util.Optional;
 /**
  * 符合 SPI 契约的测试用假适配器。
  *
- * <p>用于 contract test 验证 SPI 接口行为。不执行实际文件 I/O；
- * 所有行为通过构造时注入的数据驱动。
+ * <p>用于 contract test 验证 SPI 接口行为。不执行实际文件 I/O； 所有行为通过构造时注入的数据驱动。
  *
  * <p>该适配器保证：
  *
@@ -67,17 +65,13 @@ public final class FakeSourceAdapter implements SourceAdapter {
   @Override
   public BoundedStream<Candidate> discover(Path rootPath) {
     List<Candidate> sorted =
-        candidates.stream()
-            .sorted(Comparator.comparing(c -> c.fingerprint().path()))
-            .toList();
-    return BoundedStream.of(
-        sorted, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.empty());
+        candidates.stream().sorted(Comparator.comparing(c -> c.fingerprint().path())).toList();
+    return BoundedStream.of(sorted, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.empty());
   }
 
   @Override
   public SourceFingerprint fingerprint(Path filePath) {
-    return new SourceFingerprint(
-        filePath.toString(), sourceId, 0, 0, Optional.of("fake-hash"));
+    return new SourceFingerprint(filePath.toString(), sourceId, 0, 0, Optional.of("fake-hash"));
   }
 
   @Override
@@ -108,12 +102,12 @@ public final class FakeSourceAdapter implements SourceAdapter {
   }
 
   /**
-   * 创建包含一条诊断信息的测试诊断。
+   * 创建包含一条指定诊断信息的测试诊断对象，用于在契约测试中构造预期的诊断结果。
    *
-   * @param severity 严重级别
-   * @param issueType 问题类型
-   * @param lineNo 行号
-   * @return 测试诊断
+   * @param severity 诊断的严重程度枚举值
+   * @param issueType 问题类型的分类标识
+   * @param lineNo 问题所在的源代码行号
+   * @return 包含单条诊断信息的测试用诊断对象
    */
   public static SourceDiagnostic testDiagnostic(
       ParseSeverity severity, ParseIssueType issueType, int lineNo) {

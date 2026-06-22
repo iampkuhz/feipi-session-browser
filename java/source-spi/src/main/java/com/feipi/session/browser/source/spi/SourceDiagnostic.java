@@ -8,8 +8,7 @@ import java.util.Optional;
 /**
  * 源解析诊断信息。
  *
- * <p>描述解析过程中遇到的单个问题。与 Python 端 {@code ParseIssueItem} 对齐。
- * 不可变 record，所有字段通过构造时验证。
+ * <p>描述解析过程中遇到的单个问题。与 Python 端 {@code ParseIssueItem} 对齐。 不可变 record，所有字段通过构造时验证。
  *
  * <p>不变量：
  *

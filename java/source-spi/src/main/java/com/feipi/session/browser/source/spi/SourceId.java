@@ -6,23 +6,24 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
 /**
  * 会话源适配器标识。
  *
- * <p>枚举当前支持的三种本地 agent 会话来源。每种来源对应独立的文件系统布局
- * 和解析逻辑，但通过统一 SPI 暴露给上层。
+ * <p>枚举当前支持的三种本地 agent 会话来源。每种来源对应独立的文件系统布局 和解析逻辑，但通过统一 SPI 暴露给上层。
  *
- * <p>不可为 null；使用 {@link #fromValue(String)} 进行反序列化时，
- * 非法值将抛出 {@link IllegalArgumentException}。
+ * <p>不可为 null；使用 {@link #fromValue(String)} 进行反序列化时， 非法值将抛出 {@link IllegalArgumentException}。
  */
 @DomainModel
 public enum SourceId {
 
-  /** Claude Code 会话源。 */
-  @CoreField CLAUDE_CODE("claude_code"),
+  /** {@code Claude Code} 本地会话数据源标识。 */
+  @CoreField
+  CLAUDE_CODE("claude_code"),
 
-  /** Codex 会话源。 */
-  @CoreField CODEX("codex"),
+  /** {@code Codex} 本地会话数据源标识。 */
+  @CoreField
+  CODEX("codex"),
 
-  /** Qoder 会话源。 */
-  @CoreField QODER("qoder");
+  /** {@code Qoder} 本地会话数据源标识。 */
+  @CoreField
+  QODER("qoder");
 
   private final String value;
 
