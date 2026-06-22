@@ -1,0 +1,7 @@
+/**
+ * Qoder 会话源适配器实现。
+ *
+ * <p>提供 Qoder 本地会话的发现、指纹和解析能力。 会话目录结构为 {@code {root}/projects/{project-dir}/{session-id}.jsonl} 和
+ * {@code {root}/cache/projects/{project-dir}/{session-id}.jsonl}。
+ */
+package com.feipi.session.browser.source.qoder;

@@ -19,6 +19,7 @@ include(
     "java:artifact-normalized",
     "java:source-claude",
     "java:source-codex",
+    "java:source-qoder",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",
