@@ -17,6 +17,7 @@ include(
     "java:source-spi",
     "java:source-json",
     "java:artifact-normalized",
+    "java:source-claude",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",
