@@ -10,6 +10,9 @@ import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.CharacterCodingException;
+import java.nio.charset.CharsetDecoder;
+import java.nio.charset.CodingErrorAction;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -18,6 +21,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.function.Consumer;
 import java.util.regex.Pattern;
 
 /**
@@ -47,6 +51,7 @@ public final class JsonlReader {
 
   private final JsonlReaderConfig config;
   private final ObjectMapper mapper;
+  private final Consumer<Path> readCompleteHook;
 
   /** 用于预览脱敏的正则：匹配 JSON 字符串值中看起来像密钥/token 的内容。 */
   private static final Pattern SECRET_VALUE_PATTERN =
@@ -66,8 +71,14 @@ public final class JsonlReader {
    * @param config 读取器配置，不得为 null
    */
   public JsonlReader(JsonlReaderConfig config) {
+    this(config, path -> {});
+  }
+
+  JsonlReader(JsonlReaderConfig config, Consumer<Path> readCompleteHook) {
     Objects.requireNonNull(config, "config 不得为 null");
+    Objects.requireNonNull(readCompleteHook, "readCompleteHook 不得为 null");
     this.config = config;
+    this.readCompleteHook = readCompleteHook;
     this.mapper = new ObjectMapper();
     // 检测拼接对象（如 }{），防止 Jackson 静默忽略尾部内容
     this.mapper.enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
@@ -110,7 +121,7 @@ public final class JsonlReader {
 
     try (BufferedReader reader =
         new BufferedReader(
-            new InputStreamReader(Files.newInputStream(path), StandardCharsets.UTF_8))) {
+            new InputStreamReader(Files.newInputStream(path), utf8ReportingDecoder()))) {
       String line;
       boolean firstLine = true;
       long byteOffset = 0;
@@ -289,7 +300,16 @@ public final class JsonlReader {
 
         byteOffset += estimateUtf8ByteLength(stripped) + terminatorByteLen;
       }
+    } catch (CharacterCodingException e) {
+      diagnostics.clear();
+      events.clear();
+      diagnostics.add(buildInvalidUtf8Diagnostic(Math.max(1, totalLines + 1)));
+      JsonlStats stats =
+          new JsonlStats(totalLines, nonEmptyLines, 0, countSkippedEvents(diagnostics));
+      return new JsonlReaderResult(events, diagnostics, stats, false);
     }
+
+    readCompleteHook.accept(path);
 
     // EOF 时仍有未终止的 JSON（括号深度大于零，对象未闭合）
     if (!currentLines.isEmpty()) {
@@ -455,6 +475,13 @@ public final class JsonlReader {
    */
   private static int estimateUtf8ByteLength(String text) {
     return text.getBytes(StandardCharsets.UTF_8).length;
+  }
+
+  private static CharsetDecoder utf8ReportingDecoder() {
+    return StandardCharsets.UTF_8
+        .newDecoder()
+        .onMalformedInput(CodingErrorAction.REPORT)
+        .onUnmappableCharacter(CodingErrorAction.REPORT);
   }
 
   /**
@@ -647,6 +674,21 @@ public final class JsonlReader {
         OptionalInt.empty(),
         startByte >= 0 ? OptionalInt.of((int) startByte) : OptionalInt.empty(),
         endByte >= 0 ? OptionalInt.of((int) endByte) : OptionalInt.empty());
+  }
+
+  /** 构建非法 UTF-8 诊断信息，不附带文件路径或载荷预览。 */
+  private SourceDiagnostic buildInvalidUtf8Diagnostic(int lineNo) {
+    return new SourceDiagnostic(
+        ParseSeverity.ERROR,
+        ParseIssueType.BAD_JSON,
+        "Invalid UTF-8 input at line " + lineNo,
+        lineNo,
+        Optional.empty(),
+        JsonlConstants.CODE_INVALID_UTF8,
+        "",
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
   }
 
   /** 构建 NON_OBJECT_SKIPPED 诊断信息。 */

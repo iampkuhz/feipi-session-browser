@@ -6,6 +6,7 @@ import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -349,6 +350,34 @@ class JsonlReaderTest {
       // 两行非法 JSON 被跳过，记录为格式错误
       assertThat(errors).isEqualTo(2);
     }
+
+    @Test
+    @DisplayName("非法 UTF-8 产生稳定诊断且不泄漏载荷")
+    void invalidUtf8FailsClosedWithoutPayloadLeak() throws IOException {
+      String secretPayload =
+          "{\"token\":\"secret-token-that-must-not-appear\",\"home\":\""
+              + System.getProperty("user.home")
+              + "\"";
+      byte[] prefix = secretPayload.getBytes(StandardCharsets.UTF_8);
+      byte[] content = new byte[prefix.length + 3];
+      System.arraycopy(prefix, 0, content, 0, prefix.length);
+      content[prefix.length] = (byte) 0xC3;
+      content[prefix.length + 1] = (byte) 0x28;
+      content[prefix.length + 2] = (byte) '\n';
+      Path path = writeBytes(content);
+
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.events()).isEmpty();
+      assertThat(result.diagnostics()).hasSize(1);
+      SourceDiagnostic diag = result.diagnostics().get(0);
+      assertThat(diag.severity()).isEqualTo(ParseSeverity.ERROR);
+      assertThat(diag.issueType()).isEqualTo(ParseIssueType.BAD_JSON);
+      assertThat(diag.code()).isEqualTo("BAD_JSON:INVALID_UTF8");
+      assertThat(diag.preview()).isEmpty();
+      assertThat(diag.message()).doesNotContain("secret-token-that-must-not-appear");
+      assertThat(diag.message()).doesNotContain(System.getProperty("user.home"));
+    }
   }
 
   // ─── BOM 处理 ─────────────────────────────────────────────────────────
@@ -681,6 +710,32 @@ class JsonlReaderTest {
       JsonlReaderResult result = reader.read(path);
 
       assertThat(result.diagnostics()).noneMatch(d -> d.code().equals("RETRYABLE_INCOMPLETE"));
+    }
+
+    @Test
+    @DisplayName("读取期间文件变化触发 RETRYABLE_INCOMPLETE")
+    void modifiedDuringReadProducesRetryableDiagnostic() throws IOException {
+      Path path = write("{\"a\": 1}\n");
+      JsonlReader readerWithWriteHook =
+          new JsonlReader(
+              JsonlReaderConfig.defaults(),
+              changedPath -> {
+                try {
+                  Files.writeString(changedPath, "{\"b\": 2}\n");
+                } catch (IOException e) {
+                  throw new UncheckedIOException(e);
+                }
+              });
+
+      JsonlReaderResult result = readerWithWriteHook.read(path);
+
+      assertThat(result.events()).hasSize(1);
+      assertThat(result.diagnostics())
+          .anySatisfy(
+              diagnostic -> {
+                assertThat(diagnostic.code()).isEqualTo("RETRYABLE_INCOMPLETE");
+                assertThat(diagnostic.severity()).isEqualTo(ParseSeverity.WARNING);
+              });
     }
   }
 

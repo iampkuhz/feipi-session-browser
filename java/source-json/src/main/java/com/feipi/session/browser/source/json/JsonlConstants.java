@@ -29,6 +29,9 @@ public final class JsonlConstants {
   /** 诊断代码：文件读取期间被修改，数据可能不完整。 */
   static final String CODE_RETRYABLE_INCOMPLETE = "RETRYABLE_INCOMPLETE";
 
+  /** 诊断代码：输入包含非法 UTF-8 字节序列。 */
+  static final String CODE_INVALID_UTF8 = "BAD_JSON:INVALID_UTF8";
+
   /** 诊断代码：缓冲区超限，单条记录过大。 */
   static final String CODE_BUFFER_OVERFLOW = "BAD_JSON:BUFFER_OVERFLOW";
 
