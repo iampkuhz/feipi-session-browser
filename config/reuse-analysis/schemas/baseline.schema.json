@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "policyVersion",
+    "entries"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1
+    },
+    "policyVersion": {
+      "type": "string"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "fingerprint",
+          "severity",
+          "decision",
+          "reason",
+          "owner",
+          "createdAt",
+          "expiresOn",
+          "evidence"
+        ],
+        "properties": {
+          "severity": {
+            "enum": ["P1", "P2", "P3"]
+          },
+          "decision": {
+            "enum": ["INTENTIONAL_DUPLICATION", "DEFER", "KEEP_ON_OWNER"]
+          }
+        }
+      }
+    }
+  }
+}

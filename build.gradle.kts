@@ -401,3 +401,239 @@ private fun runChineseCommentCheckChangedAction(
         logger.lifecycle("verifyChineseJavaCommentsChanged: PASSED")
     }
 }
+
+// ============================================================
+// Reuse Analyzer 任务 —— Spoon AST 分析。
+// 这些任务使用 java:reuse-analyzer 模块的 classpath 运行分析器。
+// Spoon 仅作为构建期工具，不进入产品 runtime。
+// ============================================================
+
+// 分析器 classpath 配置
+val analyzerRuntime = configurations.create("analyzerRuntime") {
+    isCanBeConsumed = false
+    isCanBeResolved = true
+}
+
+dependencies {
+    add("analyzerRuntime", project(":java:reuse-analyzer"))
+}
+
+// 分析器缓存目录（local state，不提交）
+val reuseAnalysisCacheDir = layout.projectDirectory.dir(".gradle/feipi-reuse-analysis")
+val reuseAnalysisReportDir = layout.buildDirectory.dir("reports/reuse-analysis")
+
+// 策略和 schema 文件路径
+val policyFilePath = file("config/reuse-analysis/policy.json").absolutePath
+val bootstrapStatePath = file("config/reuse-analysis/bootstrap-state.json").absolutePath
+
+// ============================================================
+// reuseAnalyzerSelfTest —— 分析器自测。
+// ============================================================
+val reuseAnalyzerSelfTest = tasks.register<JavaExec>("reuseAnalyzerSelfTest") {
+    group = "verification"
+    description = "验证 Spoon analyzer 自测通过。"
+    classpath = analyzerRuntime
+    mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
+    args(
+        "--mode", "selftest",
+        "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
+        "--output", reuseAnalysisReportDir.get().file("selftest-result.json").asFile.absolutePath,
+    )
+    outputs.file(reuseAnalysisReportDir.get().file("selftest-result.json"))
+        .withPropertyName("resultFile")
+}
+
+// ============================================================
+// JSON 辅助函数 —— 根构建脚本不使用 Jackson，手动构造 JSON。
+// ============================================================
+fun escapeJsonString(s: String): String {
+    return s.replace("\\", "\\\\")
+        .replace("\"", "\\\"")
+        .replace("\n", "\\n")
+        .replace("\r", "\\r")
+        .replace("\t", "\\t")
+}
+
+fun jsonArrayOfStrings(items: List<String>): String {
+    return "[" + items.joinToString(", ") { "\"${escapeJsonString(it)}\"" } + "]"
+}
+
+// ============================================================
+// 生成分析器输入清单的辅助函数。
+// 收集所有生产模块的 source roots、classpath 和 outputs。
+// ============================================================
+gradle.projectsEvaluated {
+    val productionModules = leafSubprojects.filter { sub ->
+        sub.path != ":java:reuse-analyzer"
+            && sub.path != ":java:test-support"
+            && sub.path != ":java:architecture-tests"
+            && sub.path != ":java:contract-tests"
+            && sub.file("src/main/java").exists()
+    }
+
+    val generateManifest = tasks.register("reuseGenerateManifest") {
+        group = "verification"
+        description = "生成 reuse analyzer 输入清单 JSON。"
+
+        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile
+        val changedFilesProvider = providers.provider {
+            try {
+                val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
+                    .directory(rootDir).redirectErrorStream(true).start()
+                proc.inputStream.bufferedReader().readLines().filter { it.endsWith(".java") }
+            } catch (e: Exception) {
+                emptyList<String>()
+            }
+        }
+        val policyFileRef = file(policyFilePath)
+
+        // 声明 inputs
+        inputs.files(productionModules.map { sub ->
+            sub.fileTree("src/main/java").matching { include("**/*.java") }
+        }).withPropertyName("sourceFiles").optional(true)
+        if (policyFileRef.exists()) {
+            inputs.file(policyFileRef).withPropertyName("policyFile")
+        }
+
+        // 声明 outputs
+        outputs.file(manifestFile).withPropertyName("manifestFile")
+
+        doLast {
+            val modules = productionModules.map { sub ->
+                val sourceRoots = listOf(sub.file("src/main/java").absolutePath)
+                val cp = try {
+                    sub.configurations.getByName("compileClasspath")
+                        .resolve()
+                        .map { it.absolutePath }
+                        .sorted()
+                } catch (e: Exception) {
+                    emptyList<String>()
+                }
+                val outputDirs = listOf(
+                    sub.layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath,
+                )
+                """    {
+      "id": "${escapeJsonString(sub.path)}",
+      "productionSourceRoots": ${jsonArrayOfStrings(sourceRoots)},
+      "compileClasspath": ${jsonArrayOfStrings(cp)},
+      "compiledOutputs": ${jsonArrayOfStrings(outputDirs)}
+    }"""
+            }
+
+            val policyDigest = if (policyFileRef.exists()) {
+                val digest = java.security.MessageDigest.getInstance("SHA-256")
+                val hash = digest.digest(policyFileRef.readBytes())
+                hash.joinToString("") { "%02x".format(it) }
+            } else "0000000000000000000000000000000000000000000000000000000000000000"
+
+            val changedFiles = changedFilesProvider.get().sorted()
+            val baseSha = try {
+                ProcessBuilder("git", "rev-parse", "HEAD").directory(rootDir)
+                    .redirectErrorStream(true).start()
+                    .inputStream.bufferedReader().readText().trim()
+            } catch (e: Exception) { "unknown" }
+
+            val json = """{
+  "javaVersion": 25,
+  "modules": [
+${modules.joinToString(",\n")}
+  ],
+  "changedFiles": ${jsonArrayOfStrings(changedFiles)},
+  "baseSha": "${escapeJsonString(baseSha)}",
+  "policyDigest": "$policyDigest"
+}
+"""
+            manifestFile.parentFile.mkdirs()
+            manifestFile.writeText(json, Charsets.UTF_8)
+            logger.lifecycle("输入清单已生成：${manifestFile.absolutePath}")
+        }
+    }
+
+    // ============================================================
+    // reuseBootstrapFull —— 全量引导分析。
+    // ============================================================
+    tasks.register<JavaExec>("reuseBootstrapFull") {
+        group = "verification"
+        description = "执行全量 bootstrap 分析，构建完整 fingerprint 索引。"
+        dependsOn(generateManifest)
+        classpath = analyzerRuntime
+        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
+        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
+        val outputFile = reuseAnalysisReportDir.get().file("bootstrap-full-result.json").asFile.absolutePath
+        args(
+            "--mode", "full",
+            "--manifest", manifestFile,
+            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
+            "--output", outputFile,
+        )
+        inputs.file(manifestFile).withPropertyName("manifest")
+        outputs.file(outputFile).withPropertyName("resultFile")
+    }
+
+    // ============================================================
+    // reuseAnalyzeIncremental —— 增量分析。
+    // 当 bootstrap state 不存在时返回 BOOTSTRAP_REQUIRED。
+    // ============================================================
+    tasks.register<JavaExec>("reuseAnalyzeIncremental") {
+        group = "verification"
+        description = "增量分析：只分析 changed files，无 bootstrap state 时返回 BOOTSTRAP_REQUIRED。"
+        dependsOn(generateManifest)
+        classpath = analyzerRuntime
+        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
+        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
+        val outputFile = reuseAnalysisReportDir.get().file("incremental-result.json").asFile.absolutePath
+        args(
+            "--mode", "incremental",
+            "--manifest", manifestFile,
+            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
+            "--bootstrap-state", bootstrapStatePath,
+            "--output", outputFile,
+        )
+        inputs.file(manifestFile).withPropertyName("manifest")
+        outputs.file(outputFile).withPropertyName("resultFile")
+    }
+
+    // ============================================================
+    // reuseAnalyzeFullAdvisory —— 全量 advisory 分析（不阻断）。
+    // ============================================================
+    tasks.register<JavaExec>("reuseAnalyzeFullAdvisory") {
+        group = "verification"
+        description = "全量 advisory 分析，生成报告但不阻断构建。"
+        dependsOn(generateManifest)
+        classpath = analyzerRuntime
+        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
+        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
+        val outputFile = reuseAnalysisReportDir.get().file("full-advisory-result.json").asFile.absolutePath
+        args(
+            "--mode", "full",
+            "--manifest", manifestFile,
+            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
+            "--output", outputFile,
+        )
+        inputs.file(manifestFile).withPropertyName("manifest")
+        outputs.file(outputFile).withPropertyName("resultFile")
+        // advisory：失败不阻断
+        isIgnoreExitValue = true
+    }
+
+    // ============================================================
+    // reuseBaselineVerify —— baseline 验证。
+    // ============================================================
+    tasks.register<JavaExec>("reuseBaselineVerify") {
+        group = "verification"
+        description = "验证 baseline 与新 finding 的一致性。"
+        dependsOn(generateManifest)
+        classpath = analyzerRuntime
+        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
+        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
+        val outputFile = reuseAnalysisReportDir.get().file("baseline-verify-result.json").asFile.absolutePath
+        args(
+            "--mode", "baseline",
+            "--manifest", manifestFile,
+            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
+            "--output", outputFile,
+        )
+        inputs.file(manifestFile).withPropertyName("manifest")
+        outputs.file(outputFile).withPropertyName("resultFile")
+    }
+}

@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "required": [
+    "status",
+    "analyzerModulePath",
+    "analyzerVersion",
+    "schemaVersion",
+    "policySha256",
+    "baselineSha256",
+    "bootstrapCommit"
+  ],
+  "properties": {
+    "status": { "const": "accepted" },
+    "analyzerModulePath": { "type": "string", "minLength": 1 },
+    "analyzerVersion": { "type": "string", "minLength": 1 },
+    "schemaVersion": { "type": "integer", "minimum": 1 },
+    "policySha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "baselineSha256": { "type": "string", "pattern": "^[0-9a-f]{64}$" },
+    "bootstrapCommit": { "type": "string", "minLength": 7 }
+  },
+  "additionalProperties": true
+}

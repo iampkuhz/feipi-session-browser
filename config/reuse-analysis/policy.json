@@ -1,0 +1,31 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "1.0.0",
+  "javaComplianceLevel": 25,
+  "requiredClasspathMode": "FULL",
+  "automaticMode": "INCREMENTAL_STRICT",
+  "automaticFullScan": false,
+  "severity": {
+    "P0": {
+      "blocks": true,
+      "baselineAllowed": false
+    },
+    "P1": {
+      "blocksWithoutDecision": true,
+      "baselineAllowed": true
+    },
+    "P2": {
+      "blocks": false
+    },
+    "P3": {
+      "blocks": false
+    }
+  },
+  "forbiddenSharedTypeNamePatterns": [
+    ".*Utils?$",
+    ".*Helpers?$",
+    "Common.*",
+    "Misc.*",
+    "BaseHelper.*"
+  ]
+}
