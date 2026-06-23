@@ -4,23 +4,24 @@ import lombok.Getter;
 import lombok.RequiredArgsConstructor;
 
 /**
- * 异常类型枚举。
+ * 会话级异常类型枚举。
  *
- * <p>标识会话诊断中发现的异常类别。与 Python 端 {@code anomalies.py} 检测规则对应。
+ * <p>标识会话诊断检测中发现的异常类别。与 Python 端 {@code anomalies.py} 检测规则对应。
+ * 值为稳定外部协议契约，过滤器和模板依赖这些值。
  */
 @RequiredArgsConstructor
 public enum AnomalyType {
-  /** 单次会话 token 消耗异常偏高。 */
-  TOKEN_SPIKE("token_spike"),
+  /** 活跃时长（模型推理 + 工具执行）超过阈值。 */
+  LONG_DURATION("long_duration"),
 
-  /** 工具调用失败率异常偏高。 */
-  HIGH_FAILURE_RATE("high_failure_rate"),
+  /** 缓存创建 token 超过阈值。 */
+  CACHE_WRITE_SPIKE("cache_write_spike"),
 
-  /** 会话时长异常偏长。 */
-  DURATION_OUTLIER("duration_outlier"),
+  /** 工具调用失败率超过阈值。 */
+  FAILED_RUN("failed_run"),
 
-  /** 子 agent 使用量异常偏高。 */
-  SUBAGENT_OVERUSE("subagent_overuse");
+  /** payload 可见性不匹配，由会话详情路由检测。 */
+  PAYLOAD_VISIBILITY_MISMATCH("payload_visibility_mismatch");
 
   /** 稳定外部协议值。 */
   @Getter private final String value;

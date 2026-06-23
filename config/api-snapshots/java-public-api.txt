@@ -138,6 +138,8 @@ component com.feipi.session.browser.index.sqlite.AggregateMetricsRow toolsPerRou
 component com.feipi.session.browser.index.sqlite.AggregateMetricsRow totalRounds: long
 component com.feipi.session.browser.index.sqlite.AggregateQueryRepository.ToolDistributionEntry title: String
 component com.feipi.session.browser.index.sqlite.AggregateQueryRepository.ToolDistributionEntry toolCallCount: long
+component com.feipi.session.browser.index.sqlite.AnomalyDefinition key: SessionAnomalyKey
+component com.feipi.session.browser.index.sqlite.AnomalyDefinition severityLevels: Set<AnomalySeverity>
 component com.feipi.session.browser.index.sqlite.CacheHitSessionRow agent: String
 component com.feipi.session.browser.index.sqlite.CacheHitSessionRow cacheHitPercent: double
 component com.feipi.session.browser.index.sqlite.CacheHitSessionRow cacheReadTokens: long
@@ -160,6 +162,10 @@ component com.feipi.session.browser.index.sqlite.DashboardRow totalSessions: lon
 component com.feipi.session.browser.index.sqlite.DashboardRow totalTokens: long
 component com.feipi.session.browser.index.sqlite.DashboardRow totalToolCalls: long
 component com.feipi.session.browser.index.sqlite.DashboardRow totalUserMessages: long
+component com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition key: SessionAnomalyKey
+component com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition severityLevels: Set<AnomalySeverity>
+component com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition key: RoundSignalKey
+component com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition severityLevels: Set<AnomalySeverity>
 component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult existingTables: Set<String>
 component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult missingColumns: Map<String, Set<String>>
 component com.feipi.session.browser.index.sqlite.Migration description: String
@@ -175,6 +181,17 @@ component com.feipi.session.browser.index.sqlite.PayloadLookup.PayloadEntry cont
 component com.feipi.session.browser.index.sqlite.PayloadLookup.PayloadEntry kind: PayloadSourceKind
 component com.feipi.session.browser.index.sqlite.PayloadLookup.PayloadEntry payloadId: String
 component com.feipi.session.browser.index.sqlite.PayloadLookup.PayloadEntry truncated: boolean
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.PercentileResult count: int
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.PercentileResult p90: Double
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.PercentileResult p95: Double
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds critical: double
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds p90: Double
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds p95: Double
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds sampleCount: int
+component com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds warning: double
+component com.feipi.session.browser.index.sqlite.PercentileResult count: int
+component com.feipi.session.browser.index.sqlite.PercentileResult p90: Double
+component com.feipi.session.browser.index.sqlite.PercentileResult p95: Double
 component com.feipi.session.browser.index.sqlite.PragmaConfig busyTimeoutMs: int
 component com.feipi.session.browser.index.sqlite.PragmaConfig foreignKeys: boolean
 component com.feipi.session.browser.index.sqlite.PragmaConfig journalMode: String
@@ -248,6 +265,13 @@ component com.feipi.session.browser.index.sqlite.SessionRow toolCallCount: long
 component com.feipi.session.browser.index.sqlite.SessionRow toolExecutionSeconds: double
 component com.feipi.session.browser.index.sqlite.SessionRow totalTokens: long
 component com.feipi.session.browser.index.sqlite.SessionRow userMessageCount: long
+component com.feipi.session.browser.index.sqlite.SignalDefinition key: RoundSignalKey
+component com.feipi.session.browser.index.sqlite.SignalDefinition severityLevels: Set<AnomalySeverity>
+component com.feipi.session.browser.index.sqlite.Thresholds critical: double
+component com.feipi.session.browser.index.sqlite.Thresholds p90: Double
+component com.feipi.session.browser.index.sqlite.Thresholds p95: Double
+component com.feipi.session.browser.index.sqlite.Thresholds sampleCount: int
+component com.feipi.session.browser.index.sqlite.Thresholds warning: double
 component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalCacheRead: long
 component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalCacheWrite: long
 component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalFailedTools: long
@@ -293,11 +317,27 @@ component com.feipi.session.browser.query.api.CallRound calls: List<String>
 component com.feipi.session.browser.query.api.CallRound parentCallId: String
 component com.feipi.session.browser.query.api.CallRound roundIndex: int
 component com.feipi.session.browser.query.api.CallRound toolCallIds: List<String>
+component com.feipi.session.browser.query.api.DetectedAnomaly reason: String
+component com.feipi.session.browser.query.api.DetectedAnomaly severity: AnomalySeverity
+component com.feipi.session.browser.query.api.DetectedAnomaly type: AnomalyType
+component com.feipi.session.browser.query.api.DiagnosticIssueItem detail: String
+component com.feipi.session.browser.query.api.DiagnosticIssueItem issue: DiagnosticIssue
+component com.feipi.session.browser.query.api.DiagnosticIssueItem lineNo: int
+component com.feipi.session.browser.query.api.DiagnosticIssueItem message: String
+component com.feipi.session.browser.query.api.DiagnosticIssueItem severity: DiagnosticSeverity
 component com.feipi.session.browser.query.api.PayloadSource callId: String
 component com.feipi.session.browser.query.api.PayloadSource kind: PayloadSourceKind
 component com.feipi.session.browser.query.api.PayloadSource payloadId: String
 component com.feipi.session.browser.query.api.PayloadSource title: String
 component com.feipi.session.browser.query.api.PayloadSource truncated: boolean
+component com.feipi.session.browser.query.api.SessionAnomalySummary anomalies: List<DetectedAnomaly>
+component com.feipi.session.browser.query.api.SessionAnomalySummary sessionKey: String
+component com.feipi.session.browser.query.api.SessionParseDiagnostics eventsParsed: long
+component com.feipi.session.browser.query.api.SessionParseDiagnostics eventsSkipped: long
+component com.feipi.session.browser.query.api.SessionParseDiagnostics filePath: String
+component com.feipi.session.browser.query.api.SessionParseDiagnostics issues: List<DiagnosticIssueItem>
+component com.feipi.session.browser.query.api.SessionParseDiagnostics sessionKey: String
+component com.feipi.session.browser.query.api.SessionParseDiagnostics totalLines: long
 component com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult message: String
 component com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult outcome: CandidateOutcome
 component com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult phase: ScanIssue.ScanPhase
@@ -431,14 +471,20 @@ constructor com.feipi.session.browser.domain.source.SourceToolCall public Source
 constructor com.feipi.session.browser.index.sqlite.AgentEfficiencyRow public AgentEfficiencyRow()
 constructor com.feipi.session.browser.index.sqlite.AggregateMetricsRow public AggregateMetricsRow()
 constructor com.feipi.session.browser.index.sqlite.AggregateQueryRepository public AggregateQueryRepository(IndexConnection indexConnection)
+constructor com.feipi.session.browser.index.sqlite.AnomalyDefinition public AnomalyDefinition()
 constructor com.feipi.session.browser.index.sqlite.CacheHitSessionRow public CacheHitSessionRow()
 constructor com.feipi.session.browser.index.sqlite.ConnectionFactory public ConnectionFactory(String jdbcUrl, PragmaConfig pragmaConfig)
+constructor com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition public AnomalyDefinition()
+constructor com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition public SignalDefinition()
 constructor com.feipi.session.browser.index.sqlite.IndexConnection public IndexConnection( Connection writerConnection, ConnectionFactory readFactory, PragmaConfig pragmaConfig)
 constructor com.feipi.session.browser.index.sqlite.IndexSchema public IndexSchema(MigrationRunner runner)
 constructor com.feipi.session.browser.index.sqlite.Migration public Migration()
 constructor com.feipi.session.browser.index.sqlite.MigrationRunner public MigrationRunner(List<Migration> migrations)
 constructor com.feipi.session.browser.index.sqlite.PayloadEntry public PayloadEntry()
 constructor com.feipi.session.browser.index.sqlite.PayloadLookup.PayloadEntry public PayloadEntry()
+constructor com.feipi.session.browser.index.sqlite.PercentileCalculator.PercentileResult public PercentileResult()
+constructor com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds public Thresholds()
+constructor com.feipi.session.browser.index.sqlite.PercentileResult public PercentileResult()
 constructor com.feipi.session.browser.index.sqlite.PragmaConfig public PragmaConfig()
 constructor com.feipi.session.browser.index.sqlite.PragmaConfig public static final PragmaConfig DEFAULTS = new PragmaConfig(" ", " ", 30_000, true)
 constructor com.feipi.session.browser.index.sqlite.ProjectStatsRow public ProjectStatsRow()
@@ -451,6 +497,8 @@ constructor com.feipi.session.browser.index.sqlite.SessionDetailRequest public S
 constructor com.feipi.session.browser.index.sqlite.SessionListAggregate public SessionListAggregate()
 constructor com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionQueryRepository(IndexConnection indexConnection)
 constructor com.feipi.session.browser.index.sqlite.SessionRow public SessionRow()
+constructor com.feipi.session.browser.index.sqlite.SignalDefinition public SignalDefinition()
+constructor com.feipi.session.browser.index.sqlite.Thresholds public Thresholds()
 constructor com.feipi.session.browser.index.sqlite.TokenBreakdownRow public TokenBreakdownRow()
 constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(Connection conn, int maxEntries)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
@@ -459,12 +507,16 @@ constructor com.feipi.session.browser.index.sqlite.WriteTransaction public Write
 constructor com.feipi.session.browser.query.api.AgentFilter public static final AgentFilter NONE = new AgentFilter("")
 constructor com.feipi.session.browser.query.api.AnomalyFilter public static final AnomalyFilter NONE = new AnomalyFilter(null)
 constructor com.feipi.session.browser.query.api.CallRound public CallRound()
+constructor com.feipi.session.browser.query.api.DetectedAnomaly public DetectedAnomaly()
+constructor com.feipi.session.browser.query.api.DiagnosticIssueItem public DiagnosticIssueItem()
 constructor com.feipi.session.browser.query.api.ModelFilter public static final ModelFilter NONE = new ModelFilter("")
 constructor com.feipi.session.browser.query.api.PageRequest public static final PageRequest DEFAULT = new PageRequest(0, DEFAULT_LIMIT, "")
 constructor com.feipi.session.browser.query.api.PageResult public PageResult()
 constructor com.feipi.session.browser.query.api.PayloadSource public PayloadSource()
 constructor com.feipi.session.browser.query.api.ProjectFilter public static final ProjectFilter NONE = new ProjectFilter("")
 constructor com.feipi.session.browser.query.api.SensitiveFieldPolicy public static final SensitiveFieldPolicy DEFAULT = new SensitiveFieldPolicy(DEFAULT_SENSITIVE_FIELDS, true)
+constructor com.feipi.session.browser.query.api.SessionAnomalySummary public SessionAnomalySummary()
+constructor com.feipi.session.browser.query.api.SessionParseDiagnostics public SessionParseDiagnostics()
 constructor com.feipi.session.browser.query.api.TitleFilter public static final TitleFilter NONE = new TitleFilter("")
 constructor com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public ReuseAnalyzer(Path cacheDirectory)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
@@ -558,10 +610,25 @@ enum-constant com.feipi.session.browser.domain.normalized.SourceFileRole COMPANI
 enum-constant com.feipi.session.browser.domain.normalized.SourceFileRole TRANSCRIPT
 enum-constant com.feipi.session.browser.domain.normalized.SourceUnitDirection REQUEST
 enum-constant com.feipi.session.browser.domain.normalized.SourceUnitDirection RESPONSE
-enum-constant com.feipi.session.browser.query.api.AnomalyType DURATION_OUTLIER
-enum-constant com.feipi.session.browser.query.api.AnomalyType HIGH_FAILURE_RATE
-enum-constant com.feipi.session.browser.query.api.AnomalyType SUBAGENT_OVERUSE
-enum-constant com.feipi.session.browser.query.api.AnomalyType TOKEN_SPIKE
+enum-constant com.feipi.session.browser.index.sqlite.MetricKey CACHE_WRITE_TOKENS
+enum-constant com.feipi.session.browser.index.sqlite.MetricKey DURATION_SECONDS
+enum-constant com.feipi.session.browser.index.sqlite.MetricKey TOOL_CALL_COUNT
+enum-constant com.feipi.session.browser.index.sqlite.PercentileCalculator.MetricKey CACHE_WRITE_TOKENS
+enum-constant com.feipi.session.browser.index.sqlite.PercentileCalculator.MetricKey DURATION_SECONDS
+enum-constant com.feipi.session.browser.index.sqlite.PercentileCalculator.MetricKey TOOL_CALL_COUNT
+enum-constant com.feipi.session.browser.query.api.AnomalySeverity CRITICAL
+enum-constant com.feipi.session.browser.query.api.AnomalySeverity INFO
+enum-constant com.feipi.session.browser.query.api.AnomalySeverity WARNING
+enum-constant com.feipi.session.browser.query.api.AnomalyType CACHE_WRITE_SPIKE
+enum-constant com.feipi.session.browser.query.api.AnomalyType FAILED_RUN
+enum-constant com.feipi.session.browser.query.api.AnomalyType LONG_DURATION
+enum-constant com.feipi.session.browser.query.api.AnomalyType PAYLOAD_VISIBILITY_MISMATCH
+enum-constant com.feipi.session.browser.query.api.DiagnosticIssue BAD_JSON
+enum-constant com.feipi.session.browser.query.api.DiagnosticIssue EMPTY_FILE
+enum-constant com.feipi.session.browser.query.api.DiagnosticIssue FILE_NOT_FOUND
+enum-constant com.feipi.session.browser.query.api.DiagnosticIssue MISSING_TIMESTAMP
+enum-constant com.feipi.session.browser.query.api.DiagnosticIssue NON_OBJECT_SKIPPED
+enum-constant com.feipi.session.browser.query.api.DiagnosticIssue TOKEN_ESTIMATED
 enum-constant com.feipi.session.browser.query.api.FailureStatus ALL
 enum-constant com.feipi.session.browser.query.api.FailureStatus FAILED_ONLY
 enum-constant com.feipi.session.browser.query.api.FailureStatus SUCCESS_ONLY
@@ -571,6 +638,15 @@ enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_FAILED_
 enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_SESSIONS
 enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_TOKENS
 enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_TOOL_CALLS
+enum-constant com.feipi.session.browser.query.api.RoundSignalKey FAILED_TOOL
+enum-constant com.feipi.session.browser.query.api.RoundSignalKey HIGH_WRITE
+enum-constant com.feipi.session.browser.query.api.RoundSignalKey LARGE_INPUT
+enum-constant com.feipi.session.browser.query.api.RoundSignalKey LLM_ERROR
+enum-constant com.feipi.session.browser.query.api.RoundSignalKey LONG_TOOL
+enum-constant com.feipi.session.browser.query.api.RoundSignalKey TOOL_BURST
+enum-constant com.feipi.session.browser.query.api.SessionAnomalyKey CACHE_WRITE_SPIKE
+enum-constant com.feipi.session.browser.query.api.SessionAnomalyKey FAILED_RUN
+enum-constant com.feipi.session.browser.query.api.SessionAnomalyKey LONG_DURATION
 enum-constant com.feipi.session.browser.query.api.SessionSortField ASSISTANT_MESSAGE_COUNT
 enum-constant com.feipi.session.browser.query.api.SessionSortField DURATION_SECONDS
 enum-constant com.feipi.session.browser.query.api.SessionSortField ENDED_AT
@@ -593,6 +669,15 @@ field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public SCHEMA_VERSION: static final String
 field com.feipi.session.browser.index.sqlite.ArtifactRowMapper public ARTIFACT_TYPE_NORMALIZED: static final String
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public CACHE_WRITE_CRITICAL_TOKENS: static final long
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public CACHE_WRITE_WARNING_TOKENS: static final long
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public DURATION_CRITICAL_SECONDS: static final double
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public DURATION_WARNING_SECONDS: static final double
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public FAILED_TOOL_CRITICAL_RATIO: static final double
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public FAILED_TOOL_WARNING_RATIO: static final double
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public MIN_ROWS: static final int
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public TOOL_CALL_CRITICAL_COUNT: static final long
+field com.feipi.session.browser.index.sqlite.PercentileCalculator public TOOL_CALL_WARNING_COUNT: static final long
 field com.feipi.session.browser.index.sqlite.WriteBatch public DEFAULT_MAX_ENTRIES: static final int
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_BATCH_LIMIT: static final int
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_QUEUE_CAPACITY: static final int
@@ -683,12 +768,23 @@ method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public Pa
 method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public ProjectStatsRow projectStats(String projectKey) throws SQLException
 method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public TokenBreakdownRow tokenBreakdown() throws SQLException
 method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public long countProjects(ProjectListFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.AnomalyDefinition public boolean supportsSeverity(AnomalySeverity severity)
+method com.feipi.session.browser.index.sqlite.AnomalyDetector public static List<SessionAnomalySummary> detectAll(List<SessionRow> rows)
+method com.feipi.session.browser.index.sqlite.AnomalyDetector public static SessionAnomalySummary detect(SessionRow row)
 method com.feipi.session.browser.index.sqlite.ArtifactRowMapper public static SessionArtifactRow toArtifactRow( String sessionKey, String artifactPath, String schemaVersion, String sourcePath, double sourceMtime, long sizeBytes, double now)
 method com.feipi.session.browser.index.sqlite.ArtifactRowMapper public static SessionRow toSessionRow( NormalizedSessionArtifact artifact, double fileMtime, String filePath)
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public Connection create() throws SQLException
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public PragmaConfig pragmaConfig()
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public String jdbcUrl()
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public static ConnectionFactory withDefaults(String jdbcUrl)
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static AnomalyDefinition sessionAnomaly(SessionAnomalyKey key)
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static Set<RoundSignalKey> roundSignalKeys()
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static Set<SessionAnomalyKey> sessionAnomalyKeys()
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static SignalDefinition roundSignal(RoundSignalKey key)
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static boolean isKnownRoundSignal(RoundSignalKey key)
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static boolean isKnownSessionAnomaly(SessionAnomalyKey key)
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition public boolean supportsSeverity(AnomalySeverity severity)
+method com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition public boolean supportsSeverity(AnomalySeverity severity)
 method com.feipi.session.browser.index.sqlite.IndexConnection public Connection writerConnection()
 method com.feipi.session.browser.index.sqlite.IndexConnection public PragmaConfig pragmaConfig()
 method com.feipi.session.browser.index.sqlite.IndexConnection public ReadTransaction readTransaction() throws SQLException
@@ -702,6 +798,7 @@ method com.feipi.session.browser.index.sqlite.IndexSchema public SchemaVersion c
 method com.feipi.session.browser.index.sqlite.IndexSchema public static IndexSchema withDefaults()
 method com.feipi.session.browser.index.sqlite.IndexSchema public static final SchemaVersion CURRENT_VERSION = new SchemaVersion(1)
 method com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult public boolean isComplete()
+method com.feipi.session.browser.index.sqlite.MetricKey public Map<String, Double> fallbackThresholds()
 method com.feipi.session.browser.index.sqlite.Migration public String loadSql()
 method com.feipi.session.browser.index.sqlite.Migration public static List<Migration> allMigrations()
 method com.feipi.session.browser.index.sqlite.MigrationRunner public List<Migration> pendingMigrations(Connection conn) throws SQLException
@@ -716,6 +813,11 @@ method com.feipi.session.browser.index.sqlite.PayloadLookup public List<String> 
 method com.feipi.session.browser.index.sqlite.PayloadLookup public Optional<PayloadEntry> lookup(String payloadId)
 method com.feipi.session.browser.index.sqlite.PayloadLookup public int size()
 method com.feipi.session.browser.index.sqlite.PayloadLookup public static PayloadLookup fromArtifact( NormalizedSessionArtifact artifact, PayloadVisibility visibility)
+method com.feipi.session.browser.index.sqlite.PercentileCalculator public static Double getFallbackThreshold(MetricKey metric, String severity)
+method com.feipi.session.browser.index.sqlite.PercentileCalculator public static Double percentile(List<Double> values, double percentile)
+method com.feipi.session.browser.index.sqlite.PercentileCalculator public static Map<MetricKey, Thresholds> computeSessionThresholds( List<Double> durationValues, List<Double> toolCallValues, List<Double> cacheWriteValues)
+method com.feipi.session.browser.index.sqlite.PercentileCalculator public static PercentileResult computePercentiles(List<Double> values)
+method com.feipi.session.browser.index.sqlite.PercentileCalculator.MetricKey public Map<String, Double> fallbackThresholds()
 method com.feipi.session.browser.index.sqlite.PragmaConfig public boolean verify(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.PragmaConfig public void apply(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.ReadTransaction public Connection connection()
@@ -729,6 +831,7 @@ method com.feipi.session.browser.index.sqlite.SessionDetail public int roundCoun
 method com.feipi.session.browser.index.sqlite.SessionDetail public static SessionDetail rowOnly(SessionRow sessionRow, PayloadVisibility visibility)
 method com.feipi.session.browser.index.sqlite.SessionDetailAssembler public static List<CallRound> buildRounds(List<NormalizedCall> calls)
 method com.feipi.session.browser.index.sqlite.SessionDetailAssembler public static SessionDetail assemble( SessionRow sessionRow, NormalizedSessionArtifact artifact, PayloadVisibility visibility, String artifactPath, int indexVersion)
+method com.feipi.session.browser.index.sqlite.SessionDetailAssembler public static String buildCacheKey(String artifactPath, int indexVersion)
 method com.feipi.session.browser.index.sqlite.SessionDetailRepository public List<SessionArtifactRow> findArtifacts(String sessionKey) throws SQLException
 method com.feipi.session.browser.index.sqlite.SessionDetailRepository public Optional<SessionArtifactRow> findNormalizedArtifact(String sessionKey) throws SQLException
 method com.feipi.session.browser.index.sqlite.SessionDetailRepository public Optional<SessionRow> findSessionRow(String sessionKey) throws SQLException
@@ -738,6 +841,7 @@ method com.feipi.session.browser.index.sqlite.SessionQueryRepository public Opti
 method com.feipi.session.browser.index.sqlite.SessionQueryRepository public PageResult<SessionRow> listSessions(SessionListFilter filter) throws SQLException
 method com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionListAggregate listAggregate(SessionListFilter filter) throws SQLException
 method com.feipi.session.browser.index.sqlite.SessionQueryRepository public long countSessions(SessionListFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.SignalDefinition public boolean supportsSeverity(AnomalySeverity severity)
 method com.feipi.session.browser.index.sqlite.WriteBatch public int pendingCount()
 method com.feipi.session.browser.index.sqlite.WriteBatch public void addDelete(String sql)
 method com.feipi.session.browser.index.sqlite.WriteBatch public void addInsert(String sql)
@@ -791,6 +895,8 @@ method com.feipi.session.browser.query.api.AnomalyFilter public boolean equals(O
 method com.feipi.session.browser.query.api.AnomalyFilter public boolean isUnfiltered()
 method com.feipi.session.browser.query.api.AnomalyFilter public int hashCode()
 method com.feipi.session.browser.query.api.AnomalyFilter public static AnomalyFilter of(AnomalyType type)
+method com.feipi.session.browser.query.api.AnomalySeverity public int comparePriority(AnomalySeverity other)
+method com.feipi.session.browser.query.api.AnomalySeverity public static AnomalySeverity fromValue(String value)
 method com.feipi.session.browser.query.api.AnomalyType public static AnomalyType fromValue(String value)
 method com.feipi.session.browser.query.api.CallRound public boolean isEmpty()
 method com.feipi.session.browser.query.api.CallRound public int callCount()
@@ -802,6 +908,12 @@ method com.feipi.session.browser.query.api.DashboardFilter public DashboardFilte
 method com.feipi.session.browser.query.api.DashboardFilter public PageRequest page()
 method com.feipi.session.browser.query.api.DashboardFilter public String toString()
 method com.feipi.session.browser.query.api.DashboardFilter public static DashboardFilter defaults()
+method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly critical(AnomalyType type, String reason)
+method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly info(AnomalyType type, String reason)
+method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly warning(AnomalyType type, String reason)
+method com.feipi.session.browser.query.api.DiagnosticIssue public static DiagnosticIssue fromValue(String value)
+method com.feipi.session.browser.query.api.DiagnosticIssueItem public static DiagnosticIssueItem fileLevel( DiagnosticIssue issue, DiagnosticSeverity severity, String message)
+method com.feipi.session.browser.query.api.DiagnosticIssueItem public static DiagnosticIssueItem withDetail( DiagnosticIssue issue, DiagnosticSeverity severity, String message, int lineNo, String detail)
 method com.feipi.session.browser.query.api.FailureStatus public static FailureStatus fromString(String value)
 method com.feipi.session.browser.query.api.ModelFilter public String model()
 method com.feipi.session.browser.query.api.ModelFilter public String toString()
@@ -840,6 +952,7 @@ method com.feipi.session.browser.query.api.ProjectListFilter public String toStr
 method com.feipi.session.browser.query.api.ProjectListFilter public TitleFilter titleFilter()
 method com.feipi.session.browser.query.api.ProjectListFilter public static ProjectListFilter defaults()
 method com.feipi.session.browser.query.api.ProjectSortField public static ProjectSortField fromString(String value)
+method com.feipi.session.browser.query.api.RoundSignalKey public static RoundSignalKey fromValue(String value)
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public Set<String> sensitiveFields()
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public String applyMasking(String content)
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public boolean isSensitive(String fieldName)
@@ -847,6 +960,12 @@ method com.feipi.session.browser.query.api.SensitiveFieldPolicy public boolean m
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public static SensitiveFieldPolicy custom(Set<String> sensitiveFields, boolean maskingEnabled)
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public static SensitiveFieldPolicy fromVisibility(PayloadVisibility visibility)
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public static SensitiveFieldPolicy noMasking()
+method com.feipi.session.browser.query.api.SessionAnomalyKey public static SessionAnomalyKey fromValue(String value)
+method com.feipi.session.browser.query.api.SessionAnomalySummary public AnomalySeverity maxSeverity()
+method com.feipi.session.browser.query.api.SessionAnomalySummary public String mainReason()
+method com.feipi.session.browser.query.api.SessionAnomalySummary public boolean hasType(AnomalyType type)
+method com.feipi.session.browser.query.api.SessionAnomalySummary public int anomalyCount()
+method com.feipi.session.browser.query.api.SessionAnomalySummary public static SessionAnomalySummary empty(String sessionKey)
 method com.feipi.session.browser.query.api.SessionListFilter public AgentFilter agentFilter()
 method com.feipi.session.browser.query.api.SessionListFilter public FailureStatus failureStatus()
 method com.feipi.session.browser.query.api.SessionListFilter public ModelFilter modelFilter()
@@ -863,6 +982,12 @@ method com.feipi.session.browser.query.api.SessionListFilter public Sort sort()
 method com.feipi.session.browser.query.api.SessionListFilter public String toString()
 method com.feipi.session.browser.query.api.SessionListFilter public TitleFilter titleFilter()
 method com.feipi.session.browser.query.api.SessionListFilter public static SessionListFilter defaults()
+method com.feipi.session.browser.query.api.SessionParseDiagnostics public boolean hasCritical()
+method com.feipi.session.browser.query.api.SessionParseDiagnostics public boolean hasWarnings()
+method com.feipi.session.browser.query.api.SessionParseDiagnostics public long criticalCount()
+method com.feipi.session.browser.query.api.SessionParseDiagnostics public long infoCount()
+method com.feipi.session.browser.query.api.SessionParseDiagnostics public long warningCount()
+method com.feipi.session.browser.query.api.SessionParseDiagnostics public static SessionParseDiagnostics empty(String sessionKey, String filePath)
 method com.feipi.session.browser.query.api.SessionSortField public static SessionSortField fromString(String value)
 method com.feipi.session.browser.query.api.Sort public SortOrder order()
 method com.feipi.session.browser.query.api.Sort public String sortKey()
@@ -1092,19 +1217,30 @@ type com.feipi.session.browser.index.sqlite.AgentEfficiencyRow public record [in
 type com.feipi.session.browser.index.sqlite.AggregateMetricsRow public record [index-sqlite] record AggregateMetricsRow( long inputSideTotal, long totalRounds, Double cacheReuseRatio, Double cacheWriteRatio, Double outputRatio, Double toolsPerRound, Double tokensPerRound)
 type com.feipi.session.browser.index.sqlite.AggregateQueryRepository public class [index-sqlite] final class AggregateQueryRepository
 type com.feipi.session.browser.index.sqlite.AggregateQueryRepository.ToolDistributionEntry public record [index-sqlite] record ToolDistributionEntry(String title, long toolCallCount)
+type com.feipi.session.browser.index.sqlite.AnomalyDefinition public record [index-sqlite] record AnomalyDefinition(SessionAnomalyKey key, Set<AnomalySeverity> severityLevels)
+type com.feipi.session.browser.index.sqlite.AnomalyDetector public class [index-sqlite] final class AnomalyDetector
 type com.feipi.session.browser.index.sqlite.ArtifactRowMapper public class [index-sqlite] final class ArtifactRowMapper
 type com.feipi.session.browser.index.sqlite.CacheHitSessionRow public record [index-sqlite] record CacheHitSessionRow( String sessionKey, String title, String agent, String model, long cacheReadTokens, long freshInputTokens, String projectName, double cacheHitPercent)
 type com.feipi.session.browser.index.sqlite.ConnectionFactory public class [index-sqlite] final class ConnectionFactory
 type com.feipi.session.browser.index.sqlite.DashboardRow public record [index-sqlite] record DashboardRow( long totalSessions, long claudeSessions, long codexSessions, long qoderSessions, long projectCount, long totalTokens, long totalFreshInputTokens, long totalCacheReadTokens, long totalCacheWriteTokens, long totalOutputTokens, long totalToolCalls, long totalFailedTools, long totalUserMessages, long totalAssistantMessages)
+type com.feipi.session.browser.index.sqlite.DiagnosticRegistry public class [index-sqlite] final class DiagnosticRegistry
+type com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition public record [index-sqlite] record AnomalyDefinition(SessionAnomalyKey key, Set<AnomalySeverity> severityLevels)
+type com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition public record [index-sqlite] record SignalDefinition(RoundSignalKey key, Set<AnomalySeverity> severityLevels)
 type com.feipi.session.browser.index.sqlite.IndexConnection public class [index-sqlite] final class IndexConnection implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.IndexSchema public class [index-sqlite] final class IndexSchema
 type com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
+type com.feipi.session.browser.index.sqlite.MetricKey public enum [index-sqlite] enum MetricKey
 type com.feipi.session.browser.index.sqlite.Migration public record [index-sqlite] record Migration(SchemaVersion version, String description, String sqlResource)
 type com.feipi.session.browser.index.sqlite.MigrationRunner public class [index-sqlite] final class MigrationRunner
 type com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader public class [index-sqlite] final class NormalizedArtifactLoader
 type com.feipi.session.browser.index.sqlite.PayloadEntry public record [index-sqlite] record PayloadEntry( String payloadId, PayloadSourceKind kind, String callId, String content, boolean truncated)
 type com.feipi.session.browser.index.sqlite.PayloadLookup public class [index-sqlite] final class PayloadLookup
 type com.feipi.session.browser.index.sqlite.PayloadLookup.PayloadEntry public record [index-sqlite] record PayloadEntry( String payloadId, PayloadSourceKind kind, String callId, String content, boolean truncated)
+type com.feipi.session.browser.index.sqlite.PercentileCalculator public class [index-sqlite] final class PercentileCalculator
+type com.feipi.session.browser.index.sqlite.PercentileCalculator.MetricKey public enum [index-sqlite] enum MetricKey
+type com.feipi.session.browser.index.sqlite.PercentileCalculator.PercentileResult public record [index-sqlite] record PercentileResult(Double p90, Double p95, int count)
+type com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds public record [index-sqlite] record Thresholds(double warning, double critical, Double p90, Double p95, int sampleCount)
+type com.feipi.session.browser.index.sqlite.PercentileResult public record [index-sqlite] record PercentileResult(Double p90, Double p95, int count)
 type com.feipi.session.browser.index.sqlite.PragmaConfig public record [index-sqlite] record PragmaConfig( String journalMode, String synchronous, int busyTimeoutMs, boolean foreignKeys)
 type com.feipi.session.browser.index.sqlite.ProjectStatsRow public record [index-sqlite] record ProjectStatsRow( String projectKey, String projectName, long totalSessions, long claudeSessions, long codexSessions, long qoderSessions, String firstSeen, String lastSeen, long totalFreshInputTokens, long totalOutputTokens, long totalCacheReadTokens, long totalCacheWriteTokens, long totalTokens, long totalToolCalls, long totalFailedTools, long totalUserMessages, long totalAssistantMessages)
 type com.feipi.session.browser.index.sqlite.ReadTransaction public class [index-sqlite] final class ReadTransaction implements AutoCloseable
@@ -1118,6 +1254,8 @@ type com.feipi.session.browser.index.sqlite.SessionDetailRequest public record [
 type com.feipi.session.browser.index.sqlite.SessionListAggregate public record [index-sqlite] record SessionListAggregate(long sessionCount, long projectCount, long totalTokens)
 type com.feipi.session.browser.index.sqlite.SessionQueryRepository public class [index-sqlite] final class SessionQueryRepository
 type com.feipi.session.browser.index.sqlite.SessionRow public record [index-sqlite] record SessionRow( String sessionKey, String agent, String sessionId, String title, String projectKey, String projectName, String cwd, String startedAt, String endedAt, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, String model, String gitBranch, String source, long userMessageCount, long assistantMessageCount, long toolCallCount, long outputTokens, long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long totalTokens, long failedToolCount, long subagentInstanceCount, double indexedAt, double fileMtime, String filePath)
+type com.feipi.session.browser.index.sqlite.SignalDefinition public record [index-sqlite] record SignalDefinition(RoundSignalKey key, Set<AnomalySeverity> severityLevels)
+type com.feipi.session.browser.index.sqlite.Thresholds public record [index-sqlite] record Thresholds(double warning, double critical, Double p90, Double p95, int sampleCount)
 type com.feipi.session.browser.index.sqlite.TokenBreakdownRow public record [index-sqlite] record TokenBreakdownRow( long totalFreshInput, long totalOutput, long totalCacheRead, long totalCacheWrite, long totalToolCalls, long totalFailedTools)
 type com.feipi.session.browser.index.sqlite.ToolDistributionEntry public record [index-sqlite] record ToolDistributionEntry(String title, long toolCallCount)
 type com.feipi.session.browser.index.sqlite.TopProjectRow public record [index-sqlite] record TopProjectRow( String projectKey, String projectName, long totalTokens, long totalTools, long failedTools, long sessionCount)
@@ -1138,9 +1276,14 @@ type com.feipi.session.browser.normalization.NormalizationEngine.ConservationChe
 type com.feipi.session.browser.normalization.TokenAccountant public class [normalization-engine] final class TokenAccountant
 type com.feipi.session.browser.query.api.AgentFilter public class [query-api] final class AgentFilter
 type com.feipi.session.browser.query.api.AnomalyFilter public class [query-api] final class AnomalyFilter
+type com.feipi.session.browser.query.api.AnomalySeverity public enum [query-api] enum AnomalySeverity
 type com.feipi.session.browser.query.api.AnomalyType public enum [query-api] enum AnomalyType
 type com.feipi.session.browser.query.api.CallRound public record [query-api] record CallRound( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId)
 type com.feipi.session.browser.query.api.DashboardFilter public class [query-api] final class DashboardFilter
+type com.feipi.session.browser.query.api.DetectedAnomaly public record [query-api] record DetectedAnomaly(AnomalyType type, AnomalySeverity severity, String reason)
+type com.feipi.session.browser.query.api.DiagnosticIssue public enum [query-api] enum DiagnosticIssue
+type com.feipi.session.browser.query.api.DiagnosticIssueItem public record [query-api] record DiagnosticIssueItem( DiagnosticIssue issue, DiagnosticSeverity severity, String message, int lineNo, String detail)
+type com.feipi.session.browser.query.api.DiagnosticSeverity public enum [query-api] enum DiagnosticSeverity
 type com.feipi.session.browser.query.api.FailureStatus public enum [query-api] enum FailureStatus
 type com.feipi.session.browser.query.api.ModelFilter public class [query-api] final class ModelFilter
 type com.feipi.session.browser.query.api.PageRequest public class [query-api] final class PageRequest
@@ -1152,8 +1295,12 @@ type com.feipi.session.browser.query.api.ProjectFilter public class [query-api] 
 type com.feipi.session.browser.query.api.ProjectListFilter public class [query-api] final class ProjectListFilter
 type com.feipi.session.browser.query.api.ProjectSortField public enum [query-api] enum ProjectSortField
 type com.feipi.session.browser.query.api.QueryApiMarker public interface [query-api] sealed interface QueryApiMarker permits QueryApiMarkerInternal
+type com.feipi.session.browser.query.api.RoundSignalKey public enum [query-api] enum RoundSignalKey
 type com.feipi.session.browser.query.api.SensitiveFieldPolicy public class [query-api] final class SensitiveFieldPolicy
+type com.feipi.session.browser.query.api.SessionAnomalyKey public enum [query-api] enum SessionAnomalyKey
+type com.feipi.session.browser.query.api.SessionAnomalySummary public record [query-api] record SessionAnomalySummary(String sessionKey, List<DetectedAnomaly> anomalies)
 type com.feipi.session.browser.query.api.SessionListFilter public class [query-api] final class SessionListFilter
+type com.feipi.session.browser.query.api.SessionParseDiagnostics public record [query-api] record SessionParseDiagnostics( String sessionKey, String filePath, long totalLines, long eventsParsed, long eventsSkipped, List<DiagnosticIssueItem> issues)
 type com.feipi.session.browser.query.api.SessionSortField public enum [query-api] enum SessionSortField
 type com.feipi.session.browser.query.api.Sort public class [query-api] final class Sort
 type com.feipi.session.browser.query.api.SortOrder public enum [query-api] enum SortOrder

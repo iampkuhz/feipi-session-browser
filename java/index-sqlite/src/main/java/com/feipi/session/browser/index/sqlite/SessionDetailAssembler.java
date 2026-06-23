@@ -185,7 +185,7 @@ public final class SessionDetailAssembler {
    * @param indexVersion index schema 版本
    * @return 格式为 {@code artifact:<path>:v<version>} 的缓存键
    */
-  static String buildCacheKey(String artifactPath, int indexVersion) {
+  public static String buildCacheKey(String artifactPath, int indexVersion) {
     if (artifactPath == null || artifactPath.isEmpty()) {
       return "novalue:v" + indexVersion;
     }

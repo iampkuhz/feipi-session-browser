@@ -126,8 +126,8 @@ class FilterTest {
 
     @Test
     void ofSpecificType() {
-      AnomalyFilter f = AnomalyFilter.of(AnomalyType.TOKEN_SPIKE);
-      assertThat(f.type()).isEqualTo(AnomalyType.TOKEN_SPIKE);
+      AnomalyFilter f = AnomalyFilter.of(AnomalyType.LONG_DURATION);
+      assertThat(f.type()).isEqualTo(AnomalyType.LONG_DURATION);
       assertThat(f.isUnfiltered()).isFalse();
     }
 
@@ -139,8 +139,8 @@ class FilterTest {
 
     @Test
     void equalsAndHashCode() {
-      assertThat(AnomalyFilter.of(AnomalyType.TOKEN_SPIKE))
-          .isEqualTo(AnomalyFilter.of(AnomalyType.TOKEN_SPIKE));
+      assertThat(AnomalyFilter.of(AnomalyType.LONG_DURATION))
+          .isEqualTo(AnomalyFilter.of(AnomalyType.LONG_DURATION));
     }
   }
 
@@ -218,11 +218,12 @@ class FilterTest {
 
     @Test
     void fromValueValidTypes() {
-      assertThat(AnomalyType.fromValue("token_spike")).isEqualTo(AnomalyType.TOKEN_SPIKE);
-      assertThat(AnomalyType.fromValue("high_failure_rate"))
-          .isEqualTo(AnomalyType.HIGH_FAILURE_RATE);
-      assertThat(AnomalyType.fromValue("duration_outlier")).isEqualTo(AnomalyType.DURATION_OUTLIER);
-      assertThat(AnomalyType.fromValue("subagent_overuse")).isEqualTo(AnomalyType.SUBAGENT_OVERUSE);
+      assertThat(AnomalyType.fromValue("long_duration")).isEqualTo(AnomalyType.LONG_DURATION);
+      assertThat(AnomalyType.fromValue("cache_write_spike"))
+          .isEqualTo(AnomalyType.CACHE_WRITE_SPIKE);
+      assertThat(AnomalyType.fromValue("failed_run")).isEqualTo(AnomalyType.FAILED_RUN);
+      assertThat(AnomalyType.fromValue("payload_visibility_mismatch"))
+          .isEqualTo(AnomalyType.PAYLOAD_VISIBILITY_MISMATCH);
     }
 
     @Test

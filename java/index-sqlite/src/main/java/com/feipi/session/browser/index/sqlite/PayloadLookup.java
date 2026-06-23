@@ -5,6 +5,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
 import com.feipi.session.browser.query.api.PayloadVisibility;
+import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
