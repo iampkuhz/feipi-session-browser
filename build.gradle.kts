@@ -230,6 +230,47 @@ tasks.named("check") {
 }
 
 // ============================================================
+// verifyJavaApiSnapshot —— 校验 Java public API 基线。
+// ============================================================
+val verifyJavaApiSnapshot = tasks.register<Exec>("verifyJavaApiSnapshot") {
+    group = "verification"
+    description = "Verifies that current Java public API matches the approved snapshot."
+
+    val checkerScript = file("scripts/quality/check_java_api_snapshot.py")
+    val snapshotFile = file("config/api-snapshots/java-public-api.txt")
+    val reportFile = layout.buildDirectory.file("reports/java-api-snapshot/result.txt")
+
+    inputs.file(checkerScript).withPropertyName("checkerScript")
+    inputs.file(snapshotFile).withPropertyName("apiSnapshot")
+    inputs.files(
+        fileTree("java").apply {
+            include("**/src/main/java/**/*.java")
+            exclude("**/build/**")
+        },
+    ).withPropertyName("javaSourceFiles")
+    outputs.file(reportFile).withPropertyName("resultFile")
+
+    commandLine(
+        "python3",
+        checkerScript.absolutePath,
+        "--check",
+        "--java-root",
+        file("java").absolutePath,
+        "--snapshot",
+        snapshotFile.absolutePath,
+    )
+    doLast {
+        val result = reportFile.get().asFile
+        result.parentFile.mkdirs()
+        result.writeText("PASSED\n", Charsets.UTF_8)
+    }
+}
+
+tasks.named("check") {
+    dependsOn(verifyJavaApiSnapshot)
+}
+
+// ============================================================
 // 顶层动作函数 —— 配置缓存兼容。
 // 这些函数编译为静态方法，不持有构建脚本引用。
 // doLast 通过返回 Action<Task> 的 lambda 只捕获局部变量。
