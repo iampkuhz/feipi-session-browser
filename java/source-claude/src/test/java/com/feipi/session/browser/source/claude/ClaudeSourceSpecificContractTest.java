@@ -2,8 +2,8 @@ package com.feipi.session.browser.source.claude;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.Candidate;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceOutcome;
@@ -39,7 +39,7 @@ class ClaudeSourceSpecificContractTest {
 
     assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
     SourceResult.Success success = (SourceResult.Success) result;
-    assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(ParsedRecord.class));
+    assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(SourceRecord.class));
     assertThat(eventTypes(success))
         .containsExactly(
             "summary", "user", "assistant", "assistant", "user", "assistant", "unknown");
@@ -51,7 +51,7 @@ class ClaudeSourceSpecificContractTest {
     assertThat(success.records().get(5).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[5]");
     assertThat(success.records())
-        .extracting(ParsedRecord::locator)
+        .extracting(SourceRecord::locator)
         .noneMatch(locator -> locator.matches(".*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}.*"));
     assertThat(candidate.sessionKey()).isEqualTo("home%2Fwork%2Fdemo/claude-session");
     assertThat(candidate.projectKey()).isEqualTo("home%2Fwork%2Fdemo");
@@ -62,9 +62,7 @@ class ClaudeSourceSpecificContractTest {
   }
 
   private static List<String> eventTypes(SourceResult.Success success) {
-    return success.records().stream()
-        .map(record -> ((ClaudeParsedRecord) record).eventType())
-        .toList();
+    return success.records().stream().map(SourceRecord::eventType).toList();
   }
 
   private static String claudeTranscript() {

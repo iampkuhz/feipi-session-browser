@@ -12,17 +12,15 @@ final class VersionCommand implements Runnable {
 
   @Override
   public void run() {
-    printVersion();
-  }
-
-  static void printVersion() {
     try {
       String[] version = new BuildInfoVersionProvider().getVersion();
-      for (String line : version) {
-        System.out.println(line);
-      }
+      System.out.println(String.join(System.lineSeparator(), version));
     } catch (Exception e) {
       System.err.println("版本信息读取失败: " + e.getMessage());
     }
+  }
+
+  static void printVersion() {
+    new VersionCommand().run();
   }
 }

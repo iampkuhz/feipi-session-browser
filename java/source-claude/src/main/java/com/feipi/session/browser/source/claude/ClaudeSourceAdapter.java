@@ -1,13 +1,13 @@
 package com.feipi.session.browser.source.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
-import com.feipi.session.browser.source.json.JsonlReaderResult;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceConstants;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -152,7 +152,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   /**
    * 解析指定候选项的会话数据。
    *
-   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link ParsedRecord}。 缺少 {@code type}
+   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link SourceRecord}。 缺少 {@code type}
    * 字段的事件产生 {@code UNKNOWN_BLOCK_TYPE} 诊断警告，但不会丢失整个 session。 文件不存在返回 {@link
    * SourceResult.Skipped}，IO 错误返回 {@link SourceResult.Fatal}， 解析成功（含诊断）返回 {@link
    * SourceResult.Success}。
@@ -163,57 +163,36 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    */
   @Override
   public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
-    Objects.requireNonNull(candidate, "candidate 不得为 null");
+    return JsonCandidateParser.parse(
+        candidate,
+        cancellation,
+        jsonlReader,
+        ClaudeSourceAdapter::extractEventType,
+        ClaudeSourceAdapter::collectEventDiagnostics,
+        (diagnostics, eventCount) -> {});
+  }
 
-    // 检查取消信号
-    if (cancellation != null && cancellation.isCancelled()) {
-      return new SourceResult.Skipped(List.of(), "解析已取消");
+  private static void collectEventDiagnostics(
+      JsonNode event,
+      int eventIndex,
+      String eventType,
+      String locator,
+      List<SourceDiagnostic> diagnostics) {
+    if (!eventType.equals(ClaudeConstants.EVENT_TYPE_UNKNOWN)) {
+      return;
     }
-
-    Path filePath = Path.of(candidate.fingerprint().locator());
-
-    // 文件不存在时返回跳过结果
-    if (!Files.exists(filePath)) {
-      return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
-    }
-
-    try {
-      JsonlReaderResult result = jsonlReader.read(filePath);
-      List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
-      String locator = candidate.fingerprint().locator();
-
-      // 将每个 JSON 事件转为源中性 ParsedRecord，locator 由文件路径和事件序号派生
-      List<ParsedRecord> records = new ArrayList<>(result.events().size());
-      for (int i = 0; i < result.events().size(); i++) {
-        JsonNode event = result.events().get(i);
-        String eventType = extractEventType(event);
-
-        // 缺少 type 字段的事件产生诊断警告，但仍保留在 records 中不丢弃
-        if (eventType.equals(ClaudeConstants.EVENT_TYPE_UNKNOWN)) {
-          diagnostics.add(
-              new SourceDiagnostic(
-                  ParseSeverity.WARNING,
-                  ParseIssueType.NON_OBJECT_SKIPPED,
-                  "Event at index " + i + " missing 'type' field",
-                  i + 1,
-                  Optional.empty(),
-                  ClaudeConstants.DIAG_CODE_MISSING_TYPE,
-                  locator,
-                  OptionalInt.empty(),
-                  OptionalInt.empty(),
-                  OptionalInt.empty()));
-        }
-
-        records.add(new ClaudeParsedRecord(locator, i, eventType));
-      }
-
-      int eventCount = result.events().size();
-      return new SourceResult.Success(
-          diagnostics, eventCount, records, candidate.fingerprint(), locator);
-    } catch (IOException e) {
-      String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
-      return new SourceResult.Fatal(List.of(), detail);
-    }
+    diagnostics.add(
+        new SourceDiagnostic(
+            ParseSeverity.WARNING,
+            ParseIssueType.NON_OBJECT_SKIPPED,
+            "Event at index " + eventIndex + " missing 'type' field",
+            eventIndex + 1,
+            Optional.empty(),
+            ClaudeConstants.DIAG_CODE_MISSING_TYPE,
+            locator,
+            OptionalInt.empty(),
+            OptionalInt.empty(),
+            OptionalInt.empty()));
   }
 
   /**

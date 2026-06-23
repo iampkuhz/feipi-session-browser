@@ -47,9 +47,11 @@ class CallBuilderTest {
       event.put("id", "call-1");
       event.put("model", "claude-3-sonnet");
 
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(List.of(event), classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(event), classified);
 
       assertThat(calls).hasSize(1);
       NormalizedCall call = calls.get(0);
@@ -66,9 +68,11 @@ class CallBuilderTest {
       List<JsonNode> events =
           List.of(assistantEvent("call-a", "model-x"), assistantEvent("call-b", "model-y"));
 
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(events));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       assertThat(calls).hasSize(2);
       assertThat(calls.get(0).callIndex()).isEqualTo(1);
@@ -83,9 +87,11 @@ class CallBuilderTest {
       ObjectNode event = MAPPER.createObjectNode();
       event.put("type", "assistant");
 
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(List.of(event), classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(event), classified);
 
       assertThat(calls).hasSize(1);
       assertThat(calls.get(0).callId()).isEqualTo("C1");
@@ -96,9 +102,11 @@ class CallBuilderTest {
     void extractsToolUseFromContent() {
       ObjectNode event = createAssistantWithToolUse("call-1", "toolu_1", "Read");
 
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(List.of(event), classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(event), classified);
 
       assertThat(calls).hasSize(1);
       assertThat(calls.get(0).response().toolCallIds()).containsExactly("toolu_1");
@@ -114,9 +122,11 @@ class CallBuilderTest {
       ObjectNode assistant2 = assistantEvent("C2", "model-x");
 
       List<JsonNode> events = List.of(assistant1, toolResult, assistant2);
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(events));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       assertThat(calls).hasSize(2);
       // tool_result 被分配给 C2（下一个助手调用）
@@ -133,9 +143,11 @@ class CallBuilderTest {
           MAPPER.createObjectNode().put("type", "tool_result").put("tool_use_id", "toolu_1");
 
       List<JsonNode> events = List.of(assistant1, toolResult);
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(events));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       assertThat(calls).hasSize(1);
       // 无后续助手调用，tool_result 归因于最后一个调用
@@ -153,9 +165,11 @@ class CallBuilderTest {
       usage.put("output_tokens", 200);
       usage.put("cache_read_input_tokens", 50);
 
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
-      List<NormalizedCall> calls = CallBuilder.buildCalls(List.of(event), classified);
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(event), classified);
 
       assertThat(calls.get(0).usage().fresh()).isEqualTo(100);
       assertThat(calls.get(0).usage().output()).isEqualTo(200);
@@ -174,11 +188,13 @@ class CallBuilderTest {
       ObjectNode event = createAssistantWithToolUse("call-1", "toolu_abc", "Read");
 
       List<JsonNode> events = List.of(event);
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
-      List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(events));
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       List<NormalizedToolExecution> executions =
-          CallBuilder.buildToolExecutions(events, classified, calls);
+          CallBuilder.buildToolExecutions(TestSourceRecords.records(events), classified, calls);
 
       assertThat(executions).hasSize(1);
       NormalizedToolExecution exec = executions.get(0);
@@ -199,11 +215,13 @@ class CallBuilderTest {
       ObjectNode assistant2 = assistantEvent("C2", "model-x");
 
       List<JsonNode> events = List.of(assistant1, toolResult, assistant2);
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
-      List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(events));
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       List<NormalizedToolExecution> executions =
-          CallBuilder.buildToolExecutions(events, classified, calls);
+          CallBuilder.buildToolExecutions(TestSourceRecords.records(events), classified, calls);
 
       assertThat(executions).hasSize(1);
       NormalizedToolExecution exec = executions.get(0);
@@ -225,11 +243,13 @@ class CallBuilderTest {
               .put("name", "Write");
 
       List<JsonNode> events = List.of(assistant, standaloneToolUse);
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
-      List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(events));
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(events), classified);
 
       List<NormalizedToolExecution> executions =
-          CallBuilder.buildToolExecutions(events, classified, calls);
+          CallBuilder.buildToolExecutions(TestSourceRecords.records(events), classified, calls);
 
       assertThat(executions).hasSize(1);
       assertThat(executions.get(0).toolCallId()).isEqualTo("toolu_standalone");

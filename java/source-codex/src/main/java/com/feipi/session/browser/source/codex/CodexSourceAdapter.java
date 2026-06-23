@@ -1,13 +1,13 @@
 package com.feipi.session.browser.source.codex;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
-import com.feipi.session.browser.source.json.JsonlReaderResult;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceConstants;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -153,7 +153,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
   /**
    * 解析指定候选项的会话数据。
    *
-   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link ParsedRecord}。 缺少 {@code type}
+   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link SourceRecord}。 缺少 {@code type}
    * 字段的事件产生 {@code UNKNOWN_BLOCK_TYPE} 诊断警告，但不会丢失整个 session。
    *
    * <p>Codex 特有的语义提取：
@@ -173,150 +173,140 @@ public final class CodexSourceAdapter implements SourceAdapter {
    */
   @Override
   public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
-    Objects.requireNonNull(candidate, "candidate 不得为 null");
+    CodexParseState state = new CodexParseState();
+    return JsonCandidateParser.parse(
+        candidate,
+        cancellation,
+        jsonlReader,
+        CodexSourceAdapter::extractEventType,
+        (event, eventIndex, eventType, locator, diagnostics) ->
+            collectEventDiagnostics(state, event, eventIndex, eventType, locator, diagnostics),
+        (diagnostics, eventCount) -> collectCompletionDiagnostics(state, diagnostics));
+  }
 
-    // 检查取消信号
-    if (cancellation != null && cancellation.isCancelled()) {
-      return new SourceResult.Skipped(List.of(), "解析已取消");
+  private static void collectEventDiagnostics(
+      CodexParseState state,
+      JsonNode event,
+      int eventIndex,
+      String eventType,
+      String locator,
+      List<SourceDiagnostic> diagnostics) {
+    state.locator = locator;
+    if (eventType.equals(CodexConstants.EVENT_TYPE_UNKNOWN)) {
+      diagnostics.add(
+          new SourceDiagnostic(
+              ParseSeverity.WARNING,
+              ParseIssueType.NON_OBJECT_SKIPPED,
+              "Event at index " + eventIndex + " missing 'type' field",
+              eventIndex + 1,
+              Optional.empty(),
+              CodexConstants.DIAG_CODE_MISSING_TYPE,
+              locator,
+              OptionalInt.empty(),
+              OptionalInt.empty(),
+              OptionalInt.empty()));
     }
 
-    Path filePath = Path.of(candidate.fingerprint().locator());
-
-    // 文件不存在时返回跳过结果
-    if (!Files.exists(filePath)) {
-      return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
+    if (eventType.equals(CodexConstants.EVENT_TYPE_SESSION_META) && state.sessionMeta == null) {
+      state.sessionMeta = extractSessionMeta(event);
+      return;
     }
-
-    try {
-      JsonlReaderResult result = jsonlReader.read(filePath);
-      List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
-      String locator = candidate.fingerprint().locator();
-
-      // 将每个 JSON 事件转为源中性 ParsedRecord，locator 由文件路径和事件序号派生
-      List<ParsedRecord> records = new ArrayList<>(result.events().size());
-
-      // Codex 语义跟踪状态
-      Map<String, String> sessionMeta = null;
-      int toolCallCount = 0;
-      int toolOutputCount = 0;
-      int tokenCountEvents = 0;
-      boolean hasCumulativeTokenUsage = false;
-
-      for (int i = 0; i < result.events().size(); i++) {
-        JsonNode event = result.events().get(i);
-        String eventType = extractEventType(event);
-
-        // 缺少 type 字段的事件产生诊断警告，但仍保留在 records 中不丢弃
-        if (eventType.equals(CodexConstants.EVENT_TYPE_UNKNOWN)) {
-          diagnostics.add(
-              new SourceDiagnostic(
-                  ParseSeverity.WARNING,
-                  ParseIssueType.NON_OBJECT_SKIPPED,
-                  "Event at index " + i + " missing 'type' field",
-                  i + 1,
-                  Optional.empty(),
-                  CodexConstants.DIAG_CODE_MISSING_TYPE,
-                  locator,
-                  OptionalInt.empty(),
-                  OptionalInt.empty(),
-                  OptionalInt.empty()));
-        }
-
-        // Codex 语义提取
-        if (eventType.equals(CodexConstants.EVENT_TYPE_SESSION_META) && sessionMeta == null) {
-          sessionMeta = extractSessionMeta(event);
-        } else if (eventType.equals(CodexConstants.EVENT_TYPE_EVENT_MSG)) {
-          String msgType = extractEventMsgType(event);
-          if ("token_count".equals(msgType)) {
-            tokenCountEvents++;
-            if (hasCumulativeUsage(event)) {
-              hasCumulativeTokenUsage = true;
-            }
-          }
-        } else if (eventType.equals(CodexConstants.EVENT_TYPE_RESPONSE_ITEM)) {
-          String responseType = extractResponseType(event);
-          if ("function_call".equals(responseType) || "custom_tool_call".equals(responseType)) {
-            toolCallCount++;
-          } else if ("function_call_output".equals(responseType)
-              || "custom_tool_call_output".equals(responseType)) {
-            toolOutputCount++;
-          }
-        }
-
-        records.add(new CodexParsedRecord(locator, i, eventType));
-      }
-
-      // Tool orphan 诊断：存在 function_call 但无对应 output
-      if (toolCallCount > 0 && toolOutputCount == 0) {
-        diagnostics.add(
-            new SourceDiagnostic(
-                ParseSeverity.INFO,
-                ParseIssueType.NON_OBJECT_SKIPPED,
-                "Tool calls without matching outputs (orphan): " + toolCallCount + " calls",
-                1,
-                Optional.empty(),
-                "TOOL_ORPHAN",
-                locator,
-                OptionalInt.empty(),
-                OptionalInt.empty(),
-                OptionalInt.empty()));
-      }
-      if (toolOutputCount > 0 && toolCallCount == 0) {
-        diagnostics.add(
-            new SourceDiagnostic(
-                ParseSeverity.INFO,
-                ParseIssueType.NON_OBJECT_SKIPPED,
-                "Tool outputs without matching requests (orphan result): "
-                    + toolOutputCount
-                    + " outputs",
-                1,
-                Optional.empty(),
-                "TOOL_ORPHAN_RESULT",
-                locator,
-                OptionalInt.empty(),
-                OptionalInt.empty(),
-                OptionalInt.empty()));
-      }
-
-      // Cumulative token 语义诊断：有 token_count 但无 cumulative usage
-      if (tokenCountEvents > 0 && !hasCumulativeTokenUsage) {
-        diagnostics.add(
-            new SourceDiagnostic(
-                ParseSeverity.INFO,
-                ParseIssueType.NON_OBJECT_SKIPPED,
-                "Token count events present but no cumulative usage data",
-                1,
-                Optional.empty(),
-                "TOKEN_NO_CUMULATIVE",
-                locator,
-                OptionalInt.empty(),
-                OptionalInt.empty(),
-                OptionalInt.empty()));
-      }
-
-      // Subagent 检测诊断
-      if (sessionMeta != null && isSubagentMeta(sessionMeta)) {
-        diagnostics.add(
-            new SourceDiagnostic(
-                ParseSeverity.INFO,
-                ParseIssueType.NON_OBJECT_SKIPPED,
-                "Session identified as subagent thread",
-                1,
-                Optional.empty(),
-                "SUBAGENT_SESSION",
-                locator,
-                OptionalInt.empty(),
-                OptionalInt.empty(),
-                OptionalInt.empty()));
-      }
-
-      int eventCount = result.events().size();
-      return new SourceResult.Success(
-          diagnostics, eventCount, records, candidate.fingerprint(), locator);
-    } catch (IOException e) {
-      String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
-      return new SourceResult.Fatal(List.of(), detail);
+    if (eventType.equals(CodexConstants.EVENT_TYPE_EVENT_MSG)) {
+      updateTokenState(state, event);
+      return;
     }
+    if (eventType.equals(CodexConstants.EVENT_TYPE_RESPONSE_ITEM)) {
+      updateToolState(state, event);
+    }
+  }
+
+  private static void updateTokenState(CodexParseState state, JsonNode event) {
+    if (!"token_count".equals(extractEventMsgType(event))) {
+      return;
+    }
+    state.tokenCountEvents++;
+    state.hasCumulativeTokenUsage = state.hasCumulativeTokenUsage || hasCumulativeUsage(event);
+  }
+
+  private static void updateToolState(CodexParseState state, JsonNode event) {
+    String responseType = extractResponseType(event);
+    if ("function_call".equals(responseType) || "custom_tool_call".equals(responseType)) {
+      state.toolCallCount++;
+    } else if ("function_call_output".equals(responseType)
+        || "custom_tool_call_output".equals(responseType)) {
+      state.toolOutputCount++;
+    }
+  }
+
+  private static void collectCompletionDiagnostics(
+      CodexParseState state, List<SourceDiagnostic> diagnostics) {
+    appendToolOrphanDiagnostics(state, diagnostics);
+    appendTokenDiagnostics(state, diagnostics);
+    appendSubagentDiagnostics(state, diagnostics);
+  }
+
+  private static void appendToolOrphanDiagnostics(
+      CodexParseState state, List<SourceDiagnostic> diagnostics) {
+    if (state.toolCallCount > 0 && state.toolOutputCount == 0) {
+      diagnostics.add(
+          codexInfoDiagnostic(
+              "Tool calls without matching outputs (orphan): " + state.toolCallCount + " calls",
+              "TOOL_ORPHAN",
+              state.locator));
+    }
+    if (state.toolOutputCount > 0 && state.toolCallCount == 0) {
+      diagnostics.add(
+          codexInfoDiagnostic(
+              "Tool outputs without matching requests (orphan result): "
+                  + state.toolOutputCount
+                  + " outputs",
+              "TOOL_ORPHAN_RESULT",
+              state.locator));
+    }
+  }
+
+  private static void appendTokenDiagnostics(
+      CodexParseState state, List<SourceDiagnostic> diagnostics) {
+    if (state.tokenCountEvents > 0 && !state.hasCumulativeTokenUsage) {
+      diagnostics.add(
+          codexInfoDiagnostic(
+              "Token count events present but no cumulative usage data",
+              "TOKEN_NO_CUMULATIVE",
+              state.locator));
+    }
+  }
+
+  private static void appendSubagentDiagnostics(
+      CodexParseState state, List<SourceDiagnostic> diagnostics) {
+    if (state.sessionMeta != null && isSubagentMeta(state.sessionMeta)) {
+      diagnostics.add(
+          codexInfoDiagnostic(
+              "Session identified as subagent thread", "SUBAGENT_SESSION", state.locator));
+    }
+  }
+
+  private static SourceDiagnostic codexInfoDiagnostic(String message, String code, String locator) {
+    return new SourceDiagnostic(
+        ParseSeverity.INFO,
+        ParseIssueType.NON_OBJECT_SKIPPED,
+        message,
+        1,
+        Optional.empty(),
+        code,
+        locator,
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
+  }
+
+  /** Codex 单文件解析期间累计的 provider 特有诊断状态。 */
+  private static final class CodexParseState {
+    private Map<String, String> sessionMeta;
+    private int toolCallCount;
+    private int toolOutputCount;
+    private int tokenCountEvents;
+    private boolean hasCumulativeTokenUsage;
+    private String locator = "";
   }
 
   /**

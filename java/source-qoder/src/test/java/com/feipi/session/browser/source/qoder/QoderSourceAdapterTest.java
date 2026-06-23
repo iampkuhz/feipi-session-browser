@@ -2,9 +2,9 @@ package com.feipi.session.browser.source.qoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
@@ -313,8 +313,8 @@ class QoderSourceAdapterTest {
     }
 
     @Test
-    @DisplayName("parse 返回与事件数量一致的 ParsedRecord 列表")
-    void parseReturnsMatchingParsedRecords() throws IOException {
+    @DisplayName("parse 返回与事件数量一致的 SourceRecord 列表")
+    void parseReturnsMatchingSourceRecords() throws IOException {
       Path file = tempDir.resolve("session.jsonl");
       String content =
           "{\"type\":\"user\",\"message\":\"hello\"}\n"
@@ -329,7 +329,7 @@ class QoderSourceAdapterTest {
 
       assertThat(result).isInstanceOf(SourceResult.Success.class);
       SourceResult.Success success = (SourceResult.Success) result;
-      List<ParsedRecord> records = success.records();
+      List<SourceRecord> records = success.records();
       assertThat(records).hasSize(3);
       // 验证每条 record 的 locator 包含文件路径和事件序号
       assertThat(records.get(0).locator()).endsWith("#event[0]");
@@ -338,7 +338,7 @@ class QoderSourceAdapterTest {
     }
 
     @Test
-    @DisplayName("ParsedRecord 的 eventType 与源事件 type 字段对应")
+    @DisplayName("SourceRecord 的 eventType 与源事件 type 字段对应")
     void parsedRecordEventTypeMatchesSource() throws IOException {
       Path file = tempDir.resolve("session.jsonl");
       String content =
@@ -352,8 +352,8 @@ class QoderSourceAdapterTest {
       SourceResult result = adapter.parse(candidate, null);
       SourceResult.Success success = (SourceResult.Success) result;
 
-      QoderParsedRecord r0 = (QoderParsedRecord) success.records().get(0);
-      QoderParsedRecord r1 = (QoderParsedRecord) success.records().get(1);
+      SourceRecord r0 = success.records().get(0);
+      SourceRecord r1 = success.records().get(1);
       assertThat(r0.eventType()).isEqualTo("user");
       assertThat(r1.eventType()).isEqualTo("assistant");
     }
@@ -407,8 +407,8 @@ class QoderSourceAdapterTest {
           success.diagnostics().stream().filter(d -> "CACHE_FORMAT_ROLE".equals(d.code())).toList();
       assertThat(cacheDiags).hasSize(2);
       // 验证 eventType 使用 role 值
-      QoderParsedRecord r0 = (QoderParsedRecord) success.records().get(0);
-      QoderParsedRecord r1 = (QoderParsedRecord) success.records().get(1);
+      SourceRecord r0 = success.records().get(0);
+      SourceRecord r1 = success.records().get(1);
       assertThat(r0.eventType()).isEqualTo("user");
       assertThat(r1.eventType()).isEqualTo("assistant");
     }
@@ -430,10 +430,10 @@ class QoderSourceAdapterTest {
       SourceResult.Success success = (SourceResult.Success) result;
 
       // 第一个事件 type=assistant 优先
-      QoderParsedRecord r0 = (QoderParsedRecord) success.records().get(0);
+      SourceRecord r0 = success.records().get(0);
       assertThat(r0.eventType()).isEqualTo("assistant");
       // 第二个事件没有 type，使用 role=user，产生 CACHE_FORMAT_ROLE 诊断
-      QoderParsedRecord r1 = (QoderParsedRecord) success.records().get(1);
+      SourceRecord r1 = success.records().get(1);
       assertThat(r1.eventType()).isEqualTo("user");
     }
 

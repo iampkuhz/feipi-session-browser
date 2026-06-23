@@ -91,7 +91,7 @@ public interface SourceAdapter {
    *
    * <p>解析结果封装为密封类型，明确区分成功、可重试、跳过和致命错误。 实现不得抛出异常来表示可预期的解析失败，应通过 {@link SourceResult} 返回。
    *
-   * <p>解析成功时必须携带源中性解析记录（{@link ParsedRecord}）、诊断信息、 指纹和定位器。
+   * <p>解析成功时必须携带源中性解析记录（{@link com.feipi.session.browser.domain.source.SourceRecord}）、诊断信息、 指纹和定位器。
    *
    * @param candidate 待解析的候选项
    * @param cancellation 可选的取消信号，{@code null} 表示不取消

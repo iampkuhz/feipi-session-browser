@@ -2,8 +2,8 @@ package com.feipi.session.browser.source.codex;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.Candidate;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceOutcome;
@@ -43,7 +43,7 @@ class CodexSourceSpecificContractTest {
 
     assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
     SourceResult.Success success = (SourceResult.Success) result;
-    assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(ParsedRecord.class));
+    assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(SourceRecord.class));
     assertThat(eventTypes(success))
         .containsExactly(
             "session_meta",
@@ -61,7 +61,7 @@ class CodexSourceSpecificContractTest {
     assertThat(success.records().get(0).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[0]");
     assertThat(success.records())
-        .extracting(ParsedRecord::locator)
+        .extracting(SourceRecord::locator)
         .noneMatch(locator -> locator.matches(".*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}.*"));
     assertThat(candidate.sessionKey()).isEqualTo("2026-06-23/thread-main");
     assertThat(candidate.projectKey()).isEqualTo("2026-06-23");
@@ -92,9 +92,7 @@ class CodexSourceSpecificContractTest {
   }
 
   private static List<String> eventTypes(SourceResult.Success success) {
-    return success.records().stream()
-        .map(record -> ((CodexParsedRecord) record).eventType())
-        .toList();
+    return success.records().stream().map(SourceRecord::eventType).toList();
   }
 
   private static String codexRollout() {

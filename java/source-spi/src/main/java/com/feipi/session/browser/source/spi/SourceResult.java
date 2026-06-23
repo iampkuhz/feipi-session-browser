@@ -2,6 +2,7 @@ package com.feipi.session.browser.source.spi;
 
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.domain.source.SourceRecord;
 import java.util.List;
 import java.util.Objects;
 
@@ -64,7 +65,7 @@ public sealed interface SourceResult
   record Success(
       List<SourceDiagnostic> diagnostics,
       @CoreField int candidateCount,
-      List<ParsedRecord> records,
+      List<SourceRecord> records,
       SourceFingerprint fingerprint,
       String locator)
       implements SourceResult {

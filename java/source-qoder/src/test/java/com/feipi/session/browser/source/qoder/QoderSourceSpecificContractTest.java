@@ -2,8 +2,8 @@ package com.feipi.session.browser.source.qoder;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.Candidate;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceOutcome;
@@ -50,7 +50,7 @@ class QoderSourceSpecificContractTest {
     assertThat(candidates).hasSize(2);
     assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
     SourceResult.Success success = (SourceResult.Success) result;
-    assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(ParsedRecord.class));
+    assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(SourceRecord.class));
     assertThat(eventTypes(success))
         .containsExactly("message", "tool", "usage", "assistant", "unknown", "message");
     assertThat(success.diagnostics())
@@ -59,7 +59,7 @@ class QoderSourceSpecificContractTest {
     assertThat(success.records().get(0).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[0]");
     assertThat(success.records())
-        .extracting(ParsedRecord::locator)
+        .extracting(SourceRecord::locator)
         .noneMatch(locator -> locator.matches(".*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}.*"));
     assertThat(candidate.sessionKey()).isEqualTo("home%2Fqoder%2Fdemo/session-main");
     assertThat(candidate.projectKey()).isEqualTo("home/qoder/demo");
@@ -70,9 +70,7 @@ class QoderSourceSpecificContractTest {
   }
 
   private static List<String> eventTypes(SourceResult.Success success) {
-    return success.records().stream()
-        .map(record -> ((QoderParsedRecord) record).eventType())
-        .toList();
+    return success.records().stream().map(SourceRecord::eventType).toList();
   }
 
   private static String qoderSession() {

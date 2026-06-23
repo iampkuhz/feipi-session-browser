@@ -41,10 +41,21 @@ final class SessionBrowserCommand implements Runnable {
 
   @Override
   public void run() {
-    if (versionRequested) {
-      VersionCommand.printVersion();
+    if (printVersionIfRequested()) {
       return;
     }
+    printUsageHint();
+  }
+
+  private boolean printVersionIfRequested() {
+    if (!versionRequested) {
+      return false;
+    }
+    VersionCommand.printVersion();
+    return true;
+  }
+
+  private static void printUsageHint() {
     System.out.println("使用 --help 查看可用命令。");
   }
 }

@@ -1,13 +1,13 @@
 package com.feipi.session.browser.source.qoder;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
-import com.feipi.session.browser.source.json.JsonlReaderResult;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
-import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceConstants;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -160,7 +160,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
   /**
    * 解析指定候选项的会话数据。
    *
-   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link ParsedRecord}。
+   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link SourceRecord}。
    *
    * <p>Qoder 特有的 schema 变体处理：
    *
@@ -179,77 +179,54 @@ public final class QoderSourceAdapter implements SourceAdapter {
    */
   @Override
   public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
-    Objects.requireNonNull(candidate, "candidate 不得为 null");
+    return JsonCandidateParser.parse(
+        candidate,
+        cancellation,
+        jsonlReader,
+        QoderSourceAdapter::extractEventType,
+        QoderSourceAdapter::collectEventDiagnostics,
+        (diagnostics, eventCount) -> {});
+  }
 
-    // 检查取消信号
-    if (cancellation != null && cancellation.isCancelled()) {
-      return new SourceResult.Skipped(List.of(), "解析已取消");
+  private static void collectEventDiagnostics(
+      JsonNode event,
+      int eventIndex,
+      String eventType,
+      String locator,
+      List<SourceDiagnostic> diagnostics) {
+    if (isCacheRoleEvent(event)) {
+      diagnostics.add(
+          qoderDiagnostic(
+              ParseSeverity.INFO,
+              "Event at index " + eventIndex + " uses cache format with 'role' field: " + eventType,
+              eventIndex,
+              QoderConstants.DIAG_CODE_CACHE_FORMAT,
+              locator));
+    } else if (eventType.equals(QoderConstants.EVENT_TYPE_UNKNOWN)) {
+      diagnostics.add(
+          qoderDiagnostic(
+              ParseSeverity.WARNING,
+              "Event at index " + eventIndex + " missing 'type' field",
+              eventIndex,
+              QoderConstants.DIAG_CODE_MISSING_TYPE,
+              locator));
     }
+    addUnknownPartDiagnostics(event, diagnostics, locator, eventIndex);
+  }
 
-    Path filePath = Path.of(candidate.fingerprint().locator());
-
-    // 文件不存在时返回跳过结果
-    if (!Files.exists(filePath)) {
-      return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
-    }
-
-    try {
-      JsonlReaderResult result = jsonlReader.read(filePath);
-      List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
-      String locator = candidate.fingerprint().locator();
-
-      // 将每个 JSON 事件转为源中性 ParsedRecord，locator 由文件路径和事件序号派生
-      List<ParsedRecord> records = new ArrayList<>(result.events().size());
-
-      for (int i = 0; i < result.events().size(); i++) {
-        JsonNode event = result.events().get(i);
-        String eventType = extractEventType(event);
-
-        // 缺少 type 字段但存在 role 字段：cache 格式变体，产生诊断信息
-        if (eventType.equals(QoderConstants.EVENT_TYPE_UNKNOWN) && hasRoleField(event)) {
-          String roleValue = event.get("role").asText();
-          diagnostics.add(
-              new SourceDiagnostic(
-                  ParseSeverity.INFO,
-                  ParseIssueType.NON_OBJECT_SKIPPED,
-                  "Event at index " + i + " uses cache format with 'role' field: " + roleValue,
-                  i + 1,
-                  Optional.empty(),
-                  QoderConstants.DIAG_CODE_CACHE_FORMAT,
-                  locator,
-                  OptionalInt.empty(),
-                  OptionalInt.empty(),
-                  OptionalInt.empty()));
-          eventType = roleValue;
-        }
-
-        // 缺少 type 和 role 字段的事件产生诊断警告，但仍保留在 records 中不丢弃
-        if (eventType.equals(QoderConstants.EVENT_TYPE_UNKNOWN)) {
-          diagnostics.add(
-              new SourceDiagnostic(
-                  ParseSeverity.WARNING,
-                  ParseIssueType.NON_OBJECT_SKIPPED,
-                  "Event at index " + i + " missing 'type' field",
-                  i + 1,
-                  Optional.empty(),
-                  QoderConstants.DIAG_CODE_MISSING_TYPE,
-                  locator,
-                  OptionalInt.empty(),
-                  OptionalInt.empty(),
-                  OptionalInt.empty()));
-        }
-
-        addUnknownPartDiagnostics(event, diagnostics, locator, i);
-        records.add(new QoderParsedRecord(locator, i, eventType));
-      }
-
-      int eventCount = result.events().size();
-      return new SourceResult.Success(
-          diagnostics, eventCount, records, candidate.fingerprint(), locator);
-    } catch (IOException e) {
-      String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
-      return new SourceResult.Fatal(List.of(), detail);
-    }
+  private static SourceDiagnostic qoderDiagnostic(
+      ParseSeverity severity, String message, int eventIndex, String code, String locator) {
+    return new SourceDiagnostic(
+        severity,
+        ParseIssueType.NON_OBJECT_SKIPPED,
+        message,
+        eventIndex + 1,
+        Optional.empty(),
+        code,
+        locator,
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
   }
 
   /**
@@ -265,6 +242,9 @@ public final class QoderSourceAdapter implements SourceAdapter {
     if (typeNode != null && typeNode.isTextual()) {
       return typeNode.asText();
     }
+    if (hasRoleField(event)) {
+      return event.get("role").asText();
+    }
     return QoderConstants.EVENT_TYPE_UNKNOWN;
   }
 
@@ -279,6 +259,11 @@ public final class QoderSourceAdapter implements SourceAdapter {
   private static boolean hasRoleField(JsonNode event) {
     JsonNode roleNode = event.get("role");
     return roleNode != null && roleNode.isTextual();
+  }
+
+  private static boolean isCacheRoleEvent(JsonNode event) {
+    JsonNode typeNode = event.get("type");
+    return (typeNode == null || !typeNode.isTextual()) && hasRoleField(event);
   }
 
   private static void addUnknownPartDiagnostics(

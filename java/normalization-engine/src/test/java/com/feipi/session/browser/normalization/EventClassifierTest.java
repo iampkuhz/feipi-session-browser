@@ -50,10 +50,11 @@ class EventClassifierTest {
     void assistantEventClassifiedCorrectly() {
       JsonNode event = MAPPER.createObjectNode().put("type", "assistant");
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
       assertThat(result.assistantMessages()).hasSize(1);
-      assertThat(result.assistantMessages().get(0)).isEqualTo(event);
+      assertThat(result.assistantMessages().get(0).eventType()).isEqualTo("assistant");
       assertThat(result.totalCount()).isEqualTo(1);
     }
 
@@ -67,10 +68,11 @@ class EventClassifierTest {
               .put("id", "toolu_abc")
               .put("name", "Read");
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
       assertThat(result.toolUses()).hasSize(1);
-      assertThat(result.toolUses().get(0)).isEqualTo(event);
+      assertThat(result.toolUses().get(0).eventType()).isEqualTo("tool_use");
     }
 
     @Test
@@ -79,7 +81,8 @@ class EventClassifierTest {
       JsonNode event =
           MAPPER.createObjectNode().put("type", "tool_result").put("tool_use_id", "toolu_abc");
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
       assertThat(result.toolResults()).hasSize(1);
     }
@@ -89,7 +92,8 @@ class EventClassifierTest {
     void userEventClassifiedCorrectly() {
       JsonNode event = MAPPER.createObjectNode().put("type", "user");
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
       assertThat(result.userMessages()).hasSize(1);
     }
@@ -99,10 +103,11 @@ class EventClassifierTest {
     void unknownTypeGoesToUnknownEvents() {
       JsonNode event = MAPPER.createObjectNode().put("type", "system_status");
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
       assertThat(result.unknownEvents()).hasSize(1);
-      assertThat(result.unknownEvents().get(0)).isEqualTo(event);
+      assertThat(result.unknownEvents().get(0).eventType()).isEqualTo("system_status");
       assertThat(result.assistantMessages()).isEmpty();
     }
 
@@ -111,7 +116,8 @@ class EventClassifierTest {
     void missingTypeFieldGoesToUnknownEvents() {
       JsonNode event = MAPPER.createObjectNode().put("data", "some value");
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(event));
 
       assertThat(result.unknownEvents()).hasSize(1);
     }
@@ -127,7 +133,8 @@ class EventClassifierTest {
               MAPPER.createObjectNode().put("type", "unknown_type"),
               MAPPER.createObjectNode().put("type", "assistant"));
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(events);
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(events));
 
       assertThat(result.assistantMessages()).hasSize(2);
       assertThat(result.toolResults()).hasSize(1);
@@ -145,7 +152,8 @@ class EventClassifierTest {
               MAPPER.createObjectNode().put("type", "assistant"),
               MAPPER.createObjectNode().put("type", "user"));
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(events);
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(events));
 
       assertThat(result.allEvents()).hasSize(2);
     }
@@ -157,18 +165,18 @@ class EventClassifierTest {
       events.add(null);
       events.add(MAPPER.createObjectNode().put("type", "assistant"));
 
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(events);
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(TestSourceRecords.records(events));
 
       assertThat(result.assistantMessages()).hasSize(1);
       assertThat(result.totalCount()).isEqualTo(1);
     }
 
     @Test
-    @DisplayName("非对象事件进入 unknownEvents")
-    void nonObjectEventsGoToUnknown() {
-      JsonNode arrayNode = MAPPER.createArrayNode();
-
-      EventClassifier.ClassifiedEvents result = EventClassifier.classify(List.of(arrayNode));
+    @DisplayName("unknown 记录进入 unknownEvents")
+    void unknownRecordGoesToUnknown() {
+      EventClassifier.ClassifiedEvents result =
+          EventClassifier.classify(List.of(TestSourceRecords.ofType("unknown")));
 
       assertThat(result.unknownEvents()).hasSize(1);
     }

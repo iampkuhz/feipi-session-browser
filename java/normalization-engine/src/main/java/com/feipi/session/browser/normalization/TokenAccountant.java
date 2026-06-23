@@ -1,62 +1,37 @@
 package com.feipi.session.browser.normalization;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
+import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import java.util.List;
 
-/**
- * Token 核算器。
- *
- * <p>从 JSON 事件的 {@code usage} 字段提取 token 用量信息，构建 {@link NormalizedCallUsage} 实例。
- *
- * <p>识别的字段名：
- *
- * <ul>
- *   <li>{@code input_tokens} — 输入 token 数，映射为 {@code fresh}
- *   <li>{@code cache_read_input_tokens} — 缓存读取 token 数，映射为 {@code cacheRead}
- *   <li>{@code cache_creation_input_tokens} — 缓存写入 token 数，映射为 {@code cacheWrite}
- *   <li>{@code output_tokens} — 输出 token 数，映射为 {@code output}
- * </ul>
- *
- * <p>{@code total} 始终由分量之和计算，保证 {@link NormalizedCallUsage} 不变量。
- *
- * <p><b>INTENTIONAL_DUPLICATION</b>：本类内部 aggregate、extractUsage 等方法存在结构性相似 （语句级
- * STATEMENT_DUPLICATE），原因：均为 JsonNode 字段提取和 null-safe 数值累加模式， 各方法处理不同的 usage 字段但遵循相同的提取逻辑。此重复是
- * token 核算的固有特征。
- */
+/** 负责把源中性记录中的用量字段转换为归一化调用用量，并提供会话级聚合能力。 */
 public final class TokenAccountant {
 
   /** 防止实例化。 */
   private TokenAccountant() {}
 
   /**
-   * 从事件的 {@code usage} 字段提取 token 用量。
+   * 从源中性记录提取 token 用量。
    *
-   * <p>如果事件没有 {@code usage} 字段或该字段不是对象，返回全零的用量实例。 缺失的 token 分量默认为 0。
-   *
-   * @param event JSON 事件节点
+   * @param record 源中性记录
    * @return 不可变的 token 用量实例
    */
-  public static NormalizedCallUsage extractUsage(JsonNode event) {
-    if (event == null) {
+  public static NormalizedCallUsage extractUsage(SourceRecord record) {
+    if (record == null) {
       return NormalizedCallUsage.empty();
     }
-    JsonNode usageNode = event.get("usage");
-    if (usageNode == null || !usageNode.isObject()) {
-      return NormalizedCallUsage.empty();
-    }
-    long fresh = readLong(usageNode, "input_tokens");
-    long cacheRead = readLong(usageNode, "cache_read_input_tokens");
-    long cacheWrite = readLong(usageNode, "cache_creation_input_tokens");
-    long output = readLong(usageNode, "output_tokens");
-    long total = fresh + cacheRead + cacheWrite + output;
-    return new NormalizedCallUsage(fresh, cacheRead, cacheWrite, output, total);
+    SourceRecordUsage usage = record.usage();
+    return new NormalizedCallUsage(
+        usage.inputTokens(),
+        usage.cacheReadInputTokens(),
+        usage.cacheCreationInputTokens(),
+        usage.outputTokens(),
+        usage.total());
   }
 
   /**
    * 聚合多个调用的 token 用量。
-   *
-   * <p>将所有调用的各分量分别求和，{@code total} 由分量之和计算，保证 {@link NormalizedCallUsage} 不变量。
    *
    * @param usages token 用量列表，不得为 null
    * @return 聚合后的 token 用量实例
@@ -77,13 +52,5 @@ public final class TokenAccountant {
     }
     long total = fresh + cacheRead + cacheWrite + output;
     return new NormalizedCallUsage(fresh, cacheRead, cacheWrite, output, total);
-  }
-
-  private static long readLong(JsonNode node, String fieldName) {
-    JsonNode child = node.get(fieldName);
-    if (child != null && child.isNumber()) {
-      return child.asLong();
-    }
-    return 0L;
   }
 }

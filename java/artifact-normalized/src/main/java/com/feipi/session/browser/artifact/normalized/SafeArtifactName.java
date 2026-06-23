@@ -112,8 +112,7 @@ public final class SafeArtifactName {
 
     // 长度限制
     if (sanitized.length() > MAX_NAME_LENGTH) {
-      String hash = shortHash(rawKey);
-      sanitized = sanitized.substring(0, MAX_NAME_LENGTH - HASH_SUFFIX_LENGTH - 1) + "-" + hash;
+      sanitized = appendHashSuffix(sanitized, rawKey);
     }
 
     return sanitized;
@@ -133,11 +132,14 @@ public final class SafeArtifactName {
     if (!needsDisambiguation(rawKey, sanitized)) {
       return sanitized;
     }
-    String suffix = shortHash(rawKey);
+    return appendHashSuffix(sanitized, rawKey);
+  }
+
+  private static String appendHashSuffix(String sanitized, String rawKey) {
     int prefixLength = MAX_NAME_LENGTH - HASH_SUFFIX_LENGTH - 1;
     String prefix =
         sanitized.length() > prefixLength ? sanitized.substring(0, prefixLength) : sanitized;
-    return prefix + "-" + suffix;
+    return prefix + "-" + shortHash(rawKey);
   }
 
   /**

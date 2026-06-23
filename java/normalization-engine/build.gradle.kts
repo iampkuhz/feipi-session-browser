@@ -5,10 +5,10 @@ plugins {
 dependencies {
     api(project(":java:core-domain"))
     implementation(project(":java:source-spi"))
-    implementation(libs.bundles.jackson)
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.jackson.databind)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

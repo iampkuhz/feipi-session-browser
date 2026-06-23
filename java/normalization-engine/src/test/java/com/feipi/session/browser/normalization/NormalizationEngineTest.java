@@ -68,7 +68,8 @@ class NormalizationEngineTest {
       event.put("model", "claude-3-sonnet");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, TestSourceRecords.records(event), List.of(), List.of());
 
       assertThat(artifact.calls()).hasSize(1);
       assertThat(artifact.calls().get(0).callId()).isEqualTo("call-1");
@@ -107,7 +108,8 @@ class NormalizationEngineTest {
 
       List<JsonNode> events = List.of(assistant1, toolResult, assistant2);
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, events, List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, TestSourceRecords.records(events), List.of(), List.of());
 
       assertThat(artifact.toolExecutions()).hasSize(1);
       assertThat(artifact.toolExecutions().get(0).toolCallId()).isEqualTo("toolu_1");
@@ -128,7 +130,11 @@ class NormalizationEngineTest {
       unknown.put("type", "custom_event");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(unknown), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(unknown),
+              List.of(),
+              List.of());
 
       assertThat(artifact.diagnostics()).hasSize(1);
       assertThat(artifact.diagnostics().get(0).get("message")).asString().contains("custom_event");
@@ -156,7 +162,10 @@ class NormalizationEngineTest {
 
       NormalizedSessionArtifact artifact =
           ENGINE.normalize(
-              NormalizedAgent.CLAUDE_CODE, List.of(unknown), List.of(inputDiag), List.of());
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(unknown),
+              List.of(inputDiag),
+              List.of());
 
       assertThat(artifact.diagnostics()).hasSize(2);
     }
@@ -179,7 +188,8 @@ class NormalizationEngineTest {
       usage.put("cache_creation_input_tokens", 10);
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, TestSourceRecords.records(event), List.of(), List.of());
 
       assertThat(artifact.calls()).hasSize(1);
       assertThat(artifact.calls().get(0).usage().fresh()).isEqualTo(100);
@@ -197,7 +207,8 @@ class NormalizationEngineTest {
       event.put("id", "call-1");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, TestSourceRecords.records(event), List.of(), List.of());
 
       assertThat(artifact.calls().get(0).usage().total()).isZero();
       assertThat(artifact.calls().get(0).usage().fresh()).isZero();
@@ -241,9 +252,11 @@ class NormalizationEngineTest {
       event.put("model", "claude-3-sonnet");
 
       NormalizedSessionArtifact artifact1 =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, TestSourceRecords.records(event), List.of(), List.of());
       NormalizedSessionArtifact artifact2 =
-          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, TestSourceRecords.records(event), List.of(), List.of());
 
       assertThat(artifact1).isEqualTo(artifact2);
     }
@@ -307,7 +320,11 @@ class NormalizationEngineTest {
       ObjectNode event2 = MAPPER.createObjectNode().put("type", "user");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize(NormalizedAgent.CODEX, List.of(event1, event2), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(event1, event2),
+              List.of(),
+              List.of());
 
       assertThat(artifact.session()).containsEntry("eventCount", 2);
     }
@@ -322,7 +339,10 @@ class NormalizationEngineTest {
 
       NormalizedSessionArtifact artifact =
           ENGINE.normalize(
-              NormalizedAgent.CLAUDE_CODE, List.of(event1, event2), List.of(), List.of());
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(event1, event2),
+              List.of(),
+              List.of());
 
       // 第一个调用 token 总和为 300，第二个为 200，合计 500
       assertThat(artifact.session()).containsEntry("totalTokens", 500L);
@@ -351,7 +371,7 @@ class NormalizationEngineTest {
       NormalizedSessionArtifact artifact =
           ENGINE.normalize(
               NormalizedAgent.CLAUDE_CODE,
-              List.of(assistant, toolResult, assistant2),
+              TestSourceRecords.records(assistant, toolResult, assistant2),
               List.of(),
               List.of());
 
@@ -458,9 +478,10 @@ class NormalizationEngineTest {
       event.put("id", "c1");
       event.putObject("usage").put("input_tokens", 100).put("output_tokens", 200);
 
-      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(List.of(event));
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(event));
       List<com.feipi.session.browser.domain.normalized.NormalizedCall> calls =
-          CallBuilder.buildCalls(List.of(event), classified);
+          CallBuilder.buildCalls(TestSourceRecords.records(event), classified);
 
       NormalizationEngine.ConservationCheckResult result =
           NormalizationEngine.buildConservationCheck(calls, List.of());

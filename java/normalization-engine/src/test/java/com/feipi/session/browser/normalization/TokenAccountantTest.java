@@ -36,7 +36,7 @@ class TokenAccountantTest {
     @DisplayName("无 usage 字段返回零用量")
     void noUsageFieldReturnsEmptyUsage() {
       ObjectNode event = MAPPER.createObjectNode().put("type", "assistant");
-      NormalizedCallUsage usage = TokenAccountant.extractUsage(event);
+      NormalizedCallUsage usage = TokenAccountant.extractUsage(TestSourceRecords.from(event, 0));
       assertThat(usage.total()).isZero();
     }
 
@@ -50,7 +50,7 @@ class TokenAccountantTest {
       usage.put("cache_creation_input_tokens", 25);
       usage.put("output_tokens", 200);
 
-      NormalizedCallUsage result = TokenAccountant.extractUsage(event);
+      NormalizedCallUsage result = TokenAccountant.extractUsage(TestSourceRecords.from(event, 0));
       assertThat(result.fresh()).isEqualTo(100);
       assertThat(result.cacheRead()).isEqualTo(50);
       assertThat(result.cacheWrite()).isEqualTo(25);

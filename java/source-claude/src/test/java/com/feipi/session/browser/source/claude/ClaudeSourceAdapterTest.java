@@ -2,6 +2,7 @@ package com.feipi.session.browser.source.claude;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -276,7 +277,7 @@ class ClaudeSourceAdapterTest {
     }
 
     @Test
-    @DisplayName("解析成功产生与事件数匹配的 ParsedRecord 列表")
+    @DisplayName("解析成功产生与事件数匹配的 SourceRecord 列表")
     void parseSuccessProducesMatchingRecords() throws IOException {
       Path file = tempDir.resolve("session.jsonl");
       String content =
@@ -292,11 +293,11 @@ class ClaudeSourceAdapterTest {
       assertThat(result).isInstanceOf(SourceResult.Success.class);
       SourceResult.Success success = (SourceResult.Success) result;
       assertThat(success.records()).hasSize(2);
-      assertThat(success.records().get(0)).isInstanceOf(ClaudeParsedRecord.class);
-      ClaudeParsedRecord rec0 = (ClaudeParsedRecord) success.records().get(0);
+      assertThat(success.records().get(0)).isInstanceOf(SourceRecord.class);
+      SourceRecord rec0 = success.records().get(0);
       assertThat(rec0.eventType()).isEqualTo("user");
       assertThat(rec0.eventIndex()).isZero();
-      ClaudeParsedRecord rec1 = (ClaudeParsedRecord) success.records().get(1);
+      SourceRecord rec1 = success.records().get(1);
       assertThat(rec1.eventType()).isEqualTo("assistant");
       assertThat(rec1.eventIndex()).isEqualTo(1);
     }
@@ -319,14 +320,14 @@ class ClaudeSourceAdapterTest {
       // 三条记录均保留
       assertThat(success.records()).hasSize(3);
       // 第二条记录的 eventType 应为 unknown
-      ClaudeParsedRecord unknown = (ClaudeParsedRecord) success.records().get(1);
+      SourceRecord unknown = success.records().get(1);
       assertThat(unknown.eventType()).isEqualTo("unknown");
       // 应包含 UNKNOWN_BLOCK_TYPE 诊断
       assertThat(success.diagnostics()).anyMatch(d -> d.code().equals("UNKNOWN_BLOCK_TYPE"));
     }
 
     @Test
-    @DisplayName("ParsedRecord locator 由文件路径和事件序号稳定派生")
+    @DisplayName("SourceRecord locator 由文件路径和事件序号稳定派生")
     void recordLocatorDerivedStablyFromSource() throws IOException {
       Path file = tempDir.resolve("session.jsonl");
       Files.writeString(file, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
@@ -337,7 +338,7 @@ class ClaudeSourceAdapterTest {
       SourceResult result = adapter.parse(candidate, null);
       SourceResult.Success success = (SourceResult.Success) result;
 
-      ClaudeParsedRecord rec = (ClaudeParsedRecord) success.records().get(0);
+      SourceRecord rec = success.records().get(0);
       // locator 格式为 {filePath}#event[{index}]，确定性且不依赖随机值
       assertThat(rec.locator()).isEqualTo(fp.locator() + "#event[0]");
     }

@@ -1,6 +1,5 @@
 package com.feipi.session.browser.normalization;
 
-import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.normalized.ByteRange;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -11,6 +10,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -47,13 +47,13 @@ import java.util.Set;
 public final class NormalizationEngine {
 
   /**
-   * 从 JSON 事件列表构建归一化制品。
+   * 从源中性记录列表构建归一化制品。
    *
    * <p>{@code agent} 参数必须为合法的 {@link NormalizedAgent} 枚举值，例如 {@link NormalizedAgent#CLAUDE_CODE}、
    * {@link NormalizedAgent#CODEX} 或 {@link NormalizedAgent#QODER}。
    *
    * @param agent 产生事件的源适配器 agent 枚举值
-   * @param events 解析后的 JSON 事件列表，不得为 null
+   * @param records 解析后的源中性记录列表，不得为 null
    * @param diagnostics 解析诊断列表，不得为 null
    * @param sourceFiles 源文件列表，不得为 null
    * @return 不可变的归一化会话制品
@@ -61,36 +61,34 @@ public final class NormalizationEngine {
    */
   public NormalizedSessionArtifact normalize(
       NormalizedAgent agent,
-      List<JsonNode> events,
+      List<SourceRecord> records,
       List<SourceDiagnostic> diagnostics,
       List<NormalizedSourceFile> sourceFiles) {
 
     Objects.requireNonNull(agent, "agent 不得为 null");
-    Objects.requireNonNull(events, "events 不得为 null");
+    Objects.requireNonNull(records, "records 不得为 null");
     Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
     Objects.requireNonNull(sourceFiles, "sourceFiles 不得为 null");
 
+    records = List.copyOf(records);
+
     // 1. 事件分类
-    EventClassifier.ClassifiedEvents classified = EventClassifier.classify(events);
+    EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
 
     // 2. 构建调用列表
-    List<NormalizedCall> calls = CallBuilder.buildCalls(events, classified);
+    List<NormalizedCall> calls = CallBuilder.buildCalls(records, classified);
 
     // 3. 构建工具执行边列表
     List<NormalizedToolExecution> toolExecutions =
-        CallBuilder.buildToolExecutions(events, classified, calls);
+        CallBuilder.buildToolExecutions(records, classified, calls);
 
     // 4. 合并诊断：输入诊断 + 未知事件产生的诊断
     List<Map<String, Object>> allDiagnostics = new ArrayList<>();
     for (SourceDiagnostic diag : diagnostics) {
       allDiagnostics.add(toMap(diag));
     }
-    for (JsonNode unknownEvent : classified.unknownEvents()) {
-      String type = "unknown";
-      JsonNode typeNode = unknownEvent.get("type");
-      if (typeNode != null && typeNode.isTextual()) {
-        type = typeNode.asText();
-      }
+    for (SourceRecord unknownRecord : classified.unknownEvents()) {
+      String type = unknownRecord.eventType();
       SourceDiagnostic unknownDiag =
           new SourceDiagnostic(
               ParseSeverity.WARNING,
@@ -107,7 +105,7 @@ public final class NormalizationEngine {
     }
 
     // 5. 构建会话元数据：事件计数 + 聚合 token 用量 + 守恒计数
-    Map<String, Object> session = buildSessionMap(agent, events, calls, toolExecutions);
+    Map<String, Object> session = buildSessionMap(agent, records, calls, toolExecutions);
 
     // 6. 构建源单元目录
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog = buildSourceUnitCatalog(sourceFiles);
@@ -191,19 +189,19 @@ public final class NormalizationEngine {
    * <p>包含 agent 标识、事件总数、聚合后的 session 级 token 用量， 以及工具守恒计数。所有值均从输入确定性派生，保证相同输入产生相同输出。
    *
    * @param agent 产生事件的源适配器 agent 枚举值
-   * @param events 原始事件列表
+   * @param records 源中性记录列表
    * @param calls 已构建的调用列表
    * @param toolExecutions 已构建的工具执行列表
    * @return 不可变的会话元数据 map
    */
   private static Map<String, Object> buildSessionMap(
       NormalizedAgent agent,
-      List<JsonNode> events,
+      List<? extends SourceRecord> records,
       List<NormalizedCall> calls,
       List<NormalizedToolExecution> toolExecutions) {
     Map<String, Object> session = new LinkedHashMap<>();
     session.put("agent", agent.getValue());
-    session.put("eventCount", events.size());
+    session.put("eventCount", records.size());
 
     NormalizedCallUsage sessionUsage = aggregateUsage(calls);
     session.put("totalTokens", sessionUsage.total());

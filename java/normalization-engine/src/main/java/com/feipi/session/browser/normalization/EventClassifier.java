@@ -1,6 +1,6 @@
 package com.feipi.session.browser.normalization;
 
-import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.domain.source.SourceRecord;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -8,22 +8,8 @@ import java.util.List;
 /**
  * 事件分类器。
  *
- * <p>将原始 JSON 事件列表按 {@code type} 字段分类为归一化引擎可处理的各类别。 分类结果为不可变集合，供 {@link CallBuilder} 和 {@link
+ * <p>将源中性记录列表按 {@code eventType} 分类为归一化引擎可处理的各类别。分类结果为不可变集合，供 {@link CallBuilder} 和 {@link
  * NormalizationEngine} 使用。
- *
- * <p>识别的事件类型：
- *
- * <ul>
- *   <li>{@code assistant} — 助手消息，每个事件对应一个 {@link
- *       com.feipi.session.browser.domain.normalized.NormalizedCall}
- *   <li>{@code tool_use} — 独立工具调用事件（嵌入在 {@code assistant} 消息中的工具调用由 {@link CallBuilder} 提取）
- *   <li>{@code tool_result} — 工具结果事件
- *   <li>{@code user} — 用户消息事件
- *   <li>其他 — 进入 {@code unknownEvents}，并产生诊断信息
- * </ul>
- *
- * <p><b>INTENTIONAL_DUPLICATION</b>：本类与 CallBuilder 等存在结构性相似（语句级 STATEMENT_DUPLICATE）， 原因：均为
- * JsonNode 事件分类和字段提取逻辑，遵循相同的类型检查 + 条件分发模式。 此重复是事件驱动分类逻辑的固有特征。
  */
 public final class EventClassifier {
 
@@ -31,74 +17,66 @@ public final class EventClassifier {
   private EventClassifier() {}
 
   /**
-   * 将事件列表按类型分类。
+   * 将记录列表按类型分类。
    *
-   * @param events 原始 JSON 事件列表，不得为 null
-   * @return 分类后的事件集合
+   * @param records 源中性记录列表
+   * @return 分类后的记录集合
    */
-  public static ClassifiedEvents classify(List<JsonNode> events) {
-    if (events == null || events.isEmpty()) {
+  public static ClassifiedEvents classify(List<? extends SourceRecord> records) {
+    if (records == null || records.isEmpty()) {
       return ClassifiedEvents.empty();
     }
 
-    List<JsonNode> assistantMessages = new ArrayList<>();
-    List<JsonNode> toolUses = new ArrayList<>();
-    List<JsonNode> toolResults = new ArrayList<>();
-    List<JsonNode> userMessages = new ArrayList<>();
-    List<JsonNode> unknownEvents = new ArrayList<>();
+    EventBuckets buckets = new EventBuckets();
+    records.stream().filter(java.util.Objects::nonNull).forEach(buckets::accept);
+    return buckets.toClassifiedEvents();
+  }
 
-    for (JsonNode event : events) {
-      if (event == null) {
-        continue;
-      }
-      if (!event.isObject()) {
-        unknownEvents.add(event);
-        continue;
-      }
-      JsonNode typeNode = event.get("type");
-      if (typeNode == null || !typeNode.isTextual()) {
-        unknownEvents.add(event);
-        continue;
-      }
-      String type = typeNode.asText();
-      switch (type) {
-        case "assistant" -> assistantMessages.add(event);
-        case "tool_use" -> toolUses.add(event);
-        case "tool_result" -> toolResults.add(event);
-        case "user" -> userMessages.add(event);
-        default -> unknownEvents.add(event);
+  /** 按源中性事件类型收集分类结果的内部容器。 */
+  private static final class EventBuckets {
+    private final List<SourceRecord> assistantMessages = new ArrayList<>();
+    private final List<SourceRecord> toolUses = new ArrayList<>();
+    private final List<SourceRecord> toolResults = new ArrayList<>();
+    private final List<SourceRecord> userMessages = new ArrayList<>();
+    private final List<SourceRecord> unknownEvents = new ArrayList<>();
+
+    private void accept(SourceRecord record) {
+      switch (record.eventType()) {
+        case "assistant" -> assistantMessages.add(record);
+        case "tool_use" -> toolUses.add(record);
+        case "tool_result" -> toolResults.add(record);
+        case "user" -> userMessages.add(record);
+        default -> unknownEvents.add(record);
       }
     }
 
-    return new ClassifiedEvents(
-        List.copyOf(assistantMessages),
-        List.copyOf(toolUses),
-        List.copyOf(toolResults),
-        List.copyOf(userMessages),
-        List.copyOf(unknownEvents));
+    private ClassifiedEvents toClassifiedEvents() {
+      return new ClassifiedEvents(
+          List.copyOf(assistantMessages),
+          List.copyOf(toolUses),
+          List.copyOf(toolResults),
+          List.copyOf(userMessages),
+          List.copyOf(unknownEvents));
+    }
   }
 
-  /**
-   * 分类后的事件集合。
-   *
-   * <p>不可变数据载体，包含按事件类型分组的列表。
-   */
+  /** 分类后的事件集合。 */
   public static final class ClassifiedEvents {
-    private final List<JsonNode> assistantMessages;
-    private final List<JsonNode> toolUses;
-    private final List<JsonNode> toolResults;
-    private final List<JsonNode> userMessages;
-    private final List<JsonNode> unknownEvents;
+    private final List<SourceRecord> assistantMessages;
+    private final List<SourceRecord> toolUses;
+    private final List<SourceRecord> toolResults;
+    private final List<SourceRecord> userMessages;
+    private final List<SourceRecord> unknownEvents;
 
     private static final ClassifiedEvents EMPTY =
         new ClassifiedEvents(List.of(), List.of(), List.of(), List.of(), List.of());
 
     ClassifiedEvents(
-        List<JsonNode> assistantMessages,
-        List<JsonNode> toolUses,
-        List<JsonNode> toolResults,
-        List<JsonNode> userMessages,
-        List<JsonNode> unknownEvents) {
+        List<SourceRecord> assistantMessages,
+        List<SourceRecord> toolUses,
+        List<SourceRecord> toolResults,
+        List<SourceRecord> userMessages,
+        List<SourceRecord> unknownEvents) {
       this.assistantMessages = assistantMessages;
       this.toolUses = toolUses;
       this.toolResults = toolResults;
@@ -106,64 +84,59 @@ public final class EventClassifier {
       this.unknownEvents = unknownEvents;
     }
 
-    /**
-     * 返回空的分类结果。
-     *
-     * @return 所有类别均为空列表的共享实例
-     */
     static ClassifiedEvents empty() {
       return EMPTY;
     }
 
     /**
-     * 获取助手消息事件列表。
+     * 返回助手消息记录。
      *
-     * @return 不可变的助手消息列表
+     * @return 不可变助手消息记录列表
      */
-    public List<JsonNode> assistantMessages() {
+    public List<SourceRecord> assistantMessages() {
       return assistantMessages;
     }
 
     /**
-     * 获取独立工具调用事件列表。
+     * 返回独立工具调用记录。
      *
-     * @return 不可变的工具调用列表
+     * @return 不可变工具调用记录列表
      */
-    public List<JsonNode> toolUses() {
+    public List<SourceRecord> toolUses() {
       return toolUses;
     }
 
     /**
-     * 获取工具结果事件列表。
+     * 返回工具结果记录。
      *
-     * @return 不可变的工具结果列表
+     * @return 不可变工具结果记录列表
      */
-    public List<JsonNode> toolResults() {
+    public List<SourceRecord> toolResults() {
       return toolResults;
     }
 
     /**
-     * 获取用户消息事件列表。
+     * 返回用户消息记录。
      *
-     * @return 不可变的消息列表
+     * @return 不可变用户消息记录列表
      */
-    public List<JsonNode> userMessages() {
+    public List<SourceRecord> userMessages() {
       return userMessages;
     }
 
     /**
-     * 获取未识别类型事件列表。
+     * 返回未知类型记录。
      *
-     * @return 不可变的未知事件列表
+     * @return 不可变未知记录列表
      */
-    public List<JsonNode> unknownEvents() {
+    public List<SourceRecord> unknownEvents() {
       return unknownEvents;
     }
 
     /**
-     * 获取所有分类事件的总数。
+     * 返回已分类记录总数。
      *
-     * @return 各分类事件数量之和
+     * @return 各分类记录数量之和
      */
     public int totalCount() {
       return assistantMessages.size()
@@ -174,22 +147,21 @@ public final class EventClassifier {
     }
 
     /**
-     * 是否存在任何事件。
+     * 判断分类结果是否为空。
      *
-     * @return 当至少一个分类包含事件时返回 {@code true}
+     * @return 无任何记录时返回 {@code true}
      */
     public boolean isEmpty() {
       return totalCount() == 0;
     }
 
     /**
-     * 返回所有分类事件的只读汇总列表，顺序为 {@code assistant}、{@code tool_use}、{@code tool_result}、{@code
-     * user}、{@code unknown}。
+     * 返回所有分类记录的汇总列表。
      *
-     * @return 不可变的事件汇总列表
+     * @return 不可变汇总列表
      */
-    public List<JsonNode> allEvents() {
-      List<JsonNode> all =
+    public List<SourceRecord> allEvents() {
+      List<SourceRecord> all =
           new ArrayList<>(
               assistantMessages.size()
                   + toolUses.size()
