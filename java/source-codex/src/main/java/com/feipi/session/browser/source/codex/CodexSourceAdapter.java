@@ -13,16 +13,13 @@ import com.feipi.session.browser.source.spi.SourceConstants;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
+import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
-import com.feipi.session.browser.source.spi.SourceRoot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -59,12 +56,6 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
   private static final Logger LOG = Logger.getLogger(CodexSourceAdapter.class.getName());
 
-  /** SHA-256 哈希算法名称。 */
-  private static final String HASH_ALGORITHM = "SHA-256";
-
-  /** 文件读取缓冲区大小（字节）。 */
-  private static final int READ_BUFFER_SIZE = 8192;
-
   private final JsonlReader jsonlReader;
 
   /** 使用默认 JSONL 读取器配置创建适配器。 */
@@ -85,35 +76,6 @@ public final class CodexSourceAdapter implements SourceAdapter {
   @Override
   public SourceId sourceId() {
     return SourceId.CODEX;
-  }
-
-  /**
-   * 检查源根目录的安全性和可用性。
-   *
-   * <p>检测符号链接跟踪、路径逃逸和只读状态。路径逃逸表示存在越权访问风险， 标记为不安全。符号链接和只读不阻止使用。
-   *
-   * @param rootPath 待检查的根目录路径
-   * @return 源根安全检查结果
-   */
-  @Override
-  public SourceRoot checkRoot(Path rootPath) {
-    Objects.requireNonNull(rootPath, "rootPath 不得为 null");
-
-    Path resolved;
-    boolean symlinkFollowed;
-    try {
-      resolved = rootPath.toRealPath();
-      Path absNormalized = rootPath.toAbsolutePath().normalize();
-      symlinkFollowed = !resolved.equals(absNormalized);
-    } catch (IOException e) {
-      // 目录不存在或无法访问，返回基本信息
-      return new SourceRoot(rootPath, rootPath.toAbsolutePath().normalize(), false, false, false);
-    }
-
-    boolean pathEscape = false;
-    boolean readOnly = !Files.isWritable(rootPath);
-
-    return new SourceRoot(rootPath, resolved, symlinkFollowed, pathEscape, readOnly);
   }
 
   /**
@@ -163,14 +125,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
     try {
       long size = Files.size(filePath);
       long lastModified = Files.getLastModifiedTime(filePath).toMillis();
-      String hash = computeSha256(filePath);
+      String hash = SourcePathOps.computeSha256(filePath);
       return new SourceFingerprint(
           filePath.toAbsolutePath().toString(),
           SourceId.CODEX,
           size,
           lastModified,
           Optional.of(hash),
-          Optional.of(HASH_ALGORITHM));
+          Optional.of(SourceConstants.DEFAULT_HASH_ALGORITHM));
     } catch (IOException e) {
       // 文件不存在或无法访问，返回零值指纹
       LOG.log(Level.FINE, "无法生成文件指纹: " + filePath, e);
@@ -499,30 +461,6 @@ public final class CodexSourceAdapter implements SourceAdapter {
   }
 
   /**
-   * 计算文件的 SHA-256 内容哈希。
-   *
-   * @param filePath 文件路径
-   * @return 十六进制哈希字符串
-   * @throws IOException 当文件读取失败时
-   */
-  private static String computeSha256(Path filePath) throws IOException {
-    try {
-      MessageDigest digest = MessageDigest.getInstance(HASH_ALGORITHM);
-      byte[] buffer = new byte[READ_BUFFER_SIZE];
-      try (var input = Files.newInputStream(filePath)) {
-        int bytesRead;
-        while ((bytesRead = input.read(buffer)) != -1) {
-          digest.update(buffer, 0, bytesRead);
-        }
-      }
-      return HexFormat.of().formatHex(digest.digest());
-    } catch (NoSuchAlgorithmException e) {
-      // SHA-256 是 JDK 必需算法，不应发生
-      throw new IllegalStateException("SHA-256 算法不可用", e);
-    }
-  }
-
-  /**
    * 从会话文件路径中提取会话键。
    *
    * <p>会话键格式为 {@code {日期目录}/{session-id}}，其中 session-id 为 session 目录名。
@@ -532,7 +470,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @return 会话键
    */
   private static String extractSessionKey(Path rootPath, Path sessionPath) {
-    Path relative = toRelative(rootPath, sessionPath);
+    Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
     // 目录结构为 {日期目录}/{session-id}/session.jsonl，相对路径至少包含三段
     int nameCount = relative.getNameCount();
     if (nameCount >= 3) {
@@ -557,29 +495,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @return 项目键
    */
   private static String extractProjectKey(Path rootPath, Path sessionPath) {
-    Path relative = toRelative(rootPath, sessionPath);
+    Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
     int nameCount = relative.getNameCount();
     if (nameCount >= 3) {
       return relative.getName(0).toString();
     }
     return "";
-  }
-
-  /**
-   * 将绝对路径转为相对于根目录的路径。
-   *
-   * @param rootPath 根目录
-   * @param filePath 文件路径
-   * @return 相对路径
-   */
-  private static Path toRelative(Path rootPath, Path filePath) {
-    try {
-      return rootPath
-          .toAbsolutePath()
-          .normalize()
-          .relativize(filePath.toAbsolutePath().normalize());
-    } catch (IllegalArgumentException e) {
-      return filePath;
-    }
   }
 }

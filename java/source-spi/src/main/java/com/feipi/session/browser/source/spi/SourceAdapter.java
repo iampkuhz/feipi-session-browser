@@ -1,6 +1,9 @@
 package com.feipi.session.browser.source.spi;
 
+import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Objects;
 
 /**
  * 会话源适配器 SPI 接口。
@@ -37,12 +40,30 @@ public interface SourceAdapter {
   /**
    * 检查源根目录的安全性和可用性。
    *
-   * <p>实现必须检测符号链接跟踪、路径逃逸和只读状态。
+   * <p>默认实现检测符号链接跟踪和只读状态。路径逃逸检测在根目录层级始终返回 {@code false}， 深层符号链接跟踪在 discover/fingerprint 阶段逐文件检测。
    *
    * @param rootPath 待检查的根目录路径
    * @return 源根安全检查结果
    */
-  SourceRoot checkRoot(Path rootPath);
+  default SourceRoot checkRoot(Path rootPath) {
+    Objects.requireNonNull(rootPath, "rootPath 不得为 null");
+
+    Path resolved;
+    boolean symlinkFollowed;
+    try {
+      resolved = rootPath.toRealPath();
+      Path absNormalized = rootPath.toAbsolutePath().normalize();
+      symlinkFollowed = !resolved.equals(absNormalized);
+    } catch (IOException e) {
+      // 目录不存在或无法访问，返回基本信息
+      return new SourceRoot(rootPath, rootPath.toAbsolutePath().normalize(), false, false, false);
+    }
+
+    boolean pathEscape = false;
+    boolean readOnly = !Files.isWritable(rootPath);
+
+    return new SourceRoot(rootPath, resolved, symlinkFollowed, pathEscape, readOnly);
+  }
 
   /**
    * 从源根目录发现候选会话。

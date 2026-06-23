@@ -1,5 +1,6 @@
 package com.feipi.session.browser.source.codex;
 
+import com.feipi.session.browser.source.spi.SourcePathOps;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -46,7 +47,7 @@ public final class CodexDiscovery {
 
     List<Path> dayDirs = listSortedDirectories(rootPath);
     for (Path dayDir : dayDirs) {
-      if (isHidden(dayDir)) {
+      if (SourcePathOps.isHidden(dayDir)) {
         continue;
       }
       List<Path> sessionFiles = discoverInDayDir(dayDir);
@@ -71,7 +72,7 @@ public final class CodexDiscovery {
 
     List<Path> sessionDirs = listSortedDirectories(dayDir);
     for (Path sessionDir : sessionDirs) {
-      if (isHidden(sessionDir)) {
+      if (SourcePathOps.isHidden(sessionDir)) {
         continue;
       }
       Path sessionFile = sessionDir.resolve(CodexConstants.SESSION_FILE);
@@ -98,7 +99,7 @@ public final class CodexDiscovery {
     List<Path> dirs = new ArrayList<>();
     try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
       for (Path entry : stream) {
-        if (Files.isDirectory(entry) && !isHidden(entry)) {
+        if (Files.isDirectory(entry) && !SourcePathOps.isHidden(entry)) {
           dirs.add(entry);
         }
       }
@@ -108,16 +109,5 @@ public final class CodexDiscovery {
     }
     dirs.sort(Comparator.comparing(p -> p.getFileName().toString()));
     return List.copyOf(dirs);
-  }
-
-  /**
-   * 判断路径是否为隐藏文件/目录（名称以 {@code .} 开头）。
-   *
-   * @param path 待检查路径
-   * @return 隐藏时返回 {@code true}
-   */
-  private static boolean isHidden(Path path) {
-    String name = path.getFileName().toString();
-    return name.startsWith(".");
   }
 }

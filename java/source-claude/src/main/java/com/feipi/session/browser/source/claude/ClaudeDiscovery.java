@@ -1,5 +1,6 @@
 package com.feipi.session.browser.source.claude;
 
+import com.feipi.session.browser.source.spi.SourcePathOps;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -48,7 +49,7 @@ public final class ClaudeDiscovery {
 
     List<Path> projectDirs = listSortedDirectories(projectsDir);
     for (Path projectDir : projectDirs) {
-      if (isHidden(projectDir)) {
+      if (SourcePathOps.isHidden(projectDir)) {
         continue;
       }
       List<Path> sessionFiles = listSortedSessions(projectDir);
@@ -70,7 +71,7 @@ public final class ClaudeDiscovery {
     List<Path> dirs = new ArrayList<>();
     try (DirectoryStream<Path> stream = Files.newDirectoryStream(dir)) {
       for (Path entry : stream) {
-        if (Files.isDirectory(entry) && !isHidden(entry)) {
+        if (Files.isDirectory(entry) && !SourcePathOps.isHidden(entry)) {
           dirs.add(entry);
         }
       }
@@ -93,7 +94,7 @@ public final class ClaudeDiscovery {
     try (DirectoryStream<Path> stream =
         Files.newDirectoryStream(projectDir, "*" + ClaudeConstants.SESSION_FILE_SUFFIX)) {
       for (Path entry : stream) {
-        if (Files.isRegularFile(entry) && !isHidden(entry)) {
+        if (Files.isRegularFile(entry) && !SourcePathOps.isHidden(entry)) {
           sessions.add(entry);
         }
       }
@@ -107,16 +108,5 @@ public final class ClaudeDiscovery {
       sessions = sessions.subList(0, ClaudeConstants.MAX_SESSIONS_PER_PROJECT);
     }
     return List.copyOf(sessions);
-  }
-
-  /**
-   * 判断路径是否为隐藏文件/目录（名称以 {@code .} 开头）。
-   *
-   * @param path 待检查路径
-   * @return 隐藏时返回 {@code true}
-   */
-  private static boolean isHidden(Path path) {
-    String name = path.getFileName().toString();
-    return name.startsWith(".");
   }
 }
