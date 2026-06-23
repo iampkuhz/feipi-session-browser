@@ -830,6 +830,16 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         if not gradlew.exists():
             return []
         return [str(gradlew), 'verifyNoSkippedJavaTests']
+    if gate == 'reuseIncremental':
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
+            return []
+        return [str(gradlew), 'reuseAnalyzeIncremental']
+    if gate == 'reuseBaselineVerify':
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
+            return []
+        return [str(gradlew), 'reuseBaselineVerify']
     return []
 
 

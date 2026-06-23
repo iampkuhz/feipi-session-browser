@@ -5,5 +5,5 @@
   "schemaVersion": 1,
   "policySha256": "c573058a3bec7e26209654125a165e829649708a0d208ee72c1327d1faaa8e6e",
   "baselineSha256": "3b001f1221d4651bf0b354db5a607e0de170abf5484695558d8fdcabe18ddf3d",
-  "bootstrapCommit": "9a295ca2a78d41e860ea080fcfbc68d35b1962c0"
+  "bootstrapCommit": "bfa3f949d7544fa7de0707f359c1b0328d823d4e"
 }
