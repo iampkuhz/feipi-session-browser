@@ -112,6 +112,54 @@ component com.feipi.session.browser.domain.source.SourceRecordUsage inputTokens:
 component com.feipi.session.browser.domain.source.SourceRecordUsage outputTokens: long
 component com.feipi.session.browser.domain.source.SourceToolCall name: String
 component com.feipi.session.browser.domain.source.SourceToolCall toolCallId: String
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow assistantTurns: long
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow claudePrompts: long
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow codexPrompts: long
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow date: String
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow qoderPrompts: long
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow toolCalls: long
+component com.feipi.session.browser.index.sqlite.ActivityTrendRow totalPrompts: long
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow agent: String
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow avgDuration: double
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow avgInputSide: long
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow avgTools: double
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow cacheReuseRatio: Double
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow failedPerSession: Double
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow model: String
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow p95Duration: double
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow sessionCount: long
+component com.feipi.session.browser.index.sqlite.AgentEfficiencyRow toolsPerRound: Double
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow cacheReuseRatio: Double
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow cacheWriteRatio: Double
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow inputSideTotal: long
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow outputRatio: Double
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow tokensPerRound: Double
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow toolsPerRound: Double
+component com.feipi.session.browser.index.sqlite.AggregateMetricsRow totalRounds: long
+component com.feipi.session.browser.index.sqlite.AggregateQueryRepository.ToolDistributionEntry title: String
+component com.feipi.session.browser.index.sqlite.AggregateQueryRepository.ToolDistributionEntry toolCallCount: long
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow agent: String
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow cacheHitPercent: double
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow cacheReadTokens: long
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow freshInputTokens: long
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow model: String
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow projectName: String
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow sessionKey: String
+component com.feipi.session.browser.index.sqlite.CacheHitSessionRow title: String
+component com.feipi.session.browser.index.sqlite.DashboardRow claudeSessions: long
+component com.feipi.session.browser.index.sqlite.DashboardRow codexSessions: long
+component com.feipi.session.browser.index.sqlite.DashboardRow projectCount: long
+component com.feipi.session.browser.index.sqlite.DashboardRow qoderSessions: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalAssistantMessages: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalCacheReadTokens: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalCacheWriteTokens: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalFailedTools: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalFreshInputTokens: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalOutputTokens: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalSessions: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalTokens: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalToolCalls: long
+component com.feipi.session.browser.index.sqlite.DashboardRow totalUserMessages: long
 component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult existingTables: Set<String>
 component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult missingColumns: Map<String, Set<String>>
 component com.feipi.session.browser.index.sqlite.Migration description: String
@@ -121,6 +169,23 @@ component com.feipi.session.browser.index.sqlite.PragmaConfig busyTimeoutMs: int
 component com.feipi.session.browser.index.sqlite.PragmaConfig foreignKeys: boolean
 component com.feipi.session.browser.index.sqlite.PragmaConfig journalMode: String
 component com.feipi.session.browser.index.sqlite.PragmaConfig synchronous: String
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow claudeSessions: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow codexSessions: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow firstSeen: String
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow lastSeen: String
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow projectKey: String
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow projectName: String
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow qoderSessions: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalAssistantMessages: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalCacheReadTokens: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalCacheWriteTokens: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalFailedTools: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalFreshInputTokens: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalOutputTokens: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalSessions: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalTokens: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalToolCalls: long
+component com.feipi.session.browser.index.sqlite.ProjectStatsRow totalUserMessages: long
 component com.feipi.session.browser.index.sqlite.SchemaValidationResult existingTables: Set<String>
 component com.feipi.session.browser.index.sqlite.SchemaValidationResult missingColumns: Map<String, Set<String>>
 component com.feipi.session.browser.index.sqlite.SchemaVersion version: int
@@ -164,6 +229,43 @@ component com.feipi.session.browser.index.sqlite.SessionRow toolCallCount: long
 component com.feipi.session.browser.index.sqlite.SessionRow toolExecutionSeconds: double
 component com.feipi.session.browser.index.sqlite.SessionRow totalTokens: long
 component com.feipi.session.browser.index.sqlite.SessionRow userMessageCount: long
+component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalCacheRead: long
+component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalCacheWrite: long
+component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalFailedTools: long
+component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalFreshInput: long
+component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalOutput: long
+component com.feipi.session.browser.index.sqlite.TokenBreakdownRow totalToolCalls: long
+component com.feipi.session.browser.index.sqlite.ToolDistributionEntry title: String
+component com.feipi.session.browser.index.sqlite.ToolDistributionEntry toolCallCount: long
+component com.feipi.session.browser.index.sqlite.TopProjectRow failedTools: long
+component com.feipi.session.browser.index.sqlite.TopProjectRow projectKey: String
+component com.feipi.session.browser.index.sqlite.TopProjectRow projectName: String
+component com.feipi.session.browser.index.sqlite.TopProjectRow sessionCount: long
+component com.feipi.session.browser.index.sqlite.TopProjectRow totalTokens: long
+component com.feipi.session.browser.index.sqlite.TopProjectRow totalTools: long
+component com.feipi.session.browser.index.sqlite.TopSessionRow agent: String
+component com.feipi.session.browser.index.sqlite.TopSessionRow durationSeconds: double
+component com.feipi.session.browser.index.sqlite.TopSessionRow failedToolCount: long
+component com.feipi.session.browser.index.sqlite.TopSessionRow model: String
+component com.feipi.session.browser.index.sqlite.TopSessionRow projectName: String
+component com.feipi.session.browser.index.sqlite.TopSessionRow sessionKey: String
+component com.feipi.session.browser.index.sqlite.TopSessionRow title: String
+component com.feipi.session.browser.index.sqlite.TopSessionRow toolCallCount: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow cacheReadTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow cacheWriteTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow claudeCount: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow claudeTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow codexCount: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow codexTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow date: String
+component com.feipi.session.browser.index.sqlite.TrendDayRow failedTools: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow freshInputTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow outputTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow qoderCount: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow qoderTokens: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow toolCalls: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow totalCount: long
+component com.feipi.session.browser.index.sqlite.TrendDayRow totalTokens: long
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult consumedResults: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
@@ -298,6 +400,10 @@ constructor com.feipi.session.browser.domain.normalized.SourceUnitRefRange publi
 constructor com.feipi.session.browser.domain.source.SourceRecord public SourceRecord()
 constructor com.feipi.session.browser.domain.source.SourceRecordUsage public SourceRecordUsage()
 constructor com.feipi.session.browser.domain.source.SourceToolCall public SourceToolCall()
+constructor com.feipi.session.browser.index.sqlite.AgentEfficiencyRow public AgentEfficiencyRow()
+constructor com.feipi.session.browser.index.sqlite.AggregateMetricsRow public AggregateMetricsRow()
+constructor com.feipi.session.browser.index.sqlite.AggregateQueryRepository public AggregateQueryRepository(IndexConnection indexConnection)
+constructor com.feipi.session.browser.index.sqlite.CacheHitSessionRow public CacheHitSessionRow()
 constructor com.feipi.session.browser.index.sqlite.ConnectionFactory public ConnectionFactory(String jdbcUrl, PragmaConfig pragmaConfig)
 constructor com.feipi.session.browser.index.sqlite.IndexConnection public IndexConnection( Connection writerConnection, ConnectionFactory readFactory, PragmaConfig pragmaConfig)
 constructor com.feipi.session.browser.index.sqlite.IndexSchema public IndexSchema(MigrationRunner runner)
@@ -305,12 +411,14 @@ constructor com.feipi.session.browser.index.sqlite.Migration public Migration()
 constructor com.feipi.session.browser.index.sqlite.MigrationRunner public MigrationRunner(List<Migration> migrations)
 constructor com.feipi.session.browser.index.sqlite.PragmaConfig public PragmaConfig()
 constructor com.feipi.session.browser.index.sqlite.PragmaConfig public static final PragmaConfig DEFAULTS = new PragmaConfig(" ", " ", 30_000, true)
+constructor com.feipi.session.browser.index.sqlite.ProjectStatsRow public ProjectStatsRow()
 constructor com.feipi.session.browser.index.sqlite.ReadTransaction public ReadTransaction(Connection conn) throws SQLException
 constructor com.feipi.session.browser.index.sqlite.SchemaVersion public SchemaVersion()
 constructor com.feipi.session.browser.index.sqlite.SessionArtifactRow public SessionArtifactRow()
 constructor com.feipi.session.browser.index.sqlite.SessionListAggregate public SessionListAggregate()
 constructor com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionQueryRepository(IndexConnection indexConnection)
 constructor com.feipi.session.browser.index.sqlite.SessionRow public SessionRow()
+constructor com.feipi.session.browser.index.sqlite.TokenBreakdownRow public TokenBreakdownRow()
 constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(Connection conn, int maxEntries)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection, int queueCapacity, int batchLimit)
@@ -456,6 +564,7 @@ field com.feipi.session.browser.normalization.NormalizationConstants public USAG
 field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_EXACT: static final String
 field com.feipi.session.browser.query.api.PageRequest public DEFAULT_LIMIT: static final int
 field com.feipi.session.browser.query.api.PageRequest public MAX_LIMIT: static final int
+field com.feipi.session.browser.query.api.TrendFilter public DEFAULT_DAYS: static final int
 field com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public ANALYZER_VERSION: static final String
 field com.feipi.session.browser.scan.engine.IncrementalScanEngine public CURRENT_SCAN_LOGIC_VERSION: static final int
 field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_HOT_INTERVAL: static final long
@@ -520,6 +629,24 @@ method com.feipi.session.browser.domain.normalized.SourceUnitDirection public st
 method com.feipi.session.browser.domain.source.SourceRecord public static SourceRecord of(String locator, int eventIndex, String eventType)
 method com.feipi.session.browser.domain.source.SourceRecordUsage public long total()
 method com.feipi.session.browser.domain.source.SourceRecordUsage public static SourceRecordUsage empty()
+method com.feipi.session.browser.index.sqlite.AggregateMetricsRow public static AggregateMetricsRow compute( long totalFreshInput, long totalOutput, long totalCacheRead, long totalCacheWrite, long totalTools, long totalRounds)
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public AggregateMetricsRow aggregateMetrics() throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public DashboardRow dashboardStats(AgentFilter agentFilter) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<ActivityTrendRow> activityTrend(TrendFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<AgentEfficiencyRow> agentEfficiency() throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<CacheHitSessionRow> topHighCacheReadSessions(int limit) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<TopProjectRow> topProjectsByTokens(int limit) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<TopProjectRow> topProjectsByTools(int limit) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<TopSessionRow> topFailedToolSessions(int limit) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<TopSessionRow> topSlowestSessions(int limit) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public List<TrendDayRow> trendData(TrendFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public Map<String, Long> agentDistribution() throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public Map<String, Long> modelDistribution() throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public Map<String, ToolDistributionEntry> toolDistribution(int limit) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public PageResult<ProjectStatsRow> listProjects(ProjectListFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public ProjectStatsRow projectStats(String projectKey) throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public TokenBreakdownRow tokenBreakdown() throws SQLException
+method com.feipi.session.browser.index.sqlite.AggregateQueryRepository public long countProjects(ProjectListFilter filter) throws SQLException
 method com.feipi.session.browser.index.sqlite.ArtifactRowMapper public static SessionArtifactRow toArtifactRow( String sessionKey, String artifactPath, String schemaVersion, String sourcePath, double sourceMtime, long sizeBytes, double now)
 method com.feipi.session.browser.index.sqlite.ArtifactRowMapper public static SessionRow toSessionRow( NormalizedSessionArtifact artifact, double fileMtime, String filePath)
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public Connection create() throws SQLException
@@ -690,6 +817,13 @@ method com.feipi.session.browser.query.api.TitleFilter public boolean equals(Obj
 method com.feipi.session.browser.query.api.TitleFilter public boolean isUnfiltered()
 method com.feipi.session.browser.query.api.TitleFilter public int hashCode()
 method com.feipi.session.browser.query.api.TitleFilter public static TitleFilter of(String keyword)
+method com.feipi.session.browser.query.api.TrendFilter public AgentFilter agentFilter()
+method com.feipi.session.browser.query.api.TrendFilter public String toString()
+method com.feipi.session.browser.query.api.TrendFilter public TrendFilter withAgent(AgentFilter agentFilter)
+method com.feipi.session.browser.query.api.TrendFilter public TrendFilter withDays(int days)
+method com.feipi.session.browser.query.api.TrendFilter public int days()
+method com.feipi.session.browser.query.api.TrendFilter public static TrendFilter defaults()
+method com.feipi.session.browser.query.api.TrendFilter public static TrendFilter ofDays(int days)
 method com.feipi.session.browser.reuse.analyzer.AnalyzerMain public static void main(String[] args) throws Exception
 method com.feipi.session.browser.reuse.analyzer.MethodIdGenerator public static String methodId(CtMethod<?> method)
 method com.feipi.session.browser.reuse.analyzer.OwnershipClassifier public static Ownership classify(CtMethod<?> method)
@@ -887,14 +1021,22 @@ type com.feipi.session.browser.domain.normalized.SourceUnitRefRange public recor
 type com.feipi.session.browser.domain.source.SourceRecord public record [core-domain] record SourceRecord( String locator, int eventIndex, String eventType, Optional<String> callId, Optional<String> model, Optional<String> timestamp, Optional<String> turnId, SourceRecordUsage usage, List<SourceToolCall> toolCalls, Optional<String> toolUseId, Optional<String> toolName)
 type com.feipi.session.browser.domain.source.SourceRecordUsage public record [core-domain] record SourceRecordUsage( long inputTokens, long cacheReadInputTokens, long cacheCreationInputTokens, long outputTokens)
 type com.feipi.session.browser.domain.source.SourceToolCall public record [core-domain] record SourceToolCall(String toolCallId, String name)
+type com.feipi.session.browser.index.sqlite.ActivityTrendRow public record [index-sqlite] record ActivityTrendRow( String date, long claudePrompts, long codexPrompts, long qoderPrompts, long totalPrompts, long assistantTurns, long toolCalls)
+type com.feipi.session.browser.index.sqlite.AgentEfficiencyRow public record [index-sqlite] record AgentEfficiencyRow( String agent, String model, long sessionCount, double avgDuration, double p95Duration, long avgInputSide, double avgTools, Double toolsPerRound, Double cacheReuseRatio, Double failedPerSession)
+type com.feipi.session.browser.index.sqlite.AggregateMetricsRow public record [index-sqlite] record AggregateMetricsRow( long inputSideTotal, long totalRounds, Double cacheReuseRatio, Double cacheWriteRatio, Double outputRatio, Double toolsPerRound, Double tokensPerRound)
+type com.feipi.session.browser.index.sqlite.AggregateQueryRepository public class [index-sqlite] final class AggregateQueryRepository
+type com.feipi.session.browser.index.sqlite.AggregateQueryRepository.ToolDistributionEntry public record [index-sqlite] record ToolDistributionEntry(String title, long toolCallCount)
 type com.feipi.session.browser.index.sqlite.ArtifactRowMapper public class [index-sqlite] final class ArtifactRowMapper
+type com.feipi.session.browser.index.sqlite.CacheHitSessionRow public record [index-sqlite] record CacheHitSessionRow( String sessionKey, String title, String agent, String model, long cacheReadTokens, long freshInputTokens, String projectName, double cacheHitPercent)
 type com.feipi.session.browser.index.sqlite.ConnectionFactory public class [index-sqlite] final class ConnectionFactory
+type com.feipi.session.browser.index.sqlite.DashboardRow public record [index-sqlite] record DashboardRow( long totalSessions, long claudeSessions, long codexSessions, long qoderSessions, long projectCount, long totalTokens, long totalFreshInputTokens, long totalCacheReadTokens, long totalCacheWriteTokens, long totalOutputTokens, long totalToolCalls, long totalFailedTools, long totalUserMessages, long totalAssistantMessages)
 type com.feipi.session.browser.index.sqlite.IndexConnection public class [index-sqlite] final class IndexConnection implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.IndexSchema public class [index-sqlite] final class IndexSchema
 type com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
 type com.feipi.session.browser.index.sqlite.Migration public record [index-sqlite] record Migration(SchemaVersion version, String description, String sqlResource)
 type com.feipi.session.browser.index.sqlite.MigrationRunner public class [index-sqlite] final class MigrationRunner
 type com.feipi.session.browser.index.sqlite.PragmaConfig public record [index-sqlite] record PragmaConfig( String journalMode, String synchronous, int busyTimeoutMs, boolean foreignKeys)
+type com.feipi.session.browser.index.sqlite.ProjectStatsRow public record [index-sqlite] record ProjectStatsRow( String projectKey, String projectName, long totalSessions, long claudeSessions, long codexSessions, long qoderSessions, String firstSeen, String lastSeen, long totalFreshInputTokens, long totalOutputTokens, long totalCacheReadTokens, long totalCacheWriteTokens, long totalTokens, long totalToolCalls, long totalFailedTools, long totalUserMessages, long totalAssistantMessages)
 type com.feipi.session.browser.index.sqlite.ReadTransaction public class [index-sqlite] final class ReadTransaction implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
 type com.feipi.session.browser.index.sqlite.SchemaVersion public record [index-sqlite] record SchemaVersion(int version) implements Comparable<SchemaVersion>
@@ -902,6 +1044,11 @@ type com.feipi.session.browser.index.sqlite.SessionArtifactRow public record [in
 type com.feipi.session.browser.index.sqlite.SessionListAggregate public record [index-sqlite] record SessionListAggregate(long sessionCount, long projectCount, long totalTokens)
 type com.feipi.session.browser.index.sqlite.SessionQueryRepository public class [index-sqlite] final class SessionQueryRepository
 type com.feipi.session.browser.index.sqlite.SessionRow public record [index-sqlite] record SessionRow( String sessionKey, String agent, String sessionId, String title, String projectKey, String projectName, String cwd, String startedAt, String endedAt, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, String model, String gitBranch, String source, long userMessageCount, long assistantMessageCount, long toolCallCount, long outputTokens, long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long totalTokens, long failedToolCount, long subagentInstanceCount, double indexedAt, double fileMtime, String filePath)
+type com.feipi.session.browser.index.sqlite.TokenBreakdownRow public record [index-sqlite] record TokenBreakdownRow( long totalFreshInput, long totalOutput, long totalCacheRead, long totalCacheWrite, long totalToolCalls, long totalFailedTools)
+type com.feipi.session.browser.index.sqlite.ToolDistributionEntry public record [index-sqlite] record ToolDistributionEntry(String title, long toolCallCount)
+type com.feipi.session.browser.index.sqlite.TopProjectRow public record [index-sqlite] record TopProjectRow( String projectKey, String projectName, long totalTokens, long totalTools, long failedTools, long sessionCount)
+type com.feipi.session.browser.index.sqlite.TopSessionRow public record [index-sqlite] record TopSessionRow( String sessionKey, String title, String agent, String model, String projectName, double durationSeconds, long failedToolCount, long toolCallCount)
+type com.feipi.session.browser.index.sqlite.TrendDayRow public record [index-sqlite] record TrendDayRow( String date, long claudeCount, long codexCount, long qoderCount, long claudeTokens, long codexTokens, long qoderTokens, long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens, long toolCalls, long failedTools, long totalCount)
 type com.feipi.session.browser.index.sqlite.WriteBatch public class [index-sqlite] final class WriteBatch
 type com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public interface [index-sqlite] interface WriteOperation
 type com.feipi.session.browser.index.sqlite.WriteOperation public interface [index-sqlite] interface WriteOperation
@@ -932,6 +1079,7 @@ type com.feipi.session.browser.query.api.SessionSortField public enum [query-api
 type com.feipi.session.browser.query.api.Sort public class [query-api] final class Sort
 type com.feipi.session.browser.query.api.SortOrder public enum [query-api] enum SortOrder
 type com.feipi.session.browser.query.api.TitleFilter public class [query-api] final class TitleFilter
+type com.feipi.session.browser.query.api.TrendFilter public class [query-api] final class TrendFilter
 type com.feipi.session.browser.reuse.analyzer.AnalyzerMain public class [reuse-analyzer] final class AnalyzerMain
 type com.feipi.session.browser.reuse.analyzer.MethodIdGenerator public class [reuse-analyzer] final class MethodIdGenerator
 type com.feipi.session.browser.reuse.analyzer.OwnershipClassifier public class [reuse-analyzer] final class OwnershipClassifier
