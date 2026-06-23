@@ -150,7 +150,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
   private void processCandidate(Candidate candidate, SourceAdapter adapter, ObjectMapper mapper) {
     String sessionKey = candidate.sessionKey();
     try {
-      Path filePath = Path.of(candidate.fingerprint().path());
+      Path filePath = Path.of(candidate.fingerprint().locator());
       JsonlReader jsonlReader = new JsonlReader();
       JsonlReaderResult readerResult = jsonlReader.read(filePath);
       List<JsonNode> events = readerResult.events();

@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    api(project(":java:source-spi"))
     api(libs.junit.jupiter)
     api(libs.assertj.core)
 }

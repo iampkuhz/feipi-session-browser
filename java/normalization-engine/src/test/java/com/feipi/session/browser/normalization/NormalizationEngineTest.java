@@ -15,6 +15,7 @@ import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -137,7 +138,16 @@ class NormalizationEngineTest {
 
       SourceDiagnostic inputDiag =
           new SourceDiagnostic(
-              ParseSeverity.ERROR, ParseIssueType.BAD_JSON, "bad json line", 5, Optional.empty());
+              ParseSeverity.ERROR,
+              ParseIssueType.BAD_JSON,
+              "bad json line",
+              5,
+              Optional.empty(),
+              ParseIssueType.BAD_JSON.name(),
+              "",
+              OptionalInt.empty(),
+              OptionalInt.empty(),
+              OptionalInt.empty());
 
       NormalizedSessionArtifact artifact =
           ENGINE.normalize("claude_code", List.of(unknown), List.of(inputDiag), List.of());

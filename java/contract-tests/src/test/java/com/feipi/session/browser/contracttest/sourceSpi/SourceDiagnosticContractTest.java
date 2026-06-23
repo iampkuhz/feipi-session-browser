@@ -7,13 +7,14 @@ import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 /**
  * {@link SourceDiagnostic} 契约测试。
  *
- * <p>验证诊断不变量：必填字段非 null、消息非空、行号为正整数。
+ * <p>验证诊断不变量：必填字段非 null、消息非空、行号为正整数、code 非空。
  */
 @DisplayName("Source SPI — SourceDiagnostic 契约")
 class SourceDiagnosticContractTest {
@@ -23,28 +24,65 @@ class SourceDiagnosticContractTest {
   void validDiagnosticCreated() {
     SourceDiagnostic diag =
         new SourceDiagnostic(
-            ParseSeverity.ERROR, ParseIssueType.BAD_JSON, "JSON 格式损坏", 42, Optional.of("{bad"));
+            ParseSeverity.ERROR,
+            ParseIssueType.BAD_JSON,
+            "JSON 格式损坏",
+            42,
+            Optional.of("{bad"),
+            "BAD_JSON",
+            "session/test.jsonl",
+            OptionalInt.of(5),
+            OptionalInt.of(100),
+            OptionalInt.of(200));
     assertThat(diag.severity()).isEqualTo(ParseSeverity.ERROR);
     assertThat(diag.issueType()).isEqualTo(ParseIssueType.BAD_JSON);
     assertThat(diag.message()).isEqualTo("JSON 格式损坏");
     assertThat(diag.lineNo()).isEqualTo(42);
     assertThat(diag.preview()).contains("{bad");
+    assertThat(diag.code()).isEqualTo("BAD_JSON");
+    assertThat(diag.locator()).isEqualTo("session/test.jsonl");
+    assertThat(diag.column()).hasValue(5);
+    assertThat(diag.byteRangeStart()).hasValue(100);
+    assertThat(diag.byteRangeEnd()).hasValue(200);
   }
 
   @Test
-  @DisplayName("preview 可选")
-  void previewOptional() {
+  @DisplayName("preview、column、byteRange 可选")
+  void optionalFieldsAreOptional() {
     SourceDiagnostic diag =
         new SourceDiagnostic(
-            ParseSeverity.WARNING, ParseIssueType.NON_OBJECT_SKIPPED, "跳过非对象", 1, Optional.empty());
+            ParseSeverity.WARNING,
+            ParseIssueType.NON_OBJECT_SKIPPED,
+            "跳过非对象",
+            1,
+            Optional.empty(),
+            "NON_OBJECT_SKIPPED",
+            "",
+            OptionalInt.empty(),
+            OptionalInt.empty(),
+            OptionalInt.empty());
     assertThat(diag.preview()).isEmpty();
+    assertThat(diag.column()).isEmpty();
+    assertThat(diag.byteRangeStart()).isEmpty();
+    assertThat(diag.byteRangeEnd()).isEmpty();
   }
 
   @Test
   @DisplayName("null severity 抛出 NullPointerException")
   void nullSeverityRejected() {
     assertThatThrownBy(
-            () -> new SourceDiagnostic(null, ParseIssueType.BAD_JSON, "msg", 1, Optional.empty()))
+            () ->
+                new SourceDiagnostic(
+                    null,
+                    ParseIssueType.BAD_JSON,
+                    "msg",
+                    1,
+                    Optional.empty(),
+                    "BAD_JSON",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
         .isInstanceOf(NullPointerException.class);
   }
 
@@ -52,7 +90,18 @@ class SourceDiagnosticContractTest {
   @DisplayName("null issueType 抛出 NullPointerException")
   void nullIssueTypeRejected() {
     assertThatThrownBy(
-            () -> new SourceDiagnostic(ParseSeverity.INFO, null, "msg", 1, Optional.empty()))
+            () ->
+                new SourceDiagnostic(
+                    ParseSeverity.INFO,
+                    null,
+                    "msg",
+                    1,
+                    Optional.empty(),
+                    "BAD_JSON",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
         .isInstanceOf(NullPointerException.class);
   }
 
@@ -62,7 +111,16 @@ class SourceDiagnosticContractTest {
     assertThatThrownBy(
             () ->
                 new SourceDiagnostic(
-                    ParseSeverity.INFO, ParseIssueType.BAD_JSON, null, 1, Optional.empty()))
+                    ParseSeverity.INFO,
+                    ParseIssueType.BAD_JSON,
+                    null,
+                    1,
+                    Optional.empty(),
+                    "BAD_JSON",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
         .isInstanceOf(NullPointerException.class);
   }
 
@@ -72,7 +130,16 @@ class SourceDiagnosticContractTest {
     assertThatThrownBy(
             () ->
                 new SourceDiagnostic(
-                    ParseSeverity.INFO, ParseIssueType.BAD_JSON, "", 1, Optional.empty()))
+                    ParseSeverity.INFO,
+                    ParseIssueType.BAD_JSON,
+                    "",
+                    1,
+                    Optional.empty(),
+                    "BAD_JSON",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("message");
   }
@@ -83,7 +150,16 @@ class SourceDiagnosticContractTest {
     assertThatThrownBy(
             () ->
                 new SourceDiagnostic(
-                    ParseSeverity.INFO, ParseIssueType.BAD_JSON, "msg", 0, Optional.empty()))
+                    ParseSeverity.INFO,
+                    ParseIssueType.BAD_JSON,
+                    "msg",
+                    0,
+                    Optional.empty(),
+                    "BAD_JSON",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("lineNo");
   }
@@ -94,9 +170,57 @@ class SourceDiagnosticContractTest {
     assertThatThrownBy(
             () ->
                 new SourceDiagnostic(
-                    ParseSeverity.INFO, ParseIssueType.BAD_JSON, "msg", -5, Optional.empty()))
+                    ParseSeverity.INFO,
+                    ParseIssueType.BAD_JSON,
+                    "msg",
+                    -5,
+                    Optional.empty(),
+                    "BAD_JSON",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("lineNo");
+  }
+
+  @Test
+  @DisplayName("null code 抛出 NullPointerException")
+  void nullCodeRejected() {
+    assertThatThrownBy(
+            () ->
+                new SourceDiagnostic(
+                    ParseSeverity.INFO,
+                    ParseIssueType.BAD_JSON,
+                    "msg",
+                    1,
+                    Optional.empty(),
+                    null,
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
+        .isInstanceOf(NullPointerException.class);
+  }
+
+  @Test
+  @DisplayName("空 code 抛出 IllegalArgumentException")
+  void emptyCodeRejected() {
+    assertThatThrownBy(
+            () ->
+                new SourceDiagnostic(
+                    ParseSeverity.INFO,
+                    ParseIssueType.BAD_JSON,
+                    "msg",
+                    1,
+                    Optional.empty(),
+                    "",
+                    "",
+                    OptionalInt.empty(),
+                    OptionalInt.empty(),
+                    OptionalInt.empty()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("code");
   }
 
   @Test

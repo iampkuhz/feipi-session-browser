@@ -13,36 +13,38 @@ import java.util.Optional;
  * <p>不变量：
  *
  * <ul>
- *   <li>{@code path} 不得为空。
+ *   <li>{@code locator} 不得为空，应为相对路径或稳定标识，不得使用绝对 home 路径作为持久身份。
  *   <li>{@code sourceId} 不得为 null。
  *   <li>{@code sizeBytes} 非负。
  *   <li>{@code lastModifiedMs} 非负。
  * </ul>
  *
- * @param path 源文件的绝对路径字符串
+ * @param locator 源文件的稳定标识（相对路径或逻辑定位），不得为绝对 home 路径
  * @param sourceId 所属源适配器标识
  * @param sizeBytes 文件大小（字节）
  * @param lastModifiedMs 最后修改时间（毫秒时间戳）
  * @param contentHash 内容哈希值，{@code Absent} 表示未计算
+ * @param hashAlgorithm 内容哈希算法名称（如 {@code "SHA-256"}），{@code empty} 表示未指定
  */
 @DomainModel
 public record SourceFingerprint(
-    @CoreField String path,
+    @CoreField String locator,
     @CoreField SourceId sourceId,
     @CoreField long sizeBytes,
     @CoreField long lastModifiedMs,
-    @CoreField Optional<String> contentHash) {
+    @CoreField Optional<String> contentHash,
+    @CoreField Optional<String> hashAlgorithm) {
 
   /**
    * 紧凑构造器，验证指纹不变量。
    *
    * @throws NullPointerException 当必填字段为 null 时
-   * @throws IllegalArgumentException 当路径为空或数值字段为负时
+   * @throws IllegalArgumentException 当 locator 为空或数值字段为负时
    */
   public SourceFingerprint {
-    Objects.requireNonNull(path, "path 不得为 null");
-    if (path.isEmpty()) {
-      throw new IllegalArgumentException("path 不得为空");
+    Objects.requireNonNull(locator, "locator 不得为 null");
+    if (locator.isEmpty()) {
+      throw new IllegalArgumentException("locator 不得为空");
     }
     Objects.requireNonNull(sourceId, "sourceId 不得为 null");
     if (sizeBytes < 0) {
@@ -58,19 +60,26 @@ public record SourceFingerprint(
             throw new IllegalArgumentException("contentHash 不得为空字符串");
           }
         });
+    hashAlgorithm = hashAlgorithm == null ? Optional.empty() : hashAlgorithm;
+    hashAlgorithm.ifPresent(
+        algo -> {
+          if (algo.isEmpty()) {
+            throw new IllegalArgumentException("hashAlgorithm 不得为空字符串");
+          }
+        });
   }
 
   /**
-   * 判断该指纹与另一指纹是否指向同一文件（仅比较路径和源标识）。
+   * 判断该指纹与另一指纹是否指向同一文件（仅比较 locator 和源标识）。
    *
    * @param other 另一个指纹
-   * @return 路径和源标识相同时返回 {@code true}
+   * @return locator 和源标识相同时返回 {@code true}
    */
   public boolean sameFile(SourceFingerprint other) {
     if (other == null) {
       return false;
     }
-    return path.equals(other.path) && sourceId == other.sourceId;
+    return locator.equals(other.locator) && sourceId == other.sourceId;
   }
 
   /**

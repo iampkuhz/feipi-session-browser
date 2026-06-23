@@ -19,6 +19,9 @@ public final class SourceConstants {
   /** 诊断预览文本的最大长度（字符数）。 */
   public static final int MAX_PREVIEW_LENGTH = 200;
 
+  /** 默认内容哈希算法。 */
+  public static final String DEFAULT_HASH_ALGORITHM = "SHA-256";
+
   private SourceConstants() {
     // 禁止实例化
   }

@@ -10,6 +10,7 @@ import com.feipi.session.browser.source.spi.SourceOutcome;
 import com.feipi.session.browser.source.spi.SourceResult;
 import java.util.List;
 import java.util.Optional;
+import java.util.OptionalInt;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -54,11 +55,14 @@ class SourceOutcomeContractTest {
   @Test
   @DisplayName("Success 结果 outcome 为 SUCCESS")
   void successResult() {
-    SourceResult.Success result = new SourceResult.Success(List.of(), 5);
+    SourceResult.Success result = new SourceResult.Success(List.of(), 5, List.of(), null, null);
     assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
     assertThat(result.candidateCount()).isEqualTo(5);
     assertThat(result.diagnostics()).isEmpty();
     assertThat(result.message()).contains("成功");
+    assertThat(result.records()).isEmpty();
+    assertThat(result.fingerprint()).isNull();
+    assertThat(result.locator()).isNull();
   }
 
   @Test
@@ -98,8 +102,13 @@ class SourceOutcomeContractTest {
             ParseIssueType.NON_OBJECT_SKIPPED,
             "跳过非对象",
             10,
-            Optional.empty());
-    SourceResult.Success result = new SourceResult.Success(List.of(diag), 3);
+            Optional.empty(),
+            "NON_OBJECT_SKIPPED",
+            "",
+            OptionalInt.empty(),
+            OptionalInt.empty(),
+            OptionalInt.empty());
+    SourceResult.Success result = new SourceResult.Success(List.of(diag), 3, List.of(), null, null);
     assertThat(result.diagnostics()).hasSize(1);
     assertThat(result.diagnostics().get(0).severity()).isEqualTo(ParseSeverity.WARNING);
   }
@@ -107,7 +116,7 @@ class SourceOutcomeContractTest {
   @Test
   @DisplayName("Success 负候选项数量抛出异常")
   void negativeCandidateCountRejected() {
-    assertThatThrownBy(() -> new SourceResult.Success(List.of(), -1))
+    assertThatThrownBy(() -> new SourceResult.Success(List.of(), -1, List.of(), null, null))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("candidateCount");
   }
@@ -139,7 +148,7 @@ class SourceOutcomeContractTest {
   @DisplayName("sealed 模式匹配覆盖所有分支")
   void sealedPatternMatchingExhaustive() {
     SourceResult[] results = {
-      new SourceResult.Success(List.of(), 1),
+      new SourceResult.Success(List.of(), 1, List.of(), null, null),
       new SourceResult.RetryableIncomplete(List.of(), "retry"),
       new SourceResult.Skipped(List.of(), "skip"),
       new SourceResult.Fatal(List.of(), "fatal")
@@ -159,14 +168,23 @@ class SourceOutcomeContractTest {
   @Test
   @DisplayName("诊断列表不可变")
   void diagnosticsImmutable() {
-    SourceResult.Success result = new SourceResult.Success(List.of(), 0);
+    SourceResult.Success result = new SourceResult.Success(List.of(), 0, List.of(), null, null);
     assertThatThrownBy(
             () ->
                 result
                     .diagnostics()
                     .add(
                         new SourceDiagnostic(
-                            ParseSeverity.INFO, ParseIssueType.BAD_JSON, "x", 1, Optional.empty())))
+                            ParseSeverity.INFO,
+                            ParseIssueType.BAD_JSON,
+                            "x",
+                            1,
+                            Optional.empty(),
+                            "BAD_JSON",
+                            "",
+                            OptionalInt.empty(),
+                            OptionalInt.empty(),
+                            OptionalInt.empty())))
         .isInstanceOf(UnsupportedOperationException.class);
   }
 }

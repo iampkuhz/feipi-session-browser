@@ -15,6 +15,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * 纯函数归一化引擎。
@@ -88,7 +89,12 @@ public final class NormalizationEngine {
               ParseIssueType.NON_OBJECT_SKIPPED,
               "Unknown event type: " + type,
               1,
-              Optional.empty());
+              Optional.empty(),
+              ParseIssueType.NON_OBJECT_SKIPPED.name(),
+              "",
+              OptionalInt.empty(),
+              OptionalInt.empty(),
+              OptionalInt.empty());
       allDiagnostics.add(toMap(unknownDiag));
     }
 
@@ -111,6 +117,13 @@ public final class NormalizationEngine {
     map.put("issueType", diag.issueType().name());
     map.put("message", diag.message());
     map.put("lineNo", diag.lineNo());
+    map.put("code", diag.code());
+    if (!diag.locator().isEmpty()) {
+      map.put("locator", diag.locator());
+    }
+    diag.column().ifPresent(c -> map.put("column", c));
+    diag.byteRangeStart().ifPresent(b -> map.put("byteRangeStart", b));
+    diag.byteRangeEnd().ifPresent(b -> map.put("byteRangeEnd", b));
     diag.preview().ifPresent(p -> map.put("preview", p));
     return map;
   }

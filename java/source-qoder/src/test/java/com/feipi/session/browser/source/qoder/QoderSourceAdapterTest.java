@@ -108,7 +108,8 @@ class QoderSourceAdapterTest {
 
       assertThat(stream.size()).isEqualTo(2);
       List<Candidate> items = stream.orderedItems();
-      assertThat(items.get(0).fingerprint().path()).isLessThan(items.get(1).fingerprint().path());
+      assertThat(items.get(0).fingerprint().locator())
+          .isLessThan(items.get(1).fingerprint().locator());
     }
 
     @Test
@@ -178,7 +179,7 @@ class QoderSourceAdapterTest {
 
       SourceFingerprint fp = adapter.fingerprint(file);
 
-      assertThat(fp.path()).isEqualTo(file.toAbsolutePath().toString());
+      assertThat(fp.locator()).isEqualTo(file.toAbsolutePath().toString());
       assertThat(fp.sourceId()).isEqualTo(SourceId.QODER);
       assertThat(fp.sizeBytes()).isEqualTo(content.getBytes(StandardCharsets.UTF_8).length);
       assertThat(fp.lastModifiedMs()).isGreaterThan(0);
@@ -231,7 +232,7 @@ class QoderSourceAdapterTest {
       SourceFingerprint fp = adapter.fingerprint(file);
       Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
 
-      SourceResult result = adapter.parse(candidate, Optional.empty());
+      SourceResult result = adapter.parse(candidate, null);
 
       assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
       assertThat(result).isInstanceOf(SourceResult.Success.class);
@@ -248,10 +249,11 @@ class QoderSourceAdapterTest {
               SourceId.QODER,
               0,
               0,
+              Optional.empty(),
               Optional.empty());
       Candidate candidate = new Candidate(fp, "test/missing", "test", java.util.Map.of());
 
-      SourceResult result = adapter.parse(candidate, Optional.empty());
+      SourceResult result = adapter.parse(candidate, null);
 
       assertThat(result.outcome()).isEqualTo(SourceOutcome.SKIPPED);
       assertThat(result).isInstanceOf(SourceResult.Skipped.class);
@@ -268,7 +270,7 @@ class QoderSourceAdapterTest {
       SourceFingerprint fp = adapter.fingerprint(file);
       Candidate candidate = new Candidate(fp, "test/corrupt", "test", java.util.Map.of());
 
-      SourceResult result = adapter.parse(candidate, Optional.empty());
+      SourceResult result = adapter.parse(candidate, null);
 
       assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
       assertThat(result).isInstanceOf(SourceResult.Success.class);
@@ -286,7 +288,7 @@ class QoderSourceAdapterTest {
       SourceFingerprint fp = adapter.fingerprint(file);
       Candidate candidate = new Candidate(fp, "test/empty", "test", java.util.Map.of());
 
-      SourceResult result = adapter.parse(candidate, Optional.empty());
+      SourceResult result = adapter.parse(candidate, null);
 
       assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
       SourceResult.Success success = (SourceResult.Success) result;
@@ -303,7 +305,7 @@ class QoderSourceAdapterTest {
       Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
 
       SourceAdapter.CancellationSignal cancelled = () -> true;
-      SourceResult result = adapter.parse(candidate, Optional.of(cancelled));
+      SourceResult result = adapter.parse(candidate, cancelled);
 
       assertThat(result.outcome()).isEqualTo(SourceOutcome.SKIPPED);
     }

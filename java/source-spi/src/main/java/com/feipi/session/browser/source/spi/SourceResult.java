@@ -11,7 +11,7 @@ import java.util.Objects;
  * <p>将源适配器操作的最终状态封装为不可变的密封接口，禁止使用 null 或 boolean 表达模糊语义。每种状态对应一个 record 实现：
  *
  * <ul>
- *   <li>{@link Success} — 操作成功完成。
+ *   <li>{@link Success} — 操作成功完成，携带源中性解析记录、诊断信息和定位器。
  *   <li>{@link RetryableIncomplete} — 操作未完成但可重试。
  *   <li>{@link Skipped} — 操作被有意跳过。
  *   <li>{@link Fatal} — 操作因不可恢复错误终止。
@@ -53,10 +53,20 @@ public sealed interface SourceResult
   /**
    * 操作成功完成的结果。
    *
+   * <p>携带源中性解析记录、诊断信息、处理计数、指纹和定位器。
+   *
    * @param diagnostics 诊断信息列表
    * @param candidateCount 成功处理的候选项数量
+   * @param records 源中性已解析记录列表，可能为空但永远不为 null
+   * @param fingerprint 源文件指纹，{@code null} 表示不适用
+   * @param locator 源定位标识，{@code null} 表示不适用
    */
-  record Success(List<SourceDiagnostic> diagnostics, @CoreField int candidateCount)
+  record Success(
+      List<SourceDiagnostic> diagnostics,
+      @CoreField int candidateCount,
+      List<ParsedRecord> records,
+      SourceFingerprint fingerprint,
+      String locator)
       implements SourceResult {
 
     /**
@@ -74,6 +84,7 @@ public sealed interface SourceResult
       if (candidateCount < 0) {
         throw new IllegalArgumentException("candidateCount 不得为负: " + candidateCount);
       }
+      records = records == null ? List.of() : List.copyOf(records);
     }
 
     @Override

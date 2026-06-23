@@ -47,7 +47,7 @@ import java.util.logging.Logger;
  *   <li>{@link #discover(Path)} 对同一输入产生确定排序的结果。
  *   <li>{@link #fingerprint(Path)} 包含 SHA-256 内容哈希。
  *   <li>{@link #checkRoot(Path)} 检测符号链接、路径逃逸和只读状态。
- *   <li>{@link #parse(Candidate, Optional)} 不抛出异常表示可预期失败。
+ *   <li>{@link #parse(Candidate, CancellationSignal)} 不抛出异常表示可预期失败。
  * </ul>
  */
 public final class CodexSourceAdapter implements SourceAdapter {
@@ -138,7 +138,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
       }
     }
 
-    Comparator<Candidate> byPath = Comparator.comparing(c -> c.fingerprint().path());
+    Comparator<Candidate> byPath = Comparator.comparing(c -> c.fingerprint().locator());
     return BoundedStream.of(
         candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(byPath));
   }
@@ -164,12 +164,18 @@ public final class CodexSourceAdapter implements SourceAdapter {
           SourceId.CODEX,
           size,
           lastModified,
-          Optional.of(hash));
+          Optional.of(hash),
+          Optional.of(HASH_ALGORITHM));
     } catch (IOException e) {
       // 文件不存在或无法访问，返回零值指纹
       LOG.log(Level.FINE, "无法生成文件指纹: " + filePath, e);
       return new SourceFingerprint(
-          filePath.toAbsolutePath().toString(), SourceId.CODEX, 0, 0, Optional.empty());
+          filePath.toAbsolutePath().toString(),
+          SourceId.CODEX,
+          0,
+          0,
+          Optional.empty(),
+          Optional.empty());
     }
   }
 
@@ -184,15 +190,15 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @return 密封的解析结果
    */
   @Override
-  public SourceResult parse(Candidate candidate, Optional<CancellationSignal> cancellation) {
+  public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
     Objects.requireNonNull(candidate, "candidate 不得为 null");
 
     // 检查取消信号
-    if (cancellation != null && cancellation.isPresent() && cancellation.get().isCancelled()) {
+    if (cancellation != null && cancellation.isCancelled()) {
       return new SourceResult.Skipped(List.of(), "解析已取消");
     }
 
-    Path filePath = Path.of(candidate.fingerprint().path());
+    Path filePath = Path.of(candidate.fingerprint().locator());
 
     // 文件不存在时返回跳过结果
     if (!Files.exists(filePath)) {
@@ -203,7 +209,12 @@ public final class CodexSourceAdapter implements SourceAdapter {
       JsonlReaderResult result = jsonlReader.read(filePath);
       List<SourceDiagnostic> diagnostics = result.diagnostics();
       int eventCount = result.events().size();
-      return new SourceResult.Success(diagnostics, eventCount);
+      return new SourceResult.Success(
+          diagnostics,
+          eventCount,
+          List.of(),
+          candidate.fingerprint(),
+          candidate.fingerprint().locator());
     } catch (IOException e) {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);

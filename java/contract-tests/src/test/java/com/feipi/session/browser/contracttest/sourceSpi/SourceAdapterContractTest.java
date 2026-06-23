@@ -4,16 +4,15 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
-import com.feipi.session.browser.source.spi.FakeSourceAdapter;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourceOutcome;
 import com.feipi.session.browser.source.spi.SourceResult;
 import com.feipi.session.browser.source.spi.SourceRoot;
+import com.feipi.session.browser.testsupport.source.FakeSourceAdapter;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -43,7 +42,7 @@ class SourceAdapterContractTest {
   }
 
   @Test
-  @DisplayName("discover 返回按路径排序的确定性结果")
+  @DisplayName("discover 返回按 locator 排序的确定性结果")
   void discoverReturnsDeterministicOrder() {
     Candidate c1 = FakeSourceAdapter.testCandidate("/z.jsonl", "s1", SourceId.CODEX);
     Candidate c2 = FakeSourceAdapter.testCandidate("/a.jsonl", "s2", SourceId.CODEX);
@@ -53,7 +52,7 @@ class SourceAdapterContractTest {
     BoundedStream<Candidate> stream = adapter.discover(Path.of("/data"));
 
     assertThat(stream.orderedItems())
-        .extracting(c -> c.fingerprint().path())
+        .extracting(c -> c.fingerprint().locator())
         .containsExactly("/a.jsonl", "/m.jsonl", "/z.jsonl");
   }
 
@@ -80,7 +79,7 @@ class SourceAdapterContractTest {
     Candidate c = FakeSourceAdapter.testCandidate("/test.jsonl", "s1", SourceId.CODEX);
     FakeSourceAdapter adapter =
         new FakeSourceAdapter(SourceId.CODEX, List.of(c), SourceOutcome.SUCCESS);
-    SourceResult result = adapter.parse(c, Optional.empty());
+    SourceResult result = adapter.parse(c, null);
     assertThat(result).isInstanceOf(SourceResult.Success.class);
     assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
   }
@@ -91,7 +90,7 @@ class SourceAdapterContractTest {
     Candidate c = FakeSourceAdapter.testCandidate("/test.jsonl", "s1", SourceId.CODEX);
     FakeSourceAdapter adapter =
         new FakeSourceAdapter(SourceId.CODEX, List.of(c), SourceOutcome.RETRYABLE_INCOMPLETE);
-    SourceResult result = adapter.parse(c, Optional.empty());
+    SourceResult result = adapter.parse(c, null);
     assertThat(result).isInstanceOf(SourceResult.RetryableIncomplete.class);
     assertThat(result.outcome()).isEqualTo(SourceOutcome.RETRYABLE_INCOMPLETE);
   }
@@ -102,7 +101,7 @@ class SourceAdapterContractTest {
     Candidate c = FakeSourceAdapter.testCandidate("/test.jsonl", "s1", SourceId.CODEX);
     FakeSourceAdapter adapter =
         new FakeSourceAdapter(SourceId.CODEX, List.of(c), SourceOutcome.SKIPPED);
-    SourceResult result = adapter.parse(c, Optional.empty());
+    SourceResult result = adapter.parse(c, null);
     assertThat(result).isInstanceOf(SourceResult.Skipped.class);
   }
 
@@ -112,7 +111,7 @@ class SourceAdapterContractTest {
     Candidate c = FakeSourceAdapter.testCandidate("/test.jsonl", "s1", SourceId.CODEX);
     FakeSourceAdapter adapter =
         new FakeSourceAdapter(SourceId.CODEX, List.of(c), SourceOutcome.FATAL);
-    SourceResult result = adapter.parse(c, Optional.empty());
+    SourceResult result = adapter.parse(c, null);
     assertThat(result).isInstanceOf(SourceResult.Fatal.class);
     assertThat(result.outcome()).isEqualTo(SourceOutcome.FATAL);
   }
@@ -124,7 +123,7 @@ class SourceAdapterContractTest {
     FakeSourceAdapter adapter =
         new FakeSourceAdapter(SourceId.CODEX, List.of(c), SourceOutcome.SUCCESS);
     SourceAdapter.CancellationSignal cancelled = () -> true;
-    SourceResult result = adapter.parse(c, Optional.of(cancelled));
+    SourceResult result = adapter.parse(c, cancelled);
     assertThat(result).isInstanceOf(SourceResult.Skipped.class);
   }
 
@@ -135,7 +134,7 @@ class SourceAdapterContractTest {
     FakeSourceAdapter adapter =
         new FakeSourceAdapter(SourceId.CODEX, List.of(c), SourceOutcome.SUCCESS);
     SourceAdapter.CancellationSignal notCancelled = () -> false;
-    SourceResult result = adapter.parse(c, Optional.of(notCancelled));
+    SourceResult result = adapter.parse(c, notCancelled);
     assertThat(result.outcome()).isEqualTo(SourceOutcome.SUCCESS);
   }
 

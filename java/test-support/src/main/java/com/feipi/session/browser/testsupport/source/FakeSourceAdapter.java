@@ -1,10 +1,24 @@
-package com.feipi.session.browser.source.spi;
+package com.feipi.session.browser.testsupport.source;
 
+import com.feipi.session.browser.source.spi.BoundedStream;
+import com.feipi.session.browser.source.spi.Candidate;
+import com.feipi.session.browser.source.spi.ParseIssueType;
+import com.feipi.session.browser.source.spi.ParseSeverity;
+import com.feipi.session.browser.source.spi.SourceAdapter;
+import com.feipi.session.browser.source.spi.SourceConstants;
+import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import com.feipi.session.browser.source.spi.SourceFingerprint;
+import com.feipi.session.browser.source.spi.SourceId;
+import com.feipi.session.browser.source.spi.SourceOutcome;
+import com.feipi.session.browser.source.spi.SourceResult;
+import com.feipi.session.browser.source.spi.SourceRoot;
 import java.nio.file.Path;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * 符合 SPI 契约的测试用假适配器。
@@ -14,7 +28,7 @@ import java.util.Optional;
  * <p>该适配器保证：
  *
  * <ul>
- *   <li>发现结果按路径排序（确定性）。
+ *   <li>发现结果按 locator 排序（确定性）。
  *   <li>指纹包含固定内容哈希。
  *   <li>解析结果可配置为四种状态之一。
  * </ul>
@@ -65,23 +79,29 @@ public final class FakeSourceAdapter implements SourceAdapter {
   @Override
   public BoundedStream<Candidate> discover(Path rootPath) {
     List<Candidate> sorted =
-        candidates.stream().sorted(Comparator.comparing(c -> c.fingerprint().path())).toList();
+        candidates.stream().sorted(Comparator.comparing(c -> c.fingerprint().locator())).toList();
     return BoundedStream.of(sorted, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.empty());
   }
 
   @Override
   public SourceFingerprint fingerprint(Path filePath) {
-    return new SourceFingerprint(filePath.toString(), sourceId, 0, 0, Optional.of("fake-hash"));
+    return new SourceFingerprint(
+        filePath.toString(),
+        sourceId,
+        0,
+        0,
+        Optional.of("fake-hash"),
+        Optional.of(SourceConstants.DEFAULT_HASH_ALGORITHM));
   }
 
   @Override
-  public SourceResult parse(Candidate candidate, Optional<CancellationSignal> cancellation) {
-    if (cancellation.isPresent() && cancellation.get().isCancelled()) {
+  public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
+    if (cancellation != null && cancellation.isCancelled()) {
       return new SourceResult.Skipped(List.of(), "cancelled");
     }
     List<SourceDiagnostic> emptyDiag = List.of();
     return switch (parseOutcome) {
-      case SUCCESS -> new SourceResult.Success(emptyDiag, 1);
+      case SUCCESS -> new SourceResult.Success(emptyDiag, 1, List.of(), null, null);
       case RETRYABLE_INCOMPLETE -> new SourceResult.RetryableIncomplete(emptyDiag, "fake retry");
       case SKIPPED -> new SourceResult.Skipped(emptyDiag, "fake skip");
       case FATAL -> new SourceResult.Fatal(emptyDiag, "fake fatal");
@@ -91,14 +111,16 @@ public final class FakeSourceAdapter implements SourceAdapter {
   /**
    * 创建符合 SPI 契约的测试候选项。
    *
-   * @param path 文件路径
+   * @param locator 文件标识（相对路径或逻辑定位）
    * @param sessionKey 会话键
    * @param sourceId 源标识
    * @return 测试候选项
    */
-  public static Candidate testCandidate(String path, String sessionKey, SourceId sourceId) {
-    SourceFingerprint fp = new SourceFingerprint(path, sourceId, 100, 1000L, Optional.of("abc"));
-    return new Candidate(fp, sessionKey, "test-project", java.util.Map.of());
+  public static Candidate testCandidate(String locator, String sessionKey, SourceId sourceId) {
+    SourceFingerprint fp =
+        new SourceFingerprint(
+            locator, sourceId, 100, 1000L, Optional.of("abc"), Optional.of("SHA-256"));
+    return new Candidate(fp, sessionKey, "test-project", Map.of());
   }
 
   /**
@@ -112,7 +134,16 @@ public final class FakeSourceAdapter implements SourceAdapter {
   public static SourceDiagnostic testDiagnostic(
       ParseSeverity severity, ParseIssueType issueType, int lineNo) {
     return new SourceDiagnostic(
-        severity, issueType, "测试诊断信息: " + issueType, lineNo, Optional.of("preview"));
+        severity,
+        issueType,
+        "测试诊断信息: " + issueType,
+        lineNo,
+        Optional.of("preview"),
+        issueType.name(),
+        "test-locator",
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
   }
 
   /**

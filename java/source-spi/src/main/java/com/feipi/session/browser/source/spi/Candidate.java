@@ -16,7 +16,7 @@ import java.util.Objects;
  * <p>不变量：
  *
  * <ul>
- *   <li>{@code fingerprint} 不得为 null。
+ *   <li>{@code fingerprint} 不得为 null，其 {@code locator} 应为稳定标识。
  *   <li>{@code sessionKey} 不得为 null 或空。
  *   <li>{@code metadata} 不可变，不含 null 值。
  * </ul>

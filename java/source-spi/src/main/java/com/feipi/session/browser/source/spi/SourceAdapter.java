@@ -1,7 +1,6 @@
 package com.feipi.session.browser.source.spi;
 
 import java.nio.file.Path;
-import java.util.Optional;
 
 /**
  * 会话源适配器 SPI 接口。
@@ -15,6 +14,7 @@ import java.util.Optional;
  *   <li>批次处理层接收候选项（{@link Candidate}），而非原始根目录。
  *   <li>所有操作返回密封结果类型（{@link SourceResult}），禁止 null 返回值。
  *   <li>发现结果按确定性排序，通过 {@link BoundedStream} 限制大小。
+ *   <li>SPI 参数禁止使用 {@code Optional}，可选语义通过 nullable 或专用类型表达。
  * </ul>
  *
  * <p>实现方必须保证：
@@ -57,7 +57,8 @@ public interface SourceAdapter {
   /**
    * 为指定源文件生成指纹。
    *
-   * <p>指纹必须包含路径、源标识、文件大小和修改时间。 当实现支持内容哈希时，应填充 {@code contentHash} 字段， 使其作为 mtime 之外的独立一致性证据。
+   * <p>指纹必须包含 locator（相对路径或稳定标识）、源标识、文件大小和修改时间。 当实现支持内容哈希时，应填充 {@code contentHash} 字段， 使其作为 mtime
+   * 之外的独立一致性证据，并明确指定 {@code hashAlgorithm}。
    *
    * @param filePath 源文件路径
    * @return 文件指纹
@@ -69,11 +70,13 @@ public interface SourceAdapter {
    *
    * <p>解析结果封装为密封类型，明确区分成功、可重试、跳过和致命错误。 实现不得抛出异常来表示可预期的解析失败，应通过 {@link SourceResult} 返回。
    *
+   * <p>解析成功时必须携带源中性解析记录（{@link ParsedRecord}）、诊断信息、 指纹和定位器。
+   *
    * @param candidate 待解析的候选项
-   * @param cancellation 可选的取消信号
+   * @param cancellation 可选的取消信号，{@code null} 表示不取消
    * @return 密封的解析结果
    */
-  SourceResult parse(Candidate candidate, Optional<CancellationSignal> cancellation);
+  SourceResult parse(Candidate candidate, CancellationSignal cancellation);
 
   /**
    * 取消信号接口。

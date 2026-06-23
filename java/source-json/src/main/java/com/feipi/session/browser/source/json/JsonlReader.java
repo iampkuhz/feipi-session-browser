@@ -16,6 +16,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 
 /**
  * 容错 JSONL 读取器。
@@ -280,7 +281,12 @@ public final class JsonlReader {
         ParseIssueType.BAD_JSON,
         "Unparseable JSON at line " + lineNo,
         lineNo,
-        Optional.of(preview));
+        Optional.of(preview),
+        ParseIssueType.BAD_JSON.name(),
+        "",
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
   }
 
   /** 构建 NON_OBJECT_SKIPPED 诊断信息。 */
@@ -291,7 +297,12 @@ public final class JsonlReader {
         ParseIssueType.NON_OBJECT_SKIPPED,
         "Non-dict JSON value skipped: " + typeName,
         lineNo,
-        Optional.of(preview));
+        Optional.of(preview),
+        ParseIssueType.NON_OBJECT_SKIPPED.name(),
+        "",
+        OptionalInt.empty(),
+        OptionalInt.empty(),
+        OptionalInt.empty());
   }
 
   /** 获取 JsonNode 的类型名称（用于诊断消息）。 */

@@ -22,7 +22,12 @@ class CandidateContractTest {
 
   private static SourceFingerprint testFingerprint() {
     return new SourceFingerprint(
-        "/test.jsonl", SourceId.CLAUDE_CODE, 100, 1000L, Optional.of("hash"));
+        "test.jsonl",
+        SourceId.CLAUDE_CODE,
+        100,
+        1000L,
+        Optional.of("hash"),
+        Optional.of("SHA-256"));
   }
 
   @Test
@@ -100,7 +105,8 @@ class CandidateContractTest {
   void sourceIdDelegatesToFingerprint() {
     Candidate codexCandidate =
         new Candidate(
-            new SourceFingerprint("/test.jsonl", SourceId.CODEX, 0, 0, Optional.empty()),
+            new SourceFingerprint(
+                "test.jsonl", SourceId.CODEX, 0, 0, Optional.empty(), Optional.empty()),
             "session-1",
             "",
             Map.of());
