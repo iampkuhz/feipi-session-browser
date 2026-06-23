@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.index.sqlite.SqlUtils.WhereClauses;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.FailureStatus;
 import com.feipi.session.browser.query.api.ModelFilter;
@@ -48,6 +49,17 @@ public final class SessionQueryRepository {
   }
 
   /**
+   * 获取底层 index 连接。
+   *
+   * <p>包级私有，供同包仓库共享连接池。
+   *
+   * @return 已初始化的 index 连接
+   */
+  IndexConnection indexConnection() {
+    return indexConnection;
+  }
+
+  /**
    * 按主键查找单个会话。
    *
    * <p>对应 Python {@code get_session}。详情路由使用此查询。
@@ -84,7 +96,7 @@ public final class SessionQueryRepository {
   public PageResult<SessionRow> listSessions(SessionListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
 
-    FilterClauses clauses = buildFilterClauses(filter);
+    WhereClauses clauses = buildFilterClauses(filter);
     Sort sort = filter.sort();
     PageRequest page = filter.page();
 
@@ -105,7 +117,7 @@ public final class SessionQueryRepository {
       // 再查列表
       List<SessionRow> rows = new ArrayList<>();
       try (PreparedStatement ps = rt.connection().prepareStatement(listSql)) {
-        int paramIndex = bindFilterParams(ps, clauses, 1);
+        int paramIndex = SqlUtils.bindParams(ps, clauses.params(), 1);
         ps.setInt(paramIndex, page.limit());
         ps.setInt(paramIndex + 1, page.offset());
         try (ResultSet rs = ps.executeQuery()) {
@@ -130,7 +142,7 @@ public final class SessionQueryRepository {
    */
   public long countSessions(SessionListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
-    FilterClauses clauses = buildFilterClauses(filter);
+    WhereClauses clauses = buildFilterClauses(filter);
     try (ReadTransaction rt = indexConnection.readTransaction()) {
       return executeCountQuery(rt.connection(), clauses);
     }
@@ -147,7 +159,7 @@ public final class SessionQueryRepository {
    */
   public SessionListAggregate listAggregate(SessionListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
-    FilterClauses clauses = buildFilterClauses(filter);
+    WhereClauses clauses = buildFilterClauses(filter);
     String sql =
         "SELECT COUNT(*) AS session_count,"
             + " COUNT(DISTINCT project_key) AS project_count,"
@@ -157,7 +169,7 @@ public final class SessionQueryRepository {
 
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      bindFilterParams(ps, clauses, 1);
+      SqlUtils.bindParams(ps, clauses.params(), 1);
       try (ResultSet rs = ps.executeQuery()) {
         rs.next();
         return new SessionListAggregate(
@@ -171,7 +183,7 @@ public final class SessionQueryRepository {
    *
    * <p>list、count、aggregate 三个查询共享同一过滤逻辑。 所有用户输入作为参数绑定，不拼接 SQL。
    */
-  private static FilterClauses buildFilterClauses(SessionListFilter filter) {
+  private static WhereClauses buildFilterClauses(SessionListFilter filter) {
     List<String> clauses = new ArrayList<>();
     List<Object> params = new ArrayList<>();
 
@@ -214,44 +226,18 @@ public final class SessionQueryRepository {
     }
 
     String whereFragment = clauses.isEmpty() ? "" : "WHERE " + String.join(" AND ", clauses);
-    return new FilterClauses(whereFragment, List.copyOf(params));
+    return new WhereClauses(whereFragment, List.copyOf(params));
   }
 
   /** 执行 COUNT(*) 查询。 */
-  private static long executeCountQuery(Connection conn, FilterClauses clauses)
-      throws SQLException {
+  private static long executeCountQuery(Connection conn, WhereClauses clauses) throws SQLException {
     String sql = "SELECT COUNT(*) FROM sessions " + clauses.whereFragment();
     try (PreparedStatement ps = conn.prepareStatement(sql)) {
-      bindFilterParams(ps, clauses, 1);
+      SqlUtils.bindParams(ps, clauses.params(), 1);
       try (ResultSet rs = ps.executeQuery()) {
         rs.next();
         return rs.getLong(1);
       }
     }
   }
-
-  /** 绑定过滤参数到 PreparedStatement，返回下一个参数索引。 */
-  private static int bindFilterParams(PreparedStatement ps, FilterClauses clauses, int startIndex)
-      throws SQLException {
-    int index = startIndex;
-    for (Object param : clauses.params()) {
-      if (param instanceof String s) {
-        ps.setString(index, s);
-      } else if (param instanceof Long l) {
-        ps.setLong(index, l);
-      } else if (param instanceof Integer i) {
-        ps.setInt(index, i);
-      }
-      index++;
-    }
-    return index;
-  }
-
-  /**
-   * 过滤 WHERE 子句片段和参数列表。
-   *
-   * <p>不可变值对象。{@code whereFragment} 为空字符串或 {@code WHERE ...} 形式。 {@code params} 为对应的绑定参数，顺序与 {@code
-   * ?} 占位符一致。
-   */
-  private record FilterClauses(String whereFragment, List<Object> params) {}
 }

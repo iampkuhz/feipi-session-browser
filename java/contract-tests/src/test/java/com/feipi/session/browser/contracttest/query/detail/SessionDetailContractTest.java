@@ -17,6 +17,7 @@ import com.feipi.session.browser.index.sqlite.PragmaConfig;
 import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionDetailAssembler;
 import com.feipi.session.browser.index.sqlite.SessionDetailRepository;
+import com.feipi.session.browser.index.sqlite.SessionQueryRepository;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -53,7 +54,8 @@ class SessionDetailContractTest {
     ic = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(ic.writerConnection());
     insertFixtures();
-    repository = new SessionDetailRepository(ic);
+    SessionQueryRepository sessionQueryRepo = new SessionQueryRepository(ic);
+    repository = new SessionDetailRepository(sessionQueryRepo);
   }
 
   private void insertFixtures() throws Exception {

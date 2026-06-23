@@ -36,7 +36,8 @@ class SessionDetailRepositoryTest {
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     insertTestData();
-    repository = new SessionDetailRepository(indexConnection);
+    SessionQueryRepository sessionQueryRepo = new SessionQueryRepository(indexConnection);
+    repository = new SessionDetailRepository(sessionQueryRepo);
   }
 
   private void insertTestData() throws Exception {

@@ -44,7 +44,7 @@ public final class QueryCompositionRoot {
 
     SessionQueryRepository sessionRepo = new SessionQueryRepository(indexConnection);
     AggregateQueryRepository aggregateRepo = new AggregateQueryRepository(indexConnection);
-    SessionDetailRepository detailRepo = new SessionDetailRepository(indexConnection);
+    SessionDetailRepository detailRepo = new SessionDetailRepository(sessionRepo);
 
     this.sessionList = new SessionListUseCase(sessionRepo, cache, this.schemaVersion);
     this.projectList = new ProjectListUseCase(aggregateRepo, cache, this.schemaVersion);

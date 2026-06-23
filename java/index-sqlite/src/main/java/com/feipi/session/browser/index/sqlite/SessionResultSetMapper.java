@@ -45,18 +45,18 @@ final class SessionResultSetMapper {
         rs.getString("session_key"),
         rs.getString("agent"),
         rs.getString("session_id"),
-        nullToEmpty(rs.getString("title")),
-        nullToEmpty(rs.getString("project_key")),
-        nullToEmpty(rs.getString("project_name")),
-        nullToEmpty(rs.getString("cwd")),
-        nullToEmpty(rs.getString("started_at")),
+        SqlUtils.nullToEmpty(rs.getString("title")),
+        SqlUtils.nullToEmpty(rs.getString("project_key")),
+        SqlUtils.nullToEmpty(rs.getString("project_name")),
+        SqlUtils.nullToEmpty(rs.getString("cwd")),
+        SqlUtils.nullToEmpty(rs.getString("started_at")),
         rs.getString("ended_at"),
         rs.getDouble("duration_seconds"),
         rs.getDouble("model_execution_seconds"),
         rs.getDouble("tool_execution_seconds"),
-        nullToEmpty(rs.getString("model")),
-        nullToEmpty(rs.getString("git_branch")),
-        nullToEmpty(rs.getString("source")),
+        SqlUtils.nullToEmpty(rs.getString("model")),
+        SqlUtils.nullToEmpty(rs.getString("git_branch")),
+        SqlUtils.nullToEmpty(rs.getString("source")),
         rs.getLong("user_message_count"),
         rs.getLong("assistant_message_count"),
         rs.getLong("tool_call_count"),
@@ -69,10 +69,6 @@ final class SessionResultSetMapper {
         rs.getLong("subagent_instance_count"),
         rs.getDouble("indexed_at"),
         rs.getDouble("file_mtime"),
-        nullToEmpty(rs.getString("file_path")));
-  }
-
-  private static String nullToEmpty(String value) {
-    return value == null ? "" : value;
+        SqlUtils.nullToEmpty(rs.getString("file_path")));
   }
 }

@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.index.sqlite.SqlUtils.WhereClauses;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
@@ -32,6 +33,41 @@ import java.util.Objects;
  */
 public final class AggregateQueryRepository {
 
+  /** 项目统计聚合 SELECT 子句，projectStats 和 listProjects 共享。 */
+  private static final String PROJECT_STATS_SELECT =
+      """
+      SELECT
+          project_key, project_name,
+          COUNT(*) as total_sessions,
+          SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
+          SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
+          SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
+          MIN(started_at) as first_seen,
+          MAX(ended_at) as last_seen,
+          COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
+          COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+          COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+          COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
+          COALESCE(SUM(total_tokens), 0) as total_tokens,
+          COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
+          COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
+          COALESCE(SUM(user_message_count), 0) as total_user_messages,
+          COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
+      FROM sessions\
+      """;
+
+  /** Top-N 项目聚合基础 SELECT，topProjectsByTokens 和 topProjectsByTools 共享。 */
+  private static final String TOP_PROJECTS_BASE =
+      """
+      SELECT
+          project_key, project_name,
+          COALESCE(SUM(total_tokens), 0) as total_tokens,
+          COALESCE(SUM(tool_call_count), 0) as total_tools,
+          COALESCE(SUM(failed_tool_count), 0) as failed_tools,
+          COUNT(*) as session_count
+      FROM sessions GROUP BY project_key\
+      """;
+
   private final IndexConnection indexConnection;
 
   /**
@@ -56,27 +92,7 @@ public final class AggregateQueryRepository {
    */
   public ProjectStatsRow projectStats(String projectKey) throws SQLException {
     Objects.requireNonNull(projectKey, "projectKey 不得为 null");
-    String sql =
-        """
-        SELECT
-            project_key, project_name,
-            COUNT(*) as total_sessions,
-            SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
-            SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
-            SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
-            MIN(started_at) as first_seen,
-            MAX(ended_at) as last_seen,
-            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
-            COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
-            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
-            COALESCE(SUM(total_tokens), 0) as total_tokens,
-            COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
-            COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
-            COALESCE(SUM(user_message_count), 0) as total_user_messages,
-            COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
-        FROM sessions WHERE project_key = ? GROUP BY project_key\
-        """;
+    String sql = PROJECT_STATS_SELECT + " WHERE project_key = ? GROUP BY project_key";
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setString(1, projectKey);
@@ -100,11 +116,11 @@ public final class AggregateQueryRepository {
    */
   public long countProjects(ProjectListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
-    var clauses = buildProjectSearchClauses(filter.titleFilter());
+    WhereClauses clauses = buildProjectSearchClauses(filter.titleFilter());
     String sql = "SELECT COUNT(DISTINCT project_key) FROM sessions " + clauses.whereFragment();
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      bindParams(ps, clauses.params(), 1);
+      SqlUtils.bindParams(ps, clauses.params(), 1);
       try (ResultSet rs = ps.executeQuery()) {
         rs.next();
         return rs.getLong(1);
@@ -123,41 +139,20 @@ public final class AggregateQueryRepository {
    */
   public PageResult<ProjectStatsRow> listProjects(ProjectListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
-    var clauses = buildProjectSearchClauses(filter.titleFilter());
+    WhereClauses clauses = buildProjectSearchClauses(filter.titleFilter());
     Sort sort = filter.sort();
     PageRequest page = filter.page();
 
     String orderExpr = projectSortToSql(sort);
     String sql =
-        """
-        SELECT
-            project_key, project_name,
-            COUNT(*) as total_sessions,
-            SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
-            SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
-            SUM(CASE WHEN agent='qoder' THEN 1 ELSE 0 END) as qoder_sessions,
-            MIN(started_at) as first_seen,
-            MAX(ended_at) as last_seen,
-            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
-            COALESCE(SUM(output_tokens), 0) as total_output_tokens,
-            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
-            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
-            COALESCE(SUM(total_tokens), 0) as total_tokens,
-            COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
-            COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
-            COALESCE(SUM(user_message_count), 0) as total_user_messages,
-            COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
-        FROM sessions %s
-        GROUP BY project_key
-        ORDER BY %s LIMIT ? OFFSET ?\
-        """
+        (PROJECT_STATS_SELECT + " %s GROUP BY project_key ORDER BY %s LIMIT ? OFFSET ?")
             .formatted(clauses.whereFragment(), orderExpr);
 
     try (ReadTransaction rt = indexConnection.readTransaction()) {
       long totalCount = countDistinctProjects(rt, clauses);
       List<ProjectStatsRow> rows = new ArrayList<>();
       try (PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-        int idx = bindParams(ps, clauses.params(), 1);
+        int idx = SqlUtils.bindParams(ps, clauses.params(), 1);
         ps.setInt(idx, page.limit());
         ps.setInt(idx + 1, page.offset());
         try (ResultSet rs = ps.executeQuery()) {
@@ -446,17 +441,7 @@ public final class AggregateQueryRepository {
    */
   public List<TopProjectRow> topProjectsByTokens(int limit) throws SQLException {
     validateLimit(limit);
-    String sql =
-        """
-        SELECT
-            project_key, project_name,
-            COALESCE(SUM(total_tokens), 0) as total_tokens,
-            COALESCE(SUM(tool_call_count), 0) as total_tools,
-            COALESCE(SUM(failed_tool_count), 0) as failed_tools,
-            COUNT(*) as session_count
-        FROM sessions GROUP BY project_key
-        ORDER BY total_tokens DESC LIMIT ?\
-        """;
+    String sql = TOP_PROJECTS_BASE + " ORDER BY total_tokens DESC LIMIT ?";
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setInt(1, limit);
@@ -475,17 +460,7 @@ public final class AggregateQueryRepository {
    */
   public List<TopProjectRow> topProjectsByTools(int limit) throws SQLException {
     validateLimit(limit);
-    String sql =
-        """
-        SELECT
-            project_key, project_name,
-            COALESCE(SUM(total_tokens), 0) as total_tokens,
-            COALESCE(SUM(tool_call_count), 0) as total_tools,
-            COALESCE(SUM(failed_tool_count), 0) as failed_tools,
-            COUNT(*) as session_count
-        FROM sessions GROUP BY project_key
-        ORDER BY total_tools DESC LIMIT ?\
-        """;
+    String sql = TOP_PROJECTS_BASE + " ORDER BY total_tools DESC LIMIT ?";
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setInt(1, limit);
@@ -714,16 +689,16 @@ public final class AggregateQueryRepository {
   // ── 内部辅助方法 ──
 
   /** 项目搜索 WHERE 子句构建。 */
-  private static SearchClauses buildProjectSearchClauses(TitleFilter titleFilter) {
+  private static WhereClauses buildProjectSearchClauses(TitleFilter titleFilter) {
     if (titleFilter.isUnfiltered()) {
-      return new SearchClauses("", List.of());
+      return new WhereClauses("", List.of());
     }
     String pattern = "%" + titleFilter.keyword() + "%";
     String where =
         "WHERE (LOWER(project_name) LIKE LOWER(?) "
             + "OR LOWER(project_key) LIKE LOWER(?) "
             + "OR LOWER(cwd) LIKE LOWER(?))";
-    return new SearchClauses(where, List.of(pattern, pattern, pattern));
+    return new WhereClauses(where, List.of(pattern, pattern, pattern));
   }
 
   /** 生成 Dashboard 查询的 WHERE 子句。空过滤返回空字符串。 */
@@ -762,11 +737,11 @@ public final class AggregateQueryRepository {
   }
 
   /** 统计去重项目数。 */
-  private static long countDistinctProjects(ReadTransaction rt, SearchClauses clauses)
+  private static long countDistinctProjects(ReadTransaction rt, WhereClauses clauses)
       throws SQLException {
     String sql = "SELECT COUNT(DISTINCT project_key) FROM sessions " + clauses.whereFragment();
     try (PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      bindParams(ps, clauses.params(), 1);
+      SqlUtils.bindParams(ps, clauses.params(), 1);
       try (ResultSet rs = ps.executeQuery()) {
         rs.next();
         return rs.getLong(1);
@@ -783,8 +758,8 @@ public final class AggregateQueryRepository {
         rs.getLong("claude_sessions"),
         rs.getLong("codex_sessions"),
         rs.getLong("qoder_sessions"),
-        nullToEmpty(rs.getString("first_seen")),
-        nullToEmpty(rs.getString("last_seen")),
+        SqlUtils.nullToEmpty(rs.getString("first_seen")),
+        SqlUtils.nullToEmpty(rs.getString("last_seen")),
         rs.getLong("total_fresh_input_tokens"),
         rs.getLong("total_output_tokens"),
         rs.getLong("total_cache_read_tokens"),
@@ -892,37 +867,12 @@ public final class AggregateQueryRepository {
     return sorted.get(idx);
   }
 
-  /** 绑定参数列表到 PreparedStatement。 */
-  private static int bindParams(PreparedStatement ps, List<Object> params, int startIndex)
-      throws SQLException {
-    int index = startIndex;
-    for (Object param : params) {
-      if (param instanceof String s) {
-        ps.setString(index, s);
-      } else if (param instanceof Long l) {
-        ps.setLong(index, l);
-      } else if (param instanceof Integer i) {
-        ps.setInt(index, i);
-      }
-      index++;
-    }
-    return index;
-  }
-
-  /** null 转空字符串。 */
-  private static String nullToEmpty(String value) {
-    return value == null ? "" : value;
-  }
-
-  /** 校验 limit 参数。 */
+  /** 校验 limit 参数为正整数。 */
   private static void validateLimit(int limit) {
     if (limit < 1) {
       throw new IllegalArgumentException("limit 必须为正; got " + limit);
     }
   }
-
-  /** 搜索子句。 */
-  private record SearchClauses(String whereFragment, List<Object> params) {}
 
   /**
    * 工具分布条目。

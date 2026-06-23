@@ -11,7 +11,8 @@ import java.util.Optional;
 /**
  * 会话详情查询仓库。
  *
- * <p>提供 session detail 页面所需的数据库层查询：会话行查找、关联归一化制品元数据查询。 所有 SQL 使用参数化绑定，用户输入仅作为参数。
+ * <p>提供 session detail 页面所需的数据库层查询：归一化制品元数据查询。 会话行查找复用 {@link
+ * SessionQueryRepository#getSession}，避免重复 SQL。 所有 SQL 使用参数化绑定，用户输入仅作为参数。
  *
  * <p>校验放置：
  *
@@ -22,40 +23,31 @@ import java.util.Optional;
  */
 public final class SessionDetailRepository {
 
-  private final IndexConnection indexConnection;
+  private final SessionQueryRepository sessionQueryRepository;
 
   /**
-   * 使用已有 {@link IndexConnection} 创建仓库。
+   * 使用已有 {@link SessionQueryRepository} 创建仓库。
    *
-   * @param indexConnection 已初始化的 index 连接，schema 必须已就绪
+   * <p>会话行查找委托给 {@code SessionQueryRepository}，避免重复同一 SQL。
+   *
+   * @param sessionQueryRepository 会话查询仓库，schema 必须已就绪
    */
-  public SessionDetailRepository(IndexConnection indexConnection) {
-    this.indexConnection = Objects.requireNonNull(indexConnection, "indexConnection 不得为 null");
+  public SessionDetailRepository(SessionQueryRepository sessionQueryRepository) {
+    this.sessionQueryRepository =
+        Objects.requireNonNull(sessionQueryRepository, "sessionQueryRepository 不得为 null");
   }
 
   /**
    * 按主键查找会话行数据。
    *
-   * <p>对应 Python {@code get_session}。详情路由使用此查询获取基础行。
+   * <p>委托给 {@link SessionQueryRepository#getSession}，与 list/search/count 共享同一查询逻辑。
    *
    * @param sessionKey 会话主键，格式 {@code agent:session_id}
    * @return 匹配的行，不存在时返回 empty
    * @throws SQLException 查询失败
    */
   public Optional<SessionRow> findSessionRow(String sessionKey) throws SQLException {
-    Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
-    String sql =
-        "SELECT " + SessionResultSetMapper.ALL_COLUMNS + " FROM sessions WHERE session_key = ?";
-    try (ReadTransaction rt = indexConnection.readTransaction();
-        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setString(1, sessionKey);
-      try (ResultSet rs = ps.executeQuery()) {
-        if (rs.next()) {
-          return Optional.of(SessionResultSetMapper.mapRow(rs));
-        }
-        return Optional.empty();
-      }
-    }
+    return sessionQueryRepository.getSession(sessionKey);
   }
 
   /**
@@ -74,22 +66,12 @@ public final class SessionDetailRepository {
             + " source_mtime, size_bytes, created_at, updated_at"
             + " FROM session_artifacts WHERE session_key = ? ORDER BY artifact_type";
     List<SessionArtifactRow> rows = new ArrayList<>();
-    try (ReadTransaction rt = indexConnection.readTransaction();
+    try (ReadTransaction rt = sessionQueryRepository.indexConnection().readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setString(1, sessionKey);
       try (ResultSet rs = ps.executeQuery()) {
         while (rs.next()) {
-          rows.add(
-              new SessionArtifactRow(
-                  rs.getString("session_key"),
-                  rs.getString("artifact_type"),
-                  rs.getString("path"),
-                  rs.getString("schema_version"),
-                  rs.getString("source_path"),
-                  rs.getDouble("source_mtime"),
-                  rs.getLong("size_bytes"),
-                  rs.getDouble("created_at"),
-                  rs.getDouble("updated_at")));
+          rows.add(mapArtifactRow(rs));
         }
       }
     }
@@ -113,26 +95,34 @@ public final class SessionDetailRepository {
             + " source_mtime, size_bytes, created_at, updated_at"
             + " FROM session_artifacts"
             + " WHERE session_key = ? AND artifact_type = ?";
-    try (ReadTransaction rt = indexConnection.readTransaction();
+    try (ReadTransaction rt = sessionQueryRepository.indexConnection().readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setString(1, sessionKey);
       ps.setString(2, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED);
       try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
-          return Optional.of(
-              new SessionArtifactRow(
-                  rs.getString("session_key"),
-                  rs.getString("artifact_type"),
-                  rs.getString("path"),
-                  rs.getString("schema_version"),
-                  rs.getString("source_path"),
-                  rs.getDouble("source_mtime"),
-                  rs.getLong("size_bytes"),
-                  rs.getDouble("created_at"),
-                  rs.getDouble("updated_at")));
+          return Optional.of(mapArtifactRow(rs));
         }
         return Optional.empty();
       }
     }
+  }
+
+  /**
+   * 将当前 ResultSet 行映射为 {@link SessionArtifactRow}。
+   *
+   * <p>{@code findArtifacts} 和 {@code findNormalizedArtifact} 共享同一映射逻辑。
+   */
+  private static SessionArtifactRow mapArtifactRow(ResultSet rs) throws SQLException {
+    return new SessionArtifactRow(
+        rs.getString("session_key"),
+        rs.getString("artifact_type"),
+        rs.getString("path"),
+        rs.getString("schema_version"),
+        rs.getString("source_path"),
+        rs.getDouble("source_mtime"),
+        rs.getLong("size_bytes"),
+        rs.getDouble("created_at"),
+        rs.getDouble("updated_at"));
   }
 }

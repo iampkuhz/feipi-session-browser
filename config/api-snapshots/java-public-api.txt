@@ -512,7 +512,7 @@ constructor com.feipi.session.browser.index.sqlite.ReadTransaction public ReadTr
 constructor com.feipi.session.browser.index.sqlite.SchemaVersion public SchemaVersion()
 constructor com.feipi.session.browser.index.sqlite.SessionArtifactRow public SessionArtifactRow()
 constructor com.feipi.session.browser.index.sqlite.SessionDetail public SessionDetail()
-constructor com.feipi.session.browser.index.sqlite.SessionDetailRepository public SessionDetailRepository(IndexConnection indexConnection)
+constructor com.feipi.session.browser.index.sqlite.SessionDetailRepository public SessionDetailRepository(SessionQueryRepository sessionQueryRepository)
 constructor com.feipi.session.browser.index.sqlite.SessionDetailRequest public SessionDetailRequest()
 constructor com.feipi.session.browser.index.sqlite.SessionListAggregate public SessionListAggregate()
 constructor com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionQueryRepository(IndexConnection indexConnection)

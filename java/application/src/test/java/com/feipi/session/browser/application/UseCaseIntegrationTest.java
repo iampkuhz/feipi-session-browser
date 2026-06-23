@@ -187,7 +187,8 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("无制品会话返回行级详情")
     void rowOnlyDetailForNoArtifact() throws Exception {
-      SessionDetailRepository repo = new SessionDetailRepository(ic);
+      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
+      SessionDetailRepository repo = new SessionDetailRepository(sqRepo);
       SessionDetailUseCase uc = new SessionDetailUseCase(repo, 1);
 
       var detail =
@@ -200,7 +201,8 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("不存在的会话返回 empty")
     void missingSessionReturnsEmpty() throws Exception {
-      SessionDetailRepository repo = new SessionDetailRepository(ic);
+      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
+      SessionDetailRepository repo = new SessionDetailRepository(sqRepo);
       SessionDetailUseCase uc = new SessionDetailUseCase(repo, 1);
 
       var detail =
