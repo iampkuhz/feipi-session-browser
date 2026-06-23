@@ -1,15 +1,17 @@
-"""Build JSON artifacts for required quality gate runs.
+"""构建质量门运行结果的 JSON artifact。
 
-The artifact schema mirrors the gate runner contract consumed by harness and
-OpenSpec workflows: a per-target summary records the change id, timestamps,
-required gate statuses, blocking failures, warnings, auxiliary artifacts, and
-raw gate details. Required gates are fail-closed: an empty set blocks the run,
-`SKIPPED` is a failure for required checks, and invalid statuses are reported as
-blocking failures instead of being normalized to pass.
+artifact schema 遵循 harness 和 OpenSpec 工作流消费的门运行契约：每个 target
+的 summary 记录 change id、时间戳、必需门状态、阻断失败、警告、辅助 artifact
+路径和原始门详情。必需门是 fail-closed 的：空集合阻断运行，`SKIPPED` 视为
+失败，无效状态报告为阻断失败而非规范化为通过。
+
+artifact 元数据包含 run id、base commit、dirty hash、生成时间、report hash，
+用于证据溯源和完整性验证。
 """
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from dataclasses import asdict, dataclass, field
@@ -162,6 +164,8 @@ class QualitySummary:
     dirtyHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     generatedAt: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     freshness: str = ''
+    # 报告内容哈希：用于验证 artifact 完整性，防止篡改。
+    reportHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
 
 
 # 05. Overall status computation
@@ -193,18 +197,31 @@ def compute_overall(required_gates: dict[str, str]) -> tuple[str, list[str]]:
 
 
 # 06. Artifact writing
+def _compute_report_hash(data: dict) -> str:
+    """计算 artifact 内容的 SHA-256 哈希，用于完整性验证。
+
+    Args:
+        data: 序列化后的 artifact 字典（不含 reportHash 自身）。
+
+    Returns:
+        12 位十六进制哈希前缀。
+    """
+    content = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True)
+    return hashlib.sha256(content.encode('utf-8')).hexdigest()[:12]
+
+
 def write_quality_summary(
     base_dir: Path, summary: QualitySummary, target_specific: bool = True
 ) -> Path:
-    """Write quality summary and detail artifacts for a target.
+    """写入 quality summary 和 detail artifact，并计算 reportHash。
 
     Args:
-        base_dir: Base artifact directory; the change id is appended beneath it.
-        summary: Summary dataclass to serialize as JSON.
-        target_specific: Whether filenames include `summary.target` for parallel targets.
+        base_dir: artifact 基目录；change id 附加在其下方。
+        summary: 要序列化的 summary dataclass。
+        target_specific: 文件名是否包含 ``summary.target`` 以支持并行 target。
 
     Returns:
-        Path to the written summary JSON file.
+        写入的 summary JSON 文件路径。
     """
     out_dir = base_dir / summary.changeId
     out_dir.mkdir(parents=True, exist_ok=True)
@@ -215,8 +232,14 @@ def write_quality_summary(
         else 'quality-gate-summary.json'
     )
     summary_path = out_dir / filename
+
+    # 先计算 reportHash（基于不含 reportHash 的字典），再写入完整 artifact。
+    summary_dict = asdict(summary)
+    summary_dict['reportHash'] = _compute_report_hash(summary_dict)
+    summary.reportHash = summary_dict['reportHash']
+
     summary_path.write_text(
-        json.dumps(asdict(summary), ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
+        json.dumps(summary_dict, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
     details = out_dir / (

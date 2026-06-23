@@ -815,17 +815,16 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         if not gradlew.exists():
             return []
         return [str(gradlew), 'check']
+    # 中文注释检查使用仓库内脚本和策略文件，禁止依赖 tmp 路径。
     if gate == 'javaChineseComments':
-        terms_file = repo_root / 'tmp' / 'feipi-java-migration-final' / 'terminology' / 'java-comment-terms.txt'
-        checker = repo_root / 'tmp' / 'feipi-java-migration-final' / 'tools' / 'validate_java_chinese_comments.py'
-        if not checker.exists() or not terms_file.exists():
+        checker = repo_root / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        policy = repo_root / 'config' / 'technical-terms.json'
+        if not checker.exists():
             return []
-        return [
-            python, str(checker),
-            '--root', str(repo_root / 'java'),
-            '--root', str(repo_root / 'build-logic'),
-            '--terms', str(terms_file),
-        ]
+        cmd = [python, str(checker)]
+        if policy.exists():
+            cmd.extend(['--policy', str(policy)])
+        return cmd
     if gate == 'noJavaTestSkips':
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():

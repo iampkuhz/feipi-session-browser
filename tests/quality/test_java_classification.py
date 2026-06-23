@@ -369,3 +369,149 @@ class TestParallelFailureDeterminism:
         targets1 = required_quality_targets(files)
         targets2 = required_quality_targets(files)
         assert targets1 == targets2
+
+
+# 12. javaChineseComments gate 路由测试
+class TestJavaChineseCommentsGate:
+    """javaChineseComments 必须使用仓库内脚本和策略文件，禁止依赖 tmp。"""
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_command_uses_repo_script(self, tmp_path: Path):
+        """gate 命令指向 scripts/quality/check_code_comment_language.py。"""
+        from scripts.quality import run_quality_gate
+        # 创建仓库脚本和策略文件的 mock 结构
+        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
+        policy = tmp_path / 'config' / 'technical-terms.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{}', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+
+        assert cmd, 'gate 命令不应为空'
+        assert 'check_code_comment_language.py' in cmd[-1] or any(
+            'check_code_comment_language.py' in str(c) for c in cmd
+        ), f'命令应包含仓库内检查脚本: {cmd}'
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_command_includes_policy_file(self, tmp_path: Path):
+        """gate 命令包含 --policy 参数指向 config/technical-terms.json。"""
+        from scripts.quality import run_quality_gate
+        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
+        policy = tmp_path / 'config' / 'technical-terms.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{}', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+
+        assert '--policy' in cmd, f'命令应包含 --policy 参数: {cmd}'
+        policy_idx = cmd.index('--policy')
+        assert 'technical-terms.json' in cmd[policy_idx + 1], (
+            f'--policy 后应为 technical-terms.json: {cmd}'
+        )
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_command_does_not_reference_tmp(self, tmp_path: Path):
+        """gate 命令不得引用 tmp/ 目录下的路径。"""
+        from scripts.quality import run_quality_gate
+        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+
+        for part in cmd:
+            assert 'tmp' not in str(part) or 'tmp_path' in str(part), (
+                f'命令不应引用 tmp 路径: {cmd}'
+            )
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_returns_empty_when_checker_missing(self, tmp_path: Path):
+        """检查脚本不存在时返回空列表（BLOCKED）。"""
+        from scripts.quality import run_quality_gate
+        # tmp_path 下不创建检查脚本
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        assert cmd == []
+
+
+# 13. reportHash artifact 完整性测试
+class TestReportHash:
+    """quality artifact 的 reportHash 字段验证。"""
+
+    @pytest.mark.contract_case('JR-020-006')
+    def test_written_artifact_has_report_hash(self):
+        """write_quality_summary 写入的 artifact 必须包含 reportHash。"""
+        import json
+        import tempfile
+        from scripts.quality.quality_artifact import (
+            GateDetail,
+            write_quality_summary,
+        )
+        from scripts.quality.run_quality_gate import build_summary
+
+        with tempfile.TemporaryDirectory() as td:
+            started = '2026-01-01T00:00:00Z'
+            details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'])]
+            summary = build_summary('java-src', 'test', started, details)
+            path = write_quality_summary(Path(td), summary)
+            data = json.loads(path.read_text(encoding='utf-8'))
+            assert data.get('reportHash'), 'artifact 必须包含 reportHash'
+            assert len(data['reportHash']) == 12, 'reportHash 应为 12 位十六进制'
+
+    @pytest.mark.contract_case('JR-020-006')
+    def test_report_hash_changes_with_content(self):
+        """不同内容应产生不同 reportHash。"""
+        import json
+        import tempfile
+        from scripts.quality.quality_artifact import (
+            GateDetail,
+            write_quality_summary,
+        )
+        from scripts.quality.run_quality_gate import build_summary
+
+        with tempfile.TemporaryDirectory() as td:
+            started = '2026-01-01T00:00:00Z'
+            details_a = [GateDetail(name='a', status=PASS)]
+            details_b = [GateDetail(name='b', status=PASS)]
+            summary_a = build_summary('java-src', 'test-a', started, details_a)
+            summary_b = build_summary('java-src', 'test-b', started, details_b)
+            path_a = write_quality_summary(Path(td), summary_a)
+            path_b = write_quality_summary(Path(td), summary_b)
+            hash_a = json.loads(path_a.read_text(encoding='utf-8'))['reportHash']
+            hash_b = json.loads(path_b.read_text(encoding='utf-8'))['reportHash']
+            assert hash_a != hash_b, '不同内容的 reportHash 必须不同'
+
+
+# 14. runner effective_targets 集成测试
+class TestRunnerEffectiveTargets:
+    """run_required_quality_gates.py 正确应用 dominance 去重。"""
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_runner_imports_effective_targets(self):
+        """runner 模块必须导入 effective_targets。"""
+        import importlib.util
+        script = (
+            Path(__file__).resolve().parents[2]
+            / 'scripts' / 'quality' / 'run_required_quality_gates.py'
+        )
+        spec = importlib.util.spec_from_file_location('runner_check', script)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+        assert hasattr(mod, 'effective_targets'), (
+            'runner 必须导入 effective_targets 以应用 dominance 去重'
+        )
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_dominance_is_set_inclusion(self):
+        """dominance 语义：java-src includes java-build，即 java-build 是 java-src 的子集。"""
+        from scripts.claude_hooks.classify import DOMINANCE
+        assert 'java-src' in DOMINANCE
+        assert 'includes' in DOMINANCE['java-src']
+        # java-build 必须声明在 includes 集合中
+        assert 'java-build' in DOMINANCE['java-src']['includes']
+        # 反向不成立：java-build 不包含 java-src
+        assert 'java-build' not in DOMINANCE or \
+            'java-src' not in DOMINANCE.get('java-build', {}).get('includes', [])

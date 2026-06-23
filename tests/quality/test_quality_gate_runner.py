@@ -545,3 +545,116 @@ class TestQualityGateRuntime:
         assert details[0].name == 'browserLayout'
         assert details[0].status == BLOCKED
         assert 'missing jinja2' in details[0].output
+
+
+class TestJavaChineseCommentsGateCommand:
+    """javaChineseComments gate 命令必须使用仓库内脚本。"""
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_command_uses_repo_checker(self, tmp_path: Path):
+        """gate 命令指向 scripts/quality/check_code_comment_language.py。"""
+        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
+        policy = tmp_path / 'config' / 'technical-terms.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{}', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+
+        assert cmd, '仓库内脚本存在时命令不应为空'
+        assert any('check_code_comment_language.py' in str(c) for c in cmd), (
+            f'命令应包含仓库内检查脚本: {cmd}'
+        )
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_command_no_tmp_reference(self, tmp_path: Path):
+        """gate 命令不得引用 tmp/ 目录下的脚本或术语文件。"""
+        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+
+        for part in cmd:
+            part_str = str(part)
+            assert 'tmp' not in part_str or str(tmp_path) in part_str, (
+                f'命令不应引用 tmp 路径: {cmd}'
+            )
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_blocked_when_checker_absent(self, tmp_path: Path):
+        """检查脚本不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
+        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        assert cmd == []
+
+
+class TestReportHashInSummary:
+    """build_summary 和 write_quality_summary 必须生成 reportHash。"""
+
+    @pytest.mark.contract_case('JR-020-006')
+    def test_written_summary_has_report_hash(self, tmp_path: Path):
+        """write_quality_summary 写入的 artifact 包含 reportHash。"""
+        started = '2026-01-01T00:00:00Z'
+        details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'], exitCode=0)]
+        summary = build_summary('java-src', 'test', started, details)
+        path = write_quality_summary(tmp_path, summary)
+        data = json.loads(path.read_text())
+        assert 'reportHash' in data
+        assert len(data['reportHash']) == 12
+
+
+class TestNoJavaTestSkipsGateCommand:
+    """noJavaTestSkips gate 命令验证。"""
+
+    @pytest.mark.contract_case('JR-020-005')
+    def test_no_java_test_skips_uses_gradlew(self, tmp_path: Path):
+        """noJavaTestSkips 必须通过 gradlew verifyNoSkippedJavaTests 执行。"""
+        gradlew = tmp_path / 'gradlew'
+        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('noJavaTestSkips', tmp_path, 'java-src')
+
+        assert cmd == [str(gradlew), 'verifyNoSkippedJavaTests']
+
+    @pytest.mark.contract_case('JR-020-005')
+    def test_no_java_test_skips_blocked_without_gradlew(self, tmp_path: Path):
+        """gradlew 不存在时返回空列表（BLOCKED）。"""
+        cmd = run_quality_gate.gate_command('noJavaTestSkips', tmp_path, 'java-src')
+        assert cmd == []
+
+    @pytest.mark.contract_case('JR-020-005')
+    def test_java_check_uses_gradlew_check(self, tmp_path: Path):
+        """javaCheck 必须通过 gradlew check 执行。"""
+        gradlew = tmp_path / 'gradlew'
+        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaCheck', tmp_path, 'java-src')
+
+        assert cmd == [str(gradlew), 'check']
+
+
+class TestMultipleTargetHandling:
+    """多 target 场景：去重、dominance 和并行执行。"""
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_java_src_gates_include_all_required(self):
+        """java-src target 必须包含 javaCheck、javaChineseComments 和 noJavaTestSkips。"""
+        from scripts.quality.quality_targets import required_gates_for_target
+        gates = required_gates_for_target('java-src')
+        assert 'javaCheck' in gates
+        assert 'javaChineseComments' in gates
+        assert 'noJavaTestSkips' in gates
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_dominance_java_src_absorbs_java_build(self):
+        """dominance 语义：java-src includes java-build，集合包含关系。"""
+        from scripts.claude_hooks.classify import DOMINANCE
+        assert 'java-build' in DOMINANCE['java-src']['includes']
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_dominance_reverse_java_build_does_not_absorb_java_src(self):
+        """反向验证：java-build 不得吸收 java-src。"""
+        from scripts.claude_hooks.classify import DOMINANCE
+        build_includes = DOMINANCE.get('java-build', {}).get('includes', [])
+        assert 'java-src' not in build_includes

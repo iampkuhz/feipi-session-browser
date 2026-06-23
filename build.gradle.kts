@@ -157,7 +157,23 @@ val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
     val cacheFile = layout.buildDirectory.file("reports/chinese-comments/cache.json")
     val reportDir = layout.buildDirectory.dir("reports/chinese-comments")
 
+    // 声明脚本和策略文件为 inputs。
     inputs.files(checkerScript, policyFile)
+    // 声明所有 Java/Kotlin/Gradle 源文件为 inputs：源文件变化时 task 必须重新执行。
+    // 排除 build 输出目录，避免与其他 task 的输出产生隐式依赖。
+    inputs.files(
+        fileTree("java").apply {
+            include("**/*.java")
+            exclude("**/build/**")
+        },
+        fileTree("build-logic").apply {
+            include("**/*.java", "**/*.kt", "**/*.kts")
+            exclude("**/build/**", "**/.gradle/**")
+        },
+    ).withPropertyName("sourceFiles")
+    inputs.file("build.gradle.kts").withPropertyName("rootBuildScript")
+    inputs.file("settings.gradle.kts").withPropertyName("settingsScript")
+    // 声明输出文件，使 task 可被 up-to-date 检查。
     outputs.file(cacheFile)
     outputs.file(layout.buildDirectory.file("reports/chinese-comments/report.json"))
 

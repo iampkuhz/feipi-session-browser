@@ -1,4 +1,5 @@
 import inspect
+import json
 from pathlib import Path
 from typing import Any, ClassVar
 
@@ -78,3 +79,86 @@ class TestSchemaConsistency:
         """QualitySummary schemaVersion 应为最新值 3."""
         source = inspect.getsource(run_quality_gate.build_summary)
         assert 'schemaVersion=3' in source, 'build_summary should use schemaVersion=3'
+
+
+class TestReportHashIntegrity:
+    """验证 reportHash 字段在 write_quality_summary 中正确生成。"""
+
+    @pytest.mark.contract_case('JR-020-006')
+    def test_report_hash_is_deterministic(self, tmp_path: Path):
+        """同一内容的 reportHash 必须确定。"""
+        from scripts.quality.quality_artifact import (
+            QualitySummary,
+            write_quality_summary,
+        )
+
+        finished = '2026-01-01T00:01:00Z'
+
+        summary_a = QualitySummary(
+            schemaVersion=3, status='PASS', target='hook-runtime',
+            changeId='test', startedAt='2026-01-01T00:00:00Z',
+            finishedAt=finished, requiredGates={'pytest': 'PASS'},
+            blockingFailures=[], warnings=[],
+            artifacts={'notTriggeredGates': []},
+            gateDetails=[{'name': 'pytest', 'status': 'PASS', 'command': ['pytest', '-q'],
+                          'output': '', 'exitCode': 0}],
+            runId='test-hook-runtime-2026-01-01T00:00:00Z',
+            baseCommit='', dirtyHash='', generatedAt='2026-01-01T00:00:00Z',
+            freshness='0s',
+        )
+        path_a = write_quality_summary(tmp_path / 'a', summary_a)
+
+        summary_b = QualitySummary(
+            schemaVersion=3, status='PASS', target='hook-runtime',
+            changeId='test', startedAt='2026-01-01T00:00:00Z',
+            finishedAt=finished, requiredGates={'pytest': 'PASS'},
+            blockingFailures=[], warnings=[],
+            artifacts={'notTriggeredGates': []},
+            gateDetails=[{'name': 'pytest', 'status': 'PASS', 'command': ['pytest', '-q'],
+                          'output': '', 'exitCode': 0}],
+            runId='test-hook-runtime-2026-01-01T00:00:00Z',
+            baseCommit='', dirtyHash='', generatedAt='2026-01-01T00:00:00Z',
+            freshness='0s',
+        )
+        path_b = write_quality_summary(tmp_path / 'b', summary_b)
+
+        data_a = json.loads(path_a.read_text())
+        data_b = json.loads(path_b.read_text())
+        assert data_a['reportHash'] == data_b['reportHash']
+
+    @pytest.mark.contract_case('JR-020-006')
+    def test_report_hash_present_in_artifact(self, tmp_path: Path):
+        """写入的 artifact 必须包含 reportHash 字段。"""
+        from scripts.quality.quality_artifact import (
+            PASS,
+            GateDetail,
+            write_quality_summary,
+        )
+        from scripts.quality.run_quality_gate import build_summary
+
+        started = '2026-01-01T00:00:00Z'
+        details = [GateDetail(name='javaCheck', status=PASS)]
+        summary = build_summary('java-src', 'hash-test', started, details)
+        path = write_quality_summary(tmp_path, summary)
+        data = json.loads(path.read_text())
+        assert 'reportHash' in data
+        assert isinstance(data['reportHash'], str)
+        assert len(data['reportHash']) > 0
+
+
+class TestStaleArtifactDetection:
+    """验证过期 artifact 检测逻辑。"""
+
+    @pytest.mark.contract_case('JR-020-007')
+    def test_missing_artifact_is_stale(self):
+        """不存在的 artifact 不是新鲜的。"""
+        from scripts.quality.quality_artifact import is_artifact_fresh
+        assert is_artifact_fresh('/nonexistent/path/artifact.json') is False
+
+    @pytest.mark.contract_case('JR-020-007')
+    def test_fresh_artifact_is_fresh(self, tmp_path: Path):
+        """刚创建的 artifact 是新鲜的。"""
+        from scripts.quality.quality_artifact import is_artifact_fresh
+        artifact = tmp_path / 'fresh.json'
+        artifact.write_text('{}', encoding='utf-8')
+        assert is_artifact_fresh(str(artifact), max_age_seconds=60) is True

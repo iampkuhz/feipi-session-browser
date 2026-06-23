@@ -37,6 +37,10 @@ if str(REPO_ROOT) not in sys.path:
 required_quality_targets = importlib.import_module(
     'scripts.claude_hooks.classify'
 ).required_quality_targets
+# 导入 dominance 去重函数，避免重复运行被包含的 target。
+effective_targets = importlib.import_module(
+    'scripts.claude_hooks.classify'
+).effective_targets
 
 AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
 CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
@@ -225,15 +229,26 @@ def main() -> int:
 
     full_required = required_quality_targets(changed_files)
 
+    # 应用 dominance 规则：当 java-src 存在时自动移除被包含的 java-build，
+    # 避免重复运行 Gradle baseline。
+    effective_required = effective_targets(full_required)
+    dominated = [t for t in full_required if t not in effective_required]
+
     # Targets actually executed after exclusions
-    all_required = [t for t in full_required if t not in effective_excluded]
-    excluded = [t for t in full_required if t in effective_excluded]
+    all_required = [t for t in effective_required if t not in effective_excluded]
+    excluded = [t for t in effective_required if t in effective_excluded]
 
     print(
         '[run_required_quality_gates] required targets: '
         f'{", ".join(sorted(full_required)) if full_required else "(none)"}',
         file=sys.stderr,
     )
+    if dominated:
+        print(
+            '[run_required_quality_gates] dominated targets (skipped): '
+            f'{", ".join(sorted(dominated))}',
+            file=sys.stderr,
+        )
     if excluded:
         print(
             '[run_required_quality_gates] excluded targets (handled elsewhere): '
@@ -259,7 +274,7 @@ def main() -> int:
     if args.dry_run:
         for t in sorted(all_required):
             print(f'[run_required_quality_gates] would run target: {t}', file=sys.stderr)
-        for t in sorted(effective_excluded & set(full_required)):
+        for t in sorted(effective_excluded & set(effective_required)):
             print(
                 f'[run_required_quality_gates] excluded target handled elsewhere: {t}',
                 file=sys.stderr,
@@ -278,9 +293,8 @@ def main() -> int:
         if not passed:
             blocked = True
 
-    # Log excluded targets. These were selected by mapping but are handled by a
-    # separate runner; they are not test skips.
-    for t in sorted(effective_excluded & set(full_required)):
+    # 输出被排除的 target，这些由其他 runner 处理，不是测试跳过。
+    for t in sorted(effective_excluded & set(effective_required)):
         print(
             f'[run_required_quality_gates] excluded target handled elsewhere: {t}', file=sys.stderr
         )

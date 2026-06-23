@@ -400,3 +400,69 @@ class TestSharedStopEntrypoint:
         text = runner.read_text()
         assert 'run_required_quality_gates.py' in text
         assert '--include-session-detail' in text
+
+
+class TestEffectiveTargetsIntegration:
+    """runner 正确应用 dominance 去重。"""
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_runner_has_effective_targets(self):
+        """runner 模块必须导入 effective_targets。"""
+        assert hasattr(_runner, 'effective_targets'), (
+            'run_required_quality_gates 必须导入 effective_targets'
+        )
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_dominance_removes_java_build_in_dry_run(self):
+        """java-src + java-build 同时触发时，runner 只运行 java-src。"""
+        _setup_env(
+            [
+                {
+                    'ts': '2026-06-23T00:00:00Z',
+                    'tool': 'Edit',
+                    'file': 'java/core-domain/src/main/java/com/feipi/Foo.java',
+                    'category': 'java-src',
+                    'requiresQualityGate': True,
+                    'sessionId': 'test-session-001',
+                },
+                {
+                    'ts': '2026-06-23T00:00:00Z',
+                    'tool': 'Edit',
+                    'file': 'build.gradle.kts',
+                    'category': 'java-root-dsl',
+                    'requiresQualityGate': True,
+                    'sessionId': 'test-session-001',
+                },
+            ]
+        )
+
+        changed_files = _runner.get_changed_files()
+        raw_targets = _runner.required_quality_targets(changed_files)
+        assert 'java-src' in raw_targets
+        assert 'java-build' in raw_targets
+
+        # effective_targets 应移除 java-build
+        effective = _runner.effective_targets(raw_targets)
+        assert 'java-src' in effective
+        assert 'java-build' not in effective
+
+    @pytest.mark.contract_case('JR-020-004')
+    def test_standalone_java_build_not_dominated(self):
+        """仅 java-build 触发时不应被移除。"""
+        _setup_env(
+            [
+                {
+                    'ts': '2026-06-23T00:00:00Z',
+                    'tool': 'Edit',
+                    'file': 'build.gradle.kts',
+                    'category': 'java-root-dsl',
+                    'requiresQualityGate': True,
+                    'sessionId': 'test-session-001',
+                },
+            ]
+        )
+
+        changed_files = _runner.get_changed_files()
+        raw_targets = _runner.required_quality_targets(changed_files)
+        effective = _runner.effective_targets(raw_targets)
+        assert 'java-build' in effective
