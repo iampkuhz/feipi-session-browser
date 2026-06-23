@@ -2,6 +2,7 @@ package com.feipi.session.browser.normalization;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
+import java.util.List;
 
 /**
  * Token 核算器。
@@ -44,6 +45,32 @@ public final class TokenAccountant {
     long cacheRead = readLong(usageNode, "cache_read_input_tokens");
     long cacheWrite = readLong(usageNode, "cache_creation_input_tokens");
     long output = readLong(usageNode, "output_tokens");
+    long total = fresh + cacheRead + cacheWrite + output;
+    return new NormalizedCallUsage(fresh, cacheRead, cacheWrite, output, total);
+  }
+
+  /**
+   * 聚合多个调用的 token 用量。
+   *
+   * <p>将所有调用的各分量分别求和，{@code total} 由分量之和计算，保证 {@link NormalizedCallUsage} 不变量。
+   *
+   * @param usages token 用量列表，不得为 null
+   * @return 聚合后的 token 用量实例
+   */
+  public static NormalizedCallUsage aggregate(List<NormalizedCallUsage> usages) {
+    if (usages == null || usages.isEmpty()) {
+      return NormalizedCallUsage.empty();
+    }
+    long fresh = 0;
+    long cacheRead = 0;
+    long cacheWrite = 0;
+    long output = 0;
+    for (NormalizedCallUsage u : usages) {
+      fresh += u.fresh();
+      cacheRead += u.cacheRead();
+      cacheWrite += u.cacheWrite();
+      output += u.output();
+    }
     long total = fresh + cacheRead + cacheWrite + output;
     return new NormalizedCallUsage(fresh, cacheRead, cacheWrite, output, total);
   }

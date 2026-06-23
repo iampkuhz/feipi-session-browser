@@ -10,6 +10,7 @@ import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
+import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -273,6 +274,187 @@ class NormalizationEngineTest {
 
       assertThat(artifact.sourceFiles()).hasSize(1);
       assertThat(artifact.sourceFiles().get(0).path()).isEqualTo("/path/to/session.jsonl");
+    }
+  }
+
+  @Nested
+  @DisplayName("Session 元数据")
+  class SessionMetaTests {
+
+    @Test
+    @DisplayName("空事件的 session 包含基本字段")
+    void emptyEventsSessionContainsBasicFields() {
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize("claude_code", List.of(), List.of(), List.of());
+
+      assertThat(artifact.session()).containsEntry("agent", "claude_code");
+      assertThat(artifact.session()).containsEntry("eventCount", 0);
+      assertThat(artifact.session()).containsEntry("totalTokens", 0L);
+    }
+
+    @Test
+    @DisplayName("session eventCount 匹配事件数")
+    void sessionEventCountMatchesEvents() {
+      ObjectNode event1 = MAPPER.createObjectNode().put("type", "assistant").put("id", "c1");
+      ObjectNode event2 = MAPPER.createObjectNode().put("type", "user");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize("codex", List.of(event1, event2), List.of(), List.of());
+
+      assertThat(artifact.session()).containsEntry("eventCount", 2);
+    }
+
+    @Test
+    @DisplayName("session totalTokens 等于调用 token 总和")
+    void sessionTotalTokensEqualsCallSum() {
+      ObjectNode event1 = MAPPER.createObjectNode().put("type", "assistant").put("id", "c1");
+      event1.putObject("usage").put("input_tokens", 100).put("output_tokens", 200);
+      ObjectNode event2 = MAPPER.createObjectNode().put("type", "assistant").put("id", "c2");
+      event2.putObject("usage").put("input_tokens", 50).put("output_tokens", 150);
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize("claude_code", List.of(event1, event2), List.of(), List.of());
+
+      // 第一个调用 token 总和为 300，第二个为 200，合计 500
+      assertThat(artifact.session()).containsEntry("totalTokens", 500L);
+    }
+
+    @Test
+    @DisplayName("session 包含工具守恒计数")
+    void sessionContainsConservationCounts() {
+      ObjectNode assistant = MAPPER.createObjectNode();
+      assistant.put("type", "assistant");
+      assistant.put("id", "C1");
+      ArrayNode content = assistant.putArray("content");
+      ObjectNode toolUse = content.addObject();
+      toolUse.put("type", "tool_use");
+      toolUse.put("id", "toolu_1");
+      toolUse.put("name", "Read");
+
+      ObjectNode toolResult = MAPPER.createObjectNode();
+      toolResult.put("type", "tool_result");
+      toolResult.put("tool_use_id", "toolu_1");
+
+      ObjectNode assistant2 = MAPPER.createObjectNode();
+      assistant2.put("type", "assistant");
+      assistant2.put("id", "C2");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              "claude_code", List.of(assistant, toolResult, assistant2), List.of(), List.of());
+
+      assertThat(artifact.session()).containsEntry("declaredTools", 1);
+      assertThat(artifact.session()).containsEntry("executedTools", 1);
+      assertThat(artifact.session()).containsEntry("consumedResults", 1);
+    }
+  }
+
+  @Nested
+  @DisplayName("源单元目录")
+  class SourceUnitCatalogTests {
+
+    @Test
+    @DisplayName("无源文件时目录为空")
+    void emptySourceFilesProducesEmptyCatalog() {
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize("claude_code", List.of(), List.of(), List.of());
+
+      assertThat(artifact.sourceUnitCatalog()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("源文件对应目录条目")
+    void sourceFilesProduceCatalogEntries() {
+      NormalizedSourceFile file =
+          new NormalizedSourceFile(
+              "transcript", "/path/to/session.jsonl", Optional.empty(), Optional.empty());
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize("claude_code", List.of(), List.of(), List.of(file));
+
+      assertThat(artifact.sourceUnitCatalog()).hasSize(1);
+      assertThat(artifact.sourceUnitCatalog()).containsKey("/path/to/session.jsonl");
+      SourceUnitCatalogEntry entry = artifact.sourceUnitCatalog().get("/path/to/session.jsonl");
+      assertThat(entry.unitKey()).isEqualTo("/path/to/session.jsonl");
+      assertThat(entry.originPath()).isEqualTo("/path/to/session.jsonl");
+      assertThat(entry.unitType()).isEqualTo("transcript");
+      assertThat(entry.direction()).isEqualTo("request");
+    }
+
+    @Test
+    @DisplayName("多个源文件产生多个目录条目")
+    void multipleSourceFilesProduceMultipleEntries() {
+      NormalizedSourceFile file1 =
+          new NormalizedSourceFile(
+              "transcript", "/path/a.jsonl", Optional.empty(), Optional.empty());
+      NormalizedSourceFile file2 =
+          new NormalizedSourceFile(
+              "companion", "/path/b.jsonl", Optional.empty(), Optional.empty());
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize("claude_code", List.of(), List.of(), List.of(file1, file2));
+
+      assertThat(artifact.sourceUnitCatalog()).hasSize(2);
+      assertThat(artifact.sourceUnitCatalog()).containsKey("/path/a.jsonl");
+      assertThat(artifact.sourceUnitCatalog()).containsKey("/path/b.jsonl");
+    }
+  }
+
+  @Nested
+  @DisplayName("守恒检查")
+  class ConservationTests {
+
+    @Test
+    @DisplayName("守恒检查结果记录正确")
+    void conservationCheckResultRecordsCorrectly() {
+      NormalizationEngine.ConservationCheckResult result =
+          new NormalizationEngine.ConservationCheckResult(3, 3, 2, true);
+
+      assertThat(result.declaredTools()).isEqualTo(3);
+      assertThat(result.executedTools()).isEqualTo(3);
+      assertThat(result.consumedResults()).isEqualTo(2);
+      assertThat(result.tokensConserved()).isTrue();
+    }
+
+    @Test
+    @DisplayName("空调用的守恒检查结果为零")
+    void emptyCallsProduceZeroConservation() {
+      NormalizationEngine.ConservationCheckResult result =
+          NormalizationEngine.buildConservationCheck(List.of(), List.of());
+
+      assertThat(result.declaredTools()).isZero();
+      assertThat(result.executedTools()).isZero();
+      assertThat(result.consumedResults()).isZero();
+      assertThat(result.tokensConserved()).isTrue();
+    }
+
+    @Test
+    @DisplayName("守恒检查 token 始终守恒")
+    void conservationCheckTokenAlwaysConserved() {
+      ObjectNode event = MAPPER.createObjectNode();
+      event.put("type", "assistant");
+      event.put("id", "c1");
+      event.putObject("usage").put("input_tokens", 100).put("output_tokens", 200);
+
+      EventClassifier.ClassifiedEvents classified = EventClassifier.classify(List.of(event));
+      List<com.feipi.session.browser.domain.normalized.NormalizedCall> calls =
+          CallBuilder.buildCalls(List.of(event), classified);
+
+      NormalizationEngine.ConservationCheckResult result =
+          NormalizationEngine.buildConservationCheck(calls, List.of());
+
+      assertThat(result.tokensConserved()).isTrue();
+    }
+
+    @Test
+    @DisplayName("守恒检查负数参数被拒绝")
+    void conservationCheckRejectsNegativeValues() {
+      assertThatThrownBy(() -> new NormalizationEngine.ConservationCheckResult(-1, 0, 0, true))
+          .isInstanceOf(IllegalArgumentException.class);
+      assertThatThrownBy(() -> new NormalizationEngine.ConservationCheckResult(0, -1, 0, true))
+          .isInstanceOf(IllegalArgumentException.class);
+      assertThatThrownBy(() -> new NormalizationEngine.ConservationCheckResult(0, 0, -1, true))
+          .isInstanceOf(IllegalArgumentException.class);
     }
   }
 }
