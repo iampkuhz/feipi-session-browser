@@ -8,10 +8,10 @@ import java.util.Objects;
  * <p>控制解析过程中的资源上限，防止异常输入导致内存溢出。 所有字段均为不可变 record component。
  *
  * @param maxRecords 单次解析操作允许的最大记录数
- * @param maxBufferChars 单条记录累积缓冲区的最大字符数
+ * @param maxBufferSize 单条记录累积缓冲区的最大字符数（char 单位，非 byte）。 当缓冲区累积的字符总数超过此值时，记录将被强制刷新并报告错误
  * @param maxPreviewLength 诊断预览文本的最大长度（字符数）
  */
-public record JsonlReaderConfig(int maxRecords, int maxBufferChars, int maxPreviewLength) {
+public record JsonlReaderConfig(int maxRecords, int maxBufferSize, int maxPreviewLength) {
 
   /** 默认配置实例。 */
   public static final JsonlReaderConfig DEFAULT =
@@ -29,8 +29,8 @@ public record JsonlReaderConfig(int maxRecords, int maxBufferChars, int maxPrevi
     if (maxRecords <= 0) {
       throw new IllegalArgumentException("maxRecords 必须为正整数: " + maxRecords);
     }
-    if (maxBufferChars <= 0) {
-      throw new IllegalArgumentException("maxBufferChars 必须为正整数: " + maxBufferChars);
+    if (maxBufferSize <= 0) {
+      throw new IllegalArgumentException("maxBufferSize 必须为正整数: " + maxBufferSize);
     }
     if (maxPreviewLength <= 0) {
       throw new IllegalArgumentException("maxPreviewLength 必须为正整数: " + maxPreviewLength);
@@ -50,12 +50,12 @@ public record JsonlReaderConfig(int maxRecords, int maxBufferChars, int maxPrevi
    * 创建自定义配置。
    *
    * @param maxRecords 最大记录数
-   * @param maxBufferChars 最大缓冲区字符数
+   * @param maxBufferSize 最大缓冲区字符数（char 单位）
    * @param maxPreviewLength 最大预览长度
    * @return 自定义配置实例
    */
-  public static JsonlReaderConfig of(int maxRecords, int maxBufferChars, int maxPreviewLength) {
-    return new JsonlReaderConfig(maxRecords, maxBufferChars, maxPreviewLength);
+  public static JsonlReaderConfig of(int maxRecords, int maxBufferSize, int maxPreviewLength) {
+    return new JsonlReaderConfig(maxRecords, maxBufferSize, maxPreviewLength);
   }
 
   /**

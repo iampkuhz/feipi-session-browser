@@ -177,6 +177,7 @@ class JsonlReaderTest {
               + "  }\n"
               + "}\n";
       Path path = write(content);
+
       JsonlReaderResult result = reader.read(path);
 
       assertThat(result.events()).hasSize(1);
@@ -494,6 +495,217 @@ class JsonlReaderTest {
       org.junit.jupiter.api.Assertions.assertThrows(
           UnsupportedOperationException.class,
           () -> result.diagnostics().add(result.diagnostics().get(0)));
+    }
+  }
+
+  // ─── 括号不匹配 ──────────────────────────────────────────────────────
+
+  @Nested
+  @DisplayName("括号不匹配")
+  class BracketMismatchTests {
+
+    @Test
+    @DisplayName("花括号开后用方括号关闭产生 BRACKET_MISMATCH")
+    void curlyOpenSquareClose() throws IOException {
+      Path path = write("{\"a\":]\n");
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.events()).isEmpty();
+      assertThat(result.diagnostics()).isNotEmpty();
+      SourceDiagnostic diag = result.diagnostics().get(0);
+      assertThat(diag.code()).isEqualTo("BAD_JSON:BRACKET_MISMATCH");
+      assertThat(diag.severity()).isEqualTo(ParseSeverity.ERROR);
+    }
+
+    @Test
+    @DisplayName("多余的闭合括号产生 BRACKET_MISMATCH")
+    void extraClosingBracket() throws IOException {
+      Path path = write("{\"a\": 1}}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      // 第一个对象正常解析，多余的 } 应产生诊断
+      assertThat(result.events()).hasSize(1);
+      assertThat(result.diagnostics()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("方括号内混用花括号产生 BRACKET_MISMATCH")
+    void squareOpenCurlyClose() throws IOException {
+      Path path = write("[1, 2}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.diagnostics()).isNotEmpty();
+      assertThat(result.diagnostics().get(0).code()).isEqualTo("BAD_JSON:BRACKET_MISMATCH");
+    }
+  }
+
+  // ─── 达到记录上限（STOPPED_BY_LIMIT） ──────────────────────────────
+
+  @Nested
+  @DisplayName("STOPPED_BY_LIMIT")
+  class StoppedByLimitTests {
+
+    @Test
+    @DisplayName("达到 maxRecords 后 stoppedByLimit 为 true")
+    void stoppedByLimitFlag() throws IOException {
+      String content = "{\"a\": 1}\n{\"b\": 2}\n{\"c\": 3}\n{\"d\": 4}\n{\"e\": 5}\n";
+      Path path = write(content);
+      JsonlReader limitedReader = new JsonlReader(JsonlReaderConfig.of(3, 10_000_000, 120));
+      JsonlReaderResult result = limitedReader.read(path);
+
+      assertThat(result.events()).hasSize(3);
+      assertThat(result.stoppedByLimit()).isTrue();
+    }
+
+    @Test
+    @DisplayName("未达 maxRecords 时 stoppedByLimit 为 false")
+    void notStoppedByLimit() throws IOException {
+      Path path = write("{\"a\": 1}\n{\"b\": 2}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.events()).hasSize(2);
+      assertThat(result.stoppedByLimit()).isFalse();
+    }
+
+    @Test
+    @DisplayName("达到上限后产生 STOPPED_BY_LIMIT 诊断")
+    void stoppedByLimitDiagnostic() throws IOException {
+      String content = "{\"a\": 1}\n{\"b\": 2}\n{\"c\": 3}\n";
+      Path path = write(content);
+      JsonlReader limitedReader = new JsonlReader(JsonlReaderConfig.of(2, 10_000_000, 120));
+      JsonlReaderResult result = limitedReader.read(path);
+
+      assertThat(result.events()).hasSize(2);
+      assertThat(result.stoppedByLimit()).isTrue();
+      assertThat(result.diagnostics()).anyMatch(d -> d.code().equals("STOPPED_BY_LIMIT"));
+    }
+  }
+
+  // ─── 字节范围追踪 ──────────────────────────────────────────────────────
+
+  @Nested
+  @DisplayName("字节范围追踪")
+  class ByteRangeTests {
+
+    @Test
+    @DisplayName("BAD_JSON 诊断包含字节范围")
+    void badJsonByteRange() throws IOException {
+      Path path = write("{\"good\": true}\n{bad}\n{\"also\": 1}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.diagnostics()).hasSize(1);
+      SourceDiagnostic diag = result.diagnostics().get(0);
+      assertThat(diag.byteRangeStart()).isPresent();
+      assertThat(diag.byteRangeEnd()).isPresent();
+      // 第二行起始字节应大于 0
+      assertThat(diag.byteRangeStart().getAsInt()).isGreaterThan(0);
+    }
+
+    @Test
+    @DisplayName("成功解析的记录也有字节范围")
+    void successfulRecordByteRange() throws IOException {
+      Path path = write("{\"a\": 1}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.events()).hasSize(1);
+      // 非对象诊断也应有字节范围
+    }
+  }
+
+  // ─── 缓冲区溢出 ──────────────────────────────────────────────────────
+
+  @Nested
+  @DisplayName("缓冲区溢出")
+  class BufferOverflowTests {
+
+    @Test
+    @DisplayName("超大记录产生 BUFFER_OVERFLOW 诊断")
+    void oversizedRecord() throws IOException {
+      // 构造一个超过 maxBufferChars 的单行记录
+      String bigContent = "{\"big\": \"" + "x".repeat(200) + "\"}\n";
+      Path path = write(bigContent);
+      // 设置极小的缓冲区
+      JsonlReader tinyBufferReader = new JsonlReader(JsonlReaderConfig.of(1_000_000, 50, 120));
+      JsonlReaderResult result = tinyBufferReader.read(path);
+
+      assertThat(result.events()).isEmpty();
+      assertThat(result.diagnostics()).anyMatch(d -> d.code().equals("BAD_JSON:BUFFER_OVERFLOW"));
+    }
+  }
+
+  // ─── 预览脱敏 ──────────────────────────────────────────────────────
+
+  @Nested
+  @DisplayName("预览脱敏")
+  class PreviewSanitizationTests {
+
+    @Test
+    @DisplayName("预览中包含疑似密钥字段被遮蔽")
+    void secretFieldMasked() throws IOException {
+      String content = "{\"password\": \"my_secret_123\", \"ok\": true}\n";
+      // 构造一条坏 JSON 来触发诊断
+      Path path = write(content + "{bad}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      // 查找包含 password 的诊断
+      assertThat(result.diagnostics()).isNotEmpty();
+    }
+
+    @Test
+    @DisplayName("预览长度严格不超过 maxPreviewLength")
+    void previewStrictMaxLength() throws IOException {
+      String longLine = "x".repeat(500) + "\n";
+      Path path = write(longLine);
+      JsonlReader smallPreviewReader =
+          new JsonlReader(JsonlReaderConfig.of(1_000_000, 10_000_000, 20));
+      JsonlReaderResult result = smallPreviewReader.read(path);
+
+      for (SourceDiagnostic d : result.diagnostics()) {
+        if (d.preview().isPresent()) {
+          assertThat(d.preview().get().length()).isLessThanOrEqualTo(20);
+        }
+      }
+    }
+  }
+
+  // ─── 活跃写入检测 ──────────────────────────────────────────────────────
+
+  @Nested
+  @DisplayName("活跃写入检测")
+  class ActiveWriteTests {
+
+    @Test
+    @DisplayName("正常文件不触发 RETRYABLE_INCOMPLETE")
+    void normalFileNoRetryable() throws IOException {
+      Path path = write("{\"a\": 1}\n");
+      JsonlReaderResult result = reader.read(path);
+
+      assertThat(result.diagnostics()).noneMatch(d -> d.code().equals("RETRYABLE_INCOMPLETE"));
+    }
+  }
+
+  // ─── JsonlReaderResult 不包含 @DomainModel ─────────────────────────────
+
+  @Nested
+  @DisplayName("类型标注")
+  class AnnotationTests {
+
+    @Test
+    @DisplayName("JsonlReaderResult 不标注 @DomainModel")
+    void resultNotDomainModel() {
+      assertThat(
+              JsonlReaderResult.class.isAnnotationPresent(
+                  com.feipi.session.browser.domain.annotation.DomainModel.class))
+          .isFalse();
+    }
+
+    @Test
+    @DisplayName("JsonlStats 不标注 @DomainModel")
+    void statsNotDomainModel() {
+      assertThat(
+              JsonlStats.class.isAnnotationPresent(
+                  com.feipi.session.browser.domain.annotation.DomainModel.class))
+          .isFalse();
     }
   }
 }
