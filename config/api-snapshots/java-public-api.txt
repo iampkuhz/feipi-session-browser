@@ -117,6 +117,10 @@ component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationRes
 component com.feipi.session.browser.index.sqlite.Migration description: String
 component com.feipi.session.browser.index.sqlite.Migration sqlResource: String
 component com.feipi.session.browser.index.sqlite.Migration version: SchemaVersion
+component com.feipi.session.browser.index.sqlite.PragmaConfig busyTimeoutMs: int
+component com.feipi.session.browser.index.sqlite.PragmaConfig foreignKeys: boolean
+component com.feipi.session.browser.index.sqlite.PragmaConfig journalMode: String
+component com.feipi.session.browser.index.sqlite.PragmaConfig synchronous: String
 component com.feipi.session.browser.index.sqlite.SchemaValidationResult existingTables: Set<String>
 component com.feipi.session.browser.index.sqlite.SchemaValidationResult missingColumns: Map<String, Set<String>>
 component com.feipi.session.browser.index.sqlite.SchemaVersion version: int
@@ -198,10 +202,19 @@ constructor com.feipi.session.browser.domain.normalized.SourceUnitRefRange publi
 constructor com.feipi.session.browser.domain.source.SourceRecord public SourceRecord()
 constructor com.feipi.session.browser.domain.source.SourceRecordUsage public SourceRecordUsage()
 constructor com.feipi.session.browser.domain.source.SourceToolCall public SourceToolCall()
+constructor com.feipi.session.browser.index.sqlite.ConnectionFactory public ConnectionFactory(String jdbcUrl, PragmaConfig pragmaConfig)
+constructor com.feipi.session.browser.index.sqlite.IndexConnection public IndexConnection( Connection writerConnection, ConnectionFactory readFactory, PragmaConfig pragmaConfig)
 constructor com.feipi.session.browser.index.sqlite.IndexSchema public IndexSchema(MigrationRunner runner)
 constructor com.feipi.session.browser.index.sqlite.Migration public Migration()
 constructor com.feipi.session.browser.index.sqlite.MigrationRunner public MigrationRunner(List<Migration> migrations)
+constructor com.feipi.session.browser.index.sqlite.PragmaConfig public PragmaConfig()
+constructor com.feipi.session.browser.index.sqlite.PragmaConfig public static final PragmaConfig DEFAULTS = new PragmaConfig(" ", " ", 30_000, true)
+constructor com.feipi.session.browser.index.sqlite.ReadTransaction public ReadTransaction(Connection conn) throws SQLException
 constructor com.feipi.session.browser.index.sqlite.SchemaVersion public SchemaVersion()
+constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(Connection conn, int maxEntries)
+constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
+constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection, int queueCapacity, int batchLimit)
+constructor com.feipi.session.browser.index.sqlite.WriteTransaction public WriteTransaction(Connection conn) throws SQLException
 constructor com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public ReuseAnalyzer(Path cacheDirectory)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message, Throwable cause)
@@ -282,6 +295,9 @@ field com.feipi.session.browser.artifact.normalized.SafeArtifactName public MAX_
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_COLLECTION_SIZE: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public SCHEMA_VERSION: static final String
+field com.feipi.session.browser.index.sqlite.WriteBatch public DEFAULT_MAX_ENTRIES: static final int
+field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_BATCH_LIMIT: static final int
+field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_QUEUE_CAPACITY: static final int
 field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_ESTIMATED: static final String
 field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_EXACT: static final String
 field com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public ANALYZER_VERSION: static final String
@@ -343,6 +359,17 @@ method com.feipi.session.browser.domain.normalized.SourceUnitDirection public st
 method com.feipi.session.browser.domain.source.SourceRecord public static SourceRecord of(String locator, int eventIndex, String eventType)
 method com.feipi.session.browser.domain.source.SourceRecordUsage public long total()
 method com.feipi.session.browser.domain.source.SourceRecordUsage public static SourceRecordUsage empty()
+method com.feipi.session.browser.index.sqlite.ConnectionFactory public Connection create() throws SQLException
+method com.feipi.session.browser.index.sqlite.ConnectionFactory public PragmaConfig pragmaConfig()
+method com.feipi.session.browser.index.sqlite.ConnectionFactory public String jdbcUrl()
+method com.feipi.session.browser.index.sqlite.ConnectionFactory public static ConnectionFactory withDefaults(String jdbcUrl)
+method com.feipi.session.browser.index.sqlite.IndexConnection public Connection writerConnection()
+method com.feipi.session.browser.index.sqlite.IndexConnection public PragmaConfig pragmaConfig()
+method com.feipi.session.browser.index.sqlite.IndexConnection public ReadTransaction readTransaction() throws SQLException
+method com.feipi.session.browser.index.sqlite.IndexConnection public WriteQueue writeQueue()
+method com.feipi.session.browser.index.sqlite.IndexConnection public static IndexConnection create( Connection writerConnection, PragmaConfig pragmaConfig, String jdbcUrl)
+method com.feipi.session.browser.index.sqlite.IndexConnection public static IndexConnection withDefaults(Connection writerConnection, String jdbcUrl)
+method com.feipi.session.browser.index.sqlite.IndexConnection public void close()
 method com.feipi.session.browser.index.sqlite.IndexSchema public List<SchemaVersion> ensureSchema(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.IndexSchema public SchemaValidationResult validateSchema(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.IndexSchema public SchemaVersion currentVersion(Connection conn) throws SQLException
@@ -356,9 +383,32 @@ method com.feipi.session.browser.index.sqlite.MigrationRunner public List<Schema
 method com.feipi.session.browser.index.sqlite.MigrationRunner public SchemaVersion currentVersion(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.MigrationRunner public Set<Integer> appliedVersions(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.MigrationRunner public static MigrationRunner withAllMigrations()
+method com.feipi.session.browser.index.sqlite.PragmaConfig public boolean verify(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.PragmaConfig public void apply(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.ReadTransaction public Connection connection()
+method com.feipi.session.browser.index.sqlite.ReadTransaction public void close()
 method com.feipi.session.browser.index.sqlite.SchemaValidationResult public boolean isComplete()
 method com.feipi.session.browser.index.sqlite.SchemaVersion public String toString()
 method com.feipi.session.browser.index.sqlite.SchemaVersion public int compareTo(SchemaVersion other)
+method com.feipi.session.browser.index.sqlite.WriteBatch public int pendingCount()
+method com.feipi.session.browser.index.sqlite.WriteBatch public void addDelete(String sql)
+method com.feipi.session.browser.index.sqlite.WriteBatch public void addInsert(String sql)
+method com.feipi.session.browser.index.sqlite.WriteBatch public void addUpdate(String sql)
+method com.feipi.session.browser.index.sqlite.WriteBatch public void execute(WriteOperation op) throws SQLException
+method com.feipi.session.browser.index.sqlite.WriteBatch public void flush() throws SQLException
+method com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public void execute(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.WriteOperation public void execute(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.WriteQueue public CompletableFuture<Void> submit(WriteBatch.WriteOperation op)
+method com.feipi.session.browser.index.sqlite.WriteQueue public WriteBatch newBatch()
+method com.feipi.session.browser.index.sqlite.WriteQueue public int batchLimit()
+method com.feipi.session.browser.index.sqlite.WriteQueue public int pendingCount()
+method com.feipi.session.browser.index.sqlite.WriteQueue public void cancelPending()
+method com.feipi.session.browser.index.sqlite.WriteQueue public void shutdown() throws SQLException, InterruptedException
+method com.feipi.session.browser.index.sqlite.WriteTransaction public Connection connection()
+method com.feipi.session.browser.index.sqlite.WriteTransaction public void close()
+method com.feipi.session.browser.index.sqlite.WriteTransaction public void commit() throws SQLException
+method com.feipi.session.browser.index.sqlite.WriteTransaction public void execute(String sql) throws SQLException
+method com.feipi.session.browser.index.sqlite.WriteTransaction public void rollback() throws SQLException
 method com.feipi.session.browser.normalization.CallBuilder public static List<NormalizedCall> buildCalls( List<? extends SourceRecord> records, EventClassifier.ClassifiedEvents classified)
 method com.feipi.session.browser.normalization.CallBuilder public static List<NormalizedToolExecution> buildToolExecutions( List<? extends SourceRecord> records, EventClassifier.ClassifiedEvents classified, List<NormalizedCall> calls)
 method com.feipi.session.browser.normalization.ClassifiedEvents public List<SourceRecord> allEvents()
@@ -545,12 +595,21 @@ type com.feipi.session.browser.domain.normalized.SourceUnitRefRange public recor
 type com.feipi.session.browser.domain.source.SourceRecord public record [core-domain] record SourceRecord( String locator, int eventIndex, String eventType, Optional<String> callId, Optional<String> model, Optional<String> timestamp, Optional<String> turnId, SourceRecordUsage usage, List<SourceToolCall> toolCalls, Optional<String> toolUseId, Optional<String> toolName)
 type com.feipi.session.browser.domain.source.SourceRecordUsage public record [core-domain] record SourceRecordUsage( long inputTokens, long cacheReadInputTokens, long cacheCreationInputTokens, long outputTokens)
 type com.feipi.session.browser.domain.source.SourceToolCall public record [core-domain] record SourceToolCall(String toolCallId, String name)
+type com.feipi.session.browser.index.sqlite.ConnectionFactory public class [index-sqlite] final class ConnectionFactory
+type com.feipi.session.browser.index.sqlite.IndexConnection public class [index-sqlite] final class IndexConnection implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.IndexSchema public class [index-sqlite] final class IndexSchema
 type com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
 type com.feipi.session.browser.index.sqlite.Migration public record [index-sqlite] record Migration(SchemaVersion version, String description, String sqlResource)
 type com.feipi.session.browser.index.sqlite.MigrationRunner public class [index-sqlite] final class MigrationRunner
+type com.feipi.session.browser.index.sqlite.PragmaConfig public record [index-sqlite] record PragmaConfig( String journalMode, String synchronous, int busyTimeoutMs, boolean foreignKeys)
+type com.feipi.session.browser.index.sqlite.ReadTransaction public class [index-sqlite] final class ReadTransaction implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
 type com.feipi.session.browser.index.sqlite.SchemaVersion public record [index-sqlite] record SchemaVersion(int version) implements Comparable<SchemaVersion>
+type com.feipi.session.browser.index.sqlite.WriteBatch public class [index-sqlite] final class WriteBatch
+type com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public interface [index-sqlite] interface WriteOperation
+type com.feipi.session.browser.index.sqlite.WriteOperation public interface [index-sqlite] interface WriteOperation
+type com.feipi.session.browser.index.sqlite.WriteQueue public class [index-sqlite] final class WriteQueue
+type com.feipi.session.browser.index.sqlite.WriteTransaction public class [index-sqlite] final class WriteTransaction implements AutoCloseable
 type com.feipi.session.browser.normalization.CallBuilder public class [normalization-engine] final class CallBuilder
 type com.feipi.session.browser.normalization.ClassifiedEvents public class [normalization-engine] static final class ClassifiedEvents
 type com.feipi.session.browser.normalization.EventClassifier public class [normalization-engine] final class EventClassifier
