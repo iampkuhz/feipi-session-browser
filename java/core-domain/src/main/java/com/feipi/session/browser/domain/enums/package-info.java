@@ -9,16 +9,15 @@
  *
  * <ul>
  *   <li>{@link com.feipi.session.browser.domain.enums.CallScope} — {@code main, subagent}
- *   <li>{@link com.feipi.session.browser.domain.enums.CallStatus} — {@code success, error, timeout,
- *       cancelled}
+ *   <li>{@link com.feipi.session.browser.domain.enums.CallStatus} — {@code ok, error, completed}
  *   <li>{@link com.feipi.session.browser.domain.enums.TokenPrecision} — {@code exact,
- *       provider_reported, estimated, heuristic, unknown}
+ *       provider_reported, estimated, unavailable}
  *   <li>{@link com.feipi.session.browser.domain.enums.TokenProvider} — {@code anthropic, openai,
- *       qoder_broker, unknown}
- *   <li>{@link com.feipi.session.browser.domain.enums.TokenSourceKind} — {@code provider_usage,
- *       transcript_reconstruction, estimation, residual, unknown}
+ *       codex, qwen-anthropic-compatible, qoder, unknown}
+ *   <li>{@link com.feipi.session.browser.domain.enums.TokenSourceKind} — {@code
+ *       claude_code_jsonl_usage, codex_rollout_token_count, openai_responses_usage, ...}
  *   <li>{@link com.feipi.session.browser.domain.enums.TokenTotalSemantics} — {@code
- *       exclusive_component_sum, inclusive_of_cache, unknown}
+ *       exclusive_components_sum, reported_total, ...}
  * </ul>
  */
 package com.feipi.session.browser.domain.enums;

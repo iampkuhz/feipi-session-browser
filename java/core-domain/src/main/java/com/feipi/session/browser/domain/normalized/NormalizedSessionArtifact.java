@@ -74,8 +74,13 @@ public record NormalizedSessionArtifact(
     }
     sourceFiles = sourceFilesCopy;
 
-    // session 不可变副本
-    session = Map.copyOf(session);
+    // session 不可变副本，大小受限
+    Map<String, Object> sessionCopy = Map.copyOf(session);
+    if (sessionCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
+      throw new IllegalArgumentException(
+          "session map size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+    }
+    session = sessionCopy;
 
     // 调用列表防御性拷贝 + callId 唯一性验证
     Objects.requireNonNull(calls, "calls 不得为 null");
@@ -111,10 +116,22 @@ public record NormalizedSessionArtifact(
     }
     diagnostics = diagCopy;
 
-    // sourceUnitCatalog 防御性拷贝
-    sourceUnitCatalog = sourceUnitCatalog == null ? Map.of() : Map.copyOf(sourceUnitCatalog);
+    // sourceUnitCatalog 防御性拷贝，大小受限
+    Map<String, SourceUnitCatalogEntry> catalogCopy =
+        sourceUnitCatalog == null ? Map.of() : Map.copyOf(sourceUnitCatalog);
+    if (catalogCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
+      throw new IllegalArgumentException(
+          "sourceUnitCatalog size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+    }
+    sourceUnitCatalog = catalogCopy;
 
-    // sourceUnitSequences 防御性拷贝
-    sourceUnitSequences = sourceUnitSequences == null ? Map.of() : Map.copyOf(sourceUnitSequences);
+    // sourceUnitSequences 防御性拷贝，大小受限
+    Map<String, List<String>> sequencesCopy =
+        sourceUnitSequences == null ? Map.of() : Map.copyOf(sourceUnitSequences);
+    if (sequencesCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
+      throw new IllegalArgumentException(
+          "sourceUnitSequences size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+    }
+    sourceUnitSequences = sequencesCopy;
   }
 }

@@ -13,14 +13,21 @@ import java.util.Objects;
 /**
  * 归一化后的 token 分类统计。
  *
- * <p>将一次 LLM 调用的 token 消耗按输入、缓存读取、缓存写入和输出四个维度分解， 同时记录计量的精度、合计语义和数据来源。 该类型被 {@code SessionSummary} 和
- * 网页展示层消费，用于 token 分析面板和归因计算。
+ * <p>将一次 LLM 调用的 token 消耗按输入、缓存读取、缓存写入和输出四个维度分解， 同时记录计量的精度、合计语义和数据来源。 该类型被归一化引擎和制品写入层消费，用于 token
+ * 分析面板和归因计算。
  *
- * @param freshInputTokens 非缓存的输入 token 数
- * @param cacheReadTokens 缓存命中的读取 token 数
- * @param cacheWriteTokens 缓存写入 token 数
- * @param outputTokens 输出 token 数
- * @param totalTokens 归一化后的 token 总计
+ * <p>不变量：
+ *
+ * <ul>
+ *   <li>所有 token 计数字段必须非负。
+ *   <li>{@code rawFields} 和 {@code notes} 使用不可变副本，确保 record 不可变性。
+ * </ul>
+ *
+ * @param freshInputTokens 非缓存的输入 token 数，非负
+ * @param cacheReadTokens 缓存命中的读取 token 数，非负
+ * @param cacheWriteTokens 缓存写入 token 数，非负
+ * @param outputTokens 输出 token 数，非负
+ * @param totalTokens 归一化后的 token 总计，非负
  * @param precision 计量精度级别
  * @param totalSemantics 合计字段的计算语义
  * @param sourceKind token 数据的来源分类
@@ -41,11 +48,31 @@ public record NormalizedTokenBreakdown(
     List<String> notes) {
 
   /**
-   * 紧凑构造器，执行防御性拷贝和非空约束。
+   * 紧凑构造器，执行防御性拷贝、非空约束和非负不变量。
    *
-   * <p>{@code rawFields} 和 {@code notes} 使用不可变副本替换， 确保 record 的不可变性语义。
+   * <p>{@code rawFields} 和 {@code notes} 使用不可变副本替换， 确保 record 的不可变性语义。 所有 token 计数必须非负。
+   *
+   * @throws IllegalArgumentException 当任何 token 计数为负数时
    */
   public NormalizedTokenBreakdown {
+    if (freshInputTokens < 0) {
+      throw new IllegalArgumentException(
+          "freshInputTokens must be non-negative; got " + freshInputTokens);
+    }
+    if (cacheReadTokens < 0) {
+      throw new IllegalArgumentException(
+          "cacheReadTokens must be non-negative; got " + cacheReadTokens);
+    }
+    if (cacheWriteTokens < 0) {
+      throw new IllegalArgumentException(
+          "cacheWriteTokens must be non-negative; got " + cacheWriteTokens);
+    }
+    if (outputTokens < 0) {
+      throw new IllegalArgumentException("outputTokens must be non-negative; got " + outputTokens);
+    }
+    if (totalTokens < 0) {
+      throw new IllegalArgumentException("totalTokens must be non-negative; got " + totalTokens);
+    }
     Objects.requireNonNull(precision, "precision 不得为 null");
     Objects.requireNonNull(totalSemantics, "totalSemantics 不得为 null");
     Objects.requireNonNull(sourceKind, "sourceKind 不得为 null");

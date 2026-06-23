@@ -108,8 +108,19 @@ public record NormalizedCall(
     }
     sourceUnits = sourceUnitsCopy;
 
-    attributionCandidates =
+    Map<String, Object> attributionCopy =
         attributionCandidates == null ? Map.of() : Map.copyOf(attributionCandidates);
-    usageSource = usageSource == null ? Map.of() : Map.copyOf(usageSource);
+    if (attributionCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
+      throw new IllegalArgumentException(
+          "attributionCandidates size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+    }
+    attributionCandidates = attributionCopy;
+
+    Map<String, Object> usageSourceCopy = usageSource == null ? Map.of() : Map.copyOf(usageSource);
+    if (usageSourceCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
+      throw new IllegalArgumentException(
+          "usageSource size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
+    }
+    usageSource = usageSourceCopy;
   }
 }
