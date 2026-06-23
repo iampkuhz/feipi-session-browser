@@ -18,6 +18,7 @@ dependencies {
     implementation(project(":java:source-qoder"))
     implementation(project(":java:normalization-engine"))
     implementation(project(":java:artifact-normalized"))
+    implementation(project(":java:scan-engine"))
     implementation(libs.picocli)
     implementation(libs.bundles.jackson)
 

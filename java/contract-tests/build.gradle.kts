@@ -11,6 +11,7 @@ dependencies {
     testImplementation(project(":java:artifact-normalized"))
     testImplementation(project(":java:normalization-engine"))
     testImplementation(project(":java:index-sqlite"))
+    testImplementation(project(":java:scan-engine"))
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)

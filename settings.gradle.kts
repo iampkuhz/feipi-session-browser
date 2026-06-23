@@ -23,6 +23,7 @@ include(
     "java:source-qoder",
     "java:normalization-engine",
     "java:index-sqlite",
+    "java:scan-engine",
     "java:test-support",
     "java:architecture-tests",
     "java:contract-tests",

@@ -165,6 +165,26 @@ component com.feipi.session.browser.normalization.NormalizationEngine.Conservati
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult tokensConserved: boolean
+component com.feipi.session.browser.scan.engine.ScanConfig agentFilter: Set<String>
+component com.feipi.session.browser.scan.engine.ScanConfig artifactOutputDir: Path
+component com.feipi.session.browser.scan.engine.ScanConfig parseParallelism: int
+component com.feipi.session.browser.scan.engine.ScanConfig sourceEntries: List<SourceEntry>
+component com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry adapter: SourceAdapter
+component com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry rootPath: Path
+component com.feipi.session.browser.scan.engine.ScanIssue message: String
+component com.feipi.session.browser.scan.engine.ScanIssue phase: ScanPhase
+component com.feipi.session.browser.scan.engine.ScanIssue sessionKey: String
+component com.feipi.session.browser.scan.engine.ScanIssue sourceValue: String
+component com.feipi.session.browser.scan.engine.ScanSummary errorCount: int
+component com.feipi.session.browser.scan.engine.ScanSummary issues: List<ScanIssue>
+component com.feipi.session.browser.scan.engine.ScanSummary perSourceCount: Map<SourceId, Integer>
+component com.feipi.session.browser.scan.engine.ScanSummary scanDurationMs: long
+component com.feipi.session.browser.scan.engine.ScanSummary scanLogId: long
+component com.feipi.session.browser.scan.engine.ScanSummary skippedCount: int
+component com.feipi.session.browser.scan.engine.ScanSummary successCount: int
+component com.feipi.session.browser.scan.engine.ScanSummary totalCandidates: int
+component com.feipi.session.browser.scan.engine.SourceEntry adapter: SourceAdapter
+component com.feipi.session.browser.scan.engine.SourceEntry rootPath: Path
 component com.feipi.session.browser.source.codex.ThreadsDbResult diagnostic: Optional<SourceDiagnostic>
 component com.feipi.session.browser.source.codex.ThreadsDbResult threads: List<Map<String, String>>
 component com.feipi.session.browser.source.json.JsonlReaderConfig maxBufferSize: int
@@ -264,6 +284,13 @@ constructor com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public
 constructor com.feipi.session.browser.reuse.analyzer.model.Finding public Finding( String id, Severity severity, String kind, String fingerprint, List<Map<String, Object>> occurrences, boolean touchesChangedCode, List<String> suggestedDecisions, Map<String, Object> ownership, String peerGroup)
 constructor com.feipi.session.browser.reuse.analyzer.model.InputManifest public InputManifest( int javaVersion, List<ModuleManifest> modules, List<String> changedFiles, String baseSha, String policyDigest)
 constructor com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public ModuleManifest( String id, List<String> productionSourceRoots, List<String> compileClasspath, List<String> compiledOutputs)
+constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter)
+constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScanEngine()
+constructor com.feipi.session.browser.scan.engine.ScanConfig public ScanConfig()
+constructor com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public SourceEntry()
+constructor com.feipi.session.browser.scan.engine.ScanIssue public ScanIssue()
+constructor com.feipi.session.browser.scan.engine.ScanSummary public ScanSummary()
+constructor com.feipi.session.browser.scan.engine.SourceEntry public SourceEntry()
 constructor com.feipi.session.browser.source.claude.ClaudeSourceAdapter public ClaudeSourceAdapter()
 constructor com.feipi.session.browser.source.claude.ClaudeSourceAdapter public ClaudeSourceAdapter(JsonlReader jsonlReader)
 constructor com.feipi.session.browser.source.codex.CodexSourceAdapter public CodexSourceAdapter()
@@ -526,6 +553,10 @@ method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List
 method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> compiledOutputs()
 method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> productionSourceRoots()
 method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public String id()
+method com.feipi.session.browser.scan.engine.FullScanEngine public ScanSummary scan(Connection writeConn, ScanConfig config)
+method com.feipi.session.browser.scan.engine.ScanConfig public boolean isAgentAllowed(String agentValue)
+method com.feipi.session.browser.scan.engine.ScanConfig public static ScanConfig defaults(List<SourceEntry> sourceEntries, Path artifactOutputDir)
+method com.feipi.session.browser.scan.engine.ScanSummary public boolean isFullySuccessful()
 method com.feipi.session.browser.source.claude.ClaudeDiscovery public static List<Path> discoverSessions(Path rootPath)
 method com.feipi.session.browser.source.claude.ClaudeSourceAdapter public BoundedStream<Candidate> discover(Path rootPath)
 method com.feipi.session.browser.source.claude.ClaudeSourceAdapter public SourceFingerprint fingerprint(Path filePath)
@@ -681,6 +712,14 @@ type com.feipi.session.browser.reuse.analyzer.model.InputManifest public class [
 type com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public class [reuse-analyzer] final class ModuleManifest
 type com.feipi.session.browser.reuse.analyzer.model.Ownership public enum [reuse-analyzer] enum Ownership
 type com.feipi.session.browser.reuse.analyzer.model.Severity public enum [reuse-analyzer] enum Severity
+type com.feipi.session.browser.scan.engine.FullScanEngine public class [scan-engine] final class FullScanEngine
+type com.feipi.session.browser.scan.engine.ScanConfig public record [scan-engine] record ScanConfig( List<SourceEntry> sourceEntries, Path artifactOutputDir, Set<String> agentFilter, int parseParallelism)
+type com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public record [scan-engine] record SourceEntry(SourceAdapter adapter, Path rootPath)
+type com.feipi.session.browser.scan.engine.ScanIssue public record [scan-engine] record ScanIssue(String sessionKey, String sourceValue, ScanPhase phase, String message)
+type com.feipi.session.browser.scan.engine.ScanIssue.ScanPhase public enum [scan-engine] enum ScanPhase
+type com.feipi.session.browser.scan.engine.ScanPhase public enum [scan-engine] enum ScanPhase
+type com.feipi.session.browser.scan.engine.ScanSummary public record [scan-engine] record ScanSummary( int totalCandidates, int successCount, int skippedCount, int errorCount, long scanDurationMs, long scanLogId, Map<SourceId, Integer> perSourceCount, List<ScanIssue> issues)
+type com.feipi.session.browser.scan.engine.SourceEntry public record [scan-engine] record SourceEntry(SourceAdapter adapter, Path rootPath)
 type com.feipi.session.browser.source.claude.ClaudeConstants public class [source-claude] final class ClaudeConstants
 type com.feipi.session.browser.source.claude.ClaudeDiscovery public class [source-claude] final class ClaudeDiscovery
 type com.feipi.session.browser.source.claude.ClaudeSourceAdapter public class [source-claude] final class ClaudeSourceAdapter implements SourceAdapter
