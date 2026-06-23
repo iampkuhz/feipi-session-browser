@@ -5,6 +5,7 @@ plugins {
 dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.slf4j.api)
+    implementation(libs.bundles.jackson)
     implementation(project(":java:core-domain"))
     implementation(project(":java:query-api"))
 
