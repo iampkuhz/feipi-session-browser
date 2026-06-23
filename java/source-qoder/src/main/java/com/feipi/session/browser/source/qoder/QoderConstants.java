@@ -19,6 +19,21 @@ public final class QoderConstants {
   /** 单个项目目录允许发现的最大会话文件数。 */
   public static final int MAX_SESSIONS_PER_PROJECT = 10_000;
 
+  /** Qoder JSONL 事件中表示用户消息的类型值。 */
+  public static final String EVENT_TYPE_USER = "user";
+
+  /** Qoder JSONL 事件中表示助手消息的类型值。 */
+  public static final String EVENT_TYPE_ASSISTANT = "assistant";
+
+  /** 当 JSONL 事件缺少 {@code type} 字段时使用的占位类型标识。 */
+  public static final String EVENT_TYPE_UNKNOWN = "unknown";
+
+  /** 诊断代码：事件缺少 {@code type} 字段。 */
+  public static final String DIAG_CODE_MISSING_TYPE = "UNKNOWN_BLOCK_TYPE";
+
+  /** 诊断代码：cache 格式事件使用 {@code role} 字段代替 {@code type}。 */
+  public static final String DIAG_CODE_CACHE_FORMAT = "CACHE_FORMAT_ROLE";
+
   private QoderConstants() {
     // 禁止实例化
   }

@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
+import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceAdapter;
+import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourceOutcome;
@@ -308,6 +310,145 @@ class QoderSourceAdapterTest {
       SourceResult result = adapter.parse(candidate, cancelled);
 
       assertThat(result.outcome()).isEqualTo(SourceOutcome.SKIPPED);
+    }
+
+    @Test
+    @DisplayName("parse 返回与事件数量一致的 ParsedRecord 列表")
+    void parseReturnsMatchingParsedRecords() throws IOException {
+      Path file = tempDir.resolve("session.jsonl");
+      String content =
+          "{\"type\":\"user\",\"message\":\"hello\"}\n"
+              + "{\"type\":\"assistant\",\"message\":\"world\"}\n"
+              + "{\"type\":\"user\",\"message\":\"third\"}\n";
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+
+      SourceFingerprint fp = adapter.fingerprint(file);
+      Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
+
+      SourceResult result = adapter.parse(candidate, null);
+
+      assertThat(result).isInstanceOf(SourceResult.Success.class);
+      SourceResult.Success success = (SourceResult.Success) result;
+      List<ParsedRecord> records = success.records();
+      assertThat(records).hasSize(3);
+      // 验证每条 record 的 locator 包含文件路径和事件序号
+      assertThat(records.get(0).locator()).endsWith("#event[0]");
+      assertThat(records.get(1).locator()).endsWith("#event[1]");
+      assertThat(records.get(2).locator()).endsWith("#event[2]");
+    }
+
+    @Test
+    @DisplayName("ParsedRecord 的 eventType 与源事件 type 字段对应")
+    void parsedRecordEventTypeMatchesSource() throws IOException {
+      Path file = tempDir.resolve("session.jsonl");
+      String content =
+          "{\"type\":\"user\",\"message\":\"hello\"}\n"
+              + "{\"type\":\"assistant\",\"message\":\"world\"}\n";
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+
+      SourceFingerprint fp = adapter.fingerprint(file);
+      Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
+
+      SourceResult result = adapter.parse(candidate, null);
+      SourceResult.Success success = (SourceResult.Success) result;
+
+      QoderParsedRecord r0 = (QoderParsedRecord) success.records().get(0);
+      QoderParsedRecord r1 = (QoderParsedRecord) success.records().get(1);
+      assertThat(r0.eventType()).isEqualTo("user");
+      assertThat(r1.eventType()).isEqualTo("assistant");
+    }
+
+    @Test
+    @DisplayName("缺少 type 字段的事件产生 UNKNOWN_BLOCK_TYPE 诊断")
+    void missingTypeFieldProducesDiagnostic() throws IOException {
+      Path file = tempDir.resolve("session.jsonl");
+      String content =
+          "{\"type\":\"user\",\"message\":\"hello\"}\n"
+              + "{\"message\":\"no type here\"}\n"
+              + "{\"type\":\"assistant\",\"message\":\"world\"}\n";
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+
+      SourceFingerprint fp = adapter.fingerprint(file);
+      Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
+
+      SourceResult result = adapter.parse(candidate, null);
+
+      assertThat(result).isInstanceOf(SourceResult.Success.class);
+      SourceResult.Success success = (SourceResult.Success) result;
+      // 验证 UNKNOWN_BLOCK_TYPE 诊断存在
+      List<SourceDiagnostic> unknownDiags =
+          success.diagnostics().stream()
+              .filter(d -> "UNKNOWN_BLOCK_TYPE".equals(d.code()))
+              .toList();
+      assertThat(unknownDiags).hasSize(1);
+      assertThat(unknownDiags.get(0).message()).contains("missing 'type' field");
+      // 验证仍然产生了 3 条 record（不丢弃事件）
+      assertThat(success.records()).hasSize(3);
+    }
+
+    @Test
+    @DisplayName("cache 格式事件（role 字段）产生 CACHE_FORMAT_ROLE 诊断并使用 role 值作为 eventType")
+    void cacheFormatRoleFieldProducesDiagnostic() throws IOException {
+      Path file = tempDir.resolve("cache-session.jsonl");
+      String content =
+          "{\"role\":\"user\",\"message\":\"hello\"}\n"
+              + "{\"role\":\"assistant\",\"message\":\"world\"}\n";
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+
+      SourceFingerprint fp = adapter.fingerprint(file);
+      Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
+
+      SourceResult result = adapter.parse(candidate, null);
+
+      assertThat(result).isInstanceOf(SourceResult.Success.class);
+      SourceResult.Success success = (SourceResult.Success) result;
+      // 验证 CACHE_FORMAT_ROLE 诊断存在
+      List<SourceDiagnostic> cacheDiags =
+          success.diagnostics().stream().filter(d -> "CACHE_FORMAT_ROLE".equals(d.code())).toList();
+      assertThat(cacheDiags).hasSize(2);
+      // 验证 eventType 使用 role 值
+      QoderParsedRecord r0 = (QoderParsedRecord) success.records().get(0);
+      QoderParsedRecord r1 = (QoderParsedRecord) success.records().get(1);
+      assertThat(r0.eventType()).isEqualTo("user");
+      assertThat(r1.eventType()).isEqualTo("assistant");
+    }
+
+    @Test
+    @DisplayName("混合 schema 事件正确处理：type 优先于 role")
+    void typeFieldTakesPrecedenceOverRole() throws IOException {
+      Path file = tempDir.resolve("mixed.jsonl");
+      // 第一个事件有 type 和 role，type 优先
+      String content =
+          "{\"type\":\"assistant\",\"role\":\"user\",\"message\":\"hello\"}\n"
+              + "{\"role\":\"user\",\"message\":\"cache format\"}\n";
+      Files.writeString(file, content, StandardCharsets.UTF_8);
+
+      SourceFingerprint fp = adapter.fingerprint(file);
+      Candidate candidate = new Candidate(fp, "test/session", "test", java.util.Map.of());
+
+      SourceResult result = adapter.parse(candidate, null);
+      SourceResult.Success success = (SourceResult.Success) result;
+
+      // 第一个事件 type=assistant 优先
+      QoderParsedRecord r0 = (QoderParsedRecord) success.records().get(0);
+      assertThat(r0.eventType()).isEqualTo("assistant");
+      // 第二个事件没有 type，使用 role=user，产生 CACHE_FORMAT_ROLE 诊断
+      QoderParsedRecord r1 = (QoderParsedRecord) success.records().get(1);
+      assertThat(r1.eventType()).isEqualTo("user");
+    }
+
+    @Test
+    @DisplayName("空文件返回空 records 列表")
+    void emptyFileReturnsEmptyRecords() throws IOException {
+      Path file = tempDir.resolve("empty.jsonl");
+      Files.writeString(file, "", StandardCharsets.UTF_8);
+
+      SourceFingerprint fp = adapter.fingerprint(file);
+      Candidate candidate = new Candidate(fp, "test/empty", "test", java.util.Map.of());
+
+      SourceResult result = adapter.parse(candidate, null);
+      SourceResult.Success success = (SourceResult.Success) result;
+      assertThat(success.records()).isEmpty();
     }
   }
 }
