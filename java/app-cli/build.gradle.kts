@@ -19,8 +19,11 @@ dependencies {
     implementation(project(":java:normalization-engine"))
     implementation(project(":java:artifact-normalized"))
     implementation(project(":java:scan-engine"))
+    implementation(project(":java:index-sqlite"))
     implementation(libs.picocli)
     implementation(libs.bundles.jackson)
+    implementation(libs.sqlite.jdbc)
+    implementation(libs.slf4j.api)
 
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)

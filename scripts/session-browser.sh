@@ -492,14 +492,22 @@ run_local_serve() {
 }
 
 run_scan() {
-    local index_dir
+    local index_dir launcher
     index_dir="$(local_test_index_dir)"
     mkdir -p "$index_dir"
 
+    launcher="$(java_launcher_path)"
+    if [[ ! -x "$launcher" ]]; then
+        echo "错误：Java launcher 未找到：$launcher" >&2
+        echo "请先执行构建：./gradlew :java:app-cli:installDist" >&2
+        exit 1
+    fi
+
+    export INDEX_DIR="$index_dir"
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-    export SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE="${SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE:-1}"
+    export SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS="${SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS:-30}"
     echo "使用本地测试索引目录：$index_dir"
-    INDEX_DIR="$index_dir" exec "$(python_bin)" -m session_browser scan "$@"
+    exec "$launcher" scan "$@"
 }
 
 run_serve() {
