@@ -124,6 +124,43 @@ component com.feipi.session.browser.index.sqlite.PragmaConfig synchronous: Strin
 component com.feipi.session.browser.index.sqlite.SchemaValidationResult existingTables: Set<String>
 component com.feipi.session.browser.index.sqlite.SchemaValidationResult missingColumns: Map<String, Set<String>>
 component com.feipi.session.browser.index.sqlite.SchemaVersion version: int
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow artifactType: String
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow createdAt: double
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow path: String
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow schemaVersion: String
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow sessionKey: String
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow sizeBytes: long
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow sourceMtime: double
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow sourcePath: String
+component com.feipi.session.browser.index.sqlite.SessionArtifactRow updatedAt: double
+component com.feipi.session.browser.index.sqlite.SessionRow agent: String
+component com.feipi.session.browser.index.sqlite.SessionRow assistantMessageCount: long
+component com.feipi.session.browser.index.sqlite.SessionRow cacheReadTokens: long
+component com.feipi.session.browser.index.sqlite.SessionRow cacheWriteTokens: long
+component com.feipi.session.browser.index.sqlite.SessionRow cwd: String
+component com.feipi.session.browser.index.sqlite.SessionRow durationSeconds: double
+component com.feipi.session.browser.index.sqlite.SessionRow endedAt: String
+component com.feipi.session.browser.index.sqlite.SessionRow failedToolCount: long
+component com.feipi.session.browser.index.sqlite.SessionRow fileMtime: double
+component com.feipi.session.browser.index.sqlite.SessionRow filePath: String
+component com.feipi.session.browser.index.sqlite.SessionRow freshInputTokens: long
+component com.feipi.session.browser.index.sqlite.SessionRow gitBranch: String
+component com.feipi.session.browser.index.sqlite.SessionRow indexedAt: double
+component com.feipi.session.browser.index.sqlite.SessionRow model: String
+component com.feipi.session.browser.index.sqlite.SessionRow modelExecutionSeconds: double
+component com.feipi.session.browser.index.sqlite.SessionRow outputTokens: long
+component com.feipi.session.browser.index.sqlite.SessionRow projectKey: String
+component com.feipi.session.browser.index.sqlite.SessionRow projectName: String
+component com.feipi.session.browser.index.sqlite.SessionRow sessionId: String
+component com.feipi.session.browser.index.sqlite.SessionRow sessionKey: String
+component com.feipi.session.browser.index.sqlite.SessionRow source: String
+component com.feipi.session.browser.index.sqlite.SessionRow startedAt: String
+component com.feipi.session.browser.index.sqlite.SessionRow subagentInstanceCount: long
+component com.feipi.session.browser.index.sqlite.SessionRow title: String
+component com.feipi.session.browser.index.sqlite.SessionRow toolCallCount: long
+component com.feipi.session.browser.index.sqlite.SessionRow toolExecutionSeconds: double
+component com.feipi.session.browser.index.sqlite.SessionRow totalTokens: long
+component com.feipi.session.browser.index.sqlite.SessionRow userMessageCount: long
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult consumedResults: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
@@ -211,6 +248,8 @@ constructor com.feipi.session.browser.index.sqlite.PragmaConfig public PragmaCon
 constructor com.feipi.session.browser.index.sqlite.PragmaConfig public static final PragmaConfig DEFAULTS = new PragmaConfig(" ", " ", 30_000, true)
 constructor com.feipi.session.browser.index.sqlite.ReadTransaction public ReadTransaction(Connection conn) throws SQLException
 constructor com.feipi.session.browser.index.sqlite.SchemaVersion public SchemaVersion()
+constructor com.feipi.session.browser.index.sqlite.SessionArtifactRow public SessionArtifactRow()
+constructor com.feipi.session.browser.index.sqlite.SessionRow public SessionRow()
 constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(Connection conn, int maxEntries)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection, int queueCapacity, int batchLimit)
@@ -295,6 +334,7 @@ field com.feipi.session.browser.artifact.normalized.SafeArtifactName public MAX_
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_COLLECTION_SIZE: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public SCHEMA_VERSION: static final String
+field com.feipi.session.browser.index.sqlite.ArtifactRowMapper public ARTIFACT_TYPE_NORMALIZED: static final String
 field com.feipi.session.browser.index.sqlite.WriteBatch public DEFAULT_MAX_ENTRIES: static final int
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_BATCH_LIMIT: static final int
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_QUEUE_CAPACITY: static final int
@@ -359,6 +399,8 @@ method com.feipi.session.browser.domain.normalized.SourceUnitDirection public st
 method com.feipi.session.browser.domain.source.SourceRecord public static SourceRecord of(String locator, int eventIndex, String eventType)
 method com.feipi.session.browser.domain.source.SourceRecordUsage public long total()
 method com.feipi.session.browser.domain.source.SourceRecordUsage public static SourceRecordUsage empty()
+method com.feipi.session.browser.index.sqlite.ArtifactRowMapper public static SessionArtifactRow toArtifactRow( String sessionKey, String artifactPath, String schemaVersion, String sourcePath, double sourceMtime, long sizeBytes, double now)
+method com.feipi.session.browser.index.sqlite.ArtifactRowMapper public static SessionRow toSessionRow( NormalizedSessionArtifact artifact, double fileMtime, String filePath)
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public Connection create() throws SQLException
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public PragmaConfig pragmaConfig()
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public String jdbcUrl()
@@ -595,6 +637,7 @@ type com.feipi.session.browser.domain.normalized.SourceUnitRefRange public recor
 type com.feipi.session.browser.domain.source.SourceRecord public record [core-domain] record SourceRecord( String locator, int eventIndex, String eventType, Optional<String> callId, Optional<String> model, Optional<String> timestamp, Optional<String> turnId, SourceRecordUsage usage, List<SourceToolCall> toolCalls, Optional<String> toolUseId, Optional<String> toolName)
 type com.feipi.session.browser.domain.source.SourceRecordUsage public record [core-domain] record SourceRecordUsage( long inputTokens, long cacheReadInputTokens, long cacheCreationInputTokens, long outputTokens)
 type com.feipi.session.browser.domain.source.SourceToolCall public record [core-domain] record SourceToolCall(String toolCallId, String name)
+type com.feipi.session.browser.index.sqlite.ArtifactRowMapper public class [index-sqlite] final class ArtifactRowMapper
 type com.feipi.session.browser.index.sqlite.ConnectionFactory public class [index-sqlite] final class ConnectionFactory
 type com.feipi.session.browser.index.sqlite.IndexConnection public class [index-sqlite] final class IndexConnection implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.IndexSchema public class [index-sqlite] final class IndexSchema
@@ -605,6 +648,8 @@ type com.feipi.session.browser.index.sqlite.PragmaConfig public record [index-sq
 type com.feipi.session.browser.index.sqlite.ReadTransaction public class [index-sqlite] final class ReadTransaction implements AutoCloseable
 type com.feipi.session.browser.index.sqlite.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
 type com.feipi.session.browser.index.sqlite.SchemaVersion public record [index-sqlite] record SchemaVersion(int version) implements Comparable<SchemaVersion>
+type com.feipi.session.browser.index.sqlite.SessionArtifactRow public record [index-sqlite] record SessionArtifactRow( String sessionKey, String artifactType, String path, String schemaVersion, String sourcePath, double sourceMtime, long sizeBytes, double createdAt, double updatedAt)
+type com.feipi.session.browser.index.sqlite.SessionRow public record [index-sqlite] record SessionRow( String sessionKey, String agent, String sessionId, String title, String projectKey, String projectName, String cwd, String startedAt, String endedAt, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, String model, String gitBranch, String source, long userMessageCount, long assistantMessageCount, long toolCallCount, long outputTokens, long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long totalTokens, long failedToolCount, long subagentInstanceCount, double indexedAt, double fileMtime, String filePath)
 type com.feipi.session.browser.index.sqlite.WriteBatch public class [index-sqlite] final class WriteBatch
 type com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public interface [index-sqlite] interface WriteOperation
 type com.feipi.session.browser.index.sqlite.WriteOperation public interface [index-sqlite] interface WriteOperation

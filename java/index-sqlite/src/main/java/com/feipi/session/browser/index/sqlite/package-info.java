@@ -34,8 +34,18 @@
  * submit 到 writer 队列。 批量事务大小由 {@link com.feipi.session.browser.index.sqlite.WriteBatch}
  * 控制，防止单次事务过大。
  *
+ * <h2>行映射</h2>
+ *
+ * <ul>
+ *   <li>{@link com.feipi.session.browser.index.sqlite.SessionRow} — sessions 表类型化行数据。
+ *   <li>{@link com.feipi.session.browser.index.sqlite.SessionArtifactRow} — session_artifacts
+ *       表类型化行数据。
+ *   <li>{@link com.feipi.session.browser.index.sqlite.ArtifactRowMapper} — 归一化制品到 index row 的唯一映射器。
+ * </ul>
+ *
  * <h2>校验放置</h2>
  *
- * <p>schema version 和 PRAGMA 配置校验位于连接层边界。 下游 repository/query 使用已验证的连接和 schema，不重复检查。
+ * <p>schema version 和 PRAGMA 配置校验位于连接层边界。 下游 repository/query 使用已验证的连接和 schema，不重复检查。 行映射校验位于
+ * {@link com.feipi.session.browser.index.sqlite.SessionRow} 紧凑构造器，只检查 DB 约束所需的非空和非负条件。
  */
 package com.feipi.session.browser.index.sqlite;
