@@ -2,11 +2,15 @@ package com.feipi.session.browser.artifact.normalized;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.text.Normalizer;
 import java.util.HexFormat;
+import java.util.Locale;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -116,6 +120,42 @@ public final class SafeArtifactName {
   }
 
   /**
+   * 生成带确定性消歧后缀的安全文件名基础部分。
+   *
+   * <p>当 key 清洗后可能与其它输入在大小写、Unicode normalization 或非法字符替换后落到同一路径时，附加 raw key 的短 hash。这样同一 key
+   * 仍保持确定性，不同但路径等价的 key 不会互相覆盖。
+   *
+   * @param rawKey 原始 artifact key，不得为 null 或空
+   * @return 可用于 artifact 文件名的安全基础部分
+   */
+  static String collisionResistantStem(String rawKey) {
+    String sanitized = sanitize(rawKey);
+    if (!needsDisambiguation(rawKey, sanitized)) {
+      return sanitized;
+    }
+    String suffix = shortHash(rawKey);
+    int prefixLength = MAX_NAME_LENGTH - HASH_SUFFIX_LENGTH - 1;
+    String prefix =
+        sanitized.length() > prefixLength ? sanitized.substring(0, prefixLength) : sanitized;
+    return prefix + "-" + suffix;
+  }
+
+  /**
+   * 验证 output root 本身可安全写入。
+   *
+   * @param outputRoot 输出根目录
+   * @throws IllegalArgumentException 当 root 不存在、不是目录或本身是 symlink 时
+   */
+  static void validateOutputRoot(Path outputRoot) {
+    if (Files.isSymbolicLink(outputRoot)) {
+      throw new IllegalArgumentException("output root 不得为 symlink: " + outputRoot);
+    }
+    if (!Files.isDirectory(outputRoot, LinkOption.NOFOLLOW_LINKS)) {
+      throw new IllegalArgumentException("output root 必须是已存在目录: " + outputRoot);
+    }
+  }
+
+  /**
    * 验证解析后的目标路径是否仍在 output root 内。
    *
    * @param outputRoot 输出根目录
@@ -159,6 +199,12 @@ public final class SafeArtifactName {
     }
   }
 
+  private static boolean needsDisambiguation(String rawKey, String sanitized) {
+    return !sanitized.equals(rawKey)
+        || !rawKey.equals(rawKey.toLowerCase(Locale.ROOT))
+        || !Normalizer.isNormalized(rawKey, Normalizer.Form.NFC);
+  }
+
   /**
    * 计算字符串的短 hash（8 个十六进制字符）。
    *
@@ -168,7 +214,7 @@ public final class SafeArtifactName {
   private static String shortHash(String input) {
     try {
       MessageDigest digest = MessageDigest.getInstance("SHA-256");
-      byte[] hash = digest.digest(input.getBytes());
+      byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
       return HexFormat.of().formatHex(hash).substring(0, HASH_SUFFIX_LENGTH);
     } catch (NoSuchAlgorithmException e) {
       // SHA-256 在所有 Java 实现中都可用，此处不会触发

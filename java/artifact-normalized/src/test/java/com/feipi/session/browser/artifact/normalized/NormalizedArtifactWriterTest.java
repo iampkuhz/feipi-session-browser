@@ -182,6 +182,20 @@ class NormalizedArtifactWriterTest {
   }
 
   @Test
+  @DisplayName("validate：meta hash 不一致时返回 false")
+  void validateReturnsFalseWhenMetaHashInconsistent() throws IOException {
+    WriteResult result =
+        writer.write(tempDir, createMinimalArtifact("session-meta-mismatch"), Map.of());
+    String meta = Files.readString(result.metaPath(), StandardCharsets.UTF_8);
+    Files.writeString(
+        result.metaPath(),
+        meta.replace(result.contentHash(), "0".repeat(64)),
+        StandardCharsets.UTF_8);
+
+    assertThat(writer.validate(result.dataPath(), result.metaPath())).isFalse();
+  }
+
+  @Test
   @DisplayName("meta 后提交：meta 的 generatedAt 使用注入 clock")
   void metaTimestampUsesInjectedClock() throws IOException {
     WriteResult result = writer.write(tempDir, createMinimalArtifact("session-timing"), Map.of());
@@ -304,6 +318,58 @@ class NormalizedArtifactWriterTest {
     assertThatThrownBy(() -> writer.write(tempDir, artifact, Map.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("绝对路径");
+  }
+
+  @Test
+  @DisplayName("collision fail closed：Unicode normalization 等价 key 不互相覆盖")
+  void unicodeNormalizationCollisionDisambiguated() throws IOException {
+    WriteResult composed = writer.write(tempDir, createMinimalArtifact("café"), Map.of());
+    WriteResult decomposed = writer.write(tempDir, createMinimalArtifact("café"), Map.of());
+
+    assertThat(composed.dataPath()).isNotEqualTo(decomposed.dataPath());
+    assertThat(composed.metaPath()).isNotEqualTo(decomposed.metaPath());
+    assertThat(writer.validate(composed.dataPath(), composed.metaPath())).isTrue();
+    assertThat(writer.validate(decomposed.dataPath(), decomposed.metaPath())).isTrue();
+  }
+
+  @Test
+  @DisplayName("collision fail closed：大小写等价 key 不互相覆盖")
+  void caseCollisionDisambiguated() throws IOException {
+    WriteResult upper = writer.write(tempDir, createMinimalArtifact("Session-Case"), Map.of());
+    WriteResult lower = writer.write(tempDir, createMinimalArtifact("session-case"), Map.of());
+
+    assertThat(upper.dataPath().getFileName().toString().toLowerCase())
+        .isNotEqualTo(lower.dataPath().getFileName().toString().toLowerCase());
+    assertThat(writer.validate(upper.dataPath(), upper.metaPath())).isTrue();
+    assertThat(writer.validate(lower.dataPath(), lower.metaPath())).isTrue();
+  }
+
+  @Test
+  @DisplayName("collision fail closed：sanitization 后同名 key 不互相覆盖")
+  void sanitizationCollisionDisambiguated() throws IOException {
+    WriteResult colon = writer.write(tempDir, createMinimalArtifact("session:name"), Map.of());
+    WriteResult star = writer.write(tempDir, createMinimalArtifact("session*name"), Map.of());
+
+    assertThat(colon.dataPath().getFileName().toString())
+        .startsWith("session_name-")
+        .isNotEqualTo(star.dataPath().getFileName().toString());
+    assertThat(star.dataPath().getFileName().toString()).startsWith("session_name-");
+    assertThat(writer.validate(colon.dataPath(), colon.metaPath())).isTrue();
+    assertThat(writer.validate(star.dataPath(), star.metaPath())).isTrue();
+  }
+
+  @Test
+  @DisplayName("output root symlink fail closed：拒绝写入 symlink 根目录")
+  void outputRootSymlinkRejected() throws IOException {
+    Path realRoot = Files.createDirectory(tempDir.resolve("real-root"));
+    Path linkRoot = tempDir.resolve("linked-root");
+    Files.createSymbolicLink(linkRoot, realRoot);
+
+    assertThatThrownBy(
+            () -> writer.write(linkRoot, createMinimalArtifact("session-symlink-root"), Map.of()))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("output root 不得为 symlink");
+    assertThat(realRoot.resolve("session-symlink-root.json")).doesNotExist();
   }
 
   @Test

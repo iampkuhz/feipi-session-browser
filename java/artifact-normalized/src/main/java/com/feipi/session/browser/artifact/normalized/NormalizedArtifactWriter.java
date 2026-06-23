@@ -112,7 +112,7 @@ public final class NormalizedArtifactWriter {
     Objects.requireNonNull(sourceFingerprints, "sourceFingerprints 不得为 null");
 
     String sessionKey = extractSessionKey(artifact);
-    String safeName = SafeArtifactName.sanitize(sessionKey);
+    String safeName = SafeArtifactName.collisionResistantStem(sessionKey);
 
     return withLock(sessionKey, () -> doWrite(outputDir, artifact, sourceFingerprints, safeName));
   }
@@ -169,6 +169,8 @@ public final class NormalizedArtifactWriter {
       Map<String, String> sourceFingerprints,
       String safeName)
       throws IOException {
+
+    SafeArtifactName.validateOutputRoot(outputDir);
 
     // 1. 序列化 artifact（确定性字节输出）
     byte[] dataBytes = canonicalJsonWriter.serialize(artifact);
