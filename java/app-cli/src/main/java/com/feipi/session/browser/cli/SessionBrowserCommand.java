@@ -1,6 +1,7 @@
 package com.feipi.session.browser.cli;
 
 import picocli.CommandLine.Command;
+import picocli.CommandLine.Option;
 
 /**
  * Session 浏览器根命令。
@@ -11,9 +12,9 @@ import picocli.CommandLine.Command;
  */
 @Command(
     name = "session-browser",
-    mixinStandardHelpOptions = true,
-    versionProvider = BuildInfoVersionProvider.class,
+    mixinStandardHelpOptions = false,
     subcommands = {
+      HelpCommand.class,
       ScanCommand.class,
       ServeCommand.class,
       StopCommand.class,
@@ -27,8 +28,23 @@ import picocli.CommandLine.Command;
     description = "本地 agent 会话浏览器，索引和分析 Claude Code、Codex、Qoder 等会话数据。")
 final class SessionBrowserCommand implements Runnable {
 
+  @Option(
+      names = {"-h", "--help"},
+      usageHelp = true,
+      description = "显示帮助信息并退出。")
+  private boolean helpRequested;
+
+  @Option(
+      names = {"-V", "--version"},
+      description = "输出版本信息并退出。")
+  private boolean versionRequested;
+
   @Override
   public void run() {
+    if (versionRequested) {
+      VersionCommand.printVersion();
+      return;
+    }
     System.out.println("使用 --help 查看可用命令。");
   }
 }

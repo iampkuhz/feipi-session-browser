@@ -110,10 +110,9 @@ class CliContractTest {
       CliExecution result = execute("--help");
 
       assertThat(result.exitCode()).isEqualTo(0);
-      // 隐藏子命令 normalized-batch 不应出现在 help 输出中
       assertThat(result.stdout()).doesNotContain("normalized-batch");
-      // 公开子命令应全部出现在 help 输出中
       assertThat(result.stdout())
+          .contains("help")
           .contains("scan")
           .contains("serve")
           .contains("stop")
@@ -122,6 +121,20 @@ class CliContractTest {
           .contains("quality")
           .contains("version")
           .contains("release");
+    }
+
+    @Test
+    @DisplayName("help 子命令输出公开 help，exit code = 0")
+    void helpSubcommandShowsPublicHelp() {
+      CliExecution result = execute("help");
+
+      assertThat(result.exitCode()).isEqualTo(0);
+      assertThat(result.stderr()).isEmpty();
+      assertThat(result.stdout()).contains("session-browser");
+      assertThat(result.stdout()).contains("--help");
+      assertThat(result.stdout()).contains("--version");
+      assertThat(result.stdout()).contains("scan").contains("serve").contains("stop");
+      assertThat(result.stdout()).doesNotContain("normalized-batch");
     }
   }
 
@@ -162,6 +175,17 @@ class CliContractTest {
       assertThat(version).hasSize(1);
       assertThat(version[0]).startsWith("feipi-session-browser");
       assertThat(version[0]).containsPattern("\\d+");
+    }
+
+    @Test
+    @DisplayName("--version 后跟多余参数输出错误到 stderr，exit code = 2")
+    void versionFlagRejectsExtraArgs() {
+      CliExecution result = execute("--version", "extra");
+
+      assertThat(result.exitCode()).isEqualTo(2);
+      assertThat(result.stdout()).isEmpty();
+      assertThat(result.stderr()).contains("Unmatched argument");
+      assertThat(result.stderr()).contains("extra");
     }
   }
 
