@@ -2,7 +2,11 @@ package com.feipi.session.browser.source.codex;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.source.spi.SourceDiagnostic;
 import java.nio.file.Path;
+import java.sql.Connection;
+import java.sql.DriverManager;
+import java.sql.Statement;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -48,6 +52,42 @@ class ThreadsDbReaderTest {
 
       List<Map<String, String>> threads = ThreadsDbReader.readThreads(corruptDb);
       assertThat(threads).isEmpty();
+    }
+
+    @Test
+    @DisplayName("threads schema drift 返回诊断而不是静默成功")
+    void schemaDriftReturnsDiagnostic() throws Exception {
+      Path db = tempDir.resolve("schema-drift.sqlite3");
+      try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + db);
+          Statement stmt = conn.createStatement()) {
+        stmt.executeUpdate("CREATE TABLE unexpected (id TEXT)");
+      }
+
+      ThreadsDbResult result = ThreadsDbReader.readThreadsWithDiagnostics(db);
+
+      assertThat(result.threads()).isEmpty();
+      assertThat(result.diagnostic()).isPresent();
+      assertThat(result.diagnostic().map(SourceDiagnostic::code))
+          .contains(CodexConstants.DIAG_CODE_SQLITE_ERROR);
+    }
+
+    @Test
+    @DisplayName("locked threads SQLite 返回诊断而不是阻断调用方")
+    void lockedDatabaseReturnsDiagnostic() throws Exception {
+      Path db = tempDir.resolve("locked.sqlite3");
+      try (Connection owner = DriverManager.getConnection("jdbc:sqlite:" + db);
+          Statement setup = owner.createStatement()) {
+        setup.executeUpdate("CREATE TABLE threads (id TEXT)");
+        setup.executeUpdate("INSERT INTO threads VALUES ('thread-1')");
+        setup.executeUpdate("BEGIN EXCLUSIVE");
+
+        ThreadsDbResult result = ThreadsDbReader.readThreadsWithDiagnostics(db);
+
+        assertThat(result.threads()).isEmpty();
+        assertThat(result.diagnostic()).isPresent();
+        assertThat(result.diagnostic().map(SourceDiagnostic::code))
+            .contains(CodexConstants.DIAG_CODE_SQLITE_ERROR);
+      }
     }
   }
 }

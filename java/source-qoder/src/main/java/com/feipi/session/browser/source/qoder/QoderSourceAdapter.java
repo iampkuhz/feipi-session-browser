@@ -64,6 +64,7 @@ import java.util.logging.Logger;
 public final class QoderSourceAdapter implements SourceAdapter {
 
   private static final Logger LOG = Logger.getLogger(QoderSourceAdapter.class.getName());
+  private static final String DIAG_CODE_UNKNOWN_PART_TYPE = "UNKNOWN_PART_TYPE";
 
   private final JsonlReader jsonlReader;
 
@@ -238,6 +239,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
                   OptionalInt.empty()));
         }
 
+        addUnknownPartDiagnostics(event, diagnostics, locator, i);
         records.add(new QoderParsedRecord(locator, i, eventType));
       }
 
@@ -277,6 +279,38 @@ public final class QoderSourceAdapter implements SourceAdapter {
   private static boolean hasRoleField(JsonNode event) {
     JsonNode roleNode = event.get("role");
     return roleNode != null && roleNode.isTextual();
+  }
+
+  private static void addUnknownPartDiagnostics(
+      JsonNode event, List<SourceDiagnostic> diagnostics, String locator, int eventIndex) {
+    JsonNode parts = event.get("parts");
+    if (parts == null || !parts.isArray()) {
+      return;
+    }
+    for (JsonNode part : parts) {
+      JsonNode typeNode = part.get("type");
+      if (typeNode == null || !typeNode.isTextual() || !isKnownPartType(typeNode.asText())) {
+        diagnostics.add(
+            new SourceDiagnostic(
+                ParseSeverity.WARNING,
+                ParseIssueType.NON_OBJECT_SKIPPED,
+                "Event at index " + eventIndex + " contains unknown part type",
+                eventIndex + 1,
+                Optional.empty(),
+                DIAG_CODE_UNKNOWN_PART_TYPE,
+                locator,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                OptionalInt.empty()));
+      }
+    }
+  }
+
+  private static boolean isKnownPartType(String partType) {
+    return switch (partType) {
+      case "text", "tool_use", "tool_result", "image", "file", "reasoning" -> true;
+      default -> false;
+    };
   }
 
   /**

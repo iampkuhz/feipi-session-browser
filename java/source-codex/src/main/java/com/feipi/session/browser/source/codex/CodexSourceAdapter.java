@@ -261,6 +261,22 @@ public final class CodexSourceAdapter implements SourceAdapter {
                 OptionalInt.empty(),
                 OptionalInt.empty()));
       }
+      if (toolOutputCount > 0 && toolCallCount == 0) {
+        diagnostics.add(
+            new SourceDiagnostic(
+                ParseSeverity.INFO,
+                ParseIssueType.NON_OBJECT_SKIPPED,
+                "Tool outputs without matching requests (orphan result): "
+                    + toolOutputCount
+                    + " outputs",
+                1,
+                Optional.empty(),
+                "TOOL_ORPHAN_RESULT",
+                locator,
+                OptionalInt.empty(),
+                OptionalInt.empty(),
+                OptionalInt.empty()));
+      }
 
       // Cumulative token 语义诊断：有 token_count 但无 cumulative usage
       if (tokenCountEvents > 0 && !hasCumulativeTokenUsage) {
