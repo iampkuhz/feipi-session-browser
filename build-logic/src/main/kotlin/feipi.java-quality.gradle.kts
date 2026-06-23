@@ -63,6 +63,11 @@ pmd {
 }
 
 tasks.withType<Pmd>().configureEach {
+    // 测试代码中常见的 System.in/out 临时重定向、Process 短暂持有等场景
+    // 会产生 CloseResource 误报；PMD 只扫描 main 源码即可。
+    if (name.endsWith("Test")) {
+        setSource(files())
+    }
     reports {
         xml.required.set(true)
         html.required.set(true)

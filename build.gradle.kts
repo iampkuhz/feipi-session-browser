@@ -1,5 +1,6 @@
 plugins {
     base
+    jacoco
 }
 
 group = "com.feipi.session.browser"
@@ -8,6 +9,11 @@ version = file("VERSION").readText().trim()
 subprojects {
     group = rootProject.group
     version = rootProject.version
+}
+
+repositories {
+    maven("https://maven.aliyun.com/repository/central")
+    mavenCentral()
 }
 
 dependencyLocking {
@@ -32,19 +38,33 @@ val qualityFull = tasks.register("qualityFull") {
 }
 
 // ============================================================
-// jacocoRootReport —— 跨模块聚合 JaCoCo 覆盖率报告。
+// jacocoRootReport —— 跨模块聚合 JaCoCo 覆盖率报告（真实聚合）。
 // ============================================================
-val jacocoRootReport = tasks.register("jacocoRootReport") {
+val jacocoRootReport = tasks.register("jacocoRootReport", JacocoReport::class.java) {
     group = "verification"
     description = "Aggregated JaCoCo report across all modules."
+    reports {
+        xml.required.set(true)
+        html.required.set(true)
+    }
 }
 
-// 让 JaCoCo 根报告依赖各子项目的 JaCoCo 报告。
+// 聚合各子项目的 JaCoCo execution data、源码和 class 目录。
 gradle.projectsEvaluated {
     jacocoRootReport.configure {
-        dependsOn(leafSubprojects.mapNotNull { sub ->
-            sub.tasks.names.takeIf { "jacocoTestReport" in it }
-                ?.let { "${sub.path}:jacocoTestReport" }
+        val participating = leafSubprojects.filter { sub ->
+            sub.tasks.names.contains("jacocoTestReport")
+        }
+        dependsOn(participating.map { "${it.path}:jacocoTestReport" })
+
+        executionData.from(participating.map { sub ->
+            sub.tasks.named("jacocoTestReport", JacocoReport::class.java).map { it.executionData }
+        })
+        sourceDirectories.from(participating.map { sub ->
+            sub.tasks.named("jacocoTestReport", JacocoReport::class.java).map { it.sourceDirectories }
+        })
+        classDirectories.from(participating.map { sub ->
+            sub.tasks.named("jacocoTestReport", JacocoReport::class.java).map { it.classDirectories }
         })
     }
     qualityFull.configure {
@@ -91,7 +111,12 @@ gradle.projectsEvaluated {
         val testDirs: List<String> = leafSubprojects.map { sub ->
             sub.layout.buildDirectory.dir("test-results/test").get().asFile.absolutePath
         }
-        doLast(checkNoSkippedTestsAction(testDirs))
+        // 声明测试目录为 inputs，确保 up-to-date 检查正确。
+        inputs.files(testDirs).withPropertyName("testResultDirs")
+            .optional(true)
+        outputs.file(layout.buildDirectory.file("reports/verify-no-skipped-tests/result.txt"))
+            .withPropertyName("resultFile")
+        doLast(checkNoSkippedTestsAction(testDirs, layout.buildDirectory.file("reports/verify-no-skipped-tests/result.txt").get().asFile.absolutePath))
     }
 }
 
@@ -107,21 +132,16 @@ val verifyLeanQualityStack = tasks.register("verifyLeanQualityStack") {
     group = "verification"
     description = "Verifies that excluded quality tools are not present in the build."
 
-    // 配置时解析路径，避免执行时引用脚本对象。
+    // 声明真实 inputs/outputs，确保配置缓存兼容和 up-to-date 检查。
     val catalogPath = file("gradle/libs.versions.toml").absolutePath
-    doLast(checkLeanQualityStackAction(catalogPath))
+    val resultFilePath = layout.buildDirectory.file("reports/verify-lean-quality/result.txt").get().asFile.absolutePath
+    inputs.file(catalogPath).withPropertyName("versionCatalog")
+    outputs.file(resultFilePath).withPropertyName("resultFile")
+    doLast(checkLeanQualityStackAction(catalogPath, resultFilePath))
 }
 
 tasks.named("check") {
     dependsOn(verifyLeanQualityStack)
-}
-
-// ============================================================
-// benchmark —— 独立生命周期，当前仅支持 dry-run。
-// ============================================================
-tasks.register("benchmark") {
-    group = "benchmark"
-    description = "Benchmark lifecycle. Placeholder until JMH provider is created."
 }
 
 // ============================================================
@@ -163,6 +183,9 @@ val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaComments
     val reportDir = layout.buildDirectory.dir("reports/chinese-comments-changed")
 
     inputs.files(checkerScript, policyFile)
+    // 声明输出文件，使 task 可被 up-to-date 检查（注意：git diff 本身不可复现）。
+    outputs.file(layout.buildDirectory.file("reports/chinese-comments-changed/report.json"))
+        .withPropertyName("reportFile")
 
     // 配置时解析路径，避免执行时引用脚本对象。
     val scriptPath = checkerScript.absolutePath
@@ -186,8 +209,9 @@ tasks.named("check") {
 /**
  * verifyLeanQualityStack 的执行动作。
  * 检查版本目录不包含被排除的质量工具条目。
+ * resultFilePath 用于声明 outputs，使 task 可被 up-to-date 检查。
  */
-private fun checkLeanQualityStackAction(catalogPath: String): org.gradle.api.Action<Task> {
+private fun checkLeanQualityStackAction(catalogPath: String, resultFilePath: String = ""): org.gradle.api.Action<Task> {
     return org.gradle.api.Action<Task> {
         val catalogFile = java.io.File(catalogPath)
         if (catalogFile.exists()) {
@@ -203,14 +227,23 @@ private fun checkLeanQualityStackAction(catalogPath: String): org.gradle.api.Act
             }
         }
         logger.lifecycle("verifyLeanQualityStack: PASSED – no excluded tools detected in catalog.")
+        if (resultFilePath.isNotEmpty()) {
+            val resultFile = java.io.File(resultFilePath)
+            resultFile.parentFile.mkdirs()
+            resultFile.writeText("PASSED\n", Charsets.UTF_8)
+        }
     }
 }
 
 /**
  * verifyNoSkippedJavaTests 的执行动作。
  * 扫描所有测试目录的 XML 结果，确保无跳过/中止测试。
+ * resultFilePath 用于声明 outputs，使 task 可被 up-to-date 检查。
  */
-private fun checkNoSkippedTestsAction(testResultDirs: List<String>): org.gradle.api.Action<Task> {
+private fun checkNoSkippedTestsAction(
+    testResultDirs: List<String>,
+    resultFilePath: String = "",
+): org.gradle.api.Action<Task> {
     return org.gradle.api.Action<Task> {
         var totalSkipped = 0
         var totalErrors = 0
@@ -255,6 +288,11 @@ private fun checkNoSkippedTestsAction(testResultDirs: List<String>): org.gradle.
                 "verifyNoSkippedJavaTests: $totalTests test(s) in $filesFound file(s), " +
                     "0 skipped, 0 aborted."
             )
+        }
+        if (resultFilePath.isNotEmpty()) {
+            val resultFile = java.io.File(resultFilePath)
+            resultFile.parentFile.mkdirs()
+            resultFile.writeText("$totalTests tests in $filesFound files, 0 skipped, 0 aborted.\n", Charsets.UTF_8)
         }
     }
 }

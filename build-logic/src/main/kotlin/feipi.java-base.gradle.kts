@@ -2,12 +2,8 @@ plugins {
     `java`
 }
 
-// --- Java 工具链 ---
-java {
-    toolchain {
-        languageVersion.set(JavaLanguageVersion.of(25))
-    }
-}
+// --- Java 版本通过 running JVM 提供（CI 使用 setup-java，本地使用 SDKMAN/JAVA_HOME）---
+// release(25) 确保编译目标为 Java 25。
 
 // --- 编译器编码与告警 ---
 tasks.withType<JavaCompile>().configureEach {

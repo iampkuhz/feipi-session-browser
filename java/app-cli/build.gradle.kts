@@ -28,34 +28,42 @@ dependencies {
 
 // ============================================================
 // build-info.properties 生成
+// git commit 和 build timestamp 通过环境变量可覆盖，确保相同输入可复现。
 // ============================================================
 val generateBuildInfo = tasks.register("generateBuildInfo") {
     val versionFile = rootProject.file("VERSION")
     val projectDirFile = rootProject.projectDir
     val outputDir = layout.buildDirectory.dir("generated/build-info")
+
+    // 通过环境变量提供可复现输入；相同输入时 distribution 可复现。
+    val gitCommitProvider = providers.environmentVariable("BUILD_GIT_COMMIT")
+        .orElse(
+            providers.exec {
+                commandLine("git", "rev-parse", "--short=12", "HEAD")
+                workingDir(projectDirFile)
+            }.standardOutput.asText.map { it.trim() }
+                .orElse(providers.provider { "unknown" })
+        )
+    val buildTimestampProvider = providers.environmentVariable("BUILD_TIMESTAMP")
+        .orElse(providers.provider { Instant.now().toString() })
+
     inputs.file(versionFile)
+    inputs.property("gitCommit", gitCommitProvider)
+    inputs.property("buildTimestamp", buildTimestampProvider)
     outputs.dir(outputDir)
+
+    val gitCommitValue = gitCommitProvider.get()
+    val buildTimestampValue = buildTimestampProvider.get()
 
     doLast {
         val version = versionFile.readText().trim()
-        val gitCommit = try {
-            val proc = ProcessBuilder("git", "rev-parse", "--short=12", "HEAD")
-                .directory(projectDirFile)
-                .redirectErrorStream(true)
-                .start()
-            proc.inputStream.bufferedReader().readText().trim().also { proc.waitFor() }
-        } catch (ex: Exception) {
-            "unknown"
-        }
-        val buildTimestamp = Instant.now().toString()
-
         val propsDir = outputDir.get().asFile.resolve("com/feipi/session/browser/cli")
         propsDir.mkdirs()
         propsDir.resolve("build-info.properties").writeText(
             "app.version=$version\n" +
             "app.name=feipi-session-browser\n" +
-            "app.git.commit=$gitCommit\n" +
-            "app.build.timestamp=$buildTimestamp\n",
+            "app.git.commit=$gitCommitValue\n" +
+            "app.build.timestamp=$buildTimestampValue\n",
             Charsets.UTF_8,
         )
     }

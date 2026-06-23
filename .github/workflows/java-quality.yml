@@ -10,16 +10,22 @@ on:
       - 'java/**'
       - 'build-logic/**'
       - 'gradle/**'
+      - 'gradle.properties'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
+      - 'scripts/quality/**'
+      - 'config/**'
       - '.github/workflows/java-quality.yml'
   pull_request:
     paths:
       - 'java/**'
       - 'build-logic/**'
       - 'gradle/**'
+      - 'gradle.properties'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
+      - 'scripts/quality/**'
+      - 'config/**'
       - '.github/workflows/java-quality.yml'
   workflow_dispatch:
 
@@ -89,7 +95,7 @@ jobs:
         with:
           name: test-results-${{ matrix.os }}
           path: |
-            **/build/test-results/test/*.xml
+            **/build/test-results/**/*.xml
             **/build/reports/tests/
           retention-days: 7
           if-no-files-found: warn

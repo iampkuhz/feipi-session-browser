@@ -15,9 +15,14 @@
     <!-- ============================================================ -->
     <!-- errorprone: empty catch, wrong comparison, unclosed resource  -->
     <!-- ============================================================ -->
-    <rule ref="category/java/errorprone.xml/EmptyCatchBlock"/>
+    <rule ref="category/java/errorprone.xml/EmptyCatchBlock">
+        <properties>
+            <!-- 允许带注释的空 catch 块：某些解析逻辑故意 fall through 到备用分支 -->
+            <property name="allowCommentedBlocks" value="true"/>
+        </properties>
+    </rule>
     <rule ref="category/java/errorprone.xml/CompareObjectsWithEquals"/>
-    <rule ref="category/java/errorprone.xml/AvoidCatchingNPE"/>
+    <!-- AvoidCatchingNPE 在 PMD 8.0.0 中被移除；用 ErrorProne 原生规则替代 -->
     <rule ref="category/java/errorprone.xml/ReturnFromFinallyBlock"/>
     <rule ref="category/java/errorprone.xml/CloseResource"/>
 

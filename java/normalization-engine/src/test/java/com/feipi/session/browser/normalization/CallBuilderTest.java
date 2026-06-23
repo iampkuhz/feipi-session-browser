@@ -106,7 +106,7 @@ class CallBuilderTest {
     @Test
     @DisplayName("tool_result 分配给后续 assistant 调用")
     void toolResultAssignedToNextAssistantCall() {
-      // 事件流：assistant(C1) -> tool_result(toolu_1) -> assistant(C2)
+      // 助手调用后返回工具结果，再传递给下一个助手调用
       ObjectNode assistant1 = createAssistantWithToolUse("C1", "toolu_1", "Read");
       ObjectNode toolResult =
           MAPPER.createObjectNode().put("type", "tool_result").put("tool_use_id", "toolu_1");
