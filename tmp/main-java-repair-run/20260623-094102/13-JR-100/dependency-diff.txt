@@ -1,0 +1,23 @@
+Dependency Diff — main_java @ a00ee27 (JR-100 acceptance)
+=========================================================
+
+app-cli runtimeClasspath:
+  +--- project :java:core-domain
+  +--- project :java:source-spi
+  +--- project :java:source-json
+  +--- project :java:source-claude
+  +--- project :java:source-codex
+  +--- project :java:source-qoder
+  +--- project :java:normalization-engine
+  +--- project :java:artifact-normalized
+  +--- info.picocli:picocli:4.7.6
+  +--- com.fasterxml.jackson.core:jackson-databind:2.18.2
+  \--- com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2
+
+External dependencies:
+  - picocli 4.7.6 (CLI framework)
+  - jackson-databind 2.18.2 (JSON serialization)
+  - jackson-datatype-jsr310 2.18.2 (Java time support)
+
+Module count: 10 internal modules + 3 external deps
+All dependencies resolved successfully.

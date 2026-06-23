@@ -1,0 +1,31 @@
+{
+  "artifacts_generated": [
+    {
+      "type": "jacoco-report",
+      "module": "java:app-cli",
+      "path": "java/app-cli/build/reports/jacoco/test/",
+      "status": "generated"
+    },
+    {
+      "type": "jacoco-root-report",
+      "path": "build/reports/jacoco/jacocoRootReport/",
+      "status": "generated"
+    },
+    {
+      "type": "checkstyle-main",
+      "modules": ["core-domain", "source-spi", "source-json", "source-claude", "source-codex", "source-qoder", "normalization-engine", "artifact-normalized", "test-support", "app-cli"],
+      "status": "all-pass"
+    },
+    {
+      "type": "pmd-main",
+      "modules": ["core-domain", "source-spi", "source-json", "source-claude", "source-codex", "source-qoder", "normalization-engine", "artifact-normalized", "test-support", "app-cli"],
+      "status": "all-pass"
+    },
+    {
+      "type": "spotless-check",
+      "modules": ["core-domain", "source-spi", "source-json", "source-claude", "source-codex", "source-qoder", "normalization-engine", "artifact-normalized", "test-support", "app-cli"],
+      "status": "all-pass"
+    }
+  ],
+  "quality_full_status": "PASS"
+}

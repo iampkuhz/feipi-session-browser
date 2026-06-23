@@ -1,0 +1,33 @@
+{
+  "max_concurrent_llm_calls": 1,
+  "poll_count": 0,
+  "children": [
+    {
+      "role": "AUDIT",
+      "session_id": "jr100-audit-001",
+      "started_at": "2026-06-23T14:50:00Z",
+      "finished_at": "2026-06-23T14:55:00Z",
+      "delegated_children": 0,
+      "files_read": 10,
+      "handoff_chars": 3000
+    },
+    {
+      "role": "VERIFY",
+      "session_id": "jr100-verify-001",
+      "started_at": "2026-06-23T14:55:00Z",
+      "finished_at": "2026-06-23T15:10:00Z",
+      "delegated_children": 0,
+      "files_read": 0,
+      "handoff_chars": 2500
+    },
+    {
+      "role": "REVIEW",
+      "session_id": "jr100-review-001",
+      "started_at": "2026-06-23T15:10:00Z",
+      "finished_at": "2026-06-23T15:12:00Z",
+      "delegated_children": 0,
+      "files_read": 5,
+      "handoff_chars": 2000
+    }
+  ]
+}

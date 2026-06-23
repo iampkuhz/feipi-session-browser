@@ -1,0 +1,45 @@
+API Snapshot — main_java @ a00ee27 (JR-100 acceptance)
+========================================================
+
+domain (core-domain)
+  domain.enums: CallScope, CallStatus, TokenPrecision, TokenProvider, TokenSourceKind, TokenTotalSemantics
+  domain.normalized: ByteRange, NormalizedAgent, NormalizedCall, NormalizedCallRequest, NormalizedCallResponse,
+                     NormalizedCallUsage, NormalizedConstants, NormalizedSessionArtifact, NormalizedSourceFile,
+                     NormalizedToolExecution, SourceUnitCatalogEntry, SourceUnitDirection, SourceUnitRefRange
+  domain: DomainMarker, NormalizedTokenBreakdown
+  domain.annotation: @CoreField, @DomainModel
+
+source-spi
+  BoundedStream (3 pub), Candidate (2 pub), ParsedRecord (0 pub — record),
+  ParseIssueType (enum), ParseSeverity (enum),
+  SourceAdapter (interface), SourceConstants, SourceDiagnostic (1 pub),
+  SourceFingerprint (3 pub), SourceId (1 pub), SourceOutcome (3 pub),
+  SourceResult (8 pub), SourceRoot (2 pub)
+
+source adapters
+  claude: ClaudeConstants, ClaudeDiscovery, ClaudeParsedRecord (3 pub), ClaudeSourceAdapter (5 pub)
+  codex:  CodexConstants, CodexDiscovery, CodexParsedRecord (3 pub), CodexSourceAdapter (5 pub)
+  qoder:  QoderConstants, QoderDiscovery, QoderParsedRecord (3 pub), QoderSourceAdapter (5 pub)
+  jsonl:  JsonlConstants, JsonlReader (1 pub), JsonlReaderConfig (1 pub), JsonlReaderResult (1 pub), JsonlStats (2 pub)
+
+normalization-engine
+  CallBuilder, EventClassifier (8 pub), NormalizationConstants, NormalizationEngine (1 pub),
+  TokenAccountant
+
+artifact-normalized
+  ArtifactConstants, ArtifactMeta (1 pub), CanonicalJsonWriter (2 pub),
+  NormalizedArtifactWriter (3 pub), SafeArtifactName, WriteResult (1 pub)
+
+app-cli (batch NDJSON)
+  NormalizedBatchCommand (1 pub), BatchInputRecord (record), BatchOutputRecord (record)
+
+app-cli (commands)
+  CliRunner (3 pub), SessionBrowserCommand, ScanCommand, ServeCommand, StopCommand,
+  TestCommand, DepsCommand, QualityCommand, VersionCommand, ReleaseCommand,
+  BuildInfoVersionProvider (1 pub), SourceAdapterRegistry
+
+test-support
+  FakeSourceAdapter (5 pub), TestSupportMarker
+
+Total public classes: 96
+Total public methods (approx): 110

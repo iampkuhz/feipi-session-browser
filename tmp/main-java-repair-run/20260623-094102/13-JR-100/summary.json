@@ -1,0 +1,33 @@
+{
+  "run_id": "20260623-094102",
+  "task_id": "JR-100",
+  "status": "PASS",
+  "head_commit": "a00ee277d759c564da21aad16aa8b8f8c54bf1ff",
+  "branch": "main_java",
+  "tests": {
+    "failed": 0,
+    "errors": 0,
+    "skipped": 0,
+    "aborted": 0,
+    "total_java": 472,
+    "total_python": 398,
+    "test_files": 110
+  },
+  "verification_steps": {
+    "cold_build": "PASS",
+    "warm_config_cache": "PASS",
+    "quality_full": "PASS",
+    "python_regression": "PASS",
+    "comment_language_check": "PASS",
+    "harness_doctor": "PASS",
+    "cli_contract": "PASS",
+    "privacy_scan": "WARN",
+    "api_snapshot": "PASS"
+  },
+  "privacy_notes": "anthropic-cache.jsonl contains real home path /Users/zhehan/...; all other fixtures use /Users/test/... synthetic paths",
+  "scope_check": {
+    "passed": true,
+    "forbidden_changes": 0,
+    "production_modifications": 0
+  }
+}

@@ -1,0 +1,100 @@
+{
+  "commands": [
+    {
+      "step": 1,
+      "name": "Cold Build",
+      "command": "./gradlew clean check --no-build-cache --no-configuration-cache",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "472 tests, 0 skipped, 0 aborted, BUILD SUCCESSFUL in 30s, 156 actionable tasks"
+    },
+    {
+      "step": "2a",
+      "name": "Warm Config Cache (store)",
+      "command": "./gradlew check --configuration-cache",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "Configuration cache entry stored, BUILD SUCCESSFUL in 5s"
+    },
+    {
+      "step": "2b",
+      "name": "Warm Config Cache (reuse)",
+      "command": "./gradlew check --configuration-cache",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "Configuration cache entry reused, BUILD SUCCESSFUL in 991ms"
+    },
+    {
+      "step": 3,
+      "name": "Quality Full",
+      "command": "./gradlew qualityFull",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "JaCoCo reports generated, BUILD SUCCESSFUL in 5s"
+    },
+    {
+      "step": "4a",
+      "name": "Python Regression",
+      "command": "python3 -m pytest tests/quality tests/harness -q",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "398 passed in 3.44s"
+    },
+    {
+      "step": "4b",
+      "name": "Comment Language Check",
+      "command": "python3 scripts/quality/check_code_comment_language.py java build-logic build.gradle.kts settings.gradle.kts --jobs auto",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "scanned 160 files with 8 workers, PASS"
+    },
+    {
+      "step": 5,
+      "name": "Harness Doctor",
+      "command": "bash scripts/harness/doctor.sh",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "All checks PASS, doctor completed"
+    },
+    {
+      "step": "6a",
+      "name": "CLI installDist",
+      "command": "./gradlew :java:app-cli:installDist",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "BUILD SUCCESSFUL in 886ms"
+    },
+    {
+      "step": "6b",
+      "name": "CLI --help",
+      "command": "java/app-cli/build/install/app-cli/bin/app-cli --help",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "Shows usage, commands: scan, serve, stop, test, deps, quality, version, release"
+    },
+    {
+      "step": "6c",
+      "name": "CLI --version",
+      "command": "java/app-cli/build/install/app-cli/bin/app-cli --version",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "feipi-session-browser 0.4"
+    },
+    {
+      "step": 7,
+      "name": "Privacy Scan",
+      "command": "rg /Users/[a-zA-Z] tests/fixtures/",
+      "status": "WARN",
+      "exit_code": 0,
+      "summary": "1 fixture (anthropic-cache.jsonl) contains real home path /Users/zhehan/...; all others use /Users/test/..."
+    },
+    {
+      "step": 8,
+      "name": "API Snapshot Diff",
+      "command": "find java -name '*.java' -path '*/main/*'",
+      "status": "PASS",
+      "exit_code": 0,
+      "summary": "Snapshot captured: 96 public classes across domain/SPI/artifact/normalization/batch"
+    }
+  ]
+}

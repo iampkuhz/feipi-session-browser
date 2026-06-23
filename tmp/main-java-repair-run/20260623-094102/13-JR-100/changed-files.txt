@@ -1,0 +1,12 @@
+# No production files changed — this is a read-only acceptance task.
+# Only the following files were created (result reports):
+tmp/main-java-repair-run/20260623-094102/13-JR-100/summary.json
+tmp/main-java-repair-run/20260623-094102/13-JR-100/commands.json
+tmp/main-java-repair-run/20260623-094102/13-JR-100/changed-files.txt
+tmp/main-java-repair-run/20260623-094102/13-JR-100/scope-check.json
+tmp/main-java-repair-run/20260623-094102/13-JR-100/test-counts.json
+tmp/main-java-repair-run/20260623-094102/13-JR-100/quality-artifacts.json
+tmp/main-java-repair-run/20260623-094102/13-JR-100/api-diff.txt
+tmp/main-java-repair-run/20260623-094102/13-JR-100/dependency-diff.txt
+tmp/main-java-repair-run/20260623-094102/13-JR-100/subagent-ledger.json
+tmp/main-java-repair-run/20260623-094102/13-JR-100/handoff.md
