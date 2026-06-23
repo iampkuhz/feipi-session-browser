@@ -4,6 +4,11 @@ The normalized layer is the intermediate contract between agent-specific
 local logs and Session Detail presentation/import code.
 """
 
+from session_browser.normalized.artifact_consumer import (
+    ArtifactConsumer,
+    ArtifactStatus,
+    ArtifactValidationResult,
+)
 from session_browser.normalized.artifacts import (
     NORMALIZED_SESSION_ARTIFACT_TYPE,
     normalized_artifact_path,
@@ -32,6 +37,9 @@ from session_browser.normalized.schema import (
 __all__ = [
     'NORMALIZED_SCHEMA_VERSION',
     'NORMALIZED_SESSION_ARTIFACT_TYPE',
+    'ArtifactConsumer',
+    'ArtifactStatus',
+    'ArtifactValidationResult',
     'ByteRange',
     'NormalizedCall',
     'NormalizedCallRequest',
