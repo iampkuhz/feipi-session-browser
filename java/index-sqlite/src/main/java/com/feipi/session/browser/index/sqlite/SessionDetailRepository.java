@@ -105,7 +105,8 @@ public final class SessionDetailRepository {
    * @return 归一化制品行，不存在时返回 empty
    * @throws SQLException 查询失败
    */
-  public Optional<SessionArtifactRow> findNormalizedArtifact(String sessionKey) throws SQLException {
+  public Optional<SessionArtifactRow> findNormalizedArtifact(String sessionKey)
+      throws SQLException {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
     String sql =
         "SELECT session_key, artifact_type, path, schema_version, source_path,"

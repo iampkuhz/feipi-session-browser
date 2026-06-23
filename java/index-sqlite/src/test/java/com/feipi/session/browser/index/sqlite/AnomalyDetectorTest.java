@@ -16,8 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 异常检测器单元测试。
  *
- * <p>覆盖 {@link AnomalyDetector} 的工具失败率、活跃时长和缓存写入检测逻辑。
- * 包含边界值、零值和缺失值场景。
+ * <p>覆盖 {@link AnomalyDetector} 的工具失败率、活跃时长和缓存写入检测逻辑。 包含边界值、零值和缺失值场景。
  */
 @DisplayName("异常检测器测试")
 class AnomalyDetectorTest {

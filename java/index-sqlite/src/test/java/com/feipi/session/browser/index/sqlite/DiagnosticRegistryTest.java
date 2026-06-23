@@ -3,11 +3,11 @@ package com.feipi.session.browser.index.sqlite;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition;
+import com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.RoundSignalKey;
 import com.feipi.session.browser.query.api.SessionAnomalyKey;
-import com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition;
-import com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition;
 import java.util.EnumSet;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -50,7 +50,8 @@ class DiagnosticRegistryTest {
     @Test
     @DisplayName("CACHE_WRITE_SPIKE 支持 INFO 和 WARNING")
     void cacheWriteSpikeSupportsInfoAndWarning() {
-      AnomalyDefinition def = DiagnosticRegistry.sessionAnomaly(SessionAnomalyKey.CACHE_WRITE_SPIKE);
+      AnomalyDefinition def =
+          DiagnosticRegistry.sessionAnomaly(SessionAnomalyKey.CACHE_WRITE_SPIKE);
       assertThat(def.severityLevels())
           .containsExactlyInAnyOrder(AnomalySeverity.INFO, AnomalySeverity.WARNING);
     }
@@ -58,7 +59,8 @@ class DiagnosticRegistryTest {
     @Test
     @DisplayName("isKnownSessionAnomaly 检查注册状态")
     void isKnownSessionAnomalyChecksRegistration() {
-      assertThat(DiagnosticRegistry.isKnownSessionAnomaly(SessionAnomalyKey.LONG_DURATION)).isTrue();
+      assertThat(DiagnosticRegistry.isKnownSessionAnomaly(SessionAnomalyKey.LONG_DURATION))
+          .isTrue();
       assertThat(DiagnosticRegistry.isKnownSessionAnomaly(null)).isFalse();
     }
 
@@ -143,7 +145,9 @@ class DiagnosticRegistryTest {
     @DisplayName("空严重度集合抛出异常")
     void emptySeveritySetThrows() {
       assertThatThrownBy(
-              () -> new AnomalyDefinition(SessionAnomalyKey.LONG_DURATION, EnumSet.noneOf(AnomalySeverity.class)))
+              () ->
+                  new AnomalyDefinition(
+                      SessionAnomalyKey.LONG_DURATION, EnumSet.noneOf(AnomalySeverity.class)))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("severityLevels 不得为空");
     }
@@ -151,8 +155,7 @@ class DiagnosticRegistryTest {
     @Test
     @DisplayName("null key 抛出异常")
     void nullKeyThrows() {
-      assertThatThrownBy(
-              () -> new AnomalyDefinition(null, EnumSet.of(AnomalySeverity.WARNING)))
+      assertThatThrownBy(() -> new AnomalyDefinition(null, EnumSet.of(AnomalySeverity.WARNING)))
           .isInstanceOf(NullPointerException.class);
     }
   }
@@ -165,9 +168,7 @@ class DiagnosticRegistryTest {
     @DisplayName("supportsSeverity 检查严重度支持")
     void supportsSeverityChecksSupport() {
       SignalDefinition def =
-          new SignalDefinition(
-              RoundSignalKey.LONG_TOOL,
-              EnumSet.of(AnomalySeverity.WARNING));
+          new SignalDefinition(RoundSignalKey.LONG_TOOL, EnumSet.of(AnomalySeverity.WARNING));
 
       assertThat(def.supportsSeverity(AnomalySeverity.WARNING)).isTrue();
       assertThat(def.supportsSeverity(AnomalySeverity.CRITICAL)).isFalse();
@@ -177,9 +178,7 @@ class DiagnosticRegistryTest {
     @DisplayName("不可变严重度集合")
     void immutableSeveritySet() {
       SignalDefinition def =
-          new SignalDefinition(
-              RoundSignalKey.LONG_TOOL,
-              EnumSet.of(AnomalySeverity.WARNING));
+          new SignalDefinition(RoundSignalKey.LONG_TOOL, EnumSet.of(AnomalySeverity.WARNING));
 
       assertThatThrownBy(() -> def.severityLevels().add(AnomalySeverity.CRITICAL))
           .isInstanceOf(UnsupportedOperationException.class);

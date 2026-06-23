@@ -1,6 +1,5 @@
 package com.feipi.session.browser.query.api;
 
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
@@ -23,10 +22,7 @@ import java.util.Objects;
  * @param parentCallId 触发本轮次的父调用 ID，首轮次为空
  */
 public record CallRound(
-    int roundIndex,
-    List<String> calls,
-    List<String> toolCallIds,
-    String parentCallId) {
+    int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId) {
 
   /**
    * 紧凑构造器，验证轮次不变量。

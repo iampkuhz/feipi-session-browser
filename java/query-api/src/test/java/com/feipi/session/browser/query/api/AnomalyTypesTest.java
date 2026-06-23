@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 /**
  * 异常相关类型单元测试。
  *
- * <p>覆盖 {@link AnomalyType}、{@link AnomalySeverity}、{@link DetectedAnomaly}
- * 和 {@link SessionAnomalySummary} 的不变量和边界条件。
+ * <p>覆盖 {@link AnomalyType}、{@link AnomalySeverity}、{@link DetectedAnomaly} 和 {@link
+ * SessionAnomalySummary} 的不变量和边界条件。
  */
 @DisplayName("异常类型契约测试")
 class AnomalyTypesTest {
@@ -24,7 +24,8 @@ class AnomalyTypesTest {
     @DisplayName("fromValue 返回正确枚举")
     void fromValueReturnsEnum() {
       assertThat(AnomalyType.fromValue("long_duration")).isEqualTo(AnomalyType.LONG_DURATION);
-      assertThat(AnomalyType.fromValue("cache_write_spike")).isEqualTo(AnomalyType.CACHE_WRITE_SPIKE);
+      assertThat(AnomalyType.fromValue("cache_write_spike"))
+          .isEqualTo(AnomalyType.CACHE_WRITE_SPIKE);
       assertThat(AnomalyType.fromValue("failed_run")).isEqualTo(AnomalyType.FAILED_RUN);
       assertThat(AnomalyType.fromValue("payload_visibility_mismatch"))
           .isEqualTo(AnomalyType.PAYLOAD_VISIBILITY_MISMATCH);
@@ -111,7 +112,8 @@ class AnomalyTypesTest {
     @Test
     @DisplayName("null reason 转换为空字符串")
     void nullReasonBecomesEmpty() {
-      DetectedAnomaly anomaly = new DetectedAnomaly(AnomalyType.FAILED_RUN, AnomalySeverity.WARNING, null);
+      DetectedAnomaly anomaly =
+          new DetectedAnomaly(AnomalyType.FAILED_RUN, AnomalySeverity.WARNING, null);
       assertThat(anomaly.reason()).isEmpty();
     }
   }
@@ -185,7 +187,9 @@ class AnomalyTypesTest {
           new SessionAnomalySummary(
               "key1",
               java.util.List.of(DetectedAnomaly.warning(AnomalyType.LONG_DURATION, "reason")));
-      assertThatThrownBy(() -> summary.anomalies().add(DetectedAnomaly.info(AnomalyType.CACHE_WRITE_SPIKE, "x")))
+      assertThatThrownBy(
+              () ->
+                  summary.anomalies().add(DetectedAnomaly.info(AnomalyType.CACHE_WRITE_SPIKE, "x")))
           .isInstanceOf(UnsupportedOperationException.class);
     }
   }

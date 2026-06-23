@@ -47,8 +47,7 @@ class PayloadLookupTest {
       NormalizedSessionArtifact artifact = makeArtifact(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.STANDARD);
       assertThat(lookup.size()).isEqualTo(2);
-      assertThat(lookup.allPayloadIds())
-          .containsExactly("main:req:c1", "main:resp:c1");
+      assertThat(lookup.allPayloadIds()).containsExactly("main:req:c1", "main:resp:c1");
     }
 
     @Test

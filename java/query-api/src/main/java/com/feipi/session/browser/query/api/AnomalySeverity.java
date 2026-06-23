@@ -6,8 +6,8 @@ import lombok.RequiredArgsConstructor;
 /**
  * 异常严重度枚举。
  *
- * <p>标识检测到的会话异常的严重程度级别。与 Python 端常量 {@code SEVERITY_CRITICAL}、
- * {@code SEVERITY_WARNING}、{@code SEVERITY_INFO} 对应。
+ * <p>标识检测到的会话异常的严重程度级别。与 Python 端常量 {@code SEVERITY_CRITICAL}、 {@code SEVERITY_WARNING}、{@code
+ * SEVERITY_INFO} 对应。
  */
 @RequiredArgsConstructor
 public enum AnomalySeverity {

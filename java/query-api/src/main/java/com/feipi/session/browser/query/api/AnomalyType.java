@@ -6,8 +6,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 会话级异常类型枚举。
  *
- * <p>标识会话诊断检测中发现的异常类别。与 Python 端 {@code anomalies.py} 检测规则对应。
- * 值为稳定外部协议契约，过滤器和模板依赖这些值。
+ * <p>标识会话诊断检测中发现的异常类别。与 Python 端 {@code anomalies.py} 检测规则对应。 值为稳定外部协议契约，过滤器和模板依赖这些值。
  */
 @RequiredArgsConstructor
 public enum AnomalyType {

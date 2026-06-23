@@ -59,25 +59,14 @@ public final class PayloadLookup {
       PayloadSourceKind requestKind =
           isSubagent ? PayloadSourceKind.SUBAGENT_REQUEST : PayloadSourceKind.LLM_REQUEST;
       map.put(
-          reqPayloadId,
-          new PayloadEntry(
-              reqPayloadId,
-              requestKind,
-              call.callId(),
-              "",
-              truncated));
+          reqPayloadId, new PayloadEntry(reqPayloadId, requestKind, call.callId(), "", truncated));
 
       String respPayloadId = prefix + ":resp:" + call.callId();
       PayloadSourceKind responseKind =
           isSubagent ? PayloadSourceKind.SUBAGENT_RESPONSE : PayloadSourceKind.LLM_RESPONSE;
       map.put(
           respPayloadId,
-          new PayloadEntry(
-              respPayloadId,
-              responseKind,
-              call.callId(),
-              "",
-              truncated));
+          new PayloadEntry(respPayloadId, responseKind, call.callId(), "", truncated));
     }
     return new PayloadLookup(map);
   }
@@ -101,9 +90,7 @@ public final class PayloadLookup {
    */
   public List<PayloadEntry> lookupByCallId(String callId) {
     Objects.requireNonNull(callId, "callId 不得为 null");
-    return entries.values().stream()
-        .filter(e -> callId.equals(e.callId()))
-        .toList();
+    return entries.values().stream().filter(e -> callId.equals(e.callId())).toList();
   }
 
   /** 查找表中的条目总数。 */
@@ -126,11 +113,7 @@ public final class PayloadLookup {
    * @param truncated 内容是否被截断
    */
   public record PayloadEntry(
-      String payloadId,
-      PayloadSourceKind kind,
-      String callId,
-      String content,
-      boolean truncated) {
+      String payloadId, PayloadSourceKind kind, String callId, String content, boolean truncated) {
 
     /**
      * 紧凑构造器，验证条目不变量。

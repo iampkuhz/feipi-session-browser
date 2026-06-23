@@ -26,8 +26,8 @@ import java.util.Optional;
 /**
  * 归一化制品磁盘加载器。
  *
- * <p>从磁盘读取归一化 JSON 制品文件，反序列化为 {@link NormalizedSessionArtifact} 并执行 domain 层验证。 这是唯一的
- * artifact 读取入口，所有消费者必须通过本类加载制品， 避免多处重复解析和验证逻辑。
+ * <p>从磁盘读取归一化 JSON 制品文件，反序列化为 {@link NormalizedSessionArtifact} 并执行 domain 层验证。 这是唯一的 artifact
+ * 读取入口，所有消费者必须通过本类加载制品， 避免多处重复解析和验证逻辑。
  *
  * <p>校验放置：
  *
@@ -89,7 +89,7 @@ public final class NormalizedArtifactLoader {
     String agentValue = asString(root, "agent", "");
     NormalizedAgent agent = NormalizedAgent.fromValue(agentValue);
 
-    // session map
+    // 会话元数据
     @SuppressWarnings("unchecked")
     Map<String, Object> session =
         root.containsKey("session") ? asMap(root.get("session")) : Map.of();
@@ -317,21 +317,6 @@ public final class NormalizedArtifactLoader {
     if (value != null) {
       try {
         return Long.parseLong(String.valueOf(value));
-      } catch (NumberFormatException e) {
-        return defaultValue;
-      }
-    }
-    return defaultValue;
-  }
-
-  private static double asDouble(Map<String, Object> map, String key, double defaultValue) {
-    Object value = map.get(key);
-    if (value instanceof Number num) {
-      return num.doubleValue();
-    }
-    if (value != null) {
-      try {
-        return Double.parseDouble(String.valueOf(value));
       } catch (NumberFormatException e) {
         return defaultValue;
       }

@@ -1,6 +1,5 @@
 package com.feipi.session.browser.query.api;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.Set;
 
@@ -98,7 +97,9 @@ public final class SensitiveFieldPolicy {
     String result = content;
     for (String field : sensitiveFields) {
       // 匹配 key=value 和 key: value 两种格式
-      result = result.replaceAll("(?i)(" + escapeRegex(field) + ")\\s*[=:]\\s*[^\\s&'\"]+", "$1=[REDACTED]");
+      result =
+          result.replaceAll(
+              "(?i)(" + escapeRegex(field) + ")\\s*[=:]\\s*[^\\s&'\"]+", "$1=[REDACTED]");
     }
     return result;
   }

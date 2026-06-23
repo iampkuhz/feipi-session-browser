@@ -3,7 +3,6 @@ package com.feipi.session.browser.index.sqlite;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.RoundSignalKey;
 import com.feipi.session.browser.query.api.SessionAnomalyKey;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -14,11 +13,10 @@ import java.util.Set;
 /**
  * 诊断定义注册表。
  *
- * <p>提供会话级异常和轮次级信号的稳定定义。与 Python 端
- * {@code SESSION_ANOMALY_DEFINITIONS} 和 {@code ROUND_SIGNAL_DEFINITIONS} 对应。
+ * <p>提供会话级异常和轮次级信号的稳定定义。与 Python 端 {@code SESSION_ANOMALY_DEFINITIONS} 和 {@code
+ * ROUND_SIGNAL_DEFINITIONS} 对应。
  *
- * <p>注册表只暴露检测逻辑所需的键和严重度，不包含显示文案（label/description）。
- * 显示逻辑在 presentation 层处理。
+ * <p>注册表只暴露检测逻辑所需的键和严重度，不包含显示文案（label/description）。 显示逻辑在 presentation 层处理。
  */
 public final class DiagnosticRegistry {
 
@@ -64,27 +62,19 @@ public final class DiagnosticRegistry {
 
     roundMap.put(
         RoundSignalKey.LONG_TOOL,
-        new SignalDefinition(
-            RoundSignalKey.LONG_TOOL,
-            EnumSet.of(AnomalySeverity.WARNING)));
+        new SignalDefinition(RoundSignalKey.LONG_TOOL, EnumSet.of(AnomalySeverity.WARNING)));
 
     roundMap.put(
         RoundSignalKey.TOOL_BURST,
-        new SignalDefinition(
-            RoundSignalKey.TOOL_BURST,
-            EnumSet.of(AnomalySeverity.WARNING)));
+        new SignalDefinition(RoundSignalKey.TOOL_BURST, EnumSet.of(AnomalySeverity.WARNING)));
 
     roundMap.put(
         RoundSignalKey.HIGH_WRITE,
-        new SignalDefinition(
-            RoundSignalKey.HIGH_WRITE,
-            EnumSet.of(AnomalySeverity.WARNING)));
+        new SignalDefinition(RoundSignalKey.HIGH_WRITE, EnumSet.of(AnomalySeverity.WARNING)));
 
     roundMap.put(
         RoundSignalKey.LARGE_INPUT,
-        new SignalDefinition(
-            RoundSignalKey.LARGE_INPUT,
-            EnumSet.of(AnomalySeverity.WARNING)));
+        new SignalDefinition(RoundSignalKey.LARGE_INPUT, EnumSet.of(AnomalySeverity.WARNING)));
 
     ROUND_SIGNALS = Collections.unmodifiableMap(roundMap);
   }

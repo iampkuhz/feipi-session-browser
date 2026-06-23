@@ -5,8 +5,7 @@ import java.util.Objects;
 /**
  * 单个解析级别问题。
  *
- * <p>JSONL 诊断桥接器在转换原始 reader 诊断时创建此对象。行号 {@code 0} 表示文件级问题；
- * 正值标识 JSONL 行号。
+ * <p>JSONL 诊断桥接器在转换原始 reader 诊断时创建此对象。行号 {@code 0} 表示文件级问题； 正值标识 JSONL 行号。
  *
  * <p>不变量：
  *
@@ -25,11 +24,7 @@ import java.util.Objects;
  * @param detail 附加上下文信息（如错误 JSON 预览）
  */
 public record DiagnosticIssueItem(
-    DiagnosticIssue issue,
-    DiagnosticSeverity severity,
-    String message,
-    int lineNo,
-    String detail) {
+    DiagnosticIssue issue, DiagnosticSeverity severity, String message, int lineNo, String detail) {
 
   /**
    * 紧凑构造器，验证解析问题项不变量。

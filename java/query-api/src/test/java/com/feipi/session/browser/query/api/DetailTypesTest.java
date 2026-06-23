@@ -10,8 +10,8 @@ import org.junit.jupiter.api.Test;
 /**
  * query-api 详情相关类型测试。
  *
- * <p>覆盖 {@link CallRound}、{@link PayloadSource}、{@link PayloadSourceKind}、
- * {@link PayloadVisibility} 和 {@link SensitiveFieldPolicy} 的不变量和边界。
+ * <p>覆盖 {@link CallRound}、{@link PayloadSource}、{@link PayloadSourceKind}、 {@link
+ * PayloadVisibility} 和 {@link SensitiveFieldPolicy} 的不变量和边界。
  */
 @DisplayName("query-api 详情类型测试")
 class DetailTypesTest {

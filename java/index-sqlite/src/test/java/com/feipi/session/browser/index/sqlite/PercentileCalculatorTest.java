@@ -192,8 +192,7 @@ class PercentileCalculatorTest {
     @DisplayName("结果映射不可变")
     void resultMapIsImmutable() {
       Map<MetricKey, Thresholds> result =
-          PercentileCalculator.computeSessionThresholds(
-              List.of(1.0), List.of(1.0), List.of(1.0));
+          PercentileCalculator.computeSessionThresholds(List.of(1.0), List.of(1.0), List.of(1.0));
 
       assertThatThrownBy(
               () -> result.put(MetricKey.DURATION_SECONDS, new Thresholds(0, 0, null, null, 0)))

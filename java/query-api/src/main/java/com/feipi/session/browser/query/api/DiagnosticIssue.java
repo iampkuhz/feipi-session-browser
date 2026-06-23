@@ -6,8 +6,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 解析问题类别枚举。
  *
- * <p>标识影响索引会话质量的解析问题类别。与 Python 端 {@code ParseIssue} 对应。
- * 值为稳定外部协议契约。
+ * <p>标识影响索引会话质量的解析问题类别。与 Python 端 {@code ParseIssue} 对应。 值为稳定外部协议契约。
  */
 @RequiredArgsConstructor
 public enum DiagnosticIssue {

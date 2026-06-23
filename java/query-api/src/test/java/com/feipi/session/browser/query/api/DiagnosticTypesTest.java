@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test;
 /**
  * 诊断相关类型单元测试。
  *
- * <p>覆盖 {@link DiagnosticSeverity}、{@link DiagnosticIssue}、{@link DiagnosticIssueItem}
- * 和 {@link SessionParseDiagnostics} 的不变量和边界条件。
+ * <p>覆盖 {@link DiagnosticSeverity}、{@link DiagnosticIssue}、{@link DiagnosticIssueItem} 和 {@link
+ * SessionParseDiagnostics} 的不变量和边界条件。
  */
 @DisplayName("诊断类型契约测试")
 class DiagnosticTypesTest {
@@ -26,9 +26,7 @@ class DiagnosticTypesTest {
     void enumValuesComplete() {
       assertThat(DiagnosticSeverity.values())
           .containsExactly(
-              DiagnosticSeverity.INFO,
-              DiagnosticSeverity.WARNING,
-              DiagnosticSeverity.CRITICAL);
+              DiagnosticSeverity.INFO, DiagnosticSeverity.WARNING, DiagnosticSeverity.CRITICAL);
     }
   }
 
@@ -41,7 +39,8 @@ class DiagnosticTypesTest {
     void fromValueReturnsEnum() {
       assertThat(DiagnosticIssue.fromValue("BAD_JSON")).isEqualTo(DiagnosticIssue.BAD_JSON);
       assertThat(DiagnosticIssue.fromValue("EMPTY_FILE")).isEqualTo(DiagnosticIssue.EMPTY_FILE);
-      assertThat(DiagnosticIssue.fromValue("TOKEN_ESTIMATED")).isEqualTo(DiagnosticIssue.TOKEN_ESTIMATED);
+      assertThat(DiagnosticIssue.fromValue("TOKEN_ESTIMATED"))
+          .isEqualTo(DiagnosticIssue.TOKEN_ESTIMATED);
     }
 
     @Test
@@ -182,10 +181,7 @@ class DiagnosticTypesTest {
     @Test
     @DisplayName("负计数字段抛出异常")
     void negativeCountThrows() {
-      assertThatThrownBy(
-              () ->
-                  new SessionParseDiagnostics(
-                      "key1", "/path", -1, 0, 0, List.of()))
+      assertThatThrownBy(() -> new SessionParseDiagnostics("key1", "/path", -1, 0, 0, List.of()))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("totalLines 必须非负");
     }

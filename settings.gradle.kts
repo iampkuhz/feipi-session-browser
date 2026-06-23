@@ -29,4 +29,5 @@ include(
     "java:contract-tests",
     "java:query-api",
     "java:reuse-analyzer",
+    "java:application",
 )

@@ -6,9 +6,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 会话级异常注册键枚举。
  *
- * <p>定义会话异常检测器支持的所有异常类型键。与 Python 端
- * {@code SESSION_ANOMALY_DEFINITIONS} 注册表的键对应。
- * 值为稳定外部协议契约。
+ * <p>定义会话异常检测器支持的所有异常类型键。与 Python 端 {@code SESSION_ANOMALY_DEFINITIONS} 注册表的键对应。 值为稳定外部协议契约。
  */
 @RequiredArgsConstructor
 public enum SessionAnomalyKey {

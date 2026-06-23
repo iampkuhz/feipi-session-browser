@@ -9,8 +9,8 @@ import java.util.Objects;
 /**
  * 会话详情聚合模型。
  *
- * <p>组合 {@link SessionRow} 基础行数据和归一化制品元信息，提供详情页所需的全部查询层数据。 不包含 HTTP 上下文或 Web view model，
- * 由上层 presenter 消费。
+ * <p>组合 {@link SessionRow} 基础行数据和归一化制品元信息，提供详情页所需的全部查询层数据。 不包含 HTTP 上下文或 Web view model， 由上层
+ * presenter 消费。
  *
  * <p>不变量：
  *

@@ -26,8 +26,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 诊断、异常和百分位数契约测试。
  *
- * <p>验证跨模块的类型契约和边界语义，确保 query-api 类型定义与 index-sqlite
- * 实现之间的一致性。
+ * <p>验证跨模块的类型契约和边界语义，确保 query-api 类型定义与 index-sqlite 实现之间的一致性。
  */
 @DisplayName("诊断契约测试")
 class DiagnosticsContractTest {
@@ -35,11 +34,34 @@ class DiagnosticsContractTest {
   private static SessionRow createRow(
       String key, long tools, long failed, double modelExec, double toolExec, long cacheWrite) {
     return new SessionRow(
-        key, "claude_code", "sid-1", "title", "proj", "project",
-        "/cwd", "2024-01-01T00:00:00Z", "2024-01-01T01:00:00Z",
-        3600.0, modelExec, toolExec, "claude-3", "main", "cli",
-        10L, 20L, tools, 1000L, 500L, 200L, cacheWrite, 3700L,
-        failed, 0L, 1e6, 999999.0, "/path");
+        key,
+        "claude_code",
+        "sid-1",
+        "title",
+        "proj",
+        "project",
+        "/cwd",
+        "2024-01-01T00:00:00Z",
+        "2024-01-01T01:00:00Z",
+        3600.0,
+        modelExec,
+        toolExec,
+        "claude-3",
+        "main",
+        "cli",
+        10L,
+        20L,
+        tools,
+        1000L,
+        500L,
+        200L,
+        cacheWrite,
+        3700L,
+        failed,
+        0L,
+        1e6,
+        999999.0,
+        "/path");
   }
 
   @Nested
@@ -144,9 +166,12 @@ class DiagnosticsContractTest {
               50,
               10,
               List.of(
-                  DiagnosticIssueItem.fileLevel(DiagnosticIssue.BAD_JSON, DiagnosticSeverity.CRITICAL, "err"),
-                  DiagnosticIssueItem.fileLevel(DiagnosticIssue.TOKEN_ESTIMATED, DiagnosticSeverity.WARNING, "warn"),
-                  DiagnosticIssueItem.fileLevel(DiagnosticIssue.TOKEN_ESTIMATED, DiagnosticSeverity.INFO, "inf")));
+                  DiagnosticIssueItem.fileLevel(
+                      DiagnosticIssue.BAD_JSON, DiagnosticSeverity.CRITICAL, "err"),
+                  DiagnosticIssueItem.fileLevel(
+                      DiagnosticIssue.TOKEN_ESTIMATED, DiagnosticSeverity.WARNING, "warn"),
+                  DiagnosticIssueItem.fileLevel(
+                      DiagnosticIssue.TOKEN_ESTIMATED, DiagnosticSeverity.INFO, "inf")));
 
       assertThat(diag.criticalCount() + diag.warningCount() + diag.infoCount())
           .isEqualTo(diag.issues().size());
@@ -157,9 +182,14 @@ class DiagnosticsContractTest {
     void hasMethodsConsistentWithCounts() {
       SessionParseDiagnostics diag =
           new SessionParseDiagnostics(
-              "key1", "/path", 10, 5, 1,
-              List.of(DiagnosticIssueItem.fileLevel(
-                  DiagnosticIssue.BAD_JSON, DiagnosticSeverity.CRITICAL, "err")));
+              "key1",
+              "/path",
+              10,
+              5,
+              1,
+              List.of(
+                  DiagnosticIssueItem.fileLevel(
+                      DiagnosticIssue.BAD_JSON, DiagnosticSeverity.CRITICAL, "err")));
 
       assertThat(diag.hasCritical()).isEqualTo(diag.criticalCount() > 0);
       assertThat(diag.hasWarnings()).isEqualTo(diag.warningCount() > 0);

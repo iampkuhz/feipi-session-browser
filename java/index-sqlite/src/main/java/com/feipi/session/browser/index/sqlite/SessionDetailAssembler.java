@@ -3,7 +3,6 @@ package com.feipi.session.browser.index.sqlite;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
@@ -134,8 +133,7 @@ public final class SessionDetailAssembler {
   /**
    * 从调用列表生成 payload 来源。
    *
-   * <p>为每个调用生成请求和响应 payload 来源。归一化调用始终代表一次 LLM 交互， 具有请求和响应两侧内容。
-   * 标准可见性下标记为截断，完整可见性下不截断。
+   * <p>为每个调用生成请求和响应 payload 来源。归一化调用始终代表一次 LLM 交互， 具有请求和响应两侧内容。 标准可见性下标记为截断，完整可见性下不截断。
    *
    * <p>内容解析通过 source unit 引用完成，本层只负责生成标识符和可见性标记。
    *

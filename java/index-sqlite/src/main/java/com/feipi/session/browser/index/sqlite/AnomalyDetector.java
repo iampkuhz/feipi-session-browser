@@ -1,6 +1,5 @@
 package com.feipi.session.browser.index.sqlite;
 
-import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
@@ -12,8 +11,7 @@ import java.util.Objects;
 /**
  * 会话级异常检测器。
  *
- * <p>基于会话行数据检测异常。与 Python 端 {@code anomalies.py} 中
- * {@code detect_session_anomalies} 对应。
+ * <p>基于会话行数据检测异常。与 Python 端 {@code anomalies.py} 中 {@code detect_session_anomalies} 对应。
  *
  * <p>检测逻辑：
  *
@@ -78,14 +76,12 @@ public final class AnomalyDetector {
         int percent = (int) (failRatio * 100);
         anomalies.add(
             DetectedAnomaly.critical(
-                AnomalyType.FAILED_RUN,
-                failed + " failed tool call(s) (" + percent + "%)"));
+                AnomalyType.FAILED_RUN, failed + " failed tool call(s) (" + percent + "%)"));
       } else if (failRatio >= PercentileCalculator.FAILED_TOOL_WARNING_RATIO) {
         int percent = (int) (failRatio * 100);
         anomalies.add(
             DetectedAnomaly.warning(
-                AnomalyType.FAILED_RUN,
-                failed + " failed tool call(s) (" + percent + "%)"));
+                AnomalyType.FAILED_RUN, failed + " failed tool call(s) (" + percent + "%)"));
       }
     }
   }
@@ -93,8 +89,7 @@ public final class AnomalyDetector {
   /**
    * 检测活跃时长异常。
    *
-   * <p>活跃时长 = modelExecutionSeconds + toolExecutionSeconds。
-   * >= 2h 为 critical，>= 1h 为 warning。
+   * <p>活跃时长 = modelExecutionSeconds + toolExecutionSeconds。 >= 2h 为 critical，>= 1h 为 warning。
    */
   private static void detectLongDuration(SessionRow row, List<DetectedAnomaly> anomalies) {
     double modelExec = row.modelExecutionSeconds();
@@ -134,8 +129,7 @@ public final class AnomalyDetector {
   /**
    * 检测缓存写入异常。
    *
-   * <p>cacheWriteTokens >= 500K 为 warning，>= 200K 为 info。
-   * 注意：缓存写入是可见性信号，不是失败指标，因此最高只到 warning。
+   * <p>cacheWriteTokens >= 500K 为 warning，>= 200K 为 info。 注意：缓存写入是可见性信号，不是失败指标，因此最高只到 warning。
    */
   private static void detectCacheWriteSpike(SessionRow row, List<DetectedAnomaly> anomalies) {
     long cacheWrite = row.cacheWriteTokens();
@@ -146,12 +140,20 @@ public final class AnomalyDetector {
       anomalies.add(
           DetectedAnomaly.warning(
               AnomalyType.CACHE_WRITE_SPIKE,
-              "Cache creation " + cacheWrite + " tokens exceeds threshold (" + critThreshold + ")"));
+              "Cache creation "
+                  + cacheWrite
+                  + " tokens exceeds threshold ("
+                  + critThreshold
+                  + ")"));
     } else if (cacheWrite >= warnThreshold) {
       anomalies.add(
           DetectedAnomaly.info(
               AnomalyType.CACHE_WRITE_SPIKE,
-              "Cache creation " + cacheWrite + " tokens exceeds threshold (" + warnThreshold + ")"));
+              "Cache creation "
+                  + cacheWrite
+                  + " tokens exceeds threshold ("
+                  + warnThreshold
+                  + ")"));
     }
   }
 }

@@ -10,8 +10,6 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
-import com.feipi.session.browser.index.sqlite.ArtifactRowMapper;
 import com.feipi.session.browser.index.sqlite.IndexConnection;
 import com.feipi.session.browser.index.sqlite.IndexSchema;
 import com.feipi.session.browser.index.sqlite.PayloadLookup;
@@ -21,7 +19,6 @@ import com.feipi.session.browser.index.sqlite.SessionDetailAssembler;
 import com.feipi.session.browser.index.sqlite.SessionDetailRepository;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
-import com.feipi.session.browser.query.api.PayloadSourceKind;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -145,8 +142,7 @@ class SessionDetailContractTest {
           makeCall("c1", 1, CallScope.MAIN, Optional.empty(), "req-ref", "resp-ref");
       NormalizedCall subCall =
           makeCall("c2", 2, CallScope.SUBAGENT, Optional.of("c1"), "sa-req", "sa-resp");
-      NormalizedSessionArtifact artifact =
-          makeArtifactWithCalls(List.of(mainCall, subCall));
+      NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(mainCall, subCall));
 
       List<CallRound> rounds = SessionDetailAssembler.buildRounds(artifact.calls());
       assertThat(rounds).hasSize(1);
@@ -162,8 +158,8 @@ class SessionDetailContractTest {
     @DisplayName("标准可见性截断且 masking")
     void standardVisibilityBehavior() {
       NormalizedCall call =
-          makeCall("c1", 1, CallScope.MAIN, Optional.empty(),
-              "api_key=secret123 data", "response body");
+          makeCall(
+              "c1", 1, CallScope.MAIN, Optional.empty(), "api_key=secret123 data", "response body");
       NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.STANDARD);
 
@@ -179,8 +175,8 @@ class SessionDetailContractTest {
     @DisplayName("完整可见性保留全部内容")
     void fullVisibilityBehavior() {
       NormalizedCall call =
-          makeCall("c1", 1, CallScope.MAIN, Optional.empty(),
-              "api_key=secret123 data", "response body");
+          makeCall(
+              "c1", 1, CallScope.MAIN, Optional.empty(), "api_key=secret123 data", "response body");
       NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
 
@@ -194,8 +190,7 @@ class SessionDetailContractTest {
     @Test
     @DisplayName("按 callId 查找返回全部关联 payload")
     void lookupByCallId() {
-      NormalizedCall call =
-          makeCall("c1", 1, CallScope.MAIN, Optional.empty(), "req", "resp");
+      NormalizedCall call = makeCall("c1", 1, CallScope.MAIN, Optional.empty(), "req", "resp");
       NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
 

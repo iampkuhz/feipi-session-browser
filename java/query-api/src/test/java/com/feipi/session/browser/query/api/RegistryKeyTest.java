@@ -22,7 +22,8 @@ class RegistryKeyTest {
     @Test
     @DisplayName("fromValue 返回正确枚举")
     void fromValueReturnsEnum() {
-      assertThat(SessionAnomalyKey.fromValue("long_duration")).isEqualTo(SessionAnomalyKey.LONG_DURATION);
+      assertThat(SessionAnomalyKey.fromValue("long_duration"))
+          .isEqualTo(SessionAnomalyKey.LONG_DURATION);
       assertThat(SessionAnomalyKey.fromValue("failed_run")).isEqualTo(SessionAnomalyKey.FAILED_RUN);
       assertThat(SessionAnomalyKey.fromValue("cache_write_spike"))
           .isEqualTo(SessionAnomalyKey.CACHE_WRITE_SPIKE);

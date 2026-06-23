@@ -10,7 +10,6 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;

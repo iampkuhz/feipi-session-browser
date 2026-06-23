@@ -10,8 +10,7 @@ import java.util.Objects;
 /**
  * 百分位数计算与回退阈值。
  *
- * <p>提供 P90/P95 计算和静态回退阈值表，供异常检测器在数据不足时使用。
- * 与 Python 端 {@code percentiles.py} 对应。
+ * <p>提供 P90/P95 计算和静态回退阈值表，供异常检测器在数据不足时使用。 与 Python 端 {@code percentiles.py} 对应。
  *
  * <p>回退阈值用于数据量不足或分布偏斜时的异常检测。
  */
@@ -113,9 +112,13 @@ public final class PercentileCalculator {
     Objects.requireNonNull(cacheWriteValues, "cacheWriteValues 不得为 null");
 
     Map<MetricKey, Thresholds> result = new EnumMap<>(MetricKey.class);
-    result.put(MetricKey.DURATION_SECONDS, computeThresholds(durationValues, MetricKey.DURATION_SECONDS));
-    result.put(MetricKey.TOOL_CALL_COUNT, computeThresholds(toolCallValues, MetricKey.TOOL_CALL_COUNT));
-    result.put(MetricKey.CACHE_WRITE_TOKENS, computeThresholds(cacheWriteValues, MetricKey.CACHE_WRITE_TOKENS));
+    result.put(
+        MetricKey.DURATION_SECONDS, computeThresholds(durationValues, MetricKey.DURATION_SECONDS));
+    result.put(
+        MetricKey.TOOL_CALL_COUNT, computeThresholds(toolCallValues, MetricKey.TOOL_CALL_COUNT));
+    result.put(
+        MetricKey.CACHE_WRITE_TOKENS,
+        computeThresholds(cacheWriteValues, MetricKey.CACHE_WRITE_TOKENS));
     return Collections.unmodifiableMap(result);
   }
 
@@ -134,9 +137,7 @@ public final class PercentileCalculator {
     }
   }
 
-  /**
-   * 指标键枚举。
-   */
+  /** 指标键枚举。 */
   public enum MetricKey {
     /** 活跃时长（秒）。 */
     DURATION_SECONDS,
@@ -152,15 +153,18 @@ public final class PercentileCalculator {
      */
     public Map<String, Double> fallbackThresholds() {
       return switch (this) {
-        case DURATION_SECONDS -> Map.of(
-            "warning", DURATION_WARNING_SECONDS,
-            "critical", DURATION_CRITICAL_SECONDS);
-        case TOOL_CALL_COUNT -> Map.of(
-            "warning", (double) TOOL_CALL_WARNING_COUNT,
-            "critical", (double) TOOL_CALL_CRITICAL_COUNT);
-        case CACHE_WRITE_TOKENS -> Map.of(
-            "warning", (double) CACHE_WRITE_WARNING_TOKENS,
-            "critical", (double) CACHE_WRITE_CRITICAL_TOKENS);
+        case DURATION_SECONDS ->
+            Map.of(
+                "warning", DURATION_WARNING_SECONDS,
+                "critical", DURATION_CRITICAL_SECONDS);
+        case TOOL_CALL_COUNT ->
+            Map.of(
+                "warning", (double) TOOL_CALL_WARNING_COUNT,
+                "critical", (double) TOOL_CALL_CRITICAL_COUNT);
+        case CACHE_WRITE_TOKENS ->
+            Map.of(
+                "warning", (double) CACHE_WRITE_WARNING_TOKENS,
+                "critical", (double) CACHE_WRITE_CRITICAL_TOKENS);
       };
     }
   }
@@ -194,7 +198,8 @@ public final class PercentileCalculator {
    * @param p95 P95 值，可能为 null
    * @param sampleCount 用于计算的样本数
    */
-  public record Thresholds(double warning, double critical, Double p90, Double p95, int sampleCount) {
+  public record Thresholds(
+      double warning, double critical, Double p90, Double p95, int sampleCount) {
     /**
      * 紧凑构造器，验证阈值和样本数。
      *

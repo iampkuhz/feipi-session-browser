@@ -7,8 +7,7 @@ import java.util.Objects;
 /**
  * 单个索引会话的域级解析诊断。
  *
- * <p>Source adapter 从 JSONL reader 诊断构建此对象，可在索引写入前追加 adapter 特定问题。
- * 计数属性从不可变问题列表派生。
+ * <p>Source adapter 从 JSONL reader 诊断构建此对象，可在索引写入前追加 adapter 特定问题。 计数属性从不可变问题列表派生。
  *
  * <p>不变量：
  *
