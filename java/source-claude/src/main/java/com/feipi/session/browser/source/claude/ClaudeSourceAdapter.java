@@ -1,9 +1,13 @@
 package com.feipi.session.browser.source.claude;
 
+import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.source.json.JsonlReader;
 import com.feipi.session.browser.source.json.JsonlReaderResult;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
+import com.feipi.session.browser.source.spi.ParseIssueType;
+import com.feipi.session.browser.source.spi.ParseSeverity;
+import com.feipi.session.browser.source.spi.ParsedRecord;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceConstants;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -23,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.OptionalInt;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -186,8 +191,10 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   /**
    * 解析指定候选项的会话数据。
    *
-   * <p>使用 {@link JsonlReader} 解析 JSONL 文件。文件不存在返回 {@link SourceResult.Skipped}， IO 错误返回 {@link
-   * SourceResult.Fatal}，解析成功（含诊断）返回 {@link SourceResult.Success}。
+   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link ParsedRecord}。 缺少 {@code type}
+   * 字段的事件产生 {@code UNKNOWN_BLOCK_TYPE} 诊断警告，但不会丢失整个 session。 文件不存在返回 {@link
+   * SourceResult.Skipped}，IO 错误返回 {@link SourceResult.Fatal}， 解析成功（含诊断）返回 {@link
+   * SourceResult.Success}。
    *
    * @param candidate 待解析的候选项
    * @param cancellation 可选的取消信号
@@ -211,18 +218,57 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
 
     try {
       JsonlReaderResult result = jsonlReader.read(filePath);
-      List<SourceDiagnostic> diagnostics = result.diagnostics();
+      List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
+      String locator = candidate.fingerprint().locator();
+
+      // 将每个 JSON 事件转为源中性 ParsedRecord，locator 由文件路径和事件序号派生
+      List<ParsedRecord> records = new ArrayList<>(result.events().size());
+      for (int i = 0; i < result.events().size(); i++) {
+        JsonNode event = result.events().get(i);
+        String eventType = extractEventType(event);
+
+        // 缺少 type 字段的事件产生诊断警告，但仍保留在 records 中不丢弃
+        if (eventType.equals(ClaudeConstants.EVENT_TYPE_UNKNOWN)) {
+          diagnostics.add(
+              new SourceDiagnostic(
+                  ParseSeverity.WARNING,
+                  ParseIssueType.NON_OBJECT_SKIPPED,
+                  "Event at index " + i + " missing 'type' field",
+                  i + 1,
+                  Optional.empty(),
+                  ClaudeConstants.DIAG_CODE_MISSING_TYPE,
+                  locator,
+                  OptionalInt.empty(),
+                  OptionalInt.empty(),
+                  OptionalInt.empty()));
+        }
+
+        records.add(new ClaudeParsedRecord(locator, i, eventType));
+      }
+
       int eventCount = result.events().size();
       return new SourceResult.Success(
-          diagnostics,
-          eventCount,
-          List.of(),
-          candidate.fingerprint(),
-          candidate.fingerprint().locator());
+          diagnostics, eventCount, records, candidate.fingerprint(), locator);
     } catch (IOException e) {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
     }
+  }
+
+  /**
+   * 从 JSON 事件节点中提取 {@code type} 字段值。
+   *
+   * <p>当字段缺失或不是字符串时返回 {@link ClaudeConstants#EVENT_TYPE_UNKNOWN}。
+   *
+   * @param event JSON 事件节点
+   * @return 非 null 的事件类型
+   */
+  private static String extractEventType(JsonNode event) {
+    JsonNode typeNode = event.get("type");
+    if (typeNode != null && typeNode.isTextual()) {
+      return typeNode.asText();
+    }
+    return ClaudeConstants.EVENT_TYPE_UNKNOWN;
   }
 
   /**
