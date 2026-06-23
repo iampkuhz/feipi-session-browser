@@ -234,63 +234,17 @@ class ArtifactConsumer:
         path = self.resolve_canonical_path(agent=agent, session_id=session_id)
         meta_path = _derive_meta_path(path)
 
-        # 检查文件存在性
-        if not path.exists():
+        # 使用共享的基础验证流程
+        data, fail_status, detail = _read_and_validate_artifact_raw(path)
+        if data is None:
             return ArtifactValidationResult(
-                status=ArtifactStatus.MISSING,
+                status=fail_status,
                 path=path,
                 meta_path=meta_path,
-                detail='artifact 文件不存在',
+                detail=detail,
             )
 
-        # 检查 artifact 内容完整性
-        try:
-            with path.open('r', encoding='utf-8') as f:
-                raw = f.read()
-        except OSError:
-            return ArtifactValidationResult(
-                status=ArtifactStatus.CORRUPT,
-                path=path,
-                meta_path=meta_path,
-                detail='无法读取 artifact 文件',
-            )
-
-        if not raw.strip():
-            return ArtifactValidationResult(
-                status=ArtifactStatus.INCOMPLETE,
-                path=path,
-                meta_path=meta_path,
-                detail='artifact 文件内容为空',
-            )
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return ArtifactValidationResult(
-                status=ArtifactStatus.CORRUPT,
-                path=path,
-                meta_path=meta_path,
-                detail='artifact JSON 解析失败',
-            )
-
-        if not isinstance(data, dict):
-            return ArtifactValidationResult(
-                status=ArtifactStatus.CORRUPT,
-                path=path,
-                meta_path=meta_path,
-                detail='artifact 顶层不是 JSON object',
-            )
-
-        # 检查 schema version
         schema_version = str(data.get('schema_version') or '')
-        if schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
-            return ArtifactValidationResult(
-                status=ArtifactStatus.UNSUPPORTED_VERSION,
-                path=path,
-                meta_path=meta_path,
-                schema_version=schema_version,
-                detail=f'不支持的 schema version: {schema_version}',
-            )
 
         # 读取并验证 meta
         meta = self.read_meta(path)
@@ -330,7 +284,18 @@ class ArtifactConsumer:
             )
 
         # 计算并验证 content hash
-        content_hash = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        try:
+            with path.open('r', encoding='utf-8') as f:
+                raw = f.read()
+            content_hash = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+        except OSError:
+            return ArtifactValidationResult(
+                status=ArtifactStatus.CORRUPT,
+                path=path,
+                meta_path=meta_path,
+                schema_version=schema_version,
+                detail='无法读取 artifact 文件以计算 hash',
+            )
         recorded_hash = str(meta.get('content_hash') or '')
         if recorded_hash and recorded_hash != content_hash:
             return ArtifactValidationResult(
@@ -397,31 +362,9 @@ class ArtifactConsumer:
             缺失返回 MISSING，损坏返回 CORRUPT。
         """
         artifact_path = Path(path)
-        if not artifact_path.exists():
-            return ArtifactStatus.MISSING
-
-        try:
-            with artifact_path.open('r', encoding='utf-8') as f:
-                raw = f.read()
-        except OSError:
-            return ArtifactStatus.CORRUPT
-
-        if not raw.strip():
-            return ArtifactStatus.INCOMPLETE
-
-        try:
-            data = json.loads(raw)
-        except json.JSONDecodeError:
-            return ArtifactStatus.CORRUPT
-
-        if not isinstance(data, dict):
-            return ArtifactStatus.CORRUPT
-
-        schema_version = str(data.get('schema_version') or '')
-        if schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
-            return ArtifactStatus.UNSUPPORTED_VERSION
-
-        return ArtifactStatus.OK
+        _data, status, _detail = _read_and_validate_artifact_raw(artifact_path)
+        # 成功时 status 为 None，返回 OK
+        return status if status is not None else ArtifactStatus.OK
 
     def should_discard_legacy(self, path: str | Path) -> bool:
         """判断旧版本 artifact 是否应被丢弃。
@@ -446,6 +389,50 @@ class ArtifactConsumer:
 # ---------------------------------------------------------------------------
 # 内部辅助函数
 # ---------------------------------------------------------------------------
+
+
+def _read_and_validate_artifact_raw(
+    artifact_path: Path,
+) -> tuple[dict[str, Any] | None, ArtifactStatus, str]:
+    """读取 artifact 并执行基础验证（存在性、完整性、JSON、schema version）。
+
+    classify_legacy_artifact 和 validate_artifact 共享此流程，
+    避免重复实现读取和基础校验逻辑。
+
+    Args:
+        artifact_path: JSON artifact 路径。
+
+    Returns:
+        ``(data, status, detail)``：
+        - 成功时 data 为解码后的 dict，status 为 None；
+        - 失败时 data 为 None，status 为对应状态，detail 为说明。
+    """
+    if not artifact_path.exists():
+        return None, ArtifactStatus.MISSING, 'artifact 文件不存在'
+
+    try:
+        with artifact_path.open('r', encoding='utf-8') as f:
+            raw = f.read()
+    except OSError:
+        return None, ArtifactStatus.CORRUPT, '无法读取 artifact 文件'
+
+    if not raw.strip():
+        return None, ArtifactStatus.INCOMPLETE, 'artifact 文件内容为空'
+
+    try:
+        data = json.loads(raw)
+    except json.JSONDecodeError:
+        return None, ArtifactStatus.CORRUPT, 'artifact JSON 解析失败'
+
+    if not isinstance(data, dict):
+        return None, ArtifactStatus.CORRUPT, 'artifact 顶层不是 JSON object'
+
+    schema_version = str(data.get('schema_version') or '')
+    if schema_version not in _SUPPORTED_SCHEMA_VERSIONS:
+        return None, ArtifactStatus.UNSUPPORTED_VERSION, f'不支持的 schema version: {schema_version}'
+
+    return data, None, ''
+
 
 def _derive_meta_path(artifact_path: str | Path) -> Path:
     """推导 artifact 的 sidecar meta 路径。

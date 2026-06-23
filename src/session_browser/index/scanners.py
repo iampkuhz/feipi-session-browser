@@ -837,6 +837,102 @@ def _process_full_scan_batch_results(
     return {'associated': associated, 'failed': failed, 'retryable': retryable}
 
 
+# --- Shared scan helpers ------------------------------------------------------
+
+
+def _collect_batch_request(
+    batch_requests: list[NormalizedBatchRequest],
+    batch_context: dict[str, dict[str, Any]],
+    *,
+    agent: str,
+    session_key: str,
+    file_path: str,
+    file_mtime: float,
+) -> None:
+    """收集一条 Java batch 归一化请求。
+
+    full/incremental scan 在每个 session upsert 后调用。
+    只在 file_path 非空时追加请求。
+
+    Args:
+        batch_requests: 累积的请求列表（就地追加）。
+        batch_context: request_id 到 session 元数据的映射（就地追加）。
+        agent: agent 标识，用于 source_id 映射。
+        session_key: canonical session key，同时作为 request_id。
+        file_path: source JSONL 路径。
+        file_mtime: source 文件修改时间。
+    """
+    if not file_path:
+        return
+    batch_requests.append(NormalizedBatchRequest(
+        request_id=session_key,
+        source_id=map_source_id(agent),
+        root_path=file_path,
+        session_key=session_key,
+    ))
+    batch_context[session_key] = {
+        'file_path': file_path,
+        'file_mtime': file_mtime,
+    }
+
+
+def _finalize_scan(
+    conn: sqlite3.Connection,
+    *,
+    batch_requests: list[NormalizedBatchRequest],
+    batch_context: dict[str, dict[str, Any]],
+    index_dir: Path | None,
+    scan_qoder: bool,
+    log_id: int,
+    claude_count: int,
+    codex_count: int,
+    qoder_count: int,
+    verbose: bool,
+) -> None:
+    """执行 batch、规范化 Qoder 项目 key、更新 scan log。
+
+    full_scan 和 incremental_scan 在各自 agent 循环结束后调用。
+
+    Args:
+        conn: SQLite connection。
+        batch_requests: 收集的归一化请求。
+        batch_context: request_id 到 session 元数据的映射。
+        index_dir: artifact 存储根目录。
+        scan_qoder: 是否需要 Qoder 项目 key 规范化。
+        log_id: scan_log 行 id。
+        claude_count: Claude session 计数。
+        codex_count: Codex session 计数。
+        qoder_count: Qoder session 计数。
+        verbose: 是否打印详细信息。
+    """
+    # Java batch: 单个 JVM 处理本轮所有归一化请求。
+    if batch_requests and index_dir is not None:
+        try:
+            outcome = execute_java_normalized_batch(
+                batch_requests,
+                output_dir=index_dir,
+            )
+            _process_full_scan_batch_results(
+                conn, outcome, batch_context, index_dir, verbose,
+            )
+        except Exception as exc:
+            # Java failure: 无 Python writer fallback。
+            if verbose:
+                print(f"  Java batch failed: {exc}")
+
+    # Normalize Qoder cache project keys after all agent scans.
+    if scan_qoder:
+        _normalize_qoder_cache_projects(conn)
+
+    # Update scan log.
+    conn.execute(
+        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, "
+        "qoder_count=?, status='done' WHERE id=?",
+        (time.time(), claude_count, codex_count, qoder_count, log_id),
+    )
+    conn.commit()
+
+
 # --- Full scan ----------------------------------------------------------------
 
 
@@ -950,18 +1046,14 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             # full scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
-            if file_path:
-                req_id = summary.session_key
-                batch_requests.append(NormalizedBatchRequest(
-                    request_id=req_id,
-                    source_id=map_source_id('claude_code'),
-                    root_path=file_path,
-                    session_key=summary.session_key,
-                ))
-                batch_context[req_id] = {
-                    'file_path': file_path,
-                    'file_mtime': file_mtime,
-                }
+            _collect_batch_request(
+                batch_requests,
+                batch_context,
+                agent='claude_code',
+                session_key=summary.session_key,
+                file_path=file_path,
+                file_mtime=file_mtime,
+            )
             claude_count += 1
             _commit_periodically(conn, claude_count)
             if verbose and claude_count % 50 == 0:
@@ -1080,18 +1172,14 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             # full scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
-            if file_path:
-                req_id = summary.session_key
-                batch_requests.append(NormalizedBatchRequest(
-                    request_id=req_id,
-                    source_id=map_source_id('codex'),
-                    root_path=file_path,
-                    session_key=summary.session_key,
-                ))
-                batch_context[req_id] = {
-                    'file_path': file_path,
-                    'file_mtime': file_mtime,
-                }
+            _collect_batch_request(
+                batch_requests,
+                batch_context,
+                agent='codex',
+                session_key=summary.session_key,
+                file_path=file_path,
+                file_mtime=file_mtime,
+            )
             codex_count += 1
             _commit_periodically(conn, codex_count)
             if verbose and codex_count % 50 == 0:
@@ -1158,18 +1246,14 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
             # full scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
-            if file_path:
-                req_id = summary.session_key
-                batch_requests.append(NormalizedBatchRequest(
-                    request_id=req_id,
-                    source_id=map_source_id('qoder'),
-                    root_path=file_path,
-                    session_key=summary.session_key,
-                ))
-                batch_context[req_id] = {
-                    'file_path': file_path,
-                    'file_mtime': file_mtime,
-                }
+            _collect_batch_request(
+                batch_requests,
+                batch_context,
+                agent='qoder',
+                session_key=summary.session_key,
+                file_path=file_path,
+                file_mtime=file_mtime,
+            )
             qoder_count += 1
             _commit_periodically(conn, qoder_count)
             if verbose and qoder_count % 50 == 0:
@@ -1177,32 +1261,18 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
 
         conn.commit()
 
-    # Java batch: 单个 JVM 处理所有 normalized artifact 生产。
-    if batch_requests and index_dir is not None:
-        try:
-            outcome = execute_java_normalized_batch(
-                batch_requests,
-                output_dir=index_dir,
-            )
-            _process_full_scan_batch_results(
-                conn, outcome, batch_context, index_dir, verbose,
-            )
-        except Exception as exc:
-            # Java failure: 无 Python writer fallback。
-            if verbose:
-                print(f"  Java batch failed: {exc}")
-
-    # Normalize Qoder cache project keys after all agents have been scanned.
-    if scan_qoder:
-        _normalize_qoder_cache_projects(conn)
-
-    # Update scan log.
-    conn.execute(
-        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, "
-        "qoder_count=?, status='done' WHERE id=?",
-        (time.time(), claude_count, codex_count, qoder_count, log_id),
+    _finalize_scan(
+        conn,
+        batch_requests=batch_requests,
+        batch_context=batch_context,
+        index_dir=index_dir,
+        scan_qoder=scan_qoder,
+        log_id=log_id,
+        claude_count=claude_count,
+        codex_count=codex_count,
+        qoder_count=qoder_count,
+        verbose=verbose,
     )
-    conn.commit()
 
     return {
         "claude_count": claude_count,
@@ -1371,18 +1441,14 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             # incremental scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
-            if file_path_str:
-                req_id = summary.session_key
-                batch_requests.append(NormalizedBatchRequest(
-                    request_id=req_id,
-                    source_id=map_source_id('claude_code'),
-                    root_path=file_path_str,
-                    session_key=summary.session_key,
-                ))
-                batch_context[req_id] = {
-                    'file_path': file_path_str,
-                    'file_mtime': file_mtime,
-                }
+            _collect_batch_request(
+                batch_requests,
+                batch_context,
+                agent='claude_code',
+                session_key=summary.session_key,
+                file_path=file_path_str,
+                file_mtime=file_mtime,
+            )
             claude_count += 1
             _commit_periodically(conn, claude_count)
 
@@ -1509,18 +1575,14 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             # incremental scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
-            if file_path_str:
-                req_id = summary.session_key
-                batch_requests.append(NormalizedBatchRequest(
-                    request_id=req_id,
-                    source_id=map_source_id('codex'),
-                    root_path=file_path_str,
-                    session_key=summary.session_key,
-                ))
-                batch_context[req_id] = {
-                    'file_path': file_path_str,
-                    'file_mtime': file_mtime,
-                }
+            _collect_batch_request(
+                batch_requests,
+                batch_context,
+                agent='codex',
+                session_key=summary.session_key,
+                file_path=file_path_str,
+                file_mtime=file_mtime,
+            )
             codex_count += 1
             _commit_periodically(conn, codex_count)
 
@@ -1594,68 +1656,44 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
                 new_count += 1
 
             # Qoder cache sessions have simplified timing data.
-            is_cache = str(active_file).startswith(str(cfg.QODER_DATA_DIR / "cache"))
             file_mtime = 0.0
             file_path_str = ""
             if active_file and active_file.exists():
                 file_path_str = str(active_file)
                 file_mtime = active_file.stat().st_mtime
 
-            if is_cache:
-                summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
-                    project_key, sid, session_file=active_file
-                )
-            else:
-                summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
-                    project_key, sid, session_file=active_file
-                )
+            summary, _msgs, _tcs, _sa = qoder_source.parse_session_detail(
+                project_key, sid, session_file=active_file
+            )
             summary.subagent_instance_count = len(_sa)
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
             # incremental scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
-            if file_path_str:
-                req_id = summary.session_key
-                batch_requests.append(NormalizedBatchRequest(
-                    request_id=req_id,
-                    source_id=map_source_id('qoder'),
-                    root_path=file_path_str,
-                    session_key=summary.session_key,
-                ))
-                batch_context[req_id] = {
-                    'file_path': file_path_str,
-                    'file_mtime': file_mtime,
-                }
+            _collect_batch_request(
+                batch_requests,
+                batch_context,
+                agent='qoder',
+                session_key=summary.session_key,
+                file_path=file_path_str,
+                file_mtime=file_mtime,
+            )
             qoder_count += 1
             _commit_periodically(conn, qoder_count)
 
         conn.commit()
 
-    # Java batch: 单个 JVM 处理本轮所有 changed candidates 的 normalized artifact 生产。
-    if batch_requests and index_dir is not None:
-        try:
-            outcome = execute_java_normalized_batch(
-                batch_requests,
-                output_dir=index_dir,
-            )
-            _process_full_scan_batch_results(
-                conn, outcome, batch_context, index_dir, verbose,
-            )
-        except Exception as exc:
-            # Java failure: 无 Python writer fallback。
-            if verbose:
-                print(f"  Java batch failed: {exc}")
-
-    # Normalize Qoder cache project keys after all agent scans.
-    if scan_qoder:
-        _normalize_qoder_cache_projects(conn)
-
-    # Update scan log.
-    conn.execute(
-        "UPDATE scan_log SET finished_at=?, claude_count=?, codex_count=?, "
-        "qoder_count=?, status='done' WHERE id=?",
-        (time.time(), claude_count, codex_count, qoder_count, log_id),
+    _finalize_scan(
+        conn,
+        batch_requests=batch_requests,
+        batch_context=batch_context,
+        index_dir=index_dir,
+        scan_qoder=scan_qoder,
+        log_id=log_id,
+        claude_count=claude_count,
+        codex_count=codex_count,
+        qoder_count=qoder_count,
+        verbose=verbose,
     )
-    conn.commit()
 
     return {
         "claude_count": claude_count,
