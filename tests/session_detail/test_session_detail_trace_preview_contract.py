@@ -71,8 +71,8 @@ class TestToolCountNoDuplication:
         # tool_summary_html 应包含每个工具恰好一次
         assert r.tool_summary_html.count('Read') == 1
         assert r.tool_summary_html.count('Bash') == 1
-        assert '×2' in r.tool_summary_html  # 读取×2
-        assert '×1' in r.tool_summary_html  # Bash×1
+        assert '&times;2' in r.tool_summary_html  # 读取×2
+        assert '&times;1' in r.tool_summary_html  # Bash×1
 
         # preview_text 不得包含工具徽章
         assert 'preview-tool' not in r.preview_text
@@ -170,7 +170,7 @@ class TestToolCountNoDuplication:
         assert 'Response text' in r.preview_text
         assert 'preview-tool' not in r.preview_text  # preview_text 是纯文本
         assert 'preview-tool' in r.tool_summary_html  # tool_summary_html 包含 HTML
-        assert '×2' in r.tool_summary_html
+        assert '&times;2' in r.tool_summary_html
 
 
 class TestPreviewDoesNotRepeatText:

@@ -75,20 +75,20 @@ class TestFormatToolCounts:
     def test_single_tool(self):
         tools = [ToolCall(name='Read')]
         result = format_tool_counts(tools)
-        assert '<span class="preview-tool">Read</span>×1' in result
+        assert '<span class="preview-tool">Read</span>&times;1' in result
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
     def test_two_same_tools(self):
         tools = [ToolCall(name='Read'), ToolCall(name='Read')]
         result = format_tool_counts(tools)
-        assert '<span class="preview-tool">Read</span>×2' in result
+        assert '<span class="preview-tool">Read</span>&times;2' in result
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
     def test_two_different_tools(self):
         tools = [ToolCall(name='Read'), ToolCall(name='Bash')]
         result = format_tool_counts(tools)
-        assert '<span class="preview-tool">Read</span>×1' in result
-        assert '<span class="preview-tool">Bash</span>×1' in result
+        assert '<span class="preview-tool">Read</span>&times;1' in result
+        assert '<span class="preview-tool">Bash</span>&times;1' in result
         assert '·' in result
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
@@ -102,9 +102,9 @@ class TestFormatToolCounts:
             ToolCall(name='Bash'),
         ]
         result = format_tool_counts(tools)
-        assert '<span class="preview-tool">Read</span>×2' in result
-        assert '<span class="preview-tool">Bash</span>×3' in result
-        assert '<span class="preview-tool">Edit</span>×1' in result
+        assert '<span class="preview-tool">Read</span>&times;2' in result
+        assert '<span class="preview-tool">Bash</span>&times;3' in result
+        assert '<span class="preview-tool">Edit</span>&times;1' in result
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
     def test_tool_names_wrapped_in_spans(self):
@@ -147,8 +147,8 @@ class TestComputePreviewLLMResponse:
         assert 'Let me check' in r.preview_text
         assert 'preview-tool' not in r.preview_text
         # 工具计数在 tool_summary_html 中
-        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
-        assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Read</span>&times;1' in r.tool_summary_html
+        assert '<span class="preview-tool">Bash</span>&times;1' in r.tool_summary_html
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
     def test_response_truncated_when_long(self):
@@ -177,7 +177,7 @@ class TestComputePreviewLLMResponse:
         assert '…' in r.preview_text
         assert 'preview-tool' not in r.preview_text
         # 工具计数在 tool_summary_html 中
-        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Read</span>&times;1' in r.tool_summary_html
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
     def test_response_long_with_no_tools(self):
@@ -281,7 +281,7 @@ class TestComputePreviewSubagent:
         assert 'Done' in r.preview_text
         # 工具计数在 tool_summary_html 中，不在 preview_text 中
         assert 'preview-tool' not in r.preview_text
-        assert '<span class="preview-tool">Read</span>×2' in r.tool_summary_html
+        assert '<span class="preview-tool">Read</span>&times;2' in r.tool_summary_html
 
     @pytest.mark.contract_case('UI-INTERACTION-008')
     def test_subagent_no_response_text(self):
@@ -308,7 +308,7 @@ class TestComputePreviewSubagent:
         assert 'Subagent' in r.preview_text
         assert 'Agent' in r.preview_text
         # 工具计数在 tool_summary_html 中
-        assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Bash</span>&times;1' in r.tool_summary_html
         assert 'preview-tool' not in r.preview_text
 
 
@@ -363,8 +363,8 @@ class TestComputePreviewFallback:
         apply_round_preview(r)
         # assistant 和 user 都为空 → 仅 tool_summary_html
         assert r.preview_text == ''
-        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
-        assert '<span class="preview-tool">Bash</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Read</span>&times;1' in r.tool_summary_html
+        assert '<span class="preview-tool">Bash</span>&times;1' in r.tool_summary_html
 
 
 class TestComputePreviewNoHTML:
@@ -405,4 +405,4 @@ class TestComputePreviewNoHTML:
         assert 'See the code section' in r.preview_text
         assert 'preview-tool' not in r.preview_text
         # tool_summary_html：工具芯片
-        assert '<span class="preview-tool">Read</span>×1' in r.tool_summary_html
+        assert '<span class="preview-tool">Read</span>&times;1' in r.tool_summary_html

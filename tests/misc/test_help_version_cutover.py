@@ -149,7 +149,7 @@ class TestLauncherMissingNoFallback:
     """launcher 缺失场景：中文报错、非零退出、不 fallback。"""
 
     def test_launcher_missing_help(self):
-        """Java launcher 缺失时 help 报错退出，不 fallback 到 Python。"""
+        """Java launcher 缺失时 help 回退到 shell print_usage，不 fallback 到 Python。"""
         with tempfile.TemporaryDirectory() as tmp_dir:
             # 复制 shell script 到临时目录，模拟无 launcher 的项目
             fake_project = os.path.join(tmp_dir, 'fake_project')
@@ -178,9 +178,9 @@ class TestLauncherMissingNoFallback:
                 env=env,
                 timeout=10,
             )
-            assert result.returncode != 0, 'launcher 缺失应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, \
-                f'stderr 应包含中文错误信息: {result.stderr}'
+            # help 回退到 shell print_usage，始终成功
+            assert result.returncode == 0, f'help 应通过 print_usage 成功: {result.stderr}'
+            # 不应 fallback 到 Python
             assert not os.path.isfile(marker_file), '不应 fallback 到 Python'
 
     def test_launcher_missing_version(self):

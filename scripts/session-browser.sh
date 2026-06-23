@@ -568,7 +568,13 @@ EOF
 
 case "$CMD" in
     help|-h|--help)
-        run_java_help_version "--help"
+        print_usage
+        # 尝试运行 Java launcher 显示扩展帮助；launcher 缺失时忽略错误
+        _launcher="$(java_launcher_path)"
+        if [[ -x "$_launcher" ]]; then
+            echo ""
+            "$_launcher" "--help" || true
+        fi
         ;;
     dev)
         echo "提示：dev 已合并到 serve；等同执行 ./scripts/session-browser.sh serve。" >&2
