@@ -860,10 +860,10 @@
 }
 
 .sd-context-budget__item {
-  align-items: center;
+  align-items: start;
   display: grid;
   gap: 5px;
-  grid-template-columns: 9px minmax(0, 1fr) auto;
+  grid-template-columns: 9px minmax(0, 1fr);
   min-width: 0;
   font-size: 12px;
   line-height: 1.2;
@@ -878,16 +878,17 @@
 
 .sd-context-budget__item span {
   color: var(--sd-text-2);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .sd-context-budget__item b {
+  grid-column: 2;
   font-family: var(--sd-mono);
   font-size: 11px;
-  text-align: right;
-  white-space: nowrap;
+  overflow-wrap: anywhere;
+  text-align: left;
+  white-space: normal;
 }
 
 .sd-context-budget__item--unavailable {

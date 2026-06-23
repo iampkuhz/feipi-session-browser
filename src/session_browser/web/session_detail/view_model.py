@@ -69,6 +69,66 @@ LOW_CACHE_FRACTION_THRESHOLD = 0.2
 PAYLOAD_INFO_PREVIEW_CHARS = 200
 
 
+def _is_main_scope_call(call: object) -> bool:
+    """Return whether a normalized call belongs to the main session scope."""
+    return getattr(call, 'scope', 'main') != 'subagent'
+
+
+def _main_scope_llm_call_count(rounds: list, llm_calls: list) -> int:
+    """Count main-agent LLM calls without nested subagent call metadata.
+
+    ``ConversationRound.llm_call_count`` may include Agent/spawn tool nested
+    calls, so diagnostics that label ``main agent`` must use the flat
+    main-scope call list whenever it is available.
+    """
+    direct_calls = sum(1 for call in llm_calls or [] if _is_main_scope_call(call))
+    if direct_calls:
+        return direct_calls
+
+    interaction_count = sum(
+        1
+        for round_obj in rounds or []
+        for interaction in getattr(round_obj, 'interactions', []) or []
+        if _is_main_scope_call(interaction)
+    )
+    if interaction_count:
+        return interaction_count
+
+    return sum(
+        1
+        for round_obj in rounds or []
+        if getattr(round_obj, 'assistant_msg', None)
+        and (
+            getattr(round_obj.assistant_msg, 'llm_call_id', '')
+            or getattr(round_obj.assistant_msg, 'usage', {})
+            or getattr(round_obj.assistant_msg, 'content', '')
+            or getattr(round_obj.assistant_msg, 'content_blocks', [])
+        )
+    )
+
+
+def _round_main_scope_llm_call_count(round_obj: object | None) -> int:
+    """Count main-scope LLM calls rendered for one round."""
+    if not round_obj:
+        return 0
+    interactions = [
+        interaction
+        for interaction in getattr(round_obj, 'interactions', []) or []
+        if _is_main_scope_call(interaction)
+    ]
+    if interactions:
+        return len(interactions)
+    assistant_msg = getattr(round_obj, 'assistant_msg', None)
+    if assistant_msg and (
+        getattr(assistant_msg, 'llm_call_id', '')
+        or getattr(assistant_msg, 'usage', {})
+        or getattr(assistant_msg, 'content', '')
+        or getattr(assistant_msg, 'content_blocks', [])
+    ):
+        return 1
+    return 0
+
+
 def _format_duration_short(seconds: float) -> str:
     """Format elapsed seconds for compact session detail badges.
 
@@ -936,6 +996,8 @@ def _build_session_diagnostics(  # noqa: PLR0912, PLR0913, PLR0915
     round_fresh_values = [row.get('token_input', 0) for row in trace_rows]
     median_fresh = _median(round_fresh_values)
     for row in trace_rows:
+        round_id = row.get('round_id', 0)
+        round_obj = rounds[round_id - 1] if round_id and round_id <= len(rounds) else None
         fresh_raw = row.get('token_input', 0)
         cache_read_raw = row.get('token_cache_read', 0)
         cache_write_raw = row.get('token_cache_write', 0)
@@ -963,12 +1025,7 @@ def _build_session_diagnostics(  # noqa: PLR0912, PLR0913, PLR0915
                 'cache_read_ratio_value': round(cache_ratio_value, 1),
                 'ratio_y': round(100 - cache_ratio_value, 1),
                 'mix': row.get('token_mix', {}),
-                'llm_calls': row.get('llm_call_count')
-                or (
-                    sum(1 for ix in rounds[row.get('round_id', 1) - 1].interactions)
-                    if row.get('round_id') and row.get('round_id') <= len(rounds)
-                    else 0
-                ),
+                'llm_calls': _round_main_scope_llm_call_count(round_obj),
                 'tool_calls': row.get('tool_count', 0),
                 'is_low_cache': low_cache,
                 'is_fresh_spike': fresh_spike,
@@ -1617,11 +1674,7 @@ def _build_session_diagnostics(  # noqa: PLR0912, PLR0913, PLR0915
     for idx, timeline in enumerate(subagent_timelines):
         timeline['is_selected'] = idx == 0
 
-    main_llm_call_count = sum(int(getattr(r, 'llm_call_count', 0) or 0) for r in rounds)
-    if not main_llm_call_count:
-        main_llm_call_count = sum(
-            1 for r in rounds for ix in r.interactions if getattr(ix, 'scope', 'main') != 'subagent'
-        )
+    main_llm_call_count = _main_scope_llm_call_count(rounds, llm_calls)
     main_tool_calls = [
         tc
         for tc in tool_calls
@@ -3504,11 +3557,7 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
         )
         row['token_bar_max'] = max_round_tokens
 
-    main_llm_calls = sum(int(getattr(r, 'llm_call_count', 0) or 0) for r in rounds)
-    if not main_llm_calls:
-        main_llm_calls = sum(
-            1 for r in rounds for ix in r.interactions if getattr(ix, 'scope', 'main') != 'subagent'
-        )
+    main_llm_calls = _main_scope_llm_call_count(rounds, llm_calls)
     subagent_llm_calls = sum(1 for call in llm_calls if getattr(call, 'scope', '') == 'subagent')
     if not subagent_llm_calls:
         subagent_llm_calls = sum(

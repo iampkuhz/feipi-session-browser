@@ -428,6 +428,59 @@ def test_subagent_workload_and_breakdown_use_normalized_llm_calls():
     assert payload_items[0]['subagent_round_id'] == 1
 
 
+def test_main_agent_llm_count_excludes_nested_subagent_tool_counts():
+    main_ix = _llm(
+        0, 'main-nested', input_tokens=80, cache_read_tokens=120, output_tokens=40
+    )
+    parent_tool = ToolCall(
+        name='Agent',
+        result='spawned subagent',
+        status='completed',
+        tool_use_id='agent-tool-nested',
+        llm_call_count=99,
+        subagent_summary={'agent_id': 'sa-nested', 'agent_type': 'repo-mapper'},
+    )
+    rounds = [_round(1, main_ix, [parent_tool])]
+    rounds[0].llm_call_count = 100
+    subagent_call = _llm(
+        0,
+        'nested-sub',
+        scope='subagent',
+        subagent_id='sa-nested',
+        parent_id='agent-tool-nested',
+        parent_tool_name='Agent',
+        input_tokens=200,
+        output_tokens=70,
+    )
+
+    vm = _build_v11_view_model(
+        session=_FakeSession(total_tokens=1200),
+        rounds=rounds,
+        llm_calls=[main_ix, subagent_call],
+        tool_calls=[parent_tool],
+        subagent_runs=[
+            {
+                'summary': {'agent_id': 'sa-nested', 'agent_type': 'repo-mapper'},
+                'messages': [],
+            }
+        ],
+        session_anomalies=_FakeAnomalies(),
+        slim=True,
+    )
+
+    main_row = vm['diagnostics']['agent_breakdown'][0]
+    main_timeline = vm['diagnostics']['agent_timelines'][0]
+    token_round = vm['diagnostics']['token_rounds'][0]
+
+    assert main_row['scope'] == 'main'
+    assert main_row['llm_calls'] == 1
+    assert main_timeline['summary'].startswith('1 LLM ·')
+    assert token_round['llm_calls'] == 1
+    assert vm['hero_metrics']['main_llm_calls'] == '1'
+    assert vm['hero_metrics']['subagent_llm_calls'] == '1'
+    assert vm['hero_metrics']['workload'] == '2'
+
+
 def test_codex_spawn_agent_subagent_appears_in_breakdown_and_trace():
     main_ix = _llm(
         0,
@@ -645,6 +698,14 @@ def test_context_budget_uses_shared_segment_bar_and_legend_colors():
     assert 'sd-context-budget__dot--{{ loop.index }}' in session_html
     assert '.sd-diagnostic-card--context' in css
     assert 'grid-column: 1 / -1' in css
+    legend_label_block = css.split('.sd-context-budget__item span {', 1)[1].split('}', 1)[0]
+    legend_value_block = css.split('.sd-context-budget__item b {', 1)[1].split('}', 1)[0]
+    assert 'text-overflow: ellipsis' not in legend_label_block
+    assert 'overflow: hidden' not in legend_label_block
+    assert 'white-space: nowrap' not in legend_label_block
+    assert 'white-space: normal' in legend_label_block
+    assert 'white-space: nowrap' not in legend_value_block
+    assert 'white-space: normal' in legend_value_block
 
     for index in range(1, 7):
         assert f'.sd-context-segment--{index},' in css

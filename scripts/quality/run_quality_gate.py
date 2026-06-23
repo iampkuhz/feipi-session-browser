@@ -302,7 +302,7 @@ def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str])
             )
             is_module_register_noise = bool(
                 re.match(
-                    r'^\(node:\d+\)\s+\[DEP0205\]\s+DeprecationWarning:\s+'
+                    r'^(?:[^`\s]*\s+)?\[DEP0205\]\s+DeprecationWarning:\s+'
                     r'`module\.register\(\)` is deprecated\.',
                     stripped,
                 )
@@ -313,7 +313,7 @@ def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str])
             if (
                 skip_trace_for_allowed_warning
                 and stripped
-                == '(Use `node --trace-warnings ...` to show where the warning was created)'
+                == '(Use `node --trace-deprecation ...` to show where the warning was created)'
             ):
                 skip_trace_for_allowed_warning = False
                 continue
