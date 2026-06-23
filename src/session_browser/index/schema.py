@@ -43,6 +43,8 @@ SESSION_ARTIFACTS_SCHEMA_SQL = """
         size_bytes INTEGER NOT NULL DEFAULT 0,
         created_at REAL NOT NULL DEFAULT 0,
         updated_at REAL NOT NULL DEFAULT 0,
+        content_hash TEXT NOT NULL DEFAULT '',
+        validation_status TEXT NOT NULL DEFAULT '',
         PRIMARY KEY(session_key, artifact_type),
         FOREIGN KEY(session_key) REFERENCES sessions(session_key) ON DELETE CASCADE
     );
@@ -52,6 +54,35 @@ SESSION_ARTIFACTS_SCHEMA_SQL = """
     CREATE INDEX IF NOT EXISTS idx_session_artifacts_path
         ON session_artifacts(path);
 """
+
+
+# 新增列的迁移语句。SQLite 不支持 ADD COLUMN IF NOT EXISTS，
+# 因此使用 try/except 在 Python 层保证幂等。
+_ARTIFACT_MIGRATION_COLUMNS: list[tuple[str, str]] = [
+    ('content_hash', "TEXT NOT NULL DEFAULT ''"),
+    ('validation_status', "TEXT NOT NULL DEFAULT ''"),
+]
+
+
+def _migrate_artifact_columns(conn: sqlite3.Connection) -> None:
+    """为 session_artifacts 表补齐新增列（幂等）。
+
+    SQLite 的 ``CREATE TABLE IF NOT EXISTS`` 不会为已存在的表添加列。
+    本函数通过 ``PRAGMA table_info`` 检测缺失列后逐一补齐，
+    已在表中的列跳过，重复调用不改变最终状态。
+
+    Args:
+        conn: 已打开的 SQLite 连接。
+    """
+    existing = {
+        row['name']
+        for row in conn.execute('PRAGMA table_info(session_artifacts)').fetchall()
+    }
+    for col_name, col_type in _ARTIFACT_MIGRATION_COLUMNS:
+        if col_name not in existing:
+            conn.execute(
+                f'ALTER TABLE session_artifacts ADD COLUMN {col_name} {col_type}'
+            )
 
 
 def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
@@ -84,12 +115,14 @@ def ensure_session_artifacts_schema(conn: sqlite3.Connection) -> None:
     """Create the session artifact table and indexes if they are missing.
 
     Index setup and migration-safe callers use this helper to add artifact
-    storage without changing existing session rows.
+    storage without changing existing session rows. 对已有表也会补齐
+    ``content_hash`` 和 ``validation_status`` 等新增列。
 
     Args:
         conn: Open SQLite connection for the session index.
     """
     conn.executescript(SESSION_ARTIFACTS_SCHEMA_SQL)
+    _migrate_artifact_columns(conn)
 
 
 def ensure_index_metadata_schema(conn: sqlite3.Connection) -> None:
