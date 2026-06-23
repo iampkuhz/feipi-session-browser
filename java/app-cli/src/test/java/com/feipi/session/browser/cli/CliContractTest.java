@@ -105,13 +105,23 @@ class CliContractTest {
     }
 
     @Test
-    @DisplayName("help 输出不包含内部命令（normalized-batch 为隐藏命令）")
+    @DisplayName("help 隐藏内部命令（normalized-batch），展示公开子命令")
     void helpHidesInternalCommands() {
       CliExecution result = execute("--help");
 
       assertThat(result.exitCode()).isEqualTo(0);
       // 隐藏子命令 normalized-batch 不应出现在 help 输出中
-      assertThat(result.stdout()).doesNotContain("Commands:");
+      assertThat(result.stdout()).doesNotContain("normalized-batch");
+      // 公开子命令应全部出现在 help 输出中
+      assertThat(result.stdout())
+          .contains("scan")
+          .contains("serve")
+          .contains("stop")
+          .contains("test")
+          .contains("deps")
+          .contains("quality")
+          .contains("version")
+          .contains("release");
     }
   }
 

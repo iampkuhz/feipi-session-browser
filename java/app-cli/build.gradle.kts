@@ -108,6 +108,17 @@ abstract class CliSmokeTestTask : DefaultTask() {
         require(helpResult.first.contains("session-browser")) {
             "Smoke test failed: --help output missing 'session-browser'"
         }
+        // 验证公开子命令全部出现在 help 输出中
+        val publicCommands = listOf("scan", "serve", "stop", "test", "deps", "quality", "version", "release")
+        for (cmd in publicCommands) {
+            require(helpResult.first.contains(cmd)) {
+                "Smoke test failed: --help output missing public command '$cmd'"
+            }
+        }
+        // 隐藏命令 normalized-batch 不应出现在 help 输出中
+        require(!helpResult.first.contains("normalized-batch")) {
+            "Smoke test failed: --help output contains hidden command 'normalized-batch'"
+        }
 
         // 从任意 cwd 运行 --version
         val versionResult = execCli(workDir, binScript.absolutePath, "--version")
