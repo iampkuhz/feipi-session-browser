@@ -193,7 +193,9 @@ public final class FullScanEngine {
       // 逐候选处理
       int processedInBatch = 0;
       for (Candidate candidate : candidates.orderedItems()) {
-        CandidateResult result = processCandidate(candidate, entry.adapter(), config, batch);
+        CandidateResult result =
+            processCandidate(
+                candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
         switch (result.outcome) {
           case SUCCESS -> counters[1]++;
           case SKIPPED -> skippedCount++;
@@ -265,10 +267,17 @@ public final class FullScanEngine {
    * @param adapter 源适配器
    * @param config 扫描配置
    * @param batch 写入批次
+   * @param normEngine 归一化引擎
+   * @param artWriter 制品写入器
    * @return 候选项处理结果
    */
-  private CandidateResult processCandidate(
-      Candidate candidate, SourceAdapter adapter, ScanConfig config, WriteBatch batch) {
+  static CandidateResult processCandidate(
+      Candidate candidate,
+      SourceAdapter adapter,
+      ScanConfig config,
+      WriteBatch batch,
+      NormalizationEngine normEngine,
+      NormalizedArtifactWriter artWriter) {
 
     try {
       // 1. 解析
@@ -303,13 +312,13 @@ public final class FullScanEngine {
       NormalizedAgent agent = NormalizedAgent.fromValue(adapter.sourceId().getValue());
       List<SourceDiagnostic> diagnostics = success.diagnostics();
       NormalizedSessionArtifact artifact =
-          normalizationEngine.normalize(agent, success.records(), diagnostics, List.of(sourceFile));
+          normEngine.normalize(agent, success.records(), diagnostics, List.of(sourceFile));
 
       // 3. 写入制品
       Map<String, String> fingerprints = buildFingerprints(filePath, candidate);
       WriteResult writeResult;
       try {
-        writeResult = artifactWriter.write(config.artifactOutputDir(), artifact, fingerprints);
+        writeResult = artWriter.write(config.artifactOutputDir(), artifact, fingerprints);
       } catch (IOException e) {
         return new CandidateResult(
             CandidateOutcome.ERROR, ScanIssue.ScanPhase.ARTIFACT_WRITE, e.getMessage());
@@ -436,11 +445,10 @@ public final class FullScanEngine {
   }
 
   /** 候选项处理结果。 */
-  private record CandidateResult(
-      CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message) {}
+  record CandidateResult(CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message) {}
 
   /** 候选项处理结果枚举。 */
-  private enum CandidateOutcome {
+  enum CandidateOutcome {
     SUCCESS,
     SKIPPED,
     ERROR

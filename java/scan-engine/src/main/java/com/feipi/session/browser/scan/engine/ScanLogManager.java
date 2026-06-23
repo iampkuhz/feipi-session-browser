@@ -27,9 +27,26 @@ final class ScanLogManager {
    * @throws SQLException SQL 执行失败
    */
   static long startScan(Connection conn, double startedAt) throws SQLException {
-    String sql = "INSERT INTO scan_log (started_at, mode, status) VALUES (?, 'full', 'running')";
+    return startScan(conn, startedAt, "full");
+  }
+
+  /**
+   * 记录一次 scan 开始，支持指定扫描模式。
+   *
+   * <p>插入 {@code scan_log} 行，状态为 {@code running}。 模式由调用方指定，full scan 传 {@code "full"}， 增量 scan 传
+   * {@code "incremental"}。
+   *
+   * @param conn 写连接
+   * @param startedAt 开始时间戳（epoch 秒）
+   * @param mode 扫描模式标识
+   * @return 新插入行的 ID
+   * @throws SQLException SQL 执行失败
+   */
+  static long startScan(Connection conn, double startedAt, String mode) throws SQLException {
+    String sql = "INSERT INTO scan_log (started_at, mode, status) VALUES (?, ?, 'running')";
     try (PreparedStatement stmt = conn.prepareStatement(sql)) {
       stmt.setDouble(1, startedAt);
+      stmt.setString(2, mode);
       stmt.executeUpdate();
     }
     return lastInsertRowId(conn);
