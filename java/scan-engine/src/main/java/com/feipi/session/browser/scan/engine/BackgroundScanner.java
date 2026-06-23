@@ -179,7 +179,7 @@ public final class BackgroundScanner {
   }
 
   /** 执行扫描：获取锁 → 运行 → 更新时间戳。 */
-  @SuppressWarnings("PMD.CloseResource") // handle 由 executeWithLock 的 try-with-resources 关闭
+  @SuppressWarnings("PMD.CloseResource") // handle 通过 try-with-resources 关闭
   private void executeScan(boolean needsHot, boolean needsWarm) {
     ScanLock.ScanLockHandle handle;
     try {
@@ -198,12 +198,6 @@ public final class BackgroundScanner {
 
     ScanCancelToken token = new ScanCancelToken();
     currentCancelToken = token;
-    executeWithLock(handle, token, needsHot, needsWarm);
-  }
-
-  /** 在锁保护下执行扫描动作。 */
-  private void executeWithLock(
-      ScanLock.ScanLockHandle handle, ScanCancelToken token, boolean needsHot, boolean needsWarm) {
     try (handle) {
       if (needsHot) {
         log.debug("执行 hot 层级扫描: window={}s", hotTier.windowSeconds());

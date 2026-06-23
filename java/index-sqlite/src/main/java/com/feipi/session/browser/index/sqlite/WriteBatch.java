@@ -81,22 +81,15 @@ public final class WriteBatch {
     if (statements.isEmpty()) {
       return;
     }
-    boolean originalAutoCommit = conn.getAutoCommit();
-    try {
-      conn.setAutoCommit(false);
-      try (Statement stmt = conn.createStatement()) {
-        for (String sql : statements) {
-          stmt.execute(sql);
-        }
-      }
-      conn.commit();
-    } catch (SQLException e) {
-      conn.rollback();
-      throw e;
-    } finally {
-      conn.setAutoCommit(originalAutoCommit);
-      statements.clear();
-    }
+    runInTransaction(
+        c -> {
+          try (Statement stmt = c.createStatement()) {
+            for (String sql : statements) {
+              stmt.execute(sql);
+            }
+          }
+        });
+    statements.clear();
   }
 
   /**
@@ -108,6 +101,31 @@ public final class WriteBatch {
    * @throws SQLException SQL 执行失败
    */
   public void execute(WriteOperation op) throws SQLException {
+    runInTransaction(op);
+  }
+
+  /**
+   * 在事务中执行操作的公共辅助方法。
+   *
+   * <p>保存当前 auto-commit 状态，关闭 auto-commit 开启事务， 执行操作后提交；失败时回滚并恢复原始状态。
+   *
+   * @param op JDBC 操作
+   * @throws SQLException SQL 执行失败
+   */
+  private void runInTransaction(WriteOperation op) throws SQLException {
+    executeInTransaction(conn, op);
+  }
+
+  /**
+   * 在指定连接上执行事务的包级静态辅助方法。
+   *
+   * <p>供同包类（如 {@link MigrationRunner}）复用相同的事务管理模式， 避免各自重复 auto-commit 切换和回滚逻辑。
+   *
+   * @param conn JDBC 连接
+   * @param op JDBC 操作
+   * @throws SQLException SQL 执行失败
+   */
+  static void executeInTransaction(Connection conn, WriteOperation op) throws SQLException {
     boolean originalAutoCommit = conn.getAutoCommit();
     try {
       conn.setAutoCommit(false);

@@ -141,7 +141,8 @@ public final class MigrationRunner {
   /**
    * 在原子事务中执行单条 migration。
    *
-   * <p>失败时回滚事务，不留下半升级。 成功后记录到 schema_migrations 追踪表。
+   * <p>失败时回滚事务，不留下半升级。 成功后记录到 schema_migrations 追踪表。 事务管理复用 {@link WriteBatch#executeInTransaction}
+   * 的统一模式。
    */
   private void applySingle(Connection conn, Migration migration) throws SQLException {
     String sql;
@@ -152,22 +153,20 @@ public final class MigrationRunner {
     }
     log.info("应用 migration V{}: {}", migration.version().version(), migration.description());
 
-    boolean originalAutoCommit = conn.getAutoCommit();
     try {
-      conn.setAutoCommit(false);
-      executeStatements(conn, sql);
-      try (PreparedStatement ps = conn.prepareStatement(INSERT_APPLIED)) {
-        ps.setInt(1, migration.version().version());
-        ps.setString(2, migration.description());
-        ps.setString(3, String.valueOf(System.currentTimeMillis() / 1000.0));
-        ps.executeUpdate();
-      }
-      conn.commit();
+      WriteBatch.executeInTransaction(
+          conn,
+          c -> {
+            executeStatements(c, sql);
+            try (PreparedStatement ps = c.prepareStatement(INSERT_APPLIED)) {
+              ps.setInt(1, migration.version().version());
+              ps.setString(2, migration.description());
+              ps.setString(3, String.valueOf(System.currentTimeMillis() / 1000.0));
+              ps.executeUpdate();
+            }
+          });
     } catch (SQLException e) {
-      conn.rollback();
       throw new SQLException("migration V" + migration.version().version() + " 执行失败，已回滚", e);
-    } finally {
-      conn.setAutoCommit(originalAutoCommit);
     }
   }
 

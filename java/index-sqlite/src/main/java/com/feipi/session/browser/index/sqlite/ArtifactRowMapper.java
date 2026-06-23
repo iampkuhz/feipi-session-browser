@@ -54,17 +54,17 @@ public final class ArtifactRowMapper {
     Map<String, Object> session = artifact.session();
 
     // 从 session map 提取标量字段
-    String sessionKey = requireString(session, "session_key");
-    String sessionId = requireString(session, "session_id");
-    String title = optionalString(session, "title");
-    String projectKey = optionalString(session, "project_key");
-    String projectName = optionalString(session, "project_name");
-    String cwd = optionalString(session, "cwd");
-    String startedAt = optionalString(session, "started_at");
-    String endedAt = optionalString(session, "ended_at");
-    String model = optionalString(session, "model");
-    String gitBranch = optionalString(session, "git_branch");
-    String source = optionalString(session, "source");
+    String sessionKey = asString(session, "session_key");
+    String sessionId = asString(session, "session_id");
+    String title = asString(session, "title");
+    String projectKey = asString(session, "project_key");
+    String projectName = asString(session, "project_name");
+    String cwd = asString(session, "cwd");
+    String startedAt = asString(session, "started_at");
+    String endedAt = asString(session, "ended_at");
+    String model = asString(session, "model");
+    String gitBranch = asString(session, "git_branch");
+    String source = asString(session, "source");
     double durationSeconds = optionalDouble(session, "duration_seconds");
 
     // agent 使用 enum 的协议值
@@ -190,17 +190,8 @@ public final class ArtifactRowMapper {
         now);
   }
 
-  /** 从 session map 取必填字符串字段。 */
-  private static String requireString(Map<String, Object> session, String key) {
-    Object value = session.get(key);
-    if (value == null) {
-      return "";
-    }
-    return String.valueOf(value);
-  }
-
-  /** 从 session map 取可选字符串字段。 */
-  private static String optionalString(Map<String, Object> session, String key) {
+  /** 从 session map 取字符串字段，null 转为空字符串。 */
+  private static String asString(Map<String, Object> session, String key) {
     Object value = session.get(key);
     if (value == null) {
       return "";

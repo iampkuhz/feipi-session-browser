@@ -67,6 +67,25 @@ public final class FullScanEngine {
   /** 每 N 个候选项 flush 一次 WriteBatch，防止单事务过大。 */
   private static final int FLUSH_INTERVAL = 100;
 
+  /** sessions 表 INSERT 列清单，用于 {@link #addSessionInsert} 预构建 SQL。 */
+  private static final String SESSION_INSERT_PREFIX =
+      "INSERT OR REPLACE INTO sessions ("
+          + "session_key, agent, session_id, title, project_key, project_name, "
+          + "cwd, started_at, ended_at, duration_seconds, model_execution_seconds, "
+          + "tool_execution_seconds, model, git_branch, source, "
+          + "user_message_count, assistant_message_count, tool_call_count, "
+          + "output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens, "
+          + "total_tokens, failed_tool_count, subagent_instance_count, "
+          + "indexed_at, file_mtime, file_path"
+          + ") VALUES (";
+
+  /** session_artifacts 表 INSERT 列清单，用于 {@link #addArtifactInsert} 预构建 SQL。 */
+  private static final String ARTIFACT_INSERT_PREFIX =
+      "INSERT OR REPLACE INTO session_artifacts ("
+          + "session_key, artifact_type, path, schema_version, source_path, "
+          + "source_mtime, size_bytes, created_at, updated_at"
+          + ") VALUES (";
+
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;
 
@@ -360,17 +379,9 @@ public final class FullScanEngine {
     return Map.of();
   }
 
-  /** 将会话行写入批量插入语句。 */
+  /** 将会话行写入批量插入语句，使用预定义列清单避免重复拼接。 */
   private static void addSessionInsert(WriteBatch batch, SessionRow row) {
-    StringBuilder sb = new StringBuilder("INSERT OR REPLACE INTO sessions (");
-    sb.append("session_key, agent, session_id, title, project_key, project_name, ");
-    sb.append("cwd, started_at, ended_at, duration_seconds, model_execution_seconds, ");
-    sb.append("tool_execution_seconds, model, git_branch, source, ");
-    sb.append("user_message_count, assistant_message_count, tool_call_count, ");
-    sb.append("output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens, ");
-    sb.append("total_tokens, failed_tool_count, subagent_instance_count, ");
-    sb.append("indexed_at, file_mtime, file_path");
-    sb.append(") VALUES (");
+    StringBuilder sb = new StringBuilder(SESSION_INSERT_PREFIX);
     appendSqlValue(sb, row.sessionKey()).append(", ");
     appendSqlValue(sb, row.agent()).append(", ");
     appendSqlValue(sb, row.sessionId()).append(", ");
@@ -403,12 +414,9 @@ public final class FullScanEngine {
     batch.addInsert(sb.toString());
   }
 
-  /** 将制品行写入批量插入语句。 */
+  /** 将制品行写入批量插入语句，使用预定义列清单避免重复拼接。 */
   private static void addArtifactInsert(WriteBatch batch, SessionArtifactRow row) {
-    StringBuilder sb = new StringBuilder("INSERT OR REPLACE INTO session_artifacts (");
-    sb.append("session_key, artifact_type, path, schema_version, source_path, ");
-    sb.append("source_mtime, size_bytes, created_at, updated_at");
-    sb.append(") VALUES (");
+    StringBuilder sb = new StringBuilder(ARTIFACT_INSERT_PREFIX);
     appendSqlValue(sb, row.sessionKey()).append(", ");
     appendSqlValue(sb, row.artifactType()).append(", ");
     appendSqlValue(sb, row.path()).append(", ");

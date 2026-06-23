@@ -64,18 +64,7 @@ final class ScanLogManager {
   static void completeScan(
       Connection conn, long scanLogId, double finishedAt, Map<String, Integer> perSourceCount)
       throws SQLException {
-
-    String sql =
-        "UPDATE scan_log SET finished_at = ?, status = 'success',"
-            + " claude_count = ?, codex_count = ?, qoder_count = ? WHERE id = ?";
-    try (PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setDouble(1, finishedAt);
-      stmt.setInt(2, perSourceCount.getOrDefault("claude_code", 0));
-      stmt.setInt(3, perSourceCount.getOrDefault("codex", 0));
-      stmt.setInt(4, perSourceCount.getOrDefault("qoder", 0));
-      stmt.setLong(5, scanLogId);
-      stmt.executeUpdate();
-    }
+    finishScan(conn, scanLogId, finishedAt, perSourceCount, "success");
   }
 
   /**
@@ -90,16 +79,39 @@ final class ScanLogManager {
   static void failScan(
       Connection conn, long scanLogId, double finishedAt, Map<String, Integer> perSourceCount)
       throws SQLException {
+    finishScan(conn, scanLogId, finishedAt, perSourceCount, "failure");
+  }
+
+  /**
+   * 完成 scan_log 记录，统一处理成功和失败两种状态。
+   *
+   * <p>合并 {@code completeScan} 和 {@code failScan} 的共同 SQL 逻辑， 仅在 status 字段上有差异。
+   *
+   * @param conn 写连接
+   * @param scanLogId scan_log 行 ID
+   * @param finishedAt 完成时间戳（epoch 秒）
+   * @param perSourceCount 各源处理的候选项数
+   * @param status 最终状态（{@code "success"} 或 {@code "failure"}）
+   * @throws SQLException SQL 执行失败
+   */
+  private static void finishScan(
+      Connection conn,
+      long scanLogId,
+      double finishedAt,
+      Map<String, Integer> perSourceCount,
+      String status)
+      throws SQLException {
 
     String sql =
-        "UPDATE scan_log SET finished_at = ?, status = 'failure',"
+        "UPDATE scan_log SET finished_at = ?, status = ?,"
             + " claude_count = ?, codex_count = ?, qoder_count = ? WHERE id = ?";
     try (PreparedStatement stmt = conn.prepareStatement(sql)) {
       stmt.setDouble(1, finishedAt);
-      stmt.setInt(2, perSourceCount.getOrDefault("claude_code", 0));
-      stmt.setInt(3, perSourceCount.getOrDefault("codex", 0));
-      stmt.setInt(4, perSourceCount.getOrDefault("qoder", 0));
-      stmt.setLong(5, scanLogId);
+      stmt.setString(2, status);
+      stmt.setInt(3, perSourceCount.getOrDefault("claude_code", 0));
+      stmt.setInt(4, perSourceCount.getOrDefault("codex", 0));
+      stmt.setInt(5, perSourceCount.getOrDefault("qoder", 0));
+      stmt.setLong(6, scanLogId);
       stmt.executeUpdate();
     }
   }
