@@ -310,6 +310,13 @@ constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection, int queueCapacity, int batchLimit)
 constructor com.feipi.session.browser.index.sqlite.WriteTransaction public WriteTransaction(Connection conn) throws SQLException
+constructor com.feipi.session.browser.query.api.AgentFilter public static final AgentFilter NONE = new AgentFilter("")
+constructor com.feipi.session.browser.query.api.AnomalyFilter public static final AnomalyFilter NONE = new AnomalyFilter(null)
+constructor com.feipi.session.browser.query.api.ModelFilter public static final ModelFilter NONE = new ModelFilter("")
+constructor com.feipi.session.browser.query.api.PageRequest public static final PageRequest DEFAULT = new PageRequest(0, DEFAULT_LIMIT, "")
+constructor com.feipi.session.browser.query.api.PageResult public PageResult()
+constructor com.feipi.session.browser.query.api.ProjectFilter public static final ProjectFilter NONE = new ProjectFilter("")
+constructor com.feipi.session.browser.query.api.TitleFilter public static final TitleFilter NONE = new TitleFilter("")
 constructor com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public ReuseAnalyzer(Path cacheDirectory)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message, Throwable cause)
@@ -402,6 +409,32 @@ enum-constant com.feipi.session.browser.domain.normalized.SourceFileRole COMPANI
 enum-constant com.feipi.session.browser.domain.normalized.SourceFileRole TRANSCRIPT
 enum-constant com.feipi.session.browser.domain.normalized.SourceUnitDirection REQUEST
 enum-constant com.feipi.session.browser.domain.normalized.SourceUnitDirection RESPONSE
+enum-constant com.feipi.session.browser.query.api.AnomalyType DURATION_OUTLIER
+enum-constant com.feipi.session.browser.query.api.AnomalyType HIGH_FAILURE_RATE
+enum-constant com.feipi.session.browser.query.api.AnomalyType SUBAGENT_OVERUSE
+enum-constant com.feipi.session.browser.query.api.AnomalyType TOKEN_SPIKE
+enum-constant com.feipi.session.browser.query.api.FailureStatus ALL
+enum-constant com.feipi.session.browser.query.api.FailureStatus FAILED_ONLY
+enum-constant com.feipi.session.browser.query.api.FailureStatus SUCCESS_ONLY
+enum-constant com.feipi.session.browser.query.api.ProjectSortField FIRST_SEEN
+enum-constant com.feipi.session.browser.query.api.ProjectSortField LAST_ACTIVE
+enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_FAILED_TOOLS
+enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_SESSIONS
+enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_TOKENS
+enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_TOOL_CALLS
+enum-constant com.feipi.session.browser.query.api.SessionSortField ASSISTANT_MESSAGE_COUNT
+enum-constant com.feipi.session.browser.query.api.SessionSortField DURATION_SECONDS
+enum-constant com.feipi.session.browser.query.api.SessionSortField ENDED_AT
+enum-constant com.feipi.session.browser.query.api.SessionSortField FAILED_TOOL_COUNT
+enum-constant com.feipi.session.browser.query.api.SessionSortField FRESH_INPUT_TOKENS
+enum-constant com.feipi.session.browser.query.api.SessionSortField MODEL_EXECUTION_SECONDS
+enum-constant com.feipi.session.browser.query.api.SessionSortField STARTED_AT
+enum-constant com.feipi.session.browser.query.api.SessionSortField SUBAGENT_INSTANCE_COUNT
+enum-constant com.feipi.session.browser.query.api.SessionSortField TOOL_CALL_COUNT
+enum-constant com.feipi.session.browser.query.api.SessionSortField TOOL_EXECUTION_SECONDS
+enum-constant com.feipi.session.browser.query.api.SessionSortField TOTAL_TOKENS
+enum-constant com.feipi.session.browser.query.api.SortOrder ASC
+enum-constant com.feipi.session.browser.query.api.SortOrder DESC
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public DATA_FILE_SUFFIX: static final String
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public GENERATOR: static final String
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public META_FILE_SUFFIX: static final String
@@ -416,6 +449,8 @@ field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_BATCH_LIM
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_QUEUE_CAPACITY: static final int
 field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_ESTIMATED: static final String
 field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_EXACT: static final String
+field com.feipi.session.browser.query.api.PageRequest public DEFAULT_LIMIT: static final int
+field com.feipi.session.browser.query.api.PageRequest public MAX_LIMIT: static final int
 field com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public ANALYZER_VERSION: static final String
 field com.feipi.session.browser.scan.engine.IncrementalScanEngine public CURRENT_SCAN_LOGIC_VERSION: static final int
 field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_HOT_INTERVAL: static final long
@@ -554,6 +589,98 @@ method com.feipi.session.browser.normalization.EventClassifier.ClassifiedEvents 
 method com.feipi.session.browser.normalization.NormalizationEngine public NormalizedSessionArtifact normalize( NormalizedAgent agent, List<SourceRecord> records, List<SourceDiagnostic> diagnostics, List<NormalizedSourceFile> sourceFiles)
 method com.feipi.session.browser.normalization.TokenAccountant public static NormalizedCallUsage aggregate(List<NormalizedCallUsage> usages)
 method com.feipi.session.browser.normalization.TokenAccountant public static NormalizedCallUsage extractUsage(SourceRecord record)
+method com.feipi.session.browser.query.api.AgentFilter public String agent()
+method com.feipi.session.browser.query.api.AgentFilter public String toString()
+method com.feipi.session.browser.query.api.AgentFilter public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.AgentFilter public boolean isUnfiltered()
+method com.feipi.session.browser.query.api.AgentFilter public int hashCode()
+method com.feipi.session.browser.query.api.AgentFilter public static AgentFilter of(String agent)
+method com.feipi.session.browser.query.api.AnomalyFilter public AnomalyType type()
+method com.feipi.session.browser.query.api.AnomalyFilter public String toString()
+method com.feipi.session.browser.query.api.AnomalyFilter public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.AnomalyFilter public boolean isUnfiltered()
+method com.feipi.session.browser.query.api.AnomalyFilter public int hashCode()
+method com.feipi.session.browser.query.api.AnomalyFilter public static AnomalyFilter of(AnomalyType type)
+method com.feipi.session.browser.query.api.AnomalyType public static AnomalyType fromValue(String value)
+method com.feipi.session.browser.query.api.DashboardFilter public AgentFilter agentFilter()
+method com.feipi.session.browser.query.api.DashboardFilter public DashboardFilter withAgent(AgentFilter agentFilter)
+method com.feipi.session.browser.query.api.DashboardFilter public DashboardFilter withPage(PageRequest page)
+method com.feipi.session.browser.query.api.DashboardFilter public PageRequest page()
+method com.feipi.session.browser.query.api.DashboardFilter public String toString()
+method com.feipi.session.browser.query.api.DashboardFilter public static DashboardFilter defaults()
+method com.feipi.session.browser.query.api.FailureStatus public static FailureStatus fromString(String value)
+method com.feipi.session.browser.query.api.ModelFilter public String model()
+method com.feipi.session.browser.query.api.ModelFilter public String toString()
+method com.feipi.session.browser.query.api.ModelFilter public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.ModelFilter public boolean isUnfiltered()
+method com.feipi.session.browser.query.api.ModelFilter public int hashCode()
+method com.feipi.session.browser.query.api.ModelFilter public static ModelFilter of(String model)
+method com.feipi.session.browser.query.api.PageRequest public String cursor()
+method com.feipi.session.browser.query.api.PageRequest public String toString()
+method com.feipi.session.browser.query.api.PageRequest public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.PageRequest public boolean isCursorMode()
+method com.feipi.session.browser.query.api.PageRequest public int hashCode()
+method com.feipi.session.browser.query.api.PageRequest public int limit()
+method com.feipi.session.browser.query.api.PageRequest public int offset()
+method com.feipi.session.browser.query.api.PageRequest public static PageRequest ofCursor(String cursor, int limit)
+method com.feipi.session.browser.query.api.PageRequest public static PageRequest ofLimit(int limit)
+method com.feipi.session.browser.query.api.PageRequest public static PageRequest ofOffset(int offset, int limit)
+method com.feipi.session.browser.query.api.PageResult public boolean hasMore()
+method com.feipi.session.browser.query.api.PageResult public boolean isEmpty()
+method com.feipi.session.browser.query.api.PageResult public int size()
+method com.feipi.session.browser.query.api.PageResult public static <T> PageResult<T> ofCursor(List<T> items, long totalCount, String nextCursor)
+method com.feipi.session.browser.query.api.PageResult public static <T> PageResult<T> ofOffset(List<T> items, long totalCount)
+method com.feipi.session.browser.query.api.ProjectFilter public String projectKey()
+method com.feipi.session.browser.query.api.ProjectFilter public String toString()
+method com.feipi.session.browser.query.api.ProjectFilter public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.ProjectFilter public boolean isUnfiltered()
+method com.feipi.session.browser.query.api.ProjectFilter public int hashCode()
+method com.feipi.session.browser.query.api.ProjectFilter public static ProjectFilter of(String projectKey)
+method com.feipi.session.browser.query.api.ProjectListFilter public PageRequest page()
+method com.feipi.session.browser.query.api.ProjectListFilter public ProjectListFilter withPage(PageRequest page)
+method com.feipi.session.browser.query.api.ProjectListFilter public ProjectListFilter withSort(Sort sort)
+method com.feipi.session.browser.query.api.ProjectListFilter public ProjectListFilter withTitle(TitleFilter titleFilter)
+method com.feipi.session.browser.query.api.ProjectListFilter public Sort sort()
+method com.feipi.session.browser.query.api.ProjectListFilter public String toString()
+method com.feipi.session.browser.query.api.ProjectListFilter public TitleFilter titleFilter()
+method com.feipi.session.browser.query.api.ProjectListFilter public static ProjectListFilter defaults()
+method com.feipi.session.browser.query.api.ProjectSortField public static ProjectSortField fromString(String value)
+method com.feipi.session.browser.query.api.SessionListFilter public AgentFilter agentFilter()
+method com.feipi.session.browser.query.api.SessionListFilter public FailureStatus failureStatus()
+method com.feipi.session.browser.query.api.SessionListFilter public ModelFilter modelFilter()
+method com.feipi.session.browser.query.api.SessionListFilter public PageRequest page()
+method com.feipi.session.browser.query.api.SessionListFilter public ProjectFilter projectFilter()
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withAgent(AgentFilter agentFilter)
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withFailureStatus(FailureStatus failureStatus)
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withModel(ModelFilter modelFilter)
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withPage(PageRequest page)
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withProject(ProjectFilter projectFilter)
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withSort(Sort sort)
+method com.feipi.session.browser.query.api.SessionListFilter public SessionListFilter withTitle(TitleFilter titleFilter)
+method com.feipi.session.browser.query.api.SessionListFilter public Sort sort()
+method com.feipi.session.browser.query.api.SessionListFilter public String toString()
+method com.feipi.session.browser.query.api.SessionListFilter public TitleFilter titleFilter()
+method com.feipi.session.browser.query.api.SessionListFilter public static SessionListFilter defaults()
+method com.feipi.session.browser.query.api.SessionSortField public static SessionSortField fromString(String value)
+method com.feipi.session.browser.query.api.Sort public SortOrder order()
+method com.feipi.session.browser.query.api.Sort public String sortKey()
+method com.feipi.session.browser.query.api.Sort public String toSqlFragment()
+method com.feipi.session.browser.query.api.Sort public String toString()
+method com.feipi.session.browser.query.api.Sort public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.Sort public int hashCode()
+method com.feipi.session.browser.query.api.Sort public static Sort ofProject(ProjectSortField field, SortOrder order)
+method com.feipi.session.browser.query.api.Sort public static Sort ofProject(String field, String order)
+method com.feipi.session.browser.query.api.Sort public static Sort ofSession(SessionSortField field, SortOrder order)
+method com.feipi.session.browser.query.api.Sort public static Sort ofSession(String field, String order)
+method com.feipi.session.browser.query.api.Sort public static final Sort DEFAULT_PROJECT = ofProject(ProjectSortField.LAST_ACTIVE, SortOrder.DESC)
+method com.feipi.session.browser.query.api.Sort public static final Sort DEFAULT_SESSION = ofSession(SessionSortField.ENDED_AT, SortOrder.DESC)
+method com.feipi.session.browser.query.api.SortOrder public static SortOrder fromString(String value)
+method com.feipi.session.browser.query.api.TitleFilter public String keyword()
+method com.feipi.session.browser.query.api.TitleFilter public String toString()
+method com.feipi.session.browser.query.api.TitleFilter public boolean equals(Object obj)
+method com.feipi.session.browser.query.api.TitleFilter public boolean isUnfiltered()
+method com.feipi.session.browser.query.api.TitleFilter public int hashCode()
+method com.feipi.session.browser.query.api.TitleFilter public static TitleFilter of(String keyword)
 method com.feipi.session.browser.reuse.analyzer.AnalyzerMain public static void main(String[] args) throws Exception
 method com.feipi.session.browser.reuse.analyzer.MethodIdGenerator public static String methodId(CtMethod<?> method)
 method com.feipi.session.browser.reuse.analyzer.OwnershipClassifier public static Ownership classify(CtMethod<?> method)
@@ -777,6 +904,23 @@ type com.feipi.session.browser.normalization.NormalizationConstants public class
 type com.feipi.session.browser.normalization.NormalizationEngine public class [normalization-engine] final class NormalizationEngine
 type com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult public record [normalization-engine] record ConservationCheckResult( int declaredTools, int executedTools, int consumedResults, boolean tokensConserved)
 type com.feipi.session.browser.normalization.TokenAccountant public class [normalization-engine] final class TokenAccountant
+type com.feipi.session.browser.query.api.AgentFilter public class [query-api] final class AgentFilter
+type com.feipi.session.browser.query.api.AnomalyFilter public class [query-api] final class AnomalyFilter
+type com.feipi.session.browser.query.api.AnomalyType public enum [query-api] enum AnomalyType
+type com.feipi.session.browser.query.api.DashboardFilter public class [query-api] final class DashboardFilter
+type com.feipi.session.browser.query.api.FailureStatus public enum [query-api] enum FailureStatus
+type com.feipi.session.browser.query.api.ModelFilter public class [query-api] final class ModelFilter
+type com.feipi.session.browser.query.api.PageRequest public class [query-api] final class PageRequest
+type com.feipi.session.browser.query.api.PageResult public record [query-api] record PageResult<T>(List<T> items, long totalCount, String nextCursor)
+type com.feipi.session.browser.query.api.ProjectFilter public class [query-api] final class ProjectFilter
+type com.feipi.session.browser.query.api.ProjectListFilter public class [query-api] final class ProjectListFilter
+type com.feipi.session.browser.query.api.ProjectSortField public enum [query-api] enum ProjectSortField
+type com.feipi.session.browser.query.api.QueryApiMarker public interface [query-api] sealed interface QueryApiMarker permits QueryApiMarkerInternal
+type com.feipi.session.browser.query.api.SessionListFilter public class [query-api] final class SessionListFilter
+type com.feipi.session.browser.query.api.SessionSortField public enum [query-api] enum SessionSortField
+type com.feipi.session.browser.query.api.Sort public class [query-api] final class Sort
+type com.feipi.session.browser.query.api.SortOrder public enum [query-api] enum SortOrder
+type com.feipi.session.browser.query.api.TitleFilter public class [query-api] final class TitleFilter
 type com.feipi.session.browser.reuse.analyzer.AnalyzerMain public class [reuse-analyzer] final class AnalyzerMain
 type com.feipi.session.browser.reuse.analyzer.MethodIdGenerator public class [reuse-analyzer] final class MethodIdGenerator
 type com.feipi.session.browser.reuse.analyzer.OwnershipClassifier public class [reuse-analyzer] final class OwnershipClassifier
