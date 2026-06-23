@@ -6,6 +6,7 @@ dependencies {
     implementation(libs.sqlite.jdbc)
     implementation(libs.slf4j.api)
     implementation(project(":java:core-domain"))
+    implementation(project(":java:query-api"))
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)

@@ -133,6 +133,9 @@ component com.feipi.session.browser.index.sqlite.SessionArtifactRow sizeBytes: l
 component com.feipi.session.browser.index.sqlite.SessionArtifactRow sourceMtime: double
 component com.feipi.session.browser.index.sqlite.SessionArtifactRow sourcePath: String
 component com.feipi.session.browser.index.sqlite.SessionArtifactRow updatedAt: double
+component com.feipi.session.browser.index.sqlite.SessionListAggregate projectCount: long
+component com.feipi.session.browser.index.sqlite.SessionListAggregate sessionCount: long
+component com.feipi.session.browser.index.sqlite.SessionListAggregate totalTokens: long
 component com.feipi.session.browser.index.sqlite.SessionRow agent: String
 component com.feipi.session.browser.index.sqlite.SessionRow assistantMessageCount: long
 component com.feipi.session.browser.index.sqlite.SessionRow cacheReadTokens: long
@@ -305,6 +308,8 @@ constructor com.feipi.session.browser.index.sqlite.PragmaConfig public static fi
 constructor com.feipi.session.browser.index.sqlite.ReadTransaction public ReadTransaction(Connection conn) throws SQLException
 constructor com.feipi.session.browser.index.sqlite.SchemaVersion public SchemaVersion()
 constructor com.feipi.session.browser.index.sqlite.SessionArtifactRow public SessionArtifactRow()
+constructor com.feipi.session.browser.index.sqlite.SessionListAggregate public SessionListAggregate()
+constructor com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionQueryRepository(IndexConnection indexConnection)
 constructor com.feipi.session.browser.index.sqlite.SessionRow public SessionRow()
 constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(Connection conn, int maxEntries)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
@@ -548,6 +553,10 @@ method com.feipi.session.browser.index.sqlite.ReadTransaction public void close(
 method com.feipi.session.browser.index.sqlite.SchemaValidationResult public boolean isComplete()
 method com.feipi.session.browser.index.sqlite.SchemaVersion public String toString()
 method com.feipi.session.browser.index.sqlite.SchemaVersion public int compareTo(SchemaVersion other)
+method com.feipi.session.browser.index.sqlite.SessionQueryRepository public Optional<SessionRow> getSession(String sessionKey) throws SQLException
+method com.feipi.session.browser.index.sqlite.SessionQueryRepository public PageResult<SessionRow> listSessions(SessionListFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionListAggregate listAggregate(SessionListFilter filter) throws SQLException
+method com.feipi.session.browser.index.sqlite.SessionQueryRepository public long countSessions(SessionListFilter filter) throws SQLException
 method com.feipi.session.browser.index.sqlite.WriteBatch public int pendingCount()
 method com.feipi.session.browser.index.sqlite.WriteBatch public void addDelete(String sql)
 method com.feipi.session.browser.index.sqlite.WriteBatch public void addInsert(String sql)
@@ -890,6 +899,8 @@ type com.feipi.session.browser.index.sqlite.ReadTransaction public class [index-
 type com.feipi.session.browser.index.sqlite.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
 type com.feipi.session.browser.index.sqlite.SchemaVersion public record [index-sqlite] record SchemaVersion(int version) implements Comparable<SchemaVersion>
 type com.feipi.session.browser.index.sqlite.SessionArtifactRow public record [index-sqlite] record SessionArtifactRow( String sessionKey, String artifactType, String path, String schemaVersion, String sourcePath, double sourceMtime, long sizeBytes, double createdAt, double updatedAt)
+type com.feipi.session.browser.index.sqlite.SessionListAggregate public record [index-sqlite] record SessionListAggregate(long sessionCount, long projectCount, long totalTokens)
+type com.feipi.session.browser.index.sqlite.SessionQueryRepository public class [index-sqlite] final class SessionQueryRepository
 type com.feipi.session.browser.index.sqlite.SessionRow public record [index-sqlite] record SessionRow( String sessionKey, String agent, String sessionId, String title, String projectKey, String projectName, String cwd, String startedAt, String endedAt, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, String model, String gitBranch, String source, long userMessageCount, long assistantMessageCount, long toolCallCount, long outputTokens, long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long totalTokens, long failedToolCount, long subagentInstanceCount, double indexedAt, double fileMtime, String filePath)
 type com.feipi.session.browser.index.sqlite.WriteBatch public class [index-sqlite] final class WriteBatch
 type com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public interface [index-sqlite] interface WriteOperation

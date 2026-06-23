@@ -1051,6 +1051,16 @@
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
       "evidence": "9880b07de7942d29ea568062e7763dcf31dcaf0c45a67a52aec2a27099cf7bec"
+    },
+    {
+      "fingerprint": "256904effd9c8ab641e8c083d73d6cfd63c7d26d8aa0cfaf1df20884183140d3",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "SessionResultSetMapper.nullToEmpty 与 SessionRow.defaultEmpty 为 alpha 等价的 null 转空字符串工具方法，属于行映射边界的最小辅助函数",
+      "owner": "index-sqlite",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "256904effd9c8ab641e8c083d73d6cfd63c7d26d8aa0cfaf1df20884183140d3"
     }
   ]
 }
