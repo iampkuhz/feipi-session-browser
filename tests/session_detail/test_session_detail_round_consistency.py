@@ -106,15 +106,17 @@ def _index_session_from_data_dir(data_dir: str, sqlite_path: str) -> tuple:
             del sys.modules[_mod]
 
     try:
-        from session_browser.index.indexer import init_schema, upsert_session
+        SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        sys.path.insert(0, os.path.join(SB_ROOT, 'src'))
+        from tests.index._test_db_utils import init_test_schema, insert_test_session
         from session_browser.sources.qoder import scan_all_sessions
 
         conn = sqlite3.connect(sqlite_path)
         conn.row_factory = sqlite3.Row
-        init_schema(conn)
+        init_test_schema(conn)
 
         for summary in scan_all_sessions():
-            upsert_session(conn, summary)
+            insert_test_session(conn, summary)
 
         conn.commit()
         session_key = f'qoder:{SESSION_ID}'

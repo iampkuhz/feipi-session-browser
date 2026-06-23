@@ -13,10 +13,9 @@ import pytest
 from session_browser.domain.models import SessionSummary
 from session_browser.index.indexer import (
     count_sessions,
-    init_schema,
     list_sessions,
-    upsert_session,
 )
+from tests.index._test_db_utils import init_test_schema, insert_test_session
 
 # ─── 辅助函数 ────────────────────────────────────────────────────────────────
 
@@ -25,7 +24,7 @@ def _make_conn() -> sqlite3.Connection:
     """创建带有 sessions schema 的内存 SQLite 连接。"""
     conn = sqlite3.connect(":memory:")
     conn.row_factory = sqlite3.Row
-    init_schema(conn)
+    init_test_schema(conn)
     return conn
 
 
@@ -43,7 +42,7 @@ def _insert(conn: sqlite3.Connection, session_id: str, title: str, **kw) -> Sess
         duration_seconds=1800,
         **kw,
     )
-    upsert_session(conn, s)
+    insert_test_session(conn, s)
     return s
 
 

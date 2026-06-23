@@ -9,10 +9,9 @@ import pytest
 from session_browser.domain.models import SessionSummary
 from session_browser.index.indexer import (
     count_sessions,
-    init_schema,
     list_sessions,
-    upsert_session,
 )
+from tests.index._test_db_utils import init_test_schema, insert_test_session
 
 _TEMPLATE_PATH = 'src/session_browser/web/templates/sessions.html'
 _PARTIAL_PATH = 'src/session_browser/web/templates/partials/sessions_grid.html'
@@ -74,7 +73,7 @@ def populated_db(tmp_path):
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
-    init_schema(conn)
+    init_test_schema(conn)
 
     agents = ['claude_code', 'qoder', 'codex']
     projects = ['proj-a', 'proj-b', 'proj-c']
@@ -87,7 +86,7 @@ def populated_db(tmp_path):
         s = _make_summary(
             str(i), title=f'Test Session {i:03d}', agent=agent, project=project, model=model
         )
-        upsert_session(conn, s)
+        insert_test_session(conn, s)
 
     conn.commit()
     yield conn

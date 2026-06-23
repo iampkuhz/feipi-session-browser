@@ -323,19 +323,19 @@ def _populate_index_from_fixture(
             del sys.modules[_mod]
 
     try:
-        from session_browser.index.indexer import (
-            init_schema,
-            upsert_session,
+        from tests.index._test_db_utils import (  # noqa: PLC0415
+            init_test_schema,
+            insert_test_session,
         )
 
         conn = sqlite3.connect(sqlite_path)
         conn.row_factory = sqlite3.Row
-        init_schema(conn)
+        init_test_schema(conn)
 
         from session_browser.sources.claude import scan_all_sessions
 
         for summary in scan_all_sessions():
-            upsert_session(conn, summary)
+            insert_test_session(conn, summary)
 
         conn.commit()
         session_key = f'{expected_agent}:{expected_session_id}'
@@ -507,19 +507,19 @@ def long_fixture_session():
                 del sys.modules[_mod]
 
         try:
-            from session_browser.index.indexer import (
-                init_schema,
-                upsert_session,
+            from tests.index._test_db_utils import (  # noqa: PLC0415
+                init_test_schema,
+                insert_test_session,
             )
 
             conn = sqlite3.connect(sqlite_path)
             conn.row_factory = sqlite3.Row
-            init_schema(conn)
+            init_test_schema(conn)
 
             from session_browser.sources.claude import scan_all_sessions
 
             for summary in scan_all_sessions():
-                upsert_session(conn, summary)
+                insert_test_session(conn, summary)
 
             conn.commit()
             session_key = f'{LONG_AGENT}:{LONG_SESSION_ID}'

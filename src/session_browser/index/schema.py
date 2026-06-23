@@ -1,31 +1,21 @@
-"""Manage SQLite schema and metadata tables for the session index.
+"""SQLite 连接与 schema 辅助（只读路径）。
 
-Scan lifecycle code uses this module to open the index database, rebuild the
-current schema, and maintain lightweight metadata such as scan logic version.
-The SQL strings are kept here so index writers share one schema contract.
+Web 查询和 attribution 代码使用本模块打开 SQLite 连接并确保
+schema 表存在。Python scan 写路径已退休，schema 创建和迁移
+由 Java scan 接管。
 """
 
 from __future__ import annotations
 
 import sqlite3
-import time
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 
-TIER_HOT_SECONDS = 30 * 60
-TIER_HOT_INTERVAL = 30
-TIER_WARM_SECONDS = 24 * 3600
-TIER_WARM_INTERVAL = 5 * 60
-
-SCAN_LOGIC_VERSION = 4
-SCAN_LOGIC_VERSION_KEY = "scan_logic_version"
-
-
 INDEX_METADATA_SCHEMA_SQL = """
-    CREATE TABLE IF NOT EXISTS index_metadata (
+    CREATE TABLE IF not EXISTS index_metadata (
         key TEXT PRIMARY KEY,
         value TEXT NOT NULL DEFAULT '',
         updated_at REAL NOT NULL DEFAULT 0
@@ -56,48 +46,18 @@ SESSION_ARTIFACTS_SCHEMA_SQL = """
 """
 
 
-# 新增列的迁移语句。SQLite 不支持 ADD COLUMN IF NOT EXISTS，
-# 因此使用 try/except 在 Python 层保证幂等。
-_ARTIFACT_MIGRATION_COLUMNS: list[tuple[str, str]] = [
-    ('content_hash', "TEXT NOT NULL DEFAULT ''"),
-    ('validation_status', "TEXT NOT NULL DEFAULT ''"),
-]
-
-
-def _migrate_artifact_columns(conn: sqlite3.Connection) -> None:
-    """为 session_artifacts 表补齐新增列（幂等）。
-
-    SQLite 的 ``CREATE TABLE IF NOT EXISTS`` 不会为已存在的表添加列。
-    本函数通过 ``PRAGMA table_info`` 检测缺失列后逐一补齐，
-    已在表中的列跳过，重复调用不改变最终状态。
-
-    Args:
-        conn: 已打开的 SQLite 连接。
-    """
-    existing = {
-        row['name']
-        for row in conn.execute('PRAGMA table_info(session_artifacts)').fetchall()
-    }
-    for col_name, col_type in _ARTIFACT_MIGRATION_COLUMNS:
-        if col_name not in existing:
-            conn.execute(
-                f'ALTER TABLE session_artifacts ADD COLUMN {col_name} {col_type}'
-            )
-
-
 def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
-    """Open a configured SQLite connection for the session index.
+    """打开会话索引的 SQLite 连接。
 
-    Scan and index setup code call this helper when no connection is supplied by
-    the caller. It ensures the index directory exists, enables WAL mode, applies
-    the busy timeout, and turns on foreign keys for writer operations.
+    Web 查询和 attribution 代码在需要数据库访问时调用此辅助函数。
+    确保索引目录存在，启用 WAL 模式，设置 busy 超时，并打开外键。
 
     Args:
-        db_path: Optional database path used by tests or alternate callers;
-            defaults to the configured index path.
+        db_path: 可选的数据库路径，供测试或替代调用方使用；
+            默认使用配置的索引路径。
 
     Returns:
-        SQLite connection configured with row access by column name.
+        配置好的 SQLite 连接，支持按列名访问行。
     """
     from session_browser.config import INDEX_PATH, ensure_index_dir  # noqa: PLC0415
 
@@ -112,180 +72,23 @@ def _get_connection(db_path: Path | None = None) -> sqlite3.Connection:
 
 
 def ensure_session_artifacts_schema(conn: sqlite3.Connection) -> None:
-    """Create the session artifact table and indexes if they are missing.
+    """确保 session_artifacts 表和索引存在。
 
-    Index setup and migration-safe callers use this helper to add artifact
-    storage without changing existing session rows. 对已有表也会补齐
-    ``content_hash`` 和 ``validation_status`` 等新增列。
+    Attribution 代码在写入 artifact 关联前调用此辅助函数。
+    使用 ``CREATE TABLE IF NOT EXISTS`` 保证幂等。
 
     Args:
-        conn: Open SQLite connection for the session index.
+        conn: 已打开的 SQLite 连接。
     """
     conn.executescript(SESSION_ARTIFACTS_SCHEMA_SQL)
-    _migrate_artifact_columns(conn)
 
 
 def ensure_index_metadata_schema(conn: sqlite3.Connection) -> None:
-    """Create the global index metadata table if it is missing.
+    """确保全局索引元数据表存在。
 
-    Metadata readers and writers call this helper before touching the metadata
-    table so incremental upgrades can run against older local databases.
+    元数据读取方在访问元数据表前调用此辅助函数。
 
     Args:
-        conn: Open SQLite connection for the session index.
+        conn: 已打开的 SQLite 连接。
     """
     conn.executescript(INDEX_METADATA_SCHEMA_SQL)
-
-
-def get_index_metadata(conn: sqlite3.Connection, key: str) -> str | None:
-    """Read one metadata value from the index metadata table.
-
-    Scan lifecycle code calls this function to inspect persisted version markers
-    and other global index state. Missing keys return ``None``.
-
-    Args:
-        conn: Open SQLite connection for the session index.
-        key: Metadata key to look up.
-
-    Returns:
-        Stored metadata value as a string, or ``None`` when the key is absent.
-    """
-    ensure_index_metadata_schema(conn)
-    row = conn.execute(
-        "SELECT value FROM index_metadata WHERE key = ?",
-        (key,),
-    ).fetchone()
-    return str(row["value"]) if row else None
-
-
-def set_index_metadata(conn: sqlite3.Connection, key: str, value: str) -> None:
-    """Write one metadata value into the index metadata table.
-
-    Scan lifecycle code calls this function to persist global index state. The
-    function upserts by key and updates the timestamp using the current process
-    clock.
-
-    Args:
-        conn: Open SQLite connection for the session index.
-        key: Metadata key to create or update.
-        value: Metadata value to store as text.
-    """
-    ensure_index_metadata_schema(conn)
-    conn.execute(
-        """
-        INSERT INTO index_metadata (key, value, updated_at)
-        VALUES (?, ?, ?)
-        ON CONFLICT(key) DO UPDATE SET
-            value=excluded.value,
-            updated_at=excluded.updated_at
-        """,
-        (key, str(value), time.time()),
-    )
-
-
-def get_stored_scan_logic_version(conn: sqlite3.Connection) -> str | None:
-    """Read the persisted scan logic version from index metadata.
-
-    Incremental scan orchestration calls this helper to decide whether local rows
-    were produced by the current scan logic.
-
-    Args:
-        conn: Open SQLite connection for the session index.
-
-    Returns:
-        Stored scan logic version, or ``None`` when no marker exists.
-    """
-    return get_index_metadata(conn, SCAN_LOGIC_VERSION_KEY)
-
-
-def set_stored_scan_logic_version(
-    conn: sqlite3.Connection,
-    version: int | str = SCAN_LOGIC_VERSION,
-) -> None:
-    """Persist the scan logic version into index metadata.
-
-    Full schema initialization and scan lifecycle code call this after creating
-    or validating rows so future scans can detect stale index data.
-
-    Args:
-        conn: Open SQLite connection for the session index.
-        version: Version value to store; defaults to the current logic version.
-    """
-    set_index_metadata(conn, SCAN_LOGIC_VERSION_KEY, str(version))
-
-
-def init_schema(conn: sqlite3.Connection | None = None) -> sqlite3.Connection:
-    """Rebuild the current session index schema from scratch.
-
-    Full reindex flows call this function when the local index must be reset. It
-    drops existing index tables, recreates the current schema, initializes helper
-    tables, commits the transaction, and returns the active connection.
-
-    Args:
-        conn: Existing SQLite connection to initialize; when omitted, a new index
-            connection is opened with ``_get_connection``.
-
-    Returns:
-        SQLite connection containing the freshly initialized schema.
-    """
-    if conn is None:
-        conn = _get_connection()
-
-    conn.executescript("""
-        DROP TABLE IF EXISTS session_artifacts;
-        DROP TABLE IF EXISTS index_metadata;
-        DROP TABLE IF EXISTS sessions;
-        DROP TABLE IF EXISTS scan_log;
-
-        CREATE TABLE sessions (
-            session_key TEXT PRIMARY KEY,
-            agent TEXT NOT NULL CHECK(agent <> ''),
-            session_id TEXT NOT NULL CHECK(session_id <> ''),
-            title TEXT NOT NULL DEFAULT '',
-            project_key TEXT NOT NULL CHECK(project_key <> ''),
-            project_name TEXT NOT NULL DEFAULT '',
-            cwd TEXT NOT NULL DEFAULT '',
-            started_at TEXT NOT NULL DEFAULT '',
-            ended_at TEXT NOT NULL CHECK(ended_at <> ''),
-            duration_seconds REAL NOT NULL DEFAULT 0,
-            model_execution_seconds REAL NOT NULL DEFAULT 0,
-            tool_execution_seconds REAL NOT NULL DEFAULT 0,
-            model TEXT NOT NULL DEFAULT '',
-            git_branch TEXT NOT NULL DEFAULT '',
-            source TEXT NOT NULL DEFAULT '',
-            user_message_count INTEGER NOT NULL DEFAULT 0,
-            assistant_message_count INTEGER NOT NULL DEFAULT 0,
-            tool_call_count INTEGER NOT NULL DEFAULT 0,
-            output_tokens INTEGER NOT NULL DEFAULT 0,
-            fresh_input_tokens INTEGER NOT NULL DEFAULT 0,
-            cache_read_tokens INTEGER NOT NULL DEFAULT 0,
-            cache_write_tokens INTEGER NOT NULL DEFAULT 0,
-            total_tokens INTEGER NOT NULL DEFAULT 0,
-            failed_tool_count INTEGER NOT NULL DEFAULT 0,
-            subagent_instance_count INTEGER NOT NULL DEFAULT 0,
-            indexed_at REAL NOT NULL DEFAULT 0,
-            file_mtime REAL NOT NULL DEFAULT 0,
-            file_path TEXT NOT NULL DEFAULT ''
-        );
-
-        CREATE INDEX idx_sessions_project ON sessions(project_key);
-        CREATE INDEX idx_sessions_agent ON sessions(agent);
-        CREATE INDEX idx_sessions_ended_at ON sessions(ended_at DESC);
-        CREATE INDEX idx_sessions_model ON sessions(model);
-        CREATE INDEX idx_sessions_title ON sessions(title);
-
-        CREATE TABLE scan_log (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            started_at REAL NOT NULL,
-            finished_at REAL,
-            claude_count INTEGER DEFAULT 0,
-            codex_count INTEGER DEFAULT 0,
-            qoder_count INTEGER DEFAULT 0,
-            mode TEXT DEFAULT 'full',
-            status TEXT DEFAULT 'running'
-        );
-    """)
-    ensure_index_metadata_schema(conn)
-    ensure_session_artifacts_schema(conn)
-    conn.commit()
-    return conn

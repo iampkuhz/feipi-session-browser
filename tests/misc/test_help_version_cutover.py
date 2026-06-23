@@ -247,8 +247,8 @@ class TestUnswitchedCommandsRegression:
     强制 python_bin() 使用 PATH 中的 trap python。
     """
 
-    def test_scan_still_uses_python(self):
-        """scan 命令仍路由到 Python。"""
+    def test_scan_routes_to_java(self):
+        """scan 命令路由到 Java launcher，不调用 Python。"""
         with tempfile.TemporaryDirectory() as tmp_dir:
             trap_dir = _create_python_trap(tmp_dir)
             marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
@@ -256,14 +256,15 @@ class TestUnswitchedCommandsRegression:
             env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
             env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
 
-            subprocess.run(
+            result = subprocess.run(
                 ['bash', SHELL_SCRIPT, 'scan', '--help'],
                 capture_output=True,
                 text=True,
                 env=env,
                 timeout=10,
             )
-            assert os.path.isfile(marker_file), 'scan 应调用 Python'
+            # scan 路由到 Java launcher；launcher 不存在时报错但不 fallback 到 Python
+            assert not os.path.isfile(marker_file), 'scan 不应调用 Python'
 
     def test_stop_still_uses_python(self):
         """stop 命令仍路由到 Python。"""

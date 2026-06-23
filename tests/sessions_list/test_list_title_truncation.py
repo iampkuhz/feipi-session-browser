@@ -17,10 +17,9 @@ from session_browser.domain.models import SessionSummary
 from session_browser.domain.normalizer import sanitize_list_title
 from session_browser.index.indexer import (
     get_session,
-    init_schema,
     list_sessions,
-    upsert_session,
 )
+from tests.index._test_db_utils import init_test_schema, insert_test_session
 
 # ─── 单元测试：sanitize_list_title ─────────────────────────────────────────────
 
@@ -131,7 +130,7 @@ def tmp_db(tmp_path):
     conn = sqlite3.connect(str(db_path))
     conn.row_factory = sqlite3.Row
     conn.execute('PRAGMA journal_mode=WAL')
-    init_schema(conn)
+    init_test_schema(conn)
 
     # 插入具有各种标题的 sessions
     long_title = (
@@ -181,7 +180,7 @@ def tmp_db(tmp_path):
         ),
     ]
     for s in sessions:
-        upsert_session(conn, s)
+        insert_test_session(conn, s)
     conn.commit()
     conn.close()
     return db_path

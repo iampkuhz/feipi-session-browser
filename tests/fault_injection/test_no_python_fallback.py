@@ -230,20 +230,10 @@ class TestPythonWriterRemoved:
             f'normalized 包 __all__ 不应包含 writer 符号，发现: {writer_symbols}'
         )
 
-    def test_scanners_module_has_no_writer_reference(self):
-        """scanners 模块不包含 Python writer 函数引用。"""
-        from session_browser.index import scanners
-        writer_names = [
-            'persist_normalized_session_artifact',
-            'write_normalized_session_artifact',
-            '_persist_normalized_artifact_safe',
-            '_should_validate_normalized_artifacts',
-            '_should_force_normalized_artifact_rebuild',
-        ]
-        found = [name for name in writer_names if hasattr(scanners, name)]
-        assert found == [], (
-            f'scanners 模块不应引用 writer 函数，发现: {found}'
-        )
+    def test_scanners_module_retired(self):
+        """scanners 模块已退休，不可导入。"""
+        with pytest.raises((ImportError, ModuleNotFoundError)):
+            from session_browser.index import scanners  # noqa: F401
 
     def test_python_cannot_write_canonical_artifact(self, tmp_path):
         """任何尝试通过 Python 写 canonical artifact path 的操作都失败。"""
