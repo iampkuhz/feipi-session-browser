@@ -112,6 +112,14 @@ component com.feipi.session.browser.domain.source.SourceRecordUsage inputTokens:
 component com.feipi.session.browser.domain.source.SourceRecordUsage outputTokens: long
 component com.feipi.session.browser.domain.source.SourceToolCall name: String
 component com.feipi.session.browser.domain.source.SourceToolCall toolCallId: String
+component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult existingTables: Set<String>
+component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult missingColumns: Map<String, Set<String>>
+component com.feipi.session.browser.index.sqlite.Migration description: String
+component com.feipi.session.browser.index.sqlite.Migration sqlResource: String
+component com.feipi.session.browser.index.sqlite.Migration version: SchemaVersion
+component com.feipi.session.browser.index.sqlite.SchemaValidationResult existingTables: Set<String>
+component com.feipi.session.browser.index.sqlite.SchemaValidationResult missingColumns: Map<String, Set<String>>
+component com.feipi.session.browser.index.sqlite.SchemaVersion version: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult consumedResults: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
@@ -190,6 +198,10 @@ constructor com.feipi.session.browser.domain.normalized.SourceUnitRefRange publi
 constructor com.feipi.session.browser.domain.source.SourceRecord public SourceRecord()
 constructor com.feipi.session.browser.domain.source.SourceRecordUsage public SourceRecordUsage()
 constructor com.feipi.session.browser.domain.source.SourceToolCall public SourceToolCall()
+constructor com.feipi.session.browser.index.sqlite.IndexSchema public IndexSchema(MigrationRunner runner)
+constructor com.feipi.session.browser.index.sqlite.Migration public Migration()
+constructor com.feipi.session.browser.index.sqlite.MigrationRunner public MigrationRunner(List<Migration> migrations)
+constructor com.feipi.session.browser.index.sqlite.SchemaVersion public SchemaVersion()
 constructor com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public ReuseAnalyzer(Path cacheDirectory)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message, Throwable cause)
@@ -331,6 +343,22 @@ method com.feipi.session.browser.domain.normalized.SourceUnitDirection public st
 method com.feipi.session.browser.domain.source.SourceRecord public static SourceRecord of(String locator, int eventIndex, String eventType)
 method com.feipi.session.browser.domain.source.SourceRecordUsage public long total()
 method com.feipi.session.browser.domain.source.SourceRecordUsage public static SourceRecordUsage empty()
+method com.feipi.session.browser.index.sqlite.IndexSchema public List<SchemaVersion> ensureSchema(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.IndexSchema public SchemaValidationResult validateSchema(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.IndexSchema public SchemaVersion currentVersion(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.IndexSchema public static IndexSchema withDefaults()
+method com.feipi.session.browser.index.sqlite.IndexSchema public static final SchemaVersion CURRENT_VERSION = new SchemaVersion(1)
+method com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult public boolean isComplete()
+method com.feipi.session.browser.index.sqlite.Migration public String loadSql()
+method com.feipi.session.browser.index.sqlite.Migration public static List<Migration> allMigrations()
+method com.feipi.session.browser.index.sqlite.MigrationRunner public List<Migration> pendingMigrations(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.MigrationRunner public List<SchemaVersion> applyAll(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.MigrationRunner public SchemaVersion currentVersion(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.MigrationRunner public Set<Integer> appliedVersions(Connection conn) throws SQLException
+method com.feipi.session.browser.index.sqlite.MigrationRunner public static MigrationRunner withAllMigrations()
+method com.feipi.session.browser.index.sqlite.SchemaValidationResult public boolean isComplete()
+method com.feipi.session.browser.index.sqlite.SchemaVersion public String toString()
+method com.feipi.session.browser.index.sqlite.SchemaVersion public int compareTo(SchemaVersion other)
 method com.feipi.session.browser.normalization.CallBuilder public static List<NormalizedCall> buildCalls( List<? extends SourceRecord> records, EventClassifier.ClassifiedEvents classified)
 method com.feipi.session.browser.normalization.CallBuilder public static List<NormalizedToolExecution> buildToolExecutions( List<? extends SourceRecord> records, EventClassifier.ClassifiedEvents classified, List<NormalizedCall> calls)
 method com.feipi.session.browser.normalization.ClassifiedEvents public List<SourceRecord> allEvents()
@@ -479,6 +507,10 @@ method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public Sou
 method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public static Candidate testCandidate(String locator, String sessionKey, SourceId sourceId)
 method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public static SourceDiagnostic testDiagnostic( ParseSeverity severity, ParseIssueType issueType, int lineNo)
 method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public static SourceRoot testSourceRoot(Path rootPath, boolean pathEscape)
+method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static Connection createInMemoryConnection() throws SQLException
+method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static Connection createTempFileConnection() throws SQLException, java.io.IOException
+method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void closeQuietly(Connection conn)
+method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void configureConnection(Connection conn) throws SQLException
 type com.feipi.session.browser.artifact.normalized.ArtifactConstants public class [artifact-normalized] final class ArtifactConstants
 type com.feipi.session.browser.artifact.normalized.ArtifactMeta public record [artifact-normalized] record ArtifactMeta( String schemaVersion, String generator, String contentHash, long contentSize, String generatedAt, Map<String, String> sourceFingerprints)
 type com.feipi.session.browser.artifact.normalized.CanonicalJsonWriter public class [artifact-normalized] final class CanonicalJsonWriter
@@ -513,6 +545,12 @@ type com.feipi.session.browser.domain.normalized.SourceUnitRefRange public recor
 type com.feipi.session.browser.domain.source.SourceRecord public record [core-domain] record SourceRecord( String locator, int eventIndex, String eventType, Optional<String> callId, Optional<String> model, Optional<String> timestamp, Optional<String> turnId, SourceRecordUsage usage, List<SourceToolCall> toolCalls, Optional<String> toolUseId, Optional<String> toolName)
 type com.feipi.session.browser.domain.source.SourceRecordUsage public record [core-domain] record SourceRecordUsage( long inputTokens, long cacheReadInputTokens, long cacheCreationInputTokens, long outputTokens)
 type com.feipi.session.browser.domain.source.SourceToolCall public record [core-domain] record SourceToolCall(String toolCallId, String name)
+type com.feipi.session.browser.index.sqlite.IndexSchema public class [index-sqlite] final class IndexSchema
+type com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
+type com.feipi.session.browser.index.sqlite.Migration public record [index-sqlite] record Migration(SchemaVersion version, String description, String sqlResource)
+type com.feipi.session.browser.index.sqlite.MigrationRunner public class [index-sqlite] final class MigrationRunner
+type com.feipi.session.browser.index.sqlite.SchemaValidationResult public record [index-sqlite] record SchemaValidationResult( Set<String> existingTables, Map<String, Set<String>> missingColumns)
+type com.feipi.session.browser.index.sqlite.SchemaVersion public record [index-sqlite] record SchemaVersion(int version) implements Comparable<SchemaVersion>
 type com.feipi.session.browser.normalization.CallBuilder public class [normalization-engine] final class CallBuilder
 type com.feipi.session.browser.normalization.ClassifiedEvents public class [normalization-engine] static final class ClassifiedEvents
 type com.feipi.session.browser.normalization.EventClassifier public class [normalization-engine] final class EventClassifier
@@ -582,3 +620,4 @@ type com.feipi.session.browser.testsupport.cli.CliResult public record [test-sup
 type com.feipi.session.browser.testsupport.cli.CliRunner public class [test-support] final class CliRunner
 type com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public record [test-support] record CliResult(String stdout, String stderr, int exitCode)
 type com.feipi.session.browser.testsupport.source.FakeSourceAdapter public class [test-support] final class FakeSourceAdapter implements SourceAdapter
+type com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public class [test-support] final class SqliteTestHelper
