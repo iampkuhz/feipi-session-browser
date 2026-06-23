@@ -8,6 +8,7 @@ Qoder cache project keys after scan completion.
 
 from __future__ import annotations
 
+import hashlib
 import importlib
 import os
 import re
@@ -29,6 +30,13 @@ from session_browser.normalized.artifacts import (
     persist_current_normalized_session_artifact_reference,
     persist_normalized_session_artifact,
     read_normalized_session_artifact,
+)
+from session_browser.normalized.java_bridge import ResultStatus
+from session_browser.normalized.normalized_batch import (
+    NormalizedBatchOutcome,
+    NormalizedBatchRequest,
+    execute_java_normalized_batch,
+    map_source_id,
 )
 from session_browser.sources import claude as claude_source
 from session_browser.sources import codex_session_source as codex_source
@@ -743,6 +751,93 @@ def _normalize_qoder_cache_projects(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+# --- Full scan batch post-processing ------------------------------------------
+
+
+def _process_full_scan_batch_results(
+    conn: sqlite3.Connection,
+    outcome: NormalizedBatchOutcome,
+    batch_context: dict[str, dict[str, Any]],
+    index_dir: Path,
+    verbose: bool,
+) -> dict[str, int]:
+    """处理 Java batch 结果，关联成功的 artifact 到 session_artifacts。
+
+    遍历 Java batch 结果，对每个 WRITTEN 状态的结果：
+    1. 验证 artifact 文件存在且可读
+    2. 计算 size 和 content hash
+    3. 调用 upsert_session_artifact 建立关联
+
+    Java failure 不提供 Python fallback。FAILED/RETRYABLE 结果不写入 DB。
+
+    Args:
+        conn: SQLite connection。
+        outcome: Java batch 执行结果。
+        batch_context: request_id 到 session 元数据的映射。
+        index_dir: artifact 存储根目录。
+        verbose: 是否打印详细信息。
+
+    Returns:
+        统计 dict：associated、failed、retryable。
+    """
+    from session_browser.index.writers import upsert_session_artifact
+    from session_browser.normalized.artifacts import NORMALIZED_SESSION_ARTIFACT_TYPE
+    from session_browser.normalized.constants import NORMALIZED_SCHEMA_VERSION
+
+    associated = 0
+    failed = 0
+    retryable = 0
+
+    for result in outcome.results:
+        ctx = batch_context.get(result.request_id)
+        if ctx is None:
+            continue
+
+        if result.status == ResultStatus.WRITTEN and result.artifact_path:
+            artifact_path = Path(result.artifact_path)
+            if not artifact_path.exists():
+                if verbose:
+                    print(f"  Artifact missing after Java write: {result.artifact_path}")
+                failed += 1
+                continue
+
+            try:
+                size_bytes = artifact_path.stat().st_size
+                raw = artifact_path.read_text(encoding='utf-8')
+                content_hash = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+            except (OSError, UnicodeDecodeError) as exc:
+                if verbose:
+                    print(f"  Artifact read failed for {result.session_key}: {exc}")
+                failed += 1
+                continue
+
+            upsert_session_artifact(
+                conn,
+                session_key=result.session_key,
+                artifact_type=NORMALIZED_SESSION_ARTIFACT_TYPE,
+                path=result.artifact_path,
+                schema_version=NORMALIZED_SCHEMA_VERSION,
+                source_path=ctx['file_path'],
+                source_mtime=ctx['file_mtime'],
+                size_bytes=size_bytes,
+                content_hash=content_hash,
+            )
+            associated += 1
+        elif result.status == ResultStatus.FAILED:
+            if verbose:
+                print(f"  Java failed for {result.session_key}: {result.error}")
+            failed += 1
+        elif result.status == ResultStatus.RETRYABLE:
+            if verbose:
+                print(f"  Java retryable for {result.session_key}: {result.error}")
+            retryable += 1
+
+    if associated > 0:
+        conn.commit()
+
+    return {'associated': associated, 'failed': failed, 'retryable': retryable}
+
+
 # --- Full scan ----------------------------------------------------------------
 
 
@@ -787,6 +882,10 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
     scan_claude = agent is None or agent == "claude_code"
     scan_codex = agent is None or agent == "codex"
     scan_qoder = agent is None or agent == "qoder"
+
+    # Java batch 收集：full scan 使用单个 JVM 处理所有 normalized artifact 生产。
+    batch_requests: list[NormalizedBatchRequest] = []
+    batch_context: dict[str, dict[str, Any]] = {}
 
     # Scan Claude Code.
     if scan_claude:
@@ -851,22 +950,19 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
                 continue
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
-            _persist_normalized_artifact_safe(
-                conn,
-                session_key=summary.session_key,
-                file_path=file_path,
-                file_mtime=file_mtime,
-                build_normalized=partial(
-                    claude_source.build_normalized_session,
-                    summary=summary,
-                    messages=_msgs,
-                    tool_calls=_tcs,
-                    subagent_runs=_sa,
-                    source_path=file_path,
-                ),
-                verbose=verbose,
-                summary=summary,
-            )
+            # full scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
+            if file_path:
+                req_id = summary.session_key
+                batch_requests.append(NormalizedBatchRequest(
+                    request_id=req_id,
+                    source_id=map_source_id('claude_code'),
+                    root_path=file_path,
+                    session_key=summary.session_key,
+                ))
+                batch_context[req_id] = {
+                    'file_path': file_path,
+                    'file_mtime': file_mtime,
+                }
             claude_count += 1
             _commit_periodically(conn, claude_count)
             if verbose and claude_count % 50 == 0:
@@ -984,15 +1080,19 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
                 file_mtime = fpath.stat().st_mtime
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
-            _persist_normalized_artifact_safe(
-                conn,
-                session_key=summary.session_key,
-                file_path=file_path,
-                file_mtime=file_mtime,
-                build_normalized=lambda normalized=normalized: normalized,
-                verbose=verbose,
-                summary=summary,
-            )
+            # full scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
+            if file_path:
+                req_id = summary.session_key
+                batch_requests.append(NormalizedBatchRequest(
+                    request_id=req_id,
+                    source_id=map_source_id('codex'),
+                    root_path=file_path,
+                    session_key=summary.session_key,
+                ))
+                batch_context[req_id] = {
+                    'file_path': file_path,
+                    'file_mtime': file_mtime,
+                }
             codex_count += 1
             _commit_periodically(conn, codex_count)
             if verbose and codex_count % 50 == 0:
@@ -1058,28 +1158,40 @@ def full_scan(  # noqa: PLR0912, PLR0915 - Public scan lifecycle coordinates all
                 continue
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path)
-            _persist_normalized_artifact_safe(
-                conn,
-                session_key=summary.session_key,
-                file_path=file_path,
-                file_mtime=file_mtime,
-                build_normalized=partial(
-                    qoder_source.build_normalized_session,
-                    summary=summary,
-                    messages=_msgs,
-                    tool_calls=_tcs,
-                    subagent_runs=_sa,
-                    source_path=file_path,
-                ),
-                verbose=verbose,
-                summary=summary,
-            )
+            # full scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
+            if file_path:
+                req_id = summary.session_key
+                batch_requests.append(NormalizedBatchRequest(
+                    request_id=req_id,
+                    source_id=map_source_id('qoder'),
+                    root_path=file_path,
+                    session_key=summary.session_key,
+                ))
+                batch_context[req_id] = {
+                    'file_path': file_path,
+                    'file_mtime': file_mtime,
+                }
             qoder_count += 1
             _commit_periodically(conn, qoder_count)
             if verbose and qoder_count % 50 == 0:
                 print(f"  Qoder: {qoder_count} sessions")
 
         conn.commit()
+
+    # Java batch: 单个 JVM 处理所有 normalized artifact 生产。
+    if batch_requests and index_dir is not None:
+        try:
+            outcome = execute_java_normalized_batch(
+                batch_requests,
+                output_dir=index_dir,
+            )
+            _process_full_scan_batch_results(
+                conn, outcome, batch_context, index_dir, verbose,
+            )
+        except Exception as exc:
+            # Java failure: 无 Python writer fallback。
+            if verbose:
+                print(f"  Java batch failed: {exc}")
 
     # Normalize Qoder cache project keys after all agents have been scanned.
     if scan_qoder:
