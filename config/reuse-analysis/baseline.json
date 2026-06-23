@@ -1,0 +1,1056 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "1.0.0",
+  "entries": [
+    {
+      "fingerprint": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944"
+    },
+    {
+      "fingerprint": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399"
+    },
+    {
+      "fingerprint": "2548aecb992058169864b9fa42b695bd3b843adac91f0da543675cbfa40d8317",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "2548aecb992058169864b9fa42b695bd3b843adac91f0da543675cbfa40d8317"
+    },
+    {
+      "fingerprint": "305c0c0db00f12df90ee5d4e1ddfe2da363b91e56b695a76b2c47a7e0291e59c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 hasCumulativeUsage 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceFingerprint 等类型",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "305c0c0db00f12df90ee5d4e1ddfe2da363b91e56b695a76b2c47a7e0291e59c"
+    },
+    {
+      "fingerprint": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3"
+    },
+    {
+      "fingerprint": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d"
+    },
+    {
+      "fingerprint": "83deeca037ca4627e59057e638ad328d98bb8558420368d31bef4b29c6bfa80a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "83deeca037ca4627e59057e638ad328d98bb8558420368d31bef4b29c6bfa80a"
+    },
+    {
+      "fingerprint": "88ba84bb6eeba7e1fea93e38824f2cd38043658979d15d7e5b6261853d2e21af",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractProjectKey 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "88ba84bb6eeba7e1fea93e38824f2cd38043658979d15d7e5b6261853d2e21af"
+    },
+    {
+      "fingerprint": "722644fa41190c1e5b051fc92377c32fa861f1225d8af95fa86321854c91f73f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "722644fa41190c1e5b051fc92377c32fa861f1225d8af95fa86321854c91f73f"
+    },
+    {
+      "fingerprint": "628db0c7598820b101769164f5228a5096e4f531ee71ee7e5e31d734dd38fe64",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand, CodexDiscovery 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "628db0c7598820b101769164f5228a5096e4f531ee71ee7e5e31d734dd38fe64"
+    },
+    {
+      "fingerprint": "d3bb5eb526354253746ab20e1c263a1fe490990b986fdeb5e446b92c25a028f0",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "NormalizationEngine 内部 buildSessionMap, buildConservationCheck 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d3bb5eb526354253746ab20e1c263a1fe490990b986fdeb5e446b92c25a028f0"
+    },
+    {
+      "fingerprint": "c31ccc9b014724f56166e86af548d65d20d225fc111d10cf0e5cd5939338a4ba",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 validate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceFingerprint, NormalizedArtifactWriter 等类型",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "c31ccc9b014724f56166e86af548d65d20d225fc111d10cf0e5cd5939338a4ba"
+    },
+    {
+      "fingerprint": "31dd4472b38b7952337946800be27027b7d61dae578a3e09cf29b3da6ff53ba9",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizationEngine, NormalizedBatchCommand 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "31dd4472b38b7952337946800be27027b7d61dae578a3e09cf29b3da6ff53ba9"
+    },
+    {
+      "fingerprint": "297474f25b5b91e7c61363b8db4747df781b08c29b18de15067492b06d957044",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractModel 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, CallBuilder, QoderSourceAdapter 等类型",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "297474f25b5b91e7c61363b8db4747df781b08c29b18de15067492b06d957044"
+    },
+    {
+      "fingerprint": "37f1cc9192a059c80a47a409c41c5a22bd576eca9891f41b557b9fb0bed200f8",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceAdapter, JsonlReader 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "37f1cc9192a059c80a47a409c41c5a22bd576eca9891f41b557b9fb0bed200f8"
+    },
+    {
+      "fingerprint": "21a9e8d79df592db467b1de72eb32a5b6197fc7989b9451a1d8859af0f143d07",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 extractToolUseIdField, extractCallId 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "21a9e8d79df592db467b1de72eb32a5b6197fc7989b9451a1d8859af0f143d07"
+    },
+    {
+      "fingerprint": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995"
+    },
+    {
+      "fingerprint": "4f1976aeaaa3e3eb8e412c400f1ba29f916ee08d812de251e7941a8f45a08cd1",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4f1976aeaaa3e3eb8e412c400f1ba29f916ee08d812de251e7941a8f45a08cd1"
+    },
+    {
+      "fingerprint": "4810b2ee72738f07226fbaf22f170d013dee437935e4ae2b0e8a38d652975e0d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 detectLineTerminatorByteLen 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, SourcePathOps 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4810b2ee72738f07226fbaf22f170d013dee437935e4ae2b0e8a38d652975e0d"
+    },
+    {
+      "fingerprint": "b997cc1fba0871ea9da30aacb19412ed9cc64b78f8c7bb8901b2eeb8a4f380f8",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, EventClassifier 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b997cc1fba0871ea9da30aacb19412ed9cc64b78f8c7bb8901b2eeb8a4f380f8"
+    },
+    {
+      "fingerprint": "1a95b6f41b2fe04fe6dc58a9e4f81be7efbf46111e2b03c4ca445c71f80b14e1",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 getTextOrNull 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, TokenAccountant 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "1a95b6f41b2fe04fe6dc58a9e4f81be7efbf46111e2b03c4ca445c71f80b14e1"
+    },
+    {
+      "fingerprint": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 EventClassifier, ClaudeSourceAdapter, CodexSourceAdapter 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905"
+    },
+    {
+      "fingerprint": "386dd9561db4a375c970df35c0b26cdb95530abefb08b1a3f55b31a0fcc27057",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "NormalizedArtifactWriter 内部 validate, readMeta 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "386dd9561db4a375c970df35c0b26cdb95530abefb08b1a3f55b31a0fcc27057"
+    },
+    {
+      "fingerprint": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3"
+    },
+    {
+      "fingerprint": "a6f784f260161ffdcae904c140bef0507e163f70452a61978436310240cc54e7",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "a6f784f260161ffdcae904c140bef0507e163f70452a61978436310240cc54e7"
+    },
+    {
+      "fingerprint": "66f395ceff7af88ef505ffc42d41729555f5520df909dca4ab55ae4ef44f852c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "66f395ceff7af88ef505ffc42d41729555f5520df909dca4ab55ae4ef44f852c"
+    },
+    {
+      "fingerprint": "4cd28ea91ccce41fb00e934f6eab3a64da76bdf4ca28f05ef04d28243225fced",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4cd28ea91ccce41fb00e934f6eab3a64da76bdf4ca28f05ef04d28243225fced"
+    },
+    {
+      "fingerprint": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28"
+    },
+    {
+      "fingerprint": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959"
+    },
+    {
+      "fingerprint": "b743226c842aa149bf91b8aa9f2ded51f52a443b0053adb8efa506b25dceba6e",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b743226c842aa149bf91b8aa9f2ded51f52a443b0053adb8efa506b25dceba6e"
+    },
+    {
+      "fingerprint": "f1c7285634ffe01525283c2dfff99653617e9194d6a7b6767f65e5af5bd4a2ec",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CodexSourceAdapter 内部 extractResponseType, extractEventMsgType 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "f1c7285634ffe01525283c2dfff99653617e9194d6a7b6767f65e5af5bd4a2ec"
+    },
+    {
+      "fingerprint": "9cfd1671546f16d187b3dc78a6eecb136d145e26e7e23cc43cc7a93f3454cee7",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9cfd1671546f16d187b3dc78a6eecb136d145e26e7e23cc43cc7a93f3454cee7"
+    },
+    {
+      "fingerprint": "888a8a7e03b3ec9d2ed6348194eaf4b9fb843b98d2109c34a43b6ac01adc5664",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, CallBuilder, JsonlReader 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "888a8a7e03b3ec9d2ed6348194eaf4b9fb843b98d2109c34a43b6ac01adc5664"
+    },
+    {
+      "fingerprint": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 splitAtDepth0, read 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7"
+    },
+    {
+      "fingerprint": "d3b6e07ca03efe62511590d33bc473f03a1a027b1b1a041a690a31d025b26f4d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractEventType 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d3b6e07ca03efe62511590d33bc473f03a1a027b1b1a041a690a31d025b26f4d"
+    },
+    {
+      "fingerprint": "050e24ae9a7182e616e857e767ace09c88f123fc9156395fd8d3f48376a85d74",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "NormalizedArtifactWriter 内部 doWrite, extractSessionKey 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "050e24ae9a7182e616e857e767ace09c88f123fc9156395fd8d3f48376a85d74"
+    },
+    {
+      "fingerprint": "d2a94e7ca919c5334d5f3a5e2a576a27b504c3c469a542ab6a4630fce40e1d3c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d2a94e7ca919c5334d5f3a5e2a576a27b504c3c469a542ab6a4630fce40e1d3c"
+    },
+    {
+      "fingerprint": "13206043682af947812549ebcb58a045a3ee6f7a13042527a89520f1b1bf3196",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "13206043682af947812549ebcb58a045a3ee6f7a13042527a89520f1b1bf3196"
+    },
+    {
+      "fingerprint": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildFingerprints 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, NormalizedBatchCommand, NormalizationEngine 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d"
+    },
+    {
+      "fingerprint": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab"
+    },
+    {
+      "fingerprint": "27ff43da1d90ed5de709b7a2b53656052f46be1c43ee89fd6e63271d33ae9699",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "27ff43da1d90ed5de709b7a2b53656052f46be1c43ee89fd6e63271d33ae9699"
+    },
+    {
+      "fingerprint": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9"
+    },
+    {
+      "fingerprint": "9ba6d19501866b94b4c72d310fe735974c2a46fc5f4d2876b1d3b203a9dc2d53",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 sanitizeError 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 NormalizedBatchCommand, SafeArtifactName 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9ba6d19501866b94b4c72d310fe735974c2a46fc5f4d2876b1d3b203a9dc2d53"
+    },
+    {
+      "fingerprint": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a"
+    },
+    {
+      "fingerprint": "313f6543d4c668f00b33cb3821706670d282605b20439cc72109ce1aaa2f3b98",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "313f6543d4c668f00b33cb3821706670d282605b20439cc72109ce1aaa2f3b98"
+    },
+    {
+      "fingerprint": "6dd0d151f75afefc5c8f937248dd2ad4977fe407b841e0a2946df19ec1fc4476",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6dd0d151f75afefc5c8f937248dd2ad4977fe407b841e0a2946df19ec1fc4476"
+    },
+    {
+      "fingerprint": "6e45f9e18ddc9acab4cd7f5e307f9dc53b2e237f42cb425dd082755381a15d04",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 processCandidate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6e45f9e18ddc9acab4cd7f5e307f9dc53b2e237f42cb425dd082755381a15d04"
+    },
+    {
+      "fingerprint": "f5bdd6827cdad69b348667dccba78020c51f0e993925e4363d469e41d7e2b072",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 processCandidate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, NormalizedBatchCommand 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "f5bdd6827cdad69b348667dccba78020c51f0e993925e4363d469e41d7e2b072"
+    },
+    {
+      "fingerprint": "ee9270228ef6d23504af253e7fa00228ff3b153aa6e72b574fc052bb8951b475",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ee9270228ef6d23504af253e7fa00228ff3b153aa6e72b574fc052bb8951b475"
+    },
+    {
+      "fingerprint": "a4c565c0885b07546a46b5f483146c2e26e7fa67feca3e32f82f6e42cad89c5c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "a4c565c0885b07546a46b5f483146c2e26e7fa67feca3e32f82f6e42cad89c5c"
+    },
+    {
+      "fingerprint": "b73c39a7081345504d04c52c19f41c761260b2a5848c784ccef63cefc720353c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 extractToolUseIdField, extractCallId 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b73c39a7081345504d04c52c19f41c761260b2a5848c784ccef63cefc720353c"
+    },
+    {
+      "fingerprint": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00"
+    },
+    {
+      "fingerprint": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d"
+    },
+    {
+      "fingerprint": "5285c310793e591038dbca99027072e39907a3c9cc401863c8af8633d3f92f40",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractEventType 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "5285c310793e591038dbca99027072e39907a3c9cc401863c8af8633d3f92f40"
+    },
+    {
+      "fingerprint": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046"
+    },
+    {
+      "fingerprint": "959df0deefeff339a976e4b717c7e4662d69810293165a06b5d9ff0ce7c9a556",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CodexSourceAdapter 内部 hasCumulativeUsage, extractResponseType, extractEventMsgType 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "959df0deefeff339a976e4b717c7e4662d69810293165a06b5d9ff0ce7c9a556"
+    },
+    {
+      "fingerprint": "92bba30c331c611b26ca94298050585054fc1ca5bb88425f7826a6e66919bc02",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildConservationCheck 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, TokenAccountant, NormalizationEngine 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "92bba30c331c611b26ca94298050585054fc1ca5bb88425f7826a6e66919bc02"
+    },
+    {
+      "fingerprint": "96e8e38d08445434ec75cda802a061f06c6c46e4ddea694daa17a23761e7490d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "96e8e38d08445434ec75cda802a061f06c6c46e4ddea694daa17a23761e7490d"
+    },
+    {
+      "fingerprint": "9eabacca56671d1c252be903bc0807352793a23fecc43fcf9ca1a26048d429cd",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CodexSourceAdapter 内部 extractProjectKey, extractSessionKey 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9eabacca56671d1c252be903bc0807352793a23fecc43fcf9ca1a26048d429cd"
+    },
+    {
+      "fingerprint": "d4734c5ed276cd755e5fb11a37c709a0e346052cbf69c4f1d91f2f1d15932a46",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 getVersion 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 ThreadsDbReader, BuildInfoVersionProvider 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d4734c5ed276cd755e5fb11a37c709a0e346052cbf69c4f1d91f2f1d15932a46"
+    },
+    {
+      "fingerprint": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef"
+    },
+    {
+      "fingerprint": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289"
+    },
+    {
+      "fingerprint": "bfa185545847501587e8fafb5556a15eedf4e9955f3be38c1dfee7993ded040a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "bfa185545847501587e8fafb5556a15eedf4e9955f3be38c1dfee7993ded040a"
+    },
+    {
+      "fingerprint": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb"
+    },
+    {
+      "fingerprint": "bd930ac78d637771c6f028603d7c949ca792050da08aa63bd17fb382c720e8de",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "NormalizedArtifactWriter 内部 validate, doWrite 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "bd930ac78d637771c6f028603d7c949ca792050da08aa63bd17fb382c720e8de"
+    },
+    {
+      "fingerprint": "9f0a9fb556dfc0c66eefb65134379aa999961bea4396ce7f2e79f23cbd8ffcb1",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 buildNonObjectDiagnostic, buildBadJsonDiagnostic 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9f0a9fb556dfc0c66eefb65134379aa999961bea4396ce7f2e79f23cbd8ffcb1"
+    },
+    {
+      "fingerprint": "d8b7a6951b76241a7b0bdc1646f36d82f558f7c6c0dfa8654464cac4e7a36068",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d8b7a6951b76241a7b0bdc1646f36d82f558f7c6c0dfa8654464cac4e7a36068"
+    },
+    {
+      "fingerprint": "9ff509fa3e5a4d988083f37ddfc604fbeef1bfde6155144a58dc81cabcfe7cbf",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9ff509fa3e5a4d988083f37ddfc604fbeef1bfde6155144a58dc81cabcfe7cbf"
+    },
+    {
+      "fingerprint": "293206b81788bf766100f84683f7ee3afac786441c3585e0eb7e26b5773368e8",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceAdapter, QoderSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "293206b81788bf766100f84683f7ee3afac786441c3585e0eb7e26b5773368e8"
+    },
+    {
+      "fingerprint": "e70b0fcf75f02aee1b7864bd2f1502c4565c40cf6bb9291b7e76e4670c483cfe",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "e70b0fcf75f02aee1b7864bd2f1502c4565c40cf6bb9291b7e76e4670c483cfe"
+    },
+    {
+      "fingerprint": "fb7e8509fe046c532578e6da3307e718cb529efe916b4fd0ff3c69ae55520fca",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 sha256Hex 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 NormalizedArtifactWriter, SafeArtifactName 等类型",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fb7e8509fe046c532578e6da3307e718cb529efe916b4fd0ff3c69ae55520fca"
+    },
+    {
+      "fingerprint": "d945e40468ffd77a3e1a47e93f82d34a269f6fe8667175f89710b2cefca553e6",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractSessionKey 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d945e40468ffd77a3e1a47e93f82d34a269f6fe8667175f89710b2cefca553e6"
+    },
+    {
+      "fingerprint": "f08e932706150eb1983f02f6d3fe06e4d32344eeda2f9482ea3344eee1879a3c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "f08e932706150eb1983f02f6d3fe06e4d32344eeda2f9482ea3344eee1879a3c"
+    },
+    {
+      "fingerprint": "6a78902b5a6da0012a0b54cad732d5a6d6c8b4c87deee286b3861de2da7a34de",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 detectLineTerminatorByteLen 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, SourcePathOps 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6a78902b5a6da0012a0b54cad732d5a6d6c8b4c87deee286b3861de2da7a34de"
+    },
+    {
+      "fingerprint": "ce4892d21add7b2faa10b3d012411394fe2066d91412bb1c2d74f0e21ccd2090",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 processInputLine 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, CallBuilder, JsonlReader 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ce4892d21add7b2faa10b3d012411394fe2066d91412bb1c2d74f0e21ccd2090"
+    },
+    {
+      "fingerprint": "e5fef303fb1d37a26f9019d4adfcaf46a7fd2c68ebb579a600efb0a717db0371",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "e5fef303fb1d37a26f9019d4adfcaf46a7fd2c68ebb579a600efb0a717db0371"
+    },
+    {
+      "fingerprint": "ad153958c04120e2ec8e50a07c320e7f4ffeb5b2cf3c92ffa1da15a9eb14a8e3",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ad153958c04120e2ec8e50a07c320e7f4ffeb5b2cf3c92ffa1da15a9eb14a8e3"
+    },
+    {
+      "fingerprint": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d"
+    },
+    {
+      "fingerprint": "e65202b53998efc5e4bd95dd85bb83ccb187ea52bee5462193cf6b9cc85e4fec",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "e65202b53998efc5e4bd95dd85bb83ccb187ea52bee5462193cf6b9cc85e4fec"
+    },
+    {
+      "fingerprint": "c6c8c244835beac0ee06a0487c4b2c0a559224e110a613e236819d9344874f8d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildCalls 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, ThreadsDbReader, CodexDiscovery 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "c6c8c244835beac0ee06a0487c4b2c0a559224e110a613e236819d9344874f8d"
+    },
+    {
+      "fingerprint": "4d0a371aa71028f0c66d02225d1b39c105f8495ebc77e1b55ee64236b44a9e02",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 extractTurnId, extractTimestamp 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4d0a371aa71028f0c66d02225d1b39c105f8495ebc77e1b55ee64236b44a9e02"
+    },
+    {
+      "fingerprint": "9594f3b0f10dcbc8b28776d3550e67e826e96f5f33548386ccca1cec1c57dd95",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9594f3b0f10dcbc8b28776d3550e67e826e96f5f33548386ccca1cec1c57dd95"
+    },
+    {
+      "fingerprint": "87d5a97977e3bef555663a7334da5ab94327a13467aed615ba9adaa27146fd18",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "87d5a97977e3bef555663a7334da5ab94327a13467aed615ba9adaa27146fd18"
+    },
+    {
+      "fingerprint": "a72286c99c239d514de20ebd503b60c6eea0ebf1dc3959d14c037f895de7a3cc",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractProjectKey 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "a72286c99c239d514de20ebd503b60c6eea0ebf1dc3959d14c037f895de7a3cc"
+    },
+    {
+      "fingerprint": "40f7ebb5a470989bf9e226f88429d1b0a00b45568f66ef5505305b83dd38cec9",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildCalls 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, QoderDiscovery, CodexDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "40f7ebb5a470989bf9e226f88429d1b0a00b45568f66ef5505305b83dd38cec9"
+    },
+    {
+      "fingerprint": "00a73395a9849d8c1786f205aa1af87e13eb2a20acc13b50203dd6a2e158bf67",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "00a73395a9849d8c1786f205aa1af87e13eb2a20acc13b50203dd6a2e158bf67"
+    },
+    {
+      "fingerprint": "067d20284e6e150c47a7d2a8d1876c3092ccf8f32c98092696234013fdf1a784",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 truncatePreview 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 SourcePathOps, JsonlReaderConfig 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "067d20284e6e150c47a7d2a8d1876c3092ccf8f32c98092696234013fdf1a784"
+    },
+    {
+      "fingerprint": "1e7e950fb4efe2013d0c91f1040b7117a01e643256f3fa41f91342987fb31878",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizationEngine 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "1e7e950fb4efe2013d0c91f1040b7117a01e643256f3fa41f91342987fb31878"
+    },
+    {
+      "fingerprint": "859a21957101df23599339d24a03102de35b874f667cb5fef5686bb1ebea9ff8",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 sanitizeFingerprintKeys 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizedArtifactWriter 等类型",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "859a21957101df23599339d24a03102de35b874f667cb5fef5686bb1ebea9ff8"
+    },
+    {
+      "fingerprint": "3ef4323b201841325c72b9414419e954395a07ab782fff380676fc11737ddbaf",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3ef4323b201841325c72b9414419e954395a07ab782fff380676fc11737ddbaf"
+    },
+    {
+      "fingerprint": "1f68bb0dc427a3d484e8a6dd7cf4f603b0e3955020eccb81b09d927292ca0e11",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "1f68bb0dc427a3d484e8a6dd7cf4f603b0e3955020eccb81b09d927292ca0e11"
+    },
+    {
+      "fingerprint": "79dbf562857e2e6ffba2d37bcc119720169588b06dd8b262f4c18ab6b4237d64",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "79dbf562857e2e6ffba2d37bcc119720169588b06dd8b262f4c18ab6b4237d64"
+    },
+    {
+      "fingerprint": "4c4ff6ade1c1a273e63b361a419aedd5bdc5eafcae187446bb2e0645f6bb1f0e",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 classify 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, EventClassifier 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4c4ff6ade1c1a273e63b361a419aedd5bdc5eafcae187446bb2e0645f6bb1f0e"
+    },
+    {
+      "fingerprint": "22901aa7e4839663448e8b5bff0276c3c60a40171081518b5a2f5deba7bd2a06",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "22901aa7e4839663448e8b5bff0276c3c60a40171081518b5a2f5deba7bd2a06"
+    },
+    {
+      "fingerprint": "8edb45cbf9443e8fb97abd23ea8201daaaec6b5c7b005b39565ead08dbc2d08a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractSessionKey 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-qoder",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "8edb45cbf9443e8fb97abd23ea8201daaaec6b5c7b005b39565ead08dbc2d08a"
+    },
+    {
+      "fingerprint": "2e0877809a36f87f80f0bd479c257e6e6f41fe63de2d05a9428442c88311bcca",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "2e0877809a36f87f80f0bd479c257e6e6f41fe63de2d05a9428442c88311bcca"
+    },
+    {
+      "fingerprint": "f3ac7f4244bf8565d57631a08f7d46fc41ca4ccd1ed1a7c314896d03323f8676",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "f3ac7f4244bf8565d57631a08f7d46fc41ca4ccd1ed1a7c314896d03323f8676"
+    },
+    {
+      "fingerprint": "21321a523425cab2b1ce8461805fc15eff679852ced13bf30591aa51e76a8904",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "21321a523425cab2b1ce8461805fc15eff679852ced13bf30591aa51e76a8904"
+    },
+    {
+      "fingerprint": "ae7c326686b537f41dbb16a214b798412aba21244c047269574149b04ef93d85",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ae7c326686b537f41dbb16a214b798412aba21244c047269574149b04ef93d85"
+    },
+    {
+      "fingerprint": "24a6ce2bb75c55d14ac1a2ab9150162829e1f474d1ee7f6ca02195e286b79b9d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "24a6ce2bb75c55d14ac1a2ab9150162829e1f474d1ee7f6ca02195e286b79b9d"
+    },
+    {
+      "fingerprint": "21d574b21271d92520ea0c8b25c608c8d1392843352dd7d7e15fc1886212dfd0",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 getHomePath 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizedArtifactWriter 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "21d574b21271d92520ea0c8b25c608c8d1392843352dd7d7e15fc1886212dfd0"
+    },
+    {
+      "fingerprint": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f"
+    },
+    {
+      "fingerprint": "5331261a09e86c0b3b7176db3fdae0b064a4da0b732a81fc43280a217ba93654",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "ParsedRecord, SourceResult 的 locator, message 方法为 alpha 等价结构，属于接口契约驱动的 INTENTIONAL_DUPLICATION",
+      "owner": "source-spi",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "5331261a09e86c0b3b7176db3fdae0b064a4da0b732a81fc43280a217ba93654"
+    },
+    {
+      "fingerprint": "3c4a6eee14b333b7cded9e0bea2a72ed705ac52b9c2068327a272ffde0bb1b86",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "SourceResult, BoundedStream 的 orderedItems, diagnostics 方法为 alpha 等价结构，属于接口契约驱动的 INTENTIONAL_DUPLICATION",
+      "owner": "source-spi",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3c4a6eee14b333b7cded9e0bea2a72ed705ac52b9c2068327a272ffde0bb1b86"
+    },
+    {
+      "fingerprint": "9880b07de7942d29ea568062e7763dcf31dcaf0c45a67a52aec2a27099cf7bec",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CodexSourceAdapter 的 extractResponseType, extractEventMsgType 方法为 alpha 等价结构，属于接口契约驱动的 INTENTIONAL_DUPLICATION",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9880b07de7942d29ea568062e7763dcf31dcaf0c45a67a52aec2a27099cf7bec"
+    }
+  ]
+}

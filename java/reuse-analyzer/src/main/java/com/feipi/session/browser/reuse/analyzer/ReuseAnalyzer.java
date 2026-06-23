@@ -154,11 +154,104 @@ public final class ReuseAnalyzer {
             .filter(f -> f.touchesChangedCode() || isRelatedToChangedFiles(f, changedFileSet))
             .toList();
 
+    // 增量模式：根据增量 findings 计算 status，不继承全量 status
+    boolean hasP0 = incrementalFindings.stream().anyMatch(f -> f.severity() == Severity.P0);
+    boolean hasP1 = incrementalFindings.stream().anyMatch(f -> f.severity() == Severity.P1);
+
+    String incrementalStatus;
+    if (hasP0) {
+      incrementalStatus = "FAIL";
+    } else if (hasP1) {
+      incrementalStatus = "FAIL";
+    } else {
+      incrementalStatus = "PASS";
+    }
+
     return new AnalysisResult(
-        fullResult.status(),
-        fullResult.schemaVersion(),
-        incrementalFindings,
-        fullResult.metadata());
+        incrementalStatus, fullResult.schemaVersion(), incrementalFindings, fullResult.metadata());
+  }
+
+  /**
+   * 验证 baseline 与当前 findings 的一致性。
+   *
+   * <p>检查规则：
+   *
+   * <ul>
+   *   <li>baseline 中不允许存在 P0 finding
+   *   <li>当前所有 P1/P2 finding 必须在 baseline 中有对应条目
+   *   <li>baseline 条目必须与当前 finding 的 fingerprint 匹配
+   * </ul>
+   */
+  public AnalysisResult verifyBaseline(InputManifest manifest, Path baselineFile)
+      throws IOException {
+    LOG.info("开始 baseline 验证");
+
+    if (baselineFile == null || !Files.exists(baselineFile)) {
+      return AnalysisResult.bootstrapRequired(
+          "baseline.json 不存在，需要先执行 reuseBootstrapFull 并生成 baseline");
+    }
+
+    // 读取 baseline
+    String baselineContent = Files.readString(baselineFile, StandardCharsets.UTF_8);
+    @SuppressWarnings("unchecked")
+    Map<String, Object> baselineData = objectMapper.readValue(baselineContent, Map.class);
+    @SuppressWarnings("unchecked")
+    List<Map<String, Object>> baselineEntries =
+        (List<Map<String, Object>>) baselineData.getOrDefault("entries", List.of());
+
+    // 检查 baseline 中无 P0
+    List<Map<String, Object>> p0Entries =
+        baselineEntries.stream().filter(e -> "P0".equals(e.get("severity"))).toList();
+    if (!p0Entries.isEmpty()) {
+      return new AnalysisResult(
+          "FAIL",
+          1,
+          List.of(),
+          Map.of("reason", "baseline 中存在 " + p0Entries.size() + " 条 P0 条目，违反策略"));
+    }
+
+    // 构建 baseline fingerprint 集合
+    Set<String> baselineFingerprints = new HashSet<>();
+    for (var entry : baselineEntries) {
+      Object fp = entry.get("fingerprint");
+      if (fp instanceof String fpStr) {
+        baselineFingerprints.add(fpStr);
+      }
+    }
+
+    // 执行全量分析获取当前 findings
+    AnalysisResult fullResult = analyzeFull(manifest);
+
+    // 检查当前 P1/P2 findings 是否都在 baseline 中
+    List<Finding> unmatchedFindings = new ArrayList<>();
+    for (Finding f : fullResult.findings()) {
+      if (f.severity() == Severity.P1 || f.severity() == Severity.P2) {
+        if (!baselineFingerprints.contains(f.fingerprint())) {
+          unmatchedFindings.add(f);
+        }
+      }
+    }
+
+    // 检查当前 findings 中是否存在 P0（P0 不能通过 baseline 豁免）
+    List<Finding> p0Findings =
+        fullResult.findings().stream().filter(f -> f.severity() == Severity.P0).toList();
+
+    Map<String, Object> metadata = new TreeMap<>();
+    metadata.put("totalFindings", fullResult.findings().size());
+    metadata.put("baselineEntries", baselineEntries.size());
+    metadata.put("unmatchedP1P2", unmatchedFindings.size());
+    metadata.put("p0Count", p0Findings.size());
+
+    if (!p0Findings.isEmpty()) {
+      return new AnalysisResult("FAIL", 1, p0Findings, metadata);
+    }
+
+    if (!unmatchedFindings.isEmpty()) {
+      return new AnalysisResult("FAIL", 1, unmatchedFindings, metadata);
+    }
+
+    LOG.info("baseline 验证通过，{} 条 baseline 条目全部匹配", baselineEntries.size());
+    return new AnalysisResult("PASS", 1, List.of(), metadata);
   }
 
   /** 执行自测验证。 */

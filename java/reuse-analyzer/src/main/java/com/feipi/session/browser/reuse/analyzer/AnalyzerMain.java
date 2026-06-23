@@ -32,6 +32,7 @@ public final class AnalyzerMain {
     String manifestPath = null;
     String cacheDir = null;
     String bootstrapState = null;
+    String baselineFile = null;
     String outputPath = null;
 
     for (int i = 0; i < args.length; i++) {
@@ -40,6 +41,7 @@ public final class AnalyzerMain {
         case "--manifest" -> manifestPath = args[++i];
         case "--cache-dir" -> cacheDir = args[++i];
         case "--bootstrap-state" -> bootstrapState = args[++i];
+        case "--baseline-file" -> baselineFile = args[++i];
         case "--output" -> outputPath = args[++i];
         default -> {
           System.err.println("未知参数：" + args[i]);
@@ -69,7 +71,7 @@ public final class AnalyzerMain {
         result = analyzer.analyzeIncremental(manifest, bsPath);
       }
       case "baseline" -> {
-        result = verifyBaseline(analyzer, manifestPath, mapper);
+        result = verifyBaseline(analyzer, manifestPath, baselineFile, mapper);
       }
       default -> {
         // 全量分析模式
@@ -98,11 +100,13 @@ public final class AnalyzerMain {
   }
 
   private static AnalysisResult verifyBaseline(
-      ReuseAnalyzer analyzer, String manifestPath, ObjectMapper mapper) throws Exception {
+      ReuseAnalyzer analyzer, String manifestPath, String baselineFilePath, ObjectMapper mapper)
+      throws Exception {
     if (manifestPath == null) {
       return AnalysisResult.bootstrapRequired("baseline 验证需要 --manifest 参数");
     }
     InputManifest manifest = mapper.readValue(new File(manifestPath), InputManifest.class);
-    return analyzer.analyzeFull(manifest);
+    Path baselinePath = baselineFilePath != null ? Path.of(baselineFilePath) : null;
+    return analyzer.verifyBaseline(manifest, baselinePath);
   }
 }

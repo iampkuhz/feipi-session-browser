@@ -667,6 +667,7 @@ ${moduleJsons.joinToString(",\n")}
     // ============================================================
     // reuseBaselineVerify —— baseline 验证。
     // ============================================================
+    val baselineFilePath = file("config/reuse-analysis/baseline.json").absolutePath
     tasks.register<JavaExec>("reuseBaselineVerify") {
         group = "verification"
         description = "验证 baseline 与新 finding 的一致性。"
@@ -679,6 +680,7 @@ ${moduleJsons.joinToString(",\n")}
             "--mode", "baseline",
             "--manifest", manifestFile,
             "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
+            "--baseline-file", baselineFilePath,
             "--output", outputFile,
         )
         inputs.file(manifestFile).withPropertyName("manifest")
