@@ -29,6 +29,8 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import spoon.reflect.CtModel;
 import spoon.reflect.declaration.CtMethod;
+import spoon.reflect.declaration.CtRecord;
+import spoon.reflect.declaration.CtRecordComponent;
 import spoon.reflect.declaration.CtType;
 
 /**
@@ -197,7 +199,16 @@ public final class ReuseAnalyzer {
 
     for (CtType<?> type : allTypes) {
       String peerGroup = PeerGroupResolver.resolvePeerGroup(type);
+
+      // 收集 record 组件名称，用于跳过编译器生成的 accessor 方法
+      Set<String> recordComponentNames = getRecordComponentNames(type);
+
       for (CtMethod<?> method : SpoonAnalyzer.getAllMethods(type)) {
+        // 跳过 record 组件的 accessor 方法（编译器生成，不是用户代码）
+        if (!recordComponentNames.isEmpty() && isRecordAccessor(method, recordComponentNames)) {
+          continue;
+        }
+
         String methodId = MethodIdGenerator.methodId(method);
         Ownership ownership = OwnershipClassifier.classify(method);
 
@@ -574,6 +585,35 @@ public final class ReuseAnalyzer {
       sb.append(String.format("%02x", b));
     }
     return sb.toString();
+  }
+
+  /**
+   * 获取类型的 record 组件名称集合。
+   *
+   * <p>如果类型不是 record，返回空集合。
+   */
+  private static Set<String> getRecordComponentNames(CtType<?> type) {
+    if (!(type instanceof CtRecord record)) {
+      return Set.of();
+    }
+    Set<String> names = new HashSet<>();
+    for (CtRecordComponent component : record.getRecordComponents()) {
+      names.add(component.getSimpleName());
+    }
+    return names;
+  }
+
+  /**
+   * 判断方法是否为 record 组件的 accessor。
+   *
+   * <p>record accessor 的特征：无参数、方法名与某个 record 组件名相同、方法体为空或仅返回对应字段。
+   */
+  private static boolean isRecordAccessor(CtMethod<?> method, Set<String> recordComponentNames) {
+    // accessor 必须无参数且名称匹配 record 组件
+    if (!method.getParameters().isEmpty()) {
+      return false;
+    }
+    return recordComponentNames.contains(method.getSimpleName());
   }
 
   /** 方法 occurrence 的内部记录。 */

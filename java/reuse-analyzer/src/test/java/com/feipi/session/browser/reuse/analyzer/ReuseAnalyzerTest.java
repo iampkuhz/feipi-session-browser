@@ -279,6 +279,107 @@ class ReuseAnalyzerTest {
     assertThat(foundP0).isTrue();
   }
 
+  @Test
+  void analyzeFullSkipsRecordAccessorMethods() throws IOException {
+    // 多个 record 有相同组件名 → record accessor 不应被报告为 duplicate
+    writeSourceFile(
+        "test",
+        "RecordA.java",
+        """
+                package test;
+                public record RecordA(String contentHash, int size) {}
+                """);
+    writeSourceFile(
+        "test",
+        "RecordB.java",
+        """
+                package test;
+                public record RecordB(String contentHash, int size) {}
+                """);
+    writeSourceFile(
+        "test",
+        "RecordC.java",
+        """
+                package test;
+                public record RecordC(String contentHash, int size) {}
+                """);
+
+    ReuseAnalyzer analyzer = new ReuseAnalyzer(cacheDir);
+    InputManifest manifest =
+        new InputManifest(
+            25,
+            List.of(
+                new ModuleManifest(
+                    ":test:module", List.of(sourceDir.toString()), List.of(), List.of())),
+            List.of(),
+            "abc123",
+            "policy123");
+
+    AnalysisResult result = analyzer.analyzeFull(manifest);
+    // record accessor 方法（contentHash、size）不应出现在 findings 中
+    boolean foundRecordAccessorDup =
+        result.findings().stream()
+            .anyMatch(
+                f ->
+                    f.occurrences().stream()
+                        .anyMatch(
+                            o ->
+                                "contentHash".equals(o.get("method"))
+                                    || "size".equals(o.get("method"))));
+    assertThat(foundRecordAccessorDup).isFalse();
+  }
+
+  @Test
+  void analyzeFullDoesNotSkipNonAccessorRecordMethods() throws IOException {
+    // record 中的自定义方法（非 accessor）应正常被分析
+    writeSourceFile(
+        "test",
+        "RecordX.java",
+        """
+                package test;
+                public record RecordX(String name) {
+                    public int compute(int x) {
+                        return x * 2 + 1;
+                    }
+                }
+                """);
+    writeSourceFile(
+        "test",
+        "RecordY.java",
+        """
+                package test;
+                public record RecordY(String name) {
+                    public int compute(int x) {
+                        return x * 2 + 1;
+                    }
+                }
+                """);
+
+    ReuseAnalyzer analyzer = new ReuseAnalyzer(cacheDir);
+    InputManifest manifest =
+        new InputManifest(
+            25,
+            List.of(
+                new ModuleManifest(
+                    ":test:module", List.of(sourceDir.toString()), List.of(), List.of())),
+            List.of(),
+            "abc123",
+            "policy123");
+
+    AnalysisResult result = analyzer.analyzeFull(manifest);
+    // 自定义方法 compute 应该被检测到重复，但 name accessor 不应被报告
+    boolean foundComputeDup =
+        result.findings().stream()
+            .anyMatch(
+                f -> f.occurrences().stream().anyMatch(o -> "compute".equals(o.get("method"))));
+    assertThat(foundComputeDup).isTrue();
+
+    boolean foundNameAccessorDup =
+        result.findings().stream()
+            .anyMatch(f -> f.occurrences().stream().anyMatch(o -> "name".equals(o.get("method"))));
+    assertThat(foundNameAccessorDup).isFalse();
+  }
+
   private InputManifest createSimpleManifest() {
     return new InputManifest(
         25,

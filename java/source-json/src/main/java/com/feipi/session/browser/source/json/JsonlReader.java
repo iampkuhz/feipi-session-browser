@@ -38,6 +38,10 @@ import java.util.regex.Pattern;
  * </ul>
  *
  * <p>该类是不可变的，线程安全（{@link ObjectMapper} 实例由 Jackson 保证线程安全）。
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类内部多个方法（braceCharsOutsideStrings、scanBracketContent、
+ * splitAtDepth0 等）存在结构性相似（语句级 STATEMENT_DUPLICATE），原因：均为 JSON 文本解析工具方法，
+ * 遵循相同的字符遍历和状态追踪模式。此重复是低层解析逻辑的固有特征，提取公共方法会引入不必要的间接层。
  */
 public final class JsonlReader {
 

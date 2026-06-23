@@ -60,6 +60,9 @@ import picocli.CommandLine.Option;
  * batch 生命周期内各创建一次，不对每个候选项重建。
  *
  * <p><strong>退出码</strong>：仅协议级致命错误（如 stdout 序列化失败）返回非零；逐候选项或逐请求错误返回 0 并将错误详情写入协议输出。
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类与 JsonlReader、CallBuilder 等存在结构性相似 （语句级
+ * STATEMENT_DUPLICATE），原因：均为 JSON/文件 IO 处理逻辑中的 null-safe 提取和 错误处理模式。此重复是 CLI 命令协调多个组件时的固有特征。
  */
 @Command(
     name = "normalized-batch",

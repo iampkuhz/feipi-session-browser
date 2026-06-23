@@ -51,6 +51,10 @@ import java.util.logging.Logger;
  *   <li>{@link #checkRoot(Path)} 检测符号链接、路径逃逸和只读状态。
  *   <li>{@link #parse(Candidate, CancellationSignal)} 不抛出异常表示可预期失败。
  * </ul>
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类与 {@code ClaudeSourceAdapter}、{@code QoderSourceAdapter}
+ * 存在结构性相似（语句级 STATEMENT_DUPLICATE），原因：三者分别实现 {@link SourceAdapter} SPI， 各 provider
+ * 数据格式不同但适配逻辑结构一致（目录遍历、指纹计算、JSONL 解析、诊断构建）。 此重复是 SPI 适配器模式的固有特征，不宜提取公共基类以避免 provider 间耦合。
  */
 public final class CodexSourceAdapter implements SourceAdapter {
 

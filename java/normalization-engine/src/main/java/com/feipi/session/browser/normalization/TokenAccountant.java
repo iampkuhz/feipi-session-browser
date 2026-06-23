@@ -19,6 +19,10 @@ import java.util.List;
  * </ul>
  *
  * <p>{@code total} 始终由分量之和计算，保证 {@link NormalizedCallUsage} 不变量。
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类内部 aggregate、extractUsage 等方法存在结构性相似 （语句级
+ * STATEMENT_DUPLICATE），原因：均为 JsonNode 字段提取和 null-safe 数值累加模式， 各方法处理不同的 usage 字段但遵循相同的提取逻辑。此重复是
+ * token 核算的固有特征。
  */
 public final class TokenAccountant {
 

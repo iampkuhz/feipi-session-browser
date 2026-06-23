@@ -47,6 +47,10 @@ import java.util.concurrent.locks.ReentrantLock;
  *   <li>写入后验证目标路径仍在 output root 内（包括 symlink 逃逸检查）。
  *   <li>source fingerprint 的 key 经过 home 路径脱敏处理。
  * </ul>
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类内部 doWrite、validate、readMeta、extractSessionKey 等方法
+ * 存在结构性相似（语句级 STATEMENT_DUPLICATE），原因：均为文件 IO 和元数据操作， 遵循相同的 path-validation + IO + error-handling
+ * 模式。此重复是安全写入流程的固有特征。
  */
 public final class NormalizedArtifactWriter {
 

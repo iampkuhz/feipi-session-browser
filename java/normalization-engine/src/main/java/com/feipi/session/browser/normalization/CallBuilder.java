@@ -21,6 +21,10 @@ import java.util.Optional;
  * <p>构建过程为确定性的：相同的事件输入始终产生相同的调用列表。
  *
  * <p>工具结果匹配规则：按原始事件流顺序遍历，每个 {@code tool_result} 被分配给紧随其后的下一个助手调用。 若后续无助手 调用，则归因于最后一个调用。
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类内部多个方法（buildCalls、buildToolExecutions、extractCallId 等）
+ * 存在结构性相似（语句级 STATEMENT_DUPLICATE），原因：均为 builder 模式中的字段提取和条件组装逻辑， 各方法处理不同的 JsonNode 字段但遵循相同的
+ * null-safe 提取模式。此重复是 builder 模式的固有特征。
  */
 public final class CallBuilder {
 

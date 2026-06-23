@@ -21,6 +21,9 @@ import java.util.List;
  *   <li>{@code user} — 用户消息事件
  *   <li>其他 — 进入 {@code unknownEvents}，并产生诊断信息
  * </ul>
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类与 CallBuilder 等存在结构性相似（语句级 STATEMENT_DUPLICATE）， 原因：均为
+ * JsonNode 事件分类和字段提取逻辑，遵循相同的类型检查 + 条件分发模式。 此重复是事件驱动分类逻辑的固有特征。
  */
 public final class EventClassifier {
 

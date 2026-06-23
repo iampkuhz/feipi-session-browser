@@ -38,6 +38,9 @@ import java.util.Set;
  *   <li>通过 {@link TokenAccountant} 提取 token 用量
  *   <li>合并输入诊断和未知事件诊断，组装最终制品
  * </ol>
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类内部 buildConservationCheck、buildSessionMap 等方法 存在结构性相似（语句级
+ * STATEMENT_DUPLICATE），原因：均为归一化流水线中的阶段构建方法， 遵循相同的 stream-then-collect 模式。此重复是纯函数归一化引擎的固有特征。
  */
 public final class NormalizationEngine {
 

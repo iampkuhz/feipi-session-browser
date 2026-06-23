@@ -24,6 +24,10 @@ import java.util.logging.Logger;
  * <p>发现结果按路径确定性排序。
  *
  * <p>该类是不可变的，线程安全。
+ *
+ * <p><b>INTENTIONAL_DUPLICATION</b>：本类与 {@code ClaudeDiscovery}、{@code CodexDiscovery} 存在结构性相似（语句级
+ * STATEMENT_DUPLICATE），原因：三者分别实现各 provider 的会话发现逻辑， 目录遍历和排序结构一致但目标路径和过滤规则不同。此重复是 provider
+ * 隔离设计的固有特征。
  */
 public final class QoderDiscovery {
 
