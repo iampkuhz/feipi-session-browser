@@ -137,7 +137,7 @@ class TestFullScanJavaBatch:
             assert mock_batch.call_count == 1
 
     def test_full_scan_no_python_fallback_on_java_failure(self, tmp_path):
-        """Java failure 时不 fallback 到 Python writer。"""
+        """Java failure 时不 fallback 到 Python writer，scan 正常完成。"""
         data_dir = tmp_path / "claude_data"
         shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
 
@@ -145,16 +145,12 @@ class TestFullScanJavaBatch:
             # 模拟 Java 异常
             mock_batch.side_effect = RuntimeError("Java not available")
 
-            with patch("session_browser.index.scanners._persist_normalized_artifact_safe") as mock_fallback:
-                db_path = str(tmp_path / "index.sqlite")
-                # 不应抛出异常
-                result = _run_full_scan(str(data_dir), db_path)
+            db_path = str(tmp_path / "index.sqlite")
+            # 不应抛出异常
+            result = _run_full_scan(str(data_dir), db_path)
 
-                # 验证 fallback 未被调用
-                assert not mock_fallback.called
-
-                # 验证 scan 仍然完成（虽然 artifact 未生成）
-                assert result["claude_count"] == 2
+            # 验证 scan 仍然完成（虽然 artifact 未生成）
+            assert result["claude_count"] == 2
 
     def test_full_scan_associates_successful_artifacts(self, tmp_path):
         """Java 成功时，full_scan 关联 artifact 到 session_artifacts。"""
@@ -270,25 +266,16 @@ class TestFullScanJavaBatch:
             assert rows[0] == 0
 
     def test_full_scan_artifact_only_by_java(self, tmp_path):
-        """验证 full_scan 不再调用 Python artifact writer。"""
-        data_dir = tmp_path / "claude_data"
-        shutil.copytree(str(FIXTURE_ROOT), str(data_dir))
+        """验证 full_scan 模块不再包含 Python artifact writer 引用。"""
+        import session_browser.index.scanners as scanners_mod
 
-        with patch("session_browser.index.scanners.execute_java_normalized_batch") as mock_batch:
-            from session_browser.normalized.java_bridge import BatchSummary
-            from session_browser.normalized.normalized_batch import NormalizedBatchOutcome
-
-            mock_batch.return_value = NormalizedBatchOutcome(
-                results=[],
-                summary=BatchSummary(),
-                success_count=0,
-                unchanged_count=0,
-                failed_count=0,
-            )
-
-            # 验证 Python artifact writer 未被调用
-            with patch("session_browser.index.scanners.persist_normalized_session_artifact") as mock_writer:
-                db_path = str(tmp_path / "index.sqlite")
-                _run_full_scan(str(data_dir), db_path)
-
-                assert not mock_writer.called
+        # writer 函数不应存在于 scanners 模块命名空间
+        assert not hasattr(scanners_mod, 'persist_normalized_session_artifact'), (
+            'scanners 模块不应包含 persist_normalized_session_artifact'
+        )
+        assert not hasattr(scanners_mod, 'write_normalized_session_artifact'), (
+            'scanners 模块不应包含 write_normalized_session_artifact'
+        )
+        assert not hasattr(scanners_mod, '_persist_normalized_artifact_safe'), (
+            'scanners 模块不应包含 _persist_normalized_artifact_safe'
+        )

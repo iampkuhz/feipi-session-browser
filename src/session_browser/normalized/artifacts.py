@@ -1,21 +1,26 @@
-"""Persist normalized session JSON artifacts beside the SQLite index."""
+"""Normalized session artifact 只读 consumer 与路径解析。
+
+Java 是 canonical normalized JSON/meta 唯一 producer。
+本模块只提供路径计算、sidecar 读取和 freshness 校验，不包含任何写入 API。
+"""
 
 from __future__ import annotations
 
 import json
 import re
-import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from session_browser.config import INDEX_DIR, ensure_index_dir
+from session_browser.config import INDEX_DIR
 from session_browser.index.writers import upsert_session_artifact
-from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION, validate_normalized_session
+from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION
 
 if TYPE_CHECKING:
     import sqlite3
 
 NORMALIZED_SESSION_ARTIFACT_TYPE = 'normalized_session_json'
+# Java 已成为 canonical producer；此常量仅用于 reader freshness check，
+# 检测旧 Python-produced artifact 的 sidecar 是否过期。
 NORMALIZED_ARTIFACT_GENERATOR_VERSION = 'normalized-session-artifact.v6'
 _MTIME_TOLERANCE_SECONDS = 1e-6
 
@@ -50,132 +55,6 @@ def normalized_artifact_path(
         / safe_agent
         / f'{safe_session_id}.json'
     )
-
-
-def write_normalized_session_artifact(  # noqa: PLR0913 - Public artifact writer keeps explicit knobs.
-    normalized: dict[str, Any],
-    *,
-    index_dir: str | Path | None = None,
-    validate: bool = True,
-    pretty: bool = False,
-    source_path: str = '',
-    source_mtime: float = 0,
-) -> tuple[Path, int]:
-    """Write one normalized session JSON artifact atomically.
-
-    Index scans call this before linking the artifact row in SQLite. The
-    function optionally validates the payload, writes JSON through a temporary
-    file, and updates a sidecar metadata file used for freshness checks.
-
-    Args:
-        normalized: Normalized session payload that follows the current schema.
-        index_dir: Optional index root; when omitted the configured
-            ``INDEX_DIR`` is created and used.
-        validate: Whether to run semantic schema validation before writing.
-        pretty: Whether to emit indented JSON for debugging instead of compact
-            JSON for storage.
-        source_path: Source transcript path recorded in the sidecar metadata.
-        source_mtime: Source transcript modification time recorded in the
-            sidecar metadata.
-
-    Returns:
-        ``(path, size_bytes)`` for downstream SQLite association.
-    """
-    if validate:
-        validate_normalized_session(normalized)
-
-    if index_dir is None:
-        ensure_index_dir()
-        target_index_dir = INDEX_DIR
-    else:
-        target_index_dir = Path(index_dir)
-        target_index_dir.mkdir(parents=True, exist_ok=True)
-
-    session = normalized.get('session') if isinstance(normalized.get('session'), dict) else {}
-    agent = str(normalized.get('agent') or session.get('agent') or 'unknown')
-    session_id = str(session.get('session_id') or session.get('session_key') or 'unknown')
-
-    path = normalized_artifact_path(
-        index_dir=target_index_dir,
-        agent=agent,
-        session_id=session_id,
-    )
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    if pretty:
-        payload = json.dumps(normalized, ensure_ascii=False, indent=2, sort_keys=True) + '\n'
-    else:
-        payload = json.dumps(normalized, ensure_ascii=False, separators=(',', ':')) + '\n'
-    tmp_path = path.with_suffix(path.suffix + '.tmp')
-    tmp_path.write_text(payload, encoding='utf-8')
-    tmp_path.replace(path)
-    size_bytes = path.stat().st_size
-    _write_artifact_meta(
-        path,
-        schema_version=str(normalized.get('schema_version') or ''),
-        source_path=source_path,
-        source_mtime=source_mtime,
-        size_bytes=size_bytes,
-    )
-    return path, size_bytes
-
-
-def persist_normalized_session_artifact(  # noqa: PLR0913 - Matches writer plus SQLite connection.
-    conn: sqlite3.Connection,
-    normalized: dict[str, Any],
-    *,
-    source_path: str = '',
-    source_mtime: float = 0,
-    index_dir: str | Path | None = None,
-    validate: bool = True,
-    pretty: bool = False,
-) -> Path:
-    """Write normalized JSON and upsert its SQLite artifact association.
-
-    The indexer calls this after building a normalized session model. It keeps
-    the JSON artifact and ``session_artifacts`` row in sync without committing
-    the caller-owned SQLite transaction.
-
-    Args:
-        conn: Open SQLite connection that owns the session index transaction.
-        normalized: Normalized session payload to persist and associate.
-        source_path: Source transcript path stored in the artifact row.
-        source_mtime: Source transcript modification time stored in the row.
-        index_dir: Optional artifact root; when omitted the configured
-            ``INDEX_DIR`` is used.
-        validate: Whether to validate the normalized payload before writing.
-        pretty: Whether to write human-readable JSON.
-
-    Returns:
-        Path to the normalized JSON artifact associated with the session.
-
-    Raises:
-        ValueError: Raised when ``normalized.session.session_key`` is missing.
-    """
-    path, size_bytes = write_normalized_session_artifact(
-        normalized,
-        index_dir=index_dir,
-        validate=validate,
-        pretty=pretty,
-        source_path=source_path,
-        source_mtime=source_mtime,
-    )
-    session = normalized.get('session') if isinstance(normalized.get('session'), dict) else {}
-    session_key = str(session.get('session_key') or '')
-    if not session_key:
-        raise ValueError('normalized.session.session_key is required')
-
-    upsert_session_artifact(
-        conn,
-        session_key=session_key,
-        artifact_type=NORMALIZED_SESSION_ARTIFACT_TYPE,
-        path=str(path),
-        schema_version=str(normalized.get('schema_version') or ''),
-        source_path=source_path,
-        source_mtime=source_mtime,
-        size_bytes=size_bytes,
-    )
-    return path
 
 
 def persist_current_normalized_session_artifact_reference(
@@ -333,51 +212,6 @@ def _artifact_meta_path(path: str | Path) -> Path:
     """
     artifact_path = Path(path)
     return artifact_path.with_suffix(artifact_path.suffix + '.meta.json')
-
-
-def _write_artifact_meta(
-    path: Path,
-    *,
-    schema_version: str,
-    source_path: str,
-    source_mtime: float,
-    size_bytes: int,
-) -> None:
-    """Write sidecar metadata used to detect stale normalized artifacts.
-
-    The artifact writer calls this after replacing the JSON file. It records the
-    generator/schema versions, source metadata, artifact size, and generation
-    timestamp through an atomic temporary-file replace.
-
-    Args:
-        path: Final JSON artifact path whose sidecar should be updated.
-        schema_version: Normalized schema version stored in the artifact.
-        source_path: Source transcript path used to build the artifact.
-        source_mtime: Source transcript modification time used for freshness.
-        size_bytes: Size of the final JSON artifact in bytes.
-    """
-    source_size = 0
-    if source_path:
-        source = Path(source_path)
-        if source.exists():
-            source_size = source.stat().st_size
-    meta = {
-        'artifact_type': NORMALIZED_SESSION_ARTIFACT_TYPE,
-        'generator_version': NORMALIZED_ARTIFACT_GENERATOR_VERSION,
-        'schema_version': schema_version,
-        'source_path': source_path,
-        'source_mtime': source_mtime,
-        'source_size': source_size,
-        'size_bytes': size_bytes,
-        'generated_at': time.time(),
-    }
-    meta_path = _artifact_meta_path(path)
-    tmp_path = meta_path.with_suffix(meta_path.suffix + '.tmp')
-    tmp_path.write_text(
-        json.dumps(meta, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n',
-        encoding='utf-8',
-    )
-    tmp_path.replace(meta_path)
 
 
 def _read_artifact_meta(path: str | Path) -> dict[str, Any]:

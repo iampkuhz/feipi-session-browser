@@ -386,10 +386,12 @@ def test_full_context_hydration_with_project_dir():
 
 
 def test_codex_context_hydrates_normalized_call_from_artifact(tmp_path, monkeypatch):
+    import json as _json
+
     from session_browser import config
     from session_browser.index.schema import _get_connection, init_schema
     from session_browser.index.writers import upsert_session
-    from session_browser.normalized.artifacts import persist_normalized_session_artifact
+    from session_browser.normalized.artifacts import normalized_artifact_path
 
     index_dir = tmp_path / 'index'
     monkeypatch.setattr(config, 'INDEX_DIR', index_dir)
@@ -441,11 +443,25 @@ def test_codex_context_hydrates_normalized_call_from_artifact(tmp_path, monkeypa
     try:
         init_schema(conn)
         upsert_session(conn, summary)
-        persist_normalized_session_artifact(
+        # 手动写入 artifact JSON 并关联 SQLite 行（模拟 Java producer 输出）。
+        artifact_path = normalized_artifact_path(
+            index_dir=index_dir, agent='codex', session_id='codex-hydration',
+        )
+        artifact_path.parent.mkdir(parents=True, exist_ok=True)
+        artifact_path.write_text(
+            _json.dumps(normalized, ensure_ascii=False, separators=(',', ':')) + '\n',
+            encoding='utf-8',
+        )
+        from session_browser.index.writers import upsert_session_artifact
+        upsert_session_artifact(
             conn,
-            normalized,
-            index_dir=index_dir,
-            validate=False,
+            session_key=summary.session_key,
+            artifact_type='normalized_session_json',
+            path=str(artifact_path),
+            schema_version=normalized['schema_version'],
+            source_path='',
+            source_mtime=0,
+            size_bytes=artifact_path.stat().st_size,
         )
         conn.commit()
     finally:

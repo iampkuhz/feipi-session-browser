@@ -187,3 +187,70 @@ class TestNoFallbackStaticEvidence:
         assert '只读' in docstring or 'read' in docstring.lower(), (
             'artifact_consumer 模块 docstring 应声明为只读 consumer'
         )
+
+
+# ---------------------------------------------------------------------------
+# Python writer 所有权守卫：writer API 不存在或不可达
+# ---------------------------------------------------------------------------
+
+
+class TestPythonWriterRemoved:
+    """Python production writer 已被删除，任何写入 canonical path 的尝试都失败。"""
+
+    def test_write_normalized_session_artifact_not_importable(self):
+        """write_normalized_session_artifact 不存在于 artifacts 模块。"""
+        from session_browser.normalized import artifacts
+        assert not hasattr(artifacts, 'write_normalized_session_artifact'), (
+            'write_normalized_session_artifact 应已从 artifacts 模块删除'
+        )
+
+    def test_persist_normalized_session_artifact_not_importable(self):
+        """persist_normalized_session_artifact 不存在于 artifacts 模块。"""
+        from session_browser.normalized import artifacts
+        assert not hasattr(artifacts, 'persist_normalized_session_artifact'), (
+            'persist_normalized_session_artifact 应已从 artifacts 模块删除'
+        )
+
+    def test_write_artifact_meta_not_importable(self):
+        """_write_artifact_meta 不存在于 artifacts 模块。"""
+        from session_browser.normalized import artifacts
+        assert not hasattr(artifacts, '_write_artifact_meta'), (
+            '_write_artifact_meta 应已从 artifacts 模块删除'
+        )
+
+    def test_normalized_package_does_not_export_writer(self):
+        """normalized 包的 __all__ 不包含任何 writer 符号。"""
+        import session_browser.normalized as normalized_pkg
+        writer_symbols = [
+            name for name in normalized_pkg.__all__
+            if any(kw in name.lower() for kw in ('write_', 'persist_normalized_session_artifact'))
+            and 'reference' not in name.lower()
+        ]
+        assert writer_symbols == [], (
+            f'normalized 包 __all__ 不应包含 writer 符号，发现: {writer_symbols}'
+        )
+
+    def test_scanners_module_has_no_writer_reference(self):
+        """scanners 模块不包含 Python writer 函数引用。"""
+        from session_browser.index import scanners
+        writer_names = [
+            'persist_normalized_session_artifact',
+            'write_normalized_session_artifact',
+            '_persist_normalized_artifact_safe',
+            '_should_validate_normalized_artifacts',
+            '_should_force_normalized_artifact_rebuild',
+        ]
+        found = [name for name in writer_names if hasattr(scanners, name)]
+        assert found == [], (
+            f'scanners 模块不应引用 writer 函数，发现: {found}'
+        )
+
+    def test_python_cannot_write_canonical_artifact(self, tmp_path):
+        """任何尝试通过 Python 写 canonical artifact path 的操作都失败。"""
+        from session_browser.normalized import artifacts
+
+        # 唯一的 production write 入口已删除；验证调用不存在的方法会抛出 AttributeError
+        with pytest.raises(AttributeError):
+            artifacts.write_normalized_session_artifact(  # type: ignore[attr-defined]
+                {}, index_dir=tmp_path,
+            )

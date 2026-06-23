@@ -12,9 +12,7 @@ from session_browser.normalized.artifact_consumer import (
 from session_browser.normalized.artifacts import (
     NORMALIZED_SESSION_ARTIFACT_TYPE,
     normalized_artifact_path,
-    persist_normalized_session_artifact,
     read_normalized_session_artifact,
-    write_normalized_session_artifact,
 )
 from session_browser.normalized.models import (
     ByteRange,
@@ -52,8 +50,6 @@ __all__ = [
     'SourceUnitCatalogEntry',
     'SourceUnitRefRange',
     'normalized_artifact_path',
-    'persist_normalized_session_artifact',
     'read_normalized_session_artifact',
     'validate_normalized_session',
-    'write_normalized_session_artifact',
 ]

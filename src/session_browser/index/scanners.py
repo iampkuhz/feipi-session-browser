@@ -27,7 +27,6 @@ from session_browser.index.writers import upsert_session
 from session_browser.normalized.artifacts import (
     find_current_normalized_session_artifact,
     persist_current_normalized_session_artifact_reference,
-    persist_normalized_session_artifact,
     read_normalized_session_artifact,
 )
 from session_browser.normalized.java_bridge import ResultStatus
@@ -46,7 +45,6 @@ from session_browser.sources.qoder_parts import parse as qoder_parse
 
 if TYPE_CHECKING:
     import sqlite3
-    from collections.abc import Callable
     from types import ModuleType
     from typing import Any
 
@@ -263,64 +261,6 @@ def _locate_qoder_session_file(project_key: str, session_id: str) -> Path | None
                 return Path(root) / f"{session_id}.jsonl"
 
     return None
-
-
-def _persist_normalized_artifact_safe(  # noqa: PLR0913 - Scan callers pass immutable artifact context explicitly.
-    conn: sqlite3.Connection,
-    *,
-    session_key: str,
-    file_path: str,
-    file_mtime: float,
-    build_normalized: Callable[[], dict[str, Any]],
-    verbose: bool,
-    summary: SessionSummary | None = None,
-) -> None:
-    """Persist normalized JSON for one scanned session without aborting scans.
-
-    Scan loops call this after upserting a ``SessionSummary``.  It first reuses
-    a current artifact reference unless forced rebuild is enabled, otherwise it
-    calls ``build_normalized`` and persists the normalized payload with optional
-    validation.  Normalization exceptions are swallowed after optional verbose
-    logging so index rows remain available even when artifact generation fails.
-
-    Args:
-        conn: SQLite connection used for artifact reference writes.
-        session_key: Stable ``agent:session_id`` key for the indexed session.
-        file_path: Source JSONL path associated with the summary.
-        file_mtime: Source file modification time captured by the scan.
-        build_normalized: Callable that parses or returns normalized session
-            JSON only after reuse checks fail.
-        verbose: Whether to print non-fatal artifact persistence failures.
-        summary: Optional summary snapshot to embed in the artifact.
-    """
-    if not file_path:
-        return
-    try:
-        index_dir = _index_dir_from_connection(conn)
-        if not _should_force_normalized_artifact_rebuild():
-            reused = persist_current_normalized_session_artifact_reference(
-                conn,
-                session_key=session_key,
-                source_path=file_path,
-                source_mtime=file_mtime,
-                index_dir=index_dir,
-            )
-            if reused is not None:
-                return
-        normalized = build_normalized()
-        if isinstance(normalized, dict) and summary is not None:
-            normalized["index_summary"] = _summary_payload(summary)
-        persist_normalized_session_artifact(
-            conn,
-            normalized,
-            source_path=file_path,
-            source_mtime=file_mtime,
-            index_dir=index_dir,
-            validate=_should_validate_normalized_artifacts(),
-        )
-    except Exception as exc:
-        if verbose:
-            print(f"  Normalized JSON skipped for {session_key}: {exc}")
 
 
 def _summary_from_current_artifact(
@@ -649,44 +589,6 @@ def _index_dir_from_connection(conn: sqlite3.Connection) -> Path | None:
     except Exception:
         return None
     return None
-
-
-def _should_validate_normalized_artifacts() -> bool:
-    """Read the normalized-artifact validation flag for scan persistence.
-
-    The artifact writer calls this immediately before persisting normalized
-    JSON.  Truthy environment values enable schema validation; unset or
-    unrecognized values keep scans fast and return ``False``.
-
-    Returns:
-        ``True`` when normalized artifact validation should run.
-    """
-    return os.environ.get("SESSION_BROWSER_VALIDATE_NORMALIZED_ARTIFACTS", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    }
-
-
-def _should_force_normalized_artifact_rebuild() -> bool:
-    """Read the environment flag that disables normalized-artifact reuse.
-
-    Full and incremental scans use this before checking current artifact
-    references.  Truthy values force parser execution and artifact rewrite; the
-    function has no side effects beyond reading ``os.environ``.
-
-    Returns:
-        ``True`` when normalized artifact reuse should be bypassed.
-    """
-    return os.environ.get("SESSION_BROWSER_FORCE_NORMALIZED_ARTIFACTS", "").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "y",
-        "on",
-    }
 
 
 # --- Qoder cache project key normalization -----------------------------------

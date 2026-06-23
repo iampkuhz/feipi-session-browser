@@ -1,4 +1,4 @@
-"""Session artifact schema and normalized JSON persistence tests."""
+"""Session artifact schema 与只读 consumer 测试。"""
 
 from __future__ import annotations
 
@@ -12,7 +12,6 @@ from session_browser.index.writers import upsert_session
 from session_browser.normalized.artifacts import (
     NORMALIZED_SESSION_ARTIFACT_TYPE,
     persist_current_normalized_session_artifact_reference,
-    persist_normalized_session_artifact,
     read_normalized_session_artifact,
 )
 from session_browser.normalized.schema import NORMALIZED_SCHEMA_VERSION
@@ -36,74 +35,10 @@ def _minimal_normalized(agent: str, session_id: str) -> dict:
     }
 
 
-def test_persist_normalized_session_artifact_writes_file_and_db_row(tmp_path):
-    index_dir = tmp_path / "index"
-    index_dir.mkdir()
-    db_path = index_dir / "index.sqlite"
-    source_path = tmp_path / "source" / "rollout.jsonl"
-    source_path.parent.mkdir(parents=True)
-    source_path.write_text('{"type":"session_meta"}\n', encoding="utf-8")
-    source_mtime = source_path.stat().st_mtime
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    init_schema(conn)
-
-    summary = SessionSummary(
-        agent="codex",
-        session_id="session/unsafe",
-        title="artifact test",
-        project_key="/tmp/project",
-        project_name="project",
-        cwd="/tmp/project",
-        started_at="2026-06-10T00:00:00+00:00",
-        ended_at="2026-06-10T00:01:00+00:00",
-        total_tokens=42,
-    )
-    upsert_session(
-        conn,
-        summary,
-        file_mtime=source_mtime,
-        file_path=str(source_path),
-    )
-
-    normalized = _minimal_normalized("codex", "session/unsafe")
-    artifact_path = persist_normalized_session_artifact(
-        conn,
-        normalized,
-        source_path=str(source_path),
-        source_mtime=source_mtime,
-        index_dir=index_dir,
-    )
-    conn.commit()
-
-    assert (
-        artifact_path
-        == index_dir / "artifacts" / "normalized-sessions" / "codex" / "session_unsafe.json"
-    )
-    assert read_normalized_session_artifact(artifact_path) == normalized
-    meta_path = artifact_path.with_suffix(artifact_path.suffix + ".meta.json")
-    assert meta_path.is_file()
-
-    row = conn.execute(
-        """
-        SELECT * FROM session_artifacts
-        WHERE session_key = ? AND artifact_type = ?
-        """,
-        ("codex:session/unsafe", NORMALIZED_SESSION_ARTIFACT_TYPE),
-    ).fetchone()
-    assert row is not None
-    assert row["path"] == str(artifact_path)
-    assert row["schema_version"] == NORMALIZED_SCHEMA_VERSION
-    assert row["source_path"] == str(source_path)
-    assert row["source_mtime"] == source_mtime
-    assert row["size_bytes"] == artifact_path.stat().st_size
-    assert row["created_at"] > 0
-    assert row["updated_at"] >= row["created_at"]
-
-    conn.close()
-
-
 def test_persist_current_normalized_artifact_reference_reuses_matching_sidecar(tmp_path):
+    """reader freshness 匹配时，persist_current_reference 正确关联 SQLite 行。"""
+    import json
+
     index_dir = tmp_path / "index"
     index_dir.mkdir()
     db_path = index_dir / "index.sqlite"
@@ -125,15 +60,30 @@ def test_persist_current_normalized_artifact_reference_reuses_matching_sidecar(t
         ended_at="2026-06-10T00:01:00+00:00",
     )
     upsert_session(conn, summary, file_mtime=source_mtime, file_path=str(source_path))
+
+    # 手动写入 artifact JSON 和 sidecar meta（模拟 Java producer 输出）。
     normalized = _minimal_normalized("codex", "reuse")
-    artifact_path = persist_normalized_session_artifact(
-        conn,
-        normalized,
-        source_path=str(source_path),
-        source_mtime=source_mtime,
-        index_dir=index_dir,
+    artifact_dir = index_dir / "artifacts" / "normalized-sessions" / "codex"
+    artifact_dir.mkdir(parents=True, exist_ok=True)
+    artifact_path = artifact_dir / "reuse.json"
+    artifact_path.write_text(
+        json.dumps(normalized, ensure_ascii=False, separators=(',', ':')) + '\n',
+        encoding='utf-8',
     )
-    conn.execute("DELETE FROM session_artifacts")
+    meta = {
+        'artifact_type': NORMALIZED_SESSION_ARTIFACT_TYPE,
+        'generator_version': 'normalized-session-artifact.v6',
+        'schema_version': NORMALIZED_SCHEMA_VERSION,
+        'source_path': str(source_path),
+        'source_mtime': source_mtime,
+        'source_size': source_path.stat().st_size,
+        'size_bytes': artifact_path.stat().st_size,
+    }
+    meta_path = artifact_path.with_suffix(artifact_path.suffix + '.meta.json')
+    meta_path.write_text(
+        json.dumps(meta, ensure_ascii=False, sort_keys=True, separators=(',', ':')) + '\n',
+        encoding='utf-8',
+    )
 
     reused_path = persist_current_normalized_session_artifact_reference(
         conn,
@@ -194,64 +144,4 @@ def test_ensure_schema_exists_creates_artifact_table_for_incremental_scan(tmp_pa
         "updated_at",
     }.issubset(artifact_columns)
 
-    conn.close()
-
-
-def test_scan_artifact_persistence_reuses_sidecar_without_builder(tmp_path):
-    """full scan 重建 DB 后可重挂 current sidecar，而不重新构建 normalized。"""
-    from session_browser.index.scanners import _persist_normalized_artifact_safe
-
-    index_dir = tmp_path / "index"
-    index_dir.mkdir()
-    db_path = index_dir / "index.sqlite"
-    source_path = tmp_path / "source.jsonl"
-    source_path.write_text('{"type":"session_meta"}\n', encoding="utf-8")
-    source_mtime = source_path.stat().st_mtime
-
-    conn = sqlite3.connect(str(db_path))
-    conn.row_factory = sqlite3.Row
-    init_schema(conn)
-    summary = SessionSummary(
-        agent="codex",
-        session_id="reuse-builder",
-        title="artifact reuse without builder",
-        project_key="/tmp/project",
-        project_name="project",
-        cwd="/tmp/project",
-        started_at="2026-06-10T00:00:00+00:00",
-        ended_at="2026-06-10T00:01:00+00:00",
-    )
-    upsert_session(conn, summary, file_mtime=source_mtime, file_path=str(source_path))
-    normalized = _minimal_normalized("codex", "reuse-builder")
-    artifact_path = persist_normalized_session_artifact(
-        conn,
-        normalized,
-        source_path=str(source_path),
-        source_mtime=source_mtime,
-        index_dir=index_dir,
-    )
-    conn.execute("DELETE FROM session_artifacts")
-
-    def fail_builder():  # pragma: no cover - should not be called
-        raise AssertionError("normalized builder should not run when sidecar is current")
-
-    _persist_normalized_artifact_safe(
-        conn,
-        session_key="codex:reuse-builder",
-        file_path=str(source_path),
-        file_mtime=source_mtime,
-        build_normalized=fail_builder,
-        verbose=False,
-    )
-
-    row = conn.execute(
-        """
-        SELECT path, schema_version FROM session_artifacts
-        WHERE session_key = ? AND artifact_type = ?
-        """,
-        ("codex:reuse-builder", NORMALIZED_SESSION_ARTIFACT_TYPE),
-    ).fetchone()
-    assert row is not None
-    assert Path(row["path"]) == artifact_path
-    assert row["schema_version"] == NORMALIZED_SCHEMA_VERSION
     conn.close()
