@@ -34,4 +34,43 @@
     <rule ref="category/java/bestpractices.xml/UnusedLocalVariable"/>
     <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"/>
 
+    <!-- ============================================================ -->
+    <!-- custom: manual enum boilerplate (Lombok candidate)           -->
+    <!-- ============================================================ -->
+    <rule name="FeipiManualEnumValueBoilerplate"
+          language="java"
+          message="Manual enum value boilerplate detected. Consider using Lombok @Getter + @RequiredArgsConstructor."
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule"
+          priority="3">
+        <description>
+            Detects enums with a single private-final instance field, trivial constructor
+            (only simple field assignments), and a simple getter returning that field.
+            This boilerplate is better expressed with Lombok @Getter and @RequiredArgsConstructor.
+        </description>
+        <properties>
+            <property name="xpath">
+                <value><![CDATA[
+//EnumDeclaration
+  (: exactly one private final non-static instance field :)
+  [count(EnumBody/FieldDeclaration[
+    pmd-java:modifiers() = 'private'
+    and pmd-java:modifiers() = 'final'
+    and not(pmd-java:modifiers() = 'static')
+  ]) = 1]
+  (: at least one constructor :)
+  [EnumBody/ConstructorDeclaration]
+  (: every constructor body contains ONLY simple assignments :)
+  [every $ctor in EnumBody/ConstructorDeclaration
+   satisfies not($ctor/Block/*[not(self::ExpressionStatement)])]
+  (: at least one public no-arg instance method returning the field :)
+  [EnumBody/MethodDeclaration[
+    pmd-java:modifiers() = 'public'
+    and @Arity = 0
+    and Block/ReturnStatement[VariableAccess or FieldAccess]
+  ]]
+]]></value>
+            </property>
+        </properties>
+    </rule>
+
 </ruleset>

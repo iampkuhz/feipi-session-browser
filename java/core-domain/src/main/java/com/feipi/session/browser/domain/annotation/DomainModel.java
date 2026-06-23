@@ -15,7 +15,8 @@ import java.lang.annotation.Target;
  *   <li>标注类型必须是 record、enum、sealed interface 或不可变类。
  *   <li>标注类型不得包含非不可变实例字段。
  *   <li>标注类型不得暴露公开 setter 方法。
- *   <li>标注类型不得依赖框架注解（{@code Lombok}、Jackson、{@code JPA}、{@code Spring} 等）。
+ *   <li>标注类型不得依赖未经批准的框架注解。 当前允许的编译期注解仅为 {@code Lombok @Getter} 和 {@code @RequiredArgsConstructor}；
+ *       其他框架注解（Jackson、{@code JPA}、{@code Spring} 等）仍被禁止。
  * </ul>
  *
  * <p>保留策略选择 {@code CLASS}：ArchUnit 通过字节码分析读取该注解， 不需要运行时反射保留；同时避免成为无意义的运行时元数据。

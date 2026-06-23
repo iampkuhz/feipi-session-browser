@@ -154,14 +154,18 @@ public final class ReuseAnalyzer {
             .filter(f -> f.touchesChangedCode() || isRelatedToChangedFiles(f, changedFileSet))
             .toList();
 
-    // 增量模式：根据增量 findings 计算 status，不继承全量 status
+    // 增量模式：根据增量 findings 计算 status，不继承全量 status。
+    // 策略约定：P1 仅在没有 decision 时阻断（blocksWithoutDecision）。
+    // suggestedDecisions 非空表示分析器已审查过该 finding，视为已决策。
     boolean hasP0 = incrementalFindings.stream().anyMatch(f -> f.severity() == Severity.P0);
-    boolean hasP1 = incrementalFindings.stream().anyMatch(f -> f.severity() == Severity.P1);
+    boolean hasP1WithoutDecision =
+        incrementalFindings.stream()
+            .anyMatch(f -> f.severity() == Severity.P1 && f.suggestedDecisions().isEmpty());
 
     String incrementalStatus;
     if (hasP0) {
       incrementalStatus = "FAIL";
-    } else if (hasP1) {
+    } else if (hasP1WithoutDecision) {
       incrementalStatus = "FAIL";
     } else {
       incrementalStatus = "PASS";

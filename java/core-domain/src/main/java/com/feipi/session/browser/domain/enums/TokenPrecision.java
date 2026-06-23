@@ -1,6 +1,8 @@
 package com.feipi.session.browser.domain.enums;
 
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * Token 计量精度枚举。
@@ -8,6 +10,7 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
  * <p>描述 token 计数值的可信程度，从精确计数到估算值。 用于归一化 token 分解时标识数据来源的可靠性。
  */
 @DomainModel
+@RequiredArgsConstructor
 public enum TokenPrecision {
   /** 精确计数，来自 provider 原始 usage 数据。 */
   EXACT("exact"),
@@ -21,23 +24,6 @@ public enum TokenPrecision {
   /** 不可用，无有效数据来源。 */
   UNKNOWN("unavailable");
 
-  private final String value;
-
-  /**
-   * 构造计量精度枚举常量。
-   *
-   * @param value 与 Python 兼容的字符串值
-   */
-  TokenPrecision(String value) {
-    this.value = value;
-  }
-
-  /**
-   * 获取枚举值的字符串表示。
-   *
-   * @return 与 Python {@code DomainStrEnum} 兼容的字符串值
-   */
-  public String getValue() {
-    return value;
-  }
+  /** 稳定外部协议值。 */
+  @Getter private final String value;
 }

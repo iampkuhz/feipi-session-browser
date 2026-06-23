@@ -1,0 +1,32 @@
+# This is a Gradle generated file for dependency locking.
+# Manual edits can break the build and are not advised.
+# This file is expected to be part of source control.
+# To regenerate this file, run: ./gradlew :dependencies --write-locks
+com.fasterxml.jackson.core:jackson-annotations:2.18.2=analyzerRuntime
+com.fasterxml.jackson.core:jackson-core:2.18.2=analyzerRuntime
+com.fasterxml.jackson.core:jackson-databind:2.18.2=analyzerRuntime
+com.fasterxml.jackson.datatype:jackson-datatype-jsr310:2.18.2=analyzerRuntime
+com.fasterxml.jackson:jackson-bom:2.18.2=analyzerRuntime
+com.martiansoftware:jsap:2.1=analyzerRuntime
+commons-codec:commons-codec:1.17.1=analyzerRuntime
+commons-io:commons-io:2.16.1=analyzerRuntime
+fr.inria.gforge.spoon:spoon-core:11.1.0=analyzerRuntime
+javax.inject:javax.inject:1=analyzerRuntime
+org.apache.commons:commons-compress:1.27.0=analyzerRuntime
+org.apache.commons:commons-lang3:3.16.0=analyzerRuntime
+org.apache.maven.shared:maven-invoker:3.3.0=analyzerRuntime
+org.apache.maven.shared:maven-shared-utils:3.4.2=analyzerRuntime
+org.apache.maven:maven-model:3.6.0=analyzerRuntime
+org.codehaus.plexus:plexus-utils:3.1.0=analyzerRuntime
+org.eclipse.jdt:ecj:3.38.0=analyzerRuntime
+org.eclipse.jdt:org.eclipse.jdt.core:3.38.0=analyzerRuntime
+org.jacoco:org.jacoco.agent:0.8.14=jacocoAgent,jacocoAnt
+org.jacoco:org.jacoco.ant:0.8.14=jacocoAnt
+org.jacoco:org.jacoco.core:0.8.14=jacocoAnt
+org.jacoco:org.jacoco.report:0.8.14=jacocoAnt
+org.jspecify:jspecify:1.0.0=analyzerRuntime
+org.ow2.asm:asm-commons:9.9=jacocoAnt
+org.ow2.asm:asm-tree:9.9=jacocoAnt
+org.ow2.asm:asm:9.9=jacocoAnt
+org.slf4j:slf4j-api:2.0.16=analyzerRuntime
+empty=

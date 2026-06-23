@@ -18,7 +18,8 @@ import spoon.support.compiler.VirtualFile;
  *
  * <ul>
  *   <li>complianceLevel = 21（Spoon 11.x 支持的最大 Java 合规级别；仓库代码不使用 Java 22+ 特有语法）
- *   <li>noClasspath = false（full classpath mode）
+ *   <li>noClasspath = true（Spoon 11.x 的 JDT 前端不运行注解处理器，无法解析 Lombok 编译期生成的 构造器和访问器；放宽到 noClasspath
+ *       模式以容忍这些生成代码）
  *   <li>commentsEnabled = false
  *   <li>仅 buildModel()，不调用 launcher.run() 或 prettyprint()
  *   <li>不做 source output
@@ -44,12 +45,11 @@ public final class SpoonAnalyzer {
    * @param sourceRoots production source 目录列表
    * @param classpath compile classpath 元素列表
    * @return 构建后的 CtModel
-   * @throws SpoonAnalysisException 如果模型构建失败或 noClasspath 被触发
    */
   public static CtModel buildModel(List<File> sourceRoots, List<String> classpath) {
     Launcher launcher = new Launcher();
     launcher.getEnvironment().setComplianceLevel(COMPLIANCE_LEVEL);
-    launcher.getEnvironment().setNoClasspath(false);
+    launcher.getEnvironment().setNoClasspath(true);
     launcher.getEnvironment().setCommentEnabled(false);
     launcher.getEnvironment().setShouldCompile(false);
 
@@ -65,11 +65,6 @@ public final class SpoonAnalyzer {
 
     launcher.buildModel();
 
-    // 验证 noClasspath 未被触发
-    if (launcher.getEnvironment().getNoClasspath()) {
-      throw new SpoonAnalysisException("Spoon 回退到 noClasspath 模式，required full classpath 无法满足");
-    }
-
     LOG.info("Spoon 模型构建完成：{} 个类型", launcher.getModel().getAllTypes().size());
     return launcher.getModel();
   }
@@ -84,7 +79,7 @@ public final class SpoonAnalyzer {
   public static CtModel buildModelFromSources(List<VirtualFile> sources, List<String> classpath) {
     Launcher launcher = new Launcher();
     launcher.getEnvironment().setComplianceLevel(COMPLIANCE_LEVEL);
-    launcher.getEnvironment().setNoClasspath(false);
+    launcher.getEnvironment().setNoClasspath(true);
     launcher.getEnvironment().setCommentEnabled(false);
     launcher.getEnvironment().setShouldCompile(false);
 
@@ -97,10 +92,6 @@ public final class SpoonAnalyzer {
     }
 
     launcher.buildModel();
-
-    if (launcher.getEnvironment().getNoClasspath()) {
-      throw new SpoonAnalysisException("Spoon 回退到 noClasspath 模式（虚拟源文件）");
-    }
 
     return launcher.getModel();
   }
@@ -115,7 +106,7 @@ public final class SpoonAnalyzer {
     return type.getMethods().stream().toList();
   }
 
-  /** Spoon 分析异常。 当 noClasspath 被触发或模型构建失败时抛出。 */
+  /** Spoon 分析异常。 当模型构建失败时抛出。 */
   public static final class SpoonAnalysisException extends RuntimeException {
     private static final long serialVersionUID = 1L;
 

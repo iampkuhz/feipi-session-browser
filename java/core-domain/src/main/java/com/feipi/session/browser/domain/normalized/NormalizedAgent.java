@@ -1,6 +1,8 @@
 package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 归一化 agent 来源枚举。
@@ -9,6 +11,7 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
  * 和 {@code qoder} 三个合法值。
  */
 @DomainModel
+@RequiredArgsConstructor
 public enum NormalizedAgent {
   /** {@code Claude Code} 产生的 JSONL 格式日志适配器。 */
   CLAUDE_CODE("claude_code"),
@@ -19,25 +22,8 @@ public enum NormalizedAgent {
   /** {@code Qoder} 产生的日志适配器。 */
   QODER("qoder");
 
-  private final String value;
-
-  /**
-   * 构造 agent 枚举常量。
-   *
-   * @param value 与 Python 兼容的字符串值
-   */
-  NormalizedAgent(String value) {
-    this.value = value;
-  }
-
-  /**
-   * 获取枚举值的字符串表示。
-   *
-   * @return 与 Python 端一致的字符串值
-   */
-  public String getValue() {
-    return value;
-  }
+  /** 稳定外部协议值。 */
+  @Getter private final String value;
 
   /**
    * 根据字符串值查找对应的枚举常量。

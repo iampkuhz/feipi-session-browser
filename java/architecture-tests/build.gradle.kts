@@ -7,6 +7,8 @@ dependencies {
     testImplementation(libs.archunit.junit5)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testCompileOnly(libs.lombok)
+    testAnnotationProcessor(libs.lombok)
 }
 
 tasks.withType<Test>().configureEach {

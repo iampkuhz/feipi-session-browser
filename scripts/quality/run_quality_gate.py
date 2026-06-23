@@ -840,6 +840,11 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         if not gradlew.exists():
             return []
         return [str(gradlew), 'reuseBaselineVerify']
+    if gate == 'noJavaSuppressWarnings':
+        checker = repo_root / 'scripts' / 'quality' / 'check_no_java_suppress_warnings.py'
+        if not checker.exists():
+            return []
+        return [python, str(checker)]
     return []
 
 

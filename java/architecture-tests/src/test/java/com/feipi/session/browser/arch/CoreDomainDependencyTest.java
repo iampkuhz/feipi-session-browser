@@ -3,6 +3,8 @@ package com.feipi.session.browser.arch;
 import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 import static com.tngtech.archunit.library.dependencies.SlicesRuleDefinition.slices;
 
+import com.tngtech.archunit.base.DescribedPredicate;
+import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -128,15 +130,39 @@ final class CoreDomainDependencyTest {
           .as("core-domain must not depend on test support")
           .allowEmptyShould(true);
 
-  /** {@code core-domain} 不得依赖 {@code Lombok}。 */
+  /**
+   * {@code core-domain} 不得依赖未经批准的 {@code Lombok} 注解。
+   *
+   * <p>仅允许编译期注解 {@code @Getter} 和 {@code @RequiredArgsConstructor}。 其他 Lombok 注解由 {@code
+   * lombok.config} 和 PMD 规则阻止。
+   */
   @ArchTest
-  static final ArchRule coreDomainMustNotDependOnLombok =
+  static final ArchRule coreDomainMustNotDependOnUnapprovedLombok =
       noClasses()
           .that()
           .resideInAPackage("..domain..")
           .should()
-          .dependOnClassesThat()
-          .resideInAPackage("lombok..")
-          .as("core-domain must not depend on Lombok")
+          .dependOnClassesThat(unapprovedLombokAnnotation())
+          .as("core-domain must not depend on Lombok except @Getter and @RequiredArgsConstructor")
           .allowEmptyShould(true);
+
+  /**
+   * 返回匹配未批准 Lombok 类的谓词。
+   *
+   * <p>匹配 {@code lombok..} 包中除 {@code lombok.Getter} 和 {@code lombok.RequiredArgsConstructor}
+   * 之外的所有类。
+   */
+  private static DescribedPredicate<JavaClass> unapprovedLombokAnnotation() {
+    return new DescribedPredicate<>("unapproved Lombok annotation") {
+      @Override
+      public boolean test(JavaClass input) {
+        if (!input.getPackageName().startsWith("lombok")) {
+          return false;
+        }
+        String fullName = input.getFullName();
+        return !"lombok.Getter".equals(fullName)
+            && !"lombok.RequiredArgsConstructor".equals(fullName);
+      }
+    };
+  }
 }

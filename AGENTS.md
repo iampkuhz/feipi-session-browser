@@ -56,3 +56,4 @@
 - 改 `java/**/src/**/*.java`：触发 `java-src` target（包含 `java-build` dominance）。
 - 改 `build-logic/**`、`gradle/**`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties`：触发 `java-build` target。
 - Stop / handoff 前运行 `scripts/quality/run_required_quality_gates.py` 或等价 required baseline；该 baseline 不得按 changed-files 裁剪 target 内部 gate。
+- Java 侧规约（Lombok 允许清单、枚举精简、`@SuppressWarnings` 禁令等）见 `openspec/specs/java-code-conciseness/spec.md`，仅在涉及 Java 源码改造时加载。

@@ -273,7 +273,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
               Optional.empty());
 
       // 6) 调用归一化引擎
-      String agent = adapter.sourceId().value();
+      String agent = adapter.sourceId().getValue();
       NormalizedSessionArtifact artifact =
           engine.normalize(agent, events, diagnostics, List.of(sourceFile));
 

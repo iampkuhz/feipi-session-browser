@@ -30,6 +30,9 @@ sqlite-jdbc = "3.49.1.0"
 # AST analysis (build-time only, NOT in product runtime)
 spoon-core = "11.1.0"
 
+# Compile-time code generation
+lombok = "1.18.46"
+
 [libraries]
 # CLI
 picocli = { module = "info.picocli:picocli", version.ref = "picocli" }
@@ -71,6 +74,9 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 
 # AST analysis (build-time only, NOT in product runtime)
 spoon-core = { module = "fr.inria.gforge.spoon:spoon-core", version.ref = "spoon-core" }
+
+# Compile-time code generation
+lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }

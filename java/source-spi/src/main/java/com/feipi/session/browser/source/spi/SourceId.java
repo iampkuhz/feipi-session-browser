@@ -2,6 +2,8 @@ package com.feipi.session.browser.source.spi;
 
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 会话源适配器标识。
@@ -11,6 +13,7 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
  * <p>不可为 null；使用 {@link #fromValue(String)} 进行反序列化时， 非法值将抛出 {@link IllegalArgumentException}。
  */
 @DomainModel
+@RequiredArgsConstructor
 public enum SourceId {
 
   /** {@code Claude Code} 本地会话数据源标识。 */
@@ -25,25 +28,13 @@ public enum SourceId {
   @CoreField
   QODER("qoder");
 
-  private final String value;
-
-  SourceId(String value) {
-    this.value = value;
-  }
-
-  /**
-   * 返回该源标识的字符串值，用于序列化和配置。
-   *
-   * @return 源标识字符串
-   */
-  public String value() {
-    return value;
-  }
+  /** 稳定外部协议值。 */
+  @Getter private final String value;
 
   /**
    * 从字符串值解析对应的 {@code SourceId}。
    *
-   * @param value 源标识字符串，必须与某个枚举常量的 {@link #value()} 匹配
+   * @param value 源标识字符串，必须与某个枚举常量的 {@code getValue()} 匹配
    * @return 匹配的 {@code SourceId}
    * @throws IllegalArgumentException 当值不匹配任何已知源时
    * @throws NullPointerException 当值为 null 时

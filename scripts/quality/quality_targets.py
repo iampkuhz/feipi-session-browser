@@ -79,6 +79,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'javaCheck',
         'javaChineseComments',
         'noJavaTestSkips',
+        'noJavaSuppressWarnings',
         'reuseIncremental',
         'reuseBaselineVerify',
     ],
@@ -411,6 +412,9 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
         'noJavaTestSkips': [
             'java/**/src/test/java/**/*.java',
+        ],
+        'noJavaSuppressWarnings': [
+            'java/**/src/main/java/**/*.java',
         ],
         'reuseIncremental': [
             'java/**/src/main/java/**/*.java',

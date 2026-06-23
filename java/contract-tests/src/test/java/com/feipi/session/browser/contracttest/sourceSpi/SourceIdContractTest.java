@@ -25,18 +25,18 @@ class SourceIdContractTest {
   }
 
   @Test
-  @DisplayName("value() 返回约定的字符串标识")
-  void valueReturnsExpectedStrings() {
-    assertThat(SourceId.CLAUDE_CODE.value()).isEqualTo("claude_code");
-    assertThat(SourceId.CODEX.value()).isEqualTo("codex");
-    assertThat(SourceId.QODER.value()).isEqualTo("qoder");
+  @DisplayName("getValue() 返回约定的字符串标识")
+  void getValueReturnsExpectedStrings() {
+    assertThat(SourceId.CLAUDE_CODE.getValue()).isEqualTo("claude_code");
+    assertThat(SourceId.CODEX.getValue()).isEqualTo("codex");
+    assertThat(SourceId.QODER.getValue()).isEqualTo("qoder");
   }
 
   @Test
-  @DisplayName("fromValue 反向解析与 value() 一致")
+  @DisplayName("fromValue 反向解析与 getValue() 一致")
   void fromValueRoundTrips() {
     for (SourceId id : SourceId.values()) {
-      assertThat(SourceId.fromValue(id.value())).isEqualTo(id);
+      assertThat(SourceId.fromValue(id.getValue())).isEqualTo(id);
     }
   }
 

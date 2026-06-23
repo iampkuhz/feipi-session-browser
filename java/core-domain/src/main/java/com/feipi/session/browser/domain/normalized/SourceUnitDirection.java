@@ -1,6 +1,8 @@
 package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import lombok.Getter;
+import lombok.RequiredArgsConstructor;
 
 /**
  * 源单元方向枚举。
@@ -9,6 +11,7 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
  * response} 两个合法值。
  */
 @DomainModel
+@RequiredArgsConstructor
 public enum SourceUnitDirection {
   /** 请求侧，包含用户输入和工具结果。 */
   REQUEST("request"),
@@ -16,25 +19,8 @@ public enum SourceUnitDirection {
   /** 响应侧，包含助手输出和工具调用。 */
   RESPONSE("response");
 
-  private final String value;
-
-  /**
-   * 构造方向枚举常量。
-   *
-   * @param value 与 Python 兼容的字符串值
-   */
-  SourceUnitDirection(String value) {
-    this.value = value;
-  }
-
-  /**
-   * 获取枚举值的字符串表示。
-   *
-   * @return 与 Python 端一致的字符串值
-   */
-  public String getValue() {
-    return value;
-  }
+  /** 稳定外部协议值。 */
+  @Getter private final String value;
 
   /**
    * 根据字符串值查找对应的枚举常量。
