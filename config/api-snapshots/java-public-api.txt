@@ -181,6 +181,19 @@ component com.feipi.session.browser.scan.engine.IncrementalScanSummary skippedCo
 component com.feipi.session.browser.scan.engine.IncrementalScanSummary successCount: int
 component com.feipi.session.browser.scan.engine.IncrementalScanSummary totalCandidates: int
 component com.feipi.session.browser.scan.engine.IncrementalScanSummary unchangedCount: int
+component com.feipi.session.browser.scan.engine.RepairDecision action: RepairAction
+component com.feipi.session.browser.scan.engine.RepairDecision fingerprint: StoredSessionFingerprint
+component com.feipi.session.browser.scan.engine.RepairDecision newFilePath: Optional<String>
+component com.feipi.session.browser.scan.engine.RepairDecision reason: String
+component com.feipi.session.browser.scan.engine.RepairSummary artifactOrphanCount: int
+component com.feipi.session.browser.scan.engine.RepairSummary decisions: List<RepairDecision>
+component com.feipi.session.browser.scan.engine.RepairSummary deletedCount: int
+component com.feipi.session.browser.scan.engine.RepairSummary durationMs: long
+component com.feipi.session.browser.scan.engine.RepairSummary errors: List<String>
+component com.feipi.session.browser.scan.engine.RepairSummary keptCount: int
+component com.feipi.session.browser.scan.engine.RepairSummary renamedCount: int
+component com.feipi.session.browser.scan.engine.RepairSummary rootUnavailableCount: int
+component com.feipi.session.browser.scan.engine.RepairSummary temporaryMissingCount: int
 component com.feipi.session.browser.scan.engine.ScanConfig agentFilter: Set<String>
 component com.feipi.session.browser.scan.engine.ScanConfig artifactOutputDir: Path
 component com.feipi.session.browser.scan.engine.ScanConfig parseParallelism: int
@@ -310,6 +323,8 @@ constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScan
 constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter)
 constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine()
 constructor com.feipi.session.browser.scan.engine.IncrementalScanSummary public IncrementalScanSummary()
+constructor com.feipi.session.browser.scan.engine.RepairDecision public RepairDecision()
+constructor com.feipi.session.browser.scan.engine.RepairSummary public RepairSummary()
 constructor com.feipi.session.browser.scan.engine.ScanConfig public ScanConfig()
 constructor com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public SourceEntry()
 constructor com.feipi.session.browser.scan.engine.ScanIssue public ScanIssue()
@@ -583,6 +598,12 @@ method com.feipi.session.browser.scan.engine.FullScanEngine public ScanSummary s
 method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan( Connection writeConn, ScanConfig config, Double maxAgeSeconds)
 method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan(Connection writeConn, ScanConfig config)
 method com.feipi.session.browser.scan.engine.IncrementalScanSummary public static IncrementalScanSummary fromBase( ScanSummary base, int unchangedCount, int changedCount, int newCount, int retryableCount, boolean rebuildTriggered)
+method com.feipi.session.browser.scan.engine.RepairEngine public List<RepairDecision> analyze(Connection conn, List<ScanConfig.SourceEntry> sourceEntries)
+method com.feipi.session.browser.scan.engine.RepairEngine public RepairSummary execute( Connection writeConn, List<RepairDecision> decisions, Path artifactDir)
+method com.feipi.session.browser.scan.engine.RepairEngine public RepairSummary repair( Connection writeConn, List<ScanConfig.SourceEntry> sourceEntries, Path artifactDir)
+method com.feipi.session.browser.scan.engine.RepairSummary public boolean hasDestructiveActions()
+method com.feipi.session.browser.scan.engine.RepairSummary public boolean hasErrors()
+method com.feipi.session.browser.scan.engine.RepairSummary public int totalActions()
 method com.feipi.session.browser.scan.engine.ScanConfig public boolean isAgentAllowed(String agentValue)
 method com.feipi.session.browser.scan.engine.ScanConfig public static ScanConfig defaults(List<SourceEntry> sourceEntries, Path artifactOutputDir)
 method com.feipi.session.browser.scan.engine.ScanSummary public boolean isFullySuccessful()
@@ -747,6 +768,10 @@ type com.feipi.session.browser.scan.engine.FullScanEngine.CandidateOutcome publi
 type com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult public record [scan-engine] record CandidateResult(CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message)
 type com.feipi.session.browser.scan.engine.IncrementalScanEngine public class [scan-engine] final class IncrementalScanEngine
 type com.feipi.session.browser.scan.engine.IncrementalScanSummary public record [scan-engine] record IncrementalScanSummary( int totalCandidates, int successCount, int skippedCount, int errorCount, long scanDurationMs, long scanLogId, Map<SourceId, Integer> perSourceCount, List<ScanIssue> issues, int unchangedCount, int changedCount, int newCount, int retryableCount, boolean rebuildTriggered)
+type com.feipi.session.browser.scan.engine.RepairAction public enum [scan-engine] enum RepairAction
+type com.feipi.session.browser.scan.engine.RepairDecision public record [scan-engine] record RepairDecision( StoredSessionFingerprint fingerprint, RepairAction action, Optional<String> newFilePath, String reason)
+type com.feipi.session.browser.scan.engine.RepairEngine public class [scan-engine] final class RepairEngine
+type com.feipi.session.browser.scan.engine.RepairSummary public record [scan-engine] record RepairSummary( int deletedCount, int renamedCount, int keptCount, int rootUnavailableCount, int temporaryMissingCount, int artifactOrphanCount, List<RepairDecision> decisions, List<String> errors, long durationMs)
 type com.feipi.session.browser.scan.engine.ScanConfig public record [scan-engine] record ScanConfig( List<SourceEntry> sourceEntries, Path artifactOutputDir, Set<String> agentFilter, int parseParallelism)
 type com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public record [scan-engine] record SourceEntry(SourceAdapter adapter, Path rootPath)
 type com.feipi.session.browser.scan.engine.ScanIssue public record [scan-engine] record ScanIssue(String sessionKey, String sourceValue, ScanPhase phase, String message)
