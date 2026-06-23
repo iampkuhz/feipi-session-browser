@@ -48,7 +48,6 @@ from scripts.quality.quality_artifact import (  # noqa: E402
     write_quality_summary,
 )
 from scripts.quality.quality_targets import (  # noqa: E402
-    applicable_gates_for_target,
     required_gates_for_target,
     validate_target,
 )
@@ -857,24 +856,23 @@ _FIXTURE_GATES = {'browserLayout', 'browserInteraction'}
 def run_target(
     repo_root: Path, target: str, changed_files: list[str] | None = None
 ) -> list[GateDetail]:
-    """Run all applicable gates for a target and collect gate details.
+    """Run the complete required baseline for a selected target.
 
     Args:
         repo_root: Repository root where commands are executed.
         target: Validated quality target name.
-        changed_files: Optional changed-file list used to narrow triggered
-            gates and exported to child gates.
+        changed_files: Optional changed-file list exported to child gates as
+            context. It does not prune gates after this target is selected.
 
     Returns:
         Gate details in execution order. Fixture server lifecycle is contained
         inside this function and cleaned up before returning.
     """
     details: list[GateDetail] = []
+    gates = required_gates_for_target(target)
 
     # Check if any fixture-dependent gate will run.
-    needs_fixture = any(
-        g in _FIXTURE_GATES for g in applicable_gates_for_target(target, changed_files)
-    )
+    needs_fixture = any(g in _FIXTURE_GATES for g in gates)
 
     fixture_proc = None
     fixture_tmpdir = None
@@ -893,7 +891,7 @@ def run_target(
             fixture_base_url = default_base
 
     try:
-        for gate in applicable_gates_for_target(target, changed_files):
+        for gate in gates:
             cmd = gate_command(gate, repo_root, target)
             if not cmd:
                 details.append(
@@ -1042,20 +1040,8 @@ def main() -> int:
     elif args.changed_files:
         changed_files = json.loads(args.changed_files)
 
-    not_triggered_gates: list[str] = []
-    if changed_files is not None:
-        selected = set(applicable_gates_for_target(args.target, changed_files))
-        not_triggered_gates = [
-            gate for gate in required_gates_for_target(args.target) if gate not in selected
-        ]
-        if not_triggered_gates:
-            print(
-                '[run_quality_gate] not triggered gates: ' + ', '.join(not_triggered_gates),
-                file=sys.stderr,
-            )
-
     details = run_target(repo_root, args.target, changed_files)
-    summary = build_summary(args.target, args.change_id, started_at, details, not_triggered_gates, repo_root)
+    summary = build_summary(args.target, args.change_id, started_at, details, [], repo_root)
     out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
     print(f'quality summary: {out}')
     print(f'status: {summary.status}')

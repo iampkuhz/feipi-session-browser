@@ -62,6 +62,25 @@ def test_scanner_passes_for_repo_sources():
     assert findings == []
 
 
+def test_gradle_java_xml_checker_fails_closed_for_missing_or_empty_reports():
+    build_script = Path('build.gradle.kts').read_text(encoding='utf-8')
+
+    assert 'Missing Java test result XML for module(s) with test sources' in build_script
+    assert 'Found 0 Java tests in $filesFound test result XML file(s).' in build_script
+    assert 'hasTestSources && moduleFilesFound == 0' in build_script
+
+
+def test_gradle_java_xml_checker_rejects_failure_error_skip_and_abort():
+    build_script = Path('build.gradle.kts').read_text(encoding='utf-8')
+
+    assert 'failuresMatch = Regex("""failures="(\\d+)"""")' in build_script
+    assert 'Found $totalFailures failed Java test(s).' in build_script
+    assert 'Found $totalErrors errored Java test(s).' in build_script
+    assert 'Found $totalSkipped skipped test(s).' in build_script
+    assert '(?i)(aborted|TestAborted)' in build_script
+    assert 'Found $totalAborted aborted Java test result XML file(s).' in build_script
+
+
 def test_pytest_runtime_skip_enforcement_fails_session(monkeypatch: pytest.MonkeyPatch):
     config = SimpleNamespace(pluginmanager=SimpleNamespace(get_plugin=lambda _name: None))
     setattr(config, test_conftest._SKIP_REPORTS_ATTR, [])

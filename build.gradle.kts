@@ -107,16 +107,29 @@ gradle.projectsEvaluated {
             sub.tasks.names.takeIf { "test" in it }?.let { "${sub.path}:test" }
         })
 
-        // 配置时解析所有测试目录路径为字符串列表，避免执行时引用脚本对象。
-        val testDirs: List<String> = leafSubprojects.map { sub ->
-            sub.layout.buildDirectory.dir("test-results/test").get().asFile.absolutePath
+        // 配置时解析所有测试结果和源码目录路径为字符串列表，避免执行时引用脚本对象。
+        val testEntries: List<String> = leafSubprojects.map { sub ->
+            listOf(
+                sub.path,
+                sub.layout.buildDirectory.dir("test-results/test").get().asFile.absolutePath,
+                sub.file("src/test/java").absolutePath,
+                sub.file("src/test/kotlin").absolutePath,
+            ).joinToString("\u0000")
+        }
+        val testDirs: List<String> = testEntries.map { entry ->
+            entry.split("\u0000", limit = 4)[1]
+        }
+        val testSourceDirs: List<String> = testEntries.flatMap { entry ->
+            entry.split("\u0000", limit = 4).drop(2)
         }
         // 声明测试目录为 inputs，确保 up-to-date 检查正确。
         inputs.files(testDirs).withPropertyName("testResultDirs")
             .optional(true)
+        inputs.files(testSourceDirs).withPropertyName("testSourceDirs")
+            .optional(true)
         outputs.file(layout.buildDirectory.file("reports/verify-no-skipped-tests/result.txt"))
             .withPropertyName("resultFile")
-        doLast(checkNoSkippedTestsAction(testDirs, layout.buildDirectory.file("reports/verify-no-skipped-tests/result.txt").get().asFile.absolutePath))
+        doLast(checkNoSkippedTestsAction(testEntries, layout.buildDirectory.file("reports/verify-no-skipped-tests/result.txt").get().asFile.absolutePath))
     }
 }
 
@@ -257,33 +270,72 @@ private fun checkLeanQualityStackAction(catalogPath: String, resultFilePath: Str
  * resultFilePath 用于声明 outputs，使 task 可被 up-to-date 检查。
  */
 private fun checkNoSkippedTestsAction(
-    testResultDirs: List<String>,
+    testEntries: List<String>,
     resultFilePath: String = "",
 ): org.gradle.api.Action<Task> {
     return org.gradle.api.Action<Task> {
         var totalSkipped = 0
         var totalErrors = 0
+        var totalFailures = 0
+        var totalAborted = 0
         var totalTests = 0
         var filesFound = 0
+        val missingReports = mutableListOf<String>()
 
-        testResultDirs.forEach { dirPath ->
+        testEntries.forEach { entry ->
+            val parts = entry.split("\u0000")
+            val projectPath = parts.getOrElse(0) { "<unknown>" }
+            val dirPath = parts.getOrElse(1) { "" }
+            val sourceDirs = parts.drop(2).map { java.io.File(it) }
+            val hasTestSources = sourceDirs.any { sourceDir ->
+                sourceDir.exists() && sourceDir.walkTopDown().any { sourceFile ->
+                    sourceFile.isFile && (sourceFile.extension == "java" || sourceFile.extension == "kt")
+                }
+            }
             val testResultsDir = java.io.File(dirPath)
+            var moduleFilesFound = 0
             if (testResultsDir.exists()) {
                 testResultsDir.walkTopDown()
                     .filter { it.name.startsWith("TEST-") && it.extension == "xml" }
                     .forEach { file ->
                         filesFound++
+                        moduleFilesFound++
                         val content = file.readText()
                         val skippedMatch = Regex("""skipped="(\d+)"""").find(content)
                         val errorsMatch = Regex("""errors="(\d+)"""").find(content)
+                        val failuresMatch = Regex("""failures="(\d+)"""").find(content)
                         val testsMatch = Regex("""tests="(\d+)"""").find(content)
                         totalSkipped += skippedMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
                         totalErrors += errorsMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        totalFailures += failuresMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
                         totalTests += testsMatch?.groupValues?.get(1)?.toIntOrNull() ?: 0
+                        if (Regex("""(?i)(aborted|TestAborted)""").containsMatchIn(content)) {
+                            totalAborted++
+                        }
                     }
+            }
+            if (hasTestSources && moduleFilesFound == 0) {
+                missingReports.add("$projectPath ($dirPath)")
             }
         }
 
+        if (missingReports.isNotEmpty()) {
+            throw org.gradle.api.GradleException(
+                "Missing Java test result XML for module(s) with test sources: " +
+                    missingReports.joinToString(", ")
+            )
+        }
+
+        if (totalTests == 0 && filesFound > 0) {
+            throw org.gradle.api.GradleException(
+                "Found 0 Java tests in $filesFound test result XML file(s)."
+            )
+        }
+        if (totalFailures > 0) {
+            throw org.gradle.api.GradleException(
+                "Found $totalFailures failed Java test(s). Failing tests are not allowed."
+            )
+        }
         if (totalSkipped > 0) {
             throw org.gradle.api.GradleException(
                 "Found $totalSkipped skipped test(s). Skipped tests are not allowed."
@@ -291,7 +343,12 @@ private fun checkNoSkippedTestsAction(
         }
         if (totalErrors > 0) {
             throw org.gradle.api.GradleException(
-                "Found $totalErrors aborted/errored test(s). Aborted tests are not allowed."
+                "Found $totalErrors errored Java test(s). Errors are not allowed."
+            )
+        }
+        if (totalAborted > 0) {
+            throw org.gradle.api.GradleException(
+                "Found $totalAborted aborted Java test result XML file(s). Aborted tests are not allowed."
             )
         }
         if (filesFound == 0) {
@@ -302,13 +359,16 @@ private fun checkNoSkippedTestsAction(
         } else {
             logger.lifecycle(
                 "verifyNoSkippedJavaTests: $totalTests test(s) in $filesFound file(s), " +
-                    "0 skipped, 0 aborted."
+                    "0 failed, 0 errored, 0 skipped, 0 aborted."
             )
         }
         if (resultFilePath.isNotEmpty()) {
             val resultFile = java.io.File(resultFilePath)
             resultFile.parentFile.mkdirs()
-            resultFile.writeText("$totalTests tests in $filesFound files, 0 skipped, 0 aborted.\n", Charsets.UTF_8)
+            resultFile.writeText(
+                "$totalTests tests in $filesFound files, 0 failed, 0 errored, 0 skipped, 0 aborted.\n",
+                Charsets.UTF_8,
+            )
         }
     }
 }

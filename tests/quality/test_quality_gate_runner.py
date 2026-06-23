@@ -477,8 +477,8 @@ class TestQualityGateRuntime:
 
         monkeypatch.setattr(
             run_quality_gate,
-            'applicable_gates_for_target',
-            lambda target, changed_files=None: ['browserInteraction'],
+            'required_gates_for_target',
+            lambda target: ['browserInteraction'],
         )
         monkeypatch.setattr(
             run_quality_gate,
@@ -520,8 +520,8 @@ class TestQualityGateRuntime:
     ):
         monkeypatch.setattr(
             run_quality_gate,
-            'applicable_gates_for_target',
-            lambda target, changed_files=None: ['browserLayout'],
+            'required_gates_for_target',
+            lambda target: ['browserLayout'],
         )
         monkeypatch.setattr(
             run_quality_gate,
@@ -545,6 +545,63 @@ class TestQualityGateRuntime:
         assert details[0].name == 'browserLayout'
         assert details[0].status == BLOCKED
         assert 'missing jinja2' in details[0].output
+
+    @pytest.mark.contract_case('HARNESS-GATE-PRUNE-001')
+    def test_selected_target_runs_full_baseline_with_changed_files(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """changed-files 只传给子 gate，不裁剪已选 target 的 required baseline。"""
+        gates = ['javaCheck', 'noJavaTestSkips']
+        seen: list[str] = []
+        env_by_gate: dict[str, dict[str, str]] = {}
+        monkeypatch.setattr(run_quality_gate, 'required_gates_for_target', lambda target: gates)
+        monkeypatch.setattr(
+            run_quality_gate,
+            'gate_command',
+            lambda gate, repo_root, target: ['echo', gate],
+        )
+
+        def capture_run_cmd(
+            name: str,
+            cmd: list[str],
+            cwd: Path,
+            required: bool = True,
+            env_overrides: dict[str, str] | None = None,
+        ) -> GateDetail:
+            del cmd, cwd, required
+            seen.append(name)
+            env_by_gate[name] = dict(env_overrides or {})
+            return GateDetail(name=name, status=PASS, command=['echo', name])
+
+        monkeypatch.setattr(run_quality_gate, 'run_cmd', capture_run_cmd)
+
+        details = run_quality_gate.run_target(
+            tmp_path,
+            'java-src',
+            ['java/core-domain/src/main/java/com/feipi/session/browser/core/SessionIdentity.java'],
+        )
+
+        assert [detail.name for detail in details] == gates
+        assert seen == gates
+        assert json.loads(env_by_gate['noJavaTestSkips']['QUALITY_CHANGED_FILES']) == [
+            'java/core-domain/src/main/java/com/feipi/session/browser/core/SessionIdentity.java'
+        ]
+
+    @pytest.mark.contract_case('HARNESS-GATE-PRUNE-001')
+    def test_manual_selected_target_summary_has_no_not_triggered_gates(self):
+        """单 target runner 的 notTriggeredGates 语义固定为空。"""
+        summary = build_summary(
+            'java-src',
+            'test',
+            '2026-01-01T00:00:00Z',
+            [
+                GateDetail(name='javaCheck', status=PASS),
+                GateDetail(name='noJavaTestSkips', status=PASS),
+            ],
+            not_triggered_gates=[],
+        )
+
+        assert summary.artifacts['notTriggeredGates'] == []
 
 
 class TestJavaChineseCommentsGateCommand:
