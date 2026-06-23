@@ -7,6 +7,7 @@ on:
   push:
     branches: [main, main_java]
     paths:
+      - 'app-cli/**'
       - 'java/**'
       - 'build-logic/**'
       - 'gradle/**'
@@ -18,6 +19,7 @@ on:
       - '.github/workflows/java-quality.yml'
   pull_request:
     paths:
+      - 'app-cli/**'
       - 'java/**'
       - 'build-logic/**'
       - 'gradle/**'
@@ -137,6 +139,7 @@ jobs:
       # Distribution 构建
       - name: Build distribution
         run: |
+          ./gradlew :app-cli:installDist :app-cli:distZip
           ./gradlew :java:app-cli:installDist :java:app-cli:distZip
           ./java/app-cli/build/install/app-cli/bin/app-cli --help
           ./java/app-cli/build/install/app-cli/bin/app-cli --version
