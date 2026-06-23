@@ -14,7 +14,6 @@ import os
 import re
 import time
 from datetime import datetime, timedelta, timezone
-from functools import partial
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -1286,6 +1285,12 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
     new_count = 0
     skipped_count = 0
     pruned_subagent_count = 0
+    index_dir = _index_dir_from_connection(conn)
+
+    # Java batch 收集：incremental scan 只收集 changed candidates，
+    # 一个 JVM 处理本轮所有 normalized artifact 生产。
+    batch_requests: list[NormalizedBatchRequest] = []
+    batch_context: dict[str, dict[str, Any]] = {}
 
     scan_claude = agent is None or agent == "claude_code"
     scan_codex = agent is None or agent == "codex"
@@ -1365,22 +1370,19 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
                 file_mtime = fpath.stat().st_mtime
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
-            _persist_normalized_artifact_safe(
-                conn,
-                session_key=summary.session_key,
-                file_path=file_path_str,
-                file_mtime=file_mtime,
-                build_normalized=partial(
-                    claude_source.build_normalized_session,
-                    summary=summary,
-                    messages=_msgs,
-                    tool_calls=_tcs,
-                    subagent_runs=_sa,
-                    source_path=file_path_str,
-                ),
-                verbose=verbose,
-                summary=summary,
-            )
+            # incremental scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
+            if file_path_str:
+                req_id = summary.session_key
+                batch_requests.append(NormalizedBatchRequest(
+                    request_id=req_id,
+                    source_id=map_source_id('claude_code'),
+                    root_path=file_path_str,
+                    session_key=summary.session_key,
+                ))
+                batch_context[req_id] = {
+                    'file_path': file_path_str,
+                    'file_mtime': file_mtime,
+                }
             claude_count += 1
             _commit_periodically(conn, claude_count)
 
@@ -1506,21 +1508,19 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
                 file_mtime = fpath.stat().st_mtime
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
-            _persist_normalized_artifact_safe(
-                conn,
-                session_key=summary.session_key,
-                file_path=file_path_str,
-                file_mtime=file_mtime,
-                build_normalized=partial(
-                    _build_codex_normalized_for_scan,
-                    codex_source,
-                    summary,
-                    thread_info,
-                    file_path_str,
-                ),
-                verbose=verbose,
-                summary=summary,
-            )
+            # incremental scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
+            if file_path_str:
+                req_id = summary.session_key
+                batch_requests.append(NormalizedBatchRequest(
+                    request_id=req_id,
+                    source_id=map_source_id('codex'),
+                    root_path=file_path_str,
+                    session_key=summary.session_key,
+                ))
+                batch_context[req_id] = {
+                    'file_path': file_path_str,
+                    'file_mtime': file_mtime,
+                }
             codex_count += 1
             _commit_periodically(conn, codex_count)
 
@@ -1612,26 +1612,38 @@ def incremental_scan(  # noqa: PLR0912, PLR0915 - Incremental scan must coordina
             summary.subagent_instance_count = len(_sa)
 
             upsert_session(conn, summary, file_mtime=file_mtime, file_path=file_path_str)
-            _persist_normalized_artifact_safe(
-                conn,
-                session_key=summary.session_key,
-                file_path=file_path_str,
-                file_mtime=file_mtime,
-                build_normalized=partial(
-                    qoder_source.build_normalized_session,
-                    summary=summary,
-                    messages=_msgs,
-                    tool_calls=_tcs,
-                    subagent_runs=_sa,
-                    source_path=file_path_str,
-                ),
-                verbose=verbose,
-                summary=summary,
-            )
+            # incremental scan 不再使用 Python persist，改为收集 batch 请求交给 Java。
+            if file_path_str:
+                req_id = summary.session_key
+                batch_requests.append(NormalizedBatchRequest(
+                    request_id=req_id,
+                    source_id=map_source_id('qoder'),
+                    root_path=file_path_str,
+                    session_key=summary.session_key,
+                ))
+                batch_context[req_id] = {
+                    'file_path': file_path_str,
+                    'file_mtime': file_mtime,
+                }
             qoder_count += 1
             _commit_periodically(conn, qoder_count)
 
         conn.commit()
+
+    # Java batch: 单个 JVM 处理本轮所有 changed candidates 的 normalized artifact 生产。
+    if batch_requests and index_dir is not None:
+        try:
+            outcome = execute_java_normalized_batch(
+                batch_requests,
+                output_dir=index_dir,
+            )
+            _process_full_scan_batch_results(
+                conn, outcome, batch_context, index_dir, verbose,
+            )
+        except Exception as exc:
+            # Java failure: 无 Python writer fallback。
+            if verbose:
+                print(f"  Java batch failed: {exc}")
 
     # Normalize Qoder cache project keys after all agent scans.
     if scan_qoder:
