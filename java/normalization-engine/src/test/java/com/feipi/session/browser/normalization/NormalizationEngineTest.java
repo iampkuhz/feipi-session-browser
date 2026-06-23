@@ -7,13 +7,17 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
+import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
+import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -40,10 +44,10 @@ class NormalizationEngineTest {
     @DisplayName("空事件列表返回正确的空制品")
     void emptyEventsReturnsCorrectEmptyArtifact() {
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of());
 
       assertThat(artifact.schemaVersion()).isEqualTo(NormalizedConstants.SCHEMA_VERSION);
-      assertThat(artifact.agent()).isEqualTo("claude_code");
+      assertThat(artifact.agent()).isEqualTo(NormalizedAgent.CLAUDE_CODE);
       assertThat(artifact.calls()).isEmpty();
       assertThat(artifact.toolExecutions()).isEmpty();
       assertThat(artifact.sourceFiles()).isEmpty();
@@ -64,7 +68,7 @@ class NormalizationEngineTest {
       event.put("model", "claude-3-sonnet");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(event), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
 
       assertThat(artifact.calls()).hasSize(1);
       assertThat(artifact.calls().get(0).callId()).isEqualTo("call-1");
@@ -103,7 +107,7 @@ class NormalizationEngineTest {
 
       List<JsonNode> events = List.of(assistant1, toolResult, assistant2);
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", events, List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, events, List.of(), List.of());
 
       assertThat(artifact.toolExecutions()).hasSize(1);
       assertThat(artifact.toolExecutions().get(0).toolCallId()).isEqualTo("toolu_1");
@@ -124,7 +128,7 @@ class NormalizationEngineTest {
       unknown.put("type", "custom_event");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(unknown), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(unknown), List.of(), List.of());
 
       assertThat(artifact.diagnostics()).hasSize(1);
       assertThat(artifact.diagnostics().get(0).get("message")).asString().contains("custom_event");
@@ -151,7 +155,8 @@ class NormalizationEngineTest {
               OptionalInt.empty());
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(unknown), List.of(inputDiag), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, List.of(unknown), List.of(inputDiag), List.of());
 
       assertThat(artifact.diagnostics()).hasSize(2);
     }
@@ -174,7 +179,7 @@ class NormalizationEngineTest {
       usage.put("cache_creation_input_tokens", 10);
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(event), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
 
       assertThat(artifact.calls()).hasSize(1);
       assertThat(artifact.calls().get(0).usage().fresh()).isEqualTo(100);
@@ -192,7 +197,7 @@ class NormalizationEngineTest {
       event.put("id", "call-1");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(event), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
 
       assertThat(artifact.calls().get(0).usage().total()).isZero();
       assertThat(artifact.calls().get(0).usage().fresh()).isZero();
@@ -207,7 +212,7 @@ class NormalizationEngineTest {
     @Test
     @DisplayName("非法 agent 值抛出异常")
     void invalidAgentThrowsException() {
-      assertThatThrownBy(() -> ENGINE.normalize("invalid_agent", List.of(), List.of(), List.of()))
+      assertThatThrownBy(() -> NormalizedAgent.fromValue("invalid_agent"))
           .isInstanceOf(IllegalArgumentException.class)
           .hasMessageContaining("invalid normalized agent");
     }
@@ -215,7 +220,7 @@ class NormalizationEngineTest {
     @Test
     @DisplayName("所有合法 agent 值均可使用")
     void allValidAgentValuesWork() {
-      for (String agent : List.of("claude_code", "codex", "qoder")) {
+      for (NormalizedAgent agent : NormalizedAgent.values()) {
         NormalizedSessionArtifact artifact =
             ENGINE.normalize(agent, List.of(), List.of(), List.of());
         assertThat(artifact.agent()).isEqualTo(agent);
@@ -236,9 +241,9 @@ class NormalizationEngineTest {
       event.put("model", "claude-3-sonnet");
 
       NormalizedSessionArtifact artifact1 =
-          ENGINE.normalize("claude_code", List.of(event), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
       NormalizedSessionArtifact artifact2 =
-          ENGINE.normalize("claude_code", List.of(event), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(event), List.of(), List.of());
 
       assertThat(artifact1).isEqualTo(artifact2);
     }
@@ -252,7 +257,7 @@ class NormalizationEngineTest {
     @DisplayName("制品 schema 版本来自 NormalizedConstants")
     void artifactSchemaVersionFromConstants() {
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of());
 
       assertThat(artifact.schemaVersion()).isEqualTo(NormalizedConstants.SCHEMA_VERSION);
     }
@@ -267,13 +272,16 @@ class NormalizationEngineTest {
     void sourceFilesPassedThroughToArtifact() {
       NormalizedSourceFile file =
           new NormalizedSourceFile(
-              "transcript", "/path/to/session.jsonl", Optional.empty(), Optional.empty());
+              SourceFileRole.TRANSCRIPT,
+              Path.of("/path/to/session.jsonl"),
+              Optional.empty(),
+              Optional.empty());
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of(file));
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of(file));
 
       assertThat(artifact.sourceFiles()).hasSize(1);
-      assertThat(artifact.sourceFiles().get(0).path()).isEqualTo("/path/to/session.jsonl");
+      assertThat(artifact.sourceFiles().get(0).path()).isEqualTo(Path.of("/path/to/session.jsonl"));
     }
   }
 
@@ -285,7 +293,7 @@ class NormalizationEngineTest {
     @DisplayName("空事件的 session 包含基本字段")
     void emptyEventsSessionContainsBasicFields() {
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of());
 
       assertThat(artifact.session()).containsEntry("agent", "claude_code");
       assertThat(artifact.session()).containsEntry("eventCount", 0);
@@ -299,7 +307,7 @@ class NormalizationEngineTest {
       ObjectNode event2 = MAPPER.createObjectNode().put("type", "user");
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("codex", List.of(event1, event2), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CODEX, List.of(event1, event2), List.of(), List.of());
 
       assertThat(artifact.session()).containsEntry("eventCount", 2);
     }
@@ -313,7 +321,8 @@ class NormalizationEngineTest {
       event2.putObject("usage").put("input_tokens", 50).put("output_tokens", 150);
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(event1, event2), List.of(), List.of());
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, List.of(event1, event2), List.of(), List.of());
 
       // 第一个调用 token 总和为 300，第二个为 200，合计 500
       assertThat(artifact.session()).containsEntry("totalTokens", 500L);
@@ -341,7 +350,10 @@ class NormalizationEngineTest {
 
       NormalizedSessionArtifact artifact =
           ENGINE.normalize(
-              "claude_code", List.of(assistant, toolResult, assistant2), List.of(), List.of());
+              NormalizedAgent.CLAUDE_CODE,
+              List.of(assistant, toolResult, assistant2),
+              List.of(),
+              List.of());
 
       assertThat(artifact.session()).containsEntry("declaredTools", 1);
       assertThat(artifact.session()).containsEntry("executedTools", 1);
@@ -357,7 +369,7 @@ class NormalizationEngineTest {
     @DisplayName("无源文件时目录为空")
     void emptySourceFilesProducesEmptyCatalog() {
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of());
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of());
 
       assertThat(artifact.sourceUnitCatalog()).isEmpty();
     }
@@ -367,10 +379,13 @@ class NormalizationEngineTest {
     void sourceFilesProduceCatalogEntries() {
       NormalizedSourceFile file =
           new NormalizedSourceFile(
-              "transcript", "/path/to/session.jsonl", Optional.empty(), Optional.empty());
+              SourceFileRole.TRANSCRIPT,
+              Path.of("/path/to/session.jsonl"),
+              Optional.empty(),
+              Optional.empty());
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of(file));
+          ENGINE.normalize(NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of(file));
 
       assertThat(artifact.sourceUnitCatalog()).hasSize(1);
       assertThat(artifact.sourceUnitCatalog()).containsKey("/path/to/session.jsonl");
@@ -378,7 +393,7 @@ class NormalizationEngineTest {
       assertThat(entry.unitKey()).isEqualTo("/path/to/session.jsonl");
       assertThat(entry.originPath()).isEqualTo("/path/to/session.jsonl");
       assertThat(entry.unitType()).isEqualTo("transcript");
-      assertThat(entry.direction()).isEqualTo("request");
+      assertThat(entry.direction()).isEqualTo(SourceUnitDirection.REQUEST);
     }
 
     @Test
@@ -386,13 +401,20 @@ class NormalizationEngineTest {
     void multipleSourceFilesProduceMultipleEntries() {
       NormalizedSourceFile file1 =
           new NormalizedSourceFile(
-              "transcript", "/path/a.jsonl", Optional.empty(), Optional.empty());
+              SourceFileRole.TRANSCRIPT,
+              Path.of("/path/a.jsonl"),
+              Optional.empty(),
+              Optional.empty());
       NormalizedSourceFile file2 =
           new NormalizedSourceFile(
-              "companion", "/path/b.jsonl", Optional.empty(), Optional.empty());
+              SourceFileRole.COMPANION,
+              Path.of("/path/b.jsonl"),
+              Optional.empty(),
+              Optional.empty());
 
       NormalizedSessionArtifact artifact =
-          ENGINE.normalize("claude_code", List.of(), List.of(), List.of(file1, file2));
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE, List.of(), List.of(), List.of(file1, file2));
 
       assertThat(artifact.sourceUnitCatalog()).hasSize(2);
       assertThat(artifact.sourceUnitCatalog()).containsKey("/path/a.jsonl");

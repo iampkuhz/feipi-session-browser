@@ -2,6 +2,7 @@ package com.feipi.session.browser.normalization;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.normalized.ByteRange;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
@@ -9,6 +10,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
+import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -47,20 +49,18 @@ public final class NormalizationEngine {
   /**
    * 从 JSON 事件列表构建归一化制品。
    *
-   * <p>{@code agent} 参数必须为合法的 agent 值（参见 {@link
-   * com.feipi.session.browser.domain.normalized.NormalizedAgent}），例如 {@code "claude_code"}、 {@code
-   * "codex"} 或 {@code "qoder"}。
+   * <p>{@code agent} 参数必须为合法的 {@link NormalizedAgent} 枚举值，例如 {@link NormalizedAgent#CLAUDE_CODE}、
+   * {@link NormalizedAgent#CODEX} 或 {@link NormalizedAgent#QODER}。
    *
-   * @param agent 产生事件的源适配器 agent 值（如 {@code "claude_code"}）
+   * @param agent 产生事件的源适配器 agent 枚举值
    * @param events 解析后的 JSON 事件列表，不得为 null
    * @param diagnostics 解析诊断列表，不得为 null
    * @param sourceFiles 源文件列表，不得为 null
    * @return 不可变的归一化会话制品
    * @throws NullPointerException 当任何列表参数为 null 时
-   * @throws IllegalArgumentException 当 agent 值不合法时
    */
   public NormalizedSessionArtifact normalize(
-      String agent,
+      NormalizedAgent agent,
       List<JsonNode> events,
       List<SourceDiagnostic> diagnostics,
       List<NormalizedSourceFile> sourceFiles) {
@@ -190,19 +190,19 @@ public final class NormalizationEngine {
    *
    * <p>包含 agent 标识、事件总数、聚合后的 session 级 token 用量， 以及工具守恒计数。所有值均从输入确定性派生，保证相同输入产生相同输出。
    *
-   * @param agent 产生事件的源适配器 agent 值
+   * @param agent 产生事件的源适配器 agent 枚举值
    * @param events 原始事件列表
    * @param calls 已构建的调用列表
    * @param toolExecutions 已构建的工具执行列表
    * @return 不可变的会话元数据 map
    */
   private static Map<String, Object> buildSessionMap(
-      String agent,
+      NormalizedAgent agent,
       List<JsonNode> events,
       List<NormalizedCall> calls,
       List<NormalizedToolExecution> toolExecutions) {
     Map<String, Object> session = new LinkedHashMap<>();
-    session.put("agent", agent);
+    session.put("agent", agent.getValue());
     session.put("eventCount", events.size());
 
     NormalizedCallUsage sessionUsage = aggregateUsage(calls);
@@ -233,7 +233,7 @@ public final class NormalizationEngine {
     Map<String, SourceUnitCatalogEntry> catalog = new LinkedHashMap<>();
     for (int i = 0; i < sourceFiles.size(); i++) {
       NormalizedSourceFile sf = sourceFiles.get(i);
-      catalog.put(sf.path(), buildSourceUnitCatalogEntry(sf, i));
+      catalog.put(sf.path().toString(), buildSourceUnitCatalogEntry(sf, i));
     }
     return Map.copyOf(catalog);
   }
@@ -248,12 +248,12 @@ public final class NormalizationEngine {
   private static SourceUnitCatalogEntry buildSourceUnitCatalogEntry(
       NormalizedSourceFile sf, int index) {
     return new SourceUnitCatalogEntry(
-        sf.path(),
-        sf.path(),
-        sf.path(),
-        sf.role(),
+        sf.path().toString(),
+        sf.path().toString(),
+        sf.path().toString(),
+        sf.role().getValue(),
         "",
-        "request",
+        SourceUnitDirection.REQUEST,
         index,
         0,
         ByteRange.empty(),

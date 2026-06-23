@@ -9,7 +9,7 @@
  *
  * <ul>
  *   <li>{@link com.feipi.session.browser.domain.enums.CallScope} — {@code main, subagent}
- *   <li>{@link com.feipi.session.browser.domain.enums.CallStatus} — {@code ok, error, completed}
+ *   <li>{@link com.feipi.session.browser.domain.enums.CallStatus} — {@code ok, error}
  *   <li>{@link com.feipi.session.browser.domain.enums.TokenPrecision} — {@code exact,
  *       provider_reported, estimated, unavailable}
  *   <li>{@link com.feipi.session.browser.domain.enums.TokenProvider} — {@code anthropic, openai,

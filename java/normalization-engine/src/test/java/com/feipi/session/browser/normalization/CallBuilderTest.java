@@ -6,6 +6,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.ArrayNode;
 import com.fasterxml.jackson.databind.node.ObjectNode;
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import java.util.List;
@@ -55,7 +56,7 @@ class CallBuilderTest {
       assertThat(call.callId()).isEqualTo("call-1");
       assertThat(call.callIndex()).isEqualTo(1);
       assertThat(call.callKey()).isEqualTo("C1");
-      assertThat(call.scope()).isEqualTo("main");
+      assertThat(call.scope()).isEqualTo(CallScope.MAIN);
       assertThat(call.model()).isEqualTo("claude-3-sonnet");
     }
 
@@ -183,7 +184,7 @@ class CallBuilderTest {
       NormalizedToolExecution exec = executions.get(0);
       assertThat(exec.toolCallId()).isEqualTo("toolu_abc");
       assertThat(exec.name()).isEqualTo("Read");
-      assertThat(exec.scope()).isEqualTo("main");
+      assertThat(exec.scope()).isEqualTo(CallScope.MAIN);
       assertThat(exec.declaredByCallId()).isEqualTo("call-1");
       // 没有 tool_result，所以 resultConsumedByCallId 为空
       assertThat(exec.resultConsumedByCallId()).isEmpty();

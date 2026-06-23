@@ -16,10 +16,7 @@ public enum CallStatus {
   OK("ok"),
 
   /** 调用执行出错。 */
-  ERROR("error"),
-
-  /** 调用已正常完成（与 OK 语义相近，保留兼容）。 */
-  COMPLETED("completed");
+  ERROR("error");
 
   /** 稳定外部协议值。 */
   @Getter private final String value;

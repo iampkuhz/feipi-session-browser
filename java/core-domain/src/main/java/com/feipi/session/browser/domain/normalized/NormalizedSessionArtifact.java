@@ -38,7 +38,7 @@ import java.util.Set;
 @DomainModel
 public record NormalizedSessionArtifact(
     @CoreField String schemaVersion,
-    @CoreField String agent,
+    @CoreField NormalizedAgent agent,
     @CoreField List<NormalizedSourceFile> sourceFiles,
     @CoreField Map<String, Object> session,
     @CoreField List<NormalizedCall> calls,
@@ -60,8 +60,6 @@ public record NormalizedSessionArtifact(
           "schemaVersion must be " + NormalizedConstants.SCHEMA_VERSION + "; got " + schemaVersion);
     }
     Objects.requireNonNull(agent, "agent 不得为 null");
-    // 验证 agent 合法性
-    NormalizedAgent.fromValue(agent);
 
     Objects.requireNonNull(session, "session 不得为 null");
 

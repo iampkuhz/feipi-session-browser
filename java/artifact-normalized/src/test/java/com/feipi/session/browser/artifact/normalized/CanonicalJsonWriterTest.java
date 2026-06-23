@@ -2,6 +2,8 @@ package com.feipi.session.browser.artifact.normalized;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallRequest;
 import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
@@ -57,7 +59,7 @@ class CanonicalJsonWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             session,
             List.of(),
@@ -84,7 +86,7 @@ class CanonicalJsonWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             session,
             List.of(),
@@ -105,7 +107,7 @@ class CanonicalJsonWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             session,
             List.of(),
@@ -159,7 +161,7 @@ class CanonicalJsonWriterTest {
             "call-001",
             1,
             "C1",
-            "main",
+            CallScope.MAIN,
             Optional.empty(),
             Optional.empty(),
             Optional.empty(),
@@ -176,7 +178,7 @@ class CanonicalJsonWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             Map.of("session_key", "test-key"),
             List.of(call),
@@ -201,7 +203,7 @@ class CanonicalJsonWriterTest {
             "call-001",
             1,
             "C1",
-            "main",
+            CallScope.MAIN,
             Optional.of("parent-call-001"),
             Optional.empty(),
             Optional.empty(),
@@ -218,7 +220,7 @@ class CanonicalJsonWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             Map.of("session_key", "test-key"),
             List.of(call),
@@ -249,7 +251,7 @@ class CanonicalJsonWriterTest {
   private static NormalizedSessionArtifact createMinimalArtifact(String sessionKey) {
     return new NormalizedSessionArtifact(
         NormalizedConstants.SCHEMA_VERSION,
-        "claude_code",
+        NormalizedAgent.CLAUDE_CODE,
         List.of(),
         Map.of("session_key", sessionKey),
         List.of(),

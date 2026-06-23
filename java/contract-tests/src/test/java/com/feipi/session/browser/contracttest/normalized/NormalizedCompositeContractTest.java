@@ -3,6 +3,7 @@ package com.feipi.session.browser.contracttest.normalized;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.ByteRange;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -13,9 +14,11 @@ import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -127,7 +130,7 @@ class NormalizedCompositeContractTest {
           "locator-1",
           "text",
           "user_input",
-          "request",
+          SourceUnitDirection.REQUEST,
           0,
           0,
           ByteRange.empty(),
@@ -148,7 +151,7 @@ class NormalizedCompositeContractTest {
     void validEntry() {
       SourceUnitCatalogEntry entry = createValidEntry();
       assertThat(entry.unitKey()).isEqualTo("unit-1");
-      assertThat(entry.direction()).isEqualTo("request");
+      assertThat(entry.direction()).isEqualTo(SourceUnitDirection.REQUEST);
     }
 
     @Test
@@ -162,7 +165,7 @@ class NormalizedCompositeContractTest {
                       "locator",
                       "type",
                       "candidate",
-                      "request",
+                      SourceUnitDirection.REQUEST,
                       0,
                       0,
                       ByteRange.empty(),
@@ -181,8 +184,8 @@ class NormalizedCompositeContractTest {
     }
 
     @Test
-    @DisplayName("负向：非法 direction 抛出异常")
-    void invalidDirection() {
+    @DisplayName("负向：direction 为 null 抛出异常")
+    void nullDirection() {
       assertThatThrownBy(
               () ->
                   new SourceUnitCatalogEntry(
@@ -191,7 +194,7 @@ class NormalizedCompositeContractTest {
                       "locator",
                       "type",
                       "candidate",
-                      "invalid_direction",
+                      null,
                       0,
                       0,
                       ByteRange.empty(),
@@ -205,7 +208,8 @@ class NormalizedCompositeContractTest {
                       Optional.empty(),
                       Optional.empty(),
                       List.of()))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(NullPointerException.class)
+          .hasMessageContaining("direction");
     }
 
     @Test
@@ -219,7 +223,7 @@ class NormalizedCompositeContractTest {
                       "locator",
                       "type",
                       "candidate",
-                      "request",
+                      SourceUnitDirection.REQUEST,
                       -1,
                       0,
                       ByteRange.empty(),
@@ -248,7 +252,7 @@ class NormalizedCompositeContractTest {
                       "locator",
                       "type",
                       "candidate",
-                      "request",
+                      SourceUnitDirection.REQUEST,
                       0,
                       0,
                       null,
@@ -276,7 +280,7 @@ class NormalizedCompositeContractTest {
           "call-1",
           1,
           "C1",
-          "main",
+          CallScope.MAIN,
           Optional.empty(),
           Optional.empty(),
           Optional.empty(),
@@ -309,7 +313,7 @@ class NormalizedCompositeContractTest {
                       null,
                       1,
                       "C1",
-                      "main",
+                      CallScope.MAIN,
                       Optional.empty(),
                       Optional.empty(),
                       Optional.empty(),
@@ -335,7 +339,7 @@ class NormalizedCompositeContractTest {
                       "",
                       1,
                       "C1",
-                      "main",
+                      CallScope.MAIN,
                       Optional.empty(),
                       Optional.empty(),
                       Optional.empty(),
@@ -361,7 +365,7 @@ class NormalizedCompositeContractTest {
                       "call-1",
                       0,
                       "C0",
-                      "main",
+                      CallScope.MAIN,
                       Optional.empty(),
                       Optional.empty(),
                       Optional.empty(),
@@ -387,7 +391,7 @@ class NormalizedCompositeContractTest {
                       "call-1",
                       1,
                       "C2",
-                      "main",
+                      CallScope.MAIN,
                       Optional.empty(),
                       Optional.empty(),
                       Optional.empty(),
@@ -416,7 +420,7 @@ class NormalizedCompositeContractTest {
           new NormalizedToolExecution(
               "tool-1",
               "Bash",
-              "main",
+              CallScope.MAIN,
               "call-1",
               Optional.of("call-2"),
               Optional.empty(),
@@ -436,7 +440,7 @@ class NormalizedCompositeContractTest {
                   new NormalizedToolExecution(
                       "",
                       "Bash",
-                      "main",
+                      CallScope.MAIN,
                       "call-1",
                       Optional.empty(),
                       Optional.empty(),
@@ -456,7 +460,7 @@ class NormalizedCompositeContractTest {
                   new NormalizedToolExecution(
                       "tool-1",
                       "Bash",
-                      "main",
+                      CallScope.MAIN,
                       "call-1",
                       Optional.empty(),
                       Optional.empty(),
@@ -476,7 +480,7 @@ class NormalizedCompositeContractTest {
     private NormalizedSessionArtifact createValidArtifact() {
       return new NormalizedSessionArtifact(
           NormalizedConstants.SCHEMA_VERSION,
-          "claude_code",
+          NormalizedAgent.CLAUDE_CODE,
           List.of(),
           Map.of("session_id", "s1"),
           List.of(),
@@ -491,7 +495,7 @@ class NormalizedCompositeContractTest {
     void validArtifact() {
       NormalizedSessionArtifact artifact = createValidArtifact();
       assertThat(artifact.schemaVersion()).isEqualTo(NormalizedConstants.SCHEMA_VERSION);
-      assertThat(artifact.agent()).isEqualTo("claude_code");
+      assertThat(artifact.agent()).isEqualTo(NormalizedAgent.CLAUDE_CODE);
     }
 
     @Test
@@ -501,7 +505,7 @@ class NormalizedCompositeContractTest {
               () ->
                   new NormalizedSessionArtifact(
                       "wrong-version",
-                      "claude_code",
+                      NormalizedAgent.CLAUDE_CODE,
                       List.of(),
                       Map.of("session_id", "s1"),
                       List.of(),
@@ -514,13 +518,13 @@ class NormalizedCompositeContractTest {
     }
 
     @Test
-    @DisplayName("负向：非法 agent 值抛出异常")
-    void invalidAgent() {
+    @DisplayName("负向：agent 为 null 抛出异常")
+    void nullAgent() {
       assertThatThrownBy(
               () ->
                   new NormalizedSessionArtifact(
                       NormalizedConstants.SCHEMA_VERSION,
-                      "invalid_agent",
+                      null,
                       List.of(),
                       Map.of("session_id", "s1"),
                       List.of(),
@@ -528,8 +532,8 @@ class NormalizedCompositeContractTest {
                       List.of(),
                       Map.of(),
                       Map.of()))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("invalid normalized agent");
+          .isInstanceOf(NullPointerException.class)
+          .hasMessageContaining("agent");
     }
 
     @Test
@@ -540,7 +544,7 @@ class NormalizedCompositeContractTest {
               "dup-id",
               1,
               "C1",
-              "main",
+              CallScope.MAIN,
               Optional.empty(),
               Optional.empty(),
               Optional.empty(),
@@ -558,7 +562,7 @@ class NormalizedCompositeContractTest {
               "dup-id",
               2,
               "C2",
-              "main",
+              CallScope.MAIN,
               Optional.empty(),
               Optional.empty(),
               Optional.empty(),
@@ -576,7 +580,7 @@ class NormalizedCompositeContractTest {
               () ->
                   new NormalizedSessionArtifact(
                       NormalizedConstants.SCHEMA_VERSION,
-                      "claude_code",
+                      NormalizedAgent.CLAUDE_CODE,
                       List.of(),
                       Map.of("session_id", "s1"),
                       List.of(call1, call2),
@@ -595,7 +599,7 @@ class NormalizedCompositeContractTest {
       NormalizedSessionArtifact artifact =
           new NormalizedSessionArtifact(
               NormalizedConstants.SCHEMA_VERSION,
-              "claude_code",
+              NormalizedAgent.CLAUDE_CODE,
               List.of(),
               Map.of("session_id", "s1"),
               mutableCalls,
@@ -617,16 +621,21 @@ class NormalizedCompositeContractTest {
     void validSourceFile() {
       NormalizedSourceFile file =
           new NormalizedSourceFile(
-              "transcript", "/path/to/file.json", Optional.empty(), Optional.empty());
-      assertThat(file.role()).isEqualTo("transcript");
-      assertThat(file.path()).isEqualTo("/path/to/file.json");
+              SourceFileRole.TRANSCRIPT,
+              Path.of("/path/to/file.json"),
+              Optional.empty(),
+              Optional.empty());
+      assertThat(file.role()).isEqualTo(SourceFileRole.TRANSCRIPT);
+      assertThat(file.path()).isEqualTo(Path.of("/path/to/file.json"));
     }
 
     @Test
     @DisplayName("负向：role 为 null 抛出异常")
     void nullRole() {
       assertThatThrownBy(
-              () -> new NormalizedSourceFile(null, "/path", Optional.empty(), Optional.empty()))
+              () ->
+                  new NormalizedSourceFile(
+                      null, Path.of("/path"), Optional.empty(), Optional.empty()))
           .isInstanceOf(NullPointerException.class)
           .hasMessageContaining("role");
     }
@@ -636,7 +645,8 @@ class NormalizedCompositeContractTest {
     void nullPath() {
       assertThatThrownBy(
               () ->
-                  new NormalizedSourceFile("transcript", null, Optional.empty(), Optional.empty()))
+                  new NormalizedSourceFile(
+                      SourceFileRole.TRANSCRIPT, null, Optional.empty(), Optional.empty()))
           .isInstanceOf(NullPointerException.class)
           .hasMessageContaining("path");
     }

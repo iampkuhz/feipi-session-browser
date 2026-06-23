@@ -2,6 +2,7 @@ package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.domain.enums.CallScope;
 import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
@@ -36,7 +37,7 @@ import java.util.Optional;
 public record NormalizedToolExecution(
     @CoreField String toolCallId,
     @CoreField String name,
-    @CoreField String scope,
+    @CoreField CallScope scope,
     @CoreField String declaredByCallId,
     Optional<String> resultConsumedByCallId,
     Optional<String> status,

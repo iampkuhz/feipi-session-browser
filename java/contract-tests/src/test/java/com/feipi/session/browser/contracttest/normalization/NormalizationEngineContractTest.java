@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.normalization.NormalizationEngine;
@@ -19,12 +20,12 @@ class NormalizationEngineContractTest {
     NormalizationEngine engine = new NormalizationEngine();
     NormalizedSessionArtifact artifact =
         engine.normalize(
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             Collections.emptyList(),
             Collections.emptyList(),
             Collections.emptyList());
     assertThat(artifact.schemaVersion()).isEqualTo(NormalizedConstants.SCHEMA_VERSION);
-    assertThat(artifact.agent()).isEqualTo("claude_code");
+    assertThat(artifact.agent()).isEqualTo(NormalizedAgent.CLAUDE_CODE);
     assertThat(artifact.calls()).isEmpty();
   }
 
@@ -35,9 +36,17 @@ class NormalizationEngineContractTest {
     JsonNode event = mapper.createObjectNode().put("type", "assistant").put("content", "hello");
 
     NormalizedSessionArtifact first =
-        engine.normalize("codex", List.of(event), Collections.emptyList(), Collections.emptyList());
+        engine.normalize(
+            NormalizedAgent.CODEX,
+            List.of(event),
+            Collections.emptyList(),
+            Collections.emptyList());
     NormalizedSessionArtifact second =
-        engine.normalize("codex", List.of(event), Collections.emptyList(), Collections.emptyList());
+        engine.normalize(
+            NormalizedAgent.CODEX,
+            List.of(event),
+            Collections.emptyList(),
+            Collections.emptyList());
 
     assertThat(first.calls().size()).isEqualTo(second.calls().size());
     assertThat(first.schemaVersion()).isEqualTo(second.schemaVersion());

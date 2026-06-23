@@ -41,7 +41,6 @@ class DomainEnumProtocolContractTest {
     Map<CallStatus, String> expected = new LinkedHashMap<>();
     expected.put(CallStatus.OK, "ok");
     expected.put(CallStatus.ERROR, "error");
-    expected.put(CallStatus.COMPLETED, "completed");
     assertEnumValues(expected, CallStatus::getValue);
   }
 
@@ -111,7 +110,7 @@ class DomainEnumProtocolContractTest {
   @DisplayName("六个枚举常量数量不变")
   void enumConstantCountsPreserved() {
     assertThat(CallScope.values()).hasSize(2);
-    assertThat(CallStatus.values()).hasSize(3);
+    assertThat(CallStatus.values()).hasSize(2);
     assertThat(TokenPrecision.values()).hasSize(4);
     assertThat(TokenProvider.values()).hasSize(6);
     assertThat(TokenSourceKind.values()).hasSize(9);

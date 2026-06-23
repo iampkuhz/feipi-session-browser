@@ -1,6 +1,7 @@
 package com.feipi.session.browser.normalization;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallRequest;
 import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
@@ -83,7 +84,7 @@ public final class CallBuilder {
               callId,
               callIndex,
               callKey,
-              NormalizationConstants.SCOPE_MAIN,
+              CallScope.MAIN,
               Optional.empty(),
               Optional.empty(),
               extractTurnId(event),
@@ -140,7 +141,7 @@ public final class CallBuilder {
             new NormalizedToolExecution(
                 info.toolCallId(),
                 info.name(),
-                NormalizationConstants.SCOPE_MAIN,
+                CallScope.MAIN,
                 callId,
                 Optional.ofNullable(consumerCallId),
                 Optional.empty(),
@@ -168,7 +169,7 @@ public final class CallBuilder {
           new NormalizedToolExecution(
               toolCallId,
               name,
-              NormalizationConstants.SCOPE_MAIN,
+              CallScope.MAIN,
               declaredByCallId,
               Optional.ofNullable(consumerCallId),
               Optional.empty(),

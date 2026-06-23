@@ -8,12 +8,6 @@ package com.feipi.session.browser.normalization;
  */
 public final class NormalizationConstants {
 
-  /** 主会话作用域标识。 */
-  public static final String SCOPE_MAIN = "main";
-
-  /** 子 agent 作用域标识前缀。 */
-  public static final String SCOPE_SUBAGENT = "subagent";
-
   /** 精确用量来源标识，表示数据直接来自 provider 报告。 */
   public static final String USAGE_SOURCE_EXACT = "exact";
 

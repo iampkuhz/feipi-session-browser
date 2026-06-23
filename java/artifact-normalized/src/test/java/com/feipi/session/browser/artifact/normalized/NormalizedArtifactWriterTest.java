@@ -3,6 +3,7 @@ package com.feipi.session.browser.artifact.normalized;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import java.io.IOException;
@@ -214,7 +215,7 @@ class NormalizedArtifactWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             Map.of("other_field", "value"),
             List.of(),
@@ -251,7 +252,7 @@ class NormalizedArtifactWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             Map.of("session_key", "../../../etc/passwd"),
             List.of(),
@@ -271,7 +272,7 @@ class NormalizedArtifactWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             Map.of("session_key", "foo/bar"),
             List.of(),
@@ -291,7 +292,7 @@ class NormalizedArtifactWriterTest {
     NormalizedSessionArtifact artifact =
         new NormalizedSessionArtifact(
             NormalizedConstants.SCHEMA_VERSION,
-            "claude_code",
+            NormalizedAgent.CLAUDE_CODE,
             List.of(),
             Map.of("session_key", "/etc/shadow"),
             List.of(),
@@ -510,7 +511,7 @@ class NormalizedArtifactWriterTest {
   private static NormalizedSessionArtifact createMinimalArtifact(String sessionKey) {
     return new NormalizedSessionArtifact(
         NormalizedConstants.SCHEMA_VERSION,
-        "claude_code",
+        NormalizedAgent.CLAUDE_CODE,
         List.of(),
         Map.of("session_key", sessionKey),
         List.of(),

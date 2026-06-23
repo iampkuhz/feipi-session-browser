@@ -7,10 +7,15 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
+import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.SourceFileRole;
+import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.nio.file.Path;
 import java.util.Optional;
 
 /**
@@ -64,6 +69,56 @@ public final class CanonicalJsonWriter {
     SimpleModule optionalModule = new SimpleModule("optional-module");
     optionalModule.addSerializer((Class) Optional.class, optionalSerializer);
     mapper.registerModule(optionalModule);
+
+    // 注册域枚举序列化器：输出 enum.getValue() 而非 enum.name()
+    SimpleModule domainModule = new SimpleModule("domain-module");
+    domainModule.addSerializer(
+        NormalizedAgent.class,
+        new JsonSerializer<NormalizedAgent>() {
+          @Override
+          public void serialize(NormalizedAgent v, JsonGenerator gen, SerializerProvider sp)
+              throws IOException {
+            gen.writeString(v.getValue());
+          }
+        });
+    domainModule.addSerializer(
+        CallScope.class,
+        new JsonSerializer<CallScope>() {
+          @Override
+          public void serialize(CallScope v, JsonGenerator gen, SerializerProvider sp)
+              throws IOException {
+            gen.writeString(v.getValue());
+          }
+        });
+    domainModule.addSerializer(
+        SourceUnitDirection.class,
+        new JsonSerializer<SourceUnitDirection>() {
+          @Override
+          public void serialize(SourceUnitDirection v, JsonGenerator gen, SerializerProvider sp)
+              throws IOException {
+            gen.writeString(v.getValue());
+          }
+        });
+    domainModule.addSerializer(
+        SourceFileRole.class,
+        new JsonSerializer<SourceFileRole>() {
+          @Override
+          public void serialize(SourceFileRole v, JsonGenerator gen, SerializerProvider sp)
+              throws IOException {
+            gen.writeString(v.getValue());
+          }
+        });
+    // 注册 Path 序列化器：输出 path.toString()
+    domainModule.addSerializer(
+        Path.class,
+        new JsonSerializer<Path>() {
+          @Override
+          public void serialize(Path v, JsonGenerator gen, SerializerProvider sp)
+              throws IOException {
+            gen.writeString(v.toString());
+          }
+        });
+    mapper.registerModule(domainModule);
   }
 
   /**

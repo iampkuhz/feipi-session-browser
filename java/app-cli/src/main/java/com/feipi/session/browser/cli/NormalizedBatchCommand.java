@@ -3,8 +3,10 @@ package com.feipi.session.browser.cli;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter;
 import com.feipi.session.browser.artifact.normalized.WriteResult;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
+import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.normalization.NormalizationEngine;
 import com.feipi.session.browser.source.json.JsonlReader;
 import com.feipi.session.browser.source.json.JsonlReaderResult;
@@ -267,13 +269,13 @@ final class NormalizedBatchCommand implements Callable<Integer> {
       // 5) 构建源文件元数据
       NormalizedSourceFile sourceFile =
           new NormalizedSourceFile(
-              "transcript",
-              filePath.toAbsolutePath().toString(),
+              SourceFileRole.TRANSCRIPT,
+              filePath.toAbsolutePath(),
               Optional.empty(),
               Optional.empty());
 
       // 6) 调用归一化引擎
-      String agent = adapter.sourceId().getValue();
+      NormalizedAgent agent = NormalizedAgent.fromValue(adapter.sourceId().getValue());
       NormalizedSessionArtifact artifact =
           engine.normalize(agent, events, diagnostics, List.of(sourceFile));
 

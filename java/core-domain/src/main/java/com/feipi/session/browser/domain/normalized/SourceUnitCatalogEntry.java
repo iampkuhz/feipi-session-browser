@@ -53,7 +53,7 @@ public record SourceUnitCatalogEntry(
     @CoreField String canonicalSourceLocator,
     @CoreField String unitType,
     @CoreField String candidate,
-    @CoreField String direction,
+    @CoreField SourceUnitDirection direction,
     @CoreField int eventOrder,
     @CoreField int partIndex,
     @CoreField ByteRange byteRange,
@@ -83,9 +83,6 @@ public record SourceUnitCatalogEntry(
     Objects.requireNonNull(direction, "direction 不得为 null");
     Objects.requireNonNull(byteRange, "byteRange 不得为 null");
     Objects.requireNonNull(contentHash, "contentHash 不得为 null");
-
-    // 验证方向合法性
-    SourceUnitDirection.fromValue(direction);
 
     if (eventOrder < 0) {
       throw new IllegalArgumentException(

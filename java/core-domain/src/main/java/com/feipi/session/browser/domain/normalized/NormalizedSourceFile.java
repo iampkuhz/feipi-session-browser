@@ -2,6 +2,7 @@ package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -17,15 +18,15 @@ import java.util.Optional;
  *   <li>{@code subagentId} 和 {@code parentToolUseId} 使用 {@code Optional} 区分空值。
  * </ul>
  *
- * @param role 源角色，如 {@code transcript} 或 {@code companion} 元数据
+ * @param role 源角色，如 {@link SourceFileRole#TRANSCRIPT} 或 {@link SourceFileRole#COMPANION}
  * @param path 文件系统路径，用于溯源
  * @param subagentId 产生该源文件的可选子 agent 实例标识
  * @param parentToolUseId 可选的父工具调用边标识
  */
 @DomainModel
 public record NormalizedSourceFile(
-    @CoreField String role,
-    @CoreField String path,
+    @CoreField SourceFileRole role,
+    @CoreField Path path,
     Optional<String> subagentId,
     Optional<String> parentToolUseId) {
 
