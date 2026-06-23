@@ -14,12 +14,14 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.concurrent.CancellationException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -62,25 +64,43 @@ public final class IncrementalScanEngine {
 
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;
+  private final Clock clock;
 
-  /** 使用默认归一化引擎和制品写入器创建增量扫描引擎。 */
+  /** 使用默认归一化引擎、制品写入器和系统时钟创建增量扫描引擎。 */
   public IncrementalScanEngine() {
-    this(new NormalizationEngine(), new NormalizedArtifactWriter());
+    this(new NormalizationEngine(), new NormalizedArtifactWriter(), Clock.systemUTC());
   }
 
   /**
    * 使用指定的归一化引擎和制品写入器创建增量扫描引擎。
    *
-   * <p>用于测试注入。
+   * <p>用于测试注入。时钟使用系统 UTC 时钟。
    *
    * @param normalizationEngine 归一化引擎
    * @param artifactWriter 制品写入器
    */
   public IncrementalScanEngine(
       NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter) {
+    this(normalizationEngine, artifactWriter, Clock.systemUTC());
+  }
+
+  /**
+   * 使用指定的归一化引擎、制品写入器和时钟创建增量扫描引擎。
+   *
+   * <p>完整构造器，用于测试注入 fake clock。
+   *
+   * @param normalizationEngine 归一化引擎
+   * @param artifactWriter 制品写入器
+   * @param clock 时间源
+   */
+  public IncrementalScanEngine(
+      NormalizationEngine normalizationEngine,
+      NormalizedArtifactWriter artifactWriter,
+      Clock clock) {
     this.normalizationEngine =
         Objects.requireNonNull(normalizationEngine, "normalizationEngine 不得为 null");
     this.artifactWriter = Objects.requireNonNull(artifactWriter, "artifactWriter 不得为 null");
+    this.clock = Objects.requireNonNull(clock, "clock 不得为 null");
   }
 
   /**
@@ -97,10 +117,28 @@ public final class IncrementalScanEngine {
    */
   public IncrementalScanSummary scan(
       Connection writeConn, ScanConfig config, Double maxAgeSeconds) {
+    return scan(writeConn, config, maxAgeSeconds, null);
+  }
+
+  /**
+   * 执行增量扫描，支持取消。
+   *
+   * <p>在候选项循环中检查 cancelToken，一旦取消立即停止处理并标记 scan_log 为 failure。
+   *
+   * @param writeConn SQLite 写连接
+   * @param config 扫描配置
+   * @param maxAgeSeconds 可选的会话 age 上限（秒），null 表示不过滤
+   * @param cancelToken 可选的取消令牌，null 表示不取消
+   * @return 增量扫描汇总
+   * @throws CancellationException 当扫描被取消时
+   * @throws NullPointerException 当 writeConn 或 config 为 null 时
+   */
+  public IncrementalScanSummary scan(
+      Connection writeConn, ScanConfig config, Double maxAgeSeconds, ScanCancelToken cancelToken) {
     Objects.requireNonNull(writeConn, "writeConn 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
-    long startMs = System.currentTimeMillis();
+    long startMs = clock.millis();
     double startEpoch = startMs / 1000.0;
 
     // 确保 artifact 输出目录存在
@@ -129,195 +167,216 @@ public final class IncrementalScanEngine {
       return buildErrorSummary(startMs, "scan_log start failed: " + e.getMessage());
     }
 
-    // 3. 加载已索引会话指纹
-    Map<String, StoredSessionFingerprint> storedFingerprints;
-    try {
-      storedFingerprints = FingerprintRepository.loadAll(writeConn);
-    } catch (SQLException e) {
-      log.error("加载已索引指纹失败", e);
-      return buildErrorSummary(startMs, "Load stored fingerprints failed: " + e.getMessage());
-    }
-
-    // 4. 检查 scan logic version
-    boolean rebuildTriggered = false;
-    int storedVersion = loadScanLogicVersion(writeConn);
-    if (storedVersion != CURRENT_SCAN_LOGIC_VERSION) {
-      log.info(
-          "scan logic version 变化: stored={}, current={} — 触发重建",
-          storedVersion,
-          CURRENT_SCAN_LOGIC_VERSION);
-      rebuildTriggered = true;
-    }
-
-    // 计算 age cutoff 时间戳
-    String cutoffIso = computeAgeCutoff(maxAgeSeconds);
-
-    // 5. 处理各源
-    List<ScanIssue> issues = new ArrayList<>();
+    boolean scanFailed = false;
+    Map<String, Integer> perSourceCountByValue = new LinkedHashMap<>();
     Map<com.feipi.session.browser.source.spi.SourceId, Integer> perSourceCount =
         new LinkedHashMap<>();
-    Map<String, Integer> perSourceCountByValue = new LinkedHashMap<>();
+    long scanLogIdFinal = scanLogId;
 
-    int[] stateCounts = new int[4]; // 状态计数：新增、变化、未变、可重试
-    int successCount = 0;
-    int errorCount = 0;
-    int skippedByAgeCount = 0;
-    int totalCandidates = 0;
-
-    WriteBatch batch = new WriteBatch(writeConn, WriteBatch.DEFAULT_MAX_ENTRIES);
-    boolean scanFailed = false;
-    int processedInBatch = 0;
-
-    for (ScanConfig.SourceEntry entry : config.sourceEntries()) {
-      String agentValue = entry.adapter().sourceId().getValue();
-
-      // agent 过滤
-      if (!config.isAgentAllowed(agentValue)) {
-        log.info("跳过被过滤的源: {}", agentValue);
-        continue;
-      }
-
-      // 根目录安全检查
-      SourceRoot root = entry.adapter().checkRoot(entry.rootPath());
-      if (!root.isSafe()) {
-        issues.add(
-            new ScanIssue(
-                "",
-                agentValue,
-                ScanIssue.ScanPhase.ROOT_CHECK,
-                "Unsafe root: " + entry.rootPath()));
-        continue;
-      }
-
-      if (!Files.isDirectory(entry.rootPath())) {
-        log.info("源根目录不存在或不是目录: {} {}", agentValue, entry.rootPath());
-        continue;
-      }
-
-      // 发现候选项
-      BoundedStream<Candidate> candidates;
+    try {
+      // 3. 加载已索引会话指纹
+      Map<String, StoredSessionFingerprint> storedFingerprints;
       try {
-        candidates = entry.adapter().discover(entry.rootPath());
-      } catch (Exception e) {
-        issues.add(new ScanIssue("", agentValue, ScanIssue.ScanPhase.DISCOVERY, e.getMessage()));
-        continue;
+        storedFingerprints = FingerprintRepository.loadAll(writeConn);
+      } catch (SQLException e) {
+        log.error("加载已索引指纹失败", e);
+        return buildErrorSummary(startMs, "Load stored fingerprints failed: " + e.getMessage());
       }
 
-      int sourceCount = candidates.size();
-      perSourceCount.merge(entry.adapter().sourceId(), sourceCount, Integer::sum);
-      perSourceCountByValue.merge(agentValue, sourceCount, Integer::sum);
-      totalCandidates += sourceCount;
+      // 4. 检查 scan logic version
+      boolean rebuildTriggered = false;
+      int storedVersion = loadScanLogicVersion(writeConn);
+      if (storedVersion != CURRENT_SCAN_LOGIC_VERSION) {
+        log.info(
+            "scan logic version 变化: stored={}, current={} — 触发重建",
+            storedVersion,
+            CURRENT_SCAN_LOGIC_VERSION);
+        rebuildTriggered = true;
+      }
 
-      // 逐候选处理
-      for (Candidate candidate : candidates.orderedItems()) {
-        String sessionKey = candidate.sessionKey();
-        StoredSessionFingerprint stored = storedFingerprints.get(sessionKey);
+      // 计算 age cutoff 时间戳
+      String cutoffIso = computeAgeCutoff(maxAgeSeconds);
 
-        // 状态分类
-        CandidateState state;
-        if (stored == null) {
-          state = CandidateState.NEW;
-        } else if (rebuildTriggered) {
-          // scan logic version 变化，全部视为 CHANGED
-          state = CandidateState.CHANGED;
-        } else {
-          state = FingerprintComparator.compare(candidate, stored);
-        }
+      // 5. 处理各源
+      List<ScanIssue> issues = new ArrayList<>();
 
-        // 记录状态计数
-        switch (state) {
-          case NEW -> stateCounts[0]++;
-          case CHANGED -> stateCounts[1]++;
-          case UNCHANGED -> stateCounts[2]++;
-          case RETRYABLE -> stateCounts[3]++;
-        }
+      int[] stateCounts = new int[4]; // 状态计数：新增、变化、未变、可重试
+      int successCount = 0;
+      int errorCount = 0;
+      int skippedByAgeCount = 0;
+      int totalCandidates = 0;
 
-        // UNCHANGED 不读写 artifact/DB
-        if (state == CandidateState.UNCHANGED && !rebuildTriggered) {
+      WriteBatch batch = new WriteBatch(writeConn, WriteBatch.DEFAULT_MAX_ENTRIES);
+      int processedInBatch = 0;
+
+      for (ScanConfig.SourceEntry entry : config.sourceEntries()) {
+        String agentValue = entry.adapter().sourceId().getValue();
+
+        // agent 过滤
+        if (!config.isAgentAllowed(agentValue)) {
+          log.info("跳过被过滤的源: {}", agentValue);
           continue;
         }
 
-        // Age cutoff 过滤
-        if (cutoffIso != null && stored != null) {
-          String endedAt = stored.endedAt();
-          if (!endedAt.isEmpty() && endedAt.compareTo(cutoffIso) < 0) {
-            skippedByAgeCount++;
+        // 根目录安全检查
+        SourceRoot root = entry.adapter().checkRoot(entry.rootPath());
+        if (!root.isSafe()) {
+          issues.add(
+              new ScanIssue(
+                  "",
+                  agentValue,
+                  ScanIssue.ScanPhase.ROOT_CHECK,
+                  "Unsafe root: " + entry.rootPath()));
+          continue;
+        }
+
+        if (!Files.isDirectory(entry.rootPath())) {
+          log.info("源根目录不存在或不是目录: {} {}", agentValue, entry.rootPath());
+          continue;
+        }
+
+        // 发现候选项
+        BoundedStream<Candidate> candidates;
+        try {
+          candidates = entry.adapter().discover(entry.rootPath());
+        } catch (Exception e) {
+          issues.add(new ScanIssue("", agentValue, ScanIssue.ScanPhase.DISCOVERY, e.getMessage()));
+          continue;
+        }
+
+        int sourceCount = candidates.size();
+        perSourceCount.merge(entry.adapter().sourceId(), sourceCount, Integer::sum);
+        perSourceCountByValue.merge(agentValue, sourceCount, Integer::sum);
+        totalCandidates += sourceCount;
+
+        // 逐候选处理
+        for (Candidate candidate : candidates.orderedItems()) {
+          // 取消检查
+          if (cancelToken != null) {
+            cancelToken.throwIfCancelled();
+          }
+
+          String sessionKey = candidate.sessionKey();
+          StoredSessionFingerprint stored = storedFingerprints.get(sessionKey);
+
+          // 状态分类
+          CandidateState state;
+          if (stored == null) {
+            state = CandidateState.NEW;
+          } else if (rebuildTriggered) {
+            // scan logic version 变化，全部视为 CHANGED
+            state = CandidateState.CHANGED;
+          } else {
+            state = FingerprintComparator.compare(candidate, stored);
+          }
+
+          // 记录状态计数
+          switch (state) {
+            case NEW -> stateCounts[0]++;
+            case CHANGED -> stateCounts[1]++;
+            case UNCHANGED -> stateCounts[2]++;
+            case RETRYABLE -> stateCounts[3]++;
+          }
+
+          // UNCHANGED 不读写 artifact/DB
+          if (state == CandidateState.UNCHANGED && !rebuildTriggered) {
             continue;
           }
-        }
 
-        // 处理需要更新的候选项
-        FullScanEngine.CandidateResult result =
-            FullScanEngine.processCandidate(
-                candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
-
-        switch (result.outcome()) {
-          case SUCCESS -> successCount++;
-          case SKIPPED -> skippedByAgeCount++;
-          case ERROR -> {
-            errorCount++;
-            issues.add(new ScanIssue(sessionKey, agentValue, result.phase(), result.message()));
+          // Age cutoff 过滤
+          if (cutoffIso != null && stored != null) {
+            String endedAt = stored.endedAt();
+            if (!endedAt.isEmpty() && endedAt.compareTo(cutoffIso) < 0) {
+              skippedByAgeCount++;
+              continue;
+            }
           }
-        }
 
-        processedInBatch++;
-        if (processedInBatch >= FLUSH_INTERVAL && batch.pendingCount() > 0) {
-          try {
-            batch.flush();
-          } catch (SQLException e) {
-            log.error("WriteBatch flush 失败", e);
-            issues.add(
-                new ScanIssue("", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, e.getMessage()));
-            scanFailed = true;
+          // 处理需要更新的候选项
+          FullScanEngine.CandidateResult result =
+              FullScanEngine.processCandidate(
+                  candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
+
+          switch (result.outcome()) {
+            case SUCCESS -> successCount++;
+            case SKIPPED -> skippedByAgeCount++;
+            case ERROR -> {
+              errorCount++;
+              issues.add(new ScanIssue(sessionKey, agentValue, result.phase(), result.message()));
+            }
           }
-          processedInBatch = 0;
+
+          processedInBatch++;
+          if (processedInBatch >= FLUSH_INTERVAL && batch.pendingCount() > 0) {
+            try {
+              batch.flush();
+            } catch (SQLException e) {
+              log.error("WriteBatch flush 失败", e);
+              issues.add(
+                  new ScanIssue("", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, e.getMessage()));
+              scanFailed = true;
+            }
+            processedInBatch = 0;
+          }
         }
       }
-    }
 
-    // 6. 最终 flush
-    if (!scanFailed && batch.pendingCount() > 0) {
+      // 6. 最终 flush
+      if (!scanFailed && batch.pendingCount() > 0) {
+        try {
+          batch.flush();
+        } catch (SQLException e) {
+          log.error("WriteBatch 最终 flush 失败", e);
+          scanFailed = true;
+        }
+      }
+
+      // 7. 更新 scan logic version
+      if (!scanFailed) {
+        saveScanLogicVersion(writeConn, CURRENT_SCAN_LOGIC_VERSION);
+      }
+
+      // 8. 完成 scan_log
+      long endMs = clock.millis();
+      double endEpoch = endMs / 1000.0;
       try {
-        batch.flush();
+        if (scanFailed) {
+          ScanLogManager.failScan(writeConn, scanLogIdFinal, endEpoch, perSourceCountByValue);
+        } else {
+          ScanLogManager.completeScan(writeConn, scanLogIdFinal, endEpoch, perSourceCountByValue);
+        }
       } catch (SQLException e) {
-        log.error("WriteBatch 最终 flush 失败", e);
-        scanFailed = true;
+        log.error("scan_log 完成记录失败", e);
       }
-    }
 
-    // 7. 更新 scan logic version
-    if (!scanFailed) {
-      saveScanLogicVersion(writeConn, CURRENT_SCAN_LOGIC_VERSION);
-    }
+      long duration = endMs - startMs;
+      return new IncrementalScanSummary(
+          totalCandidates,
+          successCount,
+          skippedByAgeCount,
+          errorCount,
+          duration,
+          scanLogIdFinal,
+          perSourceCount,
+          issues,
+          stateCounts[2], // 未变计数
+          stateCounts[1], // 变化计数
+          stateCounts[0], // 新增计数
+          stateCounts[3], // 重试计数
+          rebuildTriggered);
 
-    // 8. 完成 scan_log
-    long endMs = System.currentTimeMillis();
-    double endEpoch = endMs / 1000.0;
-    try {
-      if (scanFailed) {
-        ScanLogManager.failScan(writeConn, scanLogId, endEpoch, perSourceCountByValue);
-      } else {
-        ScanLogManager.completeScan(writeConn, scanLogId, endEpoch, perSourceCountByValue);
+    } catch (CancellationException e) {
+      // 标记 scan_log 为失败，确保不留 running 状态
+      long endMs = clock.millis();
+      double endEpoch = endMs / 1000.0;
+      try {
+        ScanLogManager.failScan(writeConn, scanLogIdFinal, endEpoch, perSourceCountByValue);
+      } catch (SQLException sqlEx) {
+        log.error("取消后更新 scan_log 失败", sqlEx);
       }
-    } catch (SQLException e) {
-      log.error("scan_log 完成记录失败", e);
+      log.info("增量扫描已取消");
+      throw e;
     }
-
-    long duration = endMs - startMs;
-    return new IncrementalScanSummary(
-        totalCandidates,
-        successCount,
-        skippedByAgeCount,
-        errorCount,
-        duration,
-        scanLogId,
-        perSourceCount,
-        issues,
-        stateCounts[2], // 未变计数
-        stateCounts[1], // 变化计数
-        stateCounts[0], // 新增计数
-        stateCounts[3], // 重试计数
-        rebuildTriggered);
   }
 
   /**
@@ -337,11 +396,11 @@ public final class IncrementalScanEngine {
    * @param maxAgeSeconds 会话 age 上限（秒），null 表示不过滤
    * @return ISO 8601 时间戳字符串，null 表示不过滤
    */
-  private static String computeAgeCutoff(Double maxAgeSeconds) {
+  private String computeAgeCutoff(Double maxAgeSeconds) {
     if (maxAgeSeconds == null || maxAgeSeconds <= 0) {
       return null;
     }
-    Instant cutoff = Instant.now().minusSeconds(maxAgeSeconds.longValue());
+    Instant cutoff = clock.instant().minusSeconds(maxAgeSeconds.longValue());
     return cutoff.toString();
   }
 
@@ -372,12 +431,12 @@ public final class IncrementalScanEngine {
    * @param conn SQLite 写连接
    * @param version 版本号
    */
-  private static void saveScanLogicVersion(Connection conn, int version) {
+  private void saveScanLogicVersion(Connection conn, int version) {
     String sql = "INSERT OR REPLACE INTO index_metadata (key, value, updated_at) VALUES (?, ?, ?)";
     try (PreparedStatement stmt = conn.prepareStatement(sql)) {
       stmt.setString(1, SCAN_LOGIC_VERSION_KEY);
       stmt.setString(2, String.valueOf(version));
-      stmt.setDouble(3, System.currentTimeMillis() / 1000.0);
+      stmt.setDouble(3, clock.millis() / 1000.0);
       stmt.executeUpdate();
     } catch (SQLException e) {
       log.warn("保存 scan logic version 失败", e);

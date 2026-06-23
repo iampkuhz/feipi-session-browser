@@ -219,6 +219,8 @@ component com.feipi.session.browser.scan.engine.StoredSessionFingerprint endedAt
 component com.feipi.session.browser.scan.engine.StoredSessionFingerprint fileMtime: double
 component com.feipi.session.browser.scan.engine.StoredSessionFingerprint filePath: String
 component com.feipi.session.browser.scan.engine.StoredSessionFingerprint sessionKey: String
+component com.feipi.session.browser.scan.engine.TierConfig intervalSeconds: long
+component com.feipi.session.browser.scan.engine.TierConfig windowSeconds: long
 component com.feipi.session.browser.source.codex.ThreadsDbResult diagnostic: Optional<SourceDiagnostic>
 component com.feipi.session.browser.source.codex.ThreadsDbResult threads: List<Map<String, String>>
 component com.feipi.session.browser.source.json.JsonlReaderConfig maxBufferSize: int
@@ -318,9 +320,12 @@ constructor com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public
 constructor com.feipi.session.browser.reuse.analyzer.model.Finding public Finding( String id, Severity severity, String kind, String fingerprint, List<Map<String, Object>> occurrences, boolean touchesChangedCode, List<String> suggestedDecisions, Map<String, Object> ownership, String peerGroup)
 constructor com.feipi.session.browser.reuse.analyzer.model.InputManifest public InputManifest( int javaVersion, List<ModuleManifest> modules, List<String> changedFiles, String baseSha, String policyDigest)
 constructor com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public ModuleManifest( String id, List<String> productionSourceRoots, List<String> compileClasspath, List<String> compiledOutputs)
+constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Runnable hotAction, Runnable warmAction)
+constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Runnable hotAction, Runnable warmAction, Clock clock)
 constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter)
 constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScanEngine()
 constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter)
+constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter, Clock clock)
 constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine()
 constructor com.feipi.session.browser.scan.engine.IncrementalScanSummary public IncrementalScanSummary()
 constructor com.feipi.session.browser.scan.engine.RepairDecision public RepairDecision()
@@ -328,9 +333,13 @@ constructor com.feipi.session.browser.scan.engine.RepairSummary public RepairSum
 constructor com.feipi.session.browser.scan.engine.ScanConfig public ScanConfig()
 constructor com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public SourceEntry()
 constructor com.feipi.session.browser.scan.engine.ScanIssue public ScanIssue()
+constructor com.feipi.session.browser.scan.engine.ScanLock public ScanLock(Path lockDir)
 constructor com.feipi.session.browser.scan.engine.ScanSummary public ScanSummary()
 constructor com.feipi.session.browser.scan.engine.SourceEntry public SourceEntry()
 constructor com.feipi.session.browser.scan.engine.StoredSessionFingerprint public StoredSessionFingerprint()
+constructor com.feipi.session.browser.scan.engine.TierConfig public TierConfig()
+constructor com.feipi.session.browser.scan.engine.TierConfig public static final TierConfig DEFAULT_HOT = new TierConfig(DEFAULT_HOT_WINDOW, DEFAULT_HOT_INTERVAL)
+constructor com.feipi.session.browser.scan.engine.TierConfig public static final TierConfig DEFAULT_WARM = new TierConfig(DEFAULT_WARM_WINDOW, DEFAULT_WARM_INTERVAL)
 constructor com.feipi.session.browser.source.claude.ClaudeSourceAdapter public ClaudeSourceAdapter()
 constructor com.feipi.session.browser.source.claude.ClaudeSourceAdapter public ClaudeSourceAdapter(JsonlReader jsonlReader)
 constructor com.feipi.session.browser.source.codex.CodexSourceAdapter public CodexSourceAdapter()
@@ -409,6 +418,10 @@ field com.feipi.session.browser.normalization.NormalizationConstants public USAG
 field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_EXACT: static final String
 field com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public ANALYZER_VERSION: static final String
 field com.feipi.session.browser.scan.engine.IncrementalScanEngine public CURRENT_SCAN_LOGIC_VERSION: static final int
+field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_HOT_INTERVAL: static final long
+field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_HOT_WINDOW: static final long
+field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_WARM_INTERVAL: static final long
+field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_WARM_WINDOW: static final long
 field com.feipi.session.browser.source.claude.ClaudeConstants public DIAG_CODE_MISSING_TYPE: static final String
 field com.feipi.session.browser.source.claude.ClaudeConstants public EVENT_TYPE_ASSISTANT: static final String
 field com.feipi.session.browser.source.claude.ClaudeConstants public EVENT_TYPE_RESULT: static final String
@@ -594,8 +607,15 @@ method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List
 method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> compiledOutputs()
 method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> productionSourceRoots()
 method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public String id()
+method com.feipi.session.browser.scan.engine.BackgroundScanner public boolean isRunning()
+method com.feipi.session.browser.scan.engine.BackgroundScanner public static boolean runStartupScan(Runnable scanAction, ScanLock scanLock)
+method com.feipi.session.browser.scan.engine.BackgroundScanner public void cancelCurrentScan()
+method com.feipi.session.browser.scan.engine.BackgroundScanner public void shutdown()
+method com.feipi.session.browser.scan.engine.BackgroundScanner public void shutdown(long timeout, TimeUnit unit)
+method com.feipi.session.browser.scan.engine.BackgroundScanner public void start()
 method com.feipi.session.browser.scan.engine.FullScanEngine public ScanSummary scan(Connection writeConn, ScanConfig config)
 method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan( Connection writeConn, ScanConfig config, Double maxAgeSeconds)
+method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan( Connection writeConn, ScanConfig config, Double maxAgeSeconds, ScanCancelToken cancelToken)
 method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan(Connection writeConn, ScanConfig config)
 method com.feipi.session.browser.scan.engine.IncrementalScanSummary public static IncrementalScanSummary fromBase( ScanSummary base, int unchangedCount, int changedCount, int newCount, int retryableCount, boolean rebuildTriggered)
 method com.feipi.session.browser.scan.engine.RepairEngine public List<RepairDecision> analyze(Connection conn, List<ScanConfig.SourceEntry> sourceEntries)
@@ -604,8 +624,21 @@ method com.feipi.session.browser.scan.engine.RepairEngine public RepairSummary r
 method com.feipi.session.browser.scan.engine.RepairSummary public boolean hasDestructiveActions()
 method com.feipi.session.browser.scan.engine.RepairSummary public boolean hasErrors()
 method com.feipi.session.browser.scan.engine.RepairSummary public int totalActions()
+method com.feipi.session.browser.scan.engine.ScanCancelToken public boolean isCancelled()
+method com.feipi.session.browser.scan.engine.ScanCancelToken public void cancel()
+method com.feipi.session.browser.scan.engine.ScanCancelToken public void throwIfCancelled()
 method com.feipi.session.browser.scan.engine.ScanConfig public boolean isAgentAllowed(String agentValue)
 method com.feipi.session.browser.scan.engine.ScanConfig public static ScanConfig defaults(List<SourceEntry> sourceEntries, Path artifactOutputDir)
+method com.feipi.session.browser.scan.engine.ScanLock public Path lockPath()
+method com.feipi.session.browser.scan.engine.ScanLock public ScanLockHandle acquire(String owner, long timeoutMs) throws IOException
+method com.feipi.session.browser.scan.engine.ScanLock public ScanLockHandle tryLock(String owner) throws IOException
+method com.feipi.session.browser.scan.engine.ScanLock public String readCurrentHolder()
+method com.feipi.session.browser.scan.engine.ScanLock.ScanLockHandle public void close()
+method com.feipi.session.browser.scan.engine.ScanLock.ScanLockUnavailableException public Path lockPath()
+method com.feipi.session.browser.scan.engine.ScanLock.ScanLockUnavailableException public String holder()
+method com.feipi.session.browser.scan.engine.ScanLockHandle public void close()
+method com.feipi.session.browser.scan.engine.ScanLockUnavailableException public Path lockPath()
+method com.feipi.session.browser.scan.engine.ScanLockUnavailableException public String holder()
 method com.feipi.session.browser.scan.engine.ScanSummary public boolean isFullySuccessful()
 method com.feipi.session.browser.source.claude.ClaudeDiscovery public static List<Path> discoverSessions(Path rootPath)
 method com.feipi.session.browser.source.claude.ClaudeSourceAdapter public BoundedStream<Candidate> discover(Path rootPath)
@@ -762,6 +795,7 @@ type com.feipi.session.browser.reuse.analyzer.model.InputManifest public class [
 type com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public class [reuse-analyzer] final class ModuleManifest
 type com.feipi.session.browser.reuse.analyzer.model.Ownership public enum [reuse-analyzer] enum Ownership
 type com.feipi.session.browser.reuse.analyzer.model.Severity public enum [reuse-analyzer] enum Severity
+type com.feipi.session.browser.scan.engine.BackgroundScanner public class [scan-engine] final class BackgroundScanner
 type com.feipi.session.browser.scan.engine.CandidateState public enum [scan-engine] enum CandidateState
 type com.feipi.session.browser.scan.engine.FullScanEngine public class [scan-engine] final class FullScanEngine
 type com.feipi.session.browser.scan.engine.FullScanEngine.CandidateOutcome public enum [scan-engine] enum CandidateOutcome
@@ -772,14 +806,21 @@ type com.feipi.session.browser.scan.engine.RepairAction public enum [scan-engine
 type com.feipi.session.browser.scan.engine.RepairDecision public record [scan-engine] record RepairDecision( StoredSessionFingerprint fingerprint, RepairAction action, Optional<String> newFilePath, String reason)
 type com.feipi.session.browser.scan.engine.RepairEngine public class [scan-engine] final class RepairEngine
 type com.feipi.session.browser.scan.engine.RepairSummary public record [scan-engine] record RepairSummary( int deletedCount, int renamedCount, int keptCount, int rootUnavailableCount, int temporaryMissingCount, int artifactOrphanCount, List<RepairDecision> decisions, List<String> errors, long durationMs)
+type com.feipi.session.browser.scan.engine.ScanCancelToken public class [scan-engine] final class ScanCancelToken
 type com.feipi.session.browser.scan.engine.ScanConfig public record [scan-engine] record ScanConfig( List<SourceEntry> sourceEntries, Path artifactOutputDir, Set<String> agentFilter, int parseParallelism)
 type com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public record [scan-engine] record SourceEntry(SourceAdapter adapter, Path rootPath)
 type com.feipi.session.browser.scan.engine.ScanIssue public record [scan-engine] record ScanIssue(String sessionKey, String sourceValue, ScanPhase phase, String message)
 type com.feipi.session.browser.scan.engine.ScanIssue.ScanPhase public enum [scan-engine] enum ScanPhase
+type com.feipi.session.browser.scan.engine.ScanLock public class [scan-engine] final class ScanLock
+type com.feipi.session.browser.scan.engine.ScanLock.ScanLockHandle public class [scan-engine] static final class ScanLockHandle implements AutoCloseable
+type com.feipi.session.browser.scan.engine.ScanLock.ScanLockUnavailableException public class [scan-engine] static final class ScanLockUnavailableException extends IOException
+type com.feipi.session.browser.scan.engine.ScanLockHandle public class [scan-engine] static final class ScanLockHandle implements AutoCloseable
+type com.feipi.session.browser.scan.engine.ScanLockUnavailableException public class [scan-engine] static final class ScanLockUnavailableException extends IOException
 type com.feipi.session.browser.scan.engine.ScanPhase public enum [scan-engine] enum ScanPhase
 type com.feipi.session.browser.scan.engine.ScanSummary public record [scan-engine] record ScanSummary( int totalCandidates, int successCount, int skippedCount, int errorCount, long scanDurationMs, long scanLogId, Map<SourceId, Integer> perSourceCount, List<ScanIssue> issues)
 type com.feipi.session.browser.scan.engine.SourceEntry public record [scan-engine] record SourceEntry(SourceAdapter adapter, Path rootPath)
 type com.feipi.session.browser.scan.engine.StoredSessionFingerprint public record [scan-engine] record StoredSessionFingerprint( String sessionKey, String filePath, double fileMtime, String agent, String endedAt)
+type com.feipi.session.browser.scan.engine.TierConfig public record [scan-engine] record TierConfig(long windowSeconds, long intervalSeconds)
 type com.feipi.session.browser.source.claude.ClaudeConstants public class [source-claude] final class ClaudeConstants
 type com.feipi.session.browser.source.claude.ClaudeDiscovery public class [source-claude] final class ClaudeDiscovery
 type com.feipi.session.browser.source.claude.ClaudeSourceAdapter public class [source-claude] final class ClaudeSourceAdapter implements SourceAdapter
