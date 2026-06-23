@@ -357,7 +357,8 @@ public final class ReuseAnalyzer {
         status,
         1,
         findings,
-        Map.of("totalTypes", allTypes.size(), "totalFindings", findings.size()));
+        new java.util.TreeMap<>(
+            Map.of("totalTypes", allTypes.size(), "totalFindings", findings.size())));
   }
 
   private Finding createFinding(

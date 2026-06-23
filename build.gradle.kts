@@ -459,8 +459,9 @@ fun jsonArrayOfStrings(items: List<String>): String {
 }
 
 // ============================================================
-// 生成分析器输入清单的辅助函数。
-// 收集所有生产模块的 source roots、classpath 和 outputs。
+// 生成分析器输入清单。
+// 每个生产模块在自身项目中解析 compileClasspath（避免跨项目配置解析限制），
+// 由根任务聚合各模块信息生成最终清单。
 // ============================================================
 gradle.projectsEvaluated {
     val productionModules = leafSubprojects.filter { sub ->
@@ -471,25 +472,72 @@ gradle.projectsEvaluated {
             && sub.file("src/main/java").exists()
     }
 
+    // --------------------------------------------------------
+    // 为每个生产模块注册 classpath 信息收集任务。
+    // 任务在子项目内解析自身的 compileClasspath，输出 JSON。
+    // 配置缓存兼容：doLast 内不调用脚本级函数，不捕获 Project 引用。
+    // --------------------------------------------------------
+    val classpathInfoTasks = productionModules.map { sub ->
+        val modulePath = sub.path
+        val sourceRootPath = sub.file("src/main/java").absolutePath
+        val cpFiles: FileCollection = files(sub.configurations.getByName("compileClasspath"))
+        val outputDirPath = sub.layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
+        val infoFile = layout.buildDirectory.get().asFile
+            .resolve("reports/reuse-analysis/classpath-info")
+            .resolve(modulePath.removePrefix(":").replace(":", "-") + ".json")
+
+        sub.tasks.register("reuseClasspathInfo") {
+            group = "verification"
+            description = "收集 ${modulePath} 的 classpath 信息供 reuse analyzer 使用。"
+
+            inputs.files(cpFiles).withPropertyName("classpathFiles").optional(true)
+            outputs.file(infoFile).withPropertyName("classpathInfoFile")
+
+            doLast {
+                val resolvedCp = cpFiles.files.map { it.absolutePath }.sorted()
+                // Inline JSON helpers to avoid capturing the build-script object.
+                fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
+                    .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+                fun jsonArr(items: List<String>) =
+                    "[" + items.joinToString(", ") { "\"${esc(it)}\"" } + "]"
+                val json = """{
+  "id": "${esc(modulePath)}",
+  "productionSourceRoots": ${jsonArr(listOf(sourceRootPath))},
+  "compileClasspath": ${jsonArr(resolvedCp)},
+  "compiledOutputs": ${jsonArr(listOf(outputDirPath))}
+}
+"""
+                infoFile.parentFile.mkdirs()
+                infoFile.writeText(json, Charsets.UTF_8)
+            }
+        }
+    }
+
+    // --------------------------------------------------------
+    // reuseGenerateManifest —— 聚合各模块 classpath 信息，生成输入清单。
+    // 配置缓存兼容：预计算所有 File 路径，doLast 内仅使用 String/File/List。
+    // --------------------------------------------------------
+    val moduleInfoFiles = productionModules.map { sub ->
+        val modulePath = sub.path
+        layout.buildDirectory.get().asFile
+            .resolve("reports/reuse-analysis/classpath-info")
+            .resolve(modulePath.removePrefix(":").replace(":", "-") + ".json")
+    }
+
     val generateManifest = tasks.register("reuseGenerateManifest") {
         group = "verification"
         description = "生成 reuse analyzer 输入清单 JSON。"
 
         val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile
-        val changedFilesProvider = providers.provider {
-            try {
-                val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
-                    .directory(rootDir).redirectErrorStream(true).start()
-                proc.inputStream.bufferedReader().readLines().filter { it.endsWith(".java") }
-            } catch (e: Exception) {
-                emptyList<String>()
-            }
-        }
+        val rootDirPath = rootDir.absolutePath
         val policyFileRef = file(policyFilePath)
+        val srcDirPaths = productionModules.map { it.file("src/main/java").absolutePath }
+
+        dependsOn(classpathInfoTasks)
 
         // 声明 inputs
-        inputs.files(productionModules.map { sub ->
-            sub.fileTree("src/main/java").matching { include("**/*.java") }
+        inputs.files(srcDirPaths.map { path ->
+            fileTree(path).matching { include("**/*.java") }
         }).withPropertyName("sourceFiles").optional(true)
         if (policyFileRef.exists()) {
             inputs.file(policyFileRef).withPropertyName("policyFile")
@@ -499,26 +547,25 @@ gradle.projectsEvaluated {
         outputs.file(manifestFile).withPropertyName("manifestFile")
 
         doLast {
-            val modules = productionModules.map { sub ->
-                val sourceRoots = listOf(sub.file("src/main/java").absolutePath)
-                val cp = try {
-                    sub.configurations.getByName("compileClasspath")
-                        .resolve()
-                        .map { it.absolutePath }
-                        .sorted()
-                } catch (e: Exception) {
-                    emptyList<String>()
-                }
-                val outputDirs = listOf(
-                    sub.layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath,
-                )
-                """    {
-      "id": "${escapeJsonString(sub.path)}",
-      "productionSourceRoots": ${jsonArrayOfStrings(sourceRoots)},
-      "compileClasspath": ${jsonArrayOfStrings(cp)},
-      "compiledOutputs": ${jsonArrayOfStrings(outputDirs)}
-    }"""
+            // 读取各模块 classpath 信息（使用预计算的 File 列表，不访问 Task 引用）
+            val moduleJsons = moduleInfoFiles.map { f ->
+                f.readText(Charsets.UTF_8).trim()
             }
+
+            // git changed files（执行时，非配置时）
+            val changedFiles = try {
+                val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
+                    .directory(File(rootDirPath)).redirectErrorStream(true).start()
+                proc.inputStream.bufferedReader().readLines().filter { it.endsWith(".java") }
+            } catch (e: Exception) {
+                emptyList<String>()
+            }
+
+            val baseSha = try {
+                ProcessBuilder("git", "rev-parse", "HEAD").directory(File(rootDirPath))
+                    .redirectErrorStream(true).start()
+                    .inputStream.bufferedReader().readText().trim()
+            } catch (e: Exception) { "unknown" }
 
             val policyDigest = if (policyFileRef.exists()) {
                 val digest = java.security.MessageDigest.getInstance("SHA-256")
@@ -526,20 +573,19 @@ gradle.projectsEvaluated {
                 hash.joinToString("") { "%02x".format(it) }
             } else "0000000000000000000000000000000000000000000000000000000000000000"
 
-            val changedFiles = changedFilesProvider.get().sorted()
-            val baseSha = try {
-                ProcessBuilder("git", "rev-parse", "HEAD").directory(rootDir)
-                    .redirectErrorStream(true).start()
-                    .inputStream.bufferedReader().readText().trim()
-            } catch (e: Exception) { "unknown" }
+            // Inline JSON helpers to avoid capturing the build-script object.
+            fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
+                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+            fun jsonArr(items: List<String>) =
+                "[" + items.joinToString(", ") { "\"${esc(it)}\"" } + "]"
 
             val json = """{
   "javaVersion": 25,
   "modules": [
-${modules.joinToString(",\n")}
+${moduleJsons.joinToString(",\n")}
   ],
-  "changedFiles": ${jsonArrayOfStrings(changedFiles)},
-  "baseSha": "${escapeJsonString(baseSha)}",
+  "changedFiles": ${jsonArr(changedFiles.sorted())},
+  "baseSha": "${esc(baseSha)}",
   "policyDigest": "$policyDigest"
 }
 """
@@ -568,6 +614,8 @@ ${modules.joinToString(",\n")}
         )
         inputs.file(manifestFile).withPropertyName("manifest")
         outputs.file(outputFile).withPropertyName("resultFile")
+        // Bootstrap 模式仅构建索引，发现不阻断构建。
+        isIgnoreExitValue = true
     }
 
     // ============================================================
