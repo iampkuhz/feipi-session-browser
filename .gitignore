@@ -72,3 +72,4 @@ out/
 gradle/verification-metadata.xml
 
 **/build/**
+/config/reuse-analysis/
