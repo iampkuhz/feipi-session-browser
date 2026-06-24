@@ -22,6 +22,7 @@ public final class QueryCompositionRoot {
   private final DiagnosticsUseCase diagnostics;
   private final QueryCache cache;
   private final int schemaVersion;
+  private final IndexConnection indexConnection;
 
   /**
    * 创建 composition root。
@@ -41,6 +42,7 @@ public final class QueryCompositionRoot {
 
     this.schemaVersion = schemaVersion.version();
     this.cache = cache;
+    this.indexConnection = indexConnection;
 
     SessionQueryRepository sessionRepo = new SessionQueryRepository(indexConnection);
     AggregateQueryRepository aggregateRepo = new AggregateQueryRepository(indexConnection);
@@ -115,5 +117,16 @@ public final class QueryCompositionRoot {
    */
   public int schemaVersion() {
     return schemaVersion;
+  }
+
+  /**
+   * 获取底层 index 连接。
+   *
+   * <p>供 Web 层创建共享连接的仓库实例（如 {@code SessionDetailRepository}）。
+   *
+   * @return index 连接实例
+   */
+  public IndexConnection indexConnection() {
+    return indexConnection;
   }
 }

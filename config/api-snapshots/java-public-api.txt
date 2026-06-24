@@ -463,6 +463,116 @@ component com.feipi.session.browser.web.WebConfig host: String
 component com.feipi.session.browser.web.WebConfig port: int
 component com.feipi.session.browser.web.WebConfig staticPath: String
 component com.feipi.session.browser.web.WebServer.HealthResponse status: String
+component com.feipi.session.browser.web.api.ApiErrorResponse error: String
+component com.feipi.session.browser.web.api.ApiErrorResponse message: String
+component com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse error: String
+component com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse message: String
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData cacheReadTokens: long
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData cacheWriteTokens: long
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData freshInputTokens: long
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData model: String
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData outputTokens: long
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData requestToolResultCount: int
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData responseToolCallCount: int
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData scope: String
+component com.feipi.session.browser.web.api.ApiResponses.AttributionData totalTokens: long
+component com.feipi.session.browser.web.api.ApiResponses.AttributionResponse callIndex: int
+component com.feipi.session.browser.web.api.ApiResponses.AttributionResponse data: AttributionData
+component com.feipi.session.browser.web.api.ApiResponses.AttributionResponse kind: String
+component com.feipi.session.browser.web.api.ApiResponses.AttributionResponse roundIndex: int
+component com.feipi.session.browser.web.api.ApiResponses.AttributionResponse sessionId: String
+component com.feipi.session.browser.web.api.ApiResponses.AttributionResponse source: String
+component com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse bucketKey: String
+component com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse kind: String
+component com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse roundIndex: int
+component com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse text: String
+component com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse tokens: long
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary callId: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary callKey: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary model: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary requestToolResultIds: List<String>
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary responseToolCallIds: List<String>
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary scope: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary usage: CallUsage
+component com.feipi.session.browser.web.api.ApiResponses.CallUsage cacheRead: long
+component com.feipi.session.browser.web.api.ApiResponses.CallUsage cacheWrite: long
+component com.feipi.session.browser.web.api.ApiResponses.CallUsage fresh: long
+component com.feipi.session.browser.web.api.ApiResponses.CallUsage output: long
+component com.feipi.session.browser.web.api.ApiResponses.CallUsage total: long
+component com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse availablePayloadIds: List<String>
+component com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse error: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse message: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadResponse callId: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadResponse content: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadResponse kind: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadResponse payloadId: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadResponse schemaVersion: String
+component com.feipi.session.browser.web.api.ApiResponses.PayloadResponse truncated: boolean
+component com.feipi.session.browser.web.api.ApiResponses.RoundResponse round: RoundSummary
+component com.feipi.session.browser.web.api.ApiResponses.RoundResponse roundId: int
+component com.feipi.session.browser.web.api.ApiResponses.RoundResponse schemaVersion: String
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary callIds: List<String>
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary calls: List<CallSummary>
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary isSubagent: boolean
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary parentCallId: String
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary toolCallIds: List<String>
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary totalTokens: long
+component com.feipi.session.browser.web.api.AttributionData cacheReadTokens: long
+component com.feipi.session.browser.web.api.AttributionData cacheWriteTokens: long
+component com.feipi.session.browser.web.api.AttributionData freshInputTokens: long
+component com.feipi.session.browser.web.api.AttributionData model: String
+component com.feipi.session.browser.web.api.AttributionData outputTokens: long
+component com.feipi.session.browser.web.api.AttributionData requestToolResultCount: int
+component com.feipi.session.browser.web.api.AttributionData responseToolCallCount: int
+component com.feipi.session.browser.web.api.AttributionData scope: String
+component com.feipi.session.browser.web.api.AttributionData totalTokens: long
+component com.feipi.session.browser.web.api.AttributionResponse callIndex: int
+component com.feipi.session.browser.web.api.AttributionResponse data: AttributionData
+component com.feipi.session.browser.web.api.AttributionResponse kind: String
+component com.feipi.session.browser.web.api.AttributionResponse roundIndex: int
+component com.feipi.session.browser.web.api.AttributionResponse sessionId: String
+component com.feipi.session.browser.web.api.AttributionResponse source: String
+component com.feipi.session.browser.web.api.BucketDetailResponse bucketKey: String
+component com.feipi.session.browser.web.api.BucketDetailResponse kind: String
+component com.feipi.session.browser.web.api.BucketDetailResponse roundIndex: int
+component com.feipi.session.browser.web.api.BucketDetailResponse text: String
+component com.feipi.session.browser.web.api.BucketDetailResponse tokens: long
+component com.feipi.session.browser.web.api.CallSummary callId: String
+component com.feipi.session.browser.web.api.CallSummary callKey: String
+component com.feipi.session.browser.web.api.CallSummary model: String
+component com.feipi.session.browser.web.api.CallSummary requestToolResultIds: List<String>
+component com.feipi.session.browser.web.api.CallSummary responseToolCallIds: List<String>
+component com.feipi.session.browser.web.api.CallSummary scope: String
+component com.feipi.session.browser.web.api.CallSummary usage: CallUsage
+component com.feipi.session.browser.web.api.CallUsage cacheRead: long
+component com.feipi.session.browser.web.api.CallUsage cacheWrite: long
+component com.feipi.session.browser.web.api.CallUsage fresh: long
+component com.feipi.session.browser.web.api.CallUsage output: long
+component com.feipi.session.browser.web.api.CallUsage total: long
+component com.feipi.session.browser.web.api.PayloadNotFoundResponse availablePayloadIds: List<String>
+component com.feipi.session.browser.web.api.PayloadNotFoundResponse error: String
+component com.feipi.session.browser.web.api.PayloadNotFoundResponse message: String
+component com.feipi.session.browser.web.api.PayloadResponse callId: String
+component com.feipi.session.browser.web.api.PayloadResponse content: String
+component com.feipi.session.browser.web.api.PayloadResponse kind: String
+component com.feipi.session.browser.web.api.PayloadResponse payloadId: String
+component com.feipi.session.browser.web.api.PayloadResponse schemaVersion: String
+component com.feipi.session.browser.web.api.PayloadResponse truncated: boolean
+component com.feipi.session.browser.web.api.RoundResponse round: RoundSummary
+component com.feipi.session.browser.web.api.RoundResponse roundId: int
+component com.feipi.session.browser.web.api.RoundResponse schemaVersion: String
+component com.feipi.session.browser.web.api.RoundSummary callIds: List<String>
+component com.feipi.session.browser.web.api.RoundSummary calls: List<CallSummary>
+component com.feipi.session.browser.web.api.RoundSummary isSubagent: boolean
+component com.feipi.session.browser.web.api.RoundSummary parentCallId: String
+component com.feipi.session.browser.web.api.RoundSummary toolCallIds: List<String>
+component com.feipi.session.browser.web.api.RoundSummary totalTokens: long
+component com.feipi.session.browser.web.api.SessionApiContext artifact: NormalizedSessionArtifact
+component com.feipi.session.browser.web.api.SessionApiContext detail: SessionDetail
+component com.feipi.session.browser.web.api.SessionApiContext payloadLookup: PayloadLookup
+component com.feipi.session.browser.web.api.SessionApiService.SessionApiContext artifact: NormalizedSessionArtifact
+component com.feipi.session.browser.web.api.SessionApiService.SessionApiContext detail: SessionDetail
+component com.feipi.session.browser.web.api.SessionApiService.SessionApiContext payloadLookup: PayloadLookup
 component com.feipi.session.browser.web.model.PaginationModel hasNext: boolean
 component com.feipi.session.browser.web.model.PaginationModel hasPrev: boolean
 component com.feipi.session.browser.web.model.PaginationModel page: int
@@ -611,6 +721,31 @@ constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter publi
 constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config)
 constructor com.feipi.session.browser.web.WebConfig public WebConfig()
 constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
+constructor com.feipi.session.browser.web.api.ApiErrorResponse public ApiErrorResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse public ApiErrorResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.AttributionData public AttributionData()
+constructor com.feipi.session.browser.web.api.ApiResponses.AttributionResponse public AttributionResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse public BucketDetailResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.CallSummary public CallSummary()
+constructor com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse public PayloadNotFoundResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.PayloadResponse public PayloadResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.RoundResponse public RoundResponse()
+constructor com.feipi.session.browser.web.api.ApiResponses.RoundSummary public RoundSummary()
+constructor com.feipi.session.browser.web.api.AttributionData public AttributionData()
+constructor com.feipi.session.browser.web.api.AttributionResponse public AttributionResponse()
+constructor com.feipi.session.browser.web.api.BucketDetailResponse public BucketDetailResponse()
+constructor com.feipi.session.browser.web.api.CallSummary public CallSummary()
+constructor com.feipi.session.browser.web.api.PayloadNotFoundResponse public PayloadNotFoundResponse()
+constructor com.feipi.session.browser.web.api.PayloadResponse public PayloadResponse()
+constructor com.feipi.session.browser.web.api.RoundResponse public RoundResponse()
+constructor com.feipi.session.browser.web.api.RoundSummary public RoundSummary()
+constructor com.feipi.session.browser.web.api.SessionApiContext public SessionApiContext()
+constructor com.feipi.session.browser.web.api.SessionApiHandler public SessionApiHandler(SessionApiService apiService)
+constructor com.feipi.session.browser.web.api.SessionApiRouter public SessionApiRouter(SessionApiHandler handler)
+constructor com.feipi.session.browser.web.api.SessionApiService public SessionApiService(SessionDetailRepository detailRepository)
+constructor com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public SessionApiContext()
+constructor com.feipi.session.browser.web.api.SessionApiService.SessionDataException public SessionDataException(String message, Throwable cause)
+constructor com.feipi.session.browser.web.api.SessionDataException public SessionDataException(String message, Throwable cause)
 constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
 constructor com.feipi.session.browser.web.page.CorruptArtifactException public CorruptArtifactException(String agent, String sessionId, Throwable cause)
 constructor com.feipi.session.browser.web.page.DashboardPage public DashboardPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
@@ -782,6 +917,7 @@ field com.feipi.session.browser.source.spi.SourceConstants public MAX_PREVIEW_LE
 field com.feipi.session.browser.source.spi.SourceResult public MAX_DIAGNOSTICS: int
 field com.feipi.session.browser.web.WebConfig public DEFAULT_HOST: static final String
 field com.feipi.session.browser.web.WebConfig public DEFAULT_PORT: static final int
+field com.feipi.session.browser.web.api.ApiResponses public SCHEMA_VERSION: static final String
 method com.feipi.session.browser.application.DashboardUseCase public AggregateMetricsRow aggregateMetrics() throws SQLException
 method com.feipi.session.browser.application.DashboardUseCase public DashboardRow stats(AgentFilter agentFilter) throws SQLException
 method com.feipi.session.browser.application.DashboardUseCase public List<ActivityTrendRow> activityTrend(TrendFilter filter) throws SQLException
@@ -803,6 +939,7 @@ method com.feipi.session.browser.application.QueryCache public static QueryCache
 method com.feipi.session.browser.application.QueryCache public void invalidateAll()
 method com.feipi.session.browser.application.QueryCompositionRoot public DashboardUseCase dashboard()
 method com.feipi.session.browser.application.QueryCompositionRoot public DiagnosticsUseCase diagnostics()
+method com.feipi.session.browser.application.QueryCompositionRoot public IndexConnection indexConnection()
 method com.feipi.session.browser.application.QueryCompositionRoot public ProjectListUseCase projectList()
 method com.feipi.session.browser.application.QueryCompositionRoot public QueryCache cache()
 method com.feipi.session.browser.application.QueryCompositionRoot public SessionDetailUseCase sessionDetail()
@@ -1272,6 +1409,31 @@ method com.feipi.session.browser.web.WebServer public WebServer start()
 method com.feipi.session.browser.web.WebServer public boolean isRunning()
 method com.feipi.session.browser.web.WebServer public int actualPort()
 method com.feipi.session.browser.web.WebServer public void stop()
+method com.feipi.session.browser.web.api.SessionApiContext public List<CallRound> rounds()
+method com.feipi.session.browser.web.api.SessionApiContext public List<NormalizedCall> calls()
+method com.feipi.session.browser.web.api.SessionApiContext public List<NormalizedCall> callsInRound(CallRound round)
+method com.feipi.session.browser.web.api.SessionApiContext public List<NormalizedCall> findCallsByScope(CallScope scope)
+method com.feipi.session.browser.web.api.SessionApiContext public List<NormalizedToolExecution> toolExecutions()
+method com.feipi.session.browser.web.api.SessionApiContext public Optional<CallRound> findRound(int roundIndex)
+method com.feipi.session.browser.web.api.SessionApiContext public Optional<NormalizedCall> callAtRound(CallRound round, int callIndexInRound)
+method com.feipi.session.browser.web.api.SessionApiContext public Optional<NormalizedCall> findCall(String callId)
+method com.feipi.session.browser.web.api.SessionApiContext public SessionRow sessionRow()
+method com.feipi.session.browser.web.api.SessionApiHandler public void handleAttribution( Context ctx, String agent, String sessionId, int roundIndex, int callIndex, String kind)
+method com.feipi.session.browser.web.api.SessionApiHandler public void handleBucketDetail( Context ctx, String agent, String sessionId, int roundIndex, String bucketKey)
+method com.feipi.session.browser.web.api.SessionApiHandler public void handlePayload(Context ctx, String agent, String sessionId, String payloadId)
+method com.feipi.session.browser.web.api.SessionApiHandler public void handleRound(Context ctx, String agent, String sessionId, int roundIndex)
+method com.feipi.session.browser.web.api.SessionApiHandler public void handleSubagentAttribution( Context ctx, String agent, String sessionId, String subagentId, int callIndex, String kind)
+method com.feipi.session.browser.web.api.SessionApiRouter public void route(Context ctx)
+method com.feipi.session.browser.web.api.SessionApiService public Optional<SessionApiContext> getContext(String sessionKey, PayloadVisibility visibility) throws SQLException
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public List<CallRound> rounds()
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public List<NormalizedCall> calls()
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public List<NormalizedCall> callsInRound(CallRound round)
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public List<NormalizedCall> findCallsByScope(CallScope scope)
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public List<NormalizedToolExecution> toolExecutions()
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<CallRound> findRound(int roundIndex)
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> callAtRound(CallRound round, int callIndexInRound)
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> findCall(String callId)
+method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public SessionRow sessionRow()
 method com.feipi.session.browser.web.model.PaginationModel public static PaginationModel of(int page, int pageSize, int totalItems)
 method com.feipi.session.browser.web.model.SafeHtml public SafeHtml EMPTY = new SafeHtmlImpl("")
 method com.feipi.session.browser.web.model.SafeHtml public String value()
@@ -1559,6 +1721,34 @@ type com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse public recor
 type com.feipi.session.browser.web.WebConfig public record [web] record WebConfig(String host, int port, String staticPath)
 type com.feipi.session.browser.web.WebServer public class [web] final class WebServer
 type com.feipi.session.browser.web.WebServer.HealthResponse public record [web] record HealthResponse(String status)
+type com.feipi.session.browser.web.api.ApiErrorResponse public record [web] record ApiErrorResponse(String error, String message)
+type com.feipi.session.browser.web.api.ApiResponses public class [web] final class ApiResponses
+type com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse public record [web] record ApiErrorResponse(String error, String message)
+type com.feipi.session.browser.web.api.ApiResponses.AttributionData public record [web] record AttributionData( String model, String scope, long totalTokens, long freshInputTokens, long outputTokens, long cacheReadTokens, long cacheWriteTokens, int requestToolResultCount, int responseToolCallCount)
+type com.feipi.session.browser.web.api.ApiResponses.AttributionResponse public record [web] record AttributionResponse( String kind, String source, String sessionId, int roundIndex, int callIndex, AttributionData data)
+type com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse public record [web] record BucketDetailResponse( String kind, String bucketKey, int roundIndex, String text, long tokens)
+type com.feipi.session.browser.web.api.ApiResponses.CallSummary public record [web] record CallSummary( String callId, String callKey, String model, CallUsage usage, String scope, List<String> requestToolResultIds, List<String> responseToolCallIds)
+type com.feipi.session.browser.web.api.ApiResponses.CallUsage public record [web] record CallUsage(long fresh, long cacheRead, long cacheWrite, long output, long total)
+type com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse public record [web] record PayloadNotFoundResponse( String error, String message, List<String> availablePayloadIds)
+type com.feipi.session.browser.web.api.ApiResponses.PayloadResponse public record [web] record PayloadResponse( String payloadId, String kind, String callId, String content, boolean truncated, String schemaVersion)
+type com.feipi.session.browser.web.api.ApiResponses.RoundResponse public record [web] record RoundResponse(int roundId, RoundSummary round, String schemaVersion)
+type com.feipi.session.browser.web.api.ApiResponses.RoundSummary public record [web] record RoundSummary( List<String> callIds, List<String> toolCallIds, List<CallSummary> calls, long totalTokens, boolean isSubagent, String parentCallId)
+type com.feipi.session.browser.web.api.AttributionData public record [web] record AttributionData( String model, String scope, long totalTokens, long freshInputTokens, long outputTokens, long cacheReadTokens, long cacheWriteTokens, int requestToolResultCount, int responseToolCallCount)
+type com.feipi.session.browser.web.api.AttributionResponse public record [web] record AttributionResponse( String kind, String source, String sessionId, int roundIndex, int callIndex, AttributionData data)
+type com.feipi.session.browser.web.api.BucketDetailResponse public record [web] record BucketDetailResponse( String kind, String bucketKey, int roundIndex, String text, long tokens)
+type com.feipi.session.browser.web.api.CallSummary public record [web] record CallSummary( String callId, String callKey, String model, CallUsage usage, String scope, List<String> requestToolResultIds, List<String> responseToolCallIds)
+type com.feipi.session.browser.web.api.CallUsage public record [web] record CallUsage(long fresh, long cacheRead, long cacheWrite, long output, long total)
+type com.feipi.session.browser.web.api.PayloadNotFoundResponse public record [web] record PayloadNotFoundResponse( String error, String message, List<String> availablePayloadIds)
+type com.feipi.session.browser.web.api.PayloadResponse public record [web] record PayloadResponse( String payloadId, String kind, String callId, String content, boolean truncated, String schemaVersion)
+type com.feipi.session.browser.web.api.RoundResponse public record [web] record RoundResponse(int roundId, RoundSummary round, String schemaVersion)
+type com.feipi.session.browser.web.api.RoundSummary public record [web] record RoundSummary( List<String> callIds, List<String> toolCallIds, List<CallSummary> calls, long totalTokens, boolean isSubagent, String parentCallId)
+type com.feipi.session.browser.web.api.SessionApiContext public record [web] record SessionApiContext( SessionDetail detail, NormalizedSessionArtifact artifact, PayloadLookup payloadLookup)
+type com.feipi.session.browser.web.api.SessionApiHandler public class [web] final class SessionApiHandler
+type com.feipi.session.browser.web.api.SessionApiRouter public class [web] final class SessionApiRouter
+type com.feipi.session.browser.web.api.SessionApiService public class [web] final class SessionApiService
+type com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public record [web] record SessionApiContext( SessionDetail detail, NormalizedSessionArtifact artifact, PayloadLookup payloadLookup)
+type com.feipi.session.browser.web.api.SessionApiService.SessionDataException public class [web] static final class SessionDataException extends RuntimeException
+type com.feipi.session.browser.web.api.SessionDataException public class [web] static final class SessionDataException extends RuntimeException
 type com.feipi.session.browser.web.model.PaginationModel public record [web] record PaginationModel( int page, int pageSize, int totalItems, int totalPages, int pageStart, int pageEnd, boolean hasPrev, boolean hasNext)
 type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
 type com.feipi.session.browser.web.page.CorruptArtifactException public class [web] static final class CorruptArtifactException extends RuntimeException

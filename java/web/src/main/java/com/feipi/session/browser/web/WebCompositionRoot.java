@@ -1,6 +1,10 @@
 package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.web.api.SessionApiHandler;
+import com.feipi.session.browser.web.api.SessionApiRouter;
+import com.feipi.session.browser.web.api.SessionApiService;
+import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
 import com.feipi.session.browser.web.page.DashboardPage;
 import com.feipi.session.browser.web.page.ProjectsPage;
 import com.feipi.session.browser.web.page.SessionDetailPage;
@@ -27,6 +31,7 @@ import org.slf4j.LoggerFactory;
  *   <li>创建和配置 Javalin 实例（内容类型、静态资源、异常处理）
  *   <li>创建 Pebble 模板引擎
  *   <li>注册健康检查、Dashboard、Projects、Sessions、Session Detail 路由
+ *   <li>注册 JSON API 路由（payload、round、attribution、bucket-detail）
  *   <li>将 {@link QueryCompositionRoot} 的 use case 绑定到路由
  * </ul>
  */
@@ -123,6 +128,24 @@ public final class WebCompositionRoot {
           String sessionIdParam = ctx.pathParam("sessionId");
           sessionDetailPage.handle(ctx, agentParam, sessionIdParam);
         });
+
+    // JSON API 路由
+    registerApiRoutes(javalinConfig, queryRoot);
+  }
+
+  /** 注册 JSON API 路由。 */
+  private static void registerApiRoutes(
+      io.javalin.config.JavalinConfig javalinConfig, QueryCompositionRoot queryRoot) {
+    com.feipi.session.browser.index.sqlite.SessionQueryRepository sessionQueryRepo =
+        new com.feipi.session.browser.index.sqlite.SessionQueryRepository(
+            queryRoot.indexConnection());
+    com.feipi.session.browser.index.sqlite.SessionDetailRepository detailRepo =
+        new com.feipi.session.browser.index.sqlite.SessionDetailRepository(sessionQueryRepo);
+    SessionApiService apiService = new SessionApiService(detailRepo);
+    SessionApiHandler apiHandler = new SessionApiHandler(apiService);
+    SessionApiRouter apiRouter = new SessionApiRouter(apiHandler);
+
+    javalinConfig.routes.get("/api/sessions/*", apiRouter::route);
   }
 
   /** 注册异常和错误 handler。 */
@@ -133,6 +156,22 @@ public final class WebCompositionRoot {
           LOG.debug("请求参数错误: {}", e.getMessage());
           ctx.status(HttpStatus.BAD_REQUEST);
           ctx.json(new ErrorResponse("bad_request", e.getMessage()));
+        });
+
+    javalinConfig.routes.exception(
+        SessionDataException.class,
+        (e, ctx) -> {
+          LOG.error("制品数据加载失败", e);
+          ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
+          ctx.json(new ErrorResponse("artifact_error", "归一化制品加载失败"));
+        });
+
+    javalinConfig.routes.exception(
+        java.sql.SQLException.class,
+        (e, ctx) -> {
+          LOG.error("数据库查询失败", e);
+          ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
+          ctx.json(new ErrorResponse("internal_error", "查询失败"));
         });
 
     javalinConfig.routes.exception(
@@ -149,6 +188,11 @@ public final class WebCompositionRoot {
           String customHtml = ctx.attribute("custom_error_html");
           if (customHtml != null) {
             ctx.html(customHtml);
+          } else if (ctx.path().startsWith("/api/")) {
+            // JSON API 路由的 404 已由 handler 写入，不覆盖
+            if (ctx.resultInputStream() == null) {
+              ctx.json(new ErrorResponse("not_found", "资源不存在"));
+            }
           } else {
             ctx.json(new ErrorResponse("not_found", "资源不存在"));
           }
