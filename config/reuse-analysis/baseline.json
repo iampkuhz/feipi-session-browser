@@ -3,104 +3,84 @@
   "policyVersion": "1.0.0",
   "entries": [
     {
-      "fingerprint": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944",
+      "fingerprint": "1cc3c4313cfff19a4904c808d0cff1a4b5a5ccfbe1f767e3709091943a12de4d",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 EXACT_METHOD_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1cc3c4313cfff19a4904c808d0cff1a4b5a5ccfbe1f767e3709091943a12de4d"
     },
     {
-      "fingerprint": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399",
+      "fingerprint": "f44cb3105fbd680bd337998c518376ca3426b48f01a17529207b043f4ceeadf5",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 EXACT_METHOD_DUPLICATE，涉及 SessionArtifactRow, SessionRow 等类型",
+      "owner": "sessionartifactrow",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f44cb3105fbd680bd337998c518376ca3426b48f01a17529207b043f4ceeadf5"
     },
     {
-      "fingerprint": "2548aecb992058169864b9fa42b695bd3b843adac91f0da543675cbfa40d8317",
+      "fingerprint": "b48235ccb5647537812aa1dc19955b6b3e18c524654ea1c57c2289a253fef8b1",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "2548aecb992058169864b9fa42b695bd3b843adac91f0da543675cbfa40d8317"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 EXACT_METHOD_DUPLICATE，涉及 SessionArtifactRow, SessionRow 等类型",
+      "owner": "sessionartifactrow",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b48235ccb5647537812aa1dc19955b6b3e18c524654ea1c57c2289a253fef8b1"
     },
     {
-      "fingerprint": "305c0c0db00f12df90ee5d4e1ddfe2da363b91e56b695a76b2c47a7e0291e59c",
+      "fingerprint": "9c5d949c47562870ff233e5c32ac4ae297caf1b49d49e563bde588be18a5b805",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 hasCumulativeUsage 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceFingerprint 等类型",
-      "owner": "source-codex",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "305c0c0db00f12df90ee5d4e1ddfe2da363b91e56b695a76b2c47a7e0291e59c"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, JsonlReader 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9c5d949c47562870ff233e5c32ac4ae297caf1b49d49e563bde588be18a5b805"
     },
     {
-      "fingerprint": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3",
+      "fingerprint": "76ca4e9fb32e93e7fe057563a3b3d8f62b173a0a64d6e393a65fadd11bde42b8",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RenameDetector, RenameDetector 等类型",
+      "owner": "renamedetector",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "76ca4e9fb32e93e7fe057563a3b3d8f62b173a0a64d6e393a65fadd11bde42b8"
     },
     {
-      "fingerprint": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d",
+      "fingerprint": "609854bc61780500f29aac2e163a7a95ec7d70821c3fba18fe8e0a6df9e51865",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, SessionQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "609854bc61780500f29aac2e163a7a95ec7d70821c3fba18fe8e0a6df9e51865"
     },
     {
-      "fingerprint": "83deeca037ca4627e59057e638ad328d98bb8558420368d31bef4b29c6bfa80a",
+      "fingerprint": "34bf185cde9cc41d4cb86ff153cb908331b6187e03335c9eb3e1cfda33521ab2",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "83deeca037ca4627e59057e638ad328d98bb8558420368d31bef4b29c6bfa80a"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedArtifactLoader, PebbleEnvironment 等类型",
+      "owner": "normalizedartifactloader",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "34bf185cde9cc41d4cb86ff153cb908331b6187e03335c9eb3e1cfda33521ab2"
     },
     {
-      "fingerprint": "88ba84bb6eeba7e1fea93e38824f2cd38043658979d15d7e5b6261853d2e21af",
+      "fingerprint": "375f1eca35c7b63a8fe75124bc245ba14a3ced44e381a7fb3463796103d5ba73",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 extractProjectKey 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "88ba84bb6eeba7e1fea93e38824f2cd38043658979d15d7e5b6261853d2e21af"
-    },
-    {
-      "fingerprint": "722644fa41190c1e5b051fc92377c32fa861f1225d8af95fa86321854c91f73f",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "722644fa41190c1e5b051fc92377c32fa861f1225d8af95fa86321854c91f73f"
-    },
-    {
-      "fingerprint": "628db0c7598820b101769164f5228a5096e4f531ee71ee7e5e31d734dd38fe64",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand, CodexDiscovery 等类型",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "628db0c7598820b101769164f5228a5096e4f531ee71ee7e5e31d734dd38fe64"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, SessionQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "375f1eca35c7b63a8fe75124bc245ba14a3ced44e381a7fb3463796103d5ba73"
     },
     {
       "fingerprint": "d3bb5eb526354253746ab20e1c263a1fe490990b986fdeb5e446b92c25a028f0",
@@ -113,24 +93,44 @@
       "evidence": "d3bb5eb526354253746ab20e1c263a1fe490990b986fdeb5e446b92c25a028f0"
     },
     {
-      "fingerprint": "c31ccc9b014724f56166e86af548d65d20d225fc111d10cf0e5cd5939338a4ba",
+      "fingerprint": "58851f63d49bd9648bc22089e71922e03235b35b7c02a6534ea835b9bd90edd9",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 validate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceFingerprint, NormalizedArtifactWriter 等类型",
-      "owner": "artifact-normalized",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "c31ccc9b014724f56166e86af548d65d20d225fc111d10cf0e5cd5939338a4ba"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DashboardPage, ProjectsPage, ProjectsPage 等类型",
+      "owner": "dashboardpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "58851f63d49bd9648bc22089e71922e03235b35b7c02a6534ea835b9bd90edd9"
     },
     {
-      "fingerprint": "31dd4472b38b7952337946800be27027b7d61dae578a3e09cf29b3da6ff53ba9",
+      "fingerprint": "6f5cbbb7c3d11296e0816e866bb460857c22e0fbb47e7fbf21d2e8e5a1df40a6",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizationEngine, NormalizedBatchCommand 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "31dd4472b38b7952337946800be27027b7d61dae578a3e09cf29b3da6ff53ba9"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6f5cbbb7c3d11296e0816e866bb460857c22e0fbb47e7fbf21d2e8e5a1df40a6"
+    },
+    {
+      "fingerprint": "1849262c71232078c3552131d5fbdc1022498dae1ad1d19ab84f7d8a143957bb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 BackgroundScanner, BackgroundScanner 等类型",
+      "owner": "backgroundscanner",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1849262c71232078c3552131d5fbdc1022498dae1ad1d19ab84f7d8a143957bb"
+    },
+    {
+      "fingerprint": "f59906f8d6e0450ea1520644ffe4f25c2778c9813598734e5d506cd20a112ea4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f59906f8d6e0450ea1520644ffe4f25c2778c9813598734e5d506cd20a112ea4"
     },
     {
       "fingerprint": "297474f25b5b91e7c61363b8db4747df781b08c29b18de15067492b06d957044",
@@ -153,74 +153,54 @@
       "evidence": "37f1cc9192a059c80a47a409c41c5a22bd576eca9891f41b557b9fb0bed200f8"
     },
     {
-      "fingerprint": "21a9e8d79df592db467b1de72eb32a5b6197fc7989b9451a1d8859af0f143d07",
+      "fingerprint": "f912dbf2b5d1ea57a23aeb868e7abb7ae558ed31d0875489d27e44b90b5aac00",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 extractToolUseIdField, extractCallId 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "21a9e8d79df592db467b1de72eb32a5b6197fc7989b9451a1d8859af0f143d07"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 MigrationRunner, NormalizationEngine, NormalizationEngine 等类型",
+      "owner": "migrationrunner",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f912dbf2b5d1ea57a23aeb868e7abb7ae558ed31d0875489d27e44b90b5aac00"
     },
     {
-      "fingerprint": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995",
+      "fingerprint": "3f4618a5cff2626a74120d9905542d560270d58d272afe5c17019e3936c33d52",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 IndexSchema, IndexSchema 等类型",
+      "owner": "indexschema",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3f4618a5cff2626a74120d9905542d560270d58d272afe5c17019e3936c33d52"
     },
     {
-      "fingerprint": "4f1976aeaaa3e3eb8e412c400f1ba29f916ee08d812de251e7941a8f45a08cd1",
+      "fingerprint": "5d34326026401633f31e17590c08416fa584e37b10f176cb261f8d354a5587b1",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand 等类型",
-      "owner": "app-cli",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "4f1976aeaaa3e3eb8e412c400f1ba29f916ee08d812de251e7941a8f45a08cd1"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, SessionQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5d34326026401633f31e17590c08416fa584e37b10f176cb261f8d354a5587b1"
     },
     {
-      "fingerprint": "4810b2ee72738f07226fbaf22f170d013dee437935e4ae2b0e8a38d652975e0d",
+      "fingerprint": "2a712bbefc32b80d432888d06fcb5667e341660ffe57a01c7e67e4519537c639",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 detectLineTerminatorByteLen 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, SourcePathOps 等类型",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "4810b2ee72738f07226fbaf22f170d013dee437935e4ae2b0e8a38d652975e0d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "2a712bbefc32b80d432888d06fcb5667e341660ffe57a01c7e67e4519537c639"
     },
     {
-      "fingerprint": "b997cc1fba0871ea9da30aacb19412ed9cc64b78f8c7bb8901b2eeb8a4f380f8",
+      "fingerprint": "7df5a37f4779772801f22dc73461e632116f3ffceeba175b7dcebec19de929f3",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, EventClassifier 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "b997cc1fba0871ea9da30aacb19412ed9cc64b78f8c7bb8901b2eeb8a4f380f8"
-    },
-    {
-      "fingerprint": "1a95b6f41b2fe04fe6dc58a9e4f81be7efbf46111e2b03c4ca445c71f80b14e1",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 getTextOrNull 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, TokenAccountant 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "1a95b6f41b2fe04fe6dc58a9e4f81be7efbf46111e2b03c4ca445c71f80b14e1"
-    },
-    {
-      "fingerprint": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 EventClassifier, ClaudeSourceAdapter, CodexSourceAdapter 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionRow, SqlUtils 等类型",
+      "owner": "sessionrow",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "7df5a37f4779772801f22dc73461e632116f3ffceeba175b7dcebec19de929f3"
     },
     {
       "fingerprint": "386dd9561db4a375c970df35c0b26cdb95530abefb08b1a3f55b31a0fcc27057",
@@ -233,26 +213,6 @@
       "evidence": "386dd9561db4a375c970df35c0b26cdb95530abefb08b1a3f55b31a0fcc27057"
     },
     {
-      "fingerprint": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3"
-    },
-    {
-      "fingerprint": "a6f784f260161ffdcae904c140bef0507e163f70452a61978436310240cc54e7",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "a6f784f260161ffdcae904c140bef0507e163f70452a61978436310240cc54e7"
-    },
-    {
       "fingerprint": "66f395ceff7af88ef505ffc42d41729555f5520df909dca4ab55ae4ef44f852c",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
@@ -261,6 +221,16 @@
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
       "evidence": "66f395ceff7af88ef505ffc42d41729555f5520df909dca4ab55ae4ef44f852c"
+    },
+    {
+      "fingerprint": "e60ee043b3dde49dba0a5ab939df9020cd0a2ef0d1aa67fbbce950102dc2beb0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e60ee043b3dde49dba0a5ab939df9020cd0a2ef0d1aa67fbbce950102dc2beb0"
     },
     {
       "fingerprint": "4cd28ea91ccce41fb00e934f6eab3a64da76bdf4ca28f05ef04d28243225fced",
@@ -273,34 +243,24 @@
       "evidence": "4cd28ea91ccce41fb00e934f6eab3a64da76bdf4ca28f05ef04d28243225fced"
     },
     {
-      "fingerprint": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28",
+      "fingerprint": "142490661c21b855f23aa191ad4be4b94e91944b4a43a16fbade9fb8d1d2205a",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 TrendFilter, TrendFilter 等类型",
+      "owner": "trendfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "142490661c21b855f23aa191ad4be4b94e91944b4a43a16fbade9fb8d1d2205a"
     },
     {
-      "fingerprint": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959",
+      "fingerprint": "6d64850e463c951cecd2d19f4decdb3687e421024721b6a22e5eda9a0d30b71c",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959"
-    },
-    {
-      "fingerprint": "b743226c842aa149bf91b8aa9f2ded51f52a443b0053adb8efa506b25dceba6e",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "b743226c842aa149bf91b8aa9f2ded51f52a443b0053adb8efa506b25dceba6e"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6d64850e463c951cecd2d19f4decdb3687e421024721b6a22e5eda9a0d30b71c"
     },
     {
       "fingerprint": "f1c7285634ffe01525283c2dfff99653617e9194d6a7b6767f65e5af5bd4a2ec",
@@ -313,34 +273,34 @@
       "evidence": "f1c7285634ffe01525283c2dfff99653617e9194d6a7b6767f65e5af5bd4a2ec"
     },
     {
-      "fingerprint": "9cfd1671546f16d187b3dc78a6eecb136d145e26e7e23cc43cc7a93f3454cee7",
+      "fingerprint": "9af8d3fa2d77ec094455f5883ce584128c1434f9eb67651599fb07514357cbb4",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "9cfd1671546f16d187b3dc78a6eecb136d145e26e7e23cc43cc7a93f3454cee7"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiRouter, ExportHandler, ExportHandler 等类型",
+      "owner": "sessionapirouter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9af8d3fa2d77ec094455f5883ce584128c1434f9eb67651599fb07514357cbb4"
     },
     {
-      "fingerprint": "888a8a7e03b3ec9d2ed6348194eaf4b9fb843b98d2109c34a43b6ac01adc5664",
+      "fingerprint": "66ed0fb7d7b4c200419177a840bfb4be0465a3ca610cedbbd01a778f50cf1ea2",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, CallBuilder, JsonlReader 等类型",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "888a8a7e03b3ec9d2ed6348194eaf4b9fb843b98d2109c34a43b6ac01adc5664"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiHandler, SessionApiHandler 等类型",
+      "owner": "sessionapihandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "66ed0fb7d7b4c200419177a840bfb4be0465a3ca610cedbbd01a778f50cf1ea2"
     },
     {
-      "fingerprint": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7",
+      "fingerprint": "0236f03ebadd6011bf54223aa5f4f155c00dbb84046315dfdff9b6454754de4a",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "JsonlReader 内部 splitAtDepth0, read 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0236f03ebadd6011bf54223aa5f4f155c00dbb84046315dfdff9b6454754de4a"
     },
     {
       "fingerprint": "d3b6e07ca03efe62511590d33bc473f03a1a027b1b1a041a690a31d025b26f4d",
@@ -353,26 +313,6 @@
       "evidence": "d3b6e07ca03efe62511590d33bc473f03a1a027b1b1a041a690a31d025b26f4d"
     },
     {
-      "fingerprint": "050e24ae9a7182e616e857e767ace09c88f123fc9156395fd8d3f48376a85d74",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "NormalizedArtifactWriter 内部 doWrite, extractSessionKey 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "artifact-normalized",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "050e24ae9a7182e616e857e767ace09c88f123fc9156395fd8d3f48376a85d74"
-    },
-    {
-      "fingerprint": "d2a94e7ca919c5334d5f3a5e2a576a27b504c3c469a542ab6a4630fce40e1d3c",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "d2a94e7ca919c5334d5f3a5e2a576a27b504c3c469a542ab6a4630fce40e1d3c"
-    },
-    {
       "fingerprint": "13206043682af947812549ebcb58a045a3ee6f7a13042527a89520f1b1bf3196",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
@@ -383,44 +323,64 @@
       "evidence": "13206043682af947812549ebcb58a045a3ee6f7a13042527a89520f1b1bf3196"
     },
     {
-      "fingerprint": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d",
+      "fingerprint": "5214fcc136f15ac9c6331f9e9721d48e37b782415c5b60904dfff14322bbdca0",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildFingerprints 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, NormalizedBatchCommand, NormalizationEngine 等类型",
-      "owner": "app-cli",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RenameDetector, JsonlReader, JsonlReader 等类型",
+      "owner": "renamedetector",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5214fcc136f15ac9c6331f9e9721d48e37b782415c5b60904dfff14322bbdca0"
     },
     {
-      "fingerprint": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab",
+      "fingerprint": "4f2cef0cb0372feeda7955c8df9daab781d5fc04bc0f59338909fc2945679fbb",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4f2cef0cb0372feeda7955c8df9daab781d5fc04bc0f59338909fc2945679fbb"
     },
     {
-      "fingerprint": "27ff43da1d90ed5de709b7a2b53656052f46be1c43ee89fd6e63271d33ae9699",
+      "fingerprint": "63cdf6b7c15ec7c2e4814d913b2155671680b911a795bad6fa59b9e83aea9f90",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "27ff43da1d90ed5de709b7a2b53656052f46be1c43ee89fd6e63271d33ae9699"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ServerLifecycle, ServerLifecycle 等类型",
+      "owner": "serverlifecycle",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "63cdf6b7c15ec7c2e4814d913b2155671680b911a795bad6fa59b9e83aea9f90"
     },
     {
-      "fingerprint": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9",
+      "fingerprint": "5586ca40451f91882f52acd5f75efa97d595073d3c69dc50cde99a1e1301c7b8",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5586ca40451f91882f52acd5f75efa97d595073d3c69dc50cde99a1e1301c7b8"
+    },
+    {
+      "fingerprint": "ccc85aad4a9b632a96e6d49ddeb9e78a2324c7e5fbd989efd763d24c9c75f620",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ccc85aad4a9b632a96e6d49ddeb9e78a2324c7e5fbd989efd763d24c9c75f620"
+    },
+    {
+      "fingerprint": "907d601cb426b382bc07383dde607060a1fc66fc4d79116ddbd0f852f62c5a8c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectSortField, SessionSortField 等类型",
+      "owner": "projectsortfield",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "907d601cb426b382bc07383dde607060a1fc66fc4d79116ddbd0f852f62c5a8c"
     },
     {
       "fingerprint": "9ba6d19501866b94b4c72d310fe735974c2a46fc5f4d2876b1d3b203a9dc2d53",
@@ -433,154 +393,114 @@
       "evidence": "9ba6d19501866b94b4c72d310fe735974c2a46fc5f4d2876b1d3b203a9dc2d53"
     },
     {
-      "fingerprint": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a",
+      "fingerprint": "970fd4df24f8076017c76a75e9486b4c744d0ff1efb536e90a83e8e319edf5dc",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "970fd4df24f8076017c76a75e9486b4c744d0ff1efb536e90a83e8e319edf5dc"
     },
     {
-      "fingerprint": "313f6543d4c668f00b33cb3821706670d282605b20439cc72109ce1aaa2f3b98",
+      "fingerprint": "be6104a71c1c0af805830dee5402f422d6f941c023b44c501c730cf1370c094a",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "313f6543d4c668f00b33cb3821706670d282605b20439cc72109ce1aaa2f3b98"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 Sort, Sort 等类型",
+      "owner": "sort",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "be6104a71c1c0af805830dee5402f422d6f941c023b44c501c730cf1370c094a"
     },
     {
-      "fingerprint": "6dd0d151f75afefc5c8f937248dd2ad4977fe407b841e0a2946df19ec1fc4476",
+      "fingerprint": "c2b8a61e1f400a18f075204dc3b72937ab22c8d5088179457527a77262218256",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "6dd0d151f75afefc5c8f937248dd2ad4977fe407b841e0a2946df19ec1fc4476"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c2b8a61e1f400a18f075204dc3b72937ab22c8d5088179457527a77262218256"
     },
     {
-      "fingerprint": "6e45f9e18ddc9acab4cd7f5e307f9dc53b2e237f42cb425dd082755381a15d04",
+      "fingerprint": "073c6b23315ccb1680ddd5eb70a47c1ce2902a21f85926fa3d05c653b0c814d9",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 processCandidate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand 等类型",
-      "owner": "app-cli",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "6e45f9e18ddc9acab4cd7f5e307f9dc53b2e237f42cb425dd082755381a15d04"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "073c6b23315ccb1680ddd5eb70a47c1ce2902a21f85926fa3d05c653b0c814d9"
     },
     {
-      "fingerprint": "f5bdd6827cdad69b348667dccba78020c51f0e993925e4363d469e41d7e2b072",
+      "fingerprint": "67f05ced96918a6be549d383afd2527776d56be92249c8af9c987f11571773fc",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 processCandidate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, NormalizedBatchCommand 等类型",
-      "owner": "app-cli",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "f5bdd6827cdad69b348667dccba78020c51f0e993925e4363d469e41d7e2b072"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, FingerprintRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "67f05ced96918a6be549d383afd2527776d56be92249c8af9c987f11571773fc"
     },
     {
-      "fingerprint": "ee9270228ef6d23504af253e7fa00228ff3b153aa6e72b574fc052bb8951b475",
+      "fingerprint": "842061749ddac94dfbfe8b306d0021de63247a86141e02e6e35747dc2a8693bf",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "ee9270228ef6d23504af253e7fa00228ff3b153aa6e72b574fc052bb8951b475"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, SqlUtils 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "842061749ddac94dfbfe8b306d0021de63247a86141e02e6e35747dc2a8693bf"
     },
     {
-      "fingerprint": "a4c565c0885b07546a46b5f483146c2e26e7fa67feca3e32f82f6e42cad89c5c",
+      "fingerprint": "04801b782b90ae5e61d391e11ca99959014fd7887f54cdf67feabcd88891e371",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "a4c565c0885b07546a46b5f483146c2e26e7fa67feca3e32f82f6e42cad89c5c"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "04801b782b90ae5e61d391e11ca99959014fd7887f54cdf67feabcd88891e371"
     },
     {
-      "fingerprint": "b73c39a7081345504d04c52c19f41c761260b2a5848c784ccef63cefc720353c",
+      "fingerprint": "34502c1983eb0455040da840e171093208b7cbc410c933ba32283b28c34f32d2",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 extractToolUseIdField, extractCallId 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "b73c39a7081345504d04c52c19f41c761260b2a5848c784ccef63cefc720353c"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "34502c1983eb0455040da840e171093208b7cbc410c933ba32283b28c34f32d2"
     },
     {
-      "fingerprint": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00",
+      "fingerprint": "c37ce624fe154124c279492eda3ca6fcf7927ca8a1a575d460aefa8a9ea44c89",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ArtifactRowMapper, IndexSchema, IndexSchema 等类型",
+      "owner": "artifactrowmapper",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c37ce624fe154124c279492eda3ca6fcf7927ca8a1a575d460aefa8a9ea44c89"
     },
     {
-      "fingerprint": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d",
+      "fingerprint": "bf33d1a23a7310ea330b89bc37a68d5d9fa78be10cef44de4b123ec59d394098",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "bf33d1a23a7310ea330b89bc37a68d5d9fa78be10cef44de4b123ec59d394098"
     },
     {
-      "fingerprint": "5285c310793e591038dbca99027072e39907a3c9cc401863c8af8633d3f92f40",
+      "fingerprint": "fe081bd1e9ec329ce4d05f628119c9c1b331770de71ca56b39563f723bdd8dd0",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 extractEventType 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "5285c310793e591038dbca99027072e39907a3c9cc401863c8af8633d3f92f40"
-    },
-    {
-      "fingerprint": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046"
-    },
-    {
-      "fingerprint": "959df0deefeff339a976e4b717c7e4662d69810293165a06b5d9ff0ce7c9a556",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CodexSourceAdapter 内部 hasCumulativeUsage, extractResponseType, extractEventMsgType 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "source-codex",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "959df0deefeff339a976e4b717c7e4662d69810293165a06b5d9ff0ce7c9a556"
-    },
-    {
-      "fingerprint": "92bba30c331c611b26ca94298050585054fc1ca5bb88425f7826a6e66919bc02",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildConservationCheck 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, TokenAccountant, NormalizationEngine 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "92bba30c331c611b26ca94298050585054fc1ca5bb88425f7826a6e66919bc02"
-    },
-    {
-      "fingerprint": "96e8e38d08445434ec75cda802a061f06c6c46e4ddea694daa17a23761e7490d",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "96e8e38d08445434ec75cda802a061f06c6c46e4ddea694daa17a23761e7490d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 JsonlReader, DisplayFormatters 等类型",
+      "owner": "jsonlreader",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "fe081bd1e9ec329ce4d05f628119c9c1b331770de71ca56b39563f723bdd8dd0"
     },
     {
       "fingerprint": "9eabacca56671d1c252be903bc0807352793a23fecc43fcf9ca1a26048d429cd",
@@ -593,64 +513,64 @@
       "evidence": "9eabacca56671d1c252be903bc0807352793a23fecc43fcf9ca1a26048d429cd"
     },
     {
-      "fingerprint": "d4734c5ed276cd755e5fb11a37c709a0e346052cbf69c4f1d91f2f1d15932a46",
+      "fingerprint": "d4e62a358b5e44cda12c2c9300cdfaf28e3798c83f5d69021a51c8e4480e93e4",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 getVersion 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 ThreadsDbReader, BuildInfoVersionProvider 等类型",
-      "owner": "app-cli",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "d4734c5ed276cd755e5fb11a37c709a0e346052cbf69c4f1d91f2f1d15932a46"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "d4e62a358b5e44cda12c2c9300cdfaf28e3798c83f5d69021a51c8e4480e93e4"
     },
     {
-      "fingerprint": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef",
+      "fingerprint": "b04d8d57e5c5705d1e295ddb72f1533ea8bda89ab42e2d12b172c8ed50c90749",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand, JsonlReader 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b04d8d57e5c5705d1e295ddb72f1533ea8bda89ab42e2d12b172c8ed50c90749"
     },
     {
-      "fingerprint": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289",
+      "fingerprint": "8144f1ddbb3da228af14d1459e14f87064fccbaf0d7f8249a7ce9a4a5633bf8d",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, FullScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8144f1ddbb3da228af14d1459e14f87064fccbaf0d7f8249a7ce9a4a5633bf8d"
     },
     {
-      "fingerprint": "bfa185545847501587e8fafb5556a15eedf4e9955f3be38c1dfee7993ded040a",
+      "fingerprint": "4bbc5aed956317a4d4dcc555fb1ebb2dcc8d351e5711e3fa9ed94f6631b9e72c",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "bfa185545847501587e8fafb5556a15eedf4e9955f3be38c1dfee7993ded040a"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServeCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4bbc5aed956317a4d4dcc555fb1ebb2dcc8d351e5711e3fa9ed94f6631b9e72c"
     },
     {
-      "fingerprint": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb",
+      "fingerprint": "830954a3bca6d16c889d58091c58abb61f184da83782693a22ab1cbe940ab444",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "830954a3bca6d16c889d58091c58abb61f184da83782693a22ab1cbe940ab444"
     },
     {
-      "fingerprint": "bd930ac78d637771c6f028603d7c949ca792050da08aa63bd17fb382c720e8de",
+      "fingerprint": "72911379301ade6b483bd13b3e2a256e9ef81916a7bd3318fb10b887dca338c0",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "NormalizedArtifactWriter 内部 validate, doWrite 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "artifact-normalized",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "bd930ac78d637771c6f028603d7c949ca792050da08aa63bd17fb382c720e8de"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, DisplayFormatters 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "72911379301ade6b483bd13b3e2a256e9ef81916a7bd3318fb10b887dca338c0"
     },
     {
       "fingerprint": "9f0a9fb556dfc0c66eefb65134379aa999961bea4396ce7f2e79f23cbd8ffcb1",
@@ -663,54 +583,24 @@
       "evidence": "9f0a9fb556dfc0c66eefb65134379aa999961bea4396ce7f2e79f23cbd8ffcb1"
     },
     {
-      "fingerprint": "d8b7a6951b76241a7b0bdc1646f36d82f558f7c6c0dfa8654464cac4e7a36068",
+      "fingerprint": "4f91624d146307d73ed642741c3c2b9e157a8ad611a7e30a9b848419295c7176",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "d8b7a6951b76241a7b0bdc1646f36d82f558f7c6c0dfa8654464cac4e7a36068"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RoundSignalKey, SessionAnomalyKey 等类型",
+      "owner": "roundsignalkey",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4f91624d146307d73ed642741c3c2b9e157a8ad611a7e30a9b848419295c7176"
     },
     {
-      "fingerprint": "9ff509fa3e5a4d988083f37ddfc604fbeef1bfde6155144a58dc81cabcfe7cbf",
+      "fingerprint": "553e4fd20d98f49e3885984cbe7d810fbac76115cfc6f6f788662fd3afd7bcf7",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "9ff509fa3e5a4d988083f37ddfc604fbeef1bfde6155144a58dc81cabcfe7cbf"
-    },
-    {
-      "fingerprint": "293206b81788bf766100f84683f7ee3afac786441c3585e0eb7e26b5773368e8",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceAdapter, QoderSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "293206b81788bf766100f84683f7ee3afac786441c3585e0eb7e26b5773368e8"
-    },
-    {
-      "fingerprint": "e70b0fcf75f02aee1b7864bd2f1502c4565c40cf6bb9291b7e76e4670c483cfe",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "e70b0fcf75f02aee1b7864bd2f1502c4565c40cf6bb9291b7e76e4670c483cfe"
-    },
-    {
-      "fingerprint": "fb7e8509fe046c532578e6da3307e718cb529efe916b4fd0ff3c69ae55520fca",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 sha256Hex 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 NormalizedArtifactWriter, SafeArtifactName 等类型",
-      "owner": "artifact-normalized",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "fb7e8509fe046c532578e6da3307e718cb529efe916b4fd0ff3c69ae55520fca"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DashboardUseCase, DashboardUseCase, ProjectListUseCase 等类型",
+      "owner": "dashboardusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "553e4fd20d98f49e3885984cbe7d810fbac76115cfc6f6f788662fd3afd7bcf7"
     },
     {
       "fingerprint": "d945e40468ffd77a3e1a47e93f82d34a269f6fe8667175f89710b2cefca553e6",
@@ -723,24 +613,14 @@
       "evidence": "d945e40468ffd77a3e1a47e93f82d34a269f6fe8667175f89710b2cefca553e6"
     },
     {
-      "fingerprint": "f08e932706150eb1983f02f6d3fe06e4d32344eeda2f9482ea3344eee1879a3c",
+      "fingerprint": "62f56e07e84088d55154cad8377df1068ea4188f98cb482f3abf5ab4122633c1",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "f08e932706150eb1983f02f6d3fe06e4d32344eeda2f9482ea3344eee1879a3c"
-    },
-    {
-      "fingerprint": "6a78902b5a6da0012a0b54cad732d5a6d6c8b4c87deee286b3861de2da7a34de",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 detectLineTerminatorByteLen 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, SourcePathOps 等类型",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "6a78902b5a6da0012a0b54cad732d5a6d6c8b4c87deee286b3861de2da7a34de"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizationEngine, AgentFilter 等类型",
+      "owner": "normalizationengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "62f56e07e84088d55154cad8377df1068ea4188f98cb482f3abf5ab4122633c1"
     },
     {
       "fingerprint": "ce4892d21add7b2faa10b3d012411394fe2066d91412bb1c2d74f0e21ccd2090",
@@ -753,84 +633,94 @@
       "evidence": "ce4892d21add7b2faa10b3d012411394fe2066d91412bb1c2d74f0e21ccd2090"
     },
     {
-      "fingerprint": "e5fef303fb1d37a26f9019d4adfcaf46a7fd2c68ebb579a600efb0a717db0371",
+      "fingerprint": "5d9b328176166f90f3367dd249e001d842125d1a1e538a2c8ea973da9d1b8315",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "source-json",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "e5fef303fb1d37a26f9019d4adfcaf46a7fd2c68ebb579a600efb0a717db0371"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectListFilter, SessionListFilter 等类型",
+      "owner": "projectlistfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5d9b328176166f90f3367dd249e001d842125d1a1e538a2c8ea973da9d1b8315"
     },
     {
-      "fingerprint": "ad153958c04120e2ec8e50a07c320e7f4ffeb5b2cf3c92ffa1da15a9eb14a8e3",
+      "fingerprint": "3a85f5608e9cf948403ff7b58ea9427fb0f7acd882905fa34e64a148c76b43d3",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "ad153958c04120e2ec8e50a07c320e7f4ffeb5b2cf3c92ffa1da15a9eb14a8e3"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3a85f5608e9cf948403ff7b58ea9427fb0f7acd882905fa34e64a148c76b43d3"
     },
     {
-      "fingerprint": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d",
+      "fingerprint": "51e6366da2b0006f928ecb139fa07828f8e4c978b202f98175030da79783c975",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PidFile, PidFile, NormalizedArtifactLoader 等类型",
+      "owner": "pidfile",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "51e6366da2b0006f928ecb139fa07828f8e4c978b202f98175030da79783c975"
     },
     {
-      "fingerprint": "e65202b53998efc5e4bd95dd85bb83ccb187ea52bee5462193cf6b9cc85e4fec",
+      "fingerprint": "56f23482cf44c1caa3806b4de840febe98c2c89882bd9e70bab7f12e8ffdfd8b",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "e65202b53998efc5e4bd95dd85bb83ccb187ea52bee5462193cf6b9cc85e4fec"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 QueryCache, QueryCache 等类型",
+      "owner": "querycache",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "56f23482cf44c1caa3806b4de840febe98c2c89882bd9e70bab7f12e8ffdfd8b"
     },
     {
-      "fingerprint": "c6c8c244835beac0ee06a0487c4b2c0a559224e110a613e236819d9344874f8d",
+      "fingerprint": "5908dd36ad2b0ad5d3811a0ae28fac92192e70939c16dd816885ed23855e87bb",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildCalls 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, ThreadsDbReader, CodexDiscovery 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "c6c8c244835beac0ee06a0487c4b2c0a559224e110a613e236819d9344874f8d"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, DashboardPage, ProjectsPage 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5908dd36ad2b0ad5d3811a0ae28fac92192e70939c16dd816885ed23855e87bb"
     },
     {
-      "fingerprint": "4d0a371aa71028f0c66d02225d1b39c105f8495ebc77e1b55ee64236b44a9e02",
+      "fingerprint": "1665458c7a6efb55cf78653dc69d76220034627f6a85baf602d0e3cdcde9e93e",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 extractTurnId, extractTimestamp 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "4d0a371aa71028f0c66d02225d1b39c105f8495ebc77e1b55ee64236b44a9e02"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1665458c7a6efb55cf78653dc69d76220034627f6a85baf602d0e3cdcde9e93e"
     },
     {
-      "fingerprint": "9594f3b0f10dcbc8b28776d3550e67e826e96f5f33548386ccca1cec1c57dd95",
+      "fingerprint": "96ef6a6adb5ceda2cd80a05e26e2de7bf5d532ec9d81ac5afa78f3352f6f464b",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "9594f3b0f10dcbc8b28776d3550e67e826e96f5f33548386ccca1cec1c57dd95"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, SessionQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "96ef6a6adb5ceda2cd80a05e26e2de7bf5d532ec9d81ac5afa78f3352f6f464b"
     },
     {
-      "fingerprint": "87d5a97977e3bef555663a7334da5ab94327a13467aed615ba9adaa27146fd18",
+      "fingerprint": "55c12f2acda42816cc078b6530e2ec6aa20248f6a0c6ded08afc6d49d271707a",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "87d5a97977e3bef555663a7334da5ab94327a13467aed615ba9adaa27146fd18"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PidFile, PidFile 等类型",
+      "owner": "pidfile",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "55c12f2acda42816cc078b6530e2ec6aa20248f6a0c6ded08afc6d49d271707a"
+    },
+    {
+      "fingerprint": "bac3c85e77a38f03612e23ad1532bd5e1bc82f3f58fb3fbf3e4bc76079b95bf8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "bac3c85e77a38f03612e23ad1532bd5e1bc82f3f58fb3fbf3e4bc76079b95bf8"
     },
     {
       "fingerprint": "a72286c99c239d514de20ebd503b60c6eea0ebf1dc3959d14c037f895de7a3cc",
@@ -853,6 +743,786 @@
       "evidence": "40f7ebb5a470989bf9e226f88429d1b0a00b45568f66ef5505305b83dd38cec9"
     },
     {
+      "fingerprint": "91dbb2874878836e2e1bbf2dda8d384fb4109af54b394b4053a73cb01fac9027",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ServerLifecycle, StopCommand, NormalizedArtifactWriter 等类型",
+      "owner": "serverlifecycle",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "91dbb2874878836e2e1bbf2dda8d384fb4109af54b394b4053a73cb01fac9027"
+    },
+    {
+      "fingerprint": "0a230ff93eca437c2a8e92c57a65203401e38df219aa3da4398164c632e42444",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0a230ff93eca437c2a8e92c57a65203401e38df219aa3da4398164c632e42444"
+    },
+    {
+      "fingerprint": "dd2b9918bb89ff46910f6744ed703da508afcf01cac7936afe828fa80dca935a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "dd2b9918bb89ff46910f6744ed703da508afcf01cac7936afe828fa80dca935a"
+    },
+    {
+      "fingerprint": "90ea95acf90dc12024ea08a575b285b99c3816a639dac4e5c4a933bb41df8e23",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "90ea95acf90dc12024ea08a575b285b99c3816a639dac4e5c4a933bb41df8e23"
+    },
+    {
+      "fingerprint": "4c4ff6ade1c1a273e63b361a419aedd5bdc5eafcae187446bb2e0645f6bb1f0e",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 classify 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, EventClassifier 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4c4ff6ade1c1a273e63b361a419aedd5bdc5eafcae187446bb2e0645f6bb1f0e"
+    },
+    {
+      "fingerprint": "1cfb8a2e452cbea0ee132b36143d77ea65554b43b27532a0bf66fdf87cb448f4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand, FullScanEngine 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1cfb8a2e452cbea0ee132b36143d77ea65554b43b27532a0bf66fdf87cb448f4"
+    },
+    {
+      "fingerprint": "22901aa7e4839663448e8b5bff0276c3c60a40171081518b5a2f5deba7bd2a06",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "22901aa7e4839663448e8b5bff0276c3c60a40171081518b5a2f5deba7bd2a06"
+    },
+    {
+      "fingerprint": "ff09e0d727831fb11c8643865d06c7eac50b35802882fe2cdcbe21d5bbac613e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DashboardUseCase, AggregateQueryRepository, DashboardFilter 等类型",
+      "owner": "dashboardusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ff09e0d727831fb11c8643865d06c7eac50b35802882fe2cdcbe21d5bbac613e"
+    },
+    {
+      "fingerprint": "2e0877809a36f87f80f0bd479c257e6e6f41fe63de2d05a9428442c88311bcca",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "2e0877809a36f87f80f0bd479c257e6e6f41fe63de2d05a9428442c88311bcca"
+    },
+    {
+      "fingerprint": "cc3b352f6fab10a73afb12a801728ca242602950e606c31898db776001c526a0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cc3b352f6fab10a73afb12a801728ca242602950e606c31898db776001c526a0"
+    },
+    {
+      "fingerprint": "40ec976b4f127d19fb2f6c547d70a95aa47117797583c032c1618b3910021007",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SafeHtml, SafeHtml, SafeMarkdownRenderer 等类型",
+      "owner": "safehtml",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "40ec976b4f127d19fb2f6c547d70a95aa47117797583c032c1618b3910021007"
+    },
+    {
+      "fingerprint": "147232b79149f06b1f9b45d088ed1569042b305f2221f184a437868fe2a33dbf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 IndexConnection, IndexConnection 等类型",
+      "owner": "indexconnection",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "147232b79149f06b1f9b45d088ed1569042b305f2221f184a437868fe2a33dbf"
+    },
+    {
+      "fingerprint": "1e4654dee5a0e066a95977ad25b434750ca0972025637498640eb7f1e5453530",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1e4654dee5a0e066a95977ad25b434750ca0972025637498640eb7f1e5453530"
+    },
+    {
+      "fingerprint": "cb501d49ba2b28f9a0538a3dc245eff2ce462218b41a37804d5ecd3ad415a67f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DiagnosticRegistry, DiagnosticRegistry 等类型",
+      "owner": "diagnosticregistry",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cb501d49ba2b28f9a0538a3dc245eff2ce462218b41a37804d5ecd3ad415a67f"
+    },
+    {
+      "fingerprint": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f"
+    },
+    {
+      "fingerprint": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944"
+    },
+    {
+      "fingerprint": "95d45c1a6a4c6ae2e643a21cd416ea8d34d61f2577a29ad65e10445855572b09",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "95d45c1a6a4c6ae2e643a21cd416ea8d34d61f2577a29ad65e10445855572b09"
+    },
+    {
+      "fingerprint": "83919801fea4ab387aabff4eb2df7a7abc9e0df72f018e060a42212716cf1ff4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, RenameDetector 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "83919801fea4ab387aabff4eb2df7a7abc9e0df72f018e060a42212716cf1ff4"
+    },
+    {
+      "fingerprint": "310ecdc0f6a0d8af5fae52dcb395db92de8265e5b9707e5f85e5544d7e33ebe3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ServerLifecycle, FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "serverlifecycle",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "310ecdc0f6a0d8af5fae52dcb395db92de8265e5b9707e5f85e5544d7e33ebe3"
+    },
+    {
+      "fingerprint": "3d5e596510cfc114962db3873dd8d055140ef01773269e2869593706f12ddda1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiRouter, DisplayFormatters 等类型",
+      "owner": "sessionapirouter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3d5e596510cfc114962db3873dd8d055140ef01773269e2869593706f12ddda1"
+    },
+    {
+      "fingerprint": "82508551b279b23c1e71c45c918deeb059203905494fb1c0baa7f82b98f7d05e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailUseCase, PayloadLookup, SessionDetailAssembler 等类型",
+      "owner": "sessiondetailusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "82508551b279b23c1e71c45c918deeb059203905494fb1c0baa7f82b98f7d05e"
+    },
+    {
+      "fingerprint": "305c0c0db00f12df90ee5d4e1ddfe2da363b91e56b695a76b2c47a7e0291e59c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 hasCumulativeUsage 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceFingerprint 等类型",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "305c0c0db00f12df90ee5d4e1ddfe2da363b91e56b695a76b2c47a7e0291e59c"
+    },
+    {
+      "fingerprint": "1c5b6d507d9c92adc36fe2cb55b7beaa2bebaa7a6e826471d50c954b600080b9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1c5b6d507d9c92adc36fe2cb55b7beaa2bebaa7a6e826471d50c954b600080b9"
+    },
+    {
+      "fingerprint": "271e3d95264b84e48c47ef8eeb3454ccc9c357062f806514c7980fbd0b5e4bd8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DiagnosticsUseCase, AnomalyDetector 等类型",
+      "owner": "diagnosticsusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "271e3d95264b84e48c47ef8eeb3454ccc9c357062f806514c7980fbd0b5e4bd8"
+    },
+    {
+      "fingerprint": "a9661ea0a68a53079189364c739fb80be6035919e2346e75f7fc8dae55d9f399",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 QueryCache, QueryCache 等类型",
+      "owner": "querycache",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a9661ea0a68a53079189364c739fb80be6035919e2346e75f7fc8dae55d9f399"
+    },
+    {
+      "fingerprint": "6033871a47619e868ded5ad6a9058ba06742e844d17506b9355949302f29eff8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6033871a47619e868ded5ad6a9058ba06742e844d17506b9355949302f29eff8"
+    },
+    {
+      "fingerprint": "cbac112cc7453314db54bc9c1addffd8f479888cabec6a0587eb99a7d01729e9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cbac112cc7453314db54bc9c1addffd8f479888cabec6a0587eb99a7d01729e9"
+    },
+    {
+      "fingerprint": "88ba84bb6eeba7e1fea93e38824f2cd38043658979d15d7e5b6261853d2e21af",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractProjectKey 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "88ba84bb6eeba7e1fea93e38824f2cd38043658979d15d7e5b6261853d2e21af"
+    },
+    {
+      "fingerprint": "d6770814b0814d09f2e76f93616b89199341fc01d25d6300c7fd40c14c175e61",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "d6770814b0814d09f2e76f93616b89199341fc01d25d6300c7fd40c14c175e61"
+    },
+    {
+      "fingerprint": "c31ccc9b014724f56166e86af548d65d20d225fc111d10cf0e5cd5939338a4ba",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 validate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceFingerprint, NormalizedArtifactWriter 等类型",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "c31ccc9b014724f56166e86af548d65d20d225fc111d10cf0e5cd5939338a4ba"
+    },
+    {
+      "fingerprint": "c65f300dee15cf9535dad748f9a487d9e60d06a0182d787a6334e22691300bc8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedArtifactLoader, PebbleEnvironment 等类型",
+      "owner": "normalizedartifactloader",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c65f300dee15cf9535dad748f9a487d9e60d06a0182d787a6334e22691300bc8"
+    },
+    {
+      "fingerprint": "688d1d0e8c5a7feae9230882cc1eec18e880325f658add87f2eaae30b865bf9d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine, RepairEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "688d1d0e8c5a7feae9230882cc1eec18e880325f658add87f2eaae30b865bf9d"
+    },
+    {
+      "fingerprint": "ec0189596ab8fb3f2cb623b65729c5016336fa5d2d513ebfa2e204932968c5a9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ServeCommand, StopCommand, StopCommand 等类型",
+      "owner": "servecommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ec0189596ab8fb3f2cb623b65729c5016336fa5d2d513ebfa2e204932968c5a9"
+    },
+    {
+      "fingerprint": "558fc313dd93f498665bdf572bac20701481f673ca84887df94f8accbaf6f366",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ArtifactRowMapper, ArtifactRowMapper 等类型",
+      "owner": "artifactrowmapper",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "558fc313dd93f498665bdf572bac20701481f673ca84887df94f8accbaf6f366"
+    },
+    {
+      "fingerprint": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995"
+    },
+    {
+      "fingerprint": "e8956975137445b49e607a7ad99578178ffb86be366ddc83a38e554630734897",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e8956975137445b49e607a7ad99578178ffb86be366ddc83a38e554630734897"
+    },
+    {
+      "fingerprint": "e2b0629d0c5b310e6a6a03bbbafcc8a2ba5c7e8afc99bf6a16f19a935934cbe0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PathUtils, DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "pathutils",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e2b0629d0c5b310e6a6a03bbbafcc8a2ba5c7e8afc99bf6a16f19a935934cbe0"
+    },
+    {
+      "fingerprint": "dea6cac0bd5c8db4f2669b196f7618f5939cbe6723529d17646323352f4670c4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "dea6cac0bd5c8db4f2669b196f7618f5939cbe6723529d17646323352f4670c4"
+    },
+    {
+      "fingerprint": "5c8348059443d46250aa6458d0afa7dff0eebe4986856c324a47a688fc7bb2b6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5c8348059443d46250aa6458d0afa7dff0eebe4986856c324a47a688fc7bb2b6"
+    },
+    {
+      "fingerprint": "864fe6aad63bb89216795ff73064738ac3e6dec2be49f893f15ea6f1a8609601",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PayloadLookup, SessionDetailAssembler 等类型",
+      "owner": "payloadlookup",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "864fe6aad63bb89216795ff73064738ac3e6dec2be49f893f15ea6f1a8609601"
+    },
+    {
+      "fingerprint": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959"
+    },
+    {
+      "fingerprint": "45db2c06f53c278efbea790176d9e5045d6528a29c87ac09a7bf3de68d7a3a69",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "45db2c06f53c278efbea790176d9e5045d6528a29c87ac09a7bf3de68d7a3a69"
+    },
+    {
+      "fingerprint": "cf3daefef66d15bd21b51cccf1ee998131cc1fd50e5581c786ec6bd412f6d852",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiRouter, SessionApiRouter, SessionApiRouter 等类型",
+      "owner": "sessionapirouter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cf3daefef66d15bd21b51cccf1ee998131cc1fd50e5581c786ec6bd412f6d852"
+    },
+    {
+      "fingerprint": "d0bed0b8a3984574287da2a4e2a7144ad658a6d0bb9714bf20c8b52aa2580943",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailUseCase, SessionApiService 等类型",
+      "owner": "sessiondetailusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "d0bed0b8a3984574287da2a4e2a7144ad658a6d0bb9714bf20c8b52aa2580943"
+    },
+    {
+      "fingerprint": "3a443321507df5586b7c5fef9edf393f3066b79de5d1dce79e66d9ffdc842a7e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiHandler, SessionApiHandler 等类型",
+      "owner": "sessionapihandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3a443321507df5586b7c5fef9edf393f3066b79de5d1dce79e66d9ffdc842a7e"
+    },
+    {
+      "fingerprint": "43b46f6163bad89a9d2b205943c11d9d14f1b5aa4a15c3c3cead3a8cac253a3a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "43b46f6163bad89a9d2b205943c11d9d14f1b5aa4a15c3c3cead3a8cac253a3a"
+    },
+    {
+      "fingerprint": "b8f8eb3dd534681604a58dfe6ca48dc90dc40654ae5b0627a2d911a6e4f49ef4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 BackgroundScanner, BackgroundScanner 等类型",
+      "owner": "backgroundscanner",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b8f8eb3dd534681604a58dfe6ca48dc90dc40654ae5b0627a2d911a6e4f49ef4"
+    },
+    {
+      "fingerprint": "240006cd0bec79ca2ed9812affae2de6771d02d0adf67cc3e14dc7829d0a0b7a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "240006cd0bec79ca2ed9812affae2de6771d02d0adf67cc3e14dc7829d0a0b7a"
+    },
+    {
+      "fingerprint": "6dd0d151f75afefc5c8f937248dd2ad4977fe407b841e0a2946df19ec1fc4476",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6dd0d151f75afefc5c8f937248dd2ad4977fe407b841e0a2946df19ec1fc4476"
+    },
+    {
+      "fingerprint": "bd48bd3f887b6805feb34243894cbe0bd102d7cb3ff14c2a7e607d7c034efbde",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DashboardPage, ProjectsPage, ProjectsPage 等类型",
+      "owner": "dashboardpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "bd48bd3f887b6805feb34243894cbe0bd102d7cb3ff14c2a7e607d7c034efbde"
+    },
+    {
+      "fingerprint": "6b3a19a3832914dc889329739c9f27f5a87dec585580eda745f058f2c3aaa712",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6b3a19a3832914dc889329739c9f27f5a87dec585580eda745f058f2c3aaa712"
+    },
+    {
+      "fingerprint": "b4534ebcc988f3101cc845ba164ba162e1f62d7a2a2623a0608bb5db2363a0fc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, StopCommand, WriteQueue 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b4534ebcc988f3101cc845ba164ba162e1f62d7a2a2623a0608bb5db2363a0fc"
+    },
+    {
+      "fingerprint": "794c110b895227c378f64bb740204e9c7f79dd5f82a70a9a79b0e6166f5e2588",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "794c110b895227c378f64bb740204e9c7f79dd5f82a70a9a79b0e6166f5e2588"
+    },
+    {
+      "fingerprint": "07887d4c17263c06b93176ffcce3d61d1bda87f6767964ec55031a388d1b76a5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "07887d4c17263c06b93176ffcce3d61d1bda87f6767964ec55031a388d1b76a5"
+    },
+    {
+      "fingerprint": "6269d2cbaf3da3a4a46d9e9b2237d03854c1a906e18416c83985444b683a04de",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RenameDetector, StaticPathResolver 等类型",
+      "owner": "renamedetector",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6269d2cbaf3da3a4a46d9e9b2237d03854c1a906e18416c83985444b683a04de"
+    },
+    {
+      "fingerprint": "8156ebeff7f3abd94acdebff45993d8894e532bce01fefa5b27ba10f4899207a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8156ebeff7f3abd94acdebff45993d8894e532bce01fefa5b27ba10f4899207a"
+    },
+    {
+      "fingerprint": "07606e7cc49eb3a445106bde4ee897c912dbfc94f42ff2a690639cf8bb26d451",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 IncrementalScanEngine, ScanLogManager, ScanLogManager 等类型",
+      "owner": "incrementalscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "07606e7cc49eb3a445106bde4ee897c912dbfc94f42ff2a690639cf8bb26d451"
+    },
+    {
+      "fingerprint": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046"
+    },
+    {
+      "fingerprint": "ea44774c85b1960e8071c392bac7353c75c741a61a1f856aa2ae4613987daa4f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 MigrationRunner, MigrationRunner, MigrationRunner 等类型",
+      "owner": "migrationrunner",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ea44774c85b1960e8071c392bac7353c75c741a61a1f856aa2ae4613987daa4f"
+    },
+    {
+      "fingerprint": "1951a7118373941bcd1f4f31509f1cd67a78000ddb6bbdadbb0c36ad3ddcdc92",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1951a7118373941bcd1f4f31509f1cd67a78000ddb6bbdadbb0c36ad3ddcdc92"
+    },
+    {
+      "fingerprint": "d4734c5ed276cd755e5fb11a37c709a0e346052cbf69c4f1d91f2f1d15932a46",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 getVersion 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 ThreadsDbReader, BuildInfoVersionProvider 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "d4734c5ed276cd755e5fb11a37c709a0e346052cbf69c4f1d91f2f1d15932a46"
+    },
+    {
+      "fingerprint": "4ef92d5818dfcd60a6d7661310836e6889f050fe9e0c1981b92f879d2ec6f4b0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4ef92d5818dfcd60a6d7661310836e6889f050fe9e0c1981b92f879d2ec6f4b0"
+    },
+    {
+      "fingerprint": "9dcb56f001eaed4d57ebae95f1fd504ccb84cf2af601aa3df9f5d9ea33dd5333",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9dcb56f001eaed4d57ebae95f1fd504ccb84cf2af601aa3df9f5d9ea33dd5333"
+    },
+    {
+      "fingerprint": "344f6ed23e2eb301784b8d771ebb99c39ec7a5014dd30c93dc895bc17ceecc06",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "344f6ed23e2eb301784b8d771ebb99c39ec7a5014dd30c93dc895bc17ceecc06"
+    },
+    {
+      "fingerprint": "6b4988fef3ed44fd339dbb1a7eb3c7e7393f4905858ff8ffc37615722de9c32e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, IncrementalScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6b4988fef3ed44fd339dbb1a7eb3c7e7393f4905858ff8ffc37615722de9c32e"
+    },
+    {
+      "fingerprint": "cbc718939d4ef788ccbebe864cf574d245d55a4a62562b96086b50f9bd8c9e6c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedArtifactWriter, ArtifactRowMapper, PayloadLookup 等类型",
+      "owner": "normalizedartifactwriter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cbc718939d4ef788ccbebe864cf574d245d55a4a62562b96086b50f9bd8c9e6c"
+    },
+    {
+      "fingerprint": "04d6db812fc2bdb2a1a277059642ac11b5d626c4009397a4b16896b7b9dc9bae",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "04d6db812fc2bdb2a1a277059642ac11b5d626c4009397a4b16896b7b9dc9bae"
+    },
+    {
+      "fingerprint": "bf94979abde1127e3592c526d7ea99256cb2d5c7676d91d4a8d6172beacfb24b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteBatch, WriteBatch, WriteBatch 等类型",
+      "owner": "writebatch",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "bf94979abde1127e3592c526d7ea99256cb2d5c7676d91d4a8d6172beacfb24b"
+    },
+    {
+      "fingerprint": "fb7e8509fe046c532578e6da3307e718cb529efe916b4fd0ff3c69ae55520fca",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 sha256Hex 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 NormalizedArtifactWriter, SafeArtifactName 等类型",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fb7e8509fe046c532578e6da3307e718cb529efe916b4fd0ff3c69ae55520fca"
+    },
+    {
+      "fingerprint": "a83b7ec20302a323a7f220488308d21a378bdcb64b698e1d392a689b6cf61054",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a83b7ec20302a323a7f220488308d21a378bdcb64b698e1d392a689b6cf61054"
+    },
+    {
+      "fingerprint": "626fbc86ea6b4a19cac1f65030139d6887ff021d1e681c03b6adc94d3f0e326b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectSortField, SessionSortField 等类型",
+      "owner": "projectsortfield",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "626fbc86ea6b4a19cac1f65030139d6887ff021d1e681c03b6adc94d3f0e326b"
+    },
+    {
+      "fingerprint": "e5fef303fb1d37a26f9019d4adfcaf46a7fd2c68ebb579a600efb0a717db0371",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "e5fef303fb1d37a26f9019d4adfcaf46a7fd2c68ebb579a600efb0a717db0371"
+    },
+    {
+      "fingerprint": "e77b0f9b4fb6dafc86c99324e4f807dca0ece4b32e42a9c391f61f204a07d850",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e77b0f9b4fb6dafc86c99324e4f807dca0ece4b32e42a9c391f61f204a07d850"
+    },
+    {
+      "fingerprint": "c6c8c244835beac0ee06a0487c4b2c0a559224e110a613e236819d9344874f8d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildCalls 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, ThreadsDbReader, CodexDiscovery 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "c6c8c244835beac0ee06a0487c4b2c0a559224e110a613e236819d9344874f8d"
+    },
+    {
+      "fingerprint": "5fdfdcaaaf56a58ca13c1087bac380f259ac279efd1ede4005c3752505adea0f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServeCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5fdfdcaaaf56a58ca13c1087bac380f259ac279efd1ede4005c3752505adea0f"
+    },
+    {
+      "fingerprint": "9594f3b0f10dcbc8b28776d3550e67e826e96f5f33548386ccca1cec1c57dd95",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9594f3b0f10dcbc8b28776d3550e67e826e96f5f33548386ccca1cec1c57dd95"
+    },
+    {
+      "fingerprint": "4e3da4e1bff1b7592bca1944e793d600a9c672343f1af59df562bd9e10714919",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4e3da4e1bff1b7592bca1944e793d600a9c672343f1af59df562bd9e10714919"
+    },
+    {
+      "fingerprint": "d1afcc67099934fa555d08b6d4c0fc1d287472a4356afac5f110a21e14706928",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "d1afcc67099934fa555d08b6d4c0fc1d287472a4356afac5f110a21e14706928"
+    },
+    {
       "fingerprint": "00a73395a9849d8c1786f205aa1af87e13eb2a20acc13b50203dd6a2e158bf67",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
@@ -873,14 +1543,34 @@
       "evidence": "067d20284e6e150c47a7d2a8d1876c3092ccf8f32c98092696234013fdf1a784"
     },
     {
-      "fingerprint": "1e7e950fb4efe2013d0c91f1040b7117a01e643256f3fa41f91342987fb31878",
+      "fingerprint": "7021cb2f2be8ddf125dea8542b5643c2836b67dc9304db966ab00d5bed6100c0",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizationEngine 等类型",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "1e7e950fb4efe2013d0c91f1040b7117a01e643256f3fa41f91342987fb31878"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "7021cb2f2be8ddf125dea8542b5643c2836b67dc9304db966ab00d5bed6100c0"
+    },
+    {
+      "fingerprint": "0e744f7393f17bb0adb8a5121665918b10c4a7b5951586d1269160ddde8b81a3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0e744f7393f17bb0adb8a5121665918b10c4a7b5951586d1269160ddde8b81a3"
+    },
+    {
+      "fingerprint": "89adfa6eade64d4bb8b720336ebaaa12ed8ec1471045a49cd9e82f0d2b3b26a5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine, RepairEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "89adfa6eade64d4bb8b720336ebaaa12ed8ec1471045a49cd9e82f0d2b3b26a5"
     },
     {
       "fingerprint": "859a21957101df23599339d24a03102de35b874f667cb5fef5686bb1ebea9ff8",
@@ -893,54 +1583,724 @@
       "evidence": "859a21957101df23599339d24a03102de35b874f667cb5fef5686bb1ebea9ff8"
     },
     {
-      "fingerprint": "3ef4323b201841325c72b9414419e954395a07ab782fff380676fc11737ddbaf",
+      "fingerprint": "563949384751008e6be5d8037f33e222f0671f6c90d48d68b99ad96f95f34c5e",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "3ef4323b201841325c72b9414419e954395a07ab782fff380676fc11737ddbaf"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "563949384751008e6be5d8037f33e222f0671f6c90d48d68b99ad96f95f34c5e"
     },
     {
-      "fingerprint": "1f68bb0dc427a3d484e8a6dd7cf4f603b0e3955020eccb81b09d927292ca0e11",
+      "fingerprint": "160b661159ee7a2d87f00978df98e9b915e907dae1b504c9e997dce47fa6a10c",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "1f68bb0dc427a3d484e8a6dd7cf4f603b0e3955020eccb81b09d927292ca0e11"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "160b661159ee7a2d87f00978df98e9b915e907dae1b504c9e997dce47fa6a10c"
     },
     {
-      "fingerprint": "79dbf562857e2e6ffba2d37bcc119720169588b06dd8b262f4c18ab6b4237d64",
+      "fingerprint": "417a5a94bad6b8ba45ca940aca758704fabb40591613172c846e457f7f8c4d8b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "417a5a94bad6b8ba45ca940aca758704fabb40591613172c846e457f7f8c4d8b"
+    },
+    {
+      "fingerprint": "cd5d1b3f174826f36cf92ddff1a1b45166c4d61dfb590c21ad9cbc70717f5d14",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PageRequest, PageRequest 等类型",
+      "owner": "pagerequest",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cd5d1b3f174826f36cf92ddff1a1b45166c4d61dfb590c21ad9cbc70717f5d14"
+    },
+    {
+      "fingerprint": "42acb91466836425b6a331216e975d400ffbc14e5f5509347eb9a88dc6c85fbd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "42acb91466836425b6a331216e975d400ffbc14e5f5509347eb9a88dc6c85fbd"
+    },
+    {
+      "fingerprint": "21d574b21271d92520ea0c8b25c608c8d1392843352dd7d7e15fc1886212dfd0",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "CallBuilder 内部 buildCalls, buildToolExecutions 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "reason": "各 adapter 模块中 getHomePath 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizedArtifactWriter 等类型",
       "owner": "normalization-engine",
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
-      "evidence": "79dbf562857e2e6ffba2d37bcc119720169588b06dd8b262f4c18ab6b4237d64"
+      "evidence": "21d574b21271d92520ea0c8b25c608c8d1392843352dd7d7e15fc1886212dfd0"
     },
     {
-      "fingerprint": "4c4ff6ade1c1a273e63b361a419aedd5bdc5eafcae187446bb2e0645f6bb1f0e",
+      "fingerprint": "80a1e9be31bb676e1a37786d289dcdaf76bd7a9d21c2cde977bda92986a6d4b7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AgentFilter, AnomalyFilter, ModelFilter 等类型",
+      "owner": "agentfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "80a1e9be31bb676e1a37786d289dcdaf76bd7a9d21c2cde977bda92986a6d4b7"
+    },
+    {
+      "fingerprint": "faa549f6b2ba71bc868df2e5b8a647fa70b877bde52cbee570d5f0858869bf6c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedArtifactLoader, NormalizedArtifactLoader, NormalizedArtifactLoader 等类型",
+      "owner": "normalizedartifactloader",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "faa549f6b2ba71bc868df2e5b8a647fa70b877bde52cbee570d5f0858869bf6c"
+    },
+    {
+      "fingerprint": "5a60bd5e43d3607b7aa875e42c9a96e78a50bf3e4302dd14fc6b0e939e4826a0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5a60bd5e43d3607b7aa875e42c9a96e78a50bf3e4302dd14fc6b0e939e4826a0"
+    },
+    {
+      "fingerprint": "a259005c4061526f881e4ca88201d80dac6757ce9ec3c4a9d770475cb150b436",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a259005c4061526f881e4ca88201d80dac6757ce9ec3c4a9d770475cb150b436"
+    },
+    {
+      "fingerprint": "39f30e1c5212236ed511ddfa1d9e1733fbee7aceddd8176cf4a765d39bbbd6f2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, ProjectsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "39f30e1c5212236ed511ddfa1d9e1733fbee7aceddd8176cf4a765d39bbbd6f2"
+    },
+    {
+      "fingerprint": "797db0aec84765dfda15f1699e05df9af8a33c83e8d174e58a7caaed8708799e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "797db0aec84765dfda15f1699e05df9af8a33c83e8d174e58a7caaed8708799e"
+    },
+    {
+      "fingerprint": "628db0c7598820b101769164f5228a5096e4f531ee71ee7e5e31d734dd38fe64",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 classify 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, EventClassifier 等类型",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand, CodexDiscovery 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "628db0c7598820b101769164f5228a5096e4f531ee71ee7e5e31d734dd38fe64"
+    },
+    {
+      "fingerprint": "5aa4f08bb744e9b027be127913f769fe5fb41b47f90e88e29d9a0eb19786522d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedArtifactLoader, NormalizedArtifactLoader 等类型",
+      "owner": "normalizedartifactloader",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5aa4f08bb744e9b027be127913f769fe5fb41b47f90e88e29d9a0eb19786522d"
+    },
+    {
+      "fingerprint": "31dd4472b38b7952337946800be27027b7d61dae578a3e09cf29b3da6ff53ba9",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizationEngine, NormalizedBatchCommand 等类型",
       "owner": "normalization-engine",
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
-      "evidence": "4c4ff6ade1c1a273e63b361a419aedd5bdc5eafcae187446bb2e0645f6bb1f0e"
+      "evidence": "31dd4472b38b7952337946800be27027b7d61dae578a3e09cf29b3da6ff53ba9"
     },
     {
-      "fingerprint": "22901aa7e4839663448e8b5bff0276c3c60a40171081518b5a2f5deba7bd2a06",
+      "fingerprint": "520c7f956fa52edc82efd86469df310d1ca76621e5edc5ced3ba9692c7f1deaf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "520c7f956fa52edc82efd86469df310d1ca76621e5edc5ced3ba9692c7f1deaf"
+    },
+    {
+      "fingerprint": "b7d71345343309fbb1b519e1af2f8956ee3a3a15b73a0ef0a4b04ef6b9c565f3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ArtifactRowMapper, ArtifactRowMapper, RenameDetector 等类型",
+      "owner": "artifactrowmapper",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b7d71345343309fbb1b519e1af2f8956ee3a3a15b73a0ef0a4b04ef6b9c565f3"
+    },
+    {
+      "fingerprint": "4f1976aeaaa3e3eb8e412c400f1ba29f916ee08d812de251e7941a8f45a08cd1",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 call 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4f1976aeaaa3e3eb8e412c400f1ba29f916ee08d812de251e7941a8f45a08cd1"
+    },
+    {
+      "fingerprint": "4ba4be430e7e947c9d0849c3979e56409fdfdd0d0b54c3d581b7d3e043176210",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 QueryCache, QueryCache, QueryCache 等类型",
+      "owner": "querycache",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4ba4be430e7e947c9d0849c3979e56409fdfdd0d0b54c3d581b7d3e043176210"
+    },
+    {
+      "fingerprint": "4810b2ee72738f07226fbaf22f170d013dee437935e4ae2b0e8a38d652975e0d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 detectLineTerminatorByteLen 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, SourcePathOps 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4810b2ee72738f07226fbaf22f170d013dee437935e4ae2b0e8a38d652975e0d"
+    },
+    {
+      "fingerprint": "23a8860537efca8f34d847c123d3f0c4f222f232f26babff4ad2a158265a41f3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RepairEngine, RepairEngine 等类型",
+      "owner": "repairengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "23a8860537efca8f34d847c123d3f0c4f222f232f26babff4ad2a158265a41f3"
+    },
+    {
+      "fingerprint": "1dc8f5c977ea1ff0daba18b79092210d04394bcb30129c02925891358896b51e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionQueryRepository, SessionQueryRepository, SessionQueryRepository 等类型",
+      "owner": "sessionqueryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1dc8f5c977ea1ff0daba18b79092210d04394bcb30129c02925891358896b51e"
+    },
+    {
+      "fingerprint": "8991d14c0f0355114835007519c8a601bef3e06843c76ef7849f071c4e9733b8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RenameDetector, RepairEngine 等类型",
+      "owner": "renamedetector",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8991d14c0f0355114835007519c8a601bef3e06843c76ef7849f071c4e9733b8"
+    },
+    {
+      "fingerprint": "ebbac68ccf1307e57c143be61976f8f5b0c758a2aa21a8a3ef65b1721d225074",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 TrendFilter, TrendFilter 等类型",
+      "owner": "trendfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ebbac68ccf1307e57c143be61976f8f5b0c758a2aa21a8a3ef65b1721d225074"
+    },
+    {
+      "fingerprint": "eb25dbef9da82a824fa3b4b6063dd2efac61a3be47b2ea0bd9c3e1ca8431555d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectListUseCase, AggregateQueryRepository, ProjectFilter 等类型",
+      "owner": "projectlistusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "eb25dbef9da82a824fa3b4b6063dd2efac61a3be47b2ea0bd9c3e1ca8431555d"
+    },
+    {
+      "fingerprint": "b743226c842aa149bf91b8aa9f2ded51f52a443b0053adb8efa506b25dceba6e",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b743226c842aa149bf91b8aa9f2ded51f52a443b0053adb8efa506b25dceba6e"
+    },
+    {
+      "fingerprint": "888a8a7e03b3ec9d2ed6348194eaf4b9fb843b98d2109c34a43b6ac01adc5664",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, CallBuilder, JsonlReader 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "888a8a7e03b3ec9d2ed6348194eaf4b9fb843b98d2109c34a43b6ac01adc5664"
+    },
+    {
+      "fingerprint": "43006dee00eaa88c2c18c32d864b5cbac2ef3a2622c495eeb4ee0a22680663e0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "43006dee00eaa88c2c18c32d864b5cbac2ef3a2622c495eeb4ee0a22680663e0"
+    },
+    {
+      "fingerprint": "050e24ae9a7182e616e857e767ace09c88f123fc9156395fd8d3f48376a85d74",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "NormalizedArtifactWriter 内部 doWrite, extractSessionKey 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "050e24ae9a7182e616e857e767ace09c88f123fc9156395fd8d3f48376a85d74"
+    },
+    {
+      "fingerprint": "705bf153cc824a467b7e6470310088fa9727b3b45ffb671905a175e877f1ec39",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServeCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "705bf153cc824a467b7e6470310088fa9727b3b45ffb671905a175e877f1ec39"
+    },
+    {
+      "fingerprint": "1a84c341af8f1f294e426b50b033fa9fca850af5f9c9430087745a64a1030791",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionArtifactRow, SessionArtifactRow, SessionRow 等类型",
+      "owner": "sessionartifactrow",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1a84c341af8f1f294e426b50b033fa9fca850af5f9c9430087745a64a1030791"
+    },
+    {
+      "fingerprint": "5f3836476cd6392d339f67dd27f6eed6fc656da8fa967d628fece85d817d74de",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PidFile, FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "pidfile",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5f3836476cd6392d339f67dd27f6eed6fc656da8fa967d628fece85d817d74de"
+    },
+    {
+      "fingerprint": "7edf5dd2af0bb9c98940e693557c1493e37ea1825a43dcea062502d27d513375",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "7edf5dd2af0bb9c98940e693557c1493e37ea1825a43dcea062502d27d513375"
+    },
+    {
+      "fingerprint": "f7ec7bf2546f7374b72a7416ddcc8b678e8ba3df243e257ca92f819ec02c622f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f7ec7bf2546f7374b72a7416ddcc8b678e8ba3df243e257ca92f819ec02c622f"
+    },
+    {
+      "fingerprint": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9"
+    },
+    {
+      "fingerprint": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a"
+    },
+    {
+      "fingerprint": "215dd2192f8b700758a9618fefc0e57d6a5ef37993f00c1cdba92a433baeb9cb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "215dd2192f8b700758a9618fefc0e57d6a5ef37993f00c1cdba92a433baeb9cb"
+    },
+    {
+      "fingerprint": "6cf6018ea8bd5588df08adb5f54740e19f3171fe129b32ba7475ce73d7e7fc0b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, SessionQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6cf6018ea8bd5588df08adb5f54740e19f3171fe129b32ba7475ce73d7e7fc0b"
+    },
+    {
+      "fingerprint": "8101c07ab2b93c5921a5a2e8d01586447116860c3bd5ba46d24ac7df90033d56",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8101c07ab2b93c5921a5a2e8d01586447116860c3bd5ba46d24ac7df90033d56"
+    },
+    {
+      "fingerprint": "465aa66ba7b5b126ebb8f77d8d380439099853a14e64b4937e1221763127c9fc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, SessionDetailPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "465aa66ba7b5b126ebb8f77d8d380439099853a14e64b4937e1221763127c9fc"
+    },
+    {
+      "fingerprint": "6e45f9e18ddc9acab4cd7f5e307f9dc53b2e237f42cb425dd082755381a15d04",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 processCandidate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, NormalizedBatchCommand 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6e45f9e18ddc9acab4cd7f5e307f9dc53b2e237f42cb425dd082755381a15d04"
+    },
+    {
+      "fingerprint": "f5bdd6827cdad69b348667dccba78020c51f0e993925e4363d469e41d7e2b072",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 processCandidate 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, NormalizedBatchCommand 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "f5bdd6827cdad69b348667dccba78020c51f0e993925e4363d469e41d7e2b072"
+    },
+    {
+      "fingerprint": "3ee7de77415d5e80ca4dc467fd43853e10c76845db65c21f81e353ca2f270da2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PercentileCalculator, PercentileCalculator 等类型",
+      "owner": "percentilecalculator",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3ee7de77415d5e80ca4dc467fd43853e10c76845db65c21f81e353ca2f270da2"
+    },
+    {
+      "fingerprint": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00"
+    },
+    {
+      "fingerprint": "c6be927f65d9f36296f7c47f62a94a99676eeedbf8da0282391c95b89af744a8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionsPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c6be927f65d9f36296f7c47f62a94a99676eeedbf8da0282391c95b89af744a8"
+    },
+    {
+      "fingerprint": "7ee6a854a9f8e58551218212e271821fc6717b502019362117e7f0c3db4969e1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 MigrationRunner, MigrationRunner 等类型",
+      "owner": "migrationrunner",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "7ee6a854a9f8e58551218212e271821fc6717b502019362117e7f0c3db4969e1"
+    },
+    {
+      "fingerprint": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d"
+    },
+    {
+      "fingerprint": "5285c310793e591038dbca99027072e39907a3c9cc401863c8af8633d3f92f40",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 extractEventType 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "5285c310793e591038dbca99027072e39907a3c9cc401863c8af8633d3f92f40"
+    },
+    {
+      "fingerprint": "959df0deefeff339a976e4b717c7e4662d69810293165a06b5d9ff0ce7c9a556",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CodexSourceAdapter 内部 hasCumulativeUsage, extractResponseType, extractEventMsgType 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-codex",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "959df0deefeff339a976e4b717c7e4662d69810293165a06b5d9ff0ce7c9a556"
+    },
+    {
+      "fingerprint": "96e8e38d08445434ec75cda802a061f06c6c46e4ddea694daa17a23761e7490d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "96e8e38d08445434ec75cda802a061f06c6c46e4ddea694daa17a23761e7490d"
+    },
+    {
+      "fingerprint": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289"
+    },
+    {
+      "fingerprint": "db11c492f4909412ef3ed37b0fe7125790e691fd66afbae9f1d52e3784b16e5e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ArtifactRowMapper, NormalizedArtifactLoader 等类型",
+      "owner": "artifactrowmapper",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "db11c492f4909412ef3ed37b0fe7125790e691fd66afbae9f1d52e3784b16e5e"
+    },
+    {
+      "fingerprint": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
       "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
       "owner": "source-claude",
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
-      "evidence": "22901aa7e4839663448e8b5bff0276c3c60a40171081518b5a2f5deba7bd2a06"
+      "evidence": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb"
+    },
+    {
+      "fingerprint": "12f4e3ae8a97ea2ce94aa55c96f5b7a8b4ea822375b7efa4eabde7cabf9c86d9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteTransaction, WriteTransaction 等类型",
+      "owner": "writetransaction",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "12f4e3ae8a97ea2ce94aa55c96f5b7a8b4ea822375b7efa4eabde7cabf9c86d9"
+    },
+    {
+      "fingerprint": "7b07320857bd4ef1cdca46e11eafe76fc58e6ee76d86f3f29cfa1618080b39c1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "7b07320857bd4ef1cdca46e11eafe76fc58e6ee76d86f3f29cfa1618080b39c1"
+    },
+    {
+      "fingerprint": "bf9420a272d66c667e249265dc994be6dc869947e99313064e24c1f864ee2d64",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AgentFilter, AnomalyFilter, ModelFilter 等类型",
+      "owner": "agentfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "bf9420a272d66c667e249265dc994be6dc869947e99313064e24c1f864ee2d64"
+    },
+    {
+      "fingerprint": "6a78902b5a6da0012a0b54cad732d5a6d6c8b4c87deee286b3861de2da7a34de",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 detectLineTerminatorByteLen 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, SourcePathOps 等类型",
+      "owner": "source-json",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6a78902b5a6da0012a0b54cad732d5a6d6c8b4c87deee286b3861de2da7a34de"
+    },
+    {
+      "fingerprint": "39ea70ec191e39560525efb069263367569c7b0ccacf2163c76218cf877d82f7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, SessionQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "39ea70ec191e39560525efb069263367569c7b0ccacf2163c76218cf877d82f7"
+    },
+    {
+      "fingerprint": "98118e2a07456bcf038ac884be1fbf6dd708994da101acbab4aecacdcb48d648",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 StopCommand, WriteQueue, WriteQueue 等类型",
+      "owner": "stopcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "98118e2a07456bcf038ac884be1fbf6dd708994da101acbab4aecacdcb48d648"
+    },
+    {
+      "fingerprint": "25413bf43c58e1d8cb7c3d26e9d48b631dfe211dd4bd6568177f60a05529d6f5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiRouter, SessionApiRouter 等类型",
+      "owner": "sessionapirouter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "25413bf43c58e1d8cb7c3d26e9d48b631dfe211dd4bd6568177f60a05529d6f5"
+    },
+    {
+      "fingerprint": "523a2ac30fa90b1ac5714dd391d91e5560b31f187fcd9775217f08664de38695",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "523a2ac30fa90b1ac5714dd391d91e5560b31f187fcd9775217f08664de38695"
+    },
+    {
+      "fingerprint": "4d0a371aa71028f0c66d02225d1b39c105f8495ebc77e1b55ee64236b44a9e02",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder 内部 extractTurnId, extractTimestamp 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "4d0a371aa71028f0c66d02225d1b39c105f8495ebc77e1b55ee64236b44a9e02"
+    },
+    {
+      "fingerprint": "0967fed0051d2c20007d0dd60c887fca6f43a4233b2e86438e3d0543d31d4fbd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0967fed0051d2c20007d0dd60c887fca6f43a4233b2e86438e3d0543d31d4fbd"
+    },
+    {
+      "fingerprint": "954b8e6d37b39dea96d02788ae81a63e0c66cc93afeb579a8fa69cf36dd45edc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "954b8e6d37b39dea96d02788ae81a63e0c66cc93afeb579a8fa69cf36dd45edc"
+    },
+    {
+      "fingerprint": "1e7e950fb4efe2013d0c91f1040b7117a01e643256f3fa41f91342987fb31878",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizationEngine 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "1e7e950fb4efe2013d0c91f1040b7117a01e643256f3fa41f91342987fb31878"
+    },
+    {
+      "fingerprint": "e5908492b6ea989c46920bf40479b232ba7f8c80e3f699aa988c3ab9dba30804",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler, DashboardPage 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e5908492b6ea989c46920bf40479b232ba7f8c80e3f699aa988c3ab9dba30804"
+    },
+    {
+      "fingerprint": "ef9c002f6098a906d08a0678a57365e1151dc1fd19476336ead4e4490cf81059",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ef9c002f6098a906d08a0678a57365e1151dc1fd19476336ead4e4490cf81059"
+    },
+    {
+      "fingerprint": "dea553ebe7c1599778633a19dbb4c10d6d0f497316b0effdbec8e55ae0c30eeb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "dea553ebe7c1599778633a19dbb4c10d6d0f497316b0effdbec8e55ae0c30eeb"
+    },
+    {
+      "fingerprint": "a29799423f677bb279cf9bad71f2fda028109a236343023bddb0e3d8082c61ea",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a29799423f677bb279cf9bad71f2fda028109a236343023bddb0e3d8082c61ea"
+    },
+    {
+      "fingerprint": "40a4e71dd4311889cb6ed1fef2faaa9f7246be43cd3a0aa330effff7da9ecaf5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, SafeHtml 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "40a4e71dd4311889cb6ed1fef2faaa9f7246be43cd3a0aa330effff7da9ecaf5"
+    },
+    {
+      "fingerprint": "2fec9e58a245ffef6b87896feb689902d2e901182de79b6e2df805d0a06f24d4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "2fec9e58a245ffef6b87896feb689902d2e901182de79b6e2df805d0a06f24d4"
+    },
+    {
+      "fingerprint": "d928ce3ea0b76edc7e6d8fc56ed4aad7d63b135cab80b899bf54ba39672e674e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionArtifactRow, SessionArtifactRow, SessionRow 等类型",
+      "owner": "sessionartifactrow",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "d928ce3ea0b76edc7e6d8fc56ed4aad7d63b135cab80b899bf54ba39672e674e"
     },
     {
       "fingerprint": "8edb45cbf9443e8fb97abd23ea8201daaaec6b5c7b005b39565ead08dbc2d08a",
@@ -953,34 +2313,114 @@
       "evidence": "8edb45cbf9443e8fb97abd23ea8201daaaec6b5c7b005b39565ead08dbc2d08a"
     },
     {
-      "fingerprint": "2e0877809a36f87f80f0bd479c257e6e6f41fe63de2d05a9428442c88311bcca",
+      "fingerprint": "0047a0fd67e4eb286e5e2077f4138d9eb31ac5a752d79929836f912a54bc4114",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "2e0877809a36f87f80f0bd479c257e6e6f41fe63de2d05a9428442c88311bcca"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteQueue, WriteQueue 等类型",
+      "owner": "writequeue",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0047a0fd67e4eb286e5e2077f4138d9eb31ac5a752d79929836f912a54bc4114"
     },
     {
-      "fingerprint": "f3ac7f4244bf8565d57631a08f7d46fc41ca4ccd1ed1a7c314896d03323f8676",
+      "fingerprint": "876bb77256923d95b792843569e888b1e858968489c7aa80deb6803966f0509a",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 parse 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
-      "owner": "source-claude",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "f3ac7f4244bf8565d57631a08f7d46fc41ca4ccd1ed1a7c314896d03323f8676"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "876bb77256923d95b792843569e888b1e858968489c7aa80deb6803966f0509a"
     },
     {
-      "fingerprint": "21321a523425cab2b1ce8461805fc15eff679852ced13bf30591aa51e76a8904",
+      "fingerprint": "a3fca37628f01fd95a25b1b89ac8abb1f2548269dfc78f98399b026dab7ce8d5",
       "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "TokenAccountant 内部 aggregate, extractUsage 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
-      "owner": "normalization-engine",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "21321a523425cab2b1ce8461805fc15eff679852ced13bf30591aa51e76a8904"
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, PidFile 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a3fca37628f01fd95a25b1b89ac8abb1f2548269dfc78f98399b026dab7ce8d5"
+    },
+    {
+      "fingerprint": "fb71dc39740583885b1131ddd6e044f2459992131caf0cde7e4ab6bc8f7b3959",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "fb71dc39740583885b1131ddd6e044f2459992131caf0cde7e4ab6bc8f7b3959"
+    },
+    {
+      "fingerprint": "638aeff3d711f0b46752c0004001c85ed6c00fe289285b4281a08f07b1dcc8e5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "638aeff3d711f0b46752c0004001c85ed6c00fe289285b4281a08f07b1dcc8e5"
+    },
+    {
+      "fingerprint": "491ad75c32b22b008d9d4f42cff18841fe4ba327b949e68b40515ab76c7ce8cf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "491ad75c32b22b008d9d4f42cff18841fe4ba327b949e68b40515ab76c7ce8cf"
+    },
+    {
+      "fingerprint": "ff9180f7685dfb8121665e5d66ac651c2b16ae4ee35d874fc180b23e89bd4c50",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FingerprintRepository, CodexSourceAdapter 等类型",
+      "owner": "fingerprintrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ff9180f7685dfb8121665e5d66ac651c2b16ae4ee35d874fc180b23e89bd4c50"
+    },
+    {
+      "fingerprint": "9381028212d1252d2d37027a12eeb335486174265599b51a131f7c821a5ec626",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteTransaction, WriteTransaction 等类型",
+      "owner": "writetransaction",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9381028212d1252d2d37027a12eeb335486174265599b51a131f7c821a5ec626"
+    },
+    {
+      "fingerprint": "8f69075dcc73487e486bc9a19b7d1ec22d8dfc3d9d61811b88a748b7b70b272f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8f69075dcc73487e486bc9a19b7d1ec22d8dfc3d9d61811b88a748b7b70b272f"
+    },
+    {
+      "fingerprint": "af581909b285bf2033be6b29d85cf45e58215e5fbeb5beea93d7f52c053a4594",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DisplayFormatters, DisplayFormatters 等类型",
+      "owner": "displayformatters",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "af581909b285bf2033be6b29d85cf45e58215e5fbeb5beea93d7f52c053a4594"
+    },
+    {
+      "fingerprint": "97d436a48de9c0b2b8ffa32ba68b6e55fed5ca2c9dbbb2c0235b6a11200176a3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "97d436a48de9c0b2b8ffa32ba68b6e55fed5ca2c9dbbb2c0235b6a11200176a3"
     },
     {
       "fingerprint": "ae7c326686b537f41dbb16a214b798412aba21244c047269574149b04ef93d85",
@@ -1003,24 +2443,864 @@
       "evidence": "24a6ce2bb75c55d14ac1a2ab9150162829e1f474d1ee7f6ca02195e286b79b9d"
     },
     {
-      "fingerprint": "21d574b21271d92520ea0c8b25c608c8d1392843352dd7d7e15fc1886212dfd0",
+      "fingerprint": "a9d16db5a3e4d6d5e753787aed88fe29fe0549f0f8afd7b9431e2980fad7eb07",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PayloadLookup, SessionDetailAssembler 等类型",
+      "owner": "payloadlookup",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a9d16db5a3e4d6d5e753787aed88fe29fe0549f0f8afd7b9431e2980fad7eb07"
+    },
+    {
+      "fingerprint": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "各 adapter 模块中 getHomePath 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CallBuilder, NormalizedArtifactWriter 等类型",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399"
+    },
+    {
+      "fingerprint": "c06a3347476fec69f903b1c02f37f51e07a75bb94eec82c8c1ac102acea6e6fe",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c06a3347476fec69f903b1c02f37f51e07a75bb94eec82c8c1ac102acea6e6fe"
+    },
+    {
+      "fingerprint": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3"
+    },
+    {
+      "fingerprint": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discoverSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d"
+    },
+    {
+      "fingerprint": "0daee7fc8541e3b979314eb4386f0c9aeebd0d388cb7d656f1acb8ab5de8acf3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0daee7fc8541e3b979314eb4386f0c9aeebd0d388cb7d656f1acb8ab5de8acf3"
+    },
+    {
+      "fingerprint": "83deeca037ca4627e59057e638ad328d98bb8558420368d31bef4b29c6bfa80a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "83deeca037ca4627e59057e638ad328d98bb8558420368d31bef4b29c6bfa80a"
+    },
+    {
+      "fingerprint": "489bca0b1254841ad496e85f52c6a98afefb2b0f428c8e4848a8a927eea90abc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RepairEngine, RepairEngine, SessionDeleter 等类型",
+      "owner": "repairengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "489bca0b1254841ad496e85f52c6a98afefb2b0f428c8e4848a8a927eea90abc"
+    },
+    {
+      "fingerprint": "8e1f23ab04aa81806539183b8e92072f5050727250296213ffc391fcca7f88f6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8e1f23ab04aa81806539183b8e92072f5050727250296213ffc391fcca7f88f6"
+    },
+    {
+      "fingerprint": "2273c129ccfda53519909a3493cf9ae8a9db12869edc9994b0f0b59dfa7b6777",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler, SessionDetailPage 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "2273c129ccfda53519909a3493cf9ae8a9db12869edc9994b0f0b59dfa7b6777"
+    },
+    {
+      "fingerprint": "727d7d3119b415bed3fdaba2af17002d1478d36b20b94b70894f13deca671c16",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "727d7d3119b415bed3fdaba2af17002d1478d36b20b94b70894f13deca671c16"
+    },
+    {
+      "fingerprint": "c57a43c826865a474ca31aca41beff12986c4d4a13da55a350403380f1f0762d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c57a43c826865a474ca31aca41beff12986c4d4a13da55a350403380f1f0762d"
+    },
+    {
+      "fingerprint": "0bff6613f50e3d5510cbeefdaa29ff1e143339a384c0f776f597aab805be1f4f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0bff6613f50e3d5510cbeefdaa29ff1e143339a384c0f776f597aab805be1f4f"
+    },
+    {
+      "fingerprint": "bddf45631dafdd1487cc0500abb39591b122ad3be6409201a5c7485b919d0efd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FingerprintComparator, FullScanEngine 等类型",
+      "owner": "fingerprintcomparator",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "bddf45631dafdd1487cc0500abb39591b122ad3be6409201a5c7485b919d0efd"
+    },
+    {
+      "fingerprint": "37ff3e117233166a6213eb4ee6c213b24a8d478fce68aab5c6b0a7e35b99ede0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 IndexSchema, IndexSchema 等类型",
+      "owner": "indexschema",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "37ff3e117233166a6213eb4ee6c213b24a8d478fce68aab5c6b0a7e35b99ede0"
+    },
+    {
+      "fingerprint": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildToolResultToConsumerMap 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 EventClassifier, ClaudeSourceAdapter, CodexSourceAdapter 等类型",
       "owner": "normalization-engine",
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
-      "evidence": "21d574b21271d92520ea0c8b25c608c8d1392843352dd7d7e15fc1886212dfd0"
+      "evidence": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905"
     },
     {
-      "fingerprint": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f",
+      "fingerprint": "70409ed8dfc5381e73589b7742d1277541b17f048b328f9d27b145ff86a7abf2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "70409ed8dfc5381e73589b7742d1277541b17f048b328f9d27b145ff86a7abf2"
+    },
+    {
+      "fingerprint": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "JsonlReader 内部 braceCharsOutsideStrings, splitAtDepth0, scanBracketContent 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3"
+    },
+    {
+      "fingerprint": "c3b8252d79ed0e38b2f98661c5e46ba9b9da768495fac3bde2ac1ee0824d70ad",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c3b8252d79ed0e38b2f98661c5e46ba9b9da768495fac3bde2ac1ee0824d70ad"
+    },
+    {
+      "fingerprint": "678a16a1413d7e07aa06a7b43d6106cd00a386e0c1fa77b779062e47742287b5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PidFile, JsonlReader, DisplayFormatters 等类型",
+      "owner": "pidfile",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "678a16a1413d7e07aa06a7b43d6106cd00a386e0c1fa77b779062e47742287b5"
+    },
+    {
+      "fingerprint": "9c034733ace00f1bcd7273cd3d9a75c56c7d15d31ba9a87dd464e0d178558b8e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 RenameDetector, SessionDeleter 等类型",
+      "owner": "renamedetector",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9c034733ace00f1bcd7273cd3d9a75c56c7d15d31ba9a87dd464e0d178558b8e"
+    },
+    {
+      "fingerprint": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28"
+    },
+    {
+      "fingerprint": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonlReader 内部 splitAtDepth0, read 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
       "owner": "source-json",
       "createdAt": "2026-06-23",
       "expiresOn": "2026-12-23",
-      "evidence": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f"
+      "evidence": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7"
+    },
+    {
+      "fingerprint": "667d5142676a2717aebc9ddf4b4f6b7bb0ce219cc00cb3dfb4a5bdf709f0f78d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 DashboardFilter, ProjectListFilter, SessionListFilter 等类型",
+      "owner": "dashboardfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "667d5142676a2717aebc9ddf4b4f6b7bb0ce219cc00cb3dfb4a5bdf709f0f78d"
+    },
+    {
+      "fingerprint": "887827047ca57a9e776bcb1606dbbafde63ffd4e0a87d49bd4ba5313d125a701",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "887827047ca57a9e776bcb1606dbbafde63ffd4e0a87d49bd4ba5313d125a701"
+    },
+    {
+      "fingerprint": "280354b41c9f19b84d44e7c480151600fdade132175f5eb029c8d9083171cfdb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "280354b41c9f19b84d44e7c480151600fdade132175f5eb029c8d9083171cfdb"
+    },
+    {
+      "fingerprint": "ea51a5c79c56e89b45f6472032297afbbf32a3564456d6f52ce80561b398ddd8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailUseCase, SessionDetailRepository, SessionDetailRepository 等类型",
+      "owner": "sessiondetailusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ea51a5c79c56e89b45f6472032297afbbf32a3564456d6f52ce80561b398ddd8"
+    },
+    {
+      "fingerprint": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildFingerprints 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, NormalizedBatchCommand, NormalizationEngine 等类型",
+      "owner": "app-cli",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d"
+    },
+    {
+      "fingerprint": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab"
+    },
+    {
+      "fingerprint": "d61aff9e83bb26dda1ed6bc1965c43df728bf8676c8b60b382113e97b6f145ea",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteBatch, WriteBatch, WriteBatch 等类型",
+      "owner": "writebatch",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "d61aff9e83bb26dda1ed6bc1965c43df728bf8676c8b60b382113e97b6f145ea"
+    },
+    {
+      "fingerprint": "2f0d7ea9d170ac385f1296f0047f2ad3576ef659f39d1bfed5f70b21b2f70bed",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "2f0d7ea9d170ac385f1296f0047f2ad3576ef659f39d1bfed5f70b21b2f70bed"
+    },
+    {
+      "fingerprint": "3f0b700e28d381f3485afc8a8e3cf79b694734f85cdee72fa83c88baab526366",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteTransaction, WriteTransaction 等类型",
+      "owner": "writetransaction",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3f0b700e28d381f3485afc8a8e3cf79b694734f85cdee72fa83c88baab526366"
+    },
+    {
+      "fingerprint": "1d680f7235a739aed10d4442d874d6e469eaea96d756337bce8d27656d6f97b7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, ProjectsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1d680f7235a739aed10d4442d874d6e469eaea96d756337bce8d27656d6f97b7"
+    },
+    {
+      "fingerprint": "6537748221fbfa35cef5d687f5d7de38c2a3c2c159e8009bce03e47390e188ce",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectListFilter, SessionListFilter 等类型",
+      "owner": "projectlistfilter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6537748221fbfa35cef5d687f5d7de38c2a3c2c159e8009bce03e47390e188ce"
+    },
+    {
+      "fingerprint": "cc5874f42defd46ace939842c02378945d2d600d7ba1f5eb8022ac4fce7e2119",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cc5874f42defd46ace939842c02378945d2d600d7ba1f5eb8022ac4fce7e2119"
+    },
+    {
+      "fingerprint": "9fced81902c5a8b8232ea3d3b1f51bcc561e42aa6e54116fc4eb65dae47db358",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PayloadLookup, SessionDetailAssembler 等类型",
+      "owner": "payloadlookup",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9fced81902c5a8b8232ea3d3b1f51bcc561e42aa6e54116fc4eb65dae47db358"
+    },
+    {
+      "fingerprint": "8bf180f488278f4046025e634c5165c12b90b6a656f96d97491c7f2946ff559d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "8bf180f488278f4046025e634c5165c12b90b6a656f96d97491c7f2946ff559d"
+    },
+    {
+      "fingerprint": "36a063c2797101ea06413521162546a75f9da0d12db7d943e943a91a9c16d297",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "36a063c2797101ea06413521162546a75f9da0d12db7d943e943a91a9c16d297"
+    },
+    {
+      "fingerprint": "fdb7cc726aff84a26ca2ebd089842b5929f67ad5d1bd6ae4a7b5659b87733e4c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ExportHandler, ExportHandler 等类型",
+      "owner": "exporthandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "fdb7cc726aff84a26ca2ebd089842b5929f67ad5d1bd6ae4a7b5659b87733e4c"
+    },
+    {
+      "fingerprint": "e44ea3208eb724370c67e354335271ad2b248106c1f532bfdf2631d64e1c00f3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e44ea3208eb724370c67e354335271ad2b248106c1f532bfdf2631d64e1c00f3"
+    },
+    {
+      "fingerprint": "4fac9d9dd1b7887a3d387ccf10f2ecae16869006c68ca4f4c1968a9fb8428193",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4fac9d9dd1b7887a3d387ccf10f2ecae16869006c68ca4f4c1968a9fb8428193"
+    },
+    {
+      "fingerprint": "c70ebc0b4405f4cb61b0fdb025143492de2f2d6ca1f3cf39ceef7d1ed1f23295",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c70ebc0b4405f4cb61b0fdb025143492de2f2d6ca1f3cf39ceef7d1ed1f23295"
+    },
+    {
+      "fingerprint": "4599986ec226adfb69d1be802f6cb8f260bdc6fed227e14998d182401e3679f6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 QueryCache, QueryCache 等类型",
+      "owner": "querycache",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4599986ec226adfb69d1be802f6cb8f260bdc6fed227e14998d182401e3679f6"
+    },
+    {
+      "fingerprint": "1ea68efc5c73a2f721a55f35060690d5e570b99834d2236e0b4e0cf3bf049af6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 IncrementalScanEngine, IncrementalScanEngine 等类型",
+      "owner": "incrementalscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1ea68efc5c73a2f721a55f35060690d5e570b99834d2236e0b4e0cf3bf049af6"
+    },
+    {
+      "fingerprint": "f3c66ff0a415f928d2c537e94b32bca06ab59b7dead2e5f6bb50303280212ceb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f3c66ff0a415f928d2c537e94b32bca06ab59b7dead2e5f6bb50303280212ceb"
+    },
+    {
+      "fingerprint": "104ba70ea213b17d32577767e5eb955845721a625398b9645851a7f2312d1e0d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionApiHandler, SessionApiHandler 等类型",
+      "owner": "sessionapihandler",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "104ba70ea213b17d32577767e5eb955845721a625398b9645851a7f2312d1e0d"
+    },
+    {
+      "fingerprint": "95186efe8845ef3fdd681601aa95f2fb87c210ebb63bbf15011ffb57c04df532",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "95186efe8845ef3fdd681601aa95f2fb87c210ebb63bbf15011ffb57c04df532"
+    },
+    {
+      "fingerprint": "0c578d34ef2a78ba96340c057f2e4810f0e376d9f129c5aa8a9c55d0d4938bcd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDeleter, SessionDeleter 等类型",
+      "owner": "sessiondeleter",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "0c578d34ef2a78ba96340c057f2e4810f0e376d9f129c5aa8a9c55d0d4938bcd"
+    },
+    {
+      "fingerprint": "92bba30c331c611b26ca94298050585054fc1ca5bb88425f7826a6e66919bc02",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 buildConservationCheck 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 JsonlReader, TokenAccountant, NormalizationEngine 等类型",
+      "owner": "normalization-engine",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "92bba30c331c611b26ca94298050585054fc1ca5bb88425f7826a6e66919bc02"
+    },
+    {
+      "fingerprint": "4e4aeb4570969c90e4142d75a32df548628d16495f211a9777a1d008bfc921d0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ScanCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4e4aeb4570969c90e4142d75a32df548628d16495f211a9777a1d008bfc921d0"
+    },
+    {
+      "fingerprint": "e350c5ceeda8556bdebb1255b2ecd0a587ad5d57228d422c6e30fbb668e503ca",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e350c5ceeda8556bdebb1255b2ecd0a587ad5d57228d422c6e30fbb668e503ca"
+    },
+    {
+      "fingerprint": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedSessions 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef"
+    },
+    {
+      "fingerprint": "245f10ca7b4a8292b751cd2dfc86a4f3564252e7c34f62605f2d81864a7119b8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 QueryCache, QueryCache 等类型",
+      "owner": "querycache",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "245f10ca7b4a8292b751cd2dfc86a4f3564252e7c34f62605f2d81864a7119b8"
+    },
+    {
+      "fingerprint": "13bb5a05873bcd0173846a3982013b3598c2b250e6784348a2d5787fc264b8d8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailUseCase, SessionApiService 等类型",
+      "owner": "sessiondetailusecase",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "13bb5a05873bcd0173846a3982013b3598c2b250e6784348a2d5787fc264b8d8"
+    },
+    {
+      "fingerprint": "06149ba766567f1102df8952fa879e6d3a95a98d801289cbc4b53056d7104e8b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, ProjectsPage, SessionsPage 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "06149ba766567f1102df8952fa879e6d3a95a98d801289cbc4b53056d7104e8b"
+    },
+    {
+      "fingerprint": "bd930ac78d637771c6f028603d7c949ca792050da08aa63bd17fb382c720e8de",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "NormalizedArtifactWriter 内部 validate, doWrite 方法存在语句级重复，属于 INTENTIONAL_DUPLICATION，当前保留各方法的独立实现",
+      "owner": "artifact-normalized",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "bd930ac78d637771c6f028603d7c949ca792050da08aa63bd17fb382c720e8de"
+    },
+    {
+      "fingerprint": "9ff509fa3e5a4d988083f37ddfc604fbeef1bfde6155144a58dc81cabcfe7cbf",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 fingerprint 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, QoderSourceAdapter, ClaudeSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "9ff509fa3e5a4d988083f37ddfc604fbeef1bfde6155144a58dc81cabcfe7cbf"
+    },
+    {
+      "fingerprint": "293206b81788bf766100f84683f7ee3afac786441c3585e0eb7e26b5773368e8",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 discover 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 CodexSourceAdapter, SourceAdapter, QoderSourceAdapter 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "293206b81788bf766100f84683f7ee3afac786441c3585e0eb7e26b5773368e8"
+    },
+    {
+      "fingerprint": "1703956ce0043b54b4dd9a8ee6e90fcdeb5810e8e70f3e434d31ba9ebbdf19ba",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, AggregateQueryRepository 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1703956ce0043b54b4dd9a8ee6e90fcdeb5810e8e70f3e434d31ba9ebbdf19ba"
+    },
+    {
+      "fingerprint": "cdf1692cc659319df27b44fd300f6defe3ef8a3b9b313d165ed8775e5405581d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteTransaction, WriteTransaction 等类型",
+      "owner": "writetransaction",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "cdf1692cc659319df27b44fd300f6defe3ef8a3b9b313d165ed8775e5405581d"
+    },
+    {
+      "fingerprint": "f83792d9bdb5c51aec192476c89a75879bf0a24e867a3f0c8c141d5dbbf7dad3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f83792d9bdb5c51aec192476c89a75879bf0a24e867a3f0c8c141d5dbbf7dad3"
+    },
+    {
+      "fingerprint": "a534805f0cbf70f17069513e39614e33b3e26acb19188c9f55de706da04c3e1f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ProjectsPage, QueryParams 等类型",
+      "owner": "projectspage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "a534805f0cbf70f17069513e39614e33b3e26acb19188c9f55de706da04c3e1f"
+    },
+    {
+      "fingerprint": "4ad477aaee6820d18caf2dbd9d0409b1be9d7a1c21984e0418e6188b69446beb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, FullScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "4ad477aaee6820d18caf2dbd9d0409b1be9d7a1c21984e0418e6188b69446beb"
+    },
+    {
+      "fingerprint": "76f132ba1cff593ffdf7f5ac3e8f056bb01ef0935f3f766877cde4cfa382a13e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "76f132ba1cff593ffdf7f5ac3e8f056bb01ef0935f3f766877cde4cfa382a13e"
+    },
+    {
+      "fingerprint": "c92540215e860d2e33a37b043e14bb4163ef9f3b3c39f3e504c167a8b58857c7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c92540215e860d2e33a37b043e14bb4163ef9f3b3c39f3e504c167a8b58857c7"
+    },
+    {
+      "fingerprint": "ead5c5cdbcdfbd7bdeab6f3556a0aa2e3628085ff8b3235652be824bbf9fa892",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanLock, ScanLock 等类型",
+      "owner": "scanlock",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "ead5c5cdbcdfbd7bdeab6f3556a0aa2e3628085ff8b3235652be824bbf9fa892"
+    },
+    {
+      "fingerprint": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "各 adapter 模块中 listSortedDirectories 方法的语句级结构相似，属于接口适配层的 INTENTIONAL_DUPLICATION，涉及 QoderDiscovery, CodexDiscovery, ClaudeDiscovery 等类型",
+      "owner": "source-claude",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d"
+    },
+    {
+      "fingerprint": "6c69c7a0c322e7948309bdadd2a8107b7ed696cacc8e6f2c64fad73d72ce5644",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6c69c7a0c322e7948309bdadd2a8107b7ed696cacc8e6f2c64fad73d72ce5644"
+    },
+    {
+      "fingerprint": "1b18193bfa8958d3d9bd31a60f83c6123335a7ef89f01628903083317ee36667",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1b18193bfa8958d3d9bd31a60f83c6123335a7ef89f01628903083317ee36667"
+    },
+    {
+      "fingerprint": "c147adcd9e3db4d200ec11b1416a18f6d0e4e42aa29e2d57f8a2772da491dc88",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 NormalizedArtifactLoader, NormalizedArtifactLoader, NormalizedArtifactLoader 等类型",
+      "owner": "normalizedartifactloader",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c147adcd9e3db4d200ec11b1416a18f6d0e4e42aa29e2d57f8a2772da491dc88"
+    },
+    {
+      "fingerprint": "9db8810fe55bab64a098c6a9c17f07ca2ae8139b280ed41fc0294f68159704e2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9db8810fe55bab64a098c6a9c17f07ca2ae8139b280ed41fc0294f68159704e2"
+    },
+    {
+      "fingerprint": "7ab38b7999a54e546249087ae91c6e6cf30c1c59c15600e35154d422eb62563a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "7ab38b7999a54e546249087ae91c6e6cf30c1c59c15600e35154d422eb62563a"
+    },
+    {
+      "fingerprint": "b8ba519d597cba1747bec92ae095ccae3aef1b13d1bb6bc6940af3d45f4f0b8e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b8ba519d597cba1747bec92ae095ccae3aef1b13d1bb6bc6940af3d45f4f0b8e"
+    },
+    {
+      "fingerprint": "b2b8232d7adc5a12c11d346934afd5dab151b00c0dd3de3dc4588e39d75737b4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 PayloadLookup, SessionDetailAssembler 等类型",
+      "owner": "payloadlookup",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "b2b8232d7adc5a12c11d346934afd5dab151b00c0dd3de3dc4588e39d75737b4"
+    },
+    {
+      "fingerprint": "acd781803d289054dadb65957fc6bcffebf81f0e840092bf02209457d249aa48",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ServerLifecycle, ServerLifecycle 等类型",
+      "owner": "serverlifecycle",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "acd781803d289054dadb65957fc6bcffebf81f0e840092bf02209457d249aa48"
+    },
+    {
+      "fingerprint": "277c312a10d7ed5cd9bfc700f5899b10d383989e0de28c21ca6f8719ddadcd7b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 AggregateQueryRepository, PercentileCalculator 等类型",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "277c312a10d7ed5cd9bfc700f5899b10d383989e0de28c21ca6f8719ddadcd7b"
+    },
+    {
+      "fingerprint": "5d2ab10c27183942bc3503c9c8f2f1be8e94730ea7453cdd31012b9602efa49d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 Sort, Sort 等类型",
+      "owner": "sort",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5d2ab10c27183942bc3503c9c8f2f1be8e94730ea7453cdd31012b9602efa49d"
+    },
+    {
+      "fingerprint": "04aeb023b59698e21ad9e13bc7b9facac3f231ad7388003b2725040730d6615a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "04aeb023b59698e21ad9e13bc7b9facac3f231ad7388003b2725040730d6615a"
+    },
+    {
+      "fingerprint": "2813b1eb9a497edbdf1dcaf4d3e8d93d37aec2a1ad70721aeca23966dea11862",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "2813b1eb9a497edbdf1dcaf4d3e8d93d37aec2a1ad70721aeca23966dea11862"
+    },
+    {
+      "fingerprint": "857069401259c204c8e0718e8814fc06ababd340ea4c24e45ff6e057d5ad4fc2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 WriteQueue, WriteQueue 等类型",
+      "owner": "writequeue",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "857069401259c204c8e0718e8814fc06ababd340ea4c24e45ff6e057d5ad4fc2"
+    },
+    {
+      "fingerprint": "9941ae5d3e147550ed96000d8e922df6ece7de546afa1ba1867ee4bf3a144395",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServerLifecycle 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9941ae5d3e147550ed96000d8e922df6ece7de546afa1ba1867ee4bf3a144395"
+    },
+    {
+      "fingerprint": "6c52579e0fc0601bf1d4bd60e7f1785690ebf3507b6171336733c3d1e3652451",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailPage, SessionDetailPage 等类型",
+      "owner": "sessiondetailpage",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "6c52579e0fc0601bf1d4bd60e7f1785690ebf3507b6171336733c3d1e3652451"
+    },
+    {
+      "fingerprint": "748ef0629722d8e9c797b1e72d823d8bceeab51d53f815476061483781926a82",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 ScanCommand, ServeCommand 等类型",
+      "owner": "scancommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "748ef0629722d8e9c797b1e72d823d8bceeab51d53f815476061483781926a82"
+    },
+    {
+      "fingerprint": "5a649a6a890290ea6da26f3bff5d77740ef5e04a80eae3fa7125d7194edd2030",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 IncrementalScanEngine, RepairEngine 等类型",
+      "owner": "incrementalscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "5a649a6a890290ea6da26f3bff5d77740ef5e04a80eae3fa7125d7194edd2030"
+    },
+    {
+      "fingerprint": "1573ec4ea6958807b7ba4a853a4d54c184374275cae1bef4a2528c84fade5dcd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 SessionDetailRepository, SessionDetailRepository, SessionQueryRepository 等类型",
+      "owner": "sessiondetailrepository",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "1573ec4ea6958807b7ba4a853a4d54c184374275cae1bef4a2528c84fade5dcd"
+    },
+    {
+      "fingerprint": "f37b0ed217a60c995f507c30dc11e2f4a1f9f3b47eb9bbf215d0362577ab3ff6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "unknown 的 STATEMENT_DUPLICATE，涉及 FullScanEngine, IncrementalScanEngine 等类型",
+      "owner": "fullscanengine",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "f37b0ed217a60c995f507c30dc11e2f4a1f9f3b47eb9bbf215d0362577ab3ff6"
     },
     {
       "fingerprint": "5331261a09e86c0b3b7176db3fdae0b064a4da0b732a81fc43280a217ba93654",
@@ -1033,14 +3313,14 @@
       "evidence": "5331261a09e86c0b3b7176db3fdae0b064a4da0b732a81fc43280a217ba93654"
     },
     {
-      "fingerprint": "3c4a6eee14b333b7cded9e0bea2a72ed705ac52b9c2068327a272ffde0bb1b86",
+      "fingerprint": "499f7976b10b7131555de1dc9ff2252c2e43b0c56d1190d747f739803e768381",
       "severity": "P2",
       "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "SourceResult, BoundedStream 的 orderedItems, diagnostics 方法为 alpha 等价结构，属于接口契约驱动的 INTENTIONAL_DUPLICATION",
-      "owner": "source-spi",
-      "createdAt": "2026-06-23",
-      "expiresOn": "2026-12-23",
-      "evidence": "3c4a6eee14b333b7cded9e0bea2a72ed705ac52b9c2068327a272ffde0bb1b86"
+      "reason": "unknown 的 ALPHA_EQUIVALENT，涉及 WriteBatch, WriteBatch, WriteBatch 等类型",
+      "owner": "writebatch",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "499f7976b10b7131555de1dc9ff2252c2e43b0c56d1190d747f739803e768381"
     },
     {
       "fingerprint": "9880b07de7942d29ea568062e7763dcf31dcaf0c45a67a52aec2a27099cf7bec",
@@ -1053,14 +3333,44 @@
       "evidence": "9880b07de7942d29ea568062e7763dcf31dcaf0c45a67a52aec2a27099cf7bec"
     },
     {
-      "fingerprint": "256904effd9c8ab641e8c083d73d6cfd63c7d26d8aa0cfaf1df20884183140d3",
+      "fingerprint": "3c4a6eee14b333b7cded9e0bea2a72ed705ac52b9c2068327a272ffde0bb1b86",
       "severity": "P2",
       "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "SessionResultSetMapper.nullToEmpty 与 SessionRow.defaultEmpty 为 alpha 等价的 null 转空字符串工具方法，属于行映射边界的最小辅助函数",
-      "owner": "index-sqlite",
+      "reason": "SourceResult, BoundedStream 的 orderedItems, diagnostics 方法为 alpha 等价结构，属于接口契约驱动的 INTENTIONAL_DUPLICATION",
+      "owner": "source-spi",
+      "createdAt": "2026-06-23",
+      "expiresOn": "2026-12-23",
+      "evidence": "3c4a6eee14b333b7cded9e0bea2a72ed705ac52b9c2068327a272ffde0bb1b86"
+    },
+    {
+      "fingerprint": "4f59a2d1f03402c36aedbc75765269024da08b6e1f496937c10e6cba2a7be49c",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "unknown 的 ALPHA_EQUIVALENT，涉及 SessionArtifactRow, SessionRow 等类型",
+      "owner": "sessionartifactrow",
       "createdAt": "2026-06-24",
-      "expiresOn": "2026-12-24",
-      "evidence": "256904effd9c8ab641e8c083d73d6cfd63c7d26d8aa0cfaf1df20884183140d3"
+      "expiresOn": "2026-12-21",
+      "evidence": "4f59a2d1f03402c36aedbc75765269024da08b6e1f496937c10e6cba2a7be49c"
+    },
+    {
+      "fingerprint": "229c37a28c29653b2ca050653d1c4d8f2d89397d64f2a925d739c48ccf5a454f",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "unknown 的 ALPHA_EQUIVALENT，涉及 SessionArtifactRow, SessionRow 等类型",
+      "owner": "sessionartifactrow",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "229c37a28c29653b2ca050653d1c4d8f2d89397d64f2a925d739c48ccf5a454f"
+    },
+    {
+      "fingerprint": "c8a240916460178988fb737f50ebde6f290ef003f5e37a70bf296833f3747ff0",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "unknown 的 ALPHA_EQUIVALENT，涉及 NormalizedBatchCommand, FullScanEngine 等类型",
+      "owner": "normalizedbatchcommand",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "c8a240916460178988fb737f50ebde6f290ef003f5e37a70bf296833f3747ff0"
     }
   ]
 }
