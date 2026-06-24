@@ -1,6 +1,7 @@
 package com.feipi.session.browser.cli;
 
 import com.feipi.session.browser.index.sqlite.ConnectionFactory;
+import com.feipi.session.browser.index.sqlite.DatabaseUpgrader;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanSummary;
@@ -129,6 +130,17 @@ final class ScanCommand implements Callable<Integer> {
 
     if (sourceEntries.isEmpty()) {
       System.err.println("错误：未找到可扫描的源目录");
+      return 1;
+    }
+
+    // 升级前备份 + schema migration + 版本兼容性检查
+    String appVersion = BuildInfoVersionProvider.readAppVersion();
+    Path backupDir = dbPath.getParent().resolve("backups");
+    DatabaseUpgrader upgrader = DatabaseUpgrader.withDefaults(appVersion, backupDir);
+    try {
+      upgrader.upgrade(dbPath);
+    } catch (DatabaseUpgrader.UpgradeException e) {
+      System.err.println("错误：数据库升级失败: " + e.getMessage());
       return 1;
     }
 

@@ -2,6 +2,7 @@ package com.feipi.session.browser.cli;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.sqlite.ConnectionFactory;
+import com.feipi.session.browser.index.sqlite.DatabaseUpgrader;
 import com.feipi.session.browser.index.sqlite.IndexConnection;
 import com.feipi.session.browser.index.sqlite.IndexSchema;
 import com.feipi.session.browser.index.sqlite.SchemaVersion;
@@ -97,6 +98,17 @@ public final class ServerLifecycle {
     Path artifactDir = indexDir.resolve("artifacts/normalized-sessions");
     Files.createDirectories(indexDir);
     Files.createDirectories(artifactDir);
+
+    // 阶段 0：升级前备份 + schema migration + 版本兼容性检查
+    String appVersion = BuildInfoVersionProvider.readAppVersion();
+    Path backupDir = indexDir.resolve("backups");
+    DatabaseUpgrader upgrader = DatabaseUpgrader.withDefaults(appVersion, backupDir);
+    try {
+      upgrader.upgrade(dbPath);
+    } catch (DatabaseUpgrader.UpgradeException e) {
+      LOG.error("数据库升级失败", e);
+      throw new IOException("数据库升级失败: " + e.getMessage(), e);
+    }
 
     // 构建源条目（noScan 时仍构建，用于 background scanner 配置；allowEmpty 控制空源行为）
     List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries(artifactDir);

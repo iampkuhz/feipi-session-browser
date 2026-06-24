@@ -165,6 +165,14 @@ class RuntimePathsTest {
     }
 
     @Test
+    @DisplayName("backupDir 位于数据目录下")
+    void backupDirUnderDataDir() {
+      RuntimePaths paths =
+          new RuntimePaths(tempDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
+      assertThat(paths.backupDir()).isEqualTo(tempDir.resolve("backups"));
+    }
+
+    @Test
     @DisplayName("pidFile 位于数据目录下")
     void pidFileUnderDataDir() {
       RuntimePaths paths =
@@ -210,7 +218,7 @@ class RuntimePathsTest {
   class DirectoryCreationContract {
 
     @Test
-    @DisplayName("ensureDirectories 创建数据、日志、缓存和制品目录")
+    @DisplayName("ensureDirectories 创建数据、日志、缓存、制品和备份目录")
     void ensureDirectoriesCreatesAll() throws IOException {
       Path dataDir = tempDir.resolve("data");
       Path logDir = tempDir.resolve("logs");
@@ -223,6 +231,7 @@ class RuntimePathsTest {
       assertThat(logDir).isDirectory();
       assertThat(cacheDir).isDirectory();
       assertThat(paths.artifactDir()).isDirectory();
+      assertThat(paths.backupDir()).isDirectory();
     }
 
     @Test
@@ -297,6 +306,7 @@ class RuntimePathsTest {
       assertThat(paths.dbPath()).isAbsolute();
       assertThat(paths.artifactDir()).isAbsolute();
       assertThat(paths.pidFile()).isAbsolute();
+      assertThat(paths.backupDir()).isAbsolute();
     }
   }
 }

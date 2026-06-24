@@ -25,6 +25,9 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
   /** 归一化制品子目录相对路径。 */
   public static final String ARTIFACT_SUBDIR = "artifacts/normalized-sessions";
 
+  /** 数据库备份子目录相对路径。 */
+  public static final String BACKUP_SUBDIR = "backups";
+
   /**
    * 紧凑构造器，验证路径非空。
    *
@@ -66,6 +69,17 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
   }
 
   /**
+   * 数据库备份目录路径。
+   *
+   * <p>升级前在此目录创建 DB 文件备份，保留策略由 {@code DatabaseUpgrader} 管理。
+   *
+   * @return {@code {dataDir}/backups}
+   */
+  public Path backupDir() {
+    return dataDir.resolve(BACKUP_SUBDIR);
+  }
+
+  /**
    * PID 文件路径。
    *
    * @return {@code {dataDir}/server.pid}
@@ -86,6 +100,7 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
     Files.createDirectories(logDir);
     Files.createDirectories(cacheDir);
     Files.createDirectories(artifactDir());
+    Files.createDirectories(backupDir());
 
     Path probe = dataDir.resolve(".write-probe");
     try {

@@ -336,6 +336,10 @@ component com.feipi.session.browser.index.sqlite.TrendDayRow qoderTokens: long
 component com.feipi.session.browser.index.sqlite.TrendDayRow toolCalls: long
 component com.feipi.session.browser.index.sqlite.TrendDayRow totalCount: long
 component com.feipi.session.browser.index.sqlite.TrendDayRow totalTokens: long
+component com.feipi.session.browser.index.sqlite.UpgradeResult appVersionRecorded: String
+component com.feipi.session.browser.index.sqlite.UpgradeResult backupPath: Path
+component com.feipi.session.browser.index.sqlite.UpgradeResult schemaVersionsApplied: List<SchemaVersion>
+component com.feipi.session.browser.index.sqlite.UpgradeResult versionChanged: boolean
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult consumedResults: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
@@ -637,6 +641,8 @@ constructor com.feipi.session.browser.index.sqlite.AggregateQueryRepository publ
 constructor com.feipi.session.browser.index.sqlite.AnomalyDefinition public AnomalyDefinition()
 constructor com.feipi.session.browser.index.sqlite.CacheHitSessionRow public CacheHitSessionRow()
 constructor com.feipi.session.browser.index.sqlite.ConnectionFactory public ConnectionFactory(String jdbcUrl, PragmaConfig pragmaConfig)
+constructor com.feipi.session.browser.index.sqlite.DatabaseUpgrader public DatabaseUpgrader( IndexSchema schema, String appVersion, Path backupDir, int backupRetention)
+constructor com.feipi.session.browser.index.sqlite.DatabaseUpgrader.UpgradeException public UpgradeException(String message, Throwable cause)
 constructor com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition public AnomalyDefinition()
 constructor com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition public SignalDefinition()
 constructor com.feipi.session.browser.index.sqlite.IndexConnection public IndexConnection( Connection writerConnection, ConnectionFactory readFactory, PragmaConfig pragmaConfig)
@@ -663,6 +669,8 @@ constructor com.feipi.session.browser.index.sqlite.SessionRow public SessionRow(
 constructor com.feipi.session.browser.index.sqlite.SignalDefinition public SignalDefinition()
 constructor com.feipi.session.browser.index.sqlite.Thresholds public Thresholds()
 constructor com.feipi.session.browser.index.sqlite.TokenBreakdownRow public TokenBreakdownRow()
+constructor com.feipi.session.browser.index.sqlite.UpgradeException public UpgradeException(String message, Throwable cause)
+constructor com.feipi.session.browser.index.sqlite.UpgradeResult public UpgradeResult()
 constructor com.feipi.session.browser.index.sqlite.WriteBatch public WriteBatch(Connection conn, int maxEntries)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection)
 constructor com.feipi.session.browser.index.sqlite.WriteQueue public WriteQueue(Connection writerConnection, int queueCapacity, int batchLimit)
@@ -872,11 +880,16 @@ field com.feipi.session.browser.artifact.normalized.ArtifactConstants public MET
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public TEMP_FILE_PREFIX: static final String
 field com.feipi.session.browser.artifact.normalized.SafeArtifactName public MAX_NAME_LENGTH: static final int
 field com.feipi.session.browser.cli.RuntimePaths public ARTIFACT_SUBDIR: static final String
+field com.feipi.session.browser.cli.RuntimePaths public BACKUP_SUBDIR: static final String
 field com.feipi.session.browser.cli.RuntimePaths public DB_FILE_NAME: static final String
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_COLLECTION_SIZE: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public SCHEMA_VERSION: static final String
 field com.feipi.session.browser.index.sqlite.ArtifactRowMapper public ARTIFACT_TYPE_NORMALIZED: static final String
+field com.feipi.session.browser.index.sqlite.DatabaseUpgrader public APP_VERSION_KEY: static final String
+field com.feipi.session.browser.index.sqlite.DatabaseUpgrader public BACKUP_FILE_PREFIX: static final String
+field com.feipi.session.browser.index.sqlite.DatabaseUpgrader public BACKUP_FILE_SUFFIX: static final String
+field com.feipi.session.browser.index.sqlite.DatabaseUpgrader public DEFAULT_BACKUP_RETENTION: static final int
 field com.feipi.session.browser.index.sqlite.PercentileCalculator public CACHE_WRITE_CRITICAL_TOKENS: static final long
 field com.feipi.session.browser.index.sqlite.PercentileCalculator public CACHE_WRITE_WARNING_TOKENS: static final long
 field com.feipi.session.browser.index.sqlite.PercentileCalculator public DURATION_CRITICAL_SECONDS: static final double
@@ -989,6 +1002,7 @@ method com.feipi.session.browser.cli.PathResolver public static Path resolveData
 method com.feipi.session.browser.cli.PathResolver public static Path resolveSourceDataDir(String envVar, Path defaultPath)
 method com.feipi.session.browser.cli.PathUtils public static String expandTilde(String path)
 method com.feipi.session.browser.cli.RuntimePaths public Path artifactDir()
+method com.feipi.session.browser.cli.RuntimePaths public Path backupDir()
 method com.feipi.session.browser.cli.RuntimePaths public Path dbPath()
 method com.feipi.session.browser.cli.RuntimePaths public Path pidFile()
 method com.feipi.session.browser.cli.RuntimePaths public static RuntimePaths fromDataDir(Path dataDir)
@@ -1037,6 +1051,8 @@ method com.feipi.session.browser.index.sqlite.ConnectionFactory public Connectio
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public PragmaConfig pragmaConfig()
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public String jdbcUrl()
 method com.feipi.session.browser.index.sqlite.ConnectionFactory public static ConnectionFactory withDefaults(String jdbcUrl)
+method com.feipi.session.browser.index.sqlite.DatabaseUpgrader public UpgradeResult upgrade(Path dbPath)
+method com.feipi.session.browser.index.sqlite.DatabaseUpgrader public static DatabaseUpgrader withDefaults(String appVersion, Path backupDir)
 method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static AnomalyDefinition sessionAnomaly(SessionAnomalyKey key)
 method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static Set<RoundSignalKey> roundSignalKeys()
 method com.feipi.session.browser.index.sqlite.DiagnosticRegistry public static Set<SessionAnomalyKey> sessionAnomalyKeys()
@@ -1110,6 +1126,8 @@ method com.feipi.session.browser.index.sqlite.SessionQueryRepository public Page
 method com.feipi.session.browser.index.sqlite.SessionQueryRepository public SessionListAggregate listAggregate(SessionListFilter filter) throws SQLException
 method com.feipi.session.browser.index.sqlite.SessionQueryRepository public long countSessions(SessionListFilter filter) throws SQLException
 method com.feipi.session.browser.index.sqlite.SignalDefinition public boolean supportsSeverity(AnomalySeverity severity)
+method com.feipi.session.browser.index.sqlite.UpgradeResult public boolean hadMigrations()
+method com.feipi.session.browser.index.sqlite.UpgradeResult public boolean hasBackup()
 method com.feipi.session.browser.index.sqlite.WriteBatch public int pendingCount()
 method com.feipi.session.browser.index.sqlite.WriteBatch public void addDelete(String sql)
 method com.feipi.session.browser.index.sqlite.WriteBatch public void addInsert(String sql)
@@ -1604,6 +1622,8 @@ type com.feipi.session.browser.index.sqlite.ArtifactRowMapper public class [inde
 type com.feipi.session.browser.index.sqlite.CacheHitSessionRow public record [index-sqlite] record CacheHitSessionRow( String sessionKey, String title, String agent, String model, long cacheReadTokens, long freshInputTokens, String projectName, double cacheHitPercent)
 type com.feipi.session.browser.index.sqlite.ConnectionFactory public class [index-sqlite] final class ConnectionFactory
 type com.feipi.session.browser.index.sqlite.DashboardRow public record [index-sqlite] record DashboardRow( long totalSessions, long claudeSessions, long codexSessions, long qoderSessions, long projectCount, long totalTokens, long totalFreshInputTokens, long totalCacheReadTokens, long totalCacheWriteTokens, long totalOutputTokens, long totalToolCalls, long totalFailedTools, long totalUserMessages, long totalAssistantMessages)
+type com.feipi.session.browser.index.sqlite.DatabaseUpgrader public class [index-sqlite] final class DatabaseUpgrader
+type com.feipi.session.browser.index.sqlite.DatabaseUpgrader.UpgradeException public class [index-sqlite] static final class UpgradeException extends RuntimeException
 type com.feipi.session.browser.index.sqlite.DiagnosticRegistry public class [index-sqlite] final class DiagnosticRegistry
 type com.feipi.session.browser.index.sqlite.DiagnosticRegistry.AnomalyDefinition public record [index-sqlite] record AnomalyDefinition(SessionAnomalyKey key, Set<AnomalySeverity> severityLevels)
 type com.feipi.session.browser.index.sqlite.DiagnosticRegistry.SignalDefinition public record [index-sqlite] record SignalDefinition(RoundSignalKey key, Set<AnomalySeverity> severityLevels)
@@ -1649,6 +1669,8 @@ type com.feipi.session.browser.index.sqlite.ToolDistributionEntry public record 
 type com.feipi.session.browser.index.sqlite.TopProjectRow public record [index-sqlite] record TopProjectRow( String projectKey, String projectName, long totalTokens, long totalTools, long failedTools, long sessionCount)
 type com.feipi.session.browser.index.sqlite.TopSessionRow public record [index-sqlite] record TopSessionRow( String sessionKey, String title, String agent, String model, String projectName, double durationSeconds, long failedToolCount, long toolCallCount)
 type com.feipi.session.browser.index.sqlite.TrendDayRow public record [index-sqlite] record TrendDayRow( String date, long claudeCount, long codexCount, long qoderCount, long claudeTokens, long codexTokens, long qoderTokens, long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens, long toolCalls, long failedTools, long totalCount)
+type com.feipi.session.browser.index.sqlite.UpgradeException public class [index-sqlite] static final class UpgradeException extends RuntimeException
+type com.feipi.session.browser.index.sqlite.UpgradeResult public record [index-sqlite] record UpgradeResult( List<SchemaVersion> schemaVersionsApplied, Path backupPath, boolean versionChanged, String appVersionRecorded)
 type com.feipi.session.browser.index.sqlite.WriteBatch public class [index-sqlite] final class WriteBatch
 type com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public interface [index-sqlite] interface WriteOperation
 type com.feipi.session.browser.index.sqlite.WriteOperation public interface [index-sqlite] interface WriteOperation
