@@ -1,6 +1,5 @@
 package com.feipi.session.browser.cli;
 
-import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Set;
 import java.util.concurrent.Callable;
@@ -23,7 +22,8 @@ import picocli.CommandLine.Option;
  * </ul>
  *
  * <p>校验放置：host/port 在 {@link com.feipi.session.browser.web.WebConfig} 紧凑构造器校验一次； 源目录存在性在 {@link
- * ServerLifecycle} 边界检查一次；CLI 参数由 Picocli 解析为 typed 选项后不再重复校验。
+ * ServerLifecycle} 边界检查一次；CLI 参数由 Picocli 解析为 typed 选项后不再重复校验。 路径解析在 {@link PathResolver} 边界执行一次，
+ * 目录创建和权限验证通过 {@link RuntimePaths#ensureDirectories()} 执行一次。
  */
 @Command(
     name = "serve",
@@ -42,11 +42,6 @@ final class ServeCommand implements Callable<Integer> {
 
   /** 默认索引目录环境变量名。 */
   private static final String INDEX_DIR_ENV = "INDEX_DIR";
-
-  /** 默认本地测试索引路径。 */
-  private static final Path DEFAULT_INDEX_DIR =
-      Path.of(
-          System.getProperty("user.home"), ".local/share/feipi/session-browser/local-test-index");
 
   @Option(
       names = {"--host"},
@@ -70,19 +65,25 @@ final class ServeCommand implements Callable<Integer> {
       description = "禁用启动扫描和后台扫描")
   private boolean noScan;
 
+  @Option(
+      names = {"--index-dir"},
+      description = "索引目录（默认遵循 XDG 规范）")
+  private String indexDirOption;
+
   @Override
   public Integer call() {
-    Path indexDir = resolveIndexDir();
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
+    RuntimePaths paths = RuntimePaths.fromDataDir(indexDir);
 
     try {
-      Files.createDirectories(indexDir);
+      paths.ensureDirectories();
     } catch (Exception e) {
-      System.err.println("错误：无法创建索引目录: " + indexDir + " (" + e.getMessage() + ")");
+      System.err.println("错误：无法创建或写入运行时目录: " + e.getMessage());
       return 1;
     }
 
     ServerLifecycle lifecycle =
-        new ServerLifecycle(indexDir, host, port, noScan, allowEmpty, Set.of());
+        new ServerLifecycle(paths.dataDir(), host, port, noScan, allowEmpty, Set.of());
 
     try {
       int actualPort = lifecycle.start();
@@ -108,14 +109,5 @@ final class ServeCommand implements Callable<Integer> {
       LOG.debug("serve 启动失败", e);
       return 1;
     }
-  }
-
-  /** 解析索引目录。 */
-  private static Path resolveIndexDir() {
-    String envValue = System.getenv(INDEX_DIR_ENV);
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return DEFAULT_INDEX_DIR;
   }
 }

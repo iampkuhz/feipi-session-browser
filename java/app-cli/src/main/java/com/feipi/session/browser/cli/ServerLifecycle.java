@@ -369,7 +369,8 @@ public final class ServerLifecycle {
 
     if (includeClaude) {
       Path root =
-          resolveDataDir("CLAUDE_DATA_DIR", Path.of(System.getProperty("user.home"), ".claude"));
+          PathResolver.resolveSourceDataDir(
+              "CLAUDE_DATA_DIR", Path.of(System.getProperty("user.home"), ".claude"));
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new ClaudeSourceAdapter(), root));
       }
@@ -377,7 +378,8 @@ public final class ServerLifecycle {
 
     if (includeCodex) {
       Path root =
-          resolveDataDir("CODEX_DATA_DIR", Path.of(System.getProperty("user.home"), ".codex"));
+          PathResolver.resolveSourceDataDir(
+              "CODEX_DATA_DIR", Path.of(System.getProperty("user.home"), ".codex"));
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new CodexSourceAdapter(), root));
       }
@@ -385,7 +387,8 @@ public final class ServerLifecycle {
 
     if (includeQoder) {
       Path root =
-          resolveDataDir("QODER_DATA_DIR", Path.of(System.getProperty("user.home"), ".qoder"));
+          PathResolver.resolveSourceDataDir(
+              "QODER_DATA_DIR", Path.of(System.getProperty("user.home"), ".qoder"));
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new QoderSourceAdapter(), root));
       }
@@ -396,20 +399,5 @@ public final class ServerLifecycle {
     }
 
     return entries;
-  }
-
-  /**
-   * 解析 agent 数据根目录。
-   *
-   * @param envVar 环境变量名
-   * @param defaultPath 默认路径
-   * @return 解析后的路径
-   */
-  private static Path resolveDataDir(String envVar, Path defaultPath) {
-    String envValue = System.getenv(envVar);
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return defaultPath;
   }
 }

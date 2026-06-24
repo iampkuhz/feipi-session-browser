@@ -55,11 +55,6 @@ final class ScanCommand implements Callable<Integer> {
   /** 默认索引目录环境变量名。 */
   private static final String INDEX_DIR_ENV = "INDEX_DIR";
 
-  /** 默认本地测试索引路径。 */
-  private static final Path DEFAULT_INDEX_DIR =
-      Path.of(
-          System.getProperty("user.home"), ".local/share/feipi/session-browser/local-test-index");
-
   @Option(
       names = {"--incremental"},
       description = "只扫描源文件有变化的会话（默认）")
@@ -88,17 +83,18 @@ final class ScanCommand implements Callable<Integer> {
       return 1;
     }
 
-    Path indexDir = resolveIndexDir();
-    Path dbPath = indexDir.resolve("index.sqlite");
-    Path artifactDir = indexDir.resolve("artifacts/normalized-sessions");
+    Path indexDir = PathResolver.resolveDataDir(null, INDEX_DIR_ENV);
+    RuntimePaths paths = RuntimePaths.fromDataDir(indexDir);
 
     try {
-      Files.createDirectories(indexDir);
-      Files.createDirectories(artifactDir);
+      paths.ensureDirectories();
     } catch (IOException e) {
-      System.err.println("错误：无法创建索引目录: " + indexDir + " (" + e.getMessage() + ")");
+      System.err.println("错误：无法创建或写入运行时目录: " + e.getMessage());
       return 1;
     }
+
+    Path dbPath = paths.dbPath();
+    Path artifactDir = paths.artifactDir();
 
     Set<String> agentFilter = resolveAgentFilter();
 
@@ -225,40 +221,22 @@ final class ScanCommand implements Callable<Integer> {
     return Set.of(agent.toLowerCase());
   }
 
-  /** 解析索引目录。 */
-  private static Path resolveIndexDir() {
-    String envValue = System.getenv(INDEX_DIR_ENV);
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return DEFAULT_INDEX_DIR;
-  }
-
   /** 解析 Claude 数据根目录。 */
   private static Path resolveClaudeRoot() {
-    String envValue = System.getenv("CLAUDE_DATA_DIR");
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return Path.of(System.getProperty("user.home"), ".claude");
+    return PathResolver.resolveSourceDataDir(
+        "CLAUDE_DATA_DIR", Path.of(System.getProperty("user.home"), ".claude"));
   }
 
   /** 解析 Codex 数据根目录。 */
   private static Path resolveCodexRoot() {
-    String envValue = System.getenv("CODEX_DATA_DIR");
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return Path.of(System.getProperty("user.home"), ".codex");
+    return PathResolver.resolveSourceDataDir(
+        "CODEX_DATA_DIR", Path.of(System.getProperty("user.home"), ".codex"));
   }
 
   /** 解析 Qoder 数据根目录。 */
   private static Path resolveQoderRoot() {
-    String envValue = System.getenv("QODER_DATA_DIR");
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return Path.of(System.getProperty("user.home"), ".qoder");
+    return PathResolver.resolveSourceDataDir(
+        "QODER_DATA_DIR", Path.of(System.getProperty("user.home"), ".qoder"));
   }
 
   /** 解析扫描锁超时（毫秒）。 */

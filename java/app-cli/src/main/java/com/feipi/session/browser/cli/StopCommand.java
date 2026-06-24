@@ -62,11 +62,6 @@ final class StopCommand implements Callable<Integer> {
   /** 默认索引目录环境变量名。 */
   private static final String INDEX_DIR_ENV = "INDEX_DIR";
 
-  /** 默认本地测试索引路径，与 serve 命令一致。 */
-  private static final Path DEFAULT_INDEX_DIR =
-      Path.of(
-          System.getProperty("user.home"), ".local/share/feipi/session-browser/local-test-index");
-
   @Option(
       names = {"--port", "-p"},
       description = "服务端口（默认 ${DEFAULT-VALUE}），用于辅助验证",
@@ -297,18 +292,11 @@ final class StopCommand implements Callable<Integer> {
   /**
    * 解析索引目录。
    *
-   * <p>优先级：CLI 选项 > INDEX_DIR 环境变量 > 默认路径。
+   * <p>优先级：CLI 选项 > INDEX_DIR 环境变量 > XDG 平台默认值。
    *
    * @return 解析后的索引目录路径
    */
   private Path resolveIndexDir() {
-    if (indexDirOption != null && !indexDirOption.isBlank()) {
-      return Path.of(PathUtils.expandTilde(indexDirOption));
-    }
-    String envValue = System.getenv(INDEX_DIR_ENV);
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return DEFAULT_INDEX_DIR;
+    return PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
   }
 }

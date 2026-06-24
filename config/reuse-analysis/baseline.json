@@ -3371,6 +3371,86 @@
       "createdAt": "2026-06-24",
       "expiresOn": "2026-12-21",
       "evidence": "c8a240916460178988fb737f50ebde6f290ef003f5e37a70bf296833f3747ff0"
+    },
+    {
+      "fingerprint": "365897e64d50c29361d3e2839fc72bc966300d6bdf238fcc6a6f1ff5387e0d3a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "365897e64d50c29361d3e2839fc72bc966300d6bdf238fcc6a6f1ff5387e0d3a"
+    },
+    {
+      "fingerprint": "245483db19bb4d73f302011e2238419a290dab4d9cb2f62b7c7a16205ba63ac2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "245483db19bb4d73f302011e2238419a290dab4d9cb2f62b7c7a16205ba63ac2"
+    },
+    {
+      "fingerprint": "9a9dc4a4a5dc12a3f1ce923db3f52cfc33053c531dad7a1d9ce931a622d33b9c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "9a9dc4a4a5dc12a3f1ce923db3f52cfc33053c531dad7a1d9ce931a622d33b9c"
+    },
+    {
+      "fingerprint": "3105a8112ed62e0ed59b7dcd03232017997869dca0dc92b51134323f903f77ad",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "3105a8112ed62e0ed59b7dcd03232017997869dca0dc92b51134323f903f77ad"
+    },
+    {
+      "fingerprint": "e03dbf32c7abf935ee4a04a1ef4d3240ebe9b8a365c05290ac222321288fb3fe",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e03dbf32c7abf935ee4a04a1ef4d3240ebe9b8a365c05290ac222321288fb3fe"
+    },
+    {
+      "fingerprint": "357b3d294a0eec2f423565e2249aefeb4e4aa6f3ed8abee970ce070c1e1e10da",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "357b3d294a0eec2f423565e2249aefeb4e4aa6f3ed8abee970ce070c1e1e10da"
+    },
+    {
+      "fingerprint": "adb8806d79a36e254f5abf0369657ea747cd5365ff32e970d72301ad2a5a24f3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "adb8806d79a36e254f5abf0369657ea747cd5365ff32e970d72301ad2a5a24f3"
+    },
+    {
+      "fingerprint": "e7e247027bfe872b59886c25a5ea6b9503f88fa056273e14ad9d41132480c9b4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-040: STATEMENT_DUPLICATE 在路径解析和命令执行中，owner 边界内合理重复",
+      "owner": "pathresolver",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-21",
+      "evidence": "e7e247027bfe872b59886c25a5ea6b9503f88fa056273e14ad9d41132480c9b4"
     }
   ]
 }
