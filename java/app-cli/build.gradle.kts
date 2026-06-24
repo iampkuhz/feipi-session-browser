@@ -7,6 +7,14 @@ plugins {
 
 application {
     mainClass.set("com.feipi.session.browser.cli.App")
+    // 启动优化：Serial GC 加快冷启动，限制堆内存降低空闲 RSS
+    applicationDefaultJvmArgs = listOf(
+        "-XX:+UseSerialGC",
+        "-Xms16m",
+        "-Xmx128m",
+        // JDK 22+ native access 警告抑制（SQLite JDBC 使用 System.load）
+        "--enable-native-access=ALL-UNNAMED",
+    )
 }
 
 dependencies {
@@ -116,7 +124,7 @@ abstract class CliSmokeTestTask : DefaultTask() {
             "Smoke test failed: --help output missing 'session-browser'"
         }
         // 验证公开子命令全部出现在 help 输出中
-        val publicCommands = listOf("scan", "serve", "stop", "test", "deps", "quality", "version", "release")
+        val publicCommands = listOf("scan", "serve", "stop", "status", "doctor", "test", "deps", "quality", "version", "release")
         for (cmd in publicCommands) {
             require(helpResult.first.contains(cmd)) {
                 "Smoke test failed: --help output missing public command '$cmd'"
@@ -237,10 +245,13 @@ val jdepsModuleList = tasks.register("jdepsModuleList") {
             .distinct()
             .sorted()
 
-        // 基础模块始终包含，确保 logging、SQL、桌面等能力。
+        // 基础模块：仅包含运行时真实依赖的 JDK 模块。
+        // java.desktop/java.management/java.naming 经 jdeps 和运行时验证确认不需要：
+        //   - java.desktop：仅 jackson-databind 可选 AWT 引用，运行时通过反射守卫跳过
+        //   - java.management/java.naming：Jetty JNDI/JMX 路径，本应用不使用
+        // java.net.http：StopCommand 使用 HttpClient 发送 HTTP 请求
         val baseModules = listOf(
-            "java.base", "java.logging", "java.sql", "java.desktop",
-            "java.management", "java.naming",
+            "java.base", "java.logging", "java.sql", "java.net.http",
         )
         val allModules = (modules + baseModules).distinct().sorted()
 
@@ -289,6 +300,8 @@ val jlinkImage = tasks.register("jlinkImage") {
             "--no-header-files",
             "--no-man-pages",
             "--strip-debug",
+            // JDK 21+ 压缩格式，zip-6 提供最佳压缩比，runtime image 体积减少 30-50%
+            "--compress", "zip-6",
             "--output", outDir.absolutePath,
         )
 
@@ -346,6 +359,9 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
         val binDir = root.resolve("bin")
         binDir.mkdirs()
 
+        // JVM 启动参数：Serial GC 加快冷启动，限制堆内存降低空闲 RSS
+        val jvmArgs = "-XX:+UseSerialGC -Xms16m -Xmx128m --enable-native-access=ALL-UNNAMED"
+
         // Unix launcher —— 使用自包含 runtime java，无需系统 JDK。
         val unixScript = binDir.resolve("run")
         unixScript.writeText(
@@ -367,7 +383,7 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             "        CLASSPATH=\"\$CLASSPATH:\$jar\"\n" +
             "    fi\n" +
             "done\n\n" +
-            "exec \"\$RUNTIME_JAVA\" -cp \"\$CLASSPATH\" $mainClassName \"\$@\"\n",
+            "exec \"\$RUNTIME_JAVA\" $jvmArgs -cp \"\$CLASSPATH\" $mainClassName \"\$@\"\n",
             Charsets.UTF_8,
         )
         unixScript.setExecutable(true)
@@ -392,7 +408,7 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             "if \"%CLASSPATH%\"==\"\" (set CLASSPATH=%~1) else (set CLASSPATH=%CLASSPATH%;%~1)\r\n" +
             "goto :eof\r\n\r\n" +
             ":run\r\n" +
-            "\"%RUNTIME_JAVA%\" -cp \"%CLASSPATH%\" $mainClassName %*\r\n",
+            "\"%RUNTIME_JAVA%\" $jvmArgs -cp \"%CLASSPATH%\" $mainClassName %*\r\n",
             Charsets.UTF_8,
         )
 
