@@ -960,6 +960,7 @@ method com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter pu
 method com.feipi.session.browser.artifact.normalized.SafeArtifactName public static String sanitize(String rawKey)
 method com.feipi.session.browser.artifact.normalized.SafeArtifactName public static void validateWithinRoot(Path outputRoot, Path target)
 method com.feipi.session.browser.cli.App public static void main(String[] args)
+method com.feipi.session.browser.cli.PathUtils public static String expandTilde(String path)
 method com.feipi.session.browser.cli.ServerLifecycle public boolean isRunning()
 method com.feipi.session.browser.cli.ServerLifecycle public int actualPort()
 method com.feipi.session.browser.cli.ServerLifecycle public int start() throws Exception
@@ -1521,6 +1522,7 @@ type com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter publ
 type com.feipi.session.browser.artifact.normalized.SafeArtifactName public class [artifact-normalized] final class SafeArtifactName
 type com.feipi.session.browser.artifact.normalized.WriteResult public record [artifact-normalized] record WriteResult( Path dataPath, Path metaPath, String contentHash, long contentSize, String status)
 type com.feipi.session.browser.cli.App public class [app-cli] final class App
+type com.feipi.session.browser.cli.PathUtils public class [app-cli] final class PathUtils
 type com.feipi.session.browser.cli.ServerLifecycle public class [app-cli] final class ServerLifecycle
 type com.feipi.session.browser.domain.DomainMarker public class [core-domain] final class DomainMarker
 type com.feipi.session.browser.domain.NormalizedTokenBreakdown public record [core-domain] record NormalizedTokenBreakdown( long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens, TokenPrecision precision, TokenTotalSemantics totalSemantics, TokenSourceKind sourceKind, Map<String, Object> rawFields, List<String> notes)

@@ -114,19 +114,8 @@ final class ServeCommand implements Callable<Integer> {
   private static Path resolveIndexDir() {
     String envValue = System.getenv(INDEX_DIR_ENV);
     if (envValue != null && !envValue.isBlank()) {
-      return Path.of(expandTilde(envValue));
+      return Path.of(PathUtils.expandTilde(envValue));
     }
     return DEFAULT_INDEX_DIR;
-  }
-
-  /** 展开路径中的 ~ 为用户主目录。 */
-  private static String expandTilde(String path) {
-    if (path.startsWith("~/")) {
-      return System.getProperty("user.home") + path.substring(1);
-    }
-    if (path.equals("~")) {
-      return System.getProperty("user.home");
-    }
-    return path;
   }
 }

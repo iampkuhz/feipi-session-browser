@@ -229,7 +229,7 @@ final class ScanCommand implements Callable<Integer> {
   private static Path resolveIndexDir() {
     String envValue = System.getenv(INDEX_DIR_ENV);
     if (envValue != null && !envValue.isBlank()) {
-      return Path.of(expandTilde(envValue));
+      return Path.of(PathUtils.expandTilde(envValue));
     }
     return DEFAULT_INDEX_DIR;
   }
@@ -238,7 +238,7 @@ final class ScanCommand implements Callable<Integer> {
   private static Path resolveClaudeRoot() {
     String envValue = System.getenv("CLAUDE_DATA_DIR");
     if (envValue != null && !envValue.isBlank()) {
-      return Path.of(expandTilde(envValue));
+      return Path.of(PathUtils.expandTilde(envValue));
     }
     return Path.of(System.getProperty("user.home"), ".claude");
   }
@@ -247,7 +247,7 @@ final class ScanCommand implements Callable<Integer> {
   private static Path resolveCodexRoot() {
     String envValue = System.getenv("CODEX_DATA_DIR");
     if (envValue != null && !envValue.isBlank()) {
-      return Path.of(expandTilde(envValue));
+      return Path.of(PathUtils.expandTilde(envValue));
     }
     return Path.of(System.getProperty("user.home"), ".codex");
   }
@@ -256,7 +256,7 @@ final class ScanCommand implements Callable<Integer> {
   private static Path resolveQoderRoot() {
     String envValue = System.getenv("QODER_DATA_DIR");
     if (envValue != null && !envValue.isBlank()) {
-      return Path.of(expandTilde(envValue));
+      return Path.of(PathUtils.expandTilde(envValue));
     }
     return Path.of(System.getProperty("user.home"), ".qoder");
   }
@@ -275,17 +275,6 @@ final class ScanCommand implements Callable<Integer> {
       }
     }
     return DEFAULT_LOCK_TIMEOUT_MS;
-  }
-
-  /** 展开路径中的 ~ 为用户主目录。 */
-  private static String expandTilde(String path) {
-    if (path.startsWith("~/")) {
-      return System.getProperty("user.home") + path.substring(1);
-    }
-    if (path.equals("~")) {
-      return System.getProperty("user.home");
-    }
-    return path;
   }
 
   /** 判断 SQLException 是否为数据库锁定错误。 */
