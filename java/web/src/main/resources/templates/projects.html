@@ -1,0 +1,127 @@
+{% extends "base.html" %}
+
+{% block title %}Projects - Agent Run Profiler{% endblock %}
+{% block shell_class %} no-inspector{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Projects</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/projects.css">
+{% endblock %}
+
+{% block content %}
+<div class="p-projects">
+
+{# -- 页面标题 -- #}
+<div class="page-head">
+    <div class="page-head__title-area">
+        <h1 class="page-title">Projects</h1>
+        <p class="page-subtitle">Indexed local workspaces</p>
+    </div>
+    <div class="page-head__stats">
+        <span class="ui-stat-pill" role="status" id="projects-count">
+            <b>{{ projects is defined ? projects | length : 0 }}</b> projects
+        </span>
+    </div>
+</div>
+
+{# -- 搜索和排序控制 -- #}
+<div class="filter-card" id="project-filter-form">
+    <form method="get" action="/projects">
+        <div class="filter-row">
+            <input type="hidden" name="sort" value="{{ sort_by }}"/>
+            <input type="hidden" name="dir" value="{{ sort_dir }}"/>
+            <input type="hidden" name="page_size" value="{{ page_size }}"/>
+            <input type="search" name="q" placeholder="Search projects"
+                   value="{{ filter_q }}" class="filter-search js-search"
+                   aria-label="Search projects"/>
+            <span class="filter-row__push"></span>
+        </div>
+    </form>
+</div>
+
+{# -- 项目列表 -- #}
+{% if projects is defined and projects | length > 0 %}
+
+{# -- 汇总指标 -- #}
+<section class="metric-grid" aria-label="Project overview metrics">
+    <div class="metric-card">
+        <div class="metric-card__body">
+            <span class="metric-card__label">Projects</span>
+            <div class="metric-card__value mono">{{ projects | length }}</div>
+            <div class="metric-card__sub">Indexed workspaces</div>
+        </div>
+    </div>
+</section>
+
+{# -- 项目表格 -- #}
+<div class="table-card">
+    <div class="table-card__header">
+        <h2>All Projects</h2>
+    </div>
+    <table class="data-table" role="table" aria-label="Projects table">
+        <thead>
+            <tr>
+                <th>Project</th>
+                <th>Sessions</th>
+                <th>Tokens</th>
+                <th>Failed</th>
+                <th>Last Active</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for p in projects %}
+            <tr data-project-key="{{ p.projectKey }}">
+                <td>
+                    <a href="/projects/{{ p.projectKey | urlencode }}"
+                       class="project-link"
+                       data-action="open-project">
+                        {{ p.projectName is not empty ? p.projectName : p.projectKey | display_path }}
+                    </a>
+                    <div class="project-path" title="{{ p.projectKey }}">{{ p.projectKey | truncate_path }}</div>
+                </td>
+                <td class="mono">{{ p.totalSessions }}</td>
+                <td class="mono">{{ p.totalTokens | format_compact_token }}</td>
+                <td class="mono">{{ p.totalFailedTools }}</td>
+                <td>{{ p.lastSeen | relative_time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+{# -- 分页 -- #}
+{% if total_count > 0 %}
+<nav class="pagination" aria-label="Projects pagination" data-pagination>
+    {% if has_prev %}
+    <a href="/projects?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
+       class="pagination__btn" data-action="prev-page">Previous</a>
+    {% endif %}
+    <span class="pagination__info">
+        {{ page_start }}-{{ page_end }} of {{ total_count }}
+    </span>
+    {% if has_next %}
+    <a href="/projects?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
+       class="pagination__btn" data-action="next-page">Next</a>
+    {% endif %}
+</nav>
+{% endif %}
+
+{% else %}
+{# -- 空状态 -- #}
+<section class="page-section">
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x1F4C1;</div>
+        <h2 class="empty-state__title">No projects found</h2>
+        <p class="empty-state__text">No indexed projects match your search.</p>
+        <a href="/projects" class="btn btn--primary" data-action="clear-filter">Clear Filter</a>
+    </div>
+</section>
+{% endif %}
+
+</div>
+{% endblock %}

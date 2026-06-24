@@ -1,0 +1,521 @@
+/* ======================================================================
+* _metrics.css — MetricCard, MetricGrid, TokenBar, TokenTotal,
+*                 TokenTooltip, ProgressBar, ChartLegend, ScopeSwitch
+* ====================================================================== */
+
+/* === MetricCard / MetricGrid ============================================= */
+/*
+* Unified metric card component — the ONLY definition across all pages.
+* HTML template (every page uses this exact structure):
+*
+*   <article class="metric-card">
+*     <div class="metric-icon purple" aria-hidden="true">...</div>
+*     <div class="metric-card__body">
+*       <div class="metric-card__label-row">
+*         <span class="metric-card__label">Label</span>
+*         <button class="icon-button icon-button--info" title="..." aria-label="...">...</button>
+*       </div>
+*       <div class="metric-card__value">123</div>
+*       <div class="metric-card__sub">Optional subtitle</div>
+*     </div>
+*   </article>
+*
+* Grid wrapper:
+*   <section class="metric-grid"> ...cards... </section>
+*
+* Icon can use either .metric-card__icon (dashboard) or .metric-icon + color variant (other pages).
+*/
+/* ── Grid ───────────────────────────────────────────────────────────────── */
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+/* ── Card container ─────────────────────────────────────────────────────── */
+/* Horizontal layout: icon on left, label/value/sub stacked on right.
+* align-items: center centers the icon vertically within the card. */
+.metric-card {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 14px;
+  padding: 12px 14px;
+  min-height: 96px;
+  min-width: 0;
+}
+
+/* ── Icon ───────────────────────────────────────────────────────────────── */
+/* .metric-card__icon (dashboard) and .metric-icon (other pages) are aliases. */
+.metric-card__icon,
+.metric-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: var(--radius-md);
+  display: grid;
+  place-items: center;
+  font-size: 18px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+/* Color variants for icon background */
+.metric-icon.blue   {
+  background: #edeaff;
+  color: var(--purple);
+}
+.metric-icon.green  {
+  background: #e7f8f1;
+  color: var(--green);
+}
+.metric-icon.orange {
+  background: #fff3e2;
+  color: var(--orange);
+}
+.metric-icon.purple {
+  background: #edeaff;
+  color: var(--purple);
+}
+.metric-icon.red    {
+  background: #ffe8eb;
+  color: var(--red);
+}
+
+/* ── Body ───────────────────────────────────────────────────────────────── */
+.metric-card__body {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  flex: 1 1 auto;
+  min-width: 0;
+  gap: 2px;
+}
+
+/* ── Label row ──────────────────────────────────────────────────────────── */
+.metric-card__label-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+.metric-card__label {
+  font-size: 13px;
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+
+/* ── Value ──────────────────────────────────────────────────────────────── */
+.metric-card__value {
+  font-size: 28px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--text);
+  line-height: 1.2;
+}
+.metric-card__value.mono {
+  font-family: var(--font-mono);
+}
+.metric-card__value.tabular {
+  font-variant-numeric: var(--tabular-nums, tabular-nums);
+}
+
+/* ── Secondary metrics (inside KPI cards) ───────────────────────────────── */
+.metric-card__secondary {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  margin-top: 4px;
+}
+.metric-card__secondary-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 12px;
+  color: var(--text-subtle);
+  line-height: 1.4;
+}
+.metric-card__secondary-label {
+  font-weight: 500;
+}
+.metric-card__secondary-value {
+  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 600;
+  text-align: right;
+}
+
+/* ── Subtitle ───────────────────────────────────────────────────────────── */
+/* min-height = 2 lines so cards align even when some have no subtitle. */
+.metric-card__sub {
+  font-size: 13px;
+  color: var(--text-subtle);
+  line-height: 1.3;
+  min-height: calc(1.3em * 2);
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.metric-card__sub.success {
+  color: var(--green);
+}
+.metric-card__sub.danger  {
+  color: var(--red);
+}
+
+/* === TokenBar ============================================================= */
+.tokenbar {
+  position: relative;
+  width: 130px;
+  height: 8px;
+  background: #d9e1ec;
+  border-radius: 999px;
+  display: flex;
+  overflow: visible;
+  cursor: help;
+}
+.tokenbar--standalone {
+  margin: 4px 0;
+}
+.tokenbar-seg {
+  height: 8px;
+}
+.tokenbar-seg:first-child {
+  border-radius: 999px 0 0 999px;
+}
+.tokenbar-seg:last-of-type {
+  border-radius: 0 999px 999px 0;
+}
+
+/* CSS custom property for segment widths */
+.tokenbar-seg[style*="--segment-width"],
+.sessions-token-bar [style*="--segment-width"],
+.sessions-token-bar__fresh,
+.sessions-token-bar__cache,
+.sessions-token-bar__out {
+  width: var(--segment-width);
+}
+
+/* Standalone segments */
+.tokenbar-seg.fresh {
+  background: var(--token-input-fresh);
+}
+.tokenbar-seg.read {
+  background: var(--token-cache-read);
+}
+.tokenbar-seg.write {
+  background: var(--token-cache-write);
+}
+.tokenbar-seg.out {
+  background: var(--token-output-visible);
+}
+
+/* DataTable-embedded segments (t- prefix) */
+.t-fresh {
+  background: var(--token-input-fresh);
+}
+.t-read {
+  background: var(--token-cache-read);
+}
+.t-write {
+  background: var(--token-cache-write);
+}
+.t-out {
+  background: var(--token-output-visible);
+}
+
+/* === TokenTotal ============================================================ */
+/* Canonical wrapper for token value + bar combination.
+* Structure:
+*   <div class="token-total">
+*     <span class="token-total__value">12.3K</span>
+*     <span class="tokenbar">...</span>
+*   </div>
+* Page-specific overrides may adjust font size, margin, or layout.
+*/
+.token-total {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.token-total__value {
+  font-weight: 800;
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+/* === TokenTooltip ========================================================== */
+/* CSS-only hover tooltip for token cells.
+* Structure:
+*   <td class="token-cell">
+*     <div class="token-total">
+*       <span class="token-total__value">...</span>
+*       <span class="tokenbar">...</span>
+*       <div class="token-tooltip" aria-hidden="true">...</div>
+*     </div>
+*   </td>
+*/
+.token-cell {
+  position: relative;
+}
+.token-tooltip {
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  box-shadow: 0 12px 28px rgba(15, 23, 42, .12);
+  padding: 12px 14px;
+  min-width: 260px;
+  z-index: 20;
+  display: none;
+  pointer-events: none;
+}
+.token-total:hover .token-tooltip,
+.token-total:focus-within .token-tooltip {
+  display: block;
+}
+
+/* Arrow pointing up */
+.token-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -7px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 12px;
+  height: 12px;
+  background: #fff;
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+.token-tooltip__title {
+  font-weight: 880;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: var(--text);
+}
+.token-tooltip__row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  min-height: 22px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+.token-tooltip__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+  flex-shrink: 0;
+}
+.token-tooltip__label .dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 8px;
+  margin: auto 0;
+}
+.token-tooltip__type-name {
+  line-height: 1;
+}
+.token-tooltip__label .dot.dot--fresh,
+.dot--fresh {
+  background: var(--token-input-fresh, #6d5dfc);
+}
+.token-tooltip__label .dot.dot--read,
+.dot--read {
+  background: var(--token-cache-read, #10b981);
+}
+.token-tooltip__label .dot.dot--write,
+.dot--write {
+  background: var(--token-cache-write, #f59e0b);
+}
+.token-tooltip__label .dot.dot--out,
+.dot--out {
+  background: var(--token-output-visible, #98a2b3);
+}
+.token-tooltip__value {
+  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 760;
+  text-align: right;
+  min-width: 60px;
+}
+.token-tooltip__pct {
+  font-family: var(--mono, ui-monospace, Menlo, Consolas, monospace);
+  font-weight: 600;
+  text-align: right;
+  min-width: 52px;
+  color: var(--text-subtle);
+}
+.token-tooltip__total {
+  font-weight: 880;
+  color: var(--text);
+}
+.token-tooltip__sep {
+  height: 1px;
+  background: var(--line);
+  margin: 6px 0;
+}
+
+/* === ProgressBar ========================================================== */
+/* Canonical progress bar for showing proportional fill (e.g. tool calls %).
+* Structure:
+*   <div class="progress-bar" style="--fill-width: 42.3%">
+*     <div class="progress-fill [color_class]"></div>
+*   </div>
+* Color classes (optional): .progress-fill--purple, .progress-fill--green, etc.
+*/
+.progress-bar {
+  width: 100%;
+  height: 4px;
+  background: var(--surface-soft);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-top: 4px;
+}
+.progress-fill {
+  height: 100%;
+  background: var(--text-subtle);
+  border-radius: 999px;
+  width: var(--fill-width, 0%);
+}
+.progress-fill--purple {
+  background: var(--purple);
+}
+.progress-fill--green  {
+  background: var(--green);
+}
+.progress-fill--orange {
+  background: var(--orange);
+}
+.progress-fill--red    {
+  background: var(--red);
+}
+.progress-fill--claude {
+  background: var(--claude);
+}
+.progress-fill--codex  {
+  background: var(--codex);
+}
+.progress-fill--qoder  {
+  background: var(--qoder);
+}
+
+/* === ChartLegend =========================================================== */
+/* Canonical chart legend row with colored dots and labels.
+* Structure:
+*   <div class="legend-row [extra_classes]">
+*     <span class="legend-item"><span class="legend-dot legend-dot--*"></span>Label</span>
+*     ...
+*   </div>
+* Page-specific overrides (e.g. dashboard.css) may adjust layout or spacing.
+*/
+.legend-row {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.legend-item {
+  font-size: 13px;
+  color: var(--text-subtle);
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  display: inline-block;
+}
+.legend-dot--claude {
+  background: var(--claude);
+}
+.legend-dot--codex  {
+  background: var(--codex);
+}
+.legend-dot--qoder  {
+  background: var(--qoder);
+}
+
+/* === ScopeSwitch =========================================================== */
+/* Canonical scope switch / time-range toggle group.
+* Commonly used in dashboard headers for Day/Week/Month selection.
+* Structure:
+*   <div class="scope-switch">
+*     <button class="scope-switch__btn is-active" data-scope="day">Day</button>
+*     ...
+*   </div>
+* Page-specific overrides (e.g. dashboard.css) may adjust dimensions or colors.
+*/
+.scope-switch {
+  display: inline-flex;
+  border: 1px solid var(--line);
+  padding: 4px;
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: var(--shadow);
+}
+.scope-switch__btn {
+  border: none;
+  background: transparent;
+  padding: 8px 14px;
+  border-radius: 10px;
+  cursor: pointer;
+  color: var(--text-subtle);
+  font-weight: 700;
+}
+.scope-switch__btn.is-active {
+  background: var(--purple);
+  color: white;
+}
+
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+}
+.kpi {
+  min-height: 67px;
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 10px 11px;
+  box-shadow: var(--sm);
+}
+.kpi .v {
+  font: 820 22px/1.05 var(--mono);
+  letter-spacing: -.045em;
+  color: var(--text);
+}
+.kpi .l {
+  margin-top: 6px;
+  color: var(--t4, var(--text-muted));
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: .075em;
+  font-weight: 850;
+}
+.kpi.err .v {
+  color: var(--status-error, #dc2626);
+}
+.kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.kpis {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+.toolbar .tab--chart {
+  height: auto;
+  /* let padding define height */
+  line-height: 1;
+}

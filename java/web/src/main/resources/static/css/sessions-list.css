@@ -1,0 +1,958 @@
+/* ───────────────────────────────────────────────────────────────
+* Sessions List — page-scoped component CSS
+* Scope: only `.sessions-page` descendants. Do not style session detail here.
+* ─────────────────────────────────────────────────────────────── */
+.sessions-page {
+  --sessions-line: var(--border, #d9e2ef);
+  --sessions-line-soft: var(--border-light, #e8eef6);
+  --sessions-text: var(--text-primary, #111827);
+  --sessions-text-2: var(--text-secondary, #334155);
+  --sessions-text-3: var(--text-muted, #64748b);
+  --sessions-brand: var(--brand, #5b5ce2);
+  --sessions-row-h: 48px;
+  --sessions-card-radius: 18px;
+  --sessions-shadow: 0 10px 26px rgba(15, 23, 42, .065);
+  width: 100%;
+  max-width: 1880px;
+  margin-inline: auto;
+}
+
+.sessions-page .sessions-filter-card,
+.sessions-page .sessions-table-card,
+.sessions-page .card.filter-card {
+  width: 100%;
+}
+
+.sessions-page .sessions-page-title {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.sessions-page .sessions-page-title h1 {
+  margin: 0;
+  font-size: 28px;
+  line-height: 1.1;
+  font-weight: 880;
+  letter-spacing: -.035em;
+}
+
+.sessions-page .sessions-page-title__sub {
+  margin-top: 4px;
+  color: var(--sessions-text-3);
+  font-size: 12px;
+}
+
+.sessions-page .sessions-page-title__stats {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.sessions-page .sessions-table-card,
+.sessions-page .card.filter-card {
+  background: linear-gradient(180deg, #fff, #fbfcff);
+  border: 1px solid var(--sessions-line);
+  border-radius: var(--sessions-card-radius);
+  box-shadow: var(--sessions-shadow);
+  overflow: hidden;
+}
+
+.sessions-page .card.filter-card {
+  margin-bottom: 12px;
+}
+
+.sessions-page .sessions-filter-head {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  background: linear-gradient(90deg, rgba(91, 92, 226, .045), transparent 44%), #fff;
+}
+
+.sessions-page .card.filter-card .filter-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: nowrap;
+  padding: 10px 12px;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  background: #fff;
+}
+
+.sessions-page .card.filter-card .filter-row__push {
+  flex: 1 1 0;
+  min-width: 0;
+  margin-left: 0;
+}
+
+.sessions-page .card.filter-card .filter-footer {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  background: #fbfcff;
+}
+
+.sessions-page .card.filter-card .input.search {
+  flex: 1 1 240px;
+  min-width: 200px;
+  max-width: 420px;
+  height: 30px;
+}
+
+.sessions-page .card.filter-card .ui-select {
+  flex: 0 0 auto;
+  height: 30px;
+  min-width: 0;
+}
+
+.sessions-page .card.filter-card .ui-select__control {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  text-overflow: ellipsis;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--agent {
+  width: 126px;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--model {
+  width: 170px;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--project {
+  width: 188px;
+}
+
+.sessions-page .card.filter-card .sessions-filter-select--status {
+  width: 122px;
+}
+
+.sessions-page .card.filter-card .js-clear-all {
+  flex: 0 0 auto;
+}
+
+.sessions-page .sessions-search {
+  flex: 1;
+  min-width: 260px;
+  height: 30px;
+  border: 1px solid var(--sessions-line);
+  border-radius: 10px;
+  background: #fff;
+  display: flex;
+  align-items: center;
+  padding: 0 10px;
+  gap: 8px;
+}
+
+.sessions-page .sessions-search__icon {
+  color: var(--sessions-text-3);
+  font-size: 12px;
+}
+
+.sessions-page .sessions-search input {
+  border: 0;
+  outline: 0;
+  width: 100%;
+  min-width: 0;
+  color: var(--sessions-text);
+  background: transparent;
+  font-size: 13px;
+}
+
+.sessions-page .sessions-search-hint {
+  height: 22px;
+  display: inline-flex;
+  align-items: center;
+  padding: 0 8px;
+  border-radius: 999px;
+  background: #f8fafc;
+  border: 1px solid var(--sessions-line-soft);
+  color: var(--sessions-text-3);
+  font-size: 11px;
+  font-weight: 760;
+}
+
+.sessions-page .sessions-active-filters,
+.sessions-page .card.filter-card .active-filters {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 9px 12px;
+  background: #fbfcff;
+}
+
+.sessions-page .sessions-active-filters__label,
+.sessions-page .card.filter-card .active-filters__label {
+  font-size: 11px;
+  font-weight: 820;
+  color: var(--sessions-text-3);
+  text-transform: uppercase;
+  letter-spacing: .07em;
+}
+
+.sessions-page .sessions-results-status {
+  margin-left: auto;
+  color: var(--sessions-text-3);
+  font-size: 12px;
+}
+
+.sessions-page .sessions-table-toolbar {
+  height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  background: linear-gradient(180deg, #fff, #fbfcff);
+}
+
+.sessions-page .sessions-table-toolbar .sessions-table-title {
+  flex: 0 0 auto;
+}
+
+.sessions-page .sessions-table-toolbar .sessions-table-sub {
+  flex: 1 1 auto;
+}
+
+.sessions-page .sessions-table-title {
+  font-weight: 840;
+  color: var(--sessions-text);
+  font-size: 13px;
+}
+
+.sessions-page .sessions-table-sub {
+  color: var(--sessions-text-3);
+  font-size: 12px;
+}
+
+.sessions-page .sessions-table-scroll {
+  overflow: auto;
+  background: #fff;
+}
+
+.sessions-page .sessions-grid {
+  min-width: 1120px;
+  display: grid;
+  grid-template-columns: minmax(340px, 2fr) minmax(190px, 1fr) 98px 126px 104px 112px 82px 108px 94px;
+}
+
+.sessions-page .sessions-th,
+.sessions-page .sessions-td {
+  min-width: 0;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sessions-line-soft);
+}
+
+.sessions-page .sessions-th {
+  height: 34px;
+  display: flex;
+  align-items: center;
+  background: #f8fafc;
+  color: var(--sessions-text-3);
+  font-size: 10px;
+  font-weight: 850;
+  text-transform: uppercase;
+  letter-spacing: .065em;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.sessions-page .sessions-th--sortable {
+  background: linear-gradient(180deg, #f6f8ff, #f3f6ff);
+  color: var(--sessions-text-2);
+}
+
+.sessions-page .sessions-th .c-data-table__sort {
+  min-height: 25px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 5px;
+  margin-left: -5px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sessions-page .sessions-th .c-data-table__sort:hover,
+.sessions-page .sessions-th .c-data-table__sort:focus-visible {
+  outline: 0;
+  border-color: #dfe3ff;
+  background: #fff;
+  color: var(--sessions-brand);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .7);
+}
+
+.sessions-page .sessions-th .c-data-table__sort:hover {
+  text-decoration: none;
+}
+
+.sessions-page .sessions-th .c-data-table__sort-icon {
+  width: 18px;
+  height: 18px;
+  border-radius: 7px;
+  background: #eff1ff;
+  border: 1px solid #dfe3ff;
+  color: var(--sessions-brand);
+  display: inline-block;
+  font-size: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='%235b5ce2' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3v8M4.5 5.5L7 3l2.5 2.5M4.5 8.5L7 11l2.5-2.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: 14px 14px;
+}
+
+.sessions-page [data-sessions-grid] .sessions-row {
+  display: contents;
+}
+
+.sessions-page .sessions-row:hover .sessions-td {
+  background: #fbfdff;
+}
+
+.sessions-page .sessions-row.is-selected .sessions-td {
+  background: linear-gradient(90deg, #f7f9ff, #fff);
+}
+
+.sessions-page .sessions-row.is-selected .sessions-td:first-child {
+  box-shadow: inset 3px 0 0 var(--sessions-brand);
+}
+
+.sessions-page .sessions-td {
+  height: var(--sessions-row-h);
+  display: flex;
+  align-items: center;
+  font-size: 12.5px;
+  color: var(--sessions-text-2);
+  background: #fff;
+}
+
+.sessions-page .sessions-cell-main {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 2px;
+  min-width: 0;
+}
+
+.sessions-page .sessions-title {
+  font-weight: 790;
+  color: var(--sessions-text);
+  font-size: 13px;
+  line-height: 1.24;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessions-page .sessions-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--sessions-text-3);
+  font-size: 11.5px;
+}
+
+.sessions-page .sessions-id {
+  font-family: var(--font-mono);
+  color: var(--sessions-text-3);
+}
+
+.sessions-page .sessions-project-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sessions-text-2);
+}
+
+.sessions-page .sessions-agent-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 23px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-weight: 780;
+  font-size: 11.5px;
+}
+
+.sessions-page .sessions-agent-badge--claude_code {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+}
+
+.sessions-page .sessions-agent-badge--codex {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #bbf7d0;
+}
+
+.sessions-page .sessions-agent-badge--qoder {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.sessions-page .sessions-model {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sessions-text-2);
+}
+
+.sessions-page .sessions-td--num {
+  justify-content: flex-end;
+  font-family: var(--font-mono);
+  font-variant-numeric: tabular-nums;
+  color: var(--sessions-text-2);
+}
+
+.sessions-page .sessions-td--strong {
+  font-weight: 800;
+  color: var(--sessions-text);
+}
+
+.sessions-page .sessions-token-total {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.sessions-page .sessions-token-total__value {
+  font-weight: 800;
+  color: var(--sessions-text);
+}
+
+.sessions-page .sessions-token-bar {
+  width: 46px;
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  /* background/color handled by ui-primitives .tokenbar */
+  border: 1px solid var(--sessions-line-soft);
+}
+
+.sessions-page .sessions-token-bar span {
+  height: 100%;
+  display: block;
+}
+
+/* Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-* */
+
+.sessions-page .sessions-table-footer {
+  height: 42px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 12px;
+  border-top: 1px solid var(--sessions-line-soft);
+  background: #fbfcff;
+  color: var(--sessions-text-3);
+  font-size: 12px;
+}
+
+.sessions-page .sessions-page-range {
+  margin-left: 4px;
+  color: var(--sessions-text-2);
+  font-family: var(--font-mono);
+  font-weight: 720;
+}
+
+.sessions-page .sessions-footer-spacer {
+  flex: 1;
+}
+
+.sessions-page .sessions-footer-total {
+  color: var(--sessions-text-3);
+}
+
+.sessions-page .sessions-footer-page-size {
+  font-size: 12px;
+  color: var(--sessions-text-3);
+}
+
+.sessions-page .sessions-footer-page-size__select {
+  border: 1px solid var(--sessions-line);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-size: 12px;
+  background: #fff;
+  color: var(--sessions-text);
+  cursor: pointer;
+}
+
+/* ── Empty State ──────────────────────────────────────────────── */
+.sessions-page .empty-state {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  padding: 32px 16px;
+  color: var(--sessions-text-3);
+  font-size: 13px;
+  font-weight: 600;
+  text-align: center;
+  grid-column: 1 / -1;
+}
+
+/* ── Pagination Nav Buttons (in footer) ───────────────────────── */
+.sessions-page .sessions-table-footer .ui-btn {
+  height: 28px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0 11px;
+  font-size: 12px;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sessions-page .sessions-table-footer .ui-btn[style*="opacity:0.5"] {
+  cursor: default;
+}
+
+/* ── Title Link ───────────────────────────────────────────────── */
+.sessions-page .sessions-title a {
+  color: var(--sessions-text);
+  text-decoration: none;
+}
+
+.sessions-page .sessions-title a:hover {
+  color: var(--sessions-brand);
+  text-decoration: underline;
+}
+
+/* ── Project Link (link-muted) ────────────────────────────────── */
+.sessions-page .link-muted {
+  color: var(--sessions-text-2);
+  text-decoration: none;
+}
+
+.sessions-page .link-muted:hover {
+  color: var(--sessions-brand);
+  text-decoration: underline;
+}
+
+/* ── Branch Text ──────────────────────────────────────────────── */
+.sessions-page .session-branch {
+  color: var(--sessions-text-3);
+  font-size: 11px;
+}
+
+/* ── Active Filters Chip Spacing ──────────────────────────────── */
+.sessions-page .sessions-active-filters .ui-filter-chip,
+.sessions-page .card.filter-card .filter-chip {
+  margin-left: 4px;
+}
+
+.sessions-page .card.filter-card .filter-chip a {
+  width: 20px;
+  height: 20px;
+  font-size: 13px;
+}
+
+/* ── Data Table Structure (HIFI canonical, migrated from inline style block) ── */
+/*
+* Column width system: unit = 50px, min 2x, max 10x.
+* Total = 35x = 1750px;
+table-layout:fixed scales proportionally
+* when container is narrower.
+*
+* Session(10x) Project(4x) Agent(2x) Model(3x) Tokens(3x)
+* Rounds(2x) Tools(2x) Subagents(2x) Duration(3x)
+* Process Time(3x) Failure(3x) Created(3x) Updated(3x)
+*/
+.sessions-page .table-wrap {
+  min-width: 100%;
+  max-width: 1900px;
+  margin-inline: auto;
+  overflow-x: auto;
+}
+
+.sessions-page .data-table {
+  width: max-content;
+  min-width: 1780px;
+  border-collapse: collapse;
+  table-layout: fixed;
+}
+
+/* per-column widths applied to both th and td */
+.sessions-page .data-table .col-session {
+  width: 500px;
+}
+
+.sessions-page .data-table .col-project {
+  width: 200px;
+}
+
+.sessions-page .data-table .col-agent {
+  width: 100px;
+}
+
+.sessions-page .data-table .col-model {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-tokens {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-rounds {
+  width: 100px;
+}
+
+.sessions-page .data-table .col-tools {
+  width: 100px;
+}
+
+.sessions-page .data-table .col-subagents {
+  width: 100px;
+}
+
+.sessions-page .data-table .col-duration {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-process-time {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-failure {
+  width: 140px;
+}
+
+.sessions-page .data-table .col-created {
+  width: 150px;
+}
+
+.sessions-page .data-table .col-updated {
+  width: 150px;
+}
+
+.sessions-page .data-table th {
+  padding: 0;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  height: 40px;
+  background: #f8fafc;
+  color: var(--sessions-text-3);
+  font-size: 12px;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: .065em;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+  vertical-align: middle;
+}
+
+.sessions-page .data-table th.static-header {
+  padding: 0 10px;
+  background: linear-gradient(180deg, #f6f8ff, #f3f6ff);
+  color: var(--sessions-text-2);
+}
+
+.sessions-page .data-table th.sortable {
+  padding: 0 2px;
+}
+
+.sessions-page .data-table th:not(.sortable) {
+  padding: 0 10px;
+}
+
+.sessions-page .data-table th.num,
+.sessions-page .data-table td.num {
+  text-align: right;
+}
+
+.sessions-page .data-table td {
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sessions-line-soft);
+  height: 48px;
+  vertical-align: middle;
+  font-size: 12.5px;
+  color: var(--sessions-text-2);
+  background: #fff;
+}
+
+.sessions-page .data-table tbody tr:hover td {
+  background: #fbfdff;
+}
+
+.sessions-page .data-table tbody tr[data-action="row"] {
+  cursor: pointer;
+}
+
+.sessions-page .data-table tbody tr.sessions-row.is-opening td {
+  background: #f6f8ff;
+  cursor: progress;
+}
+
+.sessions-page .data-table tbody tr.sessions-row.is-opening td:first-child {
+  box-shadow: inset 3px 0 0 var(--sessions-brand);
+}
+
+.sessions-page .data-table tbody tr.sessions-row.is-opening .title-main::after {
+  content: "Opening...";
+  display: inline-flex;
+  margin-left: 8px;
+  color: var(--sessions-brand);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.sessions-page .data-table .title-main {
+  font-weight: 790;
+  color: var(--sessions-text);
+  font-size: 13px;
+  line-height: 1.24;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessions-page .data-table .title-sub.mono {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--sessions-text-3);
+  font-size: 11.5px;
+  margin-top: 2px;
+}
+
+.sessions-page .data-table .title-sub .mono {
+  font-family: var(--font-mono);
+}
+
+.sessions-page .data-table .project-cell .project-name {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  color: var(--sessions-text-2);
+}
+
+.sessions-page .data-table .badge {
+  display: inline-flex;
+  align-items: center;
+  height: 23px;
+  border-radius: 999px;
+  padding: 0 8px;
+  font-weight: 780;
+  font-size: 11.5px;
+}
+
+.sessions-page .data-table .badge.cc {
+  background: #f5f3ff;
+  color: #7c3aed;
+  border: 1px solid #ddd6fe;
+}
+
+.sessions-page .data-table .badge.cx {
+  background: #ecfdf5;
+  color: #059669;
+  border: 1px solid #bbf7d0;
+}
+
+.sessions-page .data-table .badge.qd {
+  background: #fffbeb;
+  color: #d97706;
+  border: 1px solid #fde68a;
+}
+
+.sessions-page .data-table td.mono {
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.sessions-page .data-table .token-cell {
+  position: relative;
+}
+
+.sessions-page .data-table .token-total {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  justify-content: flex-end;
+  width: 100%;
+}
+
+.sessions-page .data-table .token-total__value {
+  font-weight: 800;
+  color: var(--sessions-text);
+}
+
+.sessions-page .data-table .tokenbar {
+  width: 46px;
+  height: 7px;
+  border-radius: 999px;
+  overflow: hidden;
+  display: flex;
+  /* background/color handled by ui-primitives .tokenbar */
+  border: 1px solid var(--sessions-line-soft);
+}
+
+.sessions-page .data-table .tokenbar-seg {
+  height: 100%;
+  display: block;
+}
+
+/* Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-* */
+
+.sessions-page .data-table td.muted {
+  color: var(--sessions-text-3);
+}
+
+.sessions-page .data-table .c-data-table__sort {
+  height: 100%;
+  min-height: 36px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-transform: inherit;
+  letter-spacing: inherit;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 6px;
+  border-radius: 8px;
+  cursor: pointer;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.sessions-page .data-table .c-data-table__sort:hover,
+.sessions-page .data-table .c-data-table__sort:focus-visible {
+  outline: 0;
+  border-color: #dfe3ff;
+  background: #fff;
+  color: var(--sessions-brand);
+  box-shadow: 0 1px 3px rgba(15, 23, 42, .07);
+}
+
+.sessions-page .data-table .c-data-table__sort:hover {
+  text-decoration: none;
+}
+
+.sessions-page .data-table th.sortable .c-data-table__sort-icon {
+  color: var(--sessions-text-3);
+}
+
+.sessions-page .data-table th.sortable[data-sort-dir] .c-data-table__sort-icon {
+  color: var(--sessions-brand);
+}
+
+.sessions-title-cell {
+  max-width: 280px;
+  min-width: 140px;
+}
+
+.sessions-title-link {
+  display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Apply Button Dirty State ─────────────────────────────────────
+* When the filter form has no unapplied changes (is-muted),
+* the Apply button appears visually subdued.
+* When the form is dirty (is-dirty), the button shows as active/primary.
+* This gives users clear visual feedback that their filter changes
+* are ready to be applied.
+*/
+.sessions-page .card.filter-card .btn[data-action="apply"] {
+  transition: opacity 0.15s ease, filter 0.15s ease;
+  font-weight: 850;
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].primary {
+  background: linear-gradient(180deg, #7c6af7, #5c43e0);
+  color: #f0f0ff;
+  border-color: #5c43e0;
+  text-shadow: 0 1px 1px rgba(0,0,0,0.15);
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].primary:hover {
+  filter: brightness(1.05);
+}
+
+/* Muted state: form values match initial snapshot — no changes to apply */
+.sessions-page .card.filter-card .btn[data-action="apply"].is-muted {
+  opacity: 0.5;
+  filter: saturate(0.4) brightness(0.95);
+  cursor: default;
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].is-muted:hover {
+  filter: saturate(0.5) brightness(1);
+  opacity: 0.6;
+}
+
+/* Dirty state: form values differ from initial — changes ready to apply */
+.sessions-page .card.filter-card .btn[data-action="apply"].is-dirty {
+  opacity: 1;
+  filter: none;
+  cursor: pointer;
+}
+
+.sessions-page .card.filter-card .btn[data-action="apply"].is-dirty:hover {
+  filter: brightness(1.02);
+}
+
+/* ── Token tooltip dynamic flip (T085) ──
+   Base positioning comes from ui-primitives.css (.token-tooltip).
+   This adds the flip class so tooltip appears above the bar when
+   viewport space below is limited (e.g. bottom rows in table). */
+
+@media (max-width: 899px) {
+  .sessions-page .card.filter-card .filter-row {
+    flex-wrap: wrap;
+  }
+
+  .sessions-page .card.filter-card .input.search {
+    flex-basis: 100%;
+    max-width: none;
+  }
+
+  .sessions-page .card.filter-card .filter-row__push {
+    display: none;
+  }
+}
+
+.sessions-page .data-table .token-tooltip.token-tooltip--flip {
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+}
+
+.sessions-page .data-table .token-tooltip.token-tooltip--flip::before {
+  top: auto;
+  bottom: -7px;
+  transform: translateX(-50%) rotate(225deg);
+}

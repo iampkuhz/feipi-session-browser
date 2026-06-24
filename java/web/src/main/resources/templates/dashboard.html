@@ -1,0 +1,149 @@
+{% extends "base.html" %}
+
+{% block title %}Dashboard - Agent Run Profiler{% endblock %}
+{% block shell_class %} no-inspector{% endblock %}
+{% block main_attrs %} data-page="dashboard"{% endblock %}
+
+{% block breadcrumb %}
+<span class="current">Dashboard</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/dashboard.css">
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/dashboard.js"></script>
+{% endblock %}
+
+{% block content %}
+{% if stats is defined and stats.totalSessions == 0 %}
+<section class="page-section">
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x1F4CA;</div>
+        <h2 class="empty-state__title">暂无已索引 session</h2>
+        <p class="empty-state__text">请先运行 scan，或查看 Sessions 列表。</p>
+        <a href="/" class="btn btn--primary" data-action="run-scan">运行 Scan</a>
+    </div>
+</section>
+{% else %}
+
+<div class="dashboard-head page-head">
+    <div class="dashboard-head__title-area">
+        <h1 class="page-title">Dashboard</h1>
+        <p class="page-subtitle">全局概览与单 agent 深度分析</p>
+    </div>
+    <div class="dashboard-head__controls">
+        <div class="scope-selector" aria-label="Agent Scope">
+            <span class="scope-selector__label">Scope</span>
+            <div class="scope-selector__group">
+                <button class="scope-selector__btn{% if agent_scope == 'all' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="all"
+                        {% if agent_scope == 'all' %}aria-current="true"{% endif %}>
+                    All agents
+                </button>
+                <button class="scope-selector__btn{% if agent_scope == 'claude-code' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="claude-code"
+                        {% if agent_scope == 'claude-code' %}aria-current="true"{% endif %}>
+                    Claude Code
+                </button>
+                <button class="scope-selector__btn{% if agent_scope == 'qoder' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="qoder"
+                        {% if agent_scope == 'qoder' %}aria-current="true"{% endif %}>
+                    Qoder
+                </button>
+                <button class="scope-selector__btn{% if agent_scope == 'codex' %} is-active{% endif %}"
+                        data-action="agent-scope" data-scope="codex"
+                        {% if agent_scope == 'codex' %}aria-current="true"{% endif %}>
+                    Codex
+                </button>
+            </div>
+        </div>
+        <div class="grain-control">
+            <button class="grain-control__btn{% if grain == 'day' %} is-active{% endif %}"
+                    data-action="grain" data-grain="day"
+                    {% if grain == 'day' %}aria-current="true"{% endif %}>Day</button>
+            <button class="grain-control__btn{% if grain == 'week' %} is-active{% endif %}"
+                    data-action="grain" data-grain="week"
+                    {% if grain == 'week' %}aria-current="true"{% endif %}>Week</button>
+            <button class="grain-control__btn{% if grain == 'month' %} is-active{% endif %}"
+                    data-action="grain" data-grain="month"
+                    {% if grain == 'month' %}aria-current="true"{% endif %}>Month</button>
+        </div>
+    </div>
+</div>
+
+{# -- KPI 区: 基础骨架，完整 KPI 计算将在后续 task 增量迁移 -- #}
+<section class="kpi-grid" data-dashboard-kpis>
+    <article class="metric-card metric-card--kpi" aria-label="Projects">
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Projects</span>
+                <span class="metric-card__value tabular">{{ stats.projectCount }}</span>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Sessions">
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Sessions</span>
+                <span class="metric-card__value tabular">{{ stats.totalSessions }}</span>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Total Tokens">
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Total Tokens</span>
+                <span class="metric-card__value tabular">{{ stats.totalTokens | format_compact_token }}</span>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Prompt Activity">
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Prompt Activity</span>
+                <span class="metric-card__value tabular">{{ stats.totalUserMessages }}</span>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Cache Read Ratio">
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Cache Read Ratio</span>
+                <span class="metric-card__value tabular">
+                    {% set input_side = stats.totalFreshInputTokens + stats.totalCacheReadTokens + stats.totalCacheWriteTokens %}
+                    {% if input_side > 0 %}
+                        {{ "%0.1f" | format((stats.totalCacheReadTokens / input_side * 100)) }}%
+                    {% else %}
+                        N/A
+                    {% endif %}
+                </span>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Failed Tools">
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Failed Tools</span>
+                <span class="metric-card__value tabular">{{ stats.totalFailedTools }}</span>
+            </div>
+        </div>
+    </article>
+</section>
+
+{# -- 趋势图区域（后续 task 完善）-- #}
+<section class="trend-cards" data-dashboard-trends>
+    <div class="trend-card" data-trend="sessions">
+        <h3>Session Trend</h3>
+    </div>
+    <div class="trend-card" data-trend="tokens">
+        <h3>Token Trend</h3>
+    </div>
+    <div class="trend-card" data-trend="prompts">
+        <h3>Prompt Activity Trend</h3>
+    </div>
+</section>
+
+{% endif %}
+{% endblock %}

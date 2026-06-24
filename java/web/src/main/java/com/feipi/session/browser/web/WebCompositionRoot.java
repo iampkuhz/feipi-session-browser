@@ -1,6 +1,10 @@
 package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.web.page.DashboardPage;
+import com.feipi.session.browser.web.page.ProjectsPage;
+import com.feipi.session.browser.web.page.SessionsPage;
+import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
 import java.util.Objects;
@@ -10,7 +14,7 @@ import org.slf4j.LoggerFactory;
 /**
  * Web 层 Composition Root。
  *
- * <p>集中装配 Web 服务器所需的全部依赖：Javalin 实例、application use case、异常处理。 不使用 Spring/DI
+ * <p>集中装配 Web 服务器所需的全部依赖：Javalin 实例、application use case、模板引擎、异常处理。 不使用 Spring/DI
  * framework，所有依赖通过构造器显式注入。
  *
  * <p>Javalin 7 的路由注册必须在 {@code Javalin.create(config -> ...)} lambda 内完成， 本类通过 {@code
@@ -20,7 +24,8 @@ import org.slf4j.LoggerFactory;
  *
  * <ul>
  *   <li>创建和配置 Javalin 实例（内容类型、静态资源、异常处理）
- *   <li>注册健康检查路由
+ *   <li>创建 Pebble 模板引擎
+ *   <li>注册健康检查、Dashboard、Projects、Sessions 路由
  *   <li>将 {@link QueryCompositionRoot} 的 use case 绑定到路由
  * </ul>
  */
@@ -31,11 +36,12 @@ public final class WebCompositionRoot {
   private final Javalin app;
   private final QueryCompositionRoot queryRoot;
   private final WebConfig config;
+  private final PebbleEnvironment templates;
 
   /**
    * 创建 Composition Root。
    *
-   * <p>在构造期间创建 Javalin 实例并注册全部路由。
+   * <p>在构造期间创建 Javalin 实例、模板引擎并注册全部路由。
    *
    * @param queryRoot 查询 composition root，提供所有 use case
    * @param config Web 服务器配置
@@ -43,7 +49,8 @@ public final class WebCompositionRoot {
   public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config) {
     this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot 不得为 null");
     this.config = Objects.requireNonNull(config, "config 不得为 null");
-    this.app = createAndConfigureJavalin(queryRoot, config);
+    this.templates = new PebbleEnvironment();
+    this.app = createAndConfigureJavalin(queryRoot, config, templates);
     LOG.debug("Web Composition Root 初始化完成");
   }
 
@@ -52,15 +59,16 @@ public final class WebCompositionRoot {
    *
    * @param queryRoot 查询 composition root
    * @param config Web 服务器配置
+   * @param templates Pebble 模板环境
    * @return 配置完成的 Javalin 实例
    */
   private static Javalin createAndConfigureJavalin(
-      QueryCompositionRoot queryRoot, WebConfig config) {
+      QueryCompositionRoot queryRoot, WebConfig config, PebbleEnvironment templates) {
     return Javalin.create(
         javalinConfig -> {
           configureHttp(javalinConfig);
           configureStaticFiles(javalinConfig, config);
-          registerRoutes(javalinConfig, queryRoot);
+          registerRoutes(javalinConfig, queryRoot, templates);
           registerExceptionHandlers(javalinConfig);
         });
   }
@@ -84,8 +92,28 @@ public final class WebCompositionRoot {
 
   /** 注册全部路由。 */
   private static void registerRoutes(
-      io.javalin.config.JavalinConfig javalinConfig, QueryCompositionRoot queryRoot) {
+      io.javalin.config.JavalinConfig javalinConfig,
+      QueryCompositionRoot queryRoot,
+      PebbleEnvironment templates) {
+
+    // 健康检查
     javalinConfig.routes.get("/healthz", WebServer::healthHandler);
+
+    // 页面路由
+    DashboardPage dashboardPage = new DashboardPage(queryRoot, templates);
+    ProjectsPage projectsPage = new ProjectsPage(queryRoot, templates);
+    SessionsPage sessionsPage = new SessionsPage(queryRoot, templates);
+
+    javalinConfig.routes.get("/", dashboardPage::handle);
+    javalinConfig.routes.get("/dashboard", dashboardPage::handle);
+    javalinConfig.routes.get("/projects", projectsPage::handleList);
+    javalinConfig.routes.get(
+        "/projects/{key}",
+        ctx -> {
+          String key = ctx.pathParam("key");
+          projectsPage.handleDetail(ctx, key);
+        });
+    javalinConfig.routes.get("/sessions", sessionsPage::handle);
   }
 
   /** 注册异常和错误 handler。 */
@@ -140,6 +168,15 @@ public final class WebCompositionRoot {
    */
   public QueryCompositionRoot queryRoot() {
     return queryRoot;
+  }
+
+  /**
+   * 返回模板引擎。
+   *
+   * @return Pebble 模板环境
+   */
+  public PebbleEnvironment templates() {
+    return templates;
   }
 
   /** 错误响应 JSON 载体。 */

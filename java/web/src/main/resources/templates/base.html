@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
+    <title>{% block title %}Agent Run Profiler{% endblock %}</title>
+    <link rel="stylesheet" href="/static/css/tokens.css">
+    <link rel="stylesheet" href="/static/css/base.css">
+    <link rel="stylesheet" href="/static/css/shell.css">
+    <link rel="stylesheet" href="/static/css/ui-primitives.css">
+    <script src="/static/js/arp-storage.js"></script>
+    {% block head_extra %}{% endblock %}
+</head>
+<body>
+    <div class="shell {% block shell_class %}{% endblock %}" data-session-detail-shell>
+        <aside class="sidebar" aria-label="Primary navigation">
+            <div class="brand-card">
+                <div class="brand-mark" title="App logo" aria-hidden="true">&#x1F4C8;</div>
+                <div>
+                    <div class="brand-title">Agent Run Profiler</div>
+                    <div class="brand-meta">
+                        <span>v0.9.0</span>
+                        <span class="pill pill--neutral">Local</span>
+                    </div>
+                </div>
+            </div>
+            <nav class="nav-list" aria-label="主导航">
+                {% block sidebar_nav %}
+                <a class="nav-item{% if active_page is defined and active_page == 'dashboard' %} is-active{% endif %}"
+                   href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F4CA;</span><span>Dashboard</span>
+                </a>
+                <a class="nav-item{% if active_page is defined and active_page == 'sessions' %} is-active{% endif %}"
+                   href="/sessions" data-action="nav-sessions" data-target="sessions">
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F5C2;&#xFE0F;</span><span>Sessions</span>
+                </a>
+                <a class="nav-item{% if active_page is defined and active_page == 'projects' %} is-active{% endif %}"
+                   href="/projects" data-action="nav-projects" data-target="projects">
+                    <span class="icon icon--nav" aria-hidden="true">&#x1F4C1;</span><span>Projects</span>
+                </a>
+                {% endblock %}
+            </nav>
+
+            {% block sidebar_extra %}{% endblock %}
+        </aside>
+
+        <main class="main-content {% block main_class %}{% endblock %}"
+              {% block main_attrs %}{% endblock %}>
+            <div class="breadcrumb-bar">
+                {% block breadcrumb %}{% endblock %}
+            </div>
+            {% block content %}{% endblock %}
+        </main>
+    </div>
+    {% block script_extra %}{% endblock %}
+</body>
+</html>

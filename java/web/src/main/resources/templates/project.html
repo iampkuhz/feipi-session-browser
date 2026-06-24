@@ -1,0 +1,141 @@
+{% extends "base.html" %}
+
+{% block title %}{{ project.projectName is not empty ? project.projectName : project_key }} - Agent Run Profiler{% endblock %}
+{% block shell_class %} no-inspector{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<a href="/projects">Projects</a>
+<span class="sep">/</span>
+<span class="current">{{ project.projectName is not empty ? project.projectName : project_key }}</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/projects.css">
+{% endblock %}
+
+{% block content %}
+<div class="p-projects">
+
+{# -- 页面标题 -- #}
+<div class="page-head">
+    <div class="page-head__title-area">
+        <a href="/projects" class="btn btn--secondary btn--sm" data-action="go-projects">Back to Projects</a>
+        <h1 class="page-title">{{ project.projectName is not empty ? project.projectName : project_key }}</h1>
+        <p class="page-subtitle">Project-level sessions, token, tool, and failure hotspots.</p>
+    </div>
+</div>
+
+{# -- 项目路径 -- #}
+<div class="project-path-summary">
+    <span class="project-path" title="{{ project_key }}">{{ project_key | display_path }}</span>
+</div>
+
+{# -- 项目统计卡片 -- #}
+<div class="metric-grid project-detail-kpis">
+    <div class="metric-card">
+        <div class="metric-card__body">
+            <div class="metric-card__label-row"><span class="metric-card__label">Sessions</span></div>
+            <div class="metric-card__value">{{ project.totalSessions }}</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card__body">
+            <div class="metric-card__label-row"><span class="metric-card__label">Agents</span></div>
+            <div class="metric-card__value">{{ (project.claudeSessions > 0 ? 1 : 0) + (project.qoderSessions > 0 ? 1 : 0) + (project.codexSessions > 0 ? 1 : 0) }}</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card__body">
+            <div class="metric-card__label-row"><span class="metric-card__label">Total Tokens</span></div>
+            <div class="metric-card__value mono">{{ project.totalTokens | format_compact_token }}</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-card__body">
+            <div class="metric-card__label-row"><span class="metric-card__label">Failed Tools</span></div>
+            <div class="metric-card__value mono">{{ project.totalFailedTools }}</div>
+        </div>
+    </div>
+</div>
+
+{# -- 该项目下的会话列表 -- #}
+<div class="table-card">
+    <div class="table-card__header">
+        <h2>Sessions</h2>
+        <span class="ui-stat-pill" role="status"><b>{{ total_count }}</b> sessions</span>
+    </div>
+
+    {# -- 搜索 -- #}
+    <form method="get" action="/projects/{{ project_key | urlencode }}" class="filter-row">
+        <input type="hidden" name="sort" value="{{ sort_by }}"/>
+        <input type="hidden" name="dir" value="{{ sort_dir }}"/>
+        <input type="hidden" name="page_size" value="{{ page_size }}"/>
+        <input type="search" name="q" placeholder="Search sessions"
+               value="{{ filter_q }}" class="filter-search js-search"
+               aria-label="Search sessions in project"/>
+    </form>
+
+    {% if sessions is defined and sessions | length > 0 %}
+    <table class="data-table" role="table" aria-label="Project sessions table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Agent</th>
+                <th>Model</th>
+                <th>Tokens</th>
+                <th>Rounds</th>
+                <th>Failed</th>
+                <th>Duration</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr data-session-key="{{ s.sessionKey }}">
+                <td>
+                    <a href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}"
+                       class="session-link" data-action="open-session">
+                        {{ s.title is not empty ? s.title : s.sessionId }}
+                    </a>
+                </td>
+                <td><span class="agent-badge agent-{{ s.agent }}">{{ s.agent }}</span></td>
+                <td class="mono">{{ s.model }}</td>
+                <td class="mono">{{ s.totalTokens | format_compact_token }}</td>
+                <td class="mono">{{ s.assistantMessageCount }}</td>
+                <td class="mono">{{ s.failedToolCount }}</td>
+                <td class="mono">{{ s.durationSeconds | format_duration }}</td>
+                <td>{{ s.endedAt | relative_time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {# -- 分页 -- #}
+    {% if total_count > 0 %}
+    <nav class="pagination" aria-label="Project sessions pagination" data-pagination>
+        {% if has_prev %}
+        <a href="/projects/{{ project_key | urlencode }}?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
+           class="pagination__btn" data-action="prev-page">Previous</a>
+        {% endif %}
+        <span class="pagination__info">
+            {{ page_start }}-{{ page_end }} of {{ total_count }}
+        </span>
+        {% if has_next %}
+        <a href="/projects/{{ project_key | urlencode }}?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
+           class="pagination__btn" data-action="next-page">Next</a>
+        {% endif %}
+    </nav>
+    {% endif %}
+
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x1F4AD;</div>
+        <p class="empty-state__text">No sessions found in this project.</p>
+    </div>
+    {% endif %}
+</div>
+
+</div>
+{% endblock %}

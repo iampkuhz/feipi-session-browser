@@ -1,0 +1,347 @@
+/* ==========================================================================
+* Shell / Layout — CSS Grid 三栏布局
+* 从 style.css 抽取 (Task 05)
+* 所有者：shell 层，不得被页面 CSS 覆盖
+* ========================================================================== */
+/* ─── Shell: CSS Grid 三栏布局 ─────────────────────────────── */
+.shell {
+  display: grid;
+  grid-template-columns: var(--sidebar) minmax(0, 1fr) var(--inspector);
+  min-height: 100vh;
+}
+/* 默认不含 inspector 的页面（如 dashboard, sessions list）使用两栏 */
+.shell.no-inspector {
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+/* ─── Body class 切换规则（统一覆盖块） ───────────────────────
+ * All body-level shell state rules are defined here in one block
+ * to avoid specificity conflicts.
+ * .no-inspector variants use single-column;
+ * others use appropriate column count.
+ */
+/* hide-left: sidebar hidden, main + inspector visible */
+body.hide-left .shell                  {
+  grid-template-columns: minmax(0, 1fr) var(--inspector);
+}
+body.hide-left .shell.no-inspector     {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* hide-right: sidebar + main visible, inspector hidden */
+body.hide-right .shell                 {
+  grid-template-columns: var(--sidebar) minmax(0, 1fr);
+}
+body.hide-right .shell.no-inspector    {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* focus: only main visible */
+body.focus .shell,
+body.focus .shell.no-inspector         {
+  grid-template-columns: minmax(0, 1fr);
+}
+/* Hide sidebar/inspector when their columns are 0 */
+body.hide-left .sidebar,
+body.focus .sidebar                    {
+  display: none;
+}
+body.focus .inspector                  {
+  display: none;
+}
+.shell {
+  min-width: 0;
+}
+.main,
+.content,
+.page-main {
+  min-width: 0;
+  max-width: 100%;
+}
+/* ─── Session detail shell containment (moved from session-detail.css) ── */
+.sd-shell {
+  min-width: 0;
+  max-width: 100%;
+}
+/* ─── Sidebar: sticky 内嵌容器 ─────────────────────────────── */
+.sidebar {
+  position: static;
+  background: rgba(255, 255, 255, 0.88);
+  border-right: 1px solid var(--line);
+  backdrop-filter: saturate(150%) blur(10px);
+  min-width: 0;
+  /* grid 默认 align-self: stretch，让 sidebar 撑满行高，sidebar-inner 才能 sticky */
+}
+.sidebar-inner {
+  width: var(--sidebar);
+  height: 100vh;
+  position: sticky;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* ─── Main: grid 中间栏 ───────────────────────────────────── */
+.main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* ─── Top bar ─────────────────────────────────────────────────── */
+.topbar {
+  height: var(--header-h);
+  background: var(--surface);
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  padding: 0 20px;
+  gap: 12px;
+}
+.topbar-title {
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+}
+.topbar-breadcrumb {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+.topbar-breadcrumb a {
+  color: var(--text-secondary);
+  text-decoration: none;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-breadcrumb a:hover {
+  color: var(--accent);
+}
+.topbar-breadcrumb .sep {
+  color: var(--border);
+}
+.topbar-breadcrumb .current {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.topbar-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+/* ─── Content ─────────────────────────────────────────────────── */
+.content {
+  padding: var(--space-md) 32px;
+  max-width: min(100%, var(--max));
+  width: 100%;
+  margin-left: auto;
+  margin-right: auto;
+}
+/* ─── Topbar actions ──────────────────────────────────────────── */
+.topbar-action {
+  width: var(--topbar-action-size);
+  height: var(--topbar-action-size);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-sm);
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: background 150ms ease, color 150ms ease;
+}
+.topbar-action:hover {
+  background: var(--bg-surface-hover);
+  color: var(--text-primary);
+}
+.topbar-action:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.action-icon {
+  font-size: var(--text-lg);
+  line-height: 1;
+}
+/* Placeholder actions: visible but clearly not wired to real features */
+.topbar-action--placeholder {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+.topbar-action--placeholder:hover {
+  background: transparent;
+  color: var(--text-muted);
+}
+.topbar-action--placeholder:disabled {
+  pointer-events: none;
+}
+/* ─── Top actions container ─── */
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+}
+/* ─ Sessions list: no-inspector main area ── */
+.shell.no-inspector .main {
+  padding: 0;
+  padding-bottom: var(--space-md);
+}
+/* ─── Footer ──────────────────────────────────────────────────── */
+.footer {
+  margin-top: auto;
+  padding: 12px 20px;
+  border-top: 1px solid var(--border);
+  font-size: var(--text-micro);
+  color: var(--text-muted);
+}
+/* ─── Brand card (sidebar header) ─────────────────────────────── */
+.brand-card {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-sm);
+  padding: var(--space-md);
+  margin: var(--space-sm);
+  border-radius: var(--radius-md);
+  background: var(--bg-surface);
+  border: 1px solid var(--border-light);
+  box-shadow: var(--shadow-sm);
+}
+
+.brand-mark {
+  font-size: var(--text-xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.brand-title {
+  font-size: var(--text-sm);
+  font-weight: var(--fw-780);
+  color: var(--text-primary);
+  line-height: var(--lh-tight);
+}
+
+.brand-meta {
+  display: flex;
+  align-items: center;
+  gap: var(--space-xs);
+  margin-top: 2px;
+  font-size: var(--text-xs);
+  color: var(--text-muted);
+}
+
+/* ─── Nav list ────────────────────────────────────────────────── */
+.nav-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-sm);
+}
+
+/* ─── Nav item — button-style layout (canonical contract) ─────── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-height: 38px;
+  padding: 0 12px;
+  border-radius: 12px;
+  font-weight: 750;
+  color: var(--text);
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.nav-item:hover {
+  background: var(--surface-soft);
+}
+.nav-item.is-active {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+.nav-item:focus-visible {
+  outline: 2px solid var(--purple);
+  outline-offset: -1px;
+}
+.nav-item:active {
+  background: var(--brand-bg);
+  color: var(--brand);
+}
+
+
+/* ── Desktop: >=1400px ─────────────────────────────────────────── */
+@media (min-width: 1400px) {
+  .main {
+    padding: var(--space-lg) var(--space-xl);
+  }
+  .hero-main {
+    padding: var(--space-lg) var(--space-xl);
+  }
+}
+
+/* ── Narrow fallback: <1024px ─────────────────────────────────────
+ * Keep the same navigation targets, but stack shell regions so the
+ * main content is not squeezed by fixed sidebar/inspector columns.
+ */
+@media (max-width: 1023px) {
+  .shell,
+  .shell.no-inspector,
+  body.hide-left .shell,
+  body.hide-right .shell,
+  body.hide-left .shell.no-inspector,
+  body.hide-right .shell.no-inspector {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .sidebar {
+    border-right: none;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .brand-card {
+    margin: var(--space-sm) var(--space-sm) 0;
+  }
+
+  .nav-list {
+    flex-direction: row;
+    gap: var(--space-xs);
+    overflow-x: auto;
+    padding-bottom: var(--space-sm);
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+  }
+
+  .round-map {
+    display: none;
+  }
+
+  .topbar {
+    padding-inline: var(--space-md);
+  }
+
+  .content {
+    padding: var(--space-md);
+  }
+
+  .footer {
+    padding-inline: var(--space-md);
+  }
+}
+
+/* ── Global utility: hide element ──────────────────────────────
+ * Used by JS for class-based show/hide instead of inline style.display.
+ * Must stay at end of shell.css to avoid being overridden by page CSS.
+ */
+.is-hidden {
+  display: none;
+}
+
+.clipboard-fallback-textarea {
+  position: absolute;
+  left: -9999px;
+}

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+
+{% block title %}Error - Agent Run Profiler{% endblock %}
+
+{% block content %}
+<section class="page-section">
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x26A0;&#xFE0F;</div>
+        <h2 class="empty-state__title">Error</h2>
+        <p class="empty-state__text">{{ error is defined ? error : 'An unexpected error occurred.' }}</p>
+        <a href="/dashboard" class="btn btn--primary" data-action="go-dashboard">Back to Dashboard</a>
+    </div>
+</section>
+{% endblock %}

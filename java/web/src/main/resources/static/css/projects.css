@@ -1,0 +1,742 @@
+/* ───────────────────────────────────────────────────────────────
+* Projects — Canonical CSS (T098, T103)
+*
+* ITCSS+BEM compliant. All selectors namespaced under .p-projects.
+*
+* Scope:
+*   projects.html only (projects list and project detail views).
+*
+* Do not globally override .card, .btn, .pill, .tabs, or
+* sessions-list styles.
+*
+* T103: Added table toolbar, sortable headers, token bars,
+* agent badges, and merged project/path cell styles.
+*
+* ─────────────────────────────────────────────────────────────── */
+/* ── Page Head (canonical .page-head pattern, T100) ─── */
+/* Base .page-head styles in ui-primitives.css;
+overrides below. */
+.p-projects .page-head-stats {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.p-projects .page-head-stats .ui-stat-pill {
+  font-size: 13px;
+  color: var(--text-subtle);
+  padding: 4px 10px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface);
+}
+.p-projects .ui-stat-pill b {
+  color: var(--text-primary);
+  font-weight: 700;
+}
+/* ── Metric grid spacing below page head ─────── */
+.p-projects .page-head + .metric-grid {
+  margin-top: 12px;
+}
+/* ── Table toolbar (T103: migrated from .card-title.flex) ─── */
+/* NOTE: .table-card overflow, .table-toolbar, .table-title,
+   and .table-note are defined in ui-primitives.css.
+   Do not redefine them here to avoid cascade conflicts. */
+/* ── Sortable th — ensure hover color (T117) ── */
+.p-projects th.sortable:hover {
+  color: var(--purple);
+}
+/* ── Token total above tokenbar (T117) ────────────────────── */
+.p-projects .token-total {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font: 780 12px var(--font-mono);
+  line-height: 1;
+}
+.p-projects .token-total__value {
+  font-weight: 800;
+  color: var(--text);
+}
+/* ── Sortable header buttons — canonical c-data-table__sort override (T103) ── */
+.p-projects .c-data-table__sort {
+  font: 850 11px var(--font-sans);
+}
+.p-projects .c-data-table__sort:hover {
+  color: var(--purple);
+}
+
+.p-projects .table-wrap {
+  overflow-x: auto;
+}
+
+.p-projects #projects-table {
+  min-width: 1160px;
+}
+
+.p-projects #projects-table .col-failed {
+  width: 120px;
+}
+
+.p-projects #projects-table .col-first-seen,
+.p-projects #projects-table .col-last-active {
+  width: 140px;
+}
+
+/* ── Token cell with tokenbar (T103) ─────────────────────── */
+.p-projects .token-cell {
+  min-width: 170px;
+  padding-top: 6px;
+  padding-bottom: 6px;
+}
+/* Tokenbar inside data table — uses .tokenbar-seg with --segment-width */
+.p-projects .token-cell .tokenbar {
+  position: relative;
+  width: 46px;
+  height: 7px;
+  background: var(--surface-soft);
+  border-radius: 999px;
+  display: flex;
+  overflow: visible;
+  cursor: help;
+  border: 1px solid var(--line-soft);
+}
+.p-projects .tokenbar .tokenbar-seg {
+  height: 100%;
+  display: block;
+}
+/* Tooltip inside tokenbar — centered below bar, arrow pointing up */
+.p-projects .token-cell .token-tooltip {
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.14);
+  border-radius: 12px;
+  padding: 12px;
+  width: 260px;
+  z-index: 5;
+  display: none;
+  pointer-events: none;
+}
+.p-projects .token-cell .token-tooltip::before {
+  content: '';
+  position: absolute;
+  top: -8px;
+  left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 14px;
+  height: 14px;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+  border-top: 1px solid var(--line);
+}
+.p-projects .tokenbar:hover .token-tooltip,
+.p-projects .tokenbar:focus-within .token-tooltip {
+  display: block;
+}
+.p-projects .token-tooltip__title {
+  font-weight: 850;
+  margin-bottom: 8px;
+  font-size: 12px;
+}
+.p-projects .token-tooltip__row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  justify-content: space-between;
+  font-size: 12px;
+  margin: 6px 0;
+}
+.p-projects .token-tooltip__label {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 90px;
+  flex-shrink: 0;
+  margin-right: auto;
+  color: var(--text-subtle);
+}
+.p-projects .token-tooltip__label .dot {
+  display: block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  margin: auto 0;
+}
+.p-projects .token-tooltip__type-name {
+  line-height: 1;
+}
+/* Tooltip dot colors now managed by ui-primitives.css (.dot--fresh/.read/.write/.out) */
+.p-projects .token-tooltip__value {
+  font-family: var(--font-mono);
+  font-weight: 750;
+  min-width: 60px;
+  text-align: right;
+}
+.p-projects .token-tooltip__pct {
+  font-family: var(--font-mono);
+  font-weight: 600;
+  min-width: 52px;
+  text-align: right;
+  color: var(--text-subtle);
+}
+.p-projects .token-tooltip__total {
+  font-weight: 850;
+}
+.p-projects .token-tooltip__sep {
+  border-top: 1px solid var(--line-strong);
+  margin: 8px 0;
+}
+/* ── Agent badges (T103: dot + soft badge) ────────────────── */
+/* P-20/T026: .agents-cell must NOT define display:flex.
+   Flex on <td> breaks border-height alignment with adjacent cells.
+   Use .agents-cell__inner wrapper for layout isolation. */
+.p-projects .agents-cell {
+  vertical-align: middle;
+}
+.p-projects .agents-cell__inner {
+  display: flex;
+  gap: 5px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.p-projects .agents-cell .badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.p-projects .dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.p-projects .dot.claude {
+  background: var(--claude);
+}
+.p-projects .dot.codex {
+  background: var(--codex);
+}
+.p-projects .dot.qoder {
+  background: var(--qoder);
+}
+.p-projects .dot.total {
+  background: var(--output);
+}
+/* ── Tools failed badge inline ────────────────────────────── */
+.p-projects .tools-failed {
+  margin-left: 6px;
+  font-size: 10px;
+  height: 20px;
+  padding: 0 6px;
+}
+/* ── Pagination ───────────────────────────────────────────── */
+.p-projects .unified-pagination {
+  height: 58px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 0 14px;
+  border-top: 1px solid var(--line-strong);
+}
+.p-projects .page-input {
+  width: 64px;
+  text-align: center;
+}
+/* ── Empty state ──────────────────────────────────────────── */
+.p-projects #projects-empty.is-hidden {
+  display: none;
+}
+/* T090: Empty state inside .table-wrap must break out of
+   horizontal scroll context and get proper card spacing.
+   Uses .state-strip tokens from ui-primitives.css. */
+.p-projects .table-wrap > #projects-empty {
+  overflow-x: visible;
+  margin: 12px 0 4px;
+}
+/* ── Emoji size classes (T106: icon size contract) ────────── */
+/* These classes document and enforce the icon sizing contract.
+* Actual rendered size may be governed by the parent container
+* (.metric-icon, .state-icon) which sets a larger font-size.
+* ─────────────────────────────────────────────────────────── */
+/* inline action / nav icon: 14–16px */
+.p-projects .emoji {
+  font-size: 16px;
+  line-height: 1;
+  display: inline-block;
+}
+/* metric / state / decorative icon: 20–24px (inherited from container) */
+.p-projects .emoji.lg {
+  font-size: 22px;
+  line-height: 1;
+  display: inline-block;
+}
+/* ── Utility ──────────────────────────────────────────────── */
+.p-projects .text-muted {
+  color: var(--text-subtle);
+}
+.p-projects .text-xs {
+  font-size: 12px;
+}
+.p-projects .normal-case {
+  text-transform: none;
+}
+.p-projects .truncate {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 280px;
+  display: inline-block;
+}
+.p-projects .muted-zero {
+  color: var(--text-subtle);
+  opacity: 0.5;
+}
+/* ── Project detail: page head extras ───────────────────────── */
+/* Back button (HIFI canonical, used alongside .page-header__back) */
+.p-projects .back-btn {
+  width: 42px;
+  height: 42px;
+  border: 1px solid var(--line);
+  border-radius: 11px;
+  background: var(--surface);
+  display: grid;
+  place-items: center;
+  text-decoration: none;
+  color: var(--text);
+  font-weight: 900;
+  cursor: pointer;
+}
+.p-projects .back-btn:hover {
+  background: var(--surface-soft);
+  border-color: var(--line-strong);
+}
+/* Subtitle text below page title */
+.p-projects .subtitle {
+  color: var(--text-subtle);
+  font-size: 14px;
+  margin: 0;
+}
+/* ── Project detail: path row ───────────────────────────────── */
+.p-projects .path-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.p-projects .path-chip {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: var(--surface);
+  display: inline-flex;
+  align-items: center;
+  color: var(--text);
+  font-size: 12px;
+}
+/* ── Project detail: session title cells ────────────────────── */
+.p-projects .title-main {
+  font-weight: 850;
+  line-height: 1.3;
+}
+.p-projects .title-sub {
+  font-size: 11px;
+  color: var(--text-subtle);
+  margin-top: 2px;
+}
+/* ── Project detail: failed row tone ────────────────────────── */
+.p-projects tr.row--failed {
+  background: var(--red-soft);
+}
+.p-projects tr.row--failed:hover {
+  background: var(--red-soft);
+}
+/* ── Project detail: sessions table toolbar ─────────────────── */
+/* T086: Removed .page-section .card-title override that added
+   margin-bottom and disrupted table-card toolbar layout.
+   .card-title sizing is governed by ui-primitives.css. */
+/* ── Project sessions table column widths (T086) ───────────── */
+/* Column min-widths via CSS classes, not inline styles,
+   to satisfy the layout-inline-style quality gate. */
+.p-projects .project-sessions-table col.col-title {
+  min-width: 280px;
+}
+.p-projects .project-sessions-table col.col-agent {
+  min-width: 0;
+}
+.p-projects .project-sessions-table col.col-model {
+  min-width: 0;
+}
+.p-projects .project-sessions-table col.col-tokens {
+  min-width: 170px;
+}
+.p-projects .project-sessions-table col.col-rounds {
+  min-width: 70px;
+}
+.p-projects .project-sessions-table col.col-tools {
+  min-width: 70px;
+}
+.p-projects .project-sessions-table col.col-failed {
+  min-width: 80px;
+}
+.p-projects .project-sessions-table col.col-duration {
+  min-width: 80px;
+}
+.p-projects .project-sessions-table col.col-updated {
+  min-width: 0;
+}
+/* ── Active filters — hide when empty ───────────────────────── */
+.p-projects .filter-footer .active-filters {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.p-projects .filter-footer .active-filters:has(.filter-chip:not(.is-hidden)) {
+  display: inline-flex;
+}
+
+.p-projects .filter-footer .active-filters:has(.filter-chip.is-hidden):only-child,
+.p-projects .filter-footer .active-filters:not(:has(.filter-chip:not(.is-hidden))) {
+  display: none;
+}
+
+/* ── Filter chip styling ────────────────────────────────────── */
+.p-projects .filter-chip.is-hidden {
+  display: none;
+}
+
+/* ── Card-sub inside table-toolbar: compact with breathing room ── */
+.p-projects .table-toolbar .card-sub {
+  margin-bottom: 4px;
+  line-height: 1.3;
+}
+
+/* Allow table-toolbar to grow when subtitle is present */
+.p-projects .table-toolbar:has(.card-sub) {
+  height: auto;
+  min-height: 48px;
+}
+
+/* ── data-tooltip hover tooltip (for badges and inline elements) ── */
+.p-projects [data-tooltip] {
+  position: relative;
+}
+.p-projects [data-tooltip]::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.12);
+  border-radius: 8px;
+  padding: 6px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  z-index: 10;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.p-projects [data-tooltip]::before {
+  content: '';
+  position: absolute;
+  bottom: calc(100% + 2px);
+  left: 50%;
+  transform: translateX(-50%) translateY(4px);
+  width: 8px;
+  height: 8px;
+  background: var(--surface);
+  border-right: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  transform-origin: center;
+  rotate: -45deg;
+  z-index: 9;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.15s ease, transform 0.15s ease;
+}
+.p-projects [data-tooltip]:hover::after,
+.p-projects [data-tooltip]:hover::before {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+/* ── Session copy button: minimal border ────────────────────── */
+.p-projects .session-copy-btn {
+  border: 1px solid var(--line-soft);
+  padding: 0 5px;
+  min-width: 0;
+  border-radius: 6px;
+  background: transparent;
+}
+.p-projects .session-copy-btn:hover {
+  background: var(--surface-soft);
+  border-color: var(--line);
+}
+.p-projects .session-copy-btn .emoji {
+  font-size: 13px;
+}
+
+/* ── Token cell vertical alignment ──────────────────────────── */
+.p-projects .token-cell {
+  vertical-align: middle;
+}
+.p-projects .token-cell .token-total {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+.p-projects .token-cell .tokenbar {
+  flex-shrink: 0;
+  margin-top: 0;
+}
+
+/* ── Agent dot alias for projects.css scope ─────────────────── */
+.p-projects .agent-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+}
+.p-projects .agent-dot.claude {
+  background: var(--claude);
+}
+.p-projects .agent-dot.codex {
+  background: var(--codex);
+}
+.p-projects .agent-dot.qoder {
+  background: var(--qoder);
+}
+
+/* ── All table cells left-aligned (override numeric right-align from _tables.css) ── */
+.p-projects .data-table th,
+.p-projects .data-table td {
+  text-align: left;
+}
+/* Numeric cells: keep tabular-nums but left-align */
+.p-projects .data-table th.numeric,
+.p-projects .data-table td.numeric,
+.p-projects .data-table th.col-num,
+.p-projects .data-table td.col-num {
+  text-align: left;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Project detail: canonical KPI + analysis layout ───────── */
+.p-projects .project-path-summary {
+  margin: -4px 0 14px;
+}
+
+.p-projects .project-detail-kpis {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+
+.p-projects .project-detail-kpis .metric-card {
+  align-items: flex-start;
+  min-height: 146px;
+}
+
+.p-projects .project-analysis-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.p-projects .project-analysis-card {
+  min-width: 0;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  padding: 14px;
+}
+
+.p-projects .project-analysis-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.p-projects .project-analysis-card__header h2 {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 850;
+}
+
+.p-projects .segmented-control {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.p-projects .segmented-control__item {
+  min-height: 30px;
+  padding: 0 10px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--text-subtle);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.p-projects .segmented-control__item.is-active {
+  background: var(--purple);
+  color: #fff;
+}
+
+.p-projects .project-token-area-chart {
+  width: 100%;
+  height: 190px;
+  display: block;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: linear-gradient(to bottom, rgba(246, 248, 252, 0.82), rgba(255, 255, 255, 0.96));
+}
+
+.p-projects .project-area--fresh {
+  fill: rgba(104, 88, 247, 0.52);
+}
+
+.p-projects .project-area--cache_read {
+  fill: rgba(20, 184, 166, 0.48);
+}
+
+.p-projects .project-area--cache_write {
+  fill: rgba(245, 158, 11, 0.46);
+}
+
+.p-projects .project-area--output {
+  fill: rgba(59, 130, 246, 0.46);
+}
+
+.p-projects .project-chart-legend,
+.p-projects .project-trend-points {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 12px;
+  color: var(--text-subtle);
+}
+
+.p-projects .legend-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  display: inline-block;
+  margin-right: 4px;
+}
+
+.p-projects .legend-dot--fresh { background: rgba(104, 88, 247, 0.72); }
+.p-projects .legend-dot--read { background: rgba(20, 184, 166, 0.72); }
+.p-projects .legend-dot--write { background: rgba(245, 158, 11, 0.72); }
+.p-projects .legend-dot--out { background: rgba(59, 130, 246, 0.72); }
+
+.p-projects .project-trend-point {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 3px 8px;
+  background: var(--surface);
+}
+
+.p-projects .agent-mix-bar {
+  display: flex;
+  width: 100%;
+  min-height: 44px;
+  overflow: hidden;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: var(--surface-soft);
+}
+
+.p-projects .agent-mix-bar__segment {
+  width: var(--segment-width);
+  min-width: 34px;
+  display: grid;
+  place-items: center;
+  color: #fff;
+  text-decoration: none;
+  font-size: 11px;
+  font-weight: 850;
+}
+
+.p-projects .agent-mix-bar__segment--claude { background: var(--claude); }
+.p-projects .agent-mix-bar__segment--qoder { background: var(--qoder); }
+.p-projects .agent-mix-bar__segment--codex { background: var(--codex); }
+
+.p-projects .agent-mix-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.p-projects .agent-mix-row {
+  display: grid;
+  grid-template-columns: minmax(120px, 1fr) auto auto auto;
+  gap: 8px;
+  align-items: center;
+  color: var(--text-subtle);
+  text-decoration: none;
+  font-size: 12px;
+}
+
+.p-projects .project-session-filter {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.p-projects .project-session-filter .search {
+  min-width: 240px;
+}
+
+.p-projects #project-sessions-table {
+  min-width: 1760px;
+}
+
+@media (max-width: 1200px) {
+  .p-projects .project-detail-kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .p-projects .project-analysis-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 520px) {
+  .p-projects .project-detail-kpis {
+    grid-template-columns: 1fr;
+  }
+
+  .p-projects .project-analysis-card__header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .p-projects .agent-mix-row {
+    grid-template-columns: 1fr;
+  }
+
+  .p-projects .project-session-filter .search {
+    min-width: 0;
+    width: 100%;
+  }
+}

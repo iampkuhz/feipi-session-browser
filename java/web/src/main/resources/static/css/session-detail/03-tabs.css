@@ -1,0 +1,74 @@
+/* ── Tab navigation ── */
+.sd-tabs {
+  display: flex;
+  gap: 2px;
+  margin-bottom: 10px;
+  min-width: 0;
+  max-width: 100%;
+  border-bottom: 1px solid var(--sd-line);
+  padding-bottom: 0;
+}
+.sd-tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 8px 14px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--sd-muted);
+  text-decoration: none;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  cursor: pointer;
+  transition: color 120ms, border-color 120ms;
+}
+.sd-tab:hover {
+  color: var(--sd-text);
+}
+.sd-tab.is-active {
+  color: var(--sd-brand);
+  border-bottom-color: var(--sd-brand);
+}
+.sd-tab-icon {
+  font-size: 14px;
+  line-height: 1;
+}
+/* ── Tab panel visibility ── */
+[data-tab-panel][hidden] {
+  display: none;
+}
+.sd-trace-panel {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+  overflow-y: visible;
+}
+.sd-empty-state {
+  padding: 20px;
+  text-align: center;
+  color: var(--sd-muted);
+  font-size: 13px;
+}
+/* sd-trace-head mapped to table-toolbar */
+.sd-trace-head {
+  height: 46px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 12px;
+  border-bottom: 1px solid var(--sd-line-soft);
+  background: linear-gradient(180deg, #fff, #fbfcff);
+}
+.sd-trace-sub {
+  color: var(--sd-muted);
+  font-size: 12px;
+}
+.sd-toggle-all-btn {
+  min-width: 120px;
+}
+.sd-trace-actions {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}

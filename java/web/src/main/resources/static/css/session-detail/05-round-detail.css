@@ -1,0 +1,443 @@
+/* ── Consolidation: modal, truncation, tool tone, failed status, payload body ── */
+/* CSS variables are already defined in .sd-shell, .session-detail-page above. */
+/* 1) Round grid: preserve metric columns under narrow widths. */
+.session-detail-page .sd-round-summary,
+.sd-page .sd-round-summary,
+.sd-shell .sd-round-summary {
+  width: 100%;
+  min-width: 0;
+  display: grid;
+  grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
+  column-gap: 12px;
+  padding-inline: 12px;
+  align-items: center;
+}
+.session-detail-page .sd-user-round .sd-round-summary,
+.sd-page .sd-user-round .sd-round-summary,
+.sd-shell .sd-user-round .sd-round-summary {
+  grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
+}
+/* ── User-message round green/teal highlight (collapsed + expanded) ── */
+/* Collapsed user round: subtle green/teal background. */
+.session-detail-page .sd-user-round .sd-round-summary,
+.sd-page .sd-user-round .sd-round-summary,
+.sd-shell .sd-user-round .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .05), #fff);
+}
+/* Expanded user round: stronger teal gradient + left accent border. */
+.session-detail-page .sd-user-round.is-open .sd-round-summary,
+.sd-page .sd-user-round.is-open .sd-round-summary,
+.sd-shell .sd-user-round.is-open .sd-round-summary {
+  background: linear-gradient(90deg, rgba(20, 184, 166, .11), rgba(255, 255, 255, .98));
+  border-left: 4px solid #14b8a6;
+}
+/* Expanded user round row: teal left border on the article itself. */
+.session-detail-page .sd-user-round.is-open,
+.sd-page .sd-user-round.is-open,
+.sd-shell .sd-user-round.is-open {
+  border-left: 4px solid #14b8a6;
+}
+/* Expanded inner User Message card: retain user-input teal tone. */
+.session-detail-page .sd-user-round.is-open .sd-user-card,
+.sd-page .sd-user-round.is-open .sd-user-card,
+.sd-shell .sd-user-round.is-open .sd-user-card {
+  border-color: #99f6e4;
+  background: linear-gradient(180deg, #f0fdfa, #fff);
+}
+.session-detail-page .sd-user-round .sd-round-preview,
+.session-detail-page .sd-round-preview__title,
+.session-detail-page .sd-round-preview__sub,
+.sd-page .sd-round-preview,
+.sd-page .sd-round-preview__title,
+.sd-page .sd-round-preview__sub,
+.sd-shell .sd-round-preview,
+.sd-shell .sd-round-preview__title,
+.sd-shell .sd-round-preview__sub {
+  min-width: 0;
+  max-width: 100%;
+}
+.session-detail-page .sd-round-preview,
+.sd-page .sd-round-preview,
+.sd-shell .sd-round-preview {
+  overflow: hidden;
+}
+.session-detail-page .sd-round-preview__title,
+.session-detail-page .sd-round-preview__sub,
+.sd-page .sd-round-preview__title,
+.sd-page .sd-round-preview__sub,
+.sd-shell .sd-round-preview__title,
+.sd-shell .sd-round-preview__sub {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-round-metric,
+.session-detail-page .sd-round-mix,
+.sd-page .sd-round-metric,
+.sd-page .sd-round-mix,
+.sd-shell .sd-round-metric,
+.sd-shell .sd-round-mix {
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  text-align: right;
+}
+/* 2) Failed status: visible error tone. */
+.session-detail-page .sd-round-status--failed,
+.session-detail-page .sd-round-status--fail,
+.session-detail-page .sd-round-status[data-status="failed"],
+.session-detail-page .sd-round-status[data-status="fail"],
+.sd-page .sd-round-status--failed,
+.sd-page .sd-round-status--fail,
+.sd-page .sd-round-status[data-status="failed"],
+.sd-page .sd-round-status[data-status="fail"],
+.sd-shell .sd-round-status--failed,
+.sd-shell .sd-round-status--fail,
+.sd-shell .sd-round-status[data-status="failed"],
+.sd-shell .sd-round-status[data-status="fail"] {
+  color: var(--sd-err);
+  background: var(--sd-err-bg);
+  border-color: var(--sd-err-line);
+}
+/* 3) Tool result tone: neutral by default;
+red only on failed rows. */
+.session-detail-page .sd-tool-result,
+.sd-page .sd-tool-result,
+.sd-shell .sd-tool-result {
+  color: var(--sd-muted);
+}
+.session-detail-page .sd-tool-row--failed,
+.session-detail-page .sd-tool-row--fail,
+.session-detail-page .sd-tool-row[data-status="failed"],
+.session-detail-page .sd-tool-row[data-status="fail"],
+.sd-page .sd-tool-row--failed,
+.sd-page .sd-tool-row--fail,
+.sd-page .sd-tool-row[data-status="failed"],
+.sd-page .sd-tool-row[data-status="fail"],
+.sd-shell .sd-tool-row--failed,
+.sd-shell .sd-tool-row--fail,
+.sd-shell .sd-tool-row[data-status="failed"],
+.sd-shell .sd-tool-row[data-status="fail"] {
+  background: #fff7f7;
+  border-color: var(--sd-err-line);
+}
+.session-detail-page .sd-tool-row--failed .sd-tool-result,
+.session-detail-page .sd-tool-row--fail .sd-tool-result,
+.session-detail-page .sd-tool-result--failed,
+.session-detail-page .sd-tool-result--fail,
+.session-detail-page .sd-tool-row[data-status="failed"] .sd-tool-result,
+.session-detail-page .sd-tool-row[data-status="fail"] .sd-tool-result,
+.sd-page .sd-tool-row--failed .sd-tool-result,
+.sd-page .sd-tool-row--fail .sd-tool-result,
+.sd-page .sd-tool-result--failed,
+.sd-page .sd-tool-result--fail,
+.sd-page .sd-tool-row[data-status="failed"] .sd-tool-result,
+.sd-page .sd-tool-row[data-status="fail"] .sd-tool-result,
+.sd-shell .sd-tool-row--failed .sd-tool-result,
+.sd-shell .sd-tool-row--fail .sd-tool-result,
+.sd-shell .sd-tool-result--failed,
+.sd-shell .sd-tool-result--fail,
+.sd-shell .sd-tool-row[data-status="failed"] .sd-tool-result,
+.sd-shell .sd-tool-row[data-status="fail"] .sd-tool-result {
+  color: var(--sd-err);
+}
+/* 5) Payload body layout. */
+.session-detail-page .sd-payload-shell,
+.session-detail-page .payload-shell,
+.sd-page .sd-payload-shell,
+.sd-page .payload-shell,
+.sd-shell .sd-payload-shell,
+.sd-shell .payload-shell {
+  display: grid;
+  grid-template-columns: 180px minmax(0, 1fr);
+  gap: 14px;
+  align-items: start;
+}
+.session-detail-page .sd-payload-meta,
+.session-detail-page .payload-meta,
+.session-detail-page .sd-payload-section,
+.session-detail-page .payload-section,
+.session-detail-page .sd-result-output,
+.session-detail-page .result-output,
+.sd-page .sd-payload-meta,
+.sd-page .payload-meta,
+.sd-page .sd-payload-section,
+.sd-page .payload-section,
+.sd-page .sd-result-output,
+.sd-page .result-output,
+.sd-shell .sd-payload-meta,
+.sd-shell .payload-meta,
+.sd-shell .sd-payload-section,
+.sd-shell .payload-section,
+.sd-shell .sd-result-output,
+.sd-shell .result-output {
+  border: 1px solid var(--sd-line);
+  border-radius: 13px;
+  background: #fff;
+  overflow: hidden;
+}
+.session-detail-page .sd-payload-meta h3,
+.session-detail-page .payload-meta h3,
+.session-detail-page .sd-payload-section h3,
+.session-detail-page .payload-section h3,
+.session-detail-page .sd-result-output h3,
+.session-detail-page .result-output h3,
+.sd-page .sd-payload-meta h3,
+.sd-page .payload-meta h3,
+.sd-page .sd-payload-section h3,
+.sd-page .payload-section h3,
+.sd-page .sd-result-output h3,
+.sd-page .result-output h3,
+.sd-shell .sd-payload-meta h3,
+.sd-shell .payload-meta h3,
+.sd-shell .sd-payload-section h3,
+.sd-shell .payload-section h3,
+.sd-shell .sd-result-output h3,
+.sd-shell .result-output h3 {
+  height: 34px;
+  margin: 0;
+  padding: 0 10px;
+  display: flex;
+  align-items: center;
+  border-bottom: 1px solid var(--sd-line-soft);
+  background: #fbfcff;
+  font-size: 12px;
+}
+/* 5b) Payload metadata key/value grid rail. */
+.session-detail-page .sd-kv,
+.session-detail-page .payload-kv,
+.session-detail-page .sd-payload-meta__row,
+.session-detail-page .payload-meta__row,
+.sd-page .sd-kv,
+.sd-page .payload-kv,
+.sd-page .sd-payload-meta__row,
+.sd-page .payload-meta__row,
+.sd-shell .sd-kv,
+.sd-shell .payload-kv,
+.sd-shell .sd-payload-meta__row,
+.sd-shell .payload-meta__row {
+  display: grid;
+  grid-template-columns: 72px minmax(0, 1fr);
+  margin: 0;
+}
+.session-detail-page .sd-kv > span,
+.session-detail-page .payload-kv > span,
+.session-detail-page .sd-payload-meta__row > span,
+.session-detail-page .payload-meta__row > span,
+.sd-page .sd-kv > span,
+.sd-page .payload-kv > span,
+.sd-page .sd-payload-meta__row > span,
+.sd-page .payload-meta__row > span,
+.sd-shell .sd-kv > span,
+.sd-shell .payload-kv > span,
+.sd-shell .sd-payload-meta__row > span,
+.sd-shell .payload-meta__row > span {
+  min-width: 0;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--sd-line-soft);
+  font-size: 12px;
+  line-height: 1.35;
+}
+.session-detail-page .sd-kv > span:first-child,
+.session-detail-page .payload-kv > span:first-child,
+.session-detail-page .sd-payload-meta__row > span:first-child,
+.session-detail-page .payload-meta__row > span:first-child,
+.sd-page .sd-kv > span:first-child,
+.sd-page .payload-kv > span:first-child,
+.sd-page .sd-payload-meta__row > span:first-child,
+.sd-page .payload-meta__row > span:first-child,
+.sd-shell .sd-kv > span:first-child,
+.sd-shell .payload-kv > span:first-child,
+.sd-shell .sd-payload-meta__row > span:first-child,
+.sd-shell .payload-meta__row > span:first-child {
+  color: var(--sd-muted);
+  background: #fbfcff;
+  font-family: var(--sd-mono);
+  font-weight: 700;
+}
+.session-detail-page .sd-kv > span:last-child,
+.session-detail-page .payload-kv > span:last-child,
+.session-detail-page .sd-payload-meta__row > span:last-child,
+.session-detail-page .payload-meta__row > span:last-child,
+.sd-page .sd-kv > span:last-child,
+.sd-page .payload-kv > span:last-child,
+.sd-page .sd-payload-meta__row > span:last-child,
+.sd-page .payload-meta__row > span:last-child,
+.sd-shell .sd-kv > span:last-child,
+.sd-shell .payload-kv > span:last-child,
+.sd-shell .sd-payload-meta__row > span:last-child,
+.sd-shell .payload-meta__row > span:last-child {
+  color: var(--sd-text-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-payload-main,
+.session-detail-page .payload-main,
+.sd-page .sd-payload-main,
+.sd-page .payload-main,
+.sd-shell .sd-payload-main,
+.sd-shell .payload-main {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.session-detail-page .sd-payload-warning,
+.session-detail-page .payload-warning,
+.sd-page .sd-payload-warning,
+.sd-page .payload-warning,
+.sd-shell .sd-payload-warning,
+.sd-shell .payload-warning {
+  border: 1px solid var(--sd-warn-line);
+  background: var(--sd-warn-bg);
+  color: #92400e;
+  border-radius: 12px;
+  padding: 10px;
+  font-size: 13px;
+}
+.session-detail-page .sd-context-tool-list,
+.session-detail-page .context-tool-list,
+.sd-page .sd-context-tool-list,
+.sd-page .context-tool-list,
+.sd-shell .sd-context-tool-list,
+.sd-shell .context-tool-list {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 10px;
+}
+.session-detail-page .sd-context-tool-row,
+.session-detail-page .context-tool-row,
+.sd-page .sd-context-tool-row,
+.sd-page .context-tool-row,
+.sd-shell .sd-context-tool-row,
+.sd-shell .context-tool-row {
+  display: grid;
+  grid-template-columns: 68px minmax(0, 1fr) 90px;
+  gap: 8px;
+  align-items: start;
+  padding: 8px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 10px;
+  background: #fff;
+}
+.session-detail-page .sd-context-tool-row--failed,
+.session-detail-page .context-tool-row.failed,
+.sd-page .sd-context-tool-row--failed,
+.sd-page .context-tool-row.failed,
+.sd-shell .sd-context-tool-row--failed,
+.sd-shell .context-tool-row.failed {
+  border-color: var(--sd-err-line);
+  background: #fff7f7;
+}
+.session-detail-page .sd-context-tool-summary,
+.session-detail-page .sd-context-tool-excerpt,
+.sd-page .sd-context-tool-summary,
+.sd-page .sd-context-tool-excerpt,
+.sd-shell .sd-context-tool-summary,
+.sd-shell .sd-context-tool-excerpt {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-context-tool-summary,
+.sd-page .sd-context-tool-summary,
+.sd-shell .sd-context-tool-summary {
+  color: var(--sd-text-2);
+  font-size: 12px;
+}
+.session-detail-page .sd-context-tool-excerpt,
+.sd-page .sd-context-tool-excerpt,
+.sd-shell .sd-context-tool-excerpt {
+  margin-top: 4px;
+  color: var(--sd-muted);
+  font: 11.5px/1.45 var(--sd-mono);
+}
+/* Response blocks. */
+.session-detail-page .sd-response-block-list,
+.session-detail-page .block-list,
+.sd-page .sd-response-block-list,
+.sd-page .block-list,
+.sd-shell .sd-response-block-list,
+.sd-shell .block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.session-detail-page .sd-response-block,
+.session-detail-page .content-block,
+.sd-page .sd-response-block,
+.sd-page .content-block,
+.sd-shell .sd-response-block,
+.sd-shell .content-block {
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 12px;
+  overflow: hidden;
+  background: #fff;
+}
+.session-detail-page .sd-response-block--text,
+.session-detail-page .content-block.text,
+.sd-page .sd-response-block--text,
+.sd-page .content-block.text,
+.sd-shell .sd-response-block--text,
+.sd-shell .content-block.text {
+  border-color: #e9d5ff;
+  background: #fdfaff;
+}
+.session-detail-page .sd-response-block--tool,
+.session-detail-page .content-block.tool,
+.sd-page .sd-response-block--tool,
+.sd-page .content-block.tool,
+.sd-shell .sd-response-block--tool,
+.sd-shell .content-block.tool {
+  border-color: var(--sd-blue-line);
+  background: #f8fbff;
+}
+.session-detail-page .sd-response-block-head,
+.session-detail-page .block-head,
+.sd-page .sd-response-block-head,
+.sd-page .block-head,
+.sd-shell .sd-response-block-head,
+.sd-shell .block-head {
+  height: 32px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 0 10px;
+  border-bottom: 1px solid var(--sd-line-soft);
+}
+.session-detail-page .sd-response-block-body,
+.session-detail-page .block-body,
+.sd-page .sd-response-block-body,
+.sd-page .block-body,
+.sd-shell .sd-response-block-body,
+.sd-shell .block-body {
+  padding: 9px 10px;
+}
+/* Result payload. */
+.session-detail-page .sd-result-status,
+.session-detail-page .result-status,
+.sd-page .sd-result-status,
+.sd-page .result-status,
+.sd-shell .sd-result-status,
+.sd-shell .result-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--sd-line);
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 10px;
+}
+.session-detail-page .sd-result-status--failed,
+.session-detail-page .result-status.failed,
+.sd-page .sd-result-status--failed,
+.sd-page .result-status.failed,
+.sd-shell .sd-result-status--failed,
+.sd-shell .result-status.failed {
+  border-color: var(--sd-err-line);
+  background: var(--sd-err-bg);
+}

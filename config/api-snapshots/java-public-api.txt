@@ -612,6 +612,9 @@ constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositi
 constructor com.feipi.session.browser.web.WebConfig public WebConfig()
 constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
 constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
+constructor com.feipi.session.browser.web.page.DashboardPage public DashboardPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
+constructor com.feipi.session.browser.web.page.ProjectsPage public ProjectsPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
+constructor com.feipi.session.browser.web.page.SessionsPage public SessionsPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment()
 constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment(String templateDirectory)
 constructor com.feipi.session.browser.web.template.TemplateRenderException public TemplateRenderException(String message, Throwable cause)
@@ -1254,6 +1257,7 @@ method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public stat
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void closeQuietly(Connection conn)
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void configureConnection(Connection conn) throws SQLException
 method com.feipi.session.browser.web.WebCompositionRoot public Javalin app()
+method com.feipi.session.browser.web.WebCompositionRoot public PebbleEnvironment templates()
 method com.feipi.session.browser.web.WebCompositionRoot public QueryCompositionRoot queryRoot()
 method com.feipi.session.browser.web.WebCompositionRoot public WebServer createServer()
 method com.feipi.session.browser.web.WebConfig public static WebConfig defaults()
@@ -1271,6 +1275,15 @@ method com.feipi.session.browser.web.model.SafeHtml public default SafeHtml wrap
 method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml escaped(String raw)
 method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml trusted(String html)
 method com.feipi.session.browser.web.model.SafeHtml public static String escapeAttribute(String raw)
+method com.feipi.session.browser.web.page.DashboardPage public void handle(Context ctx)
+method com.feipi.session.browser.web.page.ProjectsPage public void handleDetail(Context ctx, String projectKey)
+method com.feipi.session.browser.web.page.ProjectsPage public void handleList(Context ctx)
+method com.feipi.session.browser.web.page.QueryParams public static ProjectListFilter parseProjectListFilter(Map<String, String> params)
+method com.feipi.session.browser.web.page.QueryParams public static SessionListFilter parseSessionListFilter(Map<String, String> params)
+method com.feipi.session.browser.web.page.QueryParams public static String uiSortKey(Map<String, String> params)
+method com.feipi.session.browser.web.page.QueryParams public static int parsePage(Map<String, String> params)
+method com.feipi.session.browser.web.page.QueryParams public static int parsePageSize(Map<String, String> params)
+method com.feipi.session.browser.web.page.SessionsPage public void handle(Context ctx)
 method com.feipi.session.browser.web.template.DisplayFormatters public static String dbAgentToScope(String dbAgent)
 method com.feipi.session.browser.web.template.DisplayFormatters public static String displayPath(String path)
 method com.feipi.session.browser.web.template.DisplayFormatters public static String format1d(Number number)
@@ -1534,6 +1547,10 @@ type com.feipi.session.browser.web.WebServer public class [web] final class WebS
 type com.feipi.session.browser.web.WebServer.HealthResponse public record [web] record HealthResponse(String status)
 type com.feipi.session.browser.web.model.PaginationModel public record [web] record PaginationModel( int page, int pageSize, int totalItems, int totalPages, int pageStart, int pageEnd, boolean hasPrev, boolean hasNext)
 type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
+type com.feipi.session.browser.web.page.DashboardPage public class [web] final class DashboardPage
+type com.feipi.session.browser.web.page.ProjectsPage public class [web] final class ProjectsPage
+type com.feipi.session.browser.web.page.QueryParams public class [web] final class QueryParams
+type com.feipi.session.browser.web.page.SessionsPage public class [web] final class SessionsPage
 type com.feipi.session.browser.web.template.DisplayFormatters public class [web] final class DisplayFormatters
 type com.feipi.session.browser.web.template.DisplayFormatters.SimpleJson public class [web] static final class SimpleJson
 type com.feipi.session.browser.web.template.PebbleEnvironment public class [web] final class PebbleEnvironment

@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+
+{% block title %}Sessions - Agent Run Profiler{% endblock %}
+{% block shell_class %} no-inspector{% endblock %}
+{% block main_attrs %} style="--max: 1880px"{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Sessions</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/sessions-list.css">
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/sessions-list.js"></script>
+{% endblock %}
+
+{% block content %}
+<div class="sessions-page">
+
+{# -- 页面标题 -- #}
+<div class="page-head">
+    <div class="page-head__title-area">
+        <h1 class="page-title">Sessions</h1>
+        <p class="page-subtitle">Browse indexed local agent runs</p>
+    </div>
+    <div class="page-head__stats">
+        <span class="ui-stat-pill" role="status"><b>{{ total_count }}</b> sessions</span>
+        {% if sessions_aggregate is defined %}
+        <span class="ui-stat-pill" role="status"><b>{{ sessions_aggregate.projectCount }}</b> projects</span>
+        <span class="ui-stat-pill" role="status"><b>{{ sessions_aggregate.totalTokens | format_compact_token }}</b> total tokens</span>
+        {% endif %}
+    </div>
+</div>
+
+{# -- 过滤卡片 -- #}
+<div class="filter-card" id="session-filter-form">
+    <form method="get" action="/sessions">
+        <div class="filter-row">
+            <input type="hidden" name="sort" value="{{ sort_by }}"/>
+            <input type="hidden" name="dir" value="{{ sort_dir }}"/>
+            <input type="hidden" name="page_size" value="{{ page_size }}"/>
+            <input type="search" name="q" placeholder="Search title, project, agent, model, session id"
+                   value="{{ filter_q }}" class="filter-search js-search"
+                   id="session-search" aria-label="Search sessions"/>
+
+            <label class="filter-select-label">
+                <span>Agent</span>
+                <select name="agent" class="sessions-filter-select sessions-filter-select--agent" id="filter-agent">
+                    <option value="">All Agents</option>
+                    <option value="claude_code"{{ filter_agent == 'claude_code' ? ' selected' : '' }}>Claude Code</option>
+                    <option value="qoder"{{ filter_agent == 'qoder' ? ' selected' : '' }}>Qoder</option>
+                    <option value="codex"{{ filter_agent == 'codex' ? ' selected' : '' }}>Codex</option>
+                </select>
+            </label>
+
+            <label class="filter-select-label">
+                <span>Status</span>
+                <select name="status" class="sessions-filter-select sessions-filter-select--status" id="filter-status">
+                    <option value="">All</option>
+                    <option value="failed"{{ filter_status == 'failed' ? ' selected' : '' }}>Failed</option>
+                    <option value="no-failures"{{ filter_status == 'no-failures' ? ' selected' : '' }}>No failures</option>
+                </select>
+            </label>
+
+            <span class="filter-row__push"></span>
+            <a href="/sessions" class="btn btn--secondary btn--sm js-clear-all" data-action="clear">Reset</a>
+        </div>
+        <div class="filter-footer">
+            <span class="filter-footer__label">
+                {% if total_count > 0 %}{{ total_count }} matching sessions{% else %}No matching sessions{% endif %}
+            </span>
+        </div>
+    </form>
+</div>
+
+{# -- 会话表格 -- #}
+<div class="table-card">
+    <div class="table-card__header">
+        <h2>All Sessions</h2>
+        {# -- 分页控件 -- #}
+        {% if total_count > 0 %}
+        <div id="ajax-pagination">
+            <nav class="pagination" aria-label="Sessions pagination" data-pagination>
+                {% if has_prev %}
+                <a href="/sessions?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}"
+                   class="pagination__btn" data-action="prev-page">Previous</a>
+                {% endif %}
+                <span class="pagination__info">
+                    {{ page_start }}-{{ page_end }} of {{ total_count }}
+                </span>
+                {% if has_next %}
+                <a href="/sessions?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}"
+                   class="pagination__btn" data-action="next-page">Next</a>
+                {% endif %}
+            </nav>
+        </div>
+        {% endif %}
+    </div>
+
+    {% if sessions is defined and sessions | length > 0 %}
+    <table class="data-table" role="table" aria-label="Sessions table">
+        <thead>
+            <tr>
+                <th>Title</th>
+                <th>Agent</th>
+                <th>Project</th>
+                <th>Model</th>
+                <th>Tokens</th>
+                <th>Rounds</th>
+                <th>Tools</th>
+                <th>Failed</th>
+                <th>Duration</th>
+                <th>Updated</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for s in sessions %}
+            <tr data-session-key="{{ s.sessionKey }}">
+                <td>
+                    <a href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}"
+                       class="session-link" data-action="open-session">
+                        {{ s.title is not empty ? s.title : s.sessionId }}
+                    </a>
+                </td>
+                <td><span class="agent-badge agent-{{ s.agent }}">{{ s.agent }}</span></td>
+                <td>
+                    <a href="/projects/{{ s.projectKey | urlencode }}" class="project-link"
+                       data-action="open-project">{{ s.projectName is not empty ? s.projectName : s.projectKey | truncate_path }}</a>
+                </td>
+                <td class="mono">{{ s.model }}</td>
+                <td class="mono">{{ s.totalTokens | format_compact_token }}</td>
+                <td class="mono">{{ s.assistantMessageCount }}</td>
+                <td class="mono">{{ s.toolCallCount }}</td>
+                <td class="mono">{{ s.failedToolCount }}</td>
+                <td class="mono">{{ s.durationSeconds | format_duration }}</td>
+                <td>{{ s.endedAt | relative_time }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x1F5C2;&#xFE0F;</div>
+        <h2 class="empty-state__title">No sessions found</h2>
+        <p class="empty-state__text">No sessions match your current filters.</p>
+        <a href="/sessions" class="btn btn--primary" data-action="clear-filter">Clear Filters</a>
+    </div>
+    {% endif %}
+</div>
+
+</div>
+{% endblock %}

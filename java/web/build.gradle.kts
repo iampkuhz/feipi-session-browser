@@ -6,6 +6,7 @@ dependencies {
     implementation(project(":java:application"))
     implementation(project(":java:query-api"))
     implementation(project(":java:core-domain"))
+    implementation(project(":java:index-sqlite"))
     implementation(libs.slf4j.api)
     implementation(libs.bundles.web)
 
