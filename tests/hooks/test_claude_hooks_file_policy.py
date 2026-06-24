@@ -4,7 +4,7 @@ from scripts.claude_hooks.policy.file_policy import evaluate_write_path
 
 @pytest.mark.contract_case('HOOK-HARNESS-004')
 def test_repo_write_allowed(tmp_path):
-    d = evaluate_write_path('src/session_browser/a.py', tmp_path)
+    d = evaluate_write_path('java/core/src/main/java/Foo.java', tmp_path)
     assert d.allowed
     assert d.requires_quality_gate
 

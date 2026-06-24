@@ -27,4 +27,4 @@
 | HOOK-HARNESS-012 | P0 | data | 必需质量门禁运行 | 测试必需门禁运行逻辑 | 标记为必需的门禁必须通过才能继续 | pytest | — | `tests/quality/test_run_required_quality_gates.py` |
 | HOOK-HARNESS-013 | P1 | data | 静态契约检查 | 测试静态契约验证 | 模板/CSS/JS 文件结构符合契约规则 | pytest | — | `tests/quality/test_static_contract.py` |
 | HOOK-HARNESS-014 | P1 | data | Harness 结构验证 | 测试 harness 目录结构 | harness/manifest.yaml、workflow/、quality/ 目录存在且结构正确 | pytest | — | `scripts/harness/validate_harness_structure.py` |
-| HOOK-HARNESS-015 | P1 | data | OpenSpec 布局验证 | 测试 OpenSpec 目录布局 | openspec/ 下 specs/changes/ 目录结构正确 | pytest | — | `scripts/harness/validate_openspec_layout.py` |
+| HOOK-HARNESS-015 | P1 | data | OpenSpec 布局验证 | 测试 OpenSpec 目录布局 | openspec/ 下 specs/changes/ 目录结构正确 | manual | — | `scripts/harness/validate_openspec_layout.py` |

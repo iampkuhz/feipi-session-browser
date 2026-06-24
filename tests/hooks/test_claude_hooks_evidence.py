@@ -7,14 +7,14 @@ from scripts.claude_hooks.paths import RepoPaths
 @pytest.mark.contract_case('HOOK-HARNESS-003')
 def test_record_changed_file(tmp_path):
     repo = tmp_path
-    target = repo / 'src/session_browser/a.py'
+    target = repo / 'java/core/src/main/java/Foo.java'
     target.parent.mkdir(parents=True)
-    target.write_text('print(1)\n')
+    target.write_text('class Foo {}\n')
     paths = RepoPaths(repo_root=repo, agent_log_dir=repo / 'tmp/agent_logs/session1')
     ctx = read_stdin_json(
-        'post-write', '{"tool_name":"Edit","tool_input":{"file_path":"src/session_browser/a.py"}}'
+        'post-write', '{"tool_name":"Edit","tool_input":{"file_path":"java/core/src/main/java/Foo.java"}}'
     )
-    record = record_changed_file(paths, ctx, 'src/session_browser/a.py')
-    assert record['category'] == 'python-src'
+    record = record_changed_file(paths, ctx, 'java/core/src/main/java/Foo.java')
+    assert record['category'] == 'java-src'
     rows = read_changed_files(paths)
     assert len(rows) == 1
