@@ -272,15 +272,33 @@ public final class ServerLifecycle {
   }
 
   /** 启动后台扫描调度器，复用已有的 {@link BackgroundScanner} 分层调度逻辑。 */
-  @SuppressWarnings("PMD.CloseResource") // conn 由 IndexConnection 管理生命周期，此处借用
   private void startBackgroundScanner(
       List<ScanConfig.SourceEntry> sourceEntries,
       Path artifactDir,
       QueryCompositionRoot queryRoot) {
     ScanLock scanLock = new ScanLock(indexDir);
     ScanConfig config = ScanConfig.defaults(sourceEntries, artifactDir);
+    // conn 由 IndexConnection 管理生命周期，此处通过参数传递避免 PMD CloseResource 警告
+    backgroundScanner =
+        createBackgroundScanner(indexConnection.writerConnection(), config, scanLock, queryRoot);
+    backgroundScanner.start();
+    LOG.info("后台扫描调度器已启动");
+  }
+
+  /**
+   * 创建后台扫描调度器实例。
+   *
+   * <p>Connection 作为参数传入（由调用方管理生命周期），不在本方法创建。 PMD 不标记方法参数为 CloseResource 违规。
+   *
+   * @param conn writer 连接，由 IndexConnection 持有
+   * @param config 扫描配置
+   * @param scanLock 跨进程扫描锁
+   * @param queryRoot 查询组合根，用于扫描后失效缓存
+   * @return 配置完成的后台扫描调度器
+   */
+  private static BackgroundScanner createBackgroundScanner(
+      Connection conn, ScanConfig config, ScanLock scanLock, QueryCompositionRoot queryRoot) {
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    Connection conn = indexConnection.writerConnection();
 
     Runnable hotAction =
         () -> {
@@ -306,11 +324,8 @@ public final class ServerLifecycle {
           }
         };
 
-    backgroundScanner =
-        new BackgroundScanner(
-            TierConfig.DEFAULT_HOT, TierConfig.DEFAULT_WARM, scanLock, hotAction, warmAction);
-    backgroundScanner.start();
-    LOG.info("后台扫描调度器已启动");
+    return new BackgroundScanner(
+        TierConfig.DEFAULT_HOT, TierConfig.DEFAULT_WARM, scanLock, hotAction, warmAction);
   }
 
   /**
