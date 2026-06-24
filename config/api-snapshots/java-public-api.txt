@@ -457,8 +457,6 @@ component com.feipi.session.browser.testsupport.cli.CliResult stdout: String
 component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult exitCode: int
 component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult stderr: String
 component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult stdout: String
-component com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse error: String
-component com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse message: String
 component com.feipi.session.browser.web.WebConfig host: String
 component com.feipi.session.browser.web.WebConfig port: int
 component com.feipi.session.browser.web.WebConfig staticPath: String
@@ -1441,6 +1439,7 @@ method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext pub
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> findCall(String callId)
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public SessionRow sessionRow()
 method com.feipi.session.browser.web.export.ExportHandler public void handleExport(Context ctx)
+method com.feipi.session.browser.web.model.PaginationModel public Map<String, Object> toTemplateContext()
 method com.feipi.session.browser.web.model.PaginationModel public static PaginationModel of(int page, int pageSize, int totalItems)
 method com.feipi.session.browser.web.model.SafeHtml public SafeHtml EMPTY = new SafeHtmlImpl("")
 method com.feipi.session.browser.web.model.SafeHtml public String value()
@@ -1456,6 +1455,7 @@ method com.feipi.session.browser.web.page.ProjectsPage public void handleDetail(
 method com.feipi.session.browser.web.page.ProjectsPage public void handleList(Context ctx)
 method com.feipi.session.browser.web.page.QueryParams public static ProjectListFilter parseProjectListFilter(Map<String, String> params)
 method com.feipi.session.browser.web.page.QueryParams public static SessionListFilter parseSessionListFilter(Map<String, String> params)
+method com.feipi.session.browser.web.page.QueryParams public static String resolveSessionSortField(String uiSortKey, String defaultDbField)
 method com.feipi.session.browser.web.page.QueryParams public static String uiSortKey(Map<String, String> params)
 method com.feipi.session.browser.web.page.QueryParams public static int parsePage(Map<String, String> params)
 method com.feipi.session.browser.web.page.QueryParams public static int parsePageSize(Map<String, String> params)
@@ -1727,7 +1727,6 @@ type com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public class 
 type com.feipi.session.browser.web.SecurityHeaders public class [web] final class SecurityHeaders
 type com.feipi.session.browser.web.StaticPathResolver public class [web] final class StaticPathResolver
 type com.feipi.session.browser.web.WebCompositionRoot public class [web] final class WebCompositionRoot
-type com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse public record [web] record ErrorResponse(String error, String message)
 type com.feipi.session.browser.web.WebConfig public record [web] record WebConfig(String host, int port, String staticPath)
 type com.feipi.session.browser.web.WebServer public class [web] final class WebServer
 type com.feipi.session.browser.web.WebServer.HealthResponse public record [web] record HealthResponse(String status)

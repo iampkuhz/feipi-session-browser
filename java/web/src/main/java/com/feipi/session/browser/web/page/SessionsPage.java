@@ -79,14 +79,7 @@ public final class SessionsPage {
       context.put("anomalies", anomalies);
       context.put("total_count", totalCount);
       context.put("sessions_aggregate", aggregate);
-      context.put("page", pagination.page());
-      context.put("current_page", pagination.page());
-      context.put("page_size", pageSize);
-      context.put("total_pages", pagination.totalPages());
-      context.put("page_start", pagination.pageStart());
-      context.put("page_end", pagination.pageEnd());
-      context.put("has_prev", pagination.hasPrev());
-      context.put("has_next", pagination.hasNext());
+      context.putAll(pagination.toTemplateContext());
 
       // 过滤器回显值
       context.put("filter_agent", params.getOrDefault("agent", ""));

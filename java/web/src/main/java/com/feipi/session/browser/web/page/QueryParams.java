@@ -168,6 +168,19 @@ public final class QueryParams {
   }
 
   /**
+   * 将 UI sort key 解析为会话列表的数据库排序字段。
+   *
+   * <p>未知 key 回退到指定默认排序字段。
+   *
+   * @param uiSortKey UI 排序键
+   * @param defaultDbField 默认排序字段
+   * @return 数据库排序字段
+   */
+  public static String resolveSessionSortField(String uiSortKey, String defaultDbField) {
+    return SESSION_SORT_MAP.getOrDefault(uiSortKey, defaultDbField);
+  }
+
+  /**
    * 返回 UI 使用的 sort key echo（模板需要回显当前排序字段）。
    *
    * <p>Python 中 template 使用 'updated' 代替 'ended-at'，此处做等价映射。

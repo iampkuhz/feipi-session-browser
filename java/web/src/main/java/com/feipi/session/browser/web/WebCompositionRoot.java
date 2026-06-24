@@ -1,6 +1,7 @@
 package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
 import com.feipi.session.browser.web.api.SessionApiHandler;
 import com.feipi.session.browser.web.api.SessionApiRouter;
 import com.feipi.session.browser.web.api.SessionApiService;
@@ -163,7 +164,7 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.debug("请求参数错误: {}", e.getMessage());
           ctx.status(HttpStatus.BAD_REQUEST);
-          ctx.json(new ErrorResponse("bad_request", e.getMessage()));
+          ctx.json(new ApiErrorResponse("bad_request", e.getMessage()));
         });
 
     javalinConfig.routes.exception(
@@ -171,7 +172,7 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.error("制品数据加载失败", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-          ctx.json(new ErrorResponse("artifact_error", "归一化制品加载失败"));
+          ctx.json(new ApiErrorResponse("artifact_error", "归一化制品加载失败"));
         });
 
     javalinConfig.routes.exception(
@@ -179,7 +180,7 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.error("数据库查询失败", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-          ctx.json(new ErrorResponse("internal_error", "查询失败"));
+          ctx.json(new ApiErrorResponse("internal_error", "查询失败"));
         });
 
     javalinConfig.routes.exception(
@@ -187,7 +188,7 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.error("未处理异常", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-          ctx.json(new ErrorResponse("internal_error", "服务器内部错误"));
+          ctx.json(new ApiErrorResponse("internal_error", "服务器内部错误"));
         });
 
     javalinConfig.routes.error(
@@ -199,10 +200,10 @@ public final class WebCompositionRoot {
           } else if (ctx.path().startsWith("/api/")) {
             // JSON API 路由的 404 已由 handler 写入，不覆盖
             if (ctx.resultInputStream() == null) {
-              ctx.json(new ErrorResponse("not_found", "资源不存在"));
+              ctx.json(new ApiErrorResponse("not_found", "资源不存在"));
             }
           } else {
-            ctx.json(new ErrorResponse("not_found", "资源不存在"));
+            ctx.json(new ApiErrorResponse("not_found", "资源不存在"));
           }
         });
   }
@@ -244,7 +245,4 @@ public final class WebCompositionRoot {
   public PebbleEnvironment templates() {
     return templates;
   }
-
-  /** 错误响应 JSON 载体。 */
-  record ErrorResponse(String error, String message) {}
 }

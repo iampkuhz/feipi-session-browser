@@ -75,14 +75,7 @@ public final class ProjectsPage {
       Map<String, Object> context = new HashMap<>();
       context.put("projects", pageResult.items());
       context.put("total_count", totalCount);
-      context.put("page", pagination.page());
-      context.put("current_page", pagination.page());
-      context.put("page_size", pageSize);
-      context.put("total_pages", pagination.totalPages());
-      context.put("page_start", pagination.pageStart());
-      context.put("page_end", pagination.pageEnd());
-      context.put("has_prev", pagination.hasPrev());
-      context.put("has_next", pagination.hasNext());
+      context.putAll(pagination.toTemplateContext());
       context.put("filter_q", params.getOrDefault("q", ""));
       context.put("sort_by", params.getOrDefault("sort", "last_active"));
       context.put("sort_dir", params.getOrDefault("dir", "desc"));
@@ -141,14 +134,7 @@ public final class ProjectsPage {
       context.put("sessions_aggregate", aggregate);
       context.put("project_key", decodedKey);
       context.put("total_count", totalCount);
-      context.put("page", pagination.page());
-      context.put("current_page", pagination.page());
-      context.put("page_size", pageSize);
-      context.put("total_pages", pagination.totalPages());
-      context.put("page_start", pagination.pageStart());
-      context.put("page_end", pagination.pageEnd());
-      context.put("has_prev", pagination.hasPrev());
-      context.put("has_next", pagination.hasNext());
+      context.putAll(pagination.toTemplateContext());
       context.put("filter_q", params.getOrDefault("q", ""));
       context.put("sort_by", QueryParams.uiSortKey(params));
       context.put("sort_dir", params.getOrDefault("dir", "desc"));
@@ -187,19 +173,7 @@ public final class ProjectsPage {
     String rawDir = params.getOrDefault("dir", "desc").trim().toLowerCase();
     String dir = ("asc".equals(rawDir)) ? "asc" : "desc";
     if (!rawSort.isEmpty()) {
-      // 使用 sessions 排序字段映射
-      Map<String, String> sortMap =
-          Map.ofEntries(
-              Map.entry("tokens", "total_tokens"),
-              Map.entry("rounds", "assistant_message_count"),
-              Map.entry("tools", "tool_call_count"),
-              Map.entry("subagents", "subagent_instance_count"),
-              Map.entry("duration", "duration_seconds"),
-              Map.entry("process-time", "model_execution_seconds"),
-              Map.entry("failure", "failed_tool_count"),
-              Map.entry("created", "started_at"),
-              Map.entry("updated", "ended_at"));
-      String dbField = sortMap.getOrDefault(rawSort, "ended_at");
+      String dbField = QueryParams.resolveSessionSortField(rawSort, "ended_at");
       filter = filter.withSort(Sort.ofSession(dbField, dir));
     }
 

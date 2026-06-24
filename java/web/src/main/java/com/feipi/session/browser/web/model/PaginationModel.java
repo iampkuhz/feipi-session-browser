@@ -1,5 +1,8 @@
 package com.feipi.session.browser.web.model;
 
+import java.util.LinkedHashMap;
+import java.util.Map;
+
 /**
  * 分页状态不可变模型。
  *
@@ -71,5 +74,26 @@ public record PaginationModel(
         end,
         clampedPage > 1,
         clampedPage < totalPages);
+  }
+
+  /**
+   * 将分页模型转换为模板上下文 map。
+   *
+   * <p>包含模板渲染分页控件所需的全部字段：page、current_page、page_size、total_pages、
+   * page_start、page_end、has_prev、has_next。
+   *
+   * @return 模板上下文 map
+   */
+  public Map<String, Object> toTemplateContext() {
+    Map<String, Object> ctx = new LinkedHashMap<>();
+    ctx.put("page", page);
+    ctx.put("current_page", page);
+    ctx.put("page_size", pageSize);
+    ctx.put("total_pages", totalPages);
+    ctx.put("page_start", pageStart);
+    ctx.put("page_end", pageEnd);
+    ctx.put("has_prev", hasPrev);
+    ctx.put("has_next", hasNext);
+    return ctx;
   }
 }
