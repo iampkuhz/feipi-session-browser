@@ -13,6 +13,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Pebble 模板引擎配置与过滤器注册。
@@ -22,6 +24,14 @@ import java.util.Objects;
  * <p>过滤器只做显示格式化、URL 编码和转义，不访问数据库或业务逻辑。 全部过滤器与 Python template_env.py 中注册的 Jinja2 filter 一一对应。
  */
 public final class PebbleEnvironment {
+
+  private static final Logger LOG = LoggerFactory.getLogger(PebbleEnvironment.class);
+
+  /** 渲染失败时的通用错误消息，不泄漏模板名或异常详情。 */
+  private static final String GENERIC_RENDER_ERROR = "模板渲染失败";
+
+  /** 过滤器用 Markdown 渲染器，线程安全，全局共享。 */
+  private static final SafeMarkdownRenderer MARKDOWN_RENDERER = new SafeMarkdownRenderer();
 
   private final PebbleEngine engine;
 
@@ -63,10 +73,12 @@ public final class PebbleEnvironment {
   /**
    * 渲染指定模板并返回结果字符串。
    *
+   * <p>渲染失败时记录详细日志但只向上抛出通用错误消息，防止泄漏模板路径或内部异常详情到 HTTP 响应。
+   *
    * @param templateName 模板名称（相对于模板目录）
    * @param context 模板变量映射
    * @return 渲染后的 HTML 字符串
-   * @throws TemplateRenderException 模板加载或渲染失败时抛出
+   * @throws TemplateRenderException 模板加载或渲染失败时抛出，消息不包含内部细节
    */
   public String render(String templateName, Map<String, Object> context) {
     try {
@@ -77,7 +89,9 @@ public final class PebbleEnvironment {
     } catch (TemplateRenderException e) {
       throw e;
     } catch (Exception e) {
-      throw new TemplateRenderException("模板渲染失败: " + templateName, e);
+      // 记录详细异常到日志，但对外只暴露通用消息，防止泄漏模板路径或 payload
+      LOG.error("模板渲染异常: {}", templateName, e);
+      throw new TemplateRenderException(GENERIC_RENDER_ERROR, e);
     }
   }
 
@@ -196,6 +210,11 @@ public final class PebbleEnvironment {
                 }
                 return SafeHtml.escaped(asString(input)).value();
               }));
+
+      // ─── Markdown 安全渲染 ───
+      // 将 Markdown 文本渲染为安全 HTML，禁用原始 HTML 标签
+      filters.put(
+          "markdown", new NoArgFilter(input -> MARKDOWN_RENDERER.render(asString(input)).value()));
 
       return Collections.unmodifiableMap(filters);
     }

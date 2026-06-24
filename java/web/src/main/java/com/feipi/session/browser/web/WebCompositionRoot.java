@@ -5,6 +5,7 @@ import com.feipi.session.browser.web.api.SessionApiHandler;
 import com.feipi.session.browser.web.api.SessionApiRouter;
 import com.feipi.session.browser.web.api.SessionApiService;
 import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
+import com.feipi.session.browser.web.export.ExportHandler;
 import com.feipi.session.browser.web.page.DashboardPage;
 import com.feipi.session.browser.web.page.ProjectsPage;
 import com.feipi.session.browser.web.page.SessionDetailPage;
@@ -102,6 +103,9 @@ public final class WebCompositionRoot {
       QueryCompositionRoot queryRoot,
       PebbleEnvironment templates) {
 
+    // 全局安全头（CSP、X-Frame-Options 等），在所有路由前注入
+    javalinConfig.routes.before(SecurityHeaders::apply);
+
     // 健康检查
     javalinConfig.routes.get("/healthz", WebServer::healthHandler);
 
@@ -131,6 +135,10 @@ public final class WebCompositionRoot {
 
     // JSON API 路由
     registerApiRoutes(javalinConfig, queryRoot);
+
+    // 导出路由
+    ExportHandler exportHandler = new ExportHandler(templates);
+    javalinConfig.routes.get("/export/{format}", exportHandler::handleExport);
   }
 
   /** 注册 JSON API 路由。 */

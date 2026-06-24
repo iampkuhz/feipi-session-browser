@@ -718,6 +718,7 @@ constructor com.feipi.session.browser.testsupport.cli.CliRunner public CliRunner
 constructor com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public CliResult()
 constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter public FakeSourceAdapter( SourceId sourceId, List<Candidate> candidates, SourceOutcome parseOutcome)
 constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter public FakeSourceAdapter(SourceId sourceId, List<Candidate> candidates)
+constructor com.feipi.session.browser.web.StaticPathResolver public StaticPathResolver(Path rootDir)
 constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config)
 constructor com.feipi.session.browser.web.WebConfig public WebConfig()
 constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
@@ -746,6 +747,7 @@ constructor com.feipi.session.browser.web.api.SessionApiService public SessionAp
 constructor com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public SessionApiContext()
 constructor com.feipi.session.browser.web.api.SessionApiService.SessionDataException public SessionDataException(String message, Throwable cause)
 constructor com.feipi.session.browser.web.api.SessionDataException public SessionDataException(String message, Throwable cause)
+constructor com.feipi.session.browser.web.export.ExportHandler public ExportHandler(PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
 constructor com.feipi.session.browser.web.page.CorruptArtifactException public CorruptArtifactException(String agent, String sessionId, Throwable cause)
 constructor com.feipi.session.browser.web.page.DashboardPage public DashboardPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
@@ -757,6 +759,7 @@ constructor com.feipi.session.browser.web.page.SessionNotFoundException public S
 constructor com.feipi.session.browser.web.page.SessionsPage public SessionsPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment()
 constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment(String templateDirectory)
+constructor com.feipi.session.browser.web.template.SafeMarkdownRenderer public SafeMarkdownRenderer()
 constructor com.feipi.session.browser.web.template.TemplateRenderException public TemplateRenderException(String message, Throwable cause)
 enum-constant com.feipi.session.browser.domain.enums.CallScope MAIN
 enum-constant com.feipi.session.browser.domain.enums.CallScope SUBAGENT
@@ -1398,6 +1401,9 @@ method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public stat
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static Connection createTempFileConnection() throws SQLException, java.io.IOException
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void closeQuietly(Connection conn)
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void configureConnection(Connection conn) throws SQLException
+method com.feipi.session.browser.web.SecurityHeaders public static void apply(Context ctx)
+method com.feipi.session.browser.web.StaticPathResolver public Path resolve(String requestPath)
+method com.feipi.session.browser.web.StaticPathResolver public Path rootDir()
 method com.feipi.session.browser.web.WebCompositionRoot public Javalin app()
 method com.feipi.session.browser.web.WebCompositionRoot public PebbleEnvironment templates()
 method com.feipi.session.browser.web.WebCompositionRoot public QueryCompositionRoot queryRoot()
@@ -1434,6 +1440,7 @@ method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext pub
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> callAtRound(CallRound round, int callIndexInRound)
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> findCall(String callId)
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public SessionRow sessionRow()
+method com.feipi.session.browser.web.export.ExportHandler public void handleExport(Context ctx)
 method com.feipi.session.browser.web.model.PaginationModel public static PaginationModel of(int page, int pageSize, int totalItems)
 method com.feipi.session.browser.web.model.SafeHtml public SafeHtml EMPTY = new SafeHtmlImpl("")
 method com.feipi.session.browser.web.model.SafeHtml public String value()
@@ -1488,6 +1495,7 @@ method com.feipi.session.browser.web.template.DisplayFormatters.SimpleJson publi
 method com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEngine engine()
 method com.feipi.session.browser.web.template.PebbleEnvironment public String render(String templateName, Map<String, Object> context)
 method com.feipi.session.browser.web.template.PebbleEnvironment.PresentationFilterExtension public Map<String, Filter> getFilters()
+method com.feipi.session.browser.web.template.SafeMarkdownRenderer public SafeHtml render(String markdown)
 method com.feipi.session.browser.web.template.SimpleJson public static String toJson(Object value)
 type com.feipi.session.browser.application.AnnotatedDetail public record [application] record AnnotatedDetail(SessionDetail detail, SessionAnomalySummary anomalies)
 type com.feipi.session.browser.application.AnnotatedPageResult public record [application] record AnnotatedPageResult( PageResult<SessionRow> page, List<SessionAnomalySummary> anomalies)
@@ -1716,6 +1724,8 @@ type com.feipi.session.browser.testsupport.cli.CliRunner public class [test-supp
 type com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public record [test-support] record CliResult(String stdout, String stderr, int exitCode)
 type com.feipi.session.browser.testsupport.source.FakeSourceAdapter public class [test-support] final class FakeSourceAdapter implements SourceAdapter
 type com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public class [test-support] final class SqliteTestHelper
+type com.feipi.session.browser.web.SecurityHeaders public class [web] final class SecurityHeaders
+type com.feipi.session.browser.web.StaticPathResolver public class [web] final class StaticPathResolver
 type com.feipi.session.browser.web.WebCompositionRoot public class [web] final class WebCompositionRoot
 type com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse public record [web] record ErrorResponse(String error, String message)
 type com.feipi.session.browser.web.WebConfig public record [web] record WebConfig(String host, int port, String staticPath)
@@ -1749,6 +1759,8 @@ type com.feipi.session.browser.web.api.SessionApiService public class [web] fina
 type com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public record [web] record SessionApiContext( SessionDetail detail, NormalizedSessionArtifact artifact, PayloadLookup payloadLookup)
 type com.feipi.session.browser.web.api.SessionApiService.SessionDataException public class [web] static final class SessionDataException extends RuntimeException
 type com.feipi.session.browser.web.api.SessionDataException public class [web] static final class SessionDataException extends RuntimeException
+type com.feipi.session.browser.web.export.ExportHandler public class [web] final class ExportHandler
+type com.feipi.session.browser.web.export.ExportHandler.ExportSizeExceededException public class [web] static final class ExportSizeExceededException extends RuntimeException
 type com.feipi.session.browser.web.model.PaginationModel public record [web] record PaginationModel( int page, int pageSize, int totalItems, int totalPages, int pageStart, int pageEnd, boolean hasPrev, boolean hasNext)
 type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
 type com.feipi.session.browser.web.page.CorruptArtifactException public class [web] static final class CorruptArtifactException extends RuntimeException
@@ -1764,5 +1776,6 @@ type com.feipi.session.browser.web.template.DisplayFormatters public class [web]
 type com.feipi.session.browser.web.template.DisplayFormatters.SimpleJson public class [web] static final class SimpleJson
 type com.feipi.session.browser.web.template.PebbleEnvironment public class [web] final class PebbleEnvironment
 type com.feipi.session.browser.web.template.PebbleEnvironment.PresentationFilterExtension public class [web] static final class PresentationFilterExtension extends AbstractExtension
+type com.feipi.session.browser.web.template.SafeMarkdownRenderer public class [web] final class SafeMarkdownRenderer
 type com.feipi.session.browser.web.template.SimpleJson public class [web] static final class SimpleJson
 type com.feipi.session.browser.web.template.TemplateRenderException public class [web] class TemplateRenderException extends RuntimeException

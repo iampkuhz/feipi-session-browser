@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>会话导出 - {{ session_id }}</title>
+    <style>
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 2rem; line-height: 1.6; color: #1a1a2e; background: #fff; }
+        .export-header { border-bottom: 2px solid #e2e8f0; padding-bottom: 1rem; margin-bottom: 2rem; }
+        .export-header h1 { margin: 0 0 0.5rem; font-size: 1.5rem; }
+        .export-meta { color: #64748b; font-size: 0.875rem; }
+        .export-content { max-width: 48rem; }
+        .export-note { background: #f1f5f9; border-left: 4px solid #3b82f6; padding: 1rem; margin: 1rem 0; border-radius: 0 0.25rem 0.25rem 0; }
+    </style>
+</head>
+<body>
+    <div class="export-header">
+        <h1>会话导出</h1>
+        <div class="export-meta">
+            <span>Agent: {{ agent }}</span> &middot;
+            <span>Session: {{ session_id }}</span> &middot;
+            <span>导出时间: {{ export_timestamp }}</span>
+        </div>
+    </div>
+    <div class="export-content">
+        <div class="export-note">
+            <p>此为会话导出文件。完整数据（timeline、rounds、payload）请通过 Web 界面查看。</p>
+        </div>
+        <h2>会话摘要</h2>
+        <p>Agent: <strong>{{ agent }}</strong></p>
+        <p>Session ID: <code>{{ session_id }}</code></p>
+    </div>
+</body>
+</html>
