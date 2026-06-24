@@ -14,11 +14,13 @@ dependencies {
     testImplementation(project(":java:query-api"))
     testImplementation(project(":java:application"))
     testImplementation(project(":java:scan-engine"))
+    testImplementation(project(":java:web"))
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testImplementation(libs.jackson.databind)
     testImplementation(libs.sqlite.jdbc)
+    testImplementation(libs.javalin.testtools)
 }
 
 // PMD 7.9.0 StackOverflow 在分析 Jackson 类型时触发，contract-tests 为纯测试模块，
