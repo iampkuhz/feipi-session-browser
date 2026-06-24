@@ -463,6 +463,14 @@ component com.feipi.session.browser.web.WebConfig host: String
 component com.feipi.session.browser.web.WebConfig port: int
 component com.feipi.session.browser.web.WebConfig staticPath: String
 component com.feipi.session.browser.web.WebServer.HealthResponse status: String
+component com.feipi.session.browser.web.model.PaginationModel hasNext: boolean
+component com.feipi.session.browser.web.model.PaginationModel hasPrev: boolean
+component com.feipi.session.browser.web.model.PaginationModel page: int
+component com.feipi.session.browser.web.model.PaginationModel pageEnd: int
+component com.feipi.session.browser.web.model.PaginationModel pageSize: int
+component com.feipi.session.browser.web.model.PaginationModel pageStart: int
+component com.feipi.session.browser.web.model.PaginationModel totalItems: int
+component com.feipi.session.browser.web.model.PaginationModel totalPages: int
 constructor com.feipi.session.browser.application.AnnotatedDetail public AnnotatedDetail()
 constructor com.feipi.session.browser.application.AnnotatedPageResult public AnnotatedPageResult()
 constructor com.feipi.session.browser.application.DashboardUseCase public DashboardUseCase( AggregateQueryRepository repository, QueryCache cache, int schemaVersion)
@@ -603,6 +611,10 @@ constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter publi
 constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config)
 constructor com.feipi.session.browser.web.WebConfig public WebConfig()
 constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
+constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
+constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment()
+constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment(String templateDirectory)
+constructor com.feipi.session.browser.web.template.TemplateRenderException public TemplateRenderException(String message, Throwable cause)
 enum-constant com.feipi.session.browser.domain.enums.CallScope MAIN
 enum-constant com.feipi.session.browser.domain.enums.CallScope SUBAGENT
 enum-constant com.feipi.session.browser.domain.enums.CallStatus ERROR
@@ -1251,6 +1263,43 @@ method com.feipi.session.browser.web.WebServer public WebServer start()
 method com.feipi.session.browser.web.WebServer public boolean isRunning()
 method com.feipi.session.browser.web.WebServer public int actualPort()
 method com.feipi.session.browser.web.WebServer public void stop()
+method com.feipi.session.browser.web.model.PaginationModel public static PaginationModel of(int page, int pageSize, int totalItems)
+method com.feipi.session.browser.web.model.SafeHtml public SafeHtml EMPTY = new SafeHtmlImpl("")
+method com.feipi.session.browser.web.model.SafeHtml public String value()
+method com.feipi.session.browser.web.model.SafeHtml public default SafeHtml append(SafeHtml other)
+method com.feipi.session.browser.web.model.SafeHtml public default SafeHtml wrapInDiv(String className)
+method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml escaped(String raw)
+method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml trusted(String html)
+method com.feipi.session.browser.web.model.SafeHtml public static String escapeAttribute(String raw)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String dbAgentToScope(String dbAgent)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String displayPath(String path)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String format1d(Number number)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String formatBytes(Number bytes)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String formatCompactNum(Number number)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String formatCompactToken(Number count)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String formatCoverage(Number value)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String formatDuration(Number seconds)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String kpiIconColor(int index)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String precisionLabel(String precision)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String relativeTime(String isoStr)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String relativeToRepo(String path, String repoRoot)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String renumberLines(String text)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String safeJsonDisplay(Object value)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String scopeToAgentUrl(String scope)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String severityVariant(String severity)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String shortenPath(String path, String repoRoot)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String toLocalTime(String isoStr)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String tojsonRepo(Object value, String repoRoot)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String tojsonSafeHtml(Object value)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String truncatePath(String path)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String urlDecode(String value)
+method com.feipi.session.browser.web.template.DisplayFormatters public static String urlEncode(String value)
+method com.feipi.session.browser.web.template.DisplayFormatters public static long sumAttribute(List<?> items, String attr)
+method com.feipi.session.browser.web.template.DisplayFormatters.SimpleJson public static String toJson(Object value)
+method com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEngine engine()
+method com.feipi.session.browser.web.template.PebbleEnvironment public String render(String templateName, Map<String, Object> context)
+method com.feipi.session.browser.web.template.PebbleEnvironment.PresentationFilterExtension public Map<String, Filter> getFilters()
+method com.feipi.session.browser.web.template.SimpleJson public static String toJson(Object value)
 type com.feipi.session.browser.application.AnnotatedDetail public record [application] record AnnotatedDetail(SessionDetail detail, SessionAnomalySummary anomalies)
 type com.feipi.session.browser.application.AnnotatedPageResult public record [application] record AnnotatedPageResult( PageResult<SessionRow> page, List<SessionAnomalySummary> anomalies)
 type com.feipi.session.browser.application.DashboardUseCase public class [application] final class DashboardUseCase
@@ -1483,3 +1532,11 @@ type com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse public recor
 type com.feipi.session.browser.web.WebConfig public record [web] record WebConfig(String host, int port, String staticPath)
 type com.feipi.session.browser.web.WebServer public class [web] final class WebServer
 type com.feipi.session.browser.web.WebServer.HealthResponse public record [web] record HealthResponse(String status)
+type com.feipi.session.browser.web.model.PaginationModel public record [web] record PaginationModel( int page, int pageSize, int totalItems, int totalPages, int pageStart, int pageEnd, boolean hasPrev, boolean hasNext)
+type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
+type com.feipi.session.browser.web.template.DisplayFormatters public class [web] final class DisplayFormatters
+type com.feipi.session.browser.web.template.DisplayFormatters.SimpleJson public class [web] static final class SimpleJson
+type com.feipi.session.browser.web.template.PebbleEnvironment public class [web] final class PebbleEnvironment
+type com.feipi.session.browser.web.template.PebbleEnvironment.PresentationFilterExtension public class [web] static final class PresentationFilterExtension extends AbstractExtension
+type com.feipi.session.browser.web.template.SimpleJson public class [web] static final class SimpleJson
+type com.feipi.session.browser.web.template.TemplateRenderException public class [web] class TemplateRenderException extends RuntimeException
