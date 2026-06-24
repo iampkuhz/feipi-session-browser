@@ -109,6 +109,20 @@ public final class PebbleEnvironment {
           "format_coverage",
           new NoArgFilter(input -> DisplayFormatters.formatCoverage(toNumber(input))));
 
+      // ─── 数值精度 ───
+      filters.put(
+          "round",
+          new OneArgFilter(
+              (input, precision) -> {
+                Number num = toNumber(input);
+                if (num == null) {
+                  return 0;
+                }
+                int places = precision != null ? toInt(precision) : 0;
+                double factor = Math.pow(10, places);
+                return Math.round(num.doubleValue() * factor) / factor;
+              }));
+
       // ─── 时间格式化 ───
       filters.put(
           "relative_time",

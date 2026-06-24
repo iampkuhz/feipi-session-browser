@@ -1,0 +1,20 @@
+{% extends "base.html" %}
+
+{% block title %}Not Found - Agent Run Profiler{% endblock %}
+
+{% block content %}
+<section class="page-section">
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x1F50D;</div>
+        <h2 class="empty-state__title">Not Found</h2>
+        <p class="empty-state__text">{{ error is defined ? error : 'The requested resource was not found.' }}</p>
+        {% if detail is defined and detail is not empty %}
+        <p class="empty-state__detail">{{ detail }}</p>
+        {% endif %}
+        <a href="{{ back_url is defined ? back_url : '/sessions' }}" class="btn btn--primary"
+           data-action="go-back">
+            {{ back_label is defined ? back_label : 'Back to Sessions' }}
+        </a>
+    </div>
+</section>
+{% endblock %}

@@ -1,0 +1,257 @@
+{% extends "base.html" %}
+
+{% block title %}{{ session.title is not empty ? session.title : 'Untitled' }} - Agent Run Profiler{% endblock %}
+{% block shell_class %}no-inspector session-detail-page sd-shell{% endblock %}
+
+{% block main_attrs %}data-trace-page{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<a href="/sessions">Sessions</a>
+<span class="sep">/</span>
+<span>{{ current_agent }}</span>
+<span class="sep">/</span>
+<b>{{ session_id | truncate_path }}</b>
+{% endblock %}
+
+{% block head_extra %}
+<meta name="payload-api-base" content="{{ api_base }}">
+<meta name="session-id" content="{{ session_id }}">
+<meta name="session-source" content="{{ current_agent }}">
+<meta name="slim-mode" content="true">
+<link rel="stylesheet" href="/static/css/session-detail.css">
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/session-detail/namespace.js"></script>
+<script src="/static/js/session-detail/dom.js"></script>
+<script src="/static/js/session-detail/tabs.js"></script>
+<script src="/static/js/session-detail/filters.js"></script>
+<script src="/static/js/session-detail/payload.js"></script>
+<script src="/static/js/session-detail/lazy_rounds.js"></script>
+<script src="/static/js/session-detail/attribution.js"></script>
+<script src="/static/js/session-detail/events.js"></script>
+<script src="/static/js/session-detail/init.js"></script>
+{% endblock %}
+
+{% block content %}
+
+{# ── Session header / hero ── #}
+<section class="sd-hero" data-session-hero>
+    <div class="sd-hero__main">
+        <h1 class="sd-hero__title">{{ session.title is not empty ? session.title : 'Untitled session' }}</h1>
+        <div class="sd-hero__meta">
+            <span class="agent-badge agent-{{ session.agent }}">{{ session.agent }}</span>
+            <span class="sd-hero__model mono">{{ session.model }}</span>
+            <span class="sd-hero__project">
+                <a href="/projects/{{ session.projectKey | urlencode }}">{{ session.projectName is not empty ? session.projectName : session.projectKey | truncate_path }}</a>
+            </span>
+            {% if session.gitBranch is not empty %}
+            <span class="sd-hero__branch mono">{{ session.gitBranch }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="sd-hero__metrics" aria-label="Session metrics">
+        <div class="sd-metric" title="Total tokens">
+            <span class="sd-metric__value">{{ session_metrics.total_tokens | format_compact_token }}</span>
+            <span class="sd-metric__label">Tokens</span>
+        </div>
+        <div class="sd-metric" title="Duration">
+            <span class="sd-metric__value">{{ session_metrics.duration_seconds | format_duration }}</span>
+            <span class="sd-metric__label">Duration</span>
+        </div>
+        <div class="sd-metric" title="Rounds">
+            <span class="sd-metric__value">{{ round_count }}</span>
+            <span class="sd-metric__label">Rounds</span>
+        </div>
+        <div class="sd-metric" title="Tool calls">
+            <span class="sd-metric__value">{{ session_metrics.tool_call_count }}</span>
+            <span class="sd-metric__label">Tools</span>
+        </div>
+        <div class="sd-metric" title="Failed tools">
+            <span class="sd-metric__value">{{ session_metrics.failed_tool_count }}</span>
+            <span class="sd-metric__label">Failed</span>
+        </div>
+        <div class="sd-metric" title="Subagents">
+            <span class="sd-metric__value">{{ session_metrics.subagent_instance_count }}</span>
+            <span class="sd-metric__label">Subagents</span>
+        </div>
+    </div>
+
+    <div class="sd-hero__tokenbar" title="Token composition">
+        <div class="tokenbar-wrap">
+            {% set total = session_metrics.fresh_input_tokens + session_metrics.cache_read_tokens + session_metrics.cache_write_tokens + session_metrics.output_tokens %}
+            {% if total > 0 %}
+            <span class="tokenbar__seg tokenbar__seg--fresh" style="--seg-pct: {{ (session_metrics.fresh_input_tokens / total * 100) | round(1) }}%" title="Fresh input: {{ session_metrics.fresh_input_tokens | format_compact_token }}"></span>
+            <span class="tokenbar__seg tokenbar__seg--read" style="--seg-pct: {{ (session_metrics.cache_read_tokens / total * 100) | round(1) }}%" title="Cache read: {{ session_metrics.cache_read_tokens | format_compact_token }}"></span>
+            <span class="tokenbar__seg tokenbar__seg--write" style="--seg-pct: {{ (session_metrics.cache_write_tokens / total * 100) | round(1) }}%" title="Cache write: {{ session_metrics.cache_write_tokens | format_compact_token }}"></span>
+            <span class="tokenbar__seg tokenbar__seg--out" style="--seg-pct: {{ (session_metrics.output_tokens / total * 100) | round(1) }}%" title="Output: {{ session_metrics.output_tokens | format_compact_token }}"></span>
+            {% endif %}
+            <div class="token-tooltip" role="tooltip">
+                <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ session_metrics.fresh_input_tokens | format_compact_token }}</em></span>
+                <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ session_metrics.cache_read_tokens | format_compact_token }}</em></span>
+                <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ session_metrics.cache_write_tokens | format_compact_token }}</em></span>
+                <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ session_metrics.output_tokens | format_compact_token }}</em></span>
+            </div>
+        </div>
+    </div>
+
+    {# ── Payload visibility status ── #}
+    <div class="sd-hero__visibility" data-payload-visibility>
+        {% if payload_hidden %}
+        <span class="sd-visibility-badge sd-visibility-badge--hidden" title="Payload 内容默认隐藏，点击可展开">
+            <span class="sd-visibility-badge__icon">&#x1F512;</span>
+            Payload hidden (standard visibility)
+        </span>
+        {% else %}
+        <span class="sd-visibility-badge sd-visibility-badge--visible">
+            <span class="sd-visibility-badge__icon">&#x1F513;</span>
+            Payload visible (full visibility)
+        </span>
+        {% endif %}
+        {% if has_artifact %}
+        <span class="sd-artifact-badge" title="Artifact: {{ artifact_path }}">
+            Schema {{ artifact_schema_version }}
+        </span>
+        {% else %}
+        <span class="sd-artifact-badge sd-artifact-badge--none" title="无归一化制品">
+            No artifact
+        </span>
+        {% endif %}
+    </div>
+</section>
+
+{# ── Anomaly / diagnostics section ── #}
+{% if has_anomalies %}
+<section class="sd-anomalies" data-session-anomalies aria-label="Session anomalies">
+    <div class="sd-anomalies__head">
+        <h2>Anomalies</h2>
+        <span class="sd-anomalies__count">{{ anomaly_count }} detected</span>
+    </div>
+    <div class="sd-anomalies__list">
+        {% for anomaly in anomaly_list %}
+        <div class="sd-anomaly sd-anomaly--{{ anomaly.tone }}">
+            <span class="sd-anomaly__type">{{ anomaly.type }}</span>
+            <span class="sd-anomaly__severity sd-badge sd-badge--{{ anomaly.tone }}">{{ anomaly.severity }}</span>
+            <span class="sd-anomaly__reason">{{ anomaly.reason }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{# ── Tabs ── #}
+<nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">
+    <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
+        <span class="sd-tab-icon" aria-hidden="true">&#x1F9ED;</span>Trace
+    </a>
+</nav>
+
+{# ── Trace panel ── #}
+<section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
+
+    {# -- Trace header with controls -- #}
+    <div class="sd-trace-header">
+        <div class="sd-trace-header__left">
+            <span class="sd-trace-count">{{ round_count }} rounds</span>
+            {% if exceeds_initial_limit %}
+            <span class="sd-trace-note">Showing first {{ initial_round_limit }} rounds. Remaining rounds load on demand.</span>
+            {% endif %}
+        </div>
+        <div class="sd-trace-header__right">
+            <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="toggle-all">
+                Expand all
+            </button>
+        </div>
+    </div>
+
+    {# -- Empty trace state -- #}
+    {% if not has_rounds %}
+    <div data-trace-list>
+        <div class="empty-state">
+            <div class="empty-state__icon">&#x1F4ED;</div>
+            <h2 class="empty-state__title">No rounds indexed</h2>
+            <p class="empty-state__text">This session has no conversation rounds to display.</p>
+            <a href="/" class="btn btn--primary" data-action="run-scan">Run Scan</a>
+        </div>
+    </div>
+    {% else %}
+
+    {# -- Trace table -- #}
+    <table class="trace-table" data-trace-list>
+        <colgroup>
+            <col class="colround"/>
+            <col class="col-summary"/>
+            <col class="col-metrics"/>
+            <col class="col-attribution"/>
+            <col class="col-status"/>
+            <col class="col-time"/>
+        </colgroup>
+        <thead>
+            <tr>
+                <th class="round-col">Round</th>
+                <th>Summary</th>
+                <th class="metrics-col">Metrics</th>
+                <th class="attribution-col">Attribution</th>
+                <th class="status-col">Signals</th>
+                <th class="time-col">Time</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for round in rounds %}
+            <tr class="sd-trace-round-row{% if round.is_subagent %} sd-trace-round-row--subagent{% endif %}"
+                data-trace-round-row
+                data-round="{{ round.round_index }}"
+                id="round-{{ round.round_index }}">
+                <td class="round-col">
+                    <button type="button"
+                            class="sd-round-toggle"
+                            data-action="toggle-round"
+                            aria-expanded="false"
+                            aria-label="Toggle round {{ round.round_index }}">
+                        <span class="sd-round-toggle__icon" aria-hidden="true">&#x25B6;</span>
+                        <span class="sd-round-id">R{{ round.round_index }}</span>
+                    </button>
+                    {% if round.is_subagent %}
+                    <span class="sd-subagent-badge" title="Subagent call (parent: {{ round.parent_call_id }})">SA</span>
+                    {% endif %}
+                </td>
+                <td>
+                    <span class="sd-round-summary">
+                        {{ round.call_count }} calls, {{ round.tool_call_count }} tools
+                    </span>
+                </td>
+                <td class="metrics-col mono">
+                    <span class="sd-round-metrics">{{ round.call_count }} LLM</span>
+                </td>
+                <td class="attribution-col">
+                    <span class="sd-round-attribution">--</span>
+                </td>
+                <td class="status-col">
+                    {% if round.is_empty %}
+                    <span class="sd-signal-badge sd-signal-badge--empty">empty</span>
+                    {% endif %}
+                </td>
+                <td class="time-col">
+                    <span class="sd-round-time">--</span>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+
+    {% if exceeds_initial_limit %}
+    <div class="sd-trace-more" data-trace-more>
+        <p>{{ round_count - initial_round_limit }} more rounds not shown. Round details load on demand via API.</p>
+    </div>
+    {% endif %}
+
+    {% endif %}
+</section>
+
+{# -- Hidden payload sources container (populated by JS lazy-load) -- #}
+<div data-payload-sources-container class="sd-hidden"></div>
+
+{% endblock %}

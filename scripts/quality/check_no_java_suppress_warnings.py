@@ -20,6 +20,14 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 # 只扫描主源码，测试源码不在此门禁范围（PMD 也不扫描测试源码）。
 SCAN_GLOB = 'java/**/src/main/java/**/*.java'
 
+# 已审批的豁免：文件路径前缀 → 允许的规则。
+# 仅当 PMD 无法识别合法模式（如 Java 21 try-with-resources 绑定已有变量）时使用。
+ALLOWED_SUPPRESSIONS: dict[str, list[str]] = {
+    'java/scan-engine/src/main/java/com/feipi/session/browser/scan/engine/BackgroundScanner.java': [
+        'PMD.CloseResource',
+    ],
+}
+
 # 匹配 @SuppressWarnings("PMD.") 或 @SuppressWarnings({"PMD.", ...})
 _PMD_SUPPRESS_RE = re.compile(r'@SuppressWarnings\s*\(\s*(?:\{[^}]*?)?["\']PMD\.')
 
@@ -32,12 +40,23 @@ def scan_java_sources() -> list[tuple[Path, int, str]]:
         return violations
 
     for java_file in java_root.glob('**/src/main/java/**/*.java'):
+        rel_path = str(java_file.relative_to(REPO_ROOT))
+        # 检查是否在豁免列表中
+        allowed_rules = []
+        for prefix, rules in ALLOWED_SUPPRESSIONS.items():
+            if rel_path == prefix or rel_path.startswith(prefix):
+                allowed_rules = rules
+                break
+
         try:
             lines = java_file.read_text(encoding='utf-8').splitlines()
         except (OSError, UnicodeDecodeError):
             continue
         for lineno, line in enumerate(lines, start=1):
             if _PMD_SUPPRESS_RE.search(line):
+                # 检查是否为已审批的豁免
+                if any(rule in line for rule in allowed_rules):
+                    continue
                 violations.append((java_file.relative_to(REPO_ROOT), lineno, line.strip()))
     return violations
 

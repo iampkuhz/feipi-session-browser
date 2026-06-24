@@ -199,31 +199,44 @@ public final class BackgroundScanner {
     ScanCancelToken token = new ScanCancelToken();
     currentCancelToken = token;
     try (handle) {
-      if (needsHot) {
-        log.debug("执行 hot 层级扫描: window={}s", hotTier.windowSeconds());
-        try {
-          hotAction.run();
-        } catch (CancellationException e) {
-          log.info("hot 层级扫描已取消");
-        } catch (Exception e) {
-          log.warn("hot 层级扫描失败", e);
-        }
-        lastHotScanMs = clock.millis();
-      }
-
-      if (needsWarm && !token.isCancelled()) {
-        log.debug("执行 warm 层级扫描: window={}s", warmTier.windowSeconds());
-        try {
-          warmAction.run();
-        } catch (CancellationException e) {
-          log.info("warm 层级扫描已取消");
-        } catch (Exception e) {
-          log.warn("warm 层级扫描失败", e);
-        }
-        lastWarmScanMs = clock.millis();
-      }
+      runWithHandle(handle, token, needsHot, needsWarm);
     } finally {
       currentCancelToken = null;
+    }
+  }
+
+  /**
+   * 在持有锁期间执行扫描动作。
+   *
+   * @param handle 扫描锁句柄
+   * @param token 取消令牌
+   * @param needsHot 是否需要 hot 层级扫描
+   * @param needsWarm 是否需要 warm 层级扫描
+   */
+  private void runWithHandle(
+      ScanLock.ScanLockHandle handle, ScanCancelToken token, boolean needsHot, boolean needsWarm) {
+    if (needsHot) {
+      log.debug("执行 hot 层级扫描: window={}s", hotTier.windowSeconds());
+      try {
+        hotAction.run();
+      } catch (CancellationException e) {
+        log.info("hot 层级扫描已取消");
+      } catch (Exception e) {
+        log.warn("hot 层级扫描失败", e);
+      }
+      lastHotScanMs = clock.millis();
+    }
+
+    if (needsWarm && !token.isCancelled()) {
+      log.debug("执行 warm 层级扫描: window={}s", warmTier.windowSeconds());
+      try {
+        warmAction.run();
+      } catch (CancellationException e) {
+        log.info("warm 层级扫描已取消");
+      } catch (Exception e) {
+        log.warn("warm 层级扫描失败", e);
+      }
+      lastWarmScanMs = clock.millis();
     }
   }
 

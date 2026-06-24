@@ -612,8 +612,13 @@ constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositi
 constructor com.feipi.session.browser.web.WebConfig public WebConfig()
 constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
 constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
+constructor com.feipi.session.browser.web.page.CorruptArtifactException public CorruptArtifactException(String agent, String sessionId, Throwable cause)
 constructor com.feipi.session.browser.web.page.DashboardPage public DashboardPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.page.ProjectsPage public ProjectsPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
+constructor com.feipi.session.browser.web.page.SessionDetailPage public SessionDetailPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
+constructor com.feipi.session.browser.web.page.SessionDetailPage.CorruptArtifactException public CorruptArtifactException(String agent, String sessionId, Throwable cause)
+constructor com.feipi.session.browser.web.page.SessionDetailPage.SessionNotFoundException public SessionNotFoundException(String agent, String sessionId)
+constructor com.feipi.session.browser.web.page.SessionNotFoundException public SessionNotFoundException(String agent, String sessionId)
 constructor com.feipi.session.browser.web.page.SessionsPage public SessionsPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment()
 constructor com.feipi.session.browser.web.template.PebbleEnvironment public PebbleEnvironment(String templateDirectory)
@@ -1275,6 +1280,8 @@ method com.feipi.session.browser.web.model.SafeHtml public default SafeHtml wrap
 method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml escaped(String raw)
 method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml trusted(String html)
 method com.feipi.session.browser.web.model.SafeHtml public static String escapeAttribute(String raw)
+method com.feipi.session.browser.web.page.CorruptArtifactException public String agent()
+method com.feipi.session.browser.web.page.CorruptArtifactException public String sessionId()
 method com.feipi.session.browser.web.page.DashboardPage public void handle(Context ctx)
 method com.feipi.session.browser.web.page.ProjectsPage public void handleDetail(Context ctx, String projectKey)
 method com.feipi.session.browser.web.page.ProjectsPage public void handleList(Context ctx)
@@ -1283,6 +1290,13 @@ method com.feipi.session.browser.web.page.QueryParams public static SessionListF
 method com.feipi.session.browser.web.page.QueryParams public static String uiSortKey(Map<String, String> params)
 method com.feipi.session.browser.web.page.QueryParams public static int parsePage(Map<String, String> params)
 method com.feipi.session.browser.web.page.QueryParams public static int parsePageSize(Map<String, String> params)
+method com.feipi.session.browser.web.page.SessionDetailPage public void handle(Context ctx, String agent, String sessionId)
+method com.feipi.session.browser.web.page.SessionDetailPage.CorruptArtifactException public String agent()
+method com.feipi.session.browser.web.page.SessionDetailPage.CorruptArtifactException public String sessionId()
+method com.feipi.session.browser.web.page.SessionDetailPage.SessionNotFoundException public String agent()
+method com.feipi.session.browser.web.page.SessionDetailPage.SessionNotFoundException public String sessionId()
+method com.feipi.session.browser.web.page.SessionNotFoundException public String agent()
+method com.feipi.session.browser.web.page.SessionNotFoundException public String sessionId()
 method com.feipi.session.browser.web.page.SessionsPage public void handle(Context ctx)
 method com.feipi.session.browser.web.template.DisplayFormatters public static String dbAgentToScope(String dbAgent)
 method com.feipi.session.browser.web.template.DisplayFormatters public static String displayPath(String path)
@@ -1547,9 +1561,14 @@ type com.feipi.session.browser.web.WebServer public class [web] final class WebS
 type com.feipi.session.browser.web.WebServer.HealthResponse public record [web] record HealthResponse(String status)
 type com.feipi.session.browser.web.model.PaginationModel public record [web] record PaginationModel( int page, int pageSize, int totalItems, int totalPages, int pageStart, int pageEnd, boolean hasPrev, boolean hasNext)
 type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
+type com.feipi.session.browser.web.page.CorruptArtifactException public class [web] static final class CorruptArtifactException extends RuntimeException
 type com.feipi.session.browser.web.page.DashboardPage public class [web] final class DashboardPage
 type com.feipi.session.browser.web.page.ProjectsPage public class [web] final class ProjectsPage
 type com.feipi.session.browser.web.page.QueryParams public class [web] final class QueryParams
+type com.feipi.session.browser.web.page.SessionDetailPage public class [web] final class SessionDetailPage
+type com.feipi.session.browser.web.page.SessionDetailPage.CorruptArtifactException public class [web] static final class CorruptArtifactException extends RuntimeException
+type com.feipi.session.browser.web.page.SessionDetailPage.SessionNotFoundException public class [web] static final class SessionNotFoundException extends RuntimeException
+type com.feipi.session.browser.web.page.SessionNotFoundException public class [web] static final class SessionNotFoundException extends RuntimeException
 type com.feipi.session.browser.web.page.SessionsPage public class [web] final class SessionsPage
 type com.feipi.session.browser.web.template.DisplayFormatters public class [web] final class DisplayFormatters
 type com.feipi.session.browser.web.template.DisplayFormatters.SimpleJson public class [web] static final class SimpleJson

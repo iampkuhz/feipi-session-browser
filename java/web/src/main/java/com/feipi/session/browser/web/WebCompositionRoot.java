@@ -3,6 +3,7 @@ package com.feipi.session.browser.web;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.web.page.DashboardPage;
 import com.feipi.session.browser.web.page.ProjectsPage;
+import com.feipi.session.browser.web.page.SessionDetailPage;
 import com.feipi.session.browser.web.page.SessionsPage;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.Javalin;
@@ -25,7 +26,7 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>创建和配置 Javalin 实例（内容类型、静态资源、异常处理）
  *   <li>创建 Pebble 模板引擎
- *   <li>注册健康检查、Dashboard、Projects、Sessions 路由
+ *   <li>注册健康检查、Dashboard、Projects、Sessions、Session Detail 路由
  *   <li>将 {@link QueryCompositionRoot} 的 use case 绑定到路由
  * </ul>
  */
@@ -103,6 +104,7 @@ public final class WebCompositionRoot {
     DashboardPage dashboardPage = new DashboardPage(queryRoot, templates);
     ProjectsPage projectsPage = new ProjectsPage(queryRoot, templates);
     SessionsPage sessionsPage = new SessionsPage(queryRoot, templates);
+    SessionDetailPage sessionDetailPage = new SessionDetailPage(queryRoot, templates);
 
     javalinConfig.routes.get("/", dashboardPage::handle);
     javalinConfig.routes.get("/dashboard", dashboardPage::handle);
@@ -114,6 +116,13 @@ public final class WebCompositionRoot {
           projectsPage.handleDetail(ctx, key);
         });
     javalinConfig.routes.get("/sessions", sessionsPage::handle);
+    javalinConfig.routes.get(
+        "/sessions/{agent}/{sessionId}",
+        ctx -> {
+          String agentParam = ctx.pathParam("agent");
+          String sessionIdParam = ctx.pathParam("sessionId");
+          sessionDetailPage.handle(ctx, agentParam, sessionIdParam);
+        });
   }
 
   /** 注册异常和错误 handler。 */
@@ -137,7 +146,12 @@ public final class WebCompositionRoot {
     javalinConfig.routes.error(
         HttpStatus.NOT_FOUND,
         ctx -> {
-          ctx.json(new ErrorResponse("not_found", "资源不存在"));
+          String customHtml = ctx.attribute("custom_error_html");
+          if (customHtml != null) {
+            ctx.html(customHtml);
+          } else {
+            ctx.json(new ErrorResponse("not_found", "资源不存在"));
+          }
         });
   }
 
