@@ -163,6 +163,36 @@ def _build_tool_command_summary(tool_name: str, params: dict) -> str:  # noqa: P
     return name
 
 
+def _first_text_param(params: dict, keys: tuple[str, ...]) -> str:
+    """Return the first non-empty textual parameter value."""
+    if not isinstance(params, dict):
+        return ''
+    for key in keys:
+        value = params.get(key)
+        if value is None or value == '':
+            continue
+        if isinstance(value, (dict, list)):
+            try:
+                return json.dumps(value, ensure_ascii=False)
+            except Exception:
+                return str(value)
+        return str(value)
+    return ''
+
+
+def _build_tool_result_command_fields(tool_name: str, params: dict) -> dict[str, str]:
+    """Build full command/workdir fields for a tool result payload modal."""
+    params = params if isinstance(params, dict) else {}
+    command = _first_text_param(params, ('command', 'cmd'))
+    workdir = _first_text_param(params, ('workdir', 'cwd', 'working_directory')).strip()
+    if not command.strip():
+        command = _build_tool_command_summary(tool_name, params)
+    return {
+        'command': command,
+        'workdir': workdir,
+    }
+
+
 def _render_response_content_blocks(
     content_blocks: list[dict] | None = None,
     response_text: str = '',

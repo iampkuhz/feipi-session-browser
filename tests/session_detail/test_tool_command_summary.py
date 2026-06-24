@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from session_browser.web.routes import _build_tool_command_summary
+from session_browser.web.session_detail.render_helpers import _build_tool_result_command_fields
 
 # ── Read/Write/Edit:文件路径 ────────────────────────────────────────────
 
@@ -80,6 +81,33 @@ class TestBashTool:
     def test_bash_strips_whitespace(self):
         result = _build_tool_command_summary('Bash', {'command': '  echo hello  '})
         assert result == 'echo hello'
+
+
+# ── Tool result modal command fields ─────────────────────────────────────
+
+
+class TestToolResultCommandFields:
+    """Result modal should use full command/workdir fields, not preview summary."""
+
+    @pytest.mark.contract_case('UI-SD-021')
+    def test_exec_command_cmd_and_workdir_are_separate(self):
+        cmd = 'python3 -m pytest ' + 'tests/' + ('very_long_selector_' * 12)
+        result = _build_tool_result_command_fields(
+            'exec_command',
+            {'cmd': cmd, 'workdir': '/tmp/project'},
+        )
+
+        assert result['command'] == cmd
+        assert result['workdir'] == '/tmp/project'
+        assert not result['command'].endswith('...')
+
+    @pytest.mark.contract_case('UI-SD-021')
+    def test_bash_result_uses_full_command_instead_of_summary(self):
+        cmd = 'echo ' + ('full-command ' * 30)
+        result = _build_tool_result_command_fields('Bash', {'command': cmd, 'cwd': '/repo'})
+
+        assert result['command'] == cmd
+        assert result['workdir'] == '/repo'
 
 
 # ── Grep: pattern + path/glob ─────────────────────────────────────────────

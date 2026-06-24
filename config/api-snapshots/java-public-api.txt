@@ -179,6 +179,19 @@ component com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationRes
 component com.feipi.session.browser.index.sqlite.Migration description: String
 component com.feipi.session.browser.index.sqlite.Migration sqlResource: String
 component com.feipi.session.browser.index.sqlite.Migration version: SchemaVersion
+component com.feipi.session.browser.index.sqlite.NativeAvailabilityResult availableCount: int
+component com.feipi.session.browser.index.sqlite.NativeAvailabilityResult missingPlatforms: List<String>
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeAvailabilityResult availableCount: int
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeAvailabilityResult missingPlatforms: List<String>
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeLoadResult errorMessage: String
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeLoadResult loadSuccess: boolean
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeLoadResult platform: String
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.PlatformDetectionResult architecture: String
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.PlatformDetectionResult operatingSystem: String
+component com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.PlatformDetectionResult supportedTarget: boolean
+component com.feipi.session.browser.index.sqlite.NativeLoadResult errorMessage: String
+component com.feipi.session.browser.index.sqlite.NativeLoadResult loadSuccess: boolean
+component com.feipi.session.browser.index.sqlite.NativeLoadResult platform: String
 component com.feipi.session.browser.index.sqlite.PayloadEntry callId: String
 component com.feipi.session.browser.index.sqlite.PayloadEntry content: String
 component com.feipi.session.browser.index.sqlite.PayloadEntry kind: PayloadSourceKind
@@ -200,6 +213,9 @@ component com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds
 component com.feipi.session.browser.index.sqlite.PercentileResult count: int
 component com.feipi.session.browser.index.sqlite.PercentileResult p90: Double
 component com.feipi.session.browser.index.sqlite.PercentileResult p95: Double
+component com.feipi.session.browser.index.sqlite.PlatformDetectionResult architecture: String
+component com.feipi.session.browser.index.sqlite.PlatformDetectionResult operatingSystem: String
+component com.feipi.session.browser.index.sqlite.PlatformDetectionResult supportedTarget: boolean
 component com.feipi.session.browser.index.sqlite.PragmaConfig busyTimeoutMs: int
 component com.feipi.session.browser.index.sqlite.PragmaConfig foreignKeys: boolean
 component com.feipi.session.browser.index.sqlite.PragmaConfig journalMode: String
@@ -1034,6 +1050,14 @@ method com.feipi.session.browser.index.sqlite.MigrationRunner public List<Schema
 method com.feipi.session.browser.index.sqlite.MigrationRunner public SchemaVersion currentVersion(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.MigrationRunner public Set<Integer> appliedVersions(Connection conn) throws SQLException
 method com.feipi.session.browser.index.sqlite.MigrationRunner public static MigrationRunner withAllMigrations()
+method com.feipi.session.browser.index.sqlite.NativeAvailabilityResult public boolean allPresent()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public static List<String> targetPlatformKeys()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public static NativeAvailabilityResult verifyAllTargetPlatforms()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public static NativeLoadResult verifyNativeLoad()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public static PlatformDetectionResult detect()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public static String currentPlatformKey()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public static void configureNativeExtractionDir()
+method com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeAvailabilityResult public boolean allPresent()
 method com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader public static NormalizedSessionArtifact fromMap(Map<String, Object> root)
 method com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader public static NormalizedSessionArtifact load(Path artifactPath) throws IOException
 method com.feipi.session.browser.index.sqlite.PayloadLookup public List<PayloadEntry> lookupByCallId(String callId)
@@ -1571,6 +1595,12 @@ type com.feipi.session.browser.index.sqlite.IndexSchema.SchemaValidationResult p
 type com.feipi.session.browser.index.sqlite.MetricKey public enum [index-sqlite] enum MetricKey
 type com.feipi.session.browser.index.sqlite.Migration public record [index-sqlite] record Migration(SchemaVersion version, String description, String sqlResource)
 type com.feipi.session.browser.index.sqlite.MigrationRunner public class [index-sqlite] final class MigrationRunner
+type com.feipi.session.browser.index.sqlite.NativeAvailabilityResult public record [index-sqlite] record NativeAvailabilityResult(List<String> missingPlatforms, int availableCount)
+type com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics public class [index-sqlite] final class NativeLibraryDiagnostics
+type com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeAvailabilityResult public record [index-sqlite] record NativeAvailabilityResult(List<String> missingPlatforms, int availableCount)
+type com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.NativeLoadResult public record [index-sqlite] record NativeLoadResult(boolean loadSuccess, String platform, String errorMessage)
+type com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics.PlatformDetectionResult public record [index-sqlite] record PlatformDetectionResult( String operatingSystem, String architecture, boolean supportedTarget)
+type com.feipi.session.browser.index.sqlite.NativeLoadResult public record [index-sqlite] record NativeLoadResult(boolean loadSuccess, String platform, String errorMessage)
 type com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader public class [index-sqlite] final class NormalizedArtifactLoader
 type com.feipi.session.browser.index.sqlite.PayloadEntry public record [index-sqlite] record PayloadEntry( String payloadId, PayloadSourceKind kind, String callId, String content, boolean truncated)
 type com.feipi.session.browser.index.sqlite.PayloadLookup public class [index-sqlite] final class PayloadLookup
@@ -1580,6 +1610,7 @@ type com.feipi.session.browser.index.sqlite.PercentileCalculator.MetricKey publi
 type com.feipi.session.browser.index.sqlite.PercentileCalculator.PercentileResult public record [index-sqlite] record PercentileResult(Double p90, Double p95, int count)
 type com.feipi.session.browser.index.sqlite.PercentileCalculator.Thresholds public record [index-sqlite] record Thresholds( double warning, double critical, Double p90, Double p95, int sampleCount)
 type com.feipi.session.browser.index.sqlite.PercentileResult public record [index-sqlite] record PercentileResult(Double p90, Double p95, int count)
+type com.feipi.session.browser.index.sqlite.PlatformDetectionResult public record [index-sqlite] record PlatformDetectionResult( String operatingSystem, String architecture, boolean supportedTarget)
 type com.feipi.session.browser.index.sqlite.PragmaConfig public record [index-sqlite] record PragmaConfig( String journalMode, String synchronous, int busyTimeoutMs, boolean foreignKeys)
 type com.feipi.session.browser.index.sqlite.ProjectStatsRow public record [index-sqlite] record ProjectStatsRow( String projectKey, String projectName, long totalSessions, long claudeSessions, long codexSessions, long qoderSessions, String firstSeen, String lastSeen, long totalFreshInputTokens, long totalOutputTokens, long totalCacheReadTokens, long totalCacheWriteTokens, long totalTokens, long totalToolCalls, long totalFailedTools, long totalUserMessages, long totalAssistantMessages)
 type com.feipi.session.browser.index.sqlite.ReadTransaction public class [index-sqlite] final class ReadTransaction implements AutoCloseable

@@ -36,6 +36,7 @@ from session_browser.web.session_detail.payloads import (
 from session_browser.web.session_detail.preview import build_round_preview
 from session_browser.web.session_detail.render_helpers import (
     _build_tool_command_summary,
+    _build_tool_result_command_fields,
     _render_context_content_blocks,
     _render_response_content_blocks,
     _to_local_time_hms,
@@ -2078,6 +2079,7 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
         preceding_tool_results: list | None = None,
         tool_name: str = '',
         tool_command: str = '',
+        tool_workdir: str = '',
         tool_parameters: dict | None = None,
         tool_status: str = '',
         data: dict | None = None,
@@ -2100,7 +2102,8 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
             user_input: Optional user input snippet for reconstructed contexts.
             preceding_tool_results: Optional prior tool summaries.
             tool_name: Optional source tool name for result payloads.
-            tool_command: Optional rendered tool command summary.
+            tool_command: Optional full command or rendered tool command summary.
+            tool_workdir: Optional tool working directory for command payloads.
             tool_parameters: Optional raw tool parameters for inspection.
             tool_status: Optional tool exit or status label.
             data: Optional structured attribution payload.
@@ -2139,6 +2142,8 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
             entry['tool_name'] = tool_name
         if tool_command:
             entry['tool_command'] = tool_command
+        if tool_workdir:
+            entry['tool_workdir'] = tool_workdir
         if tool_parameters:
             entry['tool_parameters'] = tool_parameters
         if tool_status:
@@ -2613,13 +2618,17 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
                         )
                         t_payload_title = f'Subagent · {tc.name} · Result'
                         if tc.result:
+                            command_fields = _build_tool_result_command_fields(
+                                tc.name, tc.parameters
+                            )
                             add_payload(
                                 payload_id=t_payload_id,
                                 kind='subagent.tool.result',
                                 title=t_payload_title,
                                 text=tc.result,
                                 tool_name=tc.name,
-                                tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                                tool_command=command_fields['command'],
+                                tool_workdir=command_fields['workdir'],
                                 tool_parameters=tc.parameters,
                                 tool_status=f'exit {tc.exit_code}'
                                 if getattr(tc, 'exit_code', None) is not None
@@ -2687,13 +2696,15 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
                 u_payload_id = f'sub-{sa_id}-unmatched-T{u_idx}-result' if tc.result else ''
                 u_payload_title = f'Subagent · {tc.name} · Result'
                 if tc.result:
+                    command_fields = _build_tool_result_command_fields(tc.name, tc.parameters)
                     add_payload(
                         payload_id=u_payload_id,
                         kind='subagent.tool.result',
                         title=u_payload_title,
                         text=tc.result,
                         tool_name=tc.name,
-                        tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                        tool_command=command_fields['command'],
+                        tool_workdir=command_fields['workdir'],
                         tool_parameters=tc.parameters,
                         tool_status=f'exit {tc.exit_code}'
                         if getattr(tc, 'exit_code', None) is not None
@@ -3029,13 +3040,17 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
 
                     tool_payload_id = f'tool-R{rid}-T{tc_global_idx}' if tc.result else ''
                     if tc.result:
+                        command_fields = _build_tool_result_command_fields(
+                            tc.name, tc.parameters
+                        )
                         add_payload(
                             payload_id=tool_payload_id,
                             kind='tool.result',
                             title=f'R{rid} · {tc.name} · Result',
                             text=tc.result,
                             tool_name=tc.name,
-                            tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                            tool_command=command_fields['command'],
+                            tool_workdir=command_fields['workdir'],
                             tool_parameters=tc.parameters,
                             tool_status=f'exit {tc.exit_code}'
                             if getattr(tc, 'exit_code', None) is not None
@@ -3440,13 +3455,15 @@ def _build_v11_view_model(  # noqa: PLR0912, PLR0913, PLR0915
                     continue
                 tool_payload_id = f'tool-R{rid}-T{tc_idx + 1}' if tc.result else ''
                 if tc.result:
+                    command_fields = _build_tool_result_command_fields(tc.name, tc.parameters)
                     add_payload(
                         payload_id=tool_payload_id,
                         kind='tool.result',
                         title=f'R{rid} · {tc.name} · Result',
                         text=tc.result,
                         tool_name=tc.name,
-                        tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                        tool_command=command_fields['command'],
+                        tool_workdir=command_fields['workdir'],
                         tool_parameters=tc.parameters,
                         tool_status=f'exit {tc.exit_code}'
                         if getattr(tc, 'exit_code', None) is not None

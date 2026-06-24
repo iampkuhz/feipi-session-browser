@@ -7,6 +7,7 @@ from session_browser.domain.models import (
     ToolCall,
 )
 from session_browser.web.routes import _build_v11_view_model
+from session_browser.web.session_detail.payloads import _build_payload_lookup
 from session_browser.web.session_detail.preview import apply_round_preview
 from session_browser.web.template_env import _precision_label, env
 
@@ -96,6 +97,29 @@ def _make_round_with_llm_call():
     )
     apply_round_preview(ro)
     return ro, llm_call
+
+
+def _make_round_with_exec_command(cmd: str, workdir: str):
+    """Create a round with a Codex-style exec_command result payload."""
+    ro, llm_call = _make_round_with_llm_call()
+    tc = ToolCall(
+        name='exec_command',
+        parameters={'cmd': cmd, 'workdir': workdir, 'yield_time_ms': 1000},
+        result='command finished',
+        tool_use_id='call-exec-001',
+        round_index=0,
+    )
+    llm_call.tool_calls = [tc]
+    llm_call.content_blocks = [
+        {
+            'type': 'tool_use',
+            'name': 'exec_command',
+            'id': 'call-exec-001',
+            'parameters': {'cmd': cmd, 'workdir': workdir, 'yield_time_ms': 1000},
+        }
+    ]
+    ro.tool_calls = [tc]
+    return ro, llm_call, tc
 
 
 def _render_payload_sources(payload_sources):
@@ -280,6 +304,52 @@ class TestRoundRowAttributionIds:
         assert row['response_attribution']['payload_id'] == 'llm-R2-IX1-response-attribution'
         assert row['request_attribution']['title'] == 'R2 · LLM Call #2 · Request Attribution'
         assert row['response_attribution']['title'] == 'R2 · LLM Call #2 · Response Attribution'
+
+    def test_exec_command_result_payload_keeps_full_command_and_workdir(self):
+        long_cmd = (
+            'python3 -m pytest tests/session_detail/test_tool_command_summary.py::'
+            'test_exec_command_result_modal_keeps_full_command --maxfail=1 '
+            '--long-marker=abcdefghijklmnopqrstuvwxyz0123456789'
+        )
+        workdir = '/Users/example/project with spaces'
+        session = _FakeSession()
+        ro, lc, _tc = _make_round_with_exec_command(long_cmd, workdir)
+
+        vm = _build_v11_view_model(
+            session=session,
+            rounds=[ro],
+            llm_calls=[lc],
+            tool_calls=ro.tool_calls,
+            subagent_runs=[],
+            session_anomalies=_FakeAnomalies(),
+        )
+
+        payload = next(p for p in vm['payload_sources'] if p['payload_id'] == 'tool-R1-T1')
+        assert payload['tool_command'] == long_cmd
+        assert payload['tool_workdir'] == workdir
+        assert not payload['tool_command'].endswith('...')
+        assert 'cmd=' not in payload['tool_command']
+
+        html = _render_payload_sources([payload])
+        assert 'sd-tool-command-label">command' in html
+        assert 'sd-tool-command-label">workdir' in html
+        assert long_cmd in html
+        assert workdir in html
+
+    def test_exec_command_payload_api_keeps_full_command_and_workdir(self):
+        long_cmd = (
+            'python3 scripts/quality/run_required_quality_gates.py '
+            '--target session-detail --marker=full-command-is-not-truncated'
+        )
+        workdir = '/Users/example/session-browser'
+        ro, _lc, tc = _make_round_with_exec_command(long_cmd, workdir)
+
+        payload_map = _build_payload_lookup([ro], [tc], [], truncate=False)
+        payload = payload_map['tool-R1-T1']
+
+        assert payload['tool_command'] == long_cmd
+        assert payload['tool_workdir'] == workdir
+        assert payload['text'] == 'command finished'
 
     def test_expanded_timeline_omits_llm_summary_items(self):
         session = _FakeSession()

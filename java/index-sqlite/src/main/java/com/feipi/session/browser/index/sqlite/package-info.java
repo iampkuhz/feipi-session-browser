@@ -20,6 +20,8 @@
  *   <li>{@link com.feipi.session.browser.index.sqlite.PragmaConfig} — PRAGMA
  *       配置：WAL、synchronous、busy_timeout、 foreign_keys。
  *   <li>{@link com.feipi.session.browser.index.sqlite.ConnectionFactory} — 连接工厂，创建并配置 JDBC 连接。
+ *   <li>{@link com.feipi.session.browser.index.sqlite.NativeLibraryDiagnostics} — native library
+ *       诊断：平台检测、加载验证、目标平台可用性检查和提取目录配置。
  *   <li>{@link com.feipi.session.browser.index.sqlite.WriteQueue} — 有界队列 + 单 writer 线程，保证写入串行化。
  *   <li>{@link com.feipi.session.browser.index.sqlite.WriteBatch} — 批量写入辅助，事务大小可配置。
  *   <li>{@link com.feipi.session.browser.index.sqlite.WriteTransaction} — 显式写事务，支持 commit/rollback。

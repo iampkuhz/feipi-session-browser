@@ -80,6 +80,32 @@ These use .sd- page prefix only, not bare .payload-modal references. */
   background: #fbf7ff;
 }
 
+.sd-tool-command-fields {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sd-tool-command-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.sd-tool-command-label {
+  color: var(--sd-muted);
+  font-size: 11px;
+  font-weight: 820;
+  letter-spacing: .04em;
+  text-transform: uppercase;
+}
+
+.sd-tool-command-pre {
+  margin: 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
 /* ── Content width: session detail page wider for 2560x1440 ──── */
 .session-detail-page .sd-content,
 .session-detail-page .content {

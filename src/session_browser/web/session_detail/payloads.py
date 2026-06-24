@@ -7,7 +7,7 @@ dict used by the session detail view model and the /api/.../payload endpoint.
 from __future__ import annotations
 
 from session_browser.attribution.token_estimator import estimate_tokens_from_text
-from session_browser.web.session_detail.render_helpers import _build_tool_command_summary
+from session_browser.web.session_detail.render_helpers import _build_tool_result_command_fields
 from session_browser.web.template_env import _format_bytes
 
 
@@ -102,6 +102,7 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
         byte_limit: int = 5000,
         tool_name: str = '',
         tool_command: str = '',
+        tool_workdir: str = '',
         tool_parameters: dict | None = None,
         tool_status: str = '',
     ) -> None:
@@ -115,7 +116,8 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
             status: Source availability status before empty-text normalization.
             byte_limit: UTF-8 byte budget for this payload type.
             tool_name: Optional source tool name for result payloads.
-            tool_command: Optional rendered command summary for tool payloads.
+            tool_command: Optional full command or rendered command summary.
+            tool_workdir: Optional tool working directory for command payloads.
             tool_parameters: Optional raw tool parameters for inspection.
             tool_status: Optional tool exit or status label.
 
@@ -140,6 +142,8 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
             entry['tool_name'] = tool_name
         if tool_command:
             entry['tool_command'] = tool_command
+        if tool_workdir:
+            entry['tool_workdir'] = tool_workdir
         if tool_parameters:
             entry['tool_parameters'] = tool_parameters
         if tool_status:
@@ -206,6 +210,7 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
                             break
                     if tc_global_idx == -1:
                         tc_global_idx = len([t for t in ix.tool_calls if not t.subagent_id])
+                    command_fields = _build_tool_result_command_fields(tc.name, tc.parameters)
                     _add(
                         payload_id=f'tool-R{rid}-T{tc_global_idx}',
                         kind='tool.result',
@@ -213,7 +218,8 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
                         text=tc.result,
                         byte_limit=5000,
                         tool_name=tc.name,
-                        tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                        tool_command=command_fields['command'],
+                        tool_workdir=command_fields['workdir'],
                         tool_parameters=tc.parameters,
                         tool_status=f'exit {tc.exit_code}'
                         if getattr(tc, 'exit_code', None) is not None
@@ -252,6 +258,7 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
             for tc_idx, tc in enumerate(r.tool_calls):
                 if tc.subagent_id or not tc.result:
                     continue
+                command_fields = _build_tool_result_command_fields(tc.name, tc.parameters)
                 _add(
                     payload_id=f'tool-R{rid}-T{tc_idx + 1}',
                     kind='tool.result',
@@ -259,7 +266,8 @@ def _build_payload_lookup(  # noqa: PLR0912, PLR0915
                     text=tc.result,
                     byte_limit=5000,
                     tool_name=tc.name,
-                    tool_command=_build_tool_command_summary(tc.name, tc.parameters),
+                    tool_command=command_fields['command'],
+                    tool_workdir=command_fields['workdir'],
                     tool_parameters=tc.parameters,
                     tool_status=f'exit {tc.exit_code}'
                     if getattr(tc, 'exit_code', None) is not None

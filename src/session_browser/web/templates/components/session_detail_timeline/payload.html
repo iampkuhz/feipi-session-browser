@@ -707,13 +707,26 @@
             {% if payload.html %}
               {{ payload.html|safe }}
             {% elif (payload.kind == 'tool.result' or payload.kind == 'subagent.tool.result') and payload.text %}
-              {% if payload.tool_command %}
+              {% if payload.tool_command or payload.tool_workdir %}
               <section class="sd-content-block content-block content-block--tool sd-response-block--tool">
                 <div class="sd-response-block-head block-head">
                   <span class="sd-card-title">Command</span>
                 </div>
                 <div class="sd-response-block-body block-body">
-                  <pre>{{ payload.tool_command }}</pre>
+                  <div class="sd-tool-command-fields">
+                    {% if payload.tool_command %}
+                    <div class="sd-tool-command-field">
+                      <div class="sd-tool-command-label">command</div>
+                      <pre class="sd-tool-command-pre">{{ payload.tool_command }}</pre>
+                    </div>
+                    {% endif %}
+                    {% if payload.tool_workdir %}
+                    <div class="sd-tool-command-field">
+                      <div class="sd-tool-command-label">workdir</div>
+                      <pre class="sd-tool-command-pre">{{ payload.tool_workdir }}</pre>
+                    </div>
+                    {% endif %}
+                  </div>
                 </div>
               </section>
               {% endif %}

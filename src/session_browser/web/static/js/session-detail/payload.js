@@ -187,6 +187,32 @@
     parent.appendChild(section);
   }
 
+  function appendCommandField(parent, label, text) {
+    if (!text) return;
+    var field = makeEl("div", "sd-tool-command-field");
+    field.appendChild(makeEl("div", "sd-tool-command-label", label));
+    field.appendChild(makeEl("pre", "sd-tool-command-pre", text));
+    parent.appendChild(field);
+  }
+
+  function appendCommandBlock(parent, command, workdir) {
+    if (!command && !workdir) return;
+    var section = makeEl(
+      "section",
+      "sd-content-block content-block content-block--tool sd-response-block--tool"
+    );
+    var head = makeEl("div", "sd-response-block-head block-head");
+    head.appendChild(makeEl("span", "sd-card-title", "Command"));
+    var blockBody = makeEl("div", "sd-response-block-body block-body");
+    var fields = makeEl("div", "sd-tool-command-fields");
+    appendCommandField(fields, "command", command);
+    appendCommandField(fields, "workdir", workdir);
+    blockBody.appendChild(fields);
+    section.appendChild(head);
+    section.appendChild(blockBody);
+    parent.appendChild(section);
+  }
+
   function formatPayloadTokenEstimate(value) {
     var numeric = Number(value || 0);
     if (!Number.isFinite(numeric) || numeric <= 0) return "";
@@ -220,6 +246,7 @@
     var toolName = payload.tool_name || "";
     var toolStatus = payload.tool_status || "";
     var toolCommand = payload.tool_command || "";
+    var toolWorkdir = payload.tool_workdir || payload.tool_cwd || "";
     var tokenSummary = formatPayloadTokenEstimate(payload.token_estimate);
     var shell = makeEl("div", "sd-payload-shell payload-shell");
     var meta = makeEl("aside", "sd-payload-meta payload-meta");
@@ -232,7 +259,7 @@
     if (toolStatus) appendKv(meta, "tool status", toolStatus);
 
     var main = makeEl("main", "sd-payload-main payload-main");
-    if (toolCommand) appendPreBlock(main, "Command", toolCommand, "tool");
+    if (toolCommand || toolWorkdir) appendCommandBlock(main, toolCommand, toolWorkdir);
     if (text) appendPreBlock(main, "Result", text, "text");
     else main.appendChild(makeEl("div", "sd-payload-empty", "No content"));
 

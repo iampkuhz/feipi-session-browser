@@ -6,6 +6,7 @@ import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
+import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -30,7 +31,9 @@ public final class PayloadLookup {
   private final Map<String, PayloadEntry> entries;
 
   private PayloadLookup(Map<String, PayloadEntry> entries) {
-    this.entries = Map.copyOf(entries);
+    // 使用 Collections.unmodifiableMap 保留 LinkedHashMap 插入顺序，
+    // 避免 Map.copyOf 在 Java 25 全测试套件中丢失顺序。
+    this.entries = Collections.unmodifiableMap(new LinkedHashMap<>(entries));
   }
 
   /**
