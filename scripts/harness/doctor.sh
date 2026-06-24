@@ -67,9 +67,7 @@ check_file AGENTS.md
 check_file CLAUDE.md
 check_file README.md
 check_file pyproject.toml
-check_file requirements.txt
 check_file requirements-dev.txt
-check_file requirements.lock
 check_file requirements-dev.lock
 check_file scripts/session-browser.sh
 check_file .claude/settings.json
@@ -89,7 +87,6 @@ check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
 check_file harness/agent-runtime.md
 check_file scripts/harness/agent_stop_check.py
-check_dir src/session_browser
 check_dir tests
 check_dir scripts/claude_hooks
 

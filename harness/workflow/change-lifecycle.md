@@ -23,7 +23,7 @@
 
 - `.claude/`、`.codex/`、`.qoder/`、`.agents/`、`skills/`
 - `openspec/`、`harness/`、`scripts/`
-- `src/session_browser/`、`tests/`
+- `java/`、`tests/`
 - `AGENTS.md`、`CLAUDE.md`
 
 ## 完成要求

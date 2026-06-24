@@ -13,22 +13,6 @@ import re
 
 # 01. target -> required gate matrix (full baseline)
 QUALITY_TARGETS: dict[str, list[str]] = {
-    'session-detail': [
-        'pythonCompile',
-        'noTestSkips',
-        'templateContract',
-        'staticCssContract',
-        'cssOwnership',
-        'browserLayout',
-        'browserInteraction',
-        'rawInnerhtml',
-        'layoutInlineStyle',
-        'pytest',
-    ],
-    'python-src': [
-        'pythonCompile',
-        'pytest',
-    ],
     'python-standard': [
         'pythonFormat',
         'pythonLint',
@@ -93,8 +77,6 @@ QUALITY_TARGETS: dict[str, list[str]] = {
 # exclusive_resources: 互斥资源列表（如 gradle-daemon），同一资源同时只允许一个 target 使用
 # timeout: 单 target 最大执行时间（秒）
 TARGET_META: dict[str, dict[str, object]] = {
-    'session-detail': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
-    'python-src': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'python-standard': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'hook-runtime': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'harness': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
@@ -115,46 +97,6 @@ TARGET_DOMINANCE: dict[str, dict[str, list[str]]] = {
 # A gate runs only when at least one changed file matches one of its patterns.
 # If callers omit changed files, such as manual --target runs, use the full baseline.
 GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
-    'session-detail': {
-        'templateContract': [
-            'src/session_browser/web/templates/**/*.html',
-        ],
-        'staticCssContract': [
-            'src/session_browser/web/static/**/*.css',
-        ],
-        'cssOwnership': [
-            'src/session_browser/web/static/**/*.css',
-        ],
-        'browserLayout': [
-            'src/session_browser/web/templates/**/*.html',
-            'src/session_browser/web/static/**/*.css',
-        ],
-        'browserInteraction': [
-            'src/session_browser/web/static/**/*.js',
-        ],
-        'rawInnerhtml': [
-            'src/session_browser/web/static/**/*.js',
-        ],
-        'layoutInlineStyle': [
-            'src/session_browser/web/templates/**/*.html',
-            'src/session_browser/web/static/**/*.js',
-        ],
-        'pythonCompile': [
-            'src/session_browser/**/*.py',
-        ],
-        'noTestSkips': [
-            'tests/**/*.py',
-            'tests/**/*.js',
-            'tests/**/*.ts',
-            'playwright.config.js',
-            'scripts/quality/check_no_test_skips.py',
-        ],
-    },
-    'python-src': {
-        'pythonCompile': [
-            'src/session_browser/**/*.py',
-        ],
-    },
     'python-standard': {
         'pythonFormat': [
             'pyproject.toml',

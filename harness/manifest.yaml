@@ -1,7 +1,7 @@
 schemaVersion: 1
 project:
   name: feipi-session-browser
-  type: python-web-tool-with-java-migration
+  type: java-product
   description: Local session browser for Claude Code, Codex, and Qoder session data.
 
 runtime:
@@ -29,8 +29,6 @@ entrypoints:
 quality:
   runner: scripts/quality/run_quality_gate.py
   targets:
-    - session-detail
-    - python-src
     - hook-runtime
     - harness
     - acceptance-contracts
@@ -42,14 +40,8 @@ quality:
       includes: [java-build]
 
 quality_gates:
-  - name: python-compile
-    command: "python3 -m compileall -q src"
-    required: true
   - name: unit-tests
     command: "./scripts/session-browser.sh test"
-    required: true
-  - name: css-ownership
-    command: "python3 scripts/validate_css_ownership.py"
     required: true
   - name: harness-doctor
     command: "bash scripts/harness/doctor.sh"

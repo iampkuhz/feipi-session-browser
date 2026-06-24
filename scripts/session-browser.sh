@@ -6,13 +6,12 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CALLER_DIR="$(pwd)"
-SRC_DIR="$(cd "$SCRIPT_DIR/../src" && pwd)"
 VERSION_FILE="$PROJECT_DIR/VERSION"
 VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$PROJECT_DIR/.venv}"
 DEFAULT_LOCAL_PORT=18999
 DEFAULT_LOCAL_DATA_DIR="$HOME/.local/share/feipi/session-browser/local-test-index"
 
-export PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}"
+export PYTHONPATH="${PYTHONPATH:-}"
 
 CMD="${1:-help}"
 shift || true
@@ -149,7 +148,7 @@ run_tests() {
     else
         pytest_args+=(tests)
     fi
-    PYTHONPATH="$SRC_DIR:${PYTHONPATH:-}" "$(python_bin)" -m pytest "${pytest_args[@]}"
+    PYTHONPATH="${PYTHONPATH:-}" "$(python_bin)" -m pytest "${pytest_args[@]}"
 }
 
 install_deps() {
@@ -188,29 +187,29 @@ run_type_check() {
 }
 
 run_doc_checks() {
-    run_dev_tool interrogate src/session_browser scripts
-    run_dev_tool pydoclint src/session_browser scripts
+    run_dev_tool interrogate scripts
+    run_dev_tool pydoclint scripts
 }
 
 run_coverage() {
-    run_dev_tool pytest -W error --cov=session_browser --cov-branch --cov-report=term-missing --cov-report=xml "$@"
+    run_dev_tool pytest -W error --cov=scripts --cov-branch --cov-report=term-missing --cov-report=xml "$@"
 }
 
 run_audit() {
     run_dev_tool pip-audit
-    run_dev_tool bandit -r src/session_browser scripts
+    run_dev_tool bandit -r scripts
 }
 
 run_complexity() {
-    run_dev_tool xenon --max-absolute B --max-modules B --max-average A src/session_browser scripts
+    run_dev_tool xenon --max-absolute B --max-modules B --max-average A scripts
 }
 
 run_dead_code() {
-    run_dev_tool vulture --min-confidence 90 src/session_browser scripts tests
+    run_dev_tool vulture --min-confidence 90 scripts tests
 }
 
 run_deps_check() {
-    run_dev_tool deptry src/session_browser
+    run_dev_tool deptry scripts
 }
 
 run_quality() {

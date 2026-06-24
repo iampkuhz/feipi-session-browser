@@ -81,38 +81,6 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
         True,
     ),
     (
-        'ui-template',
-        ['src/session_browser/web/templates/**/*.html', 'src/session_browser/web/templates/*.html'],
-        True,
-        'session-detail',
-        'medium',
-        True,
-    ),
-    (
-        'ui-css',
-        ['src/session_browser/web/static/**/*.css', 'src/session_browser/web/static/*.css'],
-        True,
-        'session-detail',
-        'medium',
-        True,
-    ),
-    (
-        'ui-js',
-        ['src/session_browser/web/static/**/*.js', 'src/session_browser/web/static/*.js'],
-        True,
-        'session-detail',
-        'medium',
-        True,
-    ),
-    (
-        'python-src',
-        ['src/session_browser/**/*.py', 'src/session_browser/*.py'],
-        True,
-        'python-src',
-        'medium',
-        True,
-    ),
-    (
         'test',
         [
             'tests/**/*.py',
@@ -350,12 +318,6 @@ def effective_targets(targets: list[str]) -> list[str]:
 # 08. 自测试
 def _self_test() -> None:
     """Run local assertions for path classification edge cases."""
-    assert (
-        classify_file('src/session_browser/web/templates/session_detail.html').category
-        == 'ui-template'
-    )
-    assert classify_file('src/session_browser/web/static/app.css').category == 'ui-css'
-    assert classify_file('src/session_browser/foo.py').quality_target == 'python-src'
     assert (
         classify_file('docs/acceptance-contracts/features/DATA_PRESENTERS.md').quality_target
         == 'acceptance-contracts'
