@@ -10,6 +10,7 @@ import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 /**
  * 服务器 PID 文件的读写与元数据载体。
@@ -125,6 +126,33 @@ final class PidFile {
       // PID 文件删除失败不影响功能，仅可能影响下次 stop 的识别
     }
   }
+
+  /**
+   * 读取 PID 文件并验证进程存活状态。
+   *
+   * <p>封装 stop/status/doctor 命令共享的 PID 文件读取 + 进程存活检查模式。
+   *
+   * @param indexDir 索引目录
+   * @return 检查结果，包含元数据和进程存活状态
+   * @throws IOException 读取失败时
+   */
+  static ProcessCheck checkProcess(Path indexDir) throws IOException {
+    Metadata meta = read(indexDir);
+    if (meta == null) {
+      return new ProcessCheck(null, false);
+    }
+    Optional<ProcessHandle> processOpt = ProcessHandle.of(meta.pid());
+    boolean alive = processOpt.isPresent() && processOpt.get().isAlive();
+    return new ProcessCheck(meta, alive);
+  }
+
+  /**
+   * PID 文件检查与进程存活状态的结果。
+   *
+   * @param meta PID 文件元数据，文件不存在时为 null
+   * @param processAlive PID 对应进程是否存活
+   */
+  record ProcessCheck(Metadata meta, boolean processAlive) {}
 
   /**
    * 解析 PID 文件内容。

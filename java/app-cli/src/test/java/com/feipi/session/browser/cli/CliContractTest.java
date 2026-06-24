@@ -116,6 +116,8 @@ class CliContractTest {
           .contains("scan")
           .contains("serve")
           .contains("stop")
+          .contains("status")
+          .contains("doctor")
           .contains("test")
           .contains("deps")
           .contains("quality")

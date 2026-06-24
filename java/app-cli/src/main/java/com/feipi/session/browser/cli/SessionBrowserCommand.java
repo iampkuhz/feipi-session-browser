@@ -18,6 +18,8 @@ import picocli.CommandLine.Option;
       ScanCommand.class,
       ServeCommand.class,
       StopCommand.class,
+      StatusCommand.class,
+      DoctorCommand.class,
       TestCommand.class,
       DepsCommand.class,
       QualityCommand.class,

@@ -3451,6 +3451,126 @@
       "createdAt": "2026-06-24",
       "expiresOn": "2026-12-21",
       "evidence": "e7e247027bfe872b59886c25a5ea6b9503f88fa056273e14ad9d41132480c9b4"
+    },
+    {
+      "fingerprint": "b86f8429982a20e43d0ea74d8cf05b0484f12230c7338005d64d7579af723a77",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: ScanCommand, ServerLifecycle 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "b86f8429982a20e43d0ea74d8cf05b0484f12230c7338005d64d7579af723a77"
+    },
+    {
+      "fingerprint": "e0660e004f86995fcc2a85d38ff26228343f5987d9f3904fb7bab861f6fcd285",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: NormalizedBatchCommand, DatabaseUpgrader 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "e0660e004f86995fcc2a85d38ff26228343f5987d9f3904fb7bab861f6fcd285"
+    },
+    {
+      "fingerprint": "cc5eba4009351ad6a0ad39b1e3df208b83b9ca3c55d60957e9b6808baff81cb8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: ScanCommand, ServerLifecycle 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "cc5eba4009351ad6a0ad39b1e3df208b83b9ca3c55d60957e9b6808baff81cb8"
+    },
+    {
+      "fingerprint": "326da8b47d7053ea6e56b5f396c82318e29a064151c00a0d99b0f3ca3bb6cb82",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: ScanCommand, ServerLifecycle 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "326da8b47d7053ea6e56b5f396c82318e29a064151c00a0d99b0f3ca3bb6cb82"
+    },
+    {
+      "fingerprint": "5488047cea8d1fc2710c4c2974ce4cc5cb2d7e3c68e43d73c3e385e7d181d38d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: DatabaseUpgrader 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "5488047cea8d1fc2710c4c2974ce4cc5cb2d7e3c68e43d73c3e385e7d181d38d"
+    },
+    {
+      "fingerprint": "94f7d01fde952bf297f63f7d8d7d4aa38a0a38126ee70a16ed779ba1f3ecb5af",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: DatabaseUpgrader 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "94f7d01fde952bf297f63f7d8d7d4aa38a0a38126ee70a16ed779ba1f3ecb5af"
+    },
+    {
+      "fingerprint": "7cb3eaf8e3c172bab6c7f1ad1201726e64f3fa1a91456d6f2dbada021638749a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: BuildInfoVersionProvider 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "7cb3eaf8e3c172bab6c7f1ad1201726e64f3fa1a91456d6f2dbada021638749a"
+    },
+    {
+      "fingerprint": "91b68bd83933c643a0e5a63d06d28655aa76dbc830a1f32572630dd4342a01d5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: DoctorCommand, StatusCommand 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "91b68bd83933c643a0e5a63d06d28655aa76dbc830a1f32572630dd4342a01d5"
+    },
+    {
+      "fingerprint": "9d0f43f3b0b9e6219ccb76293b48bf475483133d8ba0755577815ba76e47d642",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: PidFile, StopCommand 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "9d0f43f3b0b9e6219ccb76293b48bf475483133d8ba0755577815ba76e47d642"
+    },
+    {
+      "fingerprint": "a85654f85c6c54ef22c75079621ea9bd105e95f63f0682b834880c128c238905",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: DatabaseUpgrader 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "a85654f85c6c54ef22c75079621ea9bd105e95f63f0682b834880c128c238905"
+    },
+    {
+      "fingerprint": "bb654eef6fc76a32e54b5ff6b60fae351c975cefb76128254baeacd1d823762b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: DatabaseUpgrader 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "bb654eef6fc76a32e54b5ff6b60fae351c975cefb76128254baeacd1d823762b"
+    },
+    {
+      "fingerprint": "532e3e682cd79ad0de8d2a731ee81eb0b2bdab7a0bd4dbc82298e701e03e2ef2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "DS-060 reuseBaselineVerify 补录: BuildInfoVersionProvider 的 STATEMENT_DUPLICATE，属于 cli 层 OWNER_BOUND 代码的合理共享",
+      "owner": "app-cli",
+      "createdAt": "2026-06-24",
+      "expiresOn": "2026-12-24",
+      "evidence": "532e3e682cd79ad0de8d2a731ee81eb0b2bdab7a0bd4dbc82298e701e03e2ef2"
     }
   ]
 }
