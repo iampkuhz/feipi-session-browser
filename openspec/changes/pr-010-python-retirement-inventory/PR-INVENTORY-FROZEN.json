@@ -1,0 +1,3492 @@
+{
+  "frozen_at": "2026-06-25T00:00:00Z",
+  "task_id": "PR-010",
+  "stage": "S7",
+  "s6_marker_verified": true,
+  "s6_commit": "48550bc44d92758791c110934818600d8a2f9638",
+  "java_test_counts": {
+    "total": 1729,
+    "passed": 1729,
+    "failed": 0
+  },
+  "summary": {
+    "PRODUCT_RUNTIME": 0,
+    "DEV_TOOL": 101,
+    "FIXTURE_GENERATOR": 2,
+    "TEST_INFRASTRUCTURE": 181,
+    "DELETE": 88,
+    "NEEDS_DECISION": 101
+  },
+  "categories": {
+    "PRODUCT_RUNTIME": [],
+    "DEV_TOOL": [
+      {
+        "path": "scripts/agent_hooks/guard_active_openspec_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/agent_hooks/guard_openspec_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/agent_hooks/inject_session_context.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/agent_hooks/log_change_evidence.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/agent_hooks/stop_validate_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/check_inspector_viewer_structure.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/check_profile_table_structure.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/check_scroll_shadow_behavior.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/check_timeline_expandability.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/check_ui_density_and_font_size.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/__init__.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/active_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/classify.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/evidence.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/hook_io.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/main.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/paths.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/__init__.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/bash_policy.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/config_policy.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/file_policy.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/quality_policy.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/session_context.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/policy/write_session_check.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/result.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/claude_hooks/self_test.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/agent_stop_check.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/apply_seed_overlay.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/check_no_unfinished_markers.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/harness/doctor.sh",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Shell 开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/python_env.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/validate_harness_structure.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/validate_openspec_layout.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/validate_task_files.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/harness/validate_ui_reference_links.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/hooks/guard_openspec_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/hooks/stop_quality_gate.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/openspec/create_active_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/openspec/validate_active_change.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/openspec/validate_layout.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/openspec/validate_schema.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/qa/session_ui/capture_session_detail_baseline.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/qa/session_ui/check_layout_quality.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/session_ui/check_sessions_list_logic_contract.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/session_ui/check_token_charts_card_layout.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_dom_contracts.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_glossary_html.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_project_detail_html.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_projects_list_html.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_session_detail.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_sessions_list_css.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_sessions_list_html.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_state_pages.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/check_ui_contracts.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/qa/ui/validate_primitive_screenshots.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/__init__.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/check_code_comment_language.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_codex_agent_policy.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_css_import_order.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_css_ownership.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_index_integrity.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_java_api_snapshot.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_jinja_strict_render.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_js_action_handlers.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_language_policy.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_layout_inline_style.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_no_id_selector.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_no_java_suppress_warnings.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_no_legacy_css.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_no_test_skips.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_no_unfinished_markers.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_raw_innerhtml.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_selector_depth.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_session_detail_shell_css.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_session_detail_static.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/check_ui_sort_contract.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "UI/前端检查脚本"
+      },
+      {
+        "path": "scripts/quality/doctor.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/doctor.sh",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Shell 开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/generate_quality_report.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/quality_artifact.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/quality_targets.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/repo_slimming_contract_check.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_api_smoke_gate.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_llm_attribution_visual_gate.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_quality_gate.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_required_quality_gates.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_session_detail_interaction_gate.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_session_detail_layout_gate.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/run_ui_interaction_smoke.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/static_contract_check.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/stop_check_targets.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/template_contract_check.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/test_check_code_comment_language.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/validate_acceptance_contracts.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/validate_repo_structure.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/quality/validate_task_files.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "开发工具脚本"
+      },
+      {
+        "path": "scripts/release/create-release-candidate.sh",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Shell 开发工具脚本"
+      },
+      {
+        "path": "scripts/release/drill-upgrade-rollback.sh",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Shell 开发工具脚本"
+      },
+      {
+        "path": "scripts/release/generate-checksums.sh",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Shell 开发工具脚本"
+      },
+      {
+        "path": "scripts/session-browser.sh",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Shell 开发工具脚本"
+      },
+      {
+        "path": "scripts/validate_css_ownership.py",
+        "category": "DEV_TOOL",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "CSS 所有权验证"
+      }
+    ],
+    "FIXTURE_GENERATOR": [
+      {
+        "path": "scripts/generate_fixture_sessions.py",
+        "category": "FIXTURE_GENERATOR",
+        "java_status": "无需迁移",
+        "java_equivalent": "java/contract-tests",
+        "note": "生成高保真测试 fixture"
+      },
+      {
+        "path": "scripts/start_fixture_server.py",
+        "category": "FIXTURE_GENERATOR",
+        "java_status": "无需迁移",
+        "java_equivalent": "N/A",
+        "note": "Fixture 服务器启动脚本"
+      }
+    ],
+    "TEST_INFRASTRUCTURE": [
+      {
+        "path": "tests/attribution/test_agent_app_claude_code_collectors.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_agent_app_codex_collectors.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_agent_app_qoder_collectors.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_call_mapping_resolver.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_evidence_collectors_history.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_evidence_collectors_project.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_evidence_collectors_session.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_openai_usage_parser.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_payload_contract_v2.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_qoder_broker_usage_parser.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_qoder_credit_attribution.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/attribution/test_qoder_token_distribution.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/backend/test_anomalies.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_claude_source.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_codex_source.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_content_part.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_domain_model_invariants.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_llm_content_normalize.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_make_round.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_mhtml_export.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_multipart_normalizer.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_payload_truncation.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_qoder_current_model_fallback.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_qoder_model_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_qoder_token_estimation.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_round_signals.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_title_extraction.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_token_bar_normalization.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/backend/test_token_normalizer.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/fault_injection/__init__.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/fault_injection/test_db_fault_injection.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/fault_injection/test_file_fault_injection.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/fault_injection/test_no_python_fallback.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/fault_injection/test_process_fault_injection.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/fault_injection/test_protocol_fault_injection.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/fixtures/session_hifi_long_fixture/gen_fixture.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/harness/test_agent_stop_check.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/hooks/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/hooks/test_claude_hooks_bash_policy.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/hooks/test_claude_hooks_classify.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/hooks/test_claude_hooks_evidence.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/hooks/test_claude_hooks_file_policy.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/hooks/test_claude_hooks_hook_io.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/hooks/test_stop_quality_gate.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/index/_test_db_utils.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/index/test_sessions_filters.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/misc/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/misc/test_cli.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/misc/test_help_version_cutover.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/misc/test_serve_stop_ownership_guard.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/normalized/test_artifact_consumer.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/normalized/test_claude_code_adapter_snapshots.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/normalized/test_codex_adapter_snapshots.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/normalized/test_qoder_adapter_snapshots.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/pages/fixtures/__init__.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_2560x1440_smoke.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_dashboard.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_dashboard_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_error_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_glossary_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_macbook_smoke.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_profile_modal_open.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_profile_table_structure.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_project_detail_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_projects_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_scroll_shadow_behavior.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_sessions_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_sidebar_toggle.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_state_pages.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_timeline_expandability.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/pages/test_timeline_preview.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/performance/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/performance/test_long_session_performance.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/quality/test_contract_case_specs.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_dashboard_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_generate_quality_report.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_java_api_snapshot.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_java_classification.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_new_quality_gates.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_no_test_skips_gate.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_python_env_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_quality_artifact.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_quality_gate_runner.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_repo_slimming_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_run_required_quality_gates.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_static_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/quality/test_warning_gate_cli.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/rendering/test_copy_action_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_info_icon_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_project_detail_table_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_project_template_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_projects_template_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_safe_render.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_script_loading_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_session_detail_tabs_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_sessions_token_cell_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_shell_contracts.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_template_render.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_tool_result_render.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/rendering/test_trace_header_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/session_detail/test_hero_subagent_count.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_preview_tag.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_qoder_short_id_resolution.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_analysis_view_model.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_api.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_hifi_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_llm_call_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_noise_and_a11y.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_page.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_round_consistency.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_route.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_snapshot.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_static_gate.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_template_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_trace_dom_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_trace_layout_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_session_detail_trace_preview_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_subagent_fixture.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_tool_command_summary.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/session_detail/test_tool_error_fixture.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sessions_list/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/sessions_list/test_list_title_truncation.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sessions_list/test_sessions_list.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sessions_list/test_sessions_list_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sessions_list/test_sessions_list_interactions.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sessions_list/test_sessions_list_query_state.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sessions_list/test_sessions_pagination.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sources/test_jsonl_reader.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sources/test_parser_contract_regression.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/sources/test_parser_snapshots.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_claude_code_request_reconstruction.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_codex_openai_attribution.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_api.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_bucket_normalization.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_call_scoped_correctness.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_claude_code.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_codex.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_context_builder.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_context_hydration.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_deep_source_correlation.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_error_isolation.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_error_payload.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_qoder.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_semantic_correctness.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_serializers.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_token_estimator.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_llm_attribution_visual_gate.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_release_version_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_session_detail_llm_attribution_modal_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_session_detail_llm_attribution_payloads.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/test_session_detail_llm_attribution_ui.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/conftest.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test fixtures",
+        "note": "pytest 配置"
+      },
+      {
+        "path": "tests/ui/test_card_sub_spacing.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_dashboard_tooltip_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_hifi_dom_structure.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_token_variable_homology.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_tool_status.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_ui_contract_static.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_ui_density_and_font_size.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_ui_primitives.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_web_static_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/ui/test_web_template_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_dashboard_presenter.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_dashboard_presenter_contract.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_dashboard_route_smoke.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_llm_blocks_renderer.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_markdown_renderer.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_page_size_consistency.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_presenter_route_integration.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_projects_presenter.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_sessions_ajax_partial.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_sessions_pagination_has_next.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_sessions_presenter.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      },
+      {
+        "path": "tests/web/test_template_env.py",
+        "category": "TEST_INFRASTRUCTURE",
+        "java_status": "无需迁移",
+        "java_equivalent": "java test equivalents",
+        "note": "Python 测试基础设施"
+      }
+    ],
+    "DELETE": [
+      {
+        "path": "src/session_browser/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "N/A",
+        "note": "包初始化文件，随包删除"
+      },
+      {
+        "path": "src/session_browser/__main__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/app-cli",
+        "note": "CLI 入口已退休至 Java launcher"
+      },
+      {
+        "path": "src/session_browser/cli.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/app-cli",
+        "note": "CLI 入口已退休至 Java launcher"
+      },
+      {
+        "path": "src/session_browser/config.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/application AppConfig",
+        "note": "配置已由 Java ApplicationConfig 接管"
+      },
+      {
+        "path": "src/session_browser/domain/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/_validation.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/content_part.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/enums.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/llm_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/message_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/normalizer.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/project_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/serializers.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/session_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/subagent_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/token_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/token_normalizer.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/token_normalizers/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/token_normalizers/codex_token_normalizer.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/domain/tool_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/core-domain",
+        "note": "Domain 模型已全面迁移至 Java core-domain"
+      },
+      {
+        "path": "src/session_browser/index/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/anomalies.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/diagnostics.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/indexer.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/metrics.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/percentiles.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/queries.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/schema.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/index/writers.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/index-sqlite, query-api",
+        "note": "Index/Query 已由 Java index-sqlite + query-api 接管"
+      },
+      {
+        "path": "src/session_browser/normalized/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/chat_jsonl.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/claude_code_normalization.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/claude_code_parts/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/claude_code_parts/source_units.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/codex_normalization.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/codex_parts/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/codex_parts/source_units.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/codex_parts/text_splitter.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/qoder_normalization.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/qoder_parts/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/agents/qoder_parts/source_units.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/artifact_consumer.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/artifacts.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/constants.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/java_bridge.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/normalized_batch.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/schema.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/normalized/semantic.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/normalization-engine, artifact-normalized",
+        "note": "Normalized artifact 生产已由 Java normalization-engine 接管（含 java_bridge）"
+      },
+      {
+        "path": "src/session_browser/sources/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/claude.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/codex_session_source.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/jsonl_reader.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/qoder.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/qoder_parts/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/qoder_parts/discovery.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/qoder_parts/model_config.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/qoder_parts/parse.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/sources/qoder_parts/utils.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/source-claude, source-codex, source-qoder, source-json",
+        "note": "Source adapter 已由 Java source-* 模块接管"
+      },
+      {
+        "path": "src/session_browser/web/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/mhtml.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/presenters/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/presenters/dashboard.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/presenters/projects.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/presenters/session_detail.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/presenters/sessions.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/renderers/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/renderers/llm_blocks.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/renderers/markdown.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/routes.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/safe_render.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/anomalies.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/ids.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/payloads.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/preview.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/render_helpers.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/session_cache.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/url_helpers.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/session_detail/view_model.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/template_env.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "src/session_browser/web/view_models.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/web",
+        "note": "Web 路由/模板/Presenters 已由 Java web 模块（Javalin + Pebble）接管"
+      },
+      {
+        "path": "tests/bridge/__init__.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/contract-tests",
+        "note": "Java bridge 测试随 bridge 删除"
+      },
+      {
+        "path": "tests/bridge/test_java_bridge.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/contract-tests",
+        "note": "Java bridge 测试随 bridge 删除"
+      },
+      {
+        "path": "tests/bridge/test_normalized_batch.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/contract-tests",
+        "note": "Java bridge 测试随 bridge 删除"
+      },
+      {
+        "path": "tests/index/test_python_scan_retirement.py",
+        "category": "DELETE",
+        "java_status": "已迁移",
+        "java_equivalent": "java/scan-engine tests",
+        "note": "Python scan 退休验证已完成使命"
+      }
+    ],
+    "NEEDS_DECISION": [
+      {
+        "path": "src/session_browser/attribution/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/base.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/claude_code_attribution_builder.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/claude_code_parts/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/claude_code_parts/claude_code_agent_tools.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/claude_code_parts/utils.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/claude_code_tool_schemas.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/codex_attribution_builder.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/codex_request_taxonomy.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/agents/qoder_attribution_builder.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/anthropic_messages/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/anthropic_messages/cache_allocator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/anthropic_messages/normalizer.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/anthropic_messages/request_order.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/anthropic_messages/usage_parser.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/estimate_only/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/estimate_only/cache_estimator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/estimate_only/normalizer.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/estimate_only/usage_estimator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_chat/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_chat/cache_allocator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_chat/normalizer.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_chat/request_order.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_chat/usage_parser.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_responses/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_responses/cache_allocator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_responses/normalizer.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_responses/request_order.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/openai_responses/usage_parser.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/qoder_broker/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/qoder_broker/credit_estimator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/qoder_broker/credit_parser.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/qoder_broker/normalizer.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/qoder_broker/underlying_family_resolver.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/api_families/qoder_broker/usage_parser.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/claude_code/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/claude_code/builtins_catalog.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/claude_code/system_prompt_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/claude_code/tool_registry_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/claude_code/tool_schema_normalizer.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/codex/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/codex/default_prompt_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/codex/tool_schema_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/qoder/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/qoder/builtin_tools_catalog.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/qoder/model_policy_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/agent_app/qoder/rules_schema_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/history/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/history/compact_summary_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/history/message_timeline_builder.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/history/prior_messages_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/history/prior_tool_results_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/agents_md_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/claude_md_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/file_snapshot_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/mcp_config_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/qoder_config_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/qoder_rules_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/repo_context_locator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/project/subagent_prompt_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/assistant_output.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/current_user_message.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/event_stream_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/jsonl_reader.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/llm_call_locator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/raw_payload_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/tool_result_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/tool_use_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/collectors/session/usage_extractor.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/context.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/contracts.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/core/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/core/bucket_aggregator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/core/models.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/core/residuals.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/core/span_builder.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/core/validation.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/dto.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/agent_runtime.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/agents/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/agents/claude_code_token_accounting_mapping.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/agents/codex_token_accounting_mapping.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/agents/qoder_token_accounting_mapping.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/api_family.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/call_mapping_resolver.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/model_string_detector.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/mapping/usage_shape_detector.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/serializers.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/service.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/taxonomy.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/token_estimator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/tokenization/__init__.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/tokenization/heuristic_counter.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/tokenization/qoder_estimator.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/tokenization/router.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      },
+      {
+        "path": "src/session_browser/attribution/tokenization/tiktoken_counter.py",
+        "category": "NEEDS_DECISION",
+        "java_status": "未迁移",
+        "java_equivalent": "无 Java 对应模块",
+        "note": "LLM 费用归因分析；S1-S6 未涉及；需确认保留/迁移/删除"
+      }
+    ]
+  },
+  "runtime_dependencies": {
+    "requirements.txt": {
+      "deps": [
+        "jinja2",
+        "markdown-it-py"
+      ],
+      "java_status": "已迁移",
+      "note": "运行时依赖随 Python 产品删除"
+    },
+    "pyproject.toml_runtime_deps": [
+      "jinja2",
+      "markdown-it-py"
+    ],
+    "pyproject.toml_optional_deps": {
+      "tokenization": [
+        "tiktoken"
+      ]
+    },
+    "pyproject.toml_dev_deps": [
+      "beautifulsoup4",
+      "bandit",
+      "build",
+      "coverage",
+      "deptry",
+      "interrogate",
+      "pip-audit",
+      "pytest",
+      "pytest-cov",
+      "pytest-xdist",
+      "pydoclint",
+      "pyright",
+      "playwright",
+      "pre-commit",
+      "radon",
+      "ruff",
+      "vulture",
+      "xenon"
+    ],
+    "pyproject.toml_note": "dev 部分保留供开发质量工具；runtime 部分随产品删除"
+  },
+  "container_ci_release": {
+    "Dockerfile": {
+      "category": "DELETE",
+      "java_status": "已迁移",
+      "note": "Python 容器；Java 使用 jlink runtime image"
+    },
+    "compose/docker-compose.yml": {
+      "category": "DELETE",
+      "java_status": "已迁移",
+      "note": "Python Podman compose；Java 有独立 distribution"
+    },
+    ".github/workflows/quality.yml": {
+      "category": "DELETE",
+      "java_status": "已迁移",
+      "note": "Python quality CI；Java 由 java-quality.yml 接管"
+    },
+    ".github/workflows/ci-distribution.yml": {
+      "category": "DEV_TOOL",
+      "java_status": "已迁移",
+      "note": "Java distribution CI，保留"
+    },
+    ".github/workflows/release.yml": {
+      "category": "DEV_TOOL",
+      "java_status": "已迁移",
+      "note": "Java release workflow，保留"
+    },
+    ".github/workflows/java-quality.yml": {
+      "category": "DEV_TOOL",
+      "java_status": "已迁移",
+      "note": "Java quality CI，保留"
+    },
+    "Makefile": {
+      "category": "DEV_TOOL",
+      "java_status": "无需迁移",
+      "note": "开发入口，保留"
+    },
+    "scripts/release/create-release-candidate.sh": {
+      "category": "DEV_TOOL",
+      "java_status": "无需迁移",
+      "note": "发行候选脚本"
+    },
+    "scripts/release/drill-upgrade-rollback.sh": {
+      "category": "DEV_TOOL",
+      "java_status": "无需迁移",
+      "note": "升级/回滚演练脚本"
+    },
+    "scripts/release/generate-checksums.sh": {
+      "category": "DEV_TOOL",
+      "java_status": "无需迁移",
+      "note": "校验和生成脚本"
+    }
+  },
+  "deletion_order": [
+    {
+      "phase": 1,
+      "scope": "src/session_browser/{domain,sources,index,normalized,web,cli.py,__main__.py,config.py,__init__.py}",
+      "action": "删除已由 Java 全面接管的 Python 产品运行代码（78 文件）",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 2,
+      "scope": "src/session_browser/attribution/",
+      "action": "根据 NEEDS_DECISION 结果处理 LLM 归因模块（82 文件）",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 3,
+      "scope": "Dockerfile, compose/docker-compose.yml",
+      "action": "删除 Python 容器定义",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 4,
+      "scope": ".github/workflows/quality.yml",
+      "action": "删除 Python quality CI workflow",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 5,
+      "scope": "requirements.txt, pyproject.toml [project.dependencies]",
+      "action": "清理 Python 运行时依赖；保留 dev 依赖供开发工具使用",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 6,
+      "scope": "tests/bridge/, tests/index/test_python_scan_retirement.py",
+      "action": "删除已无被测对象的 Python 测试",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 7,
+      "scope": "scripts/session-browser.sh 中 build-dist/verify-dist/release-check/build/deploy/podman-* 命令",
+      "action": "清理已废弃的 Python 产品构建/发布命令",
+      "rollback": "git revert single commit"
+    },
+    {
+      "phase": 8,
+      "scope": "tests/ 剩余文件",
+      "action": "清理所有不再适用的 Python 测试（按需）",
+      "rollback": "git revert single commit"
+    }
+  ],
+  "risks": [
+    "attribution/ 模块（82 文件）无 Java 对应：需用户决定保留为独立 Python 分析工具、迁移至 Java 或删除",
+    "scripts/session-browser.sh 是统一入口；清理时需保留 test/format/lint/quality 等开发命令",
+    "Python 测试覆盖了大量 contract case 和 DOM 验证；删除前需确认 Java contract-tests 已完全覆盖",
+    "pyproject.toml 同时声明了 runtime 和 dev 依赖；需拆分为仅 dev 依赖"
+  ]
+}
