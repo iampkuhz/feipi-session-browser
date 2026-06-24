@@ -136,8 +136,13 @@ public final class ServerLifecycle {
         startBackgroundScanner(sourceEntries, artifactDir, queryRoot);
       }
 
-      LOG.info("serve 已就绪: {}:{}", host, webServer.actualPort());
-      return webServer.actualPort();
+      int actualPort = webServer.actualPort();
+      LOG.info("serve 已就绪: {}:{}", host, actualPort);
+
+      // 写入 PID 文件供 stop 命令使用
+      writePidFile(actualPort);
+
+      return actualPort;
 
     } catch (Exception e) {
       cleanup();
@@ -184,7 +189,7 @@ public final class ServerLifecycle {
 
   // ===== 私有方法 =====
 
-  /** 执行关闭序列：scanner → server → DB。 */
+  /** 执行关闭序列：scanner → server → DB → 清理 PID 文件。 */
   private void doShutdown() {
     LOG.info("正在关闭 serve...");
 
@@ -223,6 +228,9 @@ public final class ServerLifecycle {
       jdbcConnection = null;
     }
 
+    // 正常关闭时清理 PID 文件
+    PidFile.delete(indexDir);
+
     shutdownLatch.countDown();
     LOG.info("serve 已关闭");
   }
@@ -239,6 +247,21 @@ public final class ServerLifecycle {
       Path artifactDir) {
     shutdownHook = new Thread(() -> doShutdown(), "serve-shutdown");
     Runtime.getRuntime().addShutdownHook(shutdownHook);
+  }
+
+  /**
+   * 写入 PID 文件供 stop 命令定位和验证进程。
+   *
+   * <p>写入失败仅记录警告，不阻止 serve 运行。PID 文件包含 PID、端口、主机、索引目录和启动时间。
+   *
+   * @param actualPort 实际监听端口
+   */
+  private void writePidFile(int actualPort) {
+    try {
+      PidFile.write(indexDir, ProcessHandle.current().pid(), actualPort, host);
+    } catch (IOException e) {
+      LOG.warn("写入 PID 文件失败，stop 命令将无法自动识别此进程: {}", e.getMessage());
+    }
   }
 
   /**

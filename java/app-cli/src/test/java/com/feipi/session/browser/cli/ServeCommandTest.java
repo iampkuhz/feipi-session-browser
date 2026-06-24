@@ -95,11 +95,22 @@ class ServeCommandTest {
       assertThat(lifecycle.isRunning()).isTrue();
       assertThat(lifecycle.actualPort()).isEqualTo(actualPort);
 
+      // 验证 PID 文件已写入
+      assertThat(PidFile.path(indexDir)).exists();
+      PidFile.Metadata meta = PidFile.read(indexDir);
+      assertThat(meta).isNotNull();
+      assertThat(meta.pid()).isEqualTo(ProcessHandle.current().pid());
+      assertThat(meta.port()).isEqualTo(actualPort);
+      assertThat(meta.host()).isEqualTo("127.0.0.1");
+
       // 验证 health endpoint 可用
       verifyHealthEndpoint(actualPort);
 
       lifecycle.shutdown();
       assertThat(lifecycle.isRunning()).isFalse();
+
+      // 验证 PID 文件已清理
+      assertThat(PidFile.path(indexDir)).doesNotExist();
     }
 
     @Test
