@@ -8,19 +8,12 @@ dynamic = ["version"]
 description = "Local session browser for Claude Code, Codex, and Qoder session data."
 readme = "README.md"
 requires-python = ">=3.10"
-dependencies = [
-  "jinja2",
-  "markdown-it-py",
-]
+dependencies = []
 
 [project.optional-dependencies]
-tokenization = [
-  "tiktoken",
-]
 dev = [
   "beautifulsoup4",
   "bandit",
-  "build",
   "coverage",
   "deptry",
   "interrogate",
@@ -38,26 +31,8 @@ dev = [
   "xenon",
 ]
 
-[project.scripts]
-session-browser = "session_browser.cli:main"
-
 [tool.setuptools.dynamic]
 version = {file = ["VERSION"]}
-
-[tool.setuptools.packages.find]
-where = ["src"]
-
-[tool.setuptools.package-data]
-session_browser = [
-  "web/templates/*.html",
-  "web/templates/components/*.html",
-  "web/templates/components/**/*.html",
-  "web/static/*.css",
-  "web/static/**/*.css",
-  "web/static/js/*.js",
-  "web/static/js/**/*.js",
-  "web/static/images/*.svg",
-]
 
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
@@ -189,7 +164,6 @@ skips = []
 [tool.deptry]
 known_first_party = ["session_browser"]
 optional_dependencies_dev_groups = ["dev"]
-package_module_name_map = {"markdown-it-py" = ["markdown_it"], "tiktoken" = ["tiktoken"]}
 extend_exclude = [
   "tmp",
   "data",

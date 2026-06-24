@@ -1,2 +1,4 @@
-jinja2
-markdown-it-py
+# No product runtime dependencies.
+# Python product code has been retired (PR-030, PR-040).
+# All product functionality is now provided by the Java implementation.
+# Development tool dependencies are in requirements-dev.txt.

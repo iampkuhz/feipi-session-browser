@@ -1,3 +1,2 @@
 # Direct runtime dependency lock. Keep names aligned with requirements.txt.
-jinja2==3.1.6
-markdown-it-py==4.2.0
+# No product runtime dependencies (Python product retired in PR-040).
