@@ -457,6 +457,12 @@ component com.feipi.session.browser.testsupport.cli.CliResult stdout: String
 component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult exitCode: int
 component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult stderr: String
 component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult stdout: String
+component com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse error: String
+component com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse message: String
+component com.feipi.session.browser.web.WebConfig host: String
+component com.feipi.session.browser.web.WebConfig port: int
+component com.feipi.session.browser.web.WebConfig staticPath: String
+component com.feipi.session.browser.web.WebServer.HealthResponse status: String
 constructor com.feipi.session.browser.application.AnnotatedDetail public AnnotatedDetail()
 constructor com.feipi.session.browser.application.AnnotatedPageResult public AnnotatedPageResult()
 constructor com.feipi.session.browser.application.DashboardUseCase public DashboardUseCase( AggregateQueryRepository repository, QueryCache cache, int schemaVersion)
@@ -594,6 +600,9 @@ constructor com.feipi.session.browser.testsupport.cli.CliRunner public CliRunner
 constructor com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public CliResult()
 constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter public FakeSourceAdapter( SourceId sourceId, List<Candidate> candidates, SourceOutcome parseOutcome)
 constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter public FakeSourceAdapter(SourceId sourceId, List<Candidate> candidates)
+constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config)
+constructor com.feipi.session.browser.web.WebConfig public WebConfig()
+constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
 enum-constant com.feipi.session.browser.domain.enums.CallScope MAIN
 enum-constant com.feipi.session.browser.domain.enums.CallScope SUBAGENT
 enum-constant com.feipi.session.browser.domain.enums.CallStatus ERROR
@@ -751,6 +760,8 @@ field com.feipi.session.browser.source.spi.SourceConstants public MAX_DIAGNOSTIC
 field com.feipi.session.browser.source.spi.SourceConstants public MAX_METADATA_ENTRIES: static final int
 field com.feipi.session.browser.source.spi.SourceConstants public MAX_PREVIEW_LENGTH: static final int
 field com.feipi.session.browser.source.spi.SourceResult public MAX_DIAGNOSTICS: int
+field com.feipi.session.browser.web.WebConfig public DEFAULT_HOST: static final String
+field com.feipi.session.browser.web.WebConfig public DEFAULT_PORT: static final int
 method com.feipi.session.browser.application.DashboardUseCase public AggregateMetricsRow aggregateMetrics() throws SQLException
 method com.feipi.session.browser.application.DashboardUseCase public DashboardRow stats(AgentFilter agentFilter) throws SQLException
 method com.feipi.session.browser.application.DashboardUseCase public List<ActivityTrendRow> activityTrend(TrendFilter filter) throws SQLException
@@ -1230,6 +1241,16 @@ method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public stat
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static Connection createTempFileConnection() throws SQLException, java.io.IOException
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void closeQuietly(Connection conn)
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void configureConnection(Connection conn) throws SQLException
+method com.feipi.session.browser.web.WebCompositionRoot public Javalin app()
+method com.feipi.session.browser.web.WebCompositionRoot public QueryCompositionRoot queryRoot()
+method com.feipi.session.browser.web.WebCompositionRoot public WebServer createServer()
+method com.feipi.session.browser.web.WebConfig public static WebConfig defaults()
+method com.feipi.session.browser.web.WebConfig public static WebConfig withPort(int port)
+method com.feipi.session.browser.web.WebServer public Javalin javalin()
+method com.feipi.session.browser.web.WebServer public WebServer start()
+method com.feipi.session.browser.web.WebServer public boolean isRunning()
+method com.feipi.session.browser.web.WebServer public int actualPort()
+method com.feipi.session.browser.web.WebServer public void stop()
 type com.feipi.session.browser.application.AnnotatedDetail public record [application] record AnnotatedDetail(SessionDetail detail, SessionAnomalySummary anomalies)
 type com.feipi.session.browser.application.AnnotatedPageResult public record [application] record AnnotatedPageResult( PageResult<SessionRow> page, List<SessionAnomalySummary> anomalies)
 type com.feipi.session.browser.application.DashboardUseCase public class [application] final class DashboardUseCase
@@ -1457,3 +1478,8 @@ type com.feipi.session.browser.testsupport.cli.CliRunner public class [test-supp
 type com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public record [test-support] record CliResult(String stdout, String stderr, int exitCode)
 type com.feipi.session.browser.testsupport.source.FakeSourceAdapter public class [test-support] final class FakeSourceAdapter implements SourceAdapter
 type com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public class [test-support] final class SqliteTestHelper
+type com.feipi.session.browser.web.WebCompositionRoot public class [web] final class WebCompositionRoot
+type com.feipi.session.browser.web.WebCompositionRoot.ErrorResponse public record [web] record ErrorResponse(String error, String message)
+type com.feipi.session.browser.web.WebConfig public record [web] record WebConfig(String host, int port, String staticPath)
+type com.feipi.session.browser.web.WebServer public class [web] final class WebServer
+type com.feipi.session.browser.web.WebServer.HealthResponse public record [web] record HealthResponse(String status)

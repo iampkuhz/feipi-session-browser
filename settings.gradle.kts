@@ -30,4 +30,5 @@ include(
     "java:query-api",
     "java:reuse-analyzer",
     "java:application",
+    "java:web",
 )

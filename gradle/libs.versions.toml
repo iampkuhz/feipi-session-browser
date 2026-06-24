@@ -30,6 +30,11 @@ sqlite-jdbc = "3.49.1.0"
 # AST analysis (build-time only, NOT in product runtime)
 spoon-core = "11.1.0"
 
+# Web
+javalin = "7.0.0"
+pebble = "3.2.2"
+commonmark = "0.24.0"
+
 # Compile-time code generation
 lombok = "1.18.46"
 
@@ -78,6 +83,18 @@ spoon-core = { module = "fr.inria.gforge.spoon:spoon-core", version.ref = "spoon
 # Compile-time code generation
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }
 
+# Web - Javalin
+javalin = { module = "io.javalin:javalin", version.ref = "javalin" }
+
+# Web - Pebble template engine
+pebble = { module = "io.pebbletemplates:pebble", version.ref = "pebble" }
+
+# Web - commonmark Markdown parser
+commonmark = { module = "org.commonmark:commonmark", version.ref = "commonmark" }
+
+# Web - Javalin test tools
+javalin-testtools = { module = "io.javalin:javalin-testtools", version.ref = "javalin" }
+
 [plugins]
 spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 
@@ -85,3 +102,4 @@ spotless = { id = "com.diffplug.spotless", version.ref = "spotless" }
 junit = ["junit-jupiter", "junit-jupiter-api", "junit-jupiter-params"]
 jackson = ["jackson-databind", "jackson-datatype-jsr310"]
 logback = ["logback-classic", "logback-core"]
+web = ["javalin", "pebble", "commonmark"]
