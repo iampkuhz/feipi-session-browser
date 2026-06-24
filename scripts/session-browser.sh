@@ -107,14 +107,7 @@ java_launcher_path() {
 # 通过 Java launcher 执行 help/version。
 # launcher 缺失时中文报错、非零退出、不 fallback 到 Python。
 run_java_help_version() {
-    local launcher
-    launcher="$(java_launcher_path)"
-    if [[ ! -x "$launcher" ]]; then
-        echo "错误：Java launcher 未找到：$launcher" >&2
-        echo "请先执行构建：./gradlew :java:app-cli:installDist" >&2
-        exit 1
-    fi
-    exec "$launcher" "$@"
+    run_java_command "$@"
 }
 
 require_podman() {
@@ -455,70 +448,43 @@ podman_up() {
     echo "  Qoder App Support: $qoder_app_support_dir"
 }
 
-run_local_serve() {
-    ensure_runtime_deps
-
-    local port host index_dir
-    port="$(local_test_port)"
-    host="$(local_test_host)"
-    index_dir="$(local_test_index_dir)"
-    mkdir -p "$index_dir"
-
-    export PYTHONUNBUFFERED=1
-    export SESSION_BROWSER_LOG_LEVEL="${SESSION_BROWSER_LOG_LEVEL:-DEBUG}"
-    export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-
-    local -a serve_args=()
-    serve_args+=("$@")
-    if ! arg_has_option "--host" "$@"; then
-        serve_args=(--host "$host" "${serve_args[@]+"${serve_args[@]}"}")
-    fi
-    if ! arg_has_option "--port" "$@"; then
-        serve_args=(--port "$port" "${serve_args[@]+"${serve_args[@]}"}")
-    fi
-    if ! arg_has_option "--startup-scan" "$@"; then
-        serve_args=(--startup-scan "${serve_args[@]+"${serve_args[@]}"}")
-    fi
-
-    warn_if_podman_running
-    echo "启动本地前台服务"
-    echo "  版本：$SESSION_BROWSER_VERSION"
-    echo "  地址：http://$host:$port"
-    echo "  日志级别：$SESSION_BROWSER_LOG_LEVEL"
-    echo "  本地测试索引：$index_dir"
-    echo "  运行方式：前台进程；Ctrl-C 后本地测试服务立即关闭"
-    echo "  源码目录：$SRC_DIR"
-    INDEX_DIR="$index_dir" exec "$(python_bin)" -m session_browser serve --allow-empty "${serve_args[@]}"
-}
-
-run_scan() {
-    local index_dir launcher
-    index_dir="$(local_test_index_dir)"
-    mkdir -p "$index_dir"
-
+# 通过 Java launcher 执行 serve/stop/scan 等命令。
+# launcher 缺失时中文报错、非零退出、不 fallback 到 Python。
+run_java_command() {
+    local launcher
     launcher="$(java_launcher_path)"
     if [[ ! -x "$launcher" ]]; then
         echo "错误：Java launcher 未找到：$launcher" >&2
         echo "请先执行构建：./gradlew :java:app-cli:installDist" >&2
         exit 1
     fi
+    exec "$launcher" "$@"
+}
+
+run_scan() {
+    local index_dir
+    index_dir="$(local_test_index_dir)"
+    mkdir -p "$index_dir"
 
     export INDEX_DIR="$index_dir"
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
     export SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS="${SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS:-30}"
     echo "使用本地测试索引目录：$index_dir"
-    exec "$launcher" scan "$@"
+    run_java_command scan "$@"
 }
 
 run_serve() {
-    if [[ "${SESSION_BROWSER_RUN_MODE:-}" != "podman" ]]; then
-        run_local_serve "$@"
-    fi
+    local index_dir
+    index_dir="$(local_test_index_dir)"
+    mkdir -p "$index_dir"
 
-    ensure_runtime_deps
-    export PYTHONUNBUFFERED="${PYTHONUNBUFFERED:-1}"
+    export INDEX_DIR="$index_dir"
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-    exec "$(python_bin)" -m session_browser serve --allow-empty "$@"
+    run_java_command serve "$@"
+}
+
+run_stop() {
+    run_java_command stop "$@"
 }
 
 print_usage() {
@@ -539,9 +505,9 @@ print_usage() {
   dead-code                        执行 Vulture 死代码检查
   deps-check                       执行 Deptry 依赖声明检查
   quality                          执行完整 Python 标准质量门禁
-  serve [serve options]            前台启动本地服务，默认 DEBUG 日志
-  scan [scan options]              扫描到本地测试索引
-  stop [--port 18999]              按端口停止本地测试服务进程
+  serve [serve options]            前台启动本地服务（Java launcher）
+  scan [scan options]              扫描到本地测试索引（Java launcher）
+  stop [--port 8848]               按端口停止本地服务进程（Java launcher）
   test [pytest options]            执行单元测试
 
 版本与发布验证：
@@ -586,7 +552,7 @@ case "$CMD" in
         ;;
     dev)
         echo "提示：dev 已合并到 serve；等同执行 ./scripts/session-browser.sh serve。" >&2
-        run_local_serve "$@"
+        run_serve "$@"
         ;;
     deps)
         install_deps "$@"
@@ -631,7 +597,7 @@ case "$CMD" in
         run_serve "$@"
         ;;
     stop)
-        exec "$(python_bin)" -m session_browser stop "$@"
+        run_stop "$@"
         ;;
     test)
         run_tests "$@"

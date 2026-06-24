@@ -1,6 +1,6 @@
-"""help/version cutover 进程级测试。
+"""help/version/serve/stop cutover 进程级测试。
 
-验证 help/version 命令通过 Java launcher 执行，其他命令仍走 Python。
+验证 help/version/serve/stop 命令通过 Java launcher 执行，其他命令（test/deps）仍走 Python。
 使用 fake python trap marker 证明未调用 Python。
 """
 
@@ -115,6 +115,50 @@ class TestHelpVersionRoutesToJava:
             assert not trap_called, '仓库外 cwd 不应调用 Python'
 
 
+class TestServeStopRoutesToJava:
+    """serve/stop 正向路径：路由到 Java，不经过 Python。"""
+
+    def test_serve_routes_to_java(self):
+        """serve --help 命令路由到 Java launcher，不调用 Python。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            trap_dir = _create_python_trap(tmp_dir)
+            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+            env = os.environ.copy()
+            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
+            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
+
+            result = subprocess.run(
+                ['bash', SHELL_SCRIPT, 'serve', '--help'],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            assert not os.path.isfile(marker_file), 'serve 不应调用 Python'
+            # Java launcher 应输出 serve 帮助信息
+            assert 'serve' in result.stdout.lower() or result.returncode == 0
+
+    def test_stop_routes_to_java(self):
+        """stop --help 命令路由到 Java launcher，不调用 Python。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            trap_dir = _create_python_trap(tmp_dir)
+            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+            env = os.environ.copy()
+            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
+            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
+
+            result = subprocess.run(
+                ['bash', SHELL_SCRIPT, 'stop', '--help'],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=10,
+            )
+            assert not os.path.isfile(marker_file), 'stop 不应调用 Python'
+            # Java launcher 应输出 stop 帮助信息
+            assert 'stop' in result.stdout.lower() or result.returncode == 0
+
+
 class TestHelpVersionPathWithSpaces:
     """路径含空格场景。"""
 
@@ -216,6 +260,70 @@ class TestLauncherMissingNoFallback:
                 f'stderr 应包含中文错误信息: {result.stderr}'
             assert not os.path.isfile(marker_file), '不应 fallback 到 Python'
 
+    def test_launcher_missing_serve(self):
+        """Java launcher 缺失时 serve 报错退出，不 fallback 到 Python。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_project = os.path.join(tmp_dir, 'fake_project')
+            os.makedirs(fake_project)
+            fake_scripts = os.path.join(fake_project, 'scripts')
+            os.makedirs(fake_scripts)
+            os.makedirs(os.path.join(fake_project, 'src'))
+            fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
+            shutil.copy2(SHELL_SCRIPT, fake_sh)
+            os.chmod(fake_sh, stat.S_IRWXU)
+            with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
+                f.write('0.0-test\n')
+
+            trap_dir = _create_python_trap(tmp_dir)
+            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+            env = os.environ.copy()
+            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
+
+            result = subprocess.run(
+                ['bash', fake_sh, 'serve'],
+                capture_output=True,
+                text=True,
+                cwd=tmp_dir,
+                env=env,
+                timeout=10,
+            )
+            assert result.returncode != 0, 'launcher 缺失时 serve 应非零退出'
+            assert '错误' in result.stderr or '未找到' in result.stderr, \
+                f'stderr 应包含中文错误信息: {result.stderr}'
+            assert not os.path.isfile(marker_file), 'serve 不应 fallback 到 Python'
+
+    def test_launcher_missing_stop(self):
+        """Java launcher 缺失时 stop 报错退出，不 fallback 到 Python。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_project = os.path.join(tmp_dir, 'fake_project')
+            os.makedirs(fake_project)
+            fake_scripts = os.path.join(fake_project, 'scripts')
+            os.makedirs(fake_scripts)
+            os.makedirs(os.path.join(fake_project, 'src'))
+            fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
+            shutil.copy2(SHELL_SCRIPT, fake_sh)
+            os.chmod(fake_sh, stat.S_IRWXU)
+            with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
+                f.write('0.0-test\n')
+
+            trap_dir = _create_python_trap(tmp_dir)
+            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+            env = os.environ.copy()
+            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
+
+            result = subprocess.run(
+                ['bash', fake_sh, 'stop'],
+                capture_output=True,
+                text=True,
+                cwd=tmp_dir,
+                env=env,
+                timeout=10,
+            )
+            assert result.returncode != 0, 'launcher 缺失时 stop 应非零退出'
+            assert '错误' in result.stderr or '未找到' in result.stderr, \
+                f'stderr 应包含中文错误信息: {result.stderr}'
+            assert not os.path.isfile(marker_file), 'stop 不应 fallback 到 Python'
+
 
 class TestBuildInfoCorrupted:
     """build-info.properties 损坏场景。"""
@@ -241,7 +349,7 @@ class TestBuildInfoCorrupted:
 
 
 class TestUnswitchedCommandsRegression:
-    """未切换命令回归：scan/serve/stop/test/deps 保持原行为。
+    """未切换命令回归：test/deps 保持原行为。
 
     通过设置 SESSION_BROWSER_VENV_DIR 指向不存在的路径，
     强制 python_bin() 使用 PATH 中的 trap python。
@@ -265,24 +373,6 @@ class TestUnswitchedCommandsRegression:
             )
             # scan 路由到 Java launcher；launcher 不存在时报错但不 fallback 到 Python
             assert not os.path.isfile(marker_file), 'scan 不应调用 Python'
-
-    def test_stop_still_uses_python(self):
-        """stop 命令仍路由到 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            subprocess.run(
-                ['bash', SHELL_SCRIPT, 'stop', '--help'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=10,
-            )
-            assert os.path.isfile(marker_file), 'stop 应调用 Python'
 
     def test_test_still_uses_python(self):
         """test 命令仍路由到 Python。"""

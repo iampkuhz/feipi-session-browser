@@ -1704,6 +1704,10 @@ def create_server(
 ) -> HTTPServer:
     """创建 and return a reusable HTTP server instance.
 
+    .. deprecated:: WEB-110
+       生产 serve/stop 已切换至 Java launcher。此函数仅保留供
+       Python 侧单元测试 fixture 使用，不应在生产路径调用。
+
     Args:
         host: Interface address used by the local browser server.
         port: TCP port used by the local browser server.

@@ -124,15 +124,30 @@ def page():
             browser.close()
 
 
+# 测试 fixture 内联服务脚本：绕过 CLI，直接使用 create_server。
+# 生产 serve/stop 已由 Java launcher 接管（WEB-110）。
+_FIXTURE_SERVER_SCRIPT = (
+    'import argparse, sys; sys.path.insert(0, "src"); '
+    'from session_browser.web.routes import create_server; '
+    'p = argparse.ArgumentParser(); p.add_argument("--port", type=int, default=0); '
+    'args = p.parse_args(); '
+    's = create_server(port=args.port); s.serve_forever()'
+)
+
+
 def _start_session_browser_server(env: dict, port: int) -> subprocess.Popen:
-    """启动 session-browser 服务端进程。调用方负责清理。"""
+    """启动 session-browser 测试服务端进程。调用方负责清理。
+
+    注意：生产 serve/stop 已由 Java launcher 接管（WEB-110）。
+    此函数仅用于 Python 侧测试 fixture，直接使用 create_server 绕过 CLI。
+    """
     env = env.copy()
     env.setdefault('PYTHONPATH', os.path.join(SB_ROOT, 'src'))
     env.setdefault('SERVER_HOST', '127.0.0.1')
     env['SERVER_PORT'] = str(port)
     env.setdefault('SESSION_BROWSER_LOG_LEVEL', 'WARNING')
     return subprocess.Popen(
-        [sys.executable, '-m', 'session_browser', 'serve', '--allow-empty', '--no-scan'],
+        [sys.executable, '-c', _FIXTURE_SERVER_SCRIPT, '--port', str(port)],
         cwd=SB_ROOT,
         env=env,
         stdout=subprocess.DEVNULL,
@@ -386,7 +401,7 @@ def _start_fixture_session_server(
         env['SESSION_BROWSER_LOG_LEVEL'] = 'WARNING'
 
         proc = subprocess.Popen(
-            [sys.executable, '-m', 'session_browser', 'serve', '--allow-empty', '--no-scan'],
+            [sys.executable, '-c', _FIXTURE_SERVER_SCRIPT, '--port', str(port)],
             cwd=SB_ROOT,
             env=env,
             stdout=subprocess.DEVNULL,
@@ -441,7 +456,7 @@ def hifi_fixture_session():
         env['SESSION_BROWSER_LOG_LEVEL'] = 'WARNING'
 
         proc = subprocess.Popen(
-            [sys.executable, '-m', 'session_browser', 'serve', '--allow-empty', '--no-scan'],
+            [sys.executable, '-c', _FIXTURE_SERVER_SCRIPT, '--port', str(port)],
             cwd=SB_ROOT,
             env=env,
             stdout=subprocess.DEVNULL,
@@ -546,7 +561,7 @@ def long_fixture_session():
         env['SESSION_BROWSER_LOG_LEVEL'] = 'WARNING'
 
         proc = subprocess.Popen(
-            [sys.executable, '-m', 'session_browser', 'serve', '--allow-empty', '--no-scan'],
+            [sys.executable, '-c', _FIXTURE_SERVER_SCRIPT, '--port', str(port)],
             cwd=SB_ROOT,
             env=env,
             stdout=subprocess.DEVNULL,

@@ -57,13 +57,21 @@ def _find_free_port() -> int:
 
 
 def _start_server(env: dict, port: int) -> subprocess.Popen:
+    """启动测试服务端进程（直接使用 create_server，绕过 CLI）。"""
     env = env.copy()
     env.setdefault('PYTHONPATH', os.path.join(SB_ROOT, 'src'))
     env.setdefault('SERVER_HOST', '127.0.0.1')
     env['SERVER_PORT'] = str(port)
     env.setdefault('SESSION_BROWSER_LOG_LEVEL', 'WARNING')
+    fixture_server_script = (
+        'import argparse, sys; sys.path.insert(0, "src"); '
+        'from session_browser.web.routes import create_server; '
+        'p = argparse.ArgumentParser(); p.add_argument("--port", type=int, default=0); '
+        'args = p.parse_args(); '
+        's = create_server(port=args.port); s.serve_forever()'
+    )
     return subprocess.Popen(
-        [sys.executable, '-m', 'session_browser', 'serve', '--allow-empty', '--no-scan'],
+        [sys.executable, '-c', fixture_server_script, '--port', str(port)],
         cwd=SB_ROOT,
         env=env,
         stdout=subprocess.DEVNULL,

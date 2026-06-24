@@ -52,19 +52,25 @@ class TestPythonScanWritePathRetired:
 
     def test_cli_has_no_scan_command(self):
         """CLI 没有 scan 子命令。"""
-        import argparse
-        from session_browser.cli import main
-        # 验证 main() 能正常调用且没有 scan 命令
-        # 通过解析 --help 输出来检查
-        parser = argparse.ArgumentParser(prog='session-browser')
-        sub = parser.add_subparsers(dest='command')
-        sub.add_parser('serve')
-        sub.add_parser('stop')
-
-        # 验证 cli.py 的 main 不包含 scan 相关导入
         import inspect
+        from session_browser.cli import main
+        # 验证 cli.py 的 main 不包含 scan 相关导入
         source = inspect.getsource(main)
         assert 'cmd_scan' not in source, 'CLI main 不应包含 cmd_scan'
+
+    def test_cli_has_no_serve_command(self):
+        """CLI 没有 serve 子命令（WEB-110 已切换至 Java）。"""
+        import inspect
+        from session_browser.cli import main
+        source = inspect.getsource(main)
+        assert 'cmd_serve' not in source, 'CLI main 不应包含 cmd_serve'
+
+    def test_cli_has_no_stop_command(self):
+        """CLI 没有 stop 子命令（WEB-110 已切换至 Java）。"""
+        import inspect
+        from session_browser.cli import main
+        source = inspect.getsource(main)
+        assert 'cmd_stop' not in source, 'CLI main 不应包含 cmd_stop'
 
     def test_background_scanner_not_in_cli(self):
         """CLI 模块不包含 _BackgroundScanner 类。"""
