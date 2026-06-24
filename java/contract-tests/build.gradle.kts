@@ -15,6 +15,7 @@ dependencies {
     testImplementation(project(":java:application"))
     testImplementation(project(":java:scan-engine"))
     testImplementation(project(":java:web"))
+    testImplementation(project(":java:app-cli"))
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
