@@ -20,6 +20,8 @@ dependencies {
     implementation(project(":java:artifact-normalized"))
     implementation(project(":java:scan-engine"))
     implementation(project(":java:index-sqlite"))
+    implementation(project(":java:application"))
+    implementation(project(":java:web"))
     implementation(libs.picocli)
     implementation(libs.bundles.jackson)
     implementation(libs.sqlite.jdbc)
@@ -28,6 +30,7 @@ dependencies {
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.javalin.testtools)
 }
 
 // ============================================================
