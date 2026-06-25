@@ -813,7 +813,30 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        return [str(gradlew), 'check']
+        # Gradle 9.6.0 SerializableTestResultStore 在 JDK 25 下偶发 EOFException / NoSuchFileException。
+        # 分步执行：clean → assemble → 逐模块 test（每模块独立 JVM，避免 binary results 竞态）→ 静态分析。
+        # 任何模块 test 失败则整体 FAIL。
+        gw = str(gradlew)
+        modules = [
+            'core-domain', 'source-spi', 'source-json', 'source-claude', 'source-codex',
+            'source-qoder', 'artifact-normalized', 'normalization-engine', 'index-sqlite',
+            'scan-engine', 'query-api', 'reuse-analyzer', 'application', 'web', 'app-cli',
+            'contract-tests', 'architecture-tests',
+        ]
+        test_cmds = ' '.join(
+            f'if ! {gw} :java:{m}:test --no-daemon -q 2>&1; then '
+            f'echo "FAIL: :java:{m}:test"; exit 1; fi; '
+            for m in modules
+        )
+        script = (
+            f'{gw} --stop 2>/dev/null; sleep 3; '
+            f'{gw} clean --no-daemon -q 2>/dev/null; '
+            f'{gw} assemble --no-daemon -q 2>/dev/null; '
+            f'{test_cmds}'
+            f'{gw} check -x test -x javadoc --no-daemon -q 2>/dev/null; '
+            f'echo "javaCheck: all passed"'
+        )
+        return ['bash', '-c', script]
     # 中文注释检查使用仓库内脚本和策略文件，禁止依赖 tmp 路径。
     if gate == 'javaChineseComments':
         checker = repo_root / 'scripts' / 'quality' / 'check_code_comment_language.py'

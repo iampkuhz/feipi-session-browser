@@ -68,8 +68,7 @@ public final class Sort {
    * @throws IllegalArgumentException 当参数非法时
    */
   public static Sort ofSession(String field, String order) {
-    return new Sort(
-        SessionSortField.fromString(field).getColumnName(), SortOrder.fromString(order));
+    return new Sort(SessionSortField.fromString(field).getColumnName(), SortOrder.fromValue(order));
   }
 
   /**
@@ -81,7 +80,7 @@ public final class Sort {
    * @throws IllegalArgumentException 当参数非法时
    */
   public static Sort ofProject(String field, String order) {
-    return new Sort(ProjectSortField.fromString(field).getSortKey(), SortOrder.fromString(order));
+    return new Sort(ProjectSortField.fromString(field).getSortKey(), SortOrder.fromValue(order));
   }
 
   /**

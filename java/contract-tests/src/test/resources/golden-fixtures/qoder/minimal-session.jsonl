@@ -1,0 +1,4 @@
+{"type":"user","content":"Check the test results."}
+{"type":"assistant","uuid":"qoder_syn_001","model":"qoder-v2","turn_id":"turn_001","timestamp":"2025-06-15T12:00:00Z","parts":[{"type":"text","content":"I will check the test output."},{"type":"tool_use","id":"qtool_syn_001","name":"run_tests"}]}
+{"type":"tool_result","tool_use_id":"qtool_syn_001","name":"run_tests","content":"All 42 tests passed."}
+{"type":"assistant","uuid":"qoder_syn_002","model":"qoder-v2","turn_id":"turn_002","timestamp":"2025-06-15T12:00:15Z","usage":{"input_tokens":200,"output_tokens":80,"cache_read_input_tokens":30,"cache_creation_input_tokens":5},"parts":[{"type":"text","content":"All tests passed successfully."}]}

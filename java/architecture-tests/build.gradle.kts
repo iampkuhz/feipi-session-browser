@@ -4,6 +4,8 @@ plugins {
 
 dependencies {
     testImplementation(project(":java:core-domain"))
+    testImplementation(project(":java:query-api"))
+    testImplementation(project(":java:source-spi"))
     testImplementation(libs.archunit.junit5)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)

@@ -1,0 +1,131 @@
+# harness/context/routes.yaml
+# Context routes: 按路径和语义特征加载最小上下文。
+# 禁止全量加载 docs/skills 作为 fallback。
+version: 1
+routing_strategy: staged_minimal_context
+
+routes:
+  - id: task-intake
+    match:
+      intent_any:
+        - planning
+        - unknown
+        - cross_module
+    load:
+      - AGENTS.md
+      - harness/README.md
+      - settings.gradle.kts
+      - README.md
+    do_not_load:
+      - docs/**
+      - historical_reports/**
+      - real_session_data/**
+      - tmp/**
+
+  - id: harness-agent-rules
+    match:
+      path_any:
+        - harness/**
+        - skills/**
+        - scripts/harness/**
+        - scripts/quality/**
+        - AGENTS.md
+        - CLAUDE.md
+    load:
+      - AGENTS.md
+      - harness/README.md
+      - harness/manifest.yaml
+      - harness/agent-runtime.md
+    load_after:
+      - relevant validator scripts only
+      - relevant harness workflow docs only
+    do_not_load:
+      - docs/**
+      - historical_reports/**
+      - real_session_data/**
+
+  - id: java-source-ingest
+    match:
+      path_any:
+        - java/source-spi/**
+        - java/source-json/**
+        - java/source-claude/**
+        - java/source-codex/**
+        - java/source-qoder/**
+        - java/scan-engine/**
+    load:
+      - java/source-spi targeted interfaces only
+      - related provider adapter files only
+      - related contract tests only
+      - relevant openspec spec only
+    do_not_load:
+      - java/core-domain/**
+      - java/normalization-engine/**
+      - docs/**
+      - historical_reports/**
+
+  - id: java-normalization-token
+    match:
+      path_any:
+        - java/normalization-engine/**
+        - java/artifact-normalized/**
+    load:
+      - java/normalization-engine targeted files only
+      - java/artifact-normalized targeted files only
+      - related golden fixtures
+      - related contract tests
+    do_not_load:
+      - java/source-claude/**
+      - java/source-codex/**
+      - java/source-qoder/**
+      - docs/**
+
+  - id: java-domain-core
+    match:
+      path_any:
+        - java/core-domain/**
+        - java/application/**
+        - java/query-api/**
+        - java/index-sqlite/**
+        - java/reuse-analyzer/**
+    load:
+      - java/core-domain targeted files only
+      - java/application targeted files only
+      - java/query-api targeted files only
+      - openspec specs only if Java source change
+    do_not_load:
+      - java/source-claude/**
+      - java/source-codex/**
+      - java/source-qoder/**
+      - docs/**
+
+  - id: java-cli-web
+    match:
+      path_any:
+        - java/app-cli/**
+        - java/web/**
+        - java/architecture-tests/**
+    load:
+      - README.md
+      - related Java CLI/web files only
+      - related tests only
+    do_not_load:
+      - java/core-domain/**
+      - java/source-claude/**
+      - docs/**
+      - historical_reports/**
+
+  - id: java-contract-tests
+    match:
+      path_any:
+        - java/contract-tests/**
+        - java/test-support/**
+    load:
+      - related contract test files only
+      - related SPI interfaces only
+      - relevant golden fixtures only
+    do_not_load:
+      - java/source-claude/**
+      - java/source-codex/**
+      - docs/**
+      - historical_reports/**

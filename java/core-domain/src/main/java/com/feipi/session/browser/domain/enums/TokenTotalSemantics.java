@@ -32,4 +32,27 @@ public enum TokenTotalSemantics {
 
   /** 稳定外部协议值。 */
   @Getter private final String value;
+
+  /**
+   * 从外部协议值解析 token 合计语义。
+   *
+   * <p>匹配规则：大小写不敏感，前后空白自动修剪。
+   *
+   * @param value 外部协议字符串值
+   * @return 对应的 token 合计语义枚举
+   * @throws IllegalArgumentException 如果值无法匹配任何已知语义
+   * @throws NullPointerException 如果值为 null
+   */
+  public static TokenTotalSemantics fromValue(String value) {
+    if (value == null) {
+      throw new NullPointerException("Token 合计语义值不得为 null");
+    }
+    String normalized = value.trim().toLowerCase();
+    for (TokenTotalSemantics semantics : values()) {
+      if (semantics.value.equals(normalized)) {
+        return semantics;
+      }
+    }
+    throw new IllegalArgumentException("非法的 Token 合计语义值: '" + value + "'");
+  }
 }

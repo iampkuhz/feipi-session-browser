@@ -8,8 +8,61 @@
 - 路径分类真源：`scripts/claude_hooks/classify.py`
 - 执行入口：`scripts/quality/run_quality_gate.py`
 - Stop 汇总入口：`scripts/quality/run_required_quality_gates.py`
+- 三档配置：`harness/quality/quality-tiers.yaml`
 
 本文件只解释阅读路线，不复制完整矩阵，避免和脚本漂移。
+
+## 质量门三档
+
+质量门分为 quick、required、full 三档，对应不同场景和严格程度。
+
+| 档位 | 用途 | 失败策略 | 运行方式 |
+|---|---|---|---|
+| **quick** | 本地开发快速反馈，只运行轻量 gate 子集 | triggered gate 必须 PASS；not triggered 不算 skipped | `--tier quick` |
+| **required** | PR 合入和 Stop/handoff 前必须通过 | 0 skipped outcome；skipped 即 FAIL/BLOCKED | `--tier required`（默认） |
+| **full** | 发布或大迁移收口前运行 | 0 skipped outcome；包含额外验证命令 | `--tier full` |
+
+运行命令：
+
+```bash
+# quick 档：本地开发快速反馈
+python3 scripts/quality/run_required_quality_gates.py --tier quick
+
+# required 档：PR/Stop 门禁（默认，向后兼容）
+python3 scripts/quality/run_required_quality_gates.py --tier required
+python3 scripts/quality/run_required_quality_gates.py  # 默认即 required
+
+# full 档：发布或大迁移收口
+python3 scripts/quality/run_required_quality_gates.py --tier full
+```
+
+### quick 档说明
+
+quick 档只运行 `QUICK_GATES` 中定义的轻量级 gate 子集，包括：
+
+- `pythonCompile`、`bashSyntax`：语法检查
+- `noTestSkips`、`noJavaTestSkips`：测试零跳过检查
+- `noJavaSuppressWarnings`：Java 注解检查
+- `languagePolicy`：语言策略检查
+- `doctor`、`repoStructure`、`harnessStructure`：结构验证
+
+quick 档通过各 target 的 baseline 过滤出属于 `QUICK_GATES` 的 gate，只运行被 changed_files 触发的 target 中的轻量 gate。
+
+### not triggered 与 skipped 的语义区别
+
+这是质量门系统最重要的语义规则之一：
+
+| 概念 | 含义 | 是否算失败 |
+|---|---|---|
+| **not triggered** | gate 的触发模式未匹配 changed_files，该 gate 未被选中运行 | 不算失败，不影响结果 |
+| **skipped** | gate 被选中运行，但测试框架报告了 skipped tests 或 gate 未完成完整验证 | required/full 档中即 FAIL/BLOCKED |
+
+关键规则：
+
+1. `changed_files` 只决定触发，不代表 skipped。未匹配任何触发模式的 gate 是 not triggered，不得在汇报中称为 skipped。
+2. 一旦被 target 选中，gate 必须运行完整 baseline。
+3. required/full 档中被选中的 gate 出现 skipped outcome 必须返回 FAIL/BLOCKED。
+4. quick 档中 not triggered 的 gate 单独记录，不算 skipped，不影响退出码。
 
 ## 当前 target
 

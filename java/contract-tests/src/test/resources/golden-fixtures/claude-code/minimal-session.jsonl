@@ -1,0 +1,4 @@
+{"type":"user","content":[{"type":"text","text":"Please read the build file."}]}
+{"type":"assistant","id":"call_synthetic_001","model":"claude-3-sonnet-20240229","timestamp":"2025-06-15T10:30:00Z","content":[{"type":"text","text":"I will read the build file for you."},{"type":"tool_use","id":"toolu_syn_001","name":"Read"}]}
+{"type":"tool_result","tool_use_id":"toolu_syn_001","content":"build.gradle.kts contents here"}
+{"type":"assistant","id":"call_synthetic_002","model":"claude-3-sonnet-20240229","timestamp":"2025-06-15T10:30:05Z","usage":{"input_tokens":250,"output_tokens":100,"cache_read_input_tokens":50,"cache_creation_input_tokens":10},"content":[{"type":"text","text":"The build file contains the project configuration."}]}

@@ -49,6 +49,31 @@ public enum SessionSortField {
   private final String columnName;
 
   /**
+   * 获取稳定外部协议值。
+   *
+   * <p>委托给 {@code getColumnName()}，保持与其他枚举的 {@code getValue()} 接口一致。
+   *
+   * @return 外部协议字符串值
+   */
+  public String getValue() {
+    return columnName;
+  }
+
+  /**
+   * 从外部协议值解析排序字段。
+   *
+   * <p>委托给 {@link #fromString(String)}，保持与其他枚举的 {@code fromValue()} 接口一致。
+   *
+   * @param value 外部协议字符串值
+   * @return 对应的排序字段枚举
+   * @throws IllegalArgumentException 如果值无法匹配任何已知字段
+   * @throws NullPointerException 如果值为 null
+   */
+  public static SessionSortField fromValue(String value) {
+    return fromString(value);
+  }
+
+  /**
    * 将字符串解析为排序字段。
    *
    * <p>按列名匹配，不区分大小写。

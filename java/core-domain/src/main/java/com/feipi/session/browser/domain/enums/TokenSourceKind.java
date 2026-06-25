@@ -41,4 +41,27 @@ public enum TokenSourceKind {
 
   /** 稳定外部协议值。 */
   @Getter private final String value;
+
+  /**
+   * 从外部协议值解析 token 数据来源分类。
+   *
+   * <p>匹配规则：大小写不敏感，前后空白自动修剪。
+   *
+   * @param value 外部协议字符串值
+   * @return 对应的 token 数据来源分类枚举
+   * @throws IllegalArgumentException 如果值无法匹配任何已知来源
+   * @throws NullPointerException 如果值为 null
+   */
+  public static TokenSourceKind fromValue(String value) {
+    if (value == null) {
+      throw new NullPointerException("Token 数据来源值不得为 null");
+    }
+    String normalized = value.trim().toLowerCase();
+    for (TokenSourceKind kind : values()) {
+      if (kind.value.equals(normalized)) {
+        return kind;
+      }
+    }
+    throw new IllegalArgumentException("非法的 Token 数据来源值: '" + value + "'");
+  }
 }

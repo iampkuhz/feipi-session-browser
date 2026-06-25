@@ -1,0 +1,218 @@
+# Subagent Catalog
+# 定义可复用 subagent 的角色、触发规则、读写范围
+version: 1
+owner: harness
+
+execution:
+  llm_concurrency: 1
+  default_mode: serial
+  parent_busy_wait: forbidden
+  child_context: isolated
+  state_dir: tmp/agent_state/java-first-migration
+
+subagents:
+  - id: repo-mapper
+    kind: readonly-analysis
+    intent: 只读影响面分析、模块归类、候选文件定位
+    trigger_rules:
+      - cross_module_change
+      - unknown_impact_surface
+      - before_large_refactor
+    read_scope:
+      - settings.gradle.kts
+      - AGENTS.md
+      - harness/**
+      - java/**/build.gradle.kts
+      - java/**/src/**
+      - src/session_browser/**
+      - scripts/**
+    write_scope: []
+    forbidden_scope:
+      - real_session_data
+      - secrets
+      - tmp/** except tmp/agent_state/**
+    required_context:
+      - task_goal
+      - target_paths_if_known
+      - git_status_summary
+    validation_cmds:
+      - git status --short
+    timeout_minutes: 20
+    retry_policy: rate-limit-only
+
+  - id: harness-rules-steward
+    kind: restricted-writer
+    intent: 治理 harness、agent runtime、context routes、trigger policy、schema 与质量门规则
+    trigger_rules:
+      - paths:harness/**
+      - paths:skills/**
+      - paths:scripts/harness/**
+      - paths:scripts/quality/**
+      - paths:AGENTS.md
+      - paths:CLAUDE.md
+    read_scope:
+      - AGENTS.md
+      - CLAUDE.md
+      - harness/**
+      - skills/**
+      - scripts/harness/**
+      - scripts/quality/**
+    write_scope:
+      - harness/**
+      - skills/**
+      - scripts/harness/**
+      - scripts/quality/**
+      - openspec/changes/**
+    forbidden_scope:
+      - src/session_browser/** unless explicitly delegated
+      - java/** unless validation-only
+    validation_cmds:
+      - bash scripts/harness/doctor.sh
+      - python3 scripts/harness/validate_harness_structure.py
+    timeout_minutes: 30
+    retry_policy: rate-limit-only
+
+  - id: source-ingest-steward
+    kind: restricted-writer
+    intent: 维护 source-spi 与 source-* provider adapter 契约，保证扫描、fingerprint、parse 语义稳定
+    trigger_rules:
+      - paths:java/source-spi/**
+      - paths:java/source-json/**
+      - paths:java/source-claude/**
+      - paths:java/source-codex/**
+      - paths:java/source-qoder/**
+      - semantic:source_adapter_contract
+    read_scope:
+      - java/source-spi/**
+      - java/source-*/**
+      - java/contract-tests/**
+      - openspec/specs/**
+    write_scope:
+      - java/source-spi/**
+      - java/source-*/**
+      - java/contract-tests/**
+      - openspec/changes/**
+    forbidden_scope:
+      - src/session_browser/**
+      - harness/**
+      - scripts/harness/**
+    validation_cmds:
+      - ./gradlew :java:source-spi:test :java:contract-tests:test
+      - python3 scripts/quality/run_quality_gate.py --target java-src --change-id local
+    timeout_minutes: 45
+    retry_policy: rate-limit-only
+
+  - id: normalization-token-steward
+    kind: restricted-writer
+    intent: 维护 normalization-engine、artifact-normalized、token attribution 与 golden fixtures
+    trigger_rules:
+      - paths:java/normalization-engine/**
+      - paths:java/artifact-normalized/**
+      - semantic:token_usage_attribution
+      - semantic:normalized_artifact_schema
+    read_scope:
+      - java/normalization-engine/**
+      - java/artifact-normalized/**
+      - java/contract-tests/**
+      - docs/**
+      - openspec/specs/**
+    write_scope:
+      - java/normalization-engine/**
+      - java/artifact-normalized/**
+      - java/contract-tests/**
+      - openspec/changes/**
+    forbidden_scope:
+      - src/session_browser/**
+      - harness/**
+      - scripts/harness/**
+    validation_cmds:
+      - ./gradlew :java:normalization-engine:test :java:artifact-normalized:test :java:contract-tests:test
+      - python3 scripts/quality/run_quality_gate.py --target java-src --change-id local
+    timeout_minutes: 45
+    retry_policy: rate-limit-only
+
+  - id: domain-model-steward
+    kind: restricted-writer
+    intent: 高频维护 domain/core 模型质量：value object、record、sealed Result、入口校验、enum 外部值、Map/Optional/String 收敛
+    trigger_rules:
+      - paths:java/core-domain/**
+      - paths:java/application/**
+      - paths:java/query-api/**
+      - semantic:domain_invariant
+      - semantic:public_value_object
+      - semantic:external_enum_value
+    read_scope:
+      - java/core-domain/**
+      - java/application/**
+      - java/query-api/**
+      - java/architecture-tests/**
+      - java/contract-tests/**
+      - openspec/specs/java-code-conciseness/spec.md
+    write_scope:
+      - java/core-domain/**
+      - java/application/**
+      - java/query-api/**
+      - java/architecture-tests/**
+      - java/contract-tests/**
+      - openspec/changes/**
+    forbidden_scope:
+      - src/session_browser/**
+      - harness/**
+      - scripts/harness/**
+    validation_cmds:
+      - ./gradlew :java:core-domain:test :java:application:test :java:architecture-tests:test
+      - python3 scripts/quality/run_quality_gate.py --target java-src --change-id local
+    timeout_minutes: 45
+    retry_policy: rate-limit-only
+
+  - id: qa-verifier
+    kind: verification-only
+    intent: 运行质量门、归因失败、输出回归结论；不直接修业务实现，除非任务明确授权
+    trigger_rules:
+      - before_stop
+      - phase_validation
+      - after_implementation
+      - required_gate_failure
+    read_scope:
+      - scripts/quality/**
+      - scripts/harness/**
+      - build.gradle.kts
+      - settings.gradle.kts
+      - java/**/build.gradle.kts
+      - tmp/quality/**
+    write_scope:
+      - tmp/quality/**
+      - tmp/agent_state/**
+    forbidden_scope:
+      - real_session_data
+      - secrets
+      - java/*/src/**
+    validation_cmds:
+      - scripts/quality/run_required_quality_gates.py
+    timeout_minutes: 60
+    retry_policy: rate-limit-only
+
+  - id: reuse-impact-analyzer
+    kind: readonly-analysis
+    intent: 识别重复实现、抽象机会、重复测试与低价值文档；只输出建议，不直接编码
+    trigger_rules:
+      - after_refactor
+      - before_shared_abstraction
+      - semantic:duplicate_logic
+      - semantic:low_information_doc
+    read_scope:
+      - java/**
+      - src/session_browser/**
+      - tests/**
+      - docs/**
+      - harness/**
+    write_scope:
+      - tmp/agent_state/**
+    forbidden_scope:
+      - real_session_data
+      - secrets
+      - tmp/** except tmp/agent_state/**
+    validation_cmds:
+      - git status --short
+    timeout_minutes: 25
+    retry_policy: rate-limit-only

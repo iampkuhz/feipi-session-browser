@@ -1,0 +1,79 @@
+# quality-tiers.yaml
+# 质量门三档定义：quick / required / full
+# 配套脚本：scripts/quality/run_required_quality_gates.py --tier {quick|required|full}
+version: 1
+
+principles:
+  - changed_files 只决定触发，不代表 skipped。
+  - 未匹配任何触发模式的 gate 是 not triggered，不得在汇报中称为 skipped。
+  - required/full 回归不允许 skipped outcome；出现即 FAIL/BLOCKED。
+  - quick 面向本地快速反馈；required 面向 PR/Stop；full 面向发布或大迁移收口。
+
+quick:
+  description: 本地开发默认快速反馈，只运行轻量级 gate 子集。
+  commands:
+    - 通过 run_required_quality_gates.py --tier quick 执行
+  requirements:
+    - 所有 triggered gate 必须 PASS
+    - BLOCKED gate 视为 FAIL
+    - not triggered gate 不算 skipped，不影响结果
+  quick_gates:
+    - pythonCompile
+    - bashSyntax
+    - noTestSkips
+    - noJavaTestSkips
+    - noJavaSuppressWarnings
+    - languagePolicy
+    - doctor
+    - repoStructure
+    - harnessStructure
+    - pythonCompile
+  notes:
+    - 可按 changed scope 裁剪触发目标。
+    - 不得把未触发项写成 skipped。
+
+required:
+  description: PR 合入和 Stop/handoff 前必须通过的质量门禁。
+  commands:
+    - scripts/quality/run_required_quality_gates.py --tier required
+  requirements:
+    - 所有 triggered required gate 必须 PASS
+    - 0 skipped outcome（出现即 FAIL/BLOCKED）
+    - not triggered gate 不算 skipped，单独记录
+    - 生成 validation report
+
+full:
+  description: 发布、大迁移阶段结束、默认切流前运行。
+  commands:
+    - ./gradlew check
+    - scripts/quality/run_required_quality_gates.py --tier full
+  requirements:
+    - 0 skipped outcome
+    - 所有 triggered gate PASS
+    - golden fixtures consistent
+    - API snapshots stable or explicitly approved
+    - no ignored personal data staged
+  extra_commands:
+    - ./gradlew check
+    - python3 scripts/quality/check_java_api_snapshot.py --verify
+
+trigger_matrix:
+  description: |
+    changed_files 只决定哪些 target 和 gate 被触发。
+    未触发的 gate 是 not triggered，不是 skipped。
+    一旦被 target 选中，gate 必须运行完整 baseline。
+  targets:
+    python-standard:
+      gates: [pythonFormat, pythonLint, pythonType, pythonDocstring, pythonCoverage, pythonAudit, pythonComplexity, pythonDeadCode, pythonDeps]
+    hook-runtime:
+      gates: [settingsJson, bashSyntax, pythonCompile, noTestSkips, languagePolicy, codexAgentPolicy, hookSelfTest, pytest, doctor, repoStructure, repoSlimming, rawInnerhtml, layoutInlineStyle, acceptanceContracts]
+    harness:
+      gates: [bashSyntax, pythonCompile, noTestSkips, languagePolicy, codexAgentPolicy, doctor, repoStructure, harnessStructure, openspecLayout]
+    acceptance-contracts:
+      gates: [noTestSkips, acceptanceContracts, pytest]
+    index:
+      gates: [indexIntegrity]
+    java-src:
+      gates: [javaCheck, javaChineseComments, noJavaTestSkips, noJavaSuppressWarnings, reuseIncremental, reuseBaselineVerify]
+    java-build:
+      gates: [javaCheck]

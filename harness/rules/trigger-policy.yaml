@@ -1,0 +1,108 @@
+# harness/rules/trigger-policy.yaml
+# Trigger policy: 按任务意图、路径、语义特征渐进加载上下文。
+# 每条 rule 定义何时触发（when）和必须执行的动作（require）。
+version: 1
+policy_owner: harness-rules-steward
+llm_concurrency: 1
+
+rules:
+  - id: non_trivial_change_requires_openspec
+    when:
+      any:
+        - product_behavior_changed
+        - cross_module_structure_changed
+        - harness_or_quality_rule_changed
+        - long_term_workflow_changed
+    require:
+      - openspec_change_exists
+      - acceptance_criteria_present
+      - rollback_plan_present
+
+  - id: enum_external_value_guard
+    when:
+      any:
+        - diff_contains: "enum "
+        - diff_contains: "@JsonValue"
+        - diff_contains: "@JsonCreator"
+        - diff_contains: "fromValue"
+        - diff_contains: "fromCode"
+        - path_any:
+            - java/core-domain/**
+            - java/source-spi/**
+            - java/artifact-normalized/**
+            - java/query-api/**
+            - java/normalization-engine/**
+    require:
+      - load_skill: skills/skill-04-enum-external-value-guard.md
+      - run_contract_tests: true
+      - api_snapshot_check: true
+    skip_when:
+      all:
+        - comment_only_change
+        - no_serialization_mapping_change
+
+  - id: source_adapter_contract_guard
+    when:
+      path_any:
+        - java/source-spi/**
+        - java/source-json/**
+        - java/source-claude/**
+        - java/source-codex/**
+        - java/source-qoder/**
+        - java/scan-engine/**
+    require:
+      - load_subagent: source-ingest-steward
+      - deterministic_order_check
+      - provider_payload_leak_check
+      - expected_failure_no_exception_check
+
+  - id: normalized_artifact_contract_guard
+    when:
+      path_any:
+        - java/artifact-normalized/**
+        - java/normalization-engine/**
+    require:
+      - load_subagent: normalization-token-steward
+      - golden_fixture_check
+      - token_category_check
+
+  - id: build_logic_guard
+    when:
+      path_any:
+        - build-logic/**
+        - gradle/**
+        - settings.gradle.kts
+        - gradle.properties
+        - java/**/build.gradle.kts
+    require:
+      - run_quality_target: java-build
+      - check_configuration_cache_if_supported
+      - check_task_configuration_avoidance
+
+  - id: docs_information_density_guard
+    when:
+      path_any:
+        - docs/**
+        - harness/**
+        - openspec/**
+        - skills/**
+    require_fields:
+      - Problem
+      - Scope
+      - Non-goals
+      - Acceptance
+      - Rollback
+      - Validation
+    reject:
+      - slogan_only_doc
+      - duplicate_truth_source
+      - no_trigger_condition
+      - no_acceptance_criteria
+
+  - id: stop_gate
+    when:
+      event: before_stop_or_handoff
+    require:
+      - run_required_quality_gates_or_report_blocked
+      - no_skipped_in_required_or_full
+      - write_validation_report

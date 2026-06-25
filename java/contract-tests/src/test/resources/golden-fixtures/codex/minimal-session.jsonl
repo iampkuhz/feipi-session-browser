@@ -1,0 +1,4 @@
+{"type":"user","content":[{"type":"input_text","text":"Summarize the project."}]}
+{"type":"assistant","id":"resp_synthetic_c01","model":"o3-mini","timestamp":"2025-06-15T11:00:00Z","content":[{"type":"output_text","text":"Let me check the project structure."},{"type":"tool_call","id":"call_syn_c01","name":"list_dir","arguments":"{\"path\":\".\"}"}]}
+{"type":"tool_result","tool_use_id":"call_syn_c01","content":"src/\nbuild.gradle.kts\nREADME.md"}
+{"type":"assistant","id":"resp_synthetic_c02","model":"o3-mini","timestamp":"2025-06-15T11:00:10Z","usage":{"input_tokens":180,"output_tokens":90,"cache_read_input_tokens":0,"cache_creation_input_tokens":20},"content":[{"type":"output_text","text":"The project has a standard Gradle layout."}]}

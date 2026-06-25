@@ -576,6 +576,7 @@ constructor com.feipi.session.browser.application.AnnotatedDetail public Annotat
 constructor com.feipi.session.browser.application.AnnotatedPageResult public AnnotatedPageResult()
 constructor com.feipi.session.browser.application.DashboardUseCase public DashboardUseCase( AggregateQueryRepository repository, QueryCache cache, int schemaVersion)
 constructor com.feipi.session.browser.application.DiagnosticsUseCase public DiagnosticsUseCase()
+constructor com.feipi.session.browser.application.MigrationPhaseConfig public MigrationPhaseConfig(MigrationPhase phase)
 constructor com.feipi.session.browser.application.ProjectListUseCase public ProjectListUseCase( AggregateQueryRepository repository, QueryCache cache, int schemaVersion)
 constructor com.feipi.session.browser.application.QueryCache public QueryCache(int maxSize)
 constructor com.feipi.session.browser.application.QueryCompositionRoot public QueryCompositionRoot( IndexConnection indexConnection, SchemaVersion schemaVersion, QueryCache cache)
@@ -754,6 +755,10 @@ enum-constant com.feipi.session.browser.domain.enums.CallScope MAIN
 enum-constant com.feipi.session.browser.domain.enums.CallScope SUBAGENT
 enum-constant com.feipi.session.browser.domain.enums.CallStatus ERROR
 enum-constant com.feipi.session.browser.domain.enums.CallStatus OK
+enum-constant com.feipi.session.browser.domain.enums.MigrationPhase ASSIST
+enum-constant com.feipi.session.browser.domain.enums.MigrationPhase ENFORCE
+enum-constant com.feipi.session.browser.domain.enums.MigrationPhase OFF
+enum-constant com.feipi.session.browser.domain.enums.MigrationPhase SHADOW
 enum-constant com.feipi.session.browser.domain.enums.TokenPrecision ESTIMATED
 enum-constant com.feipi.session.browser.domain.enums.TokenPrecision EXACT
 enum-constant com.feipi.session.browser.domain.enums.TokenPrecision PROVIDER_REPORTED
@@ -805,9 +810,19 @@ enum-constant com.feipi.session.browser.query.api.DiagnosticIssue FILE_NOT_FOUND
 enum-constant com.feipi.session.browser.query.api.DiagnosticIssue MISSING_TIMESTAMP
 enum-constant com.feipi.session.browser.query.api.DiagnosticIssue NON_OBJECT_SKIPPED
 enum-constant com.feipi.session.browser.query.api.DiagnosticIssue TOKEN_ESTIMATED
+enum-constant com.feipi.session.browser.query.api.DiagnosticSeverity CRITICAL
+enum-constant com.feipi.session.browser.query.api.DiagnosticSeverity INFO
+enum-constant com.feipi.session.browser.query.api.DiagnosticSeverity WARNING
 enum-constant com.feipi.session.browser.query.api.FailureStatus ALL
 enum-constant com.feipi.session.browser.query.api.FailureStatus FAILED_ONLY
 enum-constant com.feipi.session.browser.query.api.FailureStatus SUCCESS_ONLY
+enum-constant com.feipi.session.browser.query.api.PayloadSourceKind LLM_REQUEST
+enum-constant com.feipi.session.browser.query.api.PayloadSourceKind LLM_RESPONSE
+enum-constant com.feipi.session.browser.query.api.PayloadSourceKind SUBAGENT_REQUEST
+enum-constant com.feipi.session.browser.query.api.PayloadSourceKind SUBAGENT_RESPONSE
+enum-constant com.feipi.session.browser.query.api.PayloadSourceKind TOOL_RESULT
+enum-constant com.feipi.session.browser.query.api.PayloadVisibility FULL
+enum-constant com.feipi.session.browser.query.api.PayloadVisibility STANDARD
 enum-constant com.feipi.session.browser.query.api.ProjectSortField FIRST_SEEN
 enum-constant com.feipi.session.browser.query.api.ProjectSortField LAST_ACTIVE
 enum-constant com.feipi.session.browser.query.api.ProjectSortField TOTAL_FAILED_TOOLS
@@ -836,6 +851,7 @@ enum-constant com.feipi.session.browser.query.api.SessionSortField TOOL_EXECUTIO
 enum-constant com.feipi.session.browser.query.api.SessionSortField TOTAL_TOKENS
 enum-constant com.feipi.session.browser.query.api.SortOrder ASC
 enum-constant com.feipi.session.browser.query.api.SortOrder DESC
+field com.feipi.session.browser.application.MigrationPhaseConfig public ENV_VAR: static final String
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public DATA_FILE_SUFFIX: static final String
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public GENERATOR: static final String
 field com.feipi.session.browser.artifact.normalized.ArtifactConstants public META_FILE_SUFFIX: static final String
@@ -844,6 +860,7 @@ field com.feipi.session.browser.artifact.normalized.SafeArtifactName public MAX_
 field com.feipi.session.browser.cli.RuntimePaths public ARTIFACT_SUBDIR: static final String
 field com.feipi.session.browser.cli.RuntimePaths public BACKUP_SUBDIR: static final String
 field com.feipi.session.browser.cli.RuntimePaths public DB_FILE_NAME: static final String
+field com.feipi.session.browser.domain.enums.MigrationPhase public DEFAULT: static final MigrationPhase
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_COLLECTION_SIZE: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public SCHEMA_VERSION: static final String
@@ -926,6 +943,17 @@ method com.feipi.session.browser.application.DashboardUseCase public TokenBreakd
 method com.feipi.session.browser.application.DiagnosticsUseCase public List<SessionAnomalySummary> detectWithFilter(List<SessionRow> rows, AnomalyFilter filter)
 method com.feipi.session.browser.application.DiagnosticsUseCase public Map<PercentileCalculator.MetricKey, PercentileCalculator.Thresholds> computeThresholds( List<Double> durationValues, List<Double> toolCallValues, List<Double> cacheWriteValues)
 method com.feipi.session.browser.application.DiagnosticsUseCase public boolean isKnownAnomaly(SessionAnomalyKey key)
+method com.feipi.session.browser.application.EnvironmentProvider public String get(String name)
+method com.feipi.session.browser.application.MigrationPhaseConfig public MigrationPhase getPhase()
+method com.feipi.session.browser.application.MigrationPhaseConfig public boolean isAssist()
+method com.feipi.session.browser.application.MigrationPhaseConfig public boolean isEnforce()
+method com.feipi.session.browser.application.MigrationPhaseConfig public boolean isJavaFirstEnabled()
+method com.feipi.session.browser.application.MigrationPhaseConfig public boolean isOff()
+method com.feipi.session.browser.application.MigrationPhaseConfig public boolean isShadow()
+method com.feipi.session.browser.application.MigrationPhaseConfig public static MigrationPhaseConfig fromEnvironment()
+method com.feipi.session.browser.application.MigrationPhaseConfig public static MigrationPhaseConfig fromEnvironment(EnvironmentProvider envProvider)
+method com.feipi.session.browser.application.MigrationPhaseConfig public static MigrationPhaseConfig resolve(String value)
+method com.feipi.session.browser.application.MigrationPhaseConfig.EnvironmentProvider public String get(String name)
 method com.feipi.session.browser.application.ProjectListUseCase public PageResult<ProjectStatsRow> list(ProjectListFilter filter) throws SQLException
 method com.feipi.session.browser.application.ProjectListUseCase public ProjectStatsRow stats(String projectKey) throws SQLException
 method com.feipi.session.browser.application.ProjectListUseCase public long count(ProjectListFilter filter) throws SQLException
@@ -974,6 +1002,13 @@ method com.feipi.session.browser.cli.ServerLifecycle public void awaitShutdown()
 method com.feipi.session.browser.cli.ServerLifecycle public void shutdown()
 method com.feipi.session.browser.domain.NormalizedTokenBreakdown public long componentTotal()
 method com.feipi.session.browser.domain.NormalizedTokenBreakdown public static NormalizedTokenBreakdown empty()
+method com.feipi.session.browser.domain.enums.CallScope public static CallScope fromValue(String value)
+method com.feipi.session.browser.domain.enums.CallStatus public static CallStatus fromValue(String value)
+method com.feipi.session.browser.domain.enums.MigrationPhase public static MigrationPhase fromValue(String value)
+method com.feipi.session.browser.domain.enums.TokenPrecision public static TokenPrecision fromValue(String value)
+method com.feipi.session.browser.domain.enums.TokenProvider public static TokenProvider fromValue(String value)
+method com.feipi.session.browser.domain.enums.TokenSourceKind public static TokenSourceKind fromValue(String value)
+method com.feipi.session.browser.domain.enums.TokenTotalSemantics public static TokenTotalSemantics fromValue(String value)
 method com.feipi.session.browser.domain.normalized.ByteRange public static ByteRange empty()
 method com.feipi.session.browser.domain.normalized.NormalizedAgent public static NormalizedAgent fromValue(String value)
 method com.feipi.session.browser.domain.normalized.NormalizedCallRequest public static NormalizedCallRequest empty()
@@ -1152,7 +1187,9 @@ method com.feipi.session.browser.query.api.DetectedAnomaly public static Detecte
 method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly info(AnomalyType type, String reason)
 method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly warning(AnomalyType type, String reason)
 method com.feipi.session.browser.query.api.DiagnosticIssue public static DiagnosticIssue fromValue(String value)
+method com.feipi.session.browser.query.api.DiagnosticSeverity public static DiagnosticSeverity fromValue(String value)
 method com.feipi.session.browser.query.api.FailureStatus public static FailureStatus fromString(String value)
+method com.feipi.session.browser.query.api.FailureStatus public static FailureStatus fromValue(String value)
 method com.feipi.session.browser.query.api.ModelFilter public String model()
 method com.feipi.session.browser.query.api.ModelFilter public String toString()
 method com.feipi.session.browser.query.api.ModelFilter public boolean equals(Object obj)
@@ -1175,6 +1212,8 @@ method com.feipi.session.browser.query.api.PageResult public int size()
 method com.feipi.session.browser.query.api.PageResult public static <T> PageResult<T> ofCursor(List<T> items, long totalCount, String nextCursor)
 method com.feipi.session.browser.query.api.PageResult public static <T> PageResult<T> ofOffset(List<T> items, long totalCount)
 method com.feipi.session.browser.query.api.PayloadSource public static PayloadSource full(String payloadId, PayloadSourceKind kind, String callId)
+method com.feipi.session.browser.query.api.PayloadSourceKind public static PayloadSourceKind fromValue(String value)
+method com.feipi.session.browser.query.api.PayloadVisibility public static PayloadVisibility fromValue(String value)
 method com.feipi.session.browser.query.api.ProjectFilter public String projectKey()
 method com.feipi.session.browser.query.api.ProjectFilter public String toString()
 method com.feipi.session.browser.query.api.ProjectFilter public boolean equals(Object obj)
@@ -1189,7 +1228,9 @@ method com.feipi.session.browser.query.api.ProjectListFilter public Sort sort()
 method com.feipi.session.browser.query.api.ProjectListFilter public String toString()
 method com.feipi.session.browser.query.api.ProjectListFilter public TitleFilter titleFilter()
 method com.feipi.session.browser.query.api.ProjectListFilter public static ProjectListFilter defaults()
+method com.feipi.session.browser.query.api.ProjectSortField public String getValue()
 method com.feipi.session.browser.query.api.ProjectSortField public static ProjectSortField fromString(String value)
+method com.feipi.session.browser.query.api.ProjectSortField public static ProjectSortField fromValue(String value)
 method com.feipi.session.browser.query.api.RoundSignalKey public static RoundSignalKey fromValue(String value)
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public Set<String> sensitiveFields()
 method com.feipi.session.browser.query.api.SensitiveFieldPolicy public String applyMasking(String content)
@@ -1220,7 +1261,9 @@ method com.feipi.session.browser.query.api.SessionListFilter public Sort sort()
 method com.feipi.session.browser.query.api.SessionListFilter public String toString()
 method com.feipi.session.browser.query.api.SessionListFilter public TitleFilter titleFilter()
 method com.feipi.session.browser.query.api.SessionListFilter public static SessionListFilter defaults()
+method com.feipi.session.browser.query.api.SessionSortField public String getValue()
 method com.feipi.session.browser.query.api.SessionSortField public static SessionSortField fromString(String value)
+method com.feipi.session.browser.query.api.SessionSortField public static SessionSortField fromValue(String value)
 method com.feipi.session.browser.query.api.Sort public SortOrder order()
 method com.feipi.session.browser.query.api.Sort public String sortKey()
 method com.feipi.session.browser.query.api.Sort public String toSqlFragment()
@@ -1234,6 +1277,7 @@ method com.feipi.session.browser.query.api.Sort public static Sort ofSession(Str
 method com.feipi.session.browser.query.api.Sort public static final Sort DEFAULT_PROJECT = ofProject(ProjectSortField.LAST_ACTIVE, SortOrder.DESC)
 method com.feipi.session.browser.query.api.Sort public static final Sort DEFAULT_SESSION = ofSession(SessionSortField.ENDED_AT, SortOrder.DESC)
 method com.feipi.session.browser.query.api.SortOrder public static SortOrder fromString(String value)
+method com.feipi.session.browser.query.api.SortOrder public static SortOrder fromValue(String value)
 method com.feipi.session.browser.query.api.TitleFilter public String keyword()
 method com.feipi.session.browser.query.api.TitleFilter public String toString()
 method com.feipi.session.browser.query.api.TitleFilter public boolean equals(Object obj)
@@ -1362,6 +1406,8 @@ method com.feipi.session.browser.source.spi.BoundedStream public default void fo
 method com.feipi.session.browser.source.spi.BoundedStream public int maxSize()
 method com.feipi.session.browser.source.spi.BoundedStream public static <T> BoundedStream<T> of(List<T> items, int maxSize, Optional<Comparator<T>> comparator)
 method com.feipi.session.browser.source.spi.Candidate public SourceId sourceId()
+method com.feipi.session.browser.source.spi.ParseIssueType public static ParseIssueType fromValue(String value)
+method com.feipi.session.browser.source.spi.ParseSeverity public static ParseSeverity fromValue(String value)
 method com.feipi.session.browser.source.spi.SourceAdapter public BoundedStream<Candidate> discover(Path rootPath)
 method com.feipi.session.browser.source.spi.SourceAdapter public SourceFingerprint fingerprint(Path filePath)
 method com.feipi.session.browser.source.spi.SourceAdapter public SourceId sourceId()
@@ -1502,6 +1548,9 @@ type com.feipi.session.browser.application.AnnotatedDetail public record [applic
 type com.feipi.session.browser.application.AnnotatedPageResult public record [application] record AnnotatedPageResult( PageResult<SessionRow> page, List<SessionAnomalySummary> anomalies)
 type com.feipi.session.browser.application.DashboardUseCase public class [application] final class DashboardUseCase
 type com.feipi.session.browser.application.DiagnosticsUseCase public class [application] final class DiagnosticsUseCase
+type com.feipi.session.browser.application.EnvironmentProvider public interface [application] interface EnvironmentProvider
+type com.feipi.session.browser.application.MigrationPhaseConfig public class [application] final class MigrationPhaseConfig
+type com.feipi.session.browser.application.MigrationPhaseConfig.EnvironmentProvider public interface [application] interface EnvironmentProvider
 type com.feipi.session.browser.application.ProjectListUseCase public class [application] final class ProjectListUseCase
 type com.feipi.session.browser.application.QueryCache public class [application] final class QueryCache
 type com.feipi.session.browser.application.QueryCompositionRoot public class [application] final class QueryCompositionRoot
@@ -1526,6 +1575,7 @@ type com.feipi.session.browser.domain.annotation.CoreField public @interface [co
 type com.feipi.session.browser.domain.annotation.DomainModel public @interface [core-domain] DomainModel
 type com.feipi.session.browser.domain.enums.CallScope public enum [core-domain] enum CallScope
 type com.feipi.session.browser.domain.enums.CallStatus public enum [core-domain] enum CallStatus
+type com.feipi.session.browser.domain.enums.MigrationPhase public enum [core-domain] enum MigrationPhase
 type com.feipi.session.browser.domain.enums.TokenPrecision public enum [core-domain] enum TokenPrecision
 type com.feipi.session.browser.domain.enums.TokenProvider public enum [core-domain] enum TokenProvider
 type com.feipi.session.browser.domain.enums.TokenSourceKind public enum [core-domain] enum TokenSourceKind
