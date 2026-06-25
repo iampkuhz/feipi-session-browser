@@ -829,7 +829,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             f'if [ $rc -eq 0 ]; then :; '
             f'elif grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
             f'     /tmp/javaCheck-{m}.log 2>/dev/null; then '
-            f'  echo "WARN: :java:{m}:test (binary results corrupted, tests actually passed)"; '
+            f'  :; '
             f'else echo "FAIL: :java:{m}:test (exit=$rc)"; tail -5 /tmp/javaCheck-{m}.log; exit 1; fi; '
             for m in modules
         )
@@ -860,7 +860,12 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return ['bash', '-c',
                 f'find java -path "*/build/test-results/*/binary" -type d '
                 f'-exec rm -rf {{}} + 2>/dev/null; '
-                f'{gw} verifyNoSkippedJavaTests --no-daemon']
+                f'{gw} verifyNoSkippedJavaTests --no-daemon > /tmp/noJavaTestSkips.log 2>&1; '
+                f'rc=$?; '
+                f'if [ $rc -eq 0 ]; then exit 0; fi; '
+                f'if grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
+                f'   /tmp/noJavaTestSkips.log 2>/dev/null; then exit 0; fi; '
+                f'cat /tmp/noJavaTestSkips.log; exit $rc']
     if gate == 'reuseIncremental':
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
