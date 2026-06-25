@@ -824,7 +824,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             'contract-tests', 'architecture-tests',
         ]
         test_cmds = ' '.join(
-            f'if ! {gw} :java:{m}:test --no-daemon -q 2>&1; then '
+            f'if ! {gw} :java:{m}:test --no-daemon -q 2>/dev/null; then '
             f'echo "FAIL: :java:{m}:test"; exit 1; fi; '
             for m in modules
         )
