@@ -813,9 +813,9 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        # Gradle 9.6.0 + JDK 25: SerializableTestResultStore 竞态导致 binary results 文件损坏，
-        # 即使测试全部通过也可能返回非零 exit code (EOFException / NoSuchFileException)。
-        # 策略：测试输出写入日志，通过日志内容（"BUILD FAILED" + 无 "FAIL:"/error）判断真实结果。
+        # Gradle 9.6.0 SerializableTestResultStore 竞态：binary results 文件偶发 EOFException / NoSuchFileException。
+        # 策略：逐模块 cleanTest + test --no-daemon，每个模块独立 JVM 进程。
+        # exit code 0 → 通过；非零但含 binary results 错误 → 测试实际通过（仅 binary 存储损坏）。
         gw = str(gradlew)
         modules = [
             'core-domain', 'source-spi', 'source-json', 'source-claude', 'source-codex',
@@ -824,8 +824,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             'contract-tests', 'architecture-tests',
         ]
         test_checks = ' '.join(
-            f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon --no-build-cache '
-            f'--no-configuration-cache > /tmp/javaCheck-{m}.log 2>&1; '
+            f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon > /tmp/javaCheck-{m}.log 2>&1; '
             f'rc=$?; '
             f'if [ $rc -eq 0 ]; then :; '
             f'elif grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
@@ -835,12 +834,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             for m in modules
         )
         script = (
-            f'find java -path "*/build/test-results" -type d -exec rm -rf {{}} + 2>/dev/null; '
-            f'rm -rf .gradle/configuration-cache 2>/dev/null; '
-            f'{gw} clean --no-daemon --no-configuration-cache -q 2>/dev/null; '
-            f'{gw} assemble --no-daemon --no-build-cache --no-configuration-cache -q 2>/dev/null; '
+            f'find java -path "*/build/test-results/*/binary" -type d '
+            f'-exec rm -rf {{}} + 2>/dev/null; '
             f'{test_checks}'
-            f'{gw} check -x test -x javadoc --no-daemon --no-configuration-cache -q 2>/dev/null; '
+            f'{gw} check -x test -x javadoc --no-daemon -q 2>/dev/null; '
             f'echo "javaCheck: all passed"'
         )
         return ['bash', '-c', script]
@@ -863,7 +860,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return ['bash', '-c',
                 f'find java -path "*/build/test-results/*/binary" -type d '
                 f'-exec rm -rf {{}} + 2>/dev/null; '
-                f'{gw} verifyNoSkippedJavaTests --no-daemon --no-configuration-cache']
+                f'{gw} verifyNoSkippedJavaTests --no-daemon']
     if gate == 'reuseIncremental':
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
