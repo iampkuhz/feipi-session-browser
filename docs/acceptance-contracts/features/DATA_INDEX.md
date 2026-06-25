@@ -29,4 +29,4 @@
 | DATA-INDEX-009 | P1 | data | manual: Qoder 增量更新已迁移到 Java | — | — | manual | — | — |
 | DATA-INDEX-010 | P1 | data | manual: Qoder 定位器展开已迁移到 Java | — | — | manual | — | — |
 | DATA-INDEX-011 | P1 | data | manual: Qoder 项目路径契约已迁移到 Java | — | — | manual | — | — |
-| DATA-INDEX-012 | P1 | data | 会话筛选查询（agent/project/model/title_like） | 调用 `list_sessions` 带不同过滤参数 | 返回的 session 数量与过滤条件匹配，WHERE 子句正确组合 | pytest | — | `tests/index/test_sessions_filters.py` |
+| DATA-INDEX-012 | P1 | data | 会话筛选查询（agent/project/model/title_like） | 调用 `list_sessions` 带不同过滤参数 | 返回的 session 数量与过滤条件匹配，WHERE 子句正确组合 | pytest | — | 待补充 |

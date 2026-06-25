@@ -21,11 +21,11 @@
 | UI-SESSIONS-006 | P0 | interaction | 筛选表单提交并改变 URL | 在 `#session-search` 填入关键词点击应用 | URL 包含 `q=<关键词>` | Playwright | — | `tests/playwright/sessions-list.spec.js` |
 | UI-SESSIONS-007 | P0 | interaction | next 一次到 page 2（回归测试 S-09） | 从 `/sessions?page=1` 点击 next | URL 变为 `page=2`（非 page=3），page-input 值为 2，prev 按钮启用 | Playwright | — | `tests/playwright/sessions-list.spec.js` |
 | UI-SESSIONS-008 | P0 | visual | 会话行 data 属性契约 | 检查 `tr[data-action="row"]` | 行含 `data-agent`、`data-model`、`data-session-id` 属性 | Playwright | — | `tests/playwright/sessions-list.spec.js` |
-| UI-SESSIONS-009 | P0 | visual | 会话列表契约（模板结构 + CSS/JS + 筛选栏 + 数据表 + tokenbar + 分页 + 空状态） | pytest 检查模板渲染 | 模板结构完整，筛选栏/数据表/tokenbar/分页/空状态区域均存在 | pytest | — | `tests/sessions_list/test_sessions_list_contract.py` |
+| UI-SESSIONS-009 | P0 | visual | 会话列表契约（模板结构 + CSS/JS + 筛选栏 + 数据表 + tokenbar + 分页 + 空状态） | pytest 检查模板渲染 | 模板结构完整，筛选栏/数据表/tokenbar/分页/空状态区域均存在 | pytest | — | 待补充 |
 | UI-SESSIONS-011 | P1 | interaction | 会话列表 AJAX 部分渲染 | 触发筛选/分页 AJAX 请求 | 返回 HTML 片段渲染正确，无完整页面刷新 | pytest | — | `tests/web/test_sessions_ajax_partial.py` |
-| UI-SESSIONS-012 | P1 | interaction | 分页边界条件（page size / 页码输入 / prev 禁用） | 测试最后一页的 next 禁用、第一页的 prev 禁用 | next/prev 按钮在边界时正确禁用，页码输入框限制在有效范围 | pytest | — | `tests/sessions_list/test_sessions_pagination.py` |
-| UI-SESSIONS-013 | P1 | visual | 列表标题截断 | 检查长标题在列表中的截断行为 | 标题超过最大长度时被截断，不破坏布局 | pytest | — | `tests/sessions_list/test_list_title_truncation.py` |
-| UI-SESSIONS-014 | P1 | interaction | 查询状态管理 | 验证筛选/排序/分页状态同步 | query params 与当前筛选/排序/分页状态一致 | pytest | — | `tests/sessions_list/test_sessions_list_query_state.py` |
+| UI-SESSIONS-012 | P1 | interaction | 分页边界条件（page size / 页码输入 / prev 禁用） | 测试最后一页的 next 禁用、第一页的 prev 禁用 | next/prev 按钮在边界时正确禁用，页码输入框限制在有效范围 | pytest | — | 待补充 |
+| UI-SESSIONS-013 | P1 | visual | 列表标题截断 | 检查长标题在列表中的截断行为 | 标题超过最大长度时被截断，不破坏布局 | pytest | — | 待补充 |
+| UI-SESSIONS-014 | P1 | interaction | 查询状态管理 | 验证筛选/排序/分页状态同步 | query params 与当前筛选/排序/分页状态一致 | pytest | — | 待补充 |
 | UI-SESSIONS-015 | P1 | visual | 1440x900 截图基线 | 设置视口截图 | 截图通过视觉回归 | Playwright | snapshot 更新条件：当列表页整体布局变更时需更新快照 | `tests/playwright/sessions-list.spec.js` |
 | UI-SESSIONS-016 | P1 | visual | token 单元格契约 | 检查 token 单元格渲染 | 单元格含 tokenbar 组件，数值格式化正确 | pytest | — | `tests/rendering/test_sessions_token_cell_contract.py` |
 | UI-SESSIONS-017 | P2 | visual | 空数据态渲染 | 在无 session 数据时访问列表页 | 显示空状态提示，无数据表报错 | pytest | — | `tests/sessions_list/test_sessions_list.py`（空状态检查） |

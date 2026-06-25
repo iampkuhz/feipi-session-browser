@@ -351,11 +351,6 @@ component com.feipi.session.browser.query.api.CallRound toolCallIds: List<String
 component com.feipi.session.browser.query.api.DetectedAnomaly reason: String
 component com.feipi.session.browser.query.api.DetectedAnomaly severity: AnomalySeverity
 component com.feipi.session.browser.query.api.DetectedAnomaly type: AnomalyType
-component com.feipi.session.browser.query.api.DiagnosticIssueItem detail: String
-component com.feipi.session.browser.query.api.DiagnosticIssueItem issue: DiagnosticIssue
-component com.feipi.session.browser.query.api.DiagnosticIssueItem lineNo: int
-component com.feipi.session.browser.query.api.DiagnosticIssueItem message: String
-component com.feipi.session.browser.query.api.DiagnosticIssueItem severity: DiagnosticSeverity
 component com.feipi.session.browser.query.api.PayloadSource callId: String
 component com.feipi.session.browser.query.api.PayloadSource kind: PayloadSourceKind
 component com.feipi.session.browser.query.api.PayloadSource payloadId: String
@@ -363,12 +358,6 @@ component com.feipi.session.browser.query.api.PayloadSource title: String
 component com.feipi.session.browser.query.api.PayloadSource truncated: boolean
 component com.feipi.session.browser.query.api.SessionAnomalySummary anomalies: List<DetectedAnomaly>
 component com.feipi.session.browser.query.api.SessionAnomalySummary sessionKey: String
-component com.feipi.session.browser.query.api.SessionParseDiagnostics eventsParsed: long
-component com.feipi.session.browser.query.api.SessionParseDiagnostics eventsSkipped: long
-component com.feipi.session.browser.query.api.SessionParseDiagnostics filePath: String
-component com.feipi.session.browser.query.api.SessionParseDiagnostics issues: List<DiagnosticIssueItem>
-component com.feipi.session.browser.query.api.SessionParseDiagnostics sessionKey: String
-component com.feipi.session.browser.query.api.SessionParseDiagnostics totalLines: long
 component com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult message: String
 component com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult outcome: CandidateOutcome
 component com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult phase: ScanIssue.ScanPhase
@@ -385,19 +374,6 @@ component com.feipi.session.browser.scan.engine.IncrementalScanSummary skippedCo
 component com.feipi.session.browser.scan.engine.IncrementalScanSummary successCount: int
 component com.feipi.session.browser.scan.engine.IncrementalScanSummary totalCandidates: int
 component com.feipi.session.browser.scan.engine.IncrementalScanSummary unchangedCount: int
-component com.feipi.session.browser.scan.engine.RepairDecision action: RepairAction
-component com.feipi.session.browser.scan.engine.RepairDecision fingerprint: StoredSessionFingerprint
-component com.feipi.session.browser.scan.engine.RepairDecision newFilePath: Optional<String>
-component com.feipi.session.browser.scan.engine.RepairDecision reason: String
-component com.feipi.session.browser.scan.engine.RepairSummary artifactOrphanCount: int
-component com.feipi.session.browser.scan.engine.RepairSummary decisions: List<RepairDecision>
-component com.feipi.session.browser.scan.engine.RepairSummary deletedCount: int
-component com.feipi.session.browser.scan.engine.RepairSummary durationMs: long
-component com.feipi.session.browser.scan.engine.RepairSummary errors: List<String>
-component com.feipi.session.browser.scan.engine.RepairSummary keptCount: int
-component com.feipi.session.browser.scan.engine.RepairSummary renamedCount: int
-component com.feipi.session.browser.scan.engine.RepairSummary rootUnavailableCount: int
-component com.feipi.session.browser.scan.engine.RepairSummary temporaryMissingCount: int
 component com.feipi.session.browser.scan.engine.ScanConfig agentFilter: Set<String>
 component com.feipi.session.browser.scan.engine.ScanConfig artifactOutputDir: Path
 component com.feipi.session.browser.scan.engine.ScanConfig parseParallelism: int
@@ -474,12 +450,6 @@ component com.feipi.session.browser.source.spi.SourceRoot readOnly: boolean
 component com.feipi.session.browser.source.spi.SourceRoot resolvedPath: Path
 component com.feipi.session.browser.source.spi.SourceRoot rootPath: Path
 component com.feipi.session.browser.source.spi.SourceRoot symlinkFollowed: boolean
-component com.feipi.session.browser.testsupport.cli.CliResult exitCode: int
-component com.feipi.session.browser.testsupport.cli.CliResult stderr: String
-component com.feipi.session.browser.testsupport.cli.CliResult stdout: String
-component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult exitCode: int
-component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult stderr: String
-component com.feipi.session.browser.testsupport.cli.CliRunner.CliResult stdout: String
 component com.feipi.session.browser.web.WebConfig host: String
 component com.feipi.session.browser.web.WebConfig port: int
 component com.feipi.session.browser.web.WebConfig staticPath: String
@@ -679,7 +649,6 @@ constructor com.feipi.session.browser.query.api.AgentFilter public static final 
 constructor com.feipi.session.browser.query.api.AnomalyFilter public static final AnomalyFilter NONE = new AnomalyFilter(null)
 constructor com.feipi.session.browser.query.api.CallRound public CallRound()
 constructor com.feipi.session.browser.query.api.DetectedAnomaly public DetectedAnomaly()
-constructor com.feipi.session.browser.query.api.DiagnosticIssueItem public DiagnosticIssueItem()
 constructor com.feipi.session.browser.query.api.ModelFilter public static final ModelFilter NONE = new ModelFilter("")
 constructor com.feipi.session.browser.query.api.PageRequest public static final PageRequest DEFAULT = new PageRequest(0, DEFAULT_LIMIT, "")
 constructor com.feipi.session.browser.query.api.PageResult public PageResult()
@@ -687,7 +656,6 @@ constructor com.feipi.session.browser.query.api.PayloadSource public PayloadSour
 constructor com.feipi.session.browser.query.api.ProjectFilter public static final ProjectFilter NONE = new ProjectFilter("")
 constructor com.feipi.session.browser.query.api.SensitiveFieldPolicy public static final SensitiveFieldPolicy DEFAULT = new SensitiveFieldPolicy(DEFAULT_SENSITIVE_FIELDS, true)
 constructor com.feipi.session.browser.query.api.SessionAnomalySummary public SessionAnomalySummary()
-constructor com.feipi.session.browser.query.api.SessionParseDiagnostics public SessionParseDiagnostics()
 constructor com.feipi.session.browser.query.api.TitleFilter public static final TitleFilter NONE = new TitleFilter("")
 constructor com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public ReuseAnalyzer(Path cacheDirectory)
 constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
@@ -707,8 +675,6 @@ constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public I
 constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter, Clock clock)
 constructor com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanEngine()
 constructor com.feipi.session.browser.scan.engine.IncrementalScanSummary public IncrementalScanSummary()
-constructor com.feipi.session.browser.scan.engine.RepairDecision public RepairDecision()
-constructor com.feipi.session.browser.scan.engine.RepairSummary public RepairSummary()
 constructor com.feipi.session.browser.scan.engine.ScanConfig public ScanConfig()
 constructor com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public SourceEntry()
 constructor com.feipi.session.browser.scan.engine.ScanIssue public ScanIssue()
@@ -740,12 +706,8 @@ constructor com.feipi.session.browser.source.spi.SourceResult.RetryableIncomplet
 constructor com.feipi.session.browser.source.spi.SourceResult.Skipped public Skipped()
 constructor com.feipi.session.browser.source.spi.SourceResult.Success public Success()
 constructor com.feipi.session.browser.source.spi.SourceRoot public SourceRoot()
-constructor com.feipi.session.browser.testsupport.cli.CliResult public CliResult()
-constructor com.feipi.session.browser.testsupport.cli.CliRunner public CliRunner(String scriptPath)
-constructor com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public CliResult()
 constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter public FakeSourceAdapter( SourceId sourceId, List<Candidate> candidates, SourceOutcome parseOutcome)
 constructor com.feipi.session.browser.testsupport.source.FakeSourceAdapter public FakeSourceAdapter(SourceId sourceId, List<Candidate> candidates)
-constructor com.feipi.session.browser.web.StaticPathResolver public StaticPathResolver(Path rootDir)
 constructor com.feipi.session.browser.web.WebCompositionRoot public WebCompositionRoot(QueryCompositionRoot queryRoot, WebConfig config)
 constructor com.feipi.session.browser.web.WebConfig public WebConfig()
 constructor com.feipi.session.browser.web.WebServer public WebServer(Javalin app, WebConfig config)
@@ -902,8 +864,6 @@ field com.feipi.session.browser.index.sqlite.PercentileCalculator public TOOL_CA
 field com.feipi.session.browser.index.sqlite.WriteBatch public DEFAULT_MAX_ENTRIES: static final int
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_BATCH_LIMIT: static final int
 field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_QUEUE_CAPACITY: static final int
-field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_ESTIMATED: static final String
-field com.feipi.session.browser.normalization.NormalizationConstants public USAGE_SOURCE_EXACT: static final String
 field com.feipi.session.browser.query.api.PageRequest public DEFAULT_LIMIT: static final int
 field com.feipi.session.browser.query.api.PageRequest public MAX_LIMIT: static final int
 field com.feipi.session.browser.query.api.TrendFilter public DEFAULT_DAYS: static final int
@@ -1188,18 +1148,10 @@ method com.feipi.session.browser.query.api.CallRound public boolean isEmpty()
 method com.feipi.session.browser.query.api.CallRound public int callCount()
 method com.feipi.session.browser.query.api.CallRound public int toolCallCount()
 method com.feipi.session.browser.query.api.CallRound public static CallRound of(int roundIndex, List<String> calls, List<String> toolCallIds)
-method com.feipi.session.browser.query.api.DashboardFilter public AgentFilter agentFilter()
-method com.feipi.session.browser.query.api.DashboardFilter public DashboardFilter withAgent(AgentFilter agentFilter)
-method com.feipi.session.browser.query.api.DashboardFilter public DashboardFilter withPage(PageRequest page)
-method com.feipi.session.browser.query.api.DashboardFilter public PageRequest page()
-method com.feipi.session.browser.query.api.DashboardFilter public String toString()
-method com.feipi.session.browser.query.api.DashboardFilter public static DashboardFilter defaults()
 method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly critical(AnomalyType type, String reason)
 method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly info(AnomalyType type, String reason)
 method com.feipi.session.browser.query.api.DetectedAnomaly public static DetectedAnomaly warning(AnomalyType type, String reason)
 method com.feipi.session.browser.query.api.DiagnosticIssue public static DiagnosticIssue fromValue(String value)
-method com.feipi.session.browser.query.api.DiagnosticIssueItem public static DiagnosticIssueItem fileLevel( DiagnosticIssue issue, DiagnosticSeverity severity, String message)
-method com.feipi.session.browser.query.api.DiagnosticIssueItem public static DiagnosticIssueItem withDetail( DiagnosticIssue issue, DiagnosticSeverity severity, String message, int lineNo, String detail)
 method com.feipi.session.browser.query.api.FailureStatus public static FailureStatus fromString(String value)
 method com.feipi.session.browser.query.api.ModelFilter public String model()
 method com.feipi.session.browser.query.api.ModelFilter public String toString()
@@ -1268,12 +1220,6 @@ method com.feipi.session.browser.query.api.SessionListFilter public Sort sort()
 method com.feipi.session.browser.query.api.SessionListFilter public String toString()
 method com.feipi.session.browser.query.api.SessionListFilter public TitleFilter titleFilter()
 method com.feipi.session.browser.query.api.SessionListFilter public static SessionListFilter defaults()
-method com.feipi.session.browser.query.api.SessionParseDiagnostics public boolean hasCritical()
-method com.feipi.session.browser.query.api.SessionParseDiagnostics public boolean hasWarnings()
-method com.feipi.session.browser.query.api.SessionParseDiagnostics public long criticalCount()
-method com.feipi.session.browser.query.api.SessionParseDiagnostics public long infoCount()
-method com.feipi.session.browser.query.api.SessionParseDiagnostics public long warningCount()
-method com.feipi.session.browser.query.api.SessionParseDiagnostics public static SessionParseDiagnostics empty(String sessionKey, String filePath)
 method com.feipi.session.browser.query.api.SessionSortField public static SessionSortField fromString(String value)
 method com.feipi.session.browser.query.api.Sort public SortOrder order()
 method com.feipi.session.browser.query.api.Sort public String sortKey()
@@ -1365,12 +1311,6 @@ method com.feipi.session.browser.scan.engine.IncrementalScanEngine public Increm
 method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan( Connection writeConn, ScanConfig config, Double maxAgeSeconds, ScanCancelToken cancelToken)
 method com.feipi.session.browser.scan.engine.IncrementalScanEngine public IncrementalScanSummary scan(Connection writeConn, ScanConfig config)
 method com.feipi.session.browser.scan.engine.IncrementalScanSummary public static IncrementalScanSummary fromBase( ScanSummary base, int unchangedCount, int changedCount, int newCount, int retryableCount, boolean rebuildTriggered)
-method com.feipi.session.browser.scan.engine.RepairEngine public List<RepairDecision> analyze(Connection conn, List<ScanConfig.SourceEntry> sourceEntries)
-method com.feipi.session.browser.scan.engine.RepairEngine public RepairSummary execute( Connection writeConn, List<RepairDecision> decisions, Path artifactDir)
-method com.feipi.session.browser.scan.engine.RepairEngine public RepairSummary repair( Connection writeConn, List<ScanConfig.SourceEntry> sourceEntries, Path artifactDir)
-method com.feipi.session.browser.scan.engine.RepairSummary public boolean hasDestructiveActions()
-method com.feipi.session.browser.scan.engine.RepairSummary public boolean hasErrors()
-method com.feipi.session.browser.scan.engine.RepairSummary public int totalActions()
 method com.feipi.session.browser.scan.engine.ScanCancelToken public boolean isCancelled()
 method com.feipi.session.browser.scan.engine.ScanCancelToken public void cancel()
 method com.feipi.session.browser.scan.engine.ScanCancelToken public void throwIfCancelled()
@@ -1450,8 +1390,6 @@ method com.feipi.session.browser.source.spi.SourceResult.Skipped public String m
 method com.feipi.session.browser.source.spi.SourceResult.Success public SourceOutcome outcome()
 method com.feipi.session.browser.source.spi.SourceResult.Success public String message()
 method com.feipi.session.browser.source.spi.SourceRoot public boolean isSafe()
-method com.feipi.session.browser.testsupport.cli.CliRunner public CliResult run(String... args) throws IOException, InterruptedException
-method com.feipi.session.browser.testsupport.cli.CliRunner public CliRunner workingDirectory(File dir)
 method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public BoundedStream<Candidate> discover(Path rootPath)
 method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public SourceFingerprint fingerprint(Path filePath)
 method com.feipi.session.browser.testsupport.source.FakeSourceAdapter public SourceId sourceId()
@@ -1465,8 +1403,6 @@ method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public stat
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void closeQuietly(Connection conn)
 method com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public static void configureConnection(Connection conn) throws SQLException
 method com.feipi.session.browser.web.SecurityHeaders public static void apply(Context ctx)
-method com.feipi.session.browser.web.StaticPathResolver public Path resolve(String requestPath)
-method com.feipi.session.browser.web.StaticPathResolver public Path rootDir()
 method com.feipi.session.browser.web.WebCompositionRoot public Javalin app()
 method com.feipi.session.browser.web.WebCompositionRoot public PebbleEnvironment templates()
 method com.feipi.session.browser.web.WebCompositionRoot public QueryCompositionRoot queryRoot()
@@ -1680,7 +1616,6 @@ type com.feipi.session.browser.normalization.CallBuilder public class [normaliza
 type com.feipi.session.browser.normalization.ClassifiedEvents public class [normalization-engine] static final class ClassifiedEvents
 type com.feipi.session.browser.normalization.EventClassifier public class [normalization-engine] final class EventClassifier
 type com.feipi.session.browser.normalization.EventClassifier.ClassifiedEvents public class [normalization-engine] static final class ClassifiedEvents
-type com.feipi.session.browser.normalization.NormalizationConstants public class [normalization-engine] final class NormalizationConstants
 type com.feipi.session.browser.normalization.NormalizationEngine public class [normalization-engine] final class NormalizationEngine
 type com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult public record [normalization-engine] record ConservationCheckResult( int declaredTools, int executedTools, int consumedResults, boolean tokensConserved)
 type com.feipi.session.browser.normalization.TokenAccountant public class [normalization-engine] final class TokenAccountant
@@ -1689,10 +1624,8 @@ type com.feipi.session.browser.query.api.AnomalyFilter public class [query-api] 
 type com.feipi.session.browser.query.api.AnomalySeverity public enum [query-api] enum AnomalySeverity
 type com.feipi.session.browser.query.api.AnomalyType public enum [query-api] enum AnomalyType
 type com.feipi.session.browser.query.api.CallRound public record [query-api] record CallRound( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId)
-type com.feipi.session.browser.query.api.DashboardFilter public class [query-api] final class DashboardFilter
 type com.feipi.session.browser.query.api.DetectedAnomaly public record [query-api] record DetectedAnomaly(AnomalyType type, AnomalySeverity severity, String reason)
 type com.feipi.session.browser.query.api.DiagnosticIssue public enum [query-api] enum DiagnosticIssue
-type com.feipi.session.browser.query.api.DiagnosticIssueItem public record [query-api] record DiagnosticIssueItem( DiagnosticIssue issue, DiagnosticSeverity severity, String message, int lineNo, String detail)
 type com.feipi.session.browser.query.api.DiagnosticSeverity public enum [query-api] enum DiagnosticSeverity
 type com.feipi.session.browser.query.api.FailureStatus public enum [query-api] enum FailureStatus
 type com.feipi.session.browser.query.api.ModelFilter public class [query-api] final class ModelFilter
@@ -1710,7 +1643,6 @@ type com.feipi.session.browser.query.api.SensitiveFieldPolicy public class [quer
 type com.feipi.session.browser.query.api.SessionAnomalyKey public enum [query-api] enum SessionAnomalyKey
 type com.feipi.session.browser.query.api.SessionAnomalySummary public record [query-api] record SessionAnomalySummary(String sessionKey, List<DetectedAnomaly> anomalies)
 type com.feipi.session.browser.query.api.SessionListFilter public class [query-api] final class SessionListFilter
-type com.feipi.session.browser.query.api.SessionParseDiagnostics public record [query-api] record SessionParseDiagnostics( String sessionKey, String filePath, long totalLines, long eventsParsed, long eventsSkipped, List<DiagnosticIssueItem> issues)
 type com.feipi.session.browser.query.api.SessionSortField public enum [query-api] enum SessionSortField
 type com.feipi.session.browser.query.api.Sort public class [query-api] final class Sort
 type com.feipi.session.browser.query.api.SortOrder public enum [query-api] enum SortOrder
@@ -1728,7 +1660,6 @@ type com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public class [
 type com.feipi.session.browser.reuse.analyzer.fingerprint.CallSequenceFingerprinter public class [reuse-analyzer] final class CallSequenceFingerprinter
 type com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public class [reuse-analyzer] final class Fingerprinter
 type com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public class [reuse-analyzer] final class AnalysisResult
-type com.feipi.session.browser.reuse.analyzer.model.Decision public enum [reuse-analyzer] enum Decision
 type com.feipi.session.browser.reuse.analyzer.model.Finding public class [reuse-analyzer] final class Finding
 type com.feipi.session.browser.reuse.analyzer.model.InputManifest public class [reuse-analyzer] final class InputManifest
 type com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public class [reuse-analyzer] final class ModuleManifest
@@ -1741,10 +1672,6 @@ type com.feipi.session.browser.scan.engine.FullScanEngine.CandidateOutcome publi
 type com.feipi.session.browser.scan.engine.FullScanEngine.CandidateResult public record [scan-engine] record CandidateResult(CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message)
 type com.feipi.session.browser.scan.engine.IncrementalScanEngine public class [scan-engine] final class IncrementalScanEngine
 type com.feipi.session.browser.scan.engine.IncrementalScanSummary public record [scan-engine] record IncrementalScanSummary( int totalCandidates, int successCount, int skippedCount, int errorCount, long scanDurationMs, long scanLogId, Map<SourceId, Integer> perSourceCount, List<ScanIssue> issues, int unchangedCount, int changedCount, int newCount, int retryableCount, boolean rebuildTriggered)
-type com.feipi.session.browser.scan.engine.RepairAction public enum [scan-engine] enum RepairAction
-type com.feipi.session.browser.scan.engine.RepairDecision public record [scan-engine] record RepairDecision( StoredSessionFingerprint fingerprint, RepairAction action, Optional<String> newFilePath, String reason)
-type com.feipi.session.browser.scan.engine.RepairEngine public class [scan-engine] final class RepairEngine
-type com.feipi.session.browser.scan.engine.RepairSummary public record [scan-engine] record RepairSummary( int deletedCount, int renamedCount, int keptCount, int rootUnavailableCount, int temporaryMissingCount, int artifactOrphanCount, List<RepairDecision> decisions, List<String> errors, long durationMs)
 type com.feipi.session.browser.scan.engine.ScanCancelToken public class [scan-engine] final class ScanCancelToken
 type com.feipi.session.browser.scan.engine.ScanConfig public record [scan-engine] record ScanConfig( List<SourceEntry> sourceEntries, Path artifactOutputDir, Set<String> agentFilter, int parseParallelism)
 type com.feipi.session.browser.scan.engine.ScanConfig.SourceEntry public record [scan-engine] record SourceEntry(SourceAdapter adapter, Path rootPath)
@@ -1798,14 +1725,9 @@ type com.feipi.session.browser.source.spi.SourceResult.RetryableIncomplete publi
 type com.feipi.session.browser.source.spi.SourceResult.Skipped public record [source-spi] record Skipped(List<SourceDiagnostic> diagnostics, String reason) implements SourceResult
 type com.feipi.session.browser.source.spi.SourceResult.Success public record [source-spi] record Success( List<SourceDiagnostic> diagnostics, int candidateCount, List<SourceRecord> records, SourceFingerprint fingerprint, String locator) implements SourceResult
 type com.feipi.session.browser.source.spi.SourceRoot public record [source-spi] record SourceRoot( Path rootPath, Path resolvedPath, boolean symlinkFollowed, boolean pathEscapeDetected, boolean readOnly)
-type com.feipi.session.browser.testsupport.TestSupportMarker public class [test-support] final class TestSupportMarker
-type com.feipi.session.browser.testsupport.cli.CliResult public record [test-support] record CliResult(String stdout, String stderr, int exitCode)
-type com.feipi.session.browser.testsupport.cli.CliRunner public class [test-support] final class CliRunner
-type com.feipi.session.browser.testsupport.cli.CliRunner.CliResult public record [test-support] record CliResult(String stdout, String stderr, int exitCode)
 type com.feipi.session.browser.testsupport.source.FakeSourceAdapter public class [test-support] final class FakeSourceAdapter implements SourceAdapter
 type com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper public class [test-support] final class SqliteTestHelper
 type com.feipi.session.browser.web.SecurityHeaders public class [web] final class SecurityHeaders
-type com.feipi.session.browser.web.StaticPathResolver public class [web] final class StaticPathResolver
 type com.feipi.session.browser.web.WebCompositionRoot public class [web] final class WebCompositionRoot
 type com.feipi.session.browser.web.WebConfig public record [web] record WebConfig(String host, int port, String staticPath)
 type com.feipi.session.browser.web.WebServer public class [web] final class WebServer

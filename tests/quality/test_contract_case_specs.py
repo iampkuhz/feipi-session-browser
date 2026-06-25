@@ -10,7 +10,6 @@ from scripts.quality.validate_acceptance_contracts import (
 ROOT = Path(__file__).resolve().parents[2]
 ACCEPTANCE_CONTRACTS = ROOT / 'docs' / 'acceptance-contracts'
 DATA_PRESENTER_TABLE = ACCEPTANCE_CONTRACTS / 'features' / 'DATA_PRESENTERS.md'
-ROUND_SIGNALS_TEST = ROOT / 'tests' / 'backend' / 'test_round_signals.py'
 MIN_MARKDOWN_TABLE_SEPARATORS = 2
 
 
@@ -28,13 +27,15 @@ def test_acceptance_contract_feature_tables_are_restored() -> None:
 
 
 def test_data_presenter_006_is_defined_in_current_spec() -> None:
-    table_text = DATA_PRESENTER_TABLE.read_text(encoding='utf-8')
-    test_text = ROUND_SIGNALS_TEST.read_text(encoding='utf-8')
+    """DATA-PRESENTER-006 契约行在 DATA_PRESENTERS.md 中有定义。
 
-    assert "@pytest.mark.contract_case('DATA-PRESENTER-006')" in test_text
+    注：原始 Python 测试文件 tests/backend/test_round_signals.py 已在 PR-020
+    删除（Python scan/index 产品代码退休）。该契约现由 Java 测试覆盖。
+    """
+    table_text = DATA_PRESENTER_TABLE.read_text(encoding='utf-8')
+
     assert '| DATA-PRESENTER-006 |' in table_text
     assert 'compute_round_signals' in table_text
-    assert 'tests/backend/test_round_signals.py' in table_text
 
 
 def test_acceptance_contract_bindings_are_consistent() -> None:

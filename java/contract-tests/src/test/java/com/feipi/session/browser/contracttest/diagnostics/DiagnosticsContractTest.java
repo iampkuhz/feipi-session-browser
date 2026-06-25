@@ -10,12 +10,9 @@ import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.DiagnosticIssue;
-import com.feipi.session.browser.query.api.DiagnosticIssueItem;
-import com.feipi.session.browser.query.api.DiagnosticSeverity;
 import com.feipi.session.browser.query.api.RoundSignalKey;
 import com.feipi.session.browser.query.api.SessionAnomalyKey;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
-import com.feipi.session.browser.query.api.SessionParseDiagnostics;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -153,46 +150,6 @@ class DiagnosticsContractTest {
       assertThat(DiagnosticIssue.EMPTY_FILE.getValue()).isEqualTo("EMPTY_FILE");
       assertThat(DiagnosticIssue.MISSING_TIMESTAMP.getValue()).isEqualTo("MISSING_TIMESTAMP");
       assertThat(DiagnosticIssue.TOKEN_ESTIMATED.getValue()).isEqualTo("TOKEN_ESTIMATED");
-    }
-
-    @Test
-    @DisplayName("SessionParseDiagnostics 计数一致性")
-    void parseDiagnosticsCountsConsistent() {
-      SessionParseDiagnostics diag =
-          new SessionParseDiagnostics(
-              "key1",
-              "/path",
-              100,
-              50,
-              10,
-              List.of(
-                  DiagnosticIssueItem.fileLevel(
-                      DiagnosticIssue.BAD_JSON, DiagnosticSeverity.CRITICAL, "err"),
-                  DiagnosticIssueItem.fileLevel(
-                      DiagnosticIssue.TOKEN_ESTIMATED, DiagnosticSeverity.WARNING, "warn"),
-                  DiagnosticIssueItem.fileLevel(
-                      DiagnosticIssue.TOKEN_ESTIMATED, DiagnosticSeverity.INFO, "inf")));
-
-      assertThat(diag.criticalCount() + diag.warningCount() + diag.infoCount())
-          .isEqualTo(diag.issues().size());
-    }
-
-    @Test
-    @DisplayName("hasCritical/hasWarnings 与计数一致")
-    void hasMethodsConsistentWithCounts() {
-      SessionParseDiagnostics diag =
-          new SessionParseDiagnostics(
-              "key1",
-              "/path",
-              10,
-              5,
-              1,
-              List.of(
-                  DiagnosticIssueItem.fileLevel(
-                      DiagnosticIssue.BAD_JSON, DiagnosticSeverity.CRITICAL, "err")));
-
-      assertThat(diag.hasCritical()).isEqualTo(diag.criticalCount() > 0);
-      assertThat(diag.hasWarnings()).isEqualTo(diag.warningCount() > 0);
     }
   }
 

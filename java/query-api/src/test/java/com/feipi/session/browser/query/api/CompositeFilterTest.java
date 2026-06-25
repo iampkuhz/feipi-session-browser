@@ -126,28 +126,4 @@ class CompositeFilterTest {
       assertThat(f.page()).isEqualTo(newPage);
     }
   }
-
-  @Nested
-  class DashboardFilterTests {
-
-    @Test
-    void defaultsNoFiltersApplied() {
-      DashboardFilter f = DashboardFilter.defaults();
-      assertThat(f.agentFilter().isUnfiltered()).isTrue();
-      assertThat(f.page()).isEqualTo(PageRequest.DEFAULT);
-    }
-
-    @Test
-    void withAgentReplacesAgentFilter() {
-      DashboardFilter f = DashboardFilter.defaults().withAgent(AgentFilter.of("qoder"));
-      assertThat(f.agentFilter().agent()).isEqualTo("qoder");
-    }
-
-    @Test
-    void withPageReplacesPage() {
-      PageRequest newPage = PageRequest.ofLimit(100);
-      DashboardFilter f = DashboardFilter.defaults().withPage(newPage);
-      assertThat(f.page()).isEqualTo(newPage);
-    }
-  }
 }
