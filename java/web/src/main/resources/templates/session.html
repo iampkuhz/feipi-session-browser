@@ -78,6 +78,11 @@
             <span class="sd-metric__value">{{ session_metrics.subagent_instance_count }}</span>
             <span class="sd-metric__label">Subagents</span>
         </div>
+        <div class="sd-metric" title="Export" style="cursor:pointer;">
+            <a href="/sessions/{{ current_agent | urlencode }}/{{ session_id | urlencode }}/export.html"
+               class="sd-metric__value" style="text-decoration:none;color:#3b82f6;" title="Export session as HTML">HTML</a>
+            <span class="sd-metric__label">Export</span>
+        </div>
     </div>
 
     <div class="sd-hero__tokenbar" title="Token composition">

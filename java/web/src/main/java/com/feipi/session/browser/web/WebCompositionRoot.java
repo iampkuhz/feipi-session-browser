@@ -138,8 +138,15 @@ public final class WebCompositionRoot {
     registerApiRoutes(javalinConfig, queryRoot);
 
     // 导出路由
-    ExportHandler exportHandler = new ExportHandler(templates);
+    ExportHandler exportHandler = new ExportHandler(templates, queryRoot);
     javalinConfig.routes.get("/export/{format}", exportHandler::handleExport);
+    javalinConfig.routes.get(
+        "/sessions/{agent}/{sessionId}/export.html",
+        ctx -> {
+          String agentParam = ctx.pathParam("agent");
+          String sessionIdParam = ctx.pathParam("sessionId");
+          exportHandler.exportSessionHtml(ctx, agentParam, sessionIdParam);
+        });
   }
 
   /** 注册 JSON API 路由。 */

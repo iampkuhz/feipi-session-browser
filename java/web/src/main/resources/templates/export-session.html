@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ session.title is not empty ? session.title : 'Session Export' }} - {{ session_id }}</title>
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif; line-height: 1.6; color: #1a1a2e; background: #fff; padding: 2rem; max-width: 72rem; margin: 0 auto; }
+        .mono { font-family: 'SF Mono', 'Cascadia Code', 'Fira Code', monospace; font-size: 0.85em; }
+
+        /* Header */
+        .export-header { border-bottom: 2px solid #e2e8f0; padding-bottom: 1.5rem; margin-bottom: 2rem; }
+        .export-header h1 { font-size: 1.5rem; margin-bottom: 0.5rem; }
+        .export-meta { color: #64748b; font-size: 0.875rem; display: flex; flex-wrap: wrap; gap: 0.75rem; }
+        .export-meta span { white-space: nowrap; }
+
+        /* Session hero */
+        .sd-hero { margin-bottom: 2rem; }
+        .sd-hero__main { margin-bottom: 1rem; }
+        .sd-hero__title { font-size: 1.75rem; font-weight: 700; margin-bottom: 0.5rem; }
+        .sd-hero__meta { display: flex; flex-wrap: wrap; gap: 0.5rem; align-items: center; color: #64748b; font-size: 0.875rem; }
+        .agent-badge { display: inline-block; padding: 0.125rem 0.5rem; border-radius: 0.25rem; background: #eff6ff; color: #1d4ed8; font-size: 0.75rem; font-weight: 600; }
+
+        /* Metrics grid */
+        .sd-metrics { display: grid; grid-template-columns: repeat(auto-fill, minmax(8rem, 1fr)); gap: 0.75rem; margin: 1.5rem 0; }
+        .sd-metric { background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 0.375rem; padding: 0.75rem; text-align: center; }
+        .sd-metric__value { display: block; font-size: 1.25rem; font-weight: 700; color: #0f172a; }
+        .sd-metric__label { display: block; font-size: 0.75rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.05em; }
+
+        /* Token bar */
+        .tokenbar { display: flex; height: 0.5rem; border-radius: 0.25rem; overflow: hidden; margin: 1rem 0; background: #e2e8f0; }
+        .tokenbar__seg { height: 100%; }
+        .tokenbar__seg--fresh { background: #3b82f6; }
+        .tokenbar__seg--read { background: #10b981; }
+        .tokenbar__seg--write { background: #f59e0b; }
+        .tokenbar__seg--out { background: #8b5cf6; }
+        .token-legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; }
+        .token-legend span { display: flex; align-items: center; gap: 0.25rem; }
+        .token-legend i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 0.125rem; }
+
+        /* Anomalies */
+        .sd-anomalies { margin: 1.5rem 0; border: 1px solid #fecaca; border-radius: 0.375rem; background: #fef2f2; padding: 1rem; }
+        .sd-anomalies__head { display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; }
+        .sd-anomalies__head h2 { font-size: 1rem; color: #991b1b; }
+        .sd-anomalies__count { font-size: 0.875rem; color: #dc2626; font-weight: 600; }
+        .sd-anomaly { display: flex; gap: 0.5rem; align-items: center; padding: 0.5rem 0; border-top: 1px solid #fecaca; font-size: 0.875rem; }
+        .sd-anomaly__type { font-weight: 600; min-width: 8rem; }
+        .sd-badge { display: inline-block; padding: 0.125rem 0.375rem; border-radius: 0.25rem; font-size: 0.75rem; font-weight: 600; }
+        .sd-badge--critical { background: #fef2f2; color: #dc2626; }
+        .sd-badge--warning { background: #fffbeb; color: #d97706; }
+        .sd-badge--info { background: #eff6ff; color: #2563eb; }
+        .sd-anomaly__reason { color: #64748b; }
+
+        /* Rounds table */
+        .rounds-section { margin: 2rem 0; }
+        .rounds-section h2 { font-size: 1.25rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+        .rounds-table { width: 100%; border-collapse: collapse; font-size: 0.875rem; }
+        .rounds-table th { text-align: left; padding: 0.5rem 0.75rem; background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.75rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .rounds-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
+        .rounds-table tr:hover { background: #f8fafc; }
+        .round-id { font-weight: 600; color: #0f172a; }
+        .subagent-badge { display: inline-block; padding: 0.0625rem 0.25rem; border-radius: 0.125rem; background: #fef3c7; color: #92400e; font-size: 0.625rem; font-weight: 700; margin-left: 0.25rem; vertical-align: middle; }
+        .empty-badge { display: inline-block; padding: 0.0625rem 0.25rem; border-radius: 0.125rem; background: #f1f5f9; color: #94a3b8; font-size: 0.625rem; font-weight: 600; }
+
+        /* Payload sources */
+        .payload-section { margin: 2rem 0; }
+        .payload-section h2 { font-size: 1.25rem; margin-bottom: 1rem; padding-bottom: 0.5rem; border-bottom: 1px solid #e2e8f0; }
+        .payload-table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
+        .payload-table th { text-align: left; padding: 0.5rem 0.75rem; background: #f8fafc; border-bottom: 2px solid #e2e8f0; color: #64748b; font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.05em; }
+        .payload-table td { padding: 0.375rem 0.75rem; border-bottom: 1px solid #f1f5f9; }
+        .payload-kind { display: inline-block; padding: 0.0625rem 0.375rem; border-radius: 0.125rem; font-size: 0.7rem; font-weight: 600; }
+        .payload-kind--llm_request { background: #eff6ff; color: #1d4ed8; }
+        .payload-kind--llm_response { background: #f0fdf4; color: #15803d; }
+        .payload-kind--tool_result { background: #fefce8; color: #a16207; }
+        .payload-kind--subagent_request { background: #fdf4ff; color: #86198f; }
+        .payload-kind--subagent_response { background: #fdf2f8; color: #be185d; }
+
+        /* Visibility badge */
+        .visibility-note { margin: 1rem 0; padding: 0.75rem 1rem; background: #f8fafc; border-left: 3px solid #94a3b8; border-radius: 0 0.25rem 0.25rem 0; font-size: 0.8rem; color: #64748b; }
+
+        /* Footer */
+        .export-footer { margin-top: 3rem; padding-top: 1rem; border-top: 1px solid #e2e8f0; font-size: 0.75rem; color: #94a3b8; text-align: center; }
+
+        /* Empty state */
+        .empty-state { text-align: center; padding: 2rem; color: #94a3b8; }
+        .empty-state__icon { font-size: 2rem; margin-bottom: 0.5rem; }
+    </style>
+</head>
+<body>
+
+{# ── Export header ── #}
+<div class="export-header">
+    <h1>Session Export</h1>
+    <div class="export-meta">
+        <span>Agent: <strong>{{ current_agent }}</strong></span>
+        <span>Session: <code class="mono">{{ session_id }}</code></span>
+        <span>Exported: {{ export_timestamp }}</span>
+    </div>
+</div>
+
+{# ── Session hero ── #}
+<section class="sd-hero">
+    <div class="sd-hero__main">
+        <h2 class="sd-hero__title">{{ session.title is not empty ? session.title : 'Untitled session' }}</h2>
+        <div class="sd-hero__meta">
+            <span class="agent-badge">{{ session.agent }}</span>
+            <span class="mono">{{ session.model }}</span>
+            {% if session.projectName is not empty %}
+            <span>{{ session.projectName }}</span>
+            {% elseif session.projectKey is not empty %}
+            <span class="mono">{{ session.projectKey }}</span>
+            {% endif %}
+            {% if session.gitBranch is not empty %}
+            <span class="mono">{{ session.gitBranch }}</span>
+            {% endif %}
+        </div>
+    </div>
+
+    {# ── Metrics ── #}
+    <div class="sd-metrics">
+        <div class="sd-metric" title="Total tokens">
+            <span class="sd-metric__value">{{ session_metrics.total_tokens | format_compact_token }}</span>
+            <span class="sd-metric__label">Tokens</span>
+        </div>
+        <div class="sd-metric" title="Duration">
+            <span class="sd-metric__value">{{ session_metrics.duration_seconds | format_duration }}</span>
+            <span class="sd-metric__label">Duration</span>
+        </div>
+        <div class="sd-metric" title="Rounds">
+            <span class="sd-metric__value">{{ round_count }}</span>
+            <span class="sd-metric__label">Rounds</span>
+        </div>
+        <div class="sd-metric" title="Tool calls">
+            <span class="sd-metric__value">{{ session_metrics.tool_call_count }}</span>
+            <span class="sd-metric__label">Tools</span>
+        </div>
+        <div class="sd-metric" title="Failed tools">
+            <span class="sd-metric__value">{{ session_metrics.failed_tool_count }}</span>
+            <span class="sd-metric__label">Failed</span>
+        </div>
+        <div class="sd-metric" title="Subagents">
+            <span class="sd-metric__value">{{ session_metrics.subagent_instance_count }}</span>
+            <span class="sd-metric__label">Subagents</span>
+        </div>
+        <div class="sd-metric" title="Output tokens">
+            <span class="sd-metric__value">{{ session_metrics.output_tokens | format_compact_token }}</span>
+            <span class="sd-metric__label">Output</span>
+        </div>
+        <div class="sd-metric" title="Cache read tokens">
+            <span class="sd-metric__value">{{ session_metrics.cache_read_tokens | format_compact_token }}</span>
+            <span class="sd-metric__label">Cache Read</span>
+        </div>
+        <div class="sd-metric" title="Cache write tokens">
+            <span class="sd-metric__value">{{ session_metrics.cache_write_tokens | format_compact_token }}</span>
+            <span class="sd-metric__label">Cache Write</span>
+        </div>
+        <div class="sd-metric" title="Fresh input tokens">
+            <span class="sd-metric__value">{{ session_metrics.fresh_input_tokens | format_compact_token }}</span>
+            <span class="sd-metric__label">Fresh Input</span>
+        </div>
+        <div class="sd-metric" title="User messages">
+            <span class="sd-metric__value">{{ session_metrics.user_message_count }}</span>
+            <span class="sd-metric__label">User Msgs</span>
+        </div>
+        <div class="sd-metric" title="Assistant messages">
+            <span class="sd-metric__value">{{ session_metrics.assistant_message_count }}</span>
+            <span class="sd-metric__label">Asst Msgs</span>
+        </div>
+    </div>
+
+    {# ── Token composition bar ── #}
+    {% set total = session_metrics.fresh_input_tokens + session_metrics.cache_read_tokens + session_metrics.cache_write_tokens + session_metrics.output_tokens %}
+    {% if total > 0 %}
+    <div class="tokenbar">
+        <span class="tokenbar__seg tokenbar__seg--fresh" style="width: {{ (session_metrics.fresh_input_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--read" style="width: {{ (session_metrics.cache_read_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--write" style="width: {{ (session_metrics.cache_write_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--out" style="width: {{ (session_metrics.output_tokens / total * 100) | round(1) }}%"></span>
+    </div>
+    <div class="token-legend">
+        <span><i style="background:#3b82f6"></i> Fresh {{ session_metrics.fresh_input_tokens | format_compact_token }}</span>
+        <span><i style="background:#10b981"></i> Cache Read {{ session_metrics.cache_read_tokens | format_compact_token }}</span>
+        <span><i style="background:#f59e0b"></i> Cache Write {{ session_metrics.cache_write_tokens | format_compact_token }}</span>
+        <span><i style="background:#8b5cf6"></i> Output {{ session_metrics.output_tokens | format_compact_token }}</span>
+    </div>
+    {% endif %}
+
+    {# ── Visibility note ── #}
+    <div class="visibility-note">
+        {% if payload_hidden %}
+        Payload content is hidden (standard visibility).
+        {% else %}
+        Payload content is visible (full visibility).
+        {% endif %}
+        {% if has_artifact %}
+        Normalized artifact available.
+        {% endif %}
+    </div>
+</section>
+
+{# ── Anomalies ── #}
+{% if has_anomalies %}
+<section class="sd-anomalies">
+    <div class="sd-anomalies__head">
+        <h2>Anomalies</h2>
+        <span class="sd-anomalies__count">{{ anomaly_count }} detected</span>
+    </div>
+    <div class="sd-anomalies__list">
+        {% for anomaly in anomaly_list %}
+        <div class="sd-anomaly">
+            <span class="sd-anomaly__type">{{ anomaly.type }}</span>
+            <span class="sd-badge sd-badge--{{ anomaly.severity }}">{{ anomaly.severity }}</span>
+            <span class="sd-anomaly__reason">{{ anomaly.reason }}</span>
+        </div>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
+
+{# ── Rounds ── #}
+<section class="rounds-section">
+    <h2>Rounds ({{ round_count }})</h2>
+    {% if not has_rounds %}
+    <div class="empty-state">
+        <div class="empty-state__icon">&#x1F4ED;</div>
+        <p>No rounds indexed for this session.</p>
+    </div>
+    {% else %}
+    <table class="rounds-table">
+        <thead>
+            <tr>
+                <th>Round</th>
+                <th>Calls</th>
+                <th>Tools</th>
+                <th>Call IDs</th>
+                <th>Signals</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for round in rounds %}
+            <tr>
+                <td>
+                    <span class="round-id">R{{ round.round_index }}</span>
+                    {% if round.is_subagent %}
+                    <span class="subagent-badge" title="Subagent (parent: {{ round.parent_call_id }})">SA</span>
+                    {% endif %}
+                </td>
+                <td class="mono">{{ round.call_count }}</td>
+                <td class="mono">{{ round.tool_call_count }}</td>
+                <td class="mono" style="font-size:0.75rem; color:#64748b; max-width:20rem; overflow:hidden; text-overflow:ellipsis;">
+                    {% for cid in round.calls %}{{ cid }}{% if not loop.last %}, {% endif %}{% endfor %}
+                </td>
+                <td>
+                    {% if round.is_empty %}
+                    <span class="empty-badge">empty</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% endif %}
+</section>
+
+{# ── Payload sources ── #}
+{% if payload_source_count > 0 %}
+<section class="payload-section">
+    <h2>Payload Sources ({{ payload_source_count }})</h2>
+    <table class="payload-table">
+        <thead>
+            <tr>
+                <th>Payload ID</th>
+                <th>Kind</th>
+                <th>Call ID</th>
+                <th>Title</th>
+                <th>Status</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for src in payload_sources %}
+            <tr>
+                <td class="mono">{{ src.payload_id }}</td>
+                <td><span class="payload-kind payload-kind--{{ src.kind }}">{{ src.kind }}</span></td>
+                <td class="mono">{{ src.call_id }}</td>
+                <td>{{ src.title }}</td>
+                <td>{{ src.status }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</section>
+{% endif %}
+
+{# ── Footer ── #}
+<div class="export-footer">
+    Feipi Session Browser - Export generated at {{ export_timestamp }}
+</div>
+
+</body>
+</html>
