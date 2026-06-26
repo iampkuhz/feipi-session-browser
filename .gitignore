@@ -31,10 +31,9 @@ uv.lock
 .idea/
 .vscode/
 
-# OpenSpec change artifacts (tracked locally, not committed)
-# .gitkeep keeps the directory itself trackable
-openspec/changes/*
-!openspec/changes/.gitkeep
+# OpenSpec local runtime state
+openspec/active_change.json
+openspec/changes/
 
 # Harness archive
 /harness/archive/

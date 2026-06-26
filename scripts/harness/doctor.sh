@@ -156,6 +156,30 @@ for d in "${local_dirs[@]}"; do
   fi
 done
 
+# OpenSpec runtime state 不应被 Git 追踪
+openspec_tracked=$(git ls-files openspec/active_change.json openspec/changes 2>/dev/null)
+if [[ -n "$openspec_tracked" ]]; then
+  echo "[FAIL] OpenSpec runtime state 不应被 Git 追踪: $openspec_tracked" >&2
+  fail=1
+else
+  echo "[PASS] OpenSpec runtime state 未被 Git 追踪"
+fi
+
+# openspec/changes/ 应存在，不存在时自动创建
+if [[ ! -d "openspec/changes" ]]; then
+  mkdir -p openspec/changes
+  echo "[WARN] openspec/changes/ 不存在，已自动创建"
+else
+  echo "[PASS] openspec/changes/ 目录存在"
+fi
+
+# active_change.json 不存在是正常状态
+if [[ -f "openspec/active_change.json" ]]; then
+  echo "[PASS] openspec/active_change.json 存在（本地 runtime state）"
+else
+  echo "[PASS] openspec/active_change.json 不存在（正常状态）"
+fi
+
 if [[ $fail -ne 0 ]]; then
   echo "[FAIL] doctor found issues" >&2
   exit 1

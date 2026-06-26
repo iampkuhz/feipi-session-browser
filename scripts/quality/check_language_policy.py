@@ -23,7 +23,6 @@ POLICY_PATTERNS = [
     '.codex/config.toml',
     '.codex/model-instructions.md',
     'harness/**/*.md',
-    'openspec/changes/**/*.md',
 ]
 
 ALLOWED_WORDS = {
