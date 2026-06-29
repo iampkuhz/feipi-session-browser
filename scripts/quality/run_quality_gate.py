@@ -262,6 +262,23 @@ def _playwright_skip_count(output: str) -> int:
     return sum(int(value) for value in matches)
 
 
+def _is_pytest_command(cmd: list[str]) -> bool:
+    """Detect pytest commands whose skipped outcome must fail selected gates."""
+    if not cmd:
+        return False
+    executable = Path(cmd[0]).name
+    if executable == 'pytest':
+        return True
+    return len(cmd) >= 3 and executable.startswith('python') and cmd[1:3] == ['-m', 'pytest']
+
+
+def _pytest_skip_count(output: str) -> int:
+    """Return pytest's reported skipped test count from command output."""
+    clean = _strip_ansi(output)
+    matches = re.findall(r'\b(\d+)\s+skipped\b', clean)
+    return sum(int(value) for value in matches)
+
+
 def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str]) -> str:
     """Remove known non-test warning metadata before warning enforcement.
 
@@ -599,14 +616,20 @@ def run_cmd(
         if len(output) > COMMAND_OUTPUT_TAIL_CHARS:
             output = output[-COMMAND_OUTPUT_TAIL_CHARS:]
         status = PASS if proc.returncode == 0 else FAIL
-        skipped = (
-            _playwright_skip_count(output) if status == PASS and _is_playwright_command(cmd) else 0
-        )
+        skipped = 0
+        skipped_kind = ''
+        if status == PASS and _is_playwright_command(cmd):
+            skipped = _playwright_skip_count(output)
+            skipped_kind = 'Playwright'
+        elif status == PASS and _is_pytest_command(cmd):
+            skipped = _pytest_skip_count(output)
+            skipped_kind = 'pytest'
         if skipped:
             status = FAIL
             output = (
                 f'{output}\n\n'
-                f'[quality-gate] FAIL: selected Playwright gate reported {skipped} skipped tests. '
+                f'[quality-gate] FAIL: selected {skipped_kind} gate reported '
+                f'{skipped} skipped tests. '
                 'If a test is not required for this change, remove it from the '
                 'triggered mapping/command; '
                 'if it is required, provide the needed fixture or environment instead of skipping.'
@@ -671,6 +694,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             '.codex/hooks/pre_tool_guard.sh',
             '.codex/hooks/post_tool_guard.sh',
             '.codex/hooks/stop_check.sh',
+            '.qoder/hooks/pre_tool_guard.sh',
+            '.qoder/hooks/post_tool_guard.sh',
             '.qoder/hooks/stop_check.sh',
             'scripts/harness/doctor.sh',
         ]
@@ -818,10 +843,23 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         # exit code 0 → 通过；非零但含 binary results 错误 → 测试实际通过（仅 binary 存储损坏）。
         gw = str(gradlew)
         modules = [
-            'core-domain', 'source-spi', 'source-json', 'source-claude', 'source-codex',
-            'source-qoder', 'artifact-normalized', 'normalization-engine', 'index-sqlite',
-            'scan-engine', 'query-api', 'reuse-analyzer', 'application', 'web', 'app-cli',
-            'contract-tests', 'architecture-tests',
+            'core-domain',
+            'source-spi',
+            'source-json',
+            'source-claude',
+            'source-codex',
+            'source-qoder',
+            'artifact-normalized',
+            'normalization-engine',
+            'index-sqlite',
+            'scan-engine',
+            'query-api',
+            'reuse-analyzer',
+            'application',
+            'web',
+            'app-cli',
+            'contract-tests',
+            'architecture-tests',
         ]
         test_checks = ' '.join(
             f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon > /tmp/javaCheck-{m}.log 2>&1; '
@@ -857,15 +895,18 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             return []
         # 先清理 binary results，避免 Gradle 9.6.0 竞态导致 verifyNoSkippedJavaTests 假性失败。
         gw = str(gradlew)
-        return ['bash', '-c',
-                f'find java -path "*/build/test-results/*/binary" -type d '
-                f'-exec rm -rf {{}} + 2>/dev/null; '
-                f'{gw} verifyNoSkippedJavaTests --no-daemon > /tmp/noJavaTestSkips.log 2>&1; '
-                f'rc=$?; '
-                f'if [ $rc -eq 0 ]; then exit 0; fi; '
-                f'if grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
-                f'   /tmp/noJavaTestSkips.log 2>/dev/null; then exit 0; fi; '
-                f'cat /tmp/noJavaTestSkips.log; exit $rc']
+        return [
+            'bash',
+            '-c',
+            f'find java -path "*/build/test-results/*/binary" -type d '
+            f'-exec rm -rf {{}} + 2>/dev/null; '
+            f'{gw} verifyNoSkippedJavaTests --no-daemon > /tmp/noJavaTestSkips.log 2>&1; '
+            f'rc=$?; '
+            f'if [ $rc -eq 0 ]; then exit 0; fi; '
+            f'if grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
+            f'   /tmp/noJavaTestSkips.log 2>/dev/null; then exit 0; fi; '
+            f'cat /tmp/noJavaTestSkips.log; exit $rc',
+        ]
     if gate == 'reuseIncremental':
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():

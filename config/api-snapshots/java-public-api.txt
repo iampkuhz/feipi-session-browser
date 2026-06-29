@@ -738,9 +738,11 @@ constructor com.feipi.session.browser.web.api.SessionApiService.SessionApiContex
 constructor com.feipi.session.browser.web.api.SessionApiService.SessionDataException public SessionDataException(String message, Throwable cause)
 constructor com.feipi.session.browser.web.api.SessionDataException public SessionDataException(String message, Throwable cause)
 constructor com.feipi.session.browser.web.export.ExportHandler public ExportHandler(PebbleEnvironment templates)
+constructor com.feipi.session.browser.web.export.ExportHandler public ExportHandler(PebbleEnvironment templates, QueryCompositionRoot queryRoot)
 constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
 constructor com.feipi.session.browser.web.page.CorruptArtifactException public CorruptArtifactException(String agent, String sessionId, Throwable cause)
 constructor com.feipi.session.browser.web.page.DashboardPage public DashboardPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
+constructor com.feipi.session.browser.web.page.GlossaryPage public GlossaryPage(PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.page.ProjectsPage public ProjectsPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.page.SessionDetailPage public SessionDetailPage(QueryCompositionRoot queryRoot, PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.page.SessionDetailPage.CorruptArtifactException public CorruptArtifactException(String agent, String sessionId, Throwable cause)
@@ -1485,6 +1487,7 @@ method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext pub
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> callAtRound(CallRound round, int callIndexInRound)
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public Optional<NormalizedCall> findCall(String callId)
 method com.feipi.session.browser.web.api.SessionApiService.SessionApiContext public SessionRow sessionRow()
+method com.feipi.session.browser.web.export.ExportHandler public void exportSessionHtml(Context ctx, String agent, String sessionId)
 method com.feipi.session.browser.web.export.ExportHandler public void handleExport(Context ctx)
 method com.feipi.session.browser.web.model.PaginationModel public Map<String, Object> toTemplateContext()
 method com.feipi.session.browser.web.model.PaginationModel public static PaginationModel of(int page, int pageSize, int totalItems)
@@ -1498,6 +1501,7 @@ method com.feipi.session.browser.web.model.SafeHtml public static String escapeA
 method com.feipi.session.browser.web.page.CorruptArtifactException public String agent()
 method com.feipi.session.browser.web.page.CorruptArtifactException public String sessionId()
 method com.feipi.session.browser.web.page.DashboardPage public void handle(Context ctx)
+method com.feipi.session.browser.web.page.GlossaryPage public void handle(Context ctx)
 method com.feipi.session.browser.web.page.ProjectsPage public void handleDetail(Context ctx, String projectKey)
 method com.feipi.session.browser.web.page.ProjectsPage public void handleList(Context ctx)
 method com.feipi.session.browser.web.page.QueryParams public static ProjectListFilter parseProjectListFilter(Map<String, String> params)
@@ -1816,6 +1820,7 @@ type com.feipi.session.browser.web.model.PaginationModel public record [web] rec
 type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
 type com.feipi.session.browser.web.page.CorruptArtifactException public class [web] static final class CorruptArtifactException extends RuntimeException
 type com.feipi.session.browser.web.page.DashboardPage public class [web] final class DashboardPage
+type com.feipi.session.browser.web.page.GlossaryPage public class [web] final class GlossaryPage
 type com.feipi.session.browser.web.page.ProjectsPage public class [web] final class ProjectsPage
 type com.feipi.session.browser.web.page.QueryParams public class [web] final class QueryParams
 type com.feipi.session.browser.web.page.SessionDetailPage public class [web] final class SessionDetailPage

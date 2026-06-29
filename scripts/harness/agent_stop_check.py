@@ -18,13 +18,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.quality import changed_files as changed_file_utils  # noqa: E402
+
 AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
 CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
 SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
 STOP_SUMMARY = AGENT_LOG_DIR / 'stop-check-summary.json'
-
-GIT_STATUS_PATH_OFFSET = 3
-GIT_STATUS_MIN_LINE_LENGTH = GIT_STATUS_PATH_OFFSET + 1
 
 LOCAL_ONLY_PATHS = [
     '.claude/settings.local.json',
@@ -92,10 +91,7 @@ def _normalize(path: str) -> str:
     Returns:
         Slash-normalized repository-relative path without leading dot segments.
     """
-    value = path.replace('\\', '/').strip()
-    while value.startswith('./'):
-        value = value[2:]
-    return value.strip('/')
+    return changed_file_utils.normalize_path(path)
 
 
 def _dedupe(paths: list[str]) -> list[str]:
@@ -107,14 +103,7 @@ def _dedupe(paths: list[str]) -> list[str]:
     Returns:
         Ordered unique normalized paths.
     """
-    result: list[str] = []
-    seen: set[str] = set()
-    for path in paths:
-        normalized = _normalize(path)
-        if normalized and normalized not in seen:
-            seen.add(normalized)
-            result.append(normalized)
-    return result
+    return changed_file_utils.dedupe_paths(paths)
 
 
 def read_recorded_changed_files(session_id: str | None) -> list[str]:
@@ -126,24 +115,7 @@ def read_recorded_changed_files(session_id: str | None) -> list[str]:
     Returns:
         Changed paths recorded for the session.
     """
-    if not CHANGED_FILES.exists():
-        return []
-
-    files: list[str] = []
-    for raw_line in CHANGED_FILES.read_text(encoding='utf-8').splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-        except json.JSONDecodeError:
-            continue
-        if session_id and record.get('sessionId') != session_id:
-            continue
-        file_path = record.get('file') or record.get('file_path')
-        if isinstance(file_path, str) and file_path:
-            files.append(file_path)
-    return _dedupe(files)
+    return changed_file_utils.read_recorded_changed_files(session_id, CHANGED_FILES)
 
 
 def parse_git_status_paths(output: str) -> list[str]:
@@ -155,18 +127,7 @@ def parse_git_status_paths(output: str) -> list[str]:
     Returns:
         Normalized changed paths, including both sides of rename records.
     """
-    files: list[str] = []
-    for line in output.splitlines():
-        if not line.strip() or len(line) < GIT_STATUS_MIN_LINE_LENGTH:
-            continue
-        path_text = line[GIT_STATUS_PATH_OFFSET:].strip()
-        if not path_text:
-            continue
-        if ' -> ' in path_text:
-            files.extend(part.strip().strip('"') for part in path_text.split(' -> ', 1))
-        else:
-            files.append(path_text.strip('"'))
-    return _dedupe(files)
+    return changed_file_utils.parse_git_status_paths(output)
 
 
 def read_git_dirty_files() -> list[str]:
@@ -175,21 +136,7 @@ def read_git_dirty_files() -> list[str]:
     Returns:
         Normalized dirty paths, or an empty list when git status is unavailable.
     """
-    try:
-        proc = subprocess.run(
-            ['git', 'status', '--short', '--untracked-files=all'],
-            cwd=REPO_ROOT,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            timeout=30,
-            check=False,
-        )
-    except Exception:
-        return []
-    if proc.returncode != 0:
-        return []
-    return parse_git_status_paths(proc.stdout or '')
+    return changed_file_utils.read_git_dirty_files(REPO_ROOT)
 
 
 def collect_changed_files(session_id: str | None) -> list[str]:
@@ -201,9 +148,12 @@ def collect_changed_files(session_id: str | None) -> list[str]:
     Returns:
         Deduplicated paths from recorded hook writes and current git status.
     """
-    # changed-files.jsonl is precise for Write/Edit hooks; git status catches
-    # shell-based deletions and non-Claude agents that do not emit that JSONL.
-    return _dedupe(read_recorded_changed_files(session_id) + read_git_dirty_files())
+    return changed_file_utils.collect_changed_files(
+        session_id,
+        include_git=True,
+        repo_root=REPO_ROOT,
+        changed_files_path=CHANGED_FILES,
+    )
 
 
 def check_local_only_status() -> list[str]:

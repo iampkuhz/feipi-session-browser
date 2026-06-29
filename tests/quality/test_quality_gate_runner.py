@@ -7,7 +7,7 @@ from types import SimpleNamespace
 from typing import NoReturn
 
 import pytest
-from scripts.quality import run_quality_gate
+from scripts.quality import run_quality_gate, run_required_quality_gates, stop_check_targets
 from scripts.quality.quality_artifact import (
     BLOCKED,
     FAIL,
@@ -287,6 +287,29 @@ class TestQualityGateRuntime:
 
         assert detail.status == FAIL
         assert 'selected Playwright gate reported 1 skipped tests' in detail.output
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_selected_pytest_gate_fails_when_tests_skip(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        monkeypatch.setattr(run_quality_gate.shutil, 'which', lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            'run',
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout='2 passed, 1 skipped in 0.10s\n',
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            'pytest',
+            ['python3', '-m', 'pytest', '-q', 'tests'],
+            tmp_path,
+        )
+
+        assert detail.status == FAIL
+        assert 'selected pytest gate reported 1 skipped tests' in detail.output
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_selected_gate_fails_when_output_reports_warning(
@@ -653,7 +676,9 @@ class TestReportHashInSummary:
     def test_written_summary_has_report_hash(self, tmp_path: Path):
         """write_quality_summary 写入的 artifact 包含 reportHash。"""
         started = '2026-01-01T00:00:00Z'
-        details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'], exitCode=0)]
+        details = [
+            GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'], exitCode=0)
+        ]
         summary = build_summary('java-src', 'test', started, details)
         path = write_quality_summary(tmp_path, summary)
         data = json.loads(path.read_text())
@@ -672,7 +697,8 @@ class TestNoJavaTestSkipsGateCommand:
 
         cmd = run_quality_gate.gate_command('noJavaTestSkips', tmp_path, 'java-src')
 
-        assert cmd == [str(gradlew), 'verifyNoSkippedJavaTests']
+        assert cmd[:2] == ['bash', '-c']
+        assert f'{gradlew} verifyNoSkippedJavaTests --no-daemon' in cmd[2]
 
     @pytest.mark.contract_case('JR-020-005')
     def test_no_java_test_skips_blocked_without_gradlew(self, tmp_path: Path):
@@ -688,7 +714,8 @@ class TestNoJavaTestSkipsGateCommand:
 
         cmd = run_quality_gate.gate_command('javaCheck', tmp_path, 'java-src')
 
-        assert cmd == [str(gradlew), 'check']
+        assert cmd[:2] == ['bash', '-c']
+        assert f'{gradlew} check -x test -x javadoc --no-daemon' in cmd[2]
 
 
 class TestMultipleTargetHandling:
@@ -698,6 +725,7 @@ class TestMultipleTargetHandling:
     def test_java_src_gates_include_all_required(self):
         """java-src target 必须包含 javaCheck、javaChineseComments 和 noJavaTestSkips。"""
         from scripts.quality.quality_targets import required_gates_for_target
+
         gates = required_gates_for_target('java-src')
         assert 'javaCheck' in gates
         assert 'javaChineseComments' in gates
@@ -707,11 +735,137 @@ class TestMultipleTargetHandling:
     def test_dominance_java_src_absorbs_java_build(self):
         """dominance 语义：java-src includes java-build，集合包含关系。"""
         from scripts.claude_hooks.classify import DOMINANCE
+
         assert 'java-build' in DOMINANCE['java-src']['includes']
 
     @pytest.mark.contract_case('JR-020-004')
     def test_dominance_reverse_java_build_does_not_absorb_java_src(self):
         """反向验证：java-build 不得吸收 java-src。"""
         from scripts.claude_hooks.classify import DOMINANCE
+
         build_includes = DOMINANCE.get('java-build', {}).get('includes', [])
         assert 'java-src' not in build_includes
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_java_api_snapshot_change_triggers_java_build(self):
+        """Java public API snapshot 单独变更也必须触发 Java 门禁。"""
+        from scripts.claude_hooks.classify import required_quality_targets
+
+        assert required_quality_targets(['config/api-snapshots/java-public-api.txt']) == [
+            'java-build'
+        ]
+
+
+class TestRequiredGateChangedFiles:
+    """required runner 的 changed-files 采集必须 fail-closed。"""
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_empty_explicit_changed_files_falls_back_to_git_dirty(
+        self, monkeypatch: pytest.MonkeyPatch
+    ):
+        """显式空 changed-files 不得让 dirty 工作树逃过 required target。"""
+        monkeypatch.setattr(
+            run_required_quality_gates.changed_file_utils,
+            'read_session_id',
+            lambda session_id_file: None,
+        )
+        monkeypatch.setattr(
+            run_required_quality_gates.changed_file_utils,
+            'collect_changed_files',
+            lambda session_id, **kwargs: ['scripts/quality/run_required_quality_gates.py'],
+        )
+
+        assert run_required_quality_gates.get_changed_files('[]') == [
+            'scripts/quality/run_required_quality_gates.py'
+        ]
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_non_empty_explicit_changed_files_are_used(self, monkeypatch: pytest.MonkeyPatch):
+        """非空显式 changed-files 输入仍作为 agent_stop_check 的精确证据。"""
+
+        def fail_if_called(*args: object, **kwargs: object) -> NoReturn:
+            raise AssertionError('non-empty explicit changed-files should not fall back')
+
+        monkeypatch.setattr(
+            run_required_quality_gates.changed_file_utils,
+            'collect_changed_files',
+            fail_if_called,
+        )
+
+        assert run_required_quality_gates.get_changed_files(
+            '["java/app-cli/src/main/java/Foo.java"]'
+        ) == ['java/app-cli/src/main/java/Foo.java']
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_stop_target_artifact_must_match_active_change_id(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """旧 change 的 PASS artifact 不得放行当前 change。"""
+        quality_dir = tmp_path / 'quality'
+        old_dir = quality_dir / 'old-change'
+        old_dir.mkdir(parents=True)
+        (old_dir / 'quality-gate-summary.hook-runtime.json').write_text(
+            json.dumps({'status': 'PASS'}),
+            encoding='utf-8',
+        )
+
+        monkeypatch.setattr(stop_check_targets, 'QUALITY_DIR', quality_dir)
+        monkeypatch.setattr(stop_check_targets, 'REPO_ROOT', tmp_path)
+
+        passed, message = stop_check_targets.check_target_artifact(
+            'hook-runtime',
+            'current-change',
+        )
+
+        assert not passed
+        assert '缺少 hook-runtime quality artifact' in message
+
+        current_dir = quality_dir / 'current-change'
+        current_dir.mkdir()
+        (current_dir / 'quality-gate-summary.hook-runtime.json').write_text(
+            json.dumps({'status': 'PASS'}),
+            encoding='utf-8',
+        )
+
+        passed, _message = stop_check_targets.check_target_artifact(
+            'hook-runtime',
+            'current-change',
+        )
+        assert passed
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_stop_targets_apply_dominance_for_java_snapshot(self):
+        """java-src 和 java-build 同时触发时 Stop artifact 检查不得要求重复 target。"""
+        assert stop_check_targets.required_targets_for_stop(
+            [
+                'java/web/src/main/java/com/feipi/session/browser/web/export/ExportHandler.java',
+                'config/api-snapshots/java-public-api.txt',
+            ]
+        ) == ['java-src']
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_changed_files_include_committed_paths_since_session_base(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """即使工作树已 clean，session base 到 HEAD 的提交文件仍必须触发门禁。"""
+        base_file = tmp_path / 'base-commit.txt'
+        base_file.write_text('base123\n', encoding='utf-8')
+
+        def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+            return SimpleNamespace(
+                returncode=0,
+                stdout='scripts/quality/run_required_quality_gates.py\n.codex/hooks.json\n',
+            )
+
+        monkeypatch.setattr(
+            run_required_quality_gates.changed_file_utils.subprocess, 'run', fake_run
+        )
+        paths = run_required_quality_gates.changed_file_utils.collect_changed_files(
+            None,
+            include_git=False,
+            repo_root=tmp_path,
+            changed_files_path=tmp_path / 'missing.jsonl',
+            base_commit_file=base_file,
+        )
+
+        assert paths == ['scripts/quality/run_required_quality_gates.py', '.codex/hooks.json']

@@ -13,6 +13,11 @@ import re
 
 # 01. target -> required gate matrix (full baseline)
 QUALITY_TARGETS: dict[str, list[str]] = {
+    'python-src': [
+        'pythonCompile',
+        'noTestSkips',
+        'pytest',
+    ],
     'python-standard': [
         'pythonFormat',
         'pythonLint',
@@ -56,6 +61,18 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'acceptanceContracts',
         'pytest',
     ],
+    'session-detail': [
+        'pythonCompile',
+        'noTestSkips',
+        'templateContract',
+        'staticCssContract',
+        'cssOwnership',
+        'rawInnerhtml',
+        'layoutInlineStyle',
+        'pytest',
+        'browserLayout',
+        'browserInteraction',
+    ],
     'index': [
         'indexIntegrity',
     ],
@@ -77,10 +94,12 @@ QUALITY_TARGETS: dict[str, list[str]] = {
 # exclusive_resources: 互斥资源列表（如 gradle-daemon），同一资源同时只允许一个 target 使用
 # timeout: 单 target 最大执行时间（秒）
 TARGET_META: dict[str, dict[str, object]] = {
+    'python-src': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'python-standard': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'hook-runtime': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'harness': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'acceptance-contracts': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
+    'session-detail': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'index': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 600},
     'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 300},
@@ -97,6 +116,19 @@ TARGET_DOMINANCE: dict[str, dict[str, list[str]]] = {
 # A gate runs only when at least one changed file matches one of its patterns.
 # If callers omit changed files, such as manual --target runs, use the full baseline.
 GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
+    'python-src': {
+        'pythonCompile': [
+            'src/session_browser/**/*.py',
+        ],
+        'noTestSkips': [
+            'tests/**/*.py',
+            'scripts/quality/check_no_test_skips.py',
+        ],
+        'pytest': [
+            'src/session_browser/**/*.py',
+            'tests/**/*.py',
+        ],
+    },
     'python-standard': {
         'pythonFormat': [
             'pyproject.toml',
@@ -329,6 +361,58 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'pyproject.toml',
         ],
     },
+    'session-detail': {
+        'pythonCompile': [
+            'scripts/quality/check_session_detail_*.py',
+            'scripts/quality/run_session_detail_*.py',
+        ],
+        'noTestSkips': [
+            'tests/**/*.py',
+            'tests/**/*.js',
+            'tests/**/*.ts',
+            'playwright.config.js',
+            'scripts/quality/check_no_test_skips.py',
+        ],
+        'templateContract': [
+            'java/web/src/main/resources/templates/**',
+            'tests/ui/test_web_template_contract.py',
+            'scripts/quality/template_contract_check.py',
+        ],
+        'staticCssContract': [
+            'java/web/src/main/resources/static/css/**/*.css',
+            'tests/ui/test_web_static_contract.py',
+            'scripts/quality/static_contract_check.py',
+        ],
+        'cssOwnership': [
+            'java/web/src/main/resources/static/css/**/*.css',
+            'scripts/quality/check_css_ownership.py',
+        ],
+        'rawInnerhtml': [
+            'java/web/src/main/resources/static/**/*.js',
+            'scripts/quality/check_raw_innerhtml.py',
+        ],
+        'layoutInlineStyle': [
+            'java/web/src/main/resources/static/**/*.js',
+            'scripts/quality/check_layout_inline_style.py',
+        ],
+        'pytest': [
+            'java/web/src/main/resources/templates/**',
+            'java/web/src/main/resources/static/**',
+            'tests/ui/**/*.py',
+        ],
+        'browserLayout': [
+            'java/web/src/main/resources/templates/**',
+            'java/web/src/main/resources/static/**',
+            'tests/playwright/**/*.js',
+            'playwright.config.js',
+        ],
+        'browserInteraction': [
+            'java/web/src/main/resources/templates/**',
+            'java/web/src/main/resources/static/**',
+            'tests/playwright/**/*.js',
+            'playwright.config.js',
+        ],
+    },
     'java-src': {
         'javaCheck': [
             'java/**/src/main/java/**/*.java',
@@ -355,6 +439,7 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
     },
     'java-build': {
         'javaCheck': [
+            'config/api-snapshots/java-public-api.txt',
             'build-logic/**',
             'gradle/**',
             'build.gradle.kts',
@@ -509,4 +594,6 @@ def target_parallel_meta(target: str) -> dict[str, object]:
     Returns:
         Metadata dict with parallel_safe, exclusive_resources, and timeout.
     """
-    return dict(TARGET_META.get(target, {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300}))
+    return dict(
+        TARGET_META.get(target, {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300})
+    )

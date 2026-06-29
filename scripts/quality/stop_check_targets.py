@@ -4,7 +4,7 @@
 不运行任何测试,只验证 artifact 是否存在且状态为 PASS.
 根据当前 session 的文件修改,确定需要检查的 targets.
 
-排除 "session-detail" target — 该 target 由 stop_quality_gate.py 单独处理.
+排除 "session-detail" target — 该 target 由 shared stop runner 显式执行.
 
 退出码:
     0 — 所有 required targets 已有 PASS artifact
@@ -19,7 +19,8 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.claude_hooks.classify import required_quality_targets  # noqa: E402
+from scripts.claude_hooks.classify import effective_targets, required_quality_targets  # noqa: E402
+from scripts.quality import changed_files as changed_file_utils  # noqa: E402
 
 AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
 CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
@@ -27,8 +28,14 @@ CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
 QUALITY_DIR = REPO_ROOT / 'tmp' / 'quality'
 SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
 
-# session-detail 由 stop_quality_gate.py 单独检查,此处排除
+# session-detail 由 shared stop runner 显式执行,此处排除 legacy artifact check.
 EXCLUDED_TARGETS = {'session-detail'}
+
+
+def required_targets_for_stop(changed_files: list[str]) -> list[str]:
+    """Return effective required targets after dominance and stop exclusions."""
+    all_targets = effective_targets(required_quality_targets(changed_files))
+    return [target for target in all_targets if target not in EXCLUDED_TARGETS]
 
 
 def get_session_id() -> str | None:
@@ -37,9 +44,7 @@ def get_session_id() -> str | None:
     Returns:
         Computed result.
     """
-    if SESSION_ID_FILE.exists():
-        return SESSION_ID_FILE.read_text().strip() or None
-    return None
+    return changed_file_utils.read_session_id(SESSION_ID_FILE)
 
 
 def get_changed_files_for_session() -> list[str]:
@@ -49,26 +54,12 @@ def get_changed_files_for_session() -> list[str]:
         Computed result.
     """
     session_id = get_session_id()
-    if not session_id:
-        return []
-
-    if not CHANGED_FILES.exists():
-        return []
-
-    files: list[str] = []
-    for raw_line in CHANGED_FILES.read_text(encoding='utf-8').splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-            if record.get('sessionId') == session_id:
-                f = record.get('file') or record.get('file_path')
-                if f:
-                    files.append(f)
-        except (json.JSONDecodeError, Exception):
-            continue
-    return files
+    return changed_file_utils.collect_changed_files(
+        session_id,
+        include_git=True,
+        repo_root=REPO_ROOT,
+        changed_files_path=CHANGED_FILES,
+    )
 
 
 def resolve_change_id() -> str:
@@ -115,16 +106,10 @@ def check_target_artifact(target: str, change_id: str) -> tuple[bool, str]:
     Returns:
         Computed result.
     """
-    candidates = []
-    if QUALITY_DIR.exists():
-        for change_dir in sorted(QUALITY_DIR.iterdir()):
-            if change_dir.is_dir():
-                summary = change_dir / f'quality-gate-summary.{target}.json'
-                if summary.exists():
-                    candidates.append(summary)
+    summary = QUALITY_DIR / change_id / f'quality-gate-summary.{target}.json'
 
-    if not candidates:
-        expected = f'{QUALITY_DIR}/<change-id>/quality-gate-summary.{target}.json'
+    if not summary.exists():
+        expected = str(summary)
         existing = find_existing_summaries()
         existing_rel = [str(p.relative_to(REPO_ROOT)) for p in existing] if existing else ['无']
 
@@ -133,22 +118,20 @@ def check_target_artifact(target: str, change_id: str) -> tuple[bool, str]:
             f'  expected: {expected}',
             f'  change-id: {change_id}',
             f'  agent-log-dir: {AGENT_LOG_DIR}',
-            '  required targets: '
-            f'{sorted(required_quality_targets(get_changed_files_for_session()))}',
+            f'  required targets: {sorted(required_targets_for_stop(get_changed_files_for_session()))}',
             f'  actual found summaries: {", ".join(existing_rel)}',
         ]
         return False, '\n'.join(msg_parts)
 
-    latest = max(candidates, key=lambda p: p.stat().st_mtime)
     try:
-        data = json.loads(latest.read_text(encoding='utf-8'))
+        data = json.loads(summary.read_text(encoding='utf-8'))
         status = str(data.get('status', '')).upper()
         if status != 'PASS':
             return (
                 False,
-                f'{target} quality artifact 状态为 {status}(文件:{latest.relative_to(REPO_ROOT)})',
+                f'{target} quality artifact 状态为 {status}(文件:{summary.relative_to(REPO_ROOT)})',
             )
-        return True, f'{target} quality gate PASS(文件:{latest.relative_to(REPO_ROOT)})'
+        return True, f'{target} quality gate PASS(文件:{summary.relative_to(REPO_ROOT)})'
     except (json.JSONDecodeError, OSError) as e:
         return False, f'{target} quality artifact 读取失败:{e}'
 
@@ -164,9 +147,7 @@ def main() -> int:
         print('[stop_check_targets] 无文件变更记录,跳过 quality target 检查', file=sys.stderr)
         return 0
 
-    all_targets = required_quality_targets(changed_files)
-    # 排除已由 stop_quality_gate.py 处理的 target
-    targets = [t for t in all_targets if t not in EXCLUDED_TARGETS]
+    targets = required_targets_for_stop(changed_files)
 
     if not targets:
         print(

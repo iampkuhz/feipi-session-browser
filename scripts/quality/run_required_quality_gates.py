@@ -9,8 +9,8 @@ selected tier:
 - required: full required gate baseline (default, backward compatible).
 - full: all targets plus extra validation commands for release gating.
 
-By default excludes session-detail (handled by stop_quality_gate.py).
-Pass --include-session-detail to include it in the runner (used by stop.sh).
+By default excludes session-detail for fast explicit target runs.
+Pass --include-session-detail to include it in the shared stop runner.
 
 Usage:
     python3 scripts/quality/run_required_quality_gates.py
@@ -43,16 +43,15 @@ required_quality_targets = importlib.import_module(
     'scripts.claude_hooks.classify'
 ).required_quality_targets
 # 导入 dominance 去重函数，避免重复运行被包含的 target。
-effective_targets = importlib.import_module(
-    'scripts.claude_hooks.classify'
-).effective_targets
+effective_targets = importlib.import_module('scripts.claude_hooks.classify').effective_targets
+changed_file_utils = importlib.import_module('scripts.quality.changed_files')
 
 AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
 CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
 SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
 QUALITY_DIR = REPO_ROOT / 'tmp' / 'quality'
 
-# session-detail 由 stop_quality_gate.py 单独处理, 默认排除
+# session-detail 较重，普通 required target runner 默认排除；shared stop runner 显式纳入。
 EXCLUDED_TARGETS = {'session-detail'}
 
 # 01. 三档定义
@@ -75,17 +74,19 @@ TIER_META: dict[str, dict[str, str]] = {
 
 # quick 档运行的轻量级 gate 子集。
 # 这些 gate 执行速度快、不需要 fixture 或外部依赖。
-QUICK_GATES: frozenset[str] = frozenset({
-    'pythonCompile',
-    'bashSyntax',
-    'noTestSkips',
-    'noJavaTestSkips',
-    'noJavaSuppressWarnings',
-    'languagePolicy',
-    'doctor',
-    'repoStructure',
-    'harnessStructure',
-})
+QUICK_GATES: frozenset[str] = frozenset(
+    {
+        'pythonCompile',
+        'bashSyntax',
+        'noTestSkips',
+        'noJavaTestSkips',
+        'noJavaSuppressWarnings',
+        'languagePolicy',
+        'doctor',
+        'repoStructure',
+        'harnessStructure',
+    }
+)
 
 # full 档在全部 target 之外额外执行的验证命令。
 FULL_EXTRA_COMMANDS: list[list[str]] = [
@@ -119,34 +120,26 @@ def resolve_change_id(explicit: str | None) -> str:
     return 'unknown'
 
 
-def get_changed_files() -> list[str]:
-    """Read changed files from tmp/agent_logs/current/changed-files.jsonl.
+def get_changed_files(explicit_json: str | None = None) -> list[str]:
+    """Resolve changed files from explicit input, hook records, and git status.
+
+    Explicit changed-files input is trusted when non-empty.  When it is missing
+    or an empty JSON list, fall back to shared collection so shell edits,
+    deleted files, and Codex/Qoder sessions without hook JSONL cannot escape.
 
     Returns:
         Computed result.
     """
-    session_id = None
-    if SESSION_ID_FILE.exists():
-        session_id = SESSION_ID_FILE.read_text().strip() or None
-
-    if not CHANGED_FILES.exists():
-        return []
-
-    files: list[str] = []
-    for raw_line in CHANGED_FILES.read_text(encoding='utf-8').splitlines():
-        stripped_line = raw_line.strip()
-        if not stripped_line:
-            continue
-        try:
-            record = json.loads(stripped_line)
-            if session_id and record.get('sessionId') != session_id:
-                continue
-            f = record.get('file') or record.get('file_path')
-            if f:
-                files.append(f)
-        except (json.JSONDecodeError, Exception):
-            continue
-    return files
+    explicit = changed_file_utils.parse_changed_files_json(explicit_json)
+    if explicit:
+        return explicit
+    session_id = changed_file_utils.read_session_id(SESSION_ID_FILE)
+    return changed_file_utils.collect_changed_files(
+        session_id,
+        include_git=True,
+        repo_root=REPO_ROOT,
+        changed_files_path=CHANGED_FILES,
+    )
 
 
 def compute_required_targets(changed_files: list[str], excluded: set[str]) -> list[str]:
@@ -401,21 +394,19 @@ def main() -> int:
         )
     else:
         print(
-            f'[{tier}-tier] session-detail excluded '
-            '(handled by stop_quality_gate.py)',
+            f'[{tier}-tier] session-detail excluded (use --include-session-detail for stop gating)',
             file=sys.stderr,
         )
 
     change_id = resolve_change_id(args.change_id)
-    changed_files = json.loads(args.changed_files) if args.changed_files else get_changed_files()
+    changed_files = get_changed_files(args.changed_files)
 
     print(f'[{tier}-tier] change-id={change_id}', file=sys.stderr)
     print(f'[{tier}-tier] tier={tier}: {tier_desc}', file=sys.stderr)
     print(f'[{tier}-tier] failure policy: {tier_policy}', file=sys.stderr)
-    print(
-        f'[{tier}-tier] changed-files={CHANGED_FILES.relative_to(REPO_ROOT)}',
-        file=sys.stderr,
-    )
+    print(f'[{tier}-tier] changed-files={CHANGED_FILES.relative_to(REPO_ROOT)}', file=sys.stderr)
+    if changed_files:
+        print(f'[{tier}-tier] changed-file count={len(changed_files)}', file=sys.stderr)
 
     # quick 档走独立的轻量级 gate 执行路径。
     if tier == 'quick':
@@ -452,8 +443,7 @@ def main() -> int:
         )
     if excluded:
         print(
-            f'[{tier}-tier] excluded targets (handled elsewhere): '
-            f'{", ".join(sorted(excluded))}',
+            f'[{tier}-tier] excluded targets (handled elsewhere): {", ".join(sorted(excluded))}',
             file=sys.stderr,
         )
 
@@ -466,8 +456,7 @@ def main() -> int:
 
     if not all_required:
         print(
-            f'[{tier}-tier] no required targets after exclusions; '
-            'selected targets not triggered',
+            f'[{tier}-tier] no required targets after exclusions; selected targets not triggered',
             file=sys.stderr,
         )
         return 0
@@ -506,9 +495,7 @@ def main() -> int:
 
     # 输出被排除的 target，这些由其他 runner 处理，不是测试跳过。
     for t in sorted(effective_excluded & set(effective_required)):
-        print(
-            f'[{tier}-tier] excluded target handled elsewhere: {t}', file=sys.stderr
-        )
+        print(f'[{tier}-tier] excluded target handled elsewhere: {t}', file=sys.stderr)
 
     return 1 if blocked else 0
 

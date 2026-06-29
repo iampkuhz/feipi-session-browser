@@ -11,7 +11,11 @@ runtime:
   log_dir: tmp/agent_logs/
   agent_entrypoints:
     claude_stop: .claude/hooks/stop.sh
+    codex_pre_tool: .codex/hooks/pre_tool_guard.sh
+    codex_post_tool: .codex/hooks/post_tool_guard.sh
     codex_stop: .codex/hooks/stop_check.sh
+    qoder_pre_tool: .qoder/hooks/pre_tool_guard.sh
+    qoder_post_tool: .qoder/hooks/post_tool_guard.sh
     qoder_stop: .qoder/hooks/stop_check.sh
   skill_entrypoints:
     openspec_orchestrate_change: skills/authoring/feipi-openspec-orchestrate-change/SKILL.md

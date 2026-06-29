@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/Users/zhehan/Documents/tools/llm/feipi-session-browser/.codex/hooks/pre_tool_guard.sh'"
+            "command": ".codex/hooks/pre_tool_guard.sh"
           }
         ]
       }
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/Users/zhehan/Documents/tools/llm/feipi-session-browser/.codex/hooks/post_tool_guard.sh'"
+            "command": ".codex/hooks/post_tool_guard.sh"
           }
         ]
       }
@@ -27,7 +27,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "'/Users/zhehan/Documents/tools/llm/feipi-session-browser/.codex/hooks/stop_check.sh'"
+            "command": ".codex/hooks/stop_check.sh"
           }
         ]
       }

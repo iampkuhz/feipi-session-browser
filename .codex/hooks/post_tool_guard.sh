@@ -4,9 +4,89 @@ set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
+ROOT="$(repo_root)"
+
+cd "$ROOT" || exit $EXIT_WARN
+export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+python3 "$ROOT/scripts/quality/ensure_base_commit.py" >/dev/null 2>&1 || true
+
+STDIN_TMP="$(mktemp)"
+NORMALIZED_TMP="$(mktemp)"
+trap 'rm -f "$STDIN_TMP" "$NORMALIZED_TMP"' EXIT
+cat > "$STDIN_TMP" 2>/dev/null || true
 
 MODIFIED_FILE="${CLAUDE_FILE_PATH:-${CC_FILE_PATH:-${1:-}}}"
-[[ -z "$MODIFIED_FILE" ]] && exit $EXIT_SKIP
+python3 - "$STDIN_TMP" "$NORMALIZED_TMP" "$MODIFIED_FILE" <<'PY' || true
+import json
+import sys
+
+stdin_path, out_path, fallback_path = sys.argv[1], sys.argv[2], sys.argv[3]
+try:
+    raw = json.loads(open(stdin_path, encoding='utf-8').read())
+    if not isinstance(raw, dict):
+        raw = {}
+except Exception:
+    raw = {}
+
+tool_input = raw.get('tool_input') or raw.get('toolInput') or {}
+if not isinstance(tool_input, dict):
+    tool_input = {}
+
+candidate_paths = []
+for key in ('file_path', 'path', 'notebook_path'):
+    value = tool_input.get(key)
+    if isinstance(value, str) and value:
+        candidate_paths.append(value)
+
+edits = tool_input.get('edits')
+if isinstance(edits, list):
+    for item in edits:
+        if not isinstance(item, dict):
+            continue
+        for key in ('file_path', 'path', 'notebook_path'):
+            value = item.get(key)
+            if isinstance(value, str) and value:
+                candidate_paths.append(value)
+
+path = fallback_path or (candidate_paths[0] if candidate_paths else '')
+
+payload = {
+    'session_id': raw.get('session_id') or raw.get('sessionId') or '',
+    'tool_name': raw.get('tool_name') or raw.get('toolName') or 'CodexPostToolUse',
+    'tool_use_id': raw.get('tool_use_id') or raw.get('toolUseId') or '',
+    'tool_input': dict(tool_input),
+}
+if path and not any(payload['tool_input'].get(k) for k in ('file_path', 'path', 'notebook_path')):
+    payload['tool_input']['file_path'] = path
+if path or candidate_paths:
+    open(out_path, 'w', encoding='utf-8').write(json.dumps(payload, ensure_ascii=False))
+PY
+if [[ -z "$MODIFIED_FILE" && -s "$NORMALIZED_TMP" ]]; then
+  MODIFIED_FILE="$(python3 - "$NORMALIZED_TMP" <<'PY'
+import json
+import sys
+
+try:
+    data = json.loads(open(sys.argv[1], encoding='utf-8').read())
+except Exception:
+    data = {}
+tool_input = data.get('tool_input') or {}
+for key in ('file_path', 'path', 'notebook_path'):
+    value = tool_input.get(key)
+    if isinstance(value, str) and value:
+        print(value)
+        break
+PY
+)"
+fi
+
+if [[ -z "$MODIFIED_FILE" ]]; then
+  exit $EXIT_SKIP
+fi
+
+if [[ -s "$NORMALIZED_TMP" ]]; then
+  python3 -m scripts.claude_hooks.main post-write < "$NORMALIZED_TMP" >/dev/null 2>&1 || true
+fi
 
 case "$MODIFIED_FILE" in
   */.claude/settings.local.json|*/.mcp.json)

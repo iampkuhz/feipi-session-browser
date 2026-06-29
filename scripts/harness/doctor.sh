@@ -82,7 +82,11 @@ check_file .claude/hooks/tool-failure.sh
 check_file .claude/hooks/subagent-stop.sh
 check_file .claude/hooks/config-change.sh
 check_file .claude/hooks/lib/common.sh
+check_file .codex/hooks/pre_tool_guard.sh
+check_file .codex/hooks/post_tool_guard.sh
 check_file .codex/hooks/stop_check.sh
+check_file .qoder/hooks/pre_tool_guard.sh
+check_file .qoder/hooks/post_tool_guard.sh
 check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
 check_file harness/agent-runtime.md

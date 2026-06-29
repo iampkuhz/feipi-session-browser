@@ -34,6 +34,9 @@ if [[ -n "$SESSION_ID" ]]; then
   echo "$SESSION_ID" > "${AGENT_LOG_DIR}/session-id.txt"
 fi
 
+# 记录 session 起点，防止 agent 在提交后清空工作树时绕过 Stop 门禁。
+python3 "$ROOT/scripts/quality/ensure_base_commit.py" --force >/dev/null 2>&1 || true
+
 # 调用 Python hook 逻辑
 python3 -m scripts.claude_hooks.main session-start < "$STDIN_TMP"
 rm -f "$STDIN_TMP"

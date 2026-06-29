@@ -59,6 +59,7 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
         [
             'build-logic/**',
             'gradle/**',
+            'config/api-snapshots/java-public-api.txt',
             'settings.gradle.kts',
             'gradlew',
             'gradlew.bat',
@@ -92,6 +93,20 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
         ],
         True,
         'acceptance-contracts',
+        'medium',
+        True,
+    ),
+    (
+        'session-detail-ui',
+        [
+            'java/web/src/main/resources/static/**',
+            'java/web/src/main/resources/templates/**',
+            'src/session_browser/web/**',
+            'scripts/quality/check_session_detail_*.py',
+            'scripts/quality/run_session_detail_*.py',
+        ],
+        True,
+        'session-detail',
         'medium',
         True,
     ),
@@ -354,17 +369,34 @@ def _self_test() -> None:
     )
     assert classify_file('AGENTS.md').quality_target == 'hook-runtime'
     assert classify_file('CLAUDE.md').quality_target == 'hook-runtime'
+    assert (
+        classify_file('java/web/src/main/resources/static/css/session-detail.css').quality_target
+        == 'session-detail'
+    )
     assert classify_file('tmp/agent_logs/session1/x.jsonl').category == 'local-or-generated'
     # Java/Gradle classification self-tests
-    assert classify_file('java/core-domain/src/main/java/com/feipi/Foo.java').quality_target == 'java-src'
-    assert classify_file('java/architecture-tests/src/test/java/com/feipi/BarTest.java').quality_target == 'java-src'
-    assert classify_file('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target == 'java-build'
+    assert (
+        classify_file('java/core-domain/src/main/java/com/feipi/Foo.java').quality_target
+        == 'java-src'
+    )
+    assert (
+        classify_file('java/architecture-tests/src/test/java/com/feipi/BarTest.java').quality_target
+        == 'java-src'
+    )
+    assert (
+        classify_file('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target
+        == 'java-build'
+    )
     assert classify_file('gradle/libs.versions.toml').quality_target == 'java-build'
     assert classify_file('build.gradle.kts').quality_target == 'java-build'
     assert classify_file('gradle.properties').quality_target == 'java-build'
     assert classify_file('settings.gradle.kts').quality_target == 'java-build'
+    assert classify_file('config/api-snapshots/java-public-api.txt').quality_target == 'java-build'
     # Windows path normalization
-    assert classify_file('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java').quality_target == 'java-src'
+    assert (
+        classify_file('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java').quality_target
+        == 'java-src'
+    )
     # Gradle wrapper and lockfile classification
     assert classify_file('gradlew').quality_target == 'java-build'
     assert classify_file('gradlew').category == 'java-build'

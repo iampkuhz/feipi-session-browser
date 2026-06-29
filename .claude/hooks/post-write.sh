@@ -15,6 +15,7 @@ cat > "$STDIN_TMP" 2>/dev/null || true
 
 # 固定路径：确保 agent 日志目录存在
 mkdir -p "$ROOT/tmp/agent_logs/current"
+python3 "$ROOT/scripts/quality/ensure_base_commit.py" >/dev/null 2>&1 || true
 
 python3 -m scripts.claude_hooks.main post-write < "$STDIN_TMP"
 rm -f "$STDIN_TMP"
