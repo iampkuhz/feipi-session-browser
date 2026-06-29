@@ -10,8 +10,7 @@ import java.util.regex.Pattern;
 public final class JsoncStripper {
 
   private static final Pattern SINGLE_LINE_COMMENT = Pattern.compile("//.*$", Pattern.MULTILINE);
-  private static final Pattern MULTI_LINE_COMMENT =
-      Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+  private static final Pattern MULTI_LINE_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
 
   private JsoncStripper() {}
 

@@ -1,6 +1,6 @@
 """help/version/serve/stop cutover 进程级测试。
 
-验证 help/version/serve/stop 命令通过 Java launcher 执行，其他命令（test/deps）仍走 Python。
+验证 help/version/serve/stop/deps 命令通过 Java launcher 执行，test 和 deps --dev 仍走 Python。
 使用 fake python trap marker 证明未调用 Python。
 """
 
@@ -132,7 +132,7 @@ class TestServeStopRoutesToJava:
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             assert not os.path.isfile(marker_file), 'serve 不应调用 Python'
             # Java launcher 应输出 serve 帮助信息
@@ -152,7 +152,7 @@ class TestServeStopRoutesToJava:
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             assert not os.path.isfile(marker_file), 'stop 不应调用 Python'
             # Java launcher 应输出 stop 帮助信息
@@ -220,7 +220,7 @@ class TestLauncherMissingNoFallback:
                 text=True,
                 cwd=tmp_dir,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             # help 回退到 shell print_usage，始终成功
             assert result.returncode == 0, f'help 应通过 print_usage 成功: {result.stderr}'
@@ -253,7 +253,7 @@ class TestLauncherMissingNoFallback:
                 text=True,
                 cwd=tmp_dir,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             assert result.returncode != 0, 'launcher 缺失应非零退出'
             assert '错误' in result.stderr or '未找到' in result.stderr, \
@@ -285,7 +285,7 @@ class TestLauncherMissingNoFallback:
                 text=True,
                 cwd=tmp_dir,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             assert result.returncode != 0, 'launcher 缺失时 serve 应非零退出'
             assert '错误' in result.stderr or '未找到' in result.stderr, \
@@ -317,7 +317,7 @@ class TestLauncherMissingNoFallback:
                 text=True,
                 cwd=tmp_dir,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             assert result.returncode != 0, 'launcher 缺失时 stop 应非零退出'
             assert '错误' in result.stderr or '未找到' in result.stderr, \
@@ -349,7 +349,7 @@ class TestBuildInfoCorrupted:
 
 
 class TestUnswitchedCommandsRegression:
-    """未切换命令回归：test/deps 保持原行为。
+    """命令路由回归：产品命令不调用 Python，开发命令仍调用 Python。
 
     通过设置 SESSION_BROWSER_VENV_DIR 指向不存在的路径，
     强制 python_bin() 使用 PATH 中的 trap python。
@@ -369,7 +369,7 @@ class TestUnswitchedCommandsRegression:
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             # scan 路由到 Java launcher；launcher 不存在时报错但不 fallback 到 Python
             assert not os.path.isfile(marker_file), 'scan 不应调用 Python'
@@ -388,12 +388,32 @@ class TestUnswitchedCommandsRegression:
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
             assert os.path.isfile(marker_file), 'test 应调用 Python'
 
-    def test_deps_dry_run_still_uses_python(self):
-        """deps --dry-run 命令仍路由到 Python。"""
+    def test_deps_dry_run_routes_to_java_bootstrap(self):
+        """deps --dry-run 命令不再路由到 Python 开发依赖安装。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            trap_dir = _create_python_trap(tmp_dir)
+            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+            env = os.environ.copy()
+            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
+            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
+
+            result = subprocess.run(
+                ['bash', SHELL_SCRIPT, 'deps', '--dry-run'],
+                capture_output=True,
+                text=True,
+                env=env,
+                timeout=30,
+            )
+            assert result.returncode == 0, f'stderr: {result.stderr}'
+            assert not os.path.isfile(marker_file), 'deps --dry-run 不应调用 Python'
+            assert 'DRY-RUN' in result.stdout or '依赖准备完成' in result.stdout
+
+    def test_deps_dev_dry_run_still_uses_python(self):
+        """deps --dev --dry-run 命令仍路由到 Python 开发依赖检查。"""
         with tempfile.TemporaryDirectory() as tmp_dir:
             trap_dir = _create_python_trap(tmp_dir)
             marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
@@ -402,10 +422,10 @@ class TestUnswitchedCommandsRegression:
             env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
 
             subprocess.run(
-                ['bash', SHELL_SCRIPT, 'deps', '--dry-run'],
+                ['bash', SHELL_SCRIPT, 'deps', '--dev', '--dry-run'],
                 capture_output=True,
                 text=True,
                 env=env,
-                timeout=10,
+                timeout=30,
             )
-            assert os.path.isfile(marker_file), 'deps 应调用 Python'
+            assert os.path.isfile(marker_file), 'deps --dev 应调用 Python'

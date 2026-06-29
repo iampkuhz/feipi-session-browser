@@ -5,10 +5,10 @@
 ## 快速启动
 
 ```bash
-# 构建 Java launcher（首次使用或代码变更后需要）
-./gradlew :java:app-cli:installDist
+# 准备产品运行时（构建 Java launcher + preflight）
+./scripts/session-browser.sh deps
 
-# 扫描本机会话数据，生成本地索引
+# 扫描本机会话数据，生成本地索引；没有会话源目录时会创建空索引
 ./scripts/session-browser.sh scan
 
 # 前台启动本地服务（Java launcher）
@@ -26,6 +26,12 @@ http://127.0.0.1:8848
 ## 常用命令
 
 ```bash
+# 准备或修复 Java launcher
+./scripts/session-browser.sh deps
+
+# 安装 Python 开发/测试依赖（仅开发质量门需要）
+./scripts/session-browser.sh deps --dev
+
 # 查看当前版本（Java CLI）
 ./scripts/session-browser.sh version
 
@@ -63,8 +69,8 @@ http://127.0.0.1:8848
 | `SESSION_BROWSER_LOCAL_HOST` | `127.0.0.1` | 本地服务绑定地址 |
 | `SESSION_BROWSER_LOCAL_PORT` | `8848` | 本地服务端口 |
 | `SESSION_BROWSER_LOCAL_DATA_DIR` | `~/.local/share/feipi/session-browser/local-test-index` | 本地索引目录 |
-| `SESSION_BROWSER_LOG_LEVEL` | `INFO` | 日志级别 |
-| `SESSION_BROWSER_VENV_DIR` | `./.venv` | 本地虚拟环境目录（仅用于 Python 开发工具） |
+| `SESSION_BROWSER_LOG_LEVEL` | `WARN` | 日志级别 |
+| `SESSION_BROWSER_VENV_DIR` | `./.venv` | 本地虚拟环境目录（仅用于 `deps --dev` 和 Python 开发工具） |
 
 示例：使用自定义端口启动。
 

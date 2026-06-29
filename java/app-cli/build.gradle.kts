@@ -34,6 +34,9 @@ dependencies {
     implementation(libs.bundles.jackson)
     implementation(libs.sqlite.jdbc)
     implementation(libs.slf4j.api)
+    runtimeOnly(libs.logback.classic) {
+        exclude(group = "org.slf4j", module = "slf4j-api")
+    }
 
     testImplementation(project(":java:test-support"))
     testImplementation(libs.junit.jupiter)

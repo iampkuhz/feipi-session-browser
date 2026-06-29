@@ -57,8 +57,13 @@ final class ServeCommand implements Callable<Integer> {
 
   @Option(
       names = {"--allow-empty"},
-      description = "允许无源目录时启动")
+      description = "允许无源目录时启动（默认已启用，保留用于兼容）")
   private boolean allowEmpty;
+
+  @Option(
+      names = {"--strict-sources"},
+      description = "无可扫描源目录时启动失败")
+  private boolean strictSources;
 
   @Option(
       names = {"--no-scan"},
@@ -82,8 +87,9 @@ final class ServeCommand implements Callable<Integer> {
       return 1;
     }
 
+    boolean effectiveAllowEmpty = allowEmpty || !strictSources;
     ServerLifecycle lifecycle =
-        new ServerLifecycle(paths.dataDir(), host, port, noScan, allowEmpty, Set.of());
+        new ServerLifecycle(paths.dataDir(), host, port, noScan, effectiveAllowEmpty, Set.of());
 
     try {
       int actualPort = lifecycle.start();

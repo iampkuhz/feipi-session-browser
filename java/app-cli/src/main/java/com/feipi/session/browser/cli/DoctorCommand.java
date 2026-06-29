@@ -74,75 +74,16 @@ final class DoctorCommand implements Callable<Integer> {
   @Override
   public Integer call() {
     Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
-    List<CheckResult> results = new ArrayList<>();
+    List<RuntimePreflight.CheckResult> results = new ArrayList<>();
 
-    results.add(checkJavaRuntime());
-    results.add(checkSqliteNative());
+    results.add(RuntimePreflight.checkJavaRuntime());
+    results.add(RuntimePreflight.checkSqliteNative());
     results.add(checkDataDirectory(indexDir));
     results.add(checkDatabase(indexDir));
     results.add(checkPortAvailability());
     results.add(checkPidFile(indexDir));
 
-    int failed = 0;
-    for (CheckResult r : results) {
-      String statusIcon = r.passed() ? "[OK]" : "[FAIL]";
-      System.out.println(statusIcon + " " + r.name());
-      if (!r.detail().isEmpty()) {
-        System.out.println("     " + r.detail());
-      }
-      if (!r.passed()) {
-        failed++;
-      }
-    }
-
-    System.out.println();
-    if (failed == 0) {
-      System.out.println("诊断完成：所有检查通过。");
-      return 0;
-    } else {
-      System.out.println("诊断完成：" + failed + " 项检查失败。");
-      return 1;
-    }
-  }
-
-  /**
-   * 检查 Java 运行时版本。
-   *
-   * <p>验证当前 JVM 版本满足最低要求（Java 17+）。
-   *
-   * @return 检查结果
-   */
-  private static CheckResult checkJavaRuntime() {
-    String version = System.getProperty("java.version", "unknown");
-    String vendor = System.getProperty("java.vendor", "unknown");
-    String vmName = System.getProperty("java.vm.name", "unknown");
-
-    int majorVersion = parseMajorVersion(version);
-    boolean passed = majorVersion >= 17;
-
-    String detail = "版本 " + version + " (" + vendor + ", " + vmName + ")";
-    return new CheckResult("Java 运行时", passed, detail);
-  }
-
-  /**
-   * 检查 SQLite native library 是否可加载。
-   *
-   * <p>通过尝试加载 Xerial SQLite JDBC 驱动并建立内存连接验证 native library 可用。
-   *
-   * @return 检查结果
-   */
-  private static CheckResult checkSqliteNative() {
-    try {
-      Class.forName("org.sqlite.JDBC");
-      try (Connection conn = DriverManager.getConnection("jdbc:sqlite::memory:")) {
-        String dbVersion = conn.getMetaData().getDatabaseProductVersion();
-        return new CheckResult("SQLite native library", true, "SQLite " + dbVersion);
-      }
-    } catch (ClassNotFoundException e) {
-      return new CheckResult("SQLite native library", false, "SQLite JDBC 驱动未找到");
-    } catch (SQLException e) {
-      return new CheckResult("SQLite native library", false, "SQLite 连接失败: " + e.getMessage());
-    }
+    return RuntimePreflight.printResults(results, "诊断完成：所有检查通过。", "诊断完成：");
   }
 
   /**
@@ -153,19 +94,19 @@ final class DoctorCommand implements Callable<Integer> {
    * @param indexDir 索引目录
    * @return 检查结果
    */
-  private static CheckResult checkDataDirectory(Path indexDir) {
+  private static RuntimePreflight.CheckResult checkDataDirectory(Path indexDir) {
     String detail = indexDir.toAbsolutePath().toString();
 
     if (!Files.exists(indexDir)) {
-      return new CheckResult("数据目录", true, detail + "（不存在，首次运行时将创建）");
+      return new RuntimePreflight.CheckResult("数据目录", true, detail + "（不存在，首次运行时将创建）");
     }
     if (!Files.isDirectory(indexDir)) {
-      return new CheckResult("数据目录", false, detail + " 不是目录");
+      return new RuntimePreflight.CheckResult("数据目录", false, detail + " 不是目录");
     }
     if (!Files.isWritable(indexDir)) {
-      return new CheckResult("数据目录", false, detail + " 不可写");
+      return new RuntimePreflight.CheckResult("数据目录", false, detail + " 不可写");
     }
-    return new CheckResult("数据目录", true, detail);
+    return new RuntimePreflight.CheckResult("数据目录", true, detail);
   }
 
   /**
@@ -176,24 +117,24 @@ final class DoctorCommand implements Callable<Integer> {
    * @param indexDir 索引目录
    * @return 检查结果
    */
-  private static CheckResult checkDatabase(Path indexDir) {
+  private static RuntimePreflight.CheckResult checkDatabase(Path indexDir) {
     Path dbPath = indexDir.resolve(RuntimePaths.DB_FILE_NAME);
 
     if (!Files.exists(dbPath)) {
-      return new CheckResult("数据库", true, "不存在（首次运行时将创建）");
+      return new RuntimePreflight.CheckResult("数据库", true, "不存在（首次运行时将创建）");
     }
 
     try (Connection conn = DriverManager.getConnection("jdbc:sqlite:" + dbPath.toAbsolutePath());
         var stmt = conn.createStatement();
         var rs = stmt.executeQuery("SELECT sqlite_version()")) {
       if (rs.next()) {
-        return new CheckResult(
+        return new RuntimePreflight.CheckResult(
             "数据库", true, dbPath.getFileName() + " 可读 (SQLite " + rs.getString(1) + ")");
       }
-      return new CheckResult("数据库", true, dbPath.getFileName() + " 存在且可连接");
+      return new RuntimePreflight.CheckResult("数据库", true, dbPath.getFileName() + " 存在且可连接");
     } catch (SQLException e) {
       LOG.debug("数据库检查失败", e);
-      return new CheckResult("数据库", false, "读取失败: " + e.getMessage());
+      return new RuntimePreflight.CheckResult("数据库", false, "读取失败: " + e.getMessage());
     }
   }
 
@@ -204,16 +145,16 @@ final class DoctorCommand implements Callable<Integer> {
    *
    * @return 检查结果
    */
-  private CheckResult checkPortAvailability() {
+  private RuntimePreflight.CheckResult checkPortAvailability() {
     if (port <= 0 || port > 65535) {
-      return new CheckResult("端口 " + port, false, "端口号无效");
+      return new RuntimePreflight.CheckResult("端口 " + port, false, "端口号无效");
     }
 
     try (Socket socket = new Socket()) {
       socket.connect(new InetSocketAddress("127.0.0.1", port), PORT_PROBE_TIMEOUT_MS);
-      return new CheckResult("端口 " + port, false, "端口已被占用");
+      return new RuntimePreflight.CheckResult("端口 " + port, false, "端口已被占用");
     } catch (IOException e) {
-      return new CheckResult("端口 " + port, true, "端口可用");
+      return new RuntimePreflight.CheckResult("端口 " + port, true, "端口可用");
     }
   }
 
@@ -225,64 +166,23 @@ final class DoctorCommand implements Callable<Integer> {
    * @param indexDir 索引目录
    * @return 检查结果
    */
-  private static CheckResult checkPidFile(Path indexDir) {
+  private static RuntimePreflight.CheckResult checkPidFile(Path indexDir) {
     try {
       PidFile.ProcessCheck check = PidFile.checkProcess(indexDir);
       if (check.meta() == null) {
-        return new CheckResult("PID 文件", true, "服务未在运行");
+        return new RuntimePreflight.CheckResult("PID 文件", true, "服务未在运行");
       }
 
       if (!check.processAlive()) {
-        return new CheckResult(
+        return new RuntimePreflight.CheckResult(
             "PID 文件", false, "PID " + check.meta().pid() + " 对应的进程不在运行（stale PID 文件）");
       }
 
-      return new CheckResult(
+      return new RuntimePreflight.CheckResult(
           "PID 文件", true, "服务运行中 PID " + check.meta().pid() + " (端口 " + check.meta().port() + ")");
     } catch (IOException e) {
       LOG.debug("PID 文件读取失败", e);
-      return new CheckResult("PID 文件", false, "读取失败: " + e.getMessage());
+      return new RuntimePreflight.CheckResult("PID 文件", false, "读取失败: " + e.getMessage());
     }
   }
-
-  /**
-   * 从版本字符串解析主版本号。
-   *
-   * <p>支持 {@code 17.0.1}、{@code 1.8.0_292} 等格式。
-   *
-   * @param version 版本字符串
-   * @return 主版本号，解析失败时返回 0
-   */
-  private static int parseMajorVersion(String version) {
-    if (version == null || version.isEmpty()) {
-      return 0;
-    }
-    // 处理 1.x.0_xxx 格式（Java 8 及更早）
-    if (version.startsWith("1.")) {
-      String rest = version.substring(2);
-      int dot = rest.indexOf('.');
-      try {
-        return Integer.parseInt(dot > 0 ? rest.substring(0, dot) : rest.replaceAll("[^0-9].*", ""));
-      } catch (NumberFormatException e) {
-        return 0;
-      }
-    }
-    // 处理 x.y.z 格式（Java 9+）
-    int dot = version.indexOf('.');
-    try {
-      String major = dot > 0 ? version.substring(0, dot) : version.replaceAll("[^0-9].*", "");
-      return Integer.parseInt(major);
-    } catch (NumberFormatException e) {
-      return 0;
-    }
-  }
-
-  /**
-   * 单项诊断检查结果。
-   *
-   * @param name 检查项名称
-   * @param passed 是否通过
-   * @param detail 详细信息
-   */
-  private record CheckResult(String name, boolean passed, String detail) {}
 }

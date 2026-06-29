@@ -56,11 +56,7 @@ public final class StructuralJsonCompare {
 
     if (expected.getNodeType() != actual.getNodeType()) {
       differences.add(
-          path
-              + ": 节点类型不匹配，期望 "
-              + expected.getNodeType()
-              + "，实际 "
-              + actual.getNodeType());
+          path + ": 节点类型不匹配，期望 " + expected.getNodeType() + "，实际 " + actual.getNodeType());
       return;
     }
 
@@ -102,8 +98,7 @@ public final class StructuralJsonCompare {
   private static void compareArrays(
       String path, ArrayNode expected, ArrayNode actual, List<String> differences) {
     if (expected.size() != actual.size()) {
-      differences.add(
-          path + ": 数组长度不匹配，期望 " + expected.size() + "，实际 " + actual.size());
+      differences.add(path + ": 数组长度不匹配，期望 " + expected.size() + "，实际 " + actual.size());
     }
 
     int minSize = Math.min(expected.size(), actual.size());

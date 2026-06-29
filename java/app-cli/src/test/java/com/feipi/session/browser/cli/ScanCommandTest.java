@@ -4,9 +4,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 import picocli.CommandLine;
 
 /**
@@ -17,6 +20,8 @@ import picocli.CommandLine;
  */
 @DisplayName("ScanCommand 契约测试")
 class ScanCommandTest {
+
+  @TempDir Path tempDir;
 
   /** 运行 CLI 命令并捕获输出结果。 */
   private static CliExecution execute(String... args) {
@@ -55,6 +60,7 @@ class ScanCommandTest {
       assertThat(result.stdout()).contains("--incremental");
       assertThat(result.stdout()).contains("--agent");
       assertThat(result.stdout()).contains("--force");
+      assertThat(result.stdout()).contains("--index-dir");
     }
 
     @Test
@@ -91,6 +97,15 @@ class ScanCommandTest {
       assertThat(result.stderr()).contains("--full");
       assertThat(result.stderr()).contains("--incremental");
     }
+
+    @Test
+    @DisplayName("未知 agent 返回错误，避免被空源目录误判为成功")
+    void unknownAgentRejected() {
+      CliExecution result = execute("scan", "--agent", "unknown");
+
+      assertThat(result.exitCode()).isEqualTo(1);
+      assertThat(result.stderr()).contains("未知 agent");
+    }
   }
 
   @Nested
@@ -103,10 +118,36 @@ class ScanCommandTest {
       // scan 命令在冲突场景下不应等待 stdin 输入；
       // 非交互模式下 --force 标志控制冲突处理，不触发 input() 调用。
       // 这里验证 scan 命令的参数处理是确定性的，不依赖用户输入。
-      CliExecution result = execute("scan", "--full");
+      Path indexDir = tempDir.resolve("scan-noninteractive-index");
+      String oldHome = System.getProperty("user.home");
+      try {
+        System.setProperty("user.home", tempDir.resolve("empty-home").toString());
+        CliExecution result = execute("scan", "--full", "--index-dir", indexDir.toString());
 
-      // 无论扫描是否成功，退出码必须是确定性的（0 或 1），不是阻塞等待
-      assertThat(result.exitCode()).isIn(0, 1, 2);
+        // 无论扫描是否成功，退出码必须是确定性的（0 或 1），不是阻塞等待
+        assertThat(result.exitCode()).isIn(0, 1, 2);
+      } finally {
+        System.setProperty("user.home", oldHome);
+      }
+    }
+
+    @Test
+    @DisplayName("无源目录时 scan 创建空索引并成功返回")
+    void scanEmptySourcesCreatesEmptyIndex() {
+      Path indexDir = tempDir.resolve("empty-source-index");
+      String oldHome = System.getProperty("user.home");
+      try {
+        System.setProperty("user.home", tempDir.resolve("empty-home").toString());
+        CliExecution result = execute("scan", "--index-dir", indexDir.toString());
+
+        assertThat(result.exitCode()).isZero();
+        assertThat(result.stderr()).isEmpty();
+        assertThat(result.stdout()).contains("未找到可扫描的源目录");
+        assertThat(result.stdout()).contains("空索引");
+        assertThat(Files.exists(indexDir.resolve(RuntimePaths.DB_FILE_NAME))).isTrue();
+      } finally {
+        System.setProperty("user.home", oldHome);
+      }
     }
   }
 

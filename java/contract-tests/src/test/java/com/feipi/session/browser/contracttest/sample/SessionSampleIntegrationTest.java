@@ -37,14 +37,12 @@ import org.junit.jupiter.api.Test;
 /**
  * 会话样例集成测试。
  *
- * <p>驱动真实 Java 生产管线（SourceAdapter -> NormalizationEngine -> CanonicalJsonWriter），
- * 对 {@code docs/session-samples/} 下的会话样例进行端到端验证， 并与 {@code expected.normalized.jsonc}
- * 参考文件做结构对比。
+ * <p>驱动真实 Java 生产管线（SourceAdapter -> NormalizationEngine -> CanonicalJsonWriter）， 对 {@code
+ * docs/session-samples/} 下的会话样例进行端到端验证， 并与 {@code expected.normalized.jsonc} 参考文件做结构对比。
  */
 class SessionSampleIntegrationTest {
 
-  private static final Logger LOG =
-      Logger.getLogger(SessionSampleIntegrationTest.class.getName());
+  private static final Logger LOG = Logger.getLogger(SessionSampleIntegrationTest.class.getName());
 
   private static final Path PROJECT_ROOT = resolveProjectRoot();
   private static final Path SAMPLES_ROOT = PROJECT_ROOT.resolve("docs/session-samples");
@@ -96,7 +94,11 @@ class SessionSampleIntegrationTest {
       for (Map.Entry<String, List<DriftEntry>> sessionEntry : bySession.entrySet()) {
         sb.append("## Session: `").append(sessionEntry.getKey()).append("`\n\n");
         for (DriftEntry drift : sessionEntry.getValue()) {
-          sb.append("### [").append(drift.category()).append("] ").append(drift.jsonPath()).append("\n");
+          sb.append("### [")
+              .append(drift.category())
+              .append("] ")
+              .append(drift.jsonPath())
+              .append("\n");
           sb.append("- **分类**: `").append(drift.category()).append("`\n");
           sb.append("- **差异**: ").append(drift.message()).append("\n\n");
         }
@@ -111,8 +113,8 @@ class SessionSampleIntegrationTest {
   /**
    * Claude Code 样例管线对比。
    *
-   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。
-   * 默认 test task 不包含此标签，避免 schema 未对齐时的假性失败。
+   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。 默认 test task 不包含此标签，避免
+   * schema 未对齐时的假性失败。
    */
   @Test
   @Tag("sample-integration")
@@ -138,8 +140,8 @@ class SessionSampleIntegrationTest {
   /**
    * Codex 样例管线对比。
    *
-   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。
-   * 当前仅解析主 JSONL 文件，rollout 子线程多文件解析待后续实现。
+   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。 当前仅解析主 JSONL 文件，rollout
+   * 子线程多文件解析待后续实现。
    */
   @Test
   @Tag("sample-integration")
@@ -292,9 +294,7 @@ class SessionSampleIntegrationTest {
         || diff.contains("locator")) {
       return "volatile_field";
     }
-    if (diff.contains("缺失")
-        || diff.contains("不存在")
-        || diff.contains("not null")) {
+    if (diff.contains("缺失") || diff.contains("不存在") || diff.contains("not null")) {
       return "production_bug";
     }
     if (diff.contains("不匹配")) {

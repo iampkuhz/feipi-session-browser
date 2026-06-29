@@ -77,6 +77,11 @@ final class ScanCommand implements Callable<Integer> {
       description = "非交互模式：冲突时直接退出而非提示")
   private boolean force;
 
+  @Option(
+      names = {"--index-dir"},
+      description = "索引目录（默认遵循 XDG 规范）")
+  private String indexDirOption;
+
   @Override
   public Integer call() {
     if (full && incremental) {
@@ -84,7 +89,7 @@ final class ScanCommand implements Callable<Integer> {
       return 1;
     }
 
-    Path indexDir = PathResolver.resolveDataDir(null, INDEX_DIR_ENV);
+    Path indexDir = PathResolver.resolveDataDir(indexDirOption, INDEX_DIR_ENV);
     RuntimePaths paths = RuntimePaths.fromDataDir(indexDir);
 
     try {
@@ -97,11 +102,22 @@ final class ScanCommand implements Callable<Integer> {
     Path dbPath = paths.dbPath();
     Path artifactDir = paths.artifactDir();
 
-    Set<String> agentFilter = resolveAgentFilter();
+    Set<String> agentFilter;
+    try {
+      agentFilter = resolveAgentFilter();
+    } catch (IllegalArgumentException e) {
+      System.err.println("错误：agent 参数无效：" + e.getMessage());
+      return 1;
+    }
 
+    return acquireLockAndExecuteScan(indexDir, dbPath, artifactDir, agentFilter);
+  }
+
+  /** 获取扫描锁并执行扫描。 */
+  private int acquireLockAndExecuteScan(
+      Path indexDir, Path dbPath, Path artifactDir, Set<String> agentFilter) {
     ScanLock scanLock = new ScanLock(indexDir);
     long lockTimeoutMs = resolveLockTimeout();
-
     try (ScanLock.ScanLockHandle handle = scanLock.acquire("foreground scan", lockTimeoutMs)) {
       // 扫描锁持有期间执行扫描；handle 确保锁在完成后释放
       if (handle == null) {
@@ -128,11 +144,6 @@ final class ScanCommand implements Callable<Integer> {
     String jdbcUrl = "jdbc:sqlite:" + dbPath.toAbsolutePath();
     List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries(agentFilter);
 
-    if (sourceEntries.isEmpty()) {
-      System.err.println("错误：未找到可扫描的源目录");
-      return 1;
-    }
-
     // 升级前备份 + schema migration + 版本兼容性检查
     String appVersion = BuildInfoVersionProvider.readAppVersion();
     Path backupDir = dbPath.getParent().resolve("backups");
@@ -142,6 +153,15 @@ final class ScanCommand implements Callable<Integer> {
     } catch (DatabaseUpgrader.UpgradeException e) {
       System.err.println("错误：数据库升级失败: " + e.getMessage());
       return 1;
+    }
+
+    if (sourceEntries.isEmpty()) {
+      System.out.println("未找到可扫描的源目录，已创建空索引。");
+      System.out.println("可配置 CLAUDE_DATA_DIR / CODEX_DATA_DIR / QODER_DATA_DIR 后重新运行 scan。");
+      System.out.println("  Claude Code: 0 sessions");
+      System.out.println("  Codex:       0 sessions");
+      System.out.println("  Total:       0 sessions");
+      return 0;
     }
 
     ScanConfig config = ScanConfig.defaults(sourceEntries, artifactDir);
@@ -230,7 +250,11 @@ final class ScanCommand implements Callable<Integer> {
     if (agent == null || agent.isBlank()) {
       return Set.of();
     }
-    return Set.of(agent.toLowerCase());
+    String normalized = agent.toLowerCase();
+    if (!Set.of("claude_code", "codex", "qoder").contains(normalized)) {
+      throw new IllegalArgumentException("未知 agent: " + agent + "（支持 claude_code, codex, qoder）");
+    }
+    return Set.of(normalized);
   }
 
   /** 解析 Claude 数据根目录。 */

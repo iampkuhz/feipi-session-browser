@@ -61,6 +61,7 @@ class ServeCommandTest {
       assertThat(result.stdout()).contains("--host");
       assertThat(result.stdout()).contains("--port");
       assertThat(result.stdout()).contains("--allow-empty");
+      assertThat(result.stdout()).contains("--strict-sources");
       assertThat(result.stdout()).contains("--no-scan");
     }
 
