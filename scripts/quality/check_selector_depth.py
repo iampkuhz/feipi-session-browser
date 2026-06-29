@@ -81,12 +81,14 @@ BLOCK_THRESHOLD = 3
 WARN_THRESHOLD = 2
 
 # CSS 文件目录
-# 脚本位于 scripts/quality/,CSS 位于 src/session_browser/web/static/css/
+# 脚本位于 scripts/quality/,CSS 位于 java/web/src/main/resources/static/css/
 CSS_DIR = (
     Path(__file__).resolve().parent.parent.parent
-    / 'src'
-    / 'session_browser'
+    / 'java'
     / 'web'
+    / 'src'
+    / 'main'
+    / 'resources'
     / 'static'
     / 'css'
 )

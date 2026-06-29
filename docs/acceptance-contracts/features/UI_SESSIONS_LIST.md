@@ -5,7 +5,7 @@
 | 项 | 内容 |
 |---|---|
 | 模块 | 会话列表页（筛选、排序、分页、数据表） |
-| 关联源码 | `src/session_browser/web/presenters/sessions.py`、`src/session_browser/web/templates/sessions_list.html` |
+| 关联源码 | `java/web/src/main/java/com/feipi/session/browser/web/page/SessionsListPage.java`、`java/web/src/main/resources/templates/sessions_list.html` |
 | 关联测试 | `tests/sessions_list/test_sessions_list.py`、`test_sessions_list_contract.py`、`test_sessions_list_interactions.py`、`test_sessions_list_query_state.py`、`test_sessions_pagination.py`、`tests/playwright/sessions-list.spec.js` |
 | 主要风险 | 分页双跳（next 跳过 page 2）、筛选 URL 不更新、tokenbar 渲染异常 |
 
@@ -22,7 +22,7 @@
 | UI-SESSIONS-007 | P0 | interaction | next 一次到 page 2（回归测试 S-09） | 从 `/sessions?page=1` 点击 next | URL 变为 `page=2`（非 page=3），page-input 值为 2，prev 按钮启用 | Playwright | — | `tests/playwright/sessions-list.spec.js` |
 | UI-SESSIONS-008 | P0 | visual | 会话行 data 属性契约 | 检查 `tr[data-action="row"]` | 行含 `data-agent`、`data-model`、`data-session-id` 属性 | Playwright | — | `tests/playwright/sessions-list.spec.js` |
 | UI-SESSIONS-009 | P0 | visual | 会话列表契约（模板结构 + CSS/JS + 筛选栏 + 数据表 + tokenbar + 分页 + 空状态） | pytest 检查模板渲染 | 模板结构完整，筛选栏/数据表/tokenbar/分页/空状态区域均存在 | pytest | — | 待补充 |
-| UI-SESSIONS-011 | P1 | interaction | 会话列表 AJAX 部分渲染 | 触发筛选/分页 AJAX 请求 | 返回 HTML 片段渲染正确，无完整页面刷新 | pytest | — | `tests/web/test_sessions_ajax_partial.py` |
+| UI-SESSIONS-011 | P1 | interaction | 会话列表 AJAX 部分渲染 | 触发筛选/分页 AJAX 请求 | 返回 HTML 片段渲染正确，无完整页面刷新 | pytest | — | `java/web/src/test/java/com/feipi/session/browser/web/api/SessionApiHandlerTest.java` |
 | UI-SESSIONS-012 | P1 | interaction | 分页边界条件（page size / 页码输入 / prev 禁用） | 测试最后一页的 next 禁用、第一页的 prev 禁用 | next/prev 按钮在边界时正确禁用，页码输入框限制在有效范围 | pytest | — | 待补充 |
 | UI-SESSIONS-013 | P1 | visual | 列表标题截断 | 检查长标题在列表中的截断行为 | 标题超过最大长度时被截断，不破坏布局 | pytest | — | 待补充 |
 | UI-SESSIONS-014 | P1 | interaction | 查询状态管理 | 验证筛选/排序/分页状态同步 | query params 与当前筛选/排序/分页状态一致 | pytest | — | 待补充 |

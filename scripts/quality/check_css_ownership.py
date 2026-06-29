@@ -507,7 +507,7 @@ def check_css_ownership(repo_root: Path) -> OwnershipCheck:
         Computed result.
     """
     result = OwnershipCheck()
-    css_dir = repo_root / 'src/session_browser/web/static/css'
+    css_dir = repo_root / 'java/web/src/main/resources/static/css'
 
     if not css_dir.exists():
         result.blocks.append(

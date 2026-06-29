@@ -100,30 +100,25 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
     'python-standard': {
         'pythonFormat': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
             'tests/**/*.py',
         ],
         'pythonLint': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
             'tests/**/*.py',
         ],
         'pythonType': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
             'tests/**/*.py',
         ],
         'pythonDocstring': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
         ],
         'pythonCoverage': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'tests/**/*.py',
         ],
         'pythonAudit': [
@@ -131,17 +126,14 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'requirements*.txt',
             'requirements*.lock',
             'uv.lock',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
         ],
         'pythonComplexity': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
         ],
         'pythonDeadCode': [
             'pyproject.toml',
-            'src/session_browser/**/*.py',
             'scripts/**/*.py',
             'tests/**/*.py',
         ],
@@ -220,23 +212,21 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'docs/**',
         ],
         'repoSlimming': [
-            'src/session_browser/web/static/**/*.css',
-            'src/session_browser/web/static/**/*.js',
-            'src/session_browser/web/static/css/**/*.css',
+            'java/web/src/main/resources/static/**/*.css',
+            'java/web/src/main/resources/static/**/*.js',
+            'java/web/src/main/resources/static/css/**/*.css',
             'harness/**',
             'openspec/**',
             'tests/**/*.py',
-            'src/session_browser/web/templates/**/*.html',
             'scripts/quality/repo_slimming_contract_check.py',
             'tests/quality/test_repo_slimming_contract.py',
         ],
         'rawInnerhtml': [
-            'src/session_browser/web/static/**/*.js',
+            'java/web/src/main/resources/static/**/*.js',
             'scripts/quality/check_raw_innerhtml.py',
         ],
         'layoutInlineStyle': [
-            'src/session_browser/web/templates/**/*.html',
-            'src/session_browser/web/static/**/*.js',
+            'java/web/src/main/resources/static/**/*.js',
             'scripts/quality/check_layout_inline_style.py',
         ],
         'acceptanceContracts': [
@@ -309,8 +299,6 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
     },
     'index': {
         'indexIntegrity': [
-            'src/session_browser/index/**/*.py',
-            'src/session_browser/config.py',
             'scripts/quality/check_index_integrity.py',
         ],
     },

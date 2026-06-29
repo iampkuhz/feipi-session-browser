@@ -24,8 +24,8 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 TEMPLATES_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates'
-CSS_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css'
-JS_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'js'
+CSS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css'
+JS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js'
 
 
 def check_page_scripts() -> list[str]:

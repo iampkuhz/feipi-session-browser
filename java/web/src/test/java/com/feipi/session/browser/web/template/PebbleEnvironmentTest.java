@@ -14,7 +14,11 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 
-/** {@link PebbleEnvironment} 模板引擎配置与过滤器测试。 */
+/**
+ * {@link PebbleEnvironment} 模板引擎配置与过滤器测试。
+ *
+ * <p>Acceptance contracts: ROUTE-API-004, UI-VISUAL-012
+ */
 @DisplayName("PebbleEnvironment 模板引擎测试")
 class PebbleEnvironmentTest {
 

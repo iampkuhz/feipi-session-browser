@@ -50,10 +50,10 @@ class TestSchemaConsistency:
         """check_session_detail_static.py 输出必须有 schemaVersion + status."""
         root = Path(__file__).resolve().parents[2]
         result = run_checks(
-            root / 'src/session_browser/web/static/css/session-detail.css',
-            root / 'src/session_browser/web/templates/base.html',
-            root / 'src/session_browser/web/templates/session.html',
-            root / 'src/session_browser/web/static/css/shell.css',
+            root / 'java/web/src/main/resources/static/css/session-detail.css',
+            root / 'java/web/src/main/resources/templates/base.html',
+            root / 'java/web/src/main/resources/templates/session.html',
+            root / 'java/web/src/main/resources/static/css/shell.css',
         )
         self._require_fields(result, 'check_session_detail_static')
 

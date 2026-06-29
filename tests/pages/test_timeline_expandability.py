@@ -363,7 +363,7 @@ class TestChildrenVisibilityCss:
 # 回归：事件委托替代 trace 行上的 inline onclick
 # ---------------------------------------------------------------------------
 
-# session.html 路径：tests/ 在仓库根目录，所以用 ../src/session_browser/web/templates/
+# session.html 路径：tests/ 在仓库根目录，所以用 ../java/web/src/main/resources/templates/
 SESSION_HTML = (
     Path(__file__).resolve().parents[2]
     / 'src'

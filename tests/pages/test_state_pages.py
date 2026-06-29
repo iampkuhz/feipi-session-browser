@@ -14,8 +14,8 @@ import re
 
 import pytest
 
-_404_PATH = 'src/session_browser/web/templates/404.html'
-_ERROR_PATH = 'src/session_browser/web/templates/error.html'
+_404_PATH = 'java/web/src/main/resources/templates/404.html'
+_ERROR_PATH = 'java/web/src/main/resources/templates/error.html'
 
 
 def _read(path: str) -> str:

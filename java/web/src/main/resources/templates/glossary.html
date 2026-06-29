@@ -1,6 +1,4 @@
 {% extends "base.html" %}
-{% set active_page = 'glossary' %}
-{% set hide_sidebar_extra = true %}
 
 {% block title %}Token Glossary - Agent Run Profiler{% endblock %}
 
@@ -10,8 +8,6 @@
 <link rel="stylesheet" href="/static/css/glossary.css">
 {% endblock %}
 
-{%- import "components/ui_primitives.html" as ui %}
-
 {% block breadcrumb %}
 <a href="/dashboard">面板</a>
 <span class="sep">/</span>
@@ -19,15 +15,14 @@
 {% endblock %}
 
 {% block content %}
-{%- from "components/badge.html" import badge, status_success, status_warning, status_error, status_info, status_muted, token_input, token_cache_read, token_cache_write, token_output, agent_claude, agent_codex, agent_qoder, agent_for, tool, anomaly %}
 
-{# 页面头：使用统一 .page-head 结构（T156）。 #}
-{{ ui.page_head(
-    'Token Glossary',
-    '说明 token 口径、派生指标、provider 字段映射和 badge 语义。'
-) }}
+{# 页面头 #}
+<div class="page-head">
+    <h1 class="page-head__title">Token Glossary</h1>
+    <p class="page-head__desc">说明 token 口径、派生指标、provider 字段映射和 badge 语义。</p>
+</div>
 
-{# 摘要指标网格（T157）。 #}
+{# 摘要指标网格 #}
 <div aria-label="术语页摘要指标" class="metric-grid">
     <div class="metric-card">
         <div class="metric-icon purple" aria-hidden="true">🧮</div>
@@ -71,8 +66,8 @@
     </div>
 </div>
 
-<!-- 搜索过滤 -->
-{% call ui.filter_card() %}
+{# 搜索过滤 #}
+<div class="filter-card card">
     <div class="filter-row">
         <input type="search"
                id="glossary-search"
@@ -83,11 +78,9 @@
                autocomplete="off" />
         <span id="glossary-match-count" class="match-count"></span>
     </div>
-{% endcall %}
+</div>
 
-{# 搜索空态由 glossary.js 控制（切换 .is-hidden）。
-   这里复用 .state-strip 结构以保持页面一致；不使用 ui.empty_state()，
-   因为这是实时搜索结果空态，不是整页空态。 #}
+{# 搜索空态 #}
 <div id="glossary-empty" class="state-strip is-hidden" role="status" aria-live="polite">
     <div class="state-icon" aria-hidden="true">&#x1F4D6;</div>
     <div>
@@ -103,31 +96,31 @@
     <p class="section-desc">不同页面复用相同视觉语义，badge 本身不提供交互。</p>
     <div class="mb-2">
         <span class="text-sm glossary-label">Status:</span>
-        {{ status_success("Success") }}
-        {{ status_warning("Warning") }}
-        {{ status_error("Error") }}
-        {{ status_info("Info") }}
-        {{ status_muted("Not reported") }}
+        <span class="badge badge-success">Success</span>
+        <span class="badge badge-warning">Warning</span>
+        <span class="badge badge-error">Error</span>
+        <span class="badge badge-info">Info</span>
+        <span class="badge badge-muted">Not reported</span>
         <span class="badge badge-info">Estimated</span>
     </div>
     <div class="mb-2">
         <span class="text-sm glossary-label">Token:</span>
-        {{ token_input("Fresh") }}
-        {{ token_cache_read("Cache Read") }}
-        {{ token_cache_write("Cache Write") }}
-        {{ token_output("Output") }}
+        <span class="badge badge-token-input">Fresh</span>
+        <span class="badge badge-token-cache-read">Cache Read</span>
+        <span class="badge badge-token-cache-write">Cache Write</span>
+        <span class="badge badge-token-output">Output</span>
     </div>
     <div class="mb-2">
         <span class="text-sm glossary-label">Agent:</span>
-        {{ agent_claude("Claude Code") }}
-        {{ agent_codex("Codex") }}
-        {{ agent_qoder("Qoder") }}
+        <span class="badge badge-agent-claude">Claude Code</span>
+        <span class="badge badge-agent-codex">Codex</span>
+        <span class="badge badge-agent-qoder">Qoder</span>
     </div>
     <div>
         <span class="text-sm glossary-label">Signals:</span>
-        {{ tool("Tool") }}
-        {{ anomaly("Failure", "warning") }}
-        {{ anomaly("Subagent", "info") }}
+        <span class="badge badge-tool">Tool</span>
+        <span class="badge badge-warning">Failure</span>
+        <span class="badge badge-info">Subagent</span>
     </div>
 </section>
 
@@ -148,37 +141,37 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
-                <td>{{ token_input("Fresh") }}</td>
+            <tr data-glossary-term>
+                <td><span class="badge badge-token-input">Fresh</span></td>
                 <td class="text-sm">互斥的新输入组件，用于 UI tokenbar 和 Total Tokens。</td>
                 <td class="mono text-xs">Anthropic-like: <code>input_tokens</code>; OpenAI/Codex: <code>Provider Request Input - Cache Read</code></td>
                 <td class="text-sm">Provider Request Input 只作为原始计量元数据，不与缓存输入并列叠加为 Fresh。</td>
             </tr>
-            <tr>
-                <td>{{ token_cache_read("Cache Read") }}</td>
+            <tr data-glossary-term>
+                <td><span class="badge badge-token-cache-read">Cache Read</span></td>
                 <td class="text-sm">Provider/broker 上报的缓存命中输入 token。</td>
                 <td class="mono text-xs"><code>cache_read_input_tokens</code></td>
                 <td class="text-sm">Anthropic: <code>cache_read_input_tokens</code>; OpenAI: <code>cached_tokens</code>; Codex: <code>cached_input_tokens</code>; Qoder 上报时使用 <code>cache_read_input_tokens</code> / <code>cached_tokens</code>。</td>
             </tr>
-            <tr>
-                <td>{{ token_cache_write("Cache Write") }}</td>
+            <tr data-glossary-term>
+                <td><span class="badge badge-token-cache-write">Cache Write</span></td>
                 <td class="text-sm">写入 provider prompt cache、供后续复用的输入 token。</td>
                 <td class="mono text-xs"><code>cache_write_input_tokens</code></td>
                 <td class="text-sm">Anthropic: <code>cache_creation_input_tokens</code>; OpenAI/Codex/Qoder: <span class="badge badge-muted">Not reported</span></td>
             </tr>
-            <tr>
-                <td>{{ token_output("Output") }}</td>
+            <tr data-glossary-term>
+                <td><span class="badge badge-token-output">Output</span></td>
                 <td class="text-sm">模型可见输出 token；如 hidden reasoning 单独上报，则不计入可见输出。</td>
                 <td class="mono text-xs"><code>output_tokens</code></td>
                 <td class="text-sm">Anthropic: <code>output_tokens</code>; OpenAI: <code>completion_tokens - reasoning_tokens</code>; Codex/Qoder 有 provider 输出字段时优先使用。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Input-side Component Total</span></td>
                 <td class="text-sm">所有输入侧 token 组件的合计。</td>
                 <td class="mono text-xs"><code>Fresh + Cache Read + Cache Write</code></td>
                 <td class="text-sm">由可用 provider 字段推导；字段缺失不等同于 0，除非 provider 明确上报 0。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Total Tokens</span></td>
                 <td class="text-sm">输入侧组件合计加可见输出。</td>
                 <td class="mono text-xs"><code>Fresh + Cache Read + Cache Write + Output</code></td>
@@ -205,37 +198,37 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Cache Read Ratio</span></td>
                 <td class="mono text-xs"><code>Cache Read / Input-side Component Total</code></td>
                 <td class="text-sm">衡量 cache reuse health；用于 Dashboard token 图表、Sessions token 单元格和 Session Detail KPI。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Cache Write Ratio</span></td>
                 <td class="mono text-xs"><code>Cache Write / Input-side Component Total</code></td>
                 <td class="text-sm">展示 prompt cache 写入活跃度，用于 Dashboard 和 Session Detail token 诊断。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Output/Input Ratio</span></td>
                 <td class="mono text-xs"><code>Output / Input-side Component Total</code></td>
                 <td class="text-sm">突出输出密度，用于 Dashboard 图表和 Session Detail payload 分析。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Tools / Round</span></td>
                 <td class="mono text-xs"><code>tool_calls / rounds</code></td>
                 <td class="text-sm">用于 Sessions 和 Session Detail 对比交互密度。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Tokens / Round</span></td>
                 <td class="mono text-xs"><code>Total Tokens / rounds</code></td>
                 <td class="text-sm">用于 Session Detail 诊断超大 round。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Tokens / Minute</span></td>
                 <td class="mono text-xs"><code>Total Tokens / (duration_minutes)</code></td>
                 <td class="text-sm">用于 Dashboard 吞吐图表和 Sessions 时长对比。</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="badge badge-primary">Failed / Session</span></td>
                 <td class="mono text-xs"><code>failed_tool_count / sessions</code></td>
                 <td class="text-sm">用于 Dashboard Failure Signals 和 Sessions failure 排序。</td>
@@ -264,7 +257,7 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
+            <tr data-glossary-term>
                 <td class="text-sm"><strong>Anthropic</strong></td>
                 <td class="mono text-xs">Claude 4</td>
                 <td class="mono text-xs"><code>input_tokens</code></td>
@@ -272,7 +265,7 @@
                 <td class="mono text-xs"><code>cache_creation_input_tokens</code></td>
                 <td class="mono text-xs"><code>output_tokens</code></td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td class="text-sm"><strong>qwen Anthropic compatible</strong></td>
                 <td class="mono text-xs">qwen*</td>
                 <td class="mono text-xs"><code>input_tokens</code></td>
@@ -280,7 +273,7 @@
                 <td class="mono text-xs"><code>cache_creation_input_tokens</code></td>
                 <td class="mono text-xs"><code>output_tokens</code></td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td class="text-sm"><strong>OpenAI</strong></td>
                 <td class="mono text-xs">gpt-* / o-series</td>
                 <td class="mono text-xs"><code>input_tokens</code></td>
@@ -288,7 +281,7 @@
                 <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
                 <td class="mono text-xs"><code>completion_tokens - reasoning_tokens</code></td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td class="text-sm"><strong>Codex</strong></td>
                 <td class="mono text-xs">gpt-* codex</td>
                 <td class="mono text-xs"><code>input_tokens</code></td>
@@ -296,7 +289,7 @@
                 <td class="mono text-xs"><span class="badge badge-muted">Not reported</span></td>
                 <td class="mono text-xs"><code>tokens_used</code> aggregate</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td class="text-sm"><strong>Qoder</strong></td>
                 <td class="mono text-xs">custom models</td>
                 <td class="mono text-xs"><code>input_tokens</code></td>
@@ -325,32 +318,32 @@
             </tr>
         </thead>
         <tbody>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="signal-badge signal-info">round</span></td>
                 <td class="text-sm">一次分组后的 assistant 交互及其相关 model/tool 活动。</td>
                 <td class="text-sm">Session Detail Trace / Sessions Rounds column</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="signal-badge signal-info">step</span></td>
                 <td class="text-sm">round 内的 model call、tool call 或可见 trace 项。</td>
                 <td class="text-sm">Session Detail Trace</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="signal-badge signal-info">batch</span></td>
                 <td class="text-sm">按时间或 trace 相邻关系分组的一组 tool calls。</td>
                 <td class="text-sm">Session Detail Trace / Tool Hotspots</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="signal-badge signal-warning">tool</span></td>
                 <td class="text-sm">工具调用次数、耗时、结果和失败状态。</td>
                 <td class="text-sm">Session Detail Trace / Dashboard Tool Hotspots</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="signal-badge signal-info">subagent</span></td>
                 <td class="text-sm">挂在父 session 或 tool result 下的委派 agent 活动。</td>
                 <td class="text-sm">Session Detail Trace / Sessions Subagents column</td>
             </tr>
-            <tr>
+            <tr data-glossary-term>
                 <td><span class="signal-badge signal-warning">failure</span></td>
                 <td class="text-sm">failed tool result、attribution error</td>
                 <td class="text-sm">Session Detail Trace / Dashboard Failure Signals</td>

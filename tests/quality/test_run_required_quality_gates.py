@@ -161,7 +161,7 @@ class TestSessionDetailExcluded:
                 {
                     'ts': '2026-05-24T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                     'sessionId': 'test-session-001',
@@ -290,7 +290,7 @@ class TestIncludeSessionDetail:
                 {
                     'ts': '2026-05-24T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                     'sessionId': 'test-session-001',
@@ -314,7 +314,7 @@ class TestIncludeSessionDetail:
                 {
                     'ts': '2026-05-24T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                     'sessionId': 'test-session-001',
@@ -338,7 +338,7 @@ class TestIncludeSessionDetail:
                 {
                     'ts': '2026-05-24T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                     'sessionId': 'test-session-001',

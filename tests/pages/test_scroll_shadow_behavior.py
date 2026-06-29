@@ -15,10 +15,10 @@ import os
 
 import pytest
 
-CSS_PATH = 'src/session_browser/web/static/css/shell.css'
-CSS_TABLE_WRAP = 'src/session_browser/web/static/css/ui-primitives.css'
-CSS_TABLE_WRAP_DIR = 'src/session_browser/web/static/css/ui-primitives'
-JS_PATH = 'src/session_browser/web/static/js/app.js'
+CSS_PATH = 'java/web/src/main/resources/static/css/shell.css'
+CSS_TABLE_WRAP = 'java/web/src/main/resources/static/css/ui-primitives.css'
+CSS_TABLE_WRAP_DIR = 'java/web/src/main/resources/static/css/ui-primitives'
+JS_PATH = 'java/web/src/main/resources/static/js/app.js'
 
 
 def _read(path: str) -> str:

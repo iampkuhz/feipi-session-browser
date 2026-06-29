@@ -12,7 +12,7 @@ import re
 
 import pytest
 
-_CSS_PATH = 'src/session_browser/web/static/css/dashboard.css'
+_CSS_PATH = 'java/web/src/main/resources/static/css/dashboard.css'
 
 
 def _read_css() -> str:

@@ -315,7 +315,7 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
         warnings.extend(w)
 
     # Rule 3: supported-viewports-only
-    static = repo_root / 'src/session_browser/web/static'
+    static = repo_root / 'java/web/src/main/resources/static'
     if static.exists():
         css_files = list(static.rglob('*.css'))
         js_files = list(static.rglob('*.js'))

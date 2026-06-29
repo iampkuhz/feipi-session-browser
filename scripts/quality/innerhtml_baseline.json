@@ -2,103 +2,103 @@
   "version": 1,
   "entries": [
     {
-      "file": "src/session_browser/web/static/js/data-table.js",
+      "file": "java/web/src/main/resources/static/js/data-table.js",
       "line": 117,
       "isClear": true,
       "snippet": "container.innerHTML = '';"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 104,
       "isClear": false,
       "snippet": "jsonView.innerHTML = '<pre class=\"code\">' + highlightJSON(partData.json) + '</pre>';"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 106,
       "isClear": false,
       "snippet": "jsonView.innerHTML = '<pre class=\"code\">' + highlightJSON(partData.raw) + '</pre>';"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 108,
       "isClear": false,
       "snippet": "jsonView.innerHTML = '<pre class=\"code\">' + highlightJSON(JSON.stringify({ message: 'No data available', part: partName "
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 114,
       "isClear": false,
       "snippet": "renderedView.innerHTML = partData.rendered;"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 116,
       "isClear": false,
       "snippet": "renderedView.innerHTML = '<pre class=\"code\">' + escapeHtml(partData.raw) + '</pre>';"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 118,
       "isClear": false,
       "snippet": "renderedView.innerHTML = '<div class=\"unavailable\">No rendered content for this part.</div>';"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 124,
       "isClear": false,
       "snippet": "rawView.innerHTML = '<pre class=\"code\">' + escapeHtml(partData.raw) + '</pre>';"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 126,
       "isClear": false,
       "snippet": "rawView.innerHTML = '<pre class=\"code\">' + highlightJSON(JSON.stringify({ message: 'No raw data', part: partName }, null"
     },
     {
-      "file": "src/session_browser/web/static/js/payload_viewer.js",
+      "file": "java/web/src/main/resources/static/js/payload_viewer.js",
       "line": 227,
       "isClear": false,
       "snippet": "overlay.innerHTML ="
     },
     {
-      "file": "src/session_browser/web/static/js/session_detail_timeline.js",
+      "file": "java/web/src/main/resources/static/js/session_detail_timeline.js",
       "line": 102,
       "isClear": false,
       "snippet": "modal.innerHTML = ["
     },
     {
-      "file": "src/session_browser/web/static/js/session_detail_timeline.js",
+      "file": "java/web/src/main/resources/static/js/session_detail_timeline.js",
       "line": 134,
       "isClear": false,
       "snippet": "body.innerHTML = (source.tagName && source.tagName.toLowerCase() === \"template\")"
     },
     {
-      "file": "src/session_browser/web/static/js/session_detail_timeline.js",
+      "file": "java/web/src/main/resources/static/js/session_detail_timeline.js",
       "line": 138,
       "isClear": false,
       "snippet": "body.innerHTML = diagnosticPayloadHtml(payloadId, title, kind);"
     },
     {
-      "file": "src/session_browser/web/static/js/sessions-list.js",
+      "file": "java/web/src/main/resources/static/js/sessions-list.js",
       "line": 415,
       "isClear": false,
       "snippet": "tbody.innerHTML = newTbody.innerHTML;"
     },
     {
-      "file": "src/session_browser/web/static/js/sessions-list.js",
+      "file": "java/web/src/main/resources/static/js/sessions-list.js",
       "line": 422,
       "isClear": false,
       "snippet": "oldPagination.innerHTML = newPagination.innerHTML;"
     },
     {
-      "file": "src/session_browser/web/static/js/sessions-list.js",
+      "file": "java/web/src/main/resources/static/js/sessions-list.js",
       "line": 428,
       "isClear": false,
       "snippet": "paginationDiv.innerHTML = newPagination.innerHTML;"
     },
     {
-      "file": "src/session_browser/web/static/js/sessions-list.js",
+      "file": "java/web/src/main/resources/static/js/sessions-list.js",
       "line": 482,
       "isClear": false,
       "snippet": "tbody.innerHTML = '<tr><td colspan=\"13\" style=\"text-align:center;padding:24px;color:var(--text-subtle);\">Loading...</td>"

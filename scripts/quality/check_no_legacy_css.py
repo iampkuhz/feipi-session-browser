@@ -15,7 +15,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-CSS_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css'
+CSS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css'
 SRC_DIR = REPO_ROOT / 'src'
 
 

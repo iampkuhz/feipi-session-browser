@@ -324,7 +324,7 @@ class TestNoDeadCompatShim:
 class TestActualRepoState:
     @pytest.mark.contract_case('HOOK-HARNESS-011')
     def test_no_mobile_viewports_in_css(self):
-        static = ROOT / 'src/session_browser/web/static'
+        static = ROOT / 'java/web/src/main/resources/static'
         css_files = list(static.rglob('*.css'))
         js_files = list(static.rglob('*.js'))
         errors, _warnings = check_supported_viewports_only(css_files, js_files)
@@ -332,7 +332,7 @@ class TestActualRepoState:
 
     @pytest.mark.contract_case('HOOK-HARNESS-011')
     def test_no_dead_css_js_files(self):
-        static = ROOT / 'src/session_browser/web/static'
+        static = ROOT / 'java/web/src/main/resources/static'
         css_files = list(static.rglob('*.css'))
         js_files = list(static.rglob('*.js'))
         errors, _warnings = check_no_dead_compat_shim(css_files, js_files)
@@ -341,7 +341,7 @@ class TestActualRepoState:
     @pytest.mark.contract_case('HOOK-HARNESS-011')
     def test_historical_version_blocks_absent(self):
         """验证仓库当前 CSS 不含历史版本注释 BLOCK."""
-        static = ROOT / 'src/session_browser/web/static'
+        static = ROOT / 'java/web/src/main/resources/static'
         css_files = list(static.rglob('*.css'))
         errors, warnings = check_no_historical_version_comments(css_files)
         assert errors == [], f'Unexpected BLOCK errors: {errors}'

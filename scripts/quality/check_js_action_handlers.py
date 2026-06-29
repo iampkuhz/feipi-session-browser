@@ -20,8 +20,8 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-TEMPLATE_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates'
-JS_DIR = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'js'
+TEMPLATE_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates'
+JS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js'
 
 # 关键 action 必须存在 handler
 CRITICAL_ACTIONS = {

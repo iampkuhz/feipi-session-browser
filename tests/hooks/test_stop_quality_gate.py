@@ -64,7 +64,7 @@ class TestUiChanges:
                 {
                     'ts': '2026-05-18T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                 }
@@ -81,7 +81,7 @@ class TestUiChanges:
                 {
                     'ts': '2026-05-18T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                 }
@@ -98,7 +98,7 @@ class TestUiChanges:
                 {
                     'ts': '2026-05-18T00:02:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                 }
@@ -115,7 +115,7 @@ class TestUiChanges:
                 {
                     'ts': '2026-05-18T00:00:00Z',
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                 }
@@ -160,7 +160,7 @@ class TestFreshArtifactAfterRunner:
                 {
                     'ts': now_ts,
                     'tool': 'Edit',
-                    'file': 'src/session_browser/web/static/css/shell.css',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
                     'category': 'ui-css',
                     'requiresQualityGate': True,
                 }

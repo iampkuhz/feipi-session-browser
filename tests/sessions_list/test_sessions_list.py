@@ -14,15 +14,15 @@ import re
 
 import pytest
 
-_SESSIONS_PATH = 'src/session_browser/web/templates/sessions.html'
-_SESSIONS_CSS_PATH = 'src/session_browser/web/static/css/sessions-list.css'
-_SESSIONS_JS_PATH = 'src/session_browser/web/static/js/sessions-list.js'
+_SESSIONS_PATH = 'java/web/src/main/resources/templates/sessions.html'
+_SESSIONS_CSS_PATH = 'java/web/src/main/resources/static/css/sessions-list.css'
+_SESSIONS_JS_PATH = 'java/web/src/main/resources/static/js/sessions-list.js'
 _SESSIONS_COMPONENTS_PATH = (
-    'src/session_browser/web/templates/components/sessions_list_components.html'
+    'java/web/src/main/resources/templates/components/sessions_list_components.html'
 )
-_SESSIONS_TABLE_BODY_PATH = 'src/session_browser/web/templates/partials/sessions_table_body.html'
-_UI_PRIMITIVES_PATH = 'src/session_browser/web/templates/components/ui_primitives.html'
-_UI_PRIMITIVES_DIR = 'src/session_browser/web/templates/components/ui_primitives'
+_SESSIONS_TABLE_BODY_PATH = 'java/web/src/main/resources/templates/partials/sessions_table_body.html'
+_UI_PRIMITIVES_PATH = 'java/web/src/main/resources/templates/components/ui_primitives.html'
+_UI_PRIMITIVES_DIR = 'java/web/src/main/resources/templates/components/ui_primitives'
 
 
 def _read(path: str) -> str:
@@ -50,7 +50,7 @@ def _read_ui_primitives() -> str:
 
 
 def _read_base_html() -> str:
-    return _read('src/session_browser/web/templates/base.html')
+    return _read('java/web/src/main/resources/templates/base.html')
 
 
 # ── TestSessionsTemplate（模板结构）────────────────────────────────────────────
@@ -485,7 +485,7 @@ class TestSessionsRowData:
 
     @pytest.mark.contract_case('UI-SESSIONS-001', 'UI-SESSIONS-017')
     def test_row_has_encoded_detail_url(self):
-        content = _read('src/session_browser/web/templates/partials/sessions_table_body.html')
+        content = _read('java/web/src/main/resources/templates/partials/sessions_table_body.html')
         assert 'data-detail-url' in content, 'Session rows must expose a stable detail URL'
         assert "urlencode('')" in content, (
             'Session detail URLs must URL-encode agent and session id'

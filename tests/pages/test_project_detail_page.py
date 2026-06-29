@@ -15,11 +15,11 @@ import re
 
 import pytest
 
-_PROJECT_PATH = 'src/session_browser/web/templates/project.html'
-_PROJECTS_CSS_PATH = 'src/session_browser/web/static/css/projects.css'
-_PROJECTS_JS_PATH = 'src/session_browser/web/static/js/projects.js'
-_UI_PRIMITIVES_PATH = 'src/session_browser/web/templates/components/ui_primitives.html'
-_UI_PRIMITIVES_DIR = 'src/session_browser/web/templates/components/ui_primitives'
+_PROJECT_PATH = 'java/web/src/main/resources/templates/project.html'
+_PROJECTS_CSS_PATH = 'java/web/src/main/resources/static/css/projects.css'
+_PROJECTS_JS_PATH = 'java/web/src/main/resources/static/js/projects.js'
+_UI_PRIMITIVES_PATH = 'java/web/src/main/resources/templates/components/ui_primitives.html'
+_UI_PRIMITIVES_DIR = 'java/web/src/main/resources/templates/components/ui_primitives'
 
 
 def _read(path: str) -> str:

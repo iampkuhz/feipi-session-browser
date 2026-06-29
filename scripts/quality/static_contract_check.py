@@ -667,7 +667,7 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
     """
     errors: list[str] = []
     warnings: list[str] = []
-    static = repo_root / 'src/session_browser/web/static'
+    static = repo_root / 'java/web/src/main/resources/static'
     if not static.exists():
         return [f'静态资源目录不存在:{static}'], []
 
@@ -711,8 +711,8 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
             and 'modal' not in rel.lower()
             and rel
             not in (
-                'src/session_browser/web/static/css/session-detail.css',
-                'src/session_browser/web/static/css/ui-primitives.css',
+                'java/web/src/main/resources/static/css/session-detail.css',
+                'java/web/src/main/resources/static/css/ui-primitives.css',
             )
         ):
             warnings.append(f'{rel}: fixed 布局需确认是否符合桌面端 contract.')

@@ -19,21 +19,22 @@ Exit codes:
 
 from __future__ import annotations
 
+import os
 import sqlite3
 import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
-# Ensure src/ and repo_root are on sys.path so `session_browser.*` imports work
-# when this gate is launched directly by hooks.
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SRC_ROOT = REPO_ROOT / 'src'
-for path in (SRC_ROOT, REPO_ROOT):
-    value = str(path)
-    if value not in sys.path:
-        sys.path.insert(0, value)
 
-from session_browser.config import INDEX_PATH  # noqa: E402
+# INDEX_PATH 直接定义，不再依赖 session_browser.config
+INDEX_DIR = Path(
+    os.environ.get(
+        'INDEX_DIR',
+        str(Path.home() / '.local' / 'share' / 'feipi' / 'session-browser' / 'local-test-index'),
+    )
+)
+INDEX_PATH = INDEX_DIR / 'index.sqlite'
 
 KNOWN_AGENTS = {'claude_code', 'codex', 'qoder'}
 

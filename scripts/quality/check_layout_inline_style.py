@@ -81,7 +81,7 @@ def find_js_files(root: Path) -> list[Path]:
         Computed result.
     """
     js_dirs = [
-        root / 'src' / 'session_browser' / 'web' / 'static' / 'js',
+        root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js',
     ]
     results: list[Path] = []
     for d in js_dirs:

@@ -17,9 +17,9 @@ from typing import ClassVar
 
 import pytest
 
-_JS_PATH = 'src/session_browser/web/static/js/dashboard.js'
-_CSS_PATH = 'src/session_browser/web/static/css/dashboard.css'
-_TEMPLATE_PATH = 'src/session_browser/web/templates/dashboard.html'
+_JS_PATH = 'java/web/src/main/resources/static/js/dashboard.js'
+_CSS_PATH = 'java/web/src/main/resources/static/css/dashboard.css'
+_TEMPLATE_PATH = 'java/web/src/main/resources/templates/dashboard.html'
 
 
 def _read(path: str) -> str:

@@ -35,7 +35,7 @@ EXPECTED_FEATURE_TABLES = {
 ID_RE = re.compile(r'\b(?:DATA|UI|ROUTE|HOOK)-[A-Z0-9-]+-\d{3}\b')
 MIN_CONTRACT_COLUMNS = 9
 
-PATH_RE = re.compile(r'((?:tests|src|scripts)/[\w./-]+\.(?:py|js|ts|html|css|json|yaml|yml|sh))')
+PATH_RE = re.compile(r'((?:tests|src|scripts|java)/[\w./-]+\.(?:py|js|ts|html|css|json|yaml|yml|sh|java))')
 
 
 @dataclass(frozen=True)
@@ -127,24 +127,30 @@ def _parse_cases(feature_dir: Path) -> tuple[dict[str, ContractCase], list[str]]
     return cases, errors
 
 
-def _parse_code_bindings(tests_dir: Path) -> dict[str, set[Path]]:
+def _parse_code_bindings(tests_dir: Path, repo_root: Path) -> dict[str, set[Path]]:
     """Discover contract ids referenced by test source files.
 
     Args:
         tests_dir: Test directory to scan for contract id markers.
+        repo_root: Repository root for resolving additional scan directories.
 
     Returns:
         Mapping from contract id to source files that reference it.
     """
     bindings: dict[str, set[Path]] = {}
-    for path in sorted(tests_dir.rglob('*')):
-        if path.suffix not in {'.py', '.js', '.ts'}:
-            continue
-        if '__pycache__' in path.parts:
-            continue
-        text = path.read_text(encoding='utf-8', errors='ignore')
-        for match in ID_RE.finditer(text):
-            bindings.setdefault(match.group(0), set()).add(path)
+    scan_dirs = [tests_dir]
+    java_test_dir = repo_root / 'java'
+    if java_test_dir.is_dir():
+        scan_dirs.append(java_test_dir)
+    for scan_dir in scan_dirs:
+        for path in sorted(scan_dir.rglob('*')):
+            if path.suffix not in {'.py', '.js', '.ts', '.java'}:
+                continue
+            if '__pycache__' in path.parts:
+                continue
+            text = path.read_text(encoding='utf-8', errors='ignore')
+            for match in ID_RE.finditer(text):
+                bindings.setdefault(match.group(0), set()).add(path)
     return bindings
 
 
@@ -215,7 +221,7 @@ def validate_acceptance_contracts(repo_root: Path) -> ValidationResult:
         if '废弃' in text or 'Deprecated' in text or 'deprecated' in text:
             errors.append(f'{md_file}: docs 契约表不允许维护废弃信息')
 
-    code_bindings = _parse_code_bindings(tests_dir)
+    code_bindings = _parse_code_bindings(tests_dir, repo_root)
     for case_id, paths in sorted(code_bindings.items()):
         if case_id not in cases:
             rel_paths = ', '.join(str(path.relative_to(repo_root)) for path in sorted(paths))

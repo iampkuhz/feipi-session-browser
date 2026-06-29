@@ -16,11 +16,11 @@ import re
 
 import pytest
 
-_DASHBOARD_PATH = 'src/session_browser/web/templates/dashboard.html'
-_DASHBOARD_CSS_PATH = 'src/session_browser/web/static/css/dashboard.css'
-_DASHBOARD_JS_PATH = 'src/session_browser/web/static/js/dashboard.js'
-_UI_PRIMITIVES_PATH = 'src/session_browser/web/templates/components/ui_primitives.html'
-_UI_PRIMITIVES_DIR = 'src/session_browser/web/templates/components/ui_primitives'
+_DASHBOARD_PATH = 'java/web/src/main/resources/templates/dashboard.html'
+_DASHBOARD_CSS_PATH = 'java/web/src/main/resources/static/css/dashboard.css'
+_DASHBOARD_JS_PATH = 'java/web/src/main/resources/static/js/dashboard.js'
+_UI_PRIMITIVES_PATH = 'java/web/src/main/resources/templates/components/ui_primitives.html'
+_UI_PRIMITIVES_DIR = 'java/web/src/main/resources/templates/components/ui_primitives'
 
 
 def _read(path: str) -> str:

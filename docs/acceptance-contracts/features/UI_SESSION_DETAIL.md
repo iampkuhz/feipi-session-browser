@@ -5,7 +5,7 @@
 | 项 | 内容 |
 |---|---|
 | 模块 | 会话详情页（hero/trace/metrics/payloads、轮次展开、payload 弹窗、shell 状态） |
-| 关联源码 | `src/session_browser/web/presenters/session_detail.py`、`src/session_browser/web/templates/session_detail.html` |
+| 关联源码 | `java/web/src/main/java/com/feipi/session/browser/web/page/SessionDetailPage.java`、`java/web/src/main/resources/templates/session_detail.html` |
 | 关联测试 | `tests/playwright/session-detail.spec.js`、`tests/playwright/session-detail-layout.spec.js`、`tests/playwright/shell-states.spec.js`、`tests/session_detail/` 下 24 个文件、`tests/rendering/` 下相关契约 |
 | 主要风险 | shell 状态 CSS 级联冲突导致 main 宽度为 0；payload 弹窗不是 panel 而是全屏覆盖；长会话 DOM 节点爆炸 |
 
@@ -31,7 +31,7 @@
 | UI-SD-016 | P1 | visual | 会话详情模板契约 | pytest 检查模板结构 | 模板含 sd-hero/sd-tabs/trace-panel 区域，CSS/JS 导入正确 | pytest | — | `tests/session_detail/test_session_detail_template_contract.py` |
 | UI-SD-017 | P1 | visual | Trace DOM 契约 | 检查 trace 区域 DOM 结构 | trace 行含正确 data 属性；Metrics 只展示 tool count/token 且 tokenbar 按最大 round 比例缩放；round/subround attribution 入口可见文字为 request/response；每个 subround summary 可单独展开/折叠；无 signal 时不渲染占位 badge；round detail 渲染 user message、assistant event、tool call、subagent run 等事件行且不渲染 LLM call card；展开详情中的 user/assistant/tool/result 行使用固定列对齐；tool call 行展示 duration 和 result token estimate，估算值使用 `~` 且与 Result modal 一致；Codex 同文案 event_msg/response_item 关联为一个 assistant event，Assistant Text payload 不重复展示后续 tool call；Codex round 与有效 `event_msg.token_count` LLM call 一一对应，重复 `total_token_usage` 累计快照不建 round 且不计 token | pytest | — | `tests/session_detail/test_session_detail_trace_dom_contract.py` |
 | UI-SD-018 | P1 | visual | Trace 布局契约 | 检查 trace 面板布局 | trace 面板无水平溢出，轮次行间距一致 | pytest | — | `tests/session_detail/test_session_detail_trace_layout_contract.py` |
-| UI-SD-019 | P1 | visual | Trace 预览契约 | 检查 trace 预览渲染 | 预览行含 tool 命令摘要，状态图标正确 | pytest | — | `tests/session_detail/test_session_detail_trace_preview_contract.py` |
+| UI-SD-019 | P1 | visual | Trace 预览契约 | 检查 trace 预览渲染 | 预览行含 tool 命令摘要，状态图标正确 | pytest | — | `java/web/src/test/java/com/feipi/session/browser/web/page/SessionDetailPageTest.java` |
 | UI-SD-020 | P1 | visual | Payload 模态渲染器契约 | 检查 payload modal 渲染 | modal 含 payload 内容；tool result modal 的 subtitle 与 metadata rail 展示 `result tokens` 估算值，表示该 result 进入下一次 LLM request 的输入压力且不得标记为 provider reported；归因 modal 使用 topgrid 元信息与全宽分布/明细，request 覆盖率/本地重建/残差字段合并在摘要区且不渲染底部独立覆盖率表格或泛化可能来源尾注；Trace request/response attribution 点击后通过后端 attribution API 按需获取 payload，不在初始页面嵌入完整归因数据；request 归因 bucket 使用全局 token 归因分类树输出 canonical key/category/color/order，并统一中文候选名和颜色；API messages bucket 可解释并展示条目，按当前 call 边界排除未来消息，汇总 token 使用完整条目估算而非 preview，bucket detail 支持贡献来源到子分类再到完整内容的两层展开；内置系统提示有可见内容时展示脱敏 preview、不可见时展示估算说明；Codex request 归因将可见 base/developer/system instructions、function_call_output tool outputs、provider cache read、Codex builtin tool catalog fallback 分别归入可解释 bucket，并通过 taxonomy 显示为统一候选分类；Qoder request 归因将 full_messages_array、provider cache read、Claude-Code-like tool schemas fallback 分别归入可解释 bucket，并通过 taxonomy 显示为统一候选分类；fallback 文案符合预期 | pytest | — | 待补充 |
 | UI-SD-021 | P1 | visual | 工具结果渲染 | 检查 tool result 渲染格式 | 不同 tool 类型的结果有正确的格式化展示 | pytest | — | `tests/rendering/test_tool_result_render.py` |
 | UI-SD-022 | P1 | visual | Trace 头部契约 | 检查 trace 区域头部 | 含标题、筛选 chip、expand/collapse 按钮 | pytest | — | `tests/rendering/test_trace_header_contract.py` |

@@ -360,14 +360,14 @@ class TestCheckInnerhtmlSafety:
 class TestActualRepoState:
     @pytest.mark.contract_case('HOOK-HARNESS-013')
     def test_no_important_in_repo_css(self):
-        static = ROOT / 'src/session_browser/web/static'
+        static = ROOT / 'java/web/src/main/resources/static'
         css_files = list(static.rglob('*.css'))
         errors = check_no_important(css_files)
         assert errors == [], f'!important found: {errors}'
 
     @pytest.mark.contract_case('HOOK-HARNESS-013')
     def test_css_load_order_in_base_html(self):
-        base_html = ROOT / 'src/session_browser/web/templates/base.html'
+        base_html = ROOT / 'java/web/src/main/resources/templates/base.html'
         text = base_html.read_text(encoding='utf-8')
         errors = check_css_load_order(text)
         assert errors == [], f'load order violation: {errors}'
@@ -375,7 +375,7 @@ class TestActualRepoState:
     @pytest.mark.contract_case('HOOK-HARNESS-013')
     def test_no_dead_css_in_repo(self):
         """删除 session-detail-timeline.css 后,不应有死 CSS."""
-        static = ROOT / 'src/session_browser/web/static'
+        static = ROOT / 'java/web/src/main/resources/static'
         css_files = list(static.rglob('*.css'))
         errors = check_no_dead_css(css_files)
         assert errors == [], f'dead CSS found: {errors}'
@@ -383,7 +383,7 @@ class TestActualRepoState:
     @pytest.mark.contract_case('HOOK-HARNESS-013')
     def test_timeline_css_deleted(self):
         """session-detail-timeline.css 应已被删除."""
-        path = ROOT / 'src/session_browser/web/static/css/session-detail-timeline.css'
+        path = ROOT / 'java/web/src/main/resources/static/css/session-detail-timeline.css'
         assert not path.exists(), 'session-detail-timeline.css should be deleted'
 
 

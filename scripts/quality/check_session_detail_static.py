@@ -29,10 +29,10 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # Modular CSS files that replace the monolithic style.css
-CSS_FILE = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'shell.css'
-SHELL_CSS_FILE = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'shell.css'
+CSS_FILE = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
+SHELL_CSS_FILE = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
 SESSION_DETAIL_CSS = (
-    REPO_ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'session-detail.css'
+    REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'session-detail.css'
 )
 BASE_HTML = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates' / 'base.html'
 SESSION_HTML = REPO_ROOT / 'src' / 'session_browser' / 'web' / 'templates' / 'session.html'

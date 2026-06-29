@@ -25,6 +25,8 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>验证 payload、round、attribution、bucket-detail 和 subagent attribution 路由的 HTTP 行为： 路径验证、错误响应和
  * typed JSON 响应结构。
+ *
+ * <p>Acceptance contracts: ROUTE-API-012, UI-INTERACTION-003
  */
 @DisplayName("SessionApiHandler 集成测试")
 class SessionApiHandlerTest {

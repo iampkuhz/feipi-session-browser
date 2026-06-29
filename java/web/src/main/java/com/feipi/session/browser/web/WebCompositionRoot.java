@@ -8,6 +8,7 @@ import com.feipi.session.browser.web.api.SessionApiService;
 import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
 import com.feipi.session.browser.web.export.ExportHandler;
 import com.feipi.session.browser.web.page.DashboardPage;
+import com.feipi.session.browser.web.page.GlossaryPage;
 import com.feipi.session.browser.web.page.ProjectsPage;
 import com.feipi.session.browser.web.page.SessionDetailPage;
 import com.feipi.session.browser.web.page.SessionsPage;
@@ -115,6 +116,7 @@ public final class WebCompositionRoot {
     ProjectsPage projectsPage = new ProjectsPage(queryRoot, templates);
     SessionsPage sessionsPage = new SessionsPage(queryRoot, templates);
     SessionDetailPage sessionDetailPage = new SessionDetailPage(queryRoot, templates);
+    GlossaryPage glossaryPage = new GlossaryPage(templates);
 
     javalinConfig.routes.get("/", dashboardPage::handle);
     javalinConfig.routes.get("/dashboard", dashboardPage::handle);
@@ -133,6 +135,7 @@ public final class WebCompositionRoot {
           String sessionIdParam = ctx.pathParam("sessionId");
           sessionDetailPage.handle(ctx, agentParam, sessionIdParam);
         });
+    javalinConfig.routes.get("/glossary", glossaryPage::handle);
 
     // JSON API 路由
     registerApiRoutes(javalinConfig, queryRoot);
