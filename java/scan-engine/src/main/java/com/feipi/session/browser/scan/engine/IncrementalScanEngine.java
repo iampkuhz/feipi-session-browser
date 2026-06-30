@@ -245,8 +245,6 @@ public final class IncrementalScanEngine {
         }
 
         int sourceCount = candidates.size();
-        perSourceCount.merge(entry.adapter().sourceId(), sourceCount, Integer::sum);
-        perSourceCountByValue.merge(agentValue, sourceCount, Integer::sum);
         totalCandidates += sourceCount;
 
         // 逐候选处理
@@ -298,7 +296,11 @@ public final class IncrementalScanEngine {
                   candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
 
           switch (result.outcome()) {
-            case SUCCESS -> successCount++;
+            case SUCCESS -> {
+              successCount++;
+              perSourceCount.merge(entry.adapter().sourceId(), 1, Integer::sum);
+              perSourceCountByValue.merge(agentValue, 1, Integer::sum);
+            }
             case SKIPPED -> skippedByAgeCount++;
             case ERROR -> {
               errorCount++;

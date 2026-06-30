@@ -10,6 +10,15 @@ public final class CodexConstants {
   /** Codex 会话主事件文件名。 */
   public static final String SESSION_FILE = "session.jsonl";
 
+  /** Codex 会话文件后缀。 */
+  public static final String SESSION_FILE_SUFFIX = ".jsonl";
+
+  /** Codex 活跃会话根子目录。 */
+  public static final String SESSIONS_DIR = "sessions";
+
+  /** Codex 归档会话子目录。 */
+  public static final String ARCHIVED_SESSION_DIR = "archived_sessions";
+
   /** Codex 线程数据库文件名。 */
   public static final String THREADS_DB = "threads.sqlite3";
 

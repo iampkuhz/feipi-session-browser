@@ -205,8 +205,6 @@ public final class FullScanEngine {
       }
 
       int sourceCount = candidates.size();
-      perSourceCount.merge(entry.adapter().sourceId(), sourceCount, Integer::sum);
-      perSourceCountByValue.merge(agentValue, sourceCount, Integer::sum);
       counters[0] += sourceCount;
 
       // 逐候选处理
@@ -216,7 +214,11 @@ public final class FullScanEngine {
             processCandidate(
                 candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
         switch (result.outcome) {
-          case SUCCESS -> counters[1]++;
+          case SUCCESS -> {
+            counters[1]++;
+            perSourceCount.merge(entry.adapter().sourceId(), 1, Integer::sum);
+            perSourceCountByValue.merge(agentValue, 1, Integer::sum);
+          }
           case SKIPPED -> skippedCount++;
           case ERROR -> {
             counters[2]++;
@@ -333,6 +335,32 @@ public final class FullScanEngine {
       NormalizedSessionArtifact artifact =
           normEngine.normalize(agent, success.records(), diagnostics, List.of(sourceFile));
 
+      // 2b. 注入 candidate 元数据到 session map（归一化引擎是纯函数，不含源特定标识）
+      String sessionId = extractSessionId(filePath);
+      String safeSessionKey = candidate.sessionKey().replace('/', ':');
+      Map<String, Object> enrichedSession = new LinkedHashMap<>(artifact.session());
+      enrichedSession.put("session_key", safeSessionKey);
+      enrichedSession.put("session_id", sessionId);
+      enrichedSession.put("project_key", candidate.projectKey());
+      // endedAt 为必填字段；归一化引擎未提取时回退到文件修改时间
+      if (!enrichedSession.containsKey("ended_at")
+          || enrichedSession.get("ended_at") == null
+          || enrichedSession.get("ended_at").toString().isEmpty()) {
+        double mtimeSec = candidate.fingerprint().lastModifiedMs() / 1000.0;
+        enrichedSession.put("ended_at", String.valueOf(mtimeSec));
+      }
+      artifact =
+          new NormalizedSessionArtifact(
+              artifact.schemaVersion(),
+              artifact.agent(),
+              artifact.sourceFiles(),
+              Map.copyOf(enrichedSession),
+              artifact.calls(),
+              artifact.toolExecutions(),
+              artifact.diagnostics(),
+              artifact.sourceUnitCatalog(),
+              artifact.sourceUnitSequences());
+
       // 3. 写入制品
       Map<String, String> fingerprints = buildFingerprints(filePath, candidate);
       WriteResult writeResult;
@@ -377,6 +405,13 @@ public final class FullScanEngine {
       return Map.of(filePath.toAbsolutePath().toString(), hash.get());
     }
     return Map.of();
+  }
+
+  /** 从源文件路径提取 session ID（文件名去掉 .jsonl 后缀）。 */
+  private static String extractSessionId(Path filePath) {
+    String fileName = filePath.getFileName().toString();
+    int dotIndex = fileName.lastIndexOf('.');
+    return dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
   }
 
   /** 将会话行写入批量插入语句，使用预定义列清单避免重复拼接。 */

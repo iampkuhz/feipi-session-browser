@@ -15,7 +15,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link CodexDiscovery} 单元测试。
  *
- * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 日期目录/会话目录结构、多日期多会话排序、隐藏文件过滤。
+ * <p>验证会话发现逻辑在各种目录结构下的行为：sessions/ 年/月/日三层结构、 archived_sessions/
+ * 扁平结构、隐藏文件过滤、空目录和边界场景。
  */
 @DisplayName("CodexDiscovery 会话发现测试")
 class CodexDiscoveryTest {
@@ -41,114 +42,163 @@ class CodexDiscoveryTest {
     }
 
     @Test
-    @DisplayName("无 day 子目录返回空列表")
-    void noDaySubdirReturnsEmptyList() throws IOException {
-      // 创建文件而不是目录
+    @DisplayName("sessions/ 目录不存在时返回空列表")
+    void noSessionsDirReturnsEmptyList() throws IOException {
+      // 只有无关文件，没有 sessions/ 或 archived_sessions/
       Files.writeString(tempDir.resolve("somefile.txt"), "hello", StandardCharsets.UTF_8);
+      List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
+      assertThat(sessions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("sessions/ 存在但为空目录时返回空列表")
+    void emptySessionsDirReturnsEmptyList() throws IOException {
+      Files.createDirectory(tempDir.resolve(CodexConstants.SESSIONS_DIR));
+      List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
+      assertThat(sessions).isEmpty();
+    }
+
+    @Test
+    @DisplayName("跳过根目录下的非 jsonl 文件")
+    void skipNonJsonlFilesInRoot() throws IOException {
+      Files.createDirectory(tempDir.resolve(CodexConstants.SESSIONS_DIR));
+      // 根目录下的 session_index.jsonl 不应被发现（不在 sessions/ 或 archived_sessions/ 下）
+      Files.writeString(tempDir.resolve("session_index.jsonl"), "{}\n", StandardCharsets.UTF_8);
+      Files.writeString(tempDir.resolve("history.jsonl"), "{}\n", StandardCharsets.UTF_8);
       List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
       assertThat(sessions).isEmpty();
     }
   }
 
   @Nested
-  @DisplayName("正常会话发现")
-  class NormalDiscovery {
+  @DisplayName("sessions/ 目录发现")
+  class SessionsDirDiscovery {
 
     @Test
-    @DisplayName("单 day 单 session 发现")
-    void singleDaySingleSession() throws IOException {
-      Path dayDir = tempDir.resolve("2024-01-15");
-      Path sessionDir = dayDir.resolve("session-001");
-      Files.createDirectories(sessionDir);
-      Path sessionFile = sessionDir.resolve("session.jsonl");
-      Files.writeString(sessionFile, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+    @DisplayName("单日期单 rollout 发现")
+    void singleRolloutDiscovered() throws IOException {
+      Path dayDir =
+          tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("12");
+      Files.createDirectories(dayDir);
+      Path rollout = dayDir.resolve("rollout-20260612-abc-123.jsonl");
+      Files.writeString(rollout, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
 
       List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
 
       assertThat(sessions).hasSize(1);
-      assertThat(sessions.get(0)).isEqualTo(sessionFile);
+      assertThat(sessions.get(0)).isEqualTo(rollout);
     }
 
     @Test
-    @DisplayName("多 day 多 session 按路径确定性排序")
-    void multipleDaysMultipleSessionsSorted() throws IOException {
-      // day-b 有 session-beta 和 session-alpha
-      Path dayB = tempDir.resolve("2024-02-01");
-      Path sessionBeta = dayB.resolve("session-beta");
-      Path sessionAlpha = dayB.resolve("session-alpha");
-      Files.createDirectories(sessionBeta);
-      Files.createDirectories(sessionAlpha);
-      Files.writeString(sessionBeta.resolve("session.jsonl"), "{}\n", StandardCharsets.UTF_8);
-      Files.writeString(sessionAlpha.resolve("session.jsonl"), "{}\n", StandardCharsets.UTF_8);
+    @DisplayName("多日期多 rollout 按路径确定性排序")
+    void multipleDatesMultipleRolloutsSorted() throws IOException {
+      // 2026/06/12 有两个 rollout
+      Path day12 =
+          tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("12");
+      Files.createDirectories(day12);
+      Path rollout1 = day12.resolve("rollout-100-aaa.jsonl");
+      Path rollout2 = day12.resolve("rollout-200-bbb.jsonl");
+      Files.writeString(rollout1, "{}\n", StandardCharsets.UTF_8);
+      Files.writeString(rollout2, "{}\n", StandardCharsets.UTF_8);
 
-      // day-a 有 session-second 和 session-first
-      Path dayA = tempDir.resolve("2024-01-15");
-      Path sessionSecond = dayA.resolve("session-second");
-      Path sessionFirst = dayA.resolve("session-first");
-      Files.createDirectories(sessionSecond);
-      Files.createDirectories(sessionFirst);
-      Files.writeString(sessionSecond.resolve("session.jsonl"), "{}\n", StandardCharsets.UTF_8);
-      Files.writeString(sessionFirst.resolve("session.jsonl"), "{}\n", StandardCharsets.UTF_8);
+      // 2026/06/13 有一个 rollout
+      Path day13 =
+          tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("13");
+      Files.createDirectories(day13);
+      Path rollout3 = day13.resolve("rollout-100-ccc.jsonl");
+      Files.writeString(rollout3, "{}\n", StandardCharsets.UTF_8);
 
       List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
 
-      assertThat(sessions).hasSize(4);
+      assertThat(sessions).hasSize(3);
       List<String> sessionStrs = sessions.stream().map(Path::toString).toList();
       assertThat(sessionStrs).isSorted();
+    }
+
+    @Test
+    @DisplayName("跳过 sessions/ 下的隐藏目录")
+    void skipHiddenDirsInSessions() throws IOException {
+      Path sessionsDir = tempDir.resolve(CodexConstants.SESSIONS_DIR);
+      Path hiddenDir = sessionsDir.resolve(".tmp");
+      Files.createDirectories(hiddenDir);
+      Files.writeString(
+          hiddenDir.resolve("temp.jsonl"), "{}\n", StandardCharsets.UTF_8);
+
+      // 正常日期目录
+      Path dayDir = sessionsDir.resolve("2026").resolve("06").resolve("12");
+      Files.createDirectories(dayDir);
+      Path rollout = dayDir.resolve("rollout-100-aaa.jsonl");
+      Files.writeString(rollout, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(1);
+      assertThat(sessions.get(0)).isEqualTo(rollout);
     }
   }
 
   @Nested
-  @DisplayName("文件和目录过滤")
-  class Filtering {
+  @DisplayName("archived_sessions/ 目录发现")
+  class ArchivedDirDiscovery {
 
     @Test
-    @DisplayName("跳过缺少 session.jsonl 的目录")
-    void skipDirsWithoutSessionFile() throws IOException {
-      Path dayDir = tempDir.resolve("2024-01-15");
-
-      // 有 session.jsonl 的 session 目录
-      Path validSession = dayDir.resolve("valid-session");
-      Files.createDirectories(validSession);
-      Path sessionFile = validSession.resolve("session.jsonl");
-      Files.writeString(sessionFile, "{}\n", StandardCharsets.UTF_8);
-
-      // 没有 session.jsonl 的 session 目录
-      Path emptySession = dayDir.resolve("empty-session");
-      Files.createDirectories(emptySession);
+    @DisplayName("扁平结构 rollout 发现")
+    void flatArchivedRolloutDiscovered() throws IOException {
+      Path archivedDir = tempDir.resolve(CodexConstants.ARCHIVED_SESSION_DIR);
+      Files.createDirectories(archivedDir);
+      Path rollout = archivedDir.resolve("rollout-20260101-old-uuid.jsonl");
+      Files.writeString(rollout, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
 
       List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
 
       assertThat(sessions).hasSize(1);
-      assertThat(sessions.get(0)).isEqualTo(sessionFile);
+      assertThat(sessions.get(0)).isEqualTo(rollout);
     }
 
     @Test
-    @DisplayName("跳过隐藏文件和隐藏目录")
-    void skipHiddenFilesAndDirectories() throws IOException {
-      // 隐藏日期目录
-      Path hiddenDay = tempDir.resolve(".hidden-day");
-      Files.createDirectories(hiddenDay);
-      Path hiddenSession = hiddenDay.resolve("session-001");
-      Files.createDirectories(hiddenSession);
-      Files.writeString(hiddenSession.resolve("session.jsonl"), "{}\n", StandardCharsets.UTF_8);
+    @DisplayName("跳过 archived_sessions/ 下的隐藏文件")
+    void skipHiddenFilesInArchived() throws IOException {
+      Path archivedDir = tempDir.resolve(CodexConstants.ARCHIVED_SESSION_DIR);
+      Files.createDirectories(archivedDir);
 
-      // 正常日期目录
-      Path normalDay = tempDir.resolve("2024-01-15");
-      Path normalSession = normalDay.resolve("session-001");
-      Files.createDirectories(normalSession);
-      Path normalFile = normalSession.resolve("session.jsonl");
-      Files.writeString(normalFile, "{}\n", StandardCharsets.UTF_8);
+      Path hiddenFile = archivedDir.resolve(".hidden-rollout.jsonl");
+      Files.writeString(hiddenFile, "{}\n", StandardCharsets.UTF_8);
 
-      // 正常日期下的隐藏 session 目录
-      Path hiddenSessionDir = normalDay.resolve(".hidden-session");
-      Files.createDirectories(hiddenSessionDir);
-      Files.writeString(hiddenSessionDir.resolve("session.jsonl"), "{}\n", StandardCharsets.UTF_8);
+      Path normalRollout = archivedDir.resolve("rollout-20260101-aaa.jsonl");
+      Files.writeString(normalRollout, "{}\n", StandardCharsets.UTF_8);
 
       List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
 
       assertThat(sessions).hasSize(1);
-      assertThat(sessions.get(0)).isEqualTo(normalFile);
+      assertThat(sessions.get(0)).isEqualTo(normalRollout);
+    }
+  }
+
+  @Nested
+  @DisplayName("组合场景")
+  class Combined {
+
+    @Test
+    @DisplayName("同时发现 sessions/ 和 archived_sessions/ 中的文件")
+    void bothDirectoriesDiscovered() throws IOException {
+      // 活跃会话目录下的 rollout 文件：sessions/2026/06/12/
+      Path dayDir =
+          tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("12");
+      Files.createDirectories(dayDir);
+      Path activeRollout = dayDir.resolve("rollout-20260612-aaa.jsonl");
+      Files.writeString(activeRollout, "{}\n", StandardCharsets.UTF_8);
+
+      // 归档会话目录下的 rollout 文件
+      Path archivedDir = tempDir.resolve(CodexConstants.ARCHIVED_SESSION_DIR);
+      Files.createDirectories(archivedDir);
+      Path archivedRollout = archivedDir.resolve("rollout-20260101-bbb.jsonl");
+      Files.writeString(archivedRollout, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = CodexDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(2);
+      List<String> sessionStrs = sessions.stream().map(Path::toString).toList();
+      assertThat(sessionStrs).isSorted();
     }
   }
 }

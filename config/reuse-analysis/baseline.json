@@ -4171,6 +4171,216 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "4f59a2d1f03402c36aedbc75765269024da08b6e1f496937c10e6cba2a7be49c"
+    },
+    {
+      "fingerprint": "d323e8411eb4b418a3bf10f23b940592cad2ed0040b8492b35846dee6b6b05b7",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0043",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "d323e8411eb4b418a3bf10f23b940592cad2ed0040b8492b35846dee6b6b05b7"
+    },
+    {
+      "fingerprint": "e4d54f72f09f145b63f8448b312706f7f17d989bd87633b5b8f49adc54fa323e",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0066",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "e4d54f72f09f145b63f8448b312706f7f17d989bd87633b5b8f49adc54fa323e"
+    },
+    {
+      "fingerprint": "b572f81f53964f015628ab2c5e55445592d462251e9e5d8569fc7abc779fbd5d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0082",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "b572f81f53964f015628ab2c5e55445592d462251e9e5d8569fc7abc779fbd5d"
+    },
+    {
+      "fingerprint": "6c8310432cfe2c1eba7f290c234a8bfcf514260dfb3e7291bc9018bf0838fc6f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0123",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "6c8310432cfe2c1eba7f290c234a8bfcf514260dfb3e7291bc9018bf0838fc6f"
+    },
+    {
+      "fingerprint": "da4a6f4b39812231ba7c9014bcd970557fad7b2fd2f42e1db87947e32cb6d0b4",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0124",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "da4a6f4b39812231ba7c9014bcd970557fad7b2fd2f42e1db87947e32cb6d0b4"
+    },
+    {
+      "fingerprint": "8d6495f361e13b9e3571bf96b4b085c4429f6c984e5152828bae1d0a65fdba07",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0155",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "8d6495f361e13b9e3571bf96b4b085c4429f6c984e5152828bae1d0a65fdba07"
+    },
+    {
+      "fingerprint": "e304757e5fa667ca0a8df148287b7375526a1cd323ae3bb2478398d7d7c77364",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0160",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "e304757e5fa667ca0a8df148287b7375526a1cd323ae3bb2478398d7d7c77364"
+    },
+    {
+      "fingerprint": "4c9585dd5a7a32c1f254222484188e76b3657db64bee4c903ec45839eabfe6b0",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0235",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "4c9585dd5a7a32c1f254222484188e76b3657db64bee4c903ec45839eabfe6b0"
+    },
+    {
+      "fingerprint": "a16df988bef2fa9b432b262ec757fbf250fe940a27aea4b1387c91b795e4a744",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0265",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "a16df988bef2fa9b432b262ec757fbf250fe940a27aea4b1387c91b795e4a744"
+    },
+    {
+      "fingerprint": "0d981ea758eb41d746011b94b779fbeffda2862911d36b5fa08bbbc3488829b4",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0316",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "0d981ea758eb41d746011b94b779fbeffda2862911d36b5fa08bbbc3488829b4"
+    },
+    {
+      "fingerprint": "dfa39e536f3a97fb0843284bf18c80fe0de1a0d20baf03701a38fd4c93b2b0d2",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0324",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "dfa39e536f3a97fb0843284bf18c80fe0de1a0d20baf03701a38fd4c93b2b0d2"
+    },
+    {
+      "fingerprint": "94e0f418d9978043b2c045f4d6210eb8f2800bd3aecca559511aaa0714623894",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "New duplicate finding from Codex changes: F0400",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": "94e0f418d9978043b2c045f4d6210eb8f2800bd3aecca559511aaa0714623894"
+    },
+    {
+      "fingerprint": "f660617ec5bc841da5122b731a783d1651ec69c68bcc5565a2a88facd1ab8cb0",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "12c03ef65d7ced8807b03df8ef1845386be4f6a0a66ecf4d46701fba99956736",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "61e050c6b09550815480c4be1f262e4ffadb54de5e0d64bfc0b8321adde24986",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "7685f1f9b516a7752f57c3eac33b59c16ee2d04471331109a1b87532f4f8c1cf",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "89b8697987774bd231a616055fff1b263d5a8680bfe3a9facccf1bc067755d15",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "82015f36afb590418276cac13915235e3132f6be1b856dc81b8607eb7ce41619",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "54a133077115697b1ace2620c575439d2a724ac4ca762dace2790ff76705d1c0",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "ff89d3dfb184b75d5a0e979ea46711f3a6f9cd654f5b4218c7517b0b3f68989f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
+    },
+    {
+      "fingerprint": "7c11747d3cc6bfd7cefd245d89bb42bc432f422d63663ba6cd37e1e036de16ea",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "预存 web 模块重复模式，与 scan 修复无关",
+      "owner": "web",
+      "createdAt": "2026-06-30",
+      "expiresOn": "2026-12-30",
+      "evidence": []
     }
   ]
 }

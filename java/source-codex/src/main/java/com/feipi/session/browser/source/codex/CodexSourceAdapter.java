@@ -37,10 +37,13 @@ import java.util.logging.Logger;
  *
  * <pre>{@code
  * {root}/
- *   {day-dir}/
- *     {session-id}/
- *       session.jsonl
- *       threads.sqlite3 (可选)
+ *   sessions/
+ *     {year}/
+ *       {month}/
+ *         {day}/
+ *           rollout-{timestamp}-{uuid}.jsonl
+ *   archived_sessions/
+ *     rollout-{timestamp}-{uuid}.jsonl
  * }</pre>
  *
  * <p>该适配器保证：
@@ -473,7 +476,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
   /**
    * 从会话文件路径中提取会话键。
    *
-   * <p>会话键格式为 {@code {日期目录}/{session-id}}，其中 session-id 为 session 目录名。
+   * <p>新结构（{@code sessions/{year}/{month}/{day}/rollout-*.jsonl}）：使用文件名去掉 {@code .jsonl} 后缀作为会话键。
+   * 归档结构（{@code archived_sessions/rollout-*.jsonl}）：同样使用文件名去掉 {@code .jsonl} 后缀。
+   * 旧结构（{@code {day-dir}/{session-id}/session.jsonl}）：使用 {@code {day-dir}/{session-id}} 作为会话键（向后兼容）。
    *
    * @param rootPath 源根目录
    * @param sessionPath 会话文件路径
@@ -481,14 +486,31 @@ public final class CodexSourceAdapter implements SourceAdapter {
    */
   private static String extractSessionKey(Path rootPath, Path sessionPath) {
     Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
-    // 目录结构为 {日期目录}/{session-id}/session.jsonl，相对路径至少包含三段
     int nameCount = relative.getNameCount();
+    if (nameCount == 0) {
+      return sessionPath.getFileName().toString();
+    }
+
+    String firstDir = relative.getName(0).toString();
+
+    // 新结构：sessions/...
+    if (firstDir.equals(CodexConstants.SESSIONS_DIR)) {
+      String fileName = sessionPath.getFileName().toString();
+      return SourcePathOps.stripSuffix(fileName, CodexConstants.SESSION_FILE_SUFFIX);
+    }
+
+    // 归档结构：archived_sessions/...
+    if (firstDir.equals(CodexConstants.ARCHIVED_SESSION_DIR)) {
+      String fileName = sessionPath.getFileName().toString();
+      return SourcePathOps.stripSuffix(fileName, CodexConstants.SESSION_FILE_SUFFIX);
+    }
+
+    // 旧结构 fallback：{day-dir}/{session-id}/session.jsonl
     if (nameCount >= 3) {
       String dayDir = relative.getName(0).toString();
       String sessionId = relative.getName(1).toString();
       return dayDir + "/" + sessionId;
     }
-    // 回退：使用 session 目录名
     if (nameCount >= 2) {
       return relative.getName(0).toString();
     }
@@ -498,7 +520,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
   /**
    * 从会话文件路径中提取项目键。
    *
-   * <p>项目键为日期目录名（{@code root} 下的直接子目录）。
+   * <p>新结构（{@code sessions/{year}/{month}/{day}/rollout-*.jsonl}）：使用日期路径 {@code sessions/{year}/{month}/{day}} 作为项目键。
+   * 归档结构（{@code archived_sessions/rollout-*.jsonl}）：使用 {@code archived_sessions} 作为项目键。
+   * 旧结构（{@code {day-dir}/{session-id}/session.jsonl}）：使用 {@code {day-dir}} 作为项目键（向后兼容）。
    *
    * @param rootPath 源根目录
    * @param sessionPath 会话文件路径
@@ -507,9 +531,24 @@ public final class CodexSourceAdapter implements SourceAdapter {
   private static String extractProjectKey(Path rootPath, Path sessionPath) {
     Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
     int nameCount = relative.getNameCount();
-    if (nameCount >= 3) {
-      return relative.getName(0).toString();
+    if (nameCount == 0) {
+      return "";
     }
-    return "";
+
+    String firstDir = relative.getName(0).toString();
+
+    // 归档结构：archived_sessions/...
+    if (firstDir.equals(CodexConstants.ARCHIVED_SESSION_DIR)) {
+      return CodexConstants.ARCHIVED_SESSION_DIR;
+    }
+
+    // 新结构：sessions/{year}/{month}/{day}/...
+    if (firstDir.equals(CodexConstants.SESSIONS_DIR) && nameCount >= 4) {
+      return relative.getName(0) + "/" + relative.getName(1) + "/"
+          + relative.getName(2) + "/" + relative.getName(3);
+    }
+
+    // 旧结构 fallback：{day-dir}/...
+    return firstDir;
   }
 }

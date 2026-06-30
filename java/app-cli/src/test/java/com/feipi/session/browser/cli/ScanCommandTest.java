@@ -149,6 +149,46 @@ class ScanCommandTest {
         System.setProperty("user.home", oldHome);
       }
     }
+
+    @Test
+    @DisplayName("full scan 输出中 Total 等于各分项之和（回归：防止 Total 使用 successCount 导致不一致）")
+    void fullScanTotalMatchesSumOfPerSourceCounts() throws Exception {
+      Path indexDir = tempDir.resolve("total-consistency-index");
+      Path fakeHome = tempDir.resolve("fake-home");
+      // 创建空的 .claude/projects 目录，使 Claude source 被发现但无候选项
+      Files.createDirectories(fakeHome.resolve(".claude/projects"));
+
+      String oldHome = System.getProperty("user.home");
+      try {
+        System.setProperty("user.home", fakeHome.toString());
+        CliExecution result = execute("scan", "--full", "--index-dir", indexDir.toString());
+
+        assertThat(result.exitCode()).isZero();
+        String output = result.stdout();
+        // 验证输出包含各分项和 Total
+        assertThat(output).contains("Claude Code:");
+        assertThat(output).contains("Total:");
+        // 提取数值验证一致性
+        int claudeCount = extractCount(output, "Claude Code:");
+        int total = extractCount(output, "Total:");
+        // 空目录：各分项和 Total 都应为 0，且相等
+        assertThat(total).isEqualTo(claudeCount);
+      } finally {
+        System.setProperty("user.home", oldHome);
+      }
+    }
+
+    /** 从 scan 输出中提取指定标签后的数值。 */
+    private static int extractCount(String output, String label) {
+      for (String line : output.lines().toList()) {
+        String trimmed = line.trim();
+        if (trimmed.startsWith(label)) {
+          String numberPart = trimmed.substring(label.length()).trim().replaceAll("[^0-9]", "");
+          return numberPart.isEmpty() ? 0 : Integer.parseInt(numberPart);
+        }
+      }
+      return -1;
+    }
   }
 
   @Nested

@@ -10,11 +10,14 @@ import java.util.Comparator;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Stream;
 
 /**
  * Claude Code 会话发现逻辑。
  *
- * <p>遍历 Claude Code 项目目录结构，发现所有 {@code .jsonl} 会话文件。 发现结果按路径确定性排序：先按项目目录名排序，再按会话文件名排序。
+ * <p>递归遍历 Claude Code 项目目录结构，发现所有 {@code .jsonl} 会话文件。
+ * 支持发现嵌套子目录中的会话，例如 {@code <session-id>/subagents/<agent-name>.jsonl}。
+ * 发现结果按完整路径确定性排序。不跟随符号链接以避免循环。
  *
  * <p>该类是不可变的，线程安全。
  *
@@ -33,8 +36,10 @@ public final class ClaudeDiscovery {
   /**
    * 从根目录发现所有 Claude Code 会话文件。
    *
-   * <p>遍历目录结构：{@code rootPath -> project dirs -> session .jsonl files}。 跳过隐藏目录和文件，非 {@code .jsonl}
-   * 后缀的文件。 每个项目目录最多发现 {@link ClaudeConstants#MAX_SESSIONS_PER_PROJECT} 个会话。
+   * <p>遍历目录结构：{@code rootPath -> project dirs -> session .jsonl files}。
+   * 对每个项目目录执行递归遍历，发现所有层级的 {@code .jsonl} 文件。
+   * 跳过隐藏目录和文件，非 {@code .jsonl} 后缀的文件。不跟随符号链接。
+   * 每个项目目录最多发现 {@link ClaudeConstants#MAX_SESSIONS_PER_PROJECT} 个会话。
    *
    * @param rootPath 源根目录路径（通常为 {@code ~/.claude}）
    * @return 按路径排序的会话文件路径列表
@@ -88,25 +93,41 @@ public final class ClaudeDiscovery {
   }
 
   /**
-   * 列出项目目录中的会话 JSONL 文件，按文件名排序。
+   * 递归列出项目目录中的所有会话 JSONL 文件，按完整路径排序。
+   *
+   * <p>使用 {@link Files#walk} 递归遍历项目目录的任意深度子目录，
+   * 发现所有 {@code .jsonl} 文件（例如 {@code <session-id>/subagents/<agent-name>.jsonl}）。
+   * 跳过隐藏目录、隐藏文件和非普通文件。不跟随符号链接以避免循环。
    *
    * @param projectDir 项目目录
-   * @return 排序后的会话文件列表
+   * @return 按完整路径排序的会话文件列表，截断至 {@link ClaudeConstants#MAX_SESSIONS_PER_PROJECT}
    */
   private static List<Path> listSortedSessions(Path projectDir) {
     List<Path> sessions = new ArrayList<>();
-    try (DirectoryStream<Path> stream =
-        Files.newDirectoryStream(projectDir, "*" + ClaudeConstants.SESSION_FILE_SUFFIX)) {
-      for (Path entry : stream) {
-        if (Files.isRegularFile(entry) && !SourcePathOps.isHidden(entry)) {
-          sessions.add(entry);
-        }
-      }
+    try (Stream<Path> walk = Files.walk(projectDir)) {
+      walk.filter(path -> !path.equals(projectDir))
+          .filter(path -> {
+            if (SourcePathOps.isHidden(path)) {
+              return false;
+            }
+            if (!Files.isRegularFile(path)) {
+              return false;
+            }
+            // 检查路径中是否存在隐藏的祖先目录
+            Path relative = projectDir.relativize(path);
+            for (int i = 0; i < relative.getNameCount() - 1; i++) {
+              if (SourcePathOps.isHidden(projectDir.resolve(relative.subpath(0, i + 1)))) {
+                return false;
+              }
+            }
+            return path.getFileName().toString().endsWith(ClaudeConstants.SESSION_FILE_SUFFIX);
+          })
+          .forEach(sessions::add);
     } catch (IOException e) {
-      LOG.log(Level.FINE, "无法读取项目目录: " + projectDir, e);
+      LOG.log(Level.FINE, "无法递归遍历项目目录: " + projectDir, e);
       return List.of();
     }
-    sessions.sort(Comparator.comparing(p -> p.getFileName().toString()));
+    sessions.sort(Comparator.comparing(Path::toString));
     // 截断到上限
     if (sessions.size() > ClaudeConstants.MAX_SESSIONS_PER_PROJECT) {
       sessions = sessions.subList(0, ClaudeConstants.MAX_SESSIONS_PER_PROJECT);

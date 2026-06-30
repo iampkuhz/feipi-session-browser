@@ -5,6 +5,7 @@
 {% block shell_class %} no-inspector{% endblock %}
 
 {% block head_extra %}
+{% set hide_sidebar_extra = true %}
 <link rel="stylesheet" href="/static/css/glossary.css">
 {% endblock %}
 
@@ -15,6 +16,8 @@
 {% endblock %}
 
 {% block content %}
+
+<div class="glossary-page">
 
 {# 页面头 #}
 <div class="page-head">
@@ -352,6 +355,8 @@
     </table>
     </div>
 </section>
+
+</div>
 
 {% endblock %}
 

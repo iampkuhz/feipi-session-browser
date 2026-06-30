@@ -302,7 +302,7 @@ final class ScanCommand implements Callable<Integer> {
     int claudeCount = getCountForSource(summary, "claude_code");
     int codexCount = getCountForSource(summary, "codex");
     int qoderCount = getCountForSource(summary, "qoder");
-    int total = summary.successCount();
+    int total = sumAllSourceCounts(summary);
 
     System.out.printf("  Claude Code: %d sessions%n", claudeCount);
     System.out.printf("  Codex:       %d sessions%n", codexCount);
@@ -318,7 +318,7 @@ final class ScanCommand implements Callable<Integer> {
     int codexCount = getCountForSource(summary, "codex");
     int qoderCount = getCountForSource(summary, "qoder");
     int skipped = summary.unchangedCount() + summary.skippedCount();
-    int total = summary.successCount();
+    int total = sumAllSourceCounts(summary);
 
     System.out.printf("  Updated Claude: %d sessions%n", claudeCount);
     System.out.printf("  Updated Codex:  %d sessions%n", codexCount);
@@ -343,5 +343,15 @@ final class ScanCommand implements Callable<Integer> {
         .filter(e -> e.getKey().getValue().equals(sourceIdValue))
         .mapToInt(Map.Entry::getValue)
         .sum();
+  }
+
+  /** 对 ScanSummary 所有源的计数求和，确保 Total 与分项一致。 */
+  private static int sumAllSourceCounts(ScanSummary summary) {
+    return summary.perSourceCount().values().stream().mapToInt(Integer::intValue).sum();
+  }
+
+  /** 对 IncrementalScanSummary 所有源的计数求和，确保 Total 与分项一致。 */
+  private static int sumAllSourceCounts(IncrementalScanSummary summary) {
+    return summary.perSourceCount().values().stream().mapToInt(Integer::intValue).sum();
   }
 }

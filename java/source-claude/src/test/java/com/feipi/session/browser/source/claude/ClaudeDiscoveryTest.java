@@ -15,7 +15,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link ClaudeDiscovery} 单元测试。
  *
- * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 单层结构、多项目多会话排序、隐藏文件过滤。
+ * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 单层结构、多项目多会话排序、隐藏文件过滤、
+ * 递归发现嵌套子目录中的会话文件。
  */
 @DisplayName("ClaudeDiscovery 会话发现测试")
 class ClaudeDiscoveryTest {
@@ -143,7 +144,7 @@ class ClaudeDiscoveryTest {
     }
 
     @Test
-    @DisplayName("跳过项目内的子目录")
+    @DisplayName("跳过项目内的子目录（目录名为 .jsonl 结尾也不包含）")
     void skipSubdirectoriesInsideProject() throws IOException {
       Path projects = tempDir.resolve("projects");
       Path projectDir = projects.resolve("my-project");
@@ -154,6 +155,128 @@ class ClaudeDiscoveryTest {
 
       Path subDir = projectDir.resolve("subdir.jsonl");
       Files.createDirectory(subDir);
+
+      List<Path> sessions = ClaudeDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(1);
+      assertThat(sessions.get(0)).isEqualTo(sessionFile);
+    }
+  }
+
+  @Nested
+  @DisplayName("递归发现嵌套会话")
+  class RecursiveDiscovery {
+
+    @Test
+    @DisplayName("发现 subagents 子目录中的嵌套会话文件")
+    void discoversSubagentSessions() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      // 主会话（直接子文件）
+      Path mainSession = projectDir.resolve("session-001.jsonl");
+      Files.writeString(mainSession, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+
+      // subagent 嵌套会话：<session-id>/subagents/<agent-name>.jsonl
+      Path subagentDir = projectDir.resolve("session-001").resolve("subagents");
+      Files.createDirectories(subagentDir);
+      Path subagentSession = subagentDir.resolve("implementer.jsonl");
+      Files.writeString(subagentSession, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = ClaudeDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(2);
+      assertThat(sessions).containsExactlyInAnyOrder(mainSession, subagentSession);
+    }
+
+    @Test
+    @DisplayName("发现多层嵌套的会话文件")
+    void discoversMultiLevelNestedSessions() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      // 直接子文件
+      Path directSession = projectDir.resolve("root-session.jsonl");
+      Files.writeString(directSession, "{}\n", StandardCharsets.UTF_8);
+
+      // 2 层嵌套
+      Path level2Dir = projectDir.resolve("session-a").resolve("subagents");
+      Files.createDirectories(level2Dir);
+      Path level2Session = level2Dir.resolve("agent-x.jsonl");
+      Files.writeString(level2Session, "{}\n", StandardCharsets.UTF_8);
+
+      // 4 层嵌套
+      Path level4Dir = projectDir.resolve("session-b").resolve("subagents")
+          .resolve("task-1").resolve("sub-tasks");
+      Files.createDirectories(level4Dir);
+      Path level4Session = level4Dir.resolve("deep-agent.jsonl");
+      Files.writeString(level4Session, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = ClaudeDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(3);
+      assertThat(sessions).containsExactlyInAnyOrder(directSession, level2Session, level4Session);
+    }
+
+    @Test
+    @DisplayName("跳过嵌套隐藏目录中的会话文件")
+    void skipsNestedHiddenDirectories() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      Path normalSession = projectDir.resolve("visible.jsonl");
+      Files.writeString(normalSession, "{}\n", StandardCharsets.UTF_8);
+
+      // 隐藏目录中的会话不应被发现
+      Path hiddenDir = projectDir.resolve("session-001").resolve(".hidden");
+      Files.createDirectories(hiddenDir);
+      Path hiddenSession = hiddenDir.resolve("secret.jsonl");
+      Files.writeString(hiddenSession, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = ClaudeDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(1);
+      assertThat(sessions.get(0)).isEqualTo(normalSession);
+    }
+
+    @Test
+    @DisplayName("嵌套会话按完整路径确定性排序")
+    void nestedSessionsSortedByFullPath() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      Path zSession = projectDir.resolve("z-root.jsonl");
+      Files.writeString(zSession, "{}\n", StandardCharsets.UTF_8);
+
+      Path aSubDir = projectDir.resolve("aaa").resolve("subagents");
+      Files.createDirectories(aSubDir);
+      Path aNested = aSubDir.resolve("agent.jsonl");
+      Files.writeString(aNested, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = ClaudeDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(2);
+      List<String> sessionStrs = sessions.stream().map(Path::toString).toList();
+      assertThat(sessionStrs).isSorted();
+    }
+
+    @Test
+    @DisplayName("空子目录不影响发现结果")
+    void emptySubdirectoriesDoNotAffectResults() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      Path sessionFile = projectDir.resolve("session.jsonl");
+      Files.writeString(sessionFile, "{}\n", StandardCharsets.UTF_8);
+
+      // 创建多个空子目录
+      Files.createDirectories(projectDir.resolve("empty-dir-1"));
+      Files.createDirectories(projectDir.resolve("empty-dir-2").resolve("nested-empty"));
 
       List<Path> sessions = ClaudeDiscovery.discoverSessions(tempDir);
 

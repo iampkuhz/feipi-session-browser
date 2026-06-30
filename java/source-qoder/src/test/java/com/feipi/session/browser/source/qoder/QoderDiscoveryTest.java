@@ -15,7 +15,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link QoderDiscovery} 单元测试。
  *
- * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 projects/ 结构、cache/projects/ 结构、 多项目多会话排序和隐藏文件过滤。
+ * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 projects/ 结构、cache/projects/ 结构、
+ * 多项目多会话排序、隐藏文件过滤、递归发现嵌套子目录中的会话文件。
  */
 @DisplayName("QoderDiscovery 会话发现测试")
 class QoderDiscoveryTest {
@@ -233,6 +234,143 @@ class QoderDiscoveryTest {
       // 按路径字母序，cache/ 在 projects/ 之前
       assertThat(sessions.get(0)).isEqualTo(cacheSession);
       assertThat(sessions.get(1)).isEqualTo(mainSession);
+    }
+  }
+
+  @Nested
+  @DisplayName("递归发现嵌套会话")
+  class RecursiveDiscovery {
+
+    @Test
+    @DisplayName("发现 cache/projects 多层嵌套的会话文件")
+    void discoversDeepNestedCacheSessions() throws IOException {
+      // 模拟真实 Qoder 缓存目录结构，包含多层嵌套的项目键、子目录、对话历史和标识符
+      Path cacheProjects = tempDir.resolve("cache").resolve("projects");
+      Path projectDir = cacheProjects.resolve("my-project");
+      Path nestedDir = projectDir.resolve("sub-dir").resolve("conversation-history")
+          .resolve("conv-001");
+      Files.createDirectories(nestedDir);
+      Path deepSession = nestedDir.resolve("conv-001.jsonl");
+      Files.writeString(deepSession, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = QoderDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(1);
+      assertThat(sessions.get(0)).isEqualTo(deepSession);
+    }
+
+    @Test
+    @DisplayName("同时发现直接子文件和深层嵌套文件")
+    void discoversBothDirectAndNestedSessions() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      // 直接子文件
+      Path directSession = projectDir.resolve("main-session.jsonl");
+      Files.writeString(directSession, "{}\n", StandardCharsets.UTF_8);
+
+      // 嵌套文件
+      Path nestedDir = projectDir.resolve("sub").resolve("deep");
+      Files.createDirectories(nestedDir);
+      Path nestedSession = nestedDir.resolve("nested.jsonl");
+      Files.writeString(nestedSession, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = QoderDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(2);
+      assertThat(sessions).containsExactlyInAnyOrder(directSession, nestedSession);
+    }
+
+    @Test
+    @DisplayName("跳过嵌套隐藏目录中的会话文件")
+    void skipsNestedHiddenDirectories() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      Path normalSession = projectDir.resolve("visible.jsonl");
+      Files.writeString(normalSession, "{}\n", StandardCharsets.UTF_8);
+
+      // 隐藏目录中的会话
+      Path hiddenDir = projectDir.resolve("sub").resolve(".hidden");
+      Files.createDirectories(hiddenDir);
+      Path hiddenSession = hiddenDir.resolve("secret.jsonl");
+      Files.writeString(hiddenSession, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = QoderDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(1);
+      assertThat(sessions.get(0)).isEqualTo(normalSession);
+    }
+
+    @Test
+    @DisplayName("嵌套会话按完整路径确定性排序")
+    void nestedSessionsSortedByFullPath() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      Path zSession = projectDir.resolve("z-root.jsonl");
+      Files.writeString(zSession, "{}\n", StandardCharsets.UTF_8);
+
+      Path aNestedDir = projectDir.resolve("aaa").resolve("sub");
+      Files.createDirectories(aNestedDir);
+      Path aNested = aNestedDir.resolve("agent.jsonl");
+      Files.writeString(aNested, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = QoderDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(2);
+      List<String> sessionStrs = sessions.stream().map(Path::toString).toList();
+      assertThat(sessionStrs).isSorted();
+    }
+
+    @Test
+    @DisplayName("空子目录不影响发现结果")
+    void emptySubdirectoriesDoNotAffectResults() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("my-project");
+      Files.createDirectories(projectDir);
+
+      Path sessionFile = projectDir.resolve("session.jsonl");
+      Files.writeString(sessionFile, "{}\n", StandardCharsets.UTF_8);
+
+      // 创建多个空子目录
+      Files.createDirectories(projectDir.resolve("empty-dir-1"));
+      Files.createDirectories(projectDir.resolve("empty-dir-2").resolve("nested-empty"));
+
+      List<Path> sessions = QoderDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(1);
+      assertThat(sessions.get(0)).isEqualTo(sessionFile);
+    }
+
+    @Test
+    @DisplayName("cache 和 projects 中的嵌套文件都能被发现")
+    void nestedFilesInBothCacheAndProjects() throws IOException {
+      // projects/ 嵌套
+      Path projects = tempDir.resolve("projects");
+      Path projDir = projects.resolve("proj");
+      Path projNested = projDir.resolve("sub").resolve("deep");
+      Files.createDirectories(projNested);
+      Path projSession = projNested.resolve("proj-session.jsonl");
+      Files.writeString(projSession, "{}\n", StandardCharsets.UTF_8);
+
+      // cache/projects/ 嵌套
+      Path cacheProjects = tempDir.resolve("cache").resolve("projects");
+      Path cacheDir = cacheProjects.resolve("cache-proj");
+      Path cacheNested = cacheDir.resolve("a").resolve("b").resolve("c");
+      Files.createDirectories(cacheNested);
+      Path cacheSession = cacheNested.resolve("cache-session.jsonl");
+      Files.writeString(cacheSession, "{}\n", StandardCharsets.UTF_8);
+
+      List<Path> sessions = QoderDiscovery.discoverSessions(tempDir);
+
+      assertThat(sessions).hasSize(2);
+      assertThat(sessions).containsExactlyInAnyOrder(projSession, cacheSession);
+      List<String> sessionStrs = sessions.stream().map(Path::toString).toList();
+      assertThat(sessionStrs).isSorted();
     }
   }
 }

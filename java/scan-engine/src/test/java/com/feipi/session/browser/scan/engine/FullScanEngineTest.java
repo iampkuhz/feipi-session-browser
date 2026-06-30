@@ -192,7 +192,77 @@ class FullScanEngineTest {
   }
 
   @Test
-  void scanLogCountsReflectPerSourceCounts() throws Exception {
+  void perSourceCountSumNeverExceedsSuccessCount() throws Exception {
+    Path root = tempDir.resolve("per-source-invariant");
+    Files.createDirectories(root);
+
+    Candidate c1 = makeCandidate("c1", "session-1");
+    Candidate c2 = makeCandidate("c2", "session-2");
+
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(new ScanConfig.SourceEntry(new FatalAdapter(List.of(c1, c2)), root)),
+            tempDir.resolve("artifacts"));
+
+    FullScanEngine engine = new FullScanEngine();
+    ScanSummary summary = engine.scan(conn, config);
+
+    // 核心不变量：perSourceCount 值的总和 ≤ successCount
+    // perSourceCount 只记录成功处理数，不应超过 totalCandidates 或 successCount
+    int perSourceSum = summary.perSourceCount().values().stream().mapToInt(Integer::intValue).sum();
+    assertThat(perSourceSum).isEqualTo(summary.successCount());
+    // 全失败时 perSourceCount 应为空
+    assertThat(perSourceSum).isZero();
+    assertThat(summary.perSourceCount()).isEmpty();
+  }
+
+  @Test
+  void perSourceCountIsEmptyWhenAllCandidatesFail() throws Exception {
+    Path root = tempDir.resolve("per-source-all-fail");
+    Files.createDirectories(root);
+
+    Candidate c1 = makeCandidate("c1", "session-1");
+    Candidate c2 = makeCandidate("c2", "session-2");
+
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(new ScanConfig.SourceEntry(new FatalAdapter(List.of(c1, c2)), root)),
+            tempDir.resolve("artifacts"));
+
+    FullScanEngine engine = new FullScanEngine();
+    ScanSummary summary = engine.scan(conn, config);
+
+    // 所有候选都失败，perSourceCount 应为空
+    assertThat(summary.totalCandidates()).isEqualTo(2);
+    assertThat(summary.successCount()).isZero();
+    assertThat(summary.errorCount()).isEqualTo(2);
+    assertThat(summary.perSourceCount()).isEmpty();
+  }
+
+  @Test
+  void perSourceCountIsEmptyWhenAllCandidatesSkipped() throws Exception {
+    Path root = tempDir.resolve("per-source-all-skip");
+    Files.createDirectories(root);
+
+    Candidate c1 = makeCandidate("c1", "session-1");
+
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(new ScanConfig.SourceEntry(new SkippedAdapter(List.of(c1)), root)),
+            tempDir.resolve("artifacts"));
+
+    FullScanEngine engine = new FullScanEngine();
+    ScanSummary summary = engine.scan(conn, config);
+
+    // 所有候选被跳过，perSourceCount 应为空
+    assertThat(summary.totalCandidates()).isEqualTo(1);
+    assertThat(summary.successCount()).isZero();
+    assertThat(summary.skippedCount()).isEqualTo(1);
+    assertThat(summary.perSourceCount()).isEmpty();
+  }
+
+  @Test
+  void scanLogCountsReflectPerSourceSuccessCounts() throws Exception {
     Path root = tempDir.resolve("counted");
     Files.createDirectories(root);
 
@@ -207,12 +277,12 @@ class FullScanEngineTest {
     FullScanEngine engine = new FullScanEngine();
     engine.scan(conn, config);
 
-    // 验证 scan_log 的 per-source 计数
+    // 验证 scan_log 的 per-source 计数只记录成功数，fatal 候选不计入
     try (Statement stmt = conn.createStatement();
         ResultSet rs =
             stmt.executeQuery("SELECT claude_count, codex_count, qoder_count FROM scan_log")) {
       assertThat(rs.next()).isTrue();
-      assertThat(rs.getInt("claude_count")).isEqualTo(2);
+      assertThat(rs.getInt("claude_count")).isZero();
       assertThat(rs.getInt("codex_count")).isZero();
       assertThat(rs.getInt("qoder_count")).isZero();
     }

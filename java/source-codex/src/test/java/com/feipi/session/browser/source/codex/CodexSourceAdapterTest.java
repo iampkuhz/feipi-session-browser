@@ -94,32 +94,87 @@ class CodexSourceAdapterTest {
     @Test
     @DisplayName("有会话时返回按路径排序的候选项")
     void withSessionsReturnsSortedCandidates() throws IOException {
-      // 创建 day-dir/session-dir/session.jsonl 结构
-      Path dayB = tempDir.resolve("2024-02-01");
-      Path dayA = tempDir.resolve("2024-01-15");
+      // 创建 sessions/{year}/{month}/{day}/rollout-*.jsonl 结构
+      Path dayB =
+          tempDir
+              .resolve(CodexConstants.SESSIONS_DIR)
+              .resolve("2026")
+              .resolve("06")
+              .resolve("13");
+      Path dayA =
+          tempDir
+              .resolve(CodexConstants.SESSIONS_DIR)
+              .resolve("2026")
+              .resolve("06")
+              .resolve("12");
 
-      Path sessionB = dayB.resolve("session-beta");
-      Path sessionA = dayA.resolve("session-alpha");
-      Files.createDirectories(sessionB);
-      Files.createDirectories(sessionA);
+      Files.createDirectories(dayB);
+      Files.createDirectories(dayA);
 
       Files.writeString(
-          sessionB.resolve("session.jsonl"), "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+          dayB.resolve("rollout-200-bbb.jsonl"),
+          "{\"type\":\"assistant\"}\n",
+          StandardCharsets.UTF_8);
       Files.writeString(
-          sessionA.resolve("session.jsonl"), "{\"type\":\"user\"}\n", StandardCharsets.UTF_8);
+          dayA.resolve("rollout-100-aaa.jsonl"),
+          "{\"type\":\"user\"}\n",
+          StandardCharsets.UTF_8);
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
 
       assertThat(stream.size()).isEqualTo(2);
       List<Candidate> items = stream.orderedItems();
-      // 按路径排序，2024-01-15 在前
-      assertThat(items.get(0).sessionKey()).startsWith("2024-01-15/");
-      assertThat(items.get(1).sessionKey()).startsWith("2024-02-01/");
+      // 按路径排序，2026/06/12 在前
+      assertThat(items.get(0).sessionKey()).isEqualTo("rollout-100-aaa");
+      assertThat(items.get(1).sessionKey()).isEqualTo("rollout-200-bbb");
     }
 
     @Test
-    @DisplayName("候选项包含正确的 sessionKey 和 projectKey")
-    void candidateHasCorrectMetadata() throws IOException {
+    @DisplayName("新结构候选项包含正确的 sessionKey 和 projectKey")
+    void newStructureCandidateHasCorrectMetadata() throws IOException {
+      Path dayDir =
+          tempDir
+              .resolve(CodexConstants.SESSIONS_DIR)
+              .resolve("2026")
+              .resolve("06")
+              .resolve("12");
+      Files.createDirectories(dayDir);
+      Files.writeString(
+          dayDir.resolve("rollout-20260612-abc-123.jsonl"),
+          "{\"type\":\"assistant\"}\n",
+          StandardCharsets.UTF_8);
+
+      BoundedStream<Candidate> stream = adapter.discover(tempDir);
+
+      assertThat(stream.size()).isEqualTo(1);
+      Candidate candidate = stream.orderedItems().get(0);
+      assertThat(candidate.sessionKey()).isEqualTo("rollout-20260612-abc-123");
+      assertThat(candidate.projectKey()).isEqualTo("sessions/2026/06/12");
+      assertThat(candidate.sourceId()).isEqualTo(SourceId.CODEX);
+    }
+
+    @Test
+    @DisplayName("archived_sessions 候选项包含正确的 sessionKey 和 projectKey")
+    void archivedCandidateHasCorrectMetadata() throws IOException {
+      Path archivedDir = tempDir.resolve(CodexConstants.ARCHIVED_SESSION_DIR);
+      Files.createDirectories(archivedDir);
+      Files.writeString(
+          archivedDir.resolve("rollout-20260101-old-uuid.jsonl"),
+          "{\"type\":\"assistant\"}\n",
+          StandardCharsets.UTF_8);
+
+      BoundedStream<Candidate> stream = adapter.discover(tempDir);
+
+      assertThat(stream.size()).isEqualTo(1);
+      Candidate candidate = stream.orderedItems().get(0);
+      assertThat(candidate.sessionKey()).isEqualTo("rollout-20260101-old-uuid");
+      assertThat(candidate.projectKey()).isEqualTo("archived_sessions");
+      assertThat(candidate.sourceId()).isEqualTo(SourceId.CODEX);
+    }
+
+    @Test
+    @DisplayName("旧结构 fallback 候选项包含正确的 sessionKey 和 projectKey")
+    void oldStructureFallbackCandidateMetadata() throws IOException {
       Path dayDir = tempDir.resolve("2024-03-10");
       Path sessionDir = dayDir.resolve("abc-123");
       Files.createDirectories(sessionDir);
