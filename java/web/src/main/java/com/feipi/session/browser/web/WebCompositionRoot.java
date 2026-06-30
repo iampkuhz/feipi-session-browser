@@ -15,6 +15,7 @@ import com.feipi.session.browser.web.page.SessionsPage;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.Javalin;
 import io.javalin.http.HttpStatus;
+import io.javalin.http.staticfiles.Location;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -93,8 +94,13 @@ public final class WebCompositionRoot {
     if (config.staticPath() != null) {
       javalinConfig.staticFiles.add(
           staticConfig -> {
-            staticConfig.hostedPath = "/";
             staticConfig.directory = config.staticPath();
+            if ("/static".equals(config.staticPath())) {
+              staticConfig.hostedPath = "/static";
+              staticConfig.location = Location.CLASSPATH;
+            } else {
+              staticConfig.hostedPath = "/";
+            }
           });
     }
   }

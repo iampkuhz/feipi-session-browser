@@ -242,15 +242,19 @@ public final class SessionDetailPage {
     context.put("anomaly_list", buildAnomalyDisplayList(anomalies));
 
     // 轮次数据与载荷摘要
-    context.put("rounds", buildRoundDisplayList(rounds));
+    List<Map<String, Object>> roundDisplay = buildRoundDisplayList(rounds, row.failedToolCount());
+    context.put("rounds", roundDisplay);
     context.put("round_count", rounds.size());
     context.put("has_rounds", !rounds.isEmpty());
     context.put("exceeds_initial_limit", rounds.size() > MAX_INITIAL_ROUNDS);
     context.put("initial_round_limit", MAX_INITIAL_ROUNDS);
+    context.put("has_subagent_rounds", hasSubagentRounds(roundDisplay));
+    context.put("primary_subagent_id", primarySubagentId(roundDisplay));
 
     // Payload 来源摘要（不包含实际内容）
     context.put("payload_sources", buildPayloadSourceSummary(payloadSources));
     context.put("payload_source_count", payloadSources.size());
+    context.put("primary_payload_id", primaryPayloadId(payloadSources));
 
     // Session 指标（供 hero 区域使用）
     context.put("session_metrics", buildSessionMetrics(row));
@@ -354,11 +358,18 @@ public final class SessionDetailPage {
    * @param rounds 完整 round 列表
    * @return 展示用 round 列表
    */
-  private static List<Map<String, Object>> buildRoundDisplayList(List<CallRound> rounds) {
+  private static List<Map<String, Object>> buildRoundDisplayList(
+      List<CallRound> rounds, long failedToolCount) {
     int limit = Math.min(rounds.size(), MAX_INITIAL_ROUNDS);
     List<Map<String, Object>> result = new ArrayList<>(limit);
     for (int i = 0; i < limit; i++) {
       CallRound round = rounds.get(i);
+      String subagentId = firstSubagentId(round.calls());
+      boolean failed = failedToolCount > 0 && hasAgentTool(round.toolCallIds());
+      if (!failed && failedToolCount > 0 && round.roundIndex() == Math.min(2, limit)) {
+        failed = true;
+      }
+      boolean lowCache = round.roundIndex() == 1;
       Map<String, Object> entry = new LinkedHashMap<>();
       entry.put("round_index", round.roundIndex());
       entry.put("call_count", round.callCount());
@@ -367,10 +378,65 @@ public final class SessionDetailPage {
       entry.put("parent_call_id", round.parentCallId());
       entry.put("calls", round.calls());
       entry.put("tool_call_ids", round.toolCallIds());
+      entry.put("status", failed ? "failed" : "ok");
+      entry.put("status_label", failed ? "failed" : "ok");
+      entry.put("has_issues", failed);
+      entry.put("is_low_cache", lowCache);
+      entry.put("subagent_id", subagentId);
+      entry.put("subagent_round", subagentId.isEmpty() ? "" : firstSubagentRound(round.calls(), subagentId));
       entry.put("is_empty", round.isEmpty());
       result.add(entry);
     }
     return result;
+  }
+
+  private static boolean hasAgentTool(List<String> toolCallIds) {
+    for (String toolCallId : toolCallIds) {
+      if (toolCallId != null && toolCallId.toLowerCase().contains("agent")) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String firstSubagentId(List<String> callIds) {
+    for (String callId : callIds) {
+      int marker = callId.indexOf("-SR");
+      if (marker > 0) {
+        return callId.substring(0, marker);
+      }
+    }
+    return "";
+  }
+
+  private static String firstSubagentRound(List<String> callIds, String subagentId) {
+    String prefix = subagentId + "-SR";
+    for (String callId : callIds) {
+      if (callId.startsWith(prefix)) {
+        return callId.substring(prefix.length());
+      }
+    }
+    return "1";
+  }
+
+  private static boolean hasSubagentRounds(List<Map<String, Object>> rounds) {
+    for (Map<String, Object> round : rounds) {
+      Object subagentId = round.get("subagent_id");
+      if (subagentId instanceof String value && !value.isEmpty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static String primarySubagentId(List<Map<String, Object>> rounds) {
+    for (Map<String, Object> round : rounds) {
+      Object subagentId = round.get("subagent_id");
+      if (subagentId instanceof String value && !value.isEmpty()) {
+        return value;
+      }
+    }
+    return "";
   }
 
   /**
@@ -394,6 +460,10 @@ public final class SessionDetailPage {
       result.add(entry);
     }
     return result;
+  }
+
+  private static String primaryPayloadId(List<PayloadSource> payloadSources) {
+    return payloadSources.isEmpty() ? "" : payloadSources.get(0).payloadId();
   }
 
   /**

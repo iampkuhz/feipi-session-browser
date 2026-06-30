@@ -256,6 +256,7 @@
     syncPageSizeHidden();
     bindFormSubmit();
     bindFilterClear();
+    bindSortAndPaginationClicks();
     bindPagination();
     bindRealtimeSearch();
     bindSelectAutoSubmit();
@@ -318,6 +319,50 @@
   }
 
   // ── Event bindings ──────────────────────────────────────────────────────
+
+  function bindSortAndPaginationClicks() {
+    document.addEventListener('click', function (e) {
+      var sortBtn = closest(e.target, '.c-data-table__sort[data-action="sort"]');
+      if (sortBtn) {
+        e.preventDefault();
+        handleSort(sortBtn);
+        return;
+      }
+
+      var pageBtn = closest(e.target, '.pagination [data-action="prev-page"], .pagination [data-action="next-page"]');
+      if (!pageBtn) return;
+      e.preventDefault();
+
+      var pagination = closest(pageBtn, '.pagination');
+      var input = pagination ? pagination.querySelector('input[data-action="page-input"]') : null;
+      var current = input ? parseInt(input.value, 10) : 1;
+      if (isNaN(current)) current = 1;
+      var delta = pageBtn.getAttribute('data-action') === 'next-page' ? 1 : -1;
+      var nextPage = current + delta;
+      var totalPages = input ? parseInt(input.getAttribute('data-total-pages'), 10) : NaN;
+      if (nextPage < 1) return;
+      if (!isNaN(totalPages) && nextPage > totalPages) return;
+
+      var params = getFilterParams();
+      params.set('page', String(nextPage));
+      fetchPage(paramsToObject(params));
+    });
+
+    document.addEventListener('keydown', function (e) {
+      var input = e.target;
+      if (!input || input.getAttribute('data-action') !== 'page-input') return;
+      if (e.key !== 'Enter') return;
+      e.preventDefault();
+      var page = parseInt(input.value, 10);
+      if (isNaN(page) || page < 1) page = 1;
+      var totalPages = parseInt(input.getAttribute('data-total-pages'), 10);
+      if (!isNaN(totalPages) && page > totalPages) page = totalPages;
+      input.value = String(page);
+      var params = getFilterParams();
+      params.set('page', String(page));
+      fetchPage(paramsToObject(params));
+    });
+  }
 
   /**
    * Bind filter form submit handler.
@@ -412,20 +457,20 @@
 
     // Rows may be empty when filter matches nothing (empty-state row).
     // Only fall back to full navigation if the tbody element itself is missing.
-    tbody.innerHTML = newTbody.innerHTML;
+    replaceChildrenFrom(tbody, newTbody);
 
     // Replace pagination — page input value comes from server response
     var newPagination = ajaxResponse.querySelector('#ajax-pagination');
     if (newPagination) {
       var oldPagination = document.getElementById('ajax-pagination');
       if (oldPagination) {
-        oldPagination.innerHTML = newPagination.innerHTML;
+        replaceChildrenFrom(oldPagination, newPagination);
       } else {
         var tableCard = tbody.closest('.table-card') || tbody.closest('.card');
         if (tableCard) {
           var paginationDiv = document.createElement('div');
           paginationDiv.id = 'ajax-pagination';
-          paginationDiv.innerHTML = newPagination.innerHTML;
+          replaceChildrenFrom(paginationDiv, newPagination);
           tableCard.appendChild(paginationDiv);
         }
       }
@@ -455,6 +500,23 @@
     setupTokenTooltips();
   }
 
+  function replaceChildrenFrom(target, source) {
+    var imported = Array.prototype.map.call(source.childNodes, function (node) {
+      return document.importNode(node, true);
+    });
+    target.replaceChildren.apply(target, imported);
+  }
+
+  function showLoadingRow(tbody) {
+    var row = document.createElement('tr');
+    var cell = document.createElement('td');
+    cell.colSpan = 13;
+    cell.className = 'sessions-loading-cell';
+    cell.textContent = 'Loading...';
+    row.appendChild(cell);
+    tbody.replaceChildren(row);
+  }
+
   /**
    * Fetch a page via AJAX and replace table body + pagination.
    * Uses X-Requested-With header to trigger partial response from server.
@@ -479,7 +541,7 @@
     }
 
     // Show loading state
-    tbody.innerHTML = '<tr><td colspan="13" style="text-align:center;padding:24px;color:var(--text-subtle);">Loading...</td></tr>';
+    showLoadingRow(tbody);
 
     fetch(url, {
       headers: { 'X-Requested-With': 'XMLHttpRequest' }

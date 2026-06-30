@@ -12,7 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
-import importlib
+import hashlib
 import json
 import os
 import re
@@ -445,12 +445,16 @@ def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
         if not projects_dir.is_dir():
             conn.close()
             return f'fixture projects directory missing: {projects_dir}'
+        artifact_dir = index_dir / 'artifacts' / 'normalized-sessions'
+        artifact_dir.mkdir(parents=True, exist_ok=True)
         session_count = 0
         for project_dir in sorted(projects_dir.iterdir()):
             if not project_dir.is_dir() or project_dir.name.startswith('.'):
                 continue
             for jsonl_file in sorted(project_dir.glob('*.jsonl')):
-                session_count += _insert_fixture_session(conn, data_dir, project_dir, jsonl_file)
+                session_count += _insert_fixture_session(
+                    conn, data_dir, project_dir, jsonl_file, artifact_dir
+                )
         conn.commit()
         conn.close()
         if session_count == 0:
@@ -538,6 +542,7 @@ def _insert_fixture_session(
     data_dir: Path,
     project_dir: Path,
     jsonl_file: Path,
+    artifact_dir: Path,
 ) -> int:
     """Parse a single fixture JSONL file and insert a session row.
 
@@ -576,6 +581,7 @@ def _insert_fixture_session(
     user_count = sum(1 for e in events if e.get('type') == 'user')
     assistant_count = sum(1 for e in events if e.get('type') == 'assistant')
     tool_calls = 0
+    failed_tools = 0
     output_tokens = 0
     fresh_input_tokens = 0
     cache_read_tokens = 0
@@ -583,23 +589,41 @@ def _insert_fixture_session(
     total_tokens = 0
     model = ''
     for event in events:
-        if event.get('type') != 'assistant':
-            continue
         msg = event.get('message', {})
-        if not model:
-            model = msg.get('model', '')
-        usage = msg.get('usage', {})
-        output_tokens += usage.get('output_tokens', 0)
-        fresh_input_tokens += usage.get('input_tokens', 0)
-        cache_read_tokens += usage.get('cache_read_input_tokens', 0)
-        cache_write_tokens += usage.get('cache_creation_input_tokens', 0)
-        total_tokens += usage.get('output_tokens', 0) + usage.get('input_tokens', 0)
         content = msg.get('content', [])
-        if isinstance(content, list):
-            tool_calls += sum(1 for block in content if isinstance(block, dict) and block.get('type') == 'tool_use')
+        if event.get('type') == 'assistant':
+            if not model:
+                model = msg.get('model', '')
+            usage = msg.get('usage', {})
+            output_tokens += usage.get('output_tokens', 0)
+            fresh_input_tokens += usage.get('input_tokens', 0)
+            cache_read_tokens += usage.get('cache_read_input_tokens', 0)
+            cache_write_tokens += usage.get('cache_creation_input_tokens', 0)
+            total_tokens += (
+                usage.get('output_tokens', 0)
+                + usage.get('input_tokens', 0)
+                + usage.get('cache_read_input_tokens', 0)
+                + usage.get('cache_creation_input_tokens', 0)
+            )
+            if isinstance(content, list):
+                tool_calls += sum(
+                    1
+                    for block in content
+                    if isinstance(block, dict) and block.get('type') == 'tool_use'
+                )
+        elif event.get('type') == 'user' and isinstance(content, list):
+            failed_tools += sum(
+                1
+                for block in content
+                if isinstance(block, dict)
+                and block.get('type') == 'tool_result'
+                and block.get('is_error') is True
+            )
 
     file_stat = jsonl_file.stat()
     now = time.time()
+    subagent_files = sorted((jsonl_file.with_suffix('') / 'subagents').glob('*.jsonl'))
+    subagent_count = len(subagent_files)
 
     conn.execute(
         """INSERT OR REPLACE INTO sessions (
@@ -635,14 +659,275 @@ def _insert_fixture_session(
             cache_read_tokens,
             cache_write_tokens,
             total_tokens,
-            0,
-            0,
+            failed_tools,
+            subagent_count,
             now,
             file_stat.st_mtime,
             str(jsonl_file.resolve()),
         ),
     )
+    _insert_fixture_artifact(conn, artifact_dir, jsonl_file, events, session_key, file_stat, now)
     return 1
+
+
+def _insert_fixture_artifact(
+    conn: sqlite3.Connection,
+    artifact_dir: Path,
+    jsonl_file: Path,
+    events: list[dict],
+    session_key: str,
+    file_stat: os.stat_result,
+    now: float,
+) -> None:
+    """Write and associate a deterministic normalized artifact for fixture sessions."""
+    artifact = _build_fixture_normalized_artifact(jsonl_file, events)
+    payload = json.dumps(artifact, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
+    content_hash = hashlib.sha256(payload).hexdigest()
+    artifact_path = artifact_dir / f'{content_hash}.json'
+    artifact_path.write_bytes(payload)
+    conn.execute(
+        """INSERT OR REPLACE INTO session_artifacts (
+            session_key, artifact_type, path, schema_version, source_path,
+            source_mtime, size_bytes, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            session_key,
+            'normalized',
+            str(artifact_path.resolve()),
+            artifact['schemaVersion'],
+            str(jsonl_file.resolve()),
+            file_stat.st_mtime,
+            artifact_path.stat().st_size,
+            now,
+            now,
+        ),
+    )
+
+
+def _build_fixture_normalized_artifact(jsonl_file: Path, events: list[dict]) -> dict:
+    """Build the subset of normalized artifact fields consumed by Java detail pages."""
+    calls: list[dict] = []
+    tool_executions: list[dict] = []
+    tool_declared_by: dict[str, str] = {}
+    pending_results: list[dict] = []
+    main_call_index = 0
+
+    def append_tool_executions_for_call(call_id: str) -> None:
+        nonlocal pending_results
+        remaining = []
+        for result in pending_results:
+            tool_id = result.get('tool_call_id') or result.get('tool_use_id') or ''
+            declared_by = tool_declared_by.get(tool_id, '')
+            if declared_by and call_id:
+                tool_executions.append(
+                    {
+                        'toolCallId': tool_id,
+                        'name': result.get('name') or _tool_name_from_id(tool_id),
+                        'scope': 'main',
+                        'declaredByCallId': declared_by,
+                        'resultConsumedByCallId': call_id,
+                        'status': 'failed' if result.get('is_error') is True else '',
+                        'exitCode': 1 if result.get('is_error') is True else None,
+                        'durationMs': 0,
+                        'subagentId': _subagent_id_for_tool(jsonl_file, tool_id),
+                    }
+                )
+            else:
+                remaining.append(result)
+        pending_results = remaining
+
+    for event in events:
+        msg = event.get('message', {})
+        content = msg.get('content', [])
+        if event.get('type') == 'user' and isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get('type') == 'tool_result':
+                    pending_results.append(block)
+            continue
+        if event.get('type') != 'assistant':
+            continue
+
+        main_call_index += 1
+        call_id = f'C{main_call_index}'
+        append_tool_executions_for_call(call_id)
+        tool_ids = []
+        if isinstance(content, list):
+            for block in content:
+                if isinstance(block, dict) and block.get('type') == 'tool_use':
+                    tool_id = str(block.get('id') or f'tool-{main_call_index}-{len(tool_ids) + 1}')
+                    tool_ids.append(tool_id)
+                    tool_declared_by[tool_id] = call_id
+        calls.append(
+            _fixture_call(
+                call_id=call_id,
+                call_index=main_call_index,
+                scope='main',
+                parent_call_id='',
+                parent_tool_call_id='',
+                model=msg.get('model', ''),
+                timestamp=event.get('timestamp', ''),
+                usage=msg.get('usage', {}),
+                tool_call_ids=tool_ids,
+            )
+        )
+
+    # Tool results without a later assistant response still represent executions.
+    for result in pending_results:
+        tool_id = result.get('tool_call_id') or result.get('tool_use_id') or ''
+        declared_by = tool_declared_by.get(tool_id, '')
+        if declared_by:
+            tool_executions.append(
+                {
+                    'toolCallId': tool_id,
+                    'name': result.get('name') or _tool_name_from_id(tool_id),
+                    'scope': 'main',
+                    'declaredByCallId': declared_by,
+                    'resultConsumedByCallId': '',
+                    'status': 'failed' if result.get('is_error') is True else '',
+                    'exitCode': 1 if result.get('is_error') is True else None,
+                    'durationMs': 0,
+                    'subagentId': _subagent_id_for_tool(jsonl_file, tool_id),
+                }
+            )
+
+    calls.extend(_build_subagent_calls(jsonl_file, tool_declared_by, len(calls)))
+
+    return {
+        'schemaVersion': 'session-detail.normalized.v3',
+        'agent': 'claude_code',
+        'sourceFiles': [
+            {
+                'role': 'transcript',
+                'path': str(jsonl_file.resolve()),
+                'subagentId': None,
+                'parentToolUseId': None,
+            }
+        ],
+        'session': {
+            'agent': 'claude_code',
+            'session_key': f'claude_code:{jsonl_file.stem}',
+            'session_id': jsonl_file.stem,
+            'source': 'fixture',
+        },
+        'calls': calls,
+        'toolExecutions': [
+            {k: v for k, v in execution.items() if v is not None}
+            for execution in tool_executions
+            if execution.get('toolCallId')
+        ],
+        'diagnostics': [],
+        'sourceUnitCatalog': {},
+        'sourceUnitSequences': {},
+    }
+
+
+def _fixture_call(
+    *,
+    call_id: str,
+    call_index: int,
+    scope: str,
+    parent_call_id: str,
+    parent_tool_call_id: str,
+    model: str,
+    timestamp: str,
+    usage: dict,
+    tool_call_ids: list[str],
+) -> dict:
+    fresh = int(usage.get('input_tokens') or 0)
+    cache_read = int(usage.get('cache_read_input_tokens') or 0)
+    cache_write = int(usage.get('cache_creation_input_tokens') or 0)
+    output = int(usage.get('output_tokens') or 0)
+    total = fresh + cache_read + cache_write + output
+    return {
+        'callId': call_id,
+        'callIndex': call_index,
+        'callKey': f'C{call_index}',
+        'scope': scope,
+        'parentCallId': parent_call_id,
+        'parentToolCallId': parent_tool_call_id,
+        'turnId': '',
+        'model': model or '',
+        'timestamp': timestamp or '',
+        'usage': {
+            'fresh': fresh,
+            'cacheRead': cache_read,
+            'cacheWrite': cache_write,
+            'output': output,
+            'total': total,
+        },
+        'request': {'toolResultIds': []},
+        'response': {'toolCallIds': tool_call_ids},
+    }
+
+
+def _build_subagent_calls(
+    jsonl_file: Path, tool_declared_by: dict[str, str], start_index: int
+) -> list[dict]:
+    subagent_calls: list[dict] = []
+    subagent_root = jsonl_file.with_suffix('') / 'subagents'
+    if not subagent_root.is_dir():
+        return subagent_calls
+
+    next_index = start_index
+    for subagent_file in sorted(subagent_root.glob('*.jsonl')):
+        parent_tool_id = subagent_file.stem
+        parent_call_id = tool_declared_by.get(parent_tool_id, '')
+        try:
+            events = [
+                json.loads(line)
+                for line in subagent_file.read_text(encoding='utf-8').splitlines()
+                if line.strip()
+            ]
+        except (OSError, json.JSONDecodeError):
+            events = []
+        sub_round = 0
+        for event in events:
+            if event.get('type') != 'assistant':
+                continue
+            msg = event.get('message', {})
+            content = msg.get('content', [])
+            tool_ids = []
+            if isinstance(content, list):
+                for block in content:
+                    if isinstance(block, dict) and block.get('type') == 'tool_use':
+                        tool_ids.append(
+                            str(block.get('id') or f'{parent_tool_id}-tool-{len(tool_ids) + 1}')
+                        )
+            next_index += 1
+            sub_round += 1
+            subagent_calls.append(
+                _fixture_call(
+                    call_id=f'{parent_tool_id}-SR{sub_round}',
+                    call_index=next_index,
+                    scope='subagent',
+                    parent_call_id=parent_call_id,
+                    parent_tool_call_id=parent_tool_id,
+                    model=msg.get('model', ''),
+                    timestamp=event.get('timestamp', ''),
+                    usage=msg.get('usage', {}),
+                    tool_call_ids=tool_ids,
+                )
+            )
+    return subagent_calls
+
+
+def _tool_name_from_id(tool_id: str) -> str:
+    if 'agent' in tool_id.lower():
+        return 'Agent'
+    if 'bash' in tool_id.lower():
+        return 'Bash'
+    if 'read' in tool_id.lower():
+        return 'Read'
+    if 'write' in tool_id.lower():
+        return 'Write'
+    return 'Tool'
+
+
+def _subagent_id_for_tool(jsonl_file: Path, tool_id: str) -> str:
+    if not tool_id:
+        return ''
+    subagent_path = jsonl_file.with_suffix('') / 'subagents' / f'{tool_id}.jsonl'
+    return tool_id if subagent_path.exists() else ''
 
 
 def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | None, str | None]:

@@ -9,7 +9,7 @@
   --sessions-text-2: var(--text-secondary, #334155);
   --sessions-text-3: var(--text-muted, #64748b);
   --sessions-brand: var(--brand, #5b5ce2);
-  --sessions-row-h: 48px;
+  --sessions-row-h: 42px;
   --sessions-card-radius: 18px;
   --sessions-shadow: 0 10px 26px rgba(15, 23, 42, .065);
   width: 100%;
@@ -61,7 +61,7 @@
 }
 
 .sessions-page .card.filter-card {
-  margin-bottom: 12px;
+  margin-bottom: 8px;
 }
 
 .sessions-page .sessions-filter-head {
@@ -689,7 +689,7 @@ table-layout:fixed scales proportionally
 .sessions-page .data-table td {
   padding: 0 10px;
   border-bottom: 1px solid var(--sessions-line-soft);
-  height: 48px;
+  height: var(--sessions-row-h);
   vertical-align: middle;
   font-size: 12.5px;
   color: var(--sessions-text-2);
@@ -955,4 +955,10 @@ table-layout:fixed scales proportionally
   top: auto;
   bottom: -7px;
   transform: translateX(-50%) rotate(225deg);
+}
+
+.sessions-loading-cell {
+  text-align: center;
+  padding: 24px;
+  color: var(--text-subtle);
 }

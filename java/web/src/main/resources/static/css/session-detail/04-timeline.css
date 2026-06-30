@@ -140,6 +140,9 @@
   border-top: 1px solid var(--sd-line-soft);
   padding: 10px 14px 12px 76px;
 }
+.expanded-row .sd-round-detail {
+  display: block;
+}
 .sd-round > .sd-round-detail {
   display: none;
 }
@@ -1080,6 +1083,13 @@ shift dot left to align with the container timeline line */
 .sd-sub-round.is-jump-target {
   outline: 2px solid rgba(37, 99, 235, 0.45);
   outline-offset: 2px;
+}
+.sd-trace-scroll-spacer {
+  display: block;
+  flex: 0 0 100vh;
+  height: 100vh;
+  min-height: 320px;
+  pointer-events: none;
 }
 .round-row .sd-round-summary {
   width: 100%;

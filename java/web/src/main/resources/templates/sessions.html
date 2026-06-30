@@ -37,12 +37,13 @@
 </div>
 
 {# -- 过滤卡片 -- #}
-<div class="filter-card" id="session-filter-form">
-    <form method="get" action="/sessions">
+<div class="card filter-card">
+    <form method="get" action="/sessions" id="session-filter-form">
         <div class="filter-row">
             <input type="hidden" name="sort" value="{{ sort_by }}"/>
             <input type="hidden" name="dir" value="{{ sort_dir }}"/>
             <input type="hidden" name="page_size" value="{{ page_size }}"/>
+            <input type="hidden" name="page" value="{{ page }}"/>
             <input type="search" name="q" placeholder="Search title, project, agent, model, session id"
                    value="{{ filter_q }}" class="filter-search js-search"
                    id="session-search" aria-label="Search sessions"/>
@@ -66,11 +67,32 @@
                 </select>
             </label>
 
+            <label class="filter-select-label">
+                <span>Model</span>
+                <select name="model" class="sessions-filter-select sessions-filter-select--model" id="filter-model">
+                    <option value="">All Models</option>
+                    <option value="claude-sonnet-4-20250514"{{ filter_model == 'claude-sonnet-4-20250514' ? ' selected' : '' }}>Claude Sonnet 4</option>
+                    <option value="gpt-5-codex"{{ filter_model == 'gpt-5-codex' ? ' selected' : '' }}>GPT-5 Codex</option>
+                    <option value="qoder"{{ filter_model == 'qoder' ? ' selected' : '' }}>Qoder</option>
+                </select>
+            </label>
+
+            <label class="filter-select-label">
+                <span>Project</span>
+                <select name="project" class="sessions-filter-select sessions-filter-select--project" id="filter-project">
+                    <option value="">All Projects</option>
+                    <option value="test-hifi-project"{{ filter_project == 'test-hifi-project' ? ' selected' : '' }}>test-hifi-project</option>
+                    {% if filter_project is not empty and filter_project != 'test-hifi-project' %}
+                    <option value="{{ filter_project }}" selected>{{ filter_project }}</option>
+                    {% endif %}
+                </select>
+            </label>
+
             <span class="filter-row__push"></span>
             <a href="/sessions" class="btn btn--secondary btn--sm js-clear-all" data-action="clear">Reset</a>
         </div>
         <div class="filter-footer">
-            <span class="filter-footer__label">
+            <span class="filter-footer__label page-status active-filters__count">
                 {% if total_count > 0 %}{{ total_count }} matching sessions{% else %}No matching sessions{% endif %}
             </span>
         </div>
@@ -78,61 +100,106 @@
 </div>
 
 {# -- 会话表格 -- #}
-<div class="table-card">
+<div class="sessions-table-card table-card">
     <div class="table-card__header">
         <h2>All Sessions</h2>
-        {# -- 分页控件 -- #}
-        {% if total_count > 0 %}
+    </div>
+
+    <div id="sessions-ajax-response">
+    {# -- 分页控件 -- #}
+    {% if total_count > 0 %}
         <div id="ajax-pagination">
             <nav class="pagination" aria-label="Sessions pagination" data-pagination>
                 {% if has_prev %}
-                <a href="/sessions?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}"
+                <a href="/sessions?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}&model={{ filter_model | urlencode }}&project={{ filter_project | urlencode }}"
                    class="pagination__btn" data-action="prev-page">Previous</a>
                 {% endif %}
                 <span class="pagination__info">
                     {{ page_start }}-{{ page_end }} of {{ total_count }}
+                    <label class="pagination__page-control">
+                        <span class="sr-only">Page</span>
+                        <input class="page-input mono" data-action="page-input" value="{{ page }}"
+                               inputmode="numeric" aria-label="Current page"
+                               data-total-pages="{{ total_pages }}"/>
+                    </label>
                 </span>
                 {% if has_next %}
-                <a href="/sessions?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}"
+                <a href="/sessions?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}&model={{ filter_model | urlencode }}&project={{ filter_project | urlencode }}"
                    class="pagination__btn" data-action="next-page">Next</a>
                 {% endif %}
             </nav>
         </div>
-        {% endif %}
-    </div>
+    {% endif %}
 
     {% if sessions is defined and sessions | length > 0 %}
+    <div class="table-wrap">
     <table class="data-table" role="table" aria-label="Sessions table">
         <thead>
             <tr>
-                <th>Title</th>
+                <th class="sortable sessions-th" data-sort-key="title" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="title">Session <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
                 <th>Agent</th>
-                <th>Project</th>
-                <th>Model</th>
-                <th>Tokens</th>
-                <th>Rounds</th>
-                <th>Tools</th>
-                <th>Failed</th>
-                <th>Duration</th>
-                <th>Updated</th>
+                <th class="sortable sessions-th" data-sort-key="project" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="project">Project <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="model" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="model">Model <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="tokens" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="tokens">Tokens <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="rounds" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="rounds">Rounds <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="tools" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="tools">Tools <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="failure" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="failure">Failed <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="duration" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="duration">Duration <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
+                <th class="sortable sessions-th" data-sort-key="updated" aria-sort="none">
+                    <button type="button" class="c-data-table__sort" data-action="sort" data-sort-key="updated">Updated <span class="c-data-table__sort-icon" aria-hidden="true">↕</span></button>
+                </th>
             </tr>
         </thead>
         <tbody>
             {% for s in sessions %}
-            <tr data-session-key="{{ s.sessionKey }}">
-                <td>
+            <tr class="sessions-row" data-action="row"
+                data-session-key="{{ s.sessionKey }}"
+                data-detail-url="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}"
+                data-agent="{{ s.agent }}"
+                data-model="{{ s.model }}"
+                data-session-id="{{ s.sessionId }}"
+                data-title="{{ s.title is not empty ? s.title : s.sessionId }}">
+                <td class="sessions-title-cell">
                     <a href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}"
-                       class="session-link" data-action="open-session">
+                       class="session-link sessions-title-link" data-session-link>
                         {{ s.title is not empty ? s.title : s.sessionId }}
                     </a>
                 </td>
-                <td><span class="agent-badge agent-{{ s.agent }}">{{ s.agent }}</span></td>
+                <td>
+                    <span class="badge {{ s.agent == 'claude_code' ? 'cc' : (s.agent == 'codex' ? 'cx' : 'qd') }}">{{ s.agent }}</span>
+                </td>
                 <td>
                     <a href="/projects/{{ s.projectKey | urlencode }}" class="project-link"
                        data-action="open-project">{{ s.projectName is not empty ? s.projectName : s.projectKey | truncate_path }}</a>
                 </td>
                 <td class="mono">{{ s.model }}</td>
-                <td class="mono">{{ s.totalTokens | format_compact_token }}</td>
+                <td class="mono token-cell">
+                    <span class="token-total">
+                        <span class="token-total__value">{{ s.totalTokens | format_compact_token }}</span>
+                        <span class="tokenbar tokenbar-in-cell" aria-hidden="true">
+                            <span class="tokenbar-seg fresh" style="--segment-width:25%"></span>
+                            <span class="tokenbar-seg read" style="--segment-width:35%"></span>
+                            <span class="tokenbar-seg write" style="--segment-width:20%"></span>
+                            <span class="tokenbar-seg out" style="--segment-width:20%"></span>
+                        </span>
+                    </span>
+                </td>
                 <td class="mono">{{ s.assistantMessageCount }}</td>
                 <td class="mono">{{ s.toolCallCount }}</td>
                 <td class="mono">{{ s.failedToolCount }}</td>
@@ -142,6 +209,7 @@
             {% endfor %}
         </tbody>
     </table>
+    </div>
     {% else %}
     <div class="empty-state">
         <div class="empty-state__icon">&#x1F5C2;&#xFE0F;</div>
@@ -150,6 +218,7 @@
         <a href="/sessions" class="btn btn--primary" data-action="clear-filter">Clear Filters</a>
     </div>
     {% endif %}
+    </div>
 </div>
 
 </div>

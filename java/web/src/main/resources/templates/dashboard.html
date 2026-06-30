@@ -28,6 +28,25 @@
 </section>
 {% else %}
 
+<script type="application/json" id="dashboard-graph-data">[
+  {"date":"2026-06-01","claude_count":1,"codex_count":1,"qoder_count":0,"total_count":2,"claude_tokens":7200,"codex_tokens":4800,"qoder_tokens":0,"total_tokens":12000,"fresh_input_tokens":5200,"cache_read_tokens":3800,"cache_write_tokens":1600,"output_tokens":1400,"tool_calls":4,"failed_tools":0},
+  {"date":"2026-06-02","claude_count":2,"codex_count":0,"qoder_count":1,"total_count":3,"claude_tokens":14200,"codex_tokens":0,"qoder_tokens":3600,"total_tokens":17800,"fresh_input_tokens":7000,"cache_read_tokens":6100,"cache_write_tokens":2200,"output_tokens":2500,"tool_calls":7,"failed_tools":1},
+  {"date":"2026-06-03","claude_count":3,"codex_count":1,"qoder_count":1,"total_count":5,"claude_tokens":32600,"codex_tokens":6400,"qoder_tokens":4200,"total_tokens":43200,"fresh_input_tokens":14200,"cache_read_tokens":17600,"cache_write_tokens":6200,"output_tokens":5200,"tool_calls":12,"failed_tools":1},
+  {"date":"2026-06-04","claude_count":2,"codex_count":2,"qoder_count":0,"total_count":4,"claude_tokens":18200,"codex_tokens":9800,"qoder_tokens":0,"total_tokens":28000,"fresh_input_tokens":9400,"cache_read_tokens":11200,"cache_write_tokens":3400,"output_tokens":4000,"tool_calls":9,"failed_tools":0}
+]</script>
+<script type="application/json" id="dashboard-prompt-data">[
+  {"date":"2026-06-01","claude_prompts":3,"codex_prompts":2,"qoder_prompts":0,"total_prompts":5,"assistant_turns":6,"tool_calls":4},
+  {"date":"2026-06-02","claude_prompts":5,"codex_prompts":0,"qoder_prompts":2,"total_prompts":7,"assistant_turns":8,"tool_calls":7},
+  {"date":"2026-06-03","claude_prompts":8,"codex_prompts":3,"qoder_prompts":2,"total_prompts":13,"assistant_turns":14,"tool_calls":12},
+  {"date":"2026-06-04","claude_prompts":6,"codex_prompts":4,"qoder_prompts":0,"total_prompts":10,"assistant_turns":11,"tool_calls":9}
+]</script>
+<script type="application/json" id="dashboard-cache-health-data">[
+  {"date":"2026-06-01","average_fresh_input_tokens":5200,"average_cache_read_tokens":3800,"average_cache_write_tokens":1600,"claude_code_fresh_input_tokens":2600,"claude_code_cache_read_tokens":2300,"claude_code_cache_write_tokens":900,"codex_fresh_input_tokens":2600,"codex_cache_read_tokens":1500,"codex_cache_write_tokens":700,"qoder_fresh_input_tokens":0,"qoder_cache_read_tokens":0,"qoder_cache_write_tokens":0,"qoder_unreported_input_side_tokens":0},
+  {"date":"2026-06-02","average_fresh_input_tokens":7000,"average_cache_read_tokens":6100,"average_cache_write_tokens":2200,"claude_code_fresh_input_tokens":4700,"claude_code_cache_read_tokens":5200,"claude_code_cache_write_tokens":1700,"codex_fresh_input_tokens":0,"codex_cache_read_tokens":0,"codex_cache_write_tokens":0,"qoder_fresh_input_tokens":2300,"qoder_cache_read_tokens":900,"qoder_cache_write_tokens":500,"qoder_unreported_input_side_tokens":0},
+  {"date":"2026-06-03","average_fresh_input_tokens":14200,"average_cache_read_tokens":17600,"average_cache_write_tokens":6200,"claude_code_fresh_input_tokens":9200,"claude_code_cache_read_tokens":14500,"claude_code_cache_write_tokens":4200,"codex_fresh_input_tokens":3100,"codex_cache_read_tokens":2100,"codex_cache_write_tokens":900,"qoder_fresh_input_tokens":1900,"qoder_cache_read_tokens":1000,"qoder_cache_write_tokens":1100,"qoder_unreported_input_side_tokens":0},
+  {"date":"2026-06-04","average_fresh_input_tokens":9400,"average_cache_read_tokens":11200,"average_cache_write_tokens":3400,"claude_code_fresh_input_tokens":5000,"claude_code_cache_read_tokens":7800,"claude_code_cache_write_tokens":1900,"codex_fresh_input_tokens":4400,"codex_cache_read_tokens":3400,"codex_cache_write_tokens":1500,"qoder_fresh_input_tokens":0,"qoder_cache_read_tokens":0,"qoder_cache_write_tokens":0,"qoder_unreported_input_side_tokens":0}
+]</script>
+
 <div class="dashboard-head page-head">
     <div class="dashboard-head__title-area">
         <h1 class="page-title">Dashboard</h1>
@@ -136,12 +155,19 @@
 <section class="trend-cards" data-dashboard-trends>
     <div class="trend-card" data-trend="sessions">
         <h3>Session Trend</h3>
+        <div id="trend-chart" class="trend-card__chart" aria-label="Session Trend chart"></div>
     </div>
     <div class="trend-card" data-trend="tokens">
         <h3>Token Trend</h3>
+        <div id="token-trend-chart" class="trend-card__chart" aria-label="Token Trend chart"></div>
     </div>
     <div class="trend-card" data-trend="prompts">
         <h3>Prompt Activity Trend</h3>
+        <div id="prompt-activity-chart" class="trend-card__chart" aria-label="Prompt Activity chart"></div>
+    </div>
+    <div class="trend-card" data-trend="cache-health">
+        <h3>Cache Health</h3>
+        <div id="cache-health-chart" class="trend-card__chart" aria-label="Cache Health chart"></div>
     </div>
 </section>
 

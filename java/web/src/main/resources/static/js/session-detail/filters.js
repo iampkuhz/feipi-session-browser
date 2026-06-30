@@ -130,14 +130,40 @@
     return block;
   }
 
+  function ensureTraceScrollRoom(target, marginTop) {
+    var doc = target.ownerDocument || document;
+    var win = doc.defaultView || window;
+    var scrollEl = doc.scrollingElement || doc.documentElement;
+    if (!scrollEl) return;
+    var viewportHeight = win.innerHeight || doc.documentElement.clientHeight || 0;
+    if (!viewportHeight) return;
+
+    var currentTop = win.pageYOffset || scrollEl.scrollTop || 0;
+    var targetTop = target.getBoundingClientRect().top + currentTop;
+    var requiredHeight = targetTop + viewportHeight - marginTop + 16;
+    if (requiredHeight <= scrollEl.scrollHeight) return;
+
+    var spacer = qs(doc, '[data-trace-scroll-spacer]');
+    if (!spacer) {
+      spacer = doc.createElement('div');
+      spacer.setAttribute('data-trace-scroll-spacer', 'true');
+      spacer.setAttribute('aria-hidden', 'true');
+      spacer.className = 'sd-trace-scroll-spacer';
+      (qs(doc, '.main') || doc.body).appendChild(spacer);
+    }
+  }
+
   function scrollTraceTarget(target, smooth) {
     if (!target) return;
-    var runScroll = function () {
+    var marginTop = 12;
+    ensureTraceScrollRoom(target, marginTop);
+
+    var scrollToTarget = function () {
       var doc = target.ownerDocument || document;
       var win = doc.defaultView || window;
       var scrollEl = doc.scrollingElement || doc.documentElement;
-      var currentTop = win.pageYOffset || scrollEl.scrollTop || 0;
-      var targetTop = target.getBoundingClientRect().top + currentTop - 12;
+      var currentTop = win.pageYOffset || (scrollEl && scrollEl.scrollTop) || 0;
+      var targetTop = target.getBoundingClientRect().top + currentTop - marginTop;
       if (scrollEl && scrollEl.scrollTo) {
         scrollEl.scrollTo({
           top: Math.max(0, targetTop),
@@ -146,8 +172,27 @@
       } else if (win && win.scrollTo) {
         win.scrollTo(0, Math.max(0, targetTop));
       }
-      clearJumpTarget();
-      target.classList.add('is-jump-target');
+    };
+
+    var runScroll = function () {
+      if (target.scrollIntoView) {
+        target.scrollIntoView({
+          block: 'start',
+          inline: 'nearest',
+          behavior: smooth ? 'smooth' : 'auto'
+        });
+      }
+      scrollToTarget();
+      if (window.requestAnimationFrame) {
+        window.requestAnimationFrame(function () {
+          scrollToTarget();
+          clearJumpTarget();
+          target.classList.add('is-jump-target');
+        });
+      } else {
+        clearJumpTarget();
+        target.classList.add('is-jump-target');
+      }
     };
     if (window.requestAnimationFrame) {
       window.requestAnimationFrame(function () {

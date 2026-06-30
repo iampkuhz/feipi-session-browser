@@ -137,7 +137,7 @@ public final class ServerLifecycle {
       }
 
       // 阶段 4：创建并绑定 Web 服务器
-      WebConfig webConfig = new WebConfig(host, port, null);
+      WebConfig webConfig = new WebConfig(host, port, "/static");
       WebCompositionRoot webRoot = new WebCompositionRoot(queryRoot, webConfig);
       webServer = webRoot.createServer();
       installShutdownHook(queryRoot, sourceEntries, artifactDir);

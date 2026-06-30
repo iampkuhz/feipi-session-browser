@@ -53,7 +53,7 @@
         </div>
     </div>
 
-    <div class="sd-hero__metrics" aria-label="Session metrics">
+    <div class="sd-hero__metrics sd-kpis" aria-label="Session metrics">
         <div class="sd-metric" title="Total tokens">
             <span class="sd-metric__value">{{ session_metrics.total_tokens | format_compact_token }}</span>
             <span class="sd-metric__label">Tokens</span>
@@ -126,6 +126,25 @@
         </span>
         {% endif %}
     </div>
+
+    <div class="sd-issue-strip{% if not has_anomalies %} sd-issue-strip--ok{% endif %}"
+         data-issue-strip
+         aria-label="Session issue summary">
+        {% if has_anomalies %}
+        <span class="sd-issue-title">{{ anomaly_count }} issue{{ anomaly_count == 1 ? '' : 's' }}</span>
+        {% for anomaly in anomaly_list %}
+        <button type="button"
+                class="sd-issue-link sd-issue-link--{{ anomaly.tone }}"
+                data-action="jump-round"
+                data-round="1">
+            {{ anomaly.type }}
+        </button>
+        {% endfor %}
+        {% else %}
+        <span class="sd-issue-title">No blocking issues</span>
+        <span class="sd-issue-ok-badge">Trace ready</span>
+        {% endif %}
+    </div>
 </section>
 
 {# ── Anomaly / diagnostics section ── #}
@@ -147,6 +166,232 @@
 </section>
 {% endif %}
 
+<section class="sd-diagnostics" data-session-diagnostics aria-label="Session diagnostics">
+    <article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--subagents sd-diagnostic-card--agents">
+        <div class="sd-diagnostic-card__head">
+            <h2>Agents Breakdown</h2>
+            <span>main/subagent token footprint</span>
+        </div>
+        <div class="sd-diagnostic-card__body">
+            <div class="sd-subagent-workbench" data-subagent-workbench>
+                <div class="sd-subagent-table-scroll">
+                    <table class="sd-subagent-table">
+                        <thead>
+                            <tr>
+                                <th>Agent</th>
+                                <th>Session file</th>
+                                <th>Session id</th>
+                                <th>LLM</th>
+                                <th>Tokens</th>
+                                <th>Tools</th>
+                                <th>Failures</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr data-subagent-row class="sd-subagent-row is-active">
+                                <td>
+                                    <button type="button"
+                                            class="sd-subagent-select is-active"
+                                            data-action="select-subagent"
+                                            data-agent-scope="main"
+                                            data-subagent=""
+                                            aria-pressed="true">
+                                        <span class="sd-subagent-select__main"><b>main agent</b></span>
+                                    </button>
+                                </td>
+                                <td class="sd-subagent-table__copy-cell">
+                                    <span class="sd-subagent-copy-value">{{ session.filePath | truncate_path }}</span>
+                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ session.filePath }}">copy</button>
+                                </td>
+                                <td class="sd-subagent-table__copy-cell">
+                                    <span class="sd-subagent-copy-value">{{ session.sessionId | truncate_path }}</span>
+                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ session.sessionId }}">copy</button>
+                                </td>
+                                <td>{{ round_count }}</td>
+                                <td>{{ session_metrics.total_tokens | format_compact_token }}</td>
+                                <td>{{ session_metrics.tool_call_count }}</td>
+                                <td>{{ session_metrics.failed_tool_count }} failed · {{ session_metrics.failed_tool_count > 0 ? 'needs review' : 'ok' }}</td>
+                            </tr>
+                            {% if has_subagent_rounds %}
+                            <tr data-subagent-row class="sd-subagent-row">
+                                <td>
+                                    <button type="button"
+                                            class="sd-subagent-select"
+                                            data-action="select-subagent"
+                                            data-agent-scope="subagent"
+                                            data-subagent="{{ primary_subagent_id }}"
+                                            aria-pressed="false">
+                                        <span class="sd-subagent-select__main"><b>subagent {{ primary_subagent_id | truncate_path }}</b></span>
+                                    </button>
+                                </td>
+                                <td class="sd-subagent-table__copy-cell">
+                                    <span class="sd-subagent-copy-value">{{ primary_subagent_id }}.jsonl</span>
+                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ primary_subagent_id }}.jsonl">copy</button>
+                                </td>
+                                <td class="sd-subagent-table__copy-cell">
+                                    <span class="sd-subagent-copy-value">{{ primary_subagent_id }}</span>
+                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ primary_subagent_id }}">copy</button>
+                                </td>
+                                <td>1</td>
+                                <td>{{ session_metrics.total_tokens | format_compact_token }}</td>
+                                <td>{{ session_metrics.tool_call_count }}</td>
+                                <td>{{ session_metrics.failed_tool_count }} failed · related tool calls</td>
+                            </tr>
+                            {% endif %}
+                        </tbody>
+                    </table>
+                </div>
+
+                <div class="sd-subagent-timeline-area">
+                    <div class="sd-subagent-timeline is-active"
+                         data-subagent-timeline-panel
+                         data-agent-scope="main"
+                         data-subagent="">
+                        <div class="sd-subagent-timeline__head">
+                            <div>
+                                <b>main agent</b>
+                                <span>{{ round_count }} rounds</span>
+                            </div>
+                            <small>Cache and output token composition</small>
+                        </div>
+                        <div class="sd-token-round-chart">
+                            <div class="sd-token-round-plot">
+                                {% for round in rounds %}
+                                <button type="button"
+                                        class="sd-token-round"
+                                        data-action="jump-round"
+                                        data-round="{{ round.round_index }}"
+                                        aria-label="Jump to round {{ round.round_index }}">
+                                    <span class="sd-token-round__signal-slot">
+                                        {% if round.has_issues %}<i class="sd-token-round__spike" aria-hidden="true"></i>{% endif %}
+                                    </span>
+                                    <span class="sd-token-round__bar" style="--bar-height-px: 72px">
+                                        <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: 30%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: 35%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: 20%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: 15%"></span>
+                                    </span>
+                                    <span class="sd-token-round__ratio-dot" style="--ratio-y: 48%"></span>
+                                    <span class="sd-token-round__label">R{{ round.round_index }}</span>
+                                    <span class="sd-token-round-tooltip" role="tooltip">
+                                        <b>Round R{{ round.round_index }}</b>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ session_metrics.fresh_input_tokens | format_compact_token }}</em><strong>input</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ session_metrics.cache_read_tokens | format_compact_token }}</em><strong>reuse</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ session_metrics.cache_write_tokens | format_compact_token }}</em><strong>build</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ session_metrics.output_tokens | format_compact_token }}</em><strong>reply</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>64%</em><strong>line</strong></span>
+                                        <span class="sd-token-round-tooltip__total"><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Calls</small><em>{{ round.call_count }}</em><strong>{{ round.tool_call_count }} tools</strong></span>
+                                        {% if round.has_issues %}
+                                        <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>low cache · payload gap · Token Driver</em></span>
+                                        {% endif %}
+                                    </span>
+                                </button>
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+
+                    {% if has_subagent_rounds %}
+                    <div class="sd-subagent-timeline"
+                         data-subagent-timeline-panel
+                         data-agent-scope="subagent"
+                         data-subagent="{{ primary_subagent_id }}"
+                         hidden>
+                        <div class="sd-subagent-timeline__head">
+                            <div>
+                                <b>subagent {{ primary_subagent_id | truncate_path }}</b>
+                                <span>nested execution timeline</span>
+                            </div>
+                            <small>click a subagent round to deep-link trace</small>
+                        </div>
+                        <div class="sd-token-round-chart sd-token-round-chart--subagent">
+                            <div class="sd-token-round-plot">
+                                {% for round in rounds %}
+                                {% if round.subagent_id is not empty %}
+                                <button type="button"
+                                        class="sd-token-round sd-token-round--subagent"
+                                        data-action="jump-round"
+                                        data-round="{{ round.round_index }}"
+                                        data-subagent="{{ round.subagent_id }}"
+                                        data-subagent-round="{{ round.subagent_round }}"
+                                        aria-label="Jump to {{ round.subagent_id }} subagent round {{ round.subagent_round }}">
+                                    <span class="sd-token-round__bar" style="--bar-height-px: 72px">
+                                        <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: 25%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: 40%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: 15%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: 20%"></span>
+                                    </span>
+                                    <span class="sd-token-round__ratio-dot" style="--ratio-y: 42%"></span>
+                                    <span class="sd-token-round__label">SR{{ round.subagent_round }}</span>
+                                    <span class="sd-token-round-tooltip" role="tooltip">
+                                        <b>Subagent SR{{ round.subagent_round }}</b>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>25%</em><strong>input</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>40%</em><strong>reuse</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>15%</em><strong>build</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>20%</em><strong>reply</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Calls</small><em>{{ round.call_count }}</em><strong>nested</strong></span>
+                                    </span>
+                                </button>
+                                {% endif %}
+                                {% endfor %}
+                            </div>
+                        </div>
+                    </div>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+    </article>
+
+    <article class="sd-diagnostic-card sd-diagnostic-card--context">
+        <div class="sd-diagnostic-card__head">
+            <h2>Context Budget</h2>
+            <span>cache read/write balance</span>
+        </div>
+        <div class="sd-diagnostic-card__body">
+            <div class="sd-compact-stats">
+                <div><span>Fresh input</span><b>{{ session_metrics.fresh_input_tokens | format_compact_token }}</b></div>
+                <div><span>Cache read</span><b>{{ session_metrics.cache_read_tokens | format_compact_token }}</b></div>
+                <div><span>Cache write</span><b>{{ session_metrics.cache_write_tokens | format_compact_token }}</b></div>
+                <div><span>Output</span><b>{{ session_metrics.output_tokens | format_compact_token }}</b></div>
+            </div>
+            <p class="sd-chart-note">Context budget keeps request-side and response-side token signals together for each round.</p>
+        </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+        <div class="sd-diagnostic-card__head">
+            <h2>Tool Impact</h2>
+            <span>{{ session_metrics.tool_call_count }} tools</span>
+        </div>
+        <div class="sd-diagnostic-card__body">
+            <table class="sd-compact-table">
+                <tbody>
+                    <tr><th>Declared</th><td>{{ session_metrics.tool_call_count }}</td></tr>
+                    <tr><th>Failed</th><td>{{ session_metrics.failed_tool_count }}</td></tr>
+                    <tr><th>Subagents</th><td>{{ session_metrics.subagent_instance_count }}</td></tr>
+                </tbody>
+            </table>
+        </div>
+    </article>
+
+    <article class="sd-diagnostic-card">
+        <div class="sd-diagnostic-card__head">
+            <h2>Issues &amp; Repro Seeds</h2>
+            <span>{{ anomaly_count }} anomalies</span>
+        </div>
+        <div class="sd-diagnostic-card__body">
+            <div class="sd-card-empty">
+                {% if has_anomalies %}
+                {{ anomaly_count }} issue{{ anomaly_count == 1 ? '' : 's' }} detected; use the issue strip to jump to trace evidence.
+                {% else %}
+                No anomaly was detected for this session fixture.
+                {% endif %}
+            </div>
+        </div>
+    </article>
+</section>
+
 {# ── Tabs ── #}
 <nav class="sd-tabs" data-session-tabs aria-label="Session view tabs" role="tablist">
     <a class="sd-tab is-active" href="#" data-action="tab-trace" data-tab="trace" role="tab" aria-selected="true" aria-controls="sd-tab-panel-trace">
@@ -166,6 +411,17 @@
             {% endif %}
         </div>
         <div class="sd-trace-header__right">
+            <div class="trace-panel__filters" aria-label="Trace status filters">
+                <button type="button" class="trace-panel__chip is-active" data-action="status-all" data-status="all">
+                    All
+                </button>
+                <button type="button" class="trace-panel__chip" data-action="status-failed" data-status="failed">
+                    Failed
+                </button>
+                <button type="button" class="trace-panel__chip" data-action="status-low-cache" data-status="low-cache">
+                    Low cache
+                </button>
+            </div>
             <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="toggle-all">
                 Expand all
             </button>
@@ -206,19 +462,25 @@
         </thead>
         <tbody>
             {% for round in rounds %}
-            <tr class="sd-trace-round-row{% if round.is_subagent %} sd-trace-round-row--subagent{% endif %}"
+            <tr class="round-row sd-trace-round-row{% if round.is_subagent %} sd-trace-round-row--subagent{% endif %}"
                 data-trace-round-row
                 data-round="{{ round.round_index }}"
+                data-status="{{ round.status }}"
+                data-has-issues="{{ round.has_issues }}"
+                data-is-low-cache="{{ round.is_low_cache }}"
+                data-detail-loaded="true"
                 id="round-{{ round.round_index }}">
                 <td class="round-col">
-                    <button type="button"
-                            class="sd-round-toggle"
-                            data-action="toggle-round"
-                            aria-expanded="false"
-                            aria-label="Toggle round {{ round.round_index }}">
+                    <span role="button"
+                          tabindex="0"
+                          class="sd-round-toggle"
+                          data-action="toggle-round"
+                          aria-controls="round-{{ round.round_index }}-detail"
+                          aria-expanded="false"
+                          aria-label="Toggle round {{ round.round_index }}">
                         <span class="sd-round-toggle__icon" aria-hidden="true">&#x25B6;</span>
                         <span class="sd-round-id">R{{ round.round_index }}</span>
-                    </button>
+                    </span>
                     {% if round.is_subagent %}
                     <span class="sd-subagent-badge" title="Subagent call (parent: {{ round.parent_call_id }})">SA</span>
                     {% endif %}
@@ -235,12 +497,76 @@
                     <span class="sd-round-attribution">--</span>
                 </td>
                 <td class="status-col">
+                    {% if round.has_issues %}
+                    <span class="sd-signal-badge sd-signal-badge--failed">failed</span>
+                    {% else %}
+                    <span class="sd-signal-badge sd-signal-badge--ok">ok</span>
+                    {% endif %}
+                    {% if round.is_low_cache %}
+                    <span class="sd-signal-badge sd-signal-badge--low-cache">low-cache</span>
+                    {% endif %}
                     {% if round.is_empty %}
                     <span class="sd-signal-badge sd-signal-badge--empty">empty</span>
                     {% endif %}
                 </td>
                 <td class="time-col">
                     <span class="sd-round-time">--</span>
+                </td>
+            </tr>
+            <tr class="expanded-row"
+                id="round-{{ round.round_index }}-detail"
+                data-trace-detail
+                hidden>
+                <td colspan="6">
+                    <div class="sd-round-detail">
+                        <div class="sd-detail-grid">
+                            <section class="sd-card">
+                                <h3>Round R{{ round.round_index }} detail</h3>
+                                <p>{{ round.call_count }} LLM calls and {{ round.tool_call_count }} tool calls are indexed for this round.</p>
+                                <button type="button"
+                                        class="sd-btn sd-btn--secondary sd-btn--sm"
+                                        data-action="open-payload"
+                                        data-payload-id="main:req:C{{ round.round_index }}"
+                                        data-payload-kind="context"
+                                        data-payload-title="Round R{{ round.round_index }} context">
+                                    Open context payload
+                                </button>
+                            </section>
+                            <section class="sd-card">
+                                <h3>Signals</h3>
+                                <table class="sd-compact-table">
+                                    <tbody>
+                                        <tr><th>Status</th><td>{{ round.status_label }}</td></tr>
+                                        <tr><th>Calls</th><td>{{ round.call_count }}</td></tr>
+                                        <tr><th>Tools</th><td>{{ round.tool_call_count }}</td></tr>
+                                    </tbody>
+                                </table>
+                            </section>
+                        </div>
+                        {% if round.subagent_id is not empty %}
+                        <section class="sd-subagent"
+                                 data-subagent-block
+                                 data-subagent-id="{{ round.subagent_id }}">
+                            <div class="sd-subagent__head">
+                                <div>
+                                    <div class="sd-subagent__title">Subagent {{ round.subagent_id | truncate_path }}</div>
+                                    <div class="sd-subagent__meta">Nested round evidence linked to R{{ round.round_index }}</div>
+                                </div>
+                            </div>
+                            <div class="sd-sub-round"
+                                 data-sub-round-id="{{ round.subagent_round }}"
+                                 data-sub-round-open="false">
+                                <div class="sd-sub-round__summary" data-sub-round-toggle>
+                                    <b>SR{{ round.subagent_round }}</b>
+                                    <span>{{ round.call_count }} calls · {{ round.tool_call_count }} tools</span>
+                                </div>
+                                <div data-sub-round-steps hidden>
+                                    <p>Subagent execution payload and tool evidence are associated with {{ round.subagent_id }}.</p>
+                                </div>
+                            </div>
+                        </section>
+                        {% endif %}
+                    </div>
                 </td>
             </tr>
             {% endfor %}
@@ -257,6 +583,17 @@
 </section>
 
 {# -- Hidden payload sources container (populated by JS lazy-load) -- #}
-<div data-payload-sources-container class="sd-hidden"></div>
+<div data-payload-sources-container class="sd-hidden">
+    {% for source in payload_sources %}
+    <template data-payload-source="{{ source.payload_id }}"
+              data-payload-kind="{{ source.kind }}"
+              data-payload-token-estimate="{{ session_metrics.total_tokens }}">
+        <section class="sd-payload-section payload-section">
+            <h3>{{ source.title }}</h3>
+            <pre>Payload {{ source.payload_id }} is available for {{ source.call_id }} ({{ source.kind }}).</pre>
+        </section>
+    </template>
+    {% endfor %}
+</div>
 
 {% endblock %}

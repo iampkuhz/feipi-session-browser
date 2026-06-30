@@ -91,7 +91,7 @@ public final class SessionDetailAssembler {
         List<String> callIds = new ArrayList<>();
         callIds.add(call.callId());
         roundCallIds.add(callIds);
-        roundToolCallIds.add(new ArrayList<>());
+        roundToolCallIds.add(new ArrayList<>(call.response().toolCallIds()));
         roundParentCallIds.add("");
         callToRoundIndex.put(call.callId(), roundIdx);
       } else {
@@ -100,6 +100,7 @@ public final class SessionDetailAssembler {
         Integer parentRoundIdx = callToRoundIndex.get(parentCallId);
         if (parentRoundIdx != null) {
           roundCallIds.get(parentRoundIdx).add(call.callId());
+          roundToolCallIds.get(parentRoundIdx).addAll(call.response().toolCallIds());
           callToRoundIndex.put(call.callId(), parentRoundIdx);
         } else {
           // 无父调用映射，创建独立轮次
@@ -107,7 +108,7 @@ public final class SessionDetailAssembler {
           List<String> callIds = new ArrayList<>();
           callIds.add(call.callId());
           roundCallIds.add(callIds);
-          roundToolCallIds.add(new ArrayList<>());
+          roundToolCallIds.add(new ArrayList<>(call.response().toolCallIds()));
           roundParentCallIds.add(parentCallId);
           callToRoundIndex.put(call.callId(), roundIdx);
         }
