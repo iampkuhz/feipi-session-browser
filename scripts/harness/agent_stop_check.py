@@ -20,10 +20,9 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.quality import changed_files as changed_file_utils  # noqa: E402
 
-AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
-CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
-SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
-STOP_SUMMARY = AGENT_LOG_DIR / 'stop-check-summary.json'
+AGENT_LOG_BASE = REPO_ROOT / 'tmp' / 'agent_logs'
+SESSION_ID_FILE = AGENT_LOG_BASE / 'current' / 'session-id.txt'
+CHANGED_FILES = AGENT_LOG_BASE / 'current' / 'changed-files.jsonl'
 
 LOCAL_ONLY_PATHS = [
     '.claude/settings.local.json',
@@ -82,6 +81,21 @@ def _session_id_from_context(ctx: dict[str, Any]) -> str | None:
     return None
 
 
+def _agent_id_from_context(ctx: dict[str, Any]) -> str | None:
+    """Resolve the current agent id from hook context.
+
+    Args:
+        ctx: Hook context parsed from standard input.
+
+    Returns:
+        Agent id when available; otherwise None.
+    """
+    aid = ctx.get('agent_id') or ctx.get('agentId')
+    if isinstance(aid, str) and aid:
+        return aid
+    return None
+
+
 def _normalize(path: str) -> str:
     """Normalize repository-relative paths for stable comparisons.
 
@@ -106,16 +120,17 @@ def _dedupe(paths: list[str]) -> list[str]:
     return changed_file_utils.dedupe_paths(paths)
 
 
-def read_recorded_changed_files(session_id: str | None) -> list[str]:
+def read_recorded_changed_files(session_id: str | None, agent_id: str | None = None) -> list[str]:
     """Read changed files recorded by agent write hooks for the active session.
 
     Args:
         session_id: Optional session id used to filter hook records.
+        agent_id: Optional agent id used to filter records to a specific agent.
 
     Returns:
         Changed paths recorded for the session.
     """
-    return changed_file_utils.read_recorded_changed_files(session_id, CHANGED_FILES)
+    return changed_file_utils.read_recorded_changed_files(session_id, CHANGED_FILES, agent_id=agent_id)
 
 
 def parse_git_status_paths(output: str) -> list[str]:
@@ -139,11 +154,12 @@ def read_git_dirty_files() -> list[str]:
     return changed_file_utils.read_git_dirty_files(REPO_ROOT)
 
 
-def collect_changed_files(session_id: str | None) -> list[str]:
+def collect_changed_files(session_id: str | None, agent_id: str | None = None) -> list[str]:
     """Collect changed files from hook logs and git status for gate routing.
 
     Args:
         session_id: Optional session id used to filter hook records.
+        agent_id: Optional agent id used to filter records to a specific agent.
 
     Returns:
         Deduplicated paths from recorded hook writes and current git status.
@@ -153,6 +169,7 @@ def collect_changed_files(session_id: str | None) -> list[str]:
         include_git=True,
         repo_root=REPO_ROOT,
         changed_files_path=CHANGED_FILES,
+        agent_id=agent_id,
     )
 
 
@@ -255,6 +272,7 @@ class StopSummary:
 
     Attributes:
         agent: Agent entrypoint name producing the summary.
+        session_id: Agent session id for per-session isolation.
         read_only: Whether the session made no repository changes.
         status: Stop-check status written for downstream adapters.
         changed_files: Changed repository paths considered by the gate.
@@ -264,6 +282,7 @@ class StopSummary:
     """
 
     agent: str
+    session_id: str
     read_only: bool
     status: str
     changed_files: list[str]
@@ -275,10 +294,16 @@ class StopSummary:
 def write_summary(summary: StopSummary) -> None:
     """Persist stop-check evidence for agent adapters and later inspection.
 
+    The summary is written to tmp/agent_logs/<agent-type>/<session-id>/stop-check-summary.json
+    so that multiple agents and sessions can run stop checks in parallel without
+    overwriting each other's results.
+
     Args:
         summary: Stop-check payload fields to serialize.
     """
-    AGENT_LOG_DIR.mkdir(parents=True, exist_ok=True)
+    agent_log_dir = AGENT_LOG_BASE / summary.agent / summary.session_id
+    agent_log_dir.mkdir(parents=True, exist_ok=True)
+    stop_summary_path = agent_log_dir / 'stop-check-summary.json'
     payload = {
         'schemaVersion': 2,
         'ts': utc_now(),
@@ -291,7 +316,7 @@ def write_summary(summary: StopSummary) -> None:
         'blockingFailures': summary.failures,
         'warnings': summary.warnings,
     }
-    STOP_SUMMARY.write_text(
+    stop_summary_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
@@ -304,12 +329,17 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(description='Run shared agent stop checks.')
     parser.add_argument('--agent', default='unknown', help='Agent entrypoint name')
+    parser.add_argument('--agent-id', default=None, help='Agent id for per-agent file filtering')
     args = parser.parse_args()
 
-    AGENT_LOG_DIR.mkdir(parents=True, exist_ok=True)
     ctx = _read_json_stdin()
-    session_id = _session_id_from_context(ctx)
-    changed_files = collect_changed_files(session_id)
+    session_id = _session_id_from_context(ctx) or 'unknown'
+    agent_id = args.agent_id or _agent_id_from_context(ctx)
+
+    agent_log_dir = AGENT_LOG_BASE / args.agent / session_id
+    agent_log_dir.mkdir(parents=True, exist_ok=True)
+
+    changed_files = collect_changed_files(session_id, agent_id=agent_id)
     targets = required_targets(changed_files)
     warnings = check_local_only_status() + task_ledger_warnings()
     failures: list[str] = []
@@ -319,6 +349,7 @@ def main() -> int:
         write_summary(
             StopSummary(
                 agent=args.agent,
+                session_id=session_id,
                 read_only=True,
                 status=status,
                 changed_files=[],
@@ -366,6 +397,7 @@ def main() -> int:
     write_summary(
         StopSummary(
             agent=args.agent,
+            session_id=session_id,
             read_only=False,
             status=status,
             changed_files=changed_files,

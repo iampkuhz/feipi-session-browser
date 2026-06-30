@@ -48,8 +48,15 @@ def read_session_id(session_id_file: Path = DEFAULT_SESSION_ID_FILE) -> str | No
 def read_recorded_changed_files(
     session_id: str | None = None,
     changed_files_path: Path = DEFAULT_CHANGED_FILES,
+    agent_id: str | None = None,
 ) -> list[str]:
-    """Read changed-file records written by agent hooks."""
+    """Read changed-file records written by agent hooks.
+
+    Args:
+        session_id: Optional session id used to filter hook records.
+        changed_files_path: Path to the changed-files JSONL file.
+        agent_id: Optional agent id used to filter records to a specific agent.
+    """
     if not changed_files_path.exists():
         return []
 
@@ -66,6 +73,10 @@ def read_recorded_changed_files(
             continue
         if session_id and record.get('sessionId') != session_id:
             continue
+        if agent_id:
+            record_agent_id = record.get('agentId') or ''
+            if record_agent_id != agent_id:
+                continue
         file_path = record.get('file') or record.get('file_path')
         if isinstance(file_path, str) and file_path:
             files.append(file_path)
@@ -189,11 +200,21 @@ def collect_changed_files(
     repo_root: Path = REPO_ROOT,
     changed_files_path: Path = DEFAULT_CHANGED_FILES,
     base_commit_file: Path | None = None,
+    agent_id: str | None = None,
 ) -> list[str]:
-    """Collect hook-recorded and git-dirty files for fail-closed routing."""
+    """Collect hook-recorded and git-dirty files for fail-closed routing.
+
+    Args:
+        session_id: Optional session id used to filter hook records.
+        include_git: Whether to include current git dirty files.
+        repo_root: Repository root for git commands.
+        changed_files_path: Path to the changed-files JSONL file.
+        base_commit_file: Optional path to the base-commit file.
+        agent_id: Optional agent id to filter hook records to a specific agent.
+    """
     if base_commit_file is None:
         base_commit_file = changed_files_path.with_name(DEFAULT_BASE_COMMIT_FILE.name)
-    paths = read_recorded_changed_files(session_id, changed_files_path)
+    paths = read_recorded_changed_files(session_id, changed_files_path, agent_id=agent_id)
     paths.extend(read_files_since_base_commit(repo_root, base_commit_file))
     if include_git:
         paths.extend(read_git_dirty_files(repo_root))
