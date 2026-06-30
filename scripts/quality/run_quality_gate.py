@@ -16,6 +16,7 @@ import importlib
 import json
 import os
 import re
+import shlex
 import shutil
 import socket
 import sqlite3
@@ -411,39 +412,237 @@ def _fixture_session_available(base_url: str) -> bool:
         return False
 
 
-def _populate_fixture_index(data_dir: Path, sqlite_path: Path) -> str | None:
-    """Populate the temporary SQLite index from the HIFI fixture data.
+def _java_launcher() -> Path | None:
+    """Resolve the Gradle-installed Java CLI launcher path.
+
+    Returns:
+        Path to the ``app-cli`` launcher script, or ``None`` when not built.
+    """
+    launcher = REPO_ROOT / 'java' / 'app-cli' / 'build' / 'install' / 'app-cli' / 'bin' / 'app-cli'
+    return launcher if launcher.exists() else None
+
+
+def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
+    """Populate the temporary SQLite index from HIFI fixture JSONL data.
+
+    直接读取 fixture JSONL 文件并写入 SQLite，绕过 Java scan 归一化引擎
+    尚未填充 session 元数据的已知限制。
 
     Args:
         data_dir: Temporary Claude data directory copied from test fixtures.
-        sqlite_path: SQLite database path created for the fixture server.
+        index_dir: Temporary index directory where the SQLite database is created.
 
     Returns:
         ``None`` on success, otherwise a failure reason consumed by the gate
-        summary. The function writes only inside the temporary fixture tree.
+        summary.
     """
+    sqlite_path = index_dir / 'index.sqlite'
     try:
-        sys.path.insert(0, str(REPO_ROOT / 'src'))
-        os.environ['CLAUDE_DATA_DIR'] = str(data_dir)
-        if 'session_browser.config' in sys.modules:
-            importlib.reload(sys.modules['session_browser.config'])
-        for module_name in list(sys.modules):
-            if module_name.startswith('session_browser.sources'):
-                del sys.modules[module_name]
-
-        indexer = importlib.import_module('session_browser.index.indexer')
-        claude_source = importlib.import_module('session_browser.sources.claude')
-
-        conn = sqlite3.connect(sqlite_path)
+        conn = sqlite3.connect(str(sqlite_path))
         conn.row_factory = sqlite3.Row
-        indexer.init_schema(conn)
-        for summary in claude_source.scan_all_sessions():
-            indexer.upsert_session(conn, summary)
+        _ensure_fixture_schema(conn)
+        projects_dir = data_dir / 'projects'
+        if not projects_dir.is_dir():
+            conn.close()
+            return f'fixture projects directory missing: {projects_dir}'
+        session_count = 0
+        for project_dir in sorted(projects_dir.iterdir()):
+            if not project_dir.is_dir() or project_dir.name.startswith('.'):
+                continue
+            for jsonl_file in sorted(project_dir.glob('*.jsonl')):
+                session_count += _insert_fixture_session(conn, data_dir, project_dir, jsonl_file)
         conn.commit()
         conn.close()
-    except Exception:
-        return 'failed to populate fixture index'
+        if session_count == 0:
+            return 'no fixture sessions found in JSONL data'
+    except Exception as exc:
+        return f'fixture index population failed: {exc}'
     return None
+
+
+def _ensure_fixture_schema(conn: sqlite3.Connection) -> None:
+    """Create the minimum SQLite schema for the fixture server.
+
+    Args:
+        conn: Active SQLite connection.
+    """
+    conn.executescript("""
+        CREATE TABLE IF NOT EXISTS schema_migrations (
+            version INTEGER PRIMARY KEY,
+            description TEXT NOT NULL DEFAULT '',
+            applied_at TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS sessions (
+            session_key TEXT PRIMARY KEY,
+            agent TEXT NOT NULL CHECK(agent <> ''),
+            session_id TEXT NOT NULL CHECK(session_id <> ''),
+            title TEXT NOT NULL DEFAULT '',
+            project_key TEXT NOT NULL CHECK(project_key <> ''),
+            project_name TEXT NOT NULL DEFAULT '',
+            cwd TEXT NOT NULL DEFAULT '',
+            started_at TEXT NOT NULL DEFAULT '',
+            ended_at TEXT NOT NULL CHECK(ended_at <> ''),
+            duration_seconds REAL NOT NULL DEFAULT 0,
+            model_execution_seconds REAL NOT NULL DEFAULT 0,
+            tool_execution_seconds REAL NOT NULL DEFAULT 0,
+            model TEXT NOT NULL DEFAULT '',
+            git_branch TEXT NOT NULL DEFAULT '',
+            source TEXT NOT NULL DEFAULT '',
+            user_message_count INTEGER NOT NULL DEFAULT 0,
+            assistant_message_count INTEGER NOT NULL DEFAULT 0,
+            tool_call_count INTEGER NOT NULL DEFAULT 0,
+            output_tokens INTEGER NOT NULL DEFAULT 0,
+            fresh_input_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_read_tokens INTEGER NOT NULL DEFAULT 0,
+            cache_write_tokens INTEGER NOT NULL DEFAULT 0,
+            total_tokens INTEGER NOT NULL DEFAULT 0,
+            failed_tool_count INTEGER NOT NULL DEFAULT 0,
+            subagent_instance_count INTEGER NOT NULL DEFAULT 0,
+            indexed_at REAL NOT NULL DEFAULT 0,
+            file_mtime REAL NOT NULL DEFAULT 0,
+            file_path TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS scan_log (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            started_at REAL NOT NULL DEFAULT 0,
+            finished_at REAL NOT NULL DEFAULT 0,
+            claude_count INTEGER NOT NULL DEFAULT 0,
+            codex_count INTEGER NOT NULL DEFAULT 0,
+            qoder_count INTEGER NOT NULL DEFAULT 0,
+            mode TEXT NOT NULL DEFAULT '',
+            status TEXT NOT NULL DEFAULT ''
+        );
+        CREATE TABLE IF NOT EXISTS index_metadata (
+            key TEXT PRIMARY KEY,
+            value TEXT NOT NULL DEFAULT '',
+            updated_at REAL NOT NULL DEFAULT 0
+        );
+        CREATE TABLE IF NOT EXISTS session_artifacts (
+            session_key TEXT NOT NULL,
+            artifact_type TEXT NOT NULL,
+            path TEXT NOT NULL DEFAULT '',
+            schema_version TEXT NOT NULL DEFAULT '',
+            source_path TEXT NOT NULL DEFAULT '',
+            source_mtime REAL NOT NULL DEFAULT 0,
+            size_bytes INTEGER NOT NULL DEFAULT 0,
+            created_at REAL NOT NULL DEFAULT 0,
+            updated_at REAL NOT NULL DEFAULT 0,
+            PRIMARY KEY(session_key, artifact_type),
+            FOREIGN KEY(session_key) REFERENCES sessions(session_key) ON DELETE CASCADE
+        );
+    """)
+
+
+def _insert_fixture_session(
+    conn: sqlite3.Connection,
+    data_dir: Path,
+    project_dir: Path,
+    jsonl_file: Path,
+) -> int:
+    """Parse a single fixture JSONL file and insert a session row.
+
+    Args:
+        conn: Active SQLite connection.
+        data_dir: Fixture data root directory.
+        project_dir: Project directory containing the JSONL file.
+        jsonl_file: Session JSONL file to parse.
+
+    Returns:
+        1 on success, 0 on skip (empty or unreadable file).
+    """
+    events: list[dict] = []
+    with open(jsonl_file, encoding='utf-8') as fh:
+        for line in fh:
+            line = line.strip()
+            if line:
+                events.append(json.loads(line))
+    if not events:
+        return 0
+
+    session_id = jsonl_file.stem
+    project_name = project_dir.name
+    project_key = project_name
+    # Java server 使用 {agent}:{session_id} 格式的 session_key 查找会话
+    session_key = f'claude_code:{session_id}'
+
+    first_event = events[0]
+    started_at = first_event.get('timestamp', '')
+    cwd = first_event.get('cwd', '')
+    git_branch = first_event.get('gitBranch', '')
+
+    last_event = events[-1]
+    ended_at = last_event.get('timestamp', started_at)
+
+    user_count = sum(1 for e in events if e.get('type') == 'user')
+    assistant_count = sum(1 for e in events if e.get('type') == 'assistant')
+    tool_calls = 0
+    output_tokens = 0
+    fresh_input_tokens = 0
+    cache_read_tokens = 0
+    cache_write_tokens = 0
+    total_tokens = 0
+    model = ''
+    for event in events:
+        if event.get('type') != 'assistant':
+            continue
+        msg = event.get('message', {})
+        if not model:
+            model = msg.get('model', '')
+        usage = msg.get('usage', {})
+        output_tokens += usage.get('output_tokens', 0)
+        fresh_input_tokens += usage.get('input_tokens', 0)
+        cache_read_tokens += usage.get('cache_read_input_tokens', 0)
+        cache_write_tokens += usage.get('cache_creation_input_tokens', 0)
+        total_tokens += usage.get('output_tokens', 0) + usage.get('input_tokens', 0)
+        content = msg.get('content', [])
+        if isinstance(content, list):
+            tool_calls += sum(1 for block in content if isinstance(block, dict) and block.get('type') == 'tool_use')
+
+    file_stat = jsonl_file.stat()
+    now = time.time()
+
+    conn.execute(
+        """INSERT OR REPLACE INTO sessions (
+            session_key, agent, session_id, title, project_key, project_name,
+            cwd, started_at, ended_at, duration_seconds, model_execution_seconds,
+            tool_execution_seconds, model, git_branch, source,
+            user_message_count, assistant_message_count, tool_call_count,
+            output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,
+            total_tokens, failed_tool_count, subagent_instance_count,
+            indexed_at, file_mtime, file_path
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+        (
+            session_key,
+            'claude_code',
+            session_id,
+            session_id,
+            project_key,
+            project_name,
+            cwd,
+            started_at,
+            ended_at,
+            0,
+            0,
+            0,
+            model,
+            git_branch,
+            'claude_code',
+            user_count,
+            assistant_count,
+            tool_calls,
+            output_tokens,
+            fresh_input_tokens,
+            cache_read_tokens,
+            cache_write_tokens,
+            total_tokens,
+            0,
+            0,
+            now,
+            file_stat.st_mtime,
+            str(jsonl_file.resolve()),
+        ),
+    )
+    return 1
 
 
 def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | None, str | None]:
@@ -462,11 +661,10 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     tmpdir = str(tmpdir_path)
     index_dir = tmpdir_path / 'index'
     index_dir.mkdir(parents=True)
-    sqlite_path = index_dir / 'index.sqlite'
     data_dir = tmpdir_path / 'claude_data'
     shutil.copytree(fixture_root, data_dir)
 
-    populate_error = _populate_fixture_index(data_dir, sqlite_path)
+    populate_error = _populate_fixture_index(data_dir, index_dir)
     if populate_error:
         shutil.rmtree(tmpdir_path, ignore_errors=True)
         return None, None, None, populate_error
@@ -477,25 +675,28 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
         s.listen(1)
         port = s.getsockname()[1]
 
+    launcher = _java_launcher()
+    if not launcher:
+        shutil.rmtree(tmpdir_path, ignore_errors=True)
+        return None, None, None, 'Java CLI not built; run ./gradlew :java:app-cli:installDist'
+
     env = os.environ.copy()
-    env['PYTHONPATH'] = str(REPO_ROOT / 'src')
     env['INDEX_DIR'] = str(index_dir)
     env['CLAUDE_DATA_DIR'] = str(data_dir)
-    env['SERVER_HOST'] = '127.0.0.1'
-    env['SERVER_PORT'] = str(port)
-    env['SESSION_BROWSER_LOG_LEVEL'] = 'WARNING'
     server_log = Path(tmpdir) / 'fixture-server.log'
     log_handle = server_log.open('w', encoding='utf-8')
 
     try:
         proc = subprocess.Popen(
             [
-                _project_python(REPO_ROOT),
-                '-m',
-                'session_browser',
+                str(launcher),
                 'serve',
                 '--allow-empty',
                 '--no-scan',
+                '--host',
+                '127.0.0.1',
+                '--port',
+                str(port),
             ],
             cwd=str(REPO_ROOT),
             env=env,
@@ -931,6 +1132,15 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
 _FIXTURE_GATES = {'browserLayout', 'browserInteraction'}
 
 
+def _progress(message: str) -> None:
+    """Print concise human-facing runner progress to stderr.
+
+    Args:
+        message: Progress line without prefix.
+    """
+    print(f'[quality-gate] {message}', file=sys.stderr, flush=True)
+
+
 def run_target(
     repo_root: Path, target: str, changed_files: list[str] | None = None
 ) -> list[GateDetail]:
@@ -948,6 +1158,8 @@ def run_target(
     """
     details: list[GateDetail] = []
     gates = required_gates_for_target(target)
+    total_gates = len(gates)
+    _progress(f'target={target} start ({total_gates} gates)')
 
     # Check if any fixture-dependent gate will run.
     needs_fixture = any(g in _FIXTURE_GATES for g in gates)
@@ -969,18 +1181,23 @@ def run_target(
             fixture_base_url = default_base
 
     try:
-        for gate in gates:
+        for index, gate in enumerate(gates, 1):
             cmd = gate_command(gate, repo_root, target)
             if not cmd:
-                details.append(
-                    GateDetail(
-                        name=gate,
-                        status=BLOCKED,
-                        command=[],
-                        output=f'required gate {gate} 没有可执行命令或依赖缺失。',
-                    )
+                detail = GateDetail(
+                    name=gate,
+                    status=BLOCKED,
+                    command=[],
+                    output=f'required gate {gate} 没有可执行命令或依赖缺失。',
                 )
+                details.append(detail)
+                _progress(f'[{index}/{total_gates}] {gate} BLOCKED no command')
                 continue
+
+            command_label = shlex.join(cmd)
+            if len(command_label) > 180:
+                command_label = command_label[:177] + '...'
+            _progress(f'[{index}/{total_gates}] {gate} start: {command_label}')
 
             # For fixture-dependent gates, inject BASE_URL if fixture server is running.
             env_override: dict[str, str] = {}
@@ -996,25 +1213,33 @@ def run_target(
                 )
                 env_override['SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER'] = '1'
             elif gate in _FIXTURE_GATES:
-                details.append(
-                    GateDetail(
-                        name=gate,
-                        status=BLOCKED,
-                        command=cmd,
-                        durationMs=0,
-                        output=f'fixture server unavailable: {fixture_error or "unknown error"}',
-                    )
+                detail = GateDetail(
+                    name=gate,
+                    status=BLOCKED,
+                    command=cmd,
+                    durationMs=0,
+                    output=f'fixture server unavailable: {fixture_error or "unknown error"}',
                 )
+                details.append(detail)
+                _progress(f'[{index}/{total_gates}] {gate} BLOCKED fixture unavailable')
                 continue
 
-            details.append(
-                run_cmd(gate, cmd, repo_root, required=True, env_overrides=env_override or None)
+            detail = run_cmd(
+                gate, cmd, repo_root, required=True, env_overrides=env_override or None
             )
+            details.append(detail)
+            status_label = detail.status.upper()
+            _progress(f'[{index}/{total_gates}] {gate} {status_label} ({detail.durationMs} ms)')
     finally:
         if fixture_proc:
             _stop_fixture_server(fixture_proc, fixture_tmpdir)
             print('[fixture-server] stopped')
 
+    status, failures = compute_overall({detail.name: detail.status for detail in details})
+    if failures:
+        _progress(f'target={target} {status.upper()} failures={", ".join(failures)}')
+    else:
+        _progress(f'target={target} {status.upper()}')
     return details
 
 

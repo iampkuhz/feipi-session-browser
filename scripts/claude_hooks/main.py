@@ -124,6 +124,14 @@ def main(argv: list[str] | None = None) -> int:
     event_name = argv[0] if argv else 'unknown'
     paths = build_paths()
     ensure_runtime_dirs(paths)
+
+    # --self-test 不需要 stdin，必须在 read_stdin_json 之前分发，
+    # 否则 sys.stdin.read() 会在没有管道输入时阻塞等待 EOF。
+    if event_name == '--self-test':
+        run_self_test()
+        print('scripts.claude_hooks self-test PASS')
+        return 0
+
     ctx = read_stdin_json(event_name)
 
     if event_name == 'pre-bash':
@@ -132,10 +140,6 @@ def main(argv: list[str] | None = None) -> int:
         return emit(handle_pre_write(paths, ctx))
     if event_name == 'post-write':
         return emit(handle_post_write(paths, ctx))
-    if event_name == '--self-test':
-        run_self_test()
-        print('scripts.claude_hooks self-test PASS')
-        return 0
 
     return emit(handle_default(paths, ctx, event_name))
 

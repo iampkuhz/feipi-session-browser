@@ -202,11 +202,17 @@ def collect_changed_files(
     base_commit_file: Path | None = None,
     agent_id: str | None = None,
 ) -> list[str]:
-    """Collect hook-recorded and git-dirty files for fail-closed routing.
+    """Collect session-scoped changed files for fail-closed routing.
+
+    The primary source is hook-recorded writes (session-scoped via JSONL).
+    Committed changes since the base commit are included as a secondary source
+    to cover agent commits. Pre-existing uncommitted dirty files are excluded
+    because ``read_git_dirty_files`` is not used here — it cannot distinguish
+    between files dirty before the session and files changed during the session.
 
     Args:
         session_id: Optional session id used to filter hook records.
-        include_git: Whether to include current git dirty files.
+        include_git: Whether to include committed changes since the base commit.
         repo_root: Repository root for git commands.
         changed_files_path: Path to the changed-files JSONL file.
         base_commit_file: Optional path to the base-commit file.
@@ -216,8 +222,6 @@ def collect_changed_files(
         base_commit_file = changed_files_path.with_name(DEFAULT_BASE_COMMIT_FILE.name)
     paths = read_recorded_changed_files(session_id, changed_files_path, agent_id=agent_id)
     paths.extend(read_files_since_base_commit(repo_root, base_commit_file))
-    if include_git:
-        paths.extend(read_git_dirty_files(repo_root))
     return dedupe_paths(paths)
 
 

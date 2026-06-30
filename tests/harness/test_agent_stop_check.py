@@ -67,8 +67,8 @@ def test_stop_blocks_on_java_change():
     assert len(targets) >= 1
 
 
-def test_shared_changed_files_collects_git_dirty_without_hook_record(monkeypatch, tmp_path):
-    """没有 hook changed-files 记录时，git dirty 文件仍必须进入门禁路由。"""
+def test_shared_changed_files_excludes_preexisting_git_dirty(monkeypatch, tmp_path):
+    """Pre-existing dirty files must NOT enter gate routing; only session-scoped sources count."""
 
     def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
         return SimpleNamespace(
@@ -88,10 +88,35 @@ def test_shared_changed_files_collects_git_dirty_without_hook_record(monkeypatch
         changed_files_path=tmp_path / 'missing.jsonl',
     )
 
+    assert paths == []
+
+
+def test_shared_changed_files_includes_committed_changes_since_base(monkeypatch, tmp_path):
+    """Commits made since the base commit must enter gate routing."""
+    base_file = tmp_path / 'base-commit.txt'
+    base_file.write_text('base123\n', encoding='utf-8')
+
+    def fake_run(*args: object, **kwargs: object) -> SimpleNamespace:
+        return SimpleNamespace(
+            returncode=0,
+            stdout=(
+                'scripts/quality/run_required_quality_gates.py\n'
+                'docs/acceptance-contracts/features/DATA_PRESENTERS.md\n'
+            ),
+        )
+
+    monkeypatch.setattr(changed_files.subprocess, 'run', fake_run)
+
+    paths = changed_files.collect_changed_files(
+        None,
+        repo_root=tmp_path,
+        changed_files_path=tmp_path / 'missing.jsonl',
+        base_commit_file=base_file,
+    )
+
     assert paths == [
         'scripts/quality/run_required_quality_gates.py',
         'docs/acceptance-contracts/features/DATA_PRESENTERS.md',
-        '.codex/hooks.json',
     ]
     targets = required_targets(paths)
     assert 'hook-runtime' in targets
