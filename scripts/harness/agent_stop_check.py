@@ -130,7 +130,9 @@ def read_recorded_changed_files(session_id: str | None, agent_id: str | None = N
     Returns:
         Changed paths recorded for the session.
     """
-    return changed_file_utils.read_recorded_changed_files(session_id, CHANGED_FILES, agent_id=agent_id)
+    return changed_file_utils.read_recorded_changed_files(
+        session_id, CHANGED_FILES, agent_id=agent_id
+    )
 
 
 def parse_git_status_paths(output: str) -> list[str]:

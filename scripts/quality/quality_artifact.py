@@ -82,6 +82,7 @@ def resolve_dirty_hash(repo_root: str = '.') -> str:
         )
         if result.returncode == 0 and result.stdout.strip():
             import hashlib
+
             return hashlib.sha256(result.stdout.encode()).hexdigest()[:12]
         return ''
     except Exception:
@@ -99,6 +100,7 @@ def is_artifact_fresh(artifact_path: str, max_age_seconds: int = 3600) -> bool:
         True when the artifact exists and was generated within the freshness window.
     """
     from pathlib import Path as _Path
+
     p = _Path(artifact_path)
     if not p.exists():
         return False

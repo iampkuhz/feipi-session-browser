@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 
@@ -163,15 +164,15 @@ def run_check(args: argparse.Namespace) -> int:
     print('=== raw-innerHTML 阻断 gate ===')
     print(f'扫描文件数:{len(js_files)}')
     print(f'innerHTML 赋值总数:{total}(含清空操作 {clear_count} 处)')
-    print(f'存量 WARN:{known_count} 处(技术债务)')
+    print(f'存量基线:{known_count} 处(技术债务)')
     print(f'新增 BLOCK:{len(new_items)} 处')
     print()
 
-    if known_count > 0:
-        print('--- 存量 innerHTML(WARN)---')
+    if known_count > 0 and os.environ.get('SESSION_BROWSER_SHOW_BASELINE_WARNINGS') == '1':
+        print('--- 存量 innerHTML baseline ---')
         for f in findings:
             key = f['file'] + ':' + str(f['line'])
-            tag = '[WARN]' if key in baseline else '[NEW!!]'
+            tag = '[BASELINE]' if key in baseline else '[NEW!!]'
             clear_tag = ' (清空)' if f['isClear'] else ''
             print(f'  {tag} {f["file"]}:{f["line"]}{clear_tag} | {f["snippet"]}')
         print()

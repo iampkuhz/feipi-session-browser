@@ -15,7 +15,9 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-SHELL_CSS = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
+SHELL_CSS = (
+    REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
+)
 
 FAILURES = []
 

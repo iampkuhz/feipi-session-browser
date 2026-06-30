@@ -10,11 +10,9 @@ starts the local server, and cleans all temporary data on signals or exit.
 from __future__ import annotations
 
 import atexit
-import importlib
 import os
 import shutil
 import signal
-import sqlite3
 import subprocess
 import sys
 import tempfile
@@ -29,51 +27,44 @@ if TYPE_CHECKING:
     from types import FrameType
 
 SB_ROOT = Path(__file__).resolve().parent.parent
+if str(SB_ROOT) not in sys.path:
+    sys.path.insert(0, str(SB_ROOT))
 FIXTURE_ROOT = SB_ROOT / 'tests' / 'fixtures' / 'session_hifi_fixture'
 LONG_FIXTURE_ROOT = SB_ROOT / 'tests' / 'fixtures' / 'session_hifi_long_fixture'
 DEFAULT_PORT = 19099
 HTTP_OK = 200
-VENV_PYTHON = SB_ROOT / '.venv' / 'bin' / 'python'
-PYTHON_EXECUTABLE = str(VENV_PYTHON if VENV_PYTHON.exists() else Path(sys.executable))
 
 
-def populate_index(claude_data_dir: Path, sqlite_path: Path) -> None:
+def _java_launcher() -> Path | None:
+    """Resolve the Gradle-installed Java CLI launcher.
+
+    Returns:
+        Path to the app-cli launcher, or None when installDist has not run.
+    """
+    launcher = SB_ROOT / 'java' / 'app-cli' / 'build' / 'install' / 'app-cli' / 'bin' / 'app-cli'
+    return launcher if launcher.exists() else None
+
+
+def populate_index(claude_data_dir: Path, index_dir: Path) -> str | None:
     """Index copied fixture sessions into a temporary SQLite database.
 
     Args:
         claude_data_dir: Temporary Claude data directory populated from test fixtures.
-        sqlite_path: SQLite index file path consumed by the fixture server.
+        index_dir: Temporary index directory consumed by the Java fixture server.
+
+    Returns:
+        None on success; otherwise a human-readable failure reason.
     """
-    sys.path.insert(0, str(SB_ROOT / 'src'))
+    # Reuse the same deterministic Java fixture index builder used by
+    # scripts/quality/run_quality_gate.py so local Playwright and required gates
+    # exercise identical HIFI data. This intentionally avoids
+    # `python -m session_browser serve` and any Python product package import.
+    from scripts.quality.run_quality_gate import _populate_fixture_index
 
-    old_data_dir = os.environ.get('CLAUDE_DATA_DIR', '')
-    os.environ['CLAUDE_DATA_DIR'] = str(claude_data_dir)
-
-    if 'session_browser.config' in sys.modules:
-        importlib.reload(sys.modules['session_browser.config'])
-    for mod in list(sys.modules):
-        if mod.startswith('session_browser.sources'):
-            del sys.modules[mod]
-
-    try:
-        indexer = importlib.import_module('session_browser.index.indexer')
-        claude_source = importlib.import_module('session_browser.sources.claude')
-
-        conn = sqlite3.connect(sqlite_path)
-        conn.row_factory = sqlite3.Row
-        indexer.init_schema(conn)
-
-        for summary in claude_source.scan_all_sessions():
-            indexer.upsert_session(conn, summary)
-
-        conn.commit()
-        conn.close()
-        print(f'Indexed sessions to {sqlite_path}')
-    finally:
-        if old_data_dir:
-            os.environ['CLAUDE_DATA_DIR'] = old_data_dir
-        else:
-            os.environ.pop('CLAUDE_DATA_DIR', None)
+    error = _populate_fixture_index(claude_data_dir, index_dir)
+    if error is None:
+        print(f'Indexed sessions to {index_dir / "index.sqlite"}')
+    return error
 
 
 def _resolve_port() -> int:
@@ -172,7 +163,7 @@ def _build_server_env(index_dir: Path, data_dir: Path, port: int) -> dict[str, s
     env['CLAUDE_DATA_DIR'] = str(data_dir)
     env['SERVER_HOST'] = '127.0.0.1'
     env['SERVER_PORT'] = str(port)
-    env['SESSION_BROWSER_LOG_LEVEL'] = 'WARNING'
+    env['SESSION_BROWSER_LOG_LEVEL'] = 'WARN'
     env['PYTHONUNBUFFERED'] = '1'
     return env
 
@@ -236,9 +227,19 @@ def main() -> None:
     port = _resolve_port()
     tmpdir, index_dir, data_dir = _prepare_fixture_data()
     sqlite_path = index_dir / 'index.sqlite'
-    populate_index(data_dir, sqlite_path)
+    populate_error = populate_index(data_dir, index_dir)
+    if populate_error:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        print(f'ERROR: {populate_error}')
+        sys.exit(1)
 
     env = _build_server_env(index_dir, data_dir, port)
+    launcher = _java_launcher()
+    if launcher is None:
+        shutil.rmtree(tmpdir, ignore_errors=True)
+        print('ERROR: Java CLI not built; run ./gradlew :java:app-cli:installDist')
+        sys.exit(1)
+
     print(f'Starting fixture server on http://127.0.0.1:{port}')
     print(f'  Data dir: {data_dir}')
     print(f'  Index: {sqlite_path}')
@@ -248,7 +249,16 @@ def main() -> None:
     print(f'  TMPDIR: {tmpdir}')
 
     proc = subprocess.Popen(
-        [PYTHON_EXECUTABLE, '-m', 'session_browser', 'serve', '--allow-empty', '--no-scan'],
+        [
+            str(launcher),
+            'serve',
+            '--allow-empty',
+            '--no-scan',
+            '--host',
+            '127.0.0.1',
+            '--port',
+            str(port),
+        ],
         cwd=SB_ROOT,
         env=env,
     )

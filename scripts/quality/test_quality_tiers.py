@@ -15,7 +15,6 @@ Usage:
 
 from __future__ import annotations
 
-import importlib
 import sys
 import unittest
 from pathlib import Path
@@ -27,15 +26,14 @@ if str(REPO_ROOT) not in sys.path:
 # 导入被测模块。
 from scripts.quality.quality_targets import (  # noqa: E402
     QUALITY_TARGETS,
-    GATE_PATTERNS,
     applicable_gates_for_target,
     required_gates_for_target,
 )
 from scripts.quality.run_required_quality_gates import (  # noqa: E402
+    FULL_EXTRA_COMMANDS,
     QUICK_GATES,
     TIER_META,
     VALID_TIERS,
-    FULL_EXTRA_COMMANDS,
     _run_quick_tier,
 )
 
@@ -90,7 +88,8 @@ class TestTierDefinitions(unittest.TestCase):
         for tier in ('required', 'full'):
             policy = TIER_META[tier]['failure_policy']
             self.assertIn(
-                'skipped', policy.lower(),
+                'skipped',
+                policy.lower(),
                 f'{tier} failure policy must mention skipped outcome',
             )
 
@@ -98,7 +97,8 @@ class TestTierDefinitions(unittest.TestCase):
         """Quick tier policy must clarify not-triggered is not skipped."""
         policy = TIER_META['quick']['failure_policy']
         self.assertIn(
-            'not triggered', policy.lower(),
+            'not triggered',
+            policy.lower(),
             'quick failure policy must clarify not-triggered semantics',
         )
 
@@ -117,7 +117,8 @@ class TestQuickGates(unittest.TestCase):
             all_gates.update(gates)
         for gate in QUICK_GATES:
             self.assertIn(
-                gate, all_gates,
+                gate,
+                all_gates,
                 f'quick gate {gate} not found in any target baseline',
             )
 
@@ -126,7 +127,8 @@ class TestQuickGates(unittest.TestCase):
         heavy_gates = {'javaCheck', 'pytest', 'browserLayout', 'browserInteraction'}
         overlap = QUICK_GATES & heavy_gates
         self.assertEqual(
-            overlap, set(),
+            overlap,
+            set(),
             f'quick gates should not include heavy gates: {overlap}',
         )
 
@@ -166,7 +168,8 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
         # This is the core semantic distinction.
         for gate in not_triggered:
             self.assertNotIn(
-                gate, applicable,
+                gate,
+                applicable,
                 f'not-triggered gate {gate} should not appear in applicable list',
             )
 
@@ -175,7 +178,8 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
         target = 'hook-runtime'
         applicable = applicable_gates_for_target(target, [])
         self.assertEqual(
-            applicable, [],
+            applicable,
+            [],
             'empty changed_files should produce empty applicable list (not triggered)',
         )
 
@@ -185,7 +189,8 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
         applicable = applicable_gates_for_target(target, None)
         baseline = required_gates_for_target(target)
         self.assertEqual(
-            applicable, baseline,
+            applicable,
+            baseline,
             'None changed_files should return full baseline',
         )
 
@@ -213,7 +218,8 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
                 # This gate was not triggered, NOT skipped.
                 status_label = 'not_triggered'
                 self.assertEqual(
-                    status_label, 'not_triggered',
+                    status_label,
+                    'not_triggered',
                     f'{gate} is not-triggered, not skipped',
                 )
 
@@ -228,7 +234,8 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
         baseline_order = {g: i for i, g in enumerate(baseline)}
         applicable_indices = [baseline_order[g] for g in applicable if g in baseline_order]
         self.assertEqual(
-            applicable_indices, sorted(applicable_indices),
+            applicable_indices,
+            sorted(applicable_indices),
             'applicable gates should preserve baseline order',
         )
 
@@ -325,7 +332,8 @@ class TestQualityTiersYamlExists(unittest.TestCase):
         content = yaml_path.read_text(encoding='utf-8')
         for tier in ('quick', 'required', 'full'):
             self.assertIn(
-                tier, content,
+                tier,
+                content,
                 f'quality-tiers.yaml must mention tier: {tier}',
             )
 

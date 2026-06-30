@@ -12,7 +12,6 @@
 
 from __future__ import annotations
 
-import os
 import re
 import sys
 from dataclasses import dataclass, field
@@ -55,25 +54,15 @@ class EnumInfo:
 # 扫描逻辑
 # ---------------------------------------------------------------------------
 
-_ENUM_DECL = re.compile(
-    r"(?:public\s+)?(?:@\w+(?:\([^)]*\))?\s+)*enum\s+(\w+)"
-)
+_ENUM_DECL = re.compile(r"(?:public\s+)?(?:@\w+(?:\([^)]*\))?\s+)*enum\s+(\w+)")
 
-_VALUE_FIELD = re.compile(
-    r"(?:private\s+final\s+String\s+(?:value|columnName|sortKey)\b)"
-)
+_VALUE_FIELD = re.compile(r"(?:private\s+final\s+String\s+(?:value|columnName|sortKey)\b)")
 
-_GET_VALUE = re.compile(
-    r"(?:public\s+String\s+getValue\s*\(\s*\))"
-)
+_GET_VALUE = re.compile(r"(?:public\s+String\s+getValue\s*\(\s*\))")
 
-_FROM_VALUE = re.compile(
-    r"(?:public\s+static\s+\w+\s+fromValue\s*\(\s*String\s+\w*\s*\))"
-)
+_FROM_VALUE = re.compile(r"(?:public\s+static\s+\w+\s+fromValue\s*\(\s*String\s+\w*\s*\))")
 
-_FROM_STRING = re.compile(
-    r"(?:public\s+static\s+\w+\s+fromString\s*\(\s*String\s+\w*\s*\))"
-)
+_FROM_STRING = re.compile(r"(?:public\s+static\s+\w+\s+fromString\s*\(\s*String\s+\w*\s*\))")
 
 
 def _find_repo_root() -> Path:
@@ -83,7 +72,7 @@ def _find_repo_root() -> Path:
     return script.parent.parent.parent
 
 
-def _scan_file(file_path: Path, module_root: str) -> EnumInfo | None:
+def _scan_file(file_path: Path) -> EnumInfo | None:
     """解析单个 Java 文件，提取 enum 信息。"""
     text = file_path.read_text(encoding="utf-8")
     match = _ENUM_DECL.search(text)
@@ -113,7 +102,7 @@ def scan_all(repo_root: Path) -> list[EnumInfo]:
         if not module_dir.exists():
             continue
         for java_file in sorted(module_dir.rglob("*.java")):
-            info = _scan_file(java_file, module)
+            info = _scan_file(java_file)
             if info is not None:
                 results.append(info)
     return results

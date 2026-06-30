@@ -394,22 +394,73 @@ def _warning_after_trigger_reason(
     return None
 
 
+def _audit_network_block_reason(output: str, *, gate_name: str) -> str | None:
+    """Detect pip-audit failures caused by external network/proxy transport."""
+    if gate_name != 'pythonAudit':
+        return None
+    clean = _strip_ansi(output)
+    network_markers = (
+        'requests.exceptions.SSLError',
+        'requests.exceptions.ProxyError',
+        'requests.exceptions.ReadTimeout',
+        'urllib3.exceptions.ReadTimeoutError',
+        'urllib3.exceptions.MaxRetryError',
+        'HTTPSConnectionPool',
+        'RemoteDisconnected',
+        'UNEXPECTED_EOF_WHILE_READING',
+    )
+    if any(marker in clean for marker in network_markers):
+        return 'pip-audit vulnerability service/network unavailable'
+    return None
+
+
 def _fixture_session_available(base_url: str) -> bool:
-    """Check whether the HIFI fixture session is available on a server.
+    """Check whether the Java HIFI fixture sessions are available on a server.
 
     Args:
         base_url: Candidate session-browser server URL.
 
     Returns:
-        True when the fixture detail route responds with HTTP 200.
+        True when dashboard, short fixture, and long fixture routes respond with HTTP 200.
     """
-    try:
-        resp = urllib.request.urlopen(
-            f'{base_url}/sessions/claude_code/hifi-viz-session-001', timeout=5
+    required_paths = (
+        '/dashboard',
+        '/sessions/claude_code/hifi-viz-session-001',
+        '/sessions/claude_code/long-session-001',
+    )
+    for path in required_paths:
+        try:
+            resp = urllib.request.urlopen(f'{base_url}{path}', timeout=5)
+        except Exception:
+            return False
+        if resp.status != HTTP_OK:
+            return False
+    return True
+
+
+def _merge_long_fixture_data(data_dir: Path) -> None:
+    """Merge long-session fixture data into a copied HIFI fixture directory."""
+    long_root = REPO_ROOT / 'tests' / 'fixtures' / 'session_hifi_long_fixture'
+    if not long_root.exists():
+        return
+    long_projects = long_root / 'projects'
+    if long_projects.exists():
+        projects_dir = data_dir / 'projects'
+        projects_dir.mkdir(parents=True, exist_ok=True)
+        for item in long_projects.iterdir():
+            destination = projects_dir / item.name
+            if item.is_dir():
+                shutil.copytree(item, destination, dirs_exist_ok=True)
+            else:
+                shutil.copy2(item, destination)
+
+    long_history = long_root / 'history.jsonl'
+    if long_history.exists():
+        history_file = data_dir / 'history.jsonl'
+        existing = history_file.read_text(encoding='utf-8') if history_file.exists() else ''
+        history_file.write_text(
+            existing + long_history.read_text(encoding='utf-8'), encoding='utf-8'
         )
-        return resp.status == HTTP_OK
-    except Exception:
-        return False
 
 
 def _java_launcher() -> Path | None:
@@ -948,6 +999,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     index_dir.mkdir(parents=True)
     data_dir = tmpdir_path / 'claude_data'
     shutil.copytree(fixture_root, data_dir)
+    _merge_long_fixture_data(data_dir)
 
     populate_error = _populate_fixture_index(data_dir, index_dir)
     if populate_error:
@@ -968,6 +1020,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     env = os.environ.copy()
     env['INDEX_DIR'] = str(index_dir)
     env['CLAUDE_DATA_DIR'] = str(data_dir)
+    env['SESSION_BROWSER_LOG_LEVEL'] = 'WARN'
     server_log = Path(tmpdir) / 'fixture-server.log'
     log_handle = server_log.open('w', encoding='utf-8')
 
@@ -1102,6 +1155,17 @@ def run_cmd(
         if len(output) > COMMAND_OUTPUT_TAIL_CHARS:
             output = output[-COMMAND_OUTPUT_TAIL_CHARS:]
         status = PASS if proc.returncode == 0 else FAIL
+        audit_block_reason = (
+            _audit_network_block_reason(output, gate_name=name) if status == FAIL else None
+        )
+        if audit_block_reason:
+            status = BLOCKED
+            output = (
+                f'{output}\n\n'
+                f'[quality-gate] BLOCKED: {audit_block_reason}. '
+                'Fix local certificate/proxy/network access and rerun audit; '
+                'do not report the audit gate as PASS.'
+            )
         skipped = 0
         skipped_kind = ''
         if status == PASS and _is_playwright_command(cmd):
@@ -1238,6 +1302,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
                 'npx',
                 'playwright',
                 'test',
+                'ui-contract.spec.ts',
+                'main-pages-visual.spec.ts',
                 'session-detail-layout',
                 'shell-states',
                 'dashboard-chart-coordinates',
@@ -1495,6 +1561,9 @@ def run_target(
                 env_override['BASE_URL'] = fixture_base_url
                 env_override['PW_SESSION_URL'] = (
                     f'{fixture_base_url}/sessions/claude_code/hifi-viz-session-001'
+                )
+                env_override['PW_LONG_SESSION_URL'] = (
+                    f'{fixture_base_url}/sessions/claude_code/long-session-001'
                 )
                 env_override['SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER'] = '1'
             elif gate in _FIXTURE_GATES:

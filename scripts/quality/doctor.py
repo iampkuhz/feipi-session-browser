@@ -15,6 +15,7 @@ Exit codes:
 from __future__ import annotations
 
 import json
+import shlex
 import subprocess
 import sys
 from pathlib import Path
@@ -41,8 +42,7 @@ def _run(name: str, cmd: str) -> int:
     print(f'  [{name}] running ...', end=' ')
     try:
         result = subprocess.run(
-            cmd,
-            shell=True,
+            shlex.split(cmd),
             check=False,
             capture_output=True,
             text=True,

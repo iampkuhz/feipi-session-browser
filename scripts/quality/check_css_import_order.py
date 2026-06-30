@@ -41,9 +41,6 @@ def check_css_import_order(css_path: Path) -> list[str]:
     text_no_comments = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
 
     lines = text_no_comments.split('\n')
-    seen_import = False
-    seen_rule = False
-    import_after_rule_line = None
 
     # 跟踪是否在 { } 内部（多行 rule）
     in_block = 0
@@ -59,9 +56,6 @@ def check_css_import_order(css_path: Path) -> list[str]:
 
         # 检查是否是 @import
         if stripped.startswith('@import') and in_block == 0:
-            if seen_rule:
-                import_after_rule_line = i
-            seen_import = True
             continue
 
         # 检查是否是 @charset 或 @layer statement（允许在 import 前）
@@ -70,13 +64,6 @@ def check_css_import_order(css_path: Path) -> list[str]:
         if stripped.startswith('@layer') and '{' not in stripped and '}' not in stripped:
             # @layer statement (e.g., @layer settings, tools, generic;)
             continue
-
-        # 检查是否有 rule body
-        if open_braces > 0 and in_block == 0:
-            seen_rule = True
-            if seen_import:
-                # 有 rule 之后又可能出现 import — 记录
-                pass
 
         in_block += open_braces - close_braces
         in_block = max(in_block, 0)  # safety

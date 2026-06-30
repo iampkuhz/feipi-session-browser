@@ -95,29 +95,57 @@ class TestReportHashIntegrity:
         finished = '2026-01-01T00:01:00Z'
 
         summary_a = QualitySummary(
-            schemaVersion=3, status='PASS', target='hook-runtime',
-            changeId='test', startedAt='2026-01-01T00:00:00Z',
-            finishedAt=finished, requiredGates={'pytest': 'PASS'},
-            blockingFailures=[], warnings=[],
+            schemaVersion=3,
+            status='PASS',
+            target='hook-runtime',
+            changeId='test',
+            startedAt='2026-01-01T00:00:00Z',
+            finishedAt=finished,
+            requiredGates={'pytest': 'PASS'},
+            blockingFailures=[],
+            warnings=[],
             artifacts={'notTriggeredGates': []},
-            gateDetails=[{'name': 'pytest', 'status': 'PASS', 'command': ['pytest', '-q'],
-                          'output': '', 'exitCode': 0}],
+            gateDetails=[
+                {
+                    'name': 'pytest',
+                    'status': 'PASS',
+                    'command': ['pytest', '-q'],
+                    'output': '',
+                    'exitCode': 0,
+                }
+            ],
             runId='test-hook-runtime-2026-01-01T00:00:00Z',
-            baseCommit='', dirtyHash='', generatedAt='2026-01-01T00:00:00Z',
+            baseCommit='',
+            dirtyHash='',
+            generatedAt='2026-01-01T00:00:00Z',
             freshness='0s',
         )
         path_a = write_quality_summary(tmp_path / 'a', summary_a)
 
         summary_b = QualitySummary(
-            schemaVersion=3, status='PASS', target='hook-runtime',
-            changeId='test', startedAt='2026-01-01T00:00:00Z',
-            finishedAt=finished, requiredGates={'pytest': 'PASS'},
-            blockingFailures=[], warnings=[],
+            schemaVersion=3,
+            status='PASS',
+            target='hook-runtime',
+            changeId='test',
+            startedAt='2026-01-01T00:00:00Z',
+            finishedAt=finished,
+            requiredGates={'pytest': 'PASS'},
+            blockingFailures=[],
+            warnings=[],
             artifacts={'notTriggeredGates': []},
-            gateDetails=[{'name': 'pytest', 'status': 'PASS', 'command': ['pytest', '-q'],
-                          'output': '', 'exitCode': 0}],
+            gateDetails=[
+                {
+                    'name': 'pytest',
+                    'status': 'PASS',
+                    'command': ['pytest', '-q'],
+                    'output': '',
+                    'exitCode': 0,
+                }
+            ],
             runId='test-hook-runtime-2026-01-01T00:00:00Z',
-            baseCommit='', dirtyHash='', generatedAt='2026-01-01T00:00:00Z',
+            baseCommit='',
+            dirtyHash='',
+            generatedAt='2026-01-01T00:00:00Z',
             freshness='0s',
         )
         path_b = write_quality_summary(tmp_path / 'b', summary_b)
@@ -153,12 +181,14 @@ class TestStaleArtifactDetection:
     def test_missing_artifact_is_stale(self):
         """不存在的 artifact 不是新鲜的。"""
         from scripts.quality.quality_artifact import is_artifact_fresh
+
         assert is_artifact_fresh('/nonexistent/path/artifact.json') is False
 
     @pytest.mark.contract_case('JR-020-007')
     def test_fresh_artifact_is_fresh(self, tmp_path: Path):
         """刚创建的 artifact 是新鲜的。"""
         from scripts.quality.quality_artifact import is_artifact_fresh
+
         artifact = tmp_path / 'fresh.json'
         artifact.write_text('{}', encoding='utf-8')
         assert is_artifact_fresh(str(artifact), max_age_seconds=60) is True

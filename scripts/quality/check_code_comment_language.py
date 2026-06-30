@@ -8,14 +8,15 @@
 - 占位/低信息注释（TODO、待补充等）失败。
 - 支持 JSON report 和有界多线程。
 """
+
 from __future__ import annotations
+
 import argparse
 import concurrent.futures
 import hashlib
 import json
 import os
 import re
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
@@ -24,9 +25,7 @@ from pathlib import Path
 # ============================================================
 HAN = re.compile(r'[㐀-䶿一-鿿豈-﫿]')
 LATIN = re.compile(r'[A-Za-z]')
-PLACEHOLDER = re.compile(
-    r'\b(?:TODO|TBD|FIXME|XXX)\b|待补充|以后补|稍后处理|临时注释', re.I
-)
+PLACEHOLDER = re.compile(r'\b(?:TODO|TBD|FIXME|XXX)\b|待补充|以后补|稍后处理|临时注释', re.I)
 DIRECTIVE = re.compile(
     r'^(?:SPDX-|Copyright|noinspection|language=|region|endregion|'
     r'spotless:|formatter:|CHECKSTYLE|PMD|ktlint|generated)',
@@ -38,21 +37,57 @@ TAG = re.compile(
     r'\{@(?:code|link|linkplain|literal|value)\s+[^}]*}'
     r'|@(?:param|return|throws|exception|since|see|deprecated)\b'
 )
-IDENT = re.compile(
-    r'`[^`]+`|\b(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\b'
-)
+IDENT = re.compile(r'`[^`]+`|\b(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\b')
 
 TERMS: set[str] = {
-    'Java', 'JVM', 'Gradle', 'Kotlin', 'DSL', 'JUnit', 'Javadoc', 'DocLint',
-    'JSON', 'JSONL', 'NDJSON', 'SQLite', 'Jackson', 'Picocli', 'API', 'CLI',
-    'record', 'enum', 'sealed', 'interface', 'token', 'tool', 'agent',
-    'session', 'SHA', 'UTF', 'stdout', 'stderr', 'fixture', 'artifact',
-    'schema', 'hash', 'ID', 'UUID', 'HTTP', 'SQL', 'Git', 'Python',
+    'Java',
+    'JVM',
+    'Gradle',
+    'Kotlin',
+    'DSL',
+    'JUnit',
+    'Javadoc',
+    'DocLint',
+    'JSON',
+    'JSONL',
+    'NDJSON',
+    'SQLite',
+    'Jackson',
+    'Picocli',
+    'API',
+    'CLI',
+    'record',
+    'enum',
+    'sealed',
+    'interface',
+    'token',
+    'tool',
+    'agent',
+    'session',
+    'SHA',
+    'UTF',
+    'stdout',
+    'stderr',
+    'fixture',
+    'artifact',
+    'schema',
+    'hash',
+    'ID',
+    'UUID',
+    'HTTP',
+    'SQL',
+    'Git',
+    'Python',
 }
 
 # 排除的目录片段
 EXCLUDED_PARTS = {
-    'build', '.gradle', 'generated', 'gen', 'third_party', 'vendor',
+    'build',
+    '.gradle',
+    'generated',
+    'gen',
+    'third_party',
+    'vendor',
     'node_modules',
 }
 
@@ -63,6 +98,7 @@ EXCLUDED_PARTS = {
 @dataclass(frozen=True)
 class Comment:
     """一条从源码中提取的注释。"""
+
     path: str
     line: int
     kind: str
@@ -72,6 +108,7 @@ class Comment:
 @dataclass(frozen=True)
 class Violation:
     """一条注释违规。"""
+
     path: str
     line: int
     code: str
@@ -134,7 +171,7 @@ def extract(path: Path) -> list[Comment]:
                 i += 1
         elif state == 'line':
             if text[i] == '\n':
-                out.append(Comment(str(path), line(start), 'line', text[start + 2:i]))
+                out.append(Comment(str(path), line(start), 'line', text[start + 2 : i]))
                 state = 'normal'
             i += 1
         elif state == 'block':
@@ -146,13 +183,13 @@ def extract(path: Path) -> list[Comment]:
                 i += 2
                 if depth == 0:
                     kind = 'javadoc' if text.startswith('/**', start) else 'block'
-                    out.append(Comment(str(path), line(start), kind, text[start + 2:i - 2]))
+                    out.append(Comment(str(path), line(start), kind, text[start + 2 : i - 2]))
                     state = 'normal'
             else:
                 i += 1
 
     if state == 'line':
-        out.append(Comment(str(path), line(start), 'line', text[start + 2:]))
+        out.append(Comment(str(path), line(start), 'line', text[start + 2 :]))
     return out
 
 
@@ -175,14 +212,14 @@ def normalize(text: str, terms: set[str]) -> str:
     for term in sorted(terms, key=len, reverse=True):
         value = re.sub(
             rf'(?<![A-Za-z0-9_]){re.escape(term)}(?![A-Za-z0-9_])',
-            ' ', value, flags=re.I,
+            ' ',
+            value,
+            flags=re.I,
         )
     return re.sub(r'\s+', ' ', value).strip()
 
 
-def check(
-    comment: Comment, terms: set[str], forbidden: tuple[str, ...]
-) -> list[Violation]:
+def check(comment: Comment, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
     """检查单条注释是否合规。"""
     raw = comment.text.strip()
     first = re.sub(r'^\s*\*?\s?', '', raw.splitlines()[0]).strip() if raw else ''
@@ -192,17 +229,27 @@ def check(
     # 检查禁止的非规范翻译
     for word in forbidden:
         if word in raw:
-            return [Violation(
-                comment.path, comment.line, 'TECH_TERM_NOT_CANONICAL',
-                f'技术术语应使用约定英文，禁止：{word}', first[:160],
-            )]
+            return [
+                Violation(
+                    comment.path,
+                    comment.line,
+                    'TECH_TERM_NOT_CANONICAL',
+                    f'技术术语应使用约定英文，禁止：{word}',
+                    first[:160],
+                )
+            ]
 
     # 检查占位/低信息注释
     if PLACEHOLDER.search(raw):
-        return [Violation(
-            comment.path, comment.line, 'COMMENT_LOW_INFORMATION',
-            '注释包含占位或低信息表达', first[:160],
-        )]
+        return [
+            Violation(
+                comment.path,
+                comment.line,
+                'COMMENT_LOW_INFORMATION',
+                '注释包含占位或低信息表达',
+                first[:160],
+            )
+        ]
 
     value = normalize(raw, terms)
     if not value or not (HAN.search(value) or LATIN.search(value)):
@@ -216,16 +263,25 @@ def check(
 
     violations: list[Violation] = []
     if han_count < min_han or ratio < min_ratio:
-        violations.append(Violation(
-            comment.path, comment.line, 'COMMENT_NOT_CHINESE_DOMINANT',
-            f'Han={han_count}, Latin={latin_count}, ratio={ratio:.3f}',
-            first[:160],
-        ))
+        violations.append(
+            Violation(
+                comment.path,
+                comment.line,
+                'COMMENT_NOT_CHINESE_DOMINANT',
+                f'Han={han_count}, Latin={latin_count}, ratio={ratio:.3f}',
+                first[:160],
+            )
+        )
     if '{@inheritDoc}' in raw and han_count < 4:
-        violations.append(Violation(
-            comment.path, comment.line, 'INHERITDOC_WITHOUT_CHINESE',
-            '不能只使用 inheritDoc 代替中文说明', first[:160],
-        ))
+        violations.append(
+            Violation(
+                comment.path,
+                comment.line,
+                'INHERITDOC_WITHOUT_CHINESE',
+                '不能只使用 inheritDoc 代替中文说明',
+                first[:160],
+            )
+        )
     return violations
 
 
@@ -241,10 +297,7 @@ def discover(values: list[str]) -> list[Path]:
             result.add(p)
         elif p.is_dir():
             for ext in ('*.java', '*.kt', '*.kts'):
-                result.update(
-                    x for x in p.rglob(ext)
-                    if not (set(x.parts) & EXCLUDED_PARTS)
-                )
+                result.update(x for x in p.rglob(ext) if not (set(x.parts) & EXCLUDED_PARTS))
     return sorted(result, key=lambda x: x.as_posix())
 
 
@@ -256,7 +309,8 @@ def main() -> int:
         description='词法级中文注释检查器',
     )
     ap.add_argument(
-        'paths', nargs='*',
+        'paths',
+        nargs='*',
         default=['java', 'build-logic', 'build.gradle.kts', 'settings.gradle.kts'],
     )
     ap.add_argument('--jobs', default='auto')
@@ -293,8 +347,7 @@ def main() -> int:
 
     # 增量缓存
     policy_hash = hashlib.sha256(
-        json.dumps(sorted(terms)).encode() + json.dumps(sorted(forbidden)).encode()
-        + b'checker-v1'
+        json.dumps(sorted(terms)).encode() + json.dumps(sorted(forbidden)).encode() + b'checker-v1'
     ).hexdigest()
     cache: dict = {'policy_hash': policy_hash, 'entries': {}}
     if a.cache:
@@ -312,9 +365,7 @@ def main() -> int:
         key = path.as_posix()
         old = cache.get('entries', {}).get(key)
         if old and old.get('sha256') == digest:
-            return str(path), digest, [
-                Violation(**x) for x in old.get('violations', [])
-            ]
+            return str(path), digest, [Violation(**x) for x in old.get('violations', [])]
         violations: list[Violation] = []
         for c in extract(path):
             violations.extend(check(c, terms, forbidden))
@@ -339,8 +390,11 @@ def main() -> int:
         cache_out.write_text(
             json.dumps(
                 {'policy_hash': policy_hash, 'entries': dict(sorted(entries.items()))},
-                ensure_ascii=False, sort_keys=True, indent=2,
-            ) + '\n',
+                ensure_ascii=False,
+                sort_keys=True,
+                indent=2,
+            )
+            + '\n',
             encoding='utf-8',
         )
 
@@ -354,8 +408,10 @@ def main() -> int:
                     'files': len(files),
                     'violations': [asdict(v) for v in all_violations],
                 },
-                ensure_ascii=False, indent=2,
-            ) + '\n',
+                ensure_ascii=False,
+                indent=2,
+            )
+            + '\n',
             encoding='utf-8',
         )
 

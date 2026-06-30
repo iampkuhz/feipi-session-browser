@@ -21,7 +21,7 @@ def check_templates(repo_root: Path) -> list[str]:
         Computed result.
     """
     failures: list[str] = []
-    templates = repo_root / 'src/session_browser/web/templates'
+    templates = repo_root / 'java/web/src/main/resources/templates'
     if not templates.exists():
         return [f'模板目录不存在:{templates}']
 

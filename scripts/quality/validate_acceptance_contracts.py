@@ -35,7 +35,9 @@ EXPECTED_FEATURE_TABLES = {
 ID_RE = re.compile(r'\b(?:DATA|UI|ROUTE|HOOK)-[A-Z0-9-]+-\d{3}\b')
 MIN_CONTRACT_COLUMNS = 9
 
-PATH_RE = re.compile(r'((?:tests|src|scripts|java)/[\w./-]+\.(?:py|js|ts|html|css|json|yaml|yml|sh|java))')
+PATH_RE = re.compile(
+    r'((?:tests|src|scripts|java)/[\w./-]+\.(?:py|js|ts|html|css|json|yaml|yml|sh|java))'
+)
 
 
 @dataclass(frozen=True)

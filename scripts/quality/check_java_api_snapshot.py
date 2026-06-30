@@ -182,8 +182,9 @@ def locate_type_declarations(text: str) -> list[tuple[int, int, str, str]]:
     pattern = re.compile(r"\b(class|interface|enum|record)\s+([A-Za-z_]\w*)")
     for match in pattern.finditer(text):
         line_start = text.rfind("\n", 0, match.start()) + 1
-        prefix_start = max(text.rfind(";", 0, match.start()) + 1, text.rfind("}", 0, match.start()) + 1, line_start)
-        prefix = text[prefix_start : match.start()]
+        prefix_start = max(
+            text.rfind(";", 0, match.start()) + 1, text.rfind("}", 0, match.start()) + 1, line_start
+        )
         if "@interface" in text[max(0, match.start() - 2) : match.start() + len("interface")]:
             kind = "@interface"
         else:
@@ -191,7 +192,6 @@ def locate_type_declarations(text: str) -> list[tuple[int, int, str, str]]:
         brace = text.find("{", match.end())
         if brace == -1:
             continue
-        header = normalize_space(text[prefix_start:brace])
         declarations.append((prefix_start, brace, kind, match.group(2)))
     return declarations
 
@@ -291,7 +291,9 @@ def canonical_param(param: str) -> str:
 def record_components(java_type: JavaType) -> list[str]:
     if java_type.kind != "record":
         return []
-    match = re.search(r"\brecord\s+" + re.escape(java_type.simple_name) + r"\s*\(", java_type.header)
+    match = re.search(
+        r"\brecord\s+" + re.escape(java_type.simple_name) + r"\s*\(", java_type.header
+    )
     if not match:
         return []
     open_index = java_type.header.find("(", match.end() - 1)
@@ -316,7 +318,9 @@ def enum_constants(java_type: JavaType) -> list[str]:
     if not declarations:
         return []
     first, terminator = declarations[0]
-    if terminator != "semicolon" or re.search(r"\b(public|protected|private|static|final|void|class|interface|enum|record)\b", first):
+    if terminator != "semicolon" or re.search(
+        r"\b(public|protected|private|static|final|void|class|interface|enum|record)\b", first
+    ):
         return []
     constants = []
     for item in split_top_level(first):
@@ -335,7 +339,11 @@ def member_lines(java_type: JavaType) -> list[str]:
             continue
         if re.search(r"\b(class|interface|enum|record)\s+[A-Za-z_]\w*", raw_clean):
             continue
-        if java_type.kind == "enum" and terminator == "semicolon" and raw == declaration_until_body_members(java_type.body)[0][0]:
+        if (
+            java_type.kind == "enum"
+            and terminator == "semicolon"
+            and raw == declaration_until_body_members(java_type.body)[0][0]
+        ):
             continue
         tokens = raw_clean.split()
         visible = "public" in tokens or "protected" in tokens or implicit_public
@@ -353,7 +361,9 @@ def member_lines(java_type: JavaType) -> list[str]:
                 kind = "method"
             lines.append(f"{kind} {java_type.qualified_name} {visibility} {canonical}")
         elif terminator == "block" and canonical == java_type.simple_name:
-            lines.append(f"constructor {java_type.qualified_name} {visibility} {java_type.simple_name}()")
+            lines.append(
+                f"constructor {java_type.qualified_name} {visibility} {java_type.simple_name}()"
+            )
         else:
             names_part = canonical
             if "=" in names_part:
@@ -362,7 +372,9 @@ def member_lines(java_type: JavaType) -> list[str]:
             if len(pieces) >= 2:
                 field_name = pieces[-1].replace("[]", "")
                 field_type = " ".join(pieces[:-1])
-                lines.append(f"field {java_type.qualified_name} {visibility} {field_name}: {field_type}")
+                lines.append(
+                    f"field {java_type.qualified_name} {visibility} {field_name}: {field_type}"
+                )
     return lines
 
 
@@ -429,10 +441,16 @@ def check_snapshot(snapshot_path: Path, current: str) -> int:
 def parse_args(argv: list[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Check deterministic Java public API snapshot.")
     mode = parser.add_mutually_exclusive_group(required=True)
-    mode.add_argument("--check", action="store_true", help="compare current API to the approved baseline")
-    mode.add_argument("--write", action="store_true", help="write the current API as the approved baseline")
+    mode.add_argument(
+        "--check", action="store_true", help="compare current API to the approved baseline"
+    )
+    mode.add_argument(
+        "--write", action="store_true", help="write the current API as the approved baseline"
+    )
     parser.add_argument("--java-root", type=Path, default=Path("java"))
-    parser.add_argument("--snapshot", type=Path, default=Path("config/api-snapshots/java-public-api.txt"))
+    parser.add_argument(
+        "--snapshot", type=Path, default=Path("config/api-snapshots/java-public-api.txt")
+    )
     return parser.parse_args(argv)
 
 

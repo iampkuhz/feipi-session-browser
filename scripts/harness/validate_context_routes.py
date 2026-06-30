@@ -7,7 +7,6 @@ Only uses Python stdlib - implements minimal YAML parsing for routes structure.
 import sys
 from pathlib import Path
 
-
 REQUIRED_ROUTE_FIELDS = {'id', 'match', 'load'}
 
 FORBIDDEN_FULL_LOAD_PATTERNS = {
@@ -108,14 +107,16 @@ def parse_simple_yaml(content: str) -> dict:
 # Internal helpers
 # ---------------------------------------------------------------------------
 
+
 def _parse_scalar(value: str):
     """Parse a scalar YAML value."""
     if value == '[]':
         return []
     if value == '{}':
         return {}
-    if (value.startswith('"') and value.endswith('"')) or \
-       (value.startswith("'") and value.endswith("'")):
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
         return value[1:-1]
     if value.lower() == 'true':
         return True
@@ -154,9 +155,7 @@ def _parse_list_of_mappings(lines, base_indent):
                         bi = len(bl) - len(bl.lstrip())
                         break
                 if bi is not None:
-                    current_item[current_key] = _parse_block_value(
-                        block_lines, bi
-                    )
+                    current_item[current_key] = _parse_block_value(block_lines, bi)
                 else:
                     current_item[current_key] = {}
             else:
@@ -191,9 +190,7 @@ def _parse_list_of_mappings(lines, base_indent):
                 v = v.strip()
                 if v:
                     flow = parse_inline_flow(v)
-                    current_item[k] = (
-                        flow if flow is not None else _parse_scalar(v)
-                    )
+                    current_item[k] = flow if flow is not None else _parse_scalar(v)
                 else:
                     current_key = k
             continue
@@ -209,9 +206,7 @@ def _parse_list_of_mappings(lines, base_indent):
             v = v.strip()
             if v:
                 flow = parse_inline_flow(v)
-                current_item[k] = (
-                    flow if flow is not None else _parse_scalar(v)
-                )
+                current_item[k] = flow if flow is not None else _parse_scalar(v)
             else:
                 current_key = k
             continue
@@ -361,6 +356,7 @@ def _looks_like_key(text: str) -> bool:
 # ---------------------------------------------------------------------------
 # Validation
 # ---------------------------------------------------------------------------
+
 
 def validate_context_routes(routes_path: Path) -> list:
     """Validate context routes YAML and return list of error strings."""

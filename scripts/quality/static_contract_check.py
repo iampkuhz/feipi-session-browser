@@ -25,6 +25,7 @@ position: fixed,payload-modal ownership,shell ownership 作为警告输出,不�
 from __future__ import annotations
 
 import json
+import os
 import re
 from pathlib import Path
 
@@ -444,7 +445,7 @@ def check_no_global_component_override(css_files: list[Path]) -> list[str]:
                     # .page .btn — 这是后代选择器(合法)
                     # .sd-btn — 这是页面变体(合法)
                     bare_pattern = re.compile(
-                        r'^' + comp_escaped + r'(?:\b|$|[:\.\s]|$)',
+                        r'^' + comp_escaped + r'(?:$|[:\.\s#\[\]>+~])',
                     )
                     if bare_pattern.match(sel) and comp not in found:
                         found.append(comp)
@@ -889,8 +890,9 @@ def main() -> int:
         Computed result.
     """
     errors, warnings = check_static(Path.cwd())
-    for item in warnings:
-        print(f'[WARN] {item}')
+    if os.environ.get('SESSION_BROWSER_STATIC_CONTRACT_SHOW_WARNINGS') == '1':
+        for item in warnings:
+            print(f'[WARN] {item}')
     if errors:
         for item in errors:
             print(f'[BLOCK] {item}')

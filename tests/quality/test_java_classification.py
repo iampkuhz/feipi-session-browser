@@ -11,13 +11,13 @@
 - artifact 元数据字段
 - 过期 artifact 检测
 """
+
 import json
 import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-
 from scripts.claude_hooks.classify import (
     DOMINANCE,
     classify_file,
@@ -27,15 +27,10 @@ from scripts.claude_hooks.classify import (
 from scripts.quality.quality_artifact import (
     PASS,
     GateDetail,
-    QualitySummary,
     is_artifact_fresh,
-    resolve_base_commit,
-    resolve_dirty_hash,
-    utc_now,
 )
 from scripts.quality.quality_targets import (
     TARGET_DOMINANCE,
-    TARGET_META,
     applicable_gates_for_target,
     required_gates_for_target,
     target_parallel_meta,
@@ -48,7 +43,9 @@ class TestJavaBasicClassification:
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_src_main_classification(self):
-        c = classify_file('java/core-domain/src/main/java/com/feipi/session/browser/domain/Foo.java')
+        c = classify_file(
+            'java/core-domain/src/main/java/com/feipi/session/browser/domain/Foo.java'
+        )
         assert c.category == 'java-src'
         assert c.requires_quality_gate
         assert c.quality_target == 'java-src'
@@ -62,7 +59,10 @@ class TestJavaBasicClassification:
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_build_classification(self):
-        assert classify_file('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target == 'java-build'
+        assert (
+            classify_file('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target
+            == 'java-build'
+        )
         assert classify_file('gradle/libs.versions.toml').quality_target == 'java-build'
         assert classify_file('settings.gradle.kts').quality_target == 'java-build'
 
@@ -165,11 +165,13 @@ class TestJavaMultiTargetDedup:
 
     @pytest.mark.contract_case('J1-040-005')
     def test_java_multi_target_dedup(self):
-        targets = required_quality_targets([
-            'java/core-domain/src/main/java/com/feipi/A.java',
-            'java/app-cli/src/main/java/com/feipi/B.java',
-            'build.gradle.kts',
-        ])
+        targets = required_quality_targets(
+            [
+                'java/core-domain/src/main/java/com/feipi/A.java',
+                'java/app-cli/src/main/java/com/feipi/B.java',
+                'build.gradle.kts',
+            ]
+        )
         assert 'java-src' in targets
         assert 'java-build' in targets
         assert targets.count('java-src') == 1
@@ -177,10 +179,12 @@ class TestJavaMultiTargetDedup:
 
     @pytest.mark.contract_case('J1-040-005')
     def test_multi_file_same_target(self):
-        targets = required_quality_targets([
-            'java/a/src/main/java/A.java',
-            'java/b/src/main/java/B.java',
-        ])
+        targets = required_quality_targets(
+            [
+                'java/a/src/main/java/A.java',
+                'java/b/src/main/java/B.java',
+            ]
+        )
         assert targets == ['java-src']
 
 
@@ -211,6 +215,7 @@ class TestJavaDominance:
     @pytest.mark.contract_case('J1-040-006')
     def test_quality_targets_effective_targets(self):
         from scripts.quality.quality_targets import effective_targets as qt_eff
+
         result = qt_eff(['java-src', 'java-build', 'harness'])
         assert 'java-build' not in result
         assert 'java-src' in result
@@ -255,6 +260,7 @@ class TestArtifactMetadata:
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_run_id(self):
         from scripts.quality.run_quality_gate import build_summary
+
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'])]
         summary = build_summary('java-src', 'test-change', started, details)
@@ -265,6 +271,7 @@ class TestArtifactMetadata:
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_base_commit(self):
         from scripts.quality.run_quality_gate import build_summary
+
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'])]
         summary = build_summary('java-src', 'test-change', started, details, repo_root=Path('.'))
@@ -274,6 +281,7 @@ class TestArtifactMetadata:
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_generated_at(self):
         from scripts.quality.run_quality_gate import build_summary
+
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS)]
         summary = build_summary('java-src', 'test', started, details)
@@ -282,6 +290,7 @@ class TestArtifactMetadata:
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_freshness(self):
         from scripts.quality.run_quality_gate import build_summary
+
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS)]
         summary = build_summary('java-src', 'test', started, details)
@@ -312,6 +321,7 @@ class TestStaleArtifact:
             # 设置文件修改时间为 2 小时前
             old_time = datetime.now(timezone.utc).timestamp() - 7200
             import os
+
             os.utime(f.name, (old_time, old_time))
             assert is_artifact_fresh(f.name, max_age_seconds=3600) is False
             Path(f.name).unlink()
@@ -379,6 +389,7 @@ class TestJavaChineseCommentsGate:
     def test_gate_command_uses_repo_script(self, tmp_path: Path):
         """gate 命令指向 scripts/quality/check_code_comment_language.py。"""
         from scripts.quality import run_quality_gate
+
         # 创建仓库脚本和策略文件的 mock 结构
         checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
@@ -398,6 +409,7 @@ class TestJavaChineseCommentsGate:
     def test_gate_command_includes_policy_file(self, tmp_path: Path):
         """gate 命令包含 --policy 参数指向 config/technical-terms.json。"""
         from scripts.quality import run_quality_gate
+
         checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
@@ -417,6 +429,7 @@ class TestJavaChineseCommentsGate:
     def test_gate_command_does_not_reference_tmp(self, tmp_path: Path):
         """gate 命令不得引用 tmp/ 目录下的路径。"""
         from scripts.quality import run_quality_gate
+
         checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
@@ -432,6 +445,7 @@ class TestJavaChineseCommentsGate:
     def test_gate_returns_empty_when_checker_missing(self, tmp_path: Path):
         """检查脚本不存在时返回空列表（BLOCKED）。"""
         from scripts.quality import run_quality_gate
+
         # tmp_path 下不创建检查脚本
         cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
         assert cmd == []
@@ -444,8 +458,8 @@ class TestReportHash:
     @pytest.mark.contract_case('JR-020-006')
     def test_written_artifact_has_report_hash(self):
         """write_quality_summary 写入的 artifact 必须包含 reportHash。"""
-        import json
         import tempfile
+
         from scripts.quality.quality_artifact import (
             GateDetail,
             write_quality_summary,
@@ -464,8 +478,8 @@ class TestReportHash:
     @pytest.mark.contract_case('JR-020-006')
     def test_report_hash_changes_with_content(self):
         """不同内容应产生不同 reportHash。"""
-        import json
         import tempfile
+
         from scripts.quality.quality_artifact import (
             GateDetail,
             write_quality_summary,
@@ -493,9 +507,12 @@ class TestRunnerEffectiveTargets:
     def test_runner_imports_effective_targets(self):
         """runner 模块必须导入 effective_targets。"""
         import importlib.util
+
         script = (
             Path(__file__).resolve().parents[2]
-            / 'scripts' / 'quality' / 'run_required_quality_gates.py'
+            / 'scripts'
+            / 'quality'
+            / 'run_required_quality_gates.py'
         )
         spec = importlib.util.spec_from_file_location('runner_check', script)
         mod = importlib.util.module_from_spec(spec)
@@ -508,10 +525,12 @@ class TestRunnerEffectiveTargets:
     def test_dominance_is_set_inclusion(self):
         """dominance 语义：java-src includes java-build，即 java-build 是 java-src 的子集。"""
         from scripts.claude_hooks.classify import DOMINANCE
+
         assert 'java-src' in DOMINANCE
         assert 'includes' in DOMINANCE['java-src']
         # java-build 必须声明在 includes 集合中
         assert 'java-build' in DOMINANCE['java-src']['includes']
         # 反向不成立：java-build 不包含 java-src
-        assert 'java-build' not in DOMINANCE or \
-            'java-src' not in DOMINANCE.get('java-build', {}).get('includes', [])
+        assert 'java-build' not in DOMINANCE or 'java-src' not in DOMINANCE.get(
+            'java-build', {}
+        ).get('includes', [])

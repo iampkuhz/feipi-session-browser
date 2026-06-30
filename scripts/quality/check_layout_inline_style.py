@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 from pathlib import Path
 
@@ -64,7 +65,7 @@ def find_html_files(root: Path) -> list[Path]:
     Returns:
         Computed result.
     """
-    templates_dir = root / 'src' / 'session_browser' / 'web' / 'templates'
+    templates_dir = root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates'
     results: list[Path] = []
     if templates_dir.is_dir():
         results.extend(sorted(templates_dir.rglob('*.html')))
@@ -252,15 +253,15 @@ def run_check(args: argparse.Namespace) -> int:
     print(f'HTML 模板文件数:{len(find_html_files(REPO_ROOT))}')
     print(f'JS 文件数:{len(find_js_files(REPO_ROOT))}')
     print(f'layout inline style 总数:{total}')
-    print(f'存量 WARN:{known_count} 处(技术债务)')
+    print(f'存量基线:{known_count} 处(技术债务)')
     print(f'新增 BLOCK:{len(new_items)} 处')
     print()
 
-    if known_count > 0:
-        print('--- 存量 layout inline style(WARN)---')
+    if known_count > 0 and os.environ.get('SESSION_BROWSER_SHOW_BASELINE_WARNINGS') == '1':
+        print('--- 存量 layout inline style baseline ---')
         for f in findings:
             key = f['file'] + ':' + str(f['line'])
-            tag = '[WARN]' if key in baseline else '[NEW!!]'
+            tag = '[BASELINE]' if key in baseline else '[NEW!!]'
             src_tag = f'[{f["source"].upper()}]'
             print(f'  {tag} {src_tag} {f["file"]}:{f["line"]} | {f["snippet"]}')
         print()

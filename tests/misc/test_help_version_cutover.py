@@ -27,12 +27,16 @@ def _create_python_trap(tmp_dir: str) -> str:
             f.write('#!/bin/sh\n')
             f.write(f'echo "TRAPPED" >> "{marker_file}"\n')
             f.write('exit 0\n')
-        os.chmod(script_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH)
+        os.chmod(
+            script_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+        )
 
     return trap_dir
 
 
-def _run_shell(cmd: str, *, cwd: str | None = None, extra_env: dict | None = None) -> subprocess.CompletedProcess:
+def _run_shell(
+    cmd: str, *, cwd: str | None = None, extra_env: dict | None = None
+) -> subprocess.CompletedProcess:
     """运行 session-browser.sh 命令并返回结果。"""
     env = os.environ.copy()
     if extra_env:
@@ -47,7 +51,9 @@ def _run_shell(cmd: str, *, cwd: str | None = None, extra_env: dict | None = Non
     )
 
 
-def _run_shell_with_trap(cmd: str, *, cwd: str | None = None, extra_env: dict | None = None) -> tuple:
+def _run_shell_with_trap(
+    cmd: str, *, cwd: str | None = None, extra_env: dict | None = None
+) -> tuple:
     """运行命令并检查 Python trap marker。返回 (result, trap_called)。"""
     with tempfile.TemporaryDirectory() as tmp_dir:
         trap_dir = _create_python_trap(tmp_dir)
@@ -256,8 +262,9 @@ class TestLauncherMissingNoFallback:
                 timeout=30,
             )
             assert result.returncode != 0, 'launcher 缺失应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, \
+            assert '错误' in result.stderr or '未找到' in result.stderr, (
                 f'stderr 应包含中文错误信息: {result.stderr}'
+            )
             assert not os.path.isfile(marker_file), '不应 fallback 到 Python'
 
     def test_launcher_missing_serve(self):
@@ -288,8 +295,9 @@ class TestLauncherMissingNoFallback:
                 timeout=30,
             )
             assert result.returncode != 0, 'launcher 缺失时 serve 应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, \
+            assert '错误' in result.stderr or '未找到' in result.stderr, (
                 f'stderr 应包含中文错误信息: {result.stderr}'
+            )
             assert not os.path.isfile(marker_file), 'serve 不应 fallback 到 Python'
 
     def test_launcher_missing_stop(self):
@@ -320,8 +328,9 @@ class TestLauncherMissingNoFallback:
                 timeout=30,
             )
             assert result.returncode != 0, 'launcher 缺失时 stop 应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, \
+            assert '错误' in result.stderr or '未找到' in result.stderr, (
                 f'stderr 应包含中文错误信息: {result.stderr}'
+            )
             assert not os.path.isfile(marker_file), 'stop 不应 fallback 到 Python'
 
 
@@ -330,9 +339,7 @@ class TestBuildInfoCorrupted:
 
     def test_corrupted_build_info(self):
         """build-info 损坏时 Java launcher 非零退出。"""
-        lib_dir = os.path.join(
-            SB_ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'lib'
-        )
+        lib_dir = os.path.join(SB_ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'lib')
         if not os.path.isdir(lib_dir):
             raise AssertionError('install/lib 目录不存在')
 
@@ -364,7 +371,7 @@ class TestUnswitchedCommandsRegression:
             env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
             env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
 
-            result = subprocess.run(
+            subprocess.run(
                 ['bash', SHELL_SCRIPT, 'scan', '--help'],
                 capture_output=True,
                 text=True,

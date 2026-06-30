@@ -3,7 +3,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-
 REPO_ROOT = Path(__file__).resolve().parents[2]
 SCRIPT = REPO_ROOT / "scripts" / "quality" / "check_java_api_snapshot.py"
 
@@ -66,7 +65,15 @@ def test_check_reports_unified_diff_for_public_api_drift(tmp_path):
     )
     snapshot = tmp_path / "java-public-api.txt"
     subprocess.run(
-        [sys.executable, str(SCRIPT), "--write", "--java-root", str(tmp_path), "--snapshot", str(snapshot)],
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--write",
+            "--java-root",
+            str(tmp_path),
+            "--snapshot",
+            str(snapshot),
+        ],
         check=True,
         text=True,
         capture_output=True,
@@ -85,7 +92,15 @@ def test_check_reports_unified_diff_for_public_api_drift(tmp_path):
         """,
     )
     result = subprocess.run(
-        [sys.executable, str(SCRIPT), "--check", "--java-root", str(tmp_path), "--snapshot", str(snapshot)],
+        [
+            sys.executable,
+            str(SCRIPT),
+            "--check",
+            "--java-root",
+            str(tmp_path),
+            "--snapshot",
+            str(snapshot),
+        ],
         text=True,
         capture_output=True,
         check=False,

@@ -223,7 +223,6 @@ def _run_quick_gate(
         Tuple of (gate_name, passed, status_label).
         status_label is one of PASS, FAIL, BLOCKED, NOT_TRIGGERED.
     """
-    qt = importlib.import_module('scripts.quality.quality_targets')
     rqg = importlib.import_module('scripts.quality.run_quality_gate')
 
     cmd = rqg.gate_command(gate, repo_root, 'hook-runtime')

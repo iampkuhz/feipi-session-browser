@@ -5,13 +5,17 @@ import pathlib
 import sys
 
 REQUIRED_STATUSES = [
-    "NEW", "TRIAGED", "ASSIGNED", "IN_PROGRESS",
-    "DONE", "DUPLICATE", "OUT_OF_SCOPE", "BLOCKED",
+    "NEW",
+    "TRIAGED",
+    "ASSIGNED",
+    "IN_PROGRESS",
+    "DONE",
+    "DUPLICATE",
+    "OUT_OF_SCOPE",
+    "BLOCKED",
 ]
 
-EXPECTED_HEADER = (
-    "| Issue ID | 来源 | 摘要 | 优先级 | 状态 | 分配任务 | 验收标准 | 备注 |"
-)
+EXPECTED_HEADER = "| Issue ID | 来源 | 摘要 | 优先级 | 状态 | 分配任务 | 验收标准 | 备注 |"
 
 EXPECTED_SEPARATOR = "|---|---|---|---|---|---|---|---|"
 
@@ -69,7 +73,13 @@ def validate(path: pathlib.Path) -> list[str]:
 
 
 def main() -> int:
-    board_path = pathlib.Path(__file__).resolve().parent.parent.parent / "harness" / "workflow" / "java-first-migration" / "ISSUE-BOARD.md"
+    board_path = (
+        pathlib.Path(__file__).resolve().parent.parent.parent
+        / "harness"
+        / "workflow"
+        / "java-first-migration"
+        / "ISSUE-BOARD.md"
+    )
     errs = validate(board_path)
     if errs:
         print("ISSUE-BOARD 校验失败:")

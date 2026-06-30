@@ -7,10 +7,15 @@ Only uses Python stdlib - implements minimal YAML parsing for catalog structure.
 import sys
 from pathlib import Path
 
-
 REQUIRED_FIELDS = {
-    'id', 'kind', 'read_scope', 'write_scope',
-    'forbidden_scope', 'trigger_rules', 'validation_cmds', 'retry_policy'
+    'id',
+    'kind',
+    'read_scope',
+    'write_scope',
+    'forbidden_scope',
+    'trigger_rules',
+    'validation_cmds',
+    'retry_policy',
 }
 
 LIST_FIELDS = {'read_scope', 'write_scope', 'forbidden_scope', 'trigger_rules', 'validation_cmds'}
@@ -66,7 +71,7 @@ def parse_simple_yaml(content: str) -> dict:
                 # Start of nested structure
                 result[key] = {}
                 current_section = key
-                in_subagents = (key == 'subagents')
+                in_subagents = key == 'subagents'
                 current_list_item = None
 
         # Nested content
@@ -146,8 +151,9 @@ def parse_value(value: str):
         return []
 
     # Remove quotes
-    if (value.startswith('"') and value.endswith('"')) or \
-       (value.startswith("'") and value.endswith("'")):
+    if (value.startswith('"') and value.endswith('"')) or (
+        value.startswith("'") and value.endswith("'")
+    ):
         return value[1:-1]
 
     # Boolean

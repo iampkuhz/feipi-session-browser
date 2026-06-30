@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 """中文注释检查器单元测试。"""
+
 from __future__ import annotations
+
 import importlib.util
 import sys
 import tempfile

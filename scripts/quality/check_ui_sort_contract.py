@@ -137,18 +137,6 @@ def check_dirty_css_ban() -> list[str]:
         r'legacy\s+alias',
         r'compat\s+alias',
     ]
-    # 匹配顶级共享 primitive 定义：行首的 .xxx { 或 .xxx.yyy {
-    # 不包括被 .p-projects / .p-agents 前缀修饰的规则
-    shared_primitives = [
-        r'^[^.]*^\s*\.btn\s*\{',
-        r'^[^.]*^\s*\.ui-btn\s*\{',
-        r'^[^.]*^\s*\.data-table\s+th\s*\{',
-        r'^[^.]*^\s*\.data-table\s+td\s*\{',
-        r'^[^.]*^\s*\.tokenbar\s*(?:::?\w+)?\s*\{',
-        r'^[^.]*^\s*\.badge\s*\{',
-        r'^[^.]*^\s*\.table-card\s*\{',
-        r'^[^.]*^\s*\.nav-item\s*\{',
-    ]
     for css_file in ['projects.css']:
         f = CSS_DIR / css_file
         if not f.exists():
@@ -200,7 +188,6 @@ def check_dirty_css_ban() -> list[str]:
 def main() -> None:
     """Run all UI sort and shared contract checks."""
     errors: list[str] = []
-    all_passed = True
 
     print('=== UI Sort & Contract Quality Gate ===\n')
 

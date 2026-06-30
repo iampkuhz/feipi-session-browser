@@ -17,7 +17,6 @@ import re
 import sys
 from pathlib import Path
 
-
 REQUIRED_SECTIONS = [
     "Run Metadata",
     "Handoff",
@@ -55,8 +54,12 @@ def parse_metadata(section_content: str) -> dict[str, str]:
 
 def parse_completion_section(section_content: str) -> dict:
     """从 Completion 段落解析 YAML-like 输出结构。"""
-    result = {"has_status": False, "has_changed_files": False,
-              "has_validation": False, "status_value": None}
+    result = {
+        "has_status": False,
+        "has_changed_files": False,
+        "has_validation": False,
+        "status_value": None,
+    }
 
     for line in section_content.splitlines():
         stripped = line.strip()

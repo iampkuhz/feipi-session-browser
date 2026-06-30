@@ -218,10 +218,12 @@ def collect_changed_files(
         base_commit_file: Optional path to the base-commit file.
         agent_id: Optional agent id to filter hook records to a specific agent.
     """
+    explicit_base_commit_file = base_commit_file is not None
     if base_commit_file is None:
         base_commit_file = changed_files_path.with_name(DEFAULT_BASE_COMMIT_FILE.name)
     paths = read_recorded_changed_files(session_id, changed_files_path, agent_id=agent_id)
-    paths.extend(read_files_since_base_commit(repo_root, base_commit_file))
+    if include_git or explicit_base_commit_file:
+        paths.extend(read_files_since_base_commit(repo_root, base_commit_file))
     return dedupe_paths(paths)
 
 
