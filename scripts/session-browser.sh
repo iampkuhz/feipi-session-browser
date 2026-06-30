@@ -11,6 +11,7 @@ VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$PROJECT_DIR/.venv}"
 DEFAULT_LOCAL_HOST=127.0.0.1
 DEFAULT_LOCAL_PORT=8848
 DEFAULT_LOCAL_DATA_DIR="$HOME/.local/share/feipi/session-browser/local-test-index"
+FULL_SCAN_JVM_HEAP_OPTS="-Xmx512m"
 
 export PYTHONPATH="${PYTHONPATH:-}"
 
@@ -58,6 +59,27 @@ arg_has_option() {
         fi
     done
     return 1
+}
+
+jvm_opts_have_max_heap() {
+    local combined=" ${JAVA_OPTS:-} ${APP_CLI_OPTS:-} "
+    [[ "$combined" =~ [[:space:]]-Xmx[^[:space:]]+ ]]
+}
+
+apply_scan_jvm_profile() {
+    if ! arg_has_option "--full" "$@"; then
+        return 0
+    fi
+    if jvm_opts_have_max_heap; then
+        return 0
+    fi
+
+    if [[ -n "${APP_CLI_OPTS:-}" ]]; then
+        APP_CLI_OPTS="${APP_CLI_OPTS} ${FULL_SCAN_JVM_HEAP_OPTS}"
+    else
+        APP_CLI_OPTS="${FULL_SCAN_JVM_HEAP_OPTS}"
+    fi
+    export APP_CLI_OPTS
 }
 
 expand_path() {
@@ -406,6 +428,7 @@ run_scan() {
     export INDEX_DIR="$index_dir"
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
     export SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS="${SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS:-30}"
+    apply_scan_jvm_profile "$@"
     echo "使用本地测试索引目录：$index_dir"
     run_java_command scan "$@"
 }

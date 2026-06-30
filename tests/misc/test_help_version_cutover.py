@@ -76,6 +76,31 @@ def _run_shell_with_trap(
         return result, trap_called
 
 
+def _create_fake_project_with_launcher(tmp_dir: str) -> tuple[str, str]:
+    """创建包含 fake Java launcher 的最小项目副本，返回 (script, project)。"""
+    fake_project = os.path.join(tmp_dir, 'fake_project')
+    fake_scripts = os.path.join(fake_project, 'scripts')
+    launcher_dir = os.path.join(
+        fake_project, 'java', 'app-cli', 'build', 'install', 'app-cli', 'bin'
+    )
+    os.makedirs(fake_scripts, exist_ok=True)
+    os.makedirs(launcher_dir, exist_ok=True)
+    fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
+    shutil.copy2(SHELL_SCRIPT, fake_sh)
+    os.chmod(fake_sh, stat.S_IRWXU)
+    with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
+        f.write('0.0-test\n')
+
+    launcher = os.path.join(launcher_dir, 'app-cli')
+    with open(launcher, 'w') as f:
+        f.write('#!/bin/sh\n')
+        f.write('printf "APP_CLI_OPTS=%s\\n" "${APP_CLI_OPTS:-}"\n')
+        f.write('printf "JAVA_OPTS=%s\\n" "${JAVA_OPTS:-}"\n')
+        f.write('printf "ARGS=%s\\n" "$*"\n')
+    os.chmod(launcher, stat.S_IRWXU)
+    return fake_sh, fake_project
+
+
 class TestHelpVersionRoutesToJava:
     """help/version 正向路径：路由到 Java，不经过 Python。"""
 
@@ -436,3 +461,96 @@ class TestUnswitchedCommandsRegression:
                 timeout=30,
             )
             assert os.path.isfile(marker_file), 'deps --dev 应调用 Python'
+
+
+class TestScanFullJvmProfile:
+    """scan --full 脚本入口的 JVM profile 契约。"""
+
+    def test_scan_full_injects_heap_without_user_env(self):
+        """scan --full 自动注入 full scan heap，不要求用户手动设置 APP_CLI_OPTS。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
+            env = os.environ.copy()
+            env.pop('APP_CLI_OPTS', None)
+            env.pop('JAVA_OPTS', None)
+            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
+
+            result = subprocess.run(
+                ['bash', fake_sh, 'scan', '--full'],
+                capture_output=True,
+                text=True,
+                cwd=fake_project,
+                env=env,
+                timeout=30,
+            )
+
+            assert result.returncode == 0, f'stderr: {result.stderr}'
+            assert 'APP_CLI_OPTS=-Xmx512m' in result.stdout
+            assert 'ARGS=scan --full' in result.stdout
+
+    def test_incremental_scan_does_not_inject_heap(self):
+        """普通增量 scan 保持轻量 JVM profile。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
+            env = os.environ.copy()
+            env.pop('APP_CLI_OPTS', None)
+            env.pop('JAVA_OPTS', None)
+            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
+
+            result = subprocess.run(
+                ['bash', fake_sh, 'scan'],
+                capture_output=True,
+                text=True,
+                cwd=fake_project,
+                env=env,
+                timeout=30,
+            )
+
+            assert result.returncode == 0, f'stderr: {result.stderr}'
+            assert 'APP_CLI_OPTS=' in result.stdout
+            assert '-Xmx512m' not in result.stdout
+
+    def test_scan_full_respects_user_app_cli_heap(self):
+        """用户显式 APP_CLI_OPTS -Xmx 不会被脚本覆盖。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
+            env = os.environ.copy()
+            env['APP_CLI_OPTS'] = '-Dfoo=bar -Xmx2g'
+            env.pop('JAVA_OPTS', None)
+            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
+
+            result = subprocess.run(
+                ['bash', fake_sh, 'scan', '--full'],
+                capture_output=True,
+                text=True,
+                cwd=fake_project,
+                env=env,
+                timeout=30,
+            )
+
+            assert result.returncode == 0, f'stderr: {result.stderr}'
+            assert 'APP_CLI_OPTS=-Dfoo=bar -Xmx2g' in result.stdout
+            assert '-Xmx512m' not in result.stdout
+
+    def test_scan_full_respects_user_java_heap(self):
+        """用户显式 JAVA_OPTS -Xmx 时，脚本不追加 APP_CLI_OPTS heap。"""
+        with tempfile.TemporaryDirectory() as tmp_dir:
+            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
+            env = os.environ.copy()
+            env.pop('APP_CLI_OPTS', None)
+            env['JAVA_OPTS'] = '-Xmx2g'
+            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
+
+            result = subprocess.run(
+                ['bash', fake_sh, 'scan', '--full'],
+                capture_output=True,
+                text=True,
+                cwd=fake_project,
+                env=env,
+                timeout=30,
+            )
+
+            assert result.returncode == 0, f'stderr: {result.stderr}'
+            assert 'APP_CLI_OPTS=' in result.stdout
+            assert 'JAVA_OPTS=-Xmx2g' in result.stdout
+            assert '-Xmx512m' not in result.stdout

@@ -660,6 +660,27 @@ class JsonlReaderTest {
       assertThat(result.events()).isEmpty();
       assertThat(result.diagnostics()).anyMatch(d -> d.code().equals("BAD_JSON:BUFFER_OVERFLOW"));
     }
+
+    @Test
+    @DisplayName("超大单行 BUFFER_OVERFLOW 诊断使用有界预览")
+    void oversizedSingleLineHasBoundedPreviewAndByteRange() throws IOException {
+      String bigContent = "{\"big\": \"" + "x".repeat(2_000_000) + "\"}\n";
+      Path path = write(bigContent);
+      JsonlReader tinyBufferReader = new JsonlReader(JsonlReaderConfig.of(1_000_000, 1024, 80));
+      JsonlReaderResult result = tinyBufferReader.read(path);
+
+      SourceDiagnostic diag =
+          result.diagnostics().stream()
+              .filter(d -> d.code().equals("BAD_JSON:BUFFER_OVERFLOW"))
+              .findFirst()
+              .orElseThrow();
+
+      assertThat(result.events()).isEmpty();
+      assertThat(diag.preview()).isPresent();
+      assertThat(diag.preview().get().length()).isLessThanOrEqualTo(80);
+      assertThat(diag.byteRangeEnd()).isPresent();
+      assertThat(diag.byteRangeEnd().getAsInt()).isGreaterThan(2_000_000);
+    }
   }
 
   // ─── 预览脱敏 ──────────────────────────────────────────────────────

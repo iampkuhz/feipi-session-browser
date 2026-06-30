@@ -202,11 +202,11 @@ public final class JsonlReader {
 
         // 缓冲区超限：强制刷新并报告错误
         if (bufferChars > config.maxBufferSize()) {
-          String full = String.join("\n", currentLines).strip();
+          String preview = previewFromLines(currentLines, config.maxPreviewLength());
           diagnostics.add(
               buildBadJsonDiagnostic(
                   recordStartLine,
-                  full,
+                  preview,
                   JsonlConstants.CODE_BUFFER_OVERFLOW,
                   recordStartByteOffset,
                   byteOffset + estimateUtf8ByteLength(stripped) + terminatorByteLen));
@@ -468,13 +468,32 @@ public final class JsonlReader {
   /**
    * 估算字符串的 UTF-8 字节长度。
    *
-   * <p>使用 Java 内置字符编码计算准确的 UTF-8 字节数。
+   * <p>逐字符计算，避免 {@code String#getBytes(...)} 为超大 JSONL 行额外复制完整 byte array。
    *
    * @param text 待估算的字符串
    * @return UTF-8 字节长度
    */
   private static int estimateUtf8ByteLength(String text) {
-    return text.getBytes(StandardCharsets.UTF_8).length;
+    int length = 0;
+    for (int i = 0; i < text.length(); i++) {
+      char ch = text.charAt(i);
+      if (ch <= 0x7F) {
+        length++;
+      } else if (ch <= 0x7FF) {
+        length += 2;
+      } else if (Character.isHighSurrogate(ch)
+          && i + 1 < text.length()
+          && Character.isLowSurrogate(text.charAt(i + 1))) {
+        length += 4;
+        i++;
+      } else if (Character.isSurrogate(ch)) {
+        // String#getBytes(UTF_8) 使用替代字节编码孤立 surrogate；UTF-8 decoder 正常不会产出此类字符。
+        length++;
+      } else {
+        length += 3;
+      }
+    }
+    return length;
   }
 
   private static CharsetDecoder utf8ReportingDecoder() {
@@ -576,6 +595,27 @@ public final class JsonlReader {
       parts.add(tail);
     }
     return parts.isEmpty() ? List.of(text) : parts;
+  }
+
+  /** 从行缓冲区构造小型预览，避免 overflow 诊断再次复制超大记录。 */
+  private static String previewFromLines(List<String> lines, int maxPreviewLength) {
+    StringBuilder preview = new StringBuilder(maxPreviewLength);
+    for (String line : lines) {
+      if (preview.length() > 0) {
+        preview.append('\n');
+      }
+      int remaining = maxPreviewLength - preview.length();
+      if (remaining <= 0) {
+        break;
+      }
+      if (line.length() <= remaining) {
+        preview.append(line);
+      } else {
+        preview.append(line, 0, remaining);
+        break;
+      }
+    }
+    return preview.toString().strip();
   }
 
   /**
