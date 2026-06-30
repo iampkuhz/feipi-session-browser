@@ -123,6 +123,23 @@ public final class PebbleEnvironment {
           "format_coverage",
           new NoArgFilter(input -> DisplayFormatters.formatCoverage(toNumber(input))));
 
+      // ─── printf 风格格式化（兼容 Jinja2 format 过滤器） ───
+      filters.put(
+          "format",
+          new OneArgFilter(
+              (input, value) -> {
+                String fmt = asString(input);
+                Number num = toNumber(value);
+                if (num == null) {
+                  return fmt;
+                }
+                try {
+                  return String.format(fmt, num.doubleValue());
+                } catch (Exception e) {
+                  return fmt;
+                }
+              }));
+
       // ─── 数值精度 ───
       filters.put(
           "round",
