@@ -300,7 +300,31 @@ def required_quality_targets(files: list[str]) -> list[str]:
         c = classify_file(f)
         if c.requires_quality_gate and c.quality_target and c.quality_target not in targets:
             targets.append(c.quality_target)
+    # Supplementary triggers: certain paths require additional targets beyond
+    # the primary classification. This allows scan-script-smoke to be triggered
+    # when scan-related files change, without replacing existing mappings.
+    for f in files:
+        for pattern in SCAN_SCRIPT_SMOKE_PATTERNS:
+            if _match(f, pattern):
+                if 'scan-script-smoke' not in targets:
+                    targets.append('scan-script-smoke')
+                break
     return targets
+
+
+# 06b. scan-script-smoke supplementary trigger patterns
+# When any of these paths change, scan-script-smoke target must be triggered
+# in addition to whatever primary target the file maps to.
+SCAN_SCRIPT_SMOKE_PATTERNS: list[str] = [
+    'scripts/session-browser.sh',
+    'java/app-cli/**',
+    'java/scan-engine/**',
+    'java/source-claude/**',
+    'java/source-codex/**',
+    'java/source-qoder/**',
+    'java/index-sqlite/**',
+    'scripts/quality/**',
+]
 
 
 # 07. target dominance 声明: 当 java-src 触发时自动包含 java-build，避免重复 Gradle 基线

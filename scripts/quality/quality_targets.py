@@ -87,6 +87,9 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     'java-build': [
         'javaCheck',
     ],
+    'scan-script-smoke': [
+        'scanScriptSmoke',
+    ],
 }
 
 # 01b. target 并行执行元数据
@@ -103,6 +106,7 @@ TARGET_META: dict[str, dict[str, object]] = {
     'index': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 600},
     'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 300},
+    'scan-script-smoke': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
 }
 
 # 01c. target dominance 声明: 当 dominant target 触发时自动包含 dominated target
@@ -448,6 +452,19 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'gradlew',
             'gradlew.bat',
             '*.lockfile',
+        ],
+    },
+    'scan-script-smoke': {
+        'scanScriptSmoke': [
+            'scripts/session-browser.sh',
+            'java/app-cli/**',
+            'java/scan-engine/**',
+            'java/source-claude/**',
+            'java/source-codex/**',
+            'java/source-qoder/**',
+            'java/index-sqlite/**',
+            'scripts/quality/**',
+            'tests/script_commands/**',
         ],
     },
 }

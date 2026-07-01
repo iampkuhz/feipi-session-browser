@@ -1668,6 +1668,11 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         if not checker.exists():
             return []
         return [python, str(checker)]
+    if gate == 'scanScriptSmoke':
+        test_path = repo_root / 'tests' / 'script_commands' / 'test_session_browser_scan_smoke.py'
+        if not test_path.exists():
+            return []
+        return [dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)]
     return []
 
 
@@ -1864,6 +1869,7 @@ def main() -> int:
             'index',
             'java-src',
             'java-build',
+            'scan-script-smoke',
         ],
     )
     parser.add_argument('--change-id', required=True)

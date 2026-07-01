@@ -705,7 +705,7 @@ public final class AggregateQueryRepository {
       String agentWhere = agentFilter.isUnfiltered() ? "" : "WHERE agent = ?";
       int idx;
 
-      // 1. Active projects 24h
+      // 说明:最近 24 小时内有 session 的去重项目数
       long active24h;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -720,7 +720,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 2. Active projects 7d
+      // 说明:最近 7 天内有 session 的去重项目数
       long active7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -735,7 +735,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 3. New projects 7d (first seen)
+      // 说明:最近 7 天内首次出现的新项目数
       long new7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -750,7 +750,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 4. Active projects previous 7d (8-14 days ago)
+      // 说明:上个 7 天（8-14 天前）有 session 的去重项目数
       long prev7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -765,7 +765,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 5. Today sessions
+      // 说明:今日开始的 session 数
       long todaySessions;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -780,7 +780,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 6. Avg daily sessions 7d
+      // 说明:最近 7 天每日平均 session 数
       double avgDaily7d;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -795,7 +795,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 7. Median duration
+      // 说明:session duration 中位数（秒）
       double medianDuration = 0;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -821,7 +821,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 8. Eligible sessions (input-side > 0)
+      // 说明:输入侧 token 大于 0 的 eligible session 数
       long eligibleSessions;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -836,7 +836,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 9. P50 cache ratio
+      // 说明:eligible sessions 的 per-session cache read ratio 中位数
       Double p50CacheRatio = null;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -868,7 +868,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 10. Low-read sessions (eligible with ratio < 0.2)
+      // 说明:eligible sessions 中 cache read ratio 小于 20% 的 session 数
       long lowReadSessions;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -885,7 +885,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 11. Affected failure sessions (failed > 0)
+      // 说明:有失败工具调用的 session 数
       long affectedFailure;
       try (PreparedStatement ps =
           conn.prepareStatement(
@@ -900,7 +900,7 @@ public final class AggregateQueryRepository {
         }
       }
 
-      // 12. Repeated failure sessions (failed > 1)
+      // 说明:有重复失败工具调用的 session 数
       long repeatedFailure;
       try (PreparedStatement ps =
           conn.prepareStatement(

@@ -4863,6 +4863,16 @@
         }
       },
       "peerGroup": null
+    },
+    {
+      "fingerprint": "d1a7fe02bee7c52d57b0f5922c2d26b0e1f4b577554f2062cba1c9078fd84665",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "kpiSupplement 中重复的 PreparedStatement 模式是 SQL 查询必需的最小结构，每个查询独立且不可合并",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "d1a7fe02bee7c52d57b0f5922c2d26b0e1f4b577554f2062cba1c9078fd84665"
     }
   ]
 }
