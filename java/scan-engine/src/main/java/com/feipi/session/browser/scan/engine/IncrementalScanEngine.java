@@ -57,7 +57,7 @@ public final class IncrementalScanEngine {
   private static final int FLUSH_INTERVAL = 100;
 
   /** 当前 scan logic 版本，变化时触发全量重建。 */
-  public static final int CURRENT_SCAN_LOGIC_VERSION = 1;
+  public static final int CURRENT_SCAN_LOGIC_VERSION = 4;
 
   /** index_metadata 表中 scan logic version 的键名。 */
   private static final String SCAN_LOGIC_VERSION_KEY = "scan_logic_version";
@@ -192,6 +192,15 @@ public final class IncrementalScanEngine {
             storedVersion,
             CURRENT_SCAN_LOGIC_VERSION);
         rebuildTriggered = true;
+
+        // 真 full rebuild：DELETE 旧 sessions 和 artifacts，避免残留
+        try {
+          clearExistingIndex(writeConn);
+          storedFingerprints = Map.of(); // 清空内存指纹缓存
+        } catch (SQLException e) {
+          log.error("rebuild 清理旧 index 失败", e);
+          return buildErrorSummary(startMs, "Rebuild cleanup failed: " + e.getMessage());
+        }
       }
 
       // 计算 age cutoff 时间戳
@@ -291,9 +300,21 @@ public final class IncrementalScanEngine {
           }
 
           // 处理需要更新的候选项
-          FullScanEngine.CandidateResult result =
-              FullScanEngine.processCandidate(
-                  candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
+          FullScanEngine.CandidateResult result;
+          if (FullScanEngine.isTranscriptMissing(candidate)) {
+            result =
+                FullScanEngine.processTranscriptMissingCandidate(
+                    candidate, entry.adapter(), batch);
+          } else {
+            result =
+                FullScanEngine.processCandidate(
+                    candidate,
+                    entry.adapter(),
+                    config,
+                    batch,
+                    normalizationEngine,
+                    artifactWriter);
+          }
 
           switch (result.outcome()) {
             case SUCCESS -> {
@@ -443,6 +464,21 @@ public final class IncrementalScanEngine {
     } catch (SQLException e) {
       log.warn("保存 scan logic version 失败", e);
     }
+  }
+
+  /**
+   * 清理现有 index 数据，用于 version 变化时的 full rebuild。
+   *
+   * <p>DELETE sessions 和 session_artifacts 表的所有行，避免旧逻辑产生的残留数据。
+   */
+  private static void clearExistingIndex(Connection conn) throws SQLException {
+    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM session_artifacts")) {
+      stmt.executeUpdate();
+    }
+    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM sessions")) {
+      stmt.executeUpdate();
+    }
+    log.info("已清理旧 index 数据（sessions + session_artifacts）");
   }
 
   /** 构建错误汇总。 */

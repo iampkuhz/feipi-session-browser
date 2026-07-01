@@ -81,6 +81,29 @@ class CodexSourceAdapterTest {
   @DisplayName("discover")
   class DiscoverTests {
 
+    /** 写入 session_index.jsonl 文件。 */
+    private void writeSessionIndex(String... lines) throws IOException {
+      Files.writeString(
+          tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+          String.join("\n", lines) + "\n",
+          StandardCharsets.UTF_8);
+    }
+
+    /** 在 sessions/<year>/<month>/<day>/ 下创建 rollout 文件。 */
+    private Path createRollout(String year, String month, String day, String filename)
+        throws IOException {
+      Path dayDir =
+          tempDir
+              .resolve(CodexConstants.SESSIONS_DIR)
+              .resolve(year)
+              .resolve(month)
+              .resolve(day);
+      Files.createDirectories(dayDir);
+      Path rollout = dayDir.resolve(filename);
+      Files.writeString(rollout, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+      return rollout;
+    }
+
     @Test
     @DisplayName("空目录返回空流")
     void emptyDirectoryReturnsEmptyStream() {
@@ -92,104 +115,58 @@ class CodexSourceAdapterTest {
     }
 
     @Test
-    @DisplayName("有会话时返回按路径排序的候选项")
+    @DisplayName("有会话时返回按 sessionKey 排序的候选项")
     void withSessionsReturnsSortedCandidates() throws IOException {
-      // 创建 sessions/{year}/{month}/{day}/rollout-*.jsonl 结构
-      Path dayB =
-          tempDir
-              .resolve(CodexConstants.SESSIONS_DIR)
-              .resolve("2026")
-              .resolve("06")
-              .resolve("13");
-      Path dayA =
-          tempDir
-              .resolve(CodexConstants.SESSIONS_DIR)
-              .resolve("2026")
-              .resolve("06")
-              .resolve("12");
-
-      Files.createDirectories(dayB);
-      Files.createDirectories(dayA);
-
-      Files.writeString(
-          dayB.resolve("rollout-200-bbb.jsonl"),
-          "{\"type\":\"assistant\"}\n",
-          StandardCharsets.UTF_8);
-      Files.writeString(
-          dayA.resolve("rollout-100-aaa.jsonl"),
-          "{\"type\":\"user\"}\n",
-          StandardCharsets.UTF_8);
+      writeSessionIndex(
+          "{\"id\":\"bbb-456\",\"thread_name\":\"Session B\",\"updated_at\":\"2026-06-13\"}",
+          "{\"id\":\"aaa-123\",\"thread_name\":\"Session A\",\"updated_at\":\"2026-06-12\"}");
+      createRollout("2026", "06", "12", "rollout-100-aaa-123.jsonl");
+      createRollout("2026", "06", "13", "rollout-200-bbb-456.jsonl");
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
 
       assertThat(stream.size()).isEqualTo(2);
       List<Candidate> items = stream.orderedItems();
-      // 按路径排序，2026/06/12 在前
-      assertThat(items.get(0).sessionKey()).isEqualTo("rollout-100-aaa");
-      assertThat(items.get(1).sessionKey()).isEqualTo("rollout-200-bbb");
+      // 按 sessionKey 排序：codex:aaa-123 < codex:bbb-456
+      assertThat(items.get(0).sessionKey()).isEqualTo("codex:aaa-123");
+      assertThat(items.get(1).sessionKey()).isEqualTo("codex:bbb-456");
     }
 
     @Test
-    @DisplayName("新结构候选项包含正确的 sessionKey 和 projectKey")
-    void newStructureCandidateHasCorrectMetadata() throws IOException {
-      Path dayDir =
-          tempDir
-              .resolve(CodexConstants.SESSIONS_DIR)
-              .resolve("2026")
-              .resolve("06")
-              .resolve("12");
-      Files.createDirectories(dayDir);
-      Files.writeString(
-          dayDir.resolve("rollout-20260612-abc-123.jsonl"),
-          "{\"type\":\"assistant\"}\n",
-          StandardCharsets.UTF_8);
+    @DisplayName("候选项包含正确的 sessionKey 和 metadata")
+    void candidateHasCorrectMetadata() throws IOException {
+      writeSessionIndex(
+          "{\"id\":\"abc-123\",\"thread_name\":\"Test Session\",\"updated_at\":\"2026-06-12\"}");
+      createRollout("2026", "06", "12", "rollout-20260612-abc-123.jsonl");
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
 
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
-      assertThat(candidate.sessionKey()).isEqualTo("rollout-20260612-abc-123");
-      assertThat(candidate.projectKey()).isEqualTo("sessions/2026/06/12");
+      assertThat(candidate.sessionKey()).isEqualTo("codex:abc-123");
       assertThat(candidate.sourceId()).isEqualTo(SourceId.CODEX);
+      // 无 threads.db 时 projectKey 为空
+      assertThat(candidate.projectKey()).isEmpty();
+      // metadata 包含 title 和 has_transcript
+      assertThat(candidate.metadata()).containsEntry("title", "Test Session");
+      assertThat(candidate.metadata()).containsEntry("has_transcript", "true");
     }
 
     @Test
-    @DisplayName("archived_sessions 候选项包含正确的 sessionKey 和 projectKey")
-    void archivedCandidateHasCorrectMetadata() throws IOException {
-      Path archivedDir = tempDir.resolve(CodexConstants.ARCHIVED_SESSION_DIR);
-      Files.createDirectories(archivedDir);
-      Files.writeString(
-          archivedDir.resolve("rollout-20260101-old-uuid.jsonl"),
-          "{\"type\":\"assistant\"}\n",
-          StandardCharsets.UTF_8);
+    @DisplayName("transcript 缺失的候选项使用零值指纹")
+    void missingRolloutCandidateHasZeroFingerprint() throws IOException {
+      writeSessionIndex(
+          "{\"id\":\"missing-id\",\"thread_name\":\"Missing\",\"updated_at\":\"2026-06-12\"}");
+      // 不创建 rollout 文件
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
 
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
-      assertThat(candidate.sessionKey()).isEqualTo("rollout-20260101-old-uuid");
-      assertThat(candidate.projectKey()).isEqualTo("archived_sessions");
-      assertThat(candidate.sourceId()).isEqualTo(SourceId.CODEX);
-    }
-
-    @Test
-    @DisplayName("旧结构 fallback 候选项包含正确的 sessionKey 和 projectKey")
-    void oldStructureFallbackCandidateMetadata() throws IOException {
-      Path dayDir = tempDir.resolve("2024-03-10");
-      Path sessionDir = dayDir.resolve("abc-123");
-      Files.createDirectories(sessionDir);
-      Files.writeString(
-          sessionDir.resolve("session.jsonl"),
-          "{\"type\":\"assistant\"}\n",
-          StandardCharsets.UTF_8);
-
-      BoundedStream<Candidate> stream = adapter.discover(tempDir);
-
-      assertThat(stream.size()).isEqualTo(1);
-      Candidate candidate = stream.orderedItems().get(0);
-      assertThat(candidate.sessionKey()).isEqualTo("2024-03-10/abc-123");
-      assertThat(candidate.projectKey()).isEqualTo("2024-03-10");
-      assertThat(candidate.sourceId()).isEqualTo(SourceId.CODEX);
+      assertThat(candidate.sessionKey()).isEqualTo("codex:missing-id");
+      assertThat(candidate.fingerprint().sizeBytes()).isZero();
+      assertThat(candidate.fingerprint().contentHash()).isEmpty();
+      assertThat(candidate.metadata()).containsEntry("has_transcript", "false");
     }
   }
 

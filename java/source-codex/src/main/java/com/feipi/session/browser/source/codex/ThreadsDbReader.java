@@ -99,9 +99,8 @@ public final class ThreadsDbReader {
       return new ThreadsDbResult(Collections.emptyList(), Optional.of(diag));
     }
 
-    String url = "jdbc:sqlite:" + dbPath.toAbsolutePath() + "?mode=ro";
+    String url = "jdbc:sqlite:" + dbPath.toAbsolutePath();
     Properties props = new Properties();
-    props.setProperty("open_mode", "1"); // 只读模式
     props.setProperty("busy_timeout", String.valueOf(CONNECTION_TIMEOUT_MS));
 
     try (Connection conn = DriverManager.getConnection(url, props);

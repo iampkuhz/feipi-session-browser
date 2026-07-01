@@ -40,6 +40,7 @@ class IncrementalScanEngineTest {
   @BeforeEach
   void setUp() throws SQLException {
     conn = SqliteTestHelper.createInMemoryConnection();
+    conn.setAutoCommit(false);
     // 确保 schema
     new com.feipi.session.browser.index.sqlite.IndexSchema(
             com.feipi.session.browser.index.sqlite.MigrationRunner.withAllMigrations())
@@ -252,7 +253,7 @@ class IncrementalScanEngineTest {
 
     ScanConfig config =
         ScanConfig.defaults(
-            List.of(new ScanConfig.SourceEntry(new SkippedAdapter(List.of(candidate)), root)),
+            List.of(new ScanConfig.SourceEntry(new TestSourceAdapter(List.of(candidate)), root)),
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
@@ -260,9 +261,13 @@ class IncrementalScanEngineTest {
 
     // scan logic version 变化应触发 rebuild
     assertThat(summary.rebuildTriggered()).isTrue();
-    // rebuild 时所有 candidate 视为 CHANGED
-    assertThat(summary.changedCount()).isEqualTo(1);
+    // rebuild 时旧数据被清理，candidate 被重新处理（非 UNCHANGED）
     assertThat(summary.unchangedCount()).isZero();
+    // 候选项应被处理（成功或错误），不应被跳过为 UNCHANGED
+    assertThat(summary.totalCandidates()).isEqualTo(1);
+    // rebuild 后 scan logic version 应更新到当前版本
+    int version = loadScanLogicVersion();
+    assertThat(version).isEqualTo(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION);
   }
 
   @Test

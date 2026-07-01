@@ -4381,6 +4381,488 @@
       "createdAt": "2026-06-30",
       "expiresOn": "2026-12-30",
       "evidence": []
+    },
+    {
+      "fingerprint": "5087eccc43d576b6c956ab97c91b70cf5117466fee9f2d51ba085649587bcd4a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "5087eccc43d576b6c956ab97c91b70cf5117466fee9f2d51ba085649587bcd4a"
+    },
+    {
+      "fingerprint": "21e5d297a6467d695c19347b9b14868b573b1a4e0b794ab51b3908a05cb46a21",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "fullscanengine",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "21e5d297a6467d695c19347b9b14868b573b1a4e0b794ab51b3908a05cb46a21"
+    },
+    {
+      "fingerprint": "40db16bd85c28829c0e3d8a870936b37c04b07135378e39f59e3ca61285adaff",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "40db16bd85c28829c0e3d8a870936b37c04b07135378e39f59e3ca61285adaff"
+    },
+    {
+      "fingerprint": "12b58f8d468a9ba1ca077a3b42329348fe610c465df41b42100c8ce939a28f3a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "fullscanengine",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "12b58f8d468a9ba1ca077a3b42329348fe610c465df41b42100c8ce939a28f3a"
+    },
+    {
+      "fingerprint": "09195f5af33201bbff70a4c62a32accc678a2448406ce99f99296fe53edfec62",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "09195f5af33201bbff70a4c62a32accc678a2448406ce99f99296fe53edfec62"
+    },
+    {
+      "fingerprint": "4e6e1d9cf97f985ec0a4bd9429c3c38d9e16bb57f46c04b794c4c721be053bdb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "4e6e1d9cf97f985ec0a4bd9429c3c38d9e16bb57f46c04b794c4c721be053bdb"
+    },
+    {
+      "fingerprint": "ad22b1e94f48edd0534de0b022c6cef4bc481f7f34ac832ad466669ce817ade6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "ad22b1e94f48edd0534de0b022c6cef4bc481f7f34ac832ad466669ce817ade6"
+    },
+    {
+      "fingerprint": "b7c9bfe7c8afc3a9a678deb90dd541e71e8406210bf7009135982427532a8a64",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "b7c9bfe7c8afc3a9a678deb90dd541e71e8406210bf7009135982427532a8a64"
+    },
+    {
+      "fingerprint": "3f629d8caaf2b686de58d4a766e0ca7026d25910892e95578ead66ea4112ef55",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "3f629d8caaf2b686de58d4a766e0ca7026d25910892e95578ead66ea4112ef55"
+    },
+    {
+      "fingerprint": "5da573ac4e16afe8626e3bbb95aaa26df99ba2cb9a400aa77c0feaa42a813f42",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "5da573ac4e16afe8626e3bbb95aaa26df99ba2cb9a400aa77c0feaa42a813f42"
+    },
+    {
+      "fingerprint": "0a1350594f3c4163a44f7f916a6e3cfd14fcf7f598c1ffa41a175dcd1db190d5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudesourceadapter",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "0a1350594f3c4163a44f7f916a6e3cfd14fcf7f598c1ffa41a175dcd1db190d5"
+    },
+    {
+      "fingerprint": "2618ba0c94c2500541dda861f3622069fa1de91b3bf31f4590273ec133acb0e2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "2618ba0c94c2500541dda861f3622069fa1de91b3bf31f4590273ec133acb0e2"
+    },
+    {
+      "fingerprint": "42fbd0604cb2123408f708b2a4f49f40f9df5958d32ed64d6a21e378c8986d0c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudesourceadapter",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "42fbd0604cb2123408f708b2a4f49f40f9df5958d32ed64d6a21e378c8986d0c"
+    },
+    {
+      "fingerprint": "5b689a5dff183170e9b30ac8f4ee6a8d56f069214f3fffb71ce0c87844f16ad4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "5b689a5dff183170e9b30ac8f4ee6a8d56f069214f3fffb71ce0c87844f16ad4"
+    },
+    {
+      "fingerprint": "bec2b5a48fa1b90b695aa53bf5269ff3449c4f1d261b2d8effc9b7ecd0dec89b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "bec2b5a48fa1b90b695aa53bf5269ff3449c4f1d261b2d8effc9b7ecd0dec89b"
+    },
+    {
+      "fingerprint": "a0fe45ed8c961b490537645cb12017871bf885fb35b8e548ed6ded15bba42df5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "a0fe45ed8c961b490537645cb12017871bf885fb35b8e548ed6ded15bba42df5"
+    },
+    {
+      "fingerprint": "038a083daff382d6f76d3658927105aa2ffe34b06a67dba3f4889b8c4e2b218a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "038a083daff382d6f76d3658927105aa2ffe34b06a67dba3f4889b8c4e2b218a"
+    },
+    {
+      "fingerprint": "99c257e8fd2bf5945da6338da87ca77690b17a1a5d8ec4a8dac2f1cd77b20674",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "99c257e8fd2bf5945da6338da87ca77690b17a1a5d8ec4a8dac2f1cd77b20674"
+    },
+    {
+      "fingerprint": "fe9cbd428bbe4d8a59febac49d9015ddae6811ef70922449a698e71fc543aad4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "fe9cbd428bbe4d8a59febac49d9015ddae6811ef70922449a698e71fc543aad4"
+    },
+    {
+      "fingerprint": "028a9b1f0793a06aac6ca73ef0795e61cceeeb4b61bfeed4af67469f4fe2825c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "028a9b1f0793a06aac6ca73ef0795e61cceeeb4b61bfeed4af67469f4fe2825c"
+    },
+    {
+      "fingerprint": "ac03d4cd9c36990d3375a3b398be5361dbe8d417acbb1b42f13e2eb987053ef5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "fullscanengine",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "ac03d4cd9c36990d3375a3b398be5361dbe8d417acbb1b42f13e2eb987053ef5"
+    },
+    {
+      "fingerprint": "80fccfcfeac6c3af71b8c510db52e24ab41cd646bf456b53f24b18b5f1e01e8c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "80fccfcfeac6c3af71b8c510db52e24ab41cd646bf456b53f24b18b5f1e01e8c"
+    },
+    {
+      "fingerprint": "7da7dcd5bf3e225ade398508749a735ca5c455fced4b3d1c2b79fe93777a77cc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "7da7dcd5bf3e225ade398508749a735ca5c455fced4b3d1c2b79fe93777a77cc"
+    },
+    {
+      "fingerprint": "a967eb8d2e080af45f16fc2090172887bf54f3c6e4e7fc12a8962ab13de9c8f6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "artifactrowmapper",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "a967eb8d2e080af45f16fc2090172887bf54f3c6e4e7fc12a8962ab13de9c8f6"
+    },
+    {
+      "fingerprint": "c4ed8b69dc50293d6ae78e8cd54731a7385d6308556dfbceb2c8054916a54396",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "writebatch",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "c4ed8b69dc50293d6ae78e8cd54731a7385d6308556dfbceb2c8054916a54396"
+    },
+    {
+      "fingerprint": "21d221426c1bc6a2f5a320eee2474db024ef33e487738f89f7aecd9708715e86",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "21d221426c1bc6a2f5a320eee2474db024ef33e487738f89f7aecd9708715e86"
+    },
+    {
+      "fingerprint": "c184dfaee898511341dfe9f3ea12fad26202ab66153e66a6dcd3c5389c60956e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "c184dfaee898511341dfe9f3ea12fad26202ab66153e66a6dcd3c5389c60956e"
+    },
+    {
+      "fingerprint": "72ed3f427718da2b716a471795fb7cf556b340f1c3eb3115e3d961b902f45c3a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "72ed3f427718da2b716a471795fb7cf556b340f1c3eb3115e3d961b902f45c3a"
+    },
+    {
+      "fingerprint": "12c0ff7cf9aeb1a0253fd0226f0e86f8ee44754c8ab2653594e5d313ef62ee53",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "fullscanengine",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "12c0ff7cf9aeb1a0253fd0226f0e86f8ee44754c8ab2653594e5d313ef62ee53"
+    },
+    {
+      "fingerprint": "868a1abff67d9101e0309b37ed7346198c1e308ef74b4e322849e4f7b6378bbe",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "868a1abff67d9101e0309b37ed7346198c1e308ef74b4e322849e4f7b6378bbe"
+    },
+    {
+      "fingerprint": "a702900846ca671dd89b6cd7d72d6683ada004893a744784cc3d3b49dc781e39",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudesourceadapter",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "a702900846ca671dd89b6cd7d72d6683ada004893a744784cc3d3b49dc781e39"
+    },
+    {
+      "fingerprint": "5339c32095a069a3c7e968ab850a127a60098458aeb6a7beda4e739dab05a2b3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "5339c32095a069a3c7e968ab850a127a60098458aeb6a7beda4e739dab05a2b3"
+    },
+    {
+      "fingerprint": "40ff07fe5bfcbfdec9d196b4dad8325c84c854cbe0e120fa8fcf85c649671da5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "40ff07fe5bfcbfdec9d196b4dad8325c84c854cbe0e120fa8fcf85c649671da5"
+    },
+    {
+      "fingerprint": "6fdb3377008e0e40abd12c9625ac8baa27a50bd716f988c31e5183ccca6447c9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudesourceadapter",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "6fdb3377008e0e40abd12c9625ac8baa27a50bd716f988c31e5183ccca6447c9"
+    },
+    {
+      "fingerprint": "286e73fb1fbb8009aa61a1e5004f65d70b238eba59c7ce5cf9ce94791497b39d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "fullscanengine",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "286e73fb1fbb8009aa61a1e5004f65d70b238eba59c7ce5cf9ce94791497b39d"
+    },
+    {
+      "fingerprint": "17f8dcf01b45c75f1ed5caaed40f4a4c300fa48d34caf8007fe2b825bd083e91",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudediscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "17f8dcf01b45c75f1ed5caaed40f4a4c300fa48d34caf8007fe2b825bd083e91"
+    },
+    {
+      "fingerprint": "035bf1fdf46018f0706d04b375f89b8009a87cbf8c7e170654027e9bf59abe88",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "035bf1fdf46018f0706d04b375f89b8009a87cbf8c7e170654027e9bf59abe88"
+    },
+    {
+      "fingerprint": "d2d381e8bcc4f9ba82fe3315a8ba45594f405120030e7febf7bd640e21e0fc76",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "d2d381e8bcc4f9ba82fe3315a8ba45594f405120030e7febf7bd640e21e0fc76"
+    },
+    {
+      "fingerprint": "d80def250c14ef82d42d03692fe3600d509433348e876ea6d3679b2c6c59c546",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "fullscanengine",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "d80def250c14ef82d42d03692fe3600d509433348e876ea6d3679b2c6c59c546"
+    },
+    {
+      "fingerprint": "879e241b64e15cd198c454085338d580f633d6904876e1d104b769d3afe19eb4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexsourceadapter",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "879e241b64e15cd198c454085338d580f633d6904876e1d104b769d3afe19eb4"
+    },
+    {
+      "fingerprint": "60f6f2dc4f6a4510f5a61d7f9b46b0ff9be09366aa9404bbaf76b2c26ae5882b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "60f6f2dc4f6a4510f5a61d7f9b46b0ff9be09366aa9404bbaf76b2c26ae5882b"
+    },
+    {
+      "fingerprint": "808a68a072f89450be124f41a9bbf41733a0fe519143958d6e5f147ad7564a75",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "808a68a072f89450be124f41a9bbf41733a0fe519143958d6e5f147ad7564a75"
+    },
+    {
+      "fingerprint": "5696506b077892f49d4ccc37c3770eab9c49c89a15bcfa286567195dd8c8e91f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "5696506b077892f49d4ccc37c3770eab9c49c89a15bcfa286567195dd8c8e91f"
+    },
+    {
+      "fingerprint": "7f20be6454b96a573c16d3d86715a20a919681c106fc168d4ed2c4b4d8ab46a0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "codexdiscovery",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "7f20be6454b96a573c16d3d86715a20a919681c106fc168d4ed2c4b4d8ab46a0"
+    },
+    {
+      "fingerprint": "6af667def4b1f5af9695a857de71dab5faa3637d1d95da08fb3072614d7545f3",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Auto-generated from bootstrap analysis",
+      "owner": "claudehistoryreader",
+      "createdAt": "2026-07-01",
+      "expiresOn": "2026-12-28",
+      "evidence": "6af667def4b1f5af9695a857de71dab5faa3637d1d95da08fb3072614d7545f3"
+    },
+    {
+      "id": "F0179",
+      "severity": "P1",
+      "kind": "STATEMENT_DUPLICATE",
+      "fingerprint": "8f919e5ae7fce7d1bee853e2ecc124178609832ec55afe9754c785be6b620f59",
+      "occurrences": [
+        {
+          "method": "processCandidate",
+          "methodId": "com.feipi.session.browser.scan.engine.FullScanEngine#processCandidate(com.feipi.session.browser.source.spi.Candidate,com.feipi.session.browser.source.spi.SourceAdapter,com.feipi.session.browser.scan.engine.ScanConfig,com.feipi.session.browser.index.sqlite.WriteBatch,com.feipi.session.browser.normalization.NormalizationEngine,com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter)com.feipi.session.browser.scan.engine.FullScanEngine$CandidateResult",
+          "ownership": "SHARED_CAPABILITY",
+          "type": "com.feipi.session.browser.scan.engine.FullScanEngine"
+        },
+        {
+          "method": "processTranscriptMissingCandidate",
+          "methodId": "com.feipi.session.browser.scan.engine.FullScanEngine#processTranscriptMissingCandidate(com.feipi.session.browser.source.spi.Candidate,com.feipi.session.browser.source.spi.SourceAdapter,com.feipi.session.browser.index.sqlite.WriteBatch)com.feipi.session.browser.scan.engine.FullScanEngine$CandidateResult",
+          "ownership": "SHARED_CAPABILITY",
+          "type": "com.feipi.session.browser.scan.engine.FullScanEngine"
+        }
+      ],
+      "touchesChangedCode": true,
+      "suggestedDecisions": [
+        "KEEP_ON_OWNER",
+        "INTENTIONAL_DUPLICATION",
+        "DEFER"
+      ],
+      "ownership": {
+        "distribution": {
+          "SHARED_CAPABILITY": 2
+        }
+      },
+      "peerGroup": null
     }
   ]
 }

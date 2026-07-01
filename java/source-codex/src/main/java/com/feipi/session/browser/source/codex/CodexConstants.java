@@ -20,7 +20,7 @@ public final class CodexConstants {
   public static final String ARCHIVED_SESSION_DIR = "archived_sessions";
 
   /** Codex 线程数据库文件名。 */
-  public static final String THREADS_DB = "threads.sqlite3";
+  public static final String THREADS_DB = "state_5.sqlite";
 
   /** Codex 会话索引文件名。 */
   public static final String SESSION_INDEX_FILE = "session_index.jsonl";

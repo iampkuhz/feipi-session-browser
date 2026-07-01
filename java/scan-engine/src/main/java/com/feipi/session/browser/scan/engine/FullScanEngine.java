@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
+import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -148,6 +149,14 @@ public final class FullScanEngine {
       return buildErrorSummary(startMs, "Schema initialization failed: " + e.getMessage());
     }
 
+    // 1b. 清理旧 index 数据（full scan 每次重建完整索引，避免旧逻辑残留）
+    try {
+      clearExistingIndex(writeConn);
+    } catch (SQLException e) {
+      log.error("清理旧 index 失败", e);
+      return buildErrorSummary(startMs, "Clear existing index failed: " + e.getMessage());
+    }
+
     // 2. 开始 scan_log
     long scanLogId;
     try {
@@ -210,9 +219,22 @@ public final class FullScanEngine {
       // 逐候选处理
       int processedInBatch = 0;
       for (Candidate candidate : candidates.orderedItems()) {
-        CandidateResult result =
-            processCandidate(
-                candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
+        CandidateResult result;
+
+        // 零值指纹 → transcript/rollout 缺失 → 创建最小 index entry
+        if (isTranscriptMissing(candidate)) {
+          result = processTranscriptMissingCandidate(candidate, entry.adapter(), batch);
+        } else {
+          result =
+              processCandidate(
+                  candidate,
+                  entry.adapter(),
+                  config,
+                  batch,
+                  normalizationEngine,
+                  artifactWriter);
+        }
+
         switch (result.outcome) {
           case SUCCESS -> {
             counters[1]++;
@@ -341,7 +363,12 @@ public final class FullScanEngine {
       Map<String, Object> enrichedSession = new LinkedHashMap<>(artifact.session());
       enrichedSession.put("session_key", safeSessionKey);
       enrichedSession.put("session_id", sessionId);
-      enrichedSession.put("project_key", candidate.projectKey());
+      // project_key 不得为空（DB CHECK 约束），回退使用 sessionId
+      String effectiveProjectKey = candidate.projectKey();
+      if (effectiveProjectKey.isEmpty()) {
+        effectiveProjectKey = sessionId;
+      }
+      enrichedSession.put("project_key", effectiveProjectKey);
       // endedAt 为必填字段；归一化引擎未提取时回退到文件修改时间
       if (!enrichedSession.containsKey("ended_at")
           || enrichedSession.get("ended_at") == null
@@ -405,6 +432,107 @@ public final class FullScanEngine {
       return Map.of(filePath.toAbsolutePath().toString(), hash.get());
     }
     return Map.of();
+  }
+
+  /**
+   * 判断候选项是否为 transcript 缺失（元数据驱动发现的 fallback 场景）。
+   *
+   * <p>零值指纹（sizeBytes=0 且无 contentHash）表示发现阶段未找到物理源文件。
+   */
+  static boolean isTranscriptMissing(Candidate candidate) {
+    return candidate.fingerprint().sizeBytes() == 0
+        && candidate.fingerprint().contentHash().isEmpty();
+  }
+
+  /**
+   * 处理 transcript 缺失的候选项：创建最小 session row（仅元数据）。
+   *
+   * <p>与 Python master 的 {@code _session_from_history} 对齐：使用 history timestamp 作为 ended_at， 所有计数器字段填 0，不写 artifact。
+   */
+  static CandidateResult processTranscriptMissingCandidate(
+      Candidate candidate, SourceAdapter adapter, WriteBatch batch) {
+    try {
+      String sessionKey = candidate.sessionKey().replace('/', ':');
+      String agentValue = adapter.sourceId().getValue();
+      Map<String, String> meta = candidate.metadata();
+
+      // 从 sessionKey 提取 sessionId（格式：agent:sessionId）
+      String sessionId = sessionKey;
+      int colonIdx = sessionKey.indexOf(':');
+      if (colonIdx >= 0 && colonIdx < sessionKey.length() - 1) {
+        sessionId = sessionKey.substring(colonIdx + 1);
+      }
+
+      String title = meta.getOrDefault("title", "");
+      String projectKey = candidate.projectKey();
+      // project_key 不得为空（DB CHECK 约束），回退使用 sessionId
+      if (projectKey.isEmpty()) {
+        projectKey = sessionId;
+      }
+      String projectName = projectKey;
+      int lastSlash = projectKey.lastIndexOf('/');
+      if (lastSlash >= 0 && lastSlash < projectKey.length() - 1) {
+        projectName = projectKey.substring(lastSlash + 1);
+      }
+
+      // 使用 history timestamp 作为 ended_at
+      String endedAt = "";
+      String tsStr = meta.get("timestamp");
+      if (tsStr != null && !tsStr.isEmpty() && !tsStr.equals("0")) {
+        try {
+          double tsMs = Double.parseDouble(tsStr);
+          if (tsMs > 0) {
+            endedAt = java.time.Instant.ofEpochMilli((long) tsMs).toString();
+          }
+        } catch (NumberFormatException ignored) {
+          // 忽略无效 timestamp
+        }
+      }
+      // 回退：使用当前时间
+      if (endedAt.isEmpty()) {
+        endedAt = java.time.Instant.now().toString();
+      }
+
+      double indexedAt = System.currentTimeMillis() / 1000.0;
+
+      // 构建最小 session row：所有计数器填 0，不写 artifact
+      SessionRow minimalRow =
+          new SessionRow(
+              sessionKey,
+              agentValue,
+              sessionId,
+              title,
+              projectKey,
+              projectName,
+              "",
+              endedAt,
+              endedAt,
+              0,
+              0,
+              0,
+              "",
+              "",
+              "",
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              0,
+              indexedAt,
+              0,
+              "");
+
+      addSessionInsert(batch, minimalRow);
+      return new CandidateResult(CandidateOutcome.SUCCESS, null, null);
+    } catch (Exception e) {
+      return new CandidateResult(
+          CandidateOutcome.ERROR, ScanIssue.ScanPhase.INDEX_WRITE, e.getMessage());
+    }
   }
 
   /** 从源文件路径提取 session ID（文件名去掉 .jsonl 后缀）。 */
@@ -485,6 +613,21 @@ public final class FullScanEngine {
         0,
         Map.of(),
         List.of(new ScanIssue("", "", ScanIssue.ScanPhase.ROOT_CHECK, errorMessage)));
+  }
+
+  /**
+   * 清理现有 index 数据，用于 full scan 重建。
+   *
+   * <p>DELETE sessions 和 session_artifacts 表的所有行，避免旧逻辑产生的残留数据。
+   */
+  private static void clearExistingIndex(Connection conn) throws SQLException {
+    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM session_artifacts")) {
+      stmt.executeUpdate();
+    }
+    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM sessions")) {
+      stmt.executeUpdate();
+    }
+    log.info("已清理旧 index 数据（sessions + session_artifacts）");
   }
 
   /** 候选项处理结果。 */

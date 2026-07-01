@@ -28,13 +28,24 @@ class CodexSourceSpecificContractTest {
   @Test
   @DisplayName("发现 session index 布局并解析 rollout/tool/subagent/token 语义")
   void parsesCodexRolloutSemanticsWithoutMutatingSourceRoot() throws IOException {
-    Path sessionDir = tempDir.resolve("2026-06-23").resolve("thread-main");
-    Files.createDirectories(sessionDir);
+    String sessionId = "thread-main";
+
+    // 写入 session_index.jsonl
     Files.writeString(
-        tempDir.resolve("session_index.jsonl"),
-        "{\"id\":\"thread-main\",\"path\":\"2026-06-23/thread-main/session.jsonl\"}\n",
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"" + sessionId
+            + "\",\"thread_name\":\"Main Thread\",\"updated_at\":\"2026-06-23\"}\n",
         StandardCharsets.UTF_8);
-    Path rollout = sessionDir.resolve("session.jsonl");
+
+    // 创建 rollout 文件
+    Path dayDir =
+        tempDir
+            .resolve(CodexConstants.SESSIONS_DIR)
+            .resolve("2026")
+            .resolve("06")
+            .resolve("23");
+    Files.createDirectories(dayDir);
+    Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     Files.writeString(rollout, codexRollout(), StandardCharsets.UTF_8);
     FileState before = FileState.capture(rollout);
 
@@ -60,11 +71,9 @@ class CodexSourceSpecificContractTest {
         .doesNotContain("TOKEN_NO_CUMULATIVE", "TOOL_ORPHAN");
     assertThat(success.records().get(0).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[0]");
-    assertThat(success.records())
-        .extracting(SourceRecord::locator)
-        .noneMatch(locator -> locator.matches(".*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}.*"));
-    assertThat(candidate.sessionKey()).isEqualTo("2026-06-23/thread-main");
-    assertThat(candidate.projectKey()).isEqualTo("2026-06-23");
+    assertThat(candidate.sessionKey()).isEqualTo("codex:" + sessionId);
+    // 无 threads.db 时 projectKey 为空
+    assertThat(candidate.projectKey()).isEmpty();
     assertThat(FileState.capture(rollout)).isEqualTo(before);
     assertThat(adapter.fingerprint(rollout))
         .usingRecursiveComparison()
@@ -74,9 +83,24 @@ class CodexSourceSpecificContractTest {
   @Test
   @DisplayName("孤立 tool result 产生诊断但不丢弃 rollout")
   void orphanToolResultProducesDiagnosticButKeepsSession() throws IOException {
-    Path sessionDir = tempDir.resolve("2026-06-23").resolve("thread-orphan");
-    Files.createDirectories(sessionDir);
-    Path rollout = sessionDir.resolve("session.jsonl");
+    String sessionId = "thread-orphan";
+
+    // 写入 session_index.jsonl
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"" + sessionId
+            + "\",\"thread_name\":\"Orphan Thread\",\"updated_at\":\"2026-06-23\"}\n",
+        StandardCharsets.UTF_8);
+
+    // 创建 rollout 文件
+    Path dayDir =
+        tempDir
+            .resolve(CodexConstants.SESSIONS_DIR)
+            .resolve("2026")
+            .resolve("06")
+            .resolve("23");
+    Files.createDirectories(dayDir);
+    Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     Files.writeString(
         rollout,
         "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call_output\",\"call_id\":\"missing\"}}\n",

@@ -159,6 +159,7 @@ class ScanDbFaultTest {
     @DisplayName("扫描完成后 scan_log 状态为 success")
     void successfulScanLogsSuccess() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
 
@@ -187,6 +188,7 @@ class ScanDbFaultTest {
     @DisplayName("扫描产生错误时 scan_log 仍标记 success（错误在 issues 中）")
     void scanWithErrorsLogsSuccess() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
 
@@ -225,6 +227,7 @@ class ScanDbFaultTest {
     @DisplayName("artifact 目录无法创建时返回错误汇总")
     void artifactDirCreationFailureReturnsErrorSummary() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         // 使用一个无法创建目录的路径（在文件上创建子目录）
         Path fileAsDir = tempDir.resolve("not-a-dir");

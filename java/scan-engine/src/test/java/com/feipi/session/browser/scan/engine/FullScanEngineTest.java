@@ -40,6 +40,7 @@ class FullScanEngineTest {
   @BeforeEach
   void setUp() throws SQLException {
     conn = SqliteTestHelper.createInMemoryConnection();
+    conn.setAutoCommit(false);
   }
 
   @AfterEach

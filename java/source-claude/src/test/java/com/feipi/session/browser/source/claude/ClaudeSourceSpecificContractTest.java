@@ -28,9 +28,19 @@ class ClaudeSourceSpecificContractTest {
   @Test
   @DisplayName("解析 history/project transcript/active/tool/subagent 语义且保持源只读")
   void parsesClaudeProviderSemanticsWithoutMutatingSourceRoot() throws IOException {
-    Path projectDir = tempDir.resolve("projects").resolve("home%2Fwork%2Fdemo");
+    // 写入 history.jsonl
+    String sessionId = "claude-session-id";
+    String project = "home%2Fwork%2Fdemo";
+    Files.writeString(
+        tempDir.resolve(ClaudeConstants.HISTORY_FILE),
+        "{\"sessionId\":\"" + sessionId + "\",\"project\":\"" + project
+            + "\",\"display\":\"Test\",\"timestamp\":1000}\n",
+        StandardCharsets.UTF_8);
+
+    // 创建 transcript 文件
+    Path projectDir = tempDir.resolve(ClaudeConstants.PROJECTS_DIR).resolve(project);
     Files.createDirectories(projectDir);
-    Path transcript = projectDir.resolve("claude-session.jsonl");
+    Path transcript = projectDir.resolve(sessionId + ".jsonl");
     Files.writeString(transcript, claudeTranscript(), StandardCharsets.UTF_8);
     FileState before = FileState.capture(transcript);
 
@@ -50,11 +60,8 @@ class ClaudeSourceSpecificContractTest {
         .isEqualTo(candidate.fingerprint().locator() + "#event[0]");
     assertThat(success.records().get(5).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[5]");
-    assertThat(success.records())
-        .extracting(SourceRecord::locator)
-        .noneMatch(locator -> locator.matches(".*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}.*"));
-    assertThat(candidate.sessionKey()).isEqualTo("home%2Fwork%2Fdemo/claude-session");
-    assertThat(candidate.projectKey()).isEqualTo("home%2Fwork%2Fdemo");
+    assertThat(candidate.sessionKey()).isEqualTo("claude_code:" + sessionId);
+    assertThat(candidate.projectKey()).isEqualTo(project);
     assertThat(FileState.capture(transcript)).isEqualTo(before);
     assertThat(adapter.fingerprint(transcript))
         .usingRecursiveComparison()

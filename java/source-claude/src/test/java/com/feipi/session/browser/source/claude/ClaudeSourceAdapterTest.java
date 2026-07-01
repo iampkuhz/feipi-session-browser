@@ -81,6 +81,23 @@ class ClaudeSourceAdapterTest {
   @DisplayName("discover")
   class DiscoverTests {
 
+    /** 写入 history.jsonl 文件。 */
+    private void writeHistory(String... lines) throws IOException {
+      Files.writeString(
+          tempDir.resolve(ClaudeConstants.HISTORY_FILE),
+          String.join("\n", lines) + "\n",
+          StandardCharsets.UTF_8);
+    }
+
+    /** 在 projects/<project>/ 下创建 transcript 文件。 */
+    private Path createTranscript(String project, String sessionId) throws IOException {
+      Path projectDir = tempDir.resolve(ClaudeConstants.PROJECTS_DIR).resolve(project);
+      Files.createDirectories(projectDir);
+      Path transcript = projectDir.resolve(sessionId + ".jsonl");
+      Files.writeString(transcript, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+      return transcript;
+    }
+
     @Test
     @DisplayName("空目录返回空流")
     void emptyDirectoryReturnsEmptyStream() {
@@ -92,43 +109,40 @@ class ClaudeSourceAdapterTest {
     }
 
     @Test
-    @DisplayName("有会话时返回按路径排序的候选项")
+    @DisplayName("有会话时返回按 sessionKey 排序的候选项")
     void withSessionsReturnsSortedCandidates() throws IOException {
-      Path projects = tempDir.resolve("projects");
-      Path projectB = projects.resolve("project-b");
-      Path projectA = projects.resolve("project-a");
-      Files.createDirectories(projectA);
-      Files.createDirectories(projectB);
-
-      Path sessionB = projectB.resolve("session-2.jsonl");
-      Path sessionA = projectA.resolve("session-1.jsonl");
-      Files.writeString(sessionB, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
-      Files.writeString(sessionA, "{\"type\":\"user\"}\n", StandardCharsets.UTF_8);
+      writeHistory(
+          "{\"sessionId\":\"beta-session\",\"project\":\"project-b\",\"display\":\"B\",\"timestamp\":2000}",
+          "{\"sessionId\":\"alpha-session\",\"project\":\"project-a\",\"display\":\"A\",\"timestamp\":1000}");
+      createTranscript("project-b", "beta-session");
+      createTranscript("project-a", "alpha-session");
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
 
       assertThat(stream.size()).isEqualTo(2);
       List<Candidate> items = stream.orderedItems();
-      assertThat(items.get(0).sessionKey()).startsWith("project-a/");
-      assertThat(items.get(1).sessionKey()).startsWith("project-b/");
+      // 按会话键排序，字母序在前
+      assertThat(items.get(0).sessionKey()).isEqualTo("claude_code:alpha-session");
+      assertThat(items.get(1).sessionKey()).isEqualTo("claude_code:beta-session");
     }
 
     @Test
     @DisplayName("候选项包含正确的 sessionKey 和 projectKey")
     void candidateHasCorrectMetadata() throws IOException {
-      Path projects = tempDir.resolve("projects");
-      Path projectDir = projects.resolve("my-project");
-      Files.createDirectories(projectDir);
-      Path sessionFile = projectDir.resolve("abc-123.jsonl");
-      Files.writeString(sessionFile, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);
+      writeHistory(
+          "{\"sessionId\":\"abc-123\",\"project\":\"my-project\",\"display\":\"Test Session\",\"timestamp\":1000}");
+      createTranscript("my-project", "abc-123");
 
       BoundedStream<Candidate> stream = adapter.discover(tempDir);
 
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
-      assertThat(candidate.sessionKey()).isEqualTo("my-project/abc-123");
+      assertThat(candidate.sessionKey()).isEqualTo("claude_code:abc-123");
       assertThat(candidate.projectKey()).isEqualTo("my-project");
       assertThat(candidate.sourceId()).isEqualTo(SourceId.CLAUDE_CODE);
+      // 验证 metadata
+      assertThat(candidate.metadata()).containsEntry("title", "Test Session");
+      assertThat(candidate.metadata()).containsEntry("has_transcript", "true");
     }
   }
 

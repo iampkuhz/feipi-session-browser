@@ -10,11 +10,23 @@ public final class ClaudeConstants {
   /** Claude Code 会话项目子目录名称。 */
   public static final String PROJECTS_DIR = "projects";
 
+  /** Claude Code 会话历史文件名。 */
+  public static final String HISTORY_FILE = "history.jsonl";
+
   /** Claude Code 会话文件后缀。 */
   public static final String SESSION_FILE_SUFFIX = ".jsonl";
 
   /** 单个项目目录允许发现的最大会话文件数。 */
   public static final int MAX_SESSIONS_PER_PROJECT = 10_000;
+
+  /** Candidate metadata key：来自 history.jsonl 的 display 标题。 */
+  public static final String META_TITLE = "title";
+
+  /** Candidate metadata key：会话是否有 transcript 文件。 */
+  public static final String META_HAS_TRANSCRIPT = "has_transcript";
+
+  /** Candidate metadata key：来自 history.jsonl 的 timestamp（毫秒）。 */
+  public static final String META_TIMESTAMP = "timestamp";
 
   /** Claude Code JSONL 事件中表示用户消息的类型值。 */
   public static final String EVENT_TYPE_USER = "user";

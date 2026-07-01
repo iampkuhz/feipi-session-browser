@@ -43,6 +43,7 @@ class IncrementalScanEngineCancelTest {
   @BeforeEach
   void setUp() throws SQLException {
     conn = SqliteTestHelper.createInMemoryConnection();
+    conn.setAutoCommit(false);
     new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
   }
 

@@ -50,6 +50,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("空目录 full scan 接近零耗时")
     void emptyFullScanNearZero() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         Path root = tempDir.resolve("zero-full");
         Files.createDirectories(root);
@@ -72,6 +73,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("空目录 incremental scan 接近零耗时")
     void emptyIncrementalNearZero() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
 
@@ -101,6 +103,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("单会话 full scan 正确计数")
     void singleSessionFullScan() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         Path root = tempDir.resolve("single-full");
         Files.createDirectories(root);
@@ -130,6 +133,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("100 候选项 full scan 在预算内完成")
     void hundredCandidatesFullScanWithinBudget() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         Path root = tempDir.resolve("hundred-full");
         Files.createDirectories(root);
@@ -161,6 +165,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("100 候选项 incremental scan 在预算内完成")
     void hundredCandidatesIncrementalWithinBudget() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
 
@@ -199,6 +204,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("全部 UNCHANGED 的 incremental scan 不产生写事务")
     void allUnchangedNoWriteTransaction() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
 
@@ -241,6 +247,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("空 incremental scan 无写事务")
     void emptyIncrementalNoWriteTransaction() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         new IndexSchema(MigrationRunner.withAllMigrations()).ensureSchema(conn);
 
@@ -270,6 +277,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("500 候选项 scan 在合理时间内完成")
     void largeCandidateScanWithinReasonableTime() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         Path root = tempDir.resolve("large-full");
         Files.createDirectories(root);
@@ -304,6 +312,7 @@ class ScanPerformanceBaselineTest {
     @DisplayName("WriteBatch flush 1000 条语句在预算内完成")
     void writeBatchFlush1000WithinBudget() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
+      conn.setAutoCommit(false);
       try {
         try (Statement stmt = conn.createStatement()) {
           stmt.execute("CREATE TABLE perf_test (id INTEGER PRIMARY KEY, value TEXT)");

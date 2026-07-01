@@ -1,7 +1,7 @@
 package com.feipi.session.browser.source.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.source.claude.ClaudeDiscovery.ClaudeSessionDiscovery;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
 import com.feipi.session.browser.source.spi.BoundedStream;
@@ -20,6 +20,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,14 +34,8 @@ import java.util.logging.Logger;
  *
  * <p>实现 {@link SourceAdapter} SPI 接口，负责从 Claude Code 本地数据目录 发现会话文件、生成文件指纹和解析 JSONL 会话内容。
  *
- * <p>Claude Code 会话目录结构：
- *
- * <pre>{@code
- * {root}/
- *   projects/
- *     {project-dir}/
- *       {session-id}.jsonl
- * }</pre>
+ * <p>发现策略与 Python master 对齐：从 {@code history.jsonl} 驱动，去重后按 sessionId 定位 transcript 文件。 transcript
+ * 缺失的会话仍然创建候选项（零值指纹），由 scan engine fallback 入库。
  *
  * <p>该适配器保证：
  *
@@ -50,10 +45,6 @@ import java.util.logging.Logger;
  *   <li>{@link #checkRoot(Path)} 检测符号链接、路径逃逸和只读状态。
  *   <li>{@link #parse(Candidate, CancellationSignal)} 不抛出异常表示可预期失败。
  * </ul>
- *
- * <p><b>INTENTIONAL_DUPLICATION</b>：本类与 {@code CodexSourceAdapter}、{@code QoderSourceAdapter}
- * 存在结构性相似（语句级 STATEMENT_DUPLICATE），原因：三者分别实现 {@link SourceAdapter} SPI， 各 provider
- * 数据格式不同但适配逻辑结构一致（目录遍历、指纹计算、JSONL 解析、诊断构建）。 此重复是 SPI 适配器模式的固有特征，不宜提取公共基类以避免 provider 间耦合。
  */
 public final class ClaudeSourceAdapter implements SourceAdapter {
 
@@ -84,7 +75,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   /**
    * 从源根目录发现候选会话。
    *
-   * <p>遍历项目目录，找到所有 {@code .jsonl} 会话文件，按路径排序。 目录不存在或为空时返回空的 {@link BoundedStream}。
+   * <p>从 {@code history.jsonl} 驱动发现：读取并去重后，对每个 session 定位 transcript 文件。 transcript 缺失的会话创建零值指纹候选项。
    *
    * @param rootPath 源根目录路径
    * @return 有界确定性候选项流
@@ -93,24 +84,47 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   public BoundedStream<Candidate> discover(Path rootPath) {
     Objects.requireNonNull(rootPath, "rootPath 不得为 null");
 
-    List<Path> sessionPaths = ClaudeDiscovery.discoverSessions(rootPath);
-    List<Candidate> candidates = new ArrayList<>(sessionPaths.size());
+    List<ClaudeSessionDiscovery> discoveries =
+        ClaudeDiscovery.discoverSessionsWithHistory(rootPath);
+    List<Candidate> candidates = new ArrayList<>(discoveries.size());
 
-    for (Path sessionPath : sessionPaths) {
+    for (ClaudeSessionDiscovery disc : discoveries) {
       try {
-        SourceFingerprint fp = fingerprint(sessionPath);
-        String sessionKey = extractSessionKey(rootPath, sessionPath);
-        String projectKey = extractProjectKey(rootPath, sessionPath);
-        Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.of());
+        SourceFingerprint fp;
+        if (disc.hasFile()) {
+          fp = fingerprint(disc.transcriptPath());
+        } else {
+          // transcript 缺失：零值指纹，locator 使用 sessionId
+          fp =
+              new SourceFingerprint(
+                  disc.entry().sessionId(),
+                  SourceId.CLAUDE_CODE,
+                  0,
+                  0,
+                  Optional.empty(),
+                  Optional.empty());
+        }
+
+        String sessionKey = "claude_code:" + disc.entry().sessionId();
+        String projectKey = disc.entry().project();
+
+        Map<String, String> meta = new HashMap<>();
+        if (!disc.entry().display().isEmpty()) {
+          meta.put(ClaudeConstants.META_TITLE, disc.entry().display());
+        }
+        meta.put(ClaudeConstants.META_HAS_TRANSCRIPT, String.valueOf(disc.hasFile()));
+        meta.put(ClaudeConstants.META_TIMESTAMP, String.valueOf(disc.entry().timestamp()));
+
+        Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.copyOf(meta));
         candidates.add(candidate);
       } catch (Exception e) {
-        LOG.log(Level.FINE, "跳过无法处理的会话文件: " + sessionPath, e);
+        LOG.log(Level.FINE, "跳过无法处理的会话: " + disc.entry().sessionId(), e);
       }
     }
 
-    Comparator<Candidate> byPath = Comparator.comparing(c -> c.fingerprint().locator());
+    Comparator<Candidate> bySessionKey = Comparator.comparing(Candidate::sessionKey);
     return BoundedStream.of(
-        candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(byPath));
+        candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(bySessionKey));
   }
 
   /**
@@ -152,10 +166,8 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   /**
    * 解析指定候选项的会话数据。
    *
-   * <p>使用 {@link JsonlReader} 解析 JSONL 文件，将每个 JSON 事件转为源中性 {@link SourceRecord}。 缺少 {@code type}
-   * 字段的事件产生 {@code UNKNOWN_BLOCK_TYPE} 诊断警告，但不会丢失整个 session。 文件不存在返回 {@link
-   * SourceResult.Skipped}，IO 错误返回 {@link SourceResult.Fatal}， 解析成功（含诊断）返回 {@link
-   * SourceResult.Success}。
+   * <p>使用 {@link JsonlReader} 解析 JSONL 文件。 文件不存在（零值指纹）返回 {@link SourceResult.Skipped}。 IO 错误返回 {@link
+   * SourceResult.Fatal}，解析成功返回 {@link SourceResult.Success}。
    *
    * @param candidate 待解析的候选项
    * @param cancellation 可选的取消信号
@@ -163,6 +175,12 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    */
   @Override
   public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
+    // 零值指纹 → transcript 缺失 → 跳过解析（engine 会 fallback 入库）
+    if (candidate.fingerprint().sizeBytes() == 0 && candidate.fingerprint().contentHash().isEmpty()) {
+      return new SourceResult.Skipped(
+          List.of(), "Transcript file missing for session " + candidate.sessionKey());
+    }
+
     return JsonCandidateParser.parse(
         candidate,
         cancellation,
@@ -220,7 +238,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param sessionPath 会话文件路径
    * @return 会话键
    */
-  private static String extractSessionKey(Path rootPath, Path sessionPath) {
+  static String extractSessionKey(Path rootPath, Path sessionPath) {
     Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
     // 目录结构为 {@code projects/项目名/会话.jsonl}，相对路径至少包含三段
     int nameCount = relative.getNameCount();
@@ -244,7 +262,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param sessionPath 会话文件路径
    * @return 项目键
    */
-  private static String extractProjectKey(Path rootPath, Path sessionPath) {
+  static String extractProjectKey(Path rootPath, Path sessionPath) {
     Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
     int nameCount = relative.getNameCount();
     if (nameCount >= 3) {

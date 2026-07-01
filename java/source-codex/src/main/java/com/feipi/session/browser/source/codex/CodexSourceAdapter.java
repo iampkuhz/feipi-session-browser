@@ -97,24 +97,87 @@ public final class CodexSourceAdapter implements SourceAdapter {
   public BoundedStream<Candidate> discover(Path rootPath) {
     Objects.requireNonNull(rootPath, "rootPath 不得为 null");
 
-    List<Path> sessionPaths = CodexDiscovery.discoverSessions(rootPath);
-    List<Candidate> candidates = new ArrayList<>(sessionPaths.size());
+    List<CodexDiscovery.CodexSessionDiscovery> discoveries =
+        CodexDiscovery.discoverSessionsWithMetadata(rootPath);
+    List<Candidate> candidates = new ArrayList<>(discoveries.size());
 
-    for (Path sessionPath : sessionPaths) {
+    for (CodexDiscovery.CodexSessionDiscovery disc : discoveries) {
       try {
-        SourceFingerprint fp = fingerprint(sessionPath);
-        String sessionKey = extractSessionKey(rootPath, sessionPath);
-        String projectKey = extractProjectKey(rootPath, sessionPath);
-        Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.of());
+        SourceFingerprint fp;
+        if (disc.hasFile()) {
+          fp = fingerprint(disc.rolloutPath());
+        } else {
+          // rollout 缺失：零值指纹，locator 使用 sessionId
+          fp =
+              new SourceFingerprint(
+                  disc.sessionId(),
+                  SourceId.CODEX,
+                  0,
+                  0,
+                  Optional.empty(),
+                  Optional.empty());
+        }
+
+        String sessionKey = "codex:" + disc.sessionId();
+        String projectKey = extractProjectKeyFromThreadInfo(disc);
+
+        Map<String, String> meta = buildCandidateMetadata(disc);
+        Candidate candidate = new Candidate(fp, sessionKey, projectKey, meta);
         candidates.add(candidate);
       } catch (Exception e) {
-        LOG.log(Level.FINE, "跳过无法处理的会话文件: " + sessionPath, e);
+        LOG.log(Level.FINE, "跳过无法处理的会话: " + disc.sessionId(), e);
       }
     }
 
-    Comparator<Candidate> byPath = Comparator.comparing(c -> c.fingerprint().locator());
+    Comparator<Candidate> bySessionKey = Comparator.comparing(Candidate::sessionKey);
     return BoundedStream.of(
-        candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(byPath));
+        candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(bySessionKey));
+  }
+
+  /** 从发现结果构建 Candidate 元数据。 */
+  private static Map<String, String> buildCandidateMetadata(
+      CodexDiscovery.CodexSessionDiscovery disc) {
+    Map<String, String> meta = new java.util.HashMap<>();
+    meta.put("has_transcript", String.valueOf(disc.hasFile()));
+
+    // 优先从 threads.db 取 title
+    if (disc.threadInfo() != null) {
+      String title = disc.threadInfo().getOrDefault("title", "");
+      if (!title.isEmpty()) {
+        meta.put("title", title);
+      }
+      String cwd = disc.threadInfo().getOrDefault("cwd", "");
+      if (!cwd.isEmpty()) {
+        meta.put("cwd", cwd);
+      }
+    }
+    // 回退到 session_index.jsonl
+    if (!meta.containsKey("title") && disc.indexEntry() != null) {
+      String threadName = disc.indexEntry().getOrDefault("thread_name", "");
+      if (!threadName.isEmpty()) {
+        meta.put("title", threadName);
+      }
+    }
+    // 从 first_user_message 补充 title
+    if (!meta.containsKey("title") && disc.threadInfo() != null) {
+      String fum = disc.threadInfo().getOrDefault("first_user_message", "");
+      if (!fum.isEmpty()) {
+        meta.put("title", fum.length() > 120 ? fum.substring(0, 120) : fum);
+      }
+    }
+    return Map.copyOf(meta);
+  }
+
+  /** 从发现结果提取项目键。 */
+  private static String extractProjectKeyFromThreadInfo(
+      CodexDiscovery.CodexSessionDiscovery disc) {
+    if (disc.threadInfo() != null) {
+      String cwd = disc.threadInfo().getOrDefault("cwd", "");
+      if (!cwd.isEmpty()) {
+        return cwd;
+      }
+    }
+    return "";
   }
 
   /**
@@ -176,6 +239,12 @@ public final class CodexSourceAdapter implements SourceAdapter {
    */
   @Override
   public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
+    // 零值指纹 → rollout 缺失 → 跳过解析（engine 会 fallback 入库）
+    if (candidate.fingerprint().sizeBytes() == 0 && candidate.fingerprint().contentHash().isEmpty()) {
+      return new SourceResult.Skipped(
+          List.of(), "Rollout file missing for session " + candidate.sessionKey());
+    }
+
     CodexParseState state = new CodexParseState();
     return JsonCandidateParser.parse(
         candidate,
