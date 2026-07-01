@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% set hide_sidebar_extra = true %}
+{% set hide_payload_modal = true %}
 
 {% block title %}{{ session.title is not empty ? session.title : 'Untitled' }} - Agent Run Profiler{% endblock %}
 {% block shell_class %}no-inspector session-detail-page sd-shell{% endblock %}
@@ -38,112 +40,125 @@
 {% block content %}
 
 {# ── Session header / hero ── #}
-<section class="sd-hero" data-session-hero>
-    <div class="sd-hero__main">
-        <h1 class="sd-hero__title">{{ session.title is not empty ? session.title : 'Untitled session' }}</h1>
-        <div class="sd-hero__meta">
-            <span class="agent-badge agent-{{ session.agent }}">{{ session.agent }}</span>
-            <span class="sd-hero__model mono">{{ session.model }}</span>
-            <span class="sd-hero__project">
-                <a href="/projects/{{ session.projectKey | urlencode }}">{{ session.projectName is not empty ? session.projectName : session.projectKey | truncate_path }}</a>
-            </span>
-            {% if session.gitBranch is not empty %}
-            <span class="sd-hero__branch mono">{{ session.gitBranch }}</span>
+<section class="sd-hero" data-session-overview-hero data-session-hero>
+    <div class="sd-hero__top">
+        <div class="sd-hero__main">
+            <div class="sd-hero__id">
+                <span class="sd-agent-pill">{{ session.agent }}</span>
+                <h1 title="{{ session.title }}">{{ session.title is not empty ? session.title : 'Untitled session' }}</h1>
+            </div>
+            <div class="sd-hero-url">
+                <span class="sd-hero-url-label">Session ID</span>
+                <span class="sd-hero-url-text" title="{{ session.sessionId }}">{{ session.sessionId }}</span>
+                <button type="button"
+                        class="sd-icon-btn sd-btn--copy"
+                        data-action="copy"
+                        data-copy-text="{{ session.sessionId }}"
+                        aria-label="Copy session ID"
+                        title="Copy session ID">
+                    <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
+                </button>
+            </div>
+            {% if session.filePath is not empty %}
+            <div class="sd-hero-url sd-hero-url--file" data-session-file-path>
+                <span class="sd-hero-url-label">Session file</span>
+                <span class="sd-hero-url-text" title="{{ session.filePath }}">{{ session.filePath }}</span>
+                <button type="button"
+                        class="sd-icon-btn sd-btn--copy"
+                        data-action="copy"
+                        data-copy-text="{{ session.filePath }}"
+                        aria-label="Copy session file path"
+                        title="Copy session file path">
+                    <span class="sd-icon-btn-label" aria-hidden="true">&#x1F4CB;</span>
+                </button>
+            </div>
             {% endif %}
+            <div class="sd-hero__meta">
+                <span class="sd-chip sd-chip--mono" title="Model used by the first indexed assistant call">{{ session.model is not empty ? session.model : '—' }}</span>
+                {% if session.projectName is not empty %}<span class="sd-chip">{{ session.projectName }}</span>{% endif %}
+                {% if session.startedAt is not empty %}<span class="sd-chip" title="Session created date">{{ session.startedAt | local_time }}</span>{% endif %}
+                {% if session_metrics.updated is not empty %}<span class="sd-chip" title="Last indexed event time">Updated {{ session_metrics.updated }}</span>{% endif %}
+                {% if session.gitBranch is not empty %}<span class="sd-chip sd-chip--mono" title="Git branch">{{ session.gitBranch }}</span>{% endif %}
+            </div>
+            <div class="sd-issue-strip{% if not has_anomalies %} sd-issue-strip--ok{% endif %}"
+                 data-issue-strip
+                 aria-label="Session issue summary">
+                {% if has_anomalies %}
+                <span class="sd-issue-title">Issue Signals</span>
+                {% for anomaly in anomaly_list %}
+                <button type="button"
+                        class="sd-issue-link sd-issue-link--{{ anomaly.tone }}"
+                        data-action="jump-round"
+                        data-round="1">
+                    {{ anomaly.type }}
+                </button>
+                {% endfor %}
+                {% else %}
+                <span class="sd-issue-title">No issue signals</span>
+                <span class="sd-issue-ok-badge">All rounds completed successfully</span>
+                {% endif %}
+            </div>
         </div>
-    </div>
 
-    <div class="sd-hero__metrics sd-kpis" aria-label="Session metrics">
-        <div class="sd-metric" title="Total tokens">
-            <span class="sd-metric__value">{{ session_metrics.total_tokens | format_compact_token }}</span>
-            <span class="sd-metric__label">Tokens</span>
-        </div>
-        <div class="sd-metric" title="Duration">
-            <span class="sd-metric__value">{{ session_metrics.duration_seconds | format_duration }}</span>
-            <span class="sd-metric__label">Duration</span>
-        </div>
-        <div class="sd-metric" title="Rounds">
-            <span class="sd-metric__value">{{ round_count }}</span>
-            <span class="sd-metric__label">Rounds</span>
-        </div>
-        <div class="sd-metric" title="Tool calls">
-            <span class="sd-metric__value">{{ session_metrics.tool_call_count }}</span>
-            <span class="sd-metric__label">Tools</span>
-        </div>
-        <div class="sd-metric" title="Failed tools">
-            <span class="sd-metric__value">{{ session_metrics.failed_tool_count }}</span>
-            <span class="sd-metric__label">Failed</span>
-        </div>
-        <div class="sd-metric" title="Subagents">
-            <span class="sd-metric__value">{{ session_metrics.subagent_instance_count }}</span>
-            <span class="sd-metric__label">Subagents</span>
-        </div>
-        <div class="sd-metric" title="Export" style="cursor:pointer;">
-            <a href="/sessions/{{ current_agent | urlencode }}/{{ session_id | urlencode }}/export.html"
-               class="sd-metric__value" style="text-decoration:none;color:#3b82f6;" title="Export session as HTML">HTML</a>
-            <span class="sd-metric__label">Export</span>
-        </div>
-    </div>
-
-    <div class="sd-hero__tokenbar" title="Token composition">
-        <div class="tokenbar-wrap">
-            {% set total = session_metrics.fresh_input_tokens + session_metrics.cache_read_tokens + session_metrics.cache_write_tokens + session_metrics.output_tokens %}
-            {% if total > 0 %}
-            <span class="tokenbar__seg tokenbar__seg--fresh" style="--seg-pct: {{ (session_metrics.fresh_input_tokens / total * 100) | round(1) }}%" title="Fresh input: {{ session_metrics.fresh_input_tokens | format_compact_token }}"></span>
-            <span class="tokenbar__seg tokenbar__seg--read" style="--seg-pct: {{ (session_metrics.cache_read_tokens / total * 100) | round(1) }}%" title="Cache read: {{ session_metrics.cache_read_tokens | format_compact_token }}"></span>
-            <span class="tokenbar__seg tokenbar__seg--write" style="--seg-pct: {{ (session_metrics.cache_write_tokens / total * 100) | round(1) }}%" title="Cache write: {{ session_metrics.cache_write_tokens | format_compact_token }}"></span>
-            <span class="tokenbar__seg tokenbar__seg--out" style="--seg-pct: {{ (session_metrics.output_tokens / total * 100) | round(1) }}%" title="Output: {{ session_metrics.output_tokens | format_compact_token }}"></span>
-            {% endif %}
-            <div class="token-tooltip" role="tooltip">
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ session_metrics.fresh_input_tokens | format_compact_token }}</em></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ session_metrics.cache_read_tokens | format_compact_token }}</em></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ session_metrics.cache_write_tokens | format_compact_token }}</em></span>
-                <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ session_metrics.output_tokens | format_compact_token }}</em></span>
+        <div class="sd-kpis" aria-label="Session metrics">
+            <div class="sd-kpi sd-kpi--stack sd-kpi--health" aria-label="Run Health" title="Overall session outcome derived from failed tools, LLM errors, payload gaps and attribution gaps.">
+                <div class="sd-kpi__value" title="Completed with issue signals when actionable failure/gap is present.">{{ session_metrics.run_health }}</div>
+                <div class="sd-kpi__label" title="Overall session outcome derived from issue signals.">Run Health</div>
+                <div class="sd-kpi__subgrid">
+                    <span title="Rounds containing tool failures or session anomalies.">Issue Rounds <b>{{ session_metrics.issue_rounds }}</b></span>
+                    <span title="Failed tool calls / all tool calls.">Failed Tools <b class="sd-kpi-tone sd-kpi-tone--{{ session_metrics.failed_tools_tone }}">{{ session_metrics.failed_tools }} · {{ session_metrics.failed_tools_rate }}</b></span>
+                    <span title="Payload selector items marked missing/error.">Payload Gaps <b>{{ session_metrics.payload_gaps }}</b></span>
+                    <span title="Request/response attribution payloads that are unavailable or errored.">Attribution Gaps <b>{{ session_metrics.attribution_gaps }}</b></span>
+                </div>
+            </div>
+            <div class="sd-kpi sd-kpi--stack" aria-label="Total Tokens" title="Total Tokens = Fresh + Cache Read + Cache Write + Output. Component shares use this denominator.">
+                <div class="sd-kpi__value" title="{{ session_metrics.tokens_note }}">{{ session_metrics.tokens }}</div>
+                <div class="sd-kpi__label" title="UI component total across main and subagent LLM calls.">Total Tokens</div>
+                <div class="sd-kpi__subgrid">
+                    <span title="Mutually exclusive new-input component.">Fresh <b class="sd-kpi-token-share sd-kpi-token-share--{{ session_metrics.fresh_share_tone }}">{{ session_metrics.fresh }} · {{ session_metrics.fresh_share }}</b></span>
+                    <span title="Provider/broker accounting for cache-hit input tokens.">Cache Read <b class="sd-kpi-token-share sd-kpi-token-share--{{ session_metrics.cache_read_share_tone }}">{{ session_metrics.cache_read }} · {{ session_metrics.cache_read_share }}</b></span>
+                    <span title="Provider/broker accounting for cache creation/write input tokens.">Cache Write <b class="sd-kpi-token-share sd-kpi-token-share--{{ session_metrics.cache_write_share_tone }}">{{ session_metrics.cache_write }} · {{ session_metrics.cache_write_share }}</b></span>
+                    <span title="Model visible output tokens.">Output <b class="sd-kpi-token-share sd-kpi-token-share--{{ session_metrics.output_share_tone }}">{{ session_metrics.output }} · {{ session_metrics.output_share }}</b></span>
+                </div>
+            </div>
+            <div class="sd-kpi sd-kpi--stack" aria-label="Cache Health" title="Cache Read / (Fresh + Cache Read + Cache Write).">
+                <div class="sd-kpi__value" title="Session-level cache read ratio on input-side tokens.">{{ session_metrics.cache_reuse }}</div>
+                <div class="sd-kpi__label" title="Input-side cache reuse health.">Cache Health</div>
+                <div class="sd-kpi__subgrid">
+                    <span title="Fresh + Cache Read + Cache Write.">Input-side Tokens <b>{{ session_metrics.input_side_tokens }}</b></span>
+                    <span title="Rounds whose cache read ratio is below 20%.">Low-cache Rounds <b>{{ session_metrics.low_cache_rounds }}</b></span>
+                    <span title="Rounds whose fresh input is more than 2x the session median fresh input.">Fresh Spike Rounds <b>{{ session_metrics.fresh_spike_rounds }}</b></span>
+                </div>
+            </div>
+            <div class="sd-kpi sd-kpi--stack" aria-label="Workload" title="Main-agent and subagent LLM call volume.">
+                <div class="sd-kpi__value" title="Main LLM calls + subagent LLM calls.">{{ session_metrics.workload }}</div>
+                <div class="sd-kpi__label" title="Session LLM call workload.">Workload</div>
+                <div class="sd-kpi__subgrid">
+                    <span title="LLM calls issued by the main session.">Main Calls <b>{{ session_metrics.main_llm_calls }}</b></span>
+                    <span title="LLM calls issued inside subagent sidechains.">Subagent Calls <b>{{ session_metrics.subagent_llm_calls }}</b></span>
+                    <span title="Global tool calls across main and subagent contexts.">Tool Calls <b>{{ session_metrics.tool_calls }}</b></span>
+                    <span title="Independent subagent contexts started by Agent tool calls.">Subagent Runs <b>{{ session_metrics.subagent_runs }}</b></span>
+                </div>
+            </div>
+            <div class="sd-kpi sd-kpi--stack" aria-label="Active Time" title="Merged model and tool execution time, excluding idle wait.">
+                <div class="sd-kpi__value" title="Model execution time + tool/subagent execution time.">{{ session_metrics.active_time }}</div>
+                <div class="sd-kpi__label" title="Active processing time.">Active Time</div>
+                <div class="sd-kpi__subgrid">
+                    <span title="Wall-clock time from first event to last event.">Duration <b>{{ session_metrics.duration }}</b></span>
+                    <span title="Duration minus active processing time.">Waiting Time <b>{{ session_metrics.waiting_time }}</b></span>
+                    <span title="Model execution time.">Model Time <b>{{ session_metrics.model_time }}</b></span>
+                    <span title="Tool/subagent execution time.">Tool Time <b>{{ session_metrics.tool_time }}</b></span>
+                </div>
             </div>
         </div>
     </div>
 
-    {# ── Payload visibility status ── #}
-    <div class="sd-hero__visibility" data-payload-visibility>
-        {% if payload_hidden %}
-        <span class="sd-visibility-badge sd-visibility-badge--hidden" title="Payload 内容默认隐藏，点击可展开">
-            <span class="sd-visibility-badge__icon">&#x1F512;</span>
-            Payload hidden (standard visibility)
-        </span>
-        {% else %}
-        <span class="sd-visibility-badge sd-visibility-badge--visible">
-            <span class="sd-visibility-badge__icon">&#x1F513;</span>
-            Payload visible (full visibility)
-        </span>
-        {% endif %}
-        {% if has_artifact %}
-        <span class="sd-artifact-badge" title="Artifact: {{ artifact_path }}">
-            Schema {{ artifact_schema_version }}
-        </span>
-        {% else %}
-        <span class="sd-artifact-badge sd-artifact-badge--none" title="无归一化制品">
-            No artifact
-        </span>
-        {% endif %}
-    </div>
-
-    <div class="sd-issue-strip{% if not has_anomalies %} sd-issue-strip--ok{% endif %}"
-         data-issue-strip
-         aria-label="Session issue summary">
-        {% if has_anomalies %}
-        <span class="sd-issue-title">{{ anomaly_count }} issue{{ anomaly_count == 1 ? '' : 's' }}</span>
-        {% for anomaly in anomaly_list %}
-        <button type="button"
-                class="sd-issue-link sd-issue-link--{{ anomaly.tone }}"
-                data-action="jump-round"
-                data-round="1">
-            {{ anomaly.type }}
-        </button>
-        {% endfor %}
-        {% else %}
-        <span class="sd-issue-title">No blocking issues</span>
-        <span class="sd-issue-ok-badge">Trace ready</span>
-        {% endif %}
+    <div class="sd-summary-strip" data-summary-strip>
+        <div class="sd-summary-item"><b>updated</b><span>{{ session_metrics.updated is not empty ? session_metrics.updated : '—' }}</span></div>
+        {% if session.gitBranch is not empty %}<div class="sd-summary-item"><b>branch</b><span class="sd-summary-mono">{{ session.gitBranch }}</span></div>{% endif %}
+        <div class="sd-summary-item"><b>artifact</b><span>{{ has_artifact ? ('Schema ' ~ artifact_schema_version) : 'No artifact' }}</span></div>
+        <div class="sd-summary-item"><b>payload</b><span>{{ payload_hidden ? 'Payload hidden' : 'Payload visible' }}</span></div>
+        <div class="sd-summary-item"><b>export</b><a href="/sessions/{{ current_agent | urlencode }}/{{ session_id | urlencode }}/export.html" title="Export session as HTML">HTML</a></div>
     </div>
 </section>
 
@@ -254,41 +269,47 @@
                             </div>
                             <small>Cache and output token composition</small>
                         </div>
+                        {% if has_round_token_usage %}
                         <div class="sd-token-round-chart">
                             <div class="sd-token-round-plot">
                                 {% for round in rounds %}
+                                {% if round.has_token_usage %}
                                 <button type="button"
                                         class="sd-token-round"
                                         data-action="jump-round"
                                         data-round="{{ round.round_index }}"
-                                        aria-label="Jump to round {{ round.round_index }}">
-                                    <span class="sd-token-round__signal-slot">
-                                        {% if round.has_issues %}<i class="sd-token-round__spike" aria-hidden="true"></i>{% endif %}
+                                        aria-label="Jump to round {{ round.round_index }} token timeline">
+                                    <span class="sd-token-round__signal-slot" aria-hidden="true">
+                                        {% if round.has_badges %}<i class="sd-token-round__spike"></i>{% endif %}
                                     </span>
-                                    <span class="sd-token-round__bar" style="--bar-height-px: 72px">
-                                        <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: 30%"></span>
-                                        <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: 35%"></span>
-                                        <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: 20%"></span>
-                                        <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: 15%"></span>
+                                    <span class="sd-token-round__bar" aria-label="R{{ round.round_index }}" style="--bar-height-px: {{ round.bar_height_px }}px">
+                                        <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ round.token_mix.fresh }}%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ round.token_mix.read }}%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ round.token_mix.write }}%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ round.token_mix.out }}%"></span>
                                     </span>
-                                    <span class="sd-token-round__ratio-dot" style="--ratio-y: 48%"></span>
                                     <span class="sd-token-round__label">R{{ round.round_index }}</span>
                                     <span class="sd-token-round-tooltip" role="tooltip">
-                                        <b>Round R{{ round.round_index }}</b>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ session_metrics.fresh_input_tokens | format_compact_token }}</em><strong>input</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ session_metrics.cache_read_tokens | format_compact_token }}</em><strong>reuse</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ session_metrics.cache_write_tokens | format_compact_token }}</em><strong>build</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ session_metrics.output_tokens | format_compact_token }}</em><strong>reply</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>64%</em><strong>line</strong></span>
-                                        <span class="sd-token-round-tooltip__total"><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Calls</small><em>{{ round.call_count }}</em><strong>{{ round.tool_call_count }} tools</strong></span>
-                                        {% if round.has_issues %}
-                                        <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>low cache · payload gap · Token Driver</em></span>
+                                        <b>R{{ round.round_index }} · {{ round.token_total }}</b>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ round.token_input }}</em><strong>{{ round.fresh_share }}</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ round.token_cache_read }}</em><strong>{{ round.cache_read_share }}</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ round.token_cache_write }}</em><strong>{{ round.cache_write_share }}</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ round.token_output }}</em><strong>{{ round.output_share }}</strong></span>
+                                        <span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>{{ round.token_total }}</em><strong>100.0%</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read Ratio</small><em>{{ round.token_cache_read }}</em><strong>{{ round.cache_read_ratio }}</strong></span>
+                                        <span><i></i><small>Calls</small><em>{{ round.call_count }} LLM</em><strong>{{ round.tool_call_count }} tools</strong></span>
+                                        {% if round.has_badges %}
+                                        <span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>{{ round.badge_text }}</em></span>
                                         {% endif %}
                                     </span>
                                 </button>
+                                {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
+                        {% else %}
+                        <div class="sd-card-empty">No round token timeline available</div>
+                        {% endif %}
                     </div>
 
                     {% if has_subagent_rounds %}
@@ -304,10 +325,11 @@
                             </div>
                             <small>click a subagent round to deep-link trace</small>
                         </div>
+                        {% if has_subagent_token_usage %}
                         <div class="sd-token-round-chart sd-token-round-chart--subagent">
                             <div class="sd-token-round-plot">
                                 {% for round in rounds %}
-                                {% if round.subagent_id is not empty %}
+                                {% if round.subagent_id is not empty and round.has_token_usage %}
                                 <button type="button"
                                         class="sd-token-round sd-token-round--subagent"
                                         data-action="jump-round"
@@ -315,27 +337,30 @@
                                         data-subagent="{{ round.subagent_id }}"
                                         data-subagent-round="{{ round.subagent_round }}"
                                         aria-label="Jump to {{ round.subagent_id }} subagent round {{ round.subagent_round }}">
-                                    <span class="sd-token-round__bar" style="--bar-height-px: 72px">
-                                        <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: 25%"></span>
-                                        <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: 40%"></span>
-                                        <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: 15%"></span>
-                                        <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: 20%"></span>
+                                    <span class="sd-token-round__bar" style="--bar-height-px: {{ round.bar_height_px }}px">
+                                        <span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height: {{ round.token_mix.fresh }}%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height: {{ round.token_mix.read }}%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height: {{ round.token_mix.write }}%"></span>
+                                        <span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height: {{ round.token_mix.out }}%"></span>
                                     </span>
-                                    <span class="sd-token-round__ratio-dot" style="--ratio-y: 42%"></span>
                                     <span class="sd-token-round__label">SR{{ round.subagent_round }}</span>
                                     <span class="sd-token-round-tooltip" role="tooltip">
-                                        <b>Subagent SR{{ round.subagent_round }}</b>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>25%</em><strong>input</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>40%</em><strong>reuse</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>15%</em><strong>build</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>20%</em><strong>reply</strong></span>
-                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Calls</small><em>{{ round.call_count }}</em><strong>nested</strong></span>
+                                        <b>SR{{ round.subagent_round }} · R{{ round.round_index }} · {{ round.token_total }}</b>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>{{ round.token_input }}</em><strong>{{ round.fresh_share }}</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>{{ round.token_cache_read }}</em><strong>{{ round.cache_read_share }}</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>{{ round.token_cache_write }}</em><strong>{{ round.cache_write_share }}</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>{{ round.token_output }}</em><strong>{{ round.output_share }}</strong></span>
+                                        <span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>{{ round.token_total }}</em><strong>100.0%</strong></span>
+                                        <span><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Calls</small><em>{{ round.call_count }} LLM</em><strong>nested</strong></span>
                                     </span>
                                 </button>
                                 {% endif %}
                                 {% endfor %}
                             </div>
                         </div>
+                        {% else %}
+                        <div class="sd-card-empty">No subagent token timeline available</div>
+                        {% endif %}
                     </div>
                     {% endif %}
                 </div>
@@ -346,16 +371,30 @@
     <article class="sd-diagnostic-card sd-diagnostic-card--context">
         <div class="sd-diagnostic-card__head">
             <h2>Context Budget</h2>
-            <span>cache read/write balance</span>
+            <span>{{ context_scope }}</span>
         </div>
         <div class="sd-diagnostic-card__body">
-            <div class="sd-compact-stats">
-                <div><span>Fresh input</span><b>{{ session_metrics.fresh_input_tokens | format_compact_token }}</b></div>
-                <div><span>Cache read</span><b>{{ session_metrics.cache_read_tokens | format_compact_token }}</b></div>
-                <div><span>Cache write</span><b>{{ session_metrics.cache_write_tokens | format_compact_token }}</b></div>
-                <div><span>Output</span><b>{{ session_metrics.output_tokens | format_compact_token }}</b></div>
+            <div class="sd-context-segmented" aria-label="Context budget segmented bar">
+                {% for segment in context_segments %}
+                <span class="sd-context-segment sd-context-segment--{{ segment.index }} sd-context-segment--{{ segment.status }}{% if segment.status != 'unavailable' and segment.share_value < 8 %} sd-context-segment--tiny{% elseif segment.status != 'unavailable' and segment.share_value < 18 %} sd-context-segment--small{% endif %}"
+                      style="--seg-width: {{ segment.share_value }}%"
+                      title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}">
+                    <span class="sd-context-segment__label">{{ segment.label }}</span>
+                    <span class="sd-context-segment__pct">{{ segment.share }}</span>
+                </span>
+                {% endfor %}
             </div>
-            <p class="sd-chart-note">Context budget keeps request-side and response-side token signals together for each round.</p>
+            <div class="sd-context-budget" aria-label="Session Context legend">
+                {% for segment in context_segments %}
+                <div class="sd-context-budget__item sd-context-budget__item--{{ segment.status }}"
+                     title="Segment: {{ segment.label }} · Tokens: {{ segment.tokens_label }} · Share: {{ segment.share }} · Source: {{ segment.source }} · Precision: {{ segment.precision }}">
+                    <i class="sd-context-budget__dot sd-context-budget__dot--{{ segment.index }}" aria-hidden="true"></i>
+                    <span>{{ segment.label }}</span>
+                    <b>{{ segment.tokens_label }} · {{ segment.share }}</b>
+                </div>
+                {% endfor %}
+            </div>
+            <div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>
         </div>
     </article>
 
@@ -403,28 +442,22 @@
 <section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
 
     {# -- Trace header with controls -- #}
-    <div class="sd-trace-header">
-        <div class="sd-trace-header__left">
-            <span class="sd-trace-count">{{ round_count }} rounds</span>
-            {% if exceeds_initial_limit %}
-            <span class="sd-trace-note">Showing first {{ initial_round_limit }} rounds. Remaining rounds load on demand.</span>
-            {% endif %}
-        </div>
-        <div class="sd-trace-header__right">
-            <div class="trace-panel__filters" aria-label="Trace status filters">
-                <button type="button" class="trace-panel__chip is-active" data-action="status-all" data-status="all">
-                    All
-                </button>
-                <button type="button" class="trace-panel__chip" data-action="status-failed" data-status="failed">
-                    Failed
-                </button>
-                <button type="button" class="trace-panel__chip" data-action="status-low-cache" data-status="low-cache">
-                    Low cache
-                </button>
+    <div class="sd-trace-head">
+        <div>
+            <div class="sd-trace-sub">
+                Round 内按触发时间平铺 assistant text、tool call、subagent run；仅并发 tool calls 保留分组。
+                {% if exceeds_initial_limit %}
+                Showing first {{ initial_round_limit }} rounds; remaining rounds load on demand.
+                {% endif %}
             </div>
-            <button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="toggle-all">
-                Expand all
-            </button>
+        </div>
+        <div class="sd-trace-actions">
+            <div class="sd-seg" role="group" aria-label="Trace status filter">
+                <button type="button" class="sd-seg-btn is-active" data-action="status-all" data-status="all">All</button>
+                <button type="button" class="sd-seg-btn" data-action="status-failed" data-status="failed">Failed</button>
+                <button type="button" class="sd-seg-btn" data-action="status-low-cache" data-status="low-cache" title="Show rounds whose cache read ratio is below 20%">Low cache</button>
+            </div>
+            <button type="button" class="sd-btn sd-btn--secondary sd-btn--md sd-toggle-all-btn" data-action="toggle-all" data-state="collapse">Expand all</button>
         </div>
     </div>
 
@@ -492,6 +525,56 @@
                 </td>
                 <td class="metrics-col mono">
                     <span class="sd-round-metrics">{{ round.call_count }} LLM</span>
+                    {% if round.has_token_usage %}
+                    <div class="token-group">
+                        <span class="metric-token">{{ round.token_total_raw | format_compact_token }}</span>
+                        <span class="tokenbar-wrap"
+                              tabindex="0"
+                              title="{{ round.token_bar_label }}"
+                              aria-label="{{ round.token_bar_label }}"
+                              style="--token-total-width: {{ round.token_bar_pct }}%;">
+                            <span class="tokenbar">
+                                <span class="tokenbar-seg fresh" style="--segment-width: {{ round.token_mix.fresh }}%"></span>
+                                <span class="tokenbar-seg read" style="--segment-width: {{ round.token_mix.read }}%"></span>
+                                <span class="tokenbar-seg write" style="--segment-width: {{ round.token_mix.write }}%"></span>
+                                <span class="tokenbar-seg out" style="--segment-width: {{ round.token_mix.out }}%"></span>
+                            </span>
+                            <div class="token-tooltip" aria-hidden="true">
+                                <div class="token-tooltip__title">Token Breakdown</div>
+                                <div class="token-tooltip__row">
+                                    <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--fresh"></span><span class="token-tooltip__type-name">Fresh</span></span>
+                                    <span class="token-tooltip__value">{{ round.token_input }}</span>
+                                    <span class="token-tooltip__pct">{{ round.fresh_share }}</span>
+                                </div>
+                                <div class="token-tooltip__row">
+                                    <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span>
+                                    <span class="token-tooltip__value">{{ round.token_cache_read }}</span>
+                                    <span class="token-tooltip__pct">{{ round.cache_read_share }}</span>
+                                </div>
+                                <div class="token-tooltip__row">
+                                    <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span>
+                                    <span class="token-tooltip__value">{{ round.token_cache_write }}</span>
+                                    <span class="token-tooltip__pct">{{ round.cache_write_share }}</span>
+                                </div>
+                                <div class="token-tooltip__row">
+                                    <span class="token-tooltip__label"><span class="token-tooltip__marker token-tooltip__marker--out"></span><span class="token-tooltip__type-name">Output</span></span>
+                                    <span class="token-tooltip__value">{{ round.token_output }}</span>
+                                    <span class="token-tooltip__pct">{{ round.output_share }}</span>
+                                </div>
+                                <div class="token-tooltip__sep"></div>
+                                <div class="token-tooltip__row token-tooltip__total">
+                                    <span>Total</span><span class="token-tooltip__value">{{ round.token_total }}</span>
+                                </div>
+                                <div class="token-tooltip__row">
+                                    <span>Scale</span><span class="token-tooltip__value">{{ round.token_bar_label }}</span>
+                                </div>
+                                <div class="token-tooltip__row">
+                                    <span>Gap</span><span class="token-tooltip__value">{{ round.token_bar_gap_label }}</span>
+                                </div>
+                            </div>
+                        </span>
+                    </div>
+                    {% endif %}
                 </td>
                 <td class="attribution-col">
                     <span class="sd-round-attribution">--</span>

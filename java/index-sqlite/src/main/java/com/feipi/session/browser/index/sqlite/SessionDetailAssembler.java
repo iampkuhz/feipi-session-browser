@@ -83,6 +83,7 @@ public final class SessionDetailAssembler {
     List<List<String>> roundCallIds = new ArrayList<>();
     List<List<String>> roundToolCallIds = new ArrayList<>();
     List<String> roundParentCallIds = new ArrayList<>();
+    List<long[]> roundUsage = new ArrayList<>();
 
     for (NormalizedCall call : calls) {
       if (call.scope() == CallScope.MAIN) {
@@ -93,6 +94,7 @@ public final class SessionDetailAssembler {
         roundCallIds.add(callIds);
         roundToolCallIds.add(new ArrayList<>(call.response().toolCallIds()));
         roundParentCallIds.add("");
+        roundUsage.add(usageValues(call));
         callToRoundIndex.put(call.callId(), roundIdx);
       } else {
         // 子 agent 调用合并到父调用所在轮次
@@ -101,6 +103,7 @@ public final class SessionDetailAssembler {
         if (parentRoundIdx != null) {
           roundCallIds.get(parentRoundIdx).add(call.callId());
           roundToolCallIds.get(parentRoundIdx).addAll(call.response().toolCallIds());
+          addUsage(roundUsage.get(parentRoundIdx), call);
           callToRoundIndex.put(call.callId(), parentRoundIdx);
         } else {
           // 无父调用映射，创建独立轮次
@@ -110,6 +113,7 @@ public final class SessionDetailAssembler {
           roundCallIds.add(callIds);
           roundToolCallIds.add(new ArrayList<>(call.response().toolCallIds()));
           roundParentCallIds.add(parentCallId);
+          roundUsage.add(usageValues(call));
           callToRoundIndex.put(call.callId(), roundIdx);
         }
       }
@@ -121,14 +125,38 @@ public final class SessionDetailAssembler {
 
     List<CallRound> result = new ArrayList<>();
     for (int i = 0; i < roundCallIds.size(); i++) {
+      long[] usage = roundUsage.get(i);
       result.add(
           new CallRound(
               i + 1,
               List.copyOf(roundCallIds.get(i)),
               List.copyOf(roundToolCallIds.get(i)),
-              roundParentCallIds.get(i).isEmpty() ? null : roundParentCallIds.get(i)));
+              roundParentCallIds.get(i).isEmpty() ? null : roundParentCallIds.get(i),
+              usage[0],
+              usage[1],
+              usage[2],
+              usage[3],
+              usage[4]));
     }
     return result;
+  }
+
+  private static long[] usageValues(NormalizedCall call) {
+    return new long[] {
+      call.usage().fresh(),
+      call.usage().cacheRead(),
+      call.usage().cacheWrite(),
+      call.usage().output(),
+      call.usage().total()
+    };
+  }
+
+  private static void addUsage(long[] target, NormalizedCall call) {
+    target[0] += call.usage().fresh();
+    target[1] += call.usage().cacheRead();
+    target[2] += call.usage().cacheWrite();
+    target[3] += call.usage().output();
+    target[4] += call.usage().total();
   }
 
   /**

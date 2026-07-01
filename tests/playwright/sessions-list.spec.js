@@ -108,7 +108,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('[UI-SESSIONS-007] next 一次到 page 2', async ({ page }) => {
+  test('[UI-SESSIONS-007][UI-SESSIONS-011] next 一次到 page 2 且使用 AJAX partial', async ({ page }) => {
     // Regression test for S-09: duplicate JS listeners caused next click
     // to jump from page 1 to page 3 instead of page 2.
     await page.goto('/sessions?page=1');

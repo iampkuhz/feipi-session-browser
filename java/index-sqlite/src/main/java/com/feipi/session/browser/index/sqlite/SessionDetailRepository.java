@@ -81,7 +81,9 @@ public final class SessionDetailRepository {
   /**
    * 查找会话的归一化制品行。
    *
-   * <p>从 {@code session_artifacts} 表中查找类型为 {@code normalized} 的制品。
+   * <p>从 {@code session_artifacts} 表中查找归一化制品。当前 Java scan 写入 {@code normalized}，
+   * main/Python-era 索引历史上写入 {@code normalized_session_json}。详情页读取兼容两者，优先使用当前
+   * Java 类型。
    *
    * @param sessionKey 会话主键
    * @return 归一化制品行，不存在时返回 empty
@@ -94,11 +96,15 @@ public final class SessionDetailRepository {
         "SELECT session_key, artifact_type, path, schema_version, source_path,"
             + " source_mtime, size_bytes, created_at, updated_at"
             + " FROM session_artifacts"
-            + " WHERE session_key = ? AND artifact_type = ?";
+            + " WHERE session_key = ? AND artifact_type IN (?, ?)"
+            + " ORDER BY CASE artifact_type WHEN ? THEN 0 ELSE 1 END"
+            + " LIMIT 1";
     try (ReadTransaction rt = sessionQueryRepository.indexConnection().readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setString(1, sessionKey);
       ps.setString(2, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED);
+      ps.setString(3, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED_SESSION_JSON);
+      ps.setString(4, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED);
       try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
           return Optional.of(mapArtifactRow(rs));

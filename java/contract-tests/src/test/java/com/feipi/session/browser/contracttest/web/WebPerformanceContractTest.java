@@ -100,7 +100,8 @@ class WebPerformanceContractTest {
             var response = client.get("/sessions?page=2&page_size=25");
             assertThat(response.code()).isEqualTo(200);
             String body = response.body().string();
-            assertThat(body).contains("26-30 of 30");
+            assertThat(body).contains("value=\"2\" data-total-pages=\"2\"");
+            assertThat(body).contains("of 2 of 30");
           });
     }
 

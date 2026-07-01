@@ -1,4 +1,6 @@
 {% extends "base.html" %}
+{% set active_page = 'projects' %}
+{% set hide_sidebar_extra = true %}
 
 {% block title %}Projects - Agent Run Profiler{% endblock %}
 {% block shell_class %} no-inspector{% endblock %}
@@ -16,112 +18,217 @@
 {% block content %}
 <div class="p-projects">
 
-{# -- 页面标题 -- #}
-<div class="page-head">
-    <div class="page-head__title-area">
-        <h1 class="page-title">Projects</h1>
-        <p class="page-subtitle">Indexed local workspaces</p>
+{% if error is defined and error is not empty %}
+<section class="page-section">
+    <div class="empty-state empty-state--error">
+        <div class="empty-state__icon" aria-hidden="true">🔌</div>
+        <h2 class="empty-state__title">{{ error }}</h2>
+        <a class="btn primary" href="/dashboard" data-action="go-dashboard">Back to Dashboard</a>
     </div>
-    <div class="page-head__stats">
-        <span class="ui-stat-pill" role="status" id="projects-count">
-            <b>{{ projects is defined ? projects | length : 0 }}</b> projects
-        </span>
+</section>
+{% else %}
+
+<section class="page-head">
+    <div>
+        <h1>Projects</h1>
+        <p class="subtitle">Indexed local workspaces</p>
     </div>
-</div>
+    <div class="page-head-actions">
+        <span class="ui-stat-pill" role="status" id="projects-count"><b>{{ projects is defined ? projects | length : 0 }}</b> projects</span>
+    </div>
+</section>
 
-{# -- 搜索和排序控制 -- #}
-<div class="filter-card" id="project-filter-form">
-    <form method="get" action="/projects">
-        <div class="filter-row">
-            <input type="hidden" name="sort" value="{{ sort_by }}"/>
-            <input type="hidden" name="dir" value="{{ sort_dir }}"/>
-            <input type="hidden" name="page_size" value="{{ page_size }}"/>
-            <input type="search" name="q" placeholder="Search projects"
-                   value="{{ filter_q }}" class="filter-search js-search"
-                   aria-label="Search projects"/>
-            <span class="filter-row__push"></span>
-        </div>
-    </form>
-</div>
-
-{# -- 项目列表 -- #}
 {% if projects is defined and projects | length > 0 %}
-
-{# -- 汇总指标 -- #}
+{% set m_total_sessions = 0 %}
+{% set m_total_tokens = 0 %}
+{% set m_total_failed = 0 %}
+{% for p in projects %}
+{% set m_total_sessions = m_total_sessions + p.totalSessions %}
+{% set m_total_tokens = m_total_tokens + p.totalTokens %}
+{% set m_total_failed = m_total_failed + p.totalFailedTools %}
+{% endfor %}
 <section class="metric-grid" aria-label="Project overview metrics">
     <div class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">📁</div>
         <div class="metric-card__body">
-            <span class="metric-card__label">Projects</span>
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Projects</span>
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="projects-count" aria-label="Metric info: number of indexed projects" title="说明：当前索引中识别到的本地项目/工作区数量">&#9432;</button>
+            </div>
             <div class="metric-card__value mono">{{ projects | length }}</div>
             <div class="metric-card__sub">Indexed workspaces</div>
         </div>
     </div>
-</section>
-
-{# -- 项目表格 -- #}
-<div class="table-card">
-    <div class="table-card__header">
-        <h2>All Projects</h2>
+    <div class="metric-card">
+        <div class="metric-icon green" aria-hidden="true">〽️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Sessions</span>
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-sessions" aria-label="Metric info: total sessions across all projects" title="说明：所有项目下已索引的 session 总数">&#9432;</button>
+            </div>
+            <div class="metric-card__value mono">{{ m_total_sessions | format_number }}</div>
+            <div class="metric-card__sub">Across all projects</div>
+        </div>
     </div>
-    <table class="data-table" role="table" aria-label="Projects table">
-        <thead>
-            <tr>
-                <th>Project</th>
-                <th>Sessions</th>
-                <th>Tokens</th>
-                <th>Failed</th>
-                <th>Last Active</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for p in projects %}
-            <tr data-project-key="{{ p.projectKey }}">
-                <td>
-                    <a href="/projects/{{ p.projectKey | urlencode }}"
-                       class="project-link"
-                       data-action="open-project">
-                        {{ p.projectName is not empty ? p.projectName : p.projectKey | display_path }}
-                    </a>
-                    <div class="project-path" title="{{ p.projectKey }}">{{ p.projectKey | truncate_path }}</div>
-                </td>
-                <td class="mono">{{ p.totalSessions }}</td>
-                <td class="mono">{{ p.totalTokens | format_compact_token }}</td>
-                <td class="mono">{{ p.totalFailedTools }}</td>
-                <td>{{ p.lastSeen | relative_time }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
-
-{# -- 分页 -- #}
-{% if total_count > 0 %}
-<nav class="pagination" aria-label="Projects pagination" data-pagination>
-    {% if has_prev %}
-    <a href="/projects?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
-       class="pagination__btn" data-action="prev-page">Previous</a>
-    {% endif %}
-    <span class="pagination__info">
-        {{ page_start }}-{{ page_end }} of {{ total_count }}
-    </span>
-    {% if has_next %}
-    <a href="/projects?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
-       class="pagination__btn" data-action="next-page">Next</a>
-    {% endif %}
-</nav>
+    <div class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">🪙</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Total Tokens</span>
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="total-tokens" aria-label="Metric info: total token consumption" title="说明：所有项目的 token 消耗合计，使用缩写并保留 1 位小数">&#9432;</button>
+            </div>
+            <div class="metric-card__value mono">{{ m_total_tokens | format_compact_token }}</div>
+            <div class="metric-card__sub">Input + output combined</div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon {{ m_total_failed > 0 ? 'red' : 'green' }}" aria-hidden="true">⚠️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row">
+                <span class="metric-card__label">Failed Tools</span>
+                <button class="icon-button icon-button--info" data-action="metric-info" data-metric="failed-tools" aria-label="Metric info: failed tool call count" title="说明：所有项目中 failed tool result 的数量，不包含 successful result">&#9432;</button>
+            </div>
+            <div class="metric-card__value mono">{{ m_total_failed | format_number }}</div>
+            <div class="metric-card__sub">Failed tool results</div>
+        </div>
+    </div>
+</section>
 {% endif %}
 
-{% else %}
-{# -- 空状态 -- #}
+<section class="card filter-card">
+    <form method="get" action="/projects" id="project-filter-form" class="filter-form">
+        <div class="filter-row">
+            <input type="search" class="input search js-search" id="project-search" name="q" placeholder="Search project name, path" value="{{ filter_q }}" autocomplete="off" aria-label="Search project name, path">
+            <span class="filter-row__push"></span>
+            <button type="button" class="btn secondary sm" data-action="clear-search">Clear</button>
+        </div>
+        <div class="filter-footer">
+            <span class="active-filters" id="projects-active-filters">
+                <span class="filter-chip js-filter-chip is-hidden"></span>
+            </span>
+            <span class="active-filters__count" id="projects-match-count">{{ projects is defined ? projects | length : 0 }} matching projects</span>
+        </div>
+    </form>
+</section>
+
 <section class="page-section">
-    <div class="empty-state">
-        <div class="empty-state__icon">&#x1F4C1;</div>
-        <h2 class="empty-state__title">No projects found</h2>
-        <p class="empty-state__text">No indexed projects match your search.</p>
-        <a href="/projects" class="btn btn--primary" data-action="clear-filter">Clear Filter</a>
+{% if projects is defined and projects | length > 0 %}
+    <section class="card table-card">
+        <div class="table-toolbar">
+            <div>
+                <div class="card-title">All Projects</div>
+                <div class="card-sub">({{ projects | length }} projects)</div>
+            </div>
+        </div>
+        <div class="table-wrap">
+            <table id="projects-table" class="data-table" data-table-enhanced role="table" aria-label="Projects table">
+                <thead>
+                    <tr>
+                        <th class="static-header col-project">Project</th>
+                        <th class="static-header col-agents">Agents</th>
+                        <th class="col-num sortable col-sessions" data-sort-key="sessions"><button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="sessions" title="按 Sessions 排序">Sessions <span class="c-data-table__sort-icon" aria-hidden="true"></span></button></th>
+                        <th class="col-num sortable col-tokens" data-sort-key="tokens"><button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="tokens" title="按 Tokens 排序">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></button></th>
+                        <th class="col-num sortable col-tools" data-sort-key="tools"><button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="tools" title="按 Tools 排序">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></button></th>
+                        <th class="col-num sortable col-failed" data-sort-key="failed"><button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="failed" title="按 Failed 排序">Failed <span class="c-data-table__sort-icon" aria-hidden="true"></span></button></th>
+                        <th class="sortable col-first-seen" data-sort-key="first_seen"><button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="first_seen" title="按 First Seen 排序">First Seen <span class="c-data-table__sort-icon" aria-hidden="true"></span></button></th>
+                        <th class="sortable col-last-active" data-sort-key="last_active"><button class="c-data-table__sort" type="button" data-action="sort" data-sort-key="last_active" title="按 Last Active 排序">Last Active <span class="c-data-table__sort-icon" aria-hidden="true"></span></button></th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for p in projects %}
+                    {% set p_total_tokens = p.totalTokens %}
+                    {% if p_total_tokens > 0 %}
+                        {% set p_fresh_pct = (p.totalFreshInputTokens * 100.0 / p_total_tokens) | round(1) %}
+                        {% set p_read_pct = (p.totalCacheReadTokens * 100.0 / p_total_tokens) | round(1) %}
+                        {% set p_write_pct = (p.totalCacheWriteTokens * 100.0 / p_total_tokens) | round(1) %}
+                        {% set p_out_pct = (p.totalOutputTokens * 100.0 / p_total_tokens) | round(1) %}
+                    {% else %}
+                        {% set p_fresh_pct = 0 %}{% set p_read_pct = 0 %}{% set p_write_pct = 0 %}{% set p_out_pct = 0 %}
+                    {% endif %}
+                    {% set p_health_label = p.totalFailedTools ~ ' failed' %}
+                    <tr data-action="open-project"
+                        data-name="{{ p.projectName is not empty ? p.projectName : p.projectKey }}"
+                        data-path="{{ p.projectKey }}"
+                        data-first-seen="{{ p.firstSeen }}"
+                        data-last-seen="{{ p.lastSeen }}"
+                        data-total-sessions="{{ p.totalSessions }}"
+                        data-total-tokens="{{ p_total_tokens }}"
+                        data-total-tools="{{ p.totalToolCalls }}"
+                        data-total-failed="{{ p.totalFailedTools }}">
+                        <td class="project-cell">
+                            <a href="/projects/{{ p.projectKey | urlencode }}" class="project-name-link" data-project="{{ p.projectName is not empty ? p.projectName : p.projectKey }}" data-action="open-project-link">{{ p.projectName is not empty ? p.projectName : p.projectKey }}</a>
+                            <div class="project-path-row">
+                                <span class="path-text truncate" data-tooltip="{{ p.projectKey }}">{{ p.projectKey | display_path }}</span>
+                                <button class="path-copy-btn" data-action="copy" data-copy-text="{{ p.projectKey }}" title="Copy full path" aria-label="Copy project path"><svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="5" y="5" width="8" height="8" rx="1"/><path d="M3 11V3a1 1 0 0 1 1-1h8"/></svg></button>
+                            </div>
+                        </td>
+                        <td class="agents-cell"><span class="agents-cell__inner">
+                            {% if p.claudeSessions > 0 %}<span class="badge cc badge--has-dot" data-tooltip="{{ p.claudeSessions }} sessions" role="status"><span class="badge-dot badge-dot--claude" aria-hidden="true"></span>CC</span>{% endif %}
+                            {% if p.codexSessions > 0 %}<span class="badge cx badge--has-dot" data-tooltip="{{ p.codexSessions }} sessions" role="status"><span class="badge-dot badge-dot--codex" aria-hidden="true"></span>CX</span>{% endif %}
+                            {% if p.qoderSessions > 0 %}<span class="badge qd badge--has-dot" data-tooltip="{{ p.qoderSessions }} sessions" role="status"><span class="badge-dot badge-dot--qoder" aria-hidden="true"></span>QD</span>{% endif %}
+                            {% if p.claudeSessions == 0 and p.codexSessions == 0 and p.qoderSessions == 0 %}<span class="muted-zero">—</span>{% endif %}
+                        </span></td>
+                        <td class="numeric mono"><strong>{{ p.totalSessions }}</strong></td>
+                        <td class="token-cell">
+                            <div class="token-total">
+                                <span class="token-total__value">{{ p_total_tokens | format_compact_token }}</span>
+                                <span class="tokenbar" aria-hidden="true">
+                                    <span class="tokenbar-seg fresh" style="--segment-width:{{ p_fresh_pct }}%"></span>
+                                    <span class="tokenbar-seg read" style="--segment-width:{{ p_read_pct }}%"></span>
+                                    <span class="tokenbar-seg write" style="--segment-width:{{ p_write_pct }}%"></span>
+                                    <span class="tokenbar-seg out" style="--segment-width:{{ p_out_pct }}%"></span>
+                                    <span class="token-tooltip" aria-hidden="true">
+                                        <span class="token-tooltip__title">Token Breakdown</span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span><span class="token-tooltip__value">{{ p.totalFreshInputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ p_fresh_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span><span class="token-tooltip__value">{{ p.totalCacheReadTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ p_read_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span><span class="token-tooltip__value">{{ p.totalCacheWriteTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ p_write_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span><span class="token-tooltip__value">{{ p.totalOutputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ p_out_pct }}%</span></span>
+                                        <span class="token-tooltip__sep"></span>
+                                        <span class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">{{ p_total_tokens | format_compact_token }}</span></span>
+                                    </span>
+                                </span>
+                            </div>
+                        </td>
+                        <td class="numeric mono">{{ p.totalToolCalls | format_number }}{% if p.totalFailedTools > 0 %}<span class="badge err tools-failed" data-tooltip="{{ p.totalFailedTools }} failed tool results">{{ p_health_label }}</span>{% endif %}</td>
+                        <td class="numeric mono">{{ p.totalFailedTools | format_number }}</td>
+                        <td class="text-xs text-muted" title="{{ p.firstSeen }}">{{ p.firstSeen | date_only }}</td>
+                        <td class="text-xs text-muted">{{ p.lastSeen | relative_time }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        <div class="table-card-pagination">
+            <nav class="pagination unified-pagination" role="navigation" aria-label="Pagination">
+                <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if not has_prev or total_pages <= 1 %} disabled{% endif %}>&lsaquo; prev</button>
+                <span class="page-status">Page</span>
+                <input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"{% if total_pages <= 1 %} disabled{% endif %} data-total-pages="{{ total_pages }}"/>
+                <span class="page-status" id="page-status-text">of {{ total_pages }}{% if total_count > 0 %} of {{ total_count }}{% endif %}</span>
+                <span class="spacer"></span>
+                <label class="page-size-label" aria-label="每页条数"><span class="page-status">每页</span><select class="page-size-select" data-action="page-size"><option value="25"{% if page_size == 25 %} selected{% endif %}>25</option><option value="50"{% if page_size == 50 %} selected{% endif %}>50</option><option value="100"{% if page_size == 100 %} selected{% endif %}>100</option></select></label>
+                <button class="btn sm" data-action="next-page" aria-label="Next page"{% if not has_next or total_pages <= 1 %} disabled{% endif %}>next &rsaquo;</button>
+            </nav>
+        </div>
+    </section>
+    <div id="projects-empty" class="state-strip is-hidden">
+        <div class="state-icon" aria-hidden="true"><span class="emoji lg">📁</span></div>
+        <div><div class="state-title">No projects match current filters</div><div class="muted">Try adjusting the project name search.</div></div>
+        <span class="spacer"></span>
+        <button class="btn" data-action="clear-search" title="清空项目名搜索并重新渲染完整项目列表">Clear Search</button>
     </div>
+{% else %}
+    <div class="empty-state">
+        <div class="empty-state__icon" aria-hidden="true">📁</div>
+        <h2 class="empty-state__title">No projects indexed yet</h2>
+        <a class="btn primary" href="/" data-action="run-scan">Run Scan</a>
+    </div>
+{% endif %}
 </section>
 {% endif %}
 
 </div>
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/projects.js"></script>
 {% endblock %}

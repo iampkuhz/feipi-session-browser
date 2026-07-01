@@ -10,6 +10,7 @@ import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
+import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
@@ -246,9 +247,11 @@ public final class SessionDetailPage {
     context.put("rounds", roundDisplay);
     context.put("round_count", rounds.size());
     context.put("has_rounds", !rounds.isEmpty());
+    context.put("has_round_token_usage", hasTokenUsage(roundDisplay, false));
     context.put("exceeds_initial_limit", rounds.size() > MAX_INITIAL_ROUNDS);
     context.put("initial_round_limit", MAX_INITIAL_ROUNDS);
     context.put("has_subagent_rounds", hasSubagentRounds(roundDisplay));
+    context.put("has_subagent_token_usage", hasTokenUsage(roundDisplay, true));
     context.put("primary_subagent_id", primarySubagentId(roundDisplay));
 
     // Payload 来源摘要（不包含实际内容）
@@ -257,7 +260,9 @@ public final class SessionDetailPage {
     context.put("primary_payload_id", primaryPayloadId(payloadSources));
 
     // Session 指标（供 hero 区域使用）
-    context.put("session_metrics", buildSessionMetrics(row));
+    context.put("session_metrics", buildSessionMetrics(row, rounds, anomalies));
+    context.put("context_segments", buildContextSegments(row));
+    context.put("context_scope", "Session-level");
 
     // API base URL（供 JS lazy-load 使用）
     context.put("api_base", "/api/sessions/" + urlEncode(agent) + "/" + urlEncode(sessionId));
@@ -362,6 +367,10 @@ public final class SessionDetailPage {
       List<CallRound> rounds, long failedToolCount) {
     int limit = Math.min(rounds.size(), MAX_INITIAL_ROUNDS);
     List<Map<String, Object>> result = new ArrayList<>(limit);
+    long maxTokens = 0;
+    for (int i = 0; i < limit; i++) {
+      maxTokens = Math.max(maxTokens, rounds.get(i).totalTokens());
+    }
     for (int i = 0; i < limit; i++) {
       CallRound round = rounds.get(i);
       String subagentId = firstSubagentId(round.calls());
@@ -370,6 +379,10 @@ public final class SessionDetailPage {
         failed = true;
       }
       boolean lowCache = round.roundIndex() == 1;
+      List<String> badges = new ArrayList<>();
+      if (lowCache) {
+        badges.add("low cache");
+      }
       Map<String, Object> entry = new LinkedHashMap<>();
       entry.put("round_index", round.roundIndex());
       entry.put("call_count", round.callCount());
@@ -382,12 +395,54 @@ public final class SessionDetailPage {
       entry.put("status_label", failed ? "failed" : "ok");
       entry.put("has_issues", failed);
       entry.put("is_low_cache", lowCache);
+      entry.put("badges", badges);
+      entry.put("has_badges", !badges.isEmpty());
+      entry.put("badge_text", String.join(", ", badges));
       entry.put("subagent_id", subagentId);
       entry.put("subagent_round", subagentId.isEmpty() ? "" : firstSubagentRound(round.calls(), subagentId));
       entry.put("is_empty", round.isEmpty());
+      entry.putAll(buildRoundTokenFields(round, maxTokens));
       result.add(entry);
     }
     return result;
+  }
+
+  private static Map<String, Object> buildRoundTokenFields(CallRound round, long maxTokens) {
+    Map<String, Object> fields = new LinkedHashMap<>();
+    long total = round.totalTokens();
+    fields.put("has_token_usage", total > 0);
+    fields.put("token_total_raw", total);
+    fields.put("token_total", DisplayFormatters.formatCompactToken(total));
+    fields.put("token_input", DisplayFormatters.formatCompactToken(round.freshInputTokens()));
+    fields.put("token_cache_read", DisplayFormatters.formatCompactToken(round.cacheReadTokens()));
+    fields.put("token_cache_write", DisplayFormatters.formatCompactToken(round.cacheWriteTokens()));
+    fields.put("token_output", DisplayFormatters.formatCompactToken(round.outputTokens()));
+    double tokenBarPct = DisplayFormatters.percentValue(total, maxTokens);
+    fields.put("token_bar_pct", tokenBarPct);
+    fields.put(
+        "token_bar_label",
+        maxTokens > 0
+            ? DisplayFormatters.percentLabel(total, maxTokens) + " of max round tokens"
+            : "No round tokens");
+    fields.put(
+        "token_bar_gap_label",
+        maxTokens > 0
+            ? DisplayFormatters.percentLabel(Math.max(maxTokens - total, 0), maxTokens)
+                + " below max round tokens"
+            : "No round token gap");
+    Map<String, Object> mix = new LinkedHashMap<>();
+    mix.put("fresh", DisplayFormatters.percentValue(round.freshInputTokens(), total));
+    mix.put("read", DisplayFormatters.percentValue(round.cacheReadTokens(), total));
+    mix.put("write", DisplayFormatters.percentValue(round.cacheWriteTokens(), total));
+    mix.put("out", DisplayFormatters.percentValue(round.outputTokens(), total));
+    fields.put("token_mix", mix);
+    fields.put("fresh_share", DisplayFormatters.percentLabel(round.freshInputTokens(), total));
+    fields.put("cache_read_share", DisplayFormatters.percentLabel(round.cacheReadTokens(), total));
+    fields.put("cache_write_share", DisplayFormatters.percentLabel(round.cacheWriteTokens(), total));
+    fields.put("output_share", DisplayFormatters.percentLabel(round.outputTokens(), total));
+    fields.put("cache_read_ratio", roundCacheReadLabel(round));
+    fields.put("bar_height_px", maxTokens > 0 ? tokenBarPct * 1.18 : 0.0);
+    return fields;
   }
 
   private static boolean hasAgentTool(List<String> toolCallIds) {
@@ -423,6 +478,18 @@ public final class SessionDetailPage {
     for (Map<String, Object> round : rounds) {
       Object subagentId = round.get("subagent_id");
       if (subagentId instanceof String value && !value.isEmpty()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean hasTokenUsage(List<Map<String, Object>> rounds, boolean subagentOnly) {
+    for (Map<String, Object> round : rounds) {
+      Object subagent = round.get("subagent_id");
+      Object usage = round.get("has_token_usage");
+      boolean hasSubagent = subagent instanceof String id && !id.isEmpty();
+      if ((!subagentOnly || hasSubagent) && usage instanceof Boolean hasUsage && hasUsage) {
         return true;
       }
     }
@@ -472,8 +539,15 @@ public final class SessionDetailPage {
    * @param row 会话行数据
    * @return 指标 map
    */
-  private static Map<String, Object> buildSessionMetrics(SessionRow row) {
+  private static Map<String, Object> buildSessionMetrics(
+      SessionRow row, List<CallRound> rounds, SessionAnomalySummary anomalies) {
     Map<String, Object> metrics = new LinkedHashMap<>();
+    double activeSeconds = row.modelExecutionSeconds() + row.toolExecutionSeconds();
+    double waitingSeconds = Math.max(row.durationSeconds() - activeSeconds, 0.0);
+    long subagentCallCount = subagentCallCount(rounds);
+    long mainCallCount = Math.max(rounds.size(), row.assistantMessageCount() - subagentCallCount);
+    long issueRounds = Math.max(anomalies.anomalyCount(), row.failedToolCount() > 0 ? 1 : 0);
+
     metrics.put("total_tokens", row.totalTokens());
     metrics.put("output_tokens", row.outputTokens());
     metrics.put("fresh_input_tokens", row.freshInputTokens());
@@ -487,7 +561,153 @@ public final class SessionDetailPage {
     metrics.put("user_message_count", row.userMessageCount());
     metrics.put("assistant_message_count", row.assistantMessageCount());
     metrics.put("subagent_instance_count", row.subagentInstanceCount());
+    metrics.put("tokens", DisplayFormatters.formatCompactToken(row.totalTokens()));
+    metrics.put("tokens_note", "Fresh + Cache Read + Cache Write + Output");
+    metrics.put("fresh", DisplayFormatters.formatCompactToken(row.freshInputTokens()));
+    metrics.put("cache_read", DisplayFormatters.formatCompactToken(row.cacheReadTokens()));
+    metrics.put("cache_write", DisplayFormatters.formatCompactToken(row.cacheWriteTokens()));
+    metrics.put("output", DisplayFormatters.formatCompactToken(row.outputTokens()));
+    metrics.put("fresh_share", DisplayFormatters.percentLabel(row.freshInputTokens(), row.totalTokens()));
+    metrics.put("cache_read_share", DisplayFormatters.percentLabel(row.cacheReadTokens(), row.totalTokens()));
+    metrics.put("cache_write_share", DisplayFormatters.percentLabel(row.cacheWriteTokens(), row.totalTokens()));
+    metrics.put("output_share", DisplayFormatters.percentLabel(row.outputTokens(), row.totalTokens()));
+    metrics.put("fresh_share_tone", shareTone(row.freshInputTokens(), row.totalTokens()));
+    metrics.put("cache_read_share_tone", shareTone(row.cacheReadTokens(), row.totalTokens()));
+    metrics.put("cache_write_share_tone", shareTone(row.cacheWriteTokens(), row.totalTokens()));
+    metrics.put("output_share_tone", shareTone(row.outputTokens(), row.totalTokens()));
+    metrics.put(
+        "cache_reuse",
+        DisplayFormatters.percentLabel(row.cacheReadTokens(), sessionInputSide(row)));
+    metrics.put("input_side_tokens", DisplayFormatters.formatCompactToken(sessionInputSide(row)));
+    metrics.put("low_cache_rounds", lowCacheRoundCount(rounds));
+    metrics.put("fresh_spike_rounds", freshSpikeRoundCount(rounds));
+    metrics.put("run_health", issueRounds > 0 ? "Needs Review" : "Completed");
+    metrics.put("issue_rounds", issueRounds);
+    metrics.put("failed_tools", row.failedToolCount());
+    metrics.put("failed_tools_rate", DisplayFormatters.percentLabel(row.failedToolCount(), row.toolCallCount()));
+    metrics.put("failed_tools_tone", row.failedToolCount() > 0 ? "bad" : "ok");
+    metrics.put("payload_gaps", 0);
+    metrics.put("attribution_gaps", 0);
+    metrics.put("workload", row.assistantMessageCount() + " LLM");
+    metrics.put("llm_calls", row.assistantMessageCount());
+    metrics.put("main_llm_calls", mainCallCount);
+    metrics.put("subagent_llm_calls", subagentCallCount);
+    metrics.put("tool_calls", row.toolCallCount());
+    metrics.put("subagent_runs", row.subagentInstanceCount());
+    metrics.put("active_time", DisplayFormatters.formatDuration(activeSeconds));
+    metrics.put("duration", DisplayFormatters.formatDuration(row.durationSeconds()));
+    metrics.put("waiting_time", DisplayFormatters.formatDuration(waitingSeconds));
+    metrics.put("process_time", DisplayFormatters.formatDuration(activeSeconds));
+    metrics.put("model_time", DisplayFormatters.formatDuration(row.modelExecutionSeconds()));
+    metrics.put("tool_time", DisplayFormatters.formatDuration(row.toolExecutionSeconds()));
+    metrics.put("updated", DisplayFormatters.toLocalTime(row.endedAt()));
     return metrics;
+  }
+
+  private static long subagentCallCount(List<CallRound> rounds) {
+    return rounds.stream()
+        .filter(round -> !round.parentCallId().isEmpty())
+        .mapToLong(CallRound::callCount)
+        .sum();
+  }
+
+  private static long lowCacheRoundCount(List<CallRound> rounds) {
+    return rounds.stream().filter(SessionDetailPage::isLowCacheRound).count();
+  }
+
+  private static boolean isLowCacheRound(CallRound round) {
+    return roundInputSide(round) > 0 && roundCacheReadPercent(round) < 20.0;
+  }
+
+  private static long freshSpikeRoundCount(List<CallRound> rounds) {
+    List<Long> freshValues = new ArrayList<>();
+    for (CallRound round : rounds) {
+      if (round.freshInputTokens() > 0) {
+        freshValues.add(round.freshInputTokens());
+      }
+    }
+    if (freshValues.isEmpty()) {
+      return 0;
+    }
+    freshValues.sort(Long::compare);
+    long median = freshValues.get(freshValues.size() / 2);
+    if (median <= 0) {
+      return 0;
+    }
+    return freshValues.stream().filter(value -> value > median * 2).count();
+  }
+
+  private static String shareTone(long numerator, long denominator) {
+    double share = DisplayFormatters.percentValue(numerator, denominator);
+    if (share >= 50.0) {
+      return "major";
+    }
+    if (share >= 20.0) {
+      return "mid";
+    }
+    return "minor";
+  }
+
+  private static long sessionInputSide(SessionRow row) {
+    return row.freshInputTokens() + row.cacheReadTokens() + row.cacheWriteTokens();
+  }
+
+  private static long roundInputSide(CallRound round) {
+    return round.freshInputTokens() + round.cacheReadTokens() + round.cacheWriteTokens();
+  }
+
+  private static double roundCacheReadPercent(CallRound round) {
+    return DisplayFormatters.percentValue(round.cacheReadTokens(), roundInputSide(round));
+  }
+
+  private static String roundCacheReadLabel(CallRound round) {
+    return DisplayFormatters.percentLabel(round.cacheReadTokens(), roundInputSide(round));
+  }
+
+  private static List<Map<String, Object>> buildContextSegments(SessionRow row) {
+    long denominator = Math.max(1, sessionInputSide(row));
+    List<Map<String, Object>> segments = new ArrayList<>();
+    segments.add(
+        contextSegment(
+            1,
+            "Fresh input",
+            row.freshInputTokens(),
+            denominator,
+            "fresh",
+            "Normalized call usage"));
+    segments.add(
+        contextSegment(
+            2,
+            "Cache read",
+            row.cacheReadTokens(),
+            denominator,
+            "reused",
+            "Provider/broker usage"));
+    segments.add(
+        contextSegment(
+            3,
+            "Cache write",
+            row.cacheWriteTokens(),
+            denominator,
+            "write",
+            "Provider/broker usage"));
+    return segments;
+  }
+
+  private static Map<String, Object> contextSegment(
+      int index, String label, long tokens, long denominator, String status, String source) {
+    Map<String, Object> segment = new LinkedHashMap<>();
+    double shareValue = DisplayFormatters.percentValue(tokens, denominator);
+    segment.put("index", index);
+    segment.put("label", label);
+    segment.put("tokens", tokens);
+    segment.put("tokens_label", DisplayFormatters.formatCompactToken(tokens));
+    segment.put("share", String.format(java.util.Locale.ROOT, "%.1f%%", shareValue));
+    segment.put("share_value", shareValue);
+    segment.put("status", status);
+    segment.put("source", source);
+    segment.put("precision", "normalized");
+    return segment;
   }
 
   /**

@@ -1,4 +1,5 @@
 {% extends "base.html" %}
+{% set active_page = 'sessions' %}
 {% set hide_sidebar_extra = true %}
 
 {% block title %}Sessions - Agent Run Profiler{% endblock %}
@@ -138,6 +139,15 @@
                 <tbody>
                     {% if sessions is defined and sessions is not empty %}
                     {% for s in sessions %}
+                    {% set s_total = s.totalTokens %}
+                    {% if s_total > 0 %}
+                        {% set s_fresh_pct = (s.freshInputTokens * 100.0 / s_total) | round(1) %}
+                        {% set s_read_pct = (s.cacheReadTokens * 100.0 / s_total) | round(1) %}
+                        {% set s_write_pct = (s.cacheWriteTokens * 100.0 / s_total) | round(1) %}
+                        {% set s_out_pct = (s.outputTokens * 100.0 / s_total) | round(1) %}
+                    {% else %}
+                        {% set s_fresh_pct = 0 %}{% set s_read_pct = 0 %}{% set s_write_pct = 0 %}{% set s_out_pct = 0 %}
+                    {% endif %}
                     {% set process_seconds = s.modelExecutionSeconds + s.toolExecutionSeconds %}
                     <tr class="sessions-row" data-action="row"
                         data-session-key="{{ s.sessionKey }}"
@@ -158,7 +168,7 @@
                         <td class="col-session">
                             <div class="title-main"><a class="session-link" href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}" data-action="open-session" data-session-link>{{ s.title is not empty ? s.title : s.sessionId }}</a></div>
                             <div class="title-sub mono">
-                                <span>{{ s.sessionId | truncate_path }}</span>
+                                <span>{{ s.sessionId | first_chars(12) }}</span>
                                 {% if s.gitBranch is not empty %}<span class="session-branch">· {{ s.gitBranch }}</span>{% endif %}
                             </div>
                         </td>
@@ -171,12 +181,21 @@
                         <td class="mono col-model" title="{{ s.model }}">{{ s.model is not empty ? s.model : 'Unknown model' }}</td>
                         <td class="mono token-cell col-tokens">
                             <span class="token-total">
-                                <span class="token-total__value">{{ s.totalTokens | format_compact_token }}</span>
+                                <span class="token-total__value">{{ s_total | format_compact_token }}</span>
                                 <span class="tokenbar tokenbar-in-cell" aria-hidden="true">
-                                    <span class="tokenbar-seg fresh t-fresh" style="--segment-width:25%"></span>
-                                    <span class="tokenbar-seg read t-read" style="--segment-width:35%"></span>
-                                    <span class="tokenbar-seg write t-write" style="--segment-width:20%"></span>
-                                    <span class="tokenbar-seg out t-out" style="--segment-width:20%"></span>
+                                    <span class="tokenbar-seg fresh t-fresh" style="--segment-width:{{ s_fresh_pct }}%"></span>
+                                    <span class="tokenbar-seg read t-read" style="--segment-width:{{ s_read_pct }}%"></span>
+                                    <span class="tokenbar-seg write t-write" style="--segment-width:{{ s_write_pct }}%"></span>
+                                    <span class="tokenbar-seg out t-out" style="--segment-width:{{ s_out_pct }}%"></span>
+                                    <span class="token-tooltip" aria-hidden="true">
+                                        <span class="token-tooltip__title">Token Breakdown</span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span><span class="token-tooltip__value">{{ s.freshInputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_fresh_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span><span class="token-tooltip__value">{{ s.cacheReadTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_read_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span><span class="token-tooltip__value">{{ s.cacheWriteTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_write_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span><span class="token-tooltip__value">{{ s.outputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_out_pct }}%</span></span>
+                                        <span class="token-tooltip__sep"></span>
+                                        <span class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">{{ s_total | format_compact_token }}</span></span>
+                                    </span>
                                 </span>
                             </span>
                         </td>
@@ -210,12 +229,10 @@
         <div class="table-card-pagination">
             <div id="ajax-pagination">
                 <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination" data-pagination>
-                    {% if has_prev %}
-                    <a class="btn sm" href="/sessions?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}&model={{ filter_model | urlencode }}&project={{ filter_project | urlencode }}" data-action="prev-page" aria-label="Previous page">‹ prev</a>
-                    {% endif %}
+                    <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if not has_prev or total_pages <= 1 %} disabled{% endif %}>&lsaquo; prev</button>
                     <span class="page-status">Page</span>
-                    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ page }}" data-total-pages="{{ total_pages }}" title="输入页码后按 Enter，跳转到指定页">
-                    <span class="page-status">of {{ total_pages }} · {{ page_start }}-{{ page_end }} of {{ total_count }}</span>
+                    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ page }}" data-total-pages="{{ total_pages }}"{% if total_pages <= 1 %} disabled{% endif %} title="输入页码后按 Enter，跳转到指定页">
+                    <span class="page-status">of {{ total_pages }}{% if total_count > 0 %} of {{ total_count }}{% endif %}</span>
                     <span class="spacer"></span>
                     <label class="page-size-label page-status">每页
                         <select class="page-size-select sessions-footer-page-size__select" data-action="page-size" aria-label="Page size">
@@ -224,9 +241,7 @@
                             <option value="100"{{ page_size == 100 ? ' selected' : '' }}>100</option>
                         </select>
                     </label>
-                    {% if has_next %}
-                    <a class="btn sm" href="/sessions?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}&agent={{ filter_agent | urlencode }}&status={{ filter_status | urlencode }}&model={{ filter_model | urlencode }}&project={{ filter_project | urlencode }}" data-action="next-page" aria-label="Next page">next ›</a>
-                    {% endif %}
+                    <button class="btn sm" data-action="next-page" aria-label="Next page"{% if not has_next or total_pages <= 1 %} disabled{% endif %}>next &rsaquo;</button>
                 </nav>
             </div>
         </div>

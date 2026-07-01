@@ -32,6 +32,9 @@ public final class ArtifactRowMapper {
   /** 制品类型标识，用于 session_artifacts 行。 */
   public static final String ARTIFACT_TYPE_NORMALIZED = "normalized";
 
+  /** 早期 Python/main 分支写入的归一化制品类型标识。 */
+  public static final String ARTIFACT_TYPE_NORMALIZED_SESSION_JSON = "normalized_session_json";
+
   /** 防止实例化。 */
   private ArtifactRowMapper() {}
 

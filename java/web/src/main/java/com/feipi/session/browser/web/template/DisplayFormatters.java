@@ -138,6 +138,28 @@ public final class DisplayFormatters {
   }
 
   /**
+   * 计算一位小数百分比数值。
+   *
+   * @param numerator 分子
+   * @param denominator 分母，非正数返回 0.0
+   * @return 百分比数值，例如 12.3 表示 12.3%
+   */
+  public static double percentValue(long numerator, long denominator) {
+    return denominator > 0 ? Math.round(numerator * 1000.0 / denominator) / 10.0 : 0.0;
+  }
+
+  /**
+   * 格式化一位小数百分比标签。
+   *
+   * @param numerator 分子
+   * @param denominator 分母，非正数返回 0.0%
+   * @return 百分比标签
+   */
+  public static String percentLabel(long numerator, long denominator) {
+    return String.format(java.util.Locale.ROOT, "%.1f%%", percentValue(numerator, denominator));
+  }
+
+  /**
    * 格式化持续时间为人类可读字符串。
    *
    * <p>例如 3661 → "1h 1min"，120 → "2min 0s"，30 → "30s"。
@@ -227,6 +249,56 @@ public final class DisplayFormatters {
     } catch (Exception e) {
       return isoStr.length() > 19 ? isoStr.substring(0, 19).replace('T', ' ') : isoStr;
     }
+  }
+
+  /**
+   * 将 ISO 8601 时间戳转换为日期标签。
+   *
+   * <p>格式为 {@code yyyy-MM-dd}。null 或空返回 {@code N/A}；解析失败时回退截取前 10 字符。
+   *
+   * @param isoStr ISO 8601 时间戳字符串
+   * @return 日期标签
+   */
+  public static String dateOnly(String isoStr) {
+    if (isoStr == null || isoStr.isEmpty()) {
+      return "N/A";
+    }
+    try {
+      Instant instant = Instant.parse(isoStr.replace("Z", "+00:00"));
+      return instant.atZone(ZoneId.systemDefault()).toLocalDate().toString();
+    } catch (Exception e) {
+      return isoStr.length() >= 10 ? isoStr.substring(0, 10) : isoStr;
+    }
+  }
+
+  /**
+   * 返回字符串前 N 个字符；用于匹配主干列表页的 session id 短标签。
+   *
+   * @param value 原始字符串，null 视为空
+   * @param count 最大字符数，非正数返回空字符串
+   * @return 截断后的前缀
+   */
+  public static String firstChars(String value, Number count) {
+    return edgeChars(value, count, true);
+  }
+
+  /**
+   * 返回字符串后 N 个字符；用于匹配主干 Project Detail 的 session id 短标签。
+   *
+   * @param value 原始字符串，null 视为空
+   * @param count 最大字符数，非正数返回空字符串
+   * @return 截断后的后缀
+   */
+  public static String lastChars(String value, Number count) {
+    return edgeChars(value, count, false);
+  }
+
+  private static String edgeChars(String value, Number count, boolean fromStart) {
+    if (value == null || value.isEmpty() || count == null || count.intValue() <= 0) {
+      return "";
+    }
+    int limit = Math.min(value.length(), count.intValue());
+    return fromStart ? value.substring(0, limit) : value.substring(value.length() - limit);
   }
 
   // ─── URL 编码 ──────────────────────────────────────────────────
@@ -409,6 +481,23 @@ public final class DisplayFormatters {
   }
 
   /**
+   * 将对象序列化为可安全嵌入 {@code <script type="application/json">} 的 JSON 字符串。
+   *
+   * <p>该方法返回未经过 HTML entity 转义的 JSON，并将 {@code <}、{@code >}、{@code &}、单引号与
+   * Unicode 行分隔符转为 JSON unicode escape，避免闭合 script 标签或形成 HTML 注入。调用方应通过 Pebble
+   * {@code SafeString} 标记输出，防止模板自动转义破坏 JSON。
+   *
+   * @param value 要序列化的对象，null 返回 "null"
+   * @return script-safe JSON 字符串
+   */
+  public static String tojsonScript(Object value) {
+    if (value == null) {
+      return "null";
+    }
+    return SimpleJson.toRawJson(value);
+  }
+
+  /**
    * 将对象序列化为 JSON 并 HTML 转义（等价于 {@link #tojsonSafeHtml(Object)}）。
    *
    * @param value 要序列化的对象
@@ -584,6 +673,24 @@ public final class DisplayFormatters {
       StringWriter writer = new StringWriter();
       writeValue(writer, value);
       return SafeHtml.escaped(writer.toString()).value();
+    }
+
+    /**
+     * 将对象序列化为 JSON 字符串，不做 HTML entity 转义，仅做 script-safe unicode escape。
+     *
+     * @param value 要序列化的对象
+     * @return 可嵌入 JSON script block 的 JSON 字符串
+     */
+    public static String toRawJson(Object value) {
+      StringWriter writer = new StringWriter();
+      writeValue(writer, value);
+      return writer.toString()
+          .replace("<", "\\u003c")
+          .replace(">", "\\u003e")
+          .replace("&", "\\u0026")
+          .replace("'", "\\u0027")
+          .replace("\u2028", "\\u2028")
+          .replace("\u2029", "\\u2029");
     }
 
     private static void writeValue(StringWriter w, Object value) {

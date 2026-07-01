@@ -360,6 +360,15 @@
     if (backdrop) {
       backdrop.classList.remove('is-visible');
       backdrop.setAttribute('aria-hidden', 'true');
+      return;
+    }
+    var dialog = closest(buttonEl, 'dialog');
+    if (dialog) {
+      if (typeof dialog.close === 'function' && dialog.open) {
+        dialog.close();
+      } else {
+        dialog.removeAttribute('open');
+      }
     }
   }
 

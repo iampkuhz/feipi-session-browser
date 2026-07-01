@@ -62,6 +62,10 @@ const pageContracts: PageContract[] = [
     checks: [
       { selector: '.page-head', label: 'dashboard page head' },
       { selector: 'main', label: 'dashboard main content' },
+      { selector: '.metric-card__secondary-row', label: 'dashboard KPI secondary metrics', first: true },
+      { selector: '[data-hbar="session-share"]', label: 'dashboard session share hbar' },
+      { selector: '[data-hbar="token-share"]', label: 'dashboard token share hbar' },
+      { selector: '[data-hbar="prompt-share"]', label: 'dashboard prompt share hbar' },
       { selector: '.chart-card', label: 'dashboard chart card', first: true },
     ],
   },
@@ -134,8 +138,10 @@ for (const vp of viewports) {
 const FIXTURE_SESSION_URL = '/sessions/claude_code/hifi-viz-session-001';
 const sessionDetailChecks: VisibleCheck[] = [
   { selector: '.sd-hero', label: 'session detail hero', first: true },
+  { selector: '.sd-kpi', label: 'session detail header card', first: true },
   { selector: '.sd-tabs', label: 'session detail tabs' },
   { selector: '[data-trace-panel]', label: 'session trace panel' },
+  { selector: '[data-trace-round-row]', label: 'session trace round rows', first: true },
 ];
 
 for (const vp of viewports) {

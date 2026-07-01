@@ -14,8 +14,11 @@ import com.feipi.session.browser.web.page.SessionDetailPage;
 import com.feipi.session.browser.web.page.SessionsPage;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.Javalin;
+import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -79,7 +82,7 @@ public final class WebCompositionRoot {
           configureHttp(javalinConfig);
           configureStaticFiles(javalinConfig, config);
           registerRoutes(javalinConfig, queryRoot, templates);
-          registerExceptionHandlers(javalinConfig);
+          registerExceptionHandlers(javalinConfig, templates);
         });
   }
 
@@ -174,7 +177,8 @@ public final class WebCompositionRoot {
   }
 
   /** 注册异常和错误 handler。 */
-  private static void registerExceptionHandlers(io.javalin.config.JavalinConfig javalinConfig) {
+  private static void registerExceptionHandlers(
+      io.javalin.config.JavalinConfig javalinConfig, PebbleEnvironment templates) {
     javalinConfig.routes.exception(
         IllegalArgumentException.class,
         (e, ctx) -> {
@@ -188,7 +192,11 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.error("制品数据加载失败", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-          ctx.json(new ApiErrorResponse("artifact_error", "归一化制品加载失败"));
+          if (isApiPath(ctx)) {
+            ctx.json(new ApiErrorResponse("artifact_error", "归一化制品加载失败"));
+          } else {
+            ctx.html(renderErrorPage(templates, "归一化制品加载失败", "请稍后重试或检查制品数据。"));
+          }
         });
 
     javalinConfig.routes.exception(
@@ -196,7 +204,11 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.error("数据库查询失败", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-          ctx.json(new ApiErrorResponse("internal_error", "查询失败"));
+          if (isApiPath(ctx)) {
+            ctx.json(new ApiErrorResponse("internal_error", "查询失败"));
+          } else {
+            ctx.html(renderErrorPage(templates, "查询失败", "请稍后重试或检查索引数据库。"));
+          }
         });
 
     javalinConfig.routes.exception(
@@ -204,7 +216,11 @@ public final class WebCompositionRoot {
         (e, ctx) -> {
           LOG.error("未处理异常", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-          ctx.json(new ApiErrorResponse("internal_error", "服务器内部错误"));
+          if (isApiPath(ctx)) {
+            ctx.json(new ApiErrorResponse("internal_error", "服务器内部错误"));
+          } else {
+            ctx.html(renderErrorPage(templates, "服务器内部错误", "请稍后重试。"));
+          }
         });
 
     javalinConfig.routes.error(
@@ -219,9 +235,26 @@ public final class WebCompositionRoot {
               ctx.json(new ApiErrorResponse("not_found", "资源不存在"));
             }
           } else {
-            ctx.json(new ApiErrorResponse("not_found", "资源不存在"));
+            ctx.html(renderNotFoundPage(templates));
           }
         });
+  }
+
+  private static boolean isApiPath(Context ctx) {
+    return ctx.path().startsWith("/api/");
+  }
+
+  private static String renderNotFoundPage(PebbleEnvironment templates) {
+    Map<String, Object> context = new HashMap<>();
+    context.put("error", "The page you're looking for doesn't exist or has been removed.");
+    return templates.render("404.html", context);
+  }
+
+  private static String renderErrorPage(PebbleEnvironment templates, String error, String detail) {
+    Map<String, Object> context = new HashMap<>();
+    context.put("error", error);
+    context.put("detail", detail);
+    return templates.render("error.html", context);
   }
 
   /**

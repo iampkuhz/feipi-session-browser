@@ -4,6 +4,7 @@ import com.feipi.session.browser.web.model.SafeHtml;
 import io.pebbletemplates.pebble.PebbleEngine;
 import io.pebbletemplates.pebble.extension.AbstractExtension;
 import io.pebbletemplates.pebble.extension.Filter;
+import io.pebbletemplates.pebble.extension.escaper.SafeString;
 import io.pebbletemplates.pebble.loader.ClasspathLoader;
 import io.pebbletemplates.pebble.template.EvaluationContext;
 import io.pebbletemplates.pebble.template.PebbleTemplate;
@@ -160,6 +161,7 @@ public final class PebbleEnvironment {
           new NoArgFilter(input -> DisplayFormatters.relativeTime(asString(input))));
       filters.put(
           "local_time", new NoArgFilter(input -> DisplayFormatters.toLocalTime(asString(input))));
+      filters.put("date_only", new NoArgFilter(input -> DisplayFormatters.dateOnly(asString(input))));
 
       // ─── URL 编码 ───
       filters.put(
@@ -173,6 +175,14 @@ public final class PebbleEnvironment {
           new NoArgFilter(input -> DisplayFormatters.truncatePath(asString(input))));
       filters.put(
           "display_path", new NoArgFilter(input -> DisplayFormatters.displayPath(asString(input))));
+      filters.put(
+          "first_chars",
+          new OneArgFilter(
+              (input, count) -> DisplayFormatters.firstChars(asString(input), toNumber(count))));
+      filters.put(
+          "last_chars",
+          new OneArgFilter(
+              (input, count) -> DisplayFormatters.lastChars(asString(input), toNumber(count))));
       filters.put(
           "shorten_path",
           new OneArgFilter(
@@ -192,6 +202,9 @@ public final class PebbleEnvironment {
           new NoArgFilter(input -> DisplayFormatters.renumberLines(asString(input))));
 
       // ─── JSON 序列化 ───
+      filters.put(
+          "tojson",
+          new NoArgFilter(input -> new SafeString(DisplayFormatters.tojsonScript(input))));
       filters.put("tojson_safe_html", new NoArgFilter(DisplayFormatters::tojsonSafeHtml));
       filters.put("safe_json_display", new NoArgFilter(DisplayFormatters::safeJsonDisplay));
       filters.put(

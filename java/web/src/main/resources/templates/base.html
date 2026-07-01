@@ -4,11 +4,38 @@
     <meta charset="UTF-8">
     <link rel="icon" href="/static/images/favicon.svg" type="image/svg+xml">
     <title>{% block title %}Agent Run Profiler{% endblock %}</title>
+    {% if export_mhtml is defined and export_mhtml %}
+    <style>{{ mhtml_css | raw }}</style>
+    {% else %}
+    <!-- ============================================================
+         CSS Import Ownership Model
+
+         Layer 0 — Tokens + Base (global):
+           /static/css/tokens.css         → 设计令牌（CSS 变量）
+           /static/css/base.css           → reset、html、body、typography、focus
+
+         Layer 1 — Shell (global):
+           /static/css/shell.css          → 布局骨架
+
+         Layer 2 — Shared Primitives (global):
+           /static/css/ui-primitives.css  → 按钮、徽章、卡片等原子组件
+
+         Layer 3 — Page-specific CSS (per-page, via block head_extra):
+           css/dashboard.css, css/sessions-list.css, css/session-detail.css,
+           css/projects.css, css/glossary.css, css/states.css
+         ============================================================ -->
     <link rel="stylesheet" href="/static/css/tokens.css">
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">
     <link rel="stylesheet" href="/static/css/ui-primitives.css">
+    {% endif %}
+
+    {% if export_mhtml is defined and export_mhtml %}
+    <script>{{ mhtml_js | raw }}</script>
+    {% else %}
     <script src="/static/js/arp-storage.js"></script>
+    {% endif %}
+
     {% block head_extra %}{% endblock %}
 </head>
 <body>
@@ -26,32 +53,94 @@
             </div>
             <nav class="nav-list" aria-label="主导航">
                 {% block sidebar_nav %}
-                <a class="nav-item{% if active_page is defined and active_page == 'dashboard' %} is-active{% endif %}"
-                   href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
+                {% if hide_sidebar_nav is not defined or not hide_sidebar_nav %}
+                <a class="nav-item{% if active_page is defined and active_page == 'dashboard' %} is-active{% endif %}" href="/dashboard" data-action="nav-dashboard" data-target="dashboard">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4CA;</span><span>Dashboard</span>
                 </a>
-                <a class="nav-item{% if active_page is defined and active_page == 'sessions' %} is-active{% endif %}"
-                   href="/sessions" data-action="nav-sessions" data-target="sessions">
+                <a class="nav-item{% if active_page is defined and active_page == 'sessions' %} is-active{% endif %}" href="/sessions" data-action="nav-sessions" data-target="sessions">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F5C2;&#xFE0F;</span><span>Sessions</span>
                 </a>
-                <a class="nav-item{% if active_page is defined and active_page == 'projects' %} is-active{% endif %}"
-                   href="/projects" data-action="nav-projects" data-target="projects">
+                <a class="nav-item{% if active_page is defined and active_page == 'projects' %} is-active{% endif %}" href="/projects" data-action="nav-projects" data-target="projects">
                     <span class="icon icon--nav" aria-hidden="true">&#x1F4C1;</span><span>Projects</span>
                 </a>
+                {% elseif sidebar_nav_html is defined %}
+                {{ sidebar_nav_html | raw }}
+                {% endif %}
                 {% endblock %}
             </nav>
+
+            {% if hide_sidebar_extra is not defined or not hide_sidebar_extra %}
+            <div class="round-map">
+                <div class="nav-label">Round Map</div>
+                {% if session_rounds is defined and session_rounds is not empty %}
+                    {% for round in session_rounds %}
+                    <a class="map-row{% if round.is_current %} active{% endif %}" href="#r{{ round.idx }}">
+                        <span class="idx">R{{ round.idx }}</span>
+                        <span class="name">{{ round.name | truncate_path }}</span>
+                        <span class="sig{% if round.status == 'error' %} err{% elseif round.status == 'warning' %} warn{% endif %}"></span>
+                    </a>
+                    {% endfor %}
+                {% else %}
+                    <div class="map-row is-empty">
+                        <span class="name is-muted">No session context</span>
+                    </div>
+                {% endif %}
+            </div>
+            {% endif %}
 
             {% block sidebar_extra %}{% endblock %}
         </aside>
 
-        <main class="main main-content {% block main_class %}{% endblock %}"
-              {% block main_attrs %}{% endblock %}>
-            <div class="breadcrumb-bar">
-                {% block breadcrumb %}{% endblock %}
-            </div>
-            {% block content %}{% endblock %}
+        <main class="main"{% block main_attrs %}{% endblock %}>
+            <header class="topbar">
+                <div class="breadcrumb topbar-breadcrumb" aria-label="页面导航">
+                    {% block breadcrumb %}
+                    <span>Agent Run Profiler</span><span class="sep">/</span><span>Dashboard</span>
+                    {% endblock %}
+                </div>
+                <div class="top-actions" aria-label="全局操作">
+                    {% block topbar_actions %}{% endblock %}
+                </div>
+            </header>
+
+            <section class="content">
+                {% block content %}{% endblock %}
+            </section>
+
+            <footer class="footer">Agent Run Profiler · Read-only · Local</footer>
         </main>
     </div>
+
+    {% if export_mhtml is defined and export_mhtml %}
+    <script>{{ mhtml_js | raw }}</script>
+    {% else %}
+    <script src="/static/js/ui_primitives.js"></script>
+    <script src="/static/js/view-state.js"></script>
+    <script src="/static/js/payload_viewer.js"></script>
+    <script src="/static/js/app.js"></script>
+    <script src="/static/js/data-table.js"></script>
+    <script src="/static/js/timeline.js"></script>
+    <script src="/static/js/trace-interactions.js"></script>
     {% block script_extra %}{% endblock %}
+    {% endif %}
+
+    {% if hide_payload_modal is not defined or not hide_payload_modal %}
+    {% block payload_modal %}
+    <dialog id="payload-modal" class="payload-modal" aria-labelledby="payload-modal-title" aria-label="Payload viewer">
+      <div class="payload-modal__panel">
+        <header class="payload-modal__header">
+          <span class="payload-modal__title" id="payload-modal-title">Payload</span>
+          <div class="payload-modal__tabs">
+            <button type="button" class="payload-modal__tab active" data-action="payload-mode" data-mode="rendered" aria-selected="true">Rendered</button>
+            <button type="button" class="payload-modal__tab" data-action="payload-mode" data-mode="raw" aria-selected="false">Raw</button>
+          </div>
+          <button type="button" class="payload-modal__close" data-action="close-modal" aria-label="Close payload viewer">&times;</button>
+        </header>
+        <div class="payload-modal__rendered" role="tabpanel"></div>
+        <div class="payload-modal__raw" role="tabpanel" hidden><pre></pre></div>
+      </div>
+    </dialog>
+    {% endblock %}
+    {% endif %}
 </body>
 </html>

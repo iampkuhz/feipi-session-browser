@@ -1,20 +1,31 @@
 {% extends "base.html" %}
+{% set hide_sidebar_extra = true %}
 
 {% block title %}Not Found - Agent Run Profiler{% endblock %}
+{% block shell_class %} no-inspector{% endblock %}
+
+{% block breadcrumb %}
+<a href="/dashboard">Dashboard</a>
+<span class="sep">/</span>
+<span class="current">Not Found</span>
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/states.css">
+{% endblock %}
 
 {% block content %}
-<section class="page-section">
-    <div class="empty-state">
-        <div class="empty-state__icon">&#x1F50D;</div>
-        <h2 class="empty-state__title">Not Found</h2>
-        <p class="empty-state__text">{{ error is defined ? error : 'The requested resource was not found.' }}</p>
-        {% if detail is defined and detail is not empty %}
-        <p class="empty-state__detail">{{ detail }}</p>
-        {% endif %}
-        <a href="{{ back_url is defined ? back_url : '/sessions' }}" class="btn btn--primary"
-           data-action="go-back">
-            {{ back_label is defined ? back_label : 'Back to Sessions' }}
-        </a>
-    </div>
-</section>
+<div class="state-panel" role="region" aria-live="polite" aria-labelledby="state-page-title">
+    <div class="state-panel__icon" aria-hidden="true">404</div>
+    <h2 class="state-panel__title" id="state-page-title">Page Not Found</h2>
+    <p class="state-panel__desc">{{ error is defined ? error : "The page you're looking for doesn't exist or has been removed." }}</p>
+    {% if detail is defined and detail is not empty %}
+    <p class="state-panel__desc">{{ detail }}</p>
+    {% endif %}
+    <nav class="state-panel__links" aria-label="Navigation links">
+        <a href="{{ back_url is defined ? back_url : '/dashboard' }}" class="state-panel__link state-panel__link--primary">{{ back_label is defined ? back_label : 'Go to Dashboard' }}</a>
+        <a href="/sessions" class="state-panel__link">Open Sessions</a>
+        <a href="/projects" class="state-panel__link">Open Projects</a>
+    </nav>
+</div>
 {% endblock %}

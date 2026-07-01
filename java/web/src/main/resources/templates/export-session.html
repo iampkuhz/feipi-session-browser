@@ -30,7 +30,7 @@
 
         /* Token bar */
         .tokenbar { display: flex; height: 0.5rem; border-radius: 0.25rem; overflow: hidden; margin: 1rem 0; background: #e2e8f0; }
-        .tokenbar__seg { height: 100%; }
+        .tokenbar__seg { height: 100%; width: var(--seg-pct, 0); }
         .tokenbar__seg--fresh { background: #3b82f6; }
         .tokenbar__seg--read { background: #10b981; }
         .tokenbar__seg--write { background: #f59e0b; }
@@ -38,6 +38,10 @@
         .token-legend { display: flex; flex-wrap: wrap; gap: 1rem; font-size: 0.8rem; color: #64748b; margin-top: 0.5rem; }
         .token-legend span { display: flex; align-items: center; gap: 0.25rem; }
         .token-legend i { display: inline-block; width: 0.75rem; height: 0.75rem; border-radius: 0.125rem; }
+        .token-legend__mark--fresh { background: #3b82f6; }
+        .token-legend__mark--read { background: #10b981; }
+        .token-legend__mark--write { background: #f59e0b; }
+        .token-legend__mark--out { background: #8b5cf6; }
 
         /* Anomalies */
         .sd-anomalies { margin: 1.5rem 0; border: 1px solid #fecaca; border-radius: 0.375rem; background: #fef2f2; padding: 1rem; }
@@ -60,6 +64,7 @@
         .rounds-table td { padding: 0.5rem 0.75rem; border-bottom: 1px solid #f1f5f9; vertical-align: top; }
         .rounds-table tr:hover { background: #f8fafc; }
         .round-id { font-weight: 600; color: #0f172a; }
+        .round-call-ids { font-size: 0.75rem; color: #64748b; max-width: 20rem; overflow: hidden; text-overflow: ellipsis; }
         .subagent-badge { display: inline-block; padding: 0.0625rem 0.25rem; border-radius: 0.125rem; background: #fef3c7; color: #92400e; font-size: 0.625rem; font-weight: 700; margin-left: 0.25rem; vertical-align: middle; }
         .empty-badge { display: inline-block; padding: 0.0625rem 0.25rem; border-radius: 0.125rem; background: #f1f5f9; color: #94a3b8; font-size: 0.625rem; font-weight: 600; }
 
@@ -173,16 +178,16 @@
     {% set total = session_metrics.fresh_input_tokens + session_metrics.cache_read_tokens + session_metrics.cache_write_tokens + session_metrics.output_tokens %}
     {% if total > 0 %}
     <div class="tokenbar">
-        <span class="tokenbar__seg tokenbar__seg--fresh" style="width: {{ (session_metrics.fresh_input_tokens / total * 100) | round(1) }}%"></span>
-        <span class="tokenbar__seg tokenbar__seg--read" style="width: {{ (session_metrics.cache_read_tokens / total * 100) | round(1) }}%"></span>
-        <span class="tokenbar__seg tokenbar__seg--write" style="width: {{ (session_metrics.cache_write_tokens / total * 100) | round(1) }}%"></span>
-        <span class="tokenbar__seg tokenbar__seg--out" style="width: {{ (session_metrics.output_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--fresh" style="--seg-pct: {{ (session_metrics.fresh_input_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--read" style="--seg-pct: {{ (session_metrics.cache_read_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--write" style="--seg-pct: {{ (session_metrics.cache_write_tokens / total * 100) | round(1) }}%"></span>
+        <span class="tokenbar__seg tokenbar__seg--out" style="--seg-pct: {{ (session_metrics.output_tokens / total * 100) | round(1) }}%"></span>
     </div>
     <div class="token-legend">
-        <span><i style="background:#3b82f6"></i> Fresh {{ session_metrics.fresh_input_tokens | format_compact_token }}</span>
-        <span><i style="background:#10b981"></i> Cache Read {{ session_metrics.cache_read_tokens | format_compact_token }}</span>
-        <span><i style="background:#f59e0b"></i> Cache Write {{ session_metrics.cache_write_tokens | format_compact_token }}</span>
-        <span><i style="background:#8b5cf6"></i> Output {{ session_metrics.output_tokens | format_compact_token }}</span>
+        <span><i class="token-legend__mark--fresh"></i> Fresh {{ session_metrics.fresh_input_tokens | format_compact_token }}</span>
+        <span><i class="token-legend__mark--read"></i> Cache Read {{ session_metrics.cache_read_tokens | format_compact_token }}</span>
+        <span><i class="token-legend__mark--write"></i> Cache Write {{ session_metrics.cache_write_tokens | format_compact_token }}</span>
+        <span><i class="token-legend__mark--out"></i> Output {{ session_metrics.output_tokens | format_compact_token }}</span>
     </div>
     {% endif %}
 
@@ -248,7 +253,7 @@
                 </td>
                 <td class="mono">{{ round.call_count }}</td>
                 <td class="mono">{{ round.tool_call_count }}</td>
-                <td class="mono" style="font-size:0.75rem; color:#64748b; max-width:20rem; overflow:hidden; text-overflow:ellipsis;">
+                <td class="mono round-call-ids">
                     {% for cid in round.calls %}{{ cid }}{% if not loop.last %}, {% endif %}{% endfor %}
                 </td>
                 <td>

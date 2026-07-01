@@ -1,141 +1,224 @@
 {% extends "base.html" %}
+{% set active_page = 'projects' %}
+{% set hide_sidebar_extra = true %}
 
-{% block title %}{{ project.projectName is not empty ? project.projectName : project_key }} - Agent Run Profiler{% endblock %}
+{% block title %}{{ project.projectName is not empty ? project.projectName : project.projectKey }} - Agent Run Profiler{% endblock %}
 {% block shell_class %} no-inspector{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="/static/css/projects.css">
+{% endblock %}
 
 {% block breadcrumb %}
 <a href="/dashboard">Dashboard</a>
 <span class="sep">/</span>
 <a href="/projects">Projects</a>
 <span class="sep">/</span>
-<span class="current">{{ project.projectName is not empty ? project.projectName : project_key }}</span>
-{% endblock %}
-
-{% block head_extra %}
-<link rel="stylesheet" href="/static/css/projects.css">
+<span class="current">{{ project.projectName is not empty ? project.projectName : project.projectKey }}</span>
 {% endblock %}
 
 {% block content %}
 <div class="p-projects">
 
-{# -- 页面标题 -- #}
-<div class="page-head">
-    <div class="page-head__title-area">
-        <a href="/projects" class="btn btn--secondary btn--sm" data-action="go-projects">Back to Projects</a>
-        <h1 class="page-title">{{ project.projectName is not empty ? project.projectName : project_key }}</h1>
-        <p class="page-subtitle">Project-level sessions, token, tool, and failure hotspots.</p>
+{% if error is defined and error is not empty %}
+<section class="page-section">
+    <div class="empty-state empty-state--error">
+        <div class="empty-state__icon" aria-hidden="true">🔌</div>
+        <h2 class="empty-state__title">{{ error }}</h2>
+        <a class="btn primary" href="/projects" data-action="go-projects">Back to Projects</a>
+    </div>
+</section>
+{% else %}
+
+<section class="page-head">
+    <a class="back-btn" href="/projects" aria-label="Back to Projects" title="Back to Projects"><span class="emoji" aria-hidden="true">←</span></a>
+    <div>
+        <h1>{{ project.projectName is not empty ? project.projectName : project.projectKey }}</h1>
+        <p class="subtitle">Project-level sessions, token, tool, and failure hotspots.</p>
+    </div>
+    <div class="page-head-actions">
+        <span class="ui-stat-pill" role="status">{{ project_detail.active_period }}</span>
+    </div>
+</section>
+
+<div class="project-path-summary">
+    <div class="path-row">
+        <span class="path-chip mono" data-tooltip="{{ project.projectKey }}">{{ project.projectKey | display_path }}</span>
+        <button class="btn small" data-action="copy" data-copy-text="{{ project.projectKey }}" aria-label="Copy path" title="Copy full path"><span class="emoji" aria-hidden="true">📋</span></button>
     </div>
 </div>
 
-{# -- 项目路径 -- #}
-<div class="project-path-summary">
-    <span class="project-path" title="{{ project_key }}">{{ project_key | display_path }}</span>
-</div>
-
-{# -- 项目统计卡片 -- #}
 <div class="metric-grid project-detail-kpis">
     <div class="metric-card">
+        <div class="metric-icon purple" aria-hidden="true">📈</div>
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Sessions</span></div>
             <div class="metric-card__value">{{ project.totalSessions }}</div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Today</span><span class="metric-card__secondary-value">{{ project_detail.sessions_kpi.today }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">7d Avg</span><span class="metric-card__secondary-value">{{ project_detail.sessions_kpi.avg_7d | round(1) }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Median Duration</span><span class="metric-card__secondary-value">{{ project_detail.sessions_kpi.median_duration }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Median Process Time</span><span class="metric-card__secondary-value">{{ project_detail.sessions_kpi.median_process_time }}</span></div>
+            </div>
         </div>
     </div>
     <div class="metric-card">
+        <div class="metric-icon green" aria-hidden="true">👥</div>
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Agents</span></div>
-            <div class="metric-card__value">{{ (project.claudeSessions > 0 ? 1 : 0) + (project.qoderSessions > 0 ? 1 : 0) + (project.codexSessions > 0 ? 1 : 0) }}</div>
+            <div class="metric-card__value">{{ project_detail.agents_kpi.count }}</div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Claude Code</span><span class="metric-card__secondary-value">{{ project_detail.agents_kpi.claude_code }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Qoder</span><span class="metric-card__secondary-value">{{ project_detail.agents_kpi.qoder }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Codex</span><span class="metric-card__secondary-value">{{ project_detail.agents_kpi.codex }}</span></div>
+            </div>
         </div>
     </div>
     <div class="metric-card">
+        <div class="metric-icon blue" aria-hidden="true">📤</div>
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Total Tokens</span></div>
-            <div class="metric-card__value mono">{{ project.totalTokens | format_compact_token }}</div>
+            <div class="metric-card__value mono">{{ project_detail.tokens_kpi.total | format_compact_token }}</div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Fresh</span><span class="metric-card__secondary-value">{{ project_detail.tokens_kpi.fresh | format_compact_token }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Cache Read</span><span class="metric-card__secondary-value">{{ project_detail.tokens_kpi.cache_read | format_compact_token }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Cache Write</span><span class="metric-card__secondary-value">{{ project_detail.tokens_kpi.cache_write | format_compact_token }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Output</span><span class="metric-card__secondary-value">{{ project_detail.tokens_kpi.output | format_compact_token }}</span></div>
+            </div>
         </div>
     </div>
     <div class="metric-card">
+        <div class="metric-icon orange" aria-hidden="true">♻️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__label-row"><span class="metric-card__label">Cache Read Ratio</span></div>
+            <div class="metric-card__value mono">{{ project_detail.cache_kpi.ratio }}</div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Eligible Sessions</span><span class="metric-card__secondary-value">{{ project_detail.cache_kpi.eligible_sessions }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Low-read Sessions</span><span class="metric-card__secondary-value">{{ project_detail.cache_kpi.low_read_sessions }}</span></div>
+            </div>
+        </div>
+    </div>
+    <div class="metric-card">
+        <div class="metric-icon red" aria-hidden="true">⚠️</div>
         <div class="metric-card__body">
             <div class="metric-card__label-row"><span class="metric-card__label">Failed Tools</span></div>
-            <div class="metric-card__value mono">{{ project.totalFailedTools }}</div>
+            <div class="metric-card__value mono">{{ project_detail.failure_kpi.failed_tools | format_number }}</div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Failure Rate</span><span class="metric-card__secondary-value">{{ project_detail.failure_kpi.failure_rate }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Affected Sessions</span><span class="metric-card__secondary-value">{{ project_detail.failure_kpi.affected_sessions }}</span></div>
+                <div class="metric-card__secondary-row"><span class="metric-card__secondary-label">Repeated Failure Sessions</span><span class="metric-card__secondary-value">{{ project_detail.failure_kpi.repeated_failure_sessions }}</span></div>
+            </div>
         </div>
     </div>
 </div>
 
-{# -- 该项目下的会话列表 -- #}
-<div class="table-card">
-    <div class="table-card__header">
-        <h2>Sessions</h2>
-        <span class="ui-stat-pill" role="status"><b>{{ total_count }}</b> sessions</span>
-    </div>
+<section class="project-analysis-grid" aria-label="Project analysis">
+    <article class="project-analysis-card">
+        <header class="project-analysis-card__header">
+            <h2>Project Token Trend</h2>
+            <div class="segmented-control" role="group" aria-label="Project token trend grain">
+                <a class="segmented-control__item{{ trend_grain == 'day' ? ' is-active' : '' }}" href="/projects/{{ project.projectKey | urlencode }}?grain=day">Day</a>
+                <a class="segmented-control__item{{ trend_grain == 'week' ? ' is-active' : '' }}" href="/projects/{{ project.projectKey | urlencode }}?grain=week">Week</a>
+                <a class="segmented-control__item{{ trend_grain == 'month' ? ' is-active' : '' }}" href="/projects/{{ project.projectKey | urlencode }}?grain=month">Month</a>
+            </div>
+        </header>
+        {% if project_detail.token_trend.has_data %}
+        <svg class="project-token-area-chart" viewBox="0 0 100 100" role="img" aria-label="Project token trend stacked area chart" preserveAspectRatio="none">
+            {% for layer in project_detail.token_trend.layers %}<path class="project-area project-area--{{ layer.key }}" d="{{ layer.path }}"></path>{% endfor %}
+        </svg>
+        <div class="project-chart-legend" aria-label="Token trend legend"><span><i class="legend-dot legend-dot--fresh"></i>Fresh</span><span><i class="legend-dot legend-dot--read"></i>Cache Read</span><span><i class="legend-dot legend-dot--write"></i>Cache Write</span><span><i class="legend-dot legend-dot--out"></i>Output</span></div>
+        <div class="project-trend-points">
+            {% for point in project_detail.token_trend.points %}<span class="project-trend-point" data-tooltip="Range point: {{ point.label }} · Total Tokens {{ point.total | format_compact_token }}">{{ point.label }} · {{ point.total | format_compact_token }}</span>{% endfor %}
+        </div>
+        {% else %}
+        <div class="state-strip" role="status" aria-live="polite"><div class="state-icon" aria-hidden="true">📉</div><div><div class="state-title">No token trend data</div><div class="muted">This project has no token-bearing sessions yet.</div></div></div>
+        {% endif %}
+    </article>
 
-    {# -- 搜索 -- #}
-    <form method="get" action="/projects/{{ project_key | urlencode }}" class="filter-row">
-        <input type="hidden" name="sort" value="{{ sort_by }}"/>
-        <input type="hidden" name="dir" value="{{ sort_dir }}"/>
-        <input type="hidden" name="page_size" value="{{ page_size }}"/>
-        <input type="search" name="q" placeholder="Search sessions"
-               value="{{ filter_q }}" class="filter-search js-search"
-               aria-label="Search sessions in project"/>
-    </form>
-
-    {% if sessions is defined and sessions | length > 0 %}
-    <table class="data-table" role="table" aria-label="Project sessions table">
-        <thead>
-            <tr>
-                <th>Title</th>
-                <th>Agent</th>
-                <th>Model</th>
-                <th>Tokens</th>
-                <th>Rounds</th>
-                <th>Failed</th>
-                <th>Duration</th>
-                <th>Updated</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for s in sessions %}
-            <tr data-session-key="{{ s.sessionKey }}">
-                <td>
-                    <a href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}"
-                       class="session-link" data-action="open-session">
-                        {{ s.title is not empty ? s.title : s.sessionId }}
-                    </a>
-                </td>
-                <td><span class="agent-badge agent-{{ s.agent }}">{{ s.agent }}</span></td>
-                <td class="mono">{{ s.model }}</td>
-                <td class="mono">{{ s.totalTokens | format_compact_token }}</td>
-                <td class="mono">{{ s.assistantMessageCount }}</td>
-                <td class="mono">{{ s.failedToolCount }}</td>
-                <td class="mono">{{ s.durationSeconds | format_duration }}</td>
-                <td>{{ s.endedAt | relative_time }}</td>
-            </tr>
+    <article class="project-analysis-card">
+        <header class="project-analysis-card__header"><h2>Agent Mix</h2></header>
+        <div class="agent-mix-bar" role="img" aria-label="Agent mix by sessions">
+            {% for agent in project_detail.agent_mix %}{% if agent.sessions > 0 %}<a class="agent-mix-bar__segment agent-mix-bar__segment--{{ agent.scope }}" href="/dashboard?agent={{ agent.scope }}" style="--segment-width: {{ agent.session_share | round(1) }}%" data-tooltip="Agent: {{ agent.label }} · Sessions {{ agent.sessions }} · Session Share {{ agent.session_share | round(1) }}% · Tokens {{ agent.tokens | format_compact_token }} · Token Share {{ agent.token_share | round(1) }}% · Failed Tools {{ agent.failed }}"><span>{{ agent.label }}</span></a>{% endif %}{% endfor %}
+        </div>
+        <div class="agent-mix-list">
+            {% for agent in project_detail.agent_mix %}
+            <a href="/dashboard?agent={{ agent.scope }}" class="agent-mix-row">
+                <span><span class="badge {{ agent.key == 'claude_code' ? 'cc' : (agent.key == 'codex' ? 'cx' : 'qd') }} badge--has-dot" role="status"><span class="badge-dot badge-dot--{{ agent.key == 'claude_code' ? 'claude' : (agent.key == 'codex' ? 'codex' : 'qoder') }}" aria-hidden="true"></span>{{ agent.key == 'claude_code' ? 'CC' : (agent.key == 'codex' ? 'CX' : 'QD') }}</span></span>
+                <span>{{ agent.sessions }} sessions</span><span>{{ agent.tokens | format_compact_token }} tokens</span><span>{{ agent.failed }} failed</span>
+            </a>
             {% endfor %}
-        </tbody>
-    </table>
+        </div>
+    </article>
 
-    {# -- 分页 -- #}
-    {% if total_count > 0 %}
-    <nav class="pagination" aria-label="Project sessions pagination" data-pagination>
-        {% if has_prev %}
-        <a href="/projects/{{ project_key | urlencode }}?page={{ page - 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
-           class="pagination__btn" data-action="prev-page">Previous</a>
-        {% endif %}
-        <span class="pagination__info">
-            {{ page_start }}-{{ page_end }} of {{ total_count }}
-        </span>
-        {% if has_next %}
-        <a href="/projects/{{ project_key | urlencode }}?page={{ page + 1 }}&page_size={{ page_size }}&sort={{ sort_by }}&dir={{ sort_dir }}&q={{ filter_q | urlencode }}"
-           class="pagination__btn" data-action="next-page">Next</a>
-        {% endif %}
-    </nav>
-    {% endif %}
+    <article class="project-analysis-card">
+        <header class="project-analysis-card__header"><h2>Tool Hotspots</h2></header>
+        <div class="state-strip" role="status" aria-live="polite"><div class="state-icon" aria-hidden="true">🧰</div><div><div class="state-title">Tool hotspot data unavailable</div><div class="muted">{{ project_detail.tool_hotspots_reason }}</div></div></div>
+    </article>
+</section>
 
-    {% else %}
-    <div class="empty-state">
-        <div class="empty-state__icon">&#x1F4AD;</div>
-        <p class="empty-state__text">No sessions found in this project.</p>
-    </div>
-    {% endif %}
+<div class="page-section">
+    <section class="card table-card">
+        <div class="table-toolbar">
+            <div><div class="card-title">Sessions</div><div class="card-sub">{{ total_count }} sessions in this project</div></div>
+            <span class="spacer"></span>
+            <form class="project-session-filter" method="get" action="/projects/{{ project.projectKey | urlencode }}" role="search" aria-label="Project sessions search">
+                <input type="hidden" name="grain" value="{{ trend_grain }}">
+                <input class="input search" id="project-session-search" type="search" name="q" value="{{ filter_q }}" placeholder="Search title, session id" aria-label="Search project sessions by title or session id">
+                <button class="btn sm" type="submit" data-action="apply-search">Apply</button>
+                {% if filter_q is not empty %}<a class="btn sm ghost" href="/projects/{{ project.projectKey | urlencode }}?grain={{ trend_grain }}" data-action="clear-search">Clear current filter</a>{% endif %}
+            </form>
+        </div>
+        <div class="table-wrap">
+            {% if sessions is defined and sessions | length > 0 %}
+            <table id="project-sessions-table" class="data-table project-sessions-table" data-table-enhanced role="table" aria-label="Project sessions table">
+                <thead><tr><th>Session</th><th>Agent</th><th>Model</th><th class="numeric sortable" data-action="sort" data-sort="tokens">Tokens <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="rounds">Rounds <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="tools">Tools <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="subagents">Subagents <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="duration">Duration <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="process-time">Process Time <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="numeric sortable" data-action="sort" data-sort="failure">Failure <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="sortable" data-action="sort" data-sort="created">Created <span class="c-data-table__sort-icon" aria-hidden="true"></span></th><th class="sortable" data-action="sort" data-sort="updated">Updated <span class="c-data-table__sort-icon" aria-hidden="true"></span></th></tr></thead>
+                <tbody>
+                    {% for s in sessions %}
+                    {% set s_total = s.totalTokens %}
+                    {% if s_total > 0 %}{% set s_fresh_pct = (s.freshInputTokens * 100.0 / s_total) | round(1) %}{% set s_read_pct = (s.cacheReadTokens * 100.0 / s_total) | round(1) %}{% set s_write_pct = (s.cacheWriteTokens * 100.0 / s_total) | round(1) %}{% set s_out_pct = (s.outputTokens * 100.0 / s_total) | round(1) %}{% else %}{% set s_fresh_pct = 0 %}{% set s_read_pct = 0 %}{% set s_write_pct = 0 %}{% set s_out_pct = 0 %}{% endif %}
+                    {% set process_seconds = s.modelExecutionSeconds + s.toolExecutionSeconds %}
+                    <tr data-action="open-session" data-href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}" data-title="{{ s.title is not empty ? s.title : s.sessionId }}" data-session-id="{{ s.sessionId }}" class="{{ s.failedToolCount > 0 ? 'row--failed' : '' }}">
+                        <td><div class="title-main"><a href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}" class="session-link">{{ s.title is not empty ? s.title : 'Untitled' }}</a></div><div class="title-sub mono">{{ s.sessionId | last_chars(8) }} {% if s.gitBranch is not empty %}<span>· {{ s.gitBranch }}</span>{% endif %}<button class="btn sm session-copy-btn" data-action="copy" data-copy-text="{{ s.sessionId }}" aria-label="Copy session ID" title="Copy session ID">Copy</button></div></td>
+                        <td><span class="badge {{ s.agent == 'claude_code' ? 'cc' : (s.agent == 'codex' ? 'cx' : 'qd') }} badge--has-dot" role="status"><span class="badge-dot badge-dot--{{ s.agent == 'claude_code' ? 'claude' : (s.agent == 'codex' ? 'codex' : 'qoder') }}" aria-hidden="true"></span>{{ s.agent == 'claude_code' ? 'CC' : (s.agent == 'codex' ? 'CX' : 'QD') }}</span></td>
+                        <td class="mono" title="{{ s.model is not empty ? s.model : 'Unknown model' }}">{{ s.model is not empty ? s.model : 'Unknown model' }}</td>
+                        <td class="token-cell">
+                            <div class="token-total">
+                                <span class="token-total__value">{{ s_total | format_compact_token }}</span>
+                                <span class="tokenbar" aria-hidden="true">
+                                    <span class="tokenbar-seg fresh" style="--segment-width:{{ s_fresh_pct }}%"></span>
+                                    <span class="tokenbar-seg read" style="--segment-width:{{ s_read_pct }}%"></span>
+                                    <span class="tokenbar-seg write" style="--segment-width:{{ s_write_pct }}%"></span>
+                                    <span class="tokenbar-seg out" style="--segment-width:{{ s_out_pct }}%"></span>
+                                    <span class="token-tooltip" aria-hidden="true">
+                                        <span class="token-tooltip__title">Token Breakdown</span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span><span class="token-tooltip__value">{{ s.freshInputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_fresh_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span><span class="token-tooltip__value">{{ s.cacheReadTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_read_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span><span class="token-tooltip__value">{{ s.cacheWriteTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_write_pct }}%</span></span>
+                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span><span class="token-tooltip__value">{{ s.outputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_out_pct }}%</span></span>
+                                        <span class="token-tooltip__sep"></span>
+                                        <span class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">{{ s_total | format_compact_token }}</span></span>
+                                    </span>
+                                </span>
+                            </div>
+                        </td>
+                        <td class="num mono">{{ s.assistantMessageCount | format_number }}</td><td class="num mono">{{ s.toolCallCount | format_number }}</td><td class="num mono">{{ s.subagentInstanceCount | format_number }}</td><td class="num mono" data-tooltip="{{ s.durationSeconds }}s">{{ s.durationSeconds | format_duration }}</td><td class="num mono" data-tooltip="{{ process_seconds }}s">{{ process_seconds | format_duration }}</td>
+                        <td class="{{ s.failedToolCount == 0 ? 'muted' : '' }}">{% if s.failedToolCount > 0 %}<span class="badge err">{{ s.failedToolCount }} failed</span>{% else %}No failures{% endif %}</td>
+                        <td class="mono" title="{{ s.startedAt }}">{{ s.startedAt | local_time }}</td><td class="muted">{{ s.endedAt | relative_time }}</td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+            {% else %}
+            <div class="empty-state"><div class="empty-state__icon" aria-hidden="true">📁</div><h2 class="empty-state__title">{{ filter_q is not empty ? 'No sessions match your current filters' : 'No sessions in this project yet' }}</h2><a class="btn primary" href="/sessions" data-action="view-all">View all sessions</a></div>
+            {% endif %}
+        </div>
+        <div class="table-card-pagination"><nav class="pagination unified-pagination" role="navigation" aria-label="Project sessions pagination"><button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if not has_prev or total_pages <= 1 %} disabled{% endif %}>&lsaquo; prev</button><span class="page-status">Page</span><input class="page-input mono" data-action="page-input" value="{{ current_page }}" aria-label="Page number"{% if total_pages <= 1 %} disabled{% endif %} data-total-pages="{{ total_pages }}"/><span class="page-status">of {{ total_pages }}{% if total_count > 0 %} of {{ total_count }}{% endif %}</span><span class="spacer"></span><label class="page-size-label" aria-label="每页条数"><span class="page-status">每页</span><select class="page-size-select" data-action="page-size"><option value="25"{% if page_size == 25 %} selected{% endif %}>25</option><option value="50"{% if page_size == 50 %} selected{% endif %}>50</option><option value="100"{% if page_size == 100 %} selected{% endif %}>100</option></select></label><button class="btn sm" data-action="next-page" aria-label="Next page"{% if not has_next or total_pages <= 1 %} disabled{% endif %}>next &rsaquo;</button></nav></div>
+    </section>
 </div>
-
+{% endif %}
 </div>
+{% endblock %}
+
+{% block script_extra %}
+<script src="/static/js/projects.js"></script>
 {% endblock %}

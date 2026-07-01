@@ -81,6 +81,8 @@ class SessionDetailPageTest {
           String body = response.body().string();
           assertThat(body).contains("Agent Run Profiler");
           assertThat(body).contains("data-trace-page");
+          assertThat(body).contains("sd-kpi");
+          assertThat(body).contains("Run Health");
         });
   }
 
@@ -99,7 +101,7 @@ class SessionDetailPageTest {
           assertThat(response.code()).isEqualTo(200);
           String body = response.body().string();
           assertThat(body).contains("Payload hidden");
-          assertThat(body).contains("sd-visibility-badge--hidden");
+          assertThat(body).contains("data-summary-strip");
         });
   }
 

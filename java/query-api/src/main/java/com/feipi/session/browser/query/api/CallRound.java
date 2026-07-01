@@ -22,7 +22,15 @@ import java.util.Objects;
  * @param parentCallId 触发本轮次的父调用 ID，首轮次为空
  */
 public record CallRound(
-    int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId) {
+    int roundIndex,
+    List<String> calls,
+    List<String> toolCallIds,
+    String parentCallId,
+    long freshInputTokens,
+    long cacheReadTokens,
+    long cacheWriteTokens,
+    long outputTokens,
+    long totalTokens) {
 
   /**
    * 紧凑构造器，验证轮次不变量。
@@ -39,6 +47,26 @@ public record CallRound(
     calls = List.copyOf(calls);
     toolCallIds = List.copyOf(toolCallIds);
     parentCallId = parentCallId == null ? "" : parentCallId;
+    requireNonNegative(freshInputTokens, "freshInputTokens");
+    requireNonNegative(cacheReadTokens, "cacheReadTokens");
+    requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
+    requireNonNegative(outputTokens, "outputTokens");
+    requireNonNegative(totalTokens, "totalTokens");
+    long expectedTotal = freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
+    if (totalTokens != expectedTotal) {
+      throw new IllegalArgumentException(
+          "totalTokens must equal component sum " + expectedTotal + "; got " + totalTokens);
+    }
+  }
+
+  /**
+   * 兼容旧调用方的轻量构造器。
+   *
+   * <p>缺少 per-round usage 的调用方使用零值 token 统计；由 assembler 创建的生产 round 会填入真实 usage。
+   */
+  public CallRound(
+      int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId) {
+    this(roundIndex, calls, toolCallIds, parentCallId, 0, 0, 0, 0, 0);
   }
 
   /**
@@ -51,6 +79,12 @@ public record CallRound(
    */
   public static CallRound of(int roundIndex, List<String> calls, List<String> toolCallIds) {
     return new CallRound(roundIndex, calls, toolCallIds, null);
+  }
+
+  private static void requireNonNegative(long value, String name) {
+    if (value < 0) {
+      throw new IllegalArgumentException(name + " must be non-negative; got " + value);
+    }
   }
 
   /** 本轮次的调用数量。 */

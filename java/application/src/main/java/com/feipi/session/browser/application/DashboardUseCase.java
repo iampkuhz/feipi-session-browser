@@ -5,6 +5,7 @@ import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
 import com.feipi.session.browser.index.sqlite.AggregateMetricsRow;
 import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
 import com.feipi.session.browser.index.sqlite.DashboardRow;
+import com.feipi.session.browser.index.sqlite.KpiSupplementRow;
 import com.feipi.session.browser.index.sqlite.TokenBreakdownRow;
 import com.feipi.session.browser.index.sqlite.TrendDayRow;
 import com.feipi.session.browser.query.api.AgentFilter;
@@ -65,6 +66,32 @@ public final class DashboardUseCase {
           });
     }
     return repository.dashboardStats(agentFilter);
+  }
+
+  /**
+   * Dashboard KPI 补充数据。
+   *
+   * @param agentFilter agent 范围过滤器
+   * @return KPI 补充数据行
+   * @throws SQLException 查询失败
+   */
+  public KpiSupplementRow kpiSupplement(AgentFilter agentFilter) throws SQLException {
+    Objects.requireNonNull(agentFilter, "agentFilter 不得为 null");
+    if (cache != null) {
+      int paramsHash = Objects.hash("kpiSupplement", agentFilter);
+      return cache.getOrLoad(
+          "kpiSupplement",
+          paramsHash,
+          schemaVersion,
+          () -> {
+            try {
+              return repository.kpiSupplement(agentFilter);
+            } catch (SQLException e) {
+              throw new RuntimeException(e);
+            }
+          });
+    }
+    return repository.kpiSupplement(agentFilter);
   }
 
   /**

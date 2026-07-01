@@ -90,7 +90,7 @@ class WebCompositionRootTest {
   }
 
   @Test
-  @DisplayName("未知路由返回 404 和 JSON 错误")
+  @DisplayName("未知页面路由返回 404 和 HTML 状态页")
   void unknownRouteReturns404() {
     QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
@@ -100,7 +100,7 @@ class WebCompositionRootTest {
         (testApp, client) -> {
           var response = client.get("/nonexistent");
           assertThat(response.code()).isEqualTo(404);
-          assertThat(response.body().string()).contains("not_found");
+          assertThat(response.body().string()).contains("Page Not Found");
         });
   }
 

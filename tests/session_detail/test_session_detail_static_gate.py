@@ -149,10 +149,14 @@ class TestRealFiles:
     def test_real_repo_files(self):
         """Run against actual repo files to ensure they pass."""
         root = SCRIPT_PATH.parent.parent.parent
-        css = root / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'shell.css'
-        shell_css = root / 'src' / 'session_browser' / 'web' / 'static' / 'css' / 'shell.css'
-        base = root / 'src' / 'session_browser' / 'web' / 'templates' / 'base.html'
-        session = root / 'src' / 'session_browser' / 'web' / 'templates' / 'session.html'
+        css = root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
+        shell_css = (
+            root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
+        )
+        base = root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates' / 'base.html'
+        session = (
+            root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates' / 'session.html'
+        )
         if css.exists() and base.exists() and session.exists():
             out = _csd.run_checks(css, base, session, shell_css)
             assert out['status'] == 'PASS', f'Real files failed: {out["failures"]}'

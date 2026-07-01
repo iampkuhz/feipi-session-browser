@@ -9,7 +9,7 @@
   --sessions-text-2: var(--text-secondary, #334155);
   --sessions-text-3: var(--text-muted, #64748b);
   --sessions-brand: var(--brand, #5b5ce2);
-  --sessions-row-h: 42px;
+  --sessions-row-h: 48px;
   --sessions-card-radius: 18px;
   --sessions-shadow: 0 10px 26px rgba(15, 23, 42, .065);
   width: 100%;
@@ -61,7 +61,7 @@
 }
 
 .sessions-page .card.filter-card {
-  margin-bottom: 8px;
+  margin-bottom: 12px;
 }
 
 .sessions-page .sessions-filter-head {
@@ -689,7 +689,7 @@ table-layout:fixed scales proportionally
 .sessions-page .data-table td {
   padding: 0 10px;
   border-bottom: 1px solid var(--sessions-line-soft);
-  height: var(--sessions-row-h);
+  height: 48px;
   vertical-align: middle;
   font-size: 12.5px;
   color: var(--sessions-text-2);

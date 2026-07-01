@@ -12,6 +12,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import datetime as _dt
 import hashlib
 import json
 import os
@@ -498,13 +499,14 @@ def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
             return f'fixture projects directory missing: {projects_dir}'
         artifact_dir = index_dir / 'artifacts' / 'normalized-sessions'
         artifact_dir.mkdir(parents=True, exist_ok=True)
+        fixture_history = _load_fixture_history(data_dir)
         session_count = 0
         for project_dir in sorted(projects_dir.iterdir()):
             if not project_dir.is_dir() or project_dir.name.startswith('.'):
                 continue
             for jsonl_file in sorted(project_dir.glob('*.jsonl')):
                 session_count += _insert_fixture_session(
-                    conn, data_dir, project_dir, jsonl_file, artifact_dir
+                    conn, data_dir, project_dir, jsonl_file, artifact_dir, fixture_history
                 )
         conn.commit()
         conn.close()
@@ -513,6 +515,196 @@ def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
     except Exception as exc:
         return f'fixture index population failed: {exc}'
     return None
+
+
+def _load_fixture_history(data_dir: Path) -> dict[str, dict[str, object]]:
+    """Load fixture history metadata keyed by session id.
+
+    The Python/main fixture server uses ``history.jsonl`` to map synthetic
+    HIFI sessions into multiple projects.  The Java fixture indexer must honor
+    the same metadata; otherwise Projects pages collapse into a single
+    directory-name project and visual smoke cannot catch main/java drift.
+    """
+    history_file = data_dir / 'history.jsonl'
+    if not history_file.exists():
+        return {}
+
+    result: dict[str, dict[str, object]] = {}
+    for line in history_file.read_text(encoding='utf-8').splitlines():
+        if not line.strip():
+            continue
+        try:
+            item = json.loads(line)
+        except json.JSONDecodeError:
+            continue
+        session_id = str(item.get('sessionId') or item.get('session_id') or '').strip()
+        if session_id:
+            result[session_id] = item
+    return result
+
+
+def _fixture_event_timestamp_seconds(event: dict) -> float | None:
+    """Parse the top-level Claude fixture timestamp into epoch seconds."""
+    value = event.get('timestamp')
+    if not isinstance(value, str) or not value:
+        return None
+    try:
+        return _dt.datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
+    except ValueError:
+        return None
+
+
+def _fixture_user_has_text(event: dict) -> bool:
+    """Return True for user prompt rows, excluding pure tool_result rows."""
+    msg = event.get('message', {})
+    if not isinstance(msg, dict):
+        return False
+    content = msg.get('content', '')
+    if isinstance(content, str):
+        return bool(content.strip())
+    if isinstance(content, list):
+        return any(
+            isinstance(block, dict)
+            and block.get('type') == 'text'
+            and bool(str(block.get('text') or '').strip())
+            for block in content
+        )
+    return False
+
+
+def _fixture_first_user_title(events: list[dict]) -> str:
+    """Derive fixture title from the first user prompt, matching main parser."""
+    for event in events:
+        if event.get('type') != 'user':
+            continue
+        msg = event.get('message', {})
+        if not isinstance(msg, dict):
+            continue
+        content = msg.get('content', '')
+        if isinstance(content, str) and content.strip():
+            line = content.strip().splitlines()[0]
+            match = re.match(r'^(.+?[.!?])\s+', line)
+            return (match.group(1) if match else line)[:200]
+        if isinstance(content, list):
+            for block in content:
+                if (
+                    isinstance(block, dict)
+                    and block.get('type') == 'text'
+                    and str(block.get('text') or '').strip()
+                ):
+                    line = str(block.get('text') or '').strip().splitlines()[0]
+                    match = re.match(r'^(.+?[.!?])\s+', line)
+                    return (match.group(1) if match else line)[:200]
+    return ""
+
+
+def _fixture_stringify_tool_result(value: object) -> str:
+    """Match the main fixture parser's tool-result text normalization."""
+    if isinstance(value, list):
+        parts: list[str] = []
+        for item in value:
+            if isinstance(item, dict):
+                text = item.get('text')
+                if isinstance(text, str):
+                    parts.append(text)
+                else:
+                    parts.append(json.dumps(item, ensure_ascii=False))
+            else:
+                parts.append(str(item))
+        return '\n'.join(part for part in parts if part)
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False)
+    return str(value)
+
+
+def _fixture_tool_result_looks_failed(result_content: object, tool_name: str = '') -> bool:
+    """Detect obvious tool runtime failures for Java HIFI fixture parity."""
+    text = _fixture_stringify_tool_result(result_content).lower()
+    if not text:
+        return False
+
+    if tool_name in ('Read', 'Write', 'Edit', 'Glob', 'Grep', 'LS'):
+        first_line = text.split('\n', 1)[0].strip()
+        return first_line.startswith(
+            (
+                'file does not exist',
+                'permission denied',
+                'no such file',
+                'directory not found',
+                'path not found',
+                'cannot read',
+                'not a directory',
+                'too many levels of symbolic links',
+                'input/output error',
+                'is a directory',
+            )
+        )
+
+    line_markers = (
+        'api error',
+        'tool_use_error',
+        'key_model_access_denied',
+        'rate limit exceeded',
+        'user rejected',
+        'request cancelled',
+        'permission denied',
+        'fatal:',
+    )
+    for marker in line_markers:
+        if text.startswith(marker):
+            return True
+        for line in text.split('\n'):
+            stripped = line.strip().lstrip('$# ').strip()
+            if stripped.startswith(marker):
+                return True
+            parts = stripped.split(': ')
+            if len(parts) > 1 and parts[-1].strip().startswith(marker):
+                return True
+
+    if re.search(r'(?:^|\n)\s*command not found', text, re.MULTILINE):
+        return True
+    return any(
+        re.match(r'^(?:ba)?sh:\s+.*:\s+command not found', line.strip())
+        for line in text.split('\n')
+    )
+
+
+def _fixture_usage_totals(events: list[dict]) -> tuple[int, int, int, int]:
+    """Sum assistant usage tokens as (output, fresh, cache_read, cache_write)."""
+    output_tokens = 0
+    fresh_input_tokens = 0
+    cache_read_tokens = 0
+    cache_write_tokens = 0
+    for event in events:
+        msg = event.get('message', {})
+        if event.get('type') != 'assistant' or not isinstance(msg, dict):
+            continue
+        usage = msg.get('usage', {})
+        if not isinstance(usage, dict):
+            continue
+        output_tokens += usage.get('output_tokens', 0)
+        fresh_input_tokens += usage.get('input_tokens', 0)
+        cache_read_tokens += usage.get('cache_read_input_tokens', 0)
+        cache_write_tokens += usage.get('cache_creation_input_tokens', 0)
+    return output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens
+
+
+def _fixture_subagent_usage_totals(jsonl_file: Path) -> tuple[int, int, int, int]:
+    """Include subagent token totals so Java fixture matches main HIFI data."""
+    totals = [0, 0, 0, 0]
+    subagents_dir = jsonl_file.with_suffix('') / 'subagents'
+    for subagent_file in sorted(subagents_dir.glob('*.jsonl')):
+        try:
+            events = [
+                json.loads(line)
+                for line in subagent_file.read_text(encoding='utf-8').splitlines()
+                if line.strip()
+            ]
+        except (OSError, json.JSONDecodeError):
+            continue
+        for idx, value in enumerate(_fixture_usage_totals(events)):
+            totals[idx] += value
+    return tuple(totals)  # type: ignore[return-value]
 
 
 def _ensure_fixture_schema(conn: sqlite3.Connection) -> None:
@@ -594,6 +786,7 @@ def _insert_fixture_session(
     project_dir: Path,
     jsonl_file: Path,
     artifact_dir: Path,
+    fixture_history: dict[str, dict[str, object]],
 ) -> int:
     """Parse a single fixture JSONL file and insert a session row.
 
@@ -616,65 +809,66 @@ def _insert_fixture_session(
         return 0
 
     session_id = jsonl_file.stem
-    project_name = project_dir.name
+    history = fixture_history.get(session_id, {})
+    session_title = _fixture_first_user_title(events) or str(history.get('display') or session_id)
+    project_name = str(history.get('project') or project_dir.name)
     project_key = project_name
     # Java server 使用 {agent}:{session_id} 格式的 session_key 查找会话
     session_key = f'claude_code:{session_id}'
 
     first_event = events[0]
     started_at = first_event.get('timestamp', '')
-    cwd = first_event.get('cwd', '')
+    cwd = first_event.get('cwd', '') or str(history.get('cwd') or '')
     git_branch = first_event.get('gitBranch', '')
 
     last_event = events[-1]
     ended_at = last_event.get('timestamp', started_at)
 
-    user_count = sum(1 for e in events if e.get('type') == 'user')
+    user_count = sum(1 for e in events if e.get('type') == 'user' and _fixture_user_has_text(e))
     assistant_count = sum(1 for e in events if e.get('type') == 'assistant')
     tool_calls = 0
     failed_tools = 0
-    output_tokens = 0
-    fresh_input_tokens = 0
-    cache_read_tokens = 0
-    cache_write_tokens = 0
-    total_tokens = 0
+    output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens = _fixture_usage_totals(events)
+    subagent_output, subagent_fresh, subagent_read, subagent_write = _fixture_subagent_usage_totals(
+        jsonl_file
+    )
+    output_tokens += subagent_output
+    fresh_input_tokens += subagent_fresh
+    cache_read_tokens += subagent_read
+    cache_write_tokens += subagent_write
+    total_tokens = output_tokens + fresh_input_tokens + cache_read_tokens + cache_write_tokens
     model = ''
+    tool_names_by_id: dict[str, str] = {}
     for event in events:
         msg = event.get('message', {})
         content = msg.get('content', [])
         if event.get('type') == 'assistant':
             if not model:
                 model = msg.get('model', '')
-            usage = msg.get('usage', {})
-            output_tokens += usage.get('output_tokens', 0)
-            fresh_input_tokens += usage.get('input_tokens', 0)
-            cache_read_tokens += usage.get('cache_read_input_tokens', 0)
-            cache_write_tokens += usage.get('cache_creation_input_tokens', 0)
-            total_tokens += (
-                usage.get('output_tokens', 0)
-                + usage.get('input_tokens', 0)
-                + usage.get('cache_read_input_tokens', 0)
-                + usage.get('cache_creation_input_tokens', 0)
-            )
             if isinstance(content, list):
-                tool_calls += sum(
-                    1
-                    for block in content
-                    if isinstance(block, dict) and block.get('type') == 'tool_use'
-                )
+                for block in content:
+                    if isinstance(block, dict) and block.get('type') == 'tool_use':
+                        tool_calls += 1
+                        tool_id = str(block.get('id') or '')
+                        if tool_id:
+                            tool_names_by_id[tool_id] = str(block.get('name') or '')
         elif event.get('type') == 'user' and isinstance(content, list):
-            failed_tools += sum(
-                1
-                for block in content
-                if isinstance(block, dict)
-                and block.get('type') == 'tool_result'
-                and block.get('is_error') is True
-            )
+            for block in content:
+                if not isinstance(block, dict) or block.get('type') != 'tool_result':
+                    continue
+                tool_use_id = str(block.get('tool_use_id') or '')
+                tool_name = tool_names_by_id.get(tool_use_id, '')
+                if block.get('is_error') is True or _fixture_tool_result_looks_failed(
+                    block.get('content', ''), tool_name
+                ):
+                    failed_tools += 1
 
     file_stat = jsonl_file.stat()
     now = time.time()
     subagent_files = sorted((jsonl_file.with_suffix('') / 'subagents').glob('*.jsonl'))
     subagent_count = len(subagent_files)
+    timestamps = [ts for event in events if (ts := _fixture_event_timestamp_seconds(event))]
+    duration_seconds = max(0.0, (timestamps[-1] - timestamps[0]) if len(timestamps) >= 2 else 0.0)
 
     conn.execute(
         """INSERT OR REPLACE INTO sessions (
@@ -690,13 +884,13 @@ def _insert_fixture_session(
             session_key,
             'claude_code',
             session_id,
-            session_id,
+            session_title,
             project_key,
             project_name,
             cwd,
             started_at,
             ended_at,
-            0,
+            duration_seconds,
             0,
             0,
             model,

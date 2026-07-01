@@ -28,6 +28,20 @@ class DetailTypesTest {
       assertThat(round.callCount()).isEqualTo(2);
       assertThat(round.toolCallCount()).isEqualTo(1);
       assertThat(round.isEmpty()).isFalse();
+      assertThat(round.totalTokens()).isZero();
+    }
+
+    @Test
+    @DisplayName("usage 字段必须非负且合计一致")
+    void usageFieldsValidated() {
+      CallRound round =
+          new CallRound(1, java.util.List.of("c1"), java.util.List.of(), null, 10, 20, 5, 15, 50);
+      assertThat(round.freshInputTokens()).isEqualTo(10);
+      assertThat(round.totalTokens()).isEqualTo(50);
+
+      assertThatThrownBy(
+              () -> new CallRound(1, java.util.List.of("c1"), java.util.List.of(), null, 1, 0, 0, 0, 2))
+          .isInstanceOf(IllegalArgumentException.class);
     }
 
     @Test

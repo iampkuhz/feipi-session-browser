@@ -1233,7 +1233,7 @@
 .section-card {
   margin-bottom: 12px;
 }
-.section-head {
+.main[data-page="dashboard"] .section-head {
   padding: 12px 14px;
 }
 .card-title {

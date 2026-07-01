@@ -686,6 +686,251 @@ public final class AggregateQueryRepository {
     }
   }
 
+  // ── KPI 补充查询 ──
+
+  /**
+   * Dashboard KPI 补充数据。
+   *
+   * <p>聚合 6 张 KPI card 所需的补充指标：时间窗口项目活跃度、今日 session、 每日平均 session、中位 duration、cache ratio 分位数和失败 session 计数。 所有查询在同一只读事务中执行，支持可选 agent 范围过滤。
+   *
+   * @param agentFilter agent 过滤器
+   * @return KPI 补充数据行
+   * @throws SQLException 查询失败
+   */
+  public KpiSupplementRow kpiSupplement(AgentFilter agentFilter) throws SQLException {
+    Objects.requireNonNull(agentFilter, "agentFilter 不得为 null");
+
+    try (ReadTransaction rt = indexConnection.readTransaction()) {
+      java.sql.Connection conn = rt.connection();
+      String agentWhere = agentFilter.isUnfiltered() ? "" : "WHERE agent = ?";
+      int idx;
+
+      // 1. Active projects 24h
+      long active24h;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "ended_at >= date('now', '-1 days')")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          active24h = rs.getLong(1);
+        }
+      }
+
+      // 2. Active projects 7d
+      long active7d;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "ended_at >= date('now', '-7 days')")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          active7d = rs.getLong(1);
+        }
+      }
+
+      // 3. New projects 7d (first seen)
+      long new7d;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "started_at >= date('now', '-7 days')")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          new7d = rs.getLong(1);
+        }
+      }
+
+      // 4. Active projects previous 7d (8-14 days ago)
+      long prev7d;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(DISTINCT project_key) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "ended_at >= date('now', '-14 days') AND ended_at < date('now', '-7 days')")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          prev7d = rs.getLong(1);
+        }
+      }
+
+      // 5. Today sessions
+      long todaySessions;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(*) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "DATE(started_at) = DATE('now')")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          todaySessions = rs.getLong(1);
+        }
+      }
+
+      // 6. Avg daily sessions 7d
+      double avgDaily7d;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(*) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "ended_at >= date('now', '-7 days')")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          avgDaily7d = rs.getLong(1) / 7.0;
+        }
+      }
+
+      // 7. Median duration
+      double medianDuration = 0;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT duration_seconds FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "duration_seconds > 0 ORDER BY duration_seconds")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        List<Double> durations = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) {
+          while (rs.next()) {
+            durations.add(rs.getDouble(1));
+          }
+        }
+        if (!durations.isEmpty()) {
+          int n = durations.size();
+          int mid = n / 2;
+          if (n % 2 == 0) {
+            medianDuration = (durations.get(mid - 1) + durations.get(mid)) / 2.0;
+          } else {
+            medianDuration = durations.get(mid);
+          }
+        }
+      }
+
+      // 8. Eligible sessions (input-side > 0)
+      long eligibleSessions;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(*) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          eligibleSessions = rs.getLong(1);
+        }
+      }
+
+      // 9. P50 cache ratio
+      Double p50CacheRatio = null;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT cache_read_tokens * 1.0"
+                  + " / NULLIF(fresh_input_tokens + cache_read_tokens + cache_write_tokens, 0)"
+                  + " AS ratio FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0"
+                  + " ORDER BY ratio")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        List<Double> ratios = new ArrayList<>();
+        try (ResultSet rs = ps.executeQuery()) {
+          while (rs.next()) {
+            double r = rs.getDouble("ratio");
+            if (!rs.wasNull()) {
+              ratios.add(r);
+            }
+          }
+        }
+        if (!ratios.isEmpty()) {
+          int n = ratios.size();
+          int mid = n / 2;
+          if (n % 2 == 0) {
+            p50CacheRatio = (ratios.get(mid - 1) + ratios.get(mid)) / 2.0;
+          } else {
+            p50CacheRatio = ratios.get(mid);
+          }
+        }
+      }
+
+      // 10. Low-read sessions (eligible with ratio < 0.2)
+      long lowReadSessions;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(*) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "(fresh_input_tokens + cache_read_tokens + cache_write_tokens) > 0"
+                  + " AND cache_read_tokens * 1.0"
+                  + " / (fresh_input_tokens + cache_read_tokens + cache_write_tokens) < 0.2")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          lowReadSessions = rs.getLong(1);
+        }
+      }
+
+      // 11. Affected failure sessions (failed > 0)
+      long affectedFailure;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(*) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "failed_tool_count > 0")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          affectedFailure = rs.getLong(1);
+        }
+      }
+
+      // 12. Repeated failure sessions (failed > 1)
+      long repeatedFailure;
+      try (PreparedStatement ps =
+          conn.prepareStatement(
+              "SELECT COUNT(*) FROM sessions "
+                  + agentWhere
+                  + (agentWhere.isEmpty() ? " WHERE " : " AND ")
+                  + "failed_tool_count > 1")) {
+        idx = bindAgentParam(ps, agentFilter, 1);
+        try (ResultSet rs = ps.executeQuery()) {
+          rs.next();
+          repeatedFailure = rs.getLong(1);
+        }
+      }
+
+      return new KpiSupplementRow(
+          active24h,
+          active7d,
+          new7d,
+          prev7d,
+          todaySessions,
+          avgDaily7d,
+          medianDuration,
+          eligibleSessions,
+          p50CacheRatio,
+          lowReadSessions,
+          affectedFailure,
+          repeatedFailure);
+    }
+  }
+
   // ── 内部辅助方法 ──
 
   /** 项目搜索 WHERE 子句构建。 */

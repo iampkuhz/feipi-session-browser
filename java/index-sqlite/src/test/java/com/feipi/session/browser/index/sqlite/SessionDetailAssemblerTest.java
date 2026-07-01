@@ -103,6 +103,32 @@ class SessionDetailAssemblerTest {
     }
 
     @Test
+    @DisplayName("轮次聚合 main 和 subagent token usage")
+    void roundAggregatesUsage() {
+      NormalizedCall mainCall =
+          makeCall(
+              "c1",
+              1,
+              CallScope.MAIN,
+              Optional.empty(),
+              new NormalizedCallUsage(10, 20, 5, 15, 50));
+      NormalizedCall subCall =
+          makeCall(
+              "c2",
+              2,
+              CallScope.SUBAGENT,
+              Optional.of("c1"),
+              new NormalizedCallUsage(3, 4, 2, 1, 10));
+      List<CallRound> rounds = SessionDetailAssembler.buildRounds(List.of(mainCall, subCall));
+      assertThat(rounds).hasSize(1);
+      assertThat(rounds.get(0).freshInputTokens()).isEqualTo(13);
+      assertThat(rounds.get(0).cacheReadTokens()).isEqualTo(24);
+      assertThat(rounds.get(0).cacheWriteTokens()).isEqualTo(7);
+      assertThat(rounds.get(0).outputTokens()).isEqualTo(16);
+      assertThat(rounds.get(0).totalTokens()).isEqualTo(60);
+    }
+
+    @Test
     @DisplayName("无父调用的子 agent 创建独立轮次")
     void orphanSubagentCall() {
       NormalizedCall subCall = makeCall("c1", 1, CallScope.SUBAGENT, Optional.of("missing"));
@@ -247,6 +273,15 @@ class SessionDetailAssemblerTest {
 
   private static NormalizedCall makeCall(
       String callId, int callIndex, CallScope scope, Optional<String> parentCallId) {
+    return makeCall(callId, callIndex, scope, parentCallId, NormalizedCallUsage.empty());
+  }
+
+  private static NormalizedCall makeCall(
+      String callId,
+      int callIndex,
+      CallScope scope,
+      Optional<String> parentCallId,
+      NormalizedCallUsage usage) {
     return new NormalizedCall(
         callId,
         callIndex,
@@ -257,7 +292,7 @@ class SessionDetailAssemblerTest {
         Optional.empty(),
         "claude-3",
         Optional.empty(),
-        NormalizedCallUsage.empty(),
+        usage,
         NormalizedCallRequest.empty(),
         NormalizedCallResponse.empty(),
         List.of(),

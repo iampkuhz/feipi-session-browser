@@ -39,7 +39,7 @@
   padding: 15px 16px;
   min-width: 0;
 }
-.section-head h2 {
+.glossary-page .section-head h2 {
   margin: 0;
   font-size: 16px;
   font-weight: 860;
@@ -96,7 +96,7 @@
     gap: 8px;
   }
 
-  .metric-card {
+  .glossary-page .metric-card {
     gap: 8px;
     min-height: 88px;
     padding: 10px;
@@ -108,7 +108,7 @@
     font-size: 16px;
   }
 
-  .metric-card__label {
+  .glossary-page .metric-card__label {
     white-space: normal;
   }
 }

@@ -295,6 +295,23 @@ class WebRouteContractTest {
             assertThat(body).contains("data-action=\"nav-dashboard\"").contains("is-active");
           });
     }
+
+    @Test
+    @DisplayName("Dashboard 有数据时包含 KPI 二级指标和 agent contribution bar")
+    void dashboardHasKpiSecondariesAndContributionBarsWithData() throws Exception {
+      insertTestSession();
+      WebCompositionRoot webRoot = createWebRoot();
+      JavalinTest.test(
+          webRoot.app(),
+          (testApp, client) -> {
+            var response = client.get("/dashboard");
+            String body = response.body().string();
+            assertThat(body).contains("metric-card__secondary-row");
+            assertThat(body).contains("data-hbar=\"session-share\"");
+            assertThat(body).contains("data-hbar=\"token-share\"");
+            assertThat(body).contains("data-hbar=\"prompt-share\"");
+          });
+    }
   }
 
   @Nested
@@ -395,6 +412,8 @@ class WebRouteContractTest {
             String body = response.body().string();
             assertThat(body).contains("sd-hero");
             assertThat(body).contains("aria-label=\"Session metrics\"");
+            assertThat(body).contains("sd-kpi");
+            assertThat(body).contains("Run Health");
           });
     }
   }
