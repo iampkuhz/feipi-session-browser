@@ -226,6 +226,59 @@ public final class AggregateQueryRepository {
   // ── 趋势查询 ──
 
   /**
+   * Per-agent 全量统计。
+   *
+   * <p>对应 Python {@code list_agents}。按 agent 分组，返回会话数、token 细分、项目数、
+   * 失败数、最后活跃时间等。用于 All Agents 表格。
+   *
+   * @return 按 agent 分组的统计行列表
+   * @throws SQLException 查询失败
+   */
+  public List<AgentBreakdownRow> agentBreakdown() throws SQLException {
+    String sql =
+        """
+        SELECT
+            agent,
+            COUNT(*) as session_count,
+            COALESCE(MAX(ended_at), '') as last_active,
+            COALESCE(SUM(total_tokens), 0) as total_tokens,
+            COALESCE(SUM(fresh_input_tokens), 0) as total_fresh_input_tokens,
+            COALESCE(SUM(cache_read_tokens), 0) as total_cache_read_tokens,
+            COALESCE(SUM(cache_write_tokens), 0) as total_cache_write_tokens,
+            COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+            COALESCE(SUM(tool_call_count), 0) as total_tool_calls,
+            COALESCE(SUM(failed_tool_count), 0) as total_failed_tools,
+            COALESCE(SUM(user_message_count), 0) as total_user_messages,
+            COUNT(DISTINCT project_key) as project_count
+        FROM sessions
+        GROUP BY agent
+        ORDER BY MAX(ended_at) DESC\
+        """;
+    try (ReadTransaction rt = indexConnection.readTransaction();
+        PreparedStatement ps = rt.connection().prepareStatement(sql);
+        ResultSet rs = ps.executeQuery()) {
+      List<AgentBreakdownRow> result = new ArrayList<>();
+      while (rs.next()) {
+        result.add(
+            new AgentBreakdownRow(
+                rs.getString("agent"),
+                rs.getLong("session_count"),
+                SqlUtils.nullToEmpty(rs.getString("last_active")),
+                rs.getLong("total_tokens"),
+                rs.getLong("total_fresh_input_tokens"),
+                rs.getLong("total_cache_read_tokens"),
+                rs.getLong("total_cache_write_tokens"),
+                rs.getLong("total_output_tokens"),
+                rs.getLong("total_tool_calls"),
+                rs.getLong("total_failed_tools"),
+                rs.getLong("total_user_messages"),
+                rs.getLong("project_count")));
+      }
+      return result;
+    }
+  }
+
+  /**
    * 每日 token 和会话趋势数据。
    *
    * <p>对应 Python {@code get_trend_data}。按日历日分组，包含 per-agent 计数和 token 分布。 日期范围由 {@link
@@ -258,7 +311,25 @@ public final class AggregateQueryRepository {
             COALESCE(SUM(total_tokens), 0) as total_tokens,
             COALESCE(SUM(tool_call_count), 0) as tool_calls,
             COALESCE(SUM(failed_tool_count), 0) as failed_tools,
-            COUNT(*) as total_count
+            COUNT(*) as total_count,
+            COALESCE(SUM(CASE WHEN agent='claude_code' THEN fresh_input_tokens ELSE 0 END), 0)
+                as claude_fresh_input,
+            COALESCE(SUM(CASE WHEN agent='claude_code' THEN cache_read_tokens ELSE 0 END), 0)
+                as claude_cache_read,
+            COALESCE(SUM(CASE WHEN agent='claude_code' THEN cache_write_tokens ELSE 0 END), 0)
+                as claude_cache_write,
+            COALESCE(SUM(CASE WHEN agent='qoder' THEN fresh_input_tokens ELSE 0 END), 0)
+                as qoder_fresh_input,
+            COALESCE(SUM(CASE WHEN agent='qoder' THEN cache_read_tokens ELSE 0 END), 0)
+                as qoder_cache_read,
+            COALESCE(SUM(CASE WHEN agent='qoder' THEN cache_write_tokens ELSE 0 END), 0)
+                as qoder_cache_write,
+            COALESCE(SUM(CASE WHEN agent='codex' THEN fresh_input_tokens ELSE 0 END), 0)
+                as codex_fresh_input,
+            COALESCE(SUM(CASE WHEN agent='codex' THEN cache_read_tokens ELSE 0 END), 0)
+                as codex_cache_read,
+            COALESCE(SUM(CASE WHEN agent='codex' THEN cache_write_tokens ELSE 0 END), 0)
+                as codex_cache_write
         FROM sessions
         WHERE (ended_at >= date('now', ?) OR ended_at = '' OR ended_at IS NULL)
         %s
@@ -616,24 +687,28 @@ public final class AggregateQueryRepository {
         """
         SELECT
             agent,
-            COALESCE(model, 'unknown') as model,
+            model,
             COUNT(*) as session_count,
             AVG(duration_seconds) as avg_duration,
+            COALESCE(SUM(total_tokens), 0) as total_tokens_all,
             COALESCE(SUM(fresh_input_tokens + cache_read_tokens + cache_write_tokens), 0)
                 as total_input_side,
             COALESCE(SUM(tool_call_count), 0) as total_tools,
             COALESCE(SUM(assistant_message_count), 0) as total_rounds,
             COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
             COALESCE(SUM(failed_tool_count), 0) as total_failed
-        FROM sessions GROUP BY agent, model
+        FROM sessions
+        WHERE model IS NOT NULL AND model != '' AND total_tokens > 0
+        GROUP BY agent, model
         ORDER BY session_count DESC\
         """;
 
     // 单独查询正时长数据用于 P95 计算
     String durationSql =
         """
-        SELECT agent, COALESCE(model, 'unknown') as model, duration_seconds
+        SELECT agent, model, duration_seconds
         FROM sessions WHERE duration_seconds > 0
+          AND model IS NOT NULL AND model != '' AND total_tokens > 0
         ORDER BY agent, model, duration_seconds\
         """;
 
@@ -658,6 +733,7 @@ public final class AggregateQueryRepository {
           String key = agent + "|||" + model;
           long sessionCount = rs.getLong("session_count");
           double avgDuration = rs.getDouble("avg_duration");
+          long totalTokensAll = rs.getLong("total_tokens_all");
           long totalInputSide = rs.getLong("total_input_side");
           long totalTools = rs.getLong("total_tools");
           long totalRounds = rs.getLong("total_rounds");
@@ -673,7 +749,7 @@ public final class AggregateQueryRepository {
                   sessionCount,
                   Math.round(avgDuration * 10.0) / 10.0,
                   Math.round(p95 * 10.0) / 10.0,
-                  totalInputSide,
+                  sessionCount > 0 ? totalTokensAll / sessionCount : 0,
                   sessionCount > 0
                       ? Math.round((double) totalTools / sessionCount * 10.0) / 10.0
                       : 0.0,
@@ -1037,7 +1113,16 @@ public final class AggregateQueryRepository {
                 rs.getLong("total_tokens"),
                 rs.getLong("tool_calls"),
                 rs.getLong("failed_tools"),
-                rs.getLong("total_count")));
+                rs.getLong("total_count"),
+                rs.getLong("claude_fresh_input"),
+                rs.getLong("claude_cache_read"),
+                rs.getLong("claude_cache_write"),
+                rs.getLong("qoder_fresh_input"),
+                rs.getLong("qoder_cache_read"),
+                rs.getLong("qoder_cache_write"),
+                rs.getLong("codex_fresh_input"),
+                rs.getLong("codex_cache_read"),
+                rs.getLong("codex_cache_write")));
       }
     }
     return rows;

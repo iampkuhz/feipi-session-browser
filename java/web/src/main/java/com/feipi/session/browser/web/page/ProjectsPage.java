@@ -319,7 +319,7 @@ public final class ProjectsPage {
     }
     return orderedMap(
         "ratio",
-        formatPercent(project.totalCacheReadTokens(), inputSide),
+        DisplayFormatters.percentLabel(project.totalCacheReadTokens(), inputSide),
         "eligible_sessions",
         eligible,
         "low_read_sessions",
@@ -334,7 +334,7 @@ public final class ProjectsPage {
         "failed_tools",
         project.totalFailedTools(),
         "failure_rate",
-        formatPercent(project.totalFailedTools(), project.totalToolCalls()),
+        DisplayFormatters.percentLabel(project.totalFailedTools(), project.totalToolCalls()),
         "affected_sessions",
         affected,
         "repeated_failure_sessions",
@@ -497,13 +497,6 @@ public final class ProjectsPage {
   private static String dateLabel(String value) {
     LocalDate date = parseDate(value);
     return date != null ? date.toString() : "N/A";
-  }
-
-  private static String formatPercent(long numerator, long denominator) {
-    if (denominator <= 0) {
-      return "0.0%";
-    }
-    return String.format(java.util.Locale.ROOT, "%.1f%%", numerator * 100.0 / denominator);
   }
 
   private static double median(List<Double> values) {

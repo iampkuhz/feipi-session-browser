@@ -160,6 +160,26 @@ public final class DisplayFormatters {
   }
 
   /**
+   * 格式化 share 百分比，非零小于 0.1% 显示为 {@code <0.1%}。
+   *
+   * <p>用于贡献占比条等场景，保证微小贡献者可见。
+   *
+   * @param numerator 分子
+   * @param denominator 分母，非正数返回 0.0%
+   * @return 百分比标签
+   */
+  public static String percentShareLabel(long numerator, long denominator) {
+    if (denominator <= 0) {
+      return "0.0%";
+    }
+    double value = numerator * 100.0 / denominator;
+    if (value > 0 && value < 0.1) {
+      return "<0.1%";
+    }
+    return String.format(java.util.Locale.ROOT, "%.1f%%", value);
+  }
+
+  /**
    * 格式化持续时间为人类可读字符串。
    *
    * <p>例如 3661 → "1h 1min"，120 → "2min 0s"，30 → "30s"。

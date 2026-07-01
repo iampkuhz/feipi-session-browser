@@ -9,11 +9,11 @@ package com.feipi.session.browser.index.sqlite;
  * <p>比率语义与 {@link AggregateMetricsRow} 一致。零值分母产生 {@code null}。
  *
  * @param agent agent 标识
- * @param model 模型名称，{@code null} 或空 model 映射为 "unknown"
+ * @param model 模型名称，已过滤空值和 null
  * @param sessionCount 会话数
  * @param avgDuration 平均时长（秒），保留一位小数
  * @param p95Duration P95 时长（秒），nearest-rank 近似
- * @param avgInputSide 平均输入侧 token 总量
+ * @param avgTotalTokens 平均 total tokens per session（fresh + cache_read + cache_write + output）
  * @param avgTools 平均每会话工具调用数，保留一位小数
  * @param toolsPerRound 每轮工具调用数，null 表示无数据
  * @param cacheReuseRatio 缓存复用比率，null 表示无数据
@@ -25,23 +25,20 @@ public record AgentEfficiencyRow(
     long sessionCount,
     double avgDuration,
     double p95Duration,
-    long avgInputSide,
+    long avgTotalTokens,
     double avgTools,
     Double toolsPerRound,
     Double cacheReuseRatio,
     Double failedPerSession) {
 
   /**
-   * 紧凑构造器，验证会话计数非负并规范化空 model。
+   * 紧凑构造器，验证会话计数非负。
    *
    * @throws IllegalArgumentException 当 sessionCount 为负数时
    */
   public AgentEfficiencyRow {
     if (sessionCount < 0) {
       throw new IllegalArgumentException("sessionCount 必须非负; got " + sessionCount);
-    }
-    if (model == null || model.isEmpty()) {
-      model = "unknown";
     }
   }
 }

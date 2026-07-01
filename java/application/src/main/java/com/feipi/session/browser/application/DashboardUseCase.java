@@ -1,6 +1,7 @@
 package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.index.sqlite.ActivityTrendRow;
+import com.feipi.session.browser.index.sqlite.AgentBreakdownRow;
 import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
 import com.feipi.session.browser.index.sqlite.AggregateMetricsRow;
 import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
@@ -66,6 +67,29 @@ public final class DashboardUseCase {
           });
     }
     return repository.dashboardStats(agentFilter);
+  }
+
+  /**
+   * Per-agent 全量统计，用于 All Agents 表格。
+   *
+   * @return 按 agent 分组的统计行列表
+   * @throws SQLException 查询失败
+   */
+  public List<AgentBreakdownRow> agentBreakdown() throws SQLException {
+    if (cache != null) {
+      return cache.getOrLoad(
+          "agentBreakdown",
+          0,
+          schemaVersion,
+          () -> {
+            try {
+              return repository.agentBreakdown();
+            } catch (SQLException e) {
+              throw new RuntimeException(e);
+            }
+          });
+    }
+    return repository.agentBreakdown();
   }
 
   /**

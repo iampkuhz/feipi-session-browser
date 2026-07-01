@@ -3,6 +3,7 @@ package com.feipi.session.browser.web.page;
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.sqlite.ActivityTrendRow;
+import com.feipi.session.browser.index.sqlite.AgentBreakdownRow;
 import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
 import com.feipi.session.browser.index.sqlite.DashboardRow;
 import com.feipi.session.browser.index.sqlite.KpiSupplementRow;
@@ -89,6 +90,7 @@ public final class DashboardPage {
       List<TrendDayRow> trendRows = useCase.trendData(trendFilter);
       List<ActivityTrendRow> activityRows = useCase.activityTrend(trendFilter);
       List<AgentEfficiencyRow> efficiencyRows = useCase.agentEfficiency();
+      List<AgentBreakdownRow> agentBreakdown = useCase.agentBreakdown();
 
       // 组装模板上下文
       Map<String, Object> context = new HashMap<>();
@@ -105,7 +107,7 @@ public final class DashboardPage {
       context.put("cache_health", cacheHealth);
       context.put("chart_notes", buildChartNotes());
       context.put("dashboard_summary", buildDashboardSummary(trendRows, activityRows, cacheHealth));
-      context.put("all_agents_branch", buildAllAgentsBranch(stats, trendRows, activityRows, efficiencyRows));
+      context.put("all_agents_branch", buildAllAgentsBranch(stats, trendRows, activityRows, efficiencyRows, agentBreakdown));
       context.put("single_agent_branch", buildSingleAgentBranch(agentScope, efficiencyRows));
       context.put("needs_attention", List.of());
       context.put("agent_sessions_total", stats.totalSessions());
@@ -497,27 +499,23 @@ public final class DashboardPage {
     for (TrendDayRow row : rows) {
       Map<String, Object> map = new LinkedHashMap<>();
       map.put("date", row.date());
+      // Average = 所有 agent 输入侧 token 之和（与 Python 行为一致）
       map.put("average_fresh_input_tokens", row.freshInputTokens());
       map.put("average_cache_read_tokens", row.cacheReadTokens());
       map.put("average_cache_write_tokens", row.cacheWriteTokens());
-      map.put("claude_code_fresh_input_tokens", 0);
-      map.put("claude_code_cache_read_tokens", 0);
-      map.put("claude_code_cache_write_tokens", 0);
-      map.put("codex_fresh_input_tokens", 0);
-      map.put("codex_cache_read_tokens", 0);
-      map.put("codex_cache_write_tokens", 0);
-      map.put("qoder_fresh_input_tokens", 0);
-      map.put("qoder_cache_read_tokens", 0);
-      map.put("qoder_cache_write_tokens", 0);
+      // Per-agent cache health 数据
+      map.put("claude_code_fresh_input_tokens", row.claudeFreshInput());
+      map.put("claude_code_cache_read_tokens", row.claudeCacheRead());
+      map.put("claude_code_cache_write_tokens", row.claudeCacheWrite());
+      map.put("qoder_fresh_input_tokens", row.qoderFreshInput());
+      map.put("qoder_cache_read_tokens", row.qoderCacheRead());
+      map.put("qoder_cache_write_tokens", row.qoderCacheWrite());
+      map.put("codex_fresh_input_tokens", row.codexFreshInput());
+      map.put("codex_cache_read_tokens", row.codexCacheRead());
+      map.put("codex_cache_write_tokens", row.codexCacheWrite());
       map.put("qoder_unreported_input_side_tokens", 0);
-      if (!"average".equals(scopedPrefix)) {
-        map.put(scopedPrefix + "_fresh_input_tokens", row.freshInputTokens());
-        map.put(scopedPrefix + "_cache_read_tokens", row.cacheReadTokens());
-        map.put(scopedPrefix + "_cache_write_tokens", row.cacheWriteTokens());
-      }
       series.add(map);
-      Double ratio =
-          ratio(row.cacheReadTokens(), row.freshInputTokens() + row.cacheReadTokens() + row.cacheWriteTokens());
+      Double ratio = cacheRatioForPrefix(row, scopedPrefix);
       if (ratio != null) {
         latestRatio = ratio;
         lowestRatio = lowestRatio == null ? ratio : Math.min(lowestRatio, ratio);
@@ -529,6 +527,21 @@ public final class DashboardPage {
     cacheHealth.put("latest_ratio", percentLabel(latestRatio));
     cacheHealth.put("lowest_ratio", percentLabel(lowestRatio));
     return cacheHealth;
+  }
+
+  /** 返回指定 prefix 对应的 cache read ratio，输入侧为 0 时返回 null。 */
+  private static Double cacheRatioForPrefix(TrendDayRow row, String prefix) {
+    long fresh;
+    long read;
+    long write;
+    switch (prefix) {
+      case "claude_code" -> { fresh = row.claudeFreshInput(); read = row.claudeCacheRead(); write = row.claudeCacheWrite(); }
+      case "qoder" -> { fresh = row.qoderFreshInput(); read = row.qoderCacheRead(); write = row.qoderCacheWrite(); }
+      case "codex" -> { fresh = row.codexFreshInput(); read = row.codexCacheRead(); write = row.codexCacheWrite(); }
+      default -> { fresh = row.freshInputTokens(); read = row.cacheReadTokens(); write = row.cacheWriteTokens(); }
+    }
+    long inputSide = fresh + read + write;
+    return inputSide > 0 ? (double) read / inputSide : null;
   }
 
   private static Map<String, Object> buildDashboardSummary(
@@ -572,83 +585,191 @@ public final class DashboardPage {
       DashboardRow stats,
       List<TrendDayRow> trendRows,
       List<ActivityTrendRow> activityRows,
-      List<AgentEfficiencyRow> efficiencyRows) {
-    List<Map<String, Object>> agentRows = new ArrayList<>();
-    long claudeTokens = trendRows.stream().mapToLong(TrendDayRow::claudeTokens).sum();
-    long codexTokens = trendRows.stream().mapToLong(TrendDayRow::codexTokens).sum();
-    long qoderTokens = trendRows.stream().mapToLong(TrendDayRow::qoderTokens).sum();
-    long claudePrompts = activityRows.stream().mapToLong(ActivityTrendRow::claudePrompts).sum();
-    long codexPrompts = activityRows.stream().mapToLong(ActivityTrendRow::codexPrompts).sum();
-    long qoderPrompts = activityRows.stream().mapToLong(ActivityTrendRow::qoderPrompts).sum();
+      List<AgentEfficiencyRow> efficiencyRows,
+      List<AgentBreakdownRow> agentBreakdown) {
 
+    // 说明: Contribution bars — 使用 range 数据，确保加总为 100%
+    long rangeTotalSessions = trendRows.stream().mapToLong(TrendDayRow::totalCount).sum();
+    long rangeTotalTokens = trendRows.stream().mapToLong(TrendDayRow::totalTokens).sum();
+    long rangeTotalPrompts = activityRows.stream().mapToLong(ActivityTrendRow::totalPrompts).sum();
+
+    long rangeClaudeSessions = trendRows.stream().mapToLong(TrendDayRow::claudeCount).sum();
+    long rangeQoderSessions = trendRows.stream().mapToLong(TrendDayRow::qoderCount).sum();
+    long rangeCodexSessions = trendRows.stream().mapToLong(TrendDayRow::codexCount).sum();
+    long rangeClaudeTokens = trendRows.stream().mapToLong(TrendDayRow::claudeTokens).sum();
+    long rangeQoderTokens = trendRows.stream().mapToLong(TrendDayRow::qoderTokens).sum();
+    long rangeCodexTokens = trendRows.stream().mapToLong(TrendDayRow::codexTokens).sum();
+    long rangeClaudePrompts = activityRows.stream().mapToLong(ActivityTrendRow::claudePrompts).sum();
+    long rangeQoderPrompts = activityRows.stream().mapToLong(ActivityTrendRow::qoderPrompts).sum();
+    long rangeCodexPrompts = activityRows.stream().mapToLong(ActivityTrendRow::codexPrompts).sum();
+
+    // 说明: All Agents 表 — 使用全量 indexed sessions
+    Map<String, AgentBreakdownRow> breakdownMap = new LinkedHashMap<>();
+    for (AgentBreakdownRow row : agentBreakdown) {
+      breakdownMap.put(row.agent(), row);
+    }
+
+    // 说明: 按固定顺序构建 agent rows：Claude Code → Qoder → Codex
+    List<Map<String, Object>> agentRows = new ArrayList<>();
     agentRows.add(
-        agentRow(
-            "claude_code",
-            "Claude Code",
-            stats.claudeSessions(),
-            claudeTokens,
-            claudePrompts,
-            stats.totalSessions(),
-            stats.totalTokens(),
-            stats.totalUserMessages()));
+        buildAgentContributionRow(
+            "claude_code", "Claude Code",
+            rangeClaudeSessions, rangeClaudeTokens, rangeClaudePrompts,
+            rangeTotalSessions, rangeTotalTokens, rangeTotalPrompts,
+            breakdownMap.get("claude_code")));
     agentRows.add(
-        agentRow(
-            "codex",
-            "Codex",
-            stats.codexSessions(),
-            codexTokens,
-            codexPrompts,
-            stats.totalSessions(),
-            stats.totalTokens(),
-            stats.totalUserMessages()));
+        buildAgentContributionRow(
+            "qoder", "Qoder",
+            rangeQoderSessions, rangeQoderTokens, rangeQoderPrompts,
+            rangeTotalSessions, rangeTotalTokens, rangeTotalPrompts,
+            breakdownMap.get("qoder")));
     agentRows.add(
-        agentRow(
-            "qoder",
-            "Qoder",
-            stats.qoderSessions(),
-            qoderTokens,
-            qoderPrompts,
-            stats.totalSessions(),
-            stats.totalTokens(),
-            stats.totalUserMessages()));
+        buildAgentContributionRow(
+            "codex", "Codex",
+            rangeCodexSessions, rangeCodexTokens, rangeCodexPrompts,
+            rangeTotalSessions, rangeTotalTokens, rangeTotalPrompts,
+            breakdownMap.get("codex")));
+
+    // 说明: All Agents 表使用全量数据
+    long totalSessionsAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::sessionCount).sum();
+    long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalTokens).sum();
+    long totalPromptsAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalUserMessages).sum();
 
     Map<String, Object> branch = new LinkedHashMap<>();
     branch.put("agent_rows", agentRows);
     branch.put("efficiency_rows", buildEfficiencyRows(efficiencyRows, null));
-    branch.put("total_sessions_all", stats.totalSessions());
-    branch.put("total_tokens_all", stats.totalTokens());
-    branch.put("total_prompts_all", stats.totalUserMessages());
+    branch.put("total_sessions_all", totalSessionsAll);
+    branch.put("total_tokens_all", totalTokensAll);
+    branch.put("total_prompts_all", totalPromptsAll);
     branch.put("session_leader", leaderBy(agentRows, "sessions_raw"));
     branch.put("token_leader", leaderBy(agentRows, "tokens_raw"));
     branch.put("prompt_leader", leaderBy(agentRows, "prompts_raw"));
     return branch;
   }
 
-  private static Map<String, Object> agentRow(
+  /**
+   * 构建单个 agent 的贡献行，包含 contribution bar 数据（range）和 All Agents 表数据（全量）。
+   */
+  private static Map<String, Object> buildAgentContributionRow(
       String dbAgent,
       String display,
-      long sessions,
-      long tokens,
-      long prompts,
-      long totalSessions,
-      long totalTokens,
-      long totalPrompts) {
+      long rangeSessions,
+      long rangeTokens,
+      long rangePrompts,
+      long rangeTotalSessions,
+      long rangeTotalTokens,
+      long rangeTotalPrompts,
+      AgentBreakdownRow breakdown) {
+
     Map<String, Object> row = new LinkedHashMap<>();
     row.put("db_agent", dbAgent);
     row.put("display", display);
-    row.put("sessions_raw", sessions);
-    row.put("sessions", sessions);
-    row.put("tokens_raw", tokens);
-    row.put("tokens", DisplayFormatters.formatCompactToken(tokens));
-    row.put("prompts_raw", prompts);
-    row.put("prompts", prompts);
-    row.put("session_share", ratioLabel(sessions, totalSessions));
-    row.put("token_share", ratioLabel(tokens, totalTokens));
-    row.put("prompt_share", ratioLabel(prompts, totalPrompts));
-    row.put("session_share_value", DisplayFormatters.percentValue(sessions, totalSessions));
-    row.put("token_share_value", DisplayFormatters.percentValue(tokens, totalTokens));
-    row.put("prompt_share_value", DisplayFormatters.percentValue(prompts, totalPrompts));
+
+    // Contribution bar 数据——使用 range 范围数据
+    row.put("sessions_raw", rangeSessions);
+    row.put("sessions", rangeSessions);
+    row.put("tokens_raw", rangeTokens);
+    row.put("tokens", DisplayFormatters.formatCompactToken(rangeTokens));
+    row.put("prompts_raw", rangePrompts);
+    row.put("prompts", rangePrompts);
+    row.put("session_share", DisplayFormatters.percentShareLabel(rangeSessions, rangeTotalSessions));
+    row.put("token_share", DisplayFormatters.percentShareLabel(rangeTokens, rangeTotalTokens));
+    row.put("prompt_share", DisplayFormatters.percentShareLabel(rangePrompts, rangeTotalPrompts));
+    row.put("session_share_value", DisplayFormatters.percentValue(rangeSessions, rangeTotalSessions));
+    row.put("token_share_value", DisplayFormatters.percentValue(rangeTokens, rangeTotalTokens));
+    row.put("prompt_share_value", DisplayFormatters.percentValue(rangePrompts, rangeTotalPrompts));
+
+    // All Agents 表数据——使用全量 breakdown 数据
+    if (breakdown != null) {
+      // Token bar 分段数据
+      long total = Math.max(1, breakdown.totalTokens());
+      row.put("token_fresh", DisplayFormatters.formatCompactToken(breakdown.freshInputTokens()));
+      row.put("token_cache_read", DisplayFormatters.formatCompactToken(breakdown.cacheReadTokens()));
+      row.put("token_cache_write", DisplayFormatters.formatCompactToken(breakdown.cacheWriteTokens()));
+      row.put("token_output", DisplayFormatters.formatCompactToken(breakdown.outputTokens()));
+      row.put("fresh_pct", Math.round(breakdown.freshInputTokens() * 1000.0 / total) / 10.0);
+      row.put("read_pct", Math.round(breakdown.cacheReadTokens() * 1000.0 / total) / 10.0);
+      row.put("write_pct", Math.round(breakdown.cacheWriteTokens() * 1000.0 / total) / 10.0);
+      row.put("output_pct", Math.round(breakdown.outputTokens() * 1000.0 / total) / 10.0);
+
+      // 项目数
+      row.put("projects", breakdown.projectCount());
+      row.put("projects_raw", breakdown.projectCount());
+
+      // 失败率
+      long failureRate = breakdown.totalToolCalls() > 0
+          ? Math.round(breakdown.totalFailedTools() * 1000.0 / breakdown.totalToolCalls()) / 10
+          : 0;
+      row.put("failed", breakdown.totalFailedTools());
+      row.put("failed_raw", breakdown.totalFailedTools());
+      row.put("failure_rate", String.format(java.util.Locale.ROOT, "%.1f%%",
+          breakdown.totalToolCalls() > 0
+              ? breakdown.totalFailedTools() * 100.0 / breakdown.totalToolCalls()
+              : 0.0));
+      row.put("failure_rate_raw", failureRate / 10.0);
+
+      // 最后活跃时间
+      String lastActive = breakdown.lastActive();
+      row.put("last_active", formatLastActive(lastActive));
+      row.put("last_active_raw", lastActive);
+
+      // 全量 sessions/tokens 用于表格排序
+      row.put("sessions_full_raw", breakdown.sessionCount());
+      row.put("sessions_full", breakdown.sessionCount());
+      row.put("tokens_full_raw", breakdown.totalTokens());
+      row.put("tokens_full", DisplayFormatters.formatCompactToken(breakdown.totalTokens()));
+      row.put("prompts_full_raw", breakdown.totalUserMessages());
+      row.put("prompts_full", breakdown.totalUserMessages());
+    } else {
+      row.put("token_fresh", "0");
+      row.put("token_cache_read", "0");
+      row.put("token_cache_write", "0");
+      row.put("token_output", "0");
+      row.put("fresh_pct", 0.0);
+      row.put("read_pct", 0.0);
+      row.put("write_pct", 0.0);
+      row.put("output_pct", 0.0);
+      row.put("projects", 0);
+      row.put("projects_raw", 0);
+      row.put("failed", 0);
+      row.put("failed_raw", 0);
+      row.put("failure_rate", "0.0%");
+      row.put("failure_rate_raw", 0.0);
+      row.put("last_active", "");
+      row.put("last_active_raw", "");
+      row.put("sessions_full_raw", 0);
+      row.put("sessions_full", 0);
+      row.put("tokens_full_raw", 0);
+      row.put("tokens_full", "0");
+      row.put("prompts_full_raw", 0);
+      row.put("prompts_full", 0);
+    }
     return row;
+  }
+
+  /** 格式化 last active 时间为相对时间。 */
+  private static String formatLastActive(String timestamp) {
+    if (timestamp == null || timestamp.isEmpty()) return "";
+    try {
+      // 解析 ISO timestamp 格式
+      java.time.Instant instant;
+      if (timestamp.endsWith("Z")) {
+        instant = java.time.Instant.parse(timestamp);
+      } else if (timestamp.contains("+") || timestamp.contains("T")) {
+        instant = java.time.OffsetDateTime.parse(timestamp).toInstant();
+      } else {
+        instant = java.time.LocalDateTime.parse(timestamp)
+            .atZone(java.time.ZoneId.systemDefault()).toInstant();
+      }
+      long diffSeconds = java.time.Instant.now().getEpochSecond() - instant.getEpochSecond();
+      if (diffSeconds < 60) return "Just now";
+      if (diffSeconds < 3600) return (diffSeconds / 60) + " min ago";
+      if (diffSeconds < 86400) return (diffSeconds / 3600) + "h ago";
+      return (diffSeconds / 86400) + "d ago";
+    } catch (Exception e) {
+      // 如果解析失败，返回前 10 个字符
+      return timestamp.length() >= 10 ? timestamp.substring(0, 10) : timestamp;
+    }
   }
 
   private static Map<String, Object> leaderBy(List<Map<String, Object>> rows, String key) {
@@ -694,18 +815,20 @@ public final class DashboardPage {
       map.put("model", row.model());
       map.put("sessions_raw", row.sessionCount());
       map.put("sessions", row.sessionCount());
-      map.put("tokens_per_session_raw", row.avgInputSide());
-      map.put("tokens_per_session", DisplayFormatters.formatCompactToken(row.avgInputSide()));
-      map.put("avg_tokens", DisplayFormatters.formatCompactToken(row.avgInputSide()));
+      map.put("tokens_per_session_raw", row.avgTotalTokens());
+      map.put("tokens_per_session", DisplayFormatters.formatCompactToken(row.avgTotalTokens()));
+      map.put("avg_tokens", DisplayFormatters.formatCompactToken(row.avgTotalTokens()));
       map.put("avg_process_time", DisplayFormatters.formatDuration(row.avgDuration()));
-      map.put("cache_read_raw", row.cacheReuseRatio() == null ? 0 : row.cacheReuseRatio());
-      map.put("cache_read", percentLabel(row.cacheReuseRatio()));
-      map.put("failure_raw", row.failedPerSession() == null ? 0 : row.failedPerSession());
-      map.put("failure", row.failedPerSession() == null ? "—" : String.format("%.2f", row.failedPerSession()));
+      map.put("cache_read_raw", row.cacheReuseRatio() == null ? -1 : row.cacheReuseRatio());
+      map.put("cache_read", row.cacheReuseRatio() == null ? "N/A" : percentLabel(row.cacheReuseRatio()));
+      map.put("failure_raw", row.failedPerSession() == null ? 0.0 : row.failedPerSession());
+      map.put("failure", row.failedPerSession() == null
+          ? "—"
+          : String.format(java.util.Locale.ROOT, "%.2f / session", row.failedPerSession()));
       map.put(
           "tool_calls_per_session",
-          row.avgTools() == 0.0 ? "—" : String.format("%.1f", row.avgTools()));
-      map.put("notes", row.cacheReuseRatio() == null ? "No cache ratio" : "Provider reported");
+          row.avgTools() == 0.0 ? "—" : String.format(java.util.Locale.ROOT, "%.1f", row.avgTools()));
+      map.put("notes", row.cacheReuseRatio() == null ? "N/A" : "Provider reported");
       result.add(map);
     }
     return result;
