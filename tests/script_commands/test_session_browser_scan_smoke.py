@@ -9,11 +9,8 @@ from __future__ import annotations
 
 import json
 import os
-import shutil
 import sqlite3
 import subprocess
-import sys
-import tempfile
 from pathlib import Path
 
 import pytest
@@ -37,9 +34,7 @@ def _create_claude_fixture(data_dir: Path) -> None:
         'cwd': '/test/project',
         'ts': '2024-01-01T00:00:00.000Z',
     }
-    (data_dir / 'history.jsonl').write_text(
-        json.dumps(history_entry) + '\n', encoding='utf-8'
-    )
+    (data_dir / 'history.jsonl').write_text(json.dumps(history_entry) + '\n', encoding='utf-8')
 
     # Transcript JSONL — minimal user + assistant exchange
     transcript_lines = [
@@ -132,9 +127,7 @@ def _create_codex_fixture(data_dir: Path) -> None:
             }
         ),
     ]
-    (data_dir / 'session_index.jsonl').write_text(
-        '\n'.join(index_lines) + '\n', encoding='utf-8'
-    )
+    (data_dir / 'session_index.jsonl').write_text('\n'.join(index_lines) + '\n', encoding='utf-8')
 
     # Create rollout files for each thread
     threads_dir = data_dir / 'threads'
@@ -226,8 +219,7 @@ def test_scan_full_with_isolated_fixtures(isolated_env):
     stderr = result.stderr
 
     assert result.returncode == 0, (
-        f'scan --full failed with exit code {result.returncode}\n'
-        f'stdout: {stdout}\nstderr: {stderr}'
+        f'scan --full failed with exit code {result.returncode}\nstdout: {stdout}\nstderr: {stderr}'
     )
 
     # Verify expected output keywords
@@ -238,15 +230,9 @@ def test_scan_full_with_isolated_fixtures(isolated_env):
     assert 'Total:' in stdout, f'Missing "Total:" in output: {stdout}'
 
     # Verify counts: Claude=1, Codex=1 (subagent excluded), Total=2
-    assert 'Claude Code: 1' in stdout, (
-        f'Expected "Claude Code: 1" in output: {stdout}'
-    )
-    assert 'Codex:       1' in stdout, (
-        f'Expected "Codex:       1" in output: {stdout}'
-    )
-    assert 'Total:       2' in stdout, (
-        f'Expected "Total:       2" in output: {stdout}'
-    )
+    assert 'Claude Code: 1' in stdout, f'Expected "Claude Code: 1" in output: {stdout}'
+    assert 'Codex:       1' in stdout, f'Expected "Codex:       1" in output: {stdout}'
+    assert 'Total:       2' in stdout, f'Expected "Total:       2" in output: {stdout}'
 
 
 def test_scan_incremental_after_full(isolated_env):
@@ -326,9 +312,7 @@ def test_scan_full_agent_filter_codex(isolated_env):
     )
 
     stdout = result.stdout
-    assert result.returncode == 0, (
-        f'scan --full --agent codex failed: {stdout}\n{result.stderr}'
-    )
+    assert result.returncode == 0, f'scan --full --agent codex failed: {stdout}\n{result.stderr}'
     assert 'Starting full scan' in stdout
     assert 'Codex:       1' in stdout
     assert 'Total:       1' in stdout

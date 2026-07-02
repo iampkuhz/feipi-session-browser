@@ -44,6 +44,7 @@ required_quality_targets = importlib.import_module(
 ).required_quality_targets
 # 导入 dominance 去重函数，避免重复运行被包含的 target。
 effective_targets = importlib.import_module('scripts.claude_hooks.classify').effective_targets
+QUALITY_TARGETS = importlib.import_module('scripts.quality.quality_targets').QUALITY_TARGETS
 changed_file_utils = importlib.import_module('scripts.quality.changed_files')
 
 AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
@@ -154,6 +155,21 @@ def compute_required_targets(changed_files: list[str], excluded: set[str]) -> li
     """
     all_targets = required_quality_targets(changed_files)
     return [t for t in all_targets if t not in excluded]
+
+
+def compute_tier_required_targets(tier: str, changed_files: list[str]) -> list[str]:
+    """Compute target selection before exclusions for a quality tier.
+
+    Args:
+        tier: Quality tier name.
+        changed_files: Changed files used by quick/required tiers.
+
+    Returns:
+        Ordered target names before dominance and exclusions.
+    """
+    if tier == 'full':
+        return list(QUALITY_TARGETS)
+    return required_quality_targets(changed_files)
 
 
 def run_gate(
@@ -382,9 +398,16 @@ def main() -> int:
     tier_desc = TIER_META[tier]['description']
     tier_policy = TIER_META[tier]['failure_policy']
 
-    # Determine effective exclusions
+    # Determine effective exclusions. Full tier is a release/migration
+    # baseline and must include session-detail without an extra flag.
     effective_excluded = set(EXCLUDED_TARGETS)
-    if args.include_session_detail:
+    if tier == 'full':
+        effective_excluded.clear()
+        print(
+            f'[{tier}-tier] full baseline includes session-detail',
+            file=sys.stderr,
+        )
+    elif args.include_session_detail:
         effective_excluded.discard('session-detail')
         print(
             f'[{tier}-tier] --include-session-detail: '
@@ -418,7 +441,7 @@ def main() -> int:
         return _run_quick_tier(changed_files, effective_excluded, args.dry_run)
 
     # required / full 档走 target-based 执行路径。
-    full_required = required_quality_targets(changed_files)
+    full_required = compute_tier_required_targets(tier, changed_files)
 
     # 应用 dominance 规则：当 java-src 存在时自动移除被包含的 java-build，
     # 避免重复运行 Gradle baseline。
@@ -446,7 +469,7 @@ def main() -> int:
             file=sys.stderr,
         )
 
-    if not changed_files:
+    if tier != 'full' and not changed_files:
         print(
             f'[{tier}-tier] no changed files; quality targets not triggered',
             file=sys.stderr,

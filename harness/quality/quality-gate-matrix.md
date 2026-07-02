@@ -7,7 +7,8 @@
 - target 列表真源：`scripts/quality/quality_targets.py`
 - 路径分类真源：`scripts/claude_hooks/classify.py`
 - 执行入口：`scripts/quality/run_quality_gate.py`
-- Stop 汇总入口：`scripts/quality/run_required_quality_gates.py`
+- Stop 共享入口：`scripts/harness/agent_stop_check.py`
+- changed-files required/full runner：`scripts/quality/run_required_quality_gates.py`
 - 三档配置：`harness/quality/quality-tiers.yaml`
 
 本文件只解释阅读路线，不复制完整矩阵，避免和脚本漂移。
@@ -48,6 +49,10 @@ quick 档只运行 `QUICK_GATES` 中定义的轻量级 gate 子集，包括：
 
 quick 档通过各 target 的 baseline 过滤出属于 `QUICK_GATES` 的 gate，只运行被 changed_files 触发的 target 中的轻量 gate。
 
+### full 档说明
+
+full 档不按 changed-files 裁剪 target；它从 `QUALITY_TARGETS` 读取当前全部 target，应用 dominance 去重，并自动包含 `session-detail`。full 档还会运行 `FULL_EXTRA_COMMANDS` 中的发布级额外验证。若只想按 changed-files 触发本次 Stop/handoff 所需 target，应使用默认 `required` 档。
+
 ### not triggered 与 skipped 的语义区别
 
 这是质量门系统最重要的语义规则之一：
@@ -71,18 +76,20 @@ quick 档通过各 target 的 baseline 过滤出属于 `QUICK_GATES` 的 gate，
 | `session-detail` | UI 模板、CSS、前端 JS | 模板契约、CSS 契约、浏览器布局、pytest |
 | `python-standard` | 手动标准 Python 工具体系验证 | Ruff Formatter/Ruff、Pyright、interrogate/pydoclint、pytest-cov/Coverage.py、pip-audit/Bandit、Xenon、Vulture、Deptry |
 | `hook-runtime` | hooks、agent 配置、质量脚本 | settings、bash syntax、python compile、policy、pytest、doctor、noTestSkips |
-| `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局、noTestSkips |
+| `harness` | `harness/**`、`scripts/harness/**` | doctor、仓库结构、harness 结构、OpenSpec 布局、Stop runner pytest、noTestSkips |
 | `acceptance-contracts` | `docs/acceptance-contracts/**`、`tests/**` | 验收契约映射、pytest、noTestSkips |
 | `index` | index 相关源码 | index integrity |
 | `java-src` | `java/**/src/**/*.java` | Java 编译检查、中文注释校验、测试零跳过 |
 | `java-build` | `build-logic/**`、`gradle/**`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties` | Java 编译检查 |
+| `scan-script-smoke` | `scripts/session-browser.sh`、scan/source/index/app-cli 相关 Java 模块、`scripts/quality/**` | 真实 `scripts/session-browser.sh scan --full` 隔离 smoke |
 
 `java-src` 包含 `java-build`（dominance）：当 java-src 触发时自动覆盖 java-build，避免重复运行 Gradle baseline。
 
 ## 修改规则
 
 - 新增 target 时同步 `QUALITY_TARGETS`、`GATE_PATTERNS`、分类规则和测试。
-- `python-standard` 是历史负债修复前的手动能力 target；不得在 Ruff、Pyright、docstring、coverage、audit、complexity、dead-code 和依赖声明问题全量清零前映射为自动 required gate。
+- `python-standard` 是手动 Python tooling baseline；不得映射为自动 required gate。
+- 已退休的 `python-src` 不再是当前 target；不要在文档或脚本中继续把它列为可运行门禁。
 - 改 agent、skill、hook 或 prompt 文件时，必须触发 `hook-runtime` 或 `harness`。
 - 改测试或验收契约时，必须触发 `acceptance-contracts`。
 - 改 UI 页面时，不得只跑静态检查；需要包含对应浏览器或交互 gate。

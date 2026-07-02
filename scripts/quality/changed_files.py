@@ -172,13 +172,20 @@ def read_files_since_base_commit(
     repo_root: Path = REPO_ROOT,
     base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE,
 ) -> list[str]:
-    """Read paths changed between the session base commit and current HEAD."""
+    """Read tracked and untracked paths changed since the session base commit.
+
+    The diff compares the current working tree with the recorded base commit,
+    not only ``base..HEAD``.  This fail-closed behavior is required so Bash
+    edits, deletions, and staged-but-uncommitted files cannot bypass Stop target
+    routing after write-hook evidence is absent.
+    """
     base_commit = read_base_commit(base_commit_file)
     if not base_commit:
         return []
+    paths: list[str] = []
     try:
         proc = subprocess.run(
-            ['git', 'diff', '--name-only', '--diff-filter=ACMRD', f'{base_commit}..HEAD'],
+            ['git', 'diff', '--name-only', '--diff-filter=ACMRD', base_commit],
             cwd=repo_root,
             text=True,
             stdout=subprocess.PIPE,
@@ -188,9 +195,25 @@ def read_files_since_base_commit(
         )
     except Exception:
         return []
-    if proc.returncode != 0:
-        return []
-    return dedupe_paths([line for line in (proc.stdout or '').splitlines() if line.strip()])
+    if proc.returncode == 0:
+        paths.extend(line for line in (proc.stdout or '').splitlines() if line.strip())
+
+    try:
+        untracked = subprocess.run(
+            ['git', 'ls-files', '--others', '--exclude-standard'],
+            cwd=repo_root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+    except Exception:
+        untracked = None
+    if untracked is not None and untracked.returncode == 0:
+        paths.extend(line for line in (untracked.stdout or '').splitlines() if line.strip())
+
+    return dedupe_paths(paths)
 
 
 def collect_changed_files(
@@ -205,10 +228,10 @@ def collect_changed_files(
     """Collect session-scoped changed files for fail-closed routing.
 
     The primary source is hook-recorded writes (session-scoped via JSONL).
-    Committed changes since the base commit are included as a secondary source
-    to cover agent commits. Pre-existing uncommitted dirty files are excluded
-    because ``read_git_dirty_files`` is not used here — it cannot distinguish
-    between files dirty before the session and files changed during the session.
+    Changes since the base commit are included as a secondary fail-closed source
+    to cover agent commits, shell edits, shell deletions, staged files, and
+    untracked non-ignored files that write hooks did not record. When no base
+    commit sentinel exists, arbitrary pre-existing dirty files are not routed.
 
     Args:
         session_id: Optional session id used to filter hook records.

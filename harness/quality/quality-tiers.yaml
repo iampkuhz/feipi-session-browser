@@ -27,7 +27,6 @@ quick:
     - doctor
     - repoStructure
     - harnessStructure
-    - pythonCompile
   notes:
     - 可按 changed scope 裁剪触发目标。
     - 不得把未触发项写成 skipped。
@@ -45,16 +44,16 @@ required:
 full:
   description: 发布、大迁移阶段结束、默认切流前运行。
   commands:
-    - ./gradlew check
     - scripts/quality/run_required_quality_gates.py --tier full
   requirements:
     - 0 skipped outcome
-    - 所有 triggered gate PASS
+    - 所有当前 target gate PASS
+    - 不按 changed_files 裁剪 target
+    - session-detail 默认包含在 full baseline 中
     - golden fixtures consistent
     - API snapshots stable or explicitly approved
     - no ignored personal data staged
   extra_commands:
-    - ./gradlew check
     - python3 scripts/quality/check_java_api_snapshot.py --verify
 
 trigger_matrix:
@@ -65,10 +64,12 @@ trigger_matrix:
   targets:
     python-standard:
       gates: [pythonFormat, pythonLint, pythonType, pythonDocstring, pythonCoverage, pythonAudit, pythonComplexity, pythonDeadCode, pythonDeps]
+    session-detail:
+      gates: [pythonCompile, noTestSkips, templateContract, staticCssContract, cssOwnership, rawInnerhtml, layoutInlineStyle, pytest, browserLayout, browserInteraction]
     hook-runtime:
       gates: [settingsJson, bashSyntax, pythonCompile, noTestSkips, languagePolicy, codexAgentPolicy, hookSelfTest, pytest, doctor, repoStructure, repoSlimming, rawInnerhtml, layoutInlineStyle, acceptanceContracts]
     harness:
-      gates: [bashSyntax, pythonCompile, noTestSkips, languagePolicy, codexAgentPolicy, doctor, repoStructure, harnessStructure, openspecLayout]
+      gates: [bashSyntax, pythonCompile, noTestSkips, languagePolicy, codexAgentPolicy, doctor, repoStructure, harnessStructure, openspecLayout, pytest]
     acceptance-contracts:
       gates: [noTestSkips, acceptanceContracts, pytest]
     index:
@@ -77,3 +78,5 @@ trigger_matrix:
       gates: [javaCheck, javaChineseComments, noJavaTestSkips, noJavaSuppressWarnings, reuseIncremental, reuseBaselineVerify]
     java-build:
       gates: [javaCheck]
+    scan-script-smoke:
+      gates: [scanScriptSmoke]

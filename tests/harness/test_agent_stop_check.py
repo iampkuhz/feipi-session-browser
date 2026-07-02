@@ -121,3 +121,34 @@ def test_shared_changed_files_includes_committed_changes_since_base(monkeypatch,
     targets = required_targets(paths)
     assert 'hook-runtime' in targets
     assert 'acceptance-contracts' in targets
+
+
+def test_shared_changed_files_includes_worktree_deletions_since_base(monkeypatch, tmp_path):
+    """Bash 删除等未提交变更在有 base commit 时必须进入 Stop target 路由。"""
+    base_file = tmp_path / 'base-commit.txt'
+    base_file.write_text('base123\n', encoding='utf-8')
+    commands: list[list[str]] = []
+
+    def fake_run(cmd: list[str], *args: object, **kwargs: object) -> SimpleNamespace:
+        commands.append(cmd)
+        if cmd[:3] == ['git', 'diff', '--name-only']:
+            return SimpleNamespace(
+                returncode=0,
+                stdout='docs/acceptance-contracts/features/DATA_PRESENTERS.md\n',
+            )
+        if cmd[:3] == ['git', 'ls-files', '--others']:
+            return SimpleNamespace(returncode=0, stdout='')
+        return SimpleNamespace(returncode=0, stdout='')
+
+    monkeypatch.setattr(changed_files.subprocess, 'run', fake_run)
+
+    paths = changed_files.collect_changed_files(
+        None,
+        repo_root=tmp_path,
+        changed_files_path=tmp_path / 'missing.jsonl',
+        base_commit_file=base_file,
+    )
+
+    assert paths == ['docs/acceptance-contracts/features/DATA_PRESENTERS.md']
+    assert required_targets(paths) == ['acceptance-contracts']
+    assert ['git', 'diff', '--name-only', '--diff-filter=ACMRD', 'base123'] in commands

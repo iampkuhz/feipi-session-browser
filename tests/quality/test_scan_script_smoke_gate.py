@@ -9,10 +9,7 @@ Verifies:
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
-
-import pytest
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -40,69 +37,67 @@ class TestScanScriptSmokeTrigger:
 
     def test_java_scan_engine_triggers_scan_script_smoke(self):
         """java/scan-engine/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/scan-engine/src/main/java/com/feipi/scan/FullScanEngine.java'
-        ])
+        targets = required_quality_targets(
+            ['java/scan-engine/src/main/java/com/feipi/scan/FullScanEngine.java']
+        )
         assert 'scan-script-smoke' in targets, (
             f'java/scan-engine/** should trigger scan-script-smoke, got: {targets}'
         )
 
     def test_java_source_claude_triggers_scan_script_smoke(self):
         """java/source-claude/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/source-claude/src/main/java/com/feipi/claude/ClaudeSourceAdapter.java'
-        ])
+        targets = required_quality_targets(
+            ['java/source-claude/src/main/java/com/feipi/claude/ClaudeSourceAdapter.java']
+        )
         assert 'scan-script-smoke' in targets
 
     def test_java_source_codex_triggers_scan_script_smoke(self):
         """java/source-codex/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/source-codex/src/main/java/com/feipi/codex/CodexSourceAdapter.java'
-        ])
+        targets = required_quality_targets(
+            ['java/source-codex/src/main/java/com/feipi/codex/CodexSourceAdapter.java']
+        )
         assert 'scan-script-smoke' in targets
 
     def test_java_source_qoder_triggers_scan_script_smoke(self):
         """java/source-qoder/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/source-qoder/src/main/java/com/feipi/qoder/QoderSourceAdapter.java'
-        ])
+        targets = required_quality_targets(
+            ['java/source-qoder/src/main/java/com/feipi/qoder/QoderSourceAdapter.java']
+        )
         assert 'scan-script-smoke' in targets
 
     def test_java_index_sqlite_triggers_scan_script_smoke(self):
         """java/index-sqlite/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/index-sqlite/src/main/java/com/feipi/index/ConnectionFactory.java'
-        ])
+        targets = required_quality_targets(
+            ['java/index-sqlite/src/main/java/com/feipi/index/ConnectionFactory.java']
+        )
         assert 'scan-script-smoke' in targets
 
     def test_java_app_cli_triggers_scan_script_smoke(self):
         """java/app-cli/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/app-cli/src/main/java/com/feipi/cli/ScanCommand.java'
-        ])
+        targets = required_quality_targets(
+            ['java/app-cli/src/main/java/com/feipi/cli/ScanCommand.java']
+        )
         assert 'scan-script-smoke' in targets
 
     def test_scripts_quality_triggers_scan_script_smoke(self):
         """scripts/quality/** should trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'scripts/quality/run_quality_gate.py'
-        ])
+        targets = required_quality_targets(['scripts/quality/run_quality_gate.py'])
         assert 'scan-script-smoke' in targets
 
     def test_unrelated_file_does_not_trigger_scan_script_smoke(self):
         """Unrelated files should NOT trigger scan-script-smoke."""
-        targets = required_quality_targets([
-            'java/web/src/main/resources/static/css/main.css'
-        ])
+        targets = required_quality_targets(['java/web/src/main/resources/static/css/main.css'])
         assert 'scan-script-smoke' not in targets
 
     def test_multiple_files_dedup_scan_script_smoke(self):
         """Multiple matching files should only add scan-script-smoke once."""
-        targets = required_quality_targets([
-            'scripts/session-browser.sh',
-            'java/scan-engine/src/main/java/com/feipi/scan/FullScanEngine.java',
-            'java/source-claude/src/main/java/com/feipi/claude/ClaudeSourceAdapter.java',
-        ])
+        targets = required_quality_targets(
+            [
+                'scripts/session-browser.sh',
+                'java/scan-engine/src/main/java/com/feipi/scan/FullScanEngine.java',
+                'java/source-claude/src/main/java/com/feipi/claude/ClaudeSourceAdapter.java',
+            ]
+        )
         count = sum(1 for t in targets if t == 'scan-script-smoke')
         assert count == 1, f'scan-script-smoke should appear exactly once, got {count}'
 

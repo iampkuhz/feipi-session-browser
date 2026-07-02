@@ -36,6 +36,34 @@
 - required gate 失败时，Stop 门禁必须阻断。失败不得因为“不是当前 agent 的改动”“已有失败”“与本次改动无关”而被降级、跳过或描述为通过。
 - 如果 required gate 因外部环境缺失无法运行，状态必须保持 blocked/fail，并在输出中保留可复现命令和阻断原因。
 
+## Agent hook 配置矩阵
+
+Claude Code 的 hook 真源是 `.claude/settings.json`：
+
+| 事件 | 匹配器 | 入口脚本 |
+|---|---|---|
+| `SessionStart` | 无 | `.claude/hooks/session-start.sh` |
+| `SubagentStart` | 无 | `.claude/hooks/subagent-start.sh` |
+| `PreToolUse` | `Bash` | `.claude/hooks/pre-bash.sh` |
+| `PreToolUse` | `Write|Edit|MultiEdit|NotebookEdit` | `.claude/hooks/pre-write.sh` |
+| `PostToolUse` | `Write|Edit|MultiEdit|NotebookEdit` | `.claude/hooks/post-write.sh` |
+| `PostToolUseFailure` | 无 | `.claude/hooks/tool-failure.sh` |
+| `Stop` | 无 | `.claude/hooks/stop.sh` |
+| `SubagentStop` | 无 | `.claude/hooks/subagent-stop.sh` |
+| `ConfigChange` | 无 | `.claude/hooks/config-change.sh` |
+
+Codex 的 hook 真源是 `.codex/hooks.json`：
+
+| 事件 | 匹配器 | 入口脚本 |
+|---|---|---|
+| `PreToolUse` | `Bash` | `.codex/hooks/pre_tool_guard.sh` |
+| `PostToolUse` | `Write|Edit|MultiEdit` | `.codex/hooks/post_tool_guard.sh` |
+| `Stop` | 无 | `.codex/hooks/stop_check.sh` |
+
+Qoder 当前没有仓库内独立 hook JSON 配置；仓库只维护 `.qoder/hooks/pre_tool_guard.sh`、`.qoder/hooks/post_tool_guard.sh`、`.qoder/hooks/stop_check.sh` 三个 wrapper。pre/post wrapper 复用 Codex-compatible guards，Stop wrapper 调用 `scripts/harness/agent_stop_check.py --agent qoder`。
+
+`.claude/agents/*.md` 与 `.codex/agents/*.toml` 不定义 per-agent hooks；项目级 hooks 是唯一执行面。
+
 ## 契约用例门禁
 
 - `docs/acceptance-contracts/**` 或 `tests/**` 发生变化时，必须触发 `acceptance-contracts` quality target。

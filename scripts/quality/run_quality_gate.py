@@ -50,6 +50,7 @@ from scripts.quality.quality_artifact import (  # noqa: E402
     write_quality_summary,
 )
 from scripts.quality.quality_targets import (  # noqa: E402
+    QUALITY_TARGETS,
     required_gates_for_target,
     validate_target,
 )
@@ -63,6 +64,30 @@ MODULE_CHECK_TIMEOUT_SECONDS = 10
 COMMAND_OUTPUT_TAIL_CHARS = 4000
 FIXTURE_SERVER_READY_ATTEMPTS = 30
 FIXTURE_SERVER_READY_TIMEOUT_SECONDS = 15
+
+
+def _relative_existing_files(repo_root: Path, patterns: list[str]) -> list[str]:
+    """Return existing files matching repository-relative glob patterns.
+
+    Args:
+        repo_root: Repository root used to resolve glob patterns.
+        patterns: Repository-relative glob patterns.
+
+    Returns:
+        Stable, de-duplicated repository-relative file paths.
+    """
+    result: list[str] = []
+    seen: set[str] = set()
+    for pattern in patterns:
+        for path in sorted(repo_root.glob(pattern)):
+            if not path.is_file():
+                continue
+            rel = path.relative_to(repo_root).as_posix()
+            if rel not in seen:
+                seen.add(rel)
+                result.append(rel)
+    return result
+
 
 # 01. Command execution helpers
 
@@ -828,7 +853,9 @@ def _insert_fixture_session(
     assistant_count = sum(1 for e in events if e.get('type') == 'assistant')
     tool_calls = 0
     failed_tools = 0
-    output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens = _fixture_usage_totals(events)
+    output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens = (
+        _fixture_usage_totals(events)
+    )
     subagent_output, subagent_fresh, subagent_read, subagent_write = _fixture_subagent_usage_totals(
         jsonl_file
     )
@@ -1433,22 +1460,18 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         code = "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]"
         return [python, '-c', code, *existing] if existing else []
     if gate == 'bashSyntax':
-        shell_files = [
-            '.claude/hooks/stop.sh',
-            '.codex/hooks/pre_tool_guard.sh',
-            '.codex/hooks/post_tool_guard.sh',
-            '.codex/hooks/stop_check.sh',
-            '.qoder/hooks/pre_tool_guard.sh',
-            '.qoder/hooks/post_tool_guard.sh',
-            '.qoder/hooks/stop_check.sh',
-            'scripts/harness/doctor.sh',
-        ]
-        existing = [f for f in shell_files if (repo_root / f).exists()]
+        existing = _relative_existing_files(
+            repo_root,
+            [
+                '.claude/hooks/**/*.sh',
+                '.codex/hooks/**/*.sh',
+                '.qoder/hooks/**/*.sh',
+                'scripts/harness/doctor.sh',
+            ],
+        )
         return ['bash', '-n', *existing] if existing else []
     if gate == 'pythonCompile':
         paths = ['scripts/claude_hooks', 'scripts/quality']
-        if target == 'python-src':
-            paths = ['src']
         if target == 'harness':
             paths = ['scripts/harness', 'scripts/quality']
         if target == 'index':
@@ -1527,33 +1550,21 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
                 'tests/ui/test_web_template_contract.py',
                 'tests/ui/test_web_static_contract.py',
             ],
-            'python-src': [
-                'tests/backend',
-                'tests/test_llm_attribution_api.py',
-                'tests/test_llm_attribution_bucket_normalization.py',
-                'tests/test_llm_attribution_call_scoped_correctness.py',
-                'tests/test_llm_attribution_claude_code.py',
-                'tests/test_llm_attribution_codex.py',
-                'tests/test_llm_attribution_context_builder.py',
-                'tests/test_llm_attribution_context_hydration.py',
-                'tests/test_llm_attribution_contract.py',
-                'tests/test_llm_attribution_deep_source_correlation.py',
-                'tests/test_llm_attribution_error_isolation.py',
-                'tests/test_llm_attribution_error_payload.py',
-                'tests/test_llm_attribution_qoder.py',
-                'tests/test_llm_attribution_semantic_correctness.py',
-                'tests/test_llm_attribution_serializers.py',
-                'tests/test_llm_attribution_token_estimator.py',
-                'tests/test_llm_attribution_visual_gate.py',
-                'tests/test_codex_openai_attribution.py',
-            ],
             'hook-runtime': [
-                'tests/hooks/test_claude_hooks_hook_io.py',
-                'tests/hooks/test_claude_hooks_classify.py',
-                'tests/hooks/test_claude_hooks_bash_policy.py',
-                'tests/hooks/test_claude_hooks_file_policy.py',
-                'tests/hooks/test_claude_hooks_evidence.py',
+                'tests/hooks',
+                'tests/harness',
                 'tests/quality/test_quality_artifact.py',
+                'tests/quality/test_quality_gate_runner.py',
+                'tests/quality/test_run_required_quality_gates.py',
+                'tests/quality/test_scan_script_smoke_gate.py',
+                'tests/quality/test_python_env_contract.py',
+                'tests/quality/test_no_test_skips_gate.py',
+                'tests/quality/test_java_classification.py',
+                'tests/quality/test_warning_gate_cli.py',
+            ],
+            'harness': [
+                'tests/harness',
+                'tests/quality/test_run_required_quality_gates.py',
             ],
             'acceptance-contracts': [
                 'tests/quality/test_contract_case_specs.py',
@@ -1859,18 +1870,7 @@ def main() -> int:
     parser.add_argument(
         '--target',
         required=True,
-        choices=[
-            'session-detail',
-            'python-src',
-            'python-standard',
-            'hook-runtime',
-            'harness',
-            'acceptance-contracts',
-            'index',
-            'java-src',
-            'java-build',
-            'scan-script-smoke',
-        ],
+        choices=sorted(QUALITY_TARGETS),
     )
     parser.add_argument('--change-id', required=True)
     parser.add_argument(

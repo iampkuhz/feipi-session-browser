@@ -13,11 +13,6 @@ import re
 
 # 01. target -> required gate matrix (full baseline)
 QUALITY_TARGETS: dict[str, list[str]] = {
-    'python-src': [
-        'pythonCompile',
-        'noTestSkips',
-        'pytest',
-    ],
     'python-standard': [
         'pythonFormat',
         'pythonLint',
@@ -55,6 +50,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'repoStructure',
         'harnessStructure',
         'openspecLayout',
+        'pytest',
     ],
     'acceptance-contracts': [
         'noTestSkips',
@@ -97,7 +93,6 @@ QUALITY_TARGETS: dict[str, list[str]] = {
 # exclusive_resources: 互斥资源列表（如 gradle-daemon），同一资源同时只允许一个 target 使用
 # timeout: 单 target 最大执行时间（秒）
 TARGET_META: dict[str, dict[str, object]] = {
-    'python-src': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'python-standard': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'hook-runtime': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'harness': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
@@ -120,19 +115,6 @@ TARGET_DOMINANCE: dict[str, dict[str, list[str]]] = {
 # A gate runs only when at least one changed file matches one of its patterns.
 # If callers omit changed files, such as manual --target runs, use the full baseline.
 GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
-    'python-src': {
-        'pythonCompile': [
-            'src/session_browser/**/*.py',
-        ],
-        'noTestSkips': [
-            'tests/**/*.py',
-            'scripts/quality/check_no_test_skips.py',
-        ],
-        'pytest': [
-            'src/session_browser/**/*.py',
-            'tests/**/*.py',
-        ],
-    },
     'python-standard': {
         'pythonFormat': [
             'pyproject.toml',
@@ -314,6 +296,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
         'openspecLayout': [
             'openspec/**',
+        ],
+        'pytest': [
+            'scripts/harness/**/*.py',
+            'scripts/quality/changed_files.py',
+            'scripts/quality/run_required_quality_gates.py',
+            'tests/harness/**/*.py',
+            'tests/quality/test_run_required_quality_gates.py',
         ],
         'languagePolicy': [
             'AGENTS.md',

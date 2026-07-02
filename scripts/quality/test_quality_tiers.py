@@ -35,6 +35,7 @@ from scripts.quality.run_required_quality_gates import (  # noqa: E402
     TIER_META,
     VALID_TIERS,
     _run_quick_tier,
+    compute_tier_required_targets,
 )
 
 
@@ -276,6 +277,14 @@ class TestRequiredFullSkippedPolicy(unittest.TestCase):
 
 class TestFullExtraCommands(unittest.TestCase):
     """Verify full-tier extra commands configuration."""
+
+    def test_full_tier_selects_all_current_targets(self) -> None:
+        """Full tier must not depend on changed-files target selection."""
+        targets = compute_tier_required_targets('full', [])
+        self.assertEqual(targets, list(QUALITY_TARGETS))
+        self.assertIn('session-detail', targets)
+        self.assertIn('scan-script-smoke', targets)
+        self.assertNotIn('python-src', targets)
 
     def test_full_extra_commands_is_list(self) -> None:
         """FULL_EXTRA_COMMANDS must be a list of command lists."""

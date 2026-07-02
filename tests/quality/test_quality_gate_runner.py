@@ -17,6 +17,7 @@ from scripts.quality.quality_artifact import (
     write_quality_summary,
 )
 from scripts.quality.quality_targets import (
+    QUALITY_TARGETS,
     applicable_gates_for_target,
     required_gates_for_target,
     validate_target,
@@ -116,6 +117,10 @@ class TestQualityTargets:
         assert 'noTestSkips' in gates
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_python_src_target_is_not_advertised_after_python_product_retirement(self):
+        assert 'python-src' not in QUALITY_TARGETS
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_session_detail_gates(self):
         gates = required_gates_for_target('session-detail')
         assert 'pytest' in gates
@@ -211,6 +216,40 @@ class TestQualityGateRuntime:
         cmd = run_quality_gate.gate_command('noTestSkips', tmp_path, 'hook-runtime')
 
         assert cmd == ['/tmp/runtime-python', 'scripts/quality/check_no_test_skips.py']
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_bash_syntax_gate_includes_all_agent_hook_scripts(self):
+        cmd = run_quality_gate.gate_command('bashSyntax', Path.cwd(), 'hook-runtime')
+
+        for expected in [
+            '.claude/hooks/session-start.sh',
+            '.claude/hooks/subagent-start.sh',
+            '.claude/hooks/pre-bash.sh',
+            '.claude/hooks/pre-write.sh',
+            '.claude/hooks/post-write.sh',
+            '.claude/hooks/tool-failure.sh',
+            '.claude/hooks/stop.sh',
+            '.claude/hooks/subagent-stop.sh',
+            '.claude/hooks/config-change.sh',
+            '.claude/hooks/lib/common.sh',
+            '.codex/hooks/pre_tool_guard.sh',
+            '.codex/hooks/post_tool_guard.sh',
+            '.codex/hooks/stop_check.sh',
+            '.codex/hooks/lib/common.sh',
+            '.qoder/hooks/pre_tool_guard.sh',
+            '.qoder/hooks/post_tool_guard.sh',
+            '.qoder/hooks/stop_check.sh',
+        ]:
+            assert expected in cmd
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_harness_pytest_gate_runs_stop_runner_contracts(self):
+        gates = required_gates_for_target('harness')
+        assert 'pytest' in gates
+
+        cmd = run_quality_gate.gate_command('pytest', Path.cwd(), 'harness')
+        assert 'tests/harness' in cmd
+        assert 'tests/quality/test_run_required_quality_gates.py' in cmd
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_python_standard_gate_commands_delegate_to_session_browser_script(self, tmp_path: Path):

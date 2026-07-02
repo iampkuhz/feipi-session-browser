@@ -382,6 +382,31 @@ class TestIncludeSessionDetail:
         assert '--changed-files' not in captured_cmds[0]
 
 
+class TestFullTier:
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_full_tier_uses_all_quality_targets_not_changed_files(self):
+        """full 档必须全量收口，不能按 changed-files 裁剪 target。"""
+        targets = _runner.compute_tier_required_targets('full', [])
+
+        assert 'hook-runtime' in targets
+        assert 'harness' in targets
+        assert 'session-detail' in targets
+        assert 'scan-script-smoke' in targets
+        assert 'python-src' not in targets
+
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_required_tier_still_uses_changed_files(self):
+        """required 档保留 changed-files 触发语义。"""
+        targets = _runner.compute_tier_required_targets(
+            'required',
+            ['scripts/quality/run_required_quality_gates.py'],
+        )
+
+        assert 'hook-runtime' in targets
+        assert 'scan-script-smoke' in targets
+        assert 'session-detail' not in targets
+
+
 class TestSharedStopEntrypoint:
     @pytest.mark.contract_case('HOOK-HARNESS-012')
     def test_claude_stop_is_thin_wrapper(self):
