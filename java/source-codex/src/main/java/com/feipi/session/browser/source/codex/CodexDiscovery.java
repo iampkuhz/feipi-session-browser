@@ -80,11 +80,30 @@ public final class CodexDiscovery {
       }
     }
 
-    // 第四步：对每个会话定位 rollout 文件
+    // 第四步：过滤 index-only entries 中的 subagent sessions（与 Python 对齐）
+    Map<String, Map<String, String>> filteredIndexEntries = new LinkedHashMap<>();
+    for (String id : indexEntries.keySet()) {
+      if (!topLevelThreads.containsKey(id)) {
+        // index-only entry：需要通过 rollout 文件的 session_meta 判断是否为 subagent
+        Path rolloutFile = locateRolloutFile(rootPath, id, null);
+        if (isSubagentRolloutFile(rolloutFile)) {
+          LOG.log(Level.FINE, "跳过 index-only subagent session: {0}", id);
+          continue;
+        }
+      }
+      filteredIndexEntries.put(id, indexEntries.get(id));
+    }
+
+    // 第五步：对每个会话定位 rollout 文件
     List<CodexSessionDiscovery> results = new ArrayList<>();
     for (String sessionId : allSessionIds) {
+      if (!filteredIndexEntries.containsKey(sessionId)
+          && !topLevelThreads.containsKey(sessionId)) {
+        // 被 subagent 过滤掉的 index-only entry
+        continue;
+      }
       Map<String, String> threadInfo = topLevelThreads.get(sessionId);
-      Map<String, String> indexEntry = indexEntries.get(sessionId);
+      Map<String, String> indexEntry = filteredIndexEntries.get(sessionId);
 
       Path rolloutFile = locateRolloutFile(rootPath, sessionId, threadInfo);
       boolean hasFile = Files.isRegularFile(rolloutFile);
@@ -307,6 +326,125 @@ public final class CodexDiscovery {
       LOG.log(Level.FINE, "搜索 archived rollout 文件失败: " + dir, e);
     }
     return null;
+  }
+
+  /**
+   * 检查 rollout 文件的 session_meta 事件是否表示 subagent 会话。
+   *
+   * <p>与 Python {@code is_codex_subagent_session_file} 对齐：读取文件首行， 若为 {@code session_meta}
+   * 事件则委托 {@link #isSubagentMetaEvent} 判断。 文件不存在或解析失败时返回 {@code false}。
+   *
+   * @param rolloutFile rollout 文件路径
+   * @return 识别为 subagent 时返回 {@code true}
+   */
+  static boolean isSubagentRolloutFile(Path rolloutFile) {
+    if (rolloutFile == null || !Files.isRegularFile(rolloutFile)) {
+      return false;
+    }
+    Map<String, String> meta = readFirstEventAsMap(rolloutFile);
+    if (meta == null || !"session_meta".equals(meta.get("type"))) {
+      return false;
+    }
+    return isSubagentMetaEvent(meta);
+  }
+
+  /**
+   * 判断 session_meta 事件字段是否表示 subagent。
+   *
+   * <p>检测条件与 Python {@code is_codex_subagent_session_meta} 对齐：
+   *
+   * <ul>
+   *   <li>{@code thread_source} 为 "subagent"
+   *   <li>{@code parent_thread_id} 非空
+   *   <li>{@code source.subagent.thread_spawn.parent_thread_id} 非空
+   * </ul>
+   */
+  static boolean isSubagentMetaEvent(Map<String, String> meta) {
+    if (meta == null) {
+      return false;
+    }
+    String threadSource = meta.getOrDefault("thread_source", "");
+    if ("subagent".equalsIgnoreCase(threadSource.trim())) {
+      return true;
+    }
+    String parentId = meta.getOrDefault("parent_thread_id", "").trim();
+    if (!parentId.isEmpty()) {
+      return true;
+    }
+    String sourceJson = meta.get("source");
+    if (sourceJson != null && !sourceJson.isEmpty()) {
+      try {
+        ObjectMapper mapper = new ObjectMapper();
+        JsonNode sourceNode = mapper.readTree(sourceJson);
+        if (sourceNode.isObject()) {
+          JsonNode subagent = sourceNode.get("subagent");
+          if (subagent != null && subagent.isObject()) {
+            JsonNode spawn = subagent.get("thread_spawn");
+            if (spawn != null && spawn.isObject()) {
+              JsonNode spawnParent = spawn.get("parent_thread_id");
+              if (spawnParent != null
+                  && spawnParent.isTextual()
+                  && !spawnParent.asText().trim().isEmpty()) {
+                return true;
+              }
+            }
+          }
+        }
+      } catch (IOException e) {
+        LOG.log(Level.FINEST, "session_meta.source 解析失败", e);
+      }
+    }
+    return false;
+  }
+
+  /**
+   * 读取 JSONL 文件的第一行事件，解析为扁平字符串映射。
+   *
+   * <p>对 {@code payload} 内的文本、数字、布尔值字段做扁平化处理， 嵌套结构序列化为 JSON 字符串保留。
+   *
+   * @param filePath JSONL 文件路径
+   * @return 事件字段映射；文件为空或解析失败时返回 null
+   */
+  private static Map<String, String> readFirstEventAsMap(Path filePath) {
+    try (BufferedReader reader = Files.newBufferedReader(filePath, StandardCharsets.UTF_8)) {
+      String line = reader.readLine();
+      if (line == null || line.trim().isEmpty()) {
+        return null;
+      }
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode event = mapper.readTree(line.trim());
+      if (!event.isObject()) {
+        return null;
+      }
+      Map<String, String> result = new LinkedHashMap<>();
+      // 顶层 type 字段
+      JsonNode typeNode = event.get("type");
+      if (typeNode != null && typeNode.isTextual()) {
+        result.put("type", typeNode.asText());
+      }
+      // payload 内字段扁平化
+      JsonNode payload = event.get("payload");
+      if (payload != null && payload.isObject()) {
+        var fields = payload.fields();
+        while (fields.hasNext()) {
+          var entry = fields.next();
+          JsonNode value = entry.getValue();
+          if (value.isTextual()) {
+            result.put(entry.getKey(), value.asText());
+          } else if (value.isNumber()) {
+            result.put(entry.getKey(), String.valueOf(value.asLong()));
+          } else if (value.isBoolean()) {
+            result.put(entry.getKey(), String.valueOf(value.asBoolean()));
+          } else if (value.isObject() || value.isArray()) {
+            result.put(entry.getKey(), value.toString());
+          }
+        }
+      }
+      return result;
+    } catch (IOException e) {
+      LOG.log(Level.FINE, "读取 rollout 文件首行失败: " + filePath, e);
+      return null;
+    }
   }
 
   /**
