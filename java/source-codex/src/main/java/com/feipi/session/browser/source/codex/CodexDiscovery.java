@@ -218,6 +218,10 @@ public final class CodexDiscovery {
           entry.put("id", id);
           entry.put("thread_name", textOrEmpty(node, "thread_name"));
           entry.put("updated_at", textOrEmpty(node, "updated_at"));
+          String model = textOrEmpty(node, "model");
+          if (!model.isEmpty()) {
+            entry.put("model", model);
+          }
           entries.put(id, entry);
         } catch (IOException e) {
           LOG.log(Level.FINE, "跳过无法解析的 session_index.jsonl 行", e);

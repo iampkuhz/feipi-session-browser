@@ -6,6 +6,7 @@ import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.json.JsonlReader;
 import com.feipi.session.browser.source.json.JsonlReaderResult;
+import com.feipi.session.browser.source.json.ToolFailureClassifier;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
@@ -167,6 +168,19 @@ public final class CodexSourceAdapter implements SourceAdapter {
         meta.put("title", fum.length() > 120 ? fum.substring(0, 120) : fum);
       }
     }
+    // 模型回退：优先 threads.db，其次 session_index.jsonl
+    if (disc.threadInfo() != null) {
+      String model = disc.threadInfo().getOrDefault("model", "");
+      if (!model.isEmpty()) {
+        meta.put("model", model);
+      }
+    }
+    if (!meta.containsKey("model") && disc.indexEntry() != null) {
+      String model = disc.indexEntry().getOrDefault("model", "");
+      if (!model.isEmpty()) {
+        meta.put("model", model);
+      }
+    }
     return Map.copyOf(meta);
   }
 
@@ -261,6 +275,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
       JsonlReaderResult result = jsonlReader.read(filePath);
       String locator = candidate.fingerprint().locator();
       state.locator = locator;
+      // 从候选元数据初始化模型，确保早期事件可使用发现阶段提取的模型
+      String metaModel = candidate.metadata().get("model");
+      if (metaModel != null && !metaModel.isBlank()) {
+        state.currentModel = metaModel;
+      }
       List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
       List<JsonNode> events = result.events();
       boolean hasTokenUsage = events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);
@@ -270,11 +289,13 @@ public final class CodexSourceAdapter implements SourceAdapter {
       for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
         JsonNode event = events.get(eventIndex);
         String rawEventType = extractEventType(event);
+        String ts = extractTimestamp(event);
         collectEventDiagnostics(state, event, eventIndex, rawEventType, locator, diagnostics);
         updateCurrentModel(state, event);
 
         CodexRecordMapping mapped =
-            mapCodexRecord(event, eventIndex, locator, state.currentModel, hasTokenUsage, previousTotals);
+            mapCodexRecord(
+                event, eventIndex, locator, state.currentModel, hasTokenUsage, previousTotals, ts);
         previousTotals = mapped.previousTotals();
         records.add(mapped.record());
       }
@@ -317,57 +338,94 @@ public final class CodexSourceAdapter implements SourceAdapter {
     return "";
   }
 
+  /**
+   * 从 JSON 事件节点提取顶层 {@code timestamp} 字段。
+   *
+   * @param event JSON 事件节点
+   * @return 时间戳字符串，缺失时返回空字符串
+   */
+  private static String extractTimestamp(JsonNode event) {
+    if (event == null || !event.isObject()) {
+      return "";
+    }
+    JsonNode ts = event.get("timestamp");
+    return ts != null && ts.isTextual() ? ts.asText() : "";
+  }
+
   private static CodexRecordMapping mapCodexRecord(
       JsonNode event,
       int eventIndex,
       String locator,
       String currentModel,
       boolean hasTokenUsage,
-      TokenTotals previousTotals) {
+      TokenTotals previousTotals,
+      String timestamp) {
     String rawType = extractEventType(event);
     String recordLocator = locator + "#event[" + eventIndex + "]";
     JsonNode payload = event.get("payload");
     if (payload == null || !payload.isObject()) {
       return new CodexRecordMapping(
-          basicRecord(recordLocator, eventIndex, rawType), previousTotals);
+          basicRecord(recordLocator, eventIndex, rawType, timestamp), previousTotals);
     }
 
     String payloadType = text(payload, "type");
-    if ("event_msg".equals(rawType) && "token_count".equals(payloadType)) {
-      if (!hasCumulativeUsage(event)) {
+    if ("event_msg".equals(rawType)) {
+      // 为 event_msg 事件编码语义子类型到 turnId
+      Optional<String> subType = optionalText(payloadType);
+      if ("token_count".equals(payloadType)) {
+        if (!hasCumulativeUsage(event)) {
+          return new CodexRecordMapping(
+              basicRecord(recordLocator, eventIndex, rawType, timestamp), previousTotals);
+        }
+        TokenTotals currentTotals = cumulativeTotals(event);
+        SourceRecordUsage delta = currentTotals.deltaSince(previousTotals);
+        if (delta.total() > 0) {
+          return new CodexRecordMapping(
+              new SourceRecord(
+                  recordLocator,
+                  eventIndex,
+                  "assistant",
+                  Optional.of("token_count:" + eventIndex),
+                  optionalText(currentModel),
+                  optionalText(timestamp),
+                  Optional.empty(),
+                  delta,
+                  List.of(),
+                  Optional.empty(),
+                  Optional.empty(),
+                  Optional.empty()),
+              currentTotals);
+        }
         return new CodexRecordMapping(
-            basicRecord(recordLocator, eventIndex, rawType), previousTotals);
+            basicRecord(recordLocator, eventIndex, rawType, timestamp), currentTotals);
       }
-      TokenTotals currentTotals = cumulativeTotals(event);
-      SourceRecordUsage delta = currentTotals.deltaSince(previousTotals);
-      if (delta.total() > 0) {
-        return new CodexRecordMapping(
-            new SourceRecord(
-                recordLocator,
-                eventIndex,
-                "assistant",
-                Optional.of("token_count:" + eventIndex),
-                optionalText(currentModel),
-                Optional.empty(),
-                Optional.empty(),
-                delta,
-                List.of(),
-                Optional.empty(),
-                Optional.empty(),
-                Optional.empty()),
-            currentTotals);
-      }
+      // 非 token_count 的 event_msg：传递 payload 子类型作为 turnId
       return new CodexRecordMapping(
-          basicRecord(recordLocator, eventIndex, rawType), currentTotals);
+          new SourceRecord(
+              recordLocator,
+              eventIndex,
+              rawType,
+              Optional.empty(),
+              optionalText(currentModel),
+              optionalText(timestamp),
+              subType,
+              SourceRecordUsage.empty(),
+              List.of(),
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty()),
+          previousTotals);
     }
 
     if ("response_item".equals(rawType)) {
       return new CodexRecordMapping(
-          mapResponseItem(recordLocator, eventIndex, payload, currentModel, hasTokenUsage),
+          mapResponseItem(
+              recordLocator, eventIndex, payload, currentModel, hasTokenUsage, timestamp),
           previousTotals);
     }
 
-    return new CodexRecordMapping(basicRecord(recordLocator, eventIndex, rawType), previousTotals);
+    return new CodexRecordMapping(
+        basicRecord(recordLocator, eventIndex, rawType, timestamp), previousTotals);
   }
 
   private static SourceRecord mapResponseItem(
@@ -375,7 +433,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
       int eventIndex,
       JsonNode payload,
       String currentModel,
-      boolean hasTokenUsage) {
+      boolean hasTokenUsage,
+      String timestamp) {
     String payloadType = text(payload, "type");
     if ("function_call".equals(payloadType) || "custom_tool_call".equals(payloadType)) {
       Optional<String> callId = optionalText(text(payload, "call_id"));
@@ -389,9 +448,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
           eventIndex,
           "tool_use",
           callId,
-          Optional.empty(),
-          Optional.empty(),
-          Optional.empty(),
+          optionalText(currentModel),
+          optionalText(timestamp),
+          Optional.of(payloadType),
           SourceRecordUsage.empty(),
           toolCalls,
           Optional.empty(),
@@ -405,9 +464,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
           eventIndex,
           "tool_result",
           Optional.empty(),
-          Optional.empty(),
-          Optional.empty(),
-          Optional.empty(),
+          optionalText(currentModel),
+          optionalText(timestamp),
+          Optional.of(payloadType),
           SourceRecordUsage.empty(),
           List.of(),
           optionalText(text(payload, "call_id")),
@@ -422,9 +481,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
             eventIndex,
             "user",
             Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
-            Optional.empty(),
+            optionalText(currentModel),
+            optionalText(timestamp),
+            Optional.of("message"),
             SourceRecordUsage.empty(),
             List.of(),
             Optional.empty(),
@@ -438,8 +497,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
             "assistant",
             Optional.empty(),
             optionalText(currentModel),
-            Optional.empty(),
-            Optional.empty(),
+            optionalText(timestamp),
+            Optional.of("message"),
             SourceRecordUsage.empty(),
             List.of(),
             Optional.empty(),
@@ -454,25 +513,26 @@ public final class CodexSourceAdapter implements SourceAdapter {
           "assistant",
           Optional.empty(),
           optionalText(currentModel),
-          Optional.empty(),
-          Optional.empty(),
+          optionalText(timestamp),
+          Optional.of("reasoning"),
           SourceRecordUsage.empty(),
           List.of(),
           Optional.empty(),
           Optional.empty(),
           Optional.empty());
     }
-    return basicRecord(recordLocator, eventIndex, "response_item");
+    return basicRecord(recordLocator, eventIndex, "response_item", timestamp);
   }
 
-  private static SourceRecord basicRecord(String recordLocator, int eventIndex, String eventType) {
+  private static SourceRecord basicRecord(
+      String recordLocator, int eventIndex, String eventType, String timestamp) {
     return new SourceRecord(
         recordLocator,
         eventIndex,
         eventType,
         Optional.empty(),
         Optional.empty(),
-        Optional.empty(),
+        optionalText(timestamp),
         Optional.empty(),
         SourceRecordUsage.empty(),
         List.of(),
@@ -487,6 +547,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
   /**
    * 从 Codex function_call_output payload 提取工具错误信息。
+   *
+   * <p>先检查显式 {@code error} 字段，再通过 {@link ToolFailureClassifier} 对 {@code output}
+   * 内容进行文本启发式失败检测。
    *
    * @param payload response_item 的 payload 节点
    * @return 错误信息，非空表示工具执行失败
@@ -503,6 +566,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
       JsonNode message = error.get("message");
       if (message != null && message.isTextual() && !message.asText().isBlank()) {
         return Optional.of(message.asText());
+      }
+    }
+    // 文本启发式：检查 output 内容是否包含运行时错误标记
+    JsonNode output = payload.get("output");
+    if (output != null) {
+      String outputText = output.isTextual() ? output.asText() : output.toString();
+      if (!outputText.isBlank() && ToolFailureClassifier.looksFailed(outputText, "")) {
+        return Optional.of("text_heuristic_failure");
       }
     }
     return Optional.empty();

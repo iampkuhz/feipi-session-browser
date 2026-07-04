@@ -84,20 +84,42 @@ public final class ArtifactRowMapper {
       endedAt = lastCall.timestamp().orElse("");
     }
 
-    // 聚合 calls 统计量
+    // 聚合 calls 统计量；优先从 session map 读取归一化引擎统计值
     long outputTokens = 0;
     long freshInputTokens = 0;
     long cacheReadTokens = 0;
     long cacheWriteTokens = 0;
     long totalTokens = 0;
-    long assistantMessageCount = artifact.calls().size();
+    long assistantMessageCount = 0;
     long toolCallCount = 0;
-    // 优先从 session map 读取归一化引擎统计的 userMessageCount
     long userMessageCount = 0;
+
+    // 优先从 session map 读取归一化引擎统计的 assistantMessageCount
+    Object sessionAssistantCount = session.get("assistantMessageCount");
+    if (sessionAssistantCount instanceof Number num) {
+      assistantMessageCount = num.longValue();
+    } else {
+      assistantMessageCount = artifact.calls().size();
+    }
+
+    // 优先从 session map 读取归一化引擎统计的 toolCallCount
+    Object sessionToolCallCount = session.get("toolCallCount");
+    if (sessionToolCallCount instanceof Number num) {
+      toolCallCount = num.longValue();
+    }
+
+    // 优先从 session map 读取归一化引擎统计的 userMessageCount
     Object sessionUserMsgCount = session.get("userMessageCount");
     if (sessionUserMsgCount instanceof Number num) {
       userMessageCount = num.longValue();
     }
+
+    // 优先从 session map 读取 token 字段
+    Object sessionTotalTokens = session.get("totalTokens");
+    if (sessionTotalTokens instanceof Number num) {
+      totalTokens = num.longValue();
+    }
+
     Set<String> subagentIds = new HashSet<>();
 
     for (NormalizedCall call : artifact.calls()) {
@@ -105,8 +127,14 @@ public final class ArtifactRowMapper {
       freshInputTokens += call.usage().fresh();
       cacheReadTokens += call.usage().cacheRead();
       cacheWriteTokens += call.usage().cacheWrite();
-      totalTokens += call.usage().total();
-      toolCallCount += call.response().toolCallIds().size();
+      // 仅当 session map 未提供 totalTokens 时从 calls 聚合
+      if (sessionTotalTokens == null) {
+        totalTokens += call.usage().total();
+      }
+      // 仅当 session map 未提供 toolCallCount 时从 calls 聚合
+      if (sessionToolCallCount == null) {
+        toolCallCount += call.response().toolCallIds().size();
+      }
 
       // 仅在 session map 未提供 userMessageCount 时回退到 scope 计数
       if (sessionUserMsgCount == null && call.scope() == CallScope.MAIN) {

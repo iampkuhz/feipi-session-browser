@@ -88,6 +88,8 @@ public final class DashboardPage {
         trendFilter = trendFilter.withAgent(agentFilter);
       }
       List<TrendDayRow> trendRows = useCase.trendData(trendFilter);
+      // cache health 使用未过滤的全局时间轴（与 Python 主分支对齐）
+      List<TrendDayRow> unfilteredTrendRows = useCase.trendData(TrendFilter.ofDays(days));
       List<ActivityTrendRow> activityRows = useCase.activityTrend(trendFilter);
       List<AgentEfficiencyRow> efficiencyRows = useCase.agentEfficiency();
       List<AgentBreakdownRow> agentBreakdown = useCase.agentBreakdown();
@@ -103,7 +105,7 @@ public final class DashboardPage {
       context.put("kpis", buildKpis(stats, kpiSupplement, trendRows, activityRows));
       context.put("trend", buildTrend(trendRows));
       context.put("prompt_activity", buildPromptActivity(activityRows));
-      Map<String, Object> cacheHealth = buildCacheHealth(trendRows, agentScope);
+      Map<String, Object> cacheHealth = buildCacheHealth(unfilteredTrendRows, agentScope);
       context.put("cache_health", cacheHealth);
       context.put("chart_notes", buildChartNotes());
       context.put("dashboard_summary", buildDashboardSummary(trendRows, activityRows, cacheHealth));

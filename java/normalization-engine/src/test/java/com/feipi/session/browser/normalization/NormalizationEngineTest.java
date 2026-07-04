@@ -443,6 +443,109 @@ class NormalizationEngineTest {
   }
 
   @Nested
+  @DisplayName("Codex 语义计数")
+  class CodexCountingTests {
+
+    @Test
+    @DisplayName("CODEX agent 使用 turnId 编码的子类型精确统计 user/assistant/tool")
+    void codexAgentUsesTurnIdSubtypeCounting() {
+      // 用户消息事件，计入用户计数
+      ObjectNode userMsg = MAPPER.createObjectNode()
+          .put("type", "event_msg").put("turnId", "user_message");
+      // 助手消息事件，不计入用户计数
+      ObjectNode agentMsg = MAPPER.createObjectNode()
+          .put("type", "event_msg").put("turnId", "agent_message");
+      // 令牌用量记录，计入助手计数
+      ObjectNode assistant = MAPPER.createObjectNode()
+          .put("type", "assistant").put("id", "tc:0");
+      // 函数调用工具，计入工具计数
+      ObjectNode funcCall = MAPPER.createObjectNode()
+          .put("type", "tool_use").put("turnId", "function_call").put("name", "shell");
+      // 自定义工具调用，不计入工具计数
+      ObjectNode customCall = MAPPER.createObjectNode()
+          .put("type", "tool_use").put("turnId", "custom_tool_call").put("name", "custom");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(userMsg, agentMsg, assistant, funcCall, customCall),
+              List.of(),
+              List.of());
+
+      assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+      assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
+      assertThat(artifact.session()).containsEntry("toolCallCount", 1L);
+    }
+
+    @Test
+    @DisplayName("非 CODEX agent 使用通用分类计数")
+    void nonCodexAgentUsesGenericCounting() {
+      ObjectNode user = MAPPER.createObjectNode().put("type", "user");
+      ObjectNode assistant = MAPPER.createObjectNode().put("type", "assistant").put("id", "c1");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(user, assistant),
+              List.of(),
+              List.of());
+
+      // 通用计数：userMessages = 1
+      assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+      // 非 CODEX 不设置 assistantMessageCount / toolCallCount
+      assertThat(artifact.session()).doesNotContainKey("assistantMessageCount");
+      assertThat(artifact.session()).doesNotContainKey("toolCallCount");
+    }
+  }
+
+  @Nested
+  @DisplayName("Claude 语义计数")
+  class ClaudeCountingTests {
+
+    @Test
+    @DisplayName("CLAUDE_CODE 排除带 toolUseId 的 user 事件（实际为 tool_result）")
+    void claudeCodeExcludesToolResultUserEvents() {
+      // 真实用户消息
+      ObjectNode userMsg = MAPPER.createObjectNode().put("type", "user");
+      // 伪装为 user 的 tool_result（携带 tool_use_id）
+      ObjectNode toolResultAsUser = MAPPER.createObjectNode()
+          .put("type", "user")
+          .put("tool_use_id", "toolu_1");
+      // 助手消息
+      ObjectNode assistant = MAPPER.createObjectNode()
+          .put("type", "assistant").put("id", "c1");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(userMsg, toolResultAsUser, assistant),
+              List.of(),
+              List.of());
+
+      // 只有真实用户消息被计数，带 tool_use_id 的被排除
+      assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+    }
+
+    @Test
+    @DisplayName("CLAUDE_CODE 纯 user 事件全部计数")
+    void claudeCodeCountsAllPureUserEvents() {
+      ObjectNode user1 = MAPPER.createObjectNode().put("type", "user");
+      ObjectNode user2 = MAPPER.createObjectNode().put("type", "user");
+      ObjectNode assistant = MAPPER.createObjectNode()
+          .put("type", "assistant").put("id", "c1");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(user1, user2, assistant),
+              List.of(),
+              List.of());
+
+      assertThat(artifact.session()).containsEntry("userMessageCount", 2L);
+    }
+  }
+
+  @Nested
   @DisplayName("守恒检查")
   class ConservationTests {
 

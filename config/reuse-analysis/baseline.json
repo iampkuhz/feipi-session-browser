@@ -4983,6 +4983,136 @@
       "createdAt": "2026-07-04",
       "expiresOn": "2026-12-31",
       "evidence": "7e6c93d7d65e1480c01f7f9c92a737fd9a3c68a52426dbc8a8512a2fc591e37c"
+    },
+    {
+      "fingerprint": "bc0efc4ae20b50cca8dc939f1f637f466374ae9bc968ae4079da23062969babd",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "QoderSourceAdapter.buildSessionKey 与 CodexSourceAdapter.discover 的结构相似性是 SPI 适配器模式的固有特征",
+      "owner": "qoder",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "bc0efc4ae20b50cca8dc939f1f637f466374ae9bc968ae4079da23062969babd"
+    },
+    {
+      "fingerprint": "7ea4b07bcc1e83b8671835bbfaf56af973246d8ca8f2ac56d8619c4b2efa31da",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "QoderDiscovery.discoverSessions 与 QoderSourceAdapter.discover 的结构相似性是 SPI 发现模式的固有特征",
+      "owner": "qoder",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "7ea4b07bcc1e83b8671835bbfaf56af973246d8ca8f2ac56d8619c4b2efa31da"
+    },
+    {
+      "fingerprint": "8eb4ba36983a165ad1aeeb5fa6cf1b23c9078a08d967b5043d1625212923cff9",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "QoderSourceAdapter.discover SPI 适配器模式重复，与 Codex/Claude adapter 结构一致",
+      "owner": "qoder",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "8eb4ba36983a165ad1aeeb5fa6cf1b23c9078a08d967b5043d1625212923cff9"
+    },
+    {
+      "fingerprint": "581de2a87876867c61832c3d78e071c86aea3224eed2cc4d48171246d5d19b05",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "QoderSourceAdapter.buildSessionKey 是适配器内部辅助方法，与其他 adapter 的 SPI 模式一致",
+      "owner": "qoder",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "581de2a87876867c61832c3d78e071c86aea3224eed2cc4d48171246d5d19b05"
+    },
+    {
+      "fingerprint": "9e9a85d345acbd2dd60a91b2593f735d0f74048e7858d83611620c5bda28cebb",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: extractToolResultContentString, stringifyNode, buildMhtmlEnvelope 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "9e9a85d345acbd2dd60a91b2593f735d0f74048e7858d83611620c5bda28cebb"
+    },
+    {
+      "fingerprint": "fa22e0af8c7b746b256a042acca768859d819ecd7ed537b606b89f16a6c964dd",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: collectToolCalls, extractToolError, extractToolError 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "fa22e0af8c7b746b256a042acca768859d819ecd7ed537b606b89f16a6c964dd"
+    },
+    {
+      "fingerprint": "8150fd73f66fa55399716ba128478450e3f6a6ceffbd322c5c2c8f8ce6a5bae0",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: extractCodexToolError, extractToolError 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "8150fd73f66fa55399716ba128478450e3f6a6ceffbd322c5c2c8f8ce6a5bae0"
+    },
+    {
+      "fingerprint": "b2988943fee95e172360db7a53dca362ae3be312b2b71cfd9bf5cafbdcc8d99d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: processTranscriptMissingCandidate, extractToolError 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "b2988943fee95e172360db7a53dca362ae3be312b2b71cfd9bf5cafbdcc8d99d"
+    },
+    {
+      "fingerprint": "d14bc5f20e3f02b00246544f912b565df152c5a2bd850617ac0799a0e62955ef",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: extractToolResultContentString, extractToolResultContentString, stringifyNode, stringifyNode, stringifyNode 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "d14bc5f20e3f02b00246544f912b565df152c5a2bd850617ac0799a0e62955ef"
+    },
+    {
+      "fingerprint": "671dda1d789e4fcdd571284b2b0e31e535d5f3c6a0748125cb0fbe5a961b325a",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: extractToolResultContentString, extractToolResultContentString, stringifyNode, stringifyNode, stringifyNode 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "671dda1d789e4fcdd571284b2b0e31e535d5f3c6a0748125cb0fbe5a961b325a"
+    },
+    {
+      "fingerprint": "1f15c97cc41063d7544a7c20c8c7b93492becb7974dd806a70ec3a1c3ec6976f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: applyMasking, stringify 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "1f15c97cc41063d7544a7c20c8c7b93492becb7974dd806a70ec3a1c3ec6976f"
+    },
+    {
+      "fingerprint": "2f823f6f88d1bbe1b765d0f375b965b3e09061a5d7c3d33a1fcb68440a1ac25d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: checkRuntimeErrors, checkTimeout 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "2f823f6f88d1bbe1b765d0f375b965b3e09061a5d7c3d33a1fcb68440a1ac25d"
+    },
+    {
+      "fingerprint": "0872d5076376ca08fe0e97a5a84362495bb51ec77aa99703d9ede00f4a727114",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Dashboard parity fix: extractToolError, extractToolResultContentString 属于 SPI/归一化模式重复",
+      "owner": "parity-fix",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2027-01-04",
+      "evidence": "0872d5076376ca08fe0e97a5a84362495bb51ec77aa99703d9ede00f4a727114"
     }
   ]
 }

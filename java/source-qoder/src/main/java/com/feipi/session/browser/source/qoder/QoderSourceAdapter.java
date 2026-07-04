@@ -4,6 +4,9 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
+import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveredSession;
+import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveryResult;
+import com.feipi.session.browser.source.qoder.QoderDiscovery.SourceKind;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
@@ -16,17 +19,19 @@ import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
 import java.io.IOException;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.OptionalInt;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -91,8 +96,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
   /**
    * 从源根目录发现候选会话。
    *
-   * <p>遍历 {@code projects/} 和 {@code cache/projects/} 两个子树， 找到所有 {@code .jsonl} 会话文件，按路径排序。
-   * 目录不存在或为空时返回空的 {@link BoundedStream}。
+   * <p>使用结构化发现结果和 canonical map 去重：cache 中的会话若映射到已发现的 projects UUID，则跳过。
+   * session_key 和 project_key 与 Python 主分支对齐。
    *
    * @param rootPath 源根目录路径
    * @return 有界确定性候选项流
@@ -101,24 +106,71 @@ public final class QoderSourceAdapter implements SourceAdapter {
   public BoundedStream<Candidate> discover(Path rootPath) {
     Objects.requireNonNull(rootPath, "rootPath 不得为 null");
 
-    List<Path> sessionPaths = QoderDiscovery.discoverSessions(rootPath);
-    List<Candidate> candidates = new ArrayList<>(sessionPaths.size());
+    QoderDiscoveryResult discoveryResult = QoderDiscovery.discoverSessionsStructured(rootPath);
+    Map<String, String> canonicalMap = QoderDiscovery.buildCanonicalIdMap(discoveryResult);
 
-    for (Path sessionPath : sessionPaths) {
-      try {
-        SourceFingerprint fp = fingerprint(sessionPath);
-        String sessionKey = extractSessionKey(rootPath, sessionPath);
-        String projectKey = extractProjectKey(rootPath, sessionPath);
-        Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.of());
-        candidates.add(candidate);
-      } catch (Exception e) {
-        LOG.log(Level.FINE, "跳过无法处理的会话文件: " + sessionPath, e);
+    // 收集 projects/ 已发现的 canonical session IDs（小写），用于 cache 去重
+    Set<String> projectsSessionIds = new HashSet<>();
+    for (QoderDiscoveredSession s : discoveryResult.sessions()) {
+      if (s.sourceKind() == SourceKind.PROJECTS) {
+        projectsSessionIds.add(s.sessionId().toLowerCase(Locale.ROOT));
       }
     }
 
-    Comparator<Candidate> byPath = Comparator.comparing(c -> c.fingerprint().locator());
+    List<Candidate> candidates = new ArrayList<>();
+    for (QoderDiscoveredSession disc : discoveryResult.sessions()) {
+      try {
+        // cache 去重：如果短 ID 映射到的 UUID 已在 projects 中，跳过
+        if (disc.sourceKind() == SourceKind.CACHE) {
+          String shortId = disc.sessionId().toLowerCase(Locale.ROOT);
+          String canonicalId = canonicalMap.get(shortId);
+          if (canonicalId != null && projectsSessionIds.contains(canonicalId)) {
+            continue;
+          }
+        }
+
+        SourceFingerprint fp = fingerprint(disc.path());
+        String sessionKey = buildSessionKey(disc, canonicalMap);
+        String projectKey = disc.projectKey();
+        if (projectKey.isEmpty()) {
+          projectKey = disc.sessionId();
+        }
+
+        Map<String, String> meta = new HashMap<>();
+        meta.put("source_kind", disc.sourceKind().name().toLowerCase(Locale.ROOT));
+        Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.copyOf(meta));
+        candidates.add(candidate);
+      } catch (Exception e) {
+        LOG.log(Level.FINE, "跳过无法处理的会话文件: " + disc.path(), e);
+      }
+    }
+
+    Comparator<Candidate> bySessionKey = Comparator.comparing(Candidate::sessionKey);
     return BoundedStream.of(
-        candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(byPath));
+        candidates, SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.of(bySessionKey));
+  }
+
+  /**
+   * 构建与 Python 主分支对齐的 session key。
+   *
+   * <p>格式：{@code qoder:{canonical_project}/{canonical_session}}。 对 cache 来源的会话，使用 canonical map
+   * 将短 ID 映射为完整 UUID。
+   */
+  private static String buildSessionKey(
+      QoderDiscoveredSession disc, Map<String, String> canonicalMap) {
+    String sessionId = disc.sessionId();
+    String projectKey = disc.projectKey();
+
+    // cache 短 ID → 完整 UUID
+    if (disc.sourceKind() == SourceKind.CACHE) {
+      String shortId = sessionId.toLowerCase(Locale.ROOT);
+      String canonicalId = canonicalMap.get(shortId);
+      if (canonicalId != null) {
+        sessionId = canonicalId;
+      }
+    }
+
+    return "qoder:" + projectKey + "/" + sessionId;
   }
 
   /**
@@ -296,72 +348,5 @@ public final class QoderSourceAdapter implements SourceAdapter {
       case "text", "tool_use", "tool_result", "image", "file", "reasoning" -> true;
       default -> false;
     };
-  }
-
-  /**
-   * 从会话文件路径中提取会话键。
-   *
-   * <p>会话键格式为 {@code {project-dir}/{session-id}}，其中 session-id 为 去掉 {@code .jsonl} 后缀的文件名。
-   * project-dir 是项目目录的名称（ {@code projects/} 或 {@code cache/projects/} 下的直接子目录）。
-   *
-   * @param rootPath 源根目录
-   * @param sessionPath 会话文件路径
-   * @return 会话键
-   */
-  private static String extractSessionKey(Path rootPath, Path sessionPath) {
-    Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
-    // 目录结构为 {@code projects/项目名/会话.jsonl} 或 {@code cache/projects/项目名/会话.jsonl}
-    // 相对路径最后两段分别是项目目录和会话文件
-    int nameCount = relative.getNameCount();
-    if (nameCount >= 2) {
-      String projectDirName = relative.getName(nameCount - 2).toString();
-      String fileName = relative.getName(nameCount - 1).toString();
-      String sessionId = SourcePathOps.stripSuffix(fileName, QoderConstants.SESSION_FILE_SUFFIX);
-      return projectDirName + "/" + sessionId;
-    }
-    // 回退：使用文件名去后缀
-    return SourcePathOps.stripSuffix(
-        sessionPath.getFileName().toString(), QoderConstants.SESSION_FILE_SUFFIX);
-  }
-
-  /**
-   * 从会话文件路径中提取项目键。
-   *
-   * <p>项目键为项目目录名经过 URL 解码后的值。若解码失败或解码结果为 {@code "."}， 则使用原始目录名。
-   *
-   * @param rootPath 源根目录
-   * @param sessionPath 会话文件路径
-   * @return 项目键
-   */
-  private static String extractProjectKey(Path rootPath, Path sessionPath) {
-    Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
-    int nameCount = relative.getNameCount();
-    if (nameCount >= 2) {
-      String dirName = relative.getName(nameCount - 2).toString();
-      return urlDecodeProjectKey(dirName);
-    }
-    return "";
-  }
-
-  /**
-   * 对项目目录名进行 URL 解码。
-   *
-   * <p>Qoder 使用 URL 编码的项目路径作为目录名。解码失败时回退到原始名称。 解码结果为 {@code "."} 时也使用原始目录名。
-   *
-   * @param dirName 原始目录名
-   * @return URL 解码后的项目键
-   */
-  private static String urlDecodeProjectKey(String dirName) {
-    try {
-      String decoded = URLDecoder.decode(dirName, StandardCharsets.UTF_8);
-      // 解码结果为 "." 时使用原始目录名
-      if (".".equals(decoded)) {
-        return dirName;
-      }
-      return decoded;
-    } catch (IllegalArgumentException e) {
-      // URL 解码失败，回退到原始目录名
-      return dirName;
-    }
   }
 }

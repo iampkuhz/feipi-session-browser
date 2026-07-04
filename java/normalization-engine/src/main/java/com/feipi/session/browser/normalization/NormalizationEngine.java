@@ -218,7 +218,37 @@ public final class NormalizationEngine {
     session.put("consumedResults", conservation.consumedResults());
 
     // Dashboard 必需字段
-    session.put("userMessageCount", (long) classified.userMessages().size());
+    if (agent == NormalizedAgent.CODEX) {
+      // Codex 语义子类型计数：通过 turnId 编码的 payload 子类型精确统计
+      long codexUserCount = 0;
+      long codexAssistantCount = 0;
+      long codexToolCount = 0;
+      for (SourceRecord record : records) {
+        String et = record.eventType();
+        String ti = record.turnId().orElse("");
+        if ("event_msg".equals(et) && "user_message".equals(ti)) {
+          codexUserCount++;
+        } else if ("assistant".equals(et)) {
+          codexAssistantCount++;
+        } else if ("tool_use".equals(et) && "function_call".equals(ti)) {
+          codexToolCount++;
+        }
+      }
+      session.put("userMessageCount", codexUserCount);
+      session.put("assistantMessageCount", codexAssistantCount);
+      session.put("toolCallCount", codexToolCount);
+    } else if (agent == NormalizedAgent.CLAUDE_CODE) {
+      // Claude 语义计数：排除携带 toolUseId 的 user 事件（实际为 tool_result）
+      long claudeUserCount = 0;
+      for (SourceRecord record : classified.userMessages()) {
+        if (record.toolUseId().isEmpty()) {
+          claudeUserCount++;
+        }
+      }
+      session.put("userMessageCount", claudeUserCount);
+    } else {
+      session.put("userMessageCount", (long) classified.userMessages().size());
+    }
 
     // 从 calls 提取时间范围
     Optional<String> startedAt = Optional.empty();

@@ -305,6 +305,67 @@ class ArtifactRowMapperTest {
 
       assertThat(row.failedToolCount()).isEqualTo(1);
     }
+
+    @Test
+    @DisplayName("assistantMessageCount 优先从 session map 读取")
+    void assistantCountFromSessionMap() {
+      NormalizedCallUsage usage = NormalizedCallUsage.empty();
+      NormalizedCall call1 = createCall(1, CallScope.MAIN, usage, List.of());
+      NormalizedCall call2 = createCall(2, CallScope.MAIN, usage, List.of());
+
+      Map<String, Object> session =
+          new java.util.HashMap<>();
+      session.put("session_key", "claude_code:test");
+      session.put("session_id", "test");
+      session.put("ended_at", "2025-01-01T01:00:00Z");
+      session.put("assistantMessageCount", 5L);
+
+      NormalizedSessionArtifact artifact = buildArtifact(session, List.of(call1, call2), List.of());
+      SessionRow row = ArtifactRowMapper.toSessionRow(artifact, 0, null);
+
+      // session map 提供 5，优先于 calls.size() = 2
+      assertThat(row.assistantMessageCount()).isEqualTo(5);
+    }
+
+    @Test
+    @DisplayName("toolCallCount 优先从 session map 读取")
+    void toolCallCountFromSessionMap() {
+      NormalizedCallUsage usage = NormalizedCallUsage.empty();
+      NormalizedCall call = createCall(1, CallScope.MAIN, usage, List.of("tc-1", "tc-2"));
+
+      Map<String, Object> session =
+          new java.util.HashMap<>();
+      session.put("session_key", "claude_code:test");
+      session.put("session_id", "test");
+      session.put("ended_at", "2025-01-01T01:00:00Z");
+      session.put("toolCallCount", 10L);
+
+      NormalizedSessionArtifact artifact = buildArtifact(session, List.of(call), List.of());
+      SessionRow row = ArtifactRowMapper.toSessionRow(artifact, 0, null);
+
+      // session map 提供 10，优先于 calls 聚合的 2
+      assertThat(row.toolCallCount()).isEqualTo(10);
+    }
+
+    @Test
+    @DisplayName("totalTokens 优先从 session map 读取")
+    void totalTokensFromSessionMap() {
+      NormalizedCallUsage usage = new NormalizedCallUsage(100, 50, 20, 80, 250);
+      NormalizedCall call = createCall(1, CallScope.MAIN, usage, List.of());
+
+      Map<String, Object> session =
+          new java.util.HashMap<>();
+      session.put("session_key", "claude_code:test");
+      session.put("session_id", "test");
+      session.put("ended_at", "2025-01-01T01:00:00Z");
+      session.put("totalTokens", 999L);
+
+      NormalizedSessionArtifact artifact = buildArtifact(session, List.of(call), List.of());
+      SessionRow row = ArtifactRowMapper.toSessionRow(artifact, 0, null);
+
+      // session map 提供 999，优先于 calls 聚合的 250
+      assertThat(row.totalTokens()).isEqualTo(999);
+    }
   }
 
   @Nested

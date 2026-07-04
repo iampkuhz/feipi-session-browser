@@ -122,6 +122,144 @@ class CodexSourceSpecificContractTest {
         .contains("TOOL_ORPHAN_RESULT");
   }
 
+  @Test
+  @DisplayName("时间戳从顶层 event.timestamp 传递到所有 SourceRecord")
+  void timestampPropagatedToAllSourceRecords() throws IOException {
+    String sessionId = "thread-ts";
+
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"" + sessionId
+            + "\",\"thread_name\":\"TS Thread\",\"updated_at\":\"2026-06-23\"}\n",
+        StandardCharsets.UTF_8);
+
+    Path dayDir =
+        tempDir
+            .resolve(CodexConstants.SESSIONS_DIR)
+            .resolve("2026")
+            .resolve("06")
+            .resolve("23");
+    Files.createDirectories(dayDir);
+    Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
+    Files.writeString(
+        rollout,
+        String.join(
+            "\n",
+            "{\"type\":\"turn_context\",\"timestamp\":\"2026-06-23T10:00:00Z\","
+                + "\"payload\":{\"model\":\"gpt-test\"}}",
+            "{\"type\":\"event_msg\",\"timestamp\":\"2026-06-23T10:00:01Z\","
+                + "\"payload\":{\"type\":\"user_message\",\"content\":\"hello\"}}",
+            "{\"type\":\"response_item\",\"timestamp\":\"2026-06-23T10:00:02Z\","
+                + "\"payload\":{\"type\":\"function_call\",\"call_id\":\"c1\",\"name\":\"shell\"}}",
+            ""),
+        StandardCharsets.UTF_8);
+
+    Candidate candidate = adapter.discover(tempDir).orderedItems().get(0);
+    SourceResult.Success success = (SourceResult.Success) adapter.parse(candidate, null);
+
+    assertThat(success.records()).hasSize(3);
+    // 所有记录都应包含时间戳
+    assertThat(success.records().get(0).timestamp()).hasValue("2026-06-23T10:00:00Z");
+    assertThat(success.records().get(1).timestamp()).hasValue("2026-06-23T10:00:01Z");
+    assertThat(success.records().get(2).timestamp()).hasValue("2026-06-23T10:00:02Z");
+  }
+
+  @Test
+  @DisplayName("event_msg 和 response_item 的 payload.type 编码到 turnId")
+  void payloadSubtypeEncodedInTurnId() throws IOException {
+    String sessionId = "thread-turnid";
+
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"" + sessionId
+            + "\",\"thread_name\":\"TurnId Thread\",\"updated_at\":\"2026-06-23\"}\n",
+        StandardCharsets.UTF_8);
+
+    Path dayDir =
+        tempDir
+            .resolve(CodexConstants.SESSIONS_DIR)
+            .resolve("2026")
+            .resolve("06")
+            .resolve("23");
+    Files.createDirectories(dayDir);
+    Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
+    Files.writeString(
+        rollout,
+        String.join(
+            "\n",
+            // 用户消息，轮次标识为消息子类型
+            "{\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"content\":\"hi\"}}",
+            // 助手消息，轮次标识为消息子类型
+            "{\"type\":\"event_msg\",\"payload\":{\"type\":\"agent_message\",\"content\":\"ok\"}}",
+            // 函数调用，轮次标识为工具子类型
+            "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\","
+                + "\"call_id\":\"c1\",\"name\":\"shell\"}}",
+            // 自定义工具调用，轮次标识为工具子类型
+            "{\"type\":\"response_item\",\"payload\":{\"type\":\"custom_tool_call\","
+                + "\"call_id\":\"c2\",\"name\":\"custom\"}}",
+            // 助手文本消息，轮次标识为消息子类型
+            "{\"type\":\"response_item\",\"payload\":{\"type\":\"message\","
+                + "\"role\":\"assistant\",\"content\":\"done\"}}",
+            // 推理内容，轮次标识为推理子类型
+            "{\"type\":\"response_item\",\"payload\":{\"type\":\"reasoning\","
+                + "\"content\":\"thinking\"}}",
+            ""),
+        StandardCharsets.UTF_8);
+
+    Candidate candidate = adapter.discover(tempDir).orderedItems().get(0);
+    SourceResult.Success success = (SourceResult.Success) adapter.parse(candidate, null);
+
+    assertThat(success.records()).hasSize(6);
+    // 验证消息事件的轮次子类型
+    assertThat(success.records().get(0).turnId()).hasValue("user_message");
+    assertThat(success.records().get(0).eventType()).isEqualTo("event_msg");
+    assertThat(success.records().get(1).turnId()).hasValue("agent_message");
+    assertThat(success.records().get(1).eventType()).isEqualTo("event_msg");
+    // 验证响应项的轮次子类型
+    assertThat(success.records().get(2).turnId()).hasValue("function_call");
+    assertThat(success.records().get(2).eventType()).isEqualTo("tool_use");
+    assertThat(success.records().get(3).turnId()).hasValue("custom_tool_call");
+    assertThat(success.records().get(3).eventType()).isEqualTo("tool_use");
+    assertThat(success.records().get(4).turnId()).hasValue("message");
+    assertThat(success.records().get(5).turnId()).hasValue("reasoning");
+  }
+
+  @Test
+  @DisplayName("session_index.jsonl 中的 model 字段作为回退传递到记录")
+  void modelFallbackFromIndexEntry() throws IOException {
+    String sessionId = "thread-model";
+
+    // session_index.jsonl 包含 model 字段
+    Files.writeString(
+        tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
+        "{\"id\":\"" + sessionId
+            + "\",\"thread_name\":\"Model Thread\",\"updated_at\":\"2026-06-23\","
+            + "\"model\":\"gpt-4-fallback\"}\n",
+        StandardCharsets.UTF_8);
+
+    Path dayDir =
+        tempDir
+            .resolve(CodexConstants.SESSIONS_DIR)
+            .resolve("2026")
+            .resolve("06")
+            .resolve("23");
+    Files.createDirectories(dayDir);
+    Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
+    // 第一个事件没有 model，应使用 indexEntry 回退值
+    Files.writeString(
+        rollout,
+        "{\"type\":\"event_msg\",\"payload\":{\"type\":\"user_message\",\"content\":\"hi\"}}\n",
+        StandardCharsets.UTF_8);
+
+    Candidate candidate = adapter.discover(tempDir).orderedItems().get(0);
+    // 验证 candidate metadata 包含 model
+    assertThat(candidate.metadata()).containsEntry("model", "gpt-4-fallback");
+
+    SourceResult.Success success = (SourceResult.Success) adapter.parse(candidate, null);
+    // 记录应使用回退模型
+    assertThat(success.records().get(0).model()).hasValue("gpt-4-fallback");
+  }
+
   private static List<String> eventTypes(SourceResult.Success success) {
     return success.records().stream().map(SourceRecord::eventType).toList();
   }

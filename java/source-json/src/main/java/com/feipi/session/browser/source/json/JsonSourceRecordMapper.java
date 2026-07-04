@@ -174,7 +174,8 @@ public final class JsonSourceRecordMapper {
   /**
    * 从工具结果事件提取错误信息。
    *
-   * <p>检测 content blocks 中的 {@code is_error: true} 或顶层 {@code is_error} 字段。
+   * <p>检测 content blocks 中的 {@code is_error: true} 或顶层 {@code is_error} 字段。 若 {@code is_error}
+   * 未命中，则通过 {@link ToolFailureClassifier} 进行文本启发式失败检测。
    *
    * @param event JSON 事件节点
    * @param eventType 已判定的事件类型
@@ -189,7 +190,8 @@ public final class JsonSourceRecordMapper {
     if (isError != null && isError.isBoolean() && isError.asBoolean()) {
       return Optional.of("tool_error");
     }
-    // 检查 content blocks 中的 is_error
+    // 检查 content blocks 中的 is_error，同时提取工具名称
+    String toolName = "";
     for (String container : new String[] {"content", "parts"}) {
       JsonNode blocks = event.get(container);
       if (blocks != null && blocks.isArray()) {
@@ -199,6 +201,12 @@ public final class JsonSourceRecordMapper {
             JsonNode blockError = block.get("is_error");
             if (blockError != null && blockError.isBoolean() && blockError.asBoolean()) {
               return Optional.of("tool_error");
+            }
+          }
+          if (typeNode != null && "tool_use".equals(typeNode.asText())) {
+            Optional<String> name = firstText(block, "name");
+            if (name.isPresent()) {
+              toolName = name.get();
             }
           }
         }
@@ -216,10 +224,70 @@ public final class JsonSourceRecordMapper {
                 return Optional.of("tool_error");
               }
             }
+            if (typeNode != null && "tool_use".equals(typeNode.asText())) {
+              Optional<String> name = firstText(block, "name");
+              if (name.isPresent()) {
+                toolName = name.get();
+              }
+            }
           }
         }
       }
     }
+
+    // 使用 ToolFailureClassifier 进行文本启发式失败检测
+    if (toolName.isEmpty()) {
+      toolName = firstTextDeep(event, "name").orElse("");
+    }
+    String contentString = extractToolResultContentString(event);
+    if (!contentString.isEmpty() && ToolFailureClassifier.looksFailed(contentString, toolName)) {
+      return Optional.of("text_heuristic_failure");
+    }
+
     return Optional.empty();
+  }
+
+  /**
+   * 从工具结果事件提取内容文本，用于文本启发式失败检测。
+   *
+   * @param event 工具结果事件 JSON 节点
+   * @return 内容文本，不含内容时返回空串
+   */
+  private static String extractToolResultContentString(JsonNode event) {
+    StringBuilder sb = new StringBuilder();
+    for (String container : new String[] {"content", "parts"}) {
+      JsonNode blocks = event.get(container);
+      if (blocks != null) {
+        if (blocks.isTextual()) {
+          return blocks.asText();
+        }
+        if (blocks.isArray()) {
+          for (JsonNode block : blocks) {
+            if (block.isTextual()) {
+              if (!sb.isEmpty()) {
+                sb.append("\n");
+              }
+              sb.append(block.asText());
+            } else if (block.isObject()) {
+              JsonNode text = block.get("text");
+              if (text != null && text.isTextual()) {
+                if (!sb.isEmpty()) {
+                  sb.append("\n");
+                }
+                sb.append(text.asText());
+              }
+            }
+          }
+        }
+      }
+    }
+    // 也检查顶层 content 为简单字符串的情况
+    if (sb.isEmpty()) {
+      JsonNode content = event.get("content");
+      if (content != null && content.isTextual()) {
+        return content.asText();
+      }
+    }
+    return sb.toString();
   }
 }
