@@ -89,7 +89,7 @@ class ClaudeSourceAdapterTest {
           StandardCharsets.UTF_8);
     }
 
-    /** 在 projects/<project>/ 下创建 transcript 文件。 */
+    /** 在 {@code projects/<project>/} 下创建 transcript 文件。 */
     private Path createTranscript(String project, String sessionId) throws IOException {
       Path projectDir = tempDir.resolve(ClaudeConstants.PROJECTS_DIR).resolve(project);
       Files.createDirectories(projectDir);

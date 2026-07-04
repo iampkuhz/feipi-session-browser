@@ -127,7 +127,7 @@ class QoderSourceAdapterTest {
 
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
-      assertThat(candidate.sessionKey()).isEqualTo("qoder:my-project/abc-123");
+      assertThat(candidate.sessionKey()).isEqualTo("qoder:abc-123");
       assertThat(candidate.projectKey()).isEqualTo("my-project");
       assertThat(candidate.sourceId()).isEqualTo(SourceId.QODER);
     }
@@ -145,7 +145,7 @@ class QoderSourceAdapterTest {
 
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
-      assertThat(candidate.sessionKey()).isEqualTo("qoder:cached-project/cached-session");
+      assertThat(candidate.sessionKey()).isEqualTo("qoder:cached-session");
       assertThat(candidate.sourceId()).isEqualTo(SourceId.QODER);
     }
 
@@ -164,7 +164,7 @@ class QoderSourceAdapterTest {
       assertThat(stream.size()).isEqualTo(1);
       Candidate candidate = stream.orderedItems().get(0);
       assertThat(candidate.projectKey()).isEqualTo("home/user/project");
-      assertThat(candidate.sessionKey()).isEqualTo("qoder:home/user/project/session");
+      assertThat(candidate.sessionKey()).isEqualTo("qoder:session");
     }
   }
 

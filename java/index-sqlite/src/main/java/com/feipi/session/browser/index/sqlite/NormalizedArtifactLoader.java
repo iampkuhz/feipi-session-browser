@@ -337,8 +337,7 @@ public final class NormalizedArtifactLoader {
 
   /** 从 map 中读取字符串列表。 */
   @SuppressWarnings("unchecked")
-  private static List<String> asStringList(
-      Map<String, Object> map, String key, String... aliases) {
+  private static List<String> asStringList(Map<String, Object> map, String key, String... aliases) {
     Object value = field(map, key, aliases).value();
     if (value instanceof List<?> list) {
       List<String> result = new ArrayList<>();
@@ -356,6 +355,7 @@ public final class NormalizedArtifactLoader {
     return new FieldValue(firstValue(map, key, aliases));
   }
 
+  /** 从 JSON map 中读取并转换字段值的轻量包装。 */
   private record FieldValue(Object value) {
     String asString(String defaultValue) {
       return value == null ? defaultValue : String.valueOf(value);

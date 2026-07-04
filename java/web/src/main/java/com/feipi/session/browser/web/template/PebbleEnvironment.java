@@ -161,7 +161,8 @@ public final class PebbleEnvironment {
           new NoArgFilter(input -> DisplayFormatters.relativeTime(asString(input))));
       filters.put(
           "local_time", new NoArgFilter(input -> DisplayFormatters.toLocalTime(asString(input))));
-      filters.put("date_only", new NoArgFilter(input -> DisplayFormatters.dateOnly(asString(input))));
+      filters.put(
+          "date_only", new NoArgFilter(input -> DisplayFormatters.dateOnly(asString(input))));
 
       // ─── URL 编码 ───
       filters.put(

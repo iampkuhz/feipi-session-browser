@@ -2,6 +2,7 @@ package com.feipi.session.browser.source.json;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -10,8 +11,11 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
@@ -85,12 +89,17 @@ public final class JsonCandidateParser {
       String locator = candidate.fingerprint().locator();
       List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
       List<SourceRecord> records = new ArrayList<>(result.events().size());
+      Map<String, String> toolNamesById = new LinkedHashMap<>();
 
       for (int eventIndex = 0; eventIndex < result.events().size(); eventIndex++) {
         JsonNode event = result.events().get(eventIndex);
         String eventType = eventTypeExtractor.apply(event);
         diagnosticCollector.collect(event, eventIndex, eventType, locator, diagnostics);
-        records.add(JsonSourceRecordMapper.toSourceRecord(locator, eventIndex, event, eventType));
+        SourceRecord record =
+            JsonSourceRecordMapper.toSourceRecord(locator, eventIndex, event, eventType);
+        record = enrichToolResultError(record, event, toolNamesById);
+        records.add(record);
+        rememberToolNames(record, toolNamesById);
       }
 
       completionDiagnostics.accept(diagnostics, result.events().size());
@@ -100,5 +109,51 @@ public final class JsonCandidateParser {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
     }
+  }
+
+  private static void rememberToolNames(SourceRecord record, Map<String, String> toolNamesById) {
+    for (SourceToolCall toolCall : record.toolCalls()) {
+      toolNamesById.putIfAbsent(toolCall.toolCallId(), toolCall.name());
+    }
+    if ("tool_use".equals(record.eventType())
+        && record.callId().isPresent()
+        && record.toolName().isPresent()) {
+      toolNamesById.putIfAbsent(record.callId().get(), record.toolName().get());
+    }
+  }
+
+  private static SourceRecord enrichToolResultError(
+      SourceRecord record, JsonNode event, Map<String, String> toolNamesById) {
+    if (!"tool_result".equals(record.eventType()) || record.toolUseId().isEmpty()) {
+      return record;
+    }
+    String toolName =
+        record.toolName().orElse(toolNamesById.getOrDefault(record.toolUseId().get(), ""));
+    if (toolName.isBlank()) {
+      return record;
+    }
+    Optional<String> toolError = record.toolError();
+    if (toolError.isEmpty()) {
+      String content = JsonSourceRecordMapper.toolResultContentString(event);
+      if (!content.isBlank() && ToolFailureClassifier.looksFailed(content, toolName)) {
+        toolError = Optional.of("text_heuristic_failure");
+      }
+    }
+    if (toolError.equals(record.toolError()) && record.toolName().isPresent()) {
+      return record;
+    }
+    return new SourceRecord(
+        record.locator(),
+        record.eventIndex(),
+        record.eventType(),
+        record.callId(),
+        record.model(),
+        record.timestamp(),
+        record.turnId(),
+        record.usage(),
+        record.toolCalls(),
+        record.toolUseId(),
+        Optional.of(toolName),
+        toolError);
   }
 }

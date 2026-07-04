@@ -362,10 +362,11 @@ final class ScanCommand implements Callable<Integer> {
    * 控制台扫描进度实现。
    *
    * <p>将扫描进度以人类可读的方式输出到 stdout：
+   *
    * <ul>
-   *   <li>{@code onSourceStart} — 打印 {@code Scanning <sourceName>... (N sessions)}</li>
-   *   <li>{@code onCandidateProcessed} — 每处理 50 个或每 5%（取较小间隔）使用 {@code \r} 覆盖当前行打印进度条</li>
-   *   <li>{@code onSourceEnd} — 打印完成状态并换行</li>
+   *   <li>{@code onSourceStart} — 打印 {@code Scanning <sourceName>... (N sessions)}
+   *   <li>{@code onCandidateProcessed} — 每处理 50 个或每 5%（取较小间隔）使用 {@code \r} 覆盖当前行打印进度条
+   *   <li>{@code onSourceEnd} — 打印完成状态并换行
    * </ul>
    */
   private static final class ConsoleScanProgress implements ScanProgress {
@@ -381,15 +382,11 @@ final class ScanCommand implements Callable<Integer> {
     /** 当前源上次打印进度时的已处理数量，用于控制打印频率。 */
     private int lastPrintedProcessed = -1;
 
-    /** 当前源的总候选项数量。 */
-    private int currentTotal;
-
     /** 打印频率间隔：每处理多少个候选项更新一次。 */
     private int printInterval;
 
     @Override
     public void onSourceStart(String sourceName, int candidateCount) {
-      currentTotal = candidateCount;
       lastPrintedProcessed = -1;
 
       // 计算打印间隔：50 个或 5%，取较小值，至少为 1

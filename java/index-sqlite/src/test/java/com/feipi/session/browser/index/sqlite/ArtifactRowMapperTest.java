@@ -313,8 +313,7 @@ class ArtifactRowMapperTest {
       NormalizedCall call1 = createCall(1, CallScope.MAIN, usage, List.of());
       NormalizedCall call2 = createCall(2, CallScope.MAIN, usage, List.of());
 
-      Map<String, Object> session =
-          new java.util.HashMap<>();
+      Map<String, Object> session = new java.util.HashMap<>();
       session.put("session_key", "claude_code:test");
       session.put("session_id", "test");
       session.put("ended_at", "2025-01-01T01:00:00Z");
@@ -333,8 +332,7 @@ class ArtifactRowMapperTest {
       NormalizedCallUsage usage = NormalizedCallUsage.empty();
       NormalizedCall call = createCall(1, CallScope.MAIN, usage, List.of("tc-1", "tc-2"));
 
-      Map<String, Object> session =
-          new java.util.HashMap<>();
+      Map<String, Object> session = new java.util.HashMap<>();
       session.put("session_key", "claude_code:test");
       session.put("session_id", "test");
       session.put("ended_at", "2025-01-01T01:00:00Z");
@@ -353,8 +351,7 @@ class ArtifactRowMapperTest {
       NormalizedCallUsage usage = new NormalizedCallUsage(100, 50, 20, 80, 250);
       NormalizedCall call = createCall(1, CallScope.MAIN, usage, List.of());
 
-      Map<String, Object> session =
-          new java.util.HashMap<>();
+      Map<String, Object> session = new java.util.HashMap<>();
       session.put("session_key", "claude_code:test");
       session.put("session_id", "test");
       session.put("ended_at", "2025-01-01T01:00:00Z");

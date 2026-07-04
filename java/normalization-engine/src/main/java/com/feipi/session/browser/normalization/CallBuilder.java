@@ -54,8 +54,8 @@ public final class CallBuilder {
     Map<String, String> toolErrors = buildToolErrorMap(classified.toolResults());
     return Stream.concat(
             assistantToolExecutions(context, toolErrors).stream(),
-            standaloneToolExecutions(classified.toolUses(), calls, context.toolResultConsumers(),
-                toolErrors)
+            standaloneToolExecutions(
+                classified.toolUses(), calls, context.toolResultConsumers(), toolErrors)
                 .stream())
         .toList();
   }
@@ -106,8 +106,7 @@ public final class CallBuilder {
   }
 
   private static Stream<NormalizedToolExecution> assistantToolExecutions(
-      Map<String, String> consumers, Map<String, String> toolErrors,
-      AssistantCallFrame frame) {
+      Map<String, String> consumers, Map<String, String> toolErrors, AssistantCallFrame frame) {
     return frame.record().toolCalls().stream()
         .map(
             toolCall ->
@@ -120,7 +119,9 @@ public final class CallBuilder {
   }
 
   private static List<NormalizedToolExecution> standaloneToolExecutions(
-      List<SourceRecord> toolUses, List<NormalizedCall> calls, Map<String, String> consumers,
+      List<SourceRecord> toolUses,
+      List<NormalizedCall> calls,
+      Map<String, String> consumers,
       Map<String, String> toolErrors) {
     List<NormalizedToolExecution> executions = new ArrayList<>();
     for (SourceRecord toolUseRecord : toolUses) {
@@ -141,8 +142,11 @@ public final class CallBuilder {
   }
 
   private static NormalizedToolExecution toolExecution(
-      String toolCallId, String name, String declaredByCallId,
-      Optional<String> consumedByCallId, Optional<String> errorStatus) {
+      String toolCallId,
+      String name,
+      String declaredByCallId,
+      Optional<String> consumedByCallId,
+      Optional<String> errorStatus) {
     return new NormalizedToolExecution(
         toolCallId,
         name,

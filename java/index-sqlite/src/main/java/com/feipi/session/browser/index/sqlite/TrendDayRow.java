@@ -3,8 +3,8 @@ package com.feipi.session.browser.index.sqlite;
 /**
  * 每日趋势数据行。
  *
- * <p>对应 Python {@code get_trend_data} 查询结果。按日历日分组，包含 per-agent 会话计数和 token 分布。
- * 同时包含 per-agent 输入侧 cache 组件（fresh/cache read/cache write），供 Cache Health 多曲线使用。
+ * <p>对应 Python {@code get_trend_data} 查询结果。按日历日分组，包含 per-agent 会话计数和 token 分布。 同时包含 per-agent 输入侧
+ * cache 组件（fresh/cache read/cache write），供 Cache Health 多曲线使用。
  *
  * <p>时间语义：日期由 SQLite {@code DATE(ended_at)} 计算，空 ended_at 归入当天。
  *

@@ -141,8 +141,7 @@ public final class IncrementalScanEngine {
   /**
    * 执行增量扫描，支持取消和进度回调。
    *
-   * <p>在候选项循环中检查 cancelToken，一旦取消立即停止处理并标记 scan_log 为 failure。
-   * 通过 progress 参数报告每个源的处理进度。
+   * <p>在候选项循环中检查 cancelToken，一旦取消立即停止处理并标记 scan_log 为 failure。 通过 progress 参数报告每个源的处理进度。
    *
    * @param writeConn SQLite 写连接
    * @param config 扫描配置
@@ -341,17 +340,11 @@ public final class IncrementalScanEngine {
           FullScanEngine.CandidateResult result;
           if (FullScanEngine.isTranscriptMissing(candidate)) {
             result =
-                FullScanEngine.processTranscriptMissingCandidate(
-                    candidate, entry.adapter(), batch);
+                FullScanEngine.processTranscriptMissingCandidate(candidate, entry.adapter(), batch);
           } else {
             result =
                 FullScanEngine.processCandidate(
-                    candidate,
-                    entry.adapter(),
-                    config,
-                    batch,
-                    normalizationEngine,
-                    artifactWriter);
+                    candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
           }
 
           switch (result.outcome()) {

@@ -15,8 +15,7 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link QoderDiscovery} 单元测试。
  *
- * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 projects/ 结构、cache/projects/ 结构、
- * 多项目多会话排序、隐藏文件过滤、递归发现嵌套子目录中的会话文件。
+ * <p>验证会话发现逻辑在各种目录结构下的行为：空目录、 projects/ 结构、cache/projects/ 结构、 多项目多会话排序、隐藏文件过滤、递归发现嵌套子目录中的会话文件。
  */
 @DisplayName("QoderDiscovery 会话发现测试")
 class QoderDiscoveryTest {
@@ -113,6 +112,29 @@ class QoderDiscoveryTest {
 
       assertThat(sessions).hasSize(1);
       assertThat(sessions.get(0)).isEqualTo(sessionFile);
+    }
+
+    @Test
+    @DisplayName("cache-only 项目从会话内容恢复绝对 project key")
+    void cacheProjectRecoversAbsoluteProjectKey() throws IOException {
+      Path cacheProjects = tempDir.resolve("cache").resolve("projects");
+      Path projectDir = cacheProjects.resolve("demo-project-462acd20");
+      Path historyDir = projectDir.resolve("conversation-history").resolve("short-id");
+      Files.createDirectories(historyDir);
+      Path sessionFile = historyDir.resolve("short-id.jsonl");
+      Files.writeString(
+          sessionFile,
+          "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\","
+              + "\"text\":\"file:///Users/zhehan/work/demo-project/src/Main.java\"}]}}\n",
+          StandardCharsets.UTF_8);
+
+      QoderDiscovery.QoderDiscoveryResult result =
+          QoderDiscovery.discoverSessionsStructured(tempDir);
+
+      assertThat(result.sessions()).hasSize(1);
+      assertThat(result.sessions().get(0).path()).isEqualTo(sessionFile);
+      assertThat(result.sessions().get(0).projectKey())
+          .isEqualTo("/Users/zhehan/work/demo-project");
     }
 
     @Test
@@ -247,8 +269,8 @@ class QoderDiscoveryTest {
       // 模拟真实 Qoder 缓存目录结构，包含多层嵌套的项目键、子目录、对话历史和标识符
       Path cacheProjects = tempDir.resolve("cache").resolve("projects");
       Path projectDir = cacheProjects.resolve("my-project");
-      Path nestedDir = projectDir.resolve("sub-dir").resolve("conversation-history")
-          .resolve("conv-001");
+      Path nestedDir =
+          projectDir.resolve("sub-dir").resolve("conversation-history").resolve("conv-001");
       Files.createDirectories(nestedDir);
       Path deepSession = nestedDir.resolve("conv-001.jsonl");
       Files.writeString(deepSession, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);

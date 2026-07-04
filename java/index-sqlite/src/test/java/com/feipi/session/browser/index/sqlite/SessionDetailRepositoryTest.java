@@ -168,7 +168,8 @@ class SessionDetailRepositoryTest {
       indexConnection
           .writerConnection()
           .createStatement()
-          .execute("DELETE FROM session_artifacts WHERE session_key = 'cc:s1' AND artifact_type = 'normalized'");
+          .execute(
+              "DELETE FROM session_artifacts WHERE session_key = 'cc:s1' AND artifact_type = 'normalized'");
 
       Optional<SessionArtifactRow> result = repository.findNormalizedArtifact("cc:s1");
 

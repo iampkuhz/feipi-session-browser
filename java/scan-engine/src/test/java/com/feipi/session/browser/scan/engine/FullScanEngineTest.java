@@ -310,6 +310,48 @@ class FullScanEngineTest {
     assertThat(summary.isFullySuccessful()).isTrue();
   }
 
+  @Test
+  void successfulScanUsesCandidateSessionKeyAsSessionId() throws Exception {
+    Path root = tempDir.resolve("canonical-session-id");
+    Files.createDirectories(root);
+    Path rollout =
+        root.resolve("rollout-2026-03-27T22-55-12-019d2fca-cb74-70a0-b00b-426b38f34584.jsonl");
+    Files.writeString(rollout, "{}\n");
+    Candidate candidate =
+        new Candidate(
+            new SourceFingerprint(
+                rollout.toString(),
+                SourceId.CODEX,
+                Files.size(rollout),
+                Files.getLastModifiedTime(rollout).toMillis(),
+                Optional.of("hash"),
+                Optional.of("SHA-256")),
+            "codex:019d2fca-cb74-70a0-b00b-426b38f34584",
+            "/tmp/project",
+            Map.of());
+
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(
+                new ScanConfig.SourceEntry(new SuccessfulAdapter(SourceId.CODEX, candidate), root)),
+            tempDir.resolve("artifacts"));
+
+    FullScanEngine engine = new FullScanEngine();
+    ScanSummary summary = engine.scan(conn, config);
+
+    assertThat(summary.successCount()).isEqualTo(1);
+    try (Statement stmt = conn.createStatement();
+        ResultSet rs =
+            stmt.executeQuery(
+                "SELECT session_key, session_id FROM sessions WHERE session_key = "
+                    + "'codex:019d2fca-cb74-70a0-b00b-426b38f34584'")) {
+      assertThat(rs.next()).isTrue();
+      assertThat(rs.getString("session_key"))
+          .isEqualTo("codex:019d2fca-cb74-70a0-b00b-426b38f34584");
+      assertThat(rs.getString("session_id")).isEqualTo("019d2fca-cb74-70a0-b00b-426b38f34584");
+    }
+  }
+
   // ===== 辅助方法 =====
 
   /** 验证 scan_log 表中的 status 字段。 */
@@ -464,6 +506,38 @@ class FullScanEngineTest {
     @Override
     public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
       return new SourceResult.Skipped(List.of(), "Test skip reason");
+    }
+  }
+
+  /** 返回成功结果的适配器。 */
+  private static class SuccessfulAdapter implements SourceAdapter {
+    private final SourceId sourceId;
+    private final Candidate candidate;
+
+    SuccessfulAdapter(SourceId sourceId, Candidate candidate) {
+      this.sourceId = sourceId;
+      this.candidate = candidate;
+    }
+
+    @Override
+    public SourceId sourceId() {
+      return sourceId;
+    }
+
+    @Override
+    public BoundedStream<Candidate> discover(Path rootPath) {
+      return BoundedStream.of(
+          List.of(candidate), SourceConstants.MAX_CANDIDATES_PER_DISCOVERY, Optional.empty());
+    }
+
+    @Override
+    public SourceFingerprint fingerprint(Path filePath) {
+      return candidate.fingerprint();
+    }
+
+    @Override
+    public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
+      return new SourceResult.Success(List.of(), 1, List.of(), candidate.fingerprint(), null);
     }
   }
 }

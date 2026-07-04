@@ -31,19 +31,60 @@ public final class JsonSourceRecordMapper {
   public static SourceRecord toSourceRecord(
       String locator, int eventIndex, JsonNode event, String eventType) {
     String recordLocator = locator + "#event[" + eventIndex + "]";
+    String normalizedEventType = normalizeEventType(event, eventType);
     return new SourceRecord(
         recordLocator,
         eventIndex,
-        eventType,
+        normalizedEventType,
         firstTextDeep(event, "id", "uuid", "call_id"),
         firstTextDeep(event, "model"),
         firstTextDeep(event, "timestamp"),
-        firstTextDeep(event, "turn_id", "turnId"),
+        extractTurnId(event, normalizedEventType),
         extractUsage(event),
         extractToolCalls(event),
-        firstTextDeep(event, "tool_use_id", "call_id"),
-        firstTextDeep(event, "name"),
-        extractToolError(event, eventType));
+        extractToolUseId(event, normalizedEventType),
+        extractToolName(event),
+        extractToolError(event, normalizedEventType));
+  }
+
+  private static String normalizeEventType(JsonNode event, String eventType) {
+    if ("user".equals(eventType) && hasToolResultBlock(event) && !hasUserText(event)) {
+      return "tool_result";
+    }
+    return eventType;
+  }
+
+  private static Optional<String> extractTurnId(JsonNode event, String eventType) {
+    if ("assistant".equals(eventType)) {
+      JsonNode message = objectChild(event, "message");
+      Optional<String> messageId = firstText(message, "id");
+      if (messageId.isPresent()) {
+        return messageId;
+      }
+      Optional<String> semanticId = firstText(event, "uuid", "parentUuid", "id");
+      if (semanticId.isPresent()) {
+        return semanticId;
+      }
+    }
+    return firstTextDeep(event, "turn_id", "turnId");
+  }
+
+  private static Optional<String> extractToolUseId(JsonNode event, String eventType) {
+    if ("tool_result".equals(eventType)) {
+      Optional<String> nested = firstToolResultText(event, "tool_use_id", "call_id", "id");
+      if (nested.isPresent()) {
+        return nested;
+      }
+    }
+    return firstTextDeep(event, "tool_use_id", "call_id");
+  }
+
+  private static Optional<String> extractToolName(JsonNode event) {
+    Optional<String> direct = firstTextDeep(event, "name");
+    if (direct.isPresent()) {
+      return direct;
+    }
+    return firstToolUseText(event, "name");
   }
 
   private static Optional<String> firstTextDeep(JsonNode event, String... fieldNames) {
@@ -61,6 +102,11 @@ public final class JsonSourceRecordMapper {
     if (payloadText.isPresent()) {
       return payloadText;
     }
+    JsonNode metadata = objectChild(event, "metadata");
+    Optional<String> metadataText = firstText(metadata, fieldNames);
+    if (metadataText.isPresent()) {
+      return metadataText;
+    }
     JsonNode settings = objectChild(objectChild(payload, "collaboration_mode"), "settings");
     return firstText(settings, fieldNames);
   }
@@ -73,6 +119,35 @@ public final class JsonSourceRecordMapper {
       JsonNode child = event.get(fieldName);
       if (child != null && child.isTextual()) {
         return Optional.of(child.asText());
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static Optional<String> firstToolResultText(JsonNode event, String... fieldNames) {
+    for (JsonNode block : toolResultBlocks(event)) {
+      Optional<String> value = firstText(block, fieldNames);
+      if (value.isPresent()) {
+        return value;
+      }
+    }
+    return Optional.empty();
+  }
+
+  private static Optional<String> firstToolUseText(JsonNode event, String... fieldNames) {
+    for (JsonNode container : contentContainers(event)) {
+      if (container != null && container.isArray()) {
+        for (JsonNode block : container) {
+          if (block != null
+              && block.isObject()
+              && block.has("type")
+              && "tool_use".equals(block.get("type").asText())) {
+            Optional<String> value = firstText(block, fieldNames);
+            if (value.isPresent()) {
+              return value;
+            }
+          }
+        }
       }
     }
     return Optional.empty();
@@ -144,14 +219,9 @@ public final class JsonSourceRecordMapper {
       return List.of();
     }
     List<SourceToolCall> calls = new ArrayList<>();
-    collectToolCalls(event.get("content"), calls);
-    collectToolCalls(event.get("parts"), calls);
-    JsonNode message = objectChild(event, "message");
-    collectToolCalls(message == null ? null : message.get("content"), calls);
-    collectToolCalls(message == null ? null : message.get("parts"), calls);
-    JsonNode payload = objectChild(event, "payload");
-    collectToolCalls(payload == null ? null : payload.get("content"), calls);
-    collectToolCalls(payload == null ? null : payload.get("parts"), calls);
+    for (JsonNode container : contentContainers(event)) {
+      collectToolCalls(container, calls);
+    }
     return List.copyOf(calls);
   }
 
@@ -171,6 +241,109 @@ public final class JsonSourceRecordMapper {
     }
   }
 
+  private static boolean hasUserText(JsonNode event) {
+    if (event == null || !event.isObject()) {
+      return false;
+    }
+    JsonNode message = objectChild(event, "message");
+    if (hasTextBlock(message == null ? null : message.get("content"))) {
+      return true;
+    }
+    if (hasTextBlock(message == null ? null : message.get("parts"))) {
+      return true;
+    }
+    if (hasTextBlock(event.get("content"))) {
+      return true;
+    }
+    return hasTextBlock(event.get("parts"));
+  }
+
+  private static boolean hasTextBlock(JsonNode value) {
+    if (value == null) {
+      return false;
+    }
+    if (value.isTextual()) {
+      return !value.asText().isBlank();
+    }
+    if (!value.isArray()) {
+      return false;
+    }
+    for (JsonNode item : value) {
+      if (item == null) {
+        continue;
+      }
+      if (item.isTextual() && !item.asText().isBlank()) {
+        return true;
+      }
+      if (item.isObject()
+          && item.has("type")
+          && "text".equals(item.get("type").asText())
+          && item.has("text")
+          && item.get("text").isTextual()
+          && !item.get("text").asText().isBlank()) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static boolean hasToolResultBlock(JsonNode event) {
+    return !toolResultBlocks(event).isEmpty();
+  }
+
+  private static List<JsonNode> toolResultBlocks(JsonNode event) {
+    if (event == null) {
+      return List.of();
+    }
+    List<JsonNode> blocks = new ArrayList<>();
+    for (JsonNode container : contentContainers(event)) {
+      if (container == null) {
+        continue;
+      }
+      if (container.isObject()
+          && container.has("type")
+          && "tool_result".equals(container.get("type").asText())) {
+        blocks.add(container);
+      } else if (container.isArray()) {
+        for (JsonNode block : container) {
+          if (block != null
+              && block.isObject()
+              && block.has("type")
+              && "tool_result".equals(block.get("type").asText())) {
+            blocks.add(block);
+          }
+        }
+      }
+    }
+    return List.copyOf(blocks);
+  }
+
+  private static List<JsonNode> contentContainers(JsonNode event) {
+    if (event == null) {
+      return List.of();
+    }
+    List<JsonNode> containers = new ArrayList<>();
+    addContainer(containers, event.get("content"));
+    addContainer(containers, event.get("parts"));
+    JsonNode message = objectChild(event, "message");
+    if (message != null) {
+      addContainer(containers, message.get("content"));
+      addContainer(containers, message.get("parts"));
+    }
+    JsonNode payload = objectChild(event, "payload");
+    if (payload != null) {
+      addContainer(containers, payload.get("content"));
+      addContainer(containers, payload.get("parts"));
+    }
+    return List.copyOf(containers);
+  }
+
+  private static void addContainer(List<JsonNode> containers, JsonNode node) {
+    if (node != null && !node.isNull()) {
+      containers.add(node);
+    }
+  }
+
   /**
    * 从工具结果事件提取错误信息。
    *
@@ -185,25 +358,24 @@ public final class JsonSourceRecordMapper {
     if (!"tool_result".equals(eventType) || event == null) {
       return Optional.empty();
     }
-    // 检查顶层 is_error
     JsonNode isError = event.get("is_error");
     if (isError != null && isError.isBoolean() && isError.asBoolean()) {
       return Optional.of("tool_error");
     }
-    // 检查 content blocks 中的 is_error，同时提取工具名称
     String toolName = "";
-    for (String container : new String[] {"content", "parts"}) {
-      JsonNode blocks = event.get(container);
-      if (blocks != null && blocks.isArray()) {
-        for (JsonNode block : blocks) {
-          JsonNode typeNode = block.get("type");
-          if (typeNode != null && "tool_result".equals(typeNode.asText())) {
-            JsonNode blockError = block.get("is_error");
-            if (blockError != null && blockError.isBoolean() && blockError.asBoolean()) {
-              return Optional.of("tool_error");
-            }
-          }
-          if (typeNode != null && "tool_use".equals(typeNode.asText())) {
+    for (JsonNode block : toolResultBlocks(event)) {
+      JsonNode blockError = block.get("is_error");
+      if (blockError != null && blockError.isBoolean() && blockError.asBoolean()) {
+        return Optional.of("tool_error");
+      }
+    }
+    for (JsonNode container : contentContainers(event)) {
+      if (container != null && container.isArray()) {
+        for (JsonNode block : container) {
+          if (block != null
+              && block.isObject()
+              && block.has("type")
+              && "tool_use".equals(block.get("type").asText())) {
             Optional<String> name = firstText(block, "name");
             if (name.isPresent()) {
               toolName = name.get();
@@ -211,35 +383,12 @@ public final class JsonSourceRecordMapper {
           }
         }
       }
-      // 也检查 message/payload 子节点
-      JsonNode message = objectChild(event, "message");
-      if (message != null) {
-        JsonNode msgBlocks = message.get(container);
-        if (msgBlocks != null && msgBlocks.isArray()) {
-          for (JsonNode block : msgBlocks) {
-            JsonNode typeNode = block.get("type");
-            if (typeNode != null && "tool_result".equals(typeNode.asText())) {
-              JsonNode blockError = block.get("is_error");
-              if (blockError != null && blockError.isBoolean() && blockError.asBoolean()) {
-                return Optional.of("tool_error");
-              }
-            }
-            if (typeNode != null && "tool_use".equals(typeNode.asText())) {
-              Optional<String> name = firstText(block, "name");
-              if (name.isPresent()) {
-                toolName = name.get();
-              }
-            }
-          }
-        }
-      }
     }
 
-    // 使用 ToolFailureClassifier 进行文本启发式失败检测
     if (toolName.isEmpty()) {
       toolName = firstTextDeep(event, "name").orElse("");
     }
-    String contentString = extractToolResultContentString(event);
+    String contentString = toolResultContentString(event);
     if (!contentString.isEmpty() && ToolFailureClassifier.looksFailed(contentString, toolName)) {
       return Optional.of("text_heuristic_failure");
     }
@@ -253,41 +402,51 @@ public final class JsonSourceRecordMapper {
    * @param event 工具结果事件 JSON 节点
    * @return 内容文本，不含内容时返回空串
    */
-  private static String extractToolResultContentString(JsonNode event) {
+  static String toolResultContentString(JsonNode event) {
     StringBuilder sb = new StringBuilder();
-    for (String container : new String[] {"content", "parts"}) {
-      JsonNode blocks = event.get(container);
-      if (blocks != null) {
-        if (blocks.isTextual()) {
-          return blocks.asText();
-        }
-        if (blocks.isArray()) {
-          for (JsonNode block : blocks) {
-            if (block.isTextual()) {
-              if (!sb.isEmpty()) {
-                sb.append("\n");
-              }
-              sb.append(block.asText());
-            } else if (block.isObject()) {
-              JsonNode text = block.get("text");
-              if (text != null && text.isTextual()) {
-                if (!sb.isEmpty()) {
-                  sb.append("\n");
-                }
-                sb.append(text.asText());
-              }
-            }
-          }
-        }
-      }
+    for (JsonNode block : toolResultBlocks(event)) {
+      appendTextValue(sb, block.get("content"));
+      appendTextValue(sb, block.get("text"));
     }
-    // 也检查顶层 content 为简单字符串的情况
-    if (sb.isEmpty()) {
-      JsonNode content = event.get("content");
-      if (content != null && content.isTextual()) {
-        return content.asText();
-      }
+    for (JsonNode blocks : contentContainers(event)) {
+      appendTextValue(sb, blocks);
     }
     return sb.toString();
+  }
+
+  private static void appendTextValue(StringBuilder sb, JsonNode value) {
+    if (value == null) {
+      return;
+    }
+    if (value.isTextual()) {
+      appendLine(sb, value.asText());
+      return;
+    }
+    if (value.isArray()) {
+      for (JsonNode item : value) {
+        appendTextValue(sb, item);
+      }
+      return;
+    }
+    if (value.isObject()) {
+      JsonNode text = value.get("text");
+      if (text != null && text.isTextual()) {
+        appendLine(sb, text.asText());
+      }
+      JsonNode content = value.get("content");
+      if (content != null) {
+        appendTextValue(sb, content);
+      }
+    }
+  }
+
+  private static void appendLine(StringBuilder sb, String text) {
+    if (text == null || text.isBlank()) {
+      return;
+    }
+    if (!sb.isEmpty()) {
+      sb.append("\n");
+    }
+    sb.append(text);
   }
 }

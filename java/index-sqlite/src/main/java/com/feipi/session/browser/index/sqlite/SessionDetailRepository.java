@@ -81,9 +81,8 @@ public final class SessionDetailRepository {
   /**
    * 查找会话的归一化制品行。
    *
-   * <p>从 {@code session_artifacts} 表中查找归一化制品。当前 Java scan 写入 {@code normalized}，
-   * main/Python-era 索引历史上写入 {@code normalized_session_json}。详情页读取兼容两者，优先使用当前
-   * Java 类型。
+   * <p>从 {@code session_artifacts} 表中查找归一化制品。当前 Java scan 写入 {@code normalized}， main/Python-era
+   * 索引历史上写入 {@code normalized_session_json}。详情页读取兼容两者，优先使用当前 Java 类型。
    *
    * @param sessionKey 会话主键
    * @return 归一化制品行，不存在时返回 empty

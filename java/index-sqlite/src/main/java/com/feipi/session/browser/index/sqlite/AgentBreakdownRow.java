@@ -3,8 +3,7 @@ package com.feipi.session.browser.index.sqlite;
 /**
  * Per-agent 全量统计行。
  *
- * <p>对应 Python {@code list_agents} 查询结果。用于 All Agents 表格，
- * 包含每个 agent 的会话数、token 细分、项目数、失败数、最后活跃时间等。
+ * <p>对应 Python {@code list_agents} 查询结果。用于 All Agents 表格， 包含每个 agent 的会话数、token 细分、项目数、失败数、最后活跃时间等。
  *
  * @param agent agent 标识（claude_code / qoder / codex）
  * @param sessionCount 会话总数

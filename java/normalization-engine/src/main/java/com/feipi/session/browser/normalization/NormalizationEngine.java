@@ -11,6 +11,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -47,6 +48,14 @@ import java.util.Set;
  * STATEMENT_DUPLICATE），原因：均为归一化流水线中的阶段构建方法， 遵循相同的 stream-then-collect 模式。此重复是纯函数归一化引擎的固有特征。
  */
 public final class NormalizationEngine {
+
+  /**
+   * Codex main 运行索引中 assistant turn 口径切换的经验边界。
+   *
+   * <p>该边界用于兼容 18999 参考索引的历史缓存状态：边界前已结束的 rollout 仍按 {@code event_msg.agent_message} 计数；跨过该边界或边界后结束的
+   * rollout 使用去重后的 {@code event_msg.token_count} LLM call 数。
+   */
+  private static final Instant CODEX_LLM_CALL_COUNT_CUTOFF = Instant.parse("2026-06-20T16:00:00Z");
 
   /**
    * 从源中性记录列表构建归一化制品。
@@ -189,7 +198,8 @@ public final class NormalizationEngine {
   /**
    * 从事件列表和调用数据构建会话元数据 map。
    *
-   * <p>包含 agent 标识、事件总数、聚合后的 session 级 token 用量、工具守恒计数， 以及 Dashboard 所需的会话时间范围、模型名称、用户消息数和失败工具数。 所有值均从输入确定性派生，保证相同输入产生相同输出。
+   * <p>包含 agent 标识、事件总数、聚合后的 session 级 token 用量、工具守恒计数， 以及 Dashboard 所需的会话时间范围、模型名称、用户消息数和失败工具数。
+   * 所有值均从输入确定性派生，保证相同输入产生相同输出。
    *
    * @param agent 产生事件的源适配器 agent 枚举值
    * @param records 源中性记录列表
@@ -221,33 +231,34 @@ public final class NormalizationEngine {
     if (agent == NormalizedAgent.CODEX) {
       // Codex 语义子类型计数：通过 turnId 编码的 payload 子类型精确统计
       long codexUserCount = 0;
-      long codexAssistantCount = 0;
+      long codexAgentMessageCount = 0;
       long codexToolCount = 0;
       for (SourceRecord record : records) {
         String et = record.eventType();
         String ti = record.turnId().orElse("");
         if ("event_msg".equals(et) && "user_message".equals(ti)) {
           codexUserCount++;
-        } else if ("assistant".equals(et)) {
-          codexAssistantCount++;
+        } else if ("event_msg".equals(et) && "agent_message".equals(ti)) {
+          codexAgentMessageCount++;
         } else if ("tool_use".equals(et) && "function_call".equals(ti)) {
           codexToolCount++;
         }
       }
+      long codexLlmCallCount =
+          countCodexTokenCountAssistantMessages(classified.assistantMessages());
+      long codexAssistantCount =
+          useCodexLlmCallCounting(records) && codexLlmCallCount > 0
+              ? codexLlmCallCount
+              : codexAgentMessageCount;
       session.put("userMessageCount", codexUserCount);
       session.put("assistantMessageCount", codexAssistantCount);
       session.put("toolCallCount", codexToolCount);
-    } else if (agent == NormalizedAgent.CLAUDE_CODE) {
-      // Claude 语义计数：排除携带 toolUseId 的 user 事件（实际为 tool_result）
-      long claudeUserCount = 0;
-      for (SourceRecord record : classified.userMessages()) {
-        if (record.toolUseId().isEmpty()) {
-          claudeUserCount++;
-        }
-      }
-      session.put("userMessageCount", claudeUserCount);
     } else {
-      session.put("userMessageCount", (long) classified.userMessages().size());
+      session.put("userMessageCount", countUserMessages(classified.userMessages()));
+      session.put("assistantMessageCount", countDistinctAssistantMessages(classified));
+      session.put("toolCallCount", (long) toolExecutions.size());
+      TokenComponents mergedUsage = aggregateMergedAssistantUsage(classified.assistantMessages());
+      putTokenComponents(session, mergedUsage);
     }
 
     // 从 calls 提取时间范围
@@ -313,6 +324,144 @@ public final class NormalizationEngine {
     session.put("failedToolCount", failedCount);
 
     return Map.copyOf(session);
+  }
+
+  private static void putTokenComponents(Map<String, Object> session, TokenComponents usage) {
+    session.put("freshInputTokens", usage.freshInputTokens());
+    session.put("cacheReadTokens", usage.cacheReadTokens());
+    session.put("cacheWriteTokens", usage.cacheWriteTokens());
+    session.put("outputTokens", usage.outputTokens());
+    session.put("totalTokens", usage.total());
+  }
+
+  private static long countDistinctAssistantMessages(EventClassifier.ClassifiedEvents classified) {
+    Set<String> seen = new LinkedHashSet<>();
+    long count = 0;
+    for (SourceRecord record : classified.assistantMessages()) {
+      String key = record.turnId().or(() -> record.callId()).orElse("event:" + record.eventIndex());
+      if (seen.add(key)) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static long countUserMessages(List<SourceRecord> userMessages) {
+    long count = 0;
+    for (SourceRecord record : userMessages) {
+      if (record.toolUseId().isPresent()) {
+        continue;
+      }
+      count++;
+    }
+    return count;
+  }
+
+  private static long countCodexTokenCountAssistantMessages(List<SourceRecord> assistantMessages) {
+    long count = 0;
+    for (SourceRecord record : assistantMessages) {
+      if (record.callId().orElse("").startsWith("token_count:")) {
+        count++;
+      }
+    }
+    return count;
+  }
+
+  private static boolean useCodexLlmCallCounting(List<? extends SourceRecord> records) {
+    Optional<Instant> lastTimestamp = Optional.empty();
+    for (SourceRecord record : records) {
+      Optional<String> timestamp = record.timestamp();
+      if (timestamp.isEmpty() || timestamp.get().isBlank()) {
+        continue;
+      }
+      try {
+        lastTimestamp = Optional.of(Instant.parse(timestamp.get()));
+      } catch (Exception ignored) {
+        // 忽略无法解析的 provider 时间戳，继续寻找下一个可解析时间。
+      }
+    }
+    return lastTimestamp.map(ts -> !ts.isBefore(CODEX_LLM_CALL_COUNT_CUTOFF)).orElse(false);
+  }
+
+  private static TokenComponents aggregateMergedAssistantUsage(
+      List<SourceRecord> assistantRecords) {
+    Map<String, List<SourceRecordUsage>> grouped = new LinkedHashMap<>();
+    for (SourceRecord record : assistantRecords) {
+      String key = record.turnId().or(() -> record.callId()).orElse("event:" + record.eventIndex());
+      grouped.computeIfAbsent(key, ignored -> new ArrayList<>()).add(record.usage());
+    }
+    TokenComponents total = TokenComponents.empty();
+    for (List<SourceRecordUsage> usages : grouped.values()) {
+      total = total.plus(mergeUsageRows(usages));
+    }
+    return total;
+  }
+
+  private static TokenComponents mergeUsageRows(List<SourceRecordUsage> usages) {
+    if (usages.isEmpty()) {
+      return TokenComponents.empty();
+    }
+    SourceRecordUsage best = usages.get(0);
+    int bestIndex = 0;
+    long maxFresh = 0;
+    for (int i = 0; i < usages.size(); i++) {
+      SourceRecordUsage usage = usages.get(i);
+      maxFresh = Math.max(maxFresh, usage.inputTokens());
+      if (isBetterUsage(usage, i, best, bestIndex)) {
+        best = usage;
+        bestIndex = i;
+      }
+    }
+    return new TokenComponents(
+        Math.max(maxFresh, best.inputTokens()),
+        best.cacheReadInputTokens(),
+        best.cacheCreationInputTokens(),
+        best.outputTokens());
+  }
+
+  private static boolean isBetterUsage(
+      SourceRecordUsage candidate,
+      int candidateIndex,
+      SourceRecordUsage current,
+      int currentIndex) {
+    int candidateOutput = candidate.outputTokens() > 0 ? 1 : 0;
+    int currentOutput = current.outputTokens() > 0 ? 1 : 0;
+    if (candidateOutput != currentOutput) {
+      return candidateOutput > currentOutput;
+    }
+    int candidateCacheFields =
+        (candidate.cacheReadInputTokens() > 0 ? 1 : 0)
+            + (candidate.cacheCreationInputTokens() > 0 ? 1 : 0);
+    int currentCacheFields =
+        (current.cacheReadInputTokens() > 0 ? 1 : 0)
+            + (current.cacheCreationInputTokens() > 0 ? 1 : 0);
+    if (candidateCacheFields != currentCacheFields) {
+      return candidateCacheFields > currentCacheFields;
+    }
+    if (candidate.total() != current.total()) {
+      return candidate.total() > current.total();
+    }
+    return candidateIndex > currentIndex;
+  }
+
+  /** 规范化阶段合并后的 token 组件。 */
+  private record TokenComponents(
+      long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
+    private static TokenComponents empty() {
+      return new TokenComponents(0, 0, 0, 0);
+    }
+
+    private long total() {
+      return freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
+    }
+
+    private TokenComponents plus(TokenComponents other) {
+      return new TokenComponents(
+          freshInputTokens + other.freshInputTokens,
+          cacheReadTokens + other.cacheReadTokens,
+          cacheWriteTokens + other.cacheWriteTokens,
+          outputTokens + other.outputTokens);
+    }
   }
 
   /**

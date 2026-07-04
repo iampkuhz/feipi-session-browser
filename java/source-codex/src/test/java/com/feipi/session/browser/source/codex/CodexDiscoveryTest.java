@@ -15,8 +15,8 @@ import org.junit.jupiter.api.io.TempDir;
 /**
  * {@link CodexDiscovery} 单元测试。
  *
- * <p>验证基于 session_index.jsonl + state_5.sqlite 的会话发现逻辑： session_index.jsonl 回退发现、
- * rollout 文件定位、transcript 缺失处理、确定性排序。
+ * <p>验证基于 session_index.jsonl + state_5.sqlite 的会话发现逻辑： session_index.jsonl 回退发现、 rollout
+ * 文件定位、transcript 缺失处理、确定性排序。
  *
  * <p>注意：这些测试不创建真实的 SQLite 数据库，仅验证 session_index.jsonl 驱动的发现路径。
  */
@@ -33,7 +33,7 @@ class CodexDiscoveryTest {
         StandardCharsets.UTF_8);
   }
 
-  /** 在 sessions/<year>/<month>/<day>/ 下创建 rollout 文件。 */
+  /** 在 {@code sessions/<year>/<month>/<day>/} 下创建 rollout 文件。 */
   private Path createRollout(String year, String month, String day, String filename)
       throws IOException {
     Path dayDir =
@@ -154,9 +154,7 @@ class CodexDiscoveryTest {
       Path hiddenDir = tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve(".tmp");
       Files.createDirectories(hiddenDir);
       Files.writeString(
-          hiddenDir.resolve("rollout-100-hidden-id.jsonl"),
-          "{}\n",
-          StandardCharsets.UTF_8);
+          hiddenDir.resolve("rollout-100-hidden-id.jsonl"), "{}\n", StandardCharsets.UTF_8);
       // 在正常目录下创建文件
       Path rollout = createRollout("2026", "06", "12", "rollout-100-visible-id.jsonl");
 

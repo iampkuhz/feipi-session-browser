@@ -36,7 +36,9 @@ class ToolFailureClassifierTest {
     @Test
     @DisplayName("null JSON 节点返回 false")
     void nullJsonNodeReturnsFalse() {
-      assertThat(ToolFailureClassifier.looksFailed((com.fasterxml.jackson.databind.JsonNode) null, "Bash"))
+      assertThat(
+              ToolFailureClassifier.looksFailed(
+                  (com.fasterxml.jackson.databind.JsonNode) null, "Bash"))
           .isFalse();
     }
   }
@@ -48,13 +50,15 @@ class ToolFailureClassifierTest {
     @Test
     @DisplayName("Read 工具首行 file does not exist 返回 true")
     void readToolFileDoesNotExist() {
-      assertThat(ToolFailureClassifier.looksFailed("File does not exist: /tmp/foo", "Read")).isTrue();
+      assertThat(ToolFailureClassifier.looksFailed("File does not exist: /tmp/foo", "Read"))
+          .isTrue();
     }
 
     @Test
     @DisplayName("Write 工具首行 permission denied 返回 true")
     void writeToolPermissionDenied() {
-      assertThat(ToolFailureClassifier.looksFailed("Permission denied: /etc/hosts", "Write")).isTrue();
+      assertThat(ToolFailureClassifier.looksFailed("Permission denied: /etc/hosts", "Write"))
+          .isTrue();
     }
 
     @Test
@@ -66,7 +70,8 @@ class ToolFailureClassifierTest {
     @Test
     @DisplayName("Glob 工具首行 directory not found 返回 true")
     void globToolDirectoryNotFound() {
-      assertThat(ToolFailureClassifier.looksFailed("Directory not found: /missing", "Glob")).isTrue();
+      assertThat(ToolFailureClassifier.looksFailed("Directory not found: /missing", "Glob"))
+          .isTrue();
     }
 
     @Test
@@ -78,15 +83,14 @@ class ToolFailureClassifierTest {
     @Test
     @DisplayName("LS 工具首行 not a directory 返回 true")
     void lsToolNotADirectory() {
-      assertThat(ToolFailureClassifier.looksFailed("Not a directory: /etc/hosts/foo", "LS")).isTrue();
+      assertThat(ToolFailureClassifier.looksFailed("Not a directory: /etc/hosts/foo", "LS"))
+          .isTrue();
     }
 
     @Test
     @DisplayName("Read 工具首行 too many levels of symbolic links 返回 true")
     void readToolTooManySymlinks() {
-      assertThat(
-              ToolFailureClassifier.looksFailed(
-                  "Too many levels of symbolic links", "Read"))
+      assertThat(ToolFailureClassifier.looksFailed("Too many levels of symbolic links", "Read"))
           .isTrue();
     }
 
@@ -106,8 +110,7 @@ class ToolFailureClassifierTest {
     @DisplayName("Read 工具第二行有 file does not exist 但首行正常则返回 false")
     void readToolSecondLineErrorIgnored() {
       assertThat(
-              ToolFailureClassifier.looksFailed(
-                  "File content here\nfile does not exist", "Read"))
+              ToolFailureClassifier.looksFailed("File content here\nfile does not exist", "Read"))
           .isFalse();
     }
 
@@ -121,8 +124,7 @@ class ToolFailureClassifierTest {
     @DisplayName("未知工具名不触发文件系统检查")
     void unknownToolDoesNotTriggerFsCheck() {
       assertThat(
-              ToolFailureClassifier.looksFailed(
-                  "File does not exist\nSome content", "UnknownTool"))
+              ToolFailureClassifier.looksFailed("File does not exist\nSome content", "UnknownTool"))
           .isFalse();
     }
   }

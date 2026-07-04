@@ -1,6 +1,7 @@
 package com.feipi.session.browser.source.codex;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.domain.source.SourceToolCall;
@@ -18,7 +19,9 @@ import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
+import java.io.BufferedReader;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -65,6 +68,7 @@ import java.util.logging.Logger;
 public final class CodexSourceAdapter implements SourceAdapter {
 
   private static final Logger LOG = Logger.getLogger(CodexSourceAdapter.class.getName());
+  private static final ObjectMapper MAPPER = new ObjectMapper();
 
   private final JsonlReader jsonlReader;
 
@@ -113,12 +117,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           // rollout 缺失：零值指纹，locator 使用 sessionId
           fp =
               new SourceFingerprint(
-                  disc.sessionId(),
-                  SourceId.CODEX,
-                  0,
-                  0,
-                  Optional.empty(),
-                  Optional.empty());
+                  disc.sessionId(), SourceId.CODEX, 0, 0, Optional.empty(), Optional.empty());
         }
 
         String sessionKey = "codex:" + disc.sessionId();
@@ -181,12 +180,92 @@ public final class CodexSourceAdapter implements SourceAdapter {
         meta.put("model", model);
       }
     }
+    if (disc.hasFile()) {
+      long subagentCount = countSubagentChildren(disc.rolloutPath(), disc.sessionId());
+      if (subagentCount > 0) {
+        meta.put("subagentInstanceCount", Long.toString(subagentCount));
+      }
+    }
     return Map.copyOf(meta);
   }
 
+  private static long countSubagentChildren(Path rolloutPath, String parentSessionId) {
+    if (rolloutPath == null || parentSessionId == null || parentSessionId.isBlank()) {
+      return 0;
+    }
+    Path dayDir = rolloutPath.getParent();
+    if (dayDir == null || !Files.isDirectory(dayDir)) {
+      return 0;
+    }
+    long count = 0;
+    try (var stream = Files.list(dayDir)) {
+      for (Path candidate :
+          stream
+              .filter(Files::isRegularFile)
+              .filter(path -> path.getFileName().toString().startsWith("rollout-"))
+              .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+              .sorted()
+              .toList()) {
+        if (candidate.equals(rolloutPath)) {
+          continue;
+        }
+        Map<String, String> meta = readFirstSessionMeta(candidate);
+        if (parentSessionId.equals(parentThreadId(meta))) {
+          count++;
+        }
+      }
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "扫描 Codex subagent children 失败: " + dayDir, e);
+    }
+    return count;
+  }
+
+  private static Map<String, String> readFirstSessionMeta(Path candidate) {
+    try (BufferedReader reader = Files.newBufferedReader(candidate, StandardCharsets.UTF_8)) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        if (line.isBlank()) {
+          continue;
+        }
+        JsonNode event = MAPPER.readTree(line);
+        if (event != null
+            && event.isObject()
+            && event.has("type")
+            && "session_meta".equals(event.get("type").asText())) {
+          return CodexDiscovery.flattenPayloadFields(event);
+        }
+        return Map.of();
+      }
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "读取 Codex session_meta 失败: " + candidate, e);
+    }
+    return Map.of();
+  }
+
+  private static String parentThreadId(Map<String, String> meta) {
+    if (meta == null || meta.isEmpty()) {
+      return "";
+    }
+    String parent = meta.getOrDefault("parent_thread_id", "").trim();
+    if (!parent.isEmpty()) {
+      return parent;
+    }
+    String source = meta.getOrDefault("source", "");
+    if (source.isBlank()) {
+      return "";
+    }
+    try {
+      JsonNode sourceNode = MAPPER.readTree(source);
+      JsonNode spawn = sourceNode.path("subagent").path("thread_spawn");
+      JsonNode spawnParent = spawn.get("parent_thread_id");
+      return spawnParent != null && spawnParent.isTextual() ? spawnParent.asText().trim() : "";
+    } catch (IOException e) {
+      return "";
+    }
+  }
+
   /** 从发现结果提取项目键。 */
-  private static String extractProjectKeyFromThreadInfo(
-      CodexDiscovery.CodexSessionDiscovery disc) {
+  private static String extractProjectKeyFromThreadInfo(CodexDiscovery.CodexSessionDiscovery disc) {
     if (disc.threadInfo() != null) {
       String cwd = disc.threadInfo().getOrDefault("cwd", "");
       if (!cwd.isEmpty()) {
@@ -256,7 +335,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
   @Override
   public SourceResult parse(Candidate candidate, CancellationSignal cancellation) {
     // 零值指纹 → rollout 缺失 → 跳过解析（engine 会 fallback 入库）
-    if (candidate.fingerprint().sizeBytes() == 0 && candidate.fingerprint().contentHash().isEmpty()) {
+    if (candidate.fingerprint().sizeBytes() == 0
+        && candidate.fingerprint().contentHash().isEmpty()) {
       return new SourceResult.Skipped(
           List.of(), "Rollout file missing for session " + candidate.sessionKey());
     }
@@ -302,7 +382,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
       collectCompletionDiagnostics(state, diagnostics);
       return new SourceResult.Success(
-          diagnostics, result.events().size(), List.copyOf(records), candidate.fingerprint(), locator);
+          diagnostics,
+          result.events().size(),
+          List.copyOf(records),
+          candidate.fingerprint(),
+          locator);
     } catch (IOException e) {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
@@ -373,13 +457,13 @@ public final class CodexSourceAdapter implements SourceAdapter {
       // 为 event_msg 事件编码语义子类型到 turnId
       Optional<String> subType = optionalText(payloadType);
       if ("token_count".equals(payloadType)) {
-        if (!hasCumulativeUsage(event)) {
-          return new CodexRecordMapping(
-              basicRecord(recordLocator, eventIndex, rawType, timestamp), previousTotals);
-        }
-        TokenTotals currentTotals = cumulativeTotals(event);
-        SourceRecordUsage delta = currentTotals.deltaSince(previousTotals);
-        if (delta.total() > 0) {
+        if (hasCumulativeUsage(event)) {
+          TokenTotals currentTotals = cumulativeTotals(event);
+          if (currentTotals.sameAs(previousTotals)) {
+            return new CodexRecordMapping(
+                basicRecord(recordLocator, eventIndex, rawType, timestamp), currentTotals);
+          }
+          SourceRecordUsage delta = currentTotals.deltaSince(previousTotals);
           return new CodexRecordMapping(
               new SourceRecord(
                   recordLocator,
@@ -396,8 +480,25 @@ public final class CodexSourceAdapter implements SourceAdapter {
                   Optional.empty()),
               currentTotals);
         }
+        if (hasLastTokenUsage(event)) {
+          return new CodexRecordMapping(
+              new SourceRecord(
+                  recordLocator,
+                  eventIndex,
+                  "assistant",
+                  Optional.of("token_count:" + eventIndex),
+                  optionalText(currentModel),
+                  optionalText(timestamp),
+                  Optional.empty(),
+                  SourceRecordUsage.empty(),
+                  List.of(),
+                  Optional.empty(),
+                  Optional.empty(),
+                  Optional.empty()),
+              previousTotals);
+        }
         return new CodexRecordMapping(
-            basicRecord(recordLocator, eventIndex, rawType, timestamp), currentTotals);
+            basicRecord(recordLocator, eventIndex, rawType, timestamp), previousTotals);
       }
       // 非 token_count 的 event_msg：传递 payload 子类型作为 turnId
       return new CodexRecordMapping(
@@ -548,8 +649,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
   /**
    * 从 Codex function_call_output payload 提取工具错误信息。
    *
-   * <p>先检查显式 {@code error} 字段，再通过 {@link ToolFailureClassifier} 对 {@code output}
-   * 内容进行文本启发式失败检测。
+   * <p>先检查显式 {@code error} 字段，再通过 {@link ToolFailureClassifier} 对 {@code output} 内容进行文本启发式失败检测。
    *
    * @param payload response_item 的 payload 节点
    * @return 错误信息，非空表示工具执行失败
@@ -702,11 +802,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
         OptionalInt.empty());
   }
 
+  /** 单条 Codex 事件映射结果与后续 token 累计基线。 */
   private record CodexRecordMapping(SourceRecord record, TokenTotals previousTotals) {}
 
-  private record TokenTotals(long freshInput, long cacheRead, long cacheWrite, long output) {
+  /** Codex token_count 事件中的累计 token 组件。 */
+  private record TokenTotals(
+      long freshInput, long cacheRead, long cacheWrite, long output, long rawTotal) {
     private static TokenTotals zero() {
-      return new TokenTotals(0, 0, 0, 0);
+      return new TokenTotals(0, 0, 0, 0, 0);
     }
 
     private SourceRecordUsage deltaSince(TokenTotals previous) {
@@ -717,8 +820,12 @@ public final class CodexSourceAdapter implements SourceAdapter {
           Math.max(0L, output - previous.output));
     }
 
-    private long total() {
-      return freshInput + cacheRead + cacheWrite + output;
+    private boolean sameAs(TokenTotals previous) {
+      return freshInput == previous.freshInput
+          && cacheRead == previous.cacheRead
+          && cacheWrite == previous.cacheWrite
+          && output == previous.output
+          && rawTotal == previous.rawTotal;
     }
   }
 
@@ -806,14 +913,23 @@ public final class CodexSourceAdapter implements SourceAdapter {
     return cumulativeUsageNode(event) != null;
   }
 
+  private static boolean hasLastTokenUsage(JsonNode event) {
+    return lastTokenUsageNode(event) != null;
+  }
+
   private static TokenTotals cumulativeTotals(JsonNode event) {
     JsonNode usage = cumulativeUsageNode(event);
     if (usage == null) {
       return TokenTotals.zero();
     }
-    long inputTokens = readLong(usage, "input_tokens", "inputTokens");
+    long inputTokens = readLong(usage, "input_tokens", "inputTokens", "prompt_tokens");
     long cacheRead =
-        readLong(usage, "cached_input_tokens", "cache_read_input_tokens", "cacheReadInputTokens");
+        readLong(
+            usage,
+            "cached_input_tokens",
+            "cache_read_input_tokens",
+            "cacheReadInputTokens",
+            "cached_tokens");
     long freshInput =
         usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens")
             ? Math.max(0L, inputTokens - cacheRead)
@@ -822,7 +938,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         freshInput,
         cacheRead,
         readLong(usage, "cache_creation_input_tokens", "cacheCreationInputTokens"),
-        readLong(usage, "output_tokens", "outputTokens"));
+        readLong(usage, "output_tokens", "outputTokens", "completion_tokens"),
+        readLong(usage, "total_tokens", "total_token_usage", "tokens_used"));
   }
 
   private static JsonNode cumulativeUsageNode(JsonNode event) {
@@ -843,6 +960,22 @@ public final class CodexSourceAdapter implements SourceAdapter {
     return directUsage != null && directUsage.isObject() ? directUsage : null;
   }
 
+  private static JsonNode lastTokenUsageNode(JsonNode event) {
+    JsonNode payload = event.get("payload");
+    if (payload == null || !payload.isObject()) {
+      return null;
+    }
+    JsonNode info = payload.get("info");
+    if (info != null && info.isObject()) {
+      JsonNode lastUsage = info.get("last_token_usage");
+      if (lastUsage != null && lastUsage.isObject()) {
+        return lastUsage;
+      }
+    }
+    JsonNode directUsage = payload.get("last_token_usage");
+    return directUsage != null && directUsage.isObject() ? directUsage : null;
+  }
+
   private static long readLong(JsonNode node, String... fieldNames) {
     if (node == null || !node.isObject()) {
       return 0L;
@@ -854,84 +987,5 @@ public final class CodexSourceAdapter implements SourceAdapter {
       }
     }
     return 0L;
-  }
-
-  /**
-   * 从会话文件路径中提取会话键。
-   *
-   * <p>新结构（{@code sessions/{year}/{month}/{day}/rollout-*.jsonl}）：使用文件名去掉 {@code .jsonl} 后缀作为会话键。
-   * 归档结构（{@code archived_sessions/rollout-*.jsonl}）：同样使用文件名去掉 {@code .jsonl} 后缀。
-   * 旧结构（{@code {day-dir}/{session-id}/session.jsonl}）：使用 {@code {day-dir}/{session-id}} 作为会话键（向后兼容）。
-   *
-   * @param rootPath 源根目录
-   * @param sessionPath 会话文件路径
-   * @return 会话键
-   */
-  private static String extractSessionKey(Path rootPath, Path sessionPath) {
-    Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
-    int nameCount = relative.getNameCount();
-    if (nameCount == 0) {
-      return sessionPath.getFileName().toString();
-    }
-
-    String firstDir = relative.getName(0).toString();
-
-    // 新结构：sessions/...
-    if (firstDir.equals(CodexConstants.SESSIONS_DIR)) {
-      String fileName = sessionPath.getFileName().toString();
-      return SourcePathOps.stripSuffix(fileName, CodexConstants.SESSION_FILE_SUFFIX);
-    }
-
-    // 归档结构：archived_sessions/...
-    if (firstDir.equals(CodexConstants.ARCHIVED_SESSION_DIR)) {
-      String fileName = sessionPath.getFileName().toString();
-      return SourcePathOps.stripSuffix(fileName, CodexConstants.SESSION_FILE_SUFFIX);
-    }
-
-    // 旧结构 fallback：{day-dir}/{session-id}/session.jsonl
-    if (nameCount >= 3) {
-      String dayDir = relative.getName(0).toString();
-      String sessionId = relative.getName(1).toString();
-      return dayDir + "/" + sessionId;
-    }
-    if (nameCount >= 2) {
-      return relative.getName(0).toString();
-    }
-    return sessionPath.getFileName().toString();
-  }
-
-  /**
-   * 从会话文件路径中提取项目键。
-   *
-   * <p>新结构（{@code sessions/{year}/{month}/{day}/rollout-*.jsonl}）：使用日期路径 {@code sessions/{year}/{month}/{day}} 作为项目键。
-   * 归档结构（{@code archived_sessions/rollout-*.jsonl}）：使用 {@code archived_sessions} 作为项目键。
-   * 旧结构（{@code {day-dir}/{session-id}/session.jsonl}）：使用 {@code {day-dir}} 作为项目键（向后兼容）。
-   *
-   * @param rootPath 源根目录
-   * @param sessionPath 会话文件路径
-   * @return 项目键
-   */
-  private static String extractProjectKey(Path rootPath, Path sessionPath) {
-    Path relative = SourcePathOps.toRelative(rootPath, sessionPath);
-    int nameCount = relative.getNameCount();
-    if (nameCount == 0) {
-      return "";
-    }
-
-    String firstDir = relative.getName(0).toString();
-
-    // 归档结构：archived_sessions/...
-    if (firstDir.equals(CodexConstants.ARCHIVED_SESSION_DIR)) {
-      return CodexConstants.ARCHIVED_SESSION_DIR;
-    }
-
-    // 新结构：sessions/{year}/{month}/{day}/...
-    if (firstDir.equals(CodexConstants.SESSIONS_DIR) && nameCount >= 4) {
-      return relative.getName(0) + "/" + relative.getName(1) + "/"
-          + relative.getName(2) + "/" + relative.getName(3);
-    }
-
-    // 旧结构 fallback：{day-dir}/...
-    return firstDir;
   }
 }

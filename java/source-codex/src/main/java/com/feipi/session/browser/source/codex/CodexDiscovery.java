@@ -22,7 +22,8 @@ import java.util.logging.Logger;
 /**
  * Codex 会话发现逻辑。
  *
- * <p>从 {@code state_5.sqlite} threads 表和 {@code session_index.jsonl} 驱动发现。 排除 subagent thread，rollout 文件仅作为定位/解析来源。
+ * <p>从 {@code state_5.sqlite} threads 表和 {@code session_index.jsonl} 驱动发现。 排除 subagent
+ * thread，rollout 文件仅作为定位/解析来源。
  *
  * <p>发现策略与 Python master 对齐：
  *
@@ -45,7 +46,8 @@ public final class CodexDiscovery {
   /**
    * 从根目录发现所有 Codex 顶层会话候选路径。
    *
-   * <p>使用 threads.db + session_index.jsonl 驱动，排除 subagent thread。 返回的每个路径都对应一个顶层会话的 rollout 文件（可能不存在）。
+   * <p>使用 threads.db + session_index.jsonl 驱动，排除 subagent thread。 返回的每个路径都对应一个顶层会话的 rollout
+   * 文件（可能不存在）。
    *
    * @param rootPath 源根目录路径
    * @return 按 sessionId 排序的会话发现结果列表
@@ -97,8 +99,7 @@ public final class CodexDiscovery {
     // 第五步：对每个会话定位 rollout 文件
     List<CodexSessionDiscovery> results = new ArrayList<>();
     for (String sessionId : allSessionIds) {
-      if (!filteredIndexEntries.containsKey(sessionId)
-          && !topLevelThreads.containsKey(sessionId)) {
+      if (!filteredIndexEntries.containsKey(sessionId) && !topLevelThreads.containsKey(sessionId)) {
         // 被 subagent 过滤掉的 index-only entry
         continue;
       }
@@ -109,12 +110,7 @@ public final class CodexDiscovery {
       boolean hasFile = Files.isRegularFile(rolloutFile);
 
       results.add(
-          new CodexSessionDiscovery(
-              sessionId,
-              threadInfo,
-              indexEntry,
-              rolloutFile,
-              hasFile));
+          new CodexSessionDiscovery(sessionId, threadInfo, indexEntry, rolloutFile, hasFile));
     }
 
     // 按 sessionId 排序，保证确定性
@@ -335,8 +331,8 @@ public final class CodexDiscovery {
   /**
    * 检查 rollout 文件的 session_meta 事件是否表示 subagent 会话。
    *
-   * <p>与 Python {@code is_codex_subagent_session_file} 对齐：读取文件首行， 若为 {@code session_meta}
-   * 事件则委托 {@link #isSubagentMetaEvent} 判断。 文件不存在或解析失败时返回 {@code false}。
+   * <p>与 Python {@code is_codex_subagent_session_file} 对齐：读取文件首行， 若为 {@code session_meta} 事件则委托
+   * {@link #isSubagentMetaEvent} 判断。 文件不存在或解析失败时返回 {@code false}。
    *
    * @param rolloutFile rollout 文件路径
    * @return 识别为 subagent 时返回 {@code true}
@@ -404,8 +400,8 @@ public final class CodexDiscovery {
   /**
    * 将 JSON 节点的 payload 字段扁平化为字符串映射。
    *
-   * <p>对 {@code payload} 内的文本、数字、布尔值字段做扁平化处理， 嵌套结构序列化为 JSON 字符串保留。
-   * 供 {@link CodexSourceAdapter#extractSessionMeta} 等方法复用，避免重复实现。
+   * <p>对 {@code payload} 内的文本、数字、布尔值字段做扁平化处理， 嵌套结构序列化为 JSON 字符串保留。 供 {@link
+   * CodexSourceAdapter#extractSessionMeta} 等方法复用，避免重复实现。
    *
    * @param event JSON 事件节点
    * @return payload 字段映射；payload 不存在时返回空 map

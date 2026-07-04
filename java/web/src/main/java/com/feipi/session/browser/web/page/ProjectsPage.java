@@ -131,7 +131,8 @@ public final class ProjectsPage {
           sessionUseCase.listWithAnomalies(sessionFilter);
       SessionListAggregate aggregate = sessionUseCase.aggregate(sessionFilter);
       List<SessionRow> allProjectSessions =
-          sessionUseCase.listWithAnomalies(buildAllProjectSessionsFilter(decodedKey, project))
+          sessionUseCase
+              .listWithAnomalies(buildAllProjectSessionsFilter(decodedKey, project))
               .page()
               .items();
 
@@ -222,10 +223,7 @@ public final class ProjectsPage {
     Map<String, Object> detail = new LinkedHashMap<>();
     detail.put(
         "active_period",
-        "Active: "
-            + dateLabel(project.firstSeen())
-            + " to "
-            + dateLabel(project.lastSeen()));
+        "Active: " + dateLabel(project.firstSeen()) + " to " + dateLabel(project.lastSeen()));
     detail.put("sessions_kpi", buildSessionsKpi(sessions));
     detail.put("agents_kpi", buildAgentsKpi(sessions));
     detail.put("tokens_kpi", buildTokensKpi(project));
@@ -233,7 +231,8 @@ public final class ProjectsPage {
     detail.put("failure_kpi", buildFailureKpi(project, sessions));
     detail.put("agent_mix", buildAgentMix(project, sessions));
     detail.put("token_trend", buildTokenTrend(sessions, grain));
-    detail.put("tool_hotspots_reason", "Tool name breakdown is not stored in the current session index.");
+    detail.put(
+        "tool_hotspots_reason", "Tool name breakdown is not stored in the current session index.");
     return detail;
   }
 
@@ -252,10 +251,15 @@ public final class ProjectsPage {
             .filter(date -> !date.isBefore(sevenDayStart) && !date.isAfter(today))
             .count();
     List<Double> durations =
-        sessions.stream().mapToDouble(SessionRow::durationSeconds).filter(v -> v > 0).boxed().toList();
+        sessions.stream()
+            .mapToDouble(SessionRow::durationSeconds)
+            .filter(v -> v > 0)
+            .boxed()
+            .toList();
     List<Double> processTimes =
         sessions.stream()
-            .mapToDouble(session -> session.modelExecutionSeconds() + session.toolExecutionSeconds())
+            .mapToDouble(
+                session -> session.modelExecutionSeconds() + session.toolExecutionSeconds())
             .filter(v -> v > 0)
             .boxed()
             .toList();
@@ -299,7 +303,8 @@ public final class ProjectsPage {
         project.totalOutputTokens());
   }
 
-  private static Map<String, Object> buildCacheKpi(ProjectStatsRow project, List<SessionRow> sessions) {
+  private static Map<String, Object> buildCacheKpi(
+      ProjectStatsRow project, List<SessionRow> sessions) {
     long inputSide =
         project.totalFreshInputTokens()
             + project.totalCacheReadTokens()
@@ -345,7 +350,14 @@ public final class ProjectsPage {
       ProjectStatsRow project, List<SessionRow> sessions) {
     List<Map<String, Object>> rows = new ArrayList<>();
     long totalTokens = Math.max(0, project.totalTokens());
-    addAgentMix(rows, "claude_code", "Claude Code", "claude", project.totalSessions(), totalTokens, sessions);
+    addAgentMix(
+        rows,
+        "claude_code",
+        "Claude Code",
+        "claude",
+        project.totalSessions(),
+        totalTokens,
+        sessions);
     addAgentMix(rows, "qoder", "Qoder", "qoder", project.totalSessions(), totalTokens, sessions);
     addAgentMix(rows, "codex", "Codex", "codex", project.totalSessions(), totalTokens, sessions);
     return rows;
@@ -462,18 +474,16 @@ public final class ProjectsPage {
               "key",
               key,
               "path",
-              "M "
-                  + String.join(" L ", upper)
-                  + " L "
-                  + String.join(" L ", lowerPath)
-                  + " Z"));
+              "M " + String.join(" L ", upper) + " L " + String.join(" L ", lowerPath) + " Z"));
     }
     return layers;
   }
 
   private static String bucketLabel(LocalDate date, String grain) {
     if ("month".equals(grain)) {
-      return date.getYear() + "-" + String.format(java.util.Locale.ROOT, "%02d", date.getMonthValue());
+      return date.getYear()
+          + "-"
+          + String.format(java.util.Locale.ROOT, "%02d", date.getMonthValue());
     }
     if ("week".equals(grain)) {
       return date.minusDays(date.getDayOfWeek().getValue() - 1L).toString();

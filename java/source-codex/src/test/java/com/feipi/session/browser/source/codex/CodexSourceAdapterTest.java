@@ -89,15 +89,11 @@ class CodexSourceAdapterTest {
           StandardCharsets.UTF_8);
     }
 
-    /** 在 sessions/<year>/<month>/<day>/ 下创建 rollout 文件。 */
+    /** 在 {@code sessions/<year>/<month>/<day>/} 下创建 rollout 文件。 */
     private Path createRollout(String year, String month, String day, String filename)
         throws IOException {
       Path dayDir =
-          tempDir
-              .resolve(CodexConstants.SESSIONS_DIR)
-              .resolve(year)
-              .resolve(month)
-              .resolve(day);
+          tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve(year).resolve(month).resolve(day);
       Files.createDirectories(dayDir);
       Path rollout = dayDir.resolve(filename);
       Files.writeString(rollout, "{\"type\":\"assistant\"}\n", StandardCharsets.UTF_8);

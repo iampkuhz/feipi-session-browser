@@ -61,7 +61,7 @@ class QoderSourceSpecificContractTest {
     assertThat(success.records())
         .extracting(SourceRecord::locator)
         .noneMatch(locator -> locator.matches(".*[0-9a-fA-F]{8}-[0-9a-fA-F]{4}.*"));
-    assertThat(candidate.sessionKey()).isEqualTo("qoder:home/qoder/demo/session-main");
+    assertThat(candidate.sessionKey()).isEqualTo("qoder:session-main");
     assertThat(candidate.projectKey()).isEqualTo("home/qoder/demo");
     assertThat(FileState.capture(session)).isEqualTo(before);
     assertThat(adapter.fingerprint(session))

@@ -399,7 +399,9 @@ public final class SessionDetailPage {
       entry.put("has_badges", !badges.isEmpty());
       entry.put("badge_text", String.join(", ", badges));
       entry.put("subagent_id", subagentId);
-      entry.put("subagent_round", subagentId.isEmpty() ? "" : firstSubagentRound(round.calls(), subagentId));
+      entry.put(
+          "subagent_round",
+          subagentId.isEmpty() ? "" : firstSubagentRound(round.calls(), subagentId));
       entry.put("is_empty", round.isEmpty());
       entry.putAll(buildRoundTokenFields(round, maxTokens));
       result.add(entry);
@@ -438,7 +440,8 @@ public final class SessionDetailPage {
     fields.put("token_mix", mix);
     fields.put("fresh_share", DisplayFormatters.percentLabel(round.freshInputTokens(), total));
     fields.put("cache_read_share", DisplayFormatters.percentLabel(round.cacheReadTokens(), total));
-    fields.put("cache_write_share", DisplayFormatters.percentLabel(round.cacheWriteTokens(), total));
+    fields.put(
+        "cache_write_share", DisplayFormatters.percentLabel(round.cacheWriteTokens(), total));
     fields.put("output_share", DisplayFormatters.percentLabel(round.outputTokens(), total));
     fields.put("cache_read_ratio", roundCacheReadLabel(round));
     fields.put("bar_height_px", maxTokens > 0 ? tokenBarPct * 1.18 : 0.0);
@@ -567,10 +570,16 @@ public final class SessionDetailPage {
     metrics.put("cache_read", DisplayFormatters.formatCompactToken(row.cacheReadTokens()));
     metrics.put("cache_write", DisplayFormatters.formatCompactToken(row.cacheWriteTokens()));
     metrics.put("output", DisplayFormatters.formatCompactToken(row.outputTokens()));
-    metrics.put("fresh_share", DisplayFormatters.percentLabel(row.freshInputTokens(), row.totalTokens()));
-    metrics.put("cache_read_share", DisplayFormatters.percentLabel(row.cacheReadTokens(), row.totalTokens()));
-    metrics.put("cache_write_share", DisplayFormatters.percentLabel(row.cacheWriteTokens(), row.totalTokens()));
-    metrics.put("output_share", DisplayFormatters.percentLabel(row.outputTokens(), row.totalTokens()));
+    metrics.put(
+        "fresh_share", DisplayFormatters.percentLabel(row.freshInputTokens(), row.totalTokens()));
+    metrics.put(
+        "cache_read_share",
+        DisplayFormatters.percentLabel(row.cacheReadTokens(), row.totalTokens()));
+    metrics.put(
+        "cache_write_share",
+        DisplayFormatters.percentLabel(row.cacheWriteTokens(), row.totalTokens()));
+    metrics.put(
+        "output_share", DisplayFormatters.percentLabel(row.outputTokens(), row.totalTokens()));
     metrics.put("fresh_share_tone", shareTone(row.freshInputTokens(), row.totalTokens()));
     metrics.put("cache_read_share_tone", shareTone(row.cacheReadTokens(), row.totalTokens()));
     metrics.put("cache_write_share_tone", shareTone(row.cacheWriteTokens(), row.totalTokens()));
@@ -584,7 +593,9 @@ public final class SessionDetailPage {
     metrics.put("run_health", issueRounds > 0 ? "Needs Review" : "Completed");
     metrics.put("issue_rounds", issueRounds);
     metrics.put("failed_tools", row.failedToolCount());
-    metrics.put("failed_tools_rate", DisplayFormatters.percentLabel(row.failedToolCount(), row.toolCallCount()));
+    metrics.put(
+        "failed_tools_rate",
+        DisplayFormatters.percentLabel(row.failedToolCount(), row.toolCallCount()));
     metrics.put("failed_tools_tone", row.failedToolCount() > 0 ? "bad" : "ok");
     metrics.put("payload_gaps", 0);
     metrics.put("attribution_gaps", 0);

@@ -1,9 +1,11 @@
 package com.feipi.session.browser.source.qoder;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
+import com.feipi.session.browser.source.json.JsonlReaderResult;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveredSession;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveryResult;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.SourceKind;
@@ -19,6 +21,7 @@ import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -69,7 +72,10 @@ import java.util.logging.Logger;
 public final class QoderSourceAdapter implements SourceAdapter {
 
   private static final Logger LOG = Logger.getLogger(QoderSourceAdapter.class.getName());
+  private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final String DIAG_CODE_UNKNOWN_PART_TYPE = "UNKNOWN_PART_TYPE";
+  private static final int ESTIMATE_TEXT_CAP_BYTES = 32 * 1024;
+  private static final String DEFAULT_QODER_MODEL = "Qwen-3.6-Plus";
 
   private final JsonlReader jsonlReader;
 
@@ -96,8 +102,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
   /**
    * 从源根目录发现候选会话。
    *
-   * <p>使用结构化发现结果和 canonical map 去重：cache 中的会话若映射到已发现的 projects UUID，则跳过。
-   * session_key 和 project_key 与 Python 主分支对齐。
+   * <p>使用结构化发现结果和 canonical map 去重：cache 中的会话若映射到已发现的 projects UUID，则跳过。 session_key 和 project_key
+   * 与 Python 主分支对齐。
    *
    * @param rootPath 源根目录路径
    * @return 有界确定性候选项流
@@ -130,14 +136,24 @@ public final class QoderSourceAdapter implements SourceAdapter {
         }
 
         SourceFingerprint fp = fingerprint(disc.path());
-        String sessionKey = buildSessionKey(disc, canonicalMap);
-        String projectKey = disc.projectKey();
+        String canonicalSessionId = canonicalSessionId(disc, canonicalMap);
+        String sessionKey = "qoder:" + canonicalSessionId;
+        QoderCandidateMetadata discoveredMeta =
+            inspectCandidateFile(disc.path(), canonicalSessionId, disc.sourceKind());
+        String projectKey = meaningfulProject(discoveredMeta.cwd(), disc.projectKey());
         if (projectKey.isEmpty()) {
-          projectKey = disc.sessionId();
+          projectKey = canonicalSessionId;
         }
 
         Map<String, String> meta = new HashMap<>();
         meta.put("source_kind", disc.sourceKind().name().toLowerCase(Locale.ROOT));
+        putIfNotEmpty(meta, "cwd", discoveredMeta.cwd());
+        putIfNotEmpty(meta, "model", discoveredMeta.model());
+        putIfPositive(meta, "freshInputTokens", discoveredMeta.freshInputTokens());
+        putIfPositive(meta, "outputTokens", discoveredMeta.outputTokens());
+        putIfPositive(meta, "cacheReadTokens", discoveredMeta.cacheReadTokens());
+        putIfPositive(meta, "cacheWriteTokens", discoveredMeta.cacheWriteTokens());
+        putIfPositive(meta, "totalTokens", discoveredMeta.totalTokens());
         Candidate candidate = new Candidate(fp, sessionKey, projectKey, Map.copyOf(meta));
         candidates.add(candidate);
       } catch (Exception e) {
@@ -153,13 +169,11 @@ public final class QoderSourceAdapter implements SourceAdapter {
   /**
    * 构建与 Python 主分支对齐的 session key。
    *
-   * <p>格式：{@code qoder:{canonical_project}/{canonical_session}}。 对 cache 来源的会话，使用 canonical map
-   * 将短 ID 映射为完整 UUID。
+   * <p>格式：{@code qoder:{canonical_session}}。对 cache 来源的会话，使用 canonical map 将短 ID 映射为完整 UUID。
    */
-  private static String buildSessionKey(
+  private static String canonicalSessionId(
       QoderDiscoveredSession disc, Map<String, String> canonicalMap) {
     String sessionId = disc.sessionId();
-    String projectKey = disc.projectKey();
 
     // cache 短 ID → 完整 UUID
     if (disc.sourceKind() == SourceKind.CACHE) {
@@ -170,7 +184,416 @@ public final class QoderSourceAdapter implements SourceAdapter {
       }
     }
 
-    return "qoder:" + projectKey + "/" + sessionId;
+    return sessionId;
+  }
+
+  private QoderCandidateMetadata inspectCandidateFile(
+      Path path, String canonicalSessionId, SourceKind sourceKind) {
+    try {
+      JsonlReaderResult result = jsonlReader.read(path);
+      List<JsonNode> events = result.events();
+      String cwd = "";
+      String model = "";
+      for (JsonNode event : events) {
+        if (cwd.isEmpty() && isUserEvent(event)) {
+          cwd = text(event, "cwd");
+        }
+        if (model.isEmpty()) {
+          model = extractModel(event);
+        }
+        if (!cwd.isEmpty() && !model.isEmpty()) {
+          break;
+        }
+      }
+      if (model.isEmpty()) {
+        model = DEFAULT_QODER_MODEL;
+      }
+      TokenEstimate estimate =
+          sourceKind == SourceKind.CACHE
+              ? estimateCacheTokens(events)
+              : estimateProjectTokens(events);
+      return new QoderCandidateMetadata(
+          cwd, model, estimate.freshInputTokens(), 0, 0, estimate.outputTokens());
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "读取 Qoder 候选元数据失败: " + path, e);
+      return QoderCandidateMetadata.empty();
+    }
+  }
+
+  private static boolean isUserEvent(JsonNode event) {
+    String type = text(event, "type");
+    if (!type.isEmpty()) {
+      return "user".equals(type);
+    }
+    return "user".equals(text(event, "role"));
+  }
+
+  private static String meaningfulProject(String cwd, String fallback) {
+    if (cwd != null && !cwd.isBlank() && !".".equals(cwd) && !cwd.startsWith("./")) {
+      return cwd;
+    }
+    return fallback == null ? "" : fallback;
+  }
+
+  private static void putIfNotEmpty(Map<String, String> meta, String key, String value) {
+    if (value != null && !value.isBlank()) {
+      meta.put(key, value);
+    }
+  }
+
+  private static void putIfPositive(Map<String, String> meta, String key, long value) {
+    if (value > 0) {
+      meta.put(key, Long.toString(value));
+    }
+  }
+
+  private static String extractModel(JsonNode event) {
+    String model = text(event, "model");
+    if (!model.isEmpty()) {
+      return model;
+    }
+    JsonNode message = objectChild(event, "message");
+    model = text(message, "model");
+    if (!model.isEmpty()) {
+      return model;
+    }
+    JsonNode metadata = objectChild(event, "metadata");
+    model = text(metadata, "model");
+    if (!model.isEmpty()) {
+      return model;
+    }
+    JsonNode content = message == null ? null : message.get("content");
+    if (content != null && content.isArray()) {
+      for (JsonNode item : content) {
+        model = text(item, "model");
+        if (!model.isEmpty()) {
+          return model;
+        }
+      }
+    }
+    return "";
+  }
+
+  private static TokenEstimate estimateCacheTokens(List<JsonNode> events) {
+    long inputTokens = 0;
+    long outputTokens = 0;
+    for (JsonNode event : events) {
+      String role = text(event, "role");
+      String text = messageText(event);
+      if (text.isBlank()) {
+        continue;
+      }
+      long tokens = countTokens(text);
+      if ("user".equals(role)) {
+        inputTokens += tokens;
+      } else if ("assistant".equals(role)) {
+        outputTokens += tokens;
+      }
+    }
+    return new TokenEstimate(inputTokens, outputTokens);
+  }
+
+  private static TokenEstimate estimateProjectTokens(List<JsonNode> events) {
+    if (hasRealUsage(events)) {
+      return TokenEstimate.empty();
+    }
+    long visibleContextTokens = 0;
+    long estimatedInput = 0;
+    long estimatedOutput = 0;
+    Set<String> seenAssistantKeys = new HashSet<>();
+    for (JsonNode event : events) {
+      EventText eventText = extractEventText(event);
+      if (eventText.category().isEmpty() || eventText.text().isBlank()) {
+        continue;
+      }
+      long tokens = countTokens(eventText.text());
+      if (eventText.category().startsWith("assistant")) {
+        String key = assistantKey(event);
+        if (seenAssistantKeys.add(key)) {
+          estimatedInput += visibleContextTokens;
+        }
+        estimatedOutput += tokens;
+      }
+      visibleContextTokens += tokens;
+    }
+    return new TokenEstimate(estimatedInput, estimatedOutput);
+  }
+
+  private static boolean hasRealUsage(List<JsonNode> events) {
+    for (JsonNode event : events) {
+      if (!"assistant".equals(text(event, "type"))) {
+        continue;
+      }
+      JsonNode usage = objectChild(objectChild(event, "message"), "usage");
+      if (usage != null && usage.has("input_tokens") && usage.get("input_tokens").asLong(0) > 0) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  private static EventText extractEventText(JsonNode event) {
+    String type = text(event, "type");
+    JsonNode message = objectChild(event, "message");
+    JsonNode content = message == null ? null : message.get("content");
+    if ("user".equals(type)) {
+      JsonNode isMeta = event.get("isMeta");
+      if (isMeta != null && isMeta.isBoolean() && isMeta.asBoolean()) {
+        return EventText.empty();
+      }
+      if (content != null && content.isTextual()) {
+        return new EventText("user_prompt", content.asText());
+      }
+      if (content != null && content.isArray()) {
+        StringBuilder textParts = new StringBuilder();
+        StringBuilder toolResultParts = new StringBuilder();
+        for (JsonNode item : content) {
+          if (item == null || !item.isObject()) {
+            continue;
+          }
+          if ("text".equals(text(item, "type"))) {
+            String text = text(item, "text");
+            if (!text.isBlank() && !text.contains("Caveat: The messages below were generated")) {
+              appendLine(textParts, text);
+            }
+          } else if ("tool_result".equals(text(item, "type"))) {
+            appendLine(toolResultParts, stringifyContent(item.get("content")));
+          }
+        }
+        if (!textParts.isEmpty()) {
+          return new EventText("user_prompt", textParts.toString());
+        }
+        if (!toolResultParts.isEmpty()) {
+          return new EventText("tool_result", toolResultParts.toString());
+        }
+      }
+    }
+    if ("assistant".equals(type) && content != null && content.isArray()) {
+      StringBuilder textParts = new StringBuilder();
+      StringBuilder toolParts = new StringBuilder();
+      for (JsonNode item : content) {
+        if (item == null || !item.isObject()) {
+          continue;
+        }
+        if ("text".equals(text(item, "type"))) {
+          appendLine(textParts, text(item, "text"));
+        } else if ("tool_use".equals(text(item, "type"))) {
+          appendLine(toolParts, pythonStyleJson(item));
+        }
+      }
+      if (!toolParts.isEmpty() && textParts.isEmpty()) {
+        return new EventText("assistant_tool_call", toolParts.toString());
+      }
+      if (!textParts.isEmpty() || !toolParts.isEmpty()) {
+        String combined =
+            !textParts.isEmpty() && !toolParts.isEmpty()
+                ? textParts + "\n" + toolParts
+                : (!textParts.isEmpty() ? textParts.toString() : toolParts.toString());
+        return new EventText("assistant_text", combined);
+      }
+    }
+    return EventText.empty();
+  }
+
+  private static String assistantKey(JsonNode event) {
+    JsonNode message = objectChild(event, "message");
+    String id = text(message, "id");
+    if (!id.isEmpty()) {
+      return id;
+    }
+    id = text(event, "uuid");
+    if (!id.isEmpty()) {
+      return id;
+    }
+    id = text(event, "parentUuid");
+    if (!id.isEmpty()) {
+      return id;
+    }
+    id = text(event, "id");
+    return id.isEmpty() ? "event:" + System.identityHashCode(event) : id;
+  }
+
+  private static String messageText(JsonNode event) {
+    JsonNode message = objectChild(event, "message");
+    JsonNode content = message == null ? event.get("content") : message.get("content");
+    return contentText(content);
+  }
+
+  private static String contentText(JsonNode content) {
+    if (content == null) {
+      return "";
+    }
+    if (content.isTextual()) {
+      return content.asText();
+    }
+    if (!content.isArray()) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder();
+    for (JsonNode item : content) {
+      String text = "";
+      if (item != null && item.isObject() && "text".equals(text(item, "type"))) {
+        text = text(item, "text");
+      } else if (item != null && item.isTextual()) {
+        text = item.asText();
+      }
+      if (!text.isBlank()) {
+        if (!sb.isEmpty()) {
+          sb.append('\n');
+        }
+        sb.append(text);
+      }
+    }
+    return sb.toString();
+  }
+
+  private static String stringifyContent(JsonNode content) {
+    if (content == null || content.isNull()) {
+      return "";
+    }
+    if (content.isTextual()) {
+      return content.asText();
+    }
+    if (content.isArray()) {
+      StringBuilder sb = new StringBuilder();
+      for (JsonNode item : content) {
+        appendLine(sb, stringifyContent(item));
+      }
+      return sb.toString();
+    }
+    if (content.isObject()) {
+      if ("text".equals(text(content, "type"))) {
+        return text(content, "text");
+      }
+      if (content.has("content")) {
+        return stringifyContent(content.get("content"));
+      }
+    }
+    return content.toString();
+  }
+
+  private static void appendLine(StringBuilder sb, String text) {
+    if (text == null || text.isBlank()) {
+      return;
+    }
+    if (!sb.isEmpty()) {
+      sb.append('\n');
+    }
+    sb.append(text);
+  }
+
+  private static String pythonStyleJson(JsonNode node) {
+    if (node == null || node.isNull()) {
+      return "null";
+    }
+    if (node.isObject()) {
+      StringBuilder sb = new StringBuilder("{");
+      var fields = node.fields();
+      boolean first = true;
+      while (fields.hasNext()) {
+        var field = fields.next();
+        if (!first) {
+          sb.append(", ");
+        }
+        first = false;
+        sb.append(quoteJson(field.getKey())).append(": ").append(pythonStyleJson(field.getValue()));
+      }
+      return sb.append('}').toString();
+    }
+    if (node.isArray()) {
+      StringBuilder sb = new StringBuilder("[");
+      boolean first = true;
+      for (JsonNode item : node) {
+        if (!first) {
+          sb.append(", ");
+        }
+        first = false;
+        sb.append(pythonStyleJson(item));
+      }
+      return sb.append(']').toString();
+    }
+    if (node.isTextual()) {
+      return quoteJson(node.asText());
+    }
+    return node.toString();
+  }
+
+  private static String quoteJson(String value) {
+    try {
+      return MAPPER.writeValueAsString(value);
+    } catch (IOException e) {
+      return "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\"";
+    }
+  }
+
+  private static long countTokens(String text) {
+    if (text == null || text.isBlank()) {
+      return 0;
+    }
+    String capped = capText(text);
+    return Math.max(1L, (long) (capped.getBytes(StandardCharsets.UTF_8).length / 3.5));
+  }
+
+  private static String capText(String text) {
+    byte[] bytes = text.getBytes(StandardCharsets.UTF_8);
+    if (bytes.length <= ESTIMATE_TEXT_CAP_BYTES) {
+      return text;
+    }
+    double averageBytes = (double) bytes.length / Math.max(1, text.length());
+    int safeChars = Math.max(1, (int) (ESTIMATE_TEXT_CAP_BYTES / averageBytes));
+    String capped = text.substring(0, Math.min(text.length(), safeChars));
+    while (capped.getBytes(StandardCharsets.UTF_8).length > ESTIMATE_TEXT_CAP_BYTES
+        && !capped.isEmpty()) {
+      capped = capped.substring(0, Math.max(0, capped.length() - 100));
+    }
+    return capped;
+  }
+
+  private static JsonNode objectChild(JsonNode node, String fieldName) {
+    if (node == null || !node.isObject()) {
+      return null;
+    }
+    JsonNode child = node.get(fieldName);
+    return child != null && child.isObject() ? child : null;
+  }
+
+  private static String text(JsonNode node, String fieldName) {
+    if (node == null || !node.isObject()) {
+      return "";
+    }
+    JsonNode child = node.get(fieldName);
+    return child != null && child.isTextual() ? child.asText() : "";
+  }
+
+  /** Qoder candidate 级别的补充元数据与 token override。 */
+  private record QoderCandidateMetadata(
+      String cwd,
+      String model,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long outputTokens) {
+    private static QoderCandidateMetadata empty() {
+      return new QoderCandidateMetadata("", "", 0, 0, 0, 0);
+    }
+
+    private long totalTokens() {
+      return freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
+    }
+  }
+
+  /** 按 Python main 兼容口径估算的 Qoder 文本 token。 */
+  private record TokenEstimate(long freshInputTokens, long outputTokens) {
+    private static TokenEstimate empty() {
+      return new TokenEstimate(0, 0);
+    }
+  }
+
+  /** Qoder cache 事件中可用于 token 估算的文本片段。 */
+  private record EventText(String category, String text) {
+    private static EventText empty() {
+      return new EventText("", "");
+    }
   }
 
   /**
@@ -292,12 +715,23 @@ public final class QoderSourceAdapter implements SourceAdapter {
   private static String extractEventType(JsonNode event) {
     JsonNode typeNode = event.get("type");
     if (typeNode != null && typeNode.isTextual()) {
+      if ("user".equals(typeNode.asText()) && isMetaEvent(event)) {
+        return "meta";
+      }
       return typeNode.asText();
     }
     if (hasRoleField(event)) {
+      if ("user".equals(event.get("role").asText()) && isMetaEvent(event)) {
+        return "meta";
+      }
       return event.get("role").asText();
     }
     return QoderConstants.EVENT_TYPE_UNKNOWN;
+  }
+
+  private static boolean isMetaEvent(JsonNode event) {
+    JsonNode isMeta = event.get("isMeta");
+    return isMeta != null && isMeta.isBoolean() && isMeta.asBoolean();
   }
 
   /**

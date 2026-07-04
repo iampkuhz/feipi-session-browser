@@ -33,17 +33,14 @@ class CodexSourceSpecificContractTest {
     // 写入 session_index.jsonl
     Files.writeString(
         tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
-        "{\"id\":\"" + sessionId
+        "{\"id\":\""
+            + sessionId
             + "\",\"thread_name\":\"Main Thread\",\"updated_at\":\"2026-06-23\"}\n",
         StandardCharsets.UTF_8);
 
     // 创建 rollout 文件
     Path dayDir =
-        tempDir
-            .resolve(CodexConstants.SESSIONS_DIR)
-            .resolve("2026")
-            .resolve("06")
-            .resolve("23");
+        tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("23");
     Files.createDirectories(dayDir);
     Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     Files.writeString(rollout, codexRollout(), StandardCharsets.UTF_8);
@@ -95,17 +92,14 @@ class CodexSourceSpecificContractTest {
     // 写入 session_index.jsonl
     Files.writeString(
         tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
-        "{\"id\":\"" + sessionId
+        "{\"id\":\""
+            + sessionId
             + "\",\"thread_name\":\"Orphan Thread\",\"updated_at\":\"2026-06-23\"}\n",
         StandardCharsets.UTF_8);
 
     // 创建 rollout 文件
     Path dayDir =
-        tempDir
-            .resolve(CodexConstants.SESSIONS_DIR)
-            .resolve("2026")
-            .resolve("06")
-            .resolve("23");
+        tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("23");
     Files.createDirectories(dayDir);
     Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     Files.writeString(
@@ -129,16 +123,13 @@ class CodexSourceSpecificContractTest {
 
     Files.writeString(
         tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
-        "{\"id\":\"" + sessionId
+        "{\"id\":\""
+            + sessionId
             + "\",\"thread_name\":\"TS Thread\",\"updated_at\":\"2026-06-23\"}\n",
         StandardCharsets.UTF_8);
 
     Path dayDir =
-        tempDir
-            .resolve(CodexConstants.SESSIONS_DIR)
-            .resolve("2026")
-            .resolve("06")
-            .resolve("23");
+        tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("23");
     Files.createDirectories(dayDir);
     Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     Files.writeString(
@@ -171,16 +162,13 @@ class CodexSourceSpecificContractTest {
 
     Files.writeString(
         tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
-        "{\"id\":\"" + sessionId
+        "{\"id\":\""
+            + sessionId
             + "\",\"thread_name\":\"TurnId Thread\",\"updated_at\":\"2026-06-23\"}\n",
         StandardCharsets.UTF_8);
 
     Path dayDir =
-        tempDir
-            .resolve(CodexConstants.SESSIONS_DIR)
-            .resolve("2026")
-            .resolve("06")
-            .resolve("23");
+        tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("23");
     Files.createDirectories(dayDir);
     Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     Files.writeString(
@@ -232,17 +220,14 @@ class CodexSourceSpecificContractTest {
     // session_index.jsonl 包含 model 字段
     Files.writeString(
         tempDir.resolve(CodexConstants.SESSION_INDEX_FILE),
-        "{\"id\":\"" + sessionId
+        "{\"id\":\""
+            + sessionId
             + "\",\"thread_name\":\"Model Thread\",\"updated_at\":\"2026-06-23\","
             + "\"model\":\"gpt-4-fallback\"}\n",
         StandardCharsets.UTF_8);
 
     Path dayDir =
-        tempDir
-            .resolve(CodexConstants.SESSIONS_DIR)
-            .resolve("2026")
-            .resolve("06")
-            .resolve("23");
+        tempDir.resolve(CodexConstants.SESSIONS_DIR).resolve("2026").resolve("06").resolve("23");
     Files.createDirectories(dayDir);
     Path rollout = dayDir.resolve("rollout-100-" + sessionId + ".jsonl");
     // 第一个事件没有 model，应使用 indexEntry 回退值

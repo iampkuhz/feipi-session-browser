@@ -503,9 +503,8 @@ public final class DisplayFormatters {
   /**
    * 将对象序列化为可安全嵌入 {@code <script type="application/json">} 的 JSON 字符串。
    *
-   * <p>该方法返回未经过 HTML entity 转义的 JSON，并将 {@code <}、{@code >}、{@code &}、单引号与
-   * Unicode 行分隔符转为 JSON unicode escape，避免闭合 script 标签或形成 HTML 注入。调用方应通过 Pebble
-   * {@code SafeString} 标记输出，防止模板自动转义破坏 JSON。
+   * <p>该方法返回未经过 HTML entity 转义的 JSON，并将 {@code <}、{@code >}、{@code &}、单引号与 Unicode 行分隔符转为 JSON
+   * unicode escape，避免闭合 script 标签或形成 HTML 注入。调用方应通过 Pebble {@code SafeString} 标记输出，防止模板自动转义破坏 JSON。
    *
    * @param value 要序列化的对象，null 返回 "null"
    * @return script-safe JSON 字符串
@@ -704,7 +703,8 @@ public final class DisplayFormatters {
     public static String toRawJson(Object value) {
       StringWriter writer = new StringWriter();
       writeValue(writer, value);
-      return writer.toString()
+      return writer
+          .toString()
           .replace("<", "\\u003c")
           .replace(">", "\\u003e")
           .replace("&", "\\u0026")

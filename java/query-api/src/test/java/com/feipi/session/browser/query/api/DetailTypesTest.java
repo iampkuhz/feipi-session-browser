@@ -40,7 +40,9 @@ class DetailTypesTest {
       assertThat(round.totalTokens()).isEqualTo(50);
 
       assertThatThrownBy(
-              () -> new CallRound(1, java.util.List.of("c1"), java.util.List.of(), null, 1, 0, 0, 0, 2))
+              () ->
+                  new CallRound(
+                      1, java.util.List.of("c1"), java.util.List.of(), null, 1, 0, 0, 0, 2))
           .isInstanceOf(IllegalArgumentException.class);
     }
 

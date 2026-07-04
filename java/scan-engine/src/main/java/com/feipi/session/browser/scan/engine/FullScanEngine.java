@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter;
 import com.feipi.session.browser.artifact.normalized.WriteResult;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
@@ -24,14 +25,14 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
-import java.time.Instant;
-import java.time.ZoneOffset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -248,12 +249,7 @@ public final class FullScanEngine {
         } else {
           result =
               processCandidate(
-                  candidate,
-                  entry.adapter(),
-                  config,
-                  batch,
-                  normalizationEngine,
-                  artifactWriter);
+                  candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
         }
 
         switch (result.outcome) {
@@ -389,8 +385,8 @@ public final class FullScanEngine {
           normEngine.normalize(agent, success.records(), diagnostics, List.of(sourceFile));
 
       // 2b. 注入 candidate 元数据到 session map（归一化引擎是纯函数，不含源特定标识）
-      String sessionId = extractSessionId(filePath);
       String safeSessionKey = candidate.sessionKey().replace('/', ':');
+      String sessionId = extractSessionId(safeSessionKey, filePath);
       Map<String, Object> enrichedSession = new LinkedHashMap<>(artifact.session());
       enrichedSession.put("session_key", safeSessionKey);
       enrichedSession.put("session_id", sessionId);
@@ -400,6 +396,7 @@ public final class FullScanEngine {
         effectiveProjectKey = sessionId;
       }
       enrichedSession.put("project_key", effectiveProjectKey);
+      applyCandidateMetadata(enrichedSession, candidate, adapter, artifact);
       // endedAt 为必填字段；归一化引擎未提取时回退到文件修改时间（ISO-8601 格式）
       if (!enrichedSession.containsKey("ended_at")
           || enrichedSession.get("ended_at") == null
@@ -465,7 +462,199 @@ public final class FullScanEngine {
 
     } catch (Exception e) {
       return new CandidateResult(
-          CandidateOutcome.ERROR, ScanIssue.ScanPhase.NORMALIZE, e.getMessage());
+          CandidateOutcome.ERROR, ScanIssue.ScanPhase.NORMALIZE, exceptionMessage(e));
+    }
+  }
+
+  private static String exceptionMessage(Exception e) {
+    String message = e.getMessage();
+    if (message != null && !message.isBlank()) {
+      return message;
+    }
+    return e.getClass().getName();
+  }
+
+  /** 构建源文件指纹映射。 */
+  private static void applyCandidateMetadata(
+      Map<String, Object> session,
+      Candidate candidate,
+      SourceAdapter adapter,
+      NormalizedSessionArtifact artifact) {
+    Map<String, String> meta = candidate.metadata();
+
+    putStringIfAbsent(session, "title", meta.get("title"));
+    putStringIfAbsent(session, "model", meta.get("model"));
+    putStringIfAbsent(
+        session, "source", meta.getOrDefault("source", adapter.sourceId().getValue()));
+
+    String cwd = meta.getOrDefault("cwd", "");
+    if (!cwd.isBlank()) {
+      session.put("cwd", cwd);
+      if (isMeaningfulProject(cwd)) {
+        session.put("project_key", cwd);
+      }
+    }
+    String projectKey = stringValue(session.get("project_key"));
+    if (!projectKey.isBlank()) {
+      session.put("project_name", projectName(projectKey));
+    }
+
+    TokenComponents base = tokenComponentsFromSessionOrCalls(session, artifact.calls());
+    TokenComponents direct =
+        new TokenComponents(
+            longMeta(meta, "freshInputTokens"),
+            longMeta(meta, "cacheReadTokens"),
+            longMeta(meta, "cacheWriteTokens"),
+            longMeta(meta, "outputTokens"));
+    TokenComponents subagent =
+        new TokenComponents(
+            longMeta(meta, "subagentFreshInputTokens"),
+            longMeta(meta, "subagentCacheReadTokens"),
+            longMeta(meta, "subagentCacheWriteTokens"),
+            longMeta(meta, "subagentOutputTokens"));
+    if (direct.total() > 0) {
+      putTokenComponents(session, direct);
+    } else if (subagent.total() > 0) {
+      putTokenComponents(session, base.plus(subagent));
+    }
+
+    long directTotal = longMeta(meta, "totalTokens");
+    if (directTotal > 0) {
+      session.put("totalTokens", directTotal);
+    }
+    long subagentTotal = longMeta(meta, "subagentTotalTokens");
+    if (subagentTotal > 0 && direct.total() == 0 && subagent.total() == 0) {
+      long baseTotal = numberValue(session.get("totalTokens"));
+      session.put("totalTokens", baseTotal + subagentTotal);
+    }
+
+    long subagentTools = longMeta(meta, "subagentToolCallCount");
+    if (subagentTools > 0) {
+      long baseTools =
+          session.get("toolCallCount") instanceof Number num
+              ? num.longValue()
+              : artifact.toolExecutions().size();
+      session.put("toolCallCount", baseTools + subagentTools);
+    }
+
+    long subagentFailed = longMeta(meta, "subagentFailedToolCount");
+    if (subagentFailed > 0) {
+      long baseFailed = numberValue(session.get("failedToolCount"));
+      session.put("failedToolCount", baseFailed + subagentFailed);
+    }
+
+    long subagentInstances = longMeta(meta, "subagentInstanceCount");
+    if (subagentInstances > 0) {
+      session.put("subagentInstanceCount", subagentInstances);
+    }
+  }
+
+  private static void putStringIfAbsent(Map<String, Object> session, String key, String value) {
+    if (value == null || value.isBlank()) {
+      return;
+    }
+    Object existing = session.get(key);
+    if (existing == null || existing.toString().isBlank()) {
+      session.put(key, value);
+    }
+  }
+
+  private static void putTokenComponents(Map<String, Object> session, TokenComponents components) {
+    session.put("freshInputTokens", components.freshInputTokens());
+    session.put("cacheReadTokens", components.cacheReadTokens());
+    session.put("cacheWriteTokens", components.cacheWriteTokens());
+    session.put("outputTokens", components.outputTokens());
+    session.put("totalTokens", components.total());
+  }
+
+  private static TokenComponents tokenComponents(List<NormalizedCall> calls) {
+    long fresh = 0;
+    long cacheRead = 0;
+    long cacheWrite = 0;
+    long output = 0;
+    for (NormalizedCall call : calls) {
+      fresh += call.usage().fresh();
+      cacheRead += call.usage().cacheRead();
+      cacheWrite += call.usage().cacheWrite();
+      output += call.usage().output();
+    }
+    return new TokenComponents(fresh, cacheRead, cacheWrite, output);
+  }
+
+  private static TokenComponents tokenComponentsFromSessionOrCalls(
+      Map<String, Object> session, List<NormalizedCall> calls) {
+    if (hasTokenOverride(session)) {
+      return new TokenComponents(
+          numberValue(session.get("freshInputTokens")),
+          numberValue(session.get("cacheReadTokens")),
+          numberValue(session.get("cacheWriteTokens")),
+          numberValue(session.get("outputTokens")));
+    }
+    return tokenComponents(calls);
+  }
+
+  private static boolean hasTokenOverride(Map<String, Object> session) {
+    return session.get("freshInputTokens") instanceof Number
+        || session.get("cacheReadTokens") instanceof Number
+        || session.get("cacheWriteTokens") instanceof Number
+        || session.get("outputTokens") instanceof Number;
+  }
+
+  private static long longMeta(Map<String, String> meta, String key) {
+    String value = meta.get(key);
+    if (value == null || value.isBlank()) {
+      return 0;
+    }
+    try {
+      return Math.max(0, Long.parseLong(value));
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
+  private static long numberValue(Object value) {
+    return value instanceof Number num ? num.longValue() : 0;
+  }
+
+  private static String stringValue(Object value) {
+    return value == null ? "" : value.toString();
+  }
+
+  private static String meaningfulProject(String preferred, String fallback) {
+    if (isMeaningfulProject(preferred)) {
+      return preferred;
+    }
+    return fallback == null ? "" : fallback;
+  }
+
+  private static boolean isMeaningfulProject(String value) {
+    return value != null && !value.isBlank() && !".".equals(value) && !value.startsWith("./");
+  }
+
+  private static String projectName(String projectKey) {
+    if (projectKey == null || projectKey.isBlank()) {
+      return "";
+    }
+    int lastSlash = projectKey.lastIndexOf('/');
+    if (lastSlash >= 0 && lastSlash < projectKey.length() - 1) {
+      return projectKey.substring(lastSlash + 1);
+    }
+    return projectKey;
+  }
+
+  /** Full scan 注入 session override 时使用的 token 组件。 */
+  private record TokenComponents(
+      long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
+    private long total() {
+      return freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
+    }
+
+    private TokenComponents plus(TokenComponents other) {
+      return new TokenComponents(
+          freshInputTokens + other.freshInputTokens,
+          cacheReadTokens + other.cacheReadTokens,
+          cacheWriteTokens + other.cacheWriteTokens,
+          outputTokens + other.outputTokens);
     }
   }
 
@@ -491,7 +680,8 @@ public final class FullScanEngine {
   /**
    * 处理 transcript 缺失的候选项：创建最小 session row（仅元数据）。
    *
-   * <p>与 Python master 的 {@code _session_from_history} 对齐：使用 history timestamp 作为 ended_at， 所有计数器字段填 0，不写 artifact。
+   * <p>与 Python master 的 {@code _session_from_history} 对齐：使用 history timestamp 作为 ended_at，
+   * 所有计数器字段填 0，不写 artifact。
    */
   static CandidateResult processTranscriptMissingCandidate(
       Candidate candidate, SourceAdapter adapter, WriteBatch batch) {
@@ -508,7 +698,7 @@ public final class FullScanEngine {
       }
 
       String title = meta.getOrDefault("title", "");
-      String projectKey = candidate.projectKey();
+      String projectKey = meaningfulProject(meta.getOrDefault("cwd", ""), candidate.projectKey());
       // project_key 不得为空（DB CHECK 约束），回退使用 sessionId
       if (projectKey.isEmpty()) {
         projectKey = sessionId;
@@ -548,15 +738,15 @@ public final class FullScanEngine {
               title,
               projectKey,
               projectName,
-              "",
+              meta.getOrDefault("cwd", ""),
               endedAt,
               endedAt,
               0,
               0,
               0,
+              meta.getOrDefault("model", ""),
               "",
-              "",
-              "",
+              meta.getOrDefault("source", agentValue),
               0,
               0,
               0,
@@ -579,8 +769,18 @@ public final class FullScanEngine {
     }
   }
 
-  /** 从源文件路径提取 session ID（文件名去掉 .jsonl 后缀）。 */
-  private static String extractSessionId(Path filePath) {
+  /**
+   * 从候选 session key 提取 provider 侧 session ID。
+   *
+   * <p>Codex rollout 文件名包含时间前缀（{@code rollout-...-<uuid>.jsonl}），不能作为 {@code
+   * sessions.session_id}；否则页面链接和后端 API 会与 Python main 的 {@code agent:session_id} 主键不一致。仅在 session
+   * key 缺少 provider ID 时才回退到文件名。
+   */
+  private static String extractSessionId(String sessionKey, Path filePath) {
+    int colonIdx = sessionKey.indexOf(':');
+    if (colonIdx >= 0 && colonIdx < sessionKey.length() - 1) {
+      return sessionKey.substring(colonIdx + 1);
+    }
     String fileName = filePath.getFileName().toString();
     int dotIndex = fileName.lastIndexOf('.');
     return dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;

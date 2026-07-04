@@ -17,7 +17,8 @@ import java.util.logging.Logger;
 /**
  * Claude Code history.jsonl 只读解析器。
  *
- * <p>读取 {@code ~/.claude/history.jsonl}，按 sessionId 去重（保留最后一条）， 返回确定性排序的 {@link ClaudeHistoryEntry} 列表。
+ * <p>读取 {@code ~/.claude/history.jsonl}，按 sessionId 去重（保留最后一条）， 返回确定性排序的 {@link ClaudeHistoryEntry}
+ * 列表。
  *
  * <p>该类是不可变的，线程安全。
  */
@@ -50,8 +51,7 @@ public final class ClaudeHistoryReader {
     Map<String, ClaudeHistoryEntry> deduplicated = new LinkedHashMap<>();
     ObjectMapper mapper = new ObjectMapper();
 
-    try (BufferedReader reader =
-        Files.newBufferedReader(historyFile, StandardCharsets.UTF_8)) {
+    try (BufferedReader reader = Files.newBufferedReader(historyFile, StandardCharsets.UTF_8)) {
       String line;
       while ((line = reader.readLine()) != null) {
         String trimmed = line.trim();

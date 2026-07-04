@@ -30,7 +30,7 @@ class ClaudeDiscoveryTest {
         StandardCharsets.UTF_8);
   }
 
-  /** 在 projects/<project>/ 下创建 transcript 文件。 */
+  /** 在 {@code projects/<project>/} 下创建 transcript 文件。 */
   private Path createTranscript(String project, String sessionId) throws IOException {
     Path projectDir = tempDir.resolve(ClaudeConstants.PROJECTS_DIR).resolve(project);
     Files.createDirectories(projectDir);
@@ -131,7 +131,10 @@ class ClaudeDiscoveryTest {
       assertThat(sessions).hasSize(1);
       // 路径应为 projects/some-project/missing-id.jsonl（合成路径）
       Path expected =
-          tempDir.resolve(ClaudeConstants.PROJECTS_DIR).resolve("some-project").resolve("missing-id.jsonl");
+          tempDir
+              .resolve(ClaudeConstants.PROJECTS_DIR)
+              .resolve("some-project")
+              .resolve("missing-id.jsonl");
       assertThat(sessions.get(0)).isEqualTo(expected);
       assertThat(Files.exists(expected)).isFalse();
     }

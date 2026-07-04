@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.json;
 import com.fasterxml.jackson.databind.JsonNode;
 import java.util.Locale;
 import java.util.Set;
+import java.util.regex.Pattern;
 
 /**
  * 工具失败分类器。
@@ -48,6 +49,13 @@ public final class ToolFailureClassifier {
     "fatal:"
   };
 
+  private static final Pattern COMMAND_NOT_FOUND_AT_LINE_START =
+      Pattern.compile("(?:^|\\n)\\s*command not found", Pattern.MULTILINE);
+  private static final Pattern SHELL_COMMAND_NOT_FOUND =
+      Pattern.compile("^(?:ba)?sh:\\s+.*:\\s+command not found");
+  private static final Pattern TIMEOUT_AT_LINE_START =
+      Pattern.compile("(?:^|\\n)\\s*timeout\\b", Pattern.MULTILINE);
+
   /** 防止实例化。 */
   private ToolFailureClassifier() {}
 
@@ -73,7 +81,7 @@ public final class ToolFailureClassifier {
     if (isFsTool) {
       return checkFirstLineFsErrors(text);
     } else {
-      return checkRuntimeErrors(text);
+      return checkRuntimeErrors(text, toolName != null && !toolName.isBlank());
     }
   }
 
@@ -109,7 +117,7 @@ public final class ToolFailureClassifier {
       return false;
     }
     for (String marker : FS_ERROR_MARKERS) {
-      if (firstLine.contains(marker)) {
+      if (firstLine.startsWith(marker)) {
         return true;
       }
     }
@@ -117,7 +125,7 @@ public final class ToolFailureClassifier {
   }
 
   /** 检查任意行是否包含运行时错误标记。 */
-  private static boolean checkRuntimeErrors(String text) {
+  private static boolean checkRuntimeErrors(String text, boolean allowLineMarkers) {
     String lowerText = text.toLowerCase(Locale.ROOT);
 
     // 检查文本整体是否以错误标记开头
@@ -128,15 +136,26 @@ public final class ToolFailureClassifier {
     }
 
     // 逐行检查是否有行以错误标记开头
-    String[] lines = text.split("\n");
-    for (String line : lines) {
-      String stripped = line.trim().toLowerCase(Locale.ROOT);
-      if (stripped.isEmpty()) {
-        continue;
-      }
-      for (String marker : RUNTIME_ERROR_MARKERS) {
-        if (stripped.startsWith(marker)) {
-          return true;
+    if (allowLineMarkers) {
+      String[] lines = text.split("\n");
+      for (String line : lines) {
+        String stripped = stripShellPrompt(line.trim()).toLowerCase(Locale.ROOT);
+        if (stripped.isEmpty()) {
+          continue;
+        }
+        for (String marker : RUNTIME_ERROR_MARKERS) {
+          if (stripped.startsWith(marker)) {
+            return true;
+          }
+        }
+        String[] parts = stripped.split(": ");
+        if (parts.length > 1) {
+          String lastPart = parts[parts.length - 1].trim();
+          for (String marker : RUNTIME_ERROR_MARKERS) {
+            if (lastPart.startsWith(marker)) {
+              return true;
+            }
+          }
         }
       }
     }
@@ -152,14 +171,32 @@ public final class ToolFailureClassifier {
     return false;
   }
 
+  private static String stripShellPrompt(String value) {
+    int start = 0;
+    while (start < value.length()) {
+      char c = value.charAt(start);
+      if (c == '$' || c == '#' || Character.isWhitespace(c)) {
+        start++;
+      } else {
+        break;
+      }
+    }
+    return value.substring(start).trim();
+  }
+
   /**
    * 检查 command not found 模式。
    *
    * <p>匹配形如 {@code bash: kubectl: command not found} 的 shell 前缀格式。
    */
   private static boolean checkCommandNotFound(String lowerText) {
-    if (lowerText.contains("command not found")) {
+    if (COMMAND_NOT_FOUND_AT_LINE_START.matcher(lowerText).find()) {
       return true;
+    }
+    for (String line : lowerText.split("\n")) {
+      if (SHELL_COMMAND_NOT_FOUND.matcher(line.trim()).find()) {
+        return true;
+      }
     }
     return false;
   }
@@ -170,23 +207,7 @@ public final class ToolFailureClassifier {
    * <p>匹配独立的 {@code timeout} 单词（前后为非字母数字、非下划线字符或行首行尾）。
    */
   private static boolean checkTimeout(String text) {
-    String lower = text.toLowerCase(Locale.ROOT);
-    int idx = 0;
-    while ((idx = lower.indexOf("timeout", idx)) >= 0) {
-      boolean startOk = idx == 0 || !isWordChar(lower.charAt(idx - 1));
-      int end = idx + "timeout".length();
-      boolean endOk = end >= lower.length() || !isWordChar(lower.charAt(end));
-      if (startOk && endOk) {
-        return true;
-      }
-      idx++;
-    }
-    return false;
-  }
-
-  /** 判断字符是否为单词字符（字母、数字或下划线）。 */
-  private static boolean isWordChar(char c) {
-    return Character.isLetterOrDigit(c) || c == '_';
+    return TIMEOUT_AT_LINE_START.matcher(text.toLowerCase(Locale.ROOT)).find();
   }
 
   /** 将 JSON 内容节点转换为纯文本。 */

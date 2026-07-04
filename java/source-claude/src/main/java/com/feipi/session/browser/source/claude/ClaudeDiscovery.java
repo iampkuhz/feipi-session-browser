@@ -12,7 +12,8 @@ import java.util.logging.Logger;
 /**
  * Claude Code 会话发现逻辑。
  *
- * <p>从 {@code history.jsonl} 驱动发现：读取并去重后，按 sessionId 定位 transcript 文件。 transcript 缺失的会话仍然作为候选项保留（零值指纹）， 由 scan engine 负责 fallback 入库。
+ * <p>从 {@code history.jsonl} 驱动发现：读取并去重后，按 sessionId 定位 transcript 文件。 transcript
+ * 缺失的会话仍然作为候选项保留（零值指纹）， 由 scan engine 负责 fallback 入库。
  *
  * <p>该类是不可变的，线程安全。
  */
@@ -27,7 +28,8 @@ public final class ClaudeDiscovery {
   /**
    * 从根目录发现所有 Claude Code 会话候选路径。
    *
-   * <p>读取 {@code rootPath/history.jsonl}，去重后对每个 session 定位 {@code projects/<project>/<sessionId>.jsonl}。 文件存在时返回真实路径；不存在时也返回路径对象（调用方通过 {@link
+   * <p>读取 {@code rootPath/history.jsonl}，去重后对每个 session 定位 {@code
+   * projects/<project>/<sessionId>.jsonl}。 文件存在时返回真实路径；不存在时也返回路径对象（调用方通过 {@link
    * #hasTranscript(Path)} 判断）。
    *
    * @param rootPath 源根目录路径（通常为 {@code ~/.claude}）
@@ -107,8 +109,7 @@ public final class ClaudeDiscovery {
 
     // 搜索所有项目目录（兼容会话在多个 project 中出现）
     try (var stream = Files.list(projectsDir)) {
-      for (Path projectDir :
-          stream.filter(Files::isDirectory).sorted().toList()) {
+      for (Path projectDir : stream.filter(Files::isDirectory).sorted().toList()) {
         Path found = projectDir.resolve(entry.sessionId() + ".jsonl");
         if (Files.isRegularFile(found)) {
           return found;

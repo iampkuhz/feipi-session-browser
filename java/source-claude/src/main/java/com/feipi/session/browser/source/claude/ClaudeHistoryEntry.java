@@ -21,6 +21,7 @@ public record ClaudeHistoryEntry(
     @CoreField String display,
     @CoreField long timestamp) {
 
+  /** 校验并规范化 Claude history 条目字段。 */
   public ClaudeHistoryEntry {
     Objects.requireNonNull(sessionId, "sessionId 不得为 null");
     Objects.requireNonNull(project, "project 不得为 null");

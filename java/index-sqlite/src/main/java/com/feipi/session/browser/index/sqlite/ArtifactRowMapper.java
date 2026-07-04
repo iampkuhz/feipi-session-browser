@@ -119,14 +119,38 @@ public final class ArtifactRowMapper {
     if (sessionTotalTokens instanceof Number num) {
       totalTokens = num.longValue();
     }
+    Object sessionOutputTokens = session.get("outputTokens");
+    if (sessionOutputTokens instanceof Number num) {
+      outputTokens = num.longValue();
+    }
+    Object sessionFreshInputTokens = session.get("freshInputTokens");
+    if (sessionFreshInputTokens instanceof Number num) {
+      freshInputTokens = num.longValue();
+    }
+    Object sessionCacheReadTokens = session.get("cacheReadTokens");
+    if (sessionCacheReadTokens instanceof Number num) {
+      cacheReadTokens = num.longValue();
+    }
+    Object sessionCacheWriteTokens = session.get("cacheWriteTokens");
+    if (sessionCacheWriteTokens instanceof Number num) {
+      cacheWriteTokens = num.longValue();
+    }
 
     Set<String> subagentIds = new HashSet<>();
 
     for (NormalizedCall call : artifact.calls()) {
-      outputTokens += call.usage().output();
-      freshInputTokens += call.usage().fresh();
-      cacheReadTokens += call.usage().cacheRead();
-      cacheWriteTokens += call.usage().cacheWrite();
+      if (sessionOutputTokens == null) {
+        outputTokens += call.usage().output();
+      }
+      if (sessionFreshInputTokens == null) {
+        freshInputTokens += call.usage().fresh();
+      }
+      if (sessionCacheReadTokens == null) {
+        cacheReadTokens += call.usage().cacheRead();
+      }
+      if (sessionCacheWriteTokens == null) {
+        cacheWriteTokens += call.usage().cacheWrite();
+      }
       // 仅当 session map 未提供 totalTokens 时从 calls 聚合
       if (sessionTotalTokens == null) {
         totalTokens += call.usage().total();
@@ -166,6 +190,12 @@ public final class ArtifactRowMapper {
     // toolExecutionSeconds 从毫秒转换为秒
     double toolExecSeconds = toolExecutionSeconds / 1000.0;
 
+    long subagentInstanceCount = subagentIds.size();
+    Object sessionSubagentInstances = session.get("subagentInstanceCount");
+    if (sessionSubagentInstances instanceof Number num) {
+      subagentInstanceCount = num.longValue();
+    }
+
     // indexed_at 使用当前时间
     double indexedAt = System.currentTimeMillis() / 1000.0;
 
@@ -194,7 +224,7 @@ public final class ArtifactRowMapper {
         cacheWriteTokens,
         totalTokens,
         failedToolCount,
-        subagentIds.size(),
+        subagentInstanceCount,
         indexedAt,
         fileMtime,
         filePath);

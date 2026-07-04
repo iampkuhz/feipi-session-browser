@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
@@ -29,12 +30,11 @@ import java.util.stream.Stream;
  *   <li>{@code {root}/cache/projects/} — 缓存会话目录，project_key 为第一层目录名去掉末尾 hash
  * </ul>
  *
- * <p>对每个项目目录执行递归遍历，支持发现任意深度嵌套的会话文件，
- * 例如 {@code cache/projects/<key>/conversation-history/<id>/<id>.jsonl}。
- * 发现结果按完整路径确定性排序。不跟随符号链接以避免循环。
+ * <p>对每个项目目录执行递归遍历，支持发现任意深度嵌套的会话文件， 例如 {@code
+ * cache/projects/<key>/conversation-history/<id>/<id>.jsonl}。 发现结果按完整路径确定性排序。不跟随符号链接以避免循环。
  *
- * <p>提供 {@link #buildCanonicalIdMap} 用于将 cache 中的短 ID 映射到 projects 中的完整 UUID，
- * 与 Python 主分支 {@code _build_canonical_id_map()} 语义对齐。
+ * <p>提供 {@link #buildCanonicalIdMap} 用于将 cache 中的短 ID 映射到 projects 中的完整 UUID， 与 Python 主分支 {@code
+ * _build_canonical_id_map()} 语义对齐。
  *
  * <p>该类是不可变的，线程安全。
  */
@@ -49,6 +49,8 @@ public final class QoderDiscovery {
 
   /** 匹配末尾 hash 后缀：{@code -[0-9a-f]{6,}}。 */
   private static final Pattern HASH_SUFFIX_PATTERN = Pattern.compile("-[0-9a-f]{6,}$");
+
+  private static final int MAX_CACHE_PROJECT_FILES_FOR_PATH_RECOVERY = 32;
 
   private QoderDiscovery() {
     // 工具类，禁止实例化
@@ -77,6 +79,7 @@ public final class QoderDiscovery {
    * @param sessions 所有发现的会话
    */
   public record QoderDiscoveryResult(List<QoderDiscoveredSession> sessions) {
+    /** 复制发现结果，避免外部列表在构造后被继续修改。 */
     public QoderDiscoveryResult {
       sessions = List.copyOf(sessions);
     }
@@ -85,9 +88,8 @@ public final class QoderDiscovery {
   /**
    * 从根目录发现所有 Qoder 会话文件（结构化结果）。
    *
-   * <p>遍历 {@code projects/} 和 {@code cache/projects/} 两个子树，
-   * 为每个会话文件提取 projectKey（与 Python 主分支对齐）和 sessionId。
-   * 全局按路径排序，保证确定性。
+   * <p>遍历 {@code projects/} 和 {@code cache/projects/} 两个子树， 为每个会话文件提取 projectKey（与 Python 主分支对齐）和
+   * sessionId。 全局按路径排序，保证确定性。
    *
    * @param rootPath 源根目录路径
    * @return 结构化发现结果
@@ -125,7 +127,7 @@ public final class QoderDiscovery {
           SourceKind.CACHE,
           projectDir -> {
             // cache project_key = 第一层目录名，去掉末尾 hash
-            return stripHashSuffix(projectDir.getFileName().toString());
+            return cacheProjectKey(projectDir);
           },
           allSessions);
     }
@@ -153,6 +155,7 @@ public final class QoderDiscovery {
    * 构建短 ID → 完整 UUID 的 canonical map。
    *
    * <p>与 Python 主分支 {@code _build_canonical_id_map()} 语义对齐：
+   *
    * <ol>
    *   <li>从 projects/ 收集所有完整 UUID 格式的 session ID
    *   <li>从 cache/projects/ 收集所有非 UUID 的短 ID
@@ -174,8 +177,7 @@ public final class QoderDiscovery {
     // 从 cache/ 收集短 ID
     List<String> shortIds = new ArrayList<>();
     for (QoderDiscoveredSession s : result.sessions()) {
-      if (s.sourceKind() == SourceKind.CACHE
-          && !UUID_PATTERN.matcher(s.sessionId()).matches()) {
+      if (s.sourceKind() == SourceKind.CACHE && !UUID_PATTERN.matcher(s.sessionId()).matches()) {
         shortIds.add(s.sessionId().toLowerCase(Locale.ROOT));
       }
     }
@@ -208,6 +210,58 @@ public final class QoderDiscovery {
     return HASH_SUFFIX_PATTERN.matcher(rawKey).replaceAll("");
   }
 
+  private static String cacheProjectKey(Path projectDir) {
+    String leaf = stripHashSuffix(projectDir.getFileName().toString());
+    String recovered = recoverAbsoluteProjectPath(projectDir, leaf);
+    return recovered.isBlank() ? leaf : recovered;
+  }
+
+  private static String recoverAbsoluteProjectPath(Path projectDir, String projectLeaf) {
+    if (projectLeaf == null || projectLeaf.isBlank()) {
+      return "";
+    }
+    Pattern absoluteProject =
+        Pattern.compile(
+            "(/Users/[^\"'\\s<>)]*" + Pattern.quote("/" + projectLeaf) + ")(?:[/\"'\\s<>)]|$)");
+    try (Stream<Path> stream = Files.walk(projectDir, 5)) {
+      for (Path file :
+          stream
+              .filter(Files::isRegularFile)
+              .filter(QoderDiscovery::isProjectRecoveryFile)
+              .sorted()
+              .limit(MAX_CACHE_PROJECT_FILES_FOR_PATH_RECOVERY)
+              .toList()) {
+        String found = recoverAbsoluteProjectPathFromFile(file, absoluteProject);
+        if (!found.isBlank()) {
+          return found;
+        }
+      }
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "恢复 Qoder cache project 绝对路径失败: " + projectDir, e);
+    }
+    return "";
+  }
+
+  private static boolean isProjectRecoveryFile(Path file) {
+    String name = file.getFileName().toString();
+    return name.endsWith(".jsonl") || name.endsWith(".txt");
+  }
+
+  private static String recoverAbsoluteProjectPathFromFile(Path file, Pattern absoluteProject) {
+    try (var reader = Files.newBufferedReader(file, StandardCharsets.UTF_8)) {
+      String line;
+      while ((line = reader.readLine()) != null) {
+        Matcher matcher = absoluteProject.matcher(line);
+        if (matcher.find()) {
+          return matcher.group(1);
+        }
+      }
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "读取 Qoder cache project 恢复文件失败: " + file, e);
+    }
+    return "";
+  }
+
   /**
    * 检查 session ID 是否为完整 UUID 格式。
    *
@@ -223,8 +277,8 @@ public final class QoderDiscovery {
   /**
    * 通用收集逻辑：遍历父目录下的项目子目录，为每个 session 文件生成结构化发现结果。
    *
-   * <p>将 projects/ 和 cache/projects/ 共享的遍历循环提取为统一方法， 通过 {@code projectKeyFn}
-   * 参数差异化 project key 的计算逻辑。
+   * <p>将 projects/ 和 cache/projects/ 共享的遍历循环提取为统一方法， 通过 {@code projectKeyFn} 参数差异化 project key
+   * 的计算逻辑。
    *
    * @param parentDir 项目父目录
    * @param sourceKind 来源类型
@@ -285,9 +339,8 @@ public final class QoderDiscovery {
   /**
    * 递归列出项目目录中的所有会话 JSONL 文件，按完整路径排序。
    *
-   * <p>使用 {@link Files#walk} 递归遍历项目目录的任意深度子目录，
-   * 发现所有 {@code .jsonl} 文件（例如 {@code conversation-history/<id>/<id>.jsonl}）。
-   * 跳过隐藏目录、隐藏文件和非普通文件。不跟随符号链接以避免循环。
+   * <p>使用 {@link Files#walk} 递归遍历项目目录的任意深度子目录， 发现所有 {@code .jsonl} 文件（例如 {@code
+   * conversation-history/<id>/<id>.jsonl}）。 跳过隐藏目录、隐藏文件和非普通文件。不跟随符号链接以避免循环。
    *
    * @param projectDir 项目目录
    * @return 按完整路径排序的会话文件列表，截断至 {@link QoderConstants#MAX_SESSIONS_PER_PROJECT}
@@ -296,22 +349,23 @@ public final class QoderDiscovery {
     List<Path> sessions = new ArrayList<>();
     try (Stream<Path> walk = Files.walk(projectDir)) {
       walk.filter(path -> !path.equals(projectDir))
-          .filter(path -> {
-            if (SourcePathOps.isHidden(path)) {
-              return false;
-            }
-            if (!Files.isRegularFile(path)) {
-              return false;
-            }
-            // 检查路径中是否存在隐藏的祖先目录
-            Path relative = projectDir.relativize(path);
-            for (int i = 0; i < relative.getNameCount() - 1; i++) {
-              if (SourcePathOps.isHidden(projectDir.resolve(relative.subpath(0, i + 1)))) {
-                return false;
-              }
-            }
-            return path.getFileName().toString().endsWith(QoderConstants.SESSION_FILE_SUFFIX);
-          })
+          .filter(
+              path -> {
+                if (SourcePathOps.isHidden(path)) {
+                  return false;
+                }
+                if (!Files.isRegularFile(path)) {
+                  return false;
+                }
+                // 检查路径中是否存在隐藏的祖先目录
+                Path relative = projectDir.relativize(path);
+                for (int i = 0; i < relative.getNameCount() - 1; i++) {
+                  if (SourcePathOps.isHidden(projectDir.resolve(relative.subpath(0, i + 1)))) {
+                    return false;
+                  }
+                }
+                return path.getFileName().toString().endsWith(QoderConstants.SESSION_FILE_SUFFIX);
+              })
           .forEach(sessions::add);
     } catch (IOException e) {
       LOG.log(Level.FINE, "无法递归遍历项目目录: " + projectDir, e);

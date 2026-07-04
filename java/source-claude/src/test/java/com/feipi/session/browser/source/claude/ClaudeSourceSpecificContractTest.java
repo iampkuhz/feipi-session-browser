@@ -33,7 +33,10 @@ class ClaudeSourceSpecificContractTest {
     String project = "home%2Fwork%2Fdemo";
     Files.writeString(
         tempDir.resolve(ClaudeConstants.HISTORY_FILE),
-        "{\"sessionId\":\"" + sessionId + "\",\"project\":\"" + project
+        "{\"sessionId\":\""
+            + sessionId
+            + "\",\"project\":\""
+            + project
             + "\",\"display\":\"Test\",\"timestamp\":1000}\n",
         StandardCharsets.UTF_8);
 
@@ -52,7 +55,7 @@ class ClaudeSourceSpecificContractTest {
     assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(SourceRecord.class));
     assertThat(eventTypes(success))
         .containsExactly(
-            "summary", "user", "assistant", "assistant", "user", "assistant", "unknown");
+            "summary", "user", "assistant", "assistant", "tool_result", "assistant", "unknown");
     assertThat(success.diagnostics())
         .extracting(SourceDiagnostic::code)
         .contains("UNKNOWN_BLOCK_TYPE");
