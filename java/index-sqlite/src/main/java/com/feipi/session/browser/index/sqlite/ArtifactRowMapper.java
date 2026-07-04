@@ -92,7 +92,12 @@ public final class ArtifactRowMapper {
     long totalTokens = 0;
     long assistantMessageCount = artifact.calls().size();
     long toolCallCount = 0;
+    // 优先从 session map 读取归一化引擎统计的 userMessageCount
     long userMessageCount = 0;
+    Object sessionUserMsgCount = session.get("userMessageCount");
+    if (sessionUserMsgCount instanceof Number num) {
+      userMessageCount = num.longValue();
+    }
     Set<String> subagentIds = new HashSet<>();
 
     for (NormalizedCall call : artifact.calls()) {
@@ -103,7 +108,8 @@ public final class ArtifactRowMapper {
       totalTokens += call.usage().total();
       toolCallCount += call.response().toolCallIds().size();
 
-      if (call.scope() == CallScope.MAIN) {
+      // 仅在 session map 未提供 userMessageCount 时回退到 scope 计数
+      if (sessionUserMsgCount == null && call.scope() == CallScope.MAIN) {
         userMessageCount++;
       }
       // 统计子 agent 实例
@@ -112,14 +118,19 @@ public final class ArtifactRowMapper {
       }
     }
 
-    // 聚合 toolExecutions 统计量
+    // 聚合 toolExecutions 统计量；优先从 session map 读取 failedToolCount
     long modelExecutionSeconds = 0;
     long toolExecutionSeconds = 0;
     long failedToolCount = 0;
+    Object sessionFailedTools = session.get("failedToolCount");
+    if (sessionFailedTools instanceof Number num) {
+      failedToolCount = num.longValue();
+    }
 
     for (NormalizedToolExecution exec : artifact.toolExecutions()) {
       toolExecutionSeconds += exec.durationMs();
-      if (exec.status().isPresent()) {
+      // 仅在 session map 未提供 failedToolCount 时回退到 status 检测
+      if (sessionFailedTools == null && exec.status().isPresent()) {
         failedToolCount++;
       }
     }

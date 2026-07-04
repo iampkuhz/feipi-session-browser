@@ -31,7 +31,10 @@ final class TestSourceRecords {
         usage(node),
         toolCalls(node),
         text(node, "tool_use_id"),
-        text(node, "name"));
+        text(node, "name"),
+        text(node, "is_error").filter("true"::equals).isPresent()
+            ? Optional.of("tool_error")
+            : Optional.empty());
   }
 
   static List<SourceRecord> records(JsonNode... nodes) {

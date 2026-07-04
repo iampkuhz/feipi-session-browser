@@ -353,6 +353,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
                 delta,
                 List.of(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty()),
             currentTotals);
       }
@@ -394,7 +395,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
           SourceRecordUsage.empty(),
           toolCalls,
           Optional.empty(),
-          name);
+          name,
+          Optional.empty());
     }
     if ("function_call_output".equals(payloadType)
         || "custom_tool_call_output".equals(payloadType)) {
@@ -409,7 +411,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
           SourceRecordUsage.empty(),
           List.of(),
           optionalText(text(payload, "call_id")),
-          Optional.empty());
+          Optional.empty(),
+          extractCodexToolError(payload));
     }
     if ("message".equals(payloadType)) {
       String role = text(payload, "role");
@@ -425,6 +428,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
             SourceRecordUsage.empty(),
             List.of(),
             Optional.empty(),
+            Optional.empty(),
             Optional.empty());
       }
       if ("assistant".equals(role) && !hasTokenUsage) {
@@ -438,6 +442,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
             Optional.empty(),
             SourceRecordUsage.empty(),
             List.of(),
+            Optional.empty(),
             Optional.empty(),
             Optional.empty());
       }
@@ -453,6 +458,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
           Optional.empty(),
           SourceRecordUsage.empty(),
           List.of(),
+          Optional.empty(),
           Optional.empty(),
           Optional.empty());
     }
@@ -471,11 +477,35 @@ public final class CodexSourceAdapter implements SourceAdapter {
         SourceRecordUsage.empty(),
         List.of(),
         Optional.empty(),
+        Optional.empty(),
         Optional.empty());
   }
 
   private static Optional<String> optionalText(String value) {
     return value == null || value.isBlank() ? Optional.empty() : Optional.of(value);
+  }
+
+  /**
+   * 从 Codex function_call_output payload 提取工具错误信息。
+   *
+   * @param payload response_item 的 payload 节点
+   * @return 错误信息，非空表示工具执行失败
+   */
+  private static Optional<String> extractCodexToolError(JsonNode payload) {
+    if (payload == null || !payload.isObject()) {
+      return Optional.empty();
+    }
+    JsonNode error = payload.get("error");
+    if (error != null && error.isTextual() && !error.asText().isBlank()) {
+      return Optional.of(error.asText());
+    }
+    if (error != null && error.isObject()) {
+      JsonNode message = error.get("message");
+      if (message != null && message.isTextual() && !message.asText().isBlank()) {
+        return Optional.of(message.asText());
+      }
+    }
+    return Optional.empty();
   }
 
   private static String text(JsonNode node, String fieldName) {

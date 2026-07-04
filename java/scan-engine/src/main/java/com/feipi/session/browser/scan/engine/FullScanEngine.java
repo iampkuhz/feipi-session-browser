@@ -30,6 +30,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -398,12 +400,25 @@ public final class FullScanEngine {
         effectiveProjectKey = sessionId;
       }
       enrichedSession.put("project_key", effectiveProjectKey);
-      // endedAt 为必填字段；归一化引擎未提取时回退到文件修改时间
+      // endedAt 为必填字段；归一化引擎未提取时回退到文件修改时间（ISO-8601 格式）
       if (!enrichedSession.containsKey("ended_at")
           || enrichedSession.get("ended_at") == null
           || enrichedSession.get("ended_at").toString().isEmpty()) {
-        double mtimeSec = candidate.fingerprint().lastModifiedMs() / 1000.0;
-        enrichedSession.put("ended_at", String.valueOf(mtimeSec));
+        enrichedSession.put(
+            "ended_at",
+            Instant.ofEpochMilli(candidate.fingerprint().lastModifiedMs())
+                .atOffset(ZoneOffset.UTC)
+                .toString());
+      }
+      // started_at 也需要 ISO-8601 fallback
+      if (!enrichedSession.containsKey("started_at")
+          || enrichedSession.get("started_at") == null
+          || enrichedSession.get("started_at").toString().isEmpty()) {
+        enrichedSession.put(
+            "started_at",
+            Instant.ofEpochMilli(candidate.fingerprint().lastModifiedMs())
+                .atOffset(ZoneOffset.UTC)
+                .toString());
       }
       artifact =
           new NormalizedSessionArtifact(

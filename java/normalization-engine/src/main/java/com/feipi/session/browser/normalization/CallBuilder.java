@@ -51,9 +51,11 @@ public final class CallBuilder {
       List<NormalizedCall> calls) {
     ExecutionContext context =
         ExecutionContext.create(records, classified.assistantMessages(), calls);
+    Map<String, String> toolErrors = buildToolErrorMap(classified.toolResults());
     return Stream.concat(
-            assistantToolExecutions(context).stream(),
-            standaloneToolExecutions(classified.toolUses(), calls, context.toolResultConsumers())
+            assistantToolExecutions(context, toolErrors).stream(),
+            standaloneToolExecutions(classified.toolUses(), calls, context.toolResultConsumers(),
+                toolErrors)
                 .stream())
         .toList();
   }
@@ -96,14 +98,16 @@ public final class CallBuilder {
     return List.copyOf(ids);
   }
 
-  private static List<NormalizedToolExecution> assistantToolExecutions(ExecutionContext context) {
+  private static List<NormalizedToolExecution> assistantToolExecutions(
+      ExecutionContext context, Map<String, String> toolErrors) {
     return context.frames().stream()
-        .flatMap(frame -> assistantToolExecutions(context.toolResultConsumers(), frame))
+        .flatMap(frame -> assistantToolExecutions(context.toolResultConsumers(), toolErrors, frame))
         .toList();
   }
 
   private static Stream<NormalizedToolExecution> assistantToolExecutions(
-      Map<String, String> consumers, AssistantCallFrame frame) {
+      Map<String, String> consumers, Map<String, String> toolErrors,
+      AssistantCallFrame frame) {
     return frame.record().toolCalls().stream()
         .map(
             toolCall ->
@@ -111,11 +115,13 @@ public final class CallBuilder {
                     toolCall.toolCallId(),
                     toolCall.name(),
                     frame.callId(),
-                    Optional.ofNullable(consumers.get(toolCall.toolCallId()))));
+                    Optional.ofNullable(consumers.get(toolCall.toolCallId())),
+                    Optional.ofNullable(toolErrors.get(toolCall.toolCallId()))));
   }
 
   private static List<NormalizedToolExecution> standaloneToolExecutions(
-      List<SourceRecord> toolUses, List<NormalizedCall> calls, Map<String, String> consumers) {
+      List<SourceRecord> toolUses, List<NormalizedCall> calls, Map<String, String> consumers,
+      Map<String, String> toolErrors) {
     List<NormalizedToolExecution> executions = new ArrayList<>();
     for (SourceRecord toolUseRecord : toolUses) {
       Optional<String> toolCallId = toolUseRecord.callId();
@@ -128,24 +134,43 @@ public final class CallBuilder {
               toolCallId.get(),
               toolName.get(),
               declaredByLastCall(calls),
-              Optional.ofNullable(consumers.get(toolCallId.get()))));
+              Optional.ofNullable(consumers.get(toolCallId.get())),
+              toolUseRecord.toolError()));
     }
     return executions;
   }
 
   private static NormalizedToolExecution toolExecution(
-      String toolCallId, String name, String declaredByCallId, Optional<String> consumedByCallId) {
+      String toolCallId, String name, String declaredByCallId,
+      Optional<String> consumedByCallId, Optional<String> errorStatus) {
     return new NormalizedToolExecution(
         toolCallId,
         name,
         CallScope.MAIN,
         declaredByCallId,
         consumedByCallId,
-        Optional.empty(),
+        errorStatus,
         Optional.empty(),
         0L,
         List.of(),
         Optional.empty());
+  }
+
+  /**
+   * 从工具结果记录构建 toolCallId → error 映射。
+   *
+   * @param toolResults 工具结果记录列表
+   * @return 工具调用标识到错误信息的映射
+   */
+  private static Map<String, String> buildToolErrorMap(List<SourceRecord> toolResults) {
+    Map<String, String> errors = new LinkedHashMap<>();
+    for (SourceRecord record : toolResults) {
+      record
+          .toolUseId()
+          .filter(id -> record.toolError().isPresent())
+          .ifPresent(id -> errors.put(id, record.toolError().get()));
+    }
+    return errors;
   }
 
   private static String declaredByLastCall(List<NormalizedCall> calls) {

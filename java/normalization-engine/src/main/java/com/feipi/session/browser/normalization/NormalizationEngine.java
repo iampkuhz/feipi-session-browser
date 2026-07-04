@@ -14,6 +14,8 @@ import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -105,7 +107,8 @@ public final class NormalizationEngine {
     }
 
     // 5. 构建会话元数据：事件计数 + 聚合 token 用量 + 守恒计数
-    Map<String, Object> session = buildSessionMap(agent, records, calls, toolExecutions);
+    Map<String, Object> session =
+        buildSessionMap(agent, records, classified, calls, toolExecutions);
 
     // 6. 构建源单元目录
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog = buildSourceUnitCatalog(sourceFiles);
@@ -186,10 +189,11 @@ public final class NormalizationEngine {
   /**
    * 从事件列表和调用数据构建会话元数据 map。
    *
-   * <p>包含 agent 标识、事件总数、聚合后的 session 级 token 用量， 以及工具守恒计数。所有值均从输入确定性派生，保证相同输入产生相同输出。
+   * <p>包含 agent 标识、事件总数、聚合后的 session 级 token 用量、工具守恒计数， 以及 Dashboard 所需的会话时间范围、模型名称、用户消息数和失败工具数。 所有值均从输入确定性派生，保证相同输入产生相同输出。
    *
    * @param agent 产生事件的源适配器 agent 枚举值
    * @param records 源中性记录列表
+   * @param classified 已分类的事件集合
    * @param calls 已构建的调用列表
    * @param toolExecutions 已构建的工具执行列表
    * @return 不可变的会话元数据 map
@@ -197,6 +201,7 @@ public final class NormalizationEngine {
   private static Map<String, Object> buildSessionMap(
       NormalizedAgent agent,
       List<? extends SourceRecord> records,
+      EventClassifier.ClassifiedEvents classified,
       List<NormalizedCall> calls,
       List<NormalizedToolExecution> toolExecutions) {
     Map<String, Object> session = new LinkedHashMap<>();
@@ -211,6 +216,71 @@ public final class NormalizationEngine {
     session.put("declaredTools", conservation.declaredTools());
     session.put("executedTools", conservation.executedTools());
     session.put("consumedResults", conservation.consumedResults());
+
+    // Dashboard 必需字段
+    session.put("userMessageCount", (long) classified.userMessages().size());
+
+    // 从 calls 提取时间范围
+    Optional<String> startedAt = Optional.empty();
+    Optional<String> endedAt = Optional.empty();
+    for (NormalizedCall call : calls) {
+      if (call.timestamp().isPresent() && !call.timestamp().get().isEmpty()) {
+        if (startedAt.isEmpty()) {
+          startedAt = call.timestamp();
+        }
+        endedAt = call.timestamp(); // 最后一个有 timestamp 的 call
+      }
+    }
+    // 如果 calls 中没有时间，从 records 中提取
+    if (startedAt.isEmpty()) {
+      for (SourceRecord record : records) {
+        if (record.timestamp().isPresent() && !record.timestamp().get().isEmpty()) {
+          startedAt = record.timestamp();
+          break;
+        }
+      }
+    }
+    if (endedAt.isEmpty()) {
+      for (int i = records.size() - 1; i >= 0; i--) {
+        if (records.get(i).timestamp().isPresent() && !records.get(i).timestamp().get().isEmpty()) {
+          endedAt = records.get(i).timestamp();
+          break;
+        }
+      }
+    }
+    startedAt.ifPresent(v -> session.put("started_at", v));
+    endedAt.ifPresent(v -> session.put("ended_at", v));
+
+    // 从 calls 提取 model
+    for (NormalizedCall call : calls) {
+      if (!call.model().isEmpty()) {
+        session.put("model", call.model());
+        break;
+      }
+    }
+
+    // 计算 durationSeconds
+    if (startedAt.isPresent() && endedAt.isPresent()) {
+      try {
+        Instant start = Instant.parse(startedAt.get());
+        Instant end = Instant.parse(endedAt.get());
+        double durationSec = Duration.between(start, end).toMillis() / 1000.0;
+        if (durationSec >= 0) {
+          session.put("duration_seconds", durationSec);
+        }
+      } catch (Exception e) {
+        // 时间格式不兼容时不设置 duration
+      }
+    }
+
+    // 失败工具计数
+    long failedCount = 0;
+    for (NormalizedToolExecution exec : toolExecutions) {
+      if (exec.status().isPresent()) {
+        failedCount++;
+      }
+    }
+    session.put("failedToolCount", failedCount);
 
     return Map.copyOf(session);
   }

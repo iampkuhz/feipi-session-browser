@@ -41,6 +41,10 @@ def _setup_env(
     _runner.BASE_COMMIT_FILE = agent_log / 'base-commit.txt'
     _runner.QUALITY_DIR = quality
     _runner.REPO_ROOT = td
+    # 隔离 IDENTITY：清除环境继承的 session，确保 get_changed_files 走文件路径
+    _runner.IDENTITY = _runner.runtime_paths.RuntimeIdentity(
+        client='test', session_id='test', agent_id='', raw_session_id='', raw_agent_id='',
+    )
 
     return td
 
@@ -261,6 +265,14 @@ class TestChangeIdResolution:
             json.dumps({'change_id': 'from-file-change'})
         )
         monkeypatch.setattr(_runner, 'REPO_ROOT', tmp_dir)
+        # 隔离 IDENTITY：清除环境继承的 session，确保走 legacy 路径
+        monkeypatch.setattr(
+            _runner, 'IDENTITY',
+            _runner.runtime_paths.RuntimeIdentity(
+                client='test', session_id='test', agent_id='',
+                raw_session_id='', raw_agent_id='',
+            ),
+        )
         old = os.environ.get('ACTIVE_CHANGE_ID')
         try:
             if 'ACTIVE_CHANGE_ID' in os.environ:

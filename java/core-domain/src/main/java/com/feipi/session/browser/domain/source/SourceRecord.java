@@ -22,6 +22,7 @@ import java.util.Optional;
  * @param toolCalls 该记录声明的工具调用列表，保持源内顺序
  * @param toolUseId 工具结果引用的工具调用标识，缺失时为空
  * @param toolName 独立工具调用记录的工具名称，缺失时为空
+ * @param toolError 工具结果中的错误信息，非空表示工具执行失败；缺失时为空
  */
 @DomainModel
 public record SourceRecord(
@@ -35,7 +36,8 @@ public record SourceRecord(
     SourceRecordUsage usage,
     List<SourceToolCall> toolCalls,
     Optional<String> toolUseId,
-    Optional<String> toolName) {
+    Optional<String> toolName,
+    Optional<String> toolError) {
 
   /** 校验并防御性复制源记录字段。 */
   public SourceRecord {
@@ -49,6 +51,7 @@ public record SourceRecord(
     Objects.requireNonNull(toolCalls, "toolCalls 不得为 null");
     Objects.requireNonNull(toolUseId, "toolUseId 不得为 null");
     Objects.requireNonNull(toolName, "toolName 不得为 null");
+    Objects.requireNonNull(toolError, "toolError 不得为 null");
     if (locator.isBlank()) {
       throw new IllegalArgumentException("locator 不得为空");
     }
@@ -80,6 +83,7 @@ public record SourceRecord(
         Optional.empty(),
         SourceRecordUsage.empty(),
         List.of(),
+        Optional.empty(),
         Optional.empty(),
         Optional.empty());
   }

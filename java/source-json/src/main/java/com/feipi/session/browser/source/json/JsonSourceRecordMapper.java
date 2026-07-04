@@ -42,7 +42,8 @@ public final class JsonSourceRecordMapper {
         extractUsage(event),
         extractToolCalls(event),
         firstTextDeep(event, "tool_use_id", "call_id"),
-        firstTextDeep(event, "name"));
+        firstTextDeep(event, "name"),
+        extractToolError(event, eventType));
   }
 
   private static Optional<String> firstTextDeep(JsonNode event, String... fieldNames) {
@@ -168,5 +169,57 @@ public final class JsonSourceRecordMapper {
         }
       }
     }
+  }
+
+  /**
+   * 从工具结果事件提取错误信息。
+   *
+   * <p>检测 content blocks 中的 {@code is_error: true} 或顶层 {@code is_error} 字段。
+   *
+   * @param event JSON 事件节点
+   * @param eventType 已判定的事件类型
+   * @return 错误信息，非空表示工具执行失败
+   */
+  private static Optional<String> extractToolError(JsonNode event, String eventType) {
+    if (!"tool_result".equals(eventType) || event == null) {
+      return Optional.empty();
+    }
+    // 检查顶层 is_error
+    JsonNode isError = event.get("is_error");
+    if (isError != null && isError.isBoolean() && isError.asBoolean()) {
+      return Optional.of("tool_error");
+    }
+    // 检查 content blocks 中的 is_error
+    for (String container : new String[] {"content", "parts"}) {
+      JsonNode blocks = event.get(container);
+      if (blocks != null && blocks.isArray()) {
+        for (JsonNode block : blocks) {
+          JsonNode typeNode = block.get("type");
+          if (typeNode != null && "tool_result".equals(typeNode.asText())) {
+            JsonNode blockError = block.get("is_error");
+            if (blockError != null && blockError.isBoolean() && blockError.asBoolean()) {
+              return Optional.of("tool_error");
+            }
+          }
+        }
+      }
+      // 也检查 message/payload 子节点
+      JsonNode message = objectChild(event, "message");
+      if (message != null) {
+        JsonNode msgBlocks = message.get(container);
+        if (msgBlocks != null && msgBlocks.isArray()) {
+          for (JsonNode block : msgBlocks) {
+            JsonNode typeNode = block.get("type");
+            if (typeNode != null && "tool_result".equals(typeNode.asText())) {
+              JsonNode blockError = block.get("is_error");
+              if (blockError != null && blockError.isBoolean() && blockError.asBoolean()) {
+                return Optional.of("tool_error");
+              }
+            }
+          }
+        }
+      }
+    }
+    return Optional.empty();
   }
 }

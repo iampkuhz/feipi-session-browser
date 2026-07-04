@@ -4973,6 +4973,16 @@
         "kind": "ALPHA_EQUIVALENT",
         "occurrences": 2
       }
+    },
+    {
+      "fingerprint": "7e6c93d7d65e1480c01f7f9c92a737fd9a3c68a52426dbc8a8512a2fc591e37c",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "JsonSourceRecordMapper extractToolError 与 collectToolCalls 的 STATEMENT_DUPLICATE，属于归一化流水线的固有特征",
+      "owner": "jsonsourcerecordmapper",
+      "createdAt": "2026-07-04",
+      "expiresOn": "2026-12-31",
+      "evidence": "7e6c93d7d65e1480c01f7f9c92a737fd9a3c68a52426dbc8a8512a2fc591e37c"
     }
   ]
 }
