@@ -56,6 +56,11 @@ class ClaudeSourceSpecificContractTest {
     assertThat(success.diagnostics())
         .extracting(SourceDiagnostic::code)
         .contains("UNKNOWN_BLOCK_TYPE");
+    assertThat(success.records().get(2).model()).contains("claude-test-model");
+    assertThat(success.records().get(2).usage().inputTokens()).isEqualTo(12);
+    assertThat(success.records().get(2).usage().cacheCreationInputTokens()).isEqualTo(3);
+    assertThat(success.records().get(2).usage().cacheReadInputTokens()).isEqualTo(4);
+    assertThat(success.records().get(2).usage().outputTokens()).isEqualTo(5);
     assertThat(success.records().get(0).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[0]");
     assertThat(success.records().get(5).locator())
@@ -77,7 +82,7 @@ class ClaudeSourceSpecificContractTest {
         "\n",
         "{\"type\":\"summary\",\"summary\":\"history snapshot\"}",
         "{\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"text\",\"text\":\"open project transcript\"}]}}",
-        "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"fragment one\"},{\"type\":\"text\",\"text\":\"fragment two\"}]},\"usage\":{\"input_tokens\":12,\"cache_creation_input_tokens\":3,\"cache_read_input_tokens\":4,\"output_tokens\":5}}",
+        "{\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"model\":\"claude-test-model\",\"content\":[{\"type\":\"text\",\"text\":\"fragment one\"},{\"type\":\"text\",\"text\":\"fragment two\"}],\"usage\":{\"input_tokens\":12,\"cache_creation_input_tokens\":3,\"cache_read_input_tokens\":4,\"output_tokens\":5}}}",
         "{\"type\":\"assistant\",\"message\":{\"content\":[{\"type\":\"tool_use\",\"id\":\"toolu_parent\",\"name\":\"Task\",\"input\":{\"subagent_type\":\"implementer\"}}]}}",
         "{\"type\":\"user\",\"message\":{\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"toolu_parent\",\"content\":\"subagent done\"}]}}",
         "{\"type\":\"assistant\",\"parent_tool_use_id\":\"toolu_parent\",\"isSidechain\":true,\"message\":{\"content\":[{\"type\":\"text\",\"text\":\"subagent sidechain\"}]}}",

@@ -608,6 +608,9 @@ public final class DashboardPage {
     for (AgentBreakdownRow row : agentBreakdown) {
       breakdownMap.put(row.agent(), row);
     }
+    long totalSessionsAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::sessionCount).sum();
+    long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalTokens).sum();
+    long totalPromptsAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalUserMessages).sum();
 
     // 说明: 按固定顺序构建 agent rows：Claude Code → Qoder → Codex
     List<Map<String, Object>> agentRows = new ArrayList<>();
@@ -616,24 +619,22 @@ public final class DashboardPage {
             "claude_code", "Claude Code",
             rangeClaudeSessions, rangeClaudeTokens, rangeClaudePrompts,
             rangeTotalSessions, rangeTotalTokens, rangeTotalPrompts,
+            totalSessionsAll, totalTokensAll, totalPromptsAll,
             breakdownMap.get("claude_code")));
     agentRows.add(
         buildAgentContributionRow(
             "qoder", "Qoder",
             rangeQoderSessions, rangeQoderTokens, rangeQoderPrompts,
             rangeTotalSessions, rangeTotalTokens, rangeTotalPrompts,
+            totalSessionsAll, totalTokensAll, totalPromptsAll,
             breakdownMap.get("qoder")));
     agentRows.add(
         buildAgentContributionRow(
             "codex", "Codex",
             rangeCodexSessions, rangeCodexTokens, rangeCodexPrompts,
             rangeTotalSessions, rangeTotalTokens, rangeTotalPrompts,
+            totalSessionsAll, totalTokensAll, totalPromptsAll,
             breakdownMap.get("codex")));
-
-    // 说明: All Agents 表使用全量数据
-    long totalSessionsAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::sessionCount).sum();
-    long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalTokens).sum();
-    long totalPromptsAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalUserMessages).sum();
 
     Map<String, Object> branch = new LinkedHashMap<>();
     branch.put("agent_rows", agentRows);
@@ -659,6 +660,9 @@ public final class DashboardPage {
       long rangeTotalSessions,
       long rangeTotalTokens,
       long rangeTotalPrompts,
+      long totalSessionsAll,
+      long totalTokensAll,
+      long totalPromptsAll,
       AgentBreakdownRow breakdown) {
 
     Map<String, Object> row = new LinkedHashMap<>();
@@ -716,10 +720,19 @@ public final class DashboardPage {
       // 全量 sessions/tokens 用于表格排序
       row.put("sessions_full_raw", breakdown.sessionCount());
       row.put("sessions_full", breakdown.sessionCount());
+      row.put(
+          "session_full_share",
+          DisplayFormatters.percentShareLabel(breakdown.sessionCount(), totalSessionsAll));
       row.put("tokens_full_raw", breakdown.totalTokens());
       row.put("tokens_full", DisplayFormatters.formatCompactToken(breakdown.totalTokens()));
+      row.put(
+          "token_full_share",
+          DisplayFormatters.percentShareLabel(breakdown.totalTokens(), totalTokensAll));
       row.put("prompts_full_raw", breakdown.totalUserMessages());
       row.put("prompts_full", breakdown.totalUserMessages());
+      row.put(
+          "prompt_full_share",
+          DisplayFormatters.percentShareLabel(breakdown.totalUserMessages(), totalPromptsAll));
     } else {
       row.put("token_fresh", "0");
       row.put("token_cache_read", "0");
@@ -739,10 +752,13 @@ public final class DashboardPage {
       row.put("last_active_raw", "");
       row.put("sessions_full_raw", 0);
       row.put("sessions_full", 0);
+      row.put("session_full_share", "0.0%");
       row.put("tokens_full_raw", 0);
       row.put("tokens_full", "0");
+      row.put("token_full_share", "0.0%");
       row.put("prompts_full_raw", 0);
       row.put("prompts_full", 0);
+      row.put("prompt_full_share", "0.0%");
     }
     return row;
   }

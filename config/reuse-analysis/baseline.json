@@ -3,16 +3,6 @@
   "policyVersion": "1.0.0",
   "entries": [
     {
-      "fingerprint": "1bc0735aa4ecf8440b22241a8e131b87ac8dc7235948de277e3c2ac548779c9b",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "ExportHandler 的 EXACT_METHOD_DUPLICATE，baseline 自动刷新",
-      "owner": "exporthandler",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "1bc0735aa4ecf8440b22241a8e131b87ac8dc7235948de277e3c2ac548779c9b"
-    },
-    {
       "fingerprint": "f44cb3105fbd680bd337998c518376ca3426b48f01a17529207b043f4ceeadf5",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -111,16 +101,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "609854bc61780500f29aac2e163a7a95ec7d70821c3fba18fe8e0a6df9e51865"
-    },
-    {
-      "fingerprint": "34bf185cde9cc41d4cb86ff153cb908331b6187e03335c9eb3e1cfda33521ab2",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "PebbleEnvironment 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "pebbleenvironment",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "34bf185cde9cc41d4cb86ff153cb908331b6187e03335c9eb3e1cfda33521ab2"
     },
     {
       "fingerprint": "375f1eca35c7b63a8fe75124bc245ba14a3ced44e381a7fb3463796103d5ba73",
@@ -293,16 +273,6 @@
       "evidence": "e0660e004f86995fcc2a85d38ff26228343f5987d9f3904fb7bab861f6fcd285"
     },
     {
-      "fingerprint": "66f395ceff7af88ef505ffc42d41729555f5520df909dca4ab55ae4ef44f852c",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "66f395ceff7af88ef505ffc42d41729555f5520df909dca4ab55ae4ef44f852c"
-    },
-    {
       "fingerprint": "e60ee043b3dde49dba0a5ab939df9020cd0a2ef0d1aa67fbbce950102dc2beb0",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -451,16 +421,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "5586ca40451f91882f52acd5f75efa97d595073d3c69dc50cde99a1e1301c7b8"
-    },
-    {
-      "fingerprint": "ccc85aad4a9b632a96e6d49ddeb9e78a2324c7e5fbd989efd763d24c9c75f620",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "FullScanEngine 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "fullscanengine",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "ccc85aad4a9b632a96e6d49ddeb9e78a2324c7e5fbd989efd763d24c9c75f620"
     },
     {
       "fingerprint": "907d601cb426b382bc07383dde607060a1fc66fc4d79116ddbd0f852f62c5a8c",
@@ -631,16 +591,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "0d10a3126a9ce6c67a7c7f8f8f7c29e63c938a38bb0f11d91497cd78427f1a3b"
-    },
-    {
-      "fingerprint": "9eabacca56671d1c252be903bc0807352793a23fecc43fcf9ca1a26048d429cd",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "CodexSourceAdapter 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "codexsourceadapter",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "9eabacca56671d1c252be903bc0807352793a23fecc43fcf9ca1a26048d429cd"
     },
     {
       "fingerprint": "d4e62a358b5e44cda12c2c9300cdfaf28e3798c83f5d69021a51c8e4480e93e4",
@@ -821,16 +771,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "3a85f5608e9cf948403ff7b58ea9427fb0f7acd882905fa34e64a148c76b43d3"
-    },
-    {
-      "fingerprint": "51e6366da2b0006f928ecb139fa07828f8e4c978b202f98175030da79783c975",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "PidFile 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "pidfile",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "51e6366da2b0006f928ecb139fa07828f8e4c978b202f98175030da79783c975"
     },
     {
       "fingerprint": "56f23482cf44c1caa3806b4de840febe98c2c89882bd9e70bab7f12e8ffdfd8b",
@@ -1113,16 +1053,6 @@
       "evidence": "8c9d2096e84c81b6237a3103f006ff1883ee459d358ca2218bdb2fa71b3cb40f"
     },
     {
-      "fingerprint": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "CodexSourceAdapter 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "codexsourceadapter",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "3c3df3ca2788341c22798fdbe64af99c107930b2697901645142e71d233af944"
-    },
-    {
       "fingerprint": "95d45c1a6a4c6ae2e643a21cd416ea8d34d61f2577a29ad65e10445855572b09",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -1303,16 +1233,6 @@
       "evidence": "49e0a3e0e26deda2f470cdb7dd5fbb61ce9704c741baf1b7d2b01c9bae27892d"
     },
     {
-      "fingerprint": "c65f300dee15cf9535dad748f9a487d9e60d06a0182d787a6334e22691300bc8",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "PebbleEnvironment 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "pebbleenvironment",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "c65f300dee15cf9535dad748f9a487d9e60d06a0182d787a6334e22691300bc8"
-    },
-    {
       "fingerprint": "ba2a13ad12508f04616df28293c033a715127acf523603b29e7a53cbd0ef0268",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -1351,16 +1271,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "558fc313dd93f498665bdf572bac20701481f673ca84887df94f8accbaf6f366"
-    },
-    {
-      "fingerprint": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "CodexSourceAdapter 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "codexsourceadapter",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "4e24bd77dc787526e9cc6e151a29252e7e2bf0095d3526aa0abc5e321ec66995"
     },
     {
       "fingerprint": "5488047cea8d1fc2710c4c2974ce4cc5cb2d7e3c68e43d73c3e385e7d181d38d",
@@ -1451,16 +1361,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "864fe6aad63bb89216795ff73064738ac3e6dec2be49f893f15ea6f1a8609601"
-    },
-    {
-      "fingerprint": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "dcb2731037fc9236eebbc2558b6c13aa4ac19201178c3c210f4fa56014683959"
     },
     {
       "fingerprint": "45db2c06f53c278efbea790176d9e5045d6528a29c87ac09a7bf3de68d7a3a69",
@@ -1621,16 +1521,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "07606e7cc49eb3a445106bde4ee897c912dbfc94f42ff2a690639cf8bb26d451"
-    },
-    {
-      "fingerprint": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "ebf83f8bf66aa4c755154b1be702d3a71325ed9953b7ea8458cfae721faf6046"
     },
     {
       "fingerprint": "ea44774c85b1960e8071c392bac7353c75c741a61a1f856aa2ae4613987daa4f",
@@ -2433,16 +2323,6 @@
       "evidence": "f7ec7bf2546f7374b72a7416ddcc8b678e8ba3df243e257ca92f819ec02c622f"
     },
     {
-      "fingerprint": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "CodexDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "ec644a8de48493c0bd2b0cb1fb8819ce1a7e932a34445ef0fe403e898103f3a9"
-    },
-    {
       "fingerprint": "b3dd79115863a7ae9bdbe2bae3253ae9aa4a1760393c7c920cff41b2872d824a",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -2543,16 +2423,6 @@
       "evidence": "3ee7de77415d5e80ca4dc467fd43853e10c76845db65c21f81e353ca2f270da2"
     },
     {
-      "fingerprint": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "fbbe1495e98cad7ca8edc4a2fdc295286bcac1a051f18cd975c97c8c8c9a5c00"
-    },
-    {
       "fingerprint": "c6be927f65d9f36296f7c47f62a94a99676eeedbf8da0282391c95b89af744a8",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -2571,16 +2441,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "7ee6a854a9f8e58551218212e271821fc6717b502019362117e7f0c3db4969e1"
-    },
-    {
-      "fingerprint": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "5623b48361407a08e0e71e00a5b5e59a2b1e452eb094acf2ee322fd2b9ba239d"
     },
     {
       "fingerprint": "0263512b5156619f39df051ecb6f1df9fcbdaecdc5510baee8681749daadd369",
@@ -2641,16 +2501,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "ab0ae153716db29710ed234b81521015656e9f18ae5d800e807d866aaf91c289"
-    },
-    {
-      "fingerprint": "db11c492f4909412ef3ed37b0fe7125790e691fd66afbae9f1d52e3784b16e5e",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "ArtifactRowMapper 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "artifactrowmapper",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "db11c492f4909412ef3ed37b0fe7125790e691fd66afbae9f1d52e3784b16e5e"
     },
     {
       "fingerprint": "66037e25913fe36fdaa4c9fa5c8e1e13481f74ce39e685911cb5b815435105fb",
@@ -3113,16 +2963,6 @@
       "evidence": "a9d16db5a3e4d6d5e753787aed88fe29fe0549f0f8afd7b9431e2980fad7eb07"
     },
     {
-      "fingerprint": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "b7a5faad59d17d3e8034a14d0c9468f3c69f0062e106cac580e33b9a602fe399"
-    },
-    {
       "fingerprint": "c06a3347476fec69f903b1c02f37f51e07a75bb94eec82c8c1ac102acea6e6fe",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -3131,26 +2971,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "c06a3347476fec69f903b1c02f37f51e07a75bb94eec82c8c1ac102acea6e6fe"
-    },
-    {
-      "fingerprint": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "CodexSourceAdapter 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "codexsourceadapter",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "fed3f4f304260872ab3dfb359b382e29819df71abaa8213aa061b79076b9ece3"
-    },
-    {
-      "fingerprint": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "557e6a0faf27dcaadc9ac710a143ba226bd3801ca1c242e5ec698571db04127d"
     },
     {
       "fingerprint": "0daee7fc8541e3b979314eb4386f0c9aeebd0d388cb7d656f1acb8ab5de8acf3",
@@ -3253,16 +3073,6 @@
       "evidence": "fe936961d576fbb7508f5e54ebc428a073808c784e020b8f741623e5b4761905"
     },
     {
-      "fingerprint": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "CodexSourceAdapter 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "codexsourceadapter",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "bb1c02e385308e3b180456efe801028c005ac667e0078d4eabffddfe89f614c3"
-    },
-    {
       "fingerprint": "c3b8252d79ed0e38b2f98661c5e46ba9b9da768495fac3bde2ac1ee0824d70ad",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -3281,16 +3091,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "678a16a1413d7e07aa06a7b43d6106cd00a386e0c1fa77b779062e47742287b5"
-    },
-    {
-      "fingerprint": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "3723e7257f610f296699d3e0ca7a2874e91a17f04a0bbeac06bf2f2cef9a4e28"
     },
     {
       "fingerprint": "946676c1a02358361e524994c651bb1337f865332f3d89865b3d31dcabac7fc7",
@@ -3381,16 +3181,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "6deb02a90896071401f6b155c8a11fd9a94e8acf4c7d6e3323e17b4a5454c15d"
-    },
-    {
-      "fingerprint": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "98d7d42683faa568be4ba930f1df042da16df6d5b0a44c47564cbb82fd19f1ab"
     },
     {
       "fingerprint": "d61aff9e83bb26dda1ed6bc1965c43df728bf8676c8b60b382113e97b6f145ea",
@@ -3633,16 +3423,6 @@
       "evidence": "e350c5ceeda8556bdebb1255b2ecd0a587ad5d57228d422c6e30fbb668e503ca"
     },
     {
-      "fingerprint": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "c3aaa11873d11d379ca13164ccb11fbab76dbe699e39ef7fc9a27b8ab6d25aef"
-    },
-    {
       "fingerprint": "245f10ca7b4a8292b751cd2dfc86a4f3564252e7c34f62605f2d81864a7119b8",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -3813,16 +3593,6 @@
       "evidence": "ead5c5cdbcdfbd7bdeab6f3556a0aa2e3628085ff8b3235652be824bbf9fa892"
     },
     {
-      "fingerprint": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "QoderDiscovery 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "qoderdiscovery",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "e760107174ecfcb42e65842eba6e9f9343d14cf76e6fa95a303764bc6850de1d"
-    },
-    {
       "fingerprint": "6c69c7a0c322e7948309bdadd2a8107b7ed696cacc8e6f2c64fad73d72ce5644",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -3841,16 +3611,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "1b18193bfa8958d3d9bd31a60f83c6123335a7ef89f01628903083317ee36667"
-    },
-    {
-      "fingerprint": "c147adcd9e3db4d200ec11b1416a18f6d0e4e42aa29e2d57f8a2772da491dc88",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "NormalizedArtifactLoader 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "normalizedartifactloader",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "c147adcd9e3db4d200ec11b1416a18f6d0e4e42aa29e2d57f8a2772da491dc88"
     },
     {
       "fingerprint": "f77977da6e50c1209034445abfa5b10e324d5adab574e4157d50f01dfb78355c",
@@ -3941,16 +3701,6 @@
       "createdAt": "2026-06-25",
       "expiresOn": "2026-12-25",
       "evidence": "04aeb023b59698e21ad9e13bc7b9facac3f231ad7388003b2725040730d6615a"
-    },
-    {
-      "fingerprint": "2813b1eb9a497edbdf1dcaf4d3e8d93d37aec2a1ad70721aeca23966dea11862",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "FullScanEngine 的 STATEMENT_DUPLICATE，baseline 自动刷新",
-      "owner": "fullscanengine",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "2813b1eb9a497edbdf1dcaf4d3e8d93d37aec2a1ad70721aeca23966dea11862"
     },
     {
       "fingerprint": "532e3e682cd79ad0de8d2a731ee81eb0b2bdab7a0bd4dbc82298e701e03e2ef2",
@@ -4093,16 +3843,6 @@
       "evidence": "fefe8f0a871fe949557b8961e9ef376cf41ea146ab2692030e7efeac71d23bf2"
     },
     {
-      "fingerprint": "867f5fc069e28b8c2f2816d04e9c15215f7897fbff7d3243d4997bcf9d50cf13",
-      "severity": "P2",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "ExportHandler 的 ALPHA_EQUIVALENT，baseline 自动刷新",
-      "owner": "exporthandler",
-      "createdAt": "2026-06-25",
-      "expiresOn": "2026-12-25",
-      "evidence": "867f5fc069e28b8c2f2816d04e9c15215f7897fbff7d3243d4997bcf9d50cf13"
-    },
-    {
       "fingerprint": "229c37a28c29653b2ca050653d1c4d8f2d89397d64f2a925d739c48ccf5a454f",
       "severity": "P2",
       "decision": "KEEP_ON_OWNER",
@@ -4183,16 +3923,6 @@
       "evidence": "d323e8411eb4b418a3bf10f23b940592cad2ed0040b8492b35846dee6b6b05b7"
     },
     {
-      "fingerprint": "e4d54f72f09f145b63f8448b312706f7f17d989bd87633b5b8f49adc54fa323e",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "New duplicate finding from Codex changes: F0066",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-30",
-      "expiresOn": "2026-12-30",
-      "evidence": "e4d54f72f09f145b63f8448b312706f7f17d989bd87633b5b8f49adc54fa323e"
-    },
-    {
       "fingerprint": "b572f81f53964f015628ab2c5e55445592d462251e9e5d8569fc7abc779fbd5d",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
@@ -4201,16 +3931,6 @@
       "createdAt": "2026-06-30",
       "expiresOn": "2026-12-30",
       "evidence": "b572f81f53964f015628ab2c5e55445592d462251e9e5d8569fc7abc779fbd5d"
-    },
-    {
-      "fingerprint": "6c8310432cfe2c1eba7f290c234a8bfcf514260dfb3e7291bc9018bf0838fc6f",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "New duplicate finding from Codex changes: F0123",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-30",
-      "expiresOn": "2026-12-30",
-      "evidence": "6c8310432cfe2c1eba7f290c234a8bfcf514260dfb3e7291bc9018bf0838fc6f"
     },
     {
       "fingerprint": "da4a6f4b39812231ba7c9014bcd970557fad7b2fd2f42e1db87947e32cb6d0b4",
@@ -4223,16 +3943,6 @@
       "evidence": "da4a6f4b39812231ba7c9014bcd970557fad7b2fd2f42e1db87947e32cb6d0b4"
     },
     {
-      "fingerprint": "8d6495f361e13b9e3571bf96b4b085c4429f6c984e5152828bae1d0a65fdba07",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "New duplicate finding from Codex changes: F0155",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-30",
-      "expiresOn": "2026-12-30",
-      "evidence": "8d6495f361e13b9e3571bf96b4b085c4429f6c984e5152828bae1d0a65fdba07"
-    },
-    {
       "fingerprint": "e304757e5fa667ca0a8df148287b7375526a1cd323ae3bb2478398d7d7c77364",
       "severity": "P1",
       "decision": "INTENTIONAL_DUPLICATION",
@@ -4241,36 +3951,6 @@
       "createdAt": "2026-06-30",
       "expiresOn": "2026-12-30",
       "evidence": "e304757e5fa667ca0a8df148287b7375526a1cd323ae3bb2478398d7d7c77364"
-    },
-    {
-      "fingerprint": "4c9585dd5a7a32c1f254222484188e76b3657db64bee4c903ec45839eabfe6b0",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "New duplicate finding from Codex changes: F0235",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-30",
-      "expiresOn": "2026-12-30",
-      "evidence": "4c9585dd5a7a32c1f254222484188e76b3657db64bee4c903ec45839eabfe6b0"
-    },
-    {
-      "fingerprint": "a16df988bef2fa9b432b262ec757fbf250fe940a27aea4b1387c91b795e4a744",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "New duplicate finding from Codex changes: F0265",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-30",
-      "expiresOn": "2026-12-30",
-      "evidence": "a16df988bef2fa9b432b262ec757fbf250fe940a27aea4b1387c91b795e4a744"
-    },
-    {
-      "fingerprint": "0d981ea758eb41d746011b94b779fbeffda2862911d36b5fa08bbbc3488829b4",
-      "severity": "P1",
-      "decision": "INTENTIONAL_DUPLICATION",
-      "reason": "New duplicate finding from Codex changes: F0316",
-      "owner": "codexdiscovery",
-      "createdAt": "2026-06-30",
-      "expiresOn": "2026-12-30",
-      "evidence": "0d981ea758eb41d746011b94b779fbeffda2862911d36b5fa08bbbc3488829b4"
     },
     {
       "fingerprint": "dfa39e536f3a97fb0843284bf18c80fe0de1a0d20baf03701a38fd4c93b2b0d2",
@@ -4623,16 +4303,6 @@
       "evidence": "a967eb8d2e080af45f16fc2090172887bf54f3c6e4e7fc12a8962ab13de9c8f6"
     },
     {
-      "fingerprint": "c4ed8b69dc50293d6ae78e8cd54731a7385d6308556dfbceb2c8054916a54396",
-      "severity": "P1",
-      "decision": "KEEP_ON_OWNER",
-      "reason": "Auto-generated from bootstrap analysis",
-      "owner": "writebatch",
-      "createdAt": "2026-07-01",
-      "expiresOn": "2026-12-28",
-      "evidence": "c4ed8b69dc50293d6ae78e8cd54731a7385d6308556dfbceb2c8054916a54396"
-    },
-    {
       "fingerprint": "21d221426c1bc6a2f5a320eee2474db024ef33e487738f89f7aecd9708715e86",
       "severity": "P1",
       "decision": "KEEP_ON_OWNER",
@@ -4873,6 +4543,436 @@
       "createdAt": "2026-07-01",
       "expiresOn": "2026-12-28",
       "evidence": "d1a7fe02bee7c52d57b0f5922c2d26b0e1f4b577554f2062cba1c9078fd84665"
+    },
+    {
+      "fingerprint": "1a95b6f41b2fe04fe6dc58a9e4f81be7efbf46111e2b03c4ca445c71f80b14e1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 4
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 4
+      }
+    },
+    {
+      "fingerprint": "1caeea92562e01d4219287e296ef234e4efbb9bf476393a7dac189d19ae87cd4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 3
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3
+      }
+    },
+    {
+      "fingerprint": "d2a94e7ca919c5334d5f3a5e2a576a27b504c3c469a542ab6a4630fce40e1d3c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "578af04c9c82a07c04a5bf39e3e6816079e76d44a5889224eb37806b1efbc0e2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "PROVIDER_SPECIFIC_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "bcedcc7f7d6ea5070ccbef1c4785f03c70901d6e828dc872b8896568d4eda69d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "SHARED_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "a2e1fc860b0894d77ed722d4e4731c0efc6233ee9b3fe6f147df5cc183241fdc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "060871842bc94d6070228b20cd1880e4c363895a78810ee5dd4a3e20695aaf40",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "886c42c17cf97d100b4cd8a5d1c4ab7983279b4e19b05908d6271c613c0a5e8c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 4
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 4
+      }
+    },
+    {
+      "fingerprint": "1b5f38aecf039d8fe1e3d505cf1ba8405562f55d7e38863b47023c2b2cd798e5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "d8b7a6951b76241a7b0bdc1646f36d82f558f7c6c0dfa8654464cac4e7a36068",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "e70b0fcf75f02aee1b7864bd2f1502c4565c40cf6bb9291b7e76e4670c483cfe",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "e65202b53998efc5e4bd95dd85bb83ccb187ea52bee5462193cf6b9cc85e4fec",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "3ef4323b201841325c72b9414419e954395a07ab782fff380676fc11737ddbaf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "edffa915820abe30d3af4cc34e36825f4335e8643b7543caf8046f77226eaafe",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 3
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3
+      }
+    },
+    {
+      "fingerprint": "4900154ab108b8df3742a58459894ff5ed68232b94c4527c132b589771486616",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "b5b994efb3c528528b40c52b36d1e20fe473ccb86d93faae1bd527e33dbac260",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "79dcac621689837c203b8f0c96922a6fdae9b9a9db3d70c2889619fdaf06bf9b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "a6f784f260161ffdcae904c140bef0507e163f70452a61978436310240cc54e7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "51cd4006744c582202f62434476a3bc0dcbb4d76fc2dc301b4c26919861a4003",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "d073cba06e0be639035f8ebff563e1f0c6082f839f982be89ac42dbae8f3c118",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "7f92a6fb14b7d9288c02d5a3f6bab66e158ecdf16357977722fa4e4be4f7aa12",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "de7caea35e5d6c96b8aef06ab5147b66e8cdad71ae58ecbbb9a5cc03226e2f76",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "PROVIDER_SPECIFIC_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "e7e47836c5e1614511e8aca23b41d1b451a83c76a43f5547e4c26d46afd6d1eb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "87d5a97977e3bef555663a7334da5ab94327a13467aed615ba9adaa27146fd18",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "747036c7bb73f63b6805ad5bdf9663be229de43f2d729975faeae0a041c57a56",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 4
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 4
+      }
+    },
+    {
+      "fingerprint": "403c6e9c2ff0c06f49e83137c267ca33198d2b598ab1d2bd186cac30e4bb3047",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "f08e932706150eb1983f02f6d3fe06e4d32344eeda2f9482ea3344eee1879a3c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Auto-added from bootstrap: STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2
+      }
+    },
+    {
+      "fingerprint": "825c6b44282b1202001e0123c09dbe85faa82125e5cae377fc3e9eb9e1a9ba86",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Auto-added from bootstrap: ALPHA_EQUIVALENT",
+      "owner": {
+        "DETACHED_BEHAVIOR": 2
+      },
+      "createdAt": "2026-07-04T01:46:02Z",
+      "expiresOn": "",
+      "evidence": {
+        "kind": "ALPHA_EQUIVALENT",
+        "occurrences": 2
+      }
     }
   ]
 }

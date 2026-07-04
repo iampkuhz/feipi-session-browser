@@ -115,10 +115,7 @@ public final class FullScanEngine {
   }
 
   /**
-   * 执行全量扫描。
-   *
-   * <p>在单个写连接上串行完成全部操作：schema 确保 → scan_log 开始 → 逐源处理 → index 写入 → scan_log 完成。 原始 source
-   * 文件只读，不做任何修改。
+   * 执行全量扫描（无进度回调）。
    *
    * @param writeConn SQLite 写连接，由调用方创建和管理生命周期
    * @param config 扫描配置
@@ -126,6 +123,22 @@ public final class FullScanEngine {
    * @throws NullPointerException 当参数为 null 时
    */
   public ScanSummary scan(Connection writeConn, ScanConfig config) {
+    return scan(writeConn, config, null);
+  }
+
+  /**
+   * 执行全量扫描，支持进度回调。
+   *
+   * <p>在单个写连接上串行完成全部操作：schema 确保 → scan_log 开始 → 逐源处理 → index 写入 → scan_log 完成。 原始 source
+   * 文件只读，不做任何修改。
+   *
+   * @param writeConn SQLite 写连接，由调用方创建和管理生命周期
+   * @param config 扫描配置
+   * @param progress 可选的进度回调，null 表示不报告进度
+   * @return 扫描汇总结果
+   * @throws NullPointerException 当 writeConn 或 config 为 null 时
+   */
+  public ScanSummary scan(Connection writeConn, ScanConfig config, ScanProgress progress) {
     Objects.requireNonNull(writeConn, "writeConn 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
@@ -216,8 +229,14 @@ public final class FullScanEngine {
       int sourceCount = candidates.size();
       counters[0] += sourceCount;
 
+      if (progress != null) {
+        progress.onSourceStart(agentValue, sourceCount);
+      }
+
       // 逐候选处理
       int processedInBatch = 0;
+      int progressCount = 0;
+      int sourceSuccessCount = 0;
       for (Candidate candidate : candidates.orderedItems()) {
         CandidateResult result;
 
@@ -238,6 +257,7 @@ public final class FullScanEngine {
         switch (result.outcome) {
           case SUCCESS -> {
             counters[1]++;
+            sourceSuccessCount++;
             perSourceCount.merge(entry.adapter().sourceId(), 1, Integer::sum);
             perSourceCountByValue.merge(agentValue, 1, Integer::sum);
           }
@@ -250,6 +270,11 @@ public final class FullScanEngine {
           default -> {}
         }
         processedInBatch++;
+        progressCount++;
+
+        if (progress != null) {
+          progress.onCandidateProcessed(agentValue, progressCount, sourceCount);
+        }
 
         // 定期 flush
         if (processedInBatch >= FLUSH_INTERVAL && batch.pendingCount() > 0) {
@@ -263,6 +288,10 @@ public final class FullScanEngine {
           }
           processedInBatch = 0;
         }
+      }
+
+      if (progress != null) {
+        progress.onSourceEnd(agentValue, sourceSuccessCount);
       }
     }
 

@@ -8,6 +8,7 @@ import com.feipi.session.browser.scan.engine.IncrementalScanSummary;
 import com.feipi.session.browser.scan.engine.ScanConfig;
 import com.feipi.session.browser.scan.engine.ScanLock;
 import com.feipi.session.browser.scan.engine.ScanLock.ScanLockUnavailableException;
+import com.feipi.session.browser.scan.engine.ScanProgress;
 import com.feipi.session.browser.scan.engine.ScanSummary;
 import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
 import com.feipi.session.browser.source.codex.CodexSourceAdapter;
@@ -191,7 +192,8 @@ final class ScanCommand implements Callable<Integer> {
     long startMs = System.currentTimeMillis();
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    ScanProgress progress = new ConsoleScanProgress();
+    IncrementalScanSummary summary = engine.scan(conn, config, null, null, progress);
 
     double elapsed = (System.currentTimeMillis() - startMs) / 1000.0;
     printIncrementalSummary(summary);
@@ -205,7 +207,8 @@ final class ScanCommand implements Callable<Integer> {
     long startMs = System.currentTimeMillis();
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanProgress progress = new ConsoleScanProgress();
+    ScanSummary summary = engine.scan(conn, config, progress);
 
     double elapsed = (System.currentTimeMillis() - startMs) / 1000.0;
     printFullSummary(summary);
@@ -353,5 +356,107 @@ final class ScanCommand implements Callable<Integer> {
   /** 对 IncrementalScanSummary 所有源的计数求和，确保 Total 与分项一致。 */
   private static int sumAllSourceCounts(IncrementalScanSummary summary) {
     return summary.perSourceCount().values().stream().mapToInt(Integer::intValue).sum();
+  }
+
+  /**
+   * 控制台扫描进度实现。
+   *
+   * <p>将扫描进度以人类可读的方式输出到 stdout：
+   * <ul>
+   *   <li>{@code onSourceStart} — 打印 {@code Scanning <sourceName>... (N sessions)}</li>
+   *   <li>{@code onCandidateProcessed} — 每处理 50 个或每 5%（取较小间隔）使用 {@code \r} 覆盖当前行打印进度条</li>
+   *   <li>{@code onSourceEnd} — 打印完成状态并换行</li>
+   * </ul>
+   */
+  private static final class ConsoleScanProgress implements ScanProgress {
+
+    private static final int BAR_WIDTH = 30;
+
+    private static final String[] SOURCE_DISPLAY_NAMES = {
+      "claude_code", "Claude Code",
+      "codex", "Codex",
+      "qoder", "Qoder"
+    };
+
+    /** 当前源上次打印进度时的已处理数量，用于控制打印频率。 */
+    private int lastPrintedProcessed = -1;
+
+    /** 当前源的总候选项数量。 */
+    private int currentTotal;
+
+    /** 打印频率间隔：每处理多少个候选项更新一次。 */
+    private int printInterval;
+
+    @Override
+    public void onSourceStart(String sourceName, int candidateCount) {
+      currentTotal = candidateCount;
+      lastPrintedProcessed = -1;
+
+      // 计算打印间隔：50 个或 5%，取较小值，至少为 1
+      int fivePercent = Math.max(1, candidateCount / 20);
+      printInterval = Math.min(50, fivePercent);
+      if (printInterval < 1) {
+        printInterval = 1;
+      }
+
+      String displayName = toDisplayName(sourceName);
+      System.out.printf("Scanning %s... (%d sessions)%n", displayName, candidateCount);
+    }
+
+    @Override
+    public void onCandidateProcessed(String sourceName, int processed, int total) {
+      if (total <= 0) {
+        return;
+      }
+      // 达到打印间隔或处理完毕时更新进度
+      boolean atInterval = (processed - lastPrintedProcessed) >= printInterval;
+      boolean atEnd = (processed == total);
+      if (!atInterval && !atEnd) {
+        return;
+      }
+      lastPrintedProcessed = processed;
+
+      int percent = (int) ((processed * 100L) / total);
+      int filled = (int) ((processed * (long) BAR_WIDTH) / total);
+      if (filled > BAR_WIDTH) {
+        filled = BAR_WIDTH;
+      }
+
+      StringBuilder bar = new StringBuilder(BAR_WIDTH + 4);
+      bar.append('[');
+      for (int i = 0; i < BAR_WIDTH; i++) {
+        if (i < filled) {
+          bar.append('=');
+        } else if (i == filled) {
+          bar.append('>');
+        } else {
+          bar.append(' ');
+        }
+      }
+      bar.append(']');
+
+      System.out.printf("\r  %s %d/%d (%d%%)", bar, processed, total, percent);
+      if (atEnd) {
+        System.out.println();
+      }
+      System.out.flush();
+    }
+
+    @Override
+    public void onSourceEnd(String sourceName, int successCount) {
+      String displayName = toDisplayName(sourceName);
+      // 如果 onCandidateProcessed 没有因为 total=0 而打印过，仍需确保换行
+      System.out.printf("  %s: %d sessions indexed%n", displayName, successCount);
+    }
+
+    /** 将 source id 值转换为人类可读名称。 */
+    private static String toDisplayName(String sourceName) {
+      for (int i = 0; i < SOURCE_DISPLAY_NAMES.length; i += 2) {
+        if (SOURCE_DISPLAY_NAMES[i].equals(sourceName)) {
+          return SOURCE_DISPLAY_NAMES[i + 1];
+        }
+      }
+      return sourceName;
+    }
   }
 }

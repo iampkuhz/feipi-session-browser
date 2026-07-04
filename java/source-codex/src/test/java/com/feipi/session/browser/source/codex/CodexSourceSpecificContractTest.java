@@ -57,10 +57,11 @@ class CodexSourceSpecificContractTest {
     assertThat(success.records()).allSatisfy(r -> assertThat(r).isInstanceOf(SourceRecord.class));
     assertThat(eventTypes(success))
         .containsExactly(
+            "turn_context",
             "session_meta",
-            "event_msg",
-            "response_item",
-            "response_item",
+            "assistant",
+            "tool_use",
+            "tool_result",
             "response_item",
             "unknown");
     assertThat(success.diagnostics())
@@ -69,6 +70,12 @@ class CodexSourceSpecificContractTest {
     assertThat(success.diagnostics())
         .extracting(SourceDiagnostic::code)
         .doesNotContain("TOKEN_NO_CUMULATIVE", "TOOL_ORPHAN");
+    SourceRecord tokenRecord = success.records().get(2);
+    assertThat(tokenRecord.model()).contains("gpt-test");
+    assertThat(tokenRecord.usage().inputTokens()).isEqualTo(60);
+    assertThat(tokenRecord.usage().cacheReadInputTokens()).isEqualTo(40);
+    assertThat(tokenRecord.usage().outputTokens()).isEqualTo(20);
+    assertThat(tokenRecord.usage().total()).isEqualTo(120);
     assertThat(success.records().get(0).locator())
         .isEqualTo(candidate.fingerprint().locator() + "#event[0]");
     assertThat(candidate.sessionKey()).isEqualTo("codex:" + sessionId);
@@ -122,6 +129,7 @@ class CodexSourceSpecificContractTest {
   private static String codexRollout() {
     return String.join(
         "\n",
+        "{\"type\":\"turn_context\",\"payload\":{\"model\":\"gpt-test\"}}",
         "{\"type\":\"session_meta\",\"payload\":{\"id\":\"thread-main\",\"thread_source\":\"subagent\",\"parent_thread_id\":\"thread-parent\"}}",
         "{\"type\":\"event_msg\",\"payload\":{\"type\":\"token_count\",\"info\":{\"total_token_usage\":{\"input_tokens\":100,\"cached_input_tokens\":40,\"output_tokens\":20}}}}",
         "{\"type\":\"response_item\",\"payload\":{\"type\":\"function_call\",\"call_id\":\"call_1\",\"name\":\"shell\"}}",

@@ -534,12 +534,48 @@ def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
                     conn, data_dir, project_dir, jsonl_file, artifact_dir, fixture_history
                 )
         conn.commit()
+        _shift_fixture_dates_to_recent(conn)
         conn.close()
         if session_count == 0:
             return 'no fixture sessions found in JSONL data'
     except Exception as exc:
         return f'fixture index population failed: {exc}'
     return None
+
+
+def _shift_fixture_dates_to_recent(conn: sqlite3.Connection) -> None:
+    """Shift fixture session dates so the most recent session falls within the dashboard query window.
+
+    Dashboard queries filter sessions from the last 30 days. Static fixture dates become stale over
+    time, causing chart data to be empty. This function shifts all dates forward so the latest
+    ``ended_at`` is approximately 2 days ago, keeping fixture data inside the query window.
+
+    Args:
+        conn: Active SQLite connection with fixture sessions already inserted.
+    """
+    from datetime import datetime, timezone, timedelta
+
+    row = conn.execute("SELECT MAX(ended_at) FROM sessions").fetchone()
+    if not row or not row[0]:
+        return
+    max_ended_str = row[0]
+    # 解析 ISO 时间戳的日期部分
+    max_date_str = max_ended_str[:10]  # "2026-06-03"
+    try:
+        max_date = datetime.strptime(max_date_str, '%Y-%m-%d').replace(tzinfo=timezone.utc)
+    except ValueError:
+        return
+    # 目标：最新 session 的 ended_at 在 2 天前
+    target_date = datetime.now(timezone.utc) - timedelta(days=2)
+    offset_days = (target_date - max_date).days
+    if offset_days <= 0:
+        return  # 数据已经是最近的，无需偏移
+    offset_sql = f"+{offset_days} days"
+    conn.execute(
+        "UPDATE sessions SET started_at = datetime(started_at, ?), ended_at = datetime(ended_at, ?)",
+        (offset_sql, offset_sql),
+    )
+    conn.commit()
 
 
 def _load_fixture_history(data_dir: Path) -> dict[str, dict[str, object]]:

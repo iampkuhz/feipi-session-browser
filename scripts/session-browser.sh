@@ -46,7 +46,15 @@ set_version() {
 }
 
 local_test_index_dir() {
-    expand_path "${SESSION_BROWSER_LOCAL_DATA_DIR:-$DEFAULT_LOCAL_DATA_DIR}"
+    local base_dir="$DEFAULT_LOCAL_DATA_DIR"
+    if [[ -z "${SESSION_BROWSER_LOCAL_DATA_DIR:-}" ]]; then
+        local branch
+        branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
+        if [[ -n "$branch" && "$branch" != "main" ]]; then
+            base_dir="${DEFAULT_LOCAL_DATA_DIR}-${branch}"
+        fi
+    fi
+    expand_path "${SESSION_BROWSER_LOCAL_DATA_DIR:-$base_dir}"
 }
 
 arg_has_option() {

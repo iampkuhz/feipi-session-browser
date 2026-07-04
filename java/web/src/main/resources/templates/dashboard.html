@@ -307,9 +307,9 @@
                         <span class="agent-badge agent-badge--{{ agent.db_agent }}">{{ agent.display }}</span>
                         <a href="/sessions?agent={{ agent.db_agent | db_agent_to_scope }}" class="row-link" data-action="view-agent-sessions">View Sessions</a>
                     </td>
-                    <td class="numeric" data-sort-value="{{ agent.sessions_full_raw | default(agent.sessions_raw) }}">{{ agent.sessions_full | default(agent.sessions) }}</td>
+                    <td class="numeric" data-sort-value="{{ agent.sessions_full_raw | default(agent.sessions_raw) }}">{{ agent.sessions_full | default(agent.sessions) }} <span class="muted">· {{ agent.session_full_share | default(agent.session_share) }}</span></td>
                     <td class="numeric token-cell" data-sort-value="{{ agent.tokens_full_raw | default(agent.tokens_raw) }}">
-                        <span class="token-cell__value">{{ agent.tokens_full | default(agent.tokens) }}</span>
+                        <span class="token-cell__value">{{ agent.tokens_full | default(agent.tokens) }} <span class="muted">· {{ agent.token_full_share | default(agent.token_share) }}</span></span>
                         <div class="tokenbar" aria-hidden="true">
                             <span class="tokenbar__seg tokenbar__seg--fresh" style="--seg-fresh:{{ agent.fresh_pct }}%"></span>
                             <span class="tokenbar__seg tokenbar__seg--read" style="--seg-read:{{ agent.read_pct }}%"></span>
@@ -317,7 +317,7 @@
                             <span class="tokenbar__seg tokenbar__seg--output" style="--seg-output:{{ agent.output_pct }}%"></span>
                         </div>
                     </td>
-                    <td class="numeric" data-sort-value="{{ agent.prompts_full_raw | default(agent.prompts_raw) }}">{{ agent.prompts_full | default(agent.prompts) }}</td>
+                    <td class="numeric" data-sort-value="{{ agent.prompts_full_raw | default(agent.prompts_raw) }}">{{ agent.prompts_full | default(agent.prompts) }} <span class="muted">· {{ agent.prompt_full_share | default(agent.prompt_share) }}</span></td>
                     <td class="numeric" data-sort-value="{{ agent.projects_raw | default(0) }}">{{ agent.projects | default(0) }}</td>
                     <td class="numeric" data-sort-value="{{ agent.failure_rate_raw | default(0) }}">{{ agent.failure_rate | default('0.0%') }}</td>
                     <td class="numeric" data-sort-value="{{ agent.last_active_raw | default('') }}">{{ agent.last_active | default('') }}</td>

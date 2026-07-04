@@ -135,6 +135,30 @@ public final class IncrementalScanEngine {
    */
   public IncrementalScanSummary scan(
       Connection writeConn, ScanConfig config, Double maxAgeSeconds, ScanCancelToken cancelToken) {
+    return scan(writeConn, config, maxAgeSeconds, cancelToken, null);
+  }
+
+  /**
+   * 执行增量扫描，支持取消和进度回调。
+   *
+   * <p>在候选项循环中检查 cancelToken，一旦取消立即停止处理并标记 scan_log 为 failure。
+   * 通过 progress 参数报告每个源的处理进度。
+   *
+   * @param writeConn SQLite 写连接
+   * @param config 扫描配置
+   * @param maxAgeSeconds 可选的会话 age 上限（秒），null 表示不过滤
+   * @param cancelToken 可选的取消令牌，null 表示不取消
+   * @param progress 可选的进度回调，null 表示不报告进度
+   * @return 增量扫描汇总
+   * @throws CancellationException 当扫描被取消时
+   * @throws NullPointerException 当 writeConn 或 config 为 null 时
+   */
+  public IncrementalScanSummary scan(
+      Connection writeConn,
+      ScanConfig config,
+      Double maxAgeSeconds,
+      ScanCancelToken cancelToken,
+      ScanProgress progress) {
     Objects.requireNonNull(writeConn, "writeConn 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
@@ -256,7 +280,13 @@ public final class IncrementalScanEngine {
         int sourceCount = candidates.size();
         totalCandidates += sourceCount;
 
+        if (progress != null) {
+          progress.onSourceStart(agentValue, sourceCount);
+        }
+
         // 逐候选处理
+        int progressCount = 0;
+        int sourceSuccessCount = 0;
         for (Candidate candidate : candidates.orderedItems()) {
           // 取消检查
           if (cancelToken != null) {
@@ -287,6 +317,10 @@ public final class IncrementalScanEngine {
 
           // UNCHANGED 不读写 artifact/DB
           if (state == CandidateState.UNCHANGED && !rebuildTriggered) {
+            progressCount++;
+            if (progress != null) {
+              progress.onCandidateProcessed(agentValue, progressCount, sourceCount);
+            }
             continue;
           }
 
@@ -295,6 +329,10 @@ public final class IncrementalScanEngine {
             String endedAt = stored.endedAt();
             if (!endedAt.isEmpty() && endedAt.compareTo(cutoffIso) < 0) {
               skippedByAgeCount++;
+              progressCount++;
+              if (progress != null) {
+                progress.onCandidateProcessed(agentValue, progressCount, sourceCount);
+              }
               continue;
             }
           }
@@ -319,6 +357,7 @@ public final class IncrementalScanEngine {
           switch (result.outcome()) {
             case SUCCESS -> {
               successCount++;
+              sourceSuccessCount++;
               perSourceCount.merge(entry.adapter().sourceId(), 1, Integer::sum);
               perSourceCountByValue.merge(agentValue, 1, Integer::sum);
             }
@@ -330,6 +369,11 @@ public final class IncrementalScanEngine {
           }
 
           processedInBatch++;
+          progressCount++;
+          if (progress != null) {
+            progress.onCandidateProcessed(agentValue, progressCount, sourceCount);
+          }
+
           if (processedInBatch >= FLUSH_INTERVAL && batch.pendingCount() > 0) {
             try {
               batch.flush();
@@ -341,6 +385,10 @@ public final class IncrementalScanEngine {
             }
             processedInBatch = 0;
           }
+        }
+
+        if (progress != null) {
+          progress.onSourceEnd(agentValue, sourceSuccessCount);
         }
       }
 

@@ -35,14 +35,33 @@ public final class JsonSourceRecordMapper {
         recordLocator,
         eventIndex,
         eventType,
-        firstText(event, "id", "uuid"),
-        firstText(event, "model"),
-        firstText(event, "timestamp"),
-        firstText(event, "turn_id", "turnId"),
+        firstTextDeep(event, "id", "uuid", "call_id"),
+        firstTextDeep(event, "model"),
+        firstTextDeep(event, "timestamp"),
+        firstTextDeep(event, "turn_id", "turnId"),
         extractUsage(event),
         extractToolCalls(event),
-        firstText(event, "tool_use_id"),
-        firstText(event, "name"));
+        firstTextDeep(event, "tool_use_id", "call_id"),
+        firstTextDeep(event, "name"));
+  }
+
+  private static Optional<String> firstTextDeep(JsonNode event, String... fieldNames) {
+    Optional<String> direct = firstText(event, fieldNames);
+    if (direct.isPresent()) {
+      return direct;
+    }
+    JsonNode message = objectChild(event, "message");
+    Optional<String> messageText = firstText(message, fieldNames);
+    if (messageText.isPresent()) {
+      return messageText;
+    }
+    JsonNode payload = objectChild(event, "payload");
+    Optional<String> payloadText = firstText(payload, fieldNames);
+    if (payloadText.isPresent()) {
+      return payloadText;
+    }
+    JsonNode settings = objectChild(objectChild(payload, "collaboration_mode"), "settings");
+    return firstText(settings, fieldNames);
   }
 
   private static Optional<String> firstText(JsonNode event, String... fieldNames) {
@@ -62,21 +81,59 @@ public final class JsonSourceRecordMapper {
     if (event == null) {
       return SourceRecordUsage.empty();
     }
-    JsonNode usage = event.get("usage");
+    JsonNode usage = usageNode(event);
     if (usage == null || !usage.isObject()) {
       return SourceRecordUsage.empty();
     }
+    long inputTokens = readLong(usage, "input_tokens", "inputTokens");
+    long cacheRead =
+        readLong(usage, "cache_read_input_tokens", "cacheReadInputTokens", "cached_input_tokens");
+    long freshInput =
+        usage.has("cached_input_tokens") && !usage.has("cache_read_input_tokens")
+            ? Math.max(0L, inputTokens - cacheRead)
+            : inputTokens;
     return new SourceRecordUsage(
-        readLong(usage, "input_tokens"),
-        readLong(usage, "cache_read_input_tokens"),
-        readLong(usage, "cache_creation_input_tokens"),
-        readLong(usage, "output_tokens"));
+        freshInput,
+        cacheRead,
+        readLong(usage, "cache_creation_input_tokens", "cacheCreationInputTokens"),
+        readLong(usage, "output_tokens", "outputTokens"));
   }
 
-  private static long readLong(JsonNode node, String fieldName) {
+  private static JsonNode usageNode(JsonNode event) {
+    JsonNode usage = objectChild(event, "usage");
+    if (usage != null) {
+      return usage;
+    }
+    JsonNode messageUsage = objectChild(objectChild(event, "message"), "usage");
+    if (messageUsage != null) {
+      return messageUsage;
+    }
+    JsonNode payload = objectChild(event, "payload");
+    JsonNode payloadUsage = objectChild(payload, "usage");
+    if (payloadUsage != null) {
+      return payloadUsage;
+    }
+    JsonNode infoUsage = objectChild(objectChild(payload, "info"), "total_token_usage");
+    if (infoUsage != null) {
+      return infoUsage;
+    }
+    return objectChild(payload, "total_token_usage");
+  }
+
+  private static JsonNode objectChild(JsonNode node, String fieldName) {
+    if (node == null || !node.isObject()) {
+      return null;
+    }
     JsonNode child = node.get(fieldName);
-    if (child != null && child.isNumber()) {
-      return child.asLong();
+    return child != null && child.isObject() ? child : null;
+  }
+
+  private static long readLong(JsonNode node, String... fieldNames) {
+    for (String fieldName : fieldNames) {
+      JsonNode child = node.get(fieldName);
+      if (child != null && child.isNumber()) {
+        return child.asLong();
+      }
     }
     return 0L;
   }
@@ -88,6 +145,12 @@ public final class JsonSourceRecordMapper {
     List<SourceToolCall> calls = new ArrayList<>();
     collectToolCalls(event.get("content"), calls);
     collectToolCalls(event.get("parts"), calls);
+    JsonNode message = objectChild(event, "message");
+    collectToolCalls(message == null ? null : message.get("content"), calls);
+    collectToolCalls(message == null ? null : message.get("parts"), calls);
+    JsonNode payload = objectChild(event, "payload");
+    collectToolCalls(payload == null ? null : payload.get("content"), calls);
+    collectToolCalls(payload == null ? null : payload.get("parts"), calls);
     return List.copyOf(calls);
   }
 
