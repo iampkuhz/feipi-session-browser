@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PostToolUse(Edit/Write): lightweight syntax checks for edited files.
+# PostToolUse(Edit/Write): 对已编辑文件执行轻量语法检查。
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,8 +8,7 @@ ROOT="$(repo_root)"
 
 cd "$ROOT" || exit $EXIT_WARN
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
-python3 "$ROOT/scripts/quality/ensure_base_commit.py" >/dev/null 2>&1 || true
-
+export FEIPI_AGENT_CLIENT="${FEIPI_AGENT_CLIENT:-codex}"
 STDIN_TMP="$(mktemp)"
 NORMALIZED_TMP="$(mktemp)"
 trap 'rm -f "$STDIN_TMP" "$NORMALIZED_TMP"' EXIT
@@ -18,6 +17,7 @@ cat > "$STDIN_TMP" 2>/dev/null || true
 MODIFIED_FILE="${CLAUDE_FILE_PATH:-${CC_FILE_PATH:-${1:-}}}"
 python3 - "$STDIN_TMP" "$NORMALIZED_TMP" "$MODIFIED_FILE" <<'PY' || true
 import json
+import os
 import sys
 
 stdin_path, out_path, fallback_path = sys.argv[1], sys.argv[2], sys.argv[3]
@@ -52,6 +52,9 @@ path = fallback_path or (candidate_paths[0] if candidate_paths else '')
 
 payload = {
     'session_id': raw.get('session_id') or raw.get('sessionId') or '',
+    'agent_id': raw.get('agent_id') or raw.get('agentId') or '',
+    'agent_type': raw.get('agent_type') or raw.get('agentType') or '',
+    'agent_client': raw.get('agent_client') or raw.get('agentClient') or os.environ.get('FEIPI_AGENT_CLIENT') or 'codex',
     'tool_name': raw.get('tool_name') or raw.get('toolName') or 'CodexPostToolUse',
     'tool_use_id': raw.get('tool_use_id') or raw.get('toolUseId') or '',
     'tool_input': dict(tool_input),

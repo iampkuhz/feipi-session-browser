@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""T081 static QA for sessions-list.css.
-
-Validates src/session_browser/web/static/css/sessions-list.css against
-the project's CSS quality contract:
-
-1. File existence
-2. No bare hardcoded hex colors (falls inside var() fallbacks are OK)
-3. No @import directives
-4. Has page-specific selectors (.sessions-page, .sessions-filter-card, .sessions-row)
-5. No generic reset rules (* {, body {, html {, .btn {, .card {)
-6. Token variable usage — must reference var(--...)
-7. Responsive breakpoint check — must have at least one @media query
-"""
+"""提供 检查 sessions list CSS 脚本能力。"""
 
 from __future__ import annotations
 
@@ -22,14 +10,13 @@ CSS_PATH = 'src/session_browser/web/static/css/sessions-list.css'
 SAMPLE_LIMIT = 8
 
 
+# 读取文件内容。
 def read(path: str) -> str | None:
-    """Read the CSS target for the sessions-list QA gate.
+    """参数：
+        path: repository-relative CSS 路径 configured用于this static 检查。
 
-    Args:
-        path: Repository-relative CSS path configured for this static check.
-
-    Returns:
-        File content when present; None when the QA gate should report a missing input.
+    返回：
+        文件 content 当 present；None 当 QA gate should 报告 缺失 输入。
     """
     p = Path(path)
     if not p.exists():
@@ -37,36 +24,31 @@ def read(path: str) -> str | None:
     return p.read_text(encoding='utf-8')
 
 
+# 检查文件 exists。
 def check_file_exists(css: str | None) -> tuple[bool, str]:
-    """Check whether the sessions-list CSS artifact was readable.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    Args:
-        css: CSS text loaded by read, or None when the file is missing.
+    返回：
+        结果 tuple。
 
-    Returns:
-        Boolean pass/fail plus detail printed by the QA script.
+    说明：
+        css: CSS text loaded by 读取, 或 None 当 文件 is 缺失。
     """
     if css is None:
         return False, f'File not found: {CSS_PATH}'
     return True, f'File exists: {CSS_PATH}'
 
 
+# 检查没有裸 hex 颜色值。
 def check_no_bare_hex_colors(css: str) -> tuple[bool, str]:
-    """Report hardcoded hex colors outside CSS variable fallbacks.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    The sessions-list CSS QA gate calls this after loading the page stylesheet.
-    Bare colors remain warnings for this historical migration slice, so findings
-    are printed as guidance without failing the script.
-
-    Args:
-        css: Full sessions-list stylesheet content.
-
-    Returns:
-        Passing status with either a clean detail or a warning detail listing samples.
+    返回：
+        结果 tuple。
     """
-    # Strip var(...) contents (non-nested approximation works for this file)
     stripped = re.sub(r'var\([^)]*\)', '', css)
-    # Find remaining bare hex colors (3 or 6 digit)
     bare_hexes = re.findall(r'#[0-9a-fA-F]{3,8}\b', stripped)
     if not bare_hexes:
         return True, 'No bare hardcoded hex colors'
@@ -81,28 +63,25 @@ def check_no_bare_hex_colors(css: str) -> tuple[bool, str]:
     )
 
 
+# 检查无 at import。
 def check_no_at_import(css: str) -> tuple[bool, str]:
-    """Reject stylesheet-level imports from the sessions-list CSS contract.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    Args:
-        css: Full sessions-list stylesheet content.
-
-    Returns:
-        Pass/fail status and detail explaining whether @import was found.
+    返回：
+        结果 tuple。
     """
     if re.search(r'@import\s', css):
         return False, 'Found @import directive — CSS files should not @import'
-    return True, 'No @import directives'
 
 
+# 检查page selectors。
 def check_page_selectors(css: str) -> tuple[bool, str]:
-    """Verify required page-scoped selectors remain in the stylesheet.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    Args:
-        css: Full sessions-list stylesheet content.
-
-    Returns:
-        Pass/fail status and missing selector detail for CI output.
+    返回：
+        Pass/fail 状态 和 缺失 selector detail用于CI 输出。
     """
     required = ['.sessions-page', '.sessions-filter-card', '.sessions-row']
     missing = [s for s in required if s not in css]
@@ -111,17 +90,13 @@ def check_page_selectors(css: str) -> tuple[bool, str]:
     return True, f'Has all required page-specific selectors: {", ".join(required)}'
 
 
+# 检查无 generic reset。
 def check_no_generic_reset(css: str) -> tuple[bool, str]:
-    """Reject generic reset selectors that would leak outside sessions-list.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    Allowed patterns such as `.sessions-page .btn {` stay scoped to the QA
-    target. Standalone resets fail because they can change unrelated pages.
-
-    Args:
-        css: Full sessions-list stylesheet content.
-
-    Returns:
-        Pass/fail status and offender detail for static QA output.
+    返回：
+        Pass/fail 状态 和 offender detail用于static QA 输出。
     """
     offenders = []
     reset_patterns = [
@@ -132,14 +107,12 @@ def check_no_generic_reset(css: str) -> tuple[bool, str]:
     for pattern, label in reset_patterns:
         if re.search(pattern, css, re.MULTILINE):
             offenders.append(label)
-    # For .btn and .card, only flag if they are NOT scoped under .sessions-page
     for cls in ['btn', 'card']:
-        # Match lines starting with `.btn {` or `.card {` (no parent selector)
         pat = re.compile(rf'^\s*\.{cls}\s*\{{', re.MULTILINE)
         for m in pat.finditer(css):
             line_start = css.rfind('\n', 0, m.start()) + 1
             prefix = css[line_start : m.start()].strip()
-            # If there's a parent selector on the same line (e.g. `.sessions-page .btn {`) skip
+            # 判断 not prefix or all(c in ' \t' for c in prefix) 是否满足。
             if not prefix or all(c in ' \t' for c in prefix):
                 offenders.append(f'.{cls} {{')
     if offenders:
@@ -147,14 +120,13 @@ def check_no_generic_reset(css: str) -> tuple[bool, str]:
     return True, 'No generic reset rules'
 
 
+# 检查token variable usage。
 def check_token_variable_usage(css: str) -> tuple[bool, str]:
-    """Verify the stylesheet consumes design-token CSS variables.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    Args:
-        css: Full sessions-list stylesheet content.
-
-    Returns:
-        Pass/fail status and a sample of variable names used by the CSS.
+    返回：
+        Pass/fail 状态 和 sample of variable names 供 CSS。
     """
     vars_used = re.findall(r'var\((--[\w-]+)', css)
     if not vars_used:
@@ -165,20 +137,17 @@ def check_token_variable_usage(css: str) -> tuple[bool, str]:
     )
 
 
+# 检查responsive breakpoints。
 def check_responsive_breakpoints(css: str) -> tuple[bool, str]:
-    """Check that the sessions-list layout has a responsive strategy.
+    """参数：
+        css: 待检查的 CSS 文本。
 
-    Args:
-        css: Full sessions-list stylesheet content.
-
-    Returns:
-        Pass/fail status and detail naming either media queries or fluid patterns.
+    返回：
+        结果 tuple。
     """
     breakpoints = re.findall(r'@media\s', css)
     if breakpoints:
         return True, f'Has {len(breakpoints)} @media breakpoint(s)'
-    # Check for fluid/responsive layout patterns that handle responsiveness
-    # without explicit breakpoints
     fluid_patterns = {
         'width: min(100%': 'max-width constraint via min()',
         'flex-wrap: wrap': 'flex-wrap for wrapping',
@@ -195,15 +164,13 @@ def check_responsive_breakpoints(css: str) -> tuple[bool, str]:
     return False, 'No @media queries or fluid responsive patterns found'
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run all sessions-list CSS static QA checks.
+    """返回：
+        进程退出码。
 
-    This CLI is triggered from the QA script suite and reads only the configured
-    CSS file. It prints each check result, returns 0 when all required checks
-    pass, and returns 1 when any contract check fails.
-
-    Returns:
-        Process exit code for the static CSS QA gate.
+    说明：
+        CSS 文件. It 打印 each 检查 结果, 返回 0 当 all 必需 检查。
     """
     css = read(CSS_PATH)
 

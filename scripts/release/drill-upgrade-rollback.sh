@@ -7,7 +7,7 @@
 # 3. 升级过程中失败时不会留下半成品状态
 #
 # 用法：
-#   scripts/release/drill-upgrade-rollback.sh --candidate-dir <dir> --version <version>
+# 校验脚本运行前置条件和输入输出边界。
 #
 # 参数：
 #   --candidate-dir  包含发行产物的目录（release-candidate）
@@ -50,7 +50,7 @@ echo "Candidate dir: $CANDIDATE_DIR"
 echo ""
 
 # ============================================================
-# Phase 1: Verify distribution artifact completeness
+# 阶段 1：校验 distribution artifact 完整性
 # ============================================================
 echo "--- Phase 1: Distribution artifact completeness ---"
 
@@ -83,7 +83,7 @@ echo "  All $platform_count platforms verified"
 echo ""
 
 # ============================================================
-# Phase 2: VERSION consistency
+# 阶段 2：校验 VERSION 一致性
 # ============================================================
 echo "--- Phase 2: VERSION consistency ---"
 
@@ -96,7 +96,7 @@ echo "  PASS: VERSION matches release version ($VERSION)"
 echo ""
 
 # ============================================================
-# Phase 3: VERSION file in distribution archives
+# 阶段 3：校验 distribution archives 中的 VERSION 文件
 # ============================================================
 echo "--- Phase 3: VERSION in distribution archives ---"
 
@@ -126,7 +126,7 @@ done
 echo ""
 
 # ============================================================
-# Phase 4: Checksum manifest coverage
+# 阶段 4：校验 checksum manifest 覆盖范围
 # ============================================================
 echo "--- Phase 4: Checksum manifest coverage ---"
 
@@ -162,7 +162,7 @@ done
 echo ""
 
 # ============================================================
-# Phase 5: Upgrade safety verification (structural check)
+# 阶段 5：upgrade safety verification（结构检查）
 # ============================================================
 echo "--- Phase 5: Upgrade safety ---"
 
@@ -172,7 +172,7 @@ echo "  PASS: Pre-upgrade automatic backup by DS-050 (see java/application modul
 echo ""
 
 # ============================================================
-# Phase 6: Rollback safety verification (structural check)
+# 阶段 6：rollback safety verification（结构检查）
 # ============================================================
 echo "--- Phase 6: Rollback safety ---"
 
@@ -182,7 +182,7 @@ echo "  PASS: Post-rollback data integrity ensured by SQLite CHECK constraints"
 echo ""
 
 # ============================================================
-# Summary
+# 汇总
 # ============================================================
 echo "===== Drill Summary ====="
 echo "Version: $VERSION"

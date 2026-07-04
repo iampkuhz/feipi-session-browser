@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""Validate primitive screenshots against HIFI reference images.
-
-This harness script validates that each UI primitive renders correctly
-by taking screenshots in isolation and comparing them against HIFI reference images.
-
-Usage:
-    python3 scripts/qa/ui/validate_primitive_screenshots.py              # validate all
-    python3 scripts/qa/ui/validate_primitive_screenshots.py --capture    # capture new screenshots
-    python3 scripts/qa/ui/validate_primitive_screenshots.py --primitive button  # validate single
-    python3 scripts/qa/ui/validate_primitive_screenshots.py --list       # list all primitives
-
-Primitives covered:
-    Canonical (15): button, icon_button, badge, metric_card, metric_grid,
-                    pagination, token_bar, tooltip, popover, section_card,
-                    data_table, filter_bar, payload_modal, empty_state, error_state
-Reference image directory: qa/screenshots/primitive-references/
-Actual screenshot directory: test-results/primitive-screenshots/
-"""
+"""提供 validate primitive screenshots 脚本能力。"""
 
 from __future__ import annotations
 
@@ -30,13 +13,11 @@ import time
 import urllib.request
 from pathlib import Path
 
-# ── Configuration ─────────────────────────────────────────────────────────
 
 ROOT = Path(__file__).resolve().parents[3]
 PRIMITIVE_REFERENCES = ROOT / 'qa' / 'screenshots' / 'primitive-references'
 PRIMITIVE_ACTUALS = ROOT / 'test-results' / 'primitive-screenshots'
 
-# Canonical primitives — each maps to a macro name in ui_primitives.html
 CANONICAL_PRIMITIVES = [
     'button',
     'icon_button',
@@ -57,25 +38,21 @@ CANONICAL_PRIMITIVES = [
 
 ALL_PRIMITIVES = CANONICAL_PRIMITIVES
 
-# Default viewport for screenshot capture
+# 默认 viewport用于screenshot capture。
 VIEWPORT = {'width': 800, 'height': 600}
 
-# Default server port (matches session-browser.sh default)
+# 默认 server port (matches session-browser.sh 默认)。
 DEFAULT_PORT = 18999
 SIZE_RATIO_TOLERANCE = 0.3
 
 
-# ── Primitive rendering configuration ─────────────────────────────────────
-
-
+# 读取primitive render args。
 def get_primitive_render_args(name: str) -> dict:
-    """Return macro arguments used by the primitive screenshot QA harness.
+    """参数：
+        name: 条目名称。
 
-    Args:
-        name: Canonical primitive name requested by the CLI or batch capture.
-
-    Returns:
-        Dictionary passed into the UI primitive macro; unknown names return an empty mapping.
+    返回：
+        结果映射。
     """
     args: dict = {
         'button': {'label': 'Primary Action', 'variant': 'primary'},
@@ -121,27 +98,22 @@ def get_primitive_render_args(name: str) -> dict:
     return args.get(name, {})
 
 
-# ── Dev server management ─────────────────────────────────────────────────
-
-
 class DevServer:
-    """Manage the feipi-session-browser dev server lifecycle."""
+    """表示 DevServer。
+    """
 
+    # 维护init。
     def __init__(self, port: int = DEFAULT_PORT) -> None:
-        """Store the target port for the dev server lifecycle used by screenshot QA.
-
-        Args:
-            port: TCP port that the temporary session-browser server should bind.
+        """参数：
+            port: 本地服务端口。
         """
         self.port = port
         self.process: subprocess.Popen | None = None
 
+    # 维护启动。
     def start(self) -> bool:
-        """Start the dev server before Playwright captures primitive screenshots.
-
-        Returns:
-            True when the server responds before the readiness deadline; otherwise False after
-            printing the skip or warning reason.
+        """返回：
+            满足条件时返回 true，否则返回 false。
         """
         try:
             self.process = subprocess.Popen(
@@ -162,7 +134,7 @@ class DevServer:
                 stderr=subprocess.DEVNULL,
                 env={**_clean_env(), 'PYTHONUNBUFFERED': '1'},
             )
-            # Wait for server to be ready
+            # 等待用于 server到be ready。
             for _ in range(30):
                 time.sleep(0.5)
                 if _is_server_ready(self.port):
@@ -173,8 +145,8 @@ class DevServer:
             print('  SKIP: session_browser module not found')
             return False
 
+    # 维护stop。
     def stop(self) -> None:
-        """Terminate the background dev server after screenshot capture finishes."""
         if self.process:
             self.process.terminate()
             try:
@@ -184,27 +156,23 @@ class DevServer:
             self.process = None
 
 
+# 维护clean 环境。
 def _clean_env() -> dict:
-    """Build the environment used when the screenshot QA script launches the dev server.
-
-    Returns:
-        Copy of the current environment with repo src prepended to PYTHONPATH; it has no
-        filesystem side effects.
+    """返回：
+        结果映射。
     """
     env = dict(os.environ)
     env['PYTHONPATH'] = str(ROOT / 'src') + ':' + env.get('PYTHONPATH', '')
     return env
 
 
+# 判断是否server ready。
 def _is_server_ready(port: int) -> bool:
-    """Probe the local dev server readiness endpoint during screenshot QA startup.
+    """参数：
+        port: 本地服务端口。
 
-    Args:
-        port: TCP port to probe on 127.0.0.1.
-
-    Returns:
-        True when the server accepts an HTTP request within the timeout; False when the
-        probe fails.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     try:
         urllib.request.urlopen(f'http://127.0.0.1:{port}', timeout=1)
@@ -213,14 +181,10 @@ def _is_server_ready(port: int) -> bool:
         return False
 
 
-# ── Screenshot capture ────────────────────────────────────────────────────
-
-
+# 确保Playwright。
 def ensure_playwright() -> bool:
-    """Check that Playwright is installed before primitive screenshot capture runs.
-
-    Returns:
-        True when npx reports a Playwright version; False after printing the setup hint.
+    """返回：
+        满足条件时返回 true，否则返回 false。
     """
     result = subprocess.run(
         ['npx', 'playwright', '--version'],
@@ -237,22 +201,21 @@ def ensure_playwright() -> bool:
     return False
 
 
+# 维护capture primitive 截图。
 def capture_primitive_screenshots(
     primitives: list[str],
     port: int = DEFAULT_PORT,
     output_dir: Path | None = None,
     capture_only: bool = False,
 ) -> dict:
-    """Capture and optionally compare primitive screenshots for the UI QA gate.
+    """参数：
+        primitives: primitives 参数。
+        port: 本地服务端口。
+        output_dir: 可选目录用于generated screenshots; defaults到test-结果。
+        capture_only: capture only 参数。
 
-    Args:
-        primitives: Primitive names selected by the CLI.
-        port: Local dev server port used for render URLs.
-        output_dir: Optional directory for generated screenshots; defaults to test-results.
-        capture_only: When True, writes screenshots without comparing against references.
-
-    Returns:
-        Mapping keyed by primitive name with pass, fail, or skip status and diagnostic details.
+    返回：
+        映射 keyed by primitive name带pass, fail, 或 skip 状态 和 diagnostic details。
     """
     results: dict = {}
     base_dir = output_dir or PRIMITIVE_ACTUALS
@@ -263,13 +226,11 @@ def capture_primitive_screenshots(
             results[name] = {'status': 'skip', 'details': 'Playwright not available'}
         return results
 
-    # Use Playwright via subprocess to take screenshots
-    # For harness setup: generate the script that would do the capture
     for name in primitives:
         ref_path = PRIMITIVE_REFERENCES / f'{name}-reference.png'
         actual_path = base_dir / f'{name}-actual.png'
 
-        # Check if reference exists
+        # 检查如果 reference exists。
         has_reference = ref_path.exists()
 
         if not has_reference and not capture_only:
@@ -279,7 +240,7 @@ def capture_primitive_screenshots(
             }
             continue
 
-        # Generate screenshot via Playwright
+        # 生成screenshot via Playwright。
         pw_result = _take_screenshot_with_playwright(
             name,
             url=f'http://127.0.0.1:{port}/__primitives__/{name}',
@@ -307,20 +268,19 @@ def capture_primitive_screenshots(
     return results
 
 
+# 维护take 截图 Playwright。
 def _take_screenshot_with_playwright(
     name: str,
     url: str,
     output_path: str,
 ) -> dict:
-    """Invoke Playwright for one primitive render URL and write its screenshot artifact.
+    """参数：
+        name: 用于诊断信息的 primitive 名称。
+        url: 隔离渲染 primitive 的本地浏览器 URL。
+        output_path: Playwright 写入 PNG 的文件系统路径。
 
-    Args:
-        name: Primitive name used for diagnostics.
-        url: Local browser URL that renders the primitive in isolation.
-        output_path: Filesystem path where Playwright writes the PNG.
-
-    Returns:
-        Result mapping with pass/fail/skip status and command output details.
+    返回：
+        包含状态和命令输出详情的结果映射。
     """
     spec = f"""
 const {{ test, expect }} = require('@playwright/test');
@@ -359,16 +319,14 @@ test('{name} primitive screenshot', async ({{ page }}) => {{
         Path(spec_path).unlink(missing_ok=True)
 
 
+# 比较图像。
 def _compare_images(ref_path: str, actual_path: str) -> dict:
-    """Compare one actual primitive screenshot against its HIFI reference image.
+    """参数：
+        ref_path: 期望的 reference PNG 路径。
+        actual_path: 实际捕获的 screenshot PNG 路径。
 
-    Args:
-        ref_path: Expected reference PNG path.
-        actual_path: Captured screenshot PNG path.
-
-    Returns:
-        Result mapping whose status is pass, fail, or skip and whose details explain the
-        comparison outcome.
+    返回：
+        包含通过状态和比较详情的结果映射。
     """
     ref = Path(ref_path)
     actual = Path(actual_path)
@@ -378,8 +336,7 @@ def _compare_images(ref_path: str, actual_path: str) -> dict:
     if not ref.exists():
         return {'pass': False, 'message': 'Reference screenshot missing'}
 
-    # In production: use pixelmatch or Playwright's expect.toHaveScreenshot
-    # For harness setup: report file sizes as a basic sanity check
+    # 当前 harness 先用文件大小做基础 sanity check。
     ref_size = ref.stat().st_size
     actual_size = actual.stat().st_size
 
@@ -395,18 +352,14 @@ def _compare_images(ref_path: str, actual_path: str) -> dict:
     }
 
 
-# ── Reporting ─────────────────────────────────────────────────────────────
-
-
+# 打印报告。
 def print_report(results: dict, capture_only: bool = False) -> bool:
-    """Print the primitive screenshot QA summary consumed by developers and gates.
+    """参数：
+        results: results 参数。
+        capture_only: 是否the 运行 仅 captured screenshots 和 skipped 比较。
 
-    Args:
-        results: Per-primitive result mapping produced by capture_primitive_screenshots.
-        capture_only: Whether the run only captured screenshots and skipped comparison.
-
-    Returns:
-        True when no primitive failed; False when at least one comparison or capture failed.
+    返回：
+        当no primitive 失败; 当 at least one 比较 或 capture 失败.时返回 true。
     """
     mode = 'Capture' if capture_only else 'Validation'
     print(f'\n{"=" * 60}')
@@ -450,11 +403,10 @@ def print_report(results: dict, capture_only: bool = False) -> bool:
 # ── CLI ───────────────────────────────────────────────────────────────────
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI options and run the primitive screenshot QA command.
-
-    Returns:
-        Process exit code: 0 for a successful capture/list/validation, 1 for validation failure.
+    """返回：
+        进程退出码: 0用于a successful capture/列表/validation, 1用于validation 失败项。
     """
     parser = argparse.ArgumentParser(
         description='Validate primitive screenshots against HIFI references.',
@@ -497,7 +449,7 @@ def main() -> int:
 
     args = parser.parse_args()
 
-    # List mode
+    # 列出mode。
     if args.list:
         print('Canonical primitives (15):')
         for name in CANONICAL_PRIMITIVES:
@@ -505,12 +457,11 @@ def main() -> int:
             print(f'  - {name}: {json.dumps(args_dict)}')
         print(f'\nTotal: {len(ALL_PRIMITIVES)} primitives')
 
-        # Check existing references
+        # 检查现有 references。
         ref_count = sum(1 for p in PRIMITIVE_REFERENCES.glob('*.png'))
         print(f'Existing references: {ref_count}/{len(ALL_PRIMITIVES)}')
         return 0
 
-    # Select primitives
     if args.primitive:
         if args.primitive not in ALL_PRIMITIVES:
             print(f"ERROR: Unknown primitive '{args.primitive}'")
@@ -520,7 +471,6 @@ def main() -> int:
     else:
         primitives = ALL_PRIMITIVES
 
-    # Capture mode
     server = DevServer(port=args.port)
     try:
         if not args.no_server:

@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""Check that scroll shadow feature has been fully removed.
-
-This script verifies:
-1. No .table-wrap::before / ::after pseudo-element rules in CSS
-2. No is-scroll-left / is-scroll-right class rules in CSS
-3. No updateScrollShadow / initScrollShadows / initAllScrollShadows in JS
-4. No resize/profile-loaded scroll-shadow listeners in JS
-
-Usage:
-    cd <repo-root>
-    PYTHONPATH=src python scripts/check_scroll_shadow_behavior.py
-
-Exit codes:
-    0 — all checks pass (feature fully removed)
-    1 — one or more FAILs detected (residuals found)
-"""
+"""提供 检查 scroll shadow behavior 脚本能力。"""
 
 from __future__ import annotations
 
@@ -42,25 +27,21 @@ _COUNTERS = {'OK': 0, 'FAIL': 0, 'WARN': 0}
 _findings: list[tuple[str, str]] = []
 
 
+# 重置counters。
 def _reset_counters() -> None:
-    """Reset mutable QA counters for unit tests that import this script.
-
-    The pytest suite calls this helper before invoking individual checks. It
-    clears only in-memory counters and findings; it does not read files, write
-    artifacts, or change process environment.
+    """说明：
+        clears 仅 in-memory counters 和 findings；it does 不 读取 文件, 写入。
     """
     _COUNTERS.update({'OK': 0, 'FAIL': 0, 'WARN': 0})
     _findings.clear()
 
 
+# 维护报告。
 def report(level: str, check: str, detail: str = '') -> None:
-    """Record and print one scroll-shadow QA check result.
-
-    Args:
-        level: Result level emitted by a check: OK, FAIL, or WARN. Unknown
-            values print as ?? and count as warnings to keep failure output visible.
-        check: Human-readable check name shown in local and CI logs.
-        detail: Optional context explaining the matched or missing static pattern.
+    """参数：
+        level: level 参数。
+        check: 检查 参数。
+        detail: 可选context explaining matched 或 缺失 static pattern。
     """
     tag = {'OK': 'OK', 'FAIL': 'FAIL', 'WARN': 'WARN'}.get(level, '??')
     line = f'  [{tag}] {check}'
@@ -72,25 +53,23 @@ def report(level: str, check: str, detail: str = '') -> None:
     _COUNTERS[counter_key] += 1
 
 
+# 读取文件。
 def read_file(p: Path) -> str:
-    """Read one static asset for the scroll-shadow removal gate.
+    """参数：
+        p: p 参数。
 
-    Args:
-        p: CSS, JavaScript, or template path under the web asset tree.
-
-    Returns:
-        File text when present; an empty string when optional assets are absent.
+    返回：
+        文件 text 当 present；空 字符串 当 可选 assets are absent。
     """
     if not p.exists():
         return ''
     return p.read_text(encoding='utf-8')
 
 
+# 读取全部 JavaScript。
 def read_all_js() -> str:
-    """Concatenate JavaScript sources inspected by the removal gate.
-
-    Returns:
-        Combined JavaScript text in configured file order; missing files contribute nothing.
+    """返回：
+        Combined JavaScript text in configured 文件 order；缺失 文件 contribute nothing。
     """
     parts: list[str] = []
     for f in JS_FILES:
@@ -100,11 +79,10 @@ def read_all_js() -> str:
     return '\n'.join(parts)
 
 
+# 读取全部 inline JavaScript。
 def read_all_inline_js() -> str:
-    """Extract inline script bodies from templates checked for shadow listeners.
-
-    Returns:
-        Combined inline JavaScript bodies, preserving template order for diagnostics.
+    """返回：
+        Combined inline JavaScript bodies, preserving template order用于诊断信息。
     """
     parts: list[str] = []
     for f in INLINE_JS_FILES:
@@ -116,14 +94,10 @@ def read_all_inline_js() -> str:
     return '\n'.join(parts)
 
 
-# ─── 1. CSS: verify ::before removed ───────────────────────────────
-
-
+# 检查right shadow absent。
 def check_right_shadow_absent(css: str) -> None:
-    """Verify the right scroll-shadow pseudo-element is absent.
-
-    Args:
-        css: shell.css content loaded by the QA gate.
+    """参数：
+        css: 待检查的 CSS 文本。
     """
     has_after = bool(re.search(r'\.table-wrap\s*::after\s*\{', css))
     if not has_after:
@@ -132,14 +106,10 @@ def check_right_shadow_absent(css: str) -> None:
         report('FAIL', 'Right shadow (.table-wrap::after) still present')
 
 
-# ─── 2. CSS: verify ::before removed ───────────────────────────────
-
-
+# 检查left shadow absent。
 def check_left_shadow_absent(css: str) -> None:
-    """Verify the left scroll-shadow pseudo-element is absent.
-
-    Args:
-        css: shell.css content loaded by the QA gate.
+    """参数：
+        css: 待检查的 CSS 文本。
     """
     has_before = bool(re.search(r'\.table-wrap\s*::before\s*\{', css))
     if not has_before:
@@ -148,14 +118,10 @@ def check_left_shadow_absent(css: str) -> None:
         report('FAIL', 'Left shadow (.table-wrap::before) still present')
 
 
-# ─── 3. CSS: verify state classes removed ──────────────────────────
-
-
+# 检查state classes absent。
 def check_state_classes_absent(css: str) -> None:
-    """Verify obsolete scroll-state classes are absent from CSS.
-
-    Args:
-        css: shell.css content loaded by the QA gate.
+    """参数：
+        css: 待检查的 CSS 文本。
     """
     has_left = '.is-scroll-left' in css
     has_right = '.is-scroll-right' in css
@@ -169,15 +135,11 @@ def check_state_classes_absent(css: str) -> None:
         report('FAIL', 'is-scroll-right class rule still present')
 
 
-# ─── 4. JS: verify shadow functions removed ────────────────────────
-
-
+# 检查JavaScript shadow absent。
 def check_js_shadow_absent(js: str, inline_js: str) -> None:
-    """Verify obsolete scroll-shadow JavaScript hooks are absent.
-
-    Args:
-        js: Combined external JavaScript assets inspected by the gate.
-        inline_js: Inline template script bodies inspected for old listeners.
+    """参数：
+        js: 待执行的 JavaScript 表达式。
+        inline_js: 内联 JavaScript 文本。
     """
     all_js = js + '\n' + inline_js
 
@@ -187,7 +149,7 @@ def check_js_shadow_absent(js: str, inline_js: str) -> None:
         else:
             report('FAIL', f'{name} still present in JS')
 
-    # Check for resize listener tied to shadow init
+    # 检查用于 resize listener tied到shadow init。
     has_resize_shadow = bool(
         re.search(r"addEventListener.*['\"]resize['\"].*initAllScrollShadows", all_js)
     )
@@ -196,7 +158,7 @@ def check_js_shadow_absent(js: str, inline_js: str) -> None:
     else:
         report('FAIL', 'resize+shadow init listener still present')
 
-    # Check for profile-loaded shadow reinit
+    # 检查用于 profile-loaded shadow reinit。
     has_profile_shadow = bool(
         re.search(r"addEventListener.*['\"]profile-loaded['\"].*initAllScrollShadows", all_js)
     )
@@ -206,14 +168,10 @@ def check_js_shadow_absent(js: str, inline_js: str) -> None:
         report('FAIL', 'profile-loaded+shadow reinit listener still present')
 
 
-# ─── 5. HTML: verify .table-wrap layout preserved ─────────────────
-
-
+# 检查表格 wrap 布局。
 def check_table_wrap_layout(css: str) -> None:
-    """Verify table scrolling layout survived scroll-shadow removal.
-
-    Args:
-        css: shell.css content loaded by the QA gate.
+    """参数：
+        css: 待检查的 CSS 文本。
     """
     has_base = bool(re.search(r'\.table-wrap\s*\{', css))
     has_overflow = 'overflow-x' in css and 'auto' in css
@@ -227,19 +185,10 @@ def check_table_wrap_layout(css: str) -> None:
         report('WARN', 'overflow-x:auto not confirmed')
 
 
-# ─── Main ───────────────────────────────────────────────────────────
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the scroll-shadow removal verification script.
-
-    The quality and page tests trigger this CLI from the repo root. It reads CSS,
-    JavaScript, and template files, prints OK/WARN/FAIL evidence, and returns 1
-    when any removed shadow behavior is still present.
-
-    Returns:
-        Process exit code: 0 for pass or pass-with-warning, 1 for residual
-        behavior, and 2 when required CSS input is missing.
+    """返回：
+        进程退出码: 0用于pass 或 pass-带-警告, 1用于residual。 behavior, 和 2 当 必需 CSS 输入 is 缺失。
     """
     print('=' * 60)
     print('  Scroll Shadow Removal Verification')
@@ -273,7 +222,7 @@ def main() -> int:
     print('  ' + '-' * 40)
     check_table_wrap_layout(css)
 
-    # Summary
+    # 结果汇总。
     print('\n' + '=' * 60)
     total = sum(_COUNTERS.values())
     ok = _COUNTERS['OK']

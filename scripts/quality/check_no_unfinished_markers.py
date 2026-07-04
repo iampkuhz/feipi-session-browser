@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Check that source and documentation files do not contain unfinished markers."""
+"""提供 检查 no unfinished markers 脚本能力。"""
 
 import sys
 from pathlib import Path

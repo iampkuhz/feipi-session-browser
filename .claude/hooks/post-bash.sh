@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PostToolUse (Write/Edit/...): 写后记录。
+# PostToolUse (Bash): 记录 Bash 命令造成的文件变更 evidence。
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -10,9 +10,8 @@ cd "$ROOT" || exit $EXIT_WARN
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export FEIPI_AGENT_CLIENT="claude"
 
-# 保存 stdin 到临时文件
 STDIN_TMP="$(mktemp)"
 cat > "$STDIN_TMP" 2>/dev/null || true
 
-python3 -m scripts.claude_hooks.main post-write < "$STDIN_TMP"
+python3 -m scripts.claude_hooks.main post-bash < "$STDIN_TMP"
 rm -f "$STDIN_TMP"

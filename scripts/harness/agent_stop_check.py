@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared stop gate for Claude Code, Codex, and Qoder entrypoints."""
+"""为 Claude Code、Codex 和 Qoder 提供共享 stop gate。"""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ import json
 import os
 import subprocess
 import sys
+import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
@@ -19,10 +20,25 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.quality import changed_files as changed_file_utils  # noqa: E402
+from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
 
 AGENT_LOG_BASE = REPO_ROOT / 'tmp' / 'agent_logs'
-SESSION_ID_FILE = AGENT_LOG_BASE / 'current' / 'session-id.txt'
-CHANGED_FILES = AGENT_LOG_BASE / 'current' / 'changed-files.jsonl'
+LEGACY_SESSION_ID_FILE = AGENT_LOG_BASE / 'legacy' / 'session-id.txt'
+LEGACY_CHANGED_FILES = AGENT_LOG_BASE / 'legacy' / 'changed-files.jsonl'
+CHANGED_FILES = LEGACY_CHANGED_FILES
+STOP_LOCK = AGENT_LOG_BASE / 'stop-check' / 'legacy.lock'
+STOP_LOCK_STALE_SECONDS = 2 * 60 * 60
+PROTECTED_ROOTS = [
+    'CLAUDE.md',
+    'AGENTS.md',
+    'openspec/',
+    '.claude/',
+    '.codex/',
+    '.qoder/',
+    'scripts/',
+    'harness/',
+    'src/',
+]
 
 LOCAL_ONLY_PATHS = [
     '.claude/settings.local.json',
@@ -35,20 +51,18 @@ LOCAL_ONLY_PATHS = [
 ]
 
 
+# 返回当前 UTC timestamp。
 def utc_now() -> str:
-    """Return the current UTC timestamp for stop-check summaries.
-
-    Returns:
-        ISO-8601 timestamp string in UTC.
+    """返回：
+        当前 UTC timestamp 字符串。
     """
     return datetime.now(timezone.utc).isoformat()
 
 
+# 读取JSON stdin。
 def _read_json_stdin() -> dict[str, Any]:
-    """Read optional hook context JSON from standard input.
-
-    Returns:
-        Parsed JSON object, or an empty mapping when input is absent or invalid.
+    """返回：
+        已解析的JSON 对象, 或 空 映射 当 输入 缺失 或 无效。
     """
     try:
         text = sys.stdin.read()
@@ -63,108 +77,147 @@ def _read_json_stdin() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+# 维护session id context。
 def _session_id_from_context(ctx: dict[str, Any]) -> str | None:
-    """Resolve the active agent session id from hook context or log state.
+    """参数：
+        ctx: hook stdin 解析出的 context。
 
-    Args:
-        ctx: Hook context parsed from standard input.
-
-    Returns:
-        Session id when available; otherwise None.
+    返回：
+        session id 当 可用；否则 None。
     """
     sid = ctx.get('session_id') or ctx.get('sessionId')
     if isinstance(sid, str) and sid:
         return sid
-    if SESSION_ID_FILE.exists():
-        value = SESSION_ID_FILE.read_text(encoding='utf-8').strip()
+    env = os.environ.get('FEIPI_SESSION_ID', '')
+    if env:
+        return env
+    return None
+
+
+# 维护session id log state。
+def _session_id_from_log_state() -> str | None:
+    """返回：
+        日志状态文件中的 session id 字符串。
+    """
+    if LEGACY_SESSION_ID_FILE.exists():
+        value = LEGACY_SESSION_ID_FILE.read_text(encoding='utf-8').strip()
         return value or None
     return None
 
 
+# 维护agent id context。
 def _agent_id_from_context(ctx: dict[str, Any]) -> str | None:
-    """Resolve the current agent id from hook context.
+    """参数：
+        ctx: hook stdin 解析出的 context。
 
-    Args:
-        ctx: Hook context parsed from standard input.
-
-    Returns:
-        Agent id when available; otherwise None.
+    返回：
+        agent id 当 可用；否则 None。
     """
     aid = ctx.get('agent_id') or ctx.get('agentId')
     if isinstance(aid, str) and aid:
         return aid
+    env = os.environ.get('FEIPI_AGENT_ID', '')
+    if env:
+        return env
     return None
 
 
+# 规范化注释文本。
 def _normalize(path: str) -> str:
-    """Normalize repository-relative paths for stable comparisons.
+    """参数：
+        path: 原始路径从hook 日志 或 git 输出。
 
-    Args:
-        path: Raw path from hook logs or git output.
-
-    Returns:
-        Slash-normalized repository-relative path without leading dot segments.
+    返回：
+        normalize 字符串。
     """
     return changed_file_utils.normalize_path(path)
 
 
+# 维护dedupe。
 def _dedupe(paths: list[str]) -> list[str]:
-    """Return normalized paths once while preserving first-seen order.
+    """参数：
+        paths: 原始路径 字符串到normalize 和 deduplicate。
 
-    Args:
-        paths: Raw path strings to normalize and deduplicate.
-
-    Returns:
-        Ordered unique normalized paths.
+    返回：
+        Ordered 去重后的 规范化 路径。
     """
     return changed_file_utils.dedupe_paths(paths)
 
 
+# 读取recorded changed-files 文件。
 def read_recorded_changed_files(session_id: str | None, agent_id: str | None = None) -> list[str]:
-    """Read changed files recorded by agent write hooks for the active session.
+    """参数：
+        session_id: 可选session id used到filter hook record。
+        agent_id: 可选agent id used到filter record到a specific agent。
 
-    Args:
-        session_id: Optional session id used to filter hook records.
-        agent_id: Optional agent id used to filter records to a specific agent.
-
-    Returns:
-        Changed paths recorded for the session.
+    返回：
+        结果列表。
     """
     return changed_file_utils.read_recorded_changed_files(
         session_id, CHANGED_FILES, agent_id=agent_id
     )
 
 
+# 解析Git 状态 路径。
 def parse_git_status_paths(output: str) -> list[str]:
-    """Extract normalized file paths from git short-status output.
+    """参数：
+        output: 原始输出从``git 状态 --short``。
 
-    Args:
-        output: Raw output from ``git status --short``.
-
-    Returns:
-        Normalized changed paths, including both sides of rename records.
+    返回：
+        规范化 changed 路径, including both sides of rename record。
     """
     return changed_file_utils.parse_git_status_paths(output)
 
 
+# 读取Git dirty 文件。
 def read_git_dirty_files() -> list[str]:
-    """Read files currently dirty in git so shell edits are included.
-
-    Returns:
-        Normalized dirty paths, or an empty list when git status is unavailable.
+    """返回：
+        规范化 dirty 路径, 或 空 列表 当 git 状态 不可用。
     """
     return changed_file_utils.read_git_dirty_files(REPO_ROOT)
 
 
+# 维护identity changed-files 文件 路径。
+def identity_changed_file_paths(identity: runtime_paths.RuntimeIdentity) -> list[Path]:
+    """参数：
+        identity: 当前 hook runtime 运行身份。
+
+    返回：
+        当前 session/agent 归属的 changed file 路径列表。
+    """
+    include_agents = not identity.is_agent
+    return [
+        log_dir / 'changed-files.jsonl'
+        for log_dir in runtime_paths.session_log_dirs(
+            REPO_ROOT, identity, include_agents=include_agents
+        )
+    ]
+
+
+# 读取当前 identity 作用域记录的 changed files。
+def read_identity_changed_files(identity: runtime_paths.RuntimeIdentity) -> list[str]:
+    """参数：
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        结果列表。
+    """
+    agent_filter = identity.raw_agent_id if identity.is_agent else None
+    return changed_file_utils.read_recorded_changed_files_from_paths(
+        identity_changed_file_paths(identity),
+        identity.raw_session_id,
+        agent_id=agent_filter,
+    )
+
+
+# 收集当前 session/agent 需要纳入 stop gate 的 changed files。
 def collect_changed_files(session_id: str | None, agent_id: str | None = None) -> list[str]:
-    """Collect changed files from hook logs and git status for gate routing.
+    """参数：
+        session_id: 可选session id used到filter hook record。
+        agent_id: 可选agent id used到filter record到a specific agent。
 
-    Args:
-        session_id: Optional session id used to filter hook records.
-        agent_id: Optional agent id used to filter records to a specific agent.
-
-    Returns:
-        Deduplicated paths from recorded hook writes and current git status.
+    返回：
+        Deduplicated 路径从recorded hook 写入 和 当前 git 状态。
     """
     return changed_file_utils.collect_changed_files(
         session_id,
@@ -175,12 +228,51 @@ def collect_changed_files(session_id: str | None, agent_id: str | None = None) -
     )
 
 
-def check_local_only_status() -> list[str]:
-    """Return dirty local-only paths that should block agent completion.
+# 收集stop changed-files 文件。
+def collect_stop_changed_files(
+    identity: runtime_paths.RuntimeIdentity | str | None,
+    fallback_session_id: str | None,
+    agent_id: str | None = None,
+) -> tuple[list[str], str]:
+    """参数：
+        identity: 当前 hook 运行time identity。
+        fallback_session_id: 兜底使用的 session id。
+        agent_id: 用于筛选记录的 agent id。
 
-    Returns:
-        Git short-status rows for local-only paths, or an empty list when clean.
+    返回：
+        结果 tuple。
     """
+    if isinstance(identity, str):
+        return read_recorded_changed_files(identity, agent_id=agent_id), 'session'
+    if identity is None:
+        return collect_changed_files(fallback_session_id, agent_id=agent_id), 'fail-closed'
+    if identity.has_session:
+        mode = 'identity-agent' if identity.is_agent else 'identity-session'
+        return read_identity_changed_files(identity), mode
+    changed = read_git_dirty_files()
+    if changed:
+        return changed, 'fail-closed-git'
+    return collect_changed_files(fallback_session_id, agent_id=agent_id), 'fail-closed-legacy'
+
+
+# 检查local 仅 状态。
+def check_local_only_status(changed_files: list[str] | None = None) -> list[str]:
+    """参数：
+        changed_files: 待检查的文件列表。
+
+    返回：
+        Git short-状态 行用于local-仅 路径, 或 空 列表 当 clean。
+    """
+    if changed_files is not None:
+        warnings: list[str] = []
+        for changed in changed_files:
+            normalized = _normalize(changed)
+            if any(
+                normalized == local or normalized.startswith(f'{local.rstrip("/")}/')
+                for local in LOCAL_ONLY_PATHS
+            ):
+                warnings.append(f'{normalized} 是 local-only 路径')
+        return warnings
     try:
         proc = subprocess.run(
             ['git', 'status', '--short', '--', *LOCAL_ONLY_PATHS],
@@ -197,40 +289,82 @@ def check_local_only_status() -> list[str]:
     return lines if proc.returncode == 0 else []
 
 
-def resolve_change_id() -> str:
-    """Resolve the active OpenSpec change id for stop-check evidence.
+# 读取active change id。
+def _read_active_change_id(identity: runtime_paths.RuntimeIdentity) -> str | None:
+    """参数：
+        identity: 当前 hook 运行time identity。
 
-    Returns:
-        Active change id from the environment or active-change file, else ``unknown``.
+    返回：
+        读取到的 active change id 字符串。
+    """
+    paths = runtime_paths.build_paths(REPO_ROOT, identity=identity)
+    if identity.has_session:
+        candidates = paths.active_change_candidates
+    else:
+        candidates = [runtime_paths.legacy_active_change_path(REPO_ROOT)]
+    for active_change in candidates:
+        if active_change.exists():
+            try:
+                data = json.loads(active_change.read_text(encoding='utf-8'))
+            except (json.JSONDecodeError, OSError):
+                continue
+            cid = data.get('change_id') or data.get('changeId') or ''
+            if isinstance(cid, str) and cid:
+                return cid
+    return None
+
+
+# 解析change id。
+def resolve_change_id(identity: runtime_paths.RuntimeIdentity | None = None) -> str:
+    """参数：
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        resolve change id 字符串。
     """
     env = os.environ.get('ACTIVE_CHANGE_ID', '')
     if env:
         return env
-    active_change = REPO_ROOT / 'tmp' / 'active_change.json'
-    if active_change.exists():
-        try:
-            data = json.loads(active_change.read_text(encoding='utf-8'))
-        except (json.JSONDecodeError, OSError):
-            return 'unknown'
-        cid = data.get('change_id', '')
-        if isinstance(cid, str) and cid:
+    if identity is not None:
+        cid = _read_active_change_id(identity)
+        if cid:
             return cid
     return 'unknown'
 
 
-def run_step(name: str, cmd: list[str]) -> bool:
-    """Run one blocking validation command and report whether it passed.
+# 维护changed-files 文件 校验 OpenSpec。
+def changed_files_require_openspec(changed_files: list[str]) -> bool:
+    """参数：
+        changed_files: 待检查的文件列表。
 
-    Args:
-        name: Human-readable step name for stderr diagnostics.
-        cmd: Command argv to execute from the repository root.
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
+    for path in changed_files:
+        normalized = _normalize(path)
+        for root in PROTECTED_ROOTS:
+            clean = root.rstrip('/')
+            if normalized == clean or normalized.startswith(f'{clean}/'):
+                return True
+    return False
 
-    Returns:
-        True when the command exits with status 0; otherwise False.
+
+# 运行step。
+def run_step(name: str, cmd: list[str], env_overrides: dict[str, str] | None = None) -> bool:
+    """参数：
+        name: 人类可读的 step name用于stderr 诊断信息。
+        cmd: 待执行的命令。
+        env_overrides: 覆盖 subprocess 环境变量的映射。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     print(f'[agent_stop_check] running {name}: {" ".join(cmd)}', file=sys.stderr)
     try:
-        proc = subprocess.run(cmd, cwd=REPO_ROOT, check=False)
+        env = os.environ.copy()
+        if env_overrides:
+            env.update(env_overrides)
+        proc = subprocess.run(cmd, cwd=REPO_ROOT, check=False, env=env)
     except Exception as exc:
         print(f'[agent_stop_check] {name} failed to start: {exc}', file=sys.stderr)
         return False
@@ -240,11 +374,10 @@ def run_step(name: str, cmd: list[str]) -> bool:
     return True
 
 
+# 维护任务 ledger warning。
 def task_ledger_warnings() -> list[str]:
-    """Return non-blocking task-ledger format warnings for stop summaries.
-
-    Returns:
-        Warning messages for malformed task-ledger state.
+    """返回：
+        结果列表。
     """
     ledger = REPO_ROOT / 'tmp' / 'task-ledger.md'
     if not ledger.exists():
@@ -255,14 +388,13 @@ def task_ledger_warnings() -> list[str]:
     return ['tmp/task-ledger.md 表头格式不正确']
 
 
+# 维护必需 targets。
 def required_targets(changed_files: list[str]) -> list[str]:
-    """Map changed files to required quality targets using the hook classifier.
+    """参数：
+        changed_files: 待检查的文件列表。
 
-    Args:
-        changed_files: Repository-relative paths changed in the session.
-
-    Returns:
-        Required quality target identifiers.
+    返回：
+        结果列表。
     """
     classifier = importlib.import_module('scripts.claude_hooks.classify')
     return classifier.required_quality_targets(changed_files)
@@ -270,49 +402,55 @@ def required_targets(changed_files: list[str]) -> list[str]:
 
 @dataclass(frozen=True)
 class StopSummary:
-    """Structured payload fields written by the shared stop-check gate.
+    """表示 StopSummary。
 
-    Attributes:
-        agent: Agent entrypoint name producing the summary.
-        session_id: Agent session id for per-session isolation.
-        read_only: Whether the session made no repository changes.
-        status: Stop-check status written for downstream adapters.
-        changed_files: Changed repository paths considered by the gate.
-        targets: Quality targets required for the changed files.
-        failures: Blocking validation failures observed during stop checks.
-        warnings: Non-blocking warnings captured for operator review.
+    属性：
+        agent: agent 参数。
+        session_id: 隔离运行数据的 session id。
+        read_only: read only 参数。
+        status: 状态值。
+        evidence_mode: evidence mode 参数。
+        lock_status: lock status 参数。
+        changed_files: 待检查的文件列表。
+        targets: targets 参数。
+        failures: failures 参数。
+        warnings: 警告列表。
+        identity: 当前 hook runtime 运行身份。
     """
 
     agent: str
     session_id: str
     read_only: bool
     status: str
+    evidence_mode: str
+    lock_status: str
     changed_files: list[str]
     targets: list[str]
     failures: list[str]
     warnings: list[str]
+    identity: runtime_paths.RuntimeIdentity | None = None
 
 
+# 写入summary。
 def write_summary(summary: StopSummary) -> None:
-    """Persist stop-check evidence for agent adapters and later inspection.
-
-    The summary is written to tmp/agent_logs/<agent-type>/<session-id>/stop-check-summary.json
-    so that multiple agents and sessions can run stop checks in parallel without
-    overwriting each other's results.
-
-    Args:
-        summary: Stop-check payload fields to serialize.
+    """参数：
+        summary: summary 参数。
     """
-    agent_log_dir = AGENT_LOG_BASE / summary.agent / summary.session_id
+    if summary.identity and summary.identity.has_session:
+        agent_log_dir = runtime_paths.agent_log_dir(REPO_ROOT, summary.identity)
+    else:
+        agent_log_dir = AGENT_LOG_BASE / 'legacy' / summary.agent / summary.session_id
     agent_log_dir.mkdir(parents=True, exist_ok=True)
     stop_summary_path = agent_log_dir / 'stop-check-summary.json'
     payload = {
-        'schemaVersion': 2,
+        'schemaVersion': 3,
         'ts': utc_now(),
         'agent': summary.agent,
         'readOnly': summary.read_only,
         'status': summary.status,
-        'changeId': resolve_change_id(),
+        'evidenceMode': summary.evidence_mode,
+        'lockStatus': summary.lock_status,
+        'changeId': resolve_change_id(summary.identity),
         'changedFiles': summary.changed_files,
         'requiredTargets': summary.targets,
         'blockingFailures': summary.failures,
@@ -323,11 +461,78 @@ def write_summary(summary: StopSummary) -> None:
     )
 
 
-def main() -> int:
-    """Run stop checks and return the shell exit code for the agent adapter.
+@dataclass
+class StopCheckLock:
+    """表示 StopCheckLock。
 
-    Returns:
-        Process exit code for the invoking agent adapter.
+    属性：
+        path: 待检查的路径。
+        agent: agent 参数。
+        session_id: 隔离运行数据的 session id。
+        acquired: acquired 参数。
+    """
+
+    path: Path
+    agent: str
+    session_id: str
+    acquired: bool = False
+
+    # 维护acquire。
+    def acquire(self) -> bool:
+        """返回：
+            满足条件时返回 true，否则返回 false。
+        """
+        self._remove_stale_lock()
+        payload = {
+            'schemaVersion': 1,
+            'ts': utc_now(),
+            'agent': self.agent,
+            'sessionId': self.session_id,
+            'pid': os.getpid(),
+        }
+        try:
+            self.path.parent.mkdir(parents=True, exist_ok=True)
+            fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+        except FileExistsError:
+            return False
+        except OSError:
+            return False
+        with os.fdopen(fd, 'w', encoding='utf-8') as f:
+            f.write(json.dumps(payload, ensure_ascii=False) + '\n')
+        self.acquired = True
+        return True
+
+    # 维护释放。
+    def release(self) -> None:
+        if not self.acquired:
+            return
+        try:
+            self.path.unlink()
+        except FileNotFoundError:
+            pass
+        finally:
+            self.acquired = False
+
+    # 移除stale 锁。
+    def _remove_stale_lock(self) -> None:
+        try:
+            age = time.time() - self.path.stat().st_mtime
+        except FileNotFoundError:
+            return
+        except OSError:
+            return
+        if age <= STOP_LOCK_STALE_SECONDS:
+            return
+        try:
+            self.path.unlink()
+        except OSError:
+            pass
+
+
+# 解析命令行参数并运行脚本入口。
+def main() -> int:
+    """返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(description='Run shared agent stop checks.')
     parser.add_argument('--agent', default='unknown', help='Agent entrypoint name')
@@ -335,39 +540,51 @@ def main() -> int:
     args = parser.parse_args()
 
     ctx = _read_json_stdin()
-    session_id = _session_id_from_context(ctx) or 'unknown'
+    scoped_session_id = _session_id_from_context(ctx)
+    session_id = scoped_session_id or _session_id_from_log_state() or 'unknown'
     agent_id = args.agent_id or _agent_id_from_context(ctx)
+    identity = runtime_paths.identity_from_values(
+        agent_client=args.agent,
+        session_id=scoped_session_id or '',
+        agent_id=agent_id or '',
+    )
 
-    agent_log_dir = AGENT_LOG_BASE / args.agent / session_id
+    if identity.has_session:
+        agent_log_dir = runtime_paths.agent_log_dir(REPO_ROOT, identity)
+    else:
+        agent_log_dir = AGENT_LOG_BASE / 'legacy' / args.agent / session_id
     agent_log_dir.mkdir(parents=True, exist_ok=True)
 
-    changed_files = collect_changed_files(session_id, agent_id=agent_id)
+    changed_files, evidence_mode = collect_stop_changed_files(
+        identity, session_id if session_id != 'unknown' else None, agent_id=agent_id
+    )
     targets = required_targets(changed_files)
-    warnings = check_local_only_status() + task_ledger_warnings()
+    warnings: list[str] = []
     failures: list[str] = []
 
     if not changed_files:
-        status = 'WARN' if warnings else 'PASS'
         write_summary(
             StopSummary(
                 agent=args.agent,
                 session_id=session_id,
                 read_only=True,
-                status=status,
+                status='PASS',
+                evidence_mode=evidence_mode,
+                lock_status='skipped-read-only',
                 changed_files=[],
                 targets=[],
                 failures=[],
-                warnings=warnings,
+                warnings=[],
+                identity=identity,
             )
         )
-        if warnings:
-            for warning in warnings:
-                print(f'[agent_stop_check] WARN {warning}', file=sys.stderr)
-            return 1
         print('[agent_stop_check] PASS read-only session', file=sys.stderr)
         return 0
 
-    change_id = resolve_change_id()
+    warnings = check_local_only_status(changed_files if identity.has_session else None)
+    if not identity.has_session:
+        warnings += task_ledger_warnings()
+    change_id = resolve_change_id(identity)
     print(f'[agent_stop_check] changed files: {len(changed_files)}', file=sys.stderr)
     print(
         '[agent_stop_check] required targets: '
@@ -375,25 +592,84 @@ def main() -> int:
         file=sys.stderr,
     )
 
-    if not run_step(
-        'openspec-stop-validate', [sys.executable, 'scripts/agent_hooks/stop_validate_change.py']
-    ):
-        failures.append('stop_validate_change.py failed')
+    if identity.has_session:
+        stop_lock_path = agent_log_dir / 'stop-check.lock'
+    else:
+        stop_lock_path = STOP_LOCK
+    stop_lock = StopCheckLock(stop_lock_path, args.agent, session_id)
+    if not stop_lock.acquire():
+        failures.append('stop check already running; retry after the active Stop finishes')
+        write_summary(
+            StopSummary(
+                agent=args.agent,
+                session_id=session_id,
+                read_only=False,
+                status='BLOCKED',
+                evidence_mode=evidence_mode,
+                lock_status='busy',
+                changed_files=changed_files,
+                targets=targets,
+                failures=failures,
+                warnings=warnings,
+                identity=identity,
+            )
+        )
+        print(
+            '[agent_stop_check] BLOCK stop check already running; retry after active Stop finishes',
+            file=sys.stderr,
+        )
+        return 2
 
-    changed_json = json.dumps(changed_files, ensure_ascii=False)
-    if not run_step(
-        'required-quality-gates',
-        [
-            sys.executable,
-            'scripts/quality/run_required_quality_gates.py',
-            '--include-session-detail',
-            '--change-id',
-            change_id,
-            '--changed-files',
-            changed_json,
-        ],
-    ):
-        failures.append('run_required_quality_gates.py failed')
+    try:
+        if changed_files_require_openspec(changed_files):
+            if change_id == 'unknown':
+                failures.append('active change is missing for protected changes')
+            elif not run_step(
+                'openspec-active-change',
+                [
+                    sys.executable,
+                    'scripts/openspec/validate_active_change.py',
+                    '--change-id',
+                    change_id,
+                ],
+            ):
+                failures.append('validate_active_change.py failed')
+        elif not identity.has_session and not run_step(
+            'openspec-stop-validate',
+            [sys.executable, 'scripts/agent_hooks/stop_validate_change.py'],
+        ):
+            failures.append('stop_validate_change.py failed')
+
+        changed_json = json.dumps(changed_files, ensure_ascii=False)
+        quality_out = (
+            runtime_paths.quality_dir(REPO_ROOT, identity)
+            if identity.has_session
+            else REPO_ROOT / 'tmp' / 'quality'
+        )
+        quality_out_arg = str(quality_out.relative_to(REPO_ROOT))
+        child_env = {
+            'FEIPI_AGENT_CLIENT': identity.client,
+            'FEIPI_SESSION_ID': identity.raw_session_id,
+            'FEIPI_AGENT_ID': identity.raw_agent_id,
+        }
+        if not run_step(
+            'required-quality-gates',
+            [
+                sys.executable,
+                'scripts/quality/run_required_quality_gates.py',
+                '--include-session-detail',
+                '--change-id',
+                change_id,
+                '--out',
+                quality_out_arg,
+                '--changed-files',
+                changed_json,
+            ],
+            env_overrides=child_env,
+        ):
+            failures.append('run_required_quality_gates.py failed')
+    finally:
+        stop_lock.release()
 
     status = 'FAIL' if failures else ('WARN' if warnings else 'PASS')
     write_summary(
@@ -402,10 +678,13 @@ def main() -> int:
             session_id=session_id,
             read_only=False,
             status=status,
+            evidence_mode=evidence_mode,
+            lock_status='acquired',
             changed_files=changed_files,
             targets=targets,
             failures=failures,
             warnings=warnings,
+            identity=identity,
         )
     )
 

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate active OpenSpec task files contain checkboxes and validation notes."""
+"""提供 validate task files 脚本能力。"""
 
 import sys
 from pathlib import Path

@@ -1,13 +1,4 @@
-"""构建质量门运行结果的 JSON artifact。
-
-artifact schema 遵循 harness 和 OpenSpec 工作流消费的门运行契约：每个 target
-的 summary 记录 change id、时间戳、必需门状态、阻断失败、警告、辅助 artifact
-路径和原始门详情。必需门是 fail-closed 的：空集合阻断运行，`SKIPPED` 视为
-失败，无效状态报告为阻断失败而非规范化为通过。
-
-artifact 元数据包含 run id、base commit、dirty hash、生成时间、report hash，
-用于证据溯源和完整性验证。
-"""
+"""构建 quality gate 运行结果的 JSON artifact。"""
 
 from __future__ import annotations
 
@@ -21,7 +12,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-# 01. Constants
+# 定义 PASS 常量配置。
 PASS = 'PASS'
 FAIL = 'FAIL'
 BLOCKED = 'BLOCKED'
@@ -29,24 +20,21 @@ SKIPPED = 'SKIPPED'
 ALLOWED_STATUSES = {PASS, FAIL, BLOCKED, SKIPPED}
 
 
-# 02. Time
+# 返回当前 UTC timestamp。
 def utc_now() -> str:
-    """Return the current UTC timestamp for quality artifact metadata.
-
-    Returns:
-        An ISO-8601 timestamp with timezone information.
+    """返回：
+        当前 UTC timestamp 字符串。
     """
     return datetime.now(timezone.utc).isoformat()
 
 
+# 读取当前 HEAD 的短 commit hash。
 def resolve_base_commit(repo_root: str = '.') -> str:
-    """Return the current HEAD commit hash for artifact traceability.
+    """参数：
+        repo_root: 执行 git 命令时使用的 repo root。
 
-    Args:
-        repo_root: Repository root for git command execution.
-
-    Returns:
-        Short commit hash or empty string when git is unavailable.
+    返回：
+        短 commit hash；git 不可用时返回空字符串。
     """
     try:
         result = subprocess.run(
@@ -62,14 +50,13 @@ def resolve_base_commit(repo_root: str = '.') -> str:
         return ''
 
 
+# 计算 working tree dirty 状态短 hash。
 def resolve_dirty_hash(repo_root: str = '.') -> str:
-    """Return a short hash of the working tree dirty state.
+    """参数：
+        repo_root: 执行 git 命令时使用的 repo root。
 
-    Args:
-        repo_root: Repository root for git command execution.
-
-    Returns:
-        Short dirty hash or empty string when clean or git is unavailable.
+    返回：
+        dirty 状态短 hash；工作区干净或 git 不可用时返回空字符串。
     """
     try:
         result = subprocess.run(
@@ -83,43 +70,43 @@ def resolve_dirty_hash(repo_root: str = '.') -> str:
         if result.returncode == 0 and result.stdout.strip():
             import hashlib
 
+            # 使用 diff 摘要计算稳定短哈希，标识当前工作区的 dirty 状态。
             return hashlib.sha256(result.stdout.encode()).hexdigest()[:12]
         return ''
     except Exception:
         return ''
 
 
+# 判断 quality artifact 是否仍在有效时间窗口内。
 def is_artifact_fresh(artifact_path: str, max_age_seconds: int = 3600) -> bool:
-    """Check whether a quality artifact is still fresh enough to use as evidence.
+    """参数：
+        artifact_path: 路径到 artifact JSON 文件。
+        max_age_seconds: 允许的最大年龄，单位为秒。
 
-    Args:
-        artifact_path: Path to the artifact JSON file.
-        max_age_seconds: Maximum acceptable age in seconds.
-
-    Returns:
-        True when the artifact exists and was generated within the freshness window.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     from pathlib import Path as _Path
 
     p = _Path(artifact_path)
     if not p.exists():
         return False
+    # 用文件 mtime 计算 artifact 年龄，避免读取损坏 JSON 时影响新鲜度判断。
     age = datetime.now(timezone.utc).timestamp() - p.stat().st_mtime
     return age <= max_age_seconds
 
 
-# 03. Gate detail
 @dataclass
 class GateDetail:
-    """Serializable detail for one executed quality gate.
+    """表示 GateDetail。
 
-    Attributes:
-        name: Stable gate name shown in reports.
-        status: Gate outcome, normally one of `PASS`, `FAIL`, `BLOCKED`, or `SKIPPED`.
-        command: Command vector used to run the gate.
-        exitCode: Process exit code, or `None` when execution did not start.
-        durationMs: Runtime duration in milliseconds, or `None` when unavailable.
-        output: Captured human-readable output for diagnostics.
+    属性：
+        name: 名称。
+        status: 状态值。
+        command: 执行命令参数列表。
+        exitCode: 进程退出码；未启动时为 None。
+        durationMs: 运行耗时，单位为毫秒。
+        output: 诊断输出文本。
     """
 
     name: str
@@ -130,23 +117,28 @@ class GateDetail:
     output: str = ''
 
 
-# 04. Summary construction
 @dataclass
 class QualitySummary:
-    """Top-level quality artifact summary written by a required gate run.
+    """表示 QualitySummary。
 
-    Attributes:
-        schemaVersion: Integer schema version for downstream compatibility checks.
-        status: Overall status computed from required gate outcomes.
-        target: Quality target name, such as a changed-file slice or regression target.
-        changeId: OpenSpec change id associated with the run.
-        startedAt: UTC timestamp captured when the quality run started.
-        finishedAt: UTC timestamp captured when the quality run finished.
-        requiredGates: Mapping from required gate name to status.
-        blockingFailures: Failure messages that prevent the run from passing.
-        warnings: Non-blocking diagnostics retained for operators.
-        artifacts: Extra artifact paths or metadata produced by the run.
-        gateDetails: Raw per-gate details serialized alongside the summary.
+    属性：
+        schemaVersion: artifact schema 版本。
+        status: 状态值。
+        target: 当前要运行或解析的 quality gate target 名称。
+        changeId: OpenSpec change id。
+        startedAt: 运行开始时间。
+        finishedAt: 运行结束时间。
+        requiredGates: 必需 gate 状态映射。
+        blockingFailures: 阻断通过的失败消息列表。
+        warnings: 警告列表。
+        artifacts: 附加 artifact 路径或 metadata。
+        gateDetails: 原始 gate detail 列表。
+        runId: 本次运行 id。
+        baseCommit: base commit 短 hash。
+        dirtyHash: working tree dirty 状态 hash。
+        generatedAt: artifact 生成时间。
+        freshness: artifact 新鲜度状态。
+        reportHash: 报告内容 hash。
     """
 
     schemaVersion: int  # noqa: N815 - Preserve JSON artifact schema.
@@ -170,17 +162,13 @@ class QualitySummary:
     reportHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
 
 
-# 05. Overall status computation
+# 计算必需 gate 的 fail-closed 总体状态。
 def compute_overall(required_gates: dict[str, str]) -> tuple[str, list[str]]:
-    """Compute the fail-closed overall status for required gates.
+    """参数：
+        required_gates: 必需 gate 名称到报告状态的映射。
 
-    Args:
-        required_gates: Mapping from required gate name to its reported status.
-
-    Returns:
-        A tuple containing the overall status and blocking failure messages. Empty
-        required gate mappings return `BLOCKED`; `SKIPPED`, `FAIL`, `BLOCKED`, and
-        unknown statuses all produce blocking failures.
+    返回：
+        结果 tuple。
     """
     failures: list[str] = []
     if not required_gates:
@@ -198,31 +186,28 @@ def compute_overall(required_gates: dict[str, str]) -> tuple[str, list[str]]:
     return (PASS, []) if not failures else (FAIL, failures)
 
 
-# 06. Artifact writing
+# 计算 artifact 内容 hash。
 def _compute_report_hash(data: dict) -> str:
-    """计算 artifact 内容的 SHA-256 哈希，用于完整性验证。
+    """参数：
+        data: 待处理的数据对象。
 
-    Args:
-        data: 序列化后的 artifact 字典（不含 reportHash 自身）。
-
-    Returns:
+    返回：
         12 位十六进制哈希前缀。
     """
     content = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True)
     return hashlib.sha256(content.encode('utf-8')).hexdigest()[:12]
 
 
+# 写入 quality summary 及其明细 artifact。
 def write_quality_summary(
     base_dir: Path, summary: QualitySummary, target_specific: bool = True
 ) -> Path:
-    """写入 quality summary 和 detail artifact，并计算 reportHash。
-
-    Args:
+    """参数：
         base_dir: artifact 基目录；change id 附加在其下方。
         summary: 要序列化的 summary dataclass。
         target_specific: 文件名是否包含 ``summary.target`` 以支持并行 target。
 
-    Returns:
+    返回：
         写入的 summary JSON 文件路径。
     """
     out_dir = base_dir / summary.changeId
@@ -253,9 +238,8 @@ def write_quality_summary(
     return summary_path
 
 
-# 07. Self-test
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Run a minimal deterministic check for direct script execution."""
     assert compute_overall({'a': 'PASS'}) == ('PASS', [])
     status, failures = compute_overall({'a': 'SKIPPED'})
     assert status == 'FAIL'

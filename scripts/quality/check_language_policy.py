@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Language policy gate for Chinese-first agent and process documents."""
+"""提供 检查 language policy 脚本能力。"""
 
 from __future__ import annotations
 
@@ -71,14 +71,13 @@ GIT_STATUS_PREFIX_LEN = 3
 MIN_MEANINGFUL_ENGLISH_WORDS = 3
 
 
+# 规范化注释文本。
 def _normalize(path: str) -> str:
-    """Normalize a repository-relative path for policy glob matching.
+    """参数：
+        path: 原始路径从CLI 输入, environment JSON, 或 git 状态 输出。
 
-    Args:
-        path: Raw path from CLI input, environment JSON, or git status output.
-
-    Returns:
-        Slash-separated path without leading current-directory markers.
+    返回：
+        normalize 字符串。
     """
     value = path.replace('\\', '/')
     while value.startswith('./'):
@@ -86,15 +85,14 @@ def _normalize(path: str) -> str:
     return value.strip('/')
 
 
+# 维护glob 匹配。
 def _glob_match(path: str, pattern: str) -> bool:
-    """Match a normalized path against the gate's limited glob syntax.
+    """参数：
+        path: 待检查的路径。
+        pattern: Policy 路径 pattern从``POLICY_PATTERNS``。
 
-    Args:
-        path: Repository-relative path being considered by the quality gate.
-        pattern: Policy path pattern from ``POLICY_PATTERNS``.
-
-    Returns:
-        True when the path should be checked by the language policy gate.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     p = _normalize(path)
     pat = _normalize(pattern)
@@ -107,15 +105,13 @@ def _glob_match(path: str, pattern: str) -> bool:
     return bool(re.match(f'^{regex}$', p))
 
 
+# 判断是否policy 路径。
 def _is_policy_path(path: str) -> bool:
-    """Decide whether a changed file belongs to the language policy surface.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Repository-relative file path from the quality gate trigger.
-
-    Returns:
-        True when the file is a tracked policy, skill, OpenSpec, harness, or
-        agent document and should be scanned for English narrative.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     p = _normalize(path)
     if '__pycache__/' in p or p.startswith('tmp/'):
@@ -123,15 +119,13 @@ def _is_policy_path(path: str) -> bool:
     return any(_glob_match(p, pattern) for pattern in POLICY_PATTERNS)
 
 
+# 维护Git changed-files 文件。
 def _git_changed_files(root: Path) -> list[str]:
-    """Read changed files from ``git status`` when no explicit trigger is passed.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Repository root used as the subprocess working directory.
-
-    Returns:
-        Normalized changed paths. Returns an empty list when git is unavailable
-        or status cannot be read, which makes the gate a no-op.
+    返回：
+        结果列表。
     """
     try:
         output = subprocess.check_output(
@@ -154,15 +148,13 @@ def _git_changed_files(root: Path) -> list[str]:
     return files
 
 
+# 解析changed-files 文件。
 def _parse_changed_files(value: str | None) -> list[str] | None:
-    """Parse a JSON changed-file payload from the CLI or environment.
+    """参数：
+        value: JSON array 字符串 supplied by ``--changed-文件`` 或。
 
-    Args:
-        value: JSON array string supplied by ``--changed-files`` or
-            ``QUALITY_CHANGED_FILES``.
-
-    Returns:
-        Normalized file paths, ``None`` when the payload is absent or invalid.
+    返回：
+        规范化 文件路径s, ``None`` 当 payload 缺失 或 无效。
     """
     if not value:
         return None
@@ -175,16 +167,14 @@ def _parse_changed_files(value: str | None) -> list[str] | None:
     return [_normalize(str(item)) for item in data if str(item).strip()]
 
 
+# 维护target 文件。
 def _target_files(root: Path, explicit_changed: str | None) -> list[Path]:
-    """Resolve changed policy files that currently exist on disk.
+    """参数：
+        root: 扫描根目录。
+        explicit_changed: 显式传入的 changed-files 列表。
 
-    Args:
-        root: Repository root used to resolve relative changed paths.
-        explicit_changed: Optional JSON array from the CLI.
-
-    Returns:
-        Sorted unique policy files. Missing files are ignored so deletions do
-        not block unrelated quality gate runs.
+    返回：
+        结果列表。
     """
     changed = _parse_changed_files(explicit_changed)
     if changed is None:
@@ -202,14 +192,13 @@ def _target_files(root: Path, explicit_changed: str | None) -> list[Path]:
     return sorted(set(result))
 
 
+# 维护去除 noise。
 def _strip_noise(text: str) -> str:
-    """Remove code, paths, URLs, and identifiers before English word counting.
+    """参数：
+        text: 待检查的文本。
 
-    Args:
-        text: Single line from a policy document.
-
-    Returns:
-        Text with non-narrative tokens replaced by spaces.
+    返回：
+        strip noise 字符串。
     """
     value = re.sub(r'`[^`]+`', ' ', text)
     value = re.sub(r'https?://\S+', ' ', value)
@@ -219,14 +208,13 @@ def _strip_noise(text: str) -> str:
     return re.sub(r'\b[a-zA-Z]+[-_][\w-]+\b', ' ', value)
 
 
+# 判断是否标量 配置 行。
 def _is_scalar_config_line(line: str) -> bool:
-    """Allow machine-readable scalar config assignments in agent TOML files.
+    """参数：
+        line: 待检查的源码行。
 
-    Args:
-        line: Stripped document line under inspection.
-
-    Returns:
-        True when the line is a short config assignment rather than prose.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     stripped = line.strip()
     if not re.match(r'^[A-Za-z0-9_.-]+\s*=', stripped):
@@ -239,15 +227,13 @@ def _is_scalar_config_line(line: str) -> bool:
     return len(value.split()) <= 1
 
 
+# 维护行 violates。
 def _line_violates(line: str) -> bool:
-    """Check whether one document line violates the Chinese narrative policy.
+    """参数：
+        line: 原始行从a target policy document。
 
-    Args:
-        line: Raw line from a target policy document.
-
-    Returns:
-        True when the line lacks CJK text and contains enough non-allowlisted
-        English words to be treated as narrative.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     stripped = line.strip()
     if not stripped or CJK_RE.search(stripped):
@@ -265,15 +251,13 @@ def _line_violates(line: str) -> bool:
     return len(meaningful) >= MIN_MEANINGFUL_ENGLISH_WORDS
 
 
+# 检查文件。
 def check_file(path: Path) -> list[str]:
-    """Scan one policy file and return line-level language failures.
+    """参数：
+        path: 现有 repository 文件 selected by ``运行_check``。
 
-    Args:
-        path: Existing repository file selected by ``run_check``.
-
-    Returns:
-        Human-readable failure lines with relative path and line number. Fenced
-        code blocks are ignored because they often contain literal commands.
+    返回：
+        结果列表。
     """
     failures: list[str] = []
     in_fence = False
@@ -291,16 +275,14 @@ def check_file(path: Path) -> list[str]:
     return failures
 
 
+# 运行检查。
 def run_check(root: Path, changed_files: str | None = None) -> list[str]:
-    """Run the language policy gate for changed files.
+    """参数：
+        root: repo root used用于changed-文件 discovery 和 路径 输出。
+        changed_files: 待检查的文件列表。
 
-    Args:
-        root: Repository root used for changed-file discovery and path output.
-        changed_files: Optional JSON array overriding environment and git
-            discovery.
-
-    Returns:
-        Failure messages. An empty list means the gate passes.
+    返回：
+        失败项 messages. 空 列表 means gate passes。
     """
     failures: list[str] = []
     for path in _target_files(root, changed_files):
@@ -308,8 +290,8 @@ def run_check(root: Path, changed_files: str | None = None) -> list[str]:
     return failures
 
 
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Exercise policy heuristics used by the quality gate self-test."""
     assert _line_violates('Use this skill only for this repository.')
     assert _line_violates(
         'developer_instructions = "Run deterministic validation and report evidence."'
@@ -321,12 +303,10 @@ def _self_test() -> None:
     )
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI arguments, run the gate, and return shell-style status.
-
-    Returns:
-        ``0`` when self-test or policy scan passes, otherwise ``1`` after
-        printing every failure to stdout for hook and quality summaries.
+    """返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(description='检查仓库语言策略')
     parser.add_argument(

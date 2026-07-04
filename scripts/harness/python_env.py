@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Shared Python interpreter and dependency contract checks."""
+"""解析共享 Python interpreter，并检查依赖契约。"""
 
 from __future__ import annotations
 
@@ -29,40 +29,37 @@ _REQ_NAME_RE = re.compile(
 )
 
 
+# 规范化name。
 def normalize_name(name: str) -> str:
-    """Normalize a dependency name using Python packaging comparison rules.
+    """参数：
+        name: 原始dependency name从project metadata 或 lock 文件。
 
-    Args:
-        name: Raw dependency name from project metadata or lock files.
-
-    Returns:
-        Canonical lowercase dependency name with dashes as separators.
+    返回：
+        normalize name 字符串。
     """
     return _NORMALIZE_RE.sub('-', name).lower()
 
 
+# 判断是否executable。
 def _is_executable(path: str) -> bool:
-    """Return whether a command name or filesystem path can be executed.
+    """参数：
+        path: 命令name 或 filesystem 路径以检查。
 
-    Args:
-        path: Command name or filesystem path to inspect.
-
-    Returns:
-        True when the path resolves to an executable command.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     if os.sep in path or (os.altsep and os.altsep in path):
         return Path(path).expanduser().is_file() and os.access(Path(path).expanduser(), os.X_OK)
     return shutil.which(path) is not None
 
 
+# 维护supports Python version。
 def _supports_python_version(executable: str) -> bool:
-    """Return whether an executable satisfies the minimum Python version.
+    """参数：
+        executable: 待探测的 Python executable。
 
-    Args:
-        executable: Python executable candidate to run.
-
-    Returns:
-        True when the executable starts and reports a supported version.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     if not _is_executable(executable):
         return False
@@ -81,14 +78,13 @@ def _supports_python_version(executable: str) -> bool:
     return result.returncode == 0
 
 
+# 维护Python 候选项。
 def python_candidates(repo_root: Path = REPO_ROOT) -> list[str]:
-    """Build the ordered Python interpreter candidates for harness commands.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root used to locate the default virtualenv.
-
-    Returns:
-        Deduplicated interpreter candidates in resolution order.
+    返回：
+        结果列表。
     """
     candidates: list[str] = []
     explicit = os.environ.get('SESSION_BROWSER_PYTHON')
@@ -113,17 +109,13 @@ def python_candidates(repo_root: Path = REPO_ROOT) -> list[str]:
     return result
 
 
+# 解析Python。
 def resolve_python(repo_root: Path = REPO_ROOT) -> str:
-    """Resolve a usable Python interpreter or fail with a clear operator message.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root used to locate the default virtualenv.
-
-    Returns:
-        First executable candidate that satisfies the minimum Python version.
-
-    Raises:
-        SystemExit: Raised when no supported interpreter can be found.
+    返回：
+        resolve python 字符串。
     """
     explicit = os.environ.get('SESSION_BROWSER_PYTHON')
     for candidate in python_candidates(repo_root):
@@ -134,14 +126,13 @@ def resolve_python(repo_root: Path = REPO_ROOT) -> str:
     raise SystemExit('未找到可用 Python 解释器(需要 Python >= 3.10)。')
 
 
+# 维护去除 注释。
 def _strip_comment(line: str) -> str:
-    """Remove an unquoted requirements-file comment from one line.
+    """参数：
+        line: 原始requirements-文件 行。
 
-    Args:
-        line: Raw requirements-file line.
-
-    Returns:
-        Line content before the first unquoted comment marker.
+    返回：
+        strip comment 字符串。
     """
     in_quote = False
     quote = ''
@@ -157,15 +148,14 @@ def _strip_comment(line: str) -> str:
     return line
 
 
+# 维护requirement names。
 def requirement_names(path: Path, *, _seen: set[Path] | None = None) -> list[str]:
-    """Read normalized dependency names from a requirements file tree.
+    """参数：
+        path: Requirements 文件到解析。
+        _seen: Internal recursion guard用于included requirement 文件。
 
-    Args:
-        path: Requirements file to parse.
-        _seen: Internal recursion guard for included requirement files.
-
-    Returns:
-        Normalized dependency names discovered in the file tree.
+    返回：
+        规范化 dependency names discovered in 文件 tree。
     """
     if _seen is None:
         _seen = set()
@@ -193,14 +183,13 @@ def requirement_names(path: Path, *, _seen: set[Path] | None = None) -> list[str
     return names
 
 
+# 解析pyproject arrays。
 def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
-    """Fallback parser for dependency arrays when tomllib is unavailable.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Pyproject file to parse using the minimal fallback parser.
-
-    Returns:
-        Runtime dependency names and dev dependency names.
+    返回：
+        结果 tuple。
     """
     text = path.read_text(encoding='utf-8')
     deps: list[str] = []
@@ -228,14 +217,13 @@ def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
     return deps, dev
 
 
+# 维护pyproject names。
 def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
-    """Read runtime and dev dependency names from pyproject metadata.
+    """参数：
+        path: Pyproject 文件到解析。
 
-    Args:
-        path: Pyproject file to parse.
-
-    Returns:
-        Runtime dependency names and dev dependency names.
+    返回：
+        结果 tuple。
     """
     if tomllib is None:
         return _parse_pyproject_arrays(path)
@@ -248,12 +236,12 @@ def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
 
 @dataclass(frozen=True)
 class LockEntry:
-    """Parsed dependency lock row used by lock consistency checks.
+    """表示 LockEntry。
 
-    Attributes:
-        name: Normalized package name.
-        version: Pinned version string, or empty when unpinned.
-        raw: Original lock-file row used for diagnostics.
+    属性：
+        name: 名称。
+        version: version 参数。
+        raw: stdin 解析出的 JSON 对象。
     """
 
     name: str
@@ -261,14 +249,13 @@ class LockEntry:
     raw: str
 
 
+# 维护锁 entries。
 def lock_entries(path: Path) -> list[LockEntry]:
-    """Parse pinned dependency rows from a lock file.
+    """参数：
+        path: Lock 文件到解析。
 
-    Args:
-        path: Lock file to parse.
-
-    Returns:
-        Parsed lock entries, including unpinned rows for validation errors.
+    返回：
+        已解析的lock entries, including unpinned 行用于validation 错误。
     """
     entries: list[LockEntry] = []
     if not path.is_file():
@@ -285,16 +272,15 @@ def lock_entries(path: Path) -> list[LockEntry]:
     return entries
 
 
+# 比较sets。
 def _compare_sets(label: str, expected: list[str], actual: list[str]) -> list[str]:
-    """Compare expected and actual dependency names and describe drift.
+    """参数：
+        label: 输出中显示的人类可读标签。
+        expected: expected 参数。
+        actual: actual 参数。
 
-    Args:
-        label: Human-readable dependency source label.
-        expected: Required dependency names.
-        actual: Observed dependency names.
-
-    Returns:
-        Drift messages for missing or extra dependencies.
+    返回：
+        Drift messages用于缺失 或 extra dependencies。
     """
     problems: list[str] = []
     expected_set = set(expected)
@@ -308,14 +294,13 @@ def _compare_sets(label: str, expected: list[str], actual: list[str]) -> list[st
     return problems
 
 
+# 检查locks。
 def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
-    """Validate that dependency declarations and lock files remain aligned.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root containing dependency files.
-
-    Returns:
-        Validation problem messages; empty when declarations and locks match.
+    返回：
+        结果列表。
     """
     problems: list[str] = []
     req_runtime = requirement_names(repo_root / 'requirements.txt')
@@ -352,18 +337,14 @@ def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
     return problems
 
 
+# 维护installed problems。
 def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
-    """Return missing installed dependencies for a named environment profile.
+    """参数：
+        profile: profile 参数。
+        repo_root: 仓库根目录。
 
-    Args:
-        profile: Dependency profile to check, such as runtime, test, or dev.
-        repo_root: Repository root containing requirements files.
-
-    Returns:
-        Missing dependency messages for the requested profile.
-
-    Raises:
-        ValueError: Raised when an unknown profile is requested.
+    返回：
+        结果列表。
     """
     if profile == 'runtime':
         names = set(requirement_names(repo_root / 'requirements.txt'))
@@ -383,14 +364,13 @@ def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
     return problems
 
 
+# 打印报告。
 def print_report(repo_root: Path = REPO_ROOT) -> int:
-    """Print interpreter and dependency-lock diagnostics for harness setup.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root containing dependency files.
-
-    Returns:
-        Process exit code: 0 when checks pass, 1 when drift is found.
+    返回：
+        进程退出码。
     """
     python = resolve_python(repo_root)
     print(f'[INFO] python: {python}')
@@ -406,14 +386,13 @@ def print_report(repo_root: Path = REPO_ROOT) -> int:
     return 0
 
 
+# 解析命令行参数并运行脚本入口。
 def main(argv: list[str] | None = None) -> int:
-    """Run the Python environment helper CLI and return its exit code.
+    """参数：
+        argv: 可选命令-行 参数; defaults到``sys.argv``。
 
-    Args:
-        argv: Optional command-line arguments; defaults to ``sys.argv``.
-
-    Returns:
-        Process exit code for the requested subcommand.
+    返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='cmd', required=True)

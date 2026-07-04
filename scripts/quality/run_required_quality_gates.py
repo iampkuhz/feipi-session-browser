@@ -1,29 +1,5 @@
 #!/usr/bin/env python3
-"""Quality gate runner with tier support (quick / required / full).
-
-Reads tmp/agent_logs/current/changed-files.jsonl, computes required targets
-via classify.required_quality_targets(), and runs quality gates based on the
-selected tier:
-
-- quick: lightweight gate subset for fast local feedback.
-- required: full required gate baseline (default, backward compatible).
-- full: all targets plus extra validation commands for release gating.
-
-By default excludes session-detail for fast explicit target runs.
-Pass --include-session-detail to include it in the shared stop runner.
-
-Usage:
-    python3 scripts/quality/run_required_quality_gates.py
-    python3 scripts/quality/run_required_quality_gates.py --tier required
-    python3 scripts/quality/run_required_quality_gates.py --tier quick
-    python3 scripts/quality/run_required_quality_gates.py --tier full
-    python3 scripts/quality/run_required_quality_gates.py --change-id fix-xyz
-    python3 scripts/quality/run_required_quality_gates.py --change-id fix-xyz --dry-run
-
-Exit codes:
-    0 -- all targets PASS or no targets to run
-    1 -- at least one target gate failed or produced skipped outcome
-"""
+"""Quality gate 运行ner 带有 tier support (quick / 必需 / full)。"""
 
 from __future__ import annotations
 
@@ -46,11 +22,18 @@ required_quality_targets = importlib.import_module(
 effective_targets = importlib.import_module('scripts.claude_hooks.classify').effective_targets
 QUALITY_TARGETS = importlib.import_module('scripts.quality.quality_targets').QUALITY_TARGETS
 changed_file_utils = importlib.import_module('scripts.quality.changed_files')
+runtime_paths = importlib.import_module('scripts.claude_hooks.paths')
 
-AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
+IDENTITY = runtime_paths.identity_from_values()
+AGENT_LOG_DIR = runtime_paths.agent_log_dir(REPO_ROOT, IDENTITY)
 CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
 SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
-QUALITY_DIR = REPO_ROOT / 'tmp' / 'quality'
+BASE_COMMIT_FILE = AGENT_LOG_DIR / 'base-commit.txt'
+QUALITY_DIR = (
+    runtime_paths.quality_dir(REPO_ROOT, IDENTITY)
+    if IDENTITY.has_session
+    else REPO_ROOT / 'tmp' / 'quality'
+)
 
 # session-detail 较重，普通 required target runner 默认排除；shared stop runner 显式纳入。
 EXCLUDED_TARGETS = {'session-detail'}
@@ -95,97 +78,110 @@ FULL_EXTRA_COMMANDS: list[list[str]] = [
 ]
 
 
+# 解析change id。
 def resolve_change_id(explicit: str | None) -> str:
-    """Resolve change-id from args, env, or tmp/active_change.json.
+    """参数：
+        explicit: explicit 参数。
 
-    Args:
-        explicit: Input value for explicit.
-
-    Returns:
-        Computed result.
+    返回：
+        resolve change id 字符串。
     """
     if explicit:
         return explicit
     env = os.environ.get('ACTIVE_CHANGE_ID', '')
     if env:
         return env
-    active_change = REPO_ROOT / 'tmp' / 'active_change.json'
-    if active_change.exists():
+    if IDENTITY.has_session:
+        candidates = runtime_paths.build_paths(REPO_ROOT, IDENTITY).active_change_candidates
+    else:
+        candidates = [runtime_paths.legacy_active_change_path(REPO_ROOT)]
+    for active_change in candidates:
+        if not active_change.exists():
+            continue
         try:
             data = json.loads(active_change.read_text(encoding='utf-8'))
-            cid = data.get('change_id', '')
-            if cid:
-                return cid
         except (json.JSONDecodeError, OSError):
-            pass
+            continue
+        cid = data.get('change_id') or data.get('changeId') or ''
+        if isinstance(cid, str) and cid:
+            return cid
     return 'unknown'
 
 
+# 读取changed-files 文件。
 def get_changed_files(explicit_json: str | None = None) -> list[str]:
-    """Resolve changed files from explicit input, hook records, and git status.
+    """参数：
+        explicit_json: explicit JSON 参数。
 
-    Explicit changed-files input is trusted when non-empty.  When it is missing
-    or an empty JSON list, fall back to shared collection so shell edits,
-    deleted files, and Codex/Qoder sessions without hook JSONL cannot escape.
-
-    Returns:
-        Computed result.
+    返回：
+        结果列表。
     """
     explicit = changed_file_utils.parse_changed_files_json(explicit_json)
     if explicit:
         return explicit
+    if IDENTITY.has_session:
+        log_dirs = runtime_paths.session_log_dirs(
+            REPO_ROOT,
+            IDENTITY,
+            include_agents=not IDENTITY.is_agent,
+        )
+        return changed_file_utils.read_recorded_changed_files_from_paths(
+            [path / 'changed-files.jsonl' for path in log_dirs],
+            IDENTITY.raw_session_id,
+            agent_id=IDENTITY.raw_agent_id or None,
+        )
     session_id = changed_file_utils.read_session_id(SESSION_ID_FILE)
     return changed_file_utils.collect_changed_files(
         session_id,
         include_git=True,
         repo_root=REPO_ROOT,
         changed_files_path=CHANGED_FILES,
+        base_commit_file=BASE_COMMIT_FILE,
     )
 
 
+# 维护compute 必需 targets。
 def compute_required_targets(changed_files: list[str], excluded: set[str]) -> list[str]:
-    """Compute required quality targets from changed files, applying exclusions.
+    """参数：
+        changed_files: 待检查的文件列表。
+        excluded: excluded 参数。
 
-    Args:
-        changed_files: Input value for changed_files.
-        excluded: Input value for excluded.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     all_targets = required_quality_targets(changed_files)
     return [t for t in all_targets if t not in excluded]
 
 
+# 维护compute tier 必需 targets。
 def compute_tier_required_targets(tier: str, changed_files: list[str]) -> list[str]:
-    """Compute target selection before exclusions for a quality tier.
+    """参数：
+        tier: tier 参数。
+        changed_files: changed 文件 供 quick/必需 tiers。
 
-    Args:
-        tier: Quality tier name.
-        changed_files: Changed files used by quick/required tiers.
-
-    Returns:
-        Ordered target names before dominance and exclusions.
+    返回：
+        结果列表。
     """
     if tier == 'full':
         return list(QUALITY_TARGETS)
     return required_quality_targets(changed_files)
 
 
+# 运行gate。
 def run_gate(
     target: str,
     change_id: str,
+    quality_dir: Path | None = None,
     changed_files: list[str] | None = None,
 ) -> tuple[bool, str]:
-    """Run run_quality_gate.py for a single target. Returns (passed, artifact_path).
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
+        change_id: 当前 OpenSpec change id。
+        quality_dir: quality dir 参数。
+        changed_files: 待检查的文件列表。
 
-    Args:
-        target: Input value for target.
-        change_id: Input value for change_id.
-        changed_files: Input value for changed_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     cmd = [
         sys.executable,
@@ -195,13 +191,16 @@ def run_gate(
         '--change-id',
         change_id,
     ]
-    artifact_path = str(QUALITY_DIR / change_id / f'quality-gate-summary.{target}.json')
+    out_dir = quality_dir or QUALITY_DIR
+    try:
+        out_arg = str(out_dir.relative_to(REPO_ROOT)) if out_dir.is_absolute() else str(out_dir)
+    except ValueError:
+        out_arg = str(out_dir)
+    cmd.extend(['--out', out_arg])
+    artifact_path = str(out_dir / change_id / f'quality-gate-summary.{target}.json')
 
     try:
         env = os.environ.copy()
-        # changed_files selects required targets in this runner. Do not forward
-        # it into target execution; each selected target must run its full
-        # baseline instead of per-file pruning.
         env.pop('QUALITY_CHANGED_FILES', None)
         proc = subprocess.run(
             cmd,
@@ -215,7 +214,7 @@ def run_gate(
         )
         if proc.returncode != 0:
             return False, artifact_path
-        # Verify artifact exists
+        # 验证artifact exists。
         if not Path(artifact_path).exists():
             return False, artifact_path
         return True, artifact_path
@@ -225,19 +224,17 @@ def run_gate(
         return False, artifact_path
 
 
+# 运行quick gate。
 def _run_quick_gate(
     gate: str,
     repo_root: Path,
 ) -> tuple[str, bool, str]:
-    """Run a single quick-tier gate directly via run_quality_gate.run_cmd.
+    """参数：
+        gate: gate 参数。
+        repo_root: repo root用于命令 execution。
 
-    Args:
-        gate: Gate name from QUICK_GATES.
-        repo_root: Repository root for command execution.
-
-    Returns:
-        Tuple of (gate_name, passed, status_label).
-        status_label is one of PASS, FAIL, BLOCKED, NOT_TRIGGERED.
+    返回：
+        结果 tuple。
     """
     rqg = importlib.import_module('scripts.quality.run_quality_gate')
 
@@ -249,20 +246,19 @@ def _run_quick_gate(
     return gate, detail.status == 'pass', detail.status.upper()
 
 
+# 运行quick tier。
 def _run_quick_tier(
     changed_files: list[str],
     excluded_targets: set[str],
     dry_run: bool,
 ) -> int:
-    """Execute the quick tier: lightweight gate subset across triggered targets.
+    """参数：
+        changed_files: Changed 文件路径s用于target selection。
+        excluded_targets: 已排除的 quality target 集合。
+        dry_run: dry 运行 参数。
 
-    Args:
-        changed_files: Changed file paths for target selection.
-        excluded_targets: Target names to exclude from execution.
-        dry_run: If True, print what would run without executing.
-
-    Returns:
-        Exit code: 0 if all triggered gates PASS, 1 otherwise.
+    返回：
+        进程退出码。
     """
     qt = importlib.import_module('scripts.quality.quality_targets')
 
@@ -315,14 +311,13 @@ def _run_quick_tier(
     return 1 if failed else 0
 
 
+# 运行full extra 命令。
 def _run_full_extra_commands(change_id: str) -> list[tuple[str, bool]]:
-    """Run full-tier extra validation commands beyond the required targets.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Change identifier for logging.
-
-    Returns:
-        List of (command_label, passed) tuples.
+    返回：
+        结果列表。
     """
     results: list[tuple[str, bool]] = []
     for cmd_parts in FULL_EXTRA_COMMANDS:
@@ -360,11 +355,10 @@ def _run_full_extra_commands(change_id: str) -> list[tuple[str, bool]]:
     return results
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI options and run quality gates for the selected tier.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     parser = argparse.ArgumentParser(
         description='Run quality gates with tier support (quick/required/full)'
@@ -392,14 +386,17 @@ def main() -> int:
             'Target gates always run the full baseline.'
         ),
     )
+    parser.add_argument(
+        '--out',
+        default=str(QUALITY_DIR),
+        help='Quality artifact base directory. Default: tmp/quality',
+    )
     args = parser.parse_args()
 
     tier = args.tier
     tier_desc = TIER_META[tier]['description']
     tier_policy = TIER_META[tier]['failure_policy']
 
-    # Determine effective exclusions. Full tier is a release/migration
-    # baseline and must include session-detail without an extra flag.
     effective_excluded = set(EXCLUDED_TARGETS)
     if tier == 'full':
         effective_excluded.clear()
@@ -421,12 +418,19 @@ def main() -> int:
         )
 
     change_id = resolve_change_id(args.change_id)
+    quality_dir = Path(args.out)
+    if not quality_dir.is_absolute():
+        quality_dir = REPO_ROOT / quality_dir
     changed_files = get_changed_files(args.changed_files)
 
     print(f'[{tier}-tier] change-id={change_id}', file=sys.stderr)
     print(f'[{tier}-tier] tier={tier}: {tier_desc}', file=sys.stderr)
     print(f'[{tier}-tier] failure policy: {tier_policy}', file=sys.stderr)
-    print(f'[{tier}-tier] changed-files={CHANGED_FILES.relative_to(REPO_ROOT)}', file=sys.stderr)
+    try:
+        changed_display = CHANGED_FILES.relative_to(REPO_ROOT)
+    except ValueError:
+        changed_display = CHANGED_FILES
+    print(f'[{tier}-tier] changed-files={changed_display}', file=sys.stderr)
     if changed_files:
         print(f'[{tier}-tier] changed-file count={len(changed_files)}', file=sys.stderr)
 
@@ -448,7 +452,6 @@ def main() -> int:
     effective_required = effective_targets(full_required)
     dominated = [t for t in full_required if t not in effective_required]
 
-    # Targets actually executed after exclusions
     all_required = [t for t in effective_required if t not in effective_excluded]
     excluded = [t for t in effective_required if t in effective_excluded]
 
@@ -499,7 +502,7 @@ def main() -> int:
     blocked = False
     for target in sorted(all_required):
         print(f'[{tier}-tier] running target: {target}', file=sys.stderr)
-        passed, artifact_path = run_gate(target, change_id)
+        passed, artifact_path = run_gate(target, change_id, quality_dir)
         status_str = 'PASS' if passed else 'FAIL/BLOCKED'
         print(
             f'[{tier}-tier] {status_str} target={target} artifact={artifact_path}',

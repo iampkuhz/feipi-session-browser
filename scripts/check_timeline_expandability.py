@@ -1,26 +1,5 @@
 #!/usr/bin/env python3
-"""Static check for timeline expand/collapse structure.
-
-Analyses HTML templates and JS files to verify that round, agent, subagent,
-tool group, and timeline node expand/collapse structures are sound.
-
-Checks:
-  1. .timeline-node.has-children must have a toggle button.
-  2. Agent/subagent nodes must have a stable data-timeline-id.
-  3. TimelineCtrl.expandAll() / collapseAll() must cover .timeline-node.
-  4. Toggle must sync is-expanded with aria-expanded.
-  5. Filter must not permanently destroy expand state.
-  6. Tab switching must not break expand entry point.
-
-Usage:
-    cd <repo-root>
-    PYTHONPATH=src python scripts/check_timeline_expandability.py
-
-Exit codes:
-    0 — all checks passed (only [OK] and [INFO])
-    1 — one or more [FAIL] findings
-    2 — input / file error
-"""
+"""提供 检查 timeline expandability 脚本能力。"""
 
 from __future__ import annotations
 
@@ -30,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 # ---------------------------------------------------------------------------
-# Helpers
+# 辅助函数。
 # ---------------------------------------------------------------------------
 
 _TOOL_DIR = Path(__file__).resolve().parent.parent
@@ -43,13 +22,12 @@ _FAIL_COUNT = 0
 _WARN_COUNT = 0
 
 
+# 维护报告。
 def _report(tag: str, msg: str, detail: str = '') -> None:
-    """Emit a timeline expandability finding and update in-memory counters.
-
-    Args:
-        tag: Finding severity such as OK, WARN, FAIL, or INFO.
-        msg: Primary message printed to stdout.
-        detail: Optional indented detail for warnings and failures.
+    """参数：
+        tag: tag 参数。
+        msg: msg 参数。
+        detail: 可选indented detail用于warning 和 失败项。
     """
     global _FAIL_COUNT, _WARN_COUNT  # noqa: PLW0603 - CLI counters aggregate findings.
     prefix = f'[{tag}]'
@@ -69,14 +47,13 @@ def _report(tag: str, msg: str, detail: str = '') -> None:
         print(f'  {prefix} {msg}')
 
 
+# 读取文件内容。
 def _read(path: Path) -> str:
-    """Read a required timeline template or asset for the static gate.
+    """参数：
+        path: Template, JavaScript, 或 CSS 路径到读取。
 
-    Args:
-        path: Template, JavaScript, or CSS path to read.
-
-    Returns:
-        File contents; exits with status 2 when the required input is missing.
+    返回：
+        文件 contents；exits带状态 2 当 必需 输入 is 缺失。
     """
     if not path.exists():
         print(f'[ERROR] File not found: {path}', file=sys.stderr)
@@ -84,29 +61,17 @@ def _read(path: Path) -> str:
     return path.read_text(encoding='utf-8')
 
 
-# ---------------------------------------------------------------------------
-# Check 1: .timeline-node.has-children must have a toggle
-# ---------------------------------------------------------------------------
-
-
+# 检查toggle has children。
 def check_toggle_for_has_children(timeline_html: str) -> None:
-    """Check that timeline nodes with children render accessible toggles.
-
-    Args:
-        timeline_html: timeline.html template source.
+    """参数：
+        timeline_html: timeline.html template 源码。
     """
-    # In the Jinja macro, toggle button is rendered when:
-    #   {% if node.children or node.expanded is defined %}
-    # has-children class is added when:
-    #   {{ 'has-children' if node.children else '' }}
-    # So has-children implies node.children is truthy, which also makes the
-    # toggle render. This is structurally correct.
+    # {% 如果 node.children 或 node.expanded is defined %}。
 
     has_toggle_cond = re.search(
         r'if\s+node\.children\s+and\s+node\.children\s*\|\s*length\s*>\s*0',
         timeline_html,
     )
-    # Also accept the old pattern
     if not has_toggle_cond:
         has_toggle_cond = re.search(
             r'if\s+node\.children\s+or\s+node\.expanded\s+is\s+defined',
@@ -133,15 +98,12 @@ def check_toggle_for_has_children(timeline_html: str) -> None:
                 'Expected: "\'has-children\' if node.children"',
             )
 
-    # Also check: both has-children AND is-leaf are always rendered
-    # This is a known issue — the template renders both classes regardless.
     both_classes = re.search(
         r"\{\{.*'has-children'.*\}\}.*\{\{.*'is-leaf'.*\}\}",
         timeline_html.replace('\n', ' '),
         re.DOTALL,
     )
     if both_classes:
-        # Verify the conditions are now mutually exclusive (proper conditional)
         has_proper_has_children = re.search(
             r"'has-children'\s+if\s+node\.children\s+and",
             timeline_html,
@@ -162,17 +124,11 @@ def check_toggle_for_has_children(timeline_html: str) -> None:
             )
 
 
-# ---------------------------------------------------------------------------
-# Check 2: agent/subagent nodes must have data-timeline-id
-# ---------------------------------------------------------------------------
-
-
+# 检查timeline id。
 def check_timeline_id(timeline_html: str, session_html: str) -> None:
-    """Check that timeline nodes expose stable data-timeline-id attributes.
-
-    Args:
-        timeline_html: timeline.html template source.
-        session_html: session.html template source used for related checks.
+    """参数：
+        timeline_html: timeline.html template 源码。
+        session_html: session.html template 源码。
     """
     has_timeline_id = 'data-timeline-id' in timeline_html
 
@@ -187,7 +143,7 @@ def check_timeline_id(timeline_html: str, session_html: str) -> None:
             'accessibility tree cannot reliably identify individual nodes.',
         )
 
-    # Check whether JS jump function expects data-timeline-id
+    # 检查是否JS jump function expects data-timeline-id。
     timeline_js_path = STATIC_JS / 'timeline.js'
     if timeline_js_path.exists():
         js_text = _read(timeline_js_path)
@@ -200,19 +156,13 @@ def check_timeline_id(timeline_html: str, session_html: str) -> None:
             )
 
 
-# ---------------------------------------------------------------------------
-# Check 3: expandAll / collapseAll coverage
-# ---------------------------------------------------------------------------
-
-
+# 维护analyse expand collapse。
 def _analyse_expand_collapse(js_text: str) -> dict[str, Any]:
-    """Analyze timeline JavaScript expandAll/collapseAll selector coverage.
+    """参数：
+        js_text: JavaScript 源码文本。
 
-    Args:
-        js_text: timeline.js source text.
-
-    Returns:
-        Dictionary describing detected functions, selectors, and timeline-node coverage.
+    返回：
+        结果映射。
     """
     result: dict[str, Any] = {
         'expandAll_exists': False,
@@ -222,10 +172,9 @@ def _analyse_expand_collapse(js_text: str) -> dict[str, Any]:
         'covers_timeline_node': False,
     }
 
-    # Check expandAll
+    # 检查expandAll。
     if 'function expandAll' in js_text or 'expandAll:' in js_text:
         result['expandAll_exists'] = True
-        # Find selectors within the expandAll function body
         expand_fn = re.search(
             r'function expandAll\s*\(\s*\)\s*\{(.*?)}\s*function',
             js_text,
@@ -237,7 +186,7 @@ def _analyse_expand_collapse(js_text: str) -> dict[str, Any]:
                 expand_fn.group(1),
             )
 
-    # Check collapseAll
+    # 检查collapseAll。
     if 'function collapseAll' in js_text or 'collapseAll:' in js_text:
         result['collapseAll_exists'] = True
         collapse_fn = re.search(
@@ -251,7 +200,7 @@ def _analyse_expand_collapse(js_text: str) -> dict[str, Any]:
                 collapse_fn.group(1),
             )
 
-    # Check if either function targets .timeline-node
+    # 检查如果 either function targets .timeline-node。
     all_sels = result['expandAll_selectors'] + result['collapseAll_selectors']
     for sel in all_sels:
         if '.timeline-node' in sel:
@@ -261,11 +210,10 @@ def _analyse_expand_collapse(js_text: str) -> dict[str, Any]:
     return result
 
 
+# 检查expand collapse coverage。
 def check_expand_collapse_coverage(js_text: str) -> None:
-    """Check expand/collapse JavaScript coverage for timeline nodes.
-
-    Args:
-        js_text: timeline.js source text.
+    """参数：
+        js_text: JavaScript 源码文本。
     """
     info = _analyse_expand_collapse(js_text)
 
@@ -292,31 +240,23 @@ def check_expand_collapse_coverage(js_text: str) -> None:
             f'Selectors found: {info["expandAll_selectors"] + info["collapseAll_selectors"]}',
         )
 
-    # Check: does expandAll add is-expanded class?
     if "classList.add('is-expanded')" in js_text or 'classList.add("is-expanded")' in js_text:
         _report('OK', 'expandAll adds is-expanded class')
     else:
         _report('WARN', 'expandAll may not add is-expanded class via classList')
 
-    # Check: does collapseAll remove is-expanded class?
     if "classList.remove('is-expanded')" in js_text or 'classList.remove("is-expanded")' in js_text:
         _report('OK', 'collapseAll removes is-expanded class')
     else:
         _report('WARN', 'collapseAll may not remove is-expanded class via classList')
 
 
-# ---------------------------------------------------------------------------
-# Check 4: toggle syncs is-expanded with aria-expanded
-# ---------------------------------------------------------------------------
-
-
+# 检查toggle aria sync。
 def check_toggle_aria_sync(timeline_html: str) -> None:
-    """Check that timeline toggles keep aria-expanded synchronized.
-
-    Args:
-        timeline_html: timeline.html template source.
+    """参数：
+        timeline_html: timeline.html template 源码。
     """
-    # Check for inline onclick toggle pattern (legacy)
+    # 检查用于 inline onclick toggle pattern (legacy)。
     onclick_pattern = re.search(
         r"onclick=\"[^\"]*classList\.toggle\(['\"]is-expanded['\"]\)[^\"]*\"",
         timeline_html,
@@ -326,7 +266,6 @@ def check_toggle_aria_sync(timeline_html: str) -> None:
         timeline_html,
     )
 
-    # Check for event delegation pattern (preferred over inline handlers)
     timeline_js_path = STATIC_JS / 'timeline.js'
     has_event_delegation = False
     has_toggle_node_fn = False
@@ -344,7 +283,6 @@ def check_toggle_aria_sync(timeline_html: str) -> None:
             "setAttribute('aria-expanded'" in js_text or 'setAttribute("aria-expanded"' in js_text
         )
 
-    # If event delegation exists, that supersedes inline onclick check
     if has_event_delegation and has_toggle_node_fn:
         _report(
             'OK',
@@ -357,7 +295,6 @@ def check_toggle_aria_sync(timeline_html: str) -> None:
         else:
             _report('WARN', 'toggleNode() may not sync aria-expanded')
     else:
-        # Fall back to inline onclick check
         if onclick_pattern:
             _report('OK', 'toggle onclick toggles is-expanded class')
         else:
@@ -376,7 +313,6 @@ def check_toggle_aria_sync(timeline_html: str) -> None:
                 "Expected setAttribute('aria-expanded', ...) in onclick",
             )
 
-    # Check that aria-expanded initial value matches node.expanded
     aria_initial = re.search(
         r'aria-expanded=\"\{\{.*?if\s+node\.expanded.*?\}\}\"',
         timeline_html,
@@ -386,8 +322,6 @@ def check_toggle_aria_sync(timeline_html: str) -> None:
     else:
         _report('WARN', 'aria-expanded initial value may not match node.expanded')
 
-    # Check the inline handler logic — it uses parentElement.parentElement
-    # which is fragile if DOM structure changes
     uses_grandparent = 'parentElement.parentElement' in timeline_html
     if uses_grandparent:
         _report(
@@ -399,16 +333,10 @@ def check_toggle_aria_sync(timeline_html: str) -> None:
         )
 
 
-# ---------------------------------------------------------------------------
-# Check 5: filter does not permanently destroy expand state
-# ---------------------------------------------------------------------------
-
-
+# 检查filter preserves state。
 def check_filter_preserves_state(js_text: str) -> None:
-    """Check that filtering does not permanently discard timeline expansion state.
-
-    Args:
-        js_text: timeline.js source text.
+    """参数：
+        js_text: JavaScript 源码文本。
     """
     has_show_all = '_showAllNodes' in js_text or 'showAllNodes' in js_text
 
@@ -419,7 +347,6 @@ def check_filter_preserves_state(js_text: str) -> None:
             'WARN', 'no _showAllNodes/reset function found', 'Filter may permanently hide nodes'
         )
 
-    # Check that _showAllNodes restores display style (not is-expanded class)
     show_all_fn = re.search(
         r'function _showAllNodes\s*\(\s*\)\s*\{(.*?)\}',
         js_text,
@@ -444,7 +371,7 @@ def check_filter_preserves_state(js_text: str) -> None:
     else:
         _report('INFO', 'could not isolate _showAllNodes function body for deep check')
 
-    # Check that non-'all' filters only set display, not is-expanded
+    # 检查non-'all' filters 仅 set display, 不 is-expanded。
     filter_fn = re.search(
         r'function filter\s*\([^)]*\)\s*\{(.*?)}\s*(?:function|window)',
         js_text,
@@ -452,7 +379,6 @@ def check_filter_preserves_state(js_text: str) -> None:
     )
     if filter_fn:
         fn_body = filter_fn.group(1)
-        # Filter sets node.style.display but should NOT remove is-expanded
         sets_display_none = '.style.display' in fn_body
         removes_is_expanded = 'remove' in fn_body and 'is-expanded' in fn_body
         if sets_display_none and not removes_is_expanded:
@@ -469,19 +395,12 @@ def check_filter_preserves_state(js_text: str) -> None:
             )
 
 
-# ---------------------------------------------------------------------------
-# Check 6: tab switching does not break expand
-# ---------------------------------------------------------------------------
-
-
+# 检查tab switch expand。
 def check_tab_switch_expand(session_html: str, css_text: str) -> None:
-    """Check that tab switching preserves the timeline expansion entry point.
-
-    Args:
-        session_html: session.html template source.
-        css_text: Main stylesheet text used for visibility checks.
+    """参数：
+        session_html: session.html template 源码。
+        css_text: 待检查的 CSS 文本。
     """
-    # Check tab-content uses CSS display, not DOM removal
     tab_content_hidden = re.search(
         r'\.tab-content\s*\{[^}]*display\s*:\s*none',
         css_text,
@@ -504,8 +423,6 @@ def check_tab_switch_expand(session_html: str, css_text: str) -> None:
             'If tabs remove content from DOM, expand state is lost on switch',
         )
 
-    # Check that timeline tab content is inside a .tab-content div
-    # The div may have id="timeline" class="tab-content" or vice versa
     timeline_in_tab = re.search(
         r'<div[^>]*id="timeline"[^>]*class="[^"]*tab-content',
         session_html,
@@ -518,8 +435,6 @@ def check_tab_switch_expand(session_html: str, css_text: str) -> None:
     else:
         _report('WARN', 'timeline may not be inside .tab-content', 'verify session.html structure')
 
-    # Check that expand/collapse buttons are inside timeline tab
-    # (so they are always visible when timeline tab is active)
     toolbar_in_timeline = (
         'id="timeline"' in session_html and 'data-action="expand-all"' in session_html
     )
@@ -527,17 +442,11 @@ def check_tab_switch_expand(session_html: str, css_text: str) -> None:
         _report('OK', 'expand/collapse toolbar is inside timeline tab')
 
 
-# ---------------------------------------------------------------------------
-# Additional checks from Background section
-# ---------------------------------------------------------------------------
-
-
+# 检查round expand 结构。
 def check_round_expand_structure(session_html: str, js_text: str) -> None:
-    """Check round-level expandability markup and JavaScript hooks.
-
-    Args:
-        session_html: session.html template source.
-        js_text: timeline.js source text.
+    """参数：
+        session_html: session.html template 源码。
+        js_text: JavaScript 源码文本。
     """
     has_round_header = 'round-header-row' in session_html
     has_round_detail = 'round-detail-row' in session_html
@@ -557,7 +466,7 @@ def check_round_expand_structure(session_html: str, js_text: str) -> None:
     else:
         _report('FAIL', 'toggleRoundDetail() function missing')
 
-    # Check round onclick binding
+    # 检查round onclick binding。
     has_round_onclick = 'onclick="toggleRoundDetail(this)"' in session_html
     if has_round_onclick:
         _report('OK', 'round-header-row has onclick toggle binding')
@@ -565,18 +474,16 @@ def check_round_expand_structure(session_html: str, js_text: str) -> None:
         _report('WARN', 'round-header-row onclick binding may differ from expected')
 
 
+# 检查children visibility CSS。
 def check_children_visibility_css(css_text: str) -> None:
-    """Check CSS rules that hide and show timeline child containers.
-
-    Args:
-        css_text: Main stylesheet text.
+    """参数：
+        css_text: 待检查的 CSS 文本。
     """
-    # Children hidden by default
+    # Children hidden by 默认。
     children_hidden = re.search(
         r'\.timeline-node__children\s*\{[^}]*display\s*:\s*none',
         css_text,
     )
-    # Children shown when parent is-expanded
     children_shown = re.search(
         r'\.timeline-node\.is-expanded[^}]*\.timeline-node__children',
         css_text,
@@ -597,11 +504,10 @@ def check_children_visibility_css(css_text: str) -> None:
         )
 
 
+# 检查chevron rotation CSS。
 def check_chevron_rotation_css(css_text: str) -> None:
-    """Check CSS rules that rotate timeline chevrons for expanded state.
-
-    Args:
-        css_text: Main stylesheet text.
+    """参数：
+        css_text: 待检查的 CSS 文本。
     """
     chevron_rotate = re.search(
         r'\.timeline-node\.is-expanded\s+\.timeline-node__chevron',
@@ -613,65 +519,52 @@ def check_chevron_rotation_css(css_text: str) -> None:
         _report('WARN', 'CSS: chevron rotation rule for .is-expanded not found')
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
+# 运行检查流程。
 def run() -> int:
-    """Run all timeline expandability static checks and print the final status.
-
-    Returns:
-        Exit code 0 when no failures were reported, otherwise 1; missing inputs exit
-        earlier with code 2.
+    """返回：
+        进程退出码。
     """
     print('=' * 60)
     print('Check: Timeline Expandability')
     print('=' * 60)
 
-    # Load files
+    # 加载文件。
     timeline_html = _read(TEMPLATES / 'components' / 'timeline.html')
     session_html = _read(TEMPLATES / 'session.html')
     timeline_js = _read(STATIC_JS / 'timeline.js')
     css_text = _read(STATIC_CSS)
 
-    # Round structure
     print('\n[1] Round expand structure:')
     check_round_expand_structure(session_html, timeline_js)
 
-    # Check 1: has-children + toggle
     print('\n[2] .timeline-node.has-children toggle:')
     check_toggle_for_has_children(timeline_html)
 
-    # Check 2: data-timeline-id
+    # 检查2: data-timeline-id。
     print('\n[3] data-timeline-id on nodes:')
     check_timeline_id(timeline_html, session_html)
 
-    # Check 3: expandAll/collapseAll coverage
+    # 检查3: expandAll/collapseAll 覆盖率。
     print('\n[4] expandAll/collapseAll coverage:')
     check_expand_collapse_coverage(timeline_js)
 
-    # Check 4: toggle aria-expanded sync
     print('\n[5] Toggle aria-expanded sync:')
     check_toggle_aria_sync(timeline_html)
 
-    # Check 5: filter preserve state
     print('\n[6] Filter preserve expand state:')
     check_filter_preserves_state(timeline_js)
 
-    # Check 6: tab switching
+    # 检查6: tab switching。
     print('\n[7] Tab switching expand:')
     check_tab_switch_expand(session_html, css_text)
 
-    # CSS children visibility
     print('\n[8] CSS children visibility:')
     check_children_visibility_css(css_text)
 
-    # CSS chevron rotation
     print('\n[9] CSS chevron rotation:')
     check_chevron_rotation_css(css_text)
 
-    # Summary
+    # 结果汇总。
     print('\n' + '=' * 60)
     if _FAIL_COUNT == 0 and _WARN_COUNT == 0:
         print('Result: ALL OK')

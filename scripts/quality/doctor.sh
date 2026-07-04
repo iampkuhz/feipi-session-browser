@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
-# Project doctor for feipi-session-browser.
+# 校验脚本运行前置条件和输入输出边界。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
+# 检查 Python 版本是否兼容。
 
 python_is_compatible() {
   local candidate="$1"
@@ -13,6 +14,7 @@ import sys
 raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 }
+# 解析可用的 Python executable。
 
 python_bin() {
   if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
@@ -42,6 +44,7 @@ python_bin() {
 PYTHON="$(python_bin)" || PYTHON=""
 
 fail=0
+# 检查文件。
 
 check_file() {
   local file="$1"
@@ -52,6 +55,7 @@ check_file() {
     fail=1
   fi
 }
+# 检查dir。
 
 check_dir() {
   local dir="$1"
@@ -118,7 +122,7 @@ if [[ -n "$PYTHON" ]]; then
   "$PYTHON" -m compileall -q src || fail=1
 fi
 
-# Check that personal/ephemeral files and dirs do NOT exist on disk.
+# 计算 local_files 的中间结果。
 local_files=(.mcp.json .env)
 local_dirs=(data output prompts)
 for f in "${local_files[@]}"; do
@@ -129,8 +133,8 @@ for f in "${local_files[@]}"; do
     echo "[PASS] personal file absent: $f"
   fi
 done
-# settings.local.json is a normal user config that should be kept locally;
-# warn but do not block the doctor gate.
+# 判断 [[ -e ".claude/settings.local.json" ]]; then 是否满足。
+# 判断 [[ -e ".claude/settings.local.json" ]]; then 是否满足。
 if [[ -e ".claude/settings.local.json" ]]; then
   echo "[WARN] personal config present: .claude/settings.local.json (gitignored, allowed)"
 fi

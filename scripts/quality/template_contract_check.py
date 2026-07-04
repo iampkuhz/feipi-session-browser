@@ -1,24 +1,17 @@
-"""Validate template-level static contracts for the quality gate.
-
-The scripts/quality dispatcher runs this CLI against repository templates. It
-reads HTML files, reports contract failures on stdout, and exits non-zero when
-Jinja delimiters or inline handlers would make browser rendering unsafe.
-"""
+"""提供 template contract 检查 脚本能力。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 
-# 01. 模板契约检查
+# 检查templates。
 def check_templates(repo_root: Path) -> list[str]:
-    """Inspect HTML templates for static rendering contract violations.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Input value for repo_root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     failures: list[str] = []
     templates = repo_root / 'java/web/src/main/resources/templates'
@@ -41,12 +34,10 @@ def check_templates(repo_root: Path) -> list[str]:
     return failures
 
 
-# 02. CLI
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the template contract check as a CLI quality gate.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     root = Path.cwd()
     failures = check_templates(root)

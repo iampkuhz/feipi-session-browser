@@ -1,26 +1,21 @@
 #!/usr/bin/env python3
-r"""Create an active OpenSpec change and write tmp/active_change.json sentinel.
-
-Usage:
-    python3 scripts/openspec/create_active_change.py \\
-        --change-id <kebab-case-id> \\
-        --source "<source description>" \\
-        [--title "<optional title, defaults to change-id>"]
-
-This script is idempotent for change files: re-running with the same
---change-id does not overwrite existing change files.  The active sentinel is
-always updated to the requested change because only one OpenSpec change can be
-active for protected edits.
-"""
+"""提供 create active change 脚本能力。"""
 
 import argparse
 import json
+import os
 import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
-# ── Constants ────────────────────────────────────────────────────────────────
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+
+# 常量定义。
 
 KEBAB_RE = re.compile(r'^[a-z0-9][a-z0-9-]*$')
 
@@ -49,17 +44,13 @@ TEMPLATE_FILES = {
 }
 
 
-# ── Helpers ──────────────────────────────────────────────────────────────────
-
-
+# 验证change id。
 def validate_change_id(change_id: str) -> str | None:
-    """Validate a proposed OpenSpec change identifier before scaffolding files.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: CLI-provided change id.
-
-    Returns:
-        None when valid; otherwise a human-readable validation error.
+    返回：
+        None 当 有效；否则 human-读取able validation 错误。
     """
     if not change_id:
         return 'change-id is required and cannot be empty'
@@ -73,14 +64,13 @@ def validate_change_id(change_id: str) -> str | None:
     return None
 
 
+# 维护templates 目录。
 def _templates_dir(root: Path) -> Path:
-    """Resolve the OpenSpec template directory used by active-change scaffolding.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Repository root path.
-
-    Returns:
-        Path to openspec/templates under the provided root.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     candidates = [
         root / '.claude' / 'skills' / 'change' / 'templates',
@@ -91,16 +81,15 @@ def _templates_dir(root: Path) -> Path:
     return candidates[0]  # return best guess even if missing
 
 
+# 写入文件 missing。
 def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
-    """Write a scaffold file only when it is absent to avoid overwriting user work.
+    """参数：
+        path: Destination 文件路径。
+        content: Text到write 当 文件 is 缺失。
+        label: 输出中显示的人类可读标签。
 
-    Args:
-        path: Destination file path.
-        content: Text to write when the file is missing.
-        label: Human-readable artifact label printed to stdout.
-
-    Returns:
-        True when a file was created; False when the destination already existed.
+    返回：
+        当a 文件 was created; 当 destination al读取y existed.时返回 true。
     """
     if path.exists():
         return False
@@ -109,6 +98,7 @@ def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
     return True
 
 
+# 复制template missing。
 def copy_template_if_missing(
     change_dir: Path,
     dest_rel: str,
@@ -116,17 +106,15 @@ def copy_template_if_missing(
     templates_dir: Path,
     change_id: str,
 ) -> bool:
-    """Copy one OpenSpec template into a change directory without overwriting edits.
+    """参数：
+        change_dir: change dir 参数。
+        dest_rel: 相对 change 目录的目标路径。
+        template_name: openspec/templates 下的 template 文件名。
+        templates_dir: OpenSpec template 目录。
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_dir: Target openspec/changes/<change-id> directory.
-        dest_rel: Destination path relative to the change directory.
-        template_name: Template file name under openspec/templates.
-        templates_dir: Resolved template directory.
-        change_id: Active change id substituted into template content.
-
-    Returns:
-        True when the template was copied; False when the destination already existed.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     dest = change_dir / dest_rel
     if dest.exists():
@@ -143,25 +131,27 @@ def copy_template_if_missing(
     return True
 
 
-# ── Main logic ───────────────────────────────────────────────────────────────
-
-
+# 创建active change。
 def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     change_id: str,
     source: str,
     title: str | None = None,
     root: Path | None = None,
+    agent_client: str | None = None,
+    session_id: str | None = None,
+    agent_id: str | None = None,
 ) -> dict:
-    """Create or reuse an active OpenSpec change scaffold for implementation work.
+    """参数：
+        change_id: 当前 OpenSpec change id。
+        source: 输入来源标识。
+        title: 可选display title用于generated proposal text。
+        root: 扫描根目录。
+        agent_client: agent client 参数。
+        session_id: 用于筛选记录的 session id。
+        agent_id: 用于筛选记录的 agent id。
 
-    Args:
-        change_id: Validated active change id.
-        source: Reason or request text persisted into tmp/active_change.json.
-        title: Optional display title for generated proposal text.
-        root: Optional repository root override used by tests.
-
-    Returns:
-        Metadata dictionary written to tmp/active_change.json and printed by the CLI.
+    返回：
+        结果映射。
     """
     if root is None:
         root = Path.cwd()
@@ -169,15 +159,20 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     title = title or change_id
     now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
+    identity = runtime_paths.identity_from_values(
+        agent_client=agent_client,
+        session_id=session_id or os.environ.get('FEIPI_SESSION_ID') or '',
+        agent_id=agent_id or os.environ.get('FEIPI_AGENT_ID') or '',
+    )
     change_dir = root / 'openspec' / 'changes' / change_id
-    agent_dir = root / 'tmp'
+    agent_dir = runtime_paths.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
     active_change_file = agent_dir / 'active_change.json'
 
     created: list[str] = []
     existed: list[str] = []
     updated: list[str] = []
 
-    # --- Change directory and templates ---
+    # 创建或复用 change 目录与模板文件。
     if not change_dir.exists():
         change_dir.mkdir(parents=True, exist_ok=True)
         created.append(f'openspec/changes/{change_id}/')
@@ -193,14 +188,13 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         else:
             existed.append(f'openspec/changes/{change_id}/{dest_rel}')
 
-    # --- tmp/ directory ---
+    # tmp/ 目录。
     if not agent_dir.exists():
         agent_dir.mkdir(parents=True, exist_ok=True)
-        created.append('tmp/')
+# 构建parser。
     else:
-        existed.append('tmp/')
+        existed.append(str(agent_dir.relative_to(root)) + '/')
 
-    # --- tmp/active_change.json ---
     sentinel = {
         'change_id': change_id,
         'change_path': f'openspec/changes/{change_id}/',
@@ -208,13 +202,16 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         'source_request': source,
         'protected_roots': PROTECTED_ROOTS,
         'required_gates': REQUIRED_GATES,
+        'agent_client': identity.client if identity.has_session else '',
+        'session_id': identity.raw_session_id,
+        'agent_id': identity.raw_agent_id,
     }
 
     if not active_change_file.exists():
         active_change_file.write_text(json.dumps(sentinel, indent=2) + '\n', encoding='utf-8')
-        created.append('tmp/active_change.json')
+        created.append(str(active_change_file.relative_to(root)))
     else:
-        existed.append('tmp/active_change.json')
+        existed.append(str(active_change_file.relative_to(root)))
         try:
             existing = json.loads(active_change_file.read_text(encoding='utf-8'))
         except json.JSONDecodeError:
@@ -224,7 +221,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
             sentinel['started_at'] = existing.get('started_at') or now
             sentinel['source_request'] = existing.get('source_request') or source
         else:
-            updated.append('tmp/active_change.json')
+            updated.append(str(active_change_file.relative_to(root)))
 
         active_change_file.write_text(json.dumps(sentinel, indent=2) + '\n', encoding='utf-8')
 
@@ -237,14 +234,10 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     }
 
 
-# ── CLI ──────────────────────────────────────────────────────────────────────
-
-
+# 构建parser。
 def build_parser() -> argparse.ArgumentParser:
-    """Build the active-change CLI parser used by OpenSpec setup scripts.
-
-    Returns:
-        ArgumentParser configured with change id, source, title, and root options.
+    """返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     parser = argparse.ArgumentParser(
         description='Create an active OpenSpec change and sentinel file.',
@@ -264,19 +257,21 @@ def build_parser() -> argparse.ArgumentParser:
         default=None,
         help='Optional human-readable title (defaults to change-id).',
     )
+    parser.add_argument('--agent-client', default=None, help='Agent client for runtime scope')
+    parser.add_argument('--session-id', default=None, help='Session id for runtime scope')
+    parser.add_argument('--agent-id', default=None, help='Subagent id for runtime scope')
     return parser
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse arguments and create the active OpenSpec change scaffold.
-
-    Returns:
-        Exit code 0 on success; 2 when the change id is invalid.
+    """返回：
+        进程退出码。
     """
     parser = build_parser()
     args = parser.parse_args()
 
-    # Validate change-id
+    # 校验 change-id。
     err = validate_change_id(args.change_id)
     if err:
         print(f'ERROR: {err}', file=sys.stderr)
@@ -286,9 +281,12 @@ def main() -> int:
         change_id=args.change_id,
         source=args.source,
         title=args.title,
+        agent_client=args.agent_client,
+        session_id=args.session_id,
+        agent_id=args.agent_id,
     )
 
-    # Report
+    # 报告输出。
     if result['created']:
         print(f"Created change '{result['change_id']}':")
         for p in result['created']:

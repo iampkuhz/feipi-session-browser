@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""Stop hook quality gate enforcement.
-
-Reads tmp/agent_logs/current/changed-files.jsonl and
-tmp/quality/<change-id>/quality-gate-summary.json to determine if UI changes have passed required quality gates.
-
-This is a DETERMINISTIC check — it does NOT run browsers, LLMs, or subagents.
-
-Usage:
-    python3 scripts/hooks/stop_quality_gate.py
-    python3 scripts/hooks/stop_quality_gate.py --change-id fix-xyz
-    python3 scripts/hooks/stop_quality_gate.py --self-test
-
-Exit codes:
-    0  PASS — no UI changes or quality artifact confirms PASS
-    1  FAIL — UI changes without PASS artifact, or artifact is FAIL/stale
-"""
+"""提供 stop quality gate 脚本能力。"""
 
 import argparse
 import json
@@ -24,103 +9,127 @@ from collections.abc import Callable
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-CHANGED_FILES = REPO_ROOT / 'tmp' / 'agent_logs' / 'current' / 'changed-files.jsonl'
-QUALITY_DIR = REPO_ROOT / 'tmp' / 'quality'
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+
+IDENTITY = runtime_paths.identity_from_values()
+CHANGED_FILES = runtime_paths.agent_log_dir(REPO_ROOT, IDENTITY) / 'changed-files.jsonl'
+QUALITY_DIR = (
+    runtime_paths.quality_dir(REPO_ROOT, IDENTITY)
+    if IDENTITY.has_session
+    else REPO_ROOT / 'tmp' / 'quality'
+)
 
 UI_CATEGORIES = {'ui-css', 'ui-template', 'ui-js'}
 HOOK_QUALITY_CATEGORIES = {'hook', 'quality-gate'}
 
 
+# 解析change id。
 def resolve_change_id(explicit: str | None) -> str:
-    """Resolve the change id used by the stop hook quality artifact lookup.
+    """参数：
+        explicit: 可选CLI override。
 
-    Args:
-        explicit: Optional CLI override.
-
-    Returns:
-        Explicit id, tmp/active_change.json id, or 'unknown' when neither is available.
+    返回：
+        resolve change id 字符串。
     """
     if explicit:
         return explicit
-    # Read from tmp/active_change.json (written by agent during OpenSpec change)
-    active_change = REPO_ROOT / 'tmp' / 'active_change.json'
-    if active_change.exists():
+    if IDENTITY.has_session:
+        candidates = runtime_paths.build_paths(REPO_ROOT, IDENTITY).active_change_candidates
+    else:
+        candidates = [runtime_paths.legacy_active_change_path(REPO_ROOT)]
+    for active_change in candidates:
+        if not active_change.exists():
+            continue
         try:
             data = json.loads(active_change.read_text(encoding='utf-8'))
-            cid = data.get('change_id', '')
+            cid = data.get('change_id') or data.get('changeId') or ''
             if cid:
                 return cid
         except (json.JSONDecodeError, OSError):
-            pass
+            continue
     return 'unknown'
 
 
+# 读取changed-files 文件。
 def read_changed_files() -> list[dict]:
-    """Read changed-file records captured by agent hooks for stop-hook enforcement.
-
-    Returns:
-        List of parsed JSON records; malformed lines and missing files are ignored.
+    """返回：
+        解析出的 JSON record 列表；忽略 malformed 行和缺失文件。
     """
-    if not CHANGED_FILES.exists():
-        return []
+    if IDENTITY.has_session:
+        log_dirs = runtime_paths.session_log_dirs(
+            REPO_ROOT,
+            IDENTITY,
+            include_agents=not IDENTITY.is_agent,
+        )
+        changed_paths = [path / 'changed-files.jsonl' for path in log_dirs]
+    else:
+        changed_paths = [CHANGED_FILES]
     entries = []
-    for raw_line in CHANGED_FILES.read_text(encoding='utf-8').strip().split('\n'):
-        line = raw_line.strip()
-        if line:
+    for changed_file in changed_paths:
+        if not changed_file.exists():
+            continue
+        for raw_line in changed_file.read_text(encoding='utf-8').strip().split('\n'):
+            line = raw_line.strip()
+            if not line:
+                continue
             try:
-                entries.append(json.loads(line))
+                record = json.loads(line)
             except json.JSONDecodeError:
                 continue
+            if IDENTITY.raw_session_id and record.get('sessionId') != IDENTITY.raw_session_id:
+                continue
+            if IDENTITY.raw_agent_id and record.get('agentId') != IDENTITY.raw_agent_id:
+                continue
+            entries.append(record)
     return entries
 
 
+# 判断是否存在UI changes。
 def has_ui_changes(entries: list[dict]) -> tuple[bool, list[str]]:
-    """Identify UI changes that require a session-detail quality artifact.
+    """参数：
+        entries: changed-文件 record从 读取_changed_files。
 
-    Args:
-        entries: Changed-file records from read_changed_files.
-
-    Returns:
-        Tuple indicating whether UI files changed and the matching file paths.
+    返回：
+        Tuple indicating whether UI 文件 changed 和 matching 文件路径s。
     """
     ui_files = [e['file'] for e in entries if e.get('category') in UI_CATEGORIES]
     return bool(ui_files), ui_files
 
 
+# 判断是否存在hook quality changes。
 def has_hook_quality_changes(entries: list[dict]) -> tuple[bool, list[str]]:
-    """Identify hook or quality-gate edits tracked by the stop hook.
+    """参数：
+        entries: changed-文件 record从 读取_changed_files。
 
-    Args:
-        entries: Changed-file records from read_changed_files.
-
-    Returns:
-        Tuple indicating whether hook/quality files changed and the matching file paths.
+    返回：
+        Tuple indicating whether hook/quality 文件 changed 和 matching 文件路径s。
     """
     files = [e['file'] for e in entries if e.get('category') in HOOK_QUALITY_CATEGORIES]
     return bool(files), files
 
 
+# 读取latest UI edit time。
 def get_latest_ui_edit_time(entries: list[dict]) -> str | None:
-    """Find the newest UI edit timestamp for stale artifact detection.
+    """参数：
+        entries: changed-文件 record从 读取_changed_files。
 
-    Args:
-        entries: Changed-file records from read_changed_files.
-
-    Returns:
-        Latest UI timestamp string, or None when no UI timestamp exists.
+    返回：
+        Latest UI timestamp 字符串, 或 None 当 no UI timestamp exists。
     """
     ui_times = [e['ts'] for e in entries if e.get('category') in UI_CATEGORIES and e.get('ts')]
     return max(ui_times) if ui_times else None
 
 
+# 读取quality artifact。
 def read_quality_artifact(change_id: str) -> dict | None:
-    """Read the session-detail quality artifact for the active change.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Change id used to locate tmp/quality/<change-id>.
-
-    Returns:
-        Parsed artifact dictionary, or None when the artifact is missing or invalid.
+    返回：
+        已解析的artifact dictionary, 或 None 当 artifact is 缺失 或 无效。
     """
     target_specific = QUALITY_DIR / change_id / 'quality-gate-summary.session-detail.json'
     if not target_specific.exists():
@@ -131,48 +140,45 @@ def read_quality_artifact(change_id: str) -> dict | None:
         return None
 
 
+# 判断是否artifact stale。
 def is_artifact_stale(artifact: dict, latest_ui_edit: str | None) -> bool:
-    """Compare quality artifact completion time with the newest UI edit time.
+    """参数：
+        artifact: 已解析的quality artifact dictionary。
+        latest_ui_edit: 最新 UI 编辑 timestamp。
 
-    Args:
-        artifact: Parsed quality artifact dictionary.
-        latest_ui_edit: Newest UI edit timestamp from changed-file records.
-
-    Returns:
-        True when the artifact is missing a finish time or predates the UI edit; otherwise False.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     if not latest_ui_edit or not artifact:
         return False
     finished_at = artifact.get('finishedAt', '')
     if not finished_at:
         return True
-    # Simple string comparison works for ISO 8601 UTC timestamps
+    # Simple 字符串 比较 works用于ISO 8601 UTC timestamps。
     return finished_at < latest_ui_edit
 
 
+# 运行检查。
 def run_check(change_id: str | None = None) -> tuple[str, list[str]]:  # noqa: PLR0911 - hook exits by scenario.
-    """Evaluate whether the stop hook may allow the agent turn to finish.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Optional explicit change id; None resolves from active-change state.
-
-    Returns:
-        Tuple of PASS/FAIL status and human-readable blocking messages.
+    返回：
+        由PASS/FAIL 状态 和 human-读取able 阻断 messages.组成的 tuple。
     """
     cid = resolve_change_id(change_id)
-    # Read changed files
+    # 读取changed 文件。
     entries = read_changed_files()
     if not entries:
         return 'PASS', []
 
-    # Check for UI changes
+    # 检查用于 UI changes。
     has_ui, ui_files = has_ui_changes(entries)
     if not has_ui:
-        # No UI changes — check if hook/quality files changed
+        # 没有UI changes — check 如果 hook/quality 文件 changed。
         has_hq, _hq_files = has_hook_quality_changes(entries)
         if not has_hq:
             return 'PASS', []
-        # Hook/quality files changed — require artifact PASS
         artifact = read_quality_artifact(cid)
         if artifact is None:
             return 'PASS', []  # No UI changes, hook changes don't require UI gate
@@ -183,7 +189,6 @@ def run_check(change_id: str | None = None) -> tuple[str, list[str]]:  # noqa: P
             ]
         return 'PASS', []
 
-    # UI changes exist — require quality artifact
     artifact = read_quality_artifact(cid)
 
     if artifact is None:
@@ -203,7 +208,6 @@ def run_check(change_id: str | None = None) -> tuple[str, list[str]]:  # noqa: P
             '  missing artifact',
         ]
 
-    # Artifact exists but is FAIL
     if artifact.get('status') != 'PASS':
         blocking = artifact.get('blockingFailures', [])
         summary = f'Artifact status: {artifact.get("status")}'
@@ -219,7 +223,6 @@ def run_check(change_id: str | None = None) -> tuple[str, list[str]]:  # noqa: P
             f'  {summary}',
         ]
 
-    # Artifact is PASS — check staleness
     latest_ui_edit = get_latest_ui_edit_time(entries)
     if is_artifact_stale(artifact, latest_ui_edit):
         return 'FAIL', [
@@ -234,16 +237,15 @@ def run_check(change_id: str | None = None) -> tuple[str, list[str]]:  # noqa: P
     return 'PASS', [f'Quality gate PASS (change-id={cid})']
 
 
+# 运行脚本自测试场景。
 def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to hook.
-    """Run deterministic stop-hook scenarios without touching real quality artifacts."""
     failures = 0
 
+    # 运行检查流程。
     def _run(name: str, func: Callable[[], None]) -> None:
-        """Execute one embedded stop-hook self-test and count failures.
-
-        Args:
-            name: Scenario label printed in self-test output.
-            func: Callable containing assertions for the scenario.
+        """参数：
+            name: 条目名称。
+            func: func 参数。
         """
         nonlocal failures
         try:
@@ -256,15 +258,14 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             failures += 1
             print(f'  FAIL: {name} — {type(e).__name__}: {e}')
 
+    # 维护make artifact。
     def _make_artifact(status: str, finished: str = '2026-05-18T00:01:00Z') -> dict:
-        """Build a minimal quality artifact for stop-hook self-tests.
+        """参数：
+            status: Artifact 状态到encode。
+            finished: finished 参数。
 
-        Args:
-            status: Artifact status to encode.
-            finished: Finished timestamp used for stale checks.
-
-        Returns:
-            Dictionary shaped like a session-detail quality-gate summary.
+        返回：
+            结果映射。
         """
         return {
             'schemaVersion': 1,
@@ -279,8 +280,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             'artifacts': {},
         }
 
+    # 维护t1 无 changed-files 文件。
     def _t1_no_changed_files() -> None:
-        """No changed-files => PASS."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -292,8 +293,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
+    # 维护t2 UI missing artifact。
     def _t2_ui_missing_artifact() -> None:
-        """UI file changed, artifact missing => FAIL."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -318,8 +319,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
+    # 维护t3 UI artifact fail。
     def _t3_ui_artifact_fail() -> None:
-        """UI file changed, artifact FAIL => FAIL."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -352,8 +353,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
+    # 维护t4 UI artifact stale。
     def _t4_ui_artifact_stale() -> None:
-        """UI file changed, artifact PASS but stale => FAIL."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -385,8 +386,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
+    # 维护t5 UI artifact 通过 fresh。
     def _t5_ui_artifact_pass_fresh() -> None:
-        """UI file changed, artifact PASS and fresh => PASS."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -418,8 +419,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
+    # 维护t6 docs 仅。
     def _t6_docs_only() -> None:
-        """Only docs changed => PASS."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -443,8 +444,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
 
+    # 维护t7 unknown change id。
     def _t7_unknown_change_id() -> None:
-        """Unknown change ID still checks tmp/quality/unknown."""
         with tempfile.TemporaryDirectory() as td:
             global CHANGED_FILES, QUALITY_DIR  # noqa: PLW0603 - self-test swaps temp paths.
             old_cf, old_qd = CHANGED_FILES, QUALITY_DIR
@@ -464,7 +465,7 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
                     + '\n'
                 )
                 status, _msgs = run_check('unknown')
-                # No artifact for "unknown" => FAIL
+                # 没有artifact用于"unknown" => FAIL。
                 assert status == 'FAIL', f'Expected FAIL, got {status}'
             finally:
                 CHANGED_FILES, QUALITY_DIR = old_cf, old_qd
@@ -485,8 +486,8 @@ def _self_test() -> None:  # noqa: PLR0915 - embedded scenarios stay local to ho
         sys.exit(0)
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Parse stop-hook CLI options and enforce the session-detail quality gate."""
     parser = argparse.ArgumentParser(description='Stop hook quality gate')
     parser.add_argument('--change-id', default=None, help='Override change ID')
     parser.add_argument('--self-test', action='store_true', help='Run self-tests')

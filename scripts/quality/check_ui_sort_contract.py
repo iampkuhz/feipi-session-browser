@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""P0 门禁：UI 排序按钮统一性、页面脚本加载、sidebar nav 和脏选择器检查。
-
-检查项：
-  1. 页面脚本加载 — /projects 模板必须包含对应 JS
-  2. 排序按钮唯一 contract — 禁止多套排序按钮体系并存
-  3. _tables.css 无重复 .data-table th rule
-  4. 脏 CSS 选择器禁令 — compat alias 注释等
-  5. 共享 primitive 所有权 — projects.css 不得重写共享 primitive
-
-用法:
-    python3 scripts/quality/check_ui_sort_contract.py
-
-退出码:
-    0 — 通过
-    1 — 发现违规
-"""
+"""P0 门禁：UI 排序按钮统一性、页面脚本加载、sidebar nav 和脏选择器检查。"""
 
 from __future__ import annotations
 
@@ -28,8 +13,11 @@ CSS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' /
 JS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js'
 
 
+# 检查page scripts。
 def check_page_scripts() -> list[str]:
-    """检查 1: /projects 模板必须包含对应 JS 脚本标签。"""
+    """返回：
+        结果列表。
+    """
     errors: list[str] = []
     checks = [
         ('projects.html', 'projects.js'),
@@ -46,13 +34,14 @@ def check_page_scripts() -> list[str]:
     return errors
 
 
+# 检查sort unification。
 def check_sort_unification() -> list[str]:
-    """检查 2: 全仓库只存在唯一排序按钮 contract (.c-data-table__sort)。
+    """返回：
+        结果列表。
 
-    禁止以下旧选择器在 CSS/JS/模板中存活：
-      .sort-button, .sortable-header, .sort-caret, .sort-mark,
-      .sessions-sort-icon, .sessions-th__sort-btn
-    但允许它们出现在注释中（作为历史记录）。
+    说明：
+        禁止以下旧选择器在 CSS/JS/模板中存活：。
+        但允许它们出现在注释中（作为历史记录）。
     """
     errors: list[str] = []
     banned_patterns = [
@@ -93,11 +82,14 @@ def check_sort_unification() -> list[str]:
     return errors
 
 
+# 检查无 duplicate th rules。
 def check_no_duplicate_th_rules() -> list[str]:
-    """检查 3: _tables.css 中不能有重复且互相覆盖的 .data-table th rule。
+    """返回：
+        结果列表。
 
-    允许一个 canonical .data-table th 定义和一个 .data-table thead th 定义，
-    但不允许多个顶级 .data-table th { ... } rule（来自 style.css 迁移的重复项）。
+    说明：
+        允许一个 canonical。data-table th 定义和一个。data-table thead th 定义，。
+        但不允许多个顶级。data-table th {。 } rule（来自 style.css 迁移的重复项）。
     """
     errors: list[str] = []
     tables_css = CSS_DIR / 'ui-primitives' / '_tables.css'
@@ -124,13 +116,15 @@ def check_no_duplicate_th_rules() -> list[str]:
     return errors
 
 
+# 检查dirty CSS ban。
 def check_dirty_css_ban() -> list[str]:
-    """检查 4: 脏 CSS 选择器禁令。
+    """返回：
+        结果列表。
 
-    禁止:
-      - "legacy alias" 或 "compat alias" 注释
-      - projects.css 中定义共享 primitive (如 .btn, .data-table th 等)
-        但命名空间内的覆盖 (.p-projects .tokenbar) 不算违规。
+    说明：
+        禁止:。
+        - projects.css 中定义共享 primitive (如。btn,。data-table th 等)。
+        但命名空间内的覆盖 (.p-projects。tokenbar) 不算违规。
     """
     errors: list[str] = []
     banned_comments = [
@@ -185,8 +179,8 @@ def check_dirty_css_ban() -> list[str]:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Run all UI sort and shared contract checks."""
     errors: list[str] = []
 
     print('=== UI Sort & Contract Quality Gate ===\n')

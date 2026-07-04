@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Capture a live session-detail DOM and selector inventory baseline.
-
-This QA utility is run manually against the local fixture server on port 18999,
-or the host/port supplied through SESSION_BROWSER_LOCAL_HOST and
-SESSION_BROWSER_LOCAL_PORT. It reads the dashboard, fetches the first session
-link, writes HTML plus selector inventory under reports/, and exits non-zero
-when the server or session page cannot be reached.
-"""
+"""提供 capture session detail baseline 脚本能力。"""
 
 from __future__ import annotations
 
@@ -38,28 +31,22 @@ TARGET_SELECTORS = [
 
 
 class SelectorInventoryParser(HTMLParser):
-    """Record target selector presence while parsing session-detail HTML.
-
-    The baseline capture command creates one parser per fetched page. It tracks
-    selector presence plus observed classes, ids, and tag names in memory only;
-    generated JSON is written later by main. Its initializer prepares selector
-    inventory state for one captured page.
+    """表示 SelectorInventoryParser。
     """
 
+    # 维护init。
     def __init__(self) -> None:
-        """Initialize selector inventory state for one captured page."""  # noqa: RUF100  # noqa: DOC301
         super().__init__()
         self.found = dict.fromkeys(TARGET_SELECTORS, False)
         self._classes_seen: set[str] = set()
         self._ids_seen: set[str] = set()
         self._tags_seen: set[str] = set()
 
+    # 记录 HTML 开始标签。
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        """Update selector inventory from a start tag emitted by HTMLParser.
-
-        Args:
-            tag: Raw tag name from the fetched session-detail HTML.
-            attrs: Attribute pairs for the tag; missing values are treated as empty.
+        """参数：
+            tag: tag 参数。
+            attrs: attrs 参数。
         """
         attrs_dict = {key: value or '' for key, value in attrs}
         tag_name = tag.lower()
@@ -94,12 +81,10 @@ class SelectorInventoryParser(HTMLParser):
             self.found['content-modal'] = True
 
 
+# 查找session url。
 def find_session_url() -> str | None:
-    """Find the first session-detail URL from the live dashboard.
-
-    Returns:
-        Absolute session URL when the dashboard contains a session link; None when
-        the server is unreachable or no session link is present.
+    """返回：
+        find session url 字符串。
     """
     try:
         req = urllib.request.Request(f'{BASE_URL}/dashboard')
@@ -115,14 +100,13 @@ def find_session_url() -> str | None:
     return None
 
 
+# 维护获取 session HTML。
 def fetch_session_html(session_url: str) -> str | None:
-    """Fetch session-detail HTML for baseline capture.
+    """参数：
+        session_url: session url 参数。
 
-    Args:
-        session_url: Absolute session URL discovered from the local dashboard.
-
-    Returns:
-        Decoded HTML when the request succeeds; None when the page cannot be fetched.
+    返回：
+        fetch session HTML 字符串。
     """
     try:
         req = urllib.request.Request(session_url)
@@ -133,29 +117,26 @@ def fetch_session_html(session_url: str) -> str | None:
         return None
 
 
+# 维护清单 selectors。
 def inventory_selectors(html: str) -> dict[str, bool]:
-    """Parse session-detail HTML and report target selector presence.
+    """参数：
+        html: 待检查的 HTML 文本。
 
-    Args:
-        html: HTML fetched from the live session-detail page.
-
-    Returns:
-        Mapping from each target selector to a boolean presence flag.
+    返回：
+        映射从each target selector到a 布尔值 presence flag。
     """
     parser = SelectorInventoryParser()
     parser.feed(html)
     return parser.found
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the baseline capture CLI and write report artifacts.
+    """返回：
+        进程退出码。
 
-    The QA maintainer runs this script after starting a local server. It writes
-    current.html and selector-inventory.json under reports/, prints a summary,
-    and returns 1 for missing server/session inputs.
-
-    Returns:
-        Process exit code 0 after successful artifact generation, otherwise 1.
+    说明：
+        和 返回 1用于缺失 server/session inputs。
     """
     REPORT_DIR.mkdir(parents=True, exist_ok=True)
 

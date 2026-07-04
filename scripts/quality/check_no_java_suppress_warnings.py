@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""检查 Java 主源码中是否存在 @SuppressWarnings("PMD.") 压制自定义 PMD 规则。
-
-仓库规约：不使用 @SuppressWarnings 压制自定义 PMD 规则，遇到违规时直接修复源码。
-Java 标准编译器告警（unchecked、deprecation 等）的 @SuppressWarnings 不受此限制。
-
-Exit codes:
-    0 — 未发现违规
-    1 — 发现 @SuppressWarnings("PMD.") 用法
-"""
+"""检查 Java 主源码中是否存在 @SuppressWarnings("PMD.") 压制自定义 PMD 规则。"""
 
 from __future__ import annotations
 
@@ -28,12 +20,15 @@ ALLOWED_SUPPRESSIONS: dict[str, list[str]] = {
     ],
 }
 
-# 匹配 @SuppressWarnings("PMD.") 或 @SuppressWarnings({"PMD.", ...})
+# 定义 _PMD_SUPPRESS_RE 常量配置。
 _PMD_SUPPRESS_RE = re.compile(r'@SuppressWarnings\s*\(\s*(?:\{[^}]*?)?["\']PMD\.')
 
 
+# 维护扫描 Java 源码。
 def scan_java_sources() -> list[tuple[Path, int, str]]:
-    """扫描 Java 主源码，返回 (文件路径, 行号, 匹配行) 列表。"""
+    """返回：
+        结果列表。
+    """
     violations: list[tuple[Path, int, str]] = []
     java_root = REPO_ROOT / 'java'
     if not java_root.exists():
@@ -61,7 +56,11 @@ def scan_java_sources() -> list[tuple[Path, int, str]]:
     return violations
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     violations = scan_java_sources()
     if not violations:
         print(f'PASS: no @SuppressWarnings("PMD.") found in main sources')

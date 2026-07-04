@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that protected edits have matching OpenSpec state.
-
-Called by Claude Code as a Stop/SubagentStop hook.  Checks whether
-uncommitted changes exist under protected roots, and if so validates
-that tmp/active_change.json, the change directory (proposal.md,
-design.md, tasks.md), and evidence log are all present and populated.
-
-Usage:
-    python3 scripts/agent_hooks/stop_validate_change.py
-    python3 scripts/agent_hooks/stop_validate_change.py --self-test
-
-Env vars:
-    FEIPI_SKIP_STOP_HOOK=1   Emergency bypass - always exit 0.
-
-Exit codes:
-    0  ALLOW  - clean stop or change is complete
-    2  BLOCK  - protected changes detected but change/evidence is incomplete
-"""
+"""提供 stop validate change 脚本能力。"""
 
 from __future__ import annotations
 
@@ -29,10 +12,9 @@ import tempfile
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Configuration
+# 配置项。
 # ---------------------------------------------------------------------------
 
-# Roots whose uncommitted edits require an OpenSpec change.
 PROTECTED_ROOTS = [
     'CLAUDE.md',
     'AGENTS.md',
@@ -48,33 +30,27 @@ PROTECTED_ROOTS = [
 ACTIVE_CHANGE_FILE = Path('tmp/active_change.json')
 EVIDENCE_DIR = Path('tmp/task-evidence')
 
-# Required files inside openspec/changes/<change-id>/
+# 必需 文件 inside openspec/changes/<change-id>/。
 REQUIRED_CHANGE_FILES = ['proposal.md', 'design.md', 'tasks.md']
 EXIT_ALLOW = 0
 EXIT_BLOCK = 2
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-
+# 维护repo 根目录。
 def _repo_root() -> Path:
-    """Return the repository root assumed by the hook process.
-
-    Returns:
-        Absolute path to the current working directory.
+    """返回：
+        Absolute 路径到当前 working 目录。
     """
     return Path.cwd().resolve()
 
 
+# 判断是否存在uncommitted changes。
 def has_uncommitted_changes(roots: list[str] | None = None) -> bool:
-    """Return whether protected roots have staged or unstaged changes.
+    """参数：
+        roots: 可选protected roots以检查 instead of 默认 set。
 
-    Args:
-        roots: Optional protected roots to inspect instead of the default set.
-
-    Returns:
-        True when git reports changes or git status cannot be trusted.
+    返回：
+        当git reports changes 或 git 状态 cannot be trusted.时返回 true。
     """
     if roots is None:
         roots = PROTECTED_ROOTS
@@ -90,15 +66,13 @@ def has_uncommitted_changes(roots: list[str] | None = None) -> bool:
         )
         return bool(result.stdout.strip())
     except (subprocess.TimeoutExpired, FileNotFoundError, OSError):
-        # If git fails, assume there are changes (safer side).
         return True
 
 
+# 加载active change。
 def load_active_change() -> dict | None:
-    """Parse active_change.json from the current OpenSpec location.
-
-    Returns:
-        Parsed active change metadata, or None when unavailable.
+    """返回：
+        已解析的active change metadata, 或 None 当 unavailable。
     """
     root = _repo_root()
     p = root / ACTIVE_CHANGE_FILE
@@ -110,40 +84,37 @@ def load_active_change() -> dict | None:
         return None
 
 
+# 维护change id active。
 def change_id_from_active(active: dict | None) -> str | None:
-    """Extract the change id from active change metadata.
+    """参数：
+        active: 已解析的active change metadata, 如果 可用。
 
-    Args:
-        active: Parsed active change metadata, if available.
-
-    Returns:
-        Change id string, or None when the metadata is missing it.
+    返回：
+        Change id 字符串, 或 None 当 metadata is 缺失 it。
     """
     if active:
         return active.get('change_id')
     return None
 
 
+# 维护change 目录 exists。
 def change_dir_exists(change_id: str) -> bool:
-    """Return whether the referenced OpenSpec change directory exists.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        True when openspec/changes/<change-id>/ exists.
+    返回：
+        当openspec/changes/<change-id>/ exists.时返回 true。
     """
     return (_repo_root() / 'openspec' / 'changes' / change_id).is_dir()
 
 
+# 维护必需 文件 存在。
 def required_files_present(change_id: str) -> list[str]:
-    """List required OpenSpec files missing from a change directory.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Names of required files that are not present.
+    返回：
+        Names of 必需 文件 that are 不 present。
     """
     base = _repo_root() / 'openspec' / 'changes' / change_id
     missing = []
@@ -153,26 +124,24 @@ def required_files_present(change_id: str) -> list[str]:
     return missing
 
 
+# 维护evidence 文件。
 def evidence_file(change_id: str) -> Path:
-    """Return the current evidence file path.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Absolute path to the change evidence JSONL file.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     return _repo_root() / EVIDENCE_DIR / f'{change_id}.jsonl'
 
 
+# 判断是否存在evidence entries。
 def has_evidence_entries(change_id: str) -> bool:
-    """Return whether the change evidence JSONL has content.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        True when the evidence file exists and is non-empty.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     ef = evidence_file(change_id)
     if not ef.is_file():
@@ -183,36 +152,32 @@ def has_evidence_entries(change_id: str) -> bool:
     except OSError:
         return False
 
-
+# 判断是否存在completed 任务。
 def has_completed_tasks(change_id: str) -> bool:
-    """Check whether the change task list has completed work.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        True when tasks.md contains at least one checked task item.
+    返回：
+        当tasks.md contains at least one checked task item.时返回 true。
     """
     tasks = _repo_root() / 'openspec' / 'changes' / change_id / 'tasks.md'
     if not tasks.is_file():
         return False
     content = tasks.read_text(encoding='utf-8')
-    # Look for - [x] pattern (common markdown task completion marker)
+    # 查找常见 Markdown 已完成任务标记。
     for line in content.splitlines():
         stripped = line.strip()
         if stripped.startswith('- [x]') or stripped.startswith('* [x]'):
             return True
     return False
 
-
+# 维护修复 消息。
 def repair_messages(change_id: str | None = None) -> list[str]:
-    """Build concise repair guidance for blocked stop validation.
+    """参数：
+        change_id: 已知的活跃 OpenSpec change identifier。
 
-    Args:
-        change_id: Active OpenSpec change identifier, if known.
-
-    Returns:
-        Ordered repair instructions for the agent.
+    返回：
+        给 agent 执行的有序修复步骤。
     """
     target = f" '{change_id}'" if change_id else ''
     return [
@@ -221,38 +186,32 @@ def repair_messages(change_id: str | None = None) -> list[str]:
         '  2. Ensure proposal.md, design.md, and tasks.md exist under that change.',
         (
             '  3. Record or preserve edit evidence in '
-            'tmp/agent_logs/current/task-evidence/<change-id>.jsonl.'
+            'identity-scoped task-evidence/<change-id>.jsonl.'
         ),
         '  4. Mark completed tasks in tasks.md before final stop.',
     ]
 
 
-# ---------------------------------------------------------------------------
-# Core validation
-# ---------------------------------------------------------------------------
-
-
+# 验证输入契约。
 def validate() -> tuple[int, list[str]]:  # noqa: PLR0911
-    """Run the stop-validation gate.
-
-    Returns:
-        Tuple of process exit code and human-readable validation messages.
+    """返回：
+        进程退出码和可读验证消息。
     """
     messages: list[str] = []
 
-    # Emergency bypass
+    # 紧急旁路保持兼容。
     if os.environ.get('FEIPI_SKIP_STOP_HOOK', '').strip() == '1':
         messages.append('EMERGENCY BYPASS: FEIPI_SKIP_STOP_HOOK=1 detected, skipping validation.')
         return 0, messages
 
-    # No protected changes -> clean stop
+    # 没有受保护改动时允许干净停止。
     if not has_uncommitted_changes():
         messages.append('No protected changes detected. Clean stop.')
         return 0, messages
 
     messages.append('Protected changes detected. Validating OpenSpec change completeness ...')
 
-    # Check active_change.json
+    # 检查 active_change.json。
     active = load_active_change()
     if active is None:
         messages.append(
@@ -268,31 +227,31 @@ def validate() -> tuple[int, list[str]]:  # noqa: PLR0911
         messages.extend(repair_messages())
         return EXIT_BLOCK, messages
 
-    # Check change directory exists
+    # 检查 change 目录是否存在。
     if not change_dir_exists(cid):
         messages.append(f'BLOCK: openspec/changes/{cid}/ directory not found.')
         messages.extend(repair_messages(cid))
         return EXIT_BLOCK, messages
 
-    # Check required files
+    # 检查必需文件。
     missing = required_files_present(cid)
     if missing:
         messages.append(
             f"WARN/BLOCK: change '{cid}' is missing required files: {', '.join(missing)}"
         )
 
-    # Check evidence
+    # 检查 evidence。
     ef = evidence_file(cid)
     if not has_evidence_entries(cid):
         messages.append(f'WARN/BLOCK: no evidence entries in {ef.relative_to(_repo_root())}')
 
-    # Check completed tasks (informational)
+    # 检查已完成任务，仅作为提示信息。
     if has_completed_tasks(cid):
         messages.append('  tasks.md: some tasks marked complete (change in progress).')
     else:
         messages.append('  tasks.md: no tasks marked complete yet.')
 
-    # Decision: if missing required files or no evidence -> block
+    # 缺少必需文件或 evidence 时必须阻断。
     if missing or not has_evidence_entries(cid):
         messages.append(
             'Result: BLOCK - protected changes exist but change/evidence is incomplete.'
@@ -304,32 +263,22 @@ def validate() -> tuple[int, list[str]]:  # noqa: PLR0911
     return 0, messages
 
 
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-
-
+# 运行self test。
 def _run_self_test() -> int:  # noqa: PLR0915
-    """Run the stop validator self-test suite in a temporary git repository.
+    """返回：
+        全部自测通过时返回 0，否则返回 1。
 
-    Sub-tests:
-      1. no changes, no active change -> ALLOW
-      2. protected changes, no active change -> BLOCK
-      3. protected changes, active change, evidence present -> ALLOW
-      4. emergency bypass -> ALWAYS ALLOW
-
-    Returns:
-        Process exit code where 0 means all self-tests passed.
+    说明：
+        覆盖无改动、缺失活跃变更、证据完整、紧急旁路和缺失必需文件场景。
     """
     results: list[tuple[str, bool, str]] = []
 
+    # 维护检查。
     def check(name: str, condition: bool, detail: str = '') -> None:
-        """Record one stop-hook self-test assertion and print its status.
-
-        Args:
-            name: Human-readable assertion name.
-            condition: Whether the assertion passed.
-            detail: Optional diagnostic detail for failures or counters.
+        """参数：
+            name: 便于阅读的断言名称。
+            condition: 表示断言是否通过。
+            detail: 失败诊断或计数详情。
         """
         passed = condition
         status = 'PASS' if passed else 'FAIL'
@@ -339,7 +288,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
     with tempfile.TemporaryDirectory(prefix='stop_validate_test_') as tmpdir:
         tmp = Path(tmpdir)
 
-        # -- Create a minimal git repo --
+        # 创建最小 git 仓库。
         subprocess.run(['git', 'init', '-q', str(tmp)], check=True, capture_output=True)
         subprocess.run(
             ['git', 'config', 'user.email', 'test@test.com'],
@@ -354,7 +303,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
             capture_output=True,
         )
 
-        # Create initial files and commit
+        # 创建初始文件和 commit。
         for p in [
             tmp / 'CLAUDE.md',
             tmp / 'AGENTS.md',
@@ -374,7 +323,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
             capture_output=True,
         )
 
-        # --- Sub-test 1: no changes, no active change -> ALLOW ---
+        # 子用例 1：无受保护改动且无活跃变更时允许停止。
         print('Sub-test 1: no protected changes, no active change -> ALLOW')
         saved_cwd = Path.cwd()
         os.chdir(tmp)
@@ -385,11 +334,11 @@ def _run_self_test() -> int:  # noqa: PLR0915
             os.environ['FEIPI_SKIP_STOP_HOOK'] = saved_skip
         check('exit code is 0 (ALLOW)', exit_code == 0, f'exit={exit_code}')
 
-        # --- Sub-test 2: protected changes, no active change -> BLOCK ---
+        # 子用例 2：存在受保护改动但无活跃变更时阻断。
         print('Sub-test 2: protected changes, no active change -> BLOCK')
         os.chdir(tmp)
         saved_skip = os.environ.pop('FEIPI_SKIP_STOP_HOOK', None)
-        # Modify a protected file
+        # 修改一个受保护文件。
         (tmp / 'CLAUDE.md').write_text('# modified\n', encoding='utf-8')
         exit_code, msgs = validate()
         os.chdir(saved_cwd)
@@ -399,11 +348,11 @@ def _run_self_test() -> int:  # noqa: PLR0915
         has_block_msg = any('BLOCK' in m or 'block' in m.lower() for m in msgs)
         check('message contains BLOCK', has_block_msg, 'messages: ' + '; '.join(msgs[:3]))
 
-        # --- Sub-test 3: protected changes + active change + evidence -> ALLOW ---
+        # 子用例 3：受保护改动、活跃变更和 evidence 完整时允许。
         print('Sub-test 3: protected changes + active change + evidence -> ALLOW')
         os.chdir(tmp)
         saved_skip = os.environ.pop('FEIPI_SKIP_STOP_HOOK', None)
-        # Set up active change
+        # 配置活跃变更。
         (tmp / 'tmp' / 'active_change.json').write_text(
             json.dumps(
                 {
@@ -414,13 +363,13 @@ def _run_self_test() -> int:  # noqa: PLR0915
             ),
             encoding='utf-8',
         )
-        # Set up change directory with required files
+        # 创建包含必需文件的 change 目录。
         cdir = tmp / 'openspec' / 'changes' / 'test-change-003'
         cdir.mkdir(parents=True)
         (cdir / 'proposal.md').write_text('# Proposal\n', encoding='utf-8')
         (cdir / 'design.md').write_text('# Design\n', encoding='utf-8')
         (cdir / 'tasks.md').write_text('- [x] Task 1\n- [ ] Task 2\n', encoding='utf-8')
-        # Set up evidence
+        # 配置 evidence。
         evdir = tmp / 'tmp' / 'task-evidence'
         evdir.mkdir(parents=True)
         (evdir / 'test-change-003.jsonl').write_text(
@@ -433,12 +382,12 @@ def _run_self_test() -> int:  # noqa: PLR0915
             os.environ['FEIPI_SKIP_STOP_HOOK'] = saved_skip
         check('exit code is 0 (ALLOW)', exit_code == 0, f'exit={exit_code}')
 
-        # --- Sub-test 4: emergency bypass -> ALWAYS ALLOW ---
+        # 子用例 4：紧急旁路始终允许。
         print('Sub-test 4: emergency bypass (FEIPI_SKIP_STOP_HOOK=1) -> ALWAYS ALLOW')
         os.chdir(tmp)
         os.environ['FEIPI_SKIP_STOP_HOOK'] = '1'
-        # Even with broken state, should still allow
-        # Remove active_change to make it the worst case
+        # 即使状态破损也应允许紧急旁路。
+        # 移除 active_change，构造最坏情况。
         (tmp / 'tmp' / 'active_change.json').unlink()
         exit_code, msgs = validate()
         os.chdir(saved_cwd)
@@ -447,11 +396,11 @@ def _run_self_test() -> int:  # noqa: PLR0915
         has_bypass_msg = any('EMERGENCY BYPASS' in m or 'bypass' in m.lower() for m in msgs)
         check('message mentions bypass', has_bypass_msg, 'messages: ' + '; '.join(msgs[:2]))
 
-        # --- Sub-test 5: protected changes + active change but missing files -> BLOCK ---
+        # 子用例 5：有活跃变更但缺少必需文件时阻断。
         print('Sub-test 5: protected changes + active change but missing required files -> BLOCK')
         os.chdir(tmp)
         saved_skip = os.environ.pop('FEIPI_SKIP_STOP_HOOK', None)
-        # Re-create active change but with incomplete change dir
+        # 重建活跃变更，但 change 目录不完整。
         (tmp / 'tmp' / 'active_change.json').write_text(
             json.dumps(
                 {
@@ -464,9 +413,9 @@ def _run_self_test() -> int:  # noqa: PLR0915
         )
         cdir5 = tmp / 'openspec' / 'changes' / 'test-change-005'
         cdir5.mkdir(parents=True)
-        # Only create proposal.md, leave out design.md and tasks.md
+        # 只创建 proposal.md，故意缺少 design.md 和 tasks.md。
         (cdir5 / 'proposal.md').write_text('# Proposal\n', encoding='utf-8')
-        # No evidence either
+        # 同时缺少 evidence。
         exit_code, msgs = validate()
         os.chdir(saved_cwd)
         if saved_skip is not None:
@@ -475,7 +424,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
         has_block_msg = any('BLOCK' in m or 'block' in m.lower() or 'WARN' in m for m in msgs)
         check('message indicates incomplete', has_block_msg, 'messages: ' + '; '.join(msgs[:3]))
 
-    # Summary
+    # 结果汇总。
     passed_count = sum(1 for _, p, _ in results if p)
     total = len(results)
     all_pass = passed_count == total
@@ -491,16 +440,10 @@ def _run_self_test() -> int:  # noqa: PLR0915
     return 0 if all_pass else 1
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI arguments and run stop validation.
-
-    Returns:
-        Process exit code for the hook invocation.
+    """返回：
+        hook 调用的进程退出码。
     """
     parser = argparse.ArgumentParser(
         description='Stop/SubagentStop hook: validate OpenSpec change completeness.'

@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-"""Browser visual gate for LLM call attribution modals.
-
-Opens a real browser, navigates to a session detail page, opens the
-Request and Response attribution modals, takes screenshots at 1440px
-and 2560px viewports, and checks geometry / text / readability.
-
-Usage:
-    python3 scripts/quality/run_llm_attribution_visual_gate.py \
-        --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001
-    python3 scripts/quality/run_llm_attribution_visual_gate.py \
-        --url http://127.0.0.1:18999/sessions/claude_code/hifi-viz-session-001 \
-        --out test-results/quality/llm-attribution-visual
-    python3 scripts/quality/run_llm_attribution_visual_gate.py --self-test
-    python3 scripts/quality/run_llm_attribution_visual_gate.py --help
-"""
+"""提供 run llm attribution visual gate 脚本能力。"""
 
 import argparse
 import asyncio
@@ -26,10 +12,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# ── Default output directory ──
+# 默认 输出 目录。
 DEFAULT_OUT = REPO_ROOT / 'test-results' / 'quality' / 'llm-attribution-visual'
 
-# ── Thresholds ──
 OVERFLOW_MARGIN_PX = 2
 HTTP_ERROR_MIN = 400
 VIEWPORTS = [
@@ -38,17 +23,15 @@ VIEWPORTS = [
 ]
 
 
+# 维护当前 ISO timestamp。
 def _now_iso() -> str:
-    """Return the UTC timestamp used in visual gate JSON artifacts.
-
-    Returns:
-        ISO-like UTC timestamp with seconds precision.
+    """返回：
+        now iso 字符串。
     """
     return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 # ---------------------------------------------------------------------------
-# JS evaluation helpers (strings injected into page.evaluate)
 # ---------------------------------------------------------------------------
 
 _CLICK_ATTRIBUTATION_BUTTON_JS = """
@@ -171,7 +154,6 @@ _CHECK_ATTRIBUTATION_BUTTONS_VISIBLE_JS = """
 """
 
 # ---------------------------------------------------------------------------
-# Expand first round to reveal LLM call cards
 # ---------------------------------------------------------------------------
 
 _EXPAND_ROUNDS_WITH_ATTRIBUTION_JS = """
@@ -207,23 +189,17 @@ _EXPAND_ROUNDS_WITH_ATTRIBUTION_JS = """
 """
 
 
-# ---------------------------------------------------------------------------
-# Attribution state polling helper
-# ---------------------------------------------------------------------------
-
-
+# 等待attribution state。
 async def wait_for_attribution_state(
     page: object, target_state: str = 'success', timeout: float = 10.0
 ) -> bool:
-    """Poll page.evaluate until the attribution modal reaches target_state.
+    """参数：
+        page: page 参数。
+        target_state: target state 参数。
+        timeout: 超时时间，单位为秒。
 
-    Args:
-        page: Playwright page showing an attribution modal.
-        target_state: Expected ``data-attribution-state`` value.
-        timeout: Maximum seconds to wait before the gate treats it as failure.
-
-    Returns:
-        True if state reached, False if error or timeout.
+    返回：
+        true 如果 state reached, false 如果 错误 或 timeout。
     """
     start = time.time()
     while time.time() - start < timeout:
@@ -237,22 +213,14 @@ async def wait_for_attribution_state(
     return False  # timeout
 
 
-# ---------------------------------------------------------------------------
-# Browser gate runner
-# ---------------------------------------------------------------------------
-
-
+# 运行visual gate。
 async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PLR0915
-    """Run the full browser visual gate for LLM attribution modals.
+    """参数：
+        url: 待请求的 URL。
+        out_dir: 目录 在 screenshots, 结果 JSON, 和 报告 are。
 
-    Args:
-        url: Session detail URL containing LLM attribution payload buttons.
-        out_dir: Directory where screenshots, result JSON, and report are
-            written by the CLI.
-
-    Returns:
-        Structured result dict with viewport checks, diagnostics, screenshots,
-        and PASS/FAIL/BLOCKED status.
+    返回：
+        结果映射。
     """
     from playwright.async_api import async_playwright  # noqa: PLC0415
 
@@ -283,7 +251,6 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                 context = await browser.new_context(viewport={'width': vw, 'height': vh})
                 page = await context.new_page()
 
-                # ── Navigate ──
                 try:
                     resp = await page.goto(url, wait_until='domcontentloaded', timeout=20000)
                     if resp and resp.status >= HTTP_ERROR_MIN:
@@ -295,14 +262,13 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     await context.close()
                     return result
 
-                # Wait for DOM to stabilise
+                # 等待用于 DOM到stabilise。
                 await page.wait_for_timeout(1500)
 
-                # ── Expand rounds that have attribution data ──
                 await page.evaluate(_EXPAND_ROUNDS_WITH_ATTRIBUTION_JS)
                 await page.wait_for_timeout(800)
 
-                # ── Check attribution buttons exist ──
+                # 检查attribution buttons exist。
                 btn_info = await page.evaluate(_CHECK_ATTRIBUTATION_BUTTONS_VISIBLE_JS)
                 if not btn_info['request'] or not btn_info['response']:
                     result['status'] = 'BLOCKED'
@@ -328,7 +294,6 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     await context.close()
                     return result
 
-                # ── 1. Open Request attribution modal ──
                 req_payload_id = await page.evaluate("""
                     () => {
                         const btns = document.querySelectorAll(
@@ -345,7 +310,7 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     }
                 """)
 
-                # Wait for attribution fetch to complete
+                # 等待用于 attribution fetch到complete。
                 attr_ok = await wait_for_attribution_state(
                     page, target_state='success', timeout=10.0
                 )
@@ -386,7 +351,6 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                             }
                         )
 
-                # ── Request modal text checks ──
                 if req_modal_open:
                     text_info = await page.evaluate(_CHECK_MODAL_TEXT_JS)
                     modal_text = text_info.get('text', '')
@@ -395,12 +359,10 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     req_text_checks['hasDisplayOnlySection'] = has_display_only
                     result['checks'][f'requestModalText-{vp_label}'] = req_text_checks
 
-                # ── Screenshot: Request modal ──
                 req_screenshot = out_dir / f'request-{vp_label.replace("x", "x")}.png'
                 await page.screenshot(path=str(req_screenshot), full_page=False)
                 result['screenshots'].append(str(req_screenshot))
 
-                # ── Geometry checks (request modal) ──
                 geo = await page.evaluate(_CHECK_GEOMETRY_JS)
                 result['checks'][f'requestGeometry-{vp_label}'] = {
                     'status': 'PASS'
@@ -424,11 +386,10 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     'innerWidth': geo.get('innerWidth'),
                 }
 
-                # ── Close Request modal ──
+                # 关闭Request modal。
                 await page.evaluate(_CLOSE_MODAL_JS)
                 await page.wait_for_timeout(400)
 
-                # ── 2. Open Response attribution modal ──
                 resp_payload_id = await page.evaluate("""
                     () => {
                         const btns = document.querySelectorAll(
@@ -445,7 +406,7 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     }
                 """)
 
-                # Wait for attribution fetch to complete
+                # 等待用于 attribution fetch到complete。
                 attr_ok = await wait_for_attribution_state(
                     page, target_state='success', timeout=10.0
                 )
@@ -488,7 +449,6 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                             }
                         )
 
-                # ── Response modal text checks ──
                 if resp_modal_open:
                     text_info = await page.evaluate(_CHECK_MODAL_TEXT_JS)
                     modal_text = text_info.get('text', '')
@@ -497,12 +457,10 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     resp_text_checks['hasDisplayOnlySection'] = has_display_only
                     result['checks'][f'responseModalText-{vp_label}'] = resp_text_checks
 
-                # ── Screenshot: Response modal ──
                 resp_screenshot = out_dir / f'response-{vp_label}.png'
                 await page.screenshot(path=str(resp_screenshot), full_page=False)
                 result['screenshots'].append(str(resp_screenshot))
 
-                # ── Geometry checks (response modal) ──
                 geo = await page.evaluate(_CHECK_GEOMETRY_JS)
                 result['checks'][f'responseGeometry-{vp_label}'] = {
                     'status': 'PASS'
@@ -526,7 +484,7 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
                     'innerWidth': geo.get('innerWidth'),
                 }
 
-                # ── Close Response modal ──
+                # 关闭Response modal。
                 await page.evaluate(_CLOSE_MODAL_JS)
                 await page.wait_for_timeout(400)
 
@@ -560,7 +518,7 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
             with contextlib.suppress(Exception):
                 await browser.close()
 
-    # Compute overall status
+    # 计算overall 状态。
     result['finishedAt'] = _now_iso()
     check_statuses = [c.get('status', 'PASS') for c in result['checks'].values()]
     if 'NOT_RUN_ENV_LIMITED' in check_statuses:
@@ -572,7 +530,7 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
     else:
         result['status'] = 'PASS'
 
-    # Compute summary
+    # 计算summary。
     statuses = [c.get('status', 'PASS') for c in result['checks'].values()]
     result['summary'] = {
         'total': len(statuses),
@@ -585,24 +543,17 @@ async def run_visual_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PL
     return result
 
 
-# ---------------------------------------------------------------------------
-# Text check helpers
-# ---------------------------------------------------------------------------
-
-
+# 检查request 文本。
 def _check_request_text(text: str, has_display_only: bool = True) -> dict:
-    """Check Request modal text for required and forbidden strings.
+    """参数：
+        text: 待检查的文本。
+        has_display_only: 表示是否期望出现 display-only bucket label。
 
-    If `has_display_only` is False (no display-only bucket section in the modal),
-    `hasExclusionLabel` is not required.
+    返回：
+        检查映射带individual text predicates 和 FAIL 状态 当。 必需 copy is 缺失 或 原始-body wording appears。
 
-    Args:
-        text: Visible Request attribution modal text captured from the browser.
-        has_display_only: Whether display-only bucket labels are expected.
-
-    Returns:
-        Check mapping with individual text predicates and FAIL status when
-        required copy is missing or raw-body wording appears.
+    说明：
+        `hasExclusionLabel` is 不 必需。
     """
     text_lower = text.lower()
     checks = {
@@ -613,7 +564,6 @@ def _check_request_text(text: str, has_display_only: bool = True) -> dict:
         'hasAttributionDetail': '归因明细' in text,
         'hasContextSummary': '可见内容摘要' in text,
         'hasAvailabilityTable': '参数可得性表' in text,
-        # Only require exclusion label when display-only section exists
         'hasExclusionLabel': '不计入总量' in text if has_display_only else True,
         'hasNoRawRequest': 'raw request' not in text_lower,
         'hasNoRawResponse': 'raw response' not in text_lower,
@@ -629,19 +579,17 @@ def _check_request_text(text: str, has_display_only: bool = True) -> dict:
     return checks
 
 
+# 检查response 文本。
 def _check_response_text(text: str, has_display_only: bool = True) -> dict:
-    """Check Response modal text for required and forbidden strings.
+    """参数：
+        text: 从浏览器捕获的 Response attribution modal 可见文本。
+        has_display_only: 表示是否期望出现 display-only bucket label。
 
-    If `has_display_only` is False (no display-only bucket section in the modal),
-    `hasExclusionLabel` is not required.
+    返回：
+        包含各个文本谓词和 PASS/FAIL 状态的检查映射。
 
-    Args:
-        text: Visible Response attribution modal text captured from the browser.
-        has_display_only: Whether display-only bucket labels are expected.
-
-    Returns:
-        Check mapping with individual text predicates and FAIL status when
-        required copy is missing or raw-body wording appears.
+    说明：
+        当 has_display_only 为 false 时，不强制要求 display-only bucket label。
     """
     text_lower = text.lower()
     checks = {
@@ -653,7 +601,6 @@ def _check_response_text(text: str, has_display_only: bool = True) -> dict:
         'hasBlocksDetail': 'Blocks 明细' in text,
         'hasContextSummary': '可见内容摘要' in text,
         'hasAvailabilityTable': '参数可得性表' in text,
-        # Only require exclusion label when display-only section exists
         'hasExclusionLabel': '不计入总量' in text if has_display_only else True,
         'hasNoRawRequest': 'raw request' not in text_lower,
         'hasNoRawResponse': 'raw response' not in text_lower,
@@ -669,23 +616,18 @@ def _check_response_text(text: str, has_display_only: bool = True) -> dict:
     return checks
 
 
-# ---------------------------------------------------------------------------
-# Failure helpers
-# ---------------------------------------------------------------------------
-
-
+# 维护fail service。
 def _fail_service(result: dict, status: int, url: str) -> None:
-    """Record a browser navigation failure caused by HTTP status.
-
-    Args:
-        result: Mutable visual gate result being assembled.
-        status: HTTP status returned by the session detail URL.
-        url: Browser target URL that failed navigation.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        status: 状态值。
+        url: 待请求的 URL。
     """
     result['status'] = 'FAIL'
     result['checks']['navigation'] = {
         'status': 'FAIL',
         'message': f'Server returned HTTP {status}.',
+# 记录a browser navigation 失败项 caused by an unreachable URL。
     }
     result['diagnostics'].append(
         {
@@ -696,18 +638,18 @@ def _fail_service(result: dict, status: int, url: str) -> None:
     )
 
 
+# 维护fail 不可达。
 def _fail_unreachable(result: dict, url: str, exc: Exception) -> None:
-    """Record a browser navigation failure caused by an unreachable URL.
-
-    Args:
-        result: Mutable visual gate result being assembled.
-        url: Browser target URL attempted by Playwright.
-        exc: Exception raised by Playwright navigation.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        url: 待请求的 URL。
+        exc: 捕获的异常对象。
     """
     result['status'] = 'FAIL'
     result['checks']['navigation'] = {
         'status': 'FAIL',
         'message': f'Cannot reach {url}: {exc}',
+# 写入BLOCKED 结果 当 --url-文件 points到a non-existent 文件。
     }
     result['diagnostics'].append(
         {
@@ -718,12 +660,11 @@ def _fail_unreachable(result: dict, url: str, exc: Exception) -> None:
     )
 
 
+# 写入blocked url 文件 missing。
 def _write_blocked_url_file_missing(out_dir: Path, url_file_path: str) -> None:
-    """Write BLOCKED result when --url-file points to a non-existent file.
-
-    Args:
-        out_dir: Artifact directory receiving ``result.json``.
-        url_file_path: User-provided URL file path that does not exist.
+    """参数：
+        out_dir: Artifact 目录 receiving ``结果.json``。
+        url_file_path: User-provided URL 文件路径 that does 不 exist。
     """
     result = {
         'schemaVersion': 1,
@@ -752,6 +693,7 @@ def _write_blocked_url_file_missing(out_dir: Path, url_file_path: str) -> None:
                 ],
             }
         ],
+# 写入BLOCKED 结果 当 --url-文件 is 空 或 has 仅 comments。
         'summary': {'total': 1, 'passed': 0, 'failed': 0, 'blocked': 1, 'notRun': 0},
     }
     result_path = out_dir / 'result.json'
@@ -762,12 +704,11 @@ def _write_blocked_url_file_missing(out_dir: Path, url_file_path: str) -> None:
     sys.exit(2)
 
 
+# 写入blocked url 文件 空。
 def _write_blocked_url_file_empty(out_dir: Path, url_file_path: str) -> None:
-    """Write BLOCKED result when --url-file is empty or has only comments.
-
-    Args:
-        out_dir: Artifact directory receiving ``result.json``.
-        url_file_path: User-provided URL file path with no usable URL lines.
+    """参数：
+        out_dir: Artifact 目录 receiving ``结果.json``。
+        url_file_path: User-provided URL 文件路径带no usable URL 行。
     """
     result = {
         'schemaVersion': 1,
@@ -798,6 +739,7 @@ def _write_blocked_url_file_empty(out_dir: Path, url_file_path: str) -> None:
                 ],
             }
         ],
+# 写入BLOCKED 结果 当 --url-文件 contains multiple URLs。
         'summary': {'total': 1, 'passed': 0, 'failed': 0, 'blocked': 1, 'notRun': 0},
     }
     result_path = out_dir / 'result.json'
@@ -808,12 +750,11 @@ def _write_blocked_url_file_empty(out_dir: Path, url_file_path: str) -> None:
     sys.exit(2)
 
 
+# 写入blocked url 文件 multi。
 def _write_blocked_url_file_multi(out_dir: Path, url_file_path: str) -> None:
-    """Write BLOCKED result when --url-file contains multiple URLs.
-
-    Args:
-        out_dir: Artifact directory receiving ``result.json``.
-        url_file_path: User-provided URL file path with more than one URL.
+    """参数：
+        out_dir: Artifact 目录 receiving ``结果.json``。
+        url_file_path: User-provided URL 文件路径带more than one URL。
     """
     result = {
         'schemaVersion': 1,
@@ -842,6 +783,7 @@ def _write_blocked_url_file_multi(out_dir: Path, url_file_path: str) -> None:
                 'nextInspection': ['Reduce the file to a single session detail URL.'],
             }
         ],
+# 写入BLOCKED 结果 当 URL in 文件 does 不 start带http/https。
         'summary': {'total': 1, 'passed': 0, 'failed': 0, 'blocked': 1, 'notRun': 0},
     }
     result_path = out_dir / 'result.json'
@@ -852,13 +794,12 @@ def _write_blocked_url_file_multi(out_dir: Path, url_file_path: str) -> None:
     sys.exit(2)
 
 
+# 写入blocked url 文件 invalid。
 def _write_blocked_url_file_invalid(out_dir: Path, url_file_path: str, url: str) -> None:
-    """Write BLOCKED result when URL in file does not start with http/https.
-
-    Args:
-        out_dir: Artifact directory receiving ``result.json``.
-        url_file_path: User-provided URL file path.
-        url: Invalid URL line read from the file.
+    """参数：
+        out_dir: Artifact 目录 receiving ``结果.json``。
+        url_file_path: User-provided URL 文件路径。
+        url: 待请求的 URL。
     """
     result = {
         'schemaVersion': 1,
@@ -882,6 +823,7 @@ def _write_blocked_url_file_invalid(out_dir: Path, url_file_path: str, url: str)
                 'nextInspection': ['Provide a valid HTTP(S) session detail URL.'],
             }
         ],
+# 生成a human-readable markdown 报告从gate 结果。
         'summary': {'total': 1, 'passed': 0, 'failed': 0, 'blocked': 1, 'notRun': 0},
     }
     result_path = out_dir / 'result.json'
@@ -892,15 +834,14 @@ def _write_blocked_url_file_invalid(out_dir: Path, url_file_path: str, url: str)
     sys.exit(2)
 
 
+# 维护生成 markdown 报告。
 def _generate_markdown_report(result: dict, out_dir: Path) -> Path:  # noqa: PLR0915
-    """Generate a human-readable markdown report from gate results.
+    """参数：
+        result: 结构化 visual gate 结果 dict。
+        out_dir: Artifact 目录 receiving ``报告.md``。
 
-    Args:
-        result: Structured visual gate result dict.
-        out_dir: Artifact directory receiving ``report.md``.
-
-    Returns:
-        Path to the generated Markdown report.
+    返回：
+        路径到 generated Markdown 报告。
     """
     status = result.get('status', 'UNKNOWN')
     url = result.get('url', 'N/A')
@@ -973,23 +914,16 @@ def _generate_markdown_report(result: dict, out_dir: Path) -> Path:  # noqa: PLR
     report_path.write_text('\n'.join(lines) + '\n', encoding='utf-8')
     return report_path
 
-
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-
-
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Run self-tests that verify text checks and aggregation logic."""
     failures = 0
 
+    # 维护assert。
     def _assert(name: str, cond: bool, msg: str = '') -> None:
-        """Record one self-test assertion without aborting remaining checks.
-
-        Args:
-            name: Assertion label printed to stdout.
-            cond: Boolean assertion result.
-            msg: Optional diagnostic appended to failed assertions.
+        """参数：
+            name: 打印到 stdout 的断言标签。
+            cond: 布尔断言结果。
+            msg: 失败断言的可选诊断信息。
         """
         nonlocal failures
         if cond:
@@ -998,7 +932,7 @@ def _self_test() -> None:
             failures += 1
             print(f'  FAIL: {name} {msg}')
 
-    # Text checks for request modal
+    # Text checks用于request modal。
     good_req_text = (
         '基于本地日志重建, 不等同于真实 provider request/response body。'
         '用量分布 归因明细 可见内容摘要 参数可得性表 不计入总量'
@@ -1006,7 +940,7 @@ def _self_test() -> None:
     req_checks = _check_request_text(good_req_text)
     _assert('request text checks pass', req_checks['status'] == 'PASS', str(req_checks))
 
-    # Text checks for response modal
+    # Text checks用于response modal。
     good_resp_text = (
         '基于本地日志重建, 不等同于真实 provider request/response body。'
         '用量分布 归因明细 Blocks 明细 可见内容摘要 参数可得性表 不计入总量'
@@ -1014,17 +948,14 @@ def _self_test() -> None:
     resp_checks = _check_response_text(good_resp_text)
     _assert('response text checks pass', resp_checks['status'] == 'PASS', str(resp_checks))
 
-    # Forbidden text in request
     bad_req_text = 'Raw request (No rendered content)'
     req_bad = _check_request_text(bad_req_text)
     _assert('request text checks detect forbidden', req_bad['status'] == 'FAIL', str(req_bad))
 
-    # Forbidden text in response
     bad_resp_text = 'Raw response (No raw content)'
     resp_bad = _check_response_text(bad_resp_text)
     _assert('response text checks detect forbidden', resp_bad['status'] == 'FAIL', str(resp_bad))
 
-    # Case-insensitive forbidden detection: RAW REQUEST
     raw_upper_req = _check_request_text('RAW REQUEST is bad')
     _assert(
         'request text case-insensitive RAW REQUEST detection',
@@ -1032,7 +963,6 @@ def _self_test() -> None:
         str(raw_upper_req),
     )
 
-    # Case-insensitive forbidden detection: raw HTTP response
     raw_http_resp = _check_response_text('raw http response here')
     _assert(
         'response text case-insensitive raw http response detection',
@@ -1040,11 +970,9 @@ def _self_test() -> None:
         str(raw_http_resp),
     )
 
-    # Display-only bucket text
     display_only_text = '明细, 不计入总量'
     _assert('display-only section text present', '不计入总量' in display_only_text)
 
-    # JSON serialisability
     sample = {
         'schemaVersion': 1,
         'status': 'PASS',
@@ -1061,7 +989,6 @@ def _self_test() -> None:
     except Exception:
         _assert('result JSON serialisable', False)
 
-    # Check script source contains key patterns
     source = Path(__file__).read_text()
     _assert('source checks request modal', 'llm.request_attribution' in source)
     _assert('source checks response modal', 'llm.response_attribution' in source)
@@ -1079,13 +1006,8 @@ def _self_test() -> None:
         sys.exit(0)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> None:  # noqa: PLR0912, PLR0915
-    """Parse CLI arguments, run the visual gate, and write artifacts."""
     parser = argparse.ArgumentParser(
         description='Browser visual gate for LLM call attribution modals',
     )
@@ -1118,7 +1040,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
     out_dir = Path(args.out) if args.out else DEFAULT_OUT
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    # Resolve URL: --url takes priority, then --url-file
+    # 解析URL: --url takes priority, 则 --url-文件。
     url = args.url
     if not url and args.url_file:
         url_file = Path(args.url_file)
@@ -1138,7 +1060,6 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             _write_blocked_url_file_multi(out_dir, str(url_file))
             return
         url = lines[0]
-        # Basic URL validation
         if not url.startswith('http://') and not url.startswith('https://'):
             _write_blocked_url_file_invalid(out_dir, str(url_file), url)
             return
@@ -1158,7 +1079,7 @@ def main() -> None:  # noqa: PLR0912, PLR0915
             file=sys.stderr,
         )
 
-        # Write BLOCKED result
+        # 写入BLOCKED 结果。
         result = {
             'schemaVersion': 1,
             'status': 'BLOCKED',
@@ -1209,16 +1130,16 @@ def main() -> None:  # noqa: PLR0912, PLR0915
         asyncio.set_event_loop(loop)
     result = loop.run_until_complete(run_visual_gate(url, out_dir))
 
-    # Write artifact
+    # 写入artifact。
     result_path = out_dir / 'result.json'
     result_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
-    # Generate markdown report
+    # 生成markdown 报告。
     _generate_markdown_report(result, out_dir)
 
-    # Print summary
+    # 打印summary。
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print()
 

@@ -1,21 +1,5 @@
 #!/usr/bin/env python3
-"""T179 — Static QA for state pages HTML structure (404.html, error.html).
-
-Validates state page templates against the page behavior contract:
-
-1. Template structure: extends base.html, states.css imported in head_extra
-2. 404.html: .state-panel with icon "404", title, desc, 4 nav links
-3. error.html: .state-panel with error icon "!", title, desc, 1 nav link, details toggle
-4. ARIA: role="status"/role="alert", aria-live, aria-hidden, aria-label
-5. No inline: no onclick, no inline <script>, no inline <style>
-6. CSS/JS: states.css exists, states.js exists (IIFE stub)
-7. Navigation link completeness: all hrefs point to valid top-level routes
-8. Stale patterns: no page-header, hero, legacy-, onclick
-9. Error page: {% if error %} guard, details/summary/pre structure
-
-Run from repo root:
-  python scripts/qa/ui/check_state_pages.py
-"""
+"""提供 检查 state pages 脚本能力。"""
 
 from __future__ import annotations
 
@@ -29,23 +13,21 @@ STATES_CSS = ROOT / 'src/session_browser/web/static/css/states.css'
 STATES_JS = ROOT / 'src/session_browser/web/static/js/states.js'
 
 
+# 读取文件内容。
 def read(path: Path) -> str:
-    """Read a state-page contract input file for the static QA script.
+    """参数：
+        path: Template, CSS, 或 JS 路径 必需 by state page 检查。
 
-    Args:
-        path: Template, CSS, or JS path required by the state page checks.
-
-    Returns:
-        File text, or an empty string when the file is absent so the caller can report a contract failure.
+    返回：
+        文件 text, 或 空 字符串 当 文件 缺失 so caller can 报告 contract 失败项。
     """
     return path.read_text(encoding='utf-8') if path.exists() else ''
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
-    """Run the state-page static DOM/CSS/JS contract checks.
-
-    Returns:
-        Exit code 0 when every state page check passes, otherwise 1.
+    """返回：
+        进程退出码。
     """
     html_404 = read(HTML_404)
     html_error = read(HTML_ERROR)
@@ -53,7 +35,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
     js = read(STATES_JS)
 
     checks: list[tuple[str, callable]] = [
-        # ── Template structure ─────────────────────────────────────
         (
             'T179-S01 404.html exists',
             lambda: (HTML_404.exists(), 'exists' if HTML_404.exists() else 'MISSING'),
@@ -109,7 +90,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING IIFE or strict',
             ),
         ),
-        # ── 404.html: Canonical classes ────────────────────────────
         (
             'T179-S10 404: .state-panel present',
             lambda: (
@@ -156,7 +136,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── 404.html: Navigation links (3 required) ────────────────
         (
             'T179-S16 404: link to /dashboard',
             lambda: (
@@ -187,7 +166,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else "{} link(s), expected 3".format(html_404.count('class="state-panel__link"')),
             ),
         ),
-        # ── error.html: Canonical classes ──────────────────────────
         (
             'T179-S21 error: .state-panel present',
             lambda: (
@@ -245,7 +223,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── error.html: Navigation links ───────────────────────────
         (
             'T179-S28 error: link to /dashboard',
             lambda: (
@@ -262,7 +239,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'NO nav links',
             ),
         ),
-        # ── error.html: details toggle (conditional) ───────────────
         (
             'T179-S30 error: {% if error %} guard present',
             lambda: (
@@ -300,7 +276,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'error variable found' if '{{ error }}' in html_error else 'MISSING',
             ),
         ),
-        # ── ARIA attributes ────────────────────────────────────────
         (
             'T179-S35 404: role="status" on state-panel',
             lambda: (
@@ -361,7 +336,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── No inline styles/scripts ───────────────────────────────
+        # 没有inline styles/scripts。
         (
             'T179-S43 404: No inline <style> blocks',
             lambda: (
@@ -412,7 +387,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'clean' if 'onclick=' not in html_error else 'INLINE ONCLICK FOUND',
             ),
         ),
-        # ── CSS content validation ─────────────────────────────────
         (
             'T179-S49 states.css: .state-panel defined',
             lambda: ('.state-panel' in css, 'found' if '.state-panel' in css else 'MISSING'),
@@ -435,7 +409,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
             'T179-S52 states.css: responsive rules present',
             lambda: ('@media' in css, 'found' if '@media' in css else 'MISSING'),
         ),
-        # ── Breadcrumb ─────────────────────────────────────────────
         (
             'T179-S53 404: breadcrumb with dashboard link',
             lambda: (
@@ -450,7 +423,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'found' if 'href="/dashboard"' in html_error else 'MISSING',
             ),
         ),
-        # ── Stale patterns ─────────────────────────────────────────
         (
             'T179-S55 404: No stale patterns (page-header, hero, legacy-, onclick)',
             lambda: (
@@ -507,12 +479,10 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'TODO/FIXME/HACK FOUND',
             ),
         ),
-        # ── No vN/patch/fix/overlay CSS or JS ──────────────────────
         (
             'T179-S59 No versioned state CSS/JS (states.v1, states-patch, etc.)',
             _check_no_versioned_files,
         ),
-        # ── Navigation link semantic consistency ───────────────────
         (
             'T179-S60 All 404 nav links use .state-panel__link class',
             lambda: (
@@ -541,7 +511,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── topbar_toggles suppressed on state pages ───────────────
         (
             'T179-S63 404: topbar_toggles block suppressed',
             lambda: (
@@ -560,7 +529,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'NOT SUPPRESSED',
             ),
         ),
-        # ── CSS contract: no inline style attribute in templates ───
         (
             'T179-S65 404: No inline style= attributes',
             lambda: (
@@ -593,11 +561,10 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
     return 1
 
 
+# 检查无 versioned 文件。
 def _check_no_versioned_files() -> tuple[bool, str]:
-    """Verify state-page assets do not use versioned duplicate filenames.
-
-    Returns:
-        Tuple of check success and a human-readable detail for the QA report.
+    """返回：
+        结果 tuple。
     """
     static_css = ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'css'
     static_js = ROOT / 'src' / 'session_browser' / 'web' / 'static' / 'js'

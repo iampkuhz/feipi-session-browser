@@ -1,1 +1,1 @@
-"""Claude hook policy modules."""
+"""提供 init 脚本能力。"""

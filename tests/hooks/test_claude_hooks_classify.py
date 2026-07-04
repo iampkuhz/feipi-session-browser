@@ -61,6 +61,7 @@ def test_codex_hooks_json_uses_current_repo_relative_commands():
 
     assert commands == [
         '.codex/hooks/pre_tool_guard.sh',
+        '.codex/hooks/post_bash_guard.sh',
         '.codex/hooks/post_tool_guard.sh',
         '.codex/hooks/stop_check.sh',
     ]
@@ -72,6 +73,7 @@ def test_qoder_cross_agent_hook_entrypoints_exist():
     """Qoder 入口必须覆盖 pre/post/stop，避免只在 Stop 阶段才发现已清空工作树。"""
     for path in [
         Path('.qoder/hooks/pre_tool_guard.sh'),
+        Path('.qoder/hooks/post_bash_guard.sh'),
         Path('.qoder/hooks/post_tool_guard.sh'),
         Path('.qoder/hooks/stop_check.sh'),
     ]:

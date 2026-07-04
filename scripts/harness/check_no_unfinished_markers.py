@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when repository text files still contain unfinished-work markers."""
+"""提供 检查 no unfinished markers 脚本能力。"""
 
 import sys
 from pathlib import Path

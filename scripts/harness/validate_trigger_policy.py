@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Validate trigger-policy.yaml structure and required fields.
-
-Only uses Python stdlib - implements minimal YAML parsing for trigger policy structure.
-"""
+"""验证 trigger-policy.yaml structure and 必需 fields。"""
 
 import sys
 from pathlib import Path
@@ -20,8 +17,11 @@ EXPECTED_RULE_IDS = {
 }
 
 
+# 解析inline flow。
 def parse_inline_flow(value: str):
-    """Parse inline flow mapping like {key: value} or flow list like [a, b]."""
+    """参数：
+        value: value 参数。
+    """
     value = value.strip()
     if value.startswith('{') and value.endswith('}'):
         inner = value[1:-1].strip()
@@ -41,11 +41,13 @@ def parse_inline_flow(value: str):
     return None
 
 
+# 解析simple YAML。
 def parse_simple_yaml(content: str) -> dict:
-    """Parse the trigger-policy YAML structure.
+    """参数：
+        content: 要写入的文本内容。
 
-    Handles: top-level scalars, lists of mappings, nested mappings within
-    list items, nested key+block values, inline flow collections.
+    返回：
+        结果映射。
     """
     lines = content.split('\n')
     result = {}
@@ -56,14 +58,13 @@ def parse_simple_yaml(content: str) -> dict:
         stripped = line.rstrip()
         lstripped = line.lstrip()
 
-        # Skip empty lines and comments.
+        # 跳过空 行 和 comments。
         if not stripped or lstripped.startswith('#'):
             i += 1
             continue
 
         indent = len(line) - len(line.lstrip())
 
-        # Top-level key (indent == 0).
         if indent == 0 and ':' in stripped:
             key, _, value = stripped.partition(':')
             key = key.strip()
@@ -76,7 +77,7 @@ def parse_simple_yaml(content: str) -> dict:
                 result[key] = parse_inline_flow(value) or value
                 i += 1
             else:
-                # Block follows -- determine whether it is a list or mapping.
+                # 阻断follows -- determine whether it is a 列表 或 映射。
                 sub_lines = []
                 j = i + 1
                 while j < len(lines):
@@ -108,13 +109,11 @@ def parse_simple_yaml(content: str) -> dict:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
+# 解析标量。
 def _parse_scalar(value: str):
-    """Parse a scalar YAML value."""
+    """参数：
+        value: value 参数。
+    """
     if value == '[]':
         return []
     if value == '{}':
@@ -135,12 +134,14 @@ def _parse_scalar(value: str):
         return value
 
 
+# 解析列表 映射列表。
 def _parse_list_of_mappings(lines, base_indent):
-    """Parse a YAML list whose items are mappings (``- key: value`` ...).
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
 
-    Strategy: split each list-item group into direct keys (at ``base_indent+2``)
-    and their block content (anything deeper).  Parse each block independently
-    via ``_parse_block_value``.
+    说明：
+        补充说明当前检查条件、输入输出或数据流转。
     """
     direct_key_indent = base_indent + 2
     items = []
@@ -148,11 +149,11 @@ def _parse_list_of_mappings(lines, base_indent):
     current_key = None
     block_lines = []
 
+    # 维护flush 阻断。
     def _flush_block():
         nonlocal current_key, block_lines
         if current_key is not None and current_item is not None:
             if block_lines:
-                # Determine block content indent from first content line.
                 bi = None
                 for bl in block_lines:
                     bs = bl.rstrip()
@@ -182,7 +183,7 @@ def _parse_list_of_mappings(lines, base_indent):
         if indent < base_indent:
             break
 
-        # ── New list item: ``- key: value`` ──────────────────────────────
+        # New 列表 item: ``- key: 值``。
         if lstripped.startswith('- ') and indent == base_indent:
             _flush_block()
             if current_item is not None:
@@ -204,7 +205,6 @@ def _parse_list_of_mappings(lines, base_indent):
         if current_item is None:
             continue
 
-        # ── Direct key at item-child indent ──────────────────────────────
         if indent == direct_key_indent and ':' in lstripped:
             _flush_block()
             k, _, v = lstripped.partition(':')
@@ -217,7 +217,6 @@ def _parse_list_of_mappings(lines, base_indent):
                 current_key = k
             continue
 
-        # ── Deeper than direct-key indent → block content ────────────────
         if current_key is not None and indent > direct_key_indent:
             block_lines.append(line)
             continue
@@ -229,13 +228,19 @@ def _parse_list_of_mappings(lines, base_indent):
     return items
 
 
+# 解析阻断 值。
 def _parse_block_value(lines, base_indent):
-    """Parse the block value under a key.
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
 
-    Returns a list (if the block starts with ``- ``) or a dict (if the block
-    starts with a mapping key).
+    说明：
+        返回 列表 (如果 block starts带``- ``) 或 dict (如果 block。
+        starts带a 映射 key).；用于说明当前校验条件、输入输出或数据流转。
+        返回 列表 (如果 block starts带``- ``) 或 dict (如果 block。
+        starts带a 映射 key)。
     """
-    # Find first non-empty line to determine type.
+    # 查找first non-空 行到determine type。
     first_content = None
     for line in lines:
         s = line.rstrip()
@@ -250,8 +255,12 @@ def _parse_block_value(lines, base_indent):
     return _parse_block_mapping(lines, base_indent)
 
 
+# 解析阻断 列表。
 def _parse_block_list(lines, base_indent):
-    """Parse a block list (``- value`` items)."""
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
+    """
     result = []
     for line in lines:
         s = line.rstrip()
@@ -273,13 +282,18 @@ def _parse_block_list(lines, base_indent):
     return result
 
 
+# 解析阻断 映射。
 def _parse_block_mapping(lines, base_indent):
-    """Parse a block mapping (``key: value`` pairs with possible sub-blocks)."""
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
+    """
     result = {}
     current_key = None
     sub_lines = []
     sub_indent = None
 
+    # 维护flush。
     def _flush():
         nonlocal current_key, sub_lines, sub_indent
         if current_key is not None:
@@ -322,8 +336,12 @@ def _parse_block_mapping(lines, base_indent):
     return result
 
 
+# 解析映射。
 def _parse_mapping(lines, base_indent):
-    """Parse a YAML mapping block."""
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
+    """
     result = {}
     i = 0
     while i < len(lines):
@@ -349,16 +367,28 @@ def _parse_mapping(lines, base_indent):
     return result
 
 
+# 维护looks like key。
 def _looks_like_key(text: str) -> bool:
-    """Heuristic: does *text* look like a YAML mapping key?"""
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     text = text.strip().strip('"').strip("'")
     if not text:
         return False
     return all(c.isalnum() or c in '_-' for c in text)
 
 
+# 维护looks like 映射 key。
 def _looks_like_mapping_key(text: str) -> bool:
-    """Heuristic: does *text* look like ``key: ...``?"""
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     text = text.strip().strip('"').strip("'")
     if ':' not in text:
         return False
@@ -366,13 +396,14 @@ def _looks_like_mapping_key(text: str) -> bool:
     return bool(k) and all(c.isalnum() or c in '_-' for c in k)
 
 
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
-
-
+# 验证trigger policy。
 def validate_trigger_policy(policy_path: Path) -> list:
-    """Validate trigger-policy.yaml and return list of error strings."""
+    """参数：
+        policy_path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
     errors = []
 
     if not policy_path.exists():
@@ -388,7 +419,6 @@ def validate_trigger_policy(policy_path: Path) -> list:
     if not isinstance(policy, dict):
         return ['Policy root must be a mapping']
 
-    # -- Top-level scalars ---------------------------------------------------
     if 'version' not in policy:
         errors.append('Missing top-level "version" field')
     elif policy['version'] != 1:
@@ -400,7 +430,6 @@ def validate_trigger_policy(policy_path: Path) -> list:
     if 'llm_concurrency' not in policy:
         errors.append('Missing top-level "llm_concurrency" field')
 
-    # -- Rules section -------------------------------------------------------
     if 'rules' not in policy:
         errors.append('Missing "rules" section')
         return errors
@@ -422,9 +451,7 @@ def validate_trigger_policy(policy_path: Path) -> list:
             errors.append(f'{prefix}: must be a mapping')
             continue
 
-        # Required fields.  A rule must have ``id``, ``when``, and at least
-        # one of ``require`` or ``require_fields`` (some rules use
-        # ``require_fields`` + ``reject`` instead of a ``require`` list).
+        # ``require_fields`` + ``reject`` instead of a ``require`` 列表)。
         missing = {'id', 'when'} - set(rule.keys())
         if 'require' not in rule and 'require_fields' not in rule:
             missing.add('require')
@@ -441,12 +468,11 @@ def validate_trigger_policy(policy_path: Path) -> list:
                 errors.append(f'{prefix}: duplicate id "{rule_id}"')
             seen_ids.add(rule_id)
 
-        # when must be non-empty.
+        # 当 must be non-空。
         when = rule.get('when')
         if when is None or (isinstance(when, (dict, list)) and len(when) == 0):
             errors.append(f'{prefix}: "when" must not be empty')
 
-        # require (or require_fields) must be non-empty.
         require = rule.get('require')
         require_fields = rule.get('require_fields')
         if require is not None:
@@ -455,9 +481,8 @@ def validate_trigger_policy(policy_path: Path) -> list:
         elif require_fields is not None:
             if isinstance(require_fields, list) and len(require_fields) == 0:
                 errors.append(f'{prefix}: "require_fields" must not be empty')
-        # If neither is present, the earlier required-fields check catches it.
+        # 如果 neither is present, the earlier 必需-fields check catches it。
 
-    # -- Coverage: all expected rule IDs present -----------------------------
     missing_ids = EXPECTED_RULE_IDS - seen_ids
     if missing_ids:
         errors.append(f'Missing expected rule ids: {sorted(missing_ids)}')
@@ -468,10 +493,12 @@ def validate_trigger_policy(policy_path: Path) -> list:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main():
     repo_root = Path(__file__).resolve().parent.parent.parent
     policy_path = repo_root / 'harness' / 'rules' / 'trigger-policy.yaml'
 
+# 运行脚本主流程并返回进程退出码。
     errors = validate_trigger_policy(policy_path)
 
     if errors:

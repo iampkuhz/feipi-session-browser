@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-"""Browser interaction layout gate for session detail.
-
-Exercises the real session-detail page through multiple interaction rounds
-and checks that toggle alignment, modal rendering, and overflow remain
-correct after each step.
-
-Key design choices:
-- Measures baseline spread first, then checks that interactions do not
-  increase the spread beyond the baseline + TOGGLE_SPREAD_REGRESSION_PX.
-- This avoids failing on pre-existing minor misalignment while still
-  catching regressions caused by clicks, filters, or modal interactions.
-
-Usage:
-    python3 scripts/quality/run_session_detail_interaction_gate.py \
-        --url http://127.0.0.1:18999/sessions/claude_code/<session-id>
-    python3 scripts/quality/run_session_detail_interaction_gate.py \
-        --url http://127.0.0.1:18999/sessions/claude_code/<session-id> \
-        --out tmp/quality/session-detail-interaction-gate
-    python3 scripts/quality/run_session_detail_interaction_gate.py --self-test
-    python3 scripts/quality/run_session_detail_interaction_gate.py --help
-"""
+"""提供 run session detail interaction gate 脚本能力。"""
 
 import argparse
 import asyncio
@@ -31,10 +11,9 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-# ── Default output directory ──
+# 默认 输出 目录。
 DEFAULT_OUT = REPO_ROOT / 'tmp' / 'quality' / 'session-detail-interaction-gate'
 
-# ── Thresholds ──
 TOGGLE_SPREGRESSION_PX = 2  # max allowed increase over baseline after interactions
 TOGGLE_SPREAD_ABSOLUTE_MAX = 20  # hard cap: even baseline should not exceed this
 OVERFLOW_MARGIN_PX = 2  # scrollWidth <= innerWidth + margin
@@ -45,17 +24,15 @@ TWENTY_FOURTH_VISIBLE_ROUND_MIN = 24
 EXPECTED_TOGGLE_COUNT = 3
 
 
+# 维护当前 ISO timestamp。
 def _now_iso() -> str:
-    """Return the UTC timestamp used in interaction gate artifacts.
-
-    Returns:
-        ISO-like UTC timestamp with seconds precision for JSON result fields.
+    """返回：
+        ISO-like UTC timestamp带seconds precision用于JSON 结果 fields。
     """
     return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
 
 
 # ---------------------------------------------------------------------------
-# JS evaluation helpers (strings injected into page.evaluate)
 # ---------------------------------------------------------------------------
 
 _CHECK_TOGGLE_ALIGNMENT_JS = """
@@ -113,21 +90,14 @@ _CHECK_MODAL_RENDERED_JS = """
 """
 
 
-# ---------------------------------------------------------------------------
-# Browser gate
-# ---------------------------------------------------------------------------
-
-
+# 运行interaction gate。
 async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR0912, PLR0915
-    """Run the full browser interaction gate against *url*.
+    """参数：
+        url: 待请求的 URL。
+        out_dir: 目录 在 screenshots 和 结果 artifacts are written。
 
-    Args:
-        url: Session detail URL served by a fixture or local browser server.
-        out_dir: Directory where screenshots and result artifacts are written.
-
-    Returns:
-        Structured result dict with PASS, FAIL, or BLOCKED status plus checks,
-        diagnostics, and artifact paths.
+    返回：
+        结构化 结果 dict带PASS, FAIL, 或 BLOCKED 状态 plus 检查,。 诊断信息, 和 artifact 路径。
     """
     from playwright.async_api import async_playwright  # noqa: PLC0415
 
@@ -150,7 +120,6 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
             context = await browser.new_context(viewport={'width': 1440, 'height': 1100})
             page = await context.new_page()
 
-            # ── Navigate ──
             try:
                 resp = await page.goto(url, wait_until='domcontentloaded', timeout=20000)
                 if resp and resp.status >= HTTP_ERROR_MIN:
@@ -160,14 +129,12 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                 _fail_unreachable(result, url, e)
                 return result
 
-            # Wait for DOM to stabilise (auto-expand may run)
+            # 等待用于 DOM到stabilise (auto-expand may run)。
             await page.wait_for_timeout(1000)
 
-            # Ensure filter is on "All" before any measurements
             await _reset_filter_to_all(page)
             await page.wait_for_timeout(300)
 
-            # ── 1. Initial toggle alignment (establish baseline) ──
             toggle_data = await page.evaluate(_CHECK_TOGGLE_ALIGNMENT_JS)
             baseline_spread = toggle_data['spread']
             initial_abs_ok = baseline_spread <= TOGGLE_SPREAD_ABSOLUTE_MAX
@@ -193,12 +160,10 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                     }
                 )
 
-            # Screenshot: before interactions
             before_path = out_dir / 'before.png'
             await page.screenshot(path=str(before_path), full_page=False)
             result['artifacts']['before'] = str(before_path)
 
-            # ── 2. Expand/collapse rounds ──
             await _exercise_rounds(page)
             await page.wait_for_timeout(500)
 
@@ -227,7 +192,6 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                     }
                 )
 
-            # ── 3. Filter: Failed then All ──
             await _exercise_filters(page)
             await page.wait_for_timeout(500)
 
@@ -256,12 +220,10 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                     }
                 )
 
-            # After interactions screenshot
             after_clicks_path = out_dir / 'after-clicks.png'
             await page.screenshot(path=str(after_clicks_path), full_page=False)
             result['artifacts']['afterClicks'] = str(after_clicks_path)
 
-            # ── 4. Payload modal: open / check rendered / close ──
             modal_result = await _exercise_payload_modal(page)
             result['checks']['modalRenderedContent'] = modal_result
             if modal_result['status'] == 'FAIL':
@@ -276,16 +238,13 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                     }
                 )
 
-            # Modal screenshot (modal should still be open from last open)
             modal_rendered_path = out_dir / 'modal-rendered.png'
             await page.screenshot(path=str(modal_rendered_path), full_page=False)
             result['artifacts']['modalRendered'] = str(modal_rendered_path)
 
-            # Close modal before overflow check
             await page.evaluate('() => { window.closePayloadModal && window.closePayloadModal(); }')
             await page.wait_for_timeout(300)
 
-            # ── 5. Horizontal overflow ──
             overflow = await page.evaluate(_CHECK_OVERFLOW_JS)
             overflow_ok = overflow['ok']
             result['checks']['horizontalOverflow'] = {
@@ -307,7 +266,6 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                     }
                 )
 
-            # ── 6. Expand All / Collapse All ──
             await _exercise_expand_collapse_all(page)
             await page.wait_for_timeout(500)
 
@@ -324,7 +282,6 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
                 'maxLeft': final_data['max'],
             }
 
-            # Final screenshot
             final_path = out_dir / 'final.png'
             await page.screenshot(path=str(final_path), full_page=False)
             result['artifacts']['final'] = str(final_path)
@@ -357,7 +314,7 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
             with contextlib.suppress(Exception):
                 await browser.close()
 
-    # Compute overall status
+    # 计算overall 状态。
     result['finishedAt'] = _now_iso()
     check_statuses = [c.get('status', 'PASS') for c in result['checks'].values()]
     if 'BLOCKED' in check_statuses:
@@ -370,16 +327,10 @@ async def run_interaction_gate(url: str, out_dir: Path) -> dict:  # noqa: PLR091
     return result
 
 
-# ---------------------------------------------------------------------------
-# Interaction subroutines
-# ---------------------------------------------------------------------------
-
-
+# 重置filter 全部。
 async def _reset_filter_to_all(page: object) -> None:
-    """Ensure the filter chip is set to ``All`` before measurements.
-
-    Args:
-        page: Playwright page for the session detail view.
+    """参数：
+        page: page 参数。
     """
     all_chip = await page.query_selector('.trace-panel__chip[data-status="all"]')
     if all_chip:
@@ -396,20 +347,15 @@ async def _reset_filter_to_all(page: object) -> None:
             await page.wait_for_timeout(200)
 
 
+# 演练rounds。
 async def _exercise_rounds(page: object) -> None:
-    """Expand a few specific rounds, then collapse them.
-
-    Uses JS-based clicking (click toggle buttons via evaluate) to avoid
-    Playwright visibility issues with elements outside viewport.
-
-    Args:
-        page: Playwright page containing trace round toggles.
+    """参数：
+        page: page 参数。
     """
     count = await page.evaluate(_COUNT_VISIBLE_ROWS_JS)
     if count == 0:
         return
 
-    # Select indices to exercise
     indices = [0]
     if count > SECOND_VISIBLE_ROUND_MIN:
         indices.append(1)
@@ -418,7 +364,6 @@ async def _exercise_rounds(page: object) -> None:
     if count > TWENTY_FOURTH_VISIBLE_ROUND_MIN:
         indices.append(23)
 
-    # Expand and collapse each selected round via JS
     for idx in indices:
         await page.evaluate(f"""
         () => {{
@@ -430,7 +375,6 @@ async def _exercise_rounds(page: object) -> None:
         """)
         await page.wait_for_timeout(100)
 
-    # Collapse them again
     for idx in indices:
         await page.evaluate(f"""
         () => {{
@@ -443,13 +387,11 @@ async def _exercise_rounds(page: object) -> None:
         await page.wait_for_timeout(100)
 
 
+# 演练filters。
 async def _exercise_filters(page: object) -> None:
-    """Click Failed and then All to test filtered toggle alignment.
-
-    Args:
-        page: Playwright page containing status filter chips.
+    """参数：
+        page: page 参数。
     """
-    # Click Failed
     failed_chip = await page.query_selector('.trace-panel__chip[data-status="failed"]')
     if failed_chip:
         await page.evaluate(
@@ -462,7 +404,6 @@ async def _exercise_filters(page: object) -> None:
         )
         await page.wait_for_timeout(300)
 
-    # Click All
     all_chip = await page.query_selector('.trace-panel__chip[data-status="all"]')
     if all_chip:
         await page.evaluate(
@@ -481,15 +422,13 @@ _COUNT_VISIBLE_ROWS_JS = """
 """
 
 
+# 演练payload modal。
 async def _exercise_payload_modal(page: object) -> dict:
-    """Open payload modal for first available LLM request/response/tool result.
+    """参数：
+        page: page 参数。
 
-    Args:
-        page: Playwright page with an expanded session detail trace.
-
-    Returns:
-        Check result dict describing whether a payload modal opened and whether
-        rendered content was non-empty.
+    返回：
+        结果映射。
     """
     check = {
         'status': 'PASS',
@@ -499,8 +438,6 @@ async def _exercise_payload_modal(page: object) -> dict:
         'isNoRenderedContent': False,
     }
 
-    # LLM call cards are inside .trace-detail which is hidden by default.
-    # Expand the first round first to reveal payload buttons.
     await page.evaluate("""
     () => {
         const toggles = document.querySelectorAll('.trace-round-toggle');
@@ -511,7 +448,6 @@ async def _exercise_payload_modal(page: object) -> dict:
     """)
     await page.wait_for_timeout(500)
 
-    # Find the first visible payload button via JS
     btn_found = await page.evaluate("""
     () => {
         // Try LLM call action buttons first (now visible in expanded trace-detail)
@@ -532,7 +468,6 @@ async def _exercise_payload_modal(page: object) -> dict:
         check['note'] = 'No visible payload buttons found on page'
         return check
 
-    # Open the modal via JS (more reliable than Playwright click)
     await page.evaluate(f"""
     () => {{
         const btn = document.querySelector('[data-payload-key="{btn_found}"]');
@@ -541,14 +476,14 @@ async def _exercise_payload_modal(page: object) -> dict:
     """)
     await page.wait_for_timeout(800)
 
-    # Check if modal is open
+    # 检查如果 modal is open。
     modal_visible = await page.evaluate(
         "() => { const m = document.getElementById('payload-modal'); return m && m.open; }"
     )
     if modal_visible:
         check['opened'] = True
 
-    # Check rendered content
+    # 检查rendered content。
     rendered_info = await page.evaluate(_CHECK_MODAL_RENDERED_JS)
     check['preview'] = rendered_info.get('text', '')
     check['renderedLength'] = rendered_info.get('length', 0)
@@ -559,7 +494,7 @@ async def _exercise_payload_modal(page: object) -> dict:
     ):
         check['status'] = 'FAIL'
 
-    # Switch to Raw tab and back via JS
+    # Switch到原始 tab 和 back via JS。
     await page.evaluate("""
     () => {
         const rawTab = document.querySelector('.payload-modal__tab[data-mode="raw"]');
@@ -576,18 +511,17 @@ async def _exercise_payload_modal(page: object) -> dict:
     """)
     await page.wait_for_timeout(300)
 
-    # Close modal
+    # 关闭modal。
     await page.evaluate('() => { window.closePayloadModal && window.closePayloadModal(); }')
     await page.wait_for_timeout(300)
 
     return check
 
 
+# 演练expand collapse 全部。
 async def _exercise_expand_collapse_all(page: object) -> None:
-    """Click Expand All and Collapse All via page JavaScript.
-
-    Args:
-        page: Playwright page containing bulk expand and collapse controls.
+    """参数：
+        page: page 参数。
     """
     await page.evaluate("""
     () => {
@@ -606,18 +540,12 @@ async def _exercise_expand_collapse_all(page: object) -> None:
     await page.wait_for_timeout(500)
 
 
-# ---------------------------------------------------------------------------
-# Failure helpers
-# ---------------------------------------------------------------------------
-
-
+# 维护fail service。
 def _fail_service(result: dict, status: int, url: str) -> None:
-    """Record a navigation failure caused by a non-success HTTP status.
-
-    Args:
-        result: Mutable interaction gate result being assembled.
-        status: HTTP status observed from Playwright navigation.
-        url: Session detail URL that returned the status.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        status: HTTP 状态 observed从Playwright navigation。
+        url: 待请求的 URL。
     """
     result['status'] = 'FAIL'
     result['checks']['navigation'] = {
@@ -633,13 +561,12 @@ def _fail_service(result: dict, status: int, url: str) -> None:
     )
 
 
+# 维护fail 不可达。
 def _fail_unreachable(result: dict, url: str, exc: Exception) -> None:
-    """Record a navigation failure caused by an unreachable fixture server.
-
-    Args:
-        result: Mutable interaction gate result being assembled.
-        url: Session detail URL attempted by the browser gate.
-        exc: Exception raised by Playwright navigation.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        url: 待请求的 URL。
+        exc: 捕获的异常对象。
     """
     result['status'] = 'FAIL'
     result['checks']['navigation'] = {
@@ -655,22 +582,16 @@ def _fail_unreachable(result: dict, url: str, exc: Exception) -> None:
     )
 
 
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-
-
+# 运行脚本自测试场景。
 def _self_test() -> None:  # noqa: PLR0915
-    """Run self-tests that verify the JS snippets and aggregation logic."""
     failures = 0
 
+    # 维护assert。
     def _assert(name: str, cond: bool, msg: str = '') -> None:
-        """Record one self-test assertion without aborting the full suite.
-
-        Args:
-            name: Assertion label printed to stdout.
-            cond: Boolean outcome of the assertion.
-            msg: Optional failure detail.
+        """参数：
+            name: 条目名称。
+            cond: cond 参数。
+            msg: 可选失败项 detail。
         """
         nonlocal failures
         if cond:
@@ -679,16 +600,13 @@ def _self_test() -> None:  # noqa: PLR0915
             failures += 1
             print(f'  FAIL: {name} {msg}')
 
-    # Test toggle alignment logic (simulate via Python)
+    # 维护compute spread。
     def compute_spread(lefts: list[int]) -> int:
-        """Compute the horizontal spread used by toggle alignment checks.
+        """参数：
+            lefts: lefts 参数。
 
-        Args:
-            lefts: Simulated left offsets for visible toggle buttons.
-
-        Returns:
-            Pixel spread between minimum and maximum offsets, or zero for no
-            toggles.
+        返回：
+            进程退出码。
         """
         if not lefts:
             return 0
@@ -699,16 +617,14 @@ def _self_test() -> None:  # noqa: PLR0915
     _assert('spread too large', compute_spread([100, 128, 100]) > TOGGLE_SPREAD_ABSOLUTE_MAX)
     _assert('spread empty', compute_spread([]) == 0)
 
-    # Test overflow logic
+    # 检查overflow。
     def check_overflow(scroll_w: int, inner_w: int) -> bool:
-        """Apply the gate's horizontal overflow threshold.
+        """参数：
+            scroll_w: scroll w 参数。
+            inner_w: inner w 参数。
 
-        Args:
-            scroll_w: Simulated document scroll width.
-            inner_w: Simulated viewport width.
-
-        Returns:
-            True when overflow stays within the configured margin.
+        返回：
+            当overflow stays 内 configured margin.时返回 true。
         """
         return scroll_w <= inner_w + OVERFLOW_MARGIN_PX
 
@@ -717,16 +633,13 @@ def _self_test() -> None:  # noqa: PLR0915
     _assert('overflow ok at exact margin', check_overflow(1442, 1440))
     _assert('overflow fail excess', not check_overflow(1443, 1440))
 
-    # Test modal rendered content logic
+    # 检查rendered。
     def check_rendered(text: str) -> bool:
-        """Apply the modal rendered-content failure predicate.
+        """参数：
+            text: 待检查的文本。
 
-        Args:
-            text: Simulated rendered modal text.
-
-        Returns:
-            True when the rendered content is non-empty and not the empty-state
-            sentinel.
+        返回：
+            满足条件时返回 true，否则返回 false。
         """
         return text.strip() != '(No rendered content)' and len(text.strip()) > 0
 
@@ -734,7 +647,6 @@ def _self_test() -> None:  # noqa: PLR0915
     _assert('no rendered content fail', not check_rendered('(No rendered content)'))
     _assert('empty fail', not check_rendered('   '))
 
-    # Test JSON serialisability of result structure
     sample = {
         'schemaVersion': 1,
         'status': 'PASS',
@@ -750,16 +662,14 @@ def _self_test() -> None:  # noqa: PLR0915
     except Exception:
         _assert('result JSON serialisable', False)
 
-    # Test actual browser JS snippets with set_content
+    # 运行browser test。
     async def _run_browser_test(html: str, js: str) -> dict:
-        """Evaluate one JavaScript snippet against temporary browser content.
+        """参数：
+            html: 待检查的 HTML 文本。
+            js: 待执行的 JavaScript 表达式。
 
-        Args:
-            html: HTML fixture installed into a Playwright page.
-            js: JavaScript expression evaluated by the gate.
-
-        Returns:
-            Data returned by ``page.evaluate`` for assertion checks.
+        返回：
+            结果映射。
         """
         from playwright.async_api import async_playwright  # noqa: PLC0415
 
@@ -772,15 +682,14 @@ def _self_test() -> None:  # noqa: PLR0915
             await browser.close()
             return data
 
+    # 同步browser test。
     def _sync_browser_test(html: str, js: str) -> dict:
-        """Run the async browser fixture helper from the synchronous self-test.
+        """参数：
+            html: 待检查的 HTML 文本。
+            js: 待执行的 JavaScript 表达式。
 
-        Args:
-            html: HTML fixture installed into a Playwright page.
-            js: JavaScript expression evaluated by the gate.
-
-        Returns:
-            Data returned by ``_run_browser_test``.
+        返回：
+            结果映射。
         """
         try:
             loop = asyncio.get_running_loop()
@@ -789,7 +698,6 @@ def _self_test() -> None:  # noqa: PLR0915
             asyncio.set_event_loop(loop)
         return loop.run_until_complete(_run_browser_test(html, js))
 
-    # Good toggle alignment
     good_html = """
     <!DOCTYPE html><html><head><style>
     .trace-row { display: flex; }
@@ -812,7 +720,6 @@ def _self_test() -> None:  # noqa: PLR0915
     except Exception as e:
         _assert('toggle alignment JS works', False, str(e))
 
-    # Overflow check
     overflow_html = """
     <!DOCTYPE html><html><head><style>
     body { margin: 0; }
@@ -825,7 +732,6 @@ def _self_test() -> None:  # noqa: PLR0915
     except Exception as e:
         _assert('overflow JS detects wide', False, str(e))
 
-    # Modal rendered check
     modal_html = """
     <!DOCTYPE html><html><body>
     <div class="payload-modal__rendered"><div>Hello world</div></div>
@@ -839,7 +745,7 @@ def _self_test() -> None:  # noqa: PLR0915
     except Exception as e:
         _assert('modal rendered JS works', False, str(e))
 
-    # No rendered content
+    # 没有rendered content。
     no_rendered_html = """
     <!DOCTYPE html><html><body>
     <div class="payload-modal__rendered">(No rendered content)</div>
@@ -863,13 +769,8 @@ def _self_test() -> None:  # noqa: PLR0915
         sys.exit(0)
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Parse CLI arguments, run the browser gate, and write result JSON."""
     parser = argparse.ArgumentParser(
         description='Browser interaction layout gate for session detail',
     )
@@ -912,7 +813,7 @@ def main() -> None:
             file=sys.stderr,
         )
 
-        # Write BLOCKED result
+        # 写入BLOCKED 结果。
         result = {
             'schemaVersion': 1,
             'status': 'BLOCKED',
@@ -961,13 +862,13 @@ def main() -> None:
         asyncio.set_event_loop(loop)
     result = loop.run_until_complete(run_interaction_gate(url, out_dir))
 
-    # Write artifact
+    # 写入artifact。
     result_path = out_dir / 'result.json'
     result_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
-    # Print summary
+    # 打印summary。
     print(json.dumps(result, ensure_ascii=False, indent=2))
     print()
 

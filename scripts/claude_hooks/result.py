@@ -1,9 +1,4 @@
-"""Emit Claude hook results with concise output semantics.
-
-Hook handlers return ``HookResult`` objects. This module serializes non-pass, warning, or
-message-bearing results as JSON and returns the requested process exit code. PASS without
-messages stays silent to avoid polluting the agent context.
-"""
+"""提供 result 脚本能力。"""
 
 from __future__ import annotations
 
@@ -16,14 +11,14 @@ from typing import Any
 # 01. Hook 输出模型
 @dataclass
 class HookResult:
-    """Process-facing result produced by a Claude hook handler.
+    """汇总 HookResult 的检查结果。
 
-    Attributes:
-        status: Hook status such as ``PASS`` or ``BLOCK``.
-        exit_code: Process exit code returned to the shell wrapper.
-        message: User-facing result message.
-        warnings: Advisory messages emitted for allowed operations.
-        details: Additional JSON-serializable metadata.
+    属性：
+        status: 状态值。
+        exit_code: exit code 参数。
+        message: 用户可读消息。
+        warnings: 警告列表。
+        details: 附加 JSON metadata。
     """
 
     status: str = 'PASS'
@@ -33,16 +28,13 @@ class HookResult:
     details: dict[str, Any] = field(default_factory=dict)
 
 
-# 02. 输出函数
+# 输出 hook 结果。
 def emit(result: HookResult) -> int:
-    """Serialize a hook result and return its process exit code.
+    """参数：
+        result: hook handler 结果带状态, message, 警告, 和 details。
 
-    Args:
-        result: Hook handler result with status, message, warnings, and details.
-
-    Returns:
-        Exit code consumed by the shell hook wrapper. Blocking policies use non-zero exit
-        codes; silent PASS returns ``0``.
+    返回：
+        进程退出码。
     """
     payload = {
         'status': result.status,

@@ -1,4 +1,4 @@
-"""Shared changed-file collection for agent and quality-gate entrypoints."""
+"""收集 agent 与 quality gate 共享的 changed-files evidence。"""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import subprocess
 from pathlib import Path
 from typing import Any
 
+from scripts.claude_hooks import paths as runtime_paths
+
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-AGENT_LOG_DIR = REPO_ROOT / 'tmp' / 'agent_logs' / 'current'
+AGENT_LOG_DIR = runtime_paths.agent_log_dir(REPO_ROOT)
 DEFAULT_CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
 DEFAULT_SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
 DEFAULT_BASE_COMMIT_FILE = AGENT_LOG_DIR / 'base-commit.txt'
@@ -17,16 +19,28 @@ GIT_STATUS_PATH_OFFSET = 3
 GIT_STATUS_MIN_LINE_LENGTH = GIT_STATUS_PATH_OFFSET + 1
 
 
+# 规范化路径。
 def normalize_path(path: str) -> str:
-    """Normalize a repository-relative path for target matching."""
+    """参数：
+        path: 待检查的路径。
+
+    返回：
+        normalize 路径 字符串。
+    """
     value = path.replace('\\', '/').strip()
     while value.startswith('./'):
         value = value[2:]
     return value.strip('/')
 
 
+# 维护dedupe 路径。
 def dedupe_paths(paths: list[str]) -> list[str]:
-    """Return normalized paths once while preserving first-seen order."""
+    """参数：
+        paths: 待检查的路径列表。
+
+    返回：
+        结果列表。
+    """
     result: list[str] = []
     seen: set[str] = set()
     for path in paths:
@@ -37,25 +51,33 @@ def dedupe_paths(paths: list[str]) -> list[str]:
     return result
 
 
+# 读取session id。
 def read_session_id(session_id_file: Path = DEFAULT_SESSION_ID_FILE) -> str | None:
-    """Read an agent session id from disk when present."""
+    """参数：
+        session_id_file: session id file 参数。
+
+    返回：
+        read session id 字符串。
+    """
     if not session_id_file.exists():
         return None
     value = session_id_file.read_text(encoding='utf-8').strip()
     return value or None
 
 
+# 读取recorded changed-files 文件。
 def read_recorded_changed_files(
     session_id: str | None = None,
     changed_files_path: Path = DEFAULT_CHANGED_FILES,
     agent_id: str | None = None,
 ) -> list[str]:
-    """Read changed-file records written by agent hooks.
+    """参数：
+        session_id: 可选session id used到filter hook record。
+        changed_files_path: 路径到 changed-文件 JSONL 文件。
+        agent_id: 可选agent id used到filter record到a specific agent。
 
-    Args:
-        session_id: Optional session id used to filter hook records.
-        changed_files_path: Path to the changed-files JSONL file.
-        agent_id: Optional agent id used to filter records to a specific agent.
+    返回：
+        结果列表。
     """
     if not changed_files_path.exists():
         return []
@@ -83,8 +105,34 @@ def read_recorded_changed_files(
     return dedupe_paths(files)
 
 
+# 读取recorded changed-files 文件 路径。
+def read_recorded_changed_files_from_paths(
+    changed_files_paths: list[Path],
+    session_id: str | None = None,
+    agent_id: str | None = None,
+) -> list[str]:
+    """参数：
+        changed_files_paths: 待检查的路径列表。
+        session_id: 用于筛选记录的 session id。
+        agent_id: 用于筛选记录的 agent id。
+
+    返回：
+        结果列表。
+    """
+    files: list[str] = []
+    for path in changed_files_paths:
+        files.extend(read_recorded_changed_files(session_id, path, agent_id=agent_id))
+    return dedupe_paths(files)
+
+
+# 解析Git 状态 路径。
 def parse_git_status_paths(output: str) -> list[str]:
-    """Extract changed paths from ``git status --short`` output."""
+    """参数：
+        output: output 参数。
+
+    返回：
+        结果列表。
+    """
     files: list[str] = []
     for line in output.splitlines():
         if not line.strip() or len(line) < GIT_STATUS_MIN_LINE_LENGTH:
@@ -99,8 +147,14 @@ def parse_git_status_paths(output: str) -> list[str]:
     return dedupe_paths(files)
 
 
+# 读取Git dirty 文件。
 def read_git_dirty_files(repo_root: Path = REPO_ROOT) -> list[str]:
-    """Read dirty tracked, deleted, renamed, and untracked non-ignored files."""
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        结果列表。
+    """
     try:
         proc = subprocess.run(
             ['git', 'status', '--short', '--untracked-files=all'],
@@ -118,16 +172,28 @@ def read_git_dirty_files(repo_root: Path = REPO_ROOT) -> list[str]:
     return parse_git_status_paths(proc.stdout or '')
 
 
+# 读取base commit。
 def read_base_commit(base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE) -> str | None:
-    """Read the git commit recorded at agent session start."""
+    """参数：
+        base_commit_file: base commit sentinel 文件路径。
+
+    返回：
+        读取到的 base commit 字符串。
+    """
     if not base_commit_file.exists():
         return None
     value = base_commit_file.read_text(encoding='utf-8').strip()
     return value or None
 
 
+# 读取当前 head。
 def read_current_head(repo_root: Path = REPO_ROOT) -> str | None:
-    """Read the current git HEAD commit hash."""
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        读取到的当前 HEAD 字符串。
+    """
     try:
         proc = subprocess.run(
             ['git', 'rev-parse', 'HEAD'],
@@ -146,13 +212,21 @@ def read_current_head(repo_root: Path = REPO_ROOT) -> str | None:
     return value or None
 
 
+# 写入base commit missing。
 def write_base_commit_if_missing(
     repo_root: Path = REPO_ROOT,
     base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE,
     *,
     overwrite: bool = False,
 ) -> str | None:
-    """Persist current HEAD as the session base commit."""
+    """参数：
+        repo_root: 仓库根目录。
+        base_commit_file: base commit sentinel 文件路径。
+        overwrite: overwrite 参数。
+
+    返回：
+        缺失时写入的 base commit 字符串。
+    """
     existing = read_base_commit(base_commit_file)
     if existing and not overwrite:
         return existing
@@ -168,16 +242,20 @@ def write_base_commit_if_missing(
     return head
 
 
+# 读取文件 since base commit。
 def read_files_since_base_commit(
     repo_root: Path = REPO_ROOT,
     base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE,
 ) -> list[str]:
-    """Read tracked and untracked paths changed since the session base commit.
+    """参数：
+        repo_root: 仓库根目录。
+        base_commit_file: base commit sentinel 文件路径。
 
-    The diff compares the current working tree with the recorded base commit,
-    not only ``base..HEAD``.  This fail-closed behavior is required so Bash
-    edits, deletions, and staged-but-uncommitted files cannot bypass Stop target
-    routing after write-hook evidence is absent.
+    返回：
+        结果列表。
+
+    说明：
+        不 仅 ``base.HEAD``. This fail-closed behavior is 必需 so Bash。
     """
     base_commit = read_base_commit(base_commit_file)
     if not base_commit:
@@ -216,6 +294,7 @@ def read_files_since_base_commit(
     return dedupe_paths(paths)
 
 
+# 收集当前 session/agent 需要纳入 stop gate 的 changed files。
 def collect_changed_files(
     session_id: str | None = None,
     *,
@@ -225,21 +304,19 @@ def collect_changed_files(
     base_commit_file: Path | None = None,
     agent_id: str | None = None,
 ) -> list[str]:
-    """Collect session-scoped changed files for fail-closed routing.
+    """参数：
+        session_id: 可选session id used到filter hook record。
+        include_git: include git 参数。
+        repo_root: repo root用于git 命令。
+        changed_files_path: 路径到 changed-文件 JSONL 文件。
+        base_commit_file: base commit sentinel 文件路径。
+        agent_id: 可选agent id到filter hook record到a specific agent。
 
-    The primary source is hook-recorded writes (session-scoped via JSONL).
-    Changes since the base commit are included as a secondary fail-closed source
-    to cover agent commits, shell edits, shell deletions, staged files, and
-    untracked non-ignored files that write hooks did not record. When no base
-    commit sentinel exists, arbitrary pre-existing dirty files are not routed.
+    返回：
+        结果列表。
 
-    Args:
-        session_id: Optional session id used to filter hook records.
-        include_git: Whether to include committed changes since the base commit.
-        repo_root: Repository root for git commands.
-        changed_files_path: Path to the changed-files JSONL file.
-        base_commit_file: Optional path to the base-commit file.
-        agent_id: Optional agent id to filter hook records to a specific agent.
+    说明：
+        commit sentinel exists, arbitrary pre-现有 dirty 文件 are 不 routed。
     """
     explicit_base_commit_file = base_commit_file is not None
     if base_commit_file is None:
@@ -250,8 +327,14 @@ def collect_changed_files(
     return dedupe_paths(paths)
 
 
+# 解析changed-files 文件 JSON。
 def parse_changed_files_json(value: str | None) -> list[str]:
-    """Parse an optional JSON list of changed files."""
+    """参数：
+        value: value 参数。
+
+    返回：
+        结果列表。
+    """
     if value is None:
         return []
     try:

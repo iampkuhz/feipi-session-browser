@@ -190,3 +190,89 @@ class TestNoFeipiAgentLogDir:
         assert 'FEIPI_AGENT_LOG_DIR' not in source, (
             'stop_check_targets.py must not reference FEIPI_AGENT_LOG_DIR'
         )
+
+
+class TestIdentityScopedStopQualityGate:
+    """stop_quality_gate 必须按 session identity 隔离 evidence 和 artifact。"""
+
+    @pytest.mark.contract_case('HOOK-HARNESS-006')
+    def test_reads_only_identity_scoped_changed_files(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """其他 session changed-files 不得影响当前 Stop。"""
+        identity = _sqg.runtime_paths.identity_from_values(
+            agent_client='claude',
+            session_id='reader-session',
+        )
+        monkeypatch.setattr(_sqg, 'REPO_ROOT', tmp_path)
+        monkeypatch.setattr(_sqg, 'IDENTITY', identity)
+        reader_file = (
+            tmp_path
+            / 'tmp'
+            / 'agent_logs'
+            / 'claude'
+            / 'reader-session'
+            / 'main'
+            / 'changed-files.jsonl'
+        )
+        writer_file = (
+            tmp_path
+            / 'tmp'
+            / 'agent_logs'
+            / 'claude'
+            / 'writer-session'
+            / 'main'
+            / 'changed-files.jsonl'
+        )
+        reader_file.parent.mkdir(parents=True)
+        writer_file.parent.mkdir(parents=True)
+        reader_file.write_text(
+            json.dumps(
+                {
+                    'sessionId': 'reader-session',
+                    'file': 'README.md',
+                    'category': 'other',
+                }
+            )
+            + '\n',
+            encoding='utf-8',
+        )
+        writer_file.write_text(
+            json.dumps(
+                {
+                    'sessionId': 'writer-session',
+                    'file': 'java/web/src/main/resources/static/css/shell.css',
+                    'category': 'ui-css',
+                }
+            )
+            + '\n',
+            encoding='utf-8',
+        )
+
+        entries = _sqg.read_changed_files()
+
+        assert [entry['file'] for entry in entries] == ['README.md']
+
+    @pytest.mark.contract_case('HOOK-HARNESS-006')
+    def test_reads_identity_scoped_quality_artifact(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """质量 artifact 查询必须使用当前 session 的 quality 目录。"""
+        identity = _sqg.runtime_paths.identity_from_values(
+            agent_client='claude',
+            session_id='reader-session',
+        )
+        quality_dir = _sqg.runtime_paths.quality_dir(tmp_path, identity)
+        monkeypatch.setattr(_sqg, 'IDENTITY', identity)
+        monkeypatch.setattr(_sqg, 'QUALITY_DIR', quality_dir)
+        artifact_dir = quality_dir / 'change-a'
+        artifact_dir.mkdir(parents=True)
+        (artifact_dir / 'quality-gate-summary.session-detail.json').write_text(
+            json.dumps(_make_artifact('PASS')),
+            encoding='utf-8',
+        )
+
+        artifact = _sqg.read_quality_artifact('change-a')
+
+        assert artifact is not None
+        assert artifact['status'] == 'PASS'

@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""quality-report.md generator.
-
-读取 quality gate summary JSON, 生成人类可读的 Markdown 报告。
-
-用法:
-    python3 scripts/quality/generate_quality_report.py --target session-detail --change-id fix-xyz
-    python3 scripts/quality/generate_quality_report.py --summary-file \
-tmp/quality/test/quality-gate-summary.session-detail.json
-"""
+"""提供 generate quality report 脚本能力。"""
 
 from __future__ import annotations
 
@@ -21,27 +13,25 @@ MILLISECONDS_PER_SECOND = 1000
 MAX_OUTPUT_CHARS = 2000
 
 
+# 加载summary。
 def load_summary(summary_path: Path) -> dict:
-    """加载 quality gate summary JSON。.
+    """参数：
+        summary_path: 待检查的路径。
 
-    Args:
-        summary_path: Input value for summary_path.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     text = summary_path.read_text(encoding='utf-8')
     return json.loads(text)
 
 
+# 格式化duration。
 def format_duration(ms: int | None) -> str:
-    """格式化毫秒为可读字符串。.
+    """参数：
+        ms: ms 参数。
 
-    Args:
-        ms: Input value for ms.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     if ms is None:
         return 'N/A'
@@ -50,14 +40,13 @@ def format_duration(ms: int | None) -> str:
     return f'{ms / MILLISECONDS_PER_SECOND:.1f}s'
 
 
+# 维护状态 badge。
 def status_badge(status: str) -> str:
-    """生成状态徽章文本。.
+    """参数：
+        status: 状态值。
 
-    Args:
-        status: Input value for status.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     s = str(status).upper()
     if s == 'PASS':
@@ -71,12 +60,11 @@ def status_badge(status: str) -> str:
     return status
 
 
+# 追加timing rows。
 def _append_timing_rows(lines: list[str], data: dict) -> None:
-    """Append optional timing metadata rows to a Markdown table.
-
-    Args:
-        lines: Report lines being built.
-        data: Input value for data.
+    """参数：
+        lines: 待检查的源码行列表。
+        data: 待处理的数据对象。
     """
     started = data.get('startedAt', '')
     finished = data.get('finishedAt', '')
@@ -96,12 +84,11 @@ def _append_timing_rows(lines: list[str], data: dict) -> None:
         pass
 
 
+# 追加gate details。
 def _append_gate_details(lines: list[str], gate_details: list[dict]) -> None:
-    """Append gate result table rows when details exist.
-
-    Args:
-        lines: Report lines being built.
-        gate_details: Gate detail records from the summary.
+    """参数：
+        lines: 待检查的源码行列表。
+        gate_details: summary 中的 gate detail 记录。
     """
     if not gate_details:
         return
@@ -121,13 +108,12 @@ def _append_gate_details(lines: list[str], gate_details: list[dict]) -> None:
     lines.append('')
 
 
+# 追加列表 章节。
 def _append_list_section(lines: list[str], title: str, items: list) -> None:
-    """Append a bullet-list section when it has items.
-
-    Args:
-        lines: Report lines being built.
-        title: Section heading.
-        items: Bullet values to render.
+    """参数：
+        lines: 待检查的源码行列表。
+        title: title 参数。
+        items: Bullet 值到render。
     """
     if not items:
         return
@@ -139,12 +125,11 @@ def _append_list_section(lines: list[str], title: str, items: list) -> None:
     lines.append('')
 
 
+# 追加失败 outputs。
 def _append_failed_outputs(lines: list[str], gate_details: list[dict]) -> None:
-    """Append failed gate output snippets.
-
-    Args:
-        lines: Report lines being built.
-        gate_details: Gate detail records from the summary.
+    """参数：
+        lines: 待检查的源码行列表。
+        gate_details: summary 中的 gate detail 记录。
     """
     failed_details = [
         d for d in gate_details if str(d.get('status', '')).upper() in {'FAIL', 'BLOCKED'}
@@ -169,12 +154,11 @@ def _append_failed_outputs(lines: list[str], gate_details: list[dict]) -> None:
             lines.append('')
 
 
+# 追加artifacts。
 def _append_artifacts(lines: list[str], artifacts: dict) -> None:
-    """Append artifact links from the summary.
-
-    Args:
-        lines: Report lines being built.
-        artifacts: Artifact mapping from the summary.
+    """参数：
+        lines: 待检查的源码行列表。
+        artifacts: artifacts 参数。
     """
     if not artifacts:
         return
@@ -186,18 +170,16 @@ def _append_artifacts(lines: list[str], artifacts: dict) -> None:
     lines.append('')
 
 
+# 维护生成 报告。
 def generate_report(data: dict) -> str:
-    """根据 summary JSON 生成 Markdown 报告。.
+    """参数：
+        data: 待处理的数据对象。
 
-    Args:
-        data: Input value for data.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     lines: list[str] = []
 
-    # Header
     target = data.get('target', 'unknown')
     change_id = data.get('changeId', 'unknown')
     status = data.get('status', 'UNKNOWN')
@@ -221,7 +203,6 @@ def generate_report(data: dict) -> str:
     _append_failed_outputs(lines, gate_details)
     _append_artifacts(lines, data.get('artifacts', {}))
 
-    # Footer
     lines.append('---')
     lines.append(
         f'由 generate_quality_report.py 自动生成 | {datetime.now(timezone.utc).isoformat()}'
@@ -231,27 +212,25 @@ def generate_report(data: dict) -> str:
     return '\n'.join(lines)
 
 
+# 查找latest summary。
 def find_latest_summary(target: str, change_id: str, out_dir: Path) -> Path | None:
-    """在质量输出目录中查找最新的 summary JSON。.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
+        change_id: 当前 OpenSpec change id。
+        out_dir: 输出目录。
 
-    Args:
-        target: Input value for target.
-        change_id: Input value for change_id.
-        out_dir: Input value for out_dir.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     base = out_dir / change_id
     if not base.exists():
         return None
 
-    # Try target-specific first
     target_file = base / f'quality-gate-summary.{target}.json'
     if target_file.exists():
         return target_file
 
-    # Fall back to default
+    # Fall back到默认。
     default_file = base / 'quality-gate-summary.json'
     if default_file.exists():
         return default_file
@@ -259,11 +238,10 @@ def find_latest_summary(target: str, change_id: str, out_dir: Path) -> Path | No
     return None
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI arguments and generate the requested quality report.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     parser = argparse.ArgumentParser(description='quality-report.md 生成器')
     parser.add_argument('--target', default=None, help='Quality target (e.g., session-detail)')
@@ -291,7 +269,7 @@ def main() -> int:
     data = load_summary(summary_path)
     report = generate_report(data)
 
-    # Determine output path
+    # Determine 输出 路径。
     if args.output:
         output_path = Path(args.output)
     else:

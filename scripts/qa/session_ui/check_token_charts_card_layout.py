@@ -1,22 +1,5 @@
 #!/usr/bin/env python3
-"""Token metrics placement check for Phase 1 session detail.
-
-After Phase 1, the token-charts-card is deleted. Token data now appears in:
-  - Hero KPIs (total tokens, cache hit, duration, failed tools)
-  - Issue summary (highest token round card)
-  - Trace rows (per-round mixbar + .mixval, data-round-tokens)
-
-Usage:
-    python scripts/qa/session_ui/check_token_charts_card_layout.py [--url URL] [--html PATH]
-
-Checks:
-    1. Token total appears in hero KPIs
-    2. Highest token round appears in issue summary (if any)
-    3. Per-round token data in trace rows (.mixval or data-round-tokens)
-    4. token-charts-card is removed (negative check)
-
-Exits non-zero if any critical violation found.
-"""
+"""提供 检查 token charts card 布局 脚本能力。"""
 
 from __future__ import annotations
 
@@ -33,7 +16,7 @@ except ImportError:
     sys.exit(2)
 
 # ---------------------------------------------------------------------------
-# Paths
+# 路径。
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = (
@@ -41,20 +24,15 @@ DEFAULT_BASELINE = (
 )
 DEFAULT_URL = 'http://localhost:18999/session/93ecbcf2'
 
-# ---------------------------------------------------------------------------
-# Data fetching (mirrors check_layout_quality.py pattern)
-# ---------------------------------------------------------------------------
 
-
+# 维护获取 HTML。
 def fetch_html(url: str, timeout: float = 3.0) -> str | None:
-    """Fetch session-detail HTML from a running app for the token chart layout gate.
+    """参数：
+        url: 待请求的 URL。
+        timeout: 超时时间，单位为秒。
 
-    Args:
-        url: HTTP URL to request.
-        timeout: Request timeout in seconds.
-
-    Returns:
-        HTML text when the request succeeds; None after printing the fetch error.
+    返回：
+        fetch HTML 字符串。
     """
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'token-metrics-check/2.0'})
@@ -64,14 +42,13 @@ def fetch_html(url: str, timeout: float = 3.0) -> str | None:
         return None
 
 
+# 读取HTML。
 def read_html(path: Path) -> str | None:
-    """Read a saved HTML fixture for the token chart layout gate.
+    """参数：
+        path: Local HTML 文件路径 supplied on CLI。
 
-    Args:
-        path: Local HTML file path supplied on the CLI.
-
-    Returns:
-        HTML text when the file exists; None after printing the file error.
+    返回：
+        HTML text 当 文件 exists；None 之后 printing 文件 错误。
     """
     try:
         return path.read_text(encoding='utf-8', errors='replace')
@@ -79,16 +56,14 @@ def read_html(path: Path) -> str | None:
         return None
 
 
+# 加载源码。
 def load_source(url: str | None, html_path: Path | None) -> tuple[str | None, str]:
-    """Load token chart QA input from either a URL or an HTML file.
+    """参数：
+        url: 待请求的 URL。
+        html_path: 可选local fixture 路径 selected by CLI。
 
-    Args:
-        url: Optional HTTP source selected by the CLI.
-        html_path: Optional local fixture path selected by the CLI.
-
-    Returns:
-        Tuple of HTML text and source label; exits with status 2 when no readable source
-        is available.
+    返回：
+        由HTML text 和 source label; exits带状态 2 当 no 读取able source组成的 tuple。 is 可用。
     """
     if url:
         content = fetch_html(url)
@@ -101,30 +76,23 @@ def load_source(url: str | None, html_path: Path | None) -> tuple[str | None, st
     return None, None
 
 
-# ---------------------------------------------------------------------------
-# Individual checks
-# ---------------------------------------------------------------------------
-
-
+# 检查token 总量 kpis。
 def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Check that token totals moved into the KPI area of the session detail page.
+    """参数：
+        soup: 已解析的session-detail HTML document。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-
-    Returns:
-        Status label and diagnostic messages for the token-total KPI contract.
+    返回：
+        结果 tuple。
     """
     notes: list[str] = []
     pass_count = 0
 
-    # Check for KPIs section
+    # 检查用于 KPIs section。
     kpis = soup.select_one('.kpis')
     if kpis:
         notes.append('hero KPIs section found')
         pass_count += 1
 
-        # Look for a KPI label containing "token"
         kpi_labels = kpis.select('.kpi .l')
         token_kpi = None
         for label in kpi_labels:
@@ -134,7 +102,7 @@ def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:  # 
                 break
 
         if token_kpi:
-            # Check the corresponding value
+            # 检查the corresponding 值。
             value_el = token_kpi.find_previous_sibling(class_='v')
             if value_el:
                 val_text = value_el.get_text(strip=True)
@@ -147,7 +115,6 @@ def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:  # 
         else:
             notes.append("No KPI label contains 'token'")
 
-        # Also check secondary metrics strip for total tokens
         secondary = soup.select_one('.hero-secondary-metrics')
         if secondary:
             sec_text = secondary.get_text()
@@ -165,19 +132,18 @@ def check_token_total_in_kpis(soup: BeautifulSoup) -> tuple[str, list[str]]:  # 
     return 'FAIL', notes
 
 
+# 检查highest token round issues。
 def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Check that highest-token-round information appears in issue cards instead of a chart card.
+    """参数：
+        soup: 已解析的session-detail HTML document。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-
-    Returns:
-        Status label and diagnostic messages for the highest-round contract.
+    返回：
+        结果 tuple。
     """
     notes: list[str] = []
     pass_count = 0
 
-    # Check for issue summary section
+    # 检查用于 issue summary section。
     issue_section = soup.select_one('[data-issue-summary], .issue-summary')
     if issue_section:
         notes.append('issue summary section found')
@@ -186,7 +152,6 @@ def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[
         notes.append('issue summary section NOT found')
         return 'WARN', notes  # Not a hard failure
 
-    # Look for highest token round card (issue-card--cost)
     cost_card = issue_section.select_one('.issue-card--cost')
     if cost_card:
         title = cost_card.select_one('.issue-card__title')
@@ -196,7 +161,7 @@ def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[
             notes.append(f"highest token round card title: '{title_text}'")
             pass_count += 1
 
-            # Check if it mentions "tokens"
+            # 检查如果 it mentions "tokens"。
             if 'token' in title_text.lower():
                 notes.append("card title contains 'tokens' keyword")
                 pass_count += 1
@@ -206,7 +171,6 @@ def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[
     else:
         notes.append('No highest-token-round cost card found (may be OK if no data or round < 2)')
 
-    # Also check for data-action="jump-round" buttons that reference rounds
     jump_buttons = issue_section.select('[data-action="jump-round"][data-round]')
     if jump_buttons:
         notes.append(f'jump-round buttons in issue summary: {len(jump_buttons)}')
@@ -218,14 +182,13 @@ def check_highest_token_round_in_issues(soup: BeautifulSoup) -> tuple[str, list[
     return 'WARN', notes
 
 
+# 检查per round token 数据。
 def check_per_round_token_data(soup: BeautifulSoup) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Check that per-round token data remains available without the removed chart card.
+    """参数：
+        soup: 已解析的session-detail HTML document。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-
-    Returns:
-        Status label and diagnostic messages for per-round token visibility.
+    返回：
+        状态 label 和 diagnostic messages用于per-round token visibility。
     """
     notes: list[str] = []
     pass_count = 0
@@ -238,31 +201,30 @@ def check_per_round_token_data(soup: BeautifulSoup) -> tuple[str, list[str]]:  #
     notes.append(f'trace rows found (count={len(trace_rows)})')
     pass_count += 1
 
-    # Check for .mixval in trace rows
+    # 检查用于 .mixval in trace 行。
     rows_with_mixval = soup.select('.trace-row .mixval')
     if rows_with_mixval:
         notes.append(f'.mixval elements found in trace rows (count={len(rows_with_mixval)})')
         pass_count += 1
 
-        # Verify values are non-empty
+        # 验证值 are non-空。
         sample_values = [el.get_text(strip=True) for el in rows_with_mixval[:3]]
         notes.append(f'sample mixval values: {sample_values}')
     else:
         notes.append('No .mixval elements found in trace rows')
 
-    # Check for data-round-tokens attribute on trace rows
+    # 检查用于 data-round-tokens attribute on trace 行。
     rows_with_token_data = [r for r in trace_rows if r.get('data-round-tokens')]
     if rows_with_token_data:
         notes.append(f'trace rows with data-round-tokens: {len(rows_with_token_data)}')
         pass_count += 1
 
-        # Sample values
         sample = [r['data-round-tokens'] for r in rows_with_token_data[:3]]
         notes.append(f'sample data-round-tokens values: {sample}')
     else:
         notes.append('No data-round-tokens attributes on trace rows')
 
-    # Check for mixbar (token composition bar)
+    # 检查用于 mixbar (token composition bar)。
     mixbars = soup.select('.trace-row .mixbar')
     if mixbars:
         notes.append(f'mixbar elements found (count={len(mixbars)})')
@@ -277,14 +239,13 @@ def check_per_round_token_data(soup: BeautifulSoup) -> tuple[str, list[str]]:  #
     return 'FAIL', notes
 
 
+# 检查 token charts card 已移除。
 def check_token_charts_card_removed(soup: BeautifulSoup) -> tuple[str, list[str]]:
-    """Verify the legacy token charts card is absent from session detail HTML.
+    """参数：
+        soup: 已解析的session-detail HTML document。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-
-    Returns:
-        Status label and diagnostic messages for removed-card enforcement.
+    返回：
+        状态 label 和 diagnostic messages用于removed-card enforcement。
     """
     notes: list[str] = []
 
@@ -304,7 +265,7 @@ def check_token_charts_card_removed(soup: BeautifulSoup) -> tuple[str, list[str]
 
 
 # ---------------------------------------------------------------------------
-# Main
+# 主流程。
 # ---------------------------------------------------------------------------
 
 CHECKS = [
@@ -315,15 +276,14 @@ CHECKS = [
 ]
 
 
+# 运行检查。
 def run_checks(html: str, source: str) -> dict:
-    """Run all token chart layout contract checks against one HTML source.
+    """参数：
+        html: 待检查的 HTML 文本。
+        source: 输入来源标识。
 
-    Args:
-        html: Session-detail HTML to inspect.
-        source: Human-readable label printed in reports.
-
-    Returns:
-        Mapping from check name to status and diagnostic messages.
+    返回：
+        映射从check name到状态 和 diagnostic messages。
     """
     soup = BeautifulSoup(html, 'html.parser')
     results = {}
@@ -333,15 +293,14 @@ def run_checks(html: str, source: str) -> dict:
     return results
 
 
+# 打印报告。
 def print_report(results: dict, source: str) -> bool:
-    """Print token chart layout check results for CLI and quality gate logs.
+    """参数：
+        results: results 参数。
+        source: 输入来源标识。
 
-    Args:
-        results: Mapping produced by run_checks.
-        source: Human-readable source label.
-
-    Returns:
-        True when every check passed; False when any check failed.
+    返回：
+        当every 检查 passed; 当 any 检查 失败.时返回 true。
     """
     print(f'\n{"=" * 60}')
     print('  Token Metrics Placement Check (Phase 1)')
@@ -359,7 +318,7 @@ def print_report(results: dict, source: str) -> bool:
             print(f'        {note}')
         print()
 
-    # Summary
+    # 结果汇总。
     counts = {'PASS': 0, 'WARN': 0, 'FAIL': 0}
     for data in results.values():
         s = data['status']
@@ -374,8 +333,8 @@ def print_report(results: dict, source: str) -> bool:
     return not any_fail
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Parse token chart layout QA options and exit with the contract result."""
     parser = argparse.ArgumentParser(description='Token metrics placement check for Phase 1')
     parser.add_argument(
         '--url', default=DEFAULT_URL, help='URL to fetch page from (default: %(default)s)'

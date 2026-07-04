@@ -1,19 +1,5 @@
 #!/usr/bin/env python3
-"""Browser computed layout gate for session detail Phase 1.
-
-Opens a real browser viewport and checks CSS computed geometry against
-hard thresholds to catch cascade conflicts, grid auto-placement,
-and overflow issues that static checks cannot detect.
-
-Usage:
-    python3 scripts/quality/run_session_detail_layout_gate.py \
-        --url http://127.0.0.1:18999/sessions/claude_code/SESSION_ID
-    python3 scripts/quality/run_session_detail_layout_gate.py \
-        --url http://127.0.0.1:18999/sessions/claude_code/SESSION_ID \
-        --viewport 1440x1100 --out tmp/quality/demo
-    python3 scripts/quality/run_session_detail_layout_gate.py --self-test
-    python3 scripts/quality/run_session_detail_layout_gate.py --allow-missing-service
-"""
+"""提供 run session detail 布局 gate 脚本能力。"""
 
 import argparse
 import asyncio
@@ -25,7 +11,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 HTTP_CLIENT_ERROR = 400
 
-# ── Hard thresholds (1440x1100 viewport) ──
 THRESHOLDS = {
     'main_width_min': 1200,
     'detail_width_min': 1100,
@@ -33,7 +18,7 @@ THRESHOLDS = {
     'title_height_max': 180,
 }
 
-# ── Default selectors (scoped to .session-detail-phase1) ──
+# 默认 selectors (scoped到.session-detail-phase1)。
 SELECTORS = {
     'shell': '.shell',
     'main': '.main',
@@ -44,7 +29,7 @@ SELECTORS = {
     'kpis': '.session-detail-phase1 .kpis, .session-detail-phase1 .metrics-strip',
 }
 
-# ── Failure codes ──
+# 失败项 codes。
 FAILURE_CODES = {
     'MISSING_SESSION_DETAIL_ROOT': 'No .session-detail-phase1 element found.',
     'SHELL_ZERO_COLUMN': (
@@ -61,31 +46,29 @@ FAILURE_CODES = {
 }
 
 
+# 解析viewport。
 def parse_viewport(spec: str) -> tuple[int, int]:
-    """Parse 'WxH' into (width, height).
+    """参数：
+        spec: spec 参数。
 
-    Args:
-        spec: Input value for spec.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     parts = spec.split('x')
     return int(parts[0]), int(parts[1])
 
 
+# 检查布局。
 def check_layout(metrics: dict) -> list[dict]:
-    """Evaluate metrics against thresholds. Return list of failures.
+    """参数：
+        metrics: metrics 参数。
 
-    Args:
-        metrics: Input value for metrics.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     failures = []
 
-    # Check scroll
+    # 检查scroll。
     if not metrics.get('scrollOk', True):
         failures.append(
             {
@@ -106,7 +89,7 @@ def check_layout(metrics: dict) -> list[dict]:
             }
         )
 
-    # Check shell grid
+    # 检查shell grid。
     shell_grid = metrics.get('shellGrid', '')
     if shell_grid and shell_grid.startswith('0px'):
         failures.append(
@@ -134,7 +117,7 @@ def check_layout(metrics: dict) -> list[dict]:
             }
         )
 
-    # Check main width
+    # 检查main width。
     main_rect = metrics.get('main')
     if main_rect and main_rect.get('width', 0) < THRESHOLDS['main_width_min']:
         failures.append(
@@ -155,7 +138,7 @@ def check_layout(metrics: dict) -> list[dict]:
             }
         )
 
-    # Check detail width
+    # 检查detail width。
     detail_rect = metrics.get('detail')
     if detail_rect and detail_rect.get('width', 0) < THRESHOLDS['detail_width_min']:
         failures.append(
@@ -175,7 +158,7 @@ def check_layout(metrics: dict) -> list[dict]:
             }
         )
 
-    # Check hero width
+    # 检查hero width。
     hero_rect = metrics.get('hero')
     if hero_rect and hero_rect.get('width', 0) < THRESHOLDS['hero_width_min']:
         failures.append(
@@ -195,7 +178,7 @@ def check_layout(metrics: dict) -> list[dict]:
             }
         )
 
-    # Check title overlaps KPIs
+    # 检查title overlaps KPIs。
     if metrics.get('titleBeforeKpis') is False:
         failures.append(
             {
@@ -216,7 +199,7 @@ def check_layout(metrics: dict) -> list[dict]:
             }
         )
 
-    # Check title height
+    # 检查title height。
     title_rect = metrics.get('title')
     if title_rect and title_rect.get('height', 0) > THRESHOLDS['title_height_max']:
         failures.append(
@@ -240,15 +223,14 @@ def check_layout(metrics: dict) -> list[dict]:
     return failures
 
 
+# 收集metrics。
 async def collect_metrics(page: object, selectors: dict[str, str]) -> dict[str, object]:
-    """Collect computed layout metrics from the page.
+    """参数：
+        page: page 参数。
+        selectors: selectors 参数。
 
-    Args:
-        page: Input value for page.
-        selectors: Input value for selectors.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     return await page.evaluate(f"""
     () => {{
@@ -323,19 +305,18 @@ async def collect_metrics(page: object, selectors: dict[str, str]) -> dict[str, 
     """)
 
 
+# 运行browser gate。
 async def run_browser_gate(
     url: str, viewport: str, out_dir: Path, allow_missing: bool = False
 ) -> dict[str, object]:
-    """Run the browser layout gate. Returns result dict.
+    """参数：
+        url: 待请求的 URL。
+        viewport: 浏览器 viewport 配置。
+        out_dir: 输出目录。
+        allow_missing: 是否允许目标缺失。
 
-    Args:
-        url: Input value for url.
-        viewport: Input value for viewport.
-        out_dir: Input value for out_dir.
-        allow_missing: Input value for allow_missing.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     from playwright.async_api import async_playwright  # noqa: PLC0415 - optional browser gate.
 
@@ -402,11 +383,11 @@ async def run_browser_gate(
                 )
                 return result
 
-            # Collect metrics
+            # 收集metrics。
             metrics = await collect_metrics(page, SELECTORS)
             result['metrics'] = metrics
 
-            # Check for missing root
+            # 检查用于 缺失 root。
             if metrics.get('detail') is None:
                 result['status'] = 'FAIL'
                 result['failures'].append(
@@ -425,11 +406,10 @@ async def run_browser_gate(
                 )
                 return result
 
-            # Run checks
+            # 运行checks。
             failures = check_layout(metrics)
             result['failures'] = failures
 
-            # Take screenshot
             screenshot_path = out_dir / 'session-detail-layout-1440.png'
             await page.screenshot(path=str(screenshot_path), full_page=False)
             result['artifacts']['screenshot'] = str(screenshot_path)
@@ -473,30 +453,29 @@ async def run_browser_gate(
     return result
 
 
+# 运行gate sync。
 def _run_gate_sync(
     url: str,
     viewport: str,
     out_dir: Path,
     allow_missing: bool = False,
 ) -> dict[str, object]:
-    """Synchronous wrapper for the async browser gate.
+    """参数：
+        url: 待请求的 URL。
+        viewport: 浏览器 viewport 配置。
+        out_dir: 输出目录。
+        allow_missing: 是否允许目标缺失。
 
-    Args:
-        url: Input value for url.
-        viewport: Input value for viewport.
-        out_dir: Input value for out_dir.
-        allow_missing: Input value for allow_missing.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     return asyncio.get_event_loop().run_until_complete(
         run_browser_gate(url, viewport, out_dir, allow_missing)
     )
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Run the session-detail browser layout quality gate."""
     parser = argparse.ArgumentParser(description='Browser layout gate for session detail')
     parser.add_argument('--url', default=None, help='Target session detail URL')
     parser.add_argument('--viewport', default='1440x1100', help='Viewport size (WxH)')
@@ -522,13 +501,13 @@ def main() -> None:
 
     result = _run_gate_sync(args.url, args.viewport, out_dir, args.allow_missing_service)
 
-    # Write artifact
+    # 写入artifact。
     result_path = out_dir / 'session-detail-layout-result.json'
     result_path.write_text(
         json.dumps(result, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
-    # Print summary
+    # 打印summary。
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
     if result['status'] == 'PASS':
@@ -544,41 +523,35 @@ def main() -> None:
         sys.exit(1)
 
 
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-
-
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Run self-tests using temporary HTML fixtures loaded via set_content.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
 
+
+    # 运行检查流程。
     def _run(
         name: str,
         html_content: str,
         expect_pass: bool,
         expect_codes: list[str] | None = None,
     ) -> bool:
-        """Run a single self-test with given HTML content.
+        """参数：
+            name: 条目名称。
+            html_content: HTML content 参数。
+            expect_pass: expect pass 参数。
+            expect_codes: expect codes 参数。
 
-        Args:
-            name: Input value for name.
-            html_content: Input value for html_content.
-            expect_pass: Input value for expect_pass.
-            expect_codes: Input value for expect_codes.
-
-        Returns:
-            Computed result.
+        返回：
+            Computed 结果。
         """
 
-        async def _inner() -> tuple[dict[str, object], list[dict[str, object]]]:
-            """Render one fixture and collect browser layout failures.
 
-            Returns:
-                Computed result.
+        # 维护内部。
+        async def _inner() -> tuple[dict[str, object], list[dict[str, object]]]:
+            """返回：
+                Computed 结果。
             """
             from playwright.async_api import async_playwright  # noqa: PLC0415
 
@@ -608,7 +581,6 @@ def _self_test() -> None:
                     if ec in codes:
                         print(f'  PASS: {name} ({ec})')
                         return True
-                # If no expected code matched but pass/fail is correct, still pass
                 print(f'  PASS: {name}')
                 return True
             print(f'  PASS: {name}')
@@ -619,7 +591,6 @@ def _self_test() -> None:
         )
         return False
 
-    # Good fixture: all thresholds met
     good_html = """
     <!DOCTYPE html>
     <html>
@@ -650,7 +621,6 @@ def _self_test() -> None:
     </html>
     """
 
-    # Shell zero column fixture
     shell_zero_html = """
     <!DOCTYPE html>
     <html>
@@ -676,7 +646,6 @@ def _self_test() -> None:
     </html>
     """
 
-    # Title overlaps KPIs fixture
     overlap_html = """
     <!DOCTYPE html>
     <html>
@@ -702,7 +671,6 @@ def _self_test() -> None:
     </html>
     """
 
-    # Horizontal scroll fixture
     scroll_html = """
     <!DOCTYPE html>
     <html>
@@ -728,7 +696,7 @@ def _self_test() -> None:
     </html>
     """
 
-    # Missing root fixture
+    # 缺失 root fixture。
     missing_html = """
     <!DOCTYPE html>
     <html><body><div class="shell"><div class="main">No detail</div></div></body></html>

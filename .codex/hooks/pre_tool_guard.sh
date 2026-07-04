@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# PreToolUse(Bash): block destructive commands before they run.
+# PreToolUse(Bash): 执行前拦截危险命令。
 set -uo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -8,8 +8,7 @@ ROOT="$(repo_root)"
 
 cd "$ROOT" || exit $EXIT_WARN
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
-python3 "$ROOT/scripts/quality/ensure_base_commit.py" >/dev/null 2>&1 || true
-
+export FEIPI_AGENT_CLIENT="${FEIPI_AGENT_CLIENT:-codex}"
 STDIN_TMP="$(mktemp)"
 trap 'rm -f "$STDIN_TMP"' EXIT
 cat > "$STDIN_TMP" 2>/dev/null || true
@@ -47,5 +46,7 @@ for pattern in "${BLOCK_PATTERNS[@]}"; do
     exit $EXIT_BLOCK
   fi
 done
+
+python3 -m scripts.claude_hooks.main pre-bash < "$STDIN_TMP" >/dev/null
 
 exit $EXIT_OK

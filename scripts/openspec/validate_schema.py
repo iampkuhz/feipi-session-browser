@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Validate required repository schema paths for OpenSpec and harness gates.
-
-This root-level script is called by required quality gates to make sure the
-agent, OpenSpec, harness, and quality entry points still exist. It reads only
-the repository layout, prints missing paths, and exits 1 for schema drift or 0
-when the expected structure is present.
-"""
+"""验证 必需 repository schema paths for OpenSpec and harness gates。"""
 
 import sys
 from pathlib import Path

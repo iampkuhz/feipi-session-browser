@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""raw-innerHTML 阻断 gate.
-
-扫描仓库中所有 JS 文件的 innerHTML 赋值,执行以下策略:
-- 存量 innerHTML 使用标记为 WARN(技术债务)
-- 新增 innerHTML 使用标记为 BLOCK(阻断)
-
-用法:
-    # 全量扫描(生成 baseline 或仅报告)
-    python3 scripts/quality/check_raw_innerhtml.py
-
-    # 增量检查(对比 baseline,发现新增则 BLOCK)
-    python3 scripts/quality/check_raw_innerhtml.py --check
-
-    # 更新 baseline(在已知安全的新增后手动运行)
-    python3 scripts/quality/check_raw_innerhtml.py --update-baseline
-
-退出码:
-    0 — 无新增 innerHTML 使用(全量扫描始终返回 0)
-    1 — 发现新增 innerHTML 使用(--check 模式)
-"""
+"""raw-innerHTML 阻断 gate。"""
 
 from __future__ import annotations
 
@@ -42,14 +23,13 @@ COMMENT_LINE_RE = re.compile(r'^\s*(?://|/\*|\*)')
 CLEAR_ASSIGN_RE = re.compile(r"\.innerHTML\s*=\s*['\"]\s*['\"]")
 
 
+# 查找JavaScript 文件。
 def find_js_files(root: Path) -> list[Path]:
-    """递归查找所有 .js 文件.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Input value for root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     js_dirs = [
         root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js',
@@ -66,14 +46,13 @@ def find_js_files(root: Path) -> list[Path]:
     return results
 
 
+# 维护扫描 innerhtml assignments。
 def scan_innerhtml_assignments(js_files: list[Path]) -> list[dict]:
-    """扫描 JS 文件,返回所有 innerHTML 赋值位置.
+    """参数：
+        js_files: 待检查的 JavaScript 文件列表。
 
-    Args:
-        js_files: Input value for js_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     findings: list[dict] = []
     for js_file in js_files:
@@ -100,11 +79,10 @@ def scan_innerhtml_assignments(js_files: list[Path]) -> list[dict]:
     return findings
 
 
+# 加载baseline。
 def load_baseline() -> set[str]:
-    """加载 baseline,返回已知 innerHTML 位置的集合.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     if not BASELINE_PATH.exists():
         return set()
@@ -115,11 +93,10 @@ def load_baseline() -> set[str]:
         return set()
 
 
+# 保存baseline。
 def save_baseline(findings: list[dict]) -> None:
-    """将当前扫描结果保存为 baseline.
-
-    Args:
-        findings: Input value for findings.
+    """参数：
+        findings: 已收集的检查发现列表。
     """
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(
@@ -132,14 +109,13 @@ def save_baseline(findings: list[dict]) -> None:
     )
 
 
+# 运行检查。
 def run_check(args: argparse.Namespace) -> int:
-    """Run the raw-innerHTML check or report mode.
+    """参数：
+        args: 命令行参数对象。
 
-    Args:
-        args: Input value for args.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     js_files = find_js_files(REPO_ROOT)
     if not js_files:
@@ -198,14 +174,13 @@ def run_check(args: argparse.Namespace) -> int:
     return 0
 
 
+# 运行update baseline。
 def run_update_baseline(args: argparse.Namespace) -> int:
-    """Rewrite the raw-innerHTML baseline from the current scan.
+    """参数：
+        args: 命令行参数对象。
 
-    Args:
-        args: Input value for args.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     js_files = find_js_files(REPO_ROOT)
     findings = scan_innerhtml_assignments(js_files)
@@ -215,11 +190,10 @@ def run_update_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI flags and dispatch the raw-innerHTML quality gate.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     parser = argparse.ArgumentParser(description='raw-innerHTML 阻断 gate')
     mode = parser.add_mutually_exclusive_group()

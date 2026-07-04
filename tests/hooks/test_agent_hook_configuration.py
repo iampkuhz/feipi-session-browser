@@ -24,6 +24,7 @@ def test_claude_project_hook_matrix_is_complete():
         ('SubagentStart', ''): ['.claude/hooks/subagent-start.sh'],
         ('PreToolUse', 'Bash'): ['.claude/hooks/pre-bash.sh'],
         ('PreToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): ['.claude/hooks/pre-write.sh'],
+        ('PostToolUse', 'Bash'): ['.claude/hooks/post-bash.sh'],
         ('PostToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): ['.claude/hooks/post-write.sh'],
         ('PostToolUseFailure', ''): ['.claude/hooks/tool-failure.sh'],
         ('Stop', ''): ['.claude/hooks/stop.sh'],
@@ -38,6 +39,7 @@ def test_codex_project_hook_matrix_is_complete():
 
     assert commands == {
         ('PreToolUse', 'Bash'): ['.codex/hooks/pre_tool_guard.sh'],
+        ('PostToolUse', 'Bash'): ['.codex/hooks/post_bash_guard.sh'],
         ('PostToolUse', 'Write|Edit|MultiEdit'): ['.codex/hooks/post_tool_guard.sh'],
         ('Stop', ''): ['.codex/hooks/stop_check.sh'],
     }
@@ -48,10 +50,12 @@ def test_qoder_hook_wrappers_delegate_to_shared_entrypoints():
     qoder_hooks = REPO_ROOT / '.qoder' / 'hooks'
 
     pre = (qoder_hooks / 'pre_tool_guard.sh').read_text(encoding='utf-8')
+    post_bash = (qoder_hooks / 'post_bash_guard.sh').read_text(encoding='utf-8')
     post = (qoder_hooks / 'post_tool_guard.sh').read_text(encoding='utf-8')
     stop = (qoder_hooks / 'stop_check.sh').read_text(encoding='utf-8')
 
     assert '.codex/hooks/pre_tool_guard.sh' in pre
+    assert '.codex/hooks/post_bash_guard.sh' in post_bash
     assert '.codex/hooks/post_tool_guard.sh' in post
     assert 'scripts/harness/agent_stop_check.py' in stop
     assert '--agent qoder' in stop

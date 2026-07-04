@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Static CSS firewall check for session detail Phase 1 shell layout.
-
-Verifies that shell.css contains rules sufficient to prevent the
-cascade conflict where body.hide-left .shell.no-inspector (specificity 0,3,0)
-overrides .shell.phase1-shell (specificity 0,2,0), causing .main to
-fall into a 0px grid column.
-
-Usage:
-    python3 scripts/quality/check_session_detail_shell_css.py
-"""
+"""提供 检查 session detail shell CSS 脚本能力。"""
 
 import re
 import sys
@@ -22,32 +13,28 @@ SHELL_CSS = (
 FAILURES = []
 
 
+# 维护fail。
 def fail(msg: str) -> None:
-    """Record a blocking shell CSS contract failure.
-
-    Args:
-        msg: Input value for msg.
+    """参数：
+        msg: msg 参数。
     """
     FAILURES.append(msg)
     print(f'  FAIL: {msg}')
 
 
+# 标记检查通过。
 def ok(msg: str) -> None:
-    """Print a passing shell CSS assertion for gate evidence.
-
-    Args:
-        msg: Input value for msg.
+    """参数：
+        msg: msg 参数。
     """
     print(f'  OK:   {msg}')
 
 
+# 维护检查。
 def check(content: str) -> None:
-    """Validate shell.css content against the session detail layout invariant.
-
-    Args:
-        content: Input value for content.
+    """参数：
+        content: 要写入的文本内容。
     """
-    # 1. Must have high-specificity override for body.hide-left
     if (
         'body.hide-left .shell.phase1-shell' in content
         or 'body.hide-left .shell.no-inspector.phase1-shell' in content
@@ -59,33 +46,27 @@ def check(content: str) -> None:
             '— cascade conflict will not be resolved when sidebar is collapsed'
         )
 
-    # 2. Must have .shell.phase1-shell .main rule
     if '.shell.phase1-shell .main' in content:
         ok('.shell.phase1-shell .main rule exists')
     else:
         fail("Missing '.shell.phase1-shell .main' rule")
 
-    # 3. Must have grid-column: 1 / -1
     if 'grid-column: 1 / -1' in content or 'grid-column:1/-1' in content:
         ok('grid-column: 1 / -1 found (prevents auto-placement into 0px column)')
     else:
         fail("Missing 'grid-column: 1 / -1' — .main may auto-place into 0px column")
 
-    # 4. Must have width: 100%
     if 'width: 100%' in content or 'width:100%' in content:
         ok('width: 100% found on .main')
     else:
         fail("Missing 'width: 100%' on .main")
 
-    # 5. Must have min-width: 0
     if 'min-width: 0' in content or 'min-width:0' in content:
         ok('min-width: 0 found on .main')
     else:
         fail("Missing 'min-width: 0' on .main")
 
-    # 6. Prevent: only low-specificity rule exists without body.hide-left override
-    #    Check if there's a standalone .shell.phase1-shell { grid-template-columns }
-    #    that is NOT accompanied by a body.hide-left variant
+    # 检查如果 there's a standalone .shell.phase1-shell { grid-template-columns }。
     standalone_pattern = r'\.shell\.phase1-shell\s*\{[^}]*grid-template-columns'
     has_standalone = bool(re.search(standalone_pattern, content))
 
@@ -101,8 +82,8 @@ def check(content: str) -> None:
         ok('High-specificity override prevents cascade conflict in all body states')
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Run the shell CSS firewall quality gate."""
     print('=' * 60)
     print('Session Detail Shell CSS Firewall Check')
     print('=' * 60)

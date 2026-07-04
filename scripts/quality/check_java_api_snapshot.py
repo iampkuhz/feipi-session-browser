@@ -38,7 +38,14 @@ class JavaType:
     parent: str | None = None
 
 
+# 维护去除 注释 字面量。
 def strip_comments_and_literals(text: str) -> str:
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        去除注释和字面量后的源码字符串。
+    """
     result: list[str] = []
     i = 0
     state = "code"
@@ -117,11 +124,25 @@ def strip_comments_and_literals(text: str) -> str:
     return "".join(result)
 
 
+# 规范化space。
 def normalize_space(value: str) -> str:
+    """参数：
+        value: value 参数。
+
+    返回：
+        normalize space 字符串。
+    """
     return re.sub(r"\s+", " ", value).strip()
 
 
+# 移除annotations。
 def remove_annotations(value: str) -> str:
+    """参数：
+        value: value 参数。
+
+    返回：
+        remove annotations 字符串。
+    """
     previous = None
     current = value
     while previous != current:
@@ -130,7 +151,17 @@ def remove_annotations(value: str) -> str:
     return current
 
 
+# 查找matching。
 def find_matching(text: str, start: int, open_ch: str, close_ch: str) -> int:
+    """参数：
+        text: 待检查的文本。
+        start: start 参数。
+        open_ch: open ch 参数。
+        close_ch: close ch 参数。
+
+    返回：
+        进程退出码。
+    """
     depth = 0
     for index in range(start, len(text)):
         if text[index] == open_ch:
@@ -142,7 +173,15 @@ def find_matching(text: str, start: int, open_ch: str, close_ch: str) -> int:
     return -1
 
 
+# 维护拆分 top level。
 def split_top_level(value: str, separator: str = ",") -> list[str]:
+    """参数：
+        value: value 参数。
+        separator: separator 参数。
+
+    返回：
+        结果列表。
+    """
     parts: list[str] = []
     start = 0
     angle = paren = bracket = brace = 0
@@ -172,12 +211,26 @@ def split_top_level(value: str, separator: str = ",") -> list[str]:
     return parts
 
 
+# 维护package name。
 def package_name(text: str) -> str:
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        package name 字符串。
+    """
     match = re.search(r"\bpackage\s+([\w.]+)\s*;", text)
     return match.group(1) if match else ""
 
 
+# 维护locate type declarations。
 def locate_type_declarations(text: str) -> list[tuple[int, int, str, str]]:
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        结果列表。
+    """
     declarations: list[tuple[int, int, str, str]] = []
     pattern = re.compile(r"\b(class|interface|enum|record)\s+([A-Za-z_]\w*)")
     for match in pattern.finditer(text):
@@ -196,10 +249,24 @@ def locate_type_declarations(text: str) -> list[tuple[int, int, str, str]]:
     return declarations
 
 
+# 提取types。
 def extract_types(text: str, package: str) -> list[JavaType]:
+    """参数：
+        text: 待检查的文本。
+        package: package 参数。
+
+    返回：
+        结果列表。
+    """
     types: list[JavaType] = []
 
+    # 维护visit。
     def visit(region: str, owner: str | None = None, qprefix: str | None = None) -> None:
+        """参数：
+            region: region 参数。
+            owner: owner 参数。
+            qprefix: qprefix 参数。
+        """
         for start, brace, kind, simple_name in locate_type_declarations(region):
             header = normalize_space(region[start:brace])
             if not is_public_or_protected_type(header, owner is not None):
@@ -216,7 +283,15 @@ def extract_types(text: str, package: str) -> list[JavaType]:
     return types
 
 
+# 判断是否public protected type。
 def is_public_or_protected_type(header: str, nested: bool) -> bool:
+    """参数：
+        header: header 参数。
+        nested: nested 参数。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     clean = normalize_space(remove_annotations(header))
     tokens = clean.split()
     if "public" in tokens or "protected" in tokens:
@@ -224,7 +299,14 @@ def is_public_or_protected_type(header: str, nested: bool) -> bool:
     return nested and "private" not in tokens
 
 
+# 维护declaration until body 成员。
 def declaration_until_body_members(body: str) -> list[tuple[str, str]]:
+    """参数：
+        body: body 参数。
+
+    返回：
+        结果列表。
+    """
     members: list[tuple[str, str]] = []
     start = 0
     depth = 0
@@ -267,7 +349,14 @@ def declaration_until_body_members(body: str) -> list[tuple[str, str]]:
     return members
 
 
+# 维护type visibility。
 def type_visibility(header: str) -> str:
+    """参数：
+        header: header 参数。
+
+    返回：
+        type visibility 字符串。
+    """
     clean = normalize_space(remove_annotations(header))
     tokens = clean.split()
     if "protected" in tokens:
@@ -275,20 +364,41 @@ def type_visibility(header: str) -> str:
     return "public"
 
 
+# 维护canonical type header。
 def canonical_type_header(java_type: JavaType) -> str:
+    """参数：
+        java_type: java type 参数。
+
+    返回：
+        规范化后的 type header 字符串。
+    """
     clean = normalize_space(remove_annotations(java_type.header))
     clean = re.sub(r"\b(public|protected|private)\b\s*", "", clean)
     return normalize_space(clean)
 
 
+# 维护canonical 参数。
 def canonical_param(param: str) -> str:
+    """参数：
+        param: param 参数。
+
+    返回：
+        canonical param 字符串。
+    """
     clean = normalize_space(remove_annotations(param))
     clean = re.sub(r"\b(final)\b\s*", "", clean)
     clean = re.sub(r"\s*=.*$", "", clean).strip()
     return clean
 
 
+# 记录components。
 def record_components(java_type: JavaType) -> list[str]:
+    """参数：
+        java_type: java type 参数。
+
+    返回：
+        结果列表。
+    """
     if java_type.kind != "record":
         return []
     match = re.search(
@@ -311,7 +421,14 @@ def record_components(java_type: JavaType) -> list[str]:
     return result
 
 
+# 维护enum 常量。
 def enum_constants(java_type: JavaType) -> list[str]:
+    """参数：
+        java_type: java type 参数。
+
+    返回：
+        结果列表。
+    """
     if java_type.kind != "enum":
         return []
     declarations = declaration_until_body_members(java_type.body)
@@ -330,7 +447,14 @@ def enum_constants(java_type: JavaType) -> list[str]:
     return constants
 
 
+# 维护成员 行。
 def member_lines(java_type: JavaType) -> list[str]:
+    """参数：
+        java_type: java type 参数。
+
+    返回：
+        结果列表。
+    """
     lines: list[str] = []
     implicit_public = java_type.kind in {"interface", "@interface"}
     for raw, terminator in declaration_until_body_members(java_type.body):
@@ -378,7 +502,15 @@ def member_lines(java_type: JavaType) -> list[str]:
     return lines
 
 
+# 维护snapshot 文件。
 def snapshot_for_file(path: Path, root: Path) -> list[str]:
+    """参数：
+        path: 待检查的路径。
+        root: 扫描根目录。
+
+    返回：
+        结果列表。
+    """
     text = strip_comments_and_literals(path.read_text(encoding="utf-8"))
     package = package_name(text)
     lines: list[str] = []
@@ -395,7 +527,15 @@ def snapshot_for_file(path: Path, root: Path) -> list[str]:
     return lines
 
 
+# 维护module name。
 def module_name(path: Path, root: Path) -> str:
+    """参数：
+        path: 待检查的路径。
+        root: 扫描根目录。
+
+    返回：
+        module name 字符串。
+    """
     rel = path.relative_to(root)
     parts = rel.parts
     if len(parts) >= 1:
@@ -403,7 +543,14 @@ def module_name(path: Path, root: Path) -> str:
     return "."
 
 
+# 维护生成 snapshot。
 def generate_snapshot(java_root: Path) -> str:
+    """参数：
+        java_root: java 根目录 参数。
+
+    返回：
+        generate snapshot 字符串。
+    """
     files = sorted(java_root.glob("**/src/main/java/**/*.java"), key=lambda p: p.as_posix())
     lines: list[str] = []
     for path in files:
@@ -420,7 +567,15 @@ def generate_snapshot(java_root: Path) -> str:
     return "\n".join(header + unique) + "\n"
 
 
+# 检查snapshot。
 def check_snapshot(snapshot_path: Path, current: str) -> int:
+    """参数：
+        snapshot_path: 待检查的路径。
+        current: current 参数。
+
+    返回：
+        进程退出码。
+    """
     if not snapshot_path.exists():
         print(f"API snapshot baseline is missing: {snapshot_path}", file=sys.stderr)
         return 1
@@ -438,7 +593,14 @@ def check_snapshot(snapshot_path: Path, current: str) -> int:
     return 1
 
 
+# 解析命令行参数。
 def parse_args(argv: list[str]) -> argparse.Namespace:
+    """参数：
+        argv: 命令行参数列表。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
     parser = argparse.ArgumentParser(description="Check deterministic Java public API snapshot.")
     mode = parser.add_mutually_exclusive_group(required=True)
     mode.add_argument(
@@ -454,7 +616,14 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     return parser.parse_args(argv)
 
 
+# 解析命令行参数并运行脚本入口。
 def main(argv: list[str]) -> int:
+    """参数：
+        argv: 命令行参数列表。
+
+    返回：
+        进程退出码。
+    """
     args = parse_args(argv)
     current = generate_snapshot(args.java_root)
     if args.write:

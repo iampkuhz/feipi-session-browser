@@ -8,6 +8,7 @@ ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
 cd "$ROOT" || exit $EXIT_WARN
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+export FEIPI_AGENT_CLIENT="claude"
 
 # 从 stdin 提取 sessionId
 # Claude Code hook 传入的 JSON 包含 sessionId 字段
@@ -23,19 +24,6 @@ except:
     print('')
 " 2>/dev/null)"
 
-# 固定路径：agent 日志目录
-AGENT_LOG_DIR="$ROOT/tmp/agent_logs/current"
-
-# 创建目录
-mkdir -p "${AGENT_LOG_DIR}"
-
-# 记录 session ID 到文件，供 stop.sh 等非 stdin hook 查询
-if [[ -n "$SESSION_ID" ]]; then
-  echo "$SESSION_ID" > "${AGENT_LOG_DIR}/session-id.txt"
-fi
-
-# 记录 session 起点，防止 agent 在提交后清空工作树时绕过 Stop 门禁。
-python3 "$ROOT/scripts/quality/ensure_base_commit.py" --force >/dev/null 2>&1 || true
 
 # 调用 Python hook 逻辑
 python3 -m scripts.claude_hooks.main session-start < "$STDIN_TMP"

@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""Inject concise workflow context into each agent session.
-
-SessionStart and SubagentStart hooks call this script so every session knows the
-current OpenSpec change status, protected-edit rule, and evidence path.
-
-Usage:
-    python3 scripts/agent_hooks/inject_session_context.py
-    python3 scripts/agent_hooks/inject_session_context.py --self-test
-
-The script prints context to stdout.  A Stop hook can also call it to
-re-verify state before finishing.
-
-Exit codes:
-    0  success
-    1  self-test failure
-"""
+"""提供 inject session context 脚本能力。"""
 
 from __future__ import annotations
 
@@ -27,7 +12,7 @@ import tempfile
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Configuration
+# 配置项。
 # ---------------------------------------------------------------------------
 
 PROTECTED_ROOTS = [
@@ -46,25 +31,19 @@ ACTIVE_CHANGE_FILE = Path('tmp/active_change.json')
 EVIDENCE_DIR = Path('tmp/task-evidence')
 MAX_CONTEXT_LINES = 20
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-
+# 维护repo 根目录。
 def _repo_root() -> Path:
-    """Return the repository root assumed by the hook process.
-
-    Returns:
-        Absolute path to the current working directory.
+    """返回：
+        Absolute 路径到当前 working 目录。
     """
     return Path.cwd().resolve()
 
 
+# 加载active change。
 def load_active_change() -> dict | None:
-    """Load the active OpenSpec change metadata for context injection.
-
-    Returns:
-        Parsed active change metadata, or None when unavailable.
+    """返回：
+        已解析的active change metadata, 或 None 当 unavailable。
     """
     p = _repo_root() / ACTIVE_CHANGE_FILE
     if not p.is_file():
@@ -75,38 +54,35 @@ def load_active_change() -> dict | None:
         return None
 
 
+# 维护change 目录。
 def _change_dir(change_id: str) -> Path:
-    """Return the OpenSpec change directory path for a change id.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Absolute path to the change directory.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     return _repo_root() / 'openspec' / 'changes' / change_id
 
 
+# 维护evidence 文件。
 def _evidence_file(change_id: str) -> Path:
-    """Return the evidence JSONL path for a change id.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Absolute path to the change evidence file.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     return _repo_root() / EVIDENCE_DIR / f'{change_id}.jsonl'
 
 
+# 统计evidence entries。
 def _count_evidence_entries(change_id: str) -> int:
-    """Count non-empty evidence records for the active change summary.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Number of non-empty evidence lines.
+    返回：
+        数字 of non-空 evidence 行。
     """
     ef = _evidence_file(change_id)
     if not ef.is_file():
@@ -118,14 +94,13 @@ def _count_evidence_entries(change_id: str) -> int:
         return 0
 
 
+# 统计completed 任务。
 def _count_completed_tasks(change_id: str) -> int:
-    """Count completed tasks in the active change task list.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Number of checked markdown task items.
+    返回：
+        进程退出码。
     """
     tasks = _change_dir(change_id) / 'tasks.md'
     if not tasks.is_file():
@@ -139,14 +114,13 @@ def _count_completed_tasks(change_id: str) -> int:
     return count
 
 
+# 统计总量 任务。
 def _count_total_tasks(change_id: str) -> int:
-    """Count all markdown task items in the active change task list.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Active OpenSpec change identifier.
-
-    Returns:
-        Number of checked and unchecked markdown task items.
+    返回：
+        进程退出码。
     """
     tasks = _change_dir(change_id) / 'tasks.md'
     if not tasks.is_file():
@@ -165,11 +139,10 @@ def _count_total_tasks(change_id: str) -> int:
     return count
 
 
+# 判断是否存在uncommitted changes。
 def _has_uncommitted_changes() -> bool:
-    """Return whether protected roots have staged or unstaged changes.
-
-    Returns:
-        True when git reports changes under protected roots.
+    """返回：
+        当git reports changes under protected roots.时返回 true。
     """
     root = _repo_root()
     try:
@@ -186,16 +159,10 @@ def _has_uncommitted_changes() -> bool:
         return True
 
 
-# ---------------------------------------------------------------------------
-# Context injection
-# ---------------------------------------------------------------------------
-
-
+# 维护注入 context。
 def inject_context() -> str:
-    """Build the session context block consumed by agents.
-
-    Returns:
-        Newline-delimited context summary for stdout.
+    """返回：
+        inject context 字符串。
     """
     lines: list[str] = []
     root = _repo_root()
@@ -243,32 +210,22 @@ def inject_context() -> str:
     return '\n'.join(lines)
 
 
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-
-
+# 运行self test。
 def _run_self_test() -> int:  # noqa: PLR0915
-    """Validate the injector in a temporary git repository.
+    """返回：
+        全部自测通过时返回 0，否则返回 1。
 
-    Sub-tests:
-      1. No active change -> output says "NONE" and warns about blocked edits.
-      2. Active change present -> output includes change_id, evidence path, etc.
-      3. Active change with partial data -> still reports gracefully.
-      4. Output format is concise (no huge dumps).
-
-    Returns:
-        Process exit code where 0 means all self-tests passed.
+    说明：
+        覆盖无活跃变更、有活跃变更、部分字段缺失和输出长度控制。
     """
     results: list[tuple[str, bool, str]] = []
 
+    # 维护检查。
     def check(name: str, condition: bool, detail: str = '') -> None:
-        """Record one self-test assertion and print its short status.
-
-        Args:
-            name: Human-readable assertion name.
-            condition: Whether the assertion passed.
-            detail: Optional diagnostic detail for failures or counters.
+        """参数：
+            name: 便于阅读的断言名称。
+            condition: 表示断言是否通过。
+            detail: 失败诊断或计数详情。
         """
         passed = condition
         status = 'PASS' if passed else 'FAIL'
@@ -278,7 +235,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
     with tempfile.TemporaryDirectory(prefix='inject_ctx_test_') as tmpdir:
         tmp = Path(tmpdir)
 
-        # -- Minimal git repo --
+        # 创建最小 git 仓库。
         subprocess.run(['git', 'init', '-q', str(tmp)], check=True, capture_output=True)
         subprocess.run(
             ['git', 'config', 'user.email', 'test@test.com'],
@@ -305,7 +262,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
             capture_output=True,
         )
 
-        # --- Sub-test 1: no active change ---
+        # 子用例 1：没有活跃变更。
         print('Sub-test 1: no active change -> says NONE + blocked warning')
         saved_cwd = Path.cwd()
         os.chdir(tmp)
@@ -315,7 +272,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
         check('mentions blocked edits', 'blocked' in output.lower() or 'blocked' in output)
         check('mentions /change', '/change' in output)
 
-        # --- Sub-test 2: active change present ---
+        # 子用例 2：存在活跃变更。
         print('Sub-test 2: active change present -> reports change_id + evidence path')
         os.chdir(tmp)
         (tmp / 'tmp' / 'active_change.json').write_text(
@@ -347,7 +304,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
         check('mentions evidence path', 'evidence path' in output.lower())
         check('mentions tasks progress', 'tasks:' in output.lower())
 
-        # --- Sub-test 3: active change with partial data (no evidence, no tasks.md) ---
+        # 子用例 3：活跃变更缺少部分数据。
         print('Sub-test 3: partial active change -> reports gracefully')
         os.chdir(tmp)
         (tmp / 'tmp' / 'active_change.json').write_text(
@@ -362,14 +319,14 @@ def _run_self_test() -> int:  # noqa: PLR0915
         cdir3 = tmp / 'openspec' / 'changes' / 'partial-test'
         cdir3.mkdir()
         (cdir3 / 'proposal.md').write_text('# Proposal\n', encoding='utf-8')
-        # No design.md, no tasks.md, no evidence
+        # 缺少 design.md、tasks.md 和 evidence。
         output = inject_context()
         os.chdir(saved_cwd)
         check('contains change_id', 'partial-test' in output)
         check('reports missing files', 'design.md=False' in output or 'tasks.md=False' in output)
         check('reports zero evidence', 'evidence entries: 0' in output)
 
-        # --- Sub-test 4: output is concise ---
+        # 子用例 4：输出保持简明。
         print('Sub-test 4: output is concise (under 20 lines)')
         os.chdir(tmp)
         output = inject_context()
@@ -381,7 +338,7 @@ def _run_self_test() -> int:  # noqa: PLR0915
             f'lines={line_count}',
         )
 
-    # Summary
+    # 结果汇总。
     passed_count = sum(1 for _, p, _ in results if p)
     total = len(results)
     all_pass = passed_count == total
@@ -397,16 +354,10 @@ def _run_self_test() -> int:  # noqa: PLR0915
     return 0 if all_pass else 1
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI arguments and print the current session context.
-
-    Returns:
-        Process exit code for the CLI invocation.
+    """返回：
+        CLI 调用的进程退出码。
     """
     parser = argparse.ArgumentParser(
         description='SessionStart/SubagentStart hook: inject workflow context.'

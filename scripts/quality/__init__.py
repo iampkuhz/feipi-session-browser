@@ -1,1 +1,1 @@
-"""Deterministic quality gate tools。"""
+"""提供 init 脚本能力。"""

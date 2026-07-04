@@ -20,7 +20,14 @@ EXPECTED_HEADER = "| Issue ID | 来源 | 摘要 | 优先级 | 状态 | 分配任
 EXPECTED_SEPARATOR = "|---|---|---|---|---|---|---|---|"
 
 
+# 验证输入契约。
 def validate(path: pathlib.Path) -> list[str]:
+    """参数：
+        path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
     errors: list[str] = []
 
     if not path.exists():
@@ -72,7 +79,11 @@ def validate(path: pathlib.Path) -> list[str]:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     board_path = (
         pathlib.Path(__file__).resolve().parent.parent.parent
         / "harness"

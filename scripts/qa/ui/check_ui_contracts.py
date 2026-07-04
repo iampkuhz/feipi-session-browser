@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Current static UI checks for feipi-session-browser."""
+"""提供 检查 UI contracts 脚本能力。"""
 
 from __future__ import annotations
 
@@ -15,14 +15,13 @@ errors: list[str] = []
 passes: list[str] = []
 
 
+# 读取文件内容。
 def read(path: Path) -> str:
-    """Read a UI contract source file for the static QA script.
+    """参数：
+        path: Template 或 asset 路径以检查。
 
-    Args:
-        path: Template or asset path to inspect.
-
-    Returns:
-        File text, or an empty string when missing so the caller can fail the relevant check.
+    返回：
+        文件 text, 或 空 字符串 当 缺失 so caller can fail relevant 检查。
     """
     return path.read_text(encoding='utf-8', errors='ignore')
 

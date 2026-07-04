@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Validate acceptance contract tables against test code bindings.
-
-This gate is triggered when acceptance-contract documents, contract-case tests, or
-quality targets need proof that active contract rows remain bound to automated
-tests. Failures are blocking: missing feature tables, orphan test markers, active
-automated rows without code bindings, deprecated contract metadata, and stale code
-locations all return a non-zero CLI status. Manual or explicitly pending rows are
-allowed to remain unbound.
-"""
+"""提供 validate acceptance contracts 脚本能力。"""
 
 from __future__ import annotations
 
@@ -42,17 +34,17 @@ PATH_RE = re.compile(
 
 @dataclass(frozen=True)
 class ContractCase:
-    """One parsed acceptance contract row.
+    """表示 ContractCase。
 
-    Attributes:
-        case_id: Stable contract id from the markdown table.
-        source_file: Markdown feature table containing the row.
-        line_number: One-based row line number for diagnostics.
-        priority: Business priority column value.
-        layer: Product or technical layer column value.
-        scenario: Scenario text used to identify manual or pending cases.
-        test_type: Test type column value.
-        code_location: Declared code binding or manual marker.
+    属性：
+        case_id: case id 参数。
+        source_file: source file 参数。
+        line_number: 行 number 参数。
+        priority: priority 参数。
+        layer: layer 参数。
+        scenario: scenario 参数。
+        test_type: test type 参数。
+        code_location: code location 参数。
     """
 
     case_id: str
@@ -67,12 +59,12 @@ class ContractCase:
 
 @dataclass(frozen=True)
 class ValidationResult:
-    """Acceptance contract validation outcome.
+    """汇总 ValidationResult 的检查结果。
 
-    Attributes:
-        cases: Parsed contract rows keyed by contract id.
-        code_bindings: Test source files keyed by referenced contract id.
-        errors: Blocking validation failures. An empty list means the gate passes.
+    属性：
+        cases: cases 参数。
+        code_bindings: code bindings 参数。
+        errors: errors 参数。
     """
 
     cases: dict[str, ContractCase]
@@ -80,14 +72,13 @@ class ValidationResult:
     errors: list[str]
 
 
+# 解析cases。
 def _parse_cases(feature_dir: Path) -> tuple[dict[str, ContractCase], list[str]]:
-    """Parse markdown feature tables into contract cases.
+    """参数：
+        feature_dir: feature dir 参数。
 
-    Args:
-        feature_dir: Directory containing acceptance-contract feature tables.
-
-    Returns:
-        Parsed cases keyed by contract id and blocking parse errors.
+    返回：
+        已解析的cases keyed by contract id 和 阻断 解析 错误。
     """
     cases: dict[str, ContractCase] = {}
     errors: list[str] = []
@@ -129,15 +120,14 @@ def _parse_cases(feature_dir: Path) -> tuple[dict[str, ContractCase], list[str]]
     return cases, errors
 
 
+# 解析code bindings。
 def _parse_code_bindings(tests_dir: Path, repo_root: Path) -> dict[str, set[Path]]:
-    """Discover contract ids referenced by test source files.
+    """参数：
+        tests_dir: Test 目录到scan用于contract id markers。
+        repo_root: repo root用于resolving additional 扫描 目录。
 
-    Args:
-        tests_dir: Test directory to scan for contract id markers.
-        repo_root: Repository root for resolving additional scan directories.
-
-    Returns:
-        Mapping from contract id to source files that reference it.
+    返回：
+        映射从contract id到source 文件 that reference it。
     """
     bindings: dict[str, set[Path]] = {}
     scan_dirs = [tests_dir]
@@ -156,28 +146,26 @@ def _parse_code_bindings(tests_dir: Path, repo_root: Path) -> dict[str, set[Path
     return bindings
 
 
+# 判断是否pending manual。
 def _is_pending_or_manual(case: ContractCase) -> bool:
-    """Return whether a contract row is exempt from automated binding.
+    """参数：
+        case: 已解析的contract 行到classify。
 
-    Args:
-        case: Parsed contract row to classify.
-
-    Returns:
-        True for manual, pending, or dash-only code-location rows.
+    返回：
+        true用于manual, pending, 或 dash-仅 code-location 行。
     """
     lowered = f'{case.test_type} {case.code_location} {case.scenario}'.lower()
     return 'manual' in lowered or '待补充' in lowered or case.code_location.strip() == '—'
 
 
+# 验证code locations。
 def _validate_code_locations(repo_root: Path, cases: dict[str, ContractCase]) -> list[str]:
-    """Validate code-location paths declared by active automated cases.
+    """参数：
+        repo_root: 仓库根目录。
+        cases: 已解析的contract 行 keyed by id。
 
-    Args:
-        repo_root: Repository root used to resolve relative code locations.
-        cases: Parsed contract rows keyed by id.
-
-    Returns:
-        Blocking errors for declared code paths that do not exist.
+    返回：
+        阻断 错误用于declared code 路径 that do 不 exist。
     """
     errors: list[str] = []
     for case in cases.values():
@@ -195,15 +183,13 @@ def _validate_code_locations(repo_root: Path, cases: dict[str, ContractCase]) ->
     return errors
 
 
+# 验证acceptance contracts。
 def validate_acceptance_contracts(repo_root: Path) -> ValidationResult:
-    """Validate contract tables and automated test bindings.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root containing `docs/acceptance-contracts` and `tests`.
-
-    Returns:
-        Parsed cases, discovered code bindings, and blocking errors. The CLI treats
-        any error as `FAIL`; missing required directories fail closed.
+    返回：
+        已解析的cases, discovered code bindings, 和 阻断 错误. CLI treats。 any 错误 as `FAIL`；缺失 必需 目录 fail closed。
     """
     feature_dir = repo_root / 'docs' / 'acceptance-contracts' / 'features'
     tests_dir = repo_root / 'tests'
@@ -242,11 +228,10 @@ def validate_acceptance_contracts(repo_root: Path) -> ValidationResult:
     return ValidationResult(cases=cases, code_bindings=code_bindings, errors=errors)
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the acceptance contract validator from the command line.
-
-    Returns:
-        Zero when all contract rows and test bindings are consistent, otherwise one.
+    """返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(description='Validate acceptance contract tables.')
     parser.add_argument('--repo-root', default='.', help='Repository root')

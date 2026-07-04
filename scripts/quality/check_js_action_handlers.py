@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""P0 门禁：JS data-action handler 检查。
-
-规则:
-- 所有 data-action 属性必须有对应的 JS handler 或显式 no-op reason
-- 关键按钮（Expand all、Failed、round lazy load、Request/Response 归因）必须有 handler
-
-用法:
-    python3 scripts/quality/check_js_action_handlers.py
-
-退出码:
-    0 — 通过
-    1 — 发现无 handler 的 data-action
-"""
+"""P0 门禁：JS data-action handler 检查。"""
 
 from __future__ import annotations
 
@@ -35,8 +23,11 @@ CRITICAL_ACTIONS = {
 }
 
 
+# 提取template actions。
 def _extract_template_actions() -> dict[str, list[str]]:
-    """从所有模板中提取 data-action 值。"""
+    """返回：
+        结果映射。
+    """
     actions: dict[str, list[str]] = {}
     for html_file in TEMPLATE_DIR.rglob('*.html'):
         text = html_file.read_text(encoding='utf-8', errors='replace')
@@ -47,8 +38,11 @@ def _extract_template_actions() -> dict[str, list[str]]:
     return actions
 
 
+# 提取JavaScript handlers。
 def _extract_js_handlers() -> set[str]:
-    """从所有 JS 文件中提取 handler 的 action key。"""
+    """返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
     handlers: set[str] = set()
     for js_file in JS_DIR.rglob('*.js'):
         text = js_file.read_text(encoding='utf-8', errors='replace')
@@ -74,8 +68,8 @@ def _extract_js_handlers() -> set[str]:
     return handlers
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Run the data-action to JavaScript handler contract check."""
     template_actions = _extract_template_actions()
     js_handlers = _extract_js_handlers()
 

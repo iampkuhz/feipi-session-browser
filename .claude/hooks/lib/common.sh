@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Shared helpers for project Claude Code hooks.
-
+# 定义 EXIT_OK 常量配置。
 EXIT_OK=0
 EXIT_WARN=1
 EXIT_BLOCK=2

@@ -1,21 +1,5 @@
 #!/usr/bin/env python3
-"""T095 — Static QA for session-detail page HTML structure.
-
-Validates session.html and session_detail_*.html component templates
-against the session-detail page behavior contract:
-
-1. Hero area structure (agent pill, KPIs, summary strip, issue strip)
-2. Tab navigation (3 tabs with data-action)
-3. Trace table structure (colgroup, thead, round-row pattern)
-4. Filter buttons (status-all, status-failed, collapse-all)
-5. Token bar 4-segment structure
-6. Payload modal data attributes
-7. No inline style/script/onclick in session.html and component templates
-8. Canonical CSS import check
-
-Run from repo root:
-  python scripts/qa/ui/check_session_detail.py
-"""
+"""提供 检查 session detail 脚本能力。"""
 
 from __future__ import annotations
 
@@ -39,29 +23,26 @@ JS_DIR = ROOT / 'src/session_browser/web/static/js/session-detail'
 MIN_KPI_COUNT = 4
 
 
+# 读取文件内容。
 def read(path: Path) -> str:
-    """Read one template or asset used by the session-detail QA gate.
+    """参数：
+        path: Repository 路径到a 必需 或 可选 session-detail 输入。
 
-    Args:
-        path: Repository path to a required or optional session-detail input.
-
-    Returns:
-        UTF-8 file content, or an empty string when the input is absent so the
-        corresponding QA check can emit a deterministic failure.
+    返回：
+        read 字符串。
     """
     return path.read_text(encoding='utf-8') if path.exists() else ''
 
 
+# 读取拆分。
 def read_split(path: Path, split_dir: Path, pattern: str) -> str:
-    """Read a main file plus split component files for static checks.
+    """参数：
+        path: 待检查的路径。
+        split_dir: split dir 参数。
+        pattern: 匹配用的 glob pattern。
 
-    Args:
-        path: Canonical template or stylesheet path.
-        split_dir: Directory containing split fragments for the same feature.
-        pattern: Glob pattern selecting split fragments in deterministic order.
-
-    Returns:
-        Combined text with newline separators; missing inputs contribute empty text.
+    返回：
+        read split 字符串。
     """
     parts = [read(path)]
     if split_dir.is_dir():
@@ -70,14 +51,13 @@ def read_split(path: Path, split_dir: Path, pattern: str) -> str:
     return '\n'.join(parts)
 
 
+# 检查除 MHTML 外没有 inline style。
 def no_inline_style_except_mhtml(session: str) -> tuple[bool, str]:
-    """Check that session.html has no inline style except MHTML export CSS.
+    """参数：
+        session: session 参数。
 
-    Args:
-        session: Loaded session.html source text.
-
-    Returns:
-        Pass/fail status and detail used by T095 inline-style QA output.
+    返回：
+        Pass/fail 状态 和 detail 供 T095 inline-style QA 输出。
     """
     style_tags = re.findall(r'<style[^>]*>.*?</style>', session, re.DOTALL)
     unexpected = [tag for tag in style_tags if 'mhtml_page_css' not in tag]
@@ -87,15 +67,10 @@ def no_inline_style_except_mhtml(session: str) -> tuple[bool, str]:
     )
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the T095 session-detail static structure QA script.
-
-    The QA suite triggers this CLI from the repository root. It reads templates,
-    split components, CSS, and JS module presence, prints every check result, and
-    returns 1 when the session-detail structure contract is violated.
-
-    Returns:
-        Process exit code for the session-detail static QA gate.
+    """返回：
+        进程退出码。
     """
     session = read(SESSIONS_HTML)
     timeline = read_split(TIMELINE_CMP, TIMELINE_DIR, '*.html')
@@ -104,7 +79,7 @@ def main() -> int:
     combined = session + '\n' + timeline + '\n' + primitives
 
     checks: list[tuple[str, Callable[[], tuple[bool, str]]]] = [
-        # ── File existence ──────────────────────────────────────────
+        # 文件 existence。
         (
             'T095-01 session.html exists',
             lambda: (SESSIONS_HTML.exists(), 'exists' if SESSIONS_HTML.exists() else 'MISSING'),
@@ -134,7 +109,6 @@ def main() -> int:
                 else 'MISSING',
             ),
         ),
-        # ── Canonical CSS import ────────────────────────────────────
         (
             'T095-06 Canonical CSS imported',
             lambda: (
@@ -142,7 +116,6 @@ def main() -> int:
                 'session-detail.css imported' if 'session-detail.css' in session else 'NOT FOUND',
             ),
         ),
-        # ── No inline style/script/onclick ──────────────────────────
         (
             'T095-07 No inline <style> blocks except MHTML export',
             lambda: no_inline_style_except_mhtml(session),
@@ -172,7 +145,6 @@ def main() -> int:
                 else 'INLINE ONCLICK FOUND',
             ),
         ),
-        # ── Hero area structure ─────────────────────────────────────
         (
             'T095-11 Hero container present',
             lambda: (
@@ -216,7 +188,6 @@ def main() -> int:
                 else 'MISSING',
             ),
         ),
-        # ── Tab navigation ──────────────────────────────────────────
         (
             'T095-16 Tab navigation present',
             lambda: (
@@ -262,7 +233,6 @@ def main() -> int:
                 else 'UNEXPECTED',
             ),
         ),
-        # ── Trace table structure ───────────────────────────────────
         (
             'T095-21 Trace table present',
             lambda: (
@@ -304,7 +274,6 @@ def main() -> int:
                 else 'MISSING',
             ),
         ),
-        # ── Filter buttons ──────────────────────────────────────────
         (
             'T095-27 Status-all filter button',
             lambda: (
@@ -330,7 +299,6 @@ def main() -> int:
                 else 'MISSING',
             ),
         ),
-        # ── Token bar 4-segment structure ───────────────────────────
         (
             'T095-30 Token bar 4 segments (fresh, read, write, out) in timeline',
             lambda: (
@@ -365,7 +333,6 @@ def main() -> int:
                 else 'MISSING CSS classes',
             ),
         ),
-        # ── Payload modal data attributes ───────────────────────────
         (
             'T095-32 Payload modal dialog element',
             lambda: (
@@ -452,7 +419,6 @@ def main() -> int:
                 else 'MISSING',
             ),
         ),
-        # ── Round toggle & expand behavior ──────────────────────────
         (
             'T095-42 Toggle round data-action',
             lambda: (
@@ -478,7 +444,6 @@ def main() -> int:
                 else 'MISSING',
             ),
         ),
-        # ── CSS: no legacy file references ──────────────────────────
         (
             'T095-45 No legacy session-detail-timeline.css in session.html',
             lambda: (
@@ -488,7 +453,6 @@ def main() -> int:
                 else 'LEGACY CSS STILL REFERENCED',
             ),
         ),
-        # ── CSS: required session-detail selectors ──────────────────
         (
             'T095-46 CSS: .sd-hero selector',
             lambda: ('.sd-hero' in css, '.sd-hero found' if '.sd-hero' in css else 'MISSING'),
@@ -515,7 +479,6 @@ def main() -> int:
             'T095-50 CSS: .round-row selector',
             lambda: ('.round-row' in css, '.round-row found' if '.round-row' in css else 'MISSING'),
         ),
-        # ── CSS variables defined ───────────────────────────────────
         (
             'T095-51 CSS: --sd-brand variable',
             lambda: ('--sd-brand' in css, '--sd-brand found' if '--sd-brand' in css else 'MISSING'),

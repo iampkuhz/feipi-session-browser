@@ -1,21 +1,19 @@
-"""Record Claude hook events and changed-file evidence.
-
-PostToolUse write hooks call this module after Write, Edit, MultiEdit, or NotebookEdit
-operations. It writes JSONL evidence with file hashes, sizes, classification metadata,
-and active change ids. Failures are intentionally best-effort so evidence collection
-cannot corrupt user work or block unrelated hook events.
-"""
+"""提供 evidence 脚本能力。"""
 
 from __future__ import annotations
 
 import hashlib
 import json
+import os
+import subprocess
+import time
 from datetime import datetime, timezone
 from typing import TYPE_CHECKING, Any
 
 from .active_change import current_change_id
 from .classify import classify_file
 from .paths import ensure_runtime_dirs, rel_to_repo
+from scripts.quality import changed_files as changed_file_utils
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -25,38 +23,35 @@ if TYPE_CHECKING:
 
 
 # 01. 时间与 JSONL 基础函数
-def utc_now() -> str:
-    """Return an ISO-8601 UTC timestamp for hook evidence records.
+BASH_MUTATION_LOCK_STALE_SECONDS = 2 * 60 * 60
 
-    Returns:
-        Current UTC timestamp as an ISO-8601 string.
+
+# 返回当前 UTC timestamp。
+def utc_now() -> str:
+    """返回：
+        当前 UTC timestamp as ISO-8601 字符串。
     """
     return datetime.now(timezone.utc).isoformat()
 
 
+# 追加jsonl。
 def append_jsonl(path: Path, record: dict[str, Any]) -> None:
-    """Append one JSON object to a hook evidence JSONL file.
-
-    Args:
-        path: Destination JSONL file.
-        record: Serializable hook evidence record.
+    """参数：
+        path: 待检查的路径。
+        record: record 参数。
     """
     path.parent.mkdir(parents=True, exist_ok=True)
     with path.open('a', encoding='utf-8') as f:
         f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + '\n')
 
 
-# 02. 文件摘要
+# 维护文件 SHA-256。
 def file_sha256(path: Path) -> str | None:
-    """Calculate the SHA-256 digest of a changed file after a write hook.
+    """参数：
+        path: 文件路径到hash。
 
-    Args:
-        path: File path to hash.
-
-    Returns:
-        Hex digest for an existing regular file, or ``None`` when the file is absent or
-        unreadable. Returning ``None`` preserves hook failure semantics as non-blocking
-        evidence collection.
+    返回：
+        file sha256 字符串。
     """
     try:
         if not path.exists() or not path.is_file():
@@ -70,14 +65,13 @@ def file_sha256(path: Path) -> str | None:
         return None
 
 
+# 维护文件 大小。
 def file_size(path: Path) -> int | None:
-    """Return the post-write file size for hook evidence.
+    """参数：
+        path: 文件路径以检查。
 
-    Args:
-        path: File path to inspect.
-
-    Returns:
-        File size in bytes, or ``None`` if the file is absent or cannot be statted.
+    返回：
+        文件 size in bytes, 或 ``None`` 如果 文件 缺失 或 cannot be statted。
     """
     try:
         return path.stat().st_size if path.exists() else None
@@ -85,25 +79,330 @@ def file_size(path: Path) -> int | None:
         return None
 
 
-# 03. Hook 事件记录
+# 维护Bash snapshot key。
+def _bash_snapshot_key(ctx: HookContext, client: str = '') -> str | None:
+    """参数：
+        ctx: ctx 参数。
+        client: client 参数。
+
+    返回：
+        bash snapshot key 字符串。
+    """
+    identity_parts = [
+        client or ctx.agent_client,
+        ctx.session_id,
+        ctx.agent_id,
+        ctx.tool_use_id,
+    ]
+    raw_key = '|'.join(part for part in identity_parts if part)
+    if not raw_key:
+        raw_key = '|'.join(
+            part for part in [client or ctx.agent_client, ctx.session_id, ctx.agent_id, ctx.command]
+            if part
+        )
+    if not raw_key:
+        return None
+    return hashlib.sha256(raw_key.encode('utf-8')).hexdigest()
+
+
+# 维护Bash snapshot 路径。
+def _bash_snapshot_path(paths: RepoPaths, ctx: HookContext) -> Path | None:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    key = _bash_snapshot_key(ctx, paths.identity.client)
+    if not key:
+        return None
+    return paths.agent_log_dir / 'bash-snapshots' / f'{key}.json'
+
+
+# 维护Bash 锁 路径。
+def _bash_lock_path(paths: RepoPaths) -> Path:
+    """参数：
+        paths: 待检查的路径列表。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    return paths.repo_root / 'tmp' / 'agent_logs' / 'bash-mutation.lock'
+
+
+# 维护Bash 锁 owner。
+def _bash_lock_owner(paths: RepoPaths, ctx: HookContext) -> str | None:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+
+    返回：
+        bash lock owner 字符串。
+    """
+    return _bash_snapshot_key(ctx, paths.identity.client)
+
+
+# 移除stale Bash 锁。
+def _remove_stale_bash_lock(path: Path) -> None:
+    """参数：
+        path: 待检查的路径。
+    """
+    try:
+        age = time.time() - path.stat().st_mtime
+    except FileNotFoundError:
+        return
+    except OSError:
+        return
+    if age <= BASH_MUTATION_LOCK_STALE_SECONDS:
+        return
+    try:
+        path.unlink()
+    except OSError:
+        pass
+
+
+# 获取Bash mutation 锁。
+def acquire_bash_mutation_lock(paths: RepoPaths, ctx: HookContext) -> bool:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
+    owner = _bash_lock_owner(paths, ctx)
+    if not owner:
+        return False
+    lock_path = _bash_lock_path(paths)
+    _remove_stale_bash_lock(lock_path)
+    payload = {
+        'schemaVersion': 1,
+        'ts': utc_now(),
+        'owner': owner,
+        'sessionId': ctx.session_id,
+        'agentId': ctx.agent_id,
+        'agentType': ctx.agent_type,
+        'toolUseId': ctx.tool_use_id,
+        'client': paths.identity.client,
+        'pid': os.getpid(),
+    }
+    try:
+        lock_path.parent.mkdir(parents=True, exist_ok=True)
+        fd = os.open(str(lock_path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
+    except FileExistsError:
+        return False
+    except OSError:
+        return False
+    with os.fdopen(fd, 'w', encoding='utf-8') as f:
+        f.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + '\n')
+    return True
+
+
+# 释放Bash mutation 锁。
+def release_bash_mutation_lock(paths: RepoPaths, ctx: HookContext) -> None:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+    """
+    owner = _bash_lock_owner(paths, ctx)
+    if not owner:
+        return
+    lock_path = _bash_lock_path(paths)
+    try:
+        data = json.loads(lock_path.read_text(encoding='utf-8'))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return
+    if not isinstance(data, dict) or data.get('owner') != owner:
+        return
+    try:
+        lock_path.unlink()
+    except OSError:
+        pass
+
+
+# 维护Git head。
+def _git_head(paths: RepoPaths) -> str | None:
+    """参数：
+        paths: 待检查的路径列表。
+
+    返回：
+        git head 字符串。
+    """
+    try:
+        proc = subprocess.run(
+            ['git', 'rev-parse', 'HEAD'],
+            cwd=paths.repo_root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+    except Exception:
+        return None
+    if proc.returncode != 0:
+        return None
+    value = (proc.stdout or '').strip()
+    return value or None
+
+
+# 维护Git diff 路径。
+def _git_diff_paths(paths: RepoPaths, before: str, after: str) -> list[str]:
+    """参数：
+        paths: 待检查的路径列表。
+        before: 之前 参数。
+        after: 之后 参数。
+
+    返回：
+        结果列表。
+    """
+    try:
+        proc = subprocess.run(
+            ['git', 'diff', '--name-only', '--diff-filter=ACMRD', before, after],
+            cwd=paths.repo_root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            timeout=30,
+            check=False,
+        )
+    except Exception:
+        return []
+    if proc.returncode != 0:
+        return []
+    return changed_file_utils.dedupe_paths(
+        [line for line in (proc.stdout or '').splitlines() if line.strip()]
+    )
+
+
+# 维护dirty state。
+def _dirty_state(paths: RepoPaths) -> dict[str, dict[str, Any]]:
+    """参数：
+        paths: 待检查的路径列表。
+
+    返回：
+        结果映射。
+    """
+    result: dict[str, dict[str, Any]] = {}
+    runtime_rel = rel_to_repo(paths.agent_log_dir, paths.repo_root)
+    for rel in changed_file_utils.read_git_dirty_files(paths.repo_root):
+        if rel == runtime_rel or rel.startswith(f'{runtime_rel}/'):
+            continue
+        absolute = paths.repo_root / rel
+        result[rel] = {
+            'exists': absolute.exists(),
+            'sha256': file_sha256(absolute),
+            'size': file_size(absolute),
+        }
+    return result
+
+
+# 记录pre Bash snapshot。
+def record_pre_bash_snapshot(paths: RepoPaths, ctx: HookContext) -> bool:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
+    ensure_runtime_dirs(paths)
+    snapshot_path = _bash_snapshot_path(paths, ctx)
+    if snapshot_path is None:
+        return False
+    snapshot_path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {
+        'schemaVersion': 1,
+        'ts': utc_now(),
+        'client': paths.identity.client,
+        'sessionId': ctx.session_id,
+        'agentId': ctx.agent_id,
+        'agentType': ctx.agent_type,
+        'toolUseId': ctx.tool_use_id,
+        'head': _git_head(paths),
+        'dirty': _dirty_state(paths),
+    }
+    snapshot_path.write_text(
+        json.dumps(payload, ensure_ascii=False, sort_keys=True),
+        encoding='utf-8',
+    )
+    return True
+
+
+# 记录post Bash。
+def record_post_bash(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]]:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+
+    返回：
+        结果列表。
+    """
+    ensure_runtime_dirs(paths)
+    try:
+        snapshot_path = _bash_snapshot_path(paths, ctx)
+        if snapshot_path is None or not snapshot_path.exists():
+            record_hook_event(paths, ctx, status='BASH_SNAPSHOT_MISSING')
+            return []
+
+        try:
+            before = json.loads(snapshot_path.read_text(encoding='utf-8'))
+        except (json.JSONDecodeError, OSError):
+            before = {}
+
+        before_dirty = before.get('dirty') if isinstance(before, dict) else {}
+        if not isinstance(before_dirty, dict):
+            before_dirty = {}
+        after_dirty = _dirty_state(paths)
+
+        changed: list[str] = []
+        for rel in sorted(set(before_dirty) | set(after_dirty)):
+            if before_dirty.get(rel) != after_dirty.get(rel):
+                changed.append(rel)
+
+        head_before = before.get('head') if isinstance(before, dict) else None
+        head_after = _git_head(paths)
+        if isinstance(head_before, str) and head_before and head_after and head_before != head_after:
+            changed.extend(_git_diff_paths(paths, head_before, head_after))
+
+        records = [
+            record_changed_file(paths, ctx, rel)
+            for rel in changed_file_utils.dedupe_paths(changed)
+        ]
+        record_hook_event(
+            paths,
+            ctx,
+            status='RECORDED',
+            extra={'changedFileCount': len(records), 'mutationSource': 'bash'},
+        )
+        try:
+            snapshot_path.unlink()
+        except OSError:
+            pass
+        return records
+    finally:
+        release_bash_mutation_lock(paths, ctx)
+
+
+# 记录hook event。
 def record_hook_event(
     paths: RepoPaths,
     ctx: HookContext,
     status: str = 'OBSERVED',
     extra: dict[str, Any] | None = None,
 ) -> None:
-    """Record a Claude hook lifecycle event.
-
-    Args:
-        paths: Repository runtime paths used for JSONL destinations.
-        ctx: Parsed Claude hook stdin context.
-        status: Hook decision or observation status, such as ``PASS`` or ``BLOCK``.
-        extra: Optional event fields supplied by a policy evaluator.
+    """参数：
+        paths: Repository 运行time 路径 used用于JSONL destinations。
+        ctx: 已解析的Claude hook stdin context。
+        status: hook decision 或 observation 状态，例如 ``PASS`` 或 ``BLOCK``。
+        extra: extra 参数。
     """
     ensure_runtime_dirs(paths)
     record = {
         'schemaVersion': 1,
         'ts': utc_now(),
+        'client': paths.identity.client,
         'event': ctx.event_name,
         'hookEventName': ctx.hook_event_name,
         'toolName': ctx.tool_name,
@@ -119,17 +418,15 @@ def record_hook_event(
     append_jsonl(paths.hook_events, record)
 
 
-# 04. 变更 evidence 记录
+# 记录changed-files 文件。
 def record_changed_file(paths: RepoPaths, ctx: HookContext, file_path: str) -> dict[str, Any]:
-    """Record one changed file after a write hook completes.
+    """参数：
+        paths: Repository 运行time 路径 used用于JSONL destinations。
+        ctx: ctx 参数。
+        file_path: 文件路径 reported by 写入 tool 输入。
 
-    Args:
-        paths: Repository runtime paths used for JSONL destinations.
-        ctx: Parsed Claude hook stdin context for the write event.
-        file_path: File path reported by the write tool input.
-
-    Returns:
-        JSON-serializable evidence record appended to changed-files and task evidence.
+    返回：
+        结果映射。
     """
     ensure_runtime_dirs(paths)
     rel = rel_to_repo(file_path, paths.repo_root)
@@ -139,6 +436,7 @@ def record_changed_file(paths: RepoPaths, ctx: HookContext, file_path: str) -> d
     record = {
         'schemaVersion': 1,
         'ts': utc_now(),
+        'client': paths.identity.client,
         'event': ctx.event_name,
         'toolName': ctx.tool_name,
         'toolUseId': ctx.tool_use_id,
@@ -160,17 +458,14 @@ def record_changed_file(paths: RepoPaths, ctx: HookContext, file_path: str) -> d
     return record
 
 
-# 05. PostToolUse 批量记录
+# 记录post write。
 def record_post_write(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]]:
-    """Record all candidate files from a post-write Claude hook event.
+    """参数：
+        paths: Repository 运行time 路径 used用于JSONL destinations。
+        ctx: 已解析的Claude hook stdin context用于Write, Edit, MultiEdit, 或 NotebookEdit。
 
-    Args:
-        paths: Repository runtime paths used for JSONL destinations.
-        ctx: Parsed Claude hook stdin context for Write, Edit, MultiEdit, or NotebookEdit.
-
-    Returns:
-        Evidence records for each unique candidate path. An empty list is valid when the
-        hook input has no file path.
+    返回：
+        evidence record用于each 去重后的 candidate 路径. 空 列表 is 有效 当 the。 hook 输入 has no 文件路径。
     """
     records: list[dict[str, Any]] = []
     for file_path in ctx.candidate_paths:
@@ -179,16 +474,13 @@ def record_post_write(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]
     return records
 
 
-# 06. 读取 changed-files
+# 读取changed-files 文件。
 def read_changed_files(paths: RepoPaths) -> list[dict[str, Any]]:
-    """Read changed-file evidence for stop-hook quality inference.
+    """参数：
+        paths: Repository 运行time 路径 that locate ``changed-文件.jsonl``。
 
-    Args:
-        paths: Repository runtime paths that locate ``changed-files.jsonl``.
-
-    Returns:
-        Parsed evidence records. Malformed lines are ignored by returning records parsed
-        so far, because stop-hook prompting should degrade gracefully on corrupt JSONL.
+    返回：
+        结果列表。
     """
     result: list[dict[str, Any]] = []
     try:

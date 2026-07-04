@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""校验 agent run log 的基本结构完整性。
-
-检查必填段落和字段是否存在。只用 Python stdlib。
-
-用法：
-    python3 validate_agent_run_log.py <log-file>
-    python3 validate_agent_run_log.py --help
-
-退出码：
-    0 — 校验通过
-    1 — 校验失败或参数错误
-"""
+"""校验 agent 运行 log 的基本结构完整性。"""
 
 import argparse
 import re
@@ -37,8 +26,14 @@ VALID_STATUSES = {"PASS", "FAIL", "BLOCKED", "BLOCKED_RETRYABLE"}
 VALID_VALIDATION_RESULTS = {"PASS", "FAIL", "NOT_RUN"}
 
 
+# 解析metadata。
 def parse_metadata(section_content: str) -> dict[str, str]:
-    """从 Run Metadata 段落解析 key: value 对。"""
+    """参数：
+        section_content: 待检查的章节内容。
+
+    返回：
+        结果映射。
+    """
     metadata = {}
     for line in section_content.splitlines():
         line = line.strip()
@@ -52,8 +47,14 @@ def parse_metadata(section_content: str) -> dict[str, str]:
     return metadata
 
 
+# 解析完成 章节。
 def parse_completion_section(section_content: str) -> dict:
-    """从 Completion 段落解析 YAML-like 输出结构。"""
+    """参数：
+        section_content: 待检查的章节内容。
+
+    返回：
+        结果映射。
+    """
     result = {
         "has_status": False,
         "has_changed_files": False,
@@ -75,8 +76,14 @@ def parse_completion_section(section_content: str) -> dict:
     return result
 
 
+# 维护拆分 章节。
 def split_sections(content: str) -> dict[str, str]:
-    """将 markdown 按 ## 标题拆分为 {标题: 内容}。"""
+    """参数：
+        content: 要写入的文本内容。
+
+    返回：
+        结果映射。
+    """
     sections = {}
     current_heading = None
     current_lines = []
@@ -97,8 +104,14 @@ def split_sections(content: str) -> dict[str, str]:
     return sections
 
 
+# 验证log。
 def validate_log(log_path: Path) -> list[str]:
-    """校验 agent run log 文件，返回错误列表。"""
+    """参数：
+        log_path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
     errors = []
 
     if not log_path.exists():
@@ -161,6 +174,7 @@ def validate_log(log_path: Path) -> list[str]:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main():
     parser = argparse.ArgumentParser(
         description="校验 agent run log 的基本结构完整性（必填段落和字段是否存在）。",

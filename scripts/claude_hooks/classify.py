@@ -1,9 +1,4 @@
-"""Classify changed repository files for Claude hook quality gates.
-
-Post-write hooks call this module for each modified path. The output records category,
-risk level, default allow status, and required quality target so stop hooks can decide
-which local quality gate evidence is required before a session finishes.
-"""
+"""提供 classify 脚本能力。"""
 
 from __future__ import annotations
 
@@ -14,15 +9,15 @@ from dataclasses import dataclass
 # 01. 分类结果模型
 @dataclass(frozen=True)
 class FileClassification:
-    """Describe hook policy and quality-gate metadata for one repository path.
+    """表示 FileClassification。
 
-    Attributes:
-        file: Normalized repository-relative path.
-        category: Classification category matched from ``RULES``.
-        requires_quality_gate: Whether the path should trigger gate evidence.
-        quality_target: Quality target name required by the path, when any.
-        risk_level: User-facing risk level for hook summaries.
-        allowed_by_default: Whether pre-write policy allows the path by default.
+    属性：
+        file: 待检查的文件。
+        category: 文件分类。
+        requires_quality_gate: 该路径是否触发 quality gate evidence。
+        quality_target: 需要运行的 quality target。
+        risk_level: 面向用户展示的风险等级。
+        allowed_by_default: 默认策略是否允许该路径。
     """
 
     file: str
@@ -201,15 +196,13 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
 ]
 
 
-# 03. 路径规范化
+# 规范化repo 路径。
 def normalize_repo_path(path: str) -> str:
-    """Normalize hook input paths before matching classification rules.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Repository or tool-provided path.
-
-    Returns:
-        Slash-separated repository-relative path without leading ``./`` or slashes.
+    返回：
+        normalize repo 路径 字符串。
     """
     value = path.replace('\\', '/')
     while value.startswith('./'):
@@ -217,16 +210,14 @@ def normalize_repo_path(path: str) -> str:
     return value.strip('/')
 
 
-# 04. glob 匹配: 使用正则支持 ** 语义。
+# 维护glob 匹配。
 def _glob_match(path: str, pattern: str) -> bool:
-    """Match a path against a hook rule glob with ``**`` directory semantics.
+    """参数：
+        path: 规范化 repository 路径到test。
+        pattern: 匹配用的 glob pattern。
 
-    Args:
-        path: Normalized repository path to test.
-        pattern: Glob pattern from ``RULES``.
-
-    Returns:
-        ``True`` when the path matches the pattern; otherwise ``False``.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     p = normalize_repo_path(path)
     pat = normalize_repo_path(pattern)
@@ -239,29 +230,25 @@ def _glob_match(path: str, pattern: str) -> bool:
     return bool(re.match(f'^{regex}$', p))
 
 
+# 维护匹配。
 def _match(path: str, pattern: str) -> bool:
-    """Return whether a file path matches a quality-gate rule pattern.
+    """参数：
+        path: 规范化 repository 路径到test。
+        pattern: 匹配用的 glob pattern。
 
-    Args:
-        path: Normalized repository path to test.
-        pattern: Glob pattern from ``RULES``.
-
-    Returns:
-        ``True`` when the path matches the pattern; otherwise ``False``.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     return _glob_match(path, pattern)
 
 
-# 05. 单文件分类
+# 分类文件。
 def classify_file(path: str) -> FileClassification:
-    """Classify one changed file for hook enforcement.
+    """参数：
+        path: 文件路径 reported by 写入 hook 或 quality 检查。
 
-    Args:
-        path: File path reported by a write hook or quality check.
-
-    Returns:
-        Classification record with category, risk level, allow status, and required
-        quality target. Unknown paths are allowed by default and do not trigger gates.
+    返回：
+        Classification record带category, risk level, allow 状态, 和 必需。 quality target. Unknown 路径 are allowed by 默认 和 do 不 trigger gate。
     """
     p = normalize_repo_path(path)
     for category, patterns, req, target, risk, allow in RULES:
@@ -284,25 +271,20 @@ def classify_file(path: str) -> FileClassification:
     )
 
 
-# 06. 多文件目标汇总
+# 维护必需 quality targets。
 def required_quality_targets(files: list[str]) -> list[str]:
-    """Collect quality targets required by a batch of changed files.
+    """参数：
+        files: Changed 文件路径s从hook evidence。
 
-    Args:
-        files: Changed file paths from hook evidence.
-
-    Returns:
-        Ordered, de-duplicated quality targets. The order follows first occurrence in
-        hook evidence so user-facing remediation commands stay deterministic.
+    返回：
+        结果列表。
     """
     targets: list[str] = []
     for f in files:
         c = classify_file(f)
         if c.requires_quality_gate and c.quality_target and c.quality_target not in targets:
             targets.append(c.quality_target)
-    # Supplementary triggers: certain paths require additional targets beyond
-    # the primary classification. This allows scan-script-smoke to be triggered
-    # when scan-related files change, without replacing existing mappings.
+    # 当 scan-related 文件 change, 不带 replacing 现有 mappings。
     for f in files:
         for pattern in SCAN_SCRIPT_SMOKE_PATTERNS:
             if _match(f, pattern):
@@ -312,9 +294,7 @@ def required_quality_targets(files: list[str]) -> list[str]:
     return targets
 
 
-# 06b. scan-script-smoke supplementary trigger patterns
-# When any of these paths change, scan-script-smoke target must be triggered
-# in addition to whatever primary target the file maps to.
+# in addition到whatever primary target the 文件 maps 到。
 SCAN_SCRIPT_SMOKE_PATTERNS: list[str] = [
     'scripts/session-browser.sh',
     'java/app-cli/**',
@@ -333,17 +313,17 @@ DOMINANCE: dict[str, dict[str, list[str]]] = {
 }
 
 
+# 维护有效 targets。
 def effective_targets(targets: list[str]) -> list[str]:
-    """Apply dominance rules to de-duplicate quality targets.
-
-    当一个 target 声明 includes 另一个 target 时，被包含的 target 不需要单独运行
-    重复的 Gradle 基线检查。
-
-    Args:
+    """参数：
         targets: 初始质量目标列表。
 
-    Returns:
+    返回：
         去重后的目标列表，保留原始顺序。
+
+    说明：
+        当一个 target 声明 includes 另一个 target 时，被包含的 target 不需要单独运行。
+        重复的 Gradle 基线检查。
     """
     expanded: list[str] = list(targets)
     for t in targets:
@@ -354,9 +334,8 @@ def effective_targets(targets: list[str]) -> list[str]:
     return expanded
 
 
-# 08. 自测试
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Run local assertions for path classification edge cases."""
     assert (
         classify_file('docs/acceptance-contracts/features/DATA_PRESENTERS.md').quality_target
         == 'acceptance-contracts'
@@ -398,7 +377,6 @@ def _self_test() -> None:
         == 'session-detail'
     )
     assert classify_file('tmp/agent_logs/session1/x.jsonl').category == 'local-or-generated'
-    # Java/Gradle classification self-tests
     assert (
         classify_file('java/core-domain/src/main/java/com/feipi/Foo.java').quality_target
         == 'java-src'
@@ -416,17 +394,16 @@ def _self_test() -> None:
     assert classify_file('gradle.properties').quality_target == 'java-build'
     assert classify_file('settings.gradle.kts').quality_target == 'java-build'
     assert classify_file('config/api-snapshots/java-public-api.txt').quality_target == 'java-build'
-    # Windows path normalization
+    # Windows 路径 normalization。
     assert (
         classify_file('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java').quality_target
         == 'java-src'
     )
-    # Gradle wrapper and lockfile classification
     assert classify_file('gradlew').quality_target == 'java-build'
     assert classify_file('gradlew').category == 'java-build'
     assert classify_file('gradlew.bat').quality_target == 'java-build'
     assert classify_file('settings-gradle.lockfile').quality_target == 'java-build'
-    # Fail-closed for unknown Java/Gradle paths
+    # Fail-closed用于unknown Java/Gradle 路径。
     c_unknown_java = classify_file('some/random/file.java')
     assert c_unknown_java.quality_target == 'java-src'
     assert c_unknown_java.requires_quality_gate is True
@@ -435,7 +412,6 @@ def _self_test() -> None:
     assert c_unknown_gradle.quality_target == 'java-build'
     assert c_unknown_gradle.requires_quality_gate is True
     assert c_unknown_gradle.allowed_by_default is False
-    # Dominance: java-src includes java-build
     assert effective_targets(['java-src', 'java-build']) == ['java-src']
     assert effective_targets(['java-build']) == ['java-build']
     assert effective_targets(['java-src', 'hook-runtime']) == ['java-src', 'hook-runtime']

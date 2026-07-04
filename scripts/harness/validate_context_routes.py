@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Validate context routes structure and required fields.
-
-Only uses Python stdlib - implements minimal YAML parsing for routes structure.
-"""
+"""验证 context routes structure and 必需 fields。"""
 
 import sys
 from pathlib import Path
@@ -18,8 +15,11 @@ FORBIDDEN_FULL_LOAD_PATTERNS = {
 }
 
 
+# 解析inline flow。
 def parse_inline_flow(value: str):
-    """Parse inline flow mapping like {key: value} or flow list like [a, b]."""
+    """参数：
+        value: value 参数。
+    """
     value = value.strip()
     if value.startswith('{') and value.endswith('}'):
         inner = value[1:-1].strip()
@@ -39,11 +39,13 @@ def parse_inline_flow(value: str):
     return None
 
 
+# 解析simple YAML。
 def parse_simple_yaml(content: str) -> dict:
-    """Parse the context routes YAML structure.
+    """参数：
+        content: 要写入的文本内容。
 
-    Handles: top-level scalars, lists of mappings, nested mappings within
-    list items, nested key+block values, inline flow collections.
+    返回：
+        结果映射。
     """
     lines = content.split('\n')
     result = {}
@@ -103,13 +105,11 @@ def parse_simple_yaml(content: str) -> dict:
     return result
 
 
-# ---------------------------------------------------------------------------
-# Internal helpers
-# ---------------------------------------------------------------------------
-
-
+# 解析标量。
 def _parse_scalar(value: str):
-    """Parse a scalar YAML value."""
+    """参数：
+        value: value 参数。
+    """
     if value == '[]':
         return []
     if value == '{}':
@@ -130,12 +130,16 @@ def _parse_scalar(value: str):
         return value
 
 
+# 解析列表 映射列表。
 def _parse_list_of_mappings(lines, base_indent):
-    """Parse a YAML list whose items are mappings (``- key: value`` ...).
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
 
-    Strategy: direct keys live at ``base_indent + 2``.  Everything deeper is
-    block content for the most recent key.  Block content is parsed via
-    ``_parse_block_value`` which auto-detects list vs mapping.
+    说明：
+        补充说明当前检查条件、输入输出或数据流转。
+        ``_parse_block_value`` 会自动区分列表和映射。
+        ``_parse_block_value`` 会自动区分列表和映射。
     """
     direct_key_indent = base_indent + 2
     items = []
@@ -143,6 +147,7 @@ def _parse_list_of_mappings(lines, base_indent):
     current_key = None
     block_lines = []
 
+    # 维护flush 阻断。
     def _flush_block():
         nonlocal current_key, block_lines
         if current_key is not None and current_item is not None:
@@ -176,7 +181,7 @@ def _parse_list_of_mappings(lines, base_indent):
         if indent < base_indent:
             break
 
-        # ── New list item: ``- key: value`` ──────────────────────────────
+        # New 列表 item: ``- key: 值``。
         if lstripped.startswith('- ') and indent == base_indent:
             _flush_block()
             if current_item is not None:
@@ -198,7 +203,6 @@ def _parse_list_of_mappings(lines, base_indent):
         if current_item is None:
             continue
 
-        # ── Direct key at item-child indent ──────────────────────────────
         if indent == direct_key_indent and ':' in lstripped:
             _flush_block()
             k, _, v = lstripped.partition(':')
@@ -211,7 +215,6 @@ def _parse_list_of_mappings(lines, base_indent):
                 current_key = k
             continue
 
-        # ── Deeper than direct-key indent → block content ────────────────
         if current_key is not None and indent > direct_key_indent:
             block_lines.append(line)
             continue
@@ -223,11 +226,17 @@ def _parse_list_of_mappings(lines, base_indent):
     return items
 
 
+# 解析阻断 值。
 def _parse_block_value(lines, base_indent):
-    """Parse the block value under a key.
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
 
-    Returns a list (if the block starts with ``- ``) or a dict (if the block
-    starts with a mapping key).
+    说明：
+        返回 列表 (如果 block starts带``- ``) 或 dict (如果 block。
+        starts带a 映射 key).；用于说明当前校验条件、输入输出或数据流转。
+        返回 列表 (如果 block starts带``- ``) 或 dict (如果 block。
+        starts带a 映射 key)。
     """
     first_content = None
     for line in lines:
@@ -243,8 +252,12 @@ def _parse_block_value(lines, base_indent):
     return _parse_block_mapping(lines, base_indent)
 
 
+# 解析阻断 列表。
 def _parse_block_list(lines, base_indent):
-    """Parse a block list (``- value`` items)."""
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
+    """
     result = []
     for line in lines:
         s = line.rstrip()
@@ -266,12 +279,17 @@ def _parse_block_list(lines, base_indent):
     return result
 
 
+# 解析阻断 映射。
 def _parse_block_mapping(lines, base_indent):
-    """Parse a block mapping (``key: value`` pairs with possible sub-blocks)."""
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
+    """
     result = {}
     current_key = None
     sub_lines = []
 
+    # 维护flush。
     def _flush():
         nonlocal current_key, sub_lines
         if current_key is not None:
@@ -318,8 +336,12 @@ def _parse_block_mapping(lines, base_indent):
     return result
 
 
+# 解析映射。
 def _parse_mapping(lines, base_indent):
-    """Parse a YAML mapping block."""
+    """参数：
+        lines: 待检查的源码行列表。
+        base_indent: base indent 参数。
+    """
     result = {}
     i = 0
     while i < len(lines):
@@ -345,21 +367,28 @@ def _parse_mapping(lines, base_indent):
     return result
 
 
+# 维护looks like key。
 def _looks_like_key(text: str) -> bool:
-    """Heuristic: does *text* look like a YAML mapping key?"""
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     text = text.strip().strip('"').strip("'")
     if not text:
         return False
     return all(c.isalnum() or c in '_-' for c in text)
 
 
-# ---------------------------------------------------------------------------
-# Validation
-# ---------------------------------------------------------------------------
-
-
+# 验证context routes。
 def validate_context_routes(routes_path: Path) -> list:
-    """Validate context routes YAML and return list of error strings."""
+    """参数：
+        routes_path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
     errors = []
 
     if not routes_path.exists():
@@ -375,7 +404,6 @@ def validate_context_routes(routes_path: Path) -> list:
     if not isinstance(routes_data, dict):
         return ['Routes root must be a mapping']
 
-    # -- Top-level scalars ---------------------------------------------------
     if 'version' not in routes_data:
         errors.append('Missing top-level "version" field')
     elif routes_data['version'] != 1:
@@ -384,7 +412,6 @@ def validate_context_routes(routes_path: Path) -> list:
     if 'routing_strategy' not in routes_data:
         errors.append('Missing top-level "routing_strategy" field')
 
-    # -- Routes section ------------------------------------------------------
     if 'routes' not in routes_data:
         errors.append('Missing "routes" section')
         return errors
@@ -406,7 +433,7 @@ def validate_context_routes(routes_path: Path) -> list:
             errors.append(f'{prefix}: must be a mapping')
             continue
 
-        # Required fields.
+        # 必需 fields。
         missing = REQUIRED_ROUTE_FIELDS - set(route.keys())
         if missing:
             errors.append(f'{prefix}: missing required fields: {sorted(missing)}')
@@ -421,19 +448,16 @@ def validate_context_routes(routes_path: Path) -> list:
                 errors.append(f'{prefix}: duplicate id "{route_id}"')
             seen_ids.add(route_id)
 
-        # match must be non-empty.
         match = route.get('match')
         if match is None or (isinstance(match, (dict, list)) and len(match) == 0):
             errors.append(f'{prefix}: "match" must not be empty')
 
-        # load must be non-empty list.
         load = route.get('load')
         if load is None:
             errors.append(f'{prefix}: "load" must not be empty')
         elif isinstance(load, list) and len(load) == 0:
             errors.append(f'{prefix}: "load" must not be empty')
 
-        # do_not_load must be present to prevent over-loading.
         do_not_load = route.get('do_not_load')
         if do_not_load is None:
             errors.append(
@@ -442,7 +466,6 @@ def validate_context_routes(routes_path: Path) -> list:
         elif isinstance(do_not_load, list) and len(do_not_load) == 0:
             errors.append(f'{prefix}: "do_not_load" must not be empty')
 
-        # load must not contain full-scope fallback patterns.
         if isinstance(load, list):
             for pattern in FORBIDDEN_FULL_LOAD_PATTERNS:
                 if pattern in load:
@@ -450,17 +473,18 @@ def validate_context_routes(routes_path: Path) -> list:
                         f'{prefix}: "load" contains forbidden full-scope pattern "{pattern}"'
                     )
 
-    # Must have at least 4 routes covering different concerns.
     if len(seen_ids) < 4:
         errors.append(f'Expected at least 4 routes, found {len(seen_ids)}')
 
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main():
     repo_root = Path(__file__).resolve().parent.parent.parent
     routes_path = repo_root / 'harness' / 'context' / 'routes.yaml'
 
+# 运行脚本主流程并返回进程退出码。
     errors = validate_context_routes(routes_path)
 
     if errors:

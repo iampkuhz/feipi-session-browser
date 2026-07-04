@@ -1,21 +1,5 @@
 #!/usr/bin/env python3
-"""Index integrity gate — verify the SQLite session index is structurally sound.
-
-Checks performed:
-1. Index file exists at the configured INDEX_PATH.
-2. The `sessions` table exists and contains > 0 rows.
-3. Every row has non-empty required fields (session_key, agent, session_id,
-   project_key, ended_at).
-4. No orphan entries — every agent value is one of the known agents.
-5. The `scan_log` table exists (optional, warn-only if missing).
-
-Usage:
-    python3 scripts/quality/check_index_integrity.py
-
-Exit codes:
-    0  all checks pass
-    1  one or more hard failures
-"""
+"""提供 检查 index integrity 脚本能力。"""
 
 from __future__ import annotations
 
@@ -37,7 +21,7 @@ INDEX_PATH = INDEX_DIR / 'index.sqlite'
 
 KNOWN_AGENTS = {'claude_code', 'codex', 'qoder'}
 
-# Required columns that must not be empty for every session row
+# 必需 columns that must 不 be 空用于every session 行。
 REQUIRED_NONEMPTY_COLS = [
     'session_key',
     'agent',
@@ -49,53 +33,48 @@ REQUIRED_NONEMPTY_COLS = [
 
 @dataclass
 class IntegrityResult:
-    """Accumulate index gate checks for the CLI summary.
+    """汇总 IntegrityResult 的检查结果。
 
-    The index integrity quality gate creates one instance per run. It preserves
-    check ordering, prints immediate diagnostics, and exposes aggregate pass
-    state without mutating the SQLite index.
-
-    Attributes:
-        checks: Ordered ``(check_name, status)`` pairs recorded during the gate.
+    属性：
+        checks: 检查 参数。
     """
 
     checks: list[tuple[str, str]] = field(default_factory=list)
 
+    # 标记检查通过。
     def ok(self, name: str) -> None:
-        """Record a passing check and print its CLI evidence.
-
-        Args:
-            name: Stable check label shown in gate output.
+        """参数：
+            name: 稳定的check label shown in gate 输出。
         """
         print(f'  [PASS] {name}')
         self.checks.append((name, 'PASS'))
 
+    # 维护fail。
     def fail(self, name: str, detail: str = '') -> None:
-        """Record a failing check and print the failure reason.
-
-        Args:
-            name: Stable check label shown in gate output.
-            detail: Optional diagnostic explaining the observed index problem.
+        """参数：
+            name: 稳定的check label shown in gate 输出。
+            detail: detail 参数。
         """
         msg = f'{name}: {detail}' if detail else name
         print(f'  [FAIL] {msg}')
         self.checks.append((name, 'FAIL'))
 
+    # 维护全部 通过。
     @property
     def all_passed(self) -> bool:
-        """Return whether every recorded hard check passed."""
+        """返回：
+            满足条件时返回 true，否则返回 false。
+        """
         return all(status == 'PASS' for _, status in self.checks)
 
 
+# 读取connection。
 def _get_connection(db_path: Path) -> sqlite3.Connection | None:
-    """Open the SQLite index used by the session browser gate.
+    """参数：
+        db_path: 待检查的路径。
 
-    Args:
-        db_path: Configured index path from ``session_browser.config``.
-
-    Returns:
-        SQLite connection with row access enabled, or ``None`` when the file
-        cannot be opened. The caller reports that condition as a hard failure.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     try:
         conn = sqlite3.connect(str(db_path))
@@ -105,11 +84,10 @@ def _get_connection(db_path: Path) -> sqlite3.Connection | None:
         return None
 
 
+# 检查index 文件 exists。
 def check_index_file_exists(result: IntegrityResult) -> None:
-    """Check that the configured index file exists before SQL checks.
-
-    Args:
-        result: Accumulator receiving the pass/fail outcome.
+    """参数：
+        result: 用于累积检查结果的可变对象。
     """
     if INDEX_PATH.is_file():
         result.ok('index file exists')
@@ -117,12 +95,11 @@ def check_index_file_exists(result: IntegrityResult) -> None:
         result.fail('index file exists', f'not found at {INDEX_PATH}')
 
 
+# 检查session count。
 def check_session_count(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check that the sessions table exists and contains indexed rows.
-
-    Args:
-        result: Accumulator receiving the pass/fail outcome.
-        conn: Open SQLite connection to the session index.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        conn: 打开的 SQLite connection。
     """
     try:
         row = conn.execute('SELECT COUNT(*) AS cnt FROM sessions').fetchone()
@@ -135,15 +112,14 @@ def check_session_count(result: IntegrityResult, conn: sqlite3.Connection) -> No
         result.fail('session count > 0', f'sessions table query failed: {exc}')
 
 
+# 检查必需 fields。
 def check_required_fields(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check required session columns for empty values.
-
-    Args:
-        result: Accumulator receiving the pass/fail outcome.
-        conn: Open SQLite connection queried by the quality gate.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        conn: 打开的 SQLite connection。
     """
     try:
-        # Build query to find rows where any required column is empty
+        # 构建query到find 行 在 any 必需 column is 空。
         clauses = ' OR '.join(f"COALESCE({col}, '') = ''" for col in REQUIRED_NONEMPTY_COLS)
         query = (
             f'SELECT session_key, {", ".join(REQUIRED_NONEMPTY_COLS)} FROM sessions WHERE {clauses}'
@@ -159,12 +135,11 @@ def check_required_fields(result: IntegrityResult, conn: sqlite3.Connection) -> 
         result.fail('required fields non-empty', f'query failed: {exc}')
 
 
+# 检查无 orphan agents。
 def check_no_orphan_agents(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check every indexed session references a known agent adapter.
-
-    Args:
-        result: Accumulator receiving the pass/fail outcome.
-        conn: Open SQLite connection queried for distinct agent values.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        conn: 打开SQLite connection queried用于distinct agent 值。
     """
     try:
         row = conn.execute(
@@ -182,28 +157,25 @@ def check_no_orphan_agents(result: IntegrityResult, conn: sqlite3.Connection) ->
         result.fail('no orphan agents', f'query failed: {exc}')
 
 
+# 检查扫描 log exists。
 def check_scan_log_exists(result: IntegrityResult, conn: sqlite3.Connection) -> None:
-    """Check whether scan_log exists while keeping missing table warn-only.
-
-    Args:
-        result: Accumulator receiving a passing warn-only outcome.
-        conn: Open SQLite connection queried by the quality gate.
+    """参数：
+        result: 用于累积检查结果的可变对象。
+        conn: 打开的 SQLite connection。
     """
     try:
         conn.execute('SELECT COUNT(*) FROM scan_log').fetchone()
         result.ok('scan_log table exists')
     except sqlite3.OperationalError:
-        # Non-blocking — the table may not exist if the schema hasn't been initialized.
+        # Non-阻断 — the table may 不 exist 如果 the schema hasn't been initialized。
         print('  [WARN] scan_log table missing (non-blocking)')
         result.ok('scan_log table exists (warn-only, missing is acceptable)')
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run all index integrity checks and return shell-style status.
-
-    Returns:
-        ``0`` when all hard index checks pass, otherwise ``1``. The gate only
-        reads SQLite metadata and rows; it does not repair or mutate the index.
+    """返回：
+        进程退出码。
     """
     print(f'\n{"=" * 60}')
     print('index integrity gate')
@@ -212,7 +184,7 @@ def main() -> int:
 
     result = IntegrityResult()
 
-    # Check 1: file exists
+    # 检查1: 文件 exists。
     check_index_file_exists(result)
 
     if not INDEX_PATH.is_file():
@@ -226,21 +198,21 @@ def main() -> int:
         return 1
 
     try:
-        # Check 2: session count
+        # 检查2: session count。
         check_session_count(result, conn)
 
-        # Check 3: required fields
+        # 检查3: 必需 fields。
         check_required_fields(result, conn)
 
-        # Check 4: no orphan agents
+        # 检查4: no orphan agents。
         check_no_orphan_agents(result, conn)
 
-        # Check 5: scan_log (warn-only)
+        # 检查5: scan_log (warn-仅)。
         check_scan_log_exists(result, conn)
     finally:
         conn.close()
 
-    # Summary
+    # 结果汇总。
     passed = sum(1 for _, s in result.checks if s == 'PASS')
     failed = sum(1 for _, s in result.checks if s == 'FAIL')
     total = passed + failed

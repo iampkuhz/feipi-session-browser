@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copy the seed overlay into a repository checkout for harness bootstrap."""
+"""提供 apply seed overlay 脚本能力。"""
 
 import shutil
 import sys

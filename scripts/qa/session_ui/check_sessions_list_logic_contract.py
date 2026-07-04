@@ -1,18 +1,5 @@
 #!/usr/bin/env python3
-"""Sessions List interaction contract checker.
-
-This checker focuses on behavior-critical DOM:
-- filter form keeps current state
-- sort links/buttons preserve active filters and page rules
-- pagination preserves filters and sort
-- active filter removal has deterministic URLs
-- sortable header labels are actually clickable, not icon-only
-- no stale density/round-map/session-detail controls on /sessions
-
-Usage:
-  python scripts/qa/session_ui/check_sessions_list_logic_contract.py --html /tmp/sessions.html
-  python scripts/qa/session_ui/check_sessions_list_logic_contract.py --url http://127.0.0.1:18999/sessions?agent=claude_code&project=/tmp/demo&sort=updated&dir=desc
-"""
+"""提供 检查 sessions list logic contract 脚本能力。"""
 
 from __future__ import annotations
 
@@ -26,17 +13,13 @@ from pathlib import Path
 
 @dataclass
 class Node:
-    """Represent one parsed DOM node used by the sessions-list contract check.
+    """表示 Node。
 
-    The local HTML parser creates these lightweight nodes from either --html or
-    --url input. Instances keep tag names, normalized attributes, direct text,
-    and child order so checker helpers can report deterministic FAIL messages.
-
-    Attributes:
-        tag: HTML tag name preserved from the parser event.
-        attrs: Normalized HTML attributes for this node.
-        text: Direct text chunks attached to this node.
-        children: Child nodes in source order.
+    属性：
+        tag: tag 参数。
+        attrs: attrs 参数。
+        text: 待检查的文本。
+        children: children 参数。
     """
 
     tag: str
@@ -46,77 +29,64 @@ class Node:
 
 
 class Parser(html.parser.HTMLParser):
-    """Collect a minimal DOM tree for sessions-list QA assertions.
-
-    The CLI creates one parser per captured sessions page. It preserves node
-    order and parent/child relationships without mutating external state; parse
-    errors follow HTMLParser recovery semantics and later checks decide failure.
-    Its initializer creates root, stack, and flat node inventory for one HTML input.
+    """表示 Parser。
     """
 
+    # 维护init。
     def __init__(self) -> None:
-        """Initialize parser state for one sessions-list HTML input."""  # noqa: RUF100  # noqa: DOC301
         super().__init__()
         self.root = Node('root', {})
         self.stack = [self.root]
         self.nodes: list[Node] = []
 
+    # 记录 HTML 开始标签。
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        """Record an opening tag from HTMLParser into the current DOM stack.
-
-        Args:
-            tag: Lower-level parser tag name emitted for the source HTML.
-            attrs: Attribute pairs emitted by HTMLParser; missing values are
-                normalized to empty strings for downstream contract checks.
+        """参数：
+            tag: tag 参数。
+            attrs: attrs 参数。
         """
         node = Node(tag, {k: (v or '') for k, v in attrs})
         self.stack[-1].children.append(node)
         self.stack.append(node)
         self.nodes.append(node)
 
+    # 记录 HTML 结束标签。
     def handle_endtag(self, tag: str) -> None:
-        """Close the matching element in the tolerant parser stack.
-
-        Args:
-            tag: End tag emitted by HTMLParser. Unknown or already-closed tags
-                are ignored so QA failure remains tied to explicit assertions.
+        """参数：
+            tag: tag 参数。
         """
         for i in range(len(self.stack) - 1, 0, -1):
             if self.stack[i].tag == tag:
                 del self.stack[i:]
                 break
 
+    # 记录 HTML 文本数据。
     def handle_data(self, data: str) -> None:
-        """Append text content to the current node for label and hint checks.
-
-        Args:
-            data: Raw text chunk from HTMLParser. Whitespace is normalized later
-                by text_of so parser callbacks do not change page semantics.
+        """参数：
+            data: 从 HTML 解析出的原始 text chunk，稍后统一规范化空白。
         """
         if self.stack:
             self.stack[-1].text.append(data)
 
 
+# 维护class。
 def cls(node: Node) -> set[str]:
-    """Return class tokens for a parsed node.
+    """参数：
+        node: node 参数。
 
-    Args:
-        node: DOM node inspected by sessions-list contract helpers.
-
-    Returns:
-        Unique CSS class names; missing class attributes return an empty set.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     return set(node.attrs.get('class', '').split())
 
 
+# 维护文本。
 def text_of(node: Node) -> str:
-    """Return normalized descendant text for label and content assertions.
+    """参数：
+        node: node 参数。
 
-    Args:
-        node: DOM subtree whose direct and nested text should be inspected.
-
-    Returns:
-        Whitespace-collapsed text in DOM traversal order.
+    返回：
+        文本 of 字符串。
     """
     parts = list(node.text)
     for child in node.children:
@@ -124,14 +94,13 @@ def text_of(node: Node) -> str:
     return ' '.join(' '.join(parts).split())
 
 
+# 维护全部 描述。
 def all_desc(node: Node) -> list[Node]:
-    """Return all descendant nodes used for nested control checks.
+    """参数：
+        node: node 参数。
 
-    Args:
-        node: DOM subtree root from the parsed sessions page.
-
-    Returns:
-        Descendants in pre-order; an element without children returns an empty list.
+    返回：
+        结果列表。
     """
     out = []
     for child in node.children:
@@ -140,64 +109,59 @@ def all_desc(node: Node) -> list[Node]:
     return out
 
 
+# 查找class。
 def find_by_class(nodes: list[Node], class_name: str) -> list[Node]:
-    """Find parsed nodes that carry a required CSS class.
+    """参数：
+        nodes: nodes 参数。
+        class_name: class name 参数。
 
-    Args:
-        nodes: Flat node inventory collected by Parser.
-        class_name: Class token that represents a sessions-list contract marker.
-
-    Returns:
-        Matching nodes in source order; absence lets callers emit contract-specific FAILs.
+    返回：
+        结果列表。
     """
     return [n for n in nodes if class_name in cls(n)]
 
 
+# 维护fail。
 def fail(message: str) -> None:
-    """Print a QA failure and terminate with exit code 1.
+    """参数：
+        message: 诊断消息。
 
-    Args:
-        message: Human-readable contract violation shown in CI or local runs.
-
-    Raises:
-        SystemExit: Always raised with status 1 after printing the FAIL line.
+    异常：
+        SystemExit: 始终 raised带状态 1 之后 printing FAIL 行。
     """
     print(f'FAIL: {message}')
     raise SystemExit(1)
 
 
+# 维护校验。
 def require(condition: bool, message: str) -> None:
-    """Enforce one sessions-list contract condition.
-
-    Args:
-        condition: Result of the current static DOM assertion.
-        message: Failure detail to print when the condition is false.
+    """参数：
+        condition: 结果 of 当前 static DOM assertion。
+        message: 失败项 detail到print 当 condition 为 false。
     """
     if not condition:
         fail(message)
 
 
+# 维护查询。
 def query(url: str) -> dict[str, list[str]]:
-    """Parse query parameters from a URL used by link preservation checks.
+    """参数：
+        url: Absolute 或 relative URL从a sessions-列表 control。
 
-    Args:
-        url: Absolute or relative URL from a sessions-list control.
-
-    Returns:
-        Mapping of query parameter names to ordered values, preserving blanks.
+    返回：
+        映射 of query parameter names到ordered 值, preserving blanks。
     """
     return urllib.parse.parse_qs(urllib.parse.urlparse(url).query, keep_blank_values=True)
 
 
+# 读取input。
 def _read_input(html_path: str | None, url: str | None) -> str:
-    """Load the sessions page HTML supplied to the contract checker.
+    """参数：
+        html_path: 可选filesystem artifact 路径从a previous browser capture。
+        url: 待请求的 URL。
 
-    Args:
-        html_path: Optional filesystem artifact path from a previous browser capture.
-        url: Optional live local sessions URL to fetch during QA.
-
-    Returns:
-        Decoded HTML document used by downstream contract assertions.
+    返回：
+        read input 字符串。
     """
     if not html_path and not url:
         fail('provide --html or --url')
@@ -206,12 +170,11 @@ def _read_input(html_path: str | None, url: str | None) -> str:
     return Path(str(html_path)).read_text(encoding='utf-8')
 
 
+# 检查forbidden classes。
 def _check_forbidden_classes(nodes: list[Node], all_text: str) -> None:
-    """Check removed sessions-list controls and stale footer copy are absent.
-
-    Args:
-        nodes: Flat DOM inventory parsed from the sessions page.
-        all_text: Normalized page text used for copy-level assertions.
+    """参数：
+        nodes: nodes 参数。
+        all_text: 规范化 page text used用于copy-level assertions。
     """
     for forbidden_class in [
         'density-toggle',
@@ -227,12 +190,11 @@ def _check_forbidden_classes(nodes: list[Node], all_text: str) -> None:
     require('sorted by' not in all_text, "footer must not contain 'sorted by'")
 
 
+# 检查search 契约。
 def _check_search_contract(nodes: list[Node], all_text: str) -> None:
-    """Check the sessions-list search UI only promises Session ID lookup.
-
-    Args:
-        nodes: Flat DOM inventory parsed from the sessions page.
-        all_text: Normalized page text used for hint assertions.
+    """参数：
+        nodes: nodes 参数。
+        all_text: 规范化 page text used用于hint assertions。
     """
     search_inputs = [
         n
@@ -247,11 +209,10 @@ def _check_search_contract(nodes: list[Node], all_text: str) -> None:
     require(hint_ok, 'search must clearly say it only supports Session ID')
 
 
+# 检查sort 契约。
 def _check_sort_contract(nodes: list[Node]) -> None:
-    """Check sortable headers are label-clickable and expose one aria-sort.
-
-    Args:
-        nodes: Flat DOM inventory parsed from the sessions page.
+    """参数：
+        nodes: nodes 参数。
     """
     sortable_headers = find_by_class(nodes, 'sessions-th--sortable')
     expected_sort = ['Tokens', 'Rounds', 'Tools', 'Duration', 'Updated']
@@ -297,12 +258,11 @@ def _check_sort_contract(nodes: list[Node]) -> None:
     require(len(aria_sort) == 1, f'expected exactly one aria-sort, got {len(aria_sort)}')
 
 
+# 检查footer 契约。
 def _check_footer_contract(nodes: list[Node], all_text: str) -> None:
-    """Check footer pagination labels and hidden state preservation.
-
-    Args:
-        nodes: Flat DOM inventory parsed from the sessions page.
-        all_text: Normalized page text used for range and total assertions.
+    """参数：
+        nodes: nodes 参数。
+        all_text: 规范化 page text used用于range 和 total assertions。
     """
     footer = find_by_class(nodes, 'sessions-table-footer')
     require(footer, 'missing sessions table footer')
@@ -335,11 +295,10 @@ def _check_footer_contract(nodes: list[Node], all_text: str) -> None:
     )
 
 
+# 检查filter chip removal。
 def _check_filter_chip_removal(nodes: list[Node]) -> None:
-    """Check active filter chips expose deterministic removal controls.
-
-    Args:
-        nodes: Flat DOM inventory parsed from the sessions page.
+    """参数：
+        nodes: nodes 参数。
     """
     chips = find_by_class(nodes, 'ui-filter-chip')
     for chip in chips:
@@ -353,15 +312,13 @@ def _check_filter_chip_removal(nodes: list[Node]) -> None:
                 require(control.attrs.get('name'), 'filter chip remove button missing name')
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the sessions-list DOM contract checker CLI.
+    """返回：
+        进程退出码。
 
-    The QA gate calls this entry point with either --html for a saved artifact or
-    --url for a live local page. It prints PASS on success, prints FAIL and exits
-    1 on contract violations, and only reads the provided page input.
-
-    Returns:
-        Process exit code 0 when all sessions-list behavior checks pass.
+    说明：
+        1 on contract violations, 和 仅 读取 provided page 输入。
     """
     ap = argparse.ArgumentParser()
     ap.add_argument('--html')

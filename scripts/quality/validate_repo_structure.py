@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Validate installed hook, quality, spec, and runtime-data structure.
-
-This deterministic repo health gate is triggered by required quality runs and
-workflow/harness changes. It fails when required entry points are missing, when
-runtime/generated paths are tracked by git, or when database files enter source
-control. A git query failure is tolerated as an empty tracked-file list so direct
-local structure checks remain usable outside a git checkout.
-"""
+"""验证 installed hook, quality, spec, and 运行time-data structure。"""
 
 from __future__ import annotations
 
@@ -14,13 +7,13 @@ import subprocess
 import sys
 from pathlib import Path
 
-# Ensure repo root on sys.path when run directly.
+# 直接运行时确保 repo root 位于 sys.path。
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 
-# 01. Required paths
+# 01. 必需路径
 REQUIRED_PATHS = [
     '.claude/settings.json',
     '.claude/hooks/stop.sh',
@@ -52,7 +45,7 @@ REQUIRED_PATHS = [
 ]
 
 
-# 02. Runtime paths that must not be tracked by git
+# 02. 不得被 git tracked 的运行态路径
 GENERATED_PREFIXES = [
     'tmp/agent_logs/',
     '.agent/',
@@ -63,16 +56,13 @@ GENERATED_PREFIXES = [
 ]
 
 
-# 03. git tracked check
+# 维护Git tracked 文件。
 def git_tracked_files(root: Path) -> list[str]:
-    """Return git-tracked files under the repository root.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Repository root used as the git working directory.
-
-    Returns:
-        Tracked file paths relative to `root`. If git is unavailable or the
-        directory is not a checkout, returns an empty list.
+    返回：
+        Tracked 文件路径s relative到`root`. 如果 git 不可用 或 the。 目录 is 不 checkout, 返回 空 列表。
     """
     try:
         out = subprocess.check_output(
@@ -83,15 +73,13 @@ def git_tracked_files(root: Path) -> list[str]:
         return []
 
 
-# 04. Main validation
+# 验证输入契约。
 def validate(root: Path) -> list[str]:
-    """Validate required paths and forbidden tracked runtime artifacts.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Repository root to inspect.
-
-    Returns:
-        Blocking failure messages. An empty list means the repo structure gate passes.
+    返回：
+        阻断 失败项 messages. 空 列表 means repo structure gate passes。
     """
     failures: list[str] = []
 
@@ -105,7 +93,7 @@ def validate(root: Path) -> list[str]:
             item == prefix.rstrip('/') or item.startswith(prefix) for prefix in GENERATED_PREFIXES
         )
         if is_generated and item != 'tmp/.gitkeep':
-            # tmp/.gitkeep is the only allowed tracked file under tmp.
+            # tmp/.gitkeep 是 tmp 下唯一允许 tracked 的文件。
             failures.append(f'运行态/生成物不应进入 git tracked: {item}')
         if item.endswith(('.sqlite', '.sqlite3', '.db')):
             failures.append(f'数据库文件不应进入 git tracked: {item}')
@@ -113,12 +101,10 @@ def validate(root: Path) -> list[str]:
     return failures
 
 
-# 05. CLI
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the repository structure quality gate from the command line.
-
-    Returns:
-        Zero when the structure is valid, otherwise one.
+    """返回：
+        Zero 当 structure is 有效, 否则 one。
     """
     root = Path.cwd()
     failures = validate(root)

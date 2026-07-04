@@ -1,17 +1,10 @@
-"""Map quality targets to required gates and changed-file trigger patterns.
-
-Targets are named validation surfaces such as `python-standard` or `harness`.
-Each target owns an ordered baseline gate list, while trigger patterns narrow
-which gates run when callers provide changed files. Gates missing trigger
-patterns keep running as a safe default so incremental checks do not silently
-drop required coverage.
-"""
+"""提供 quality targets 脚本能力。"""
 
 from __future__ import annotations
 
 import re
 
-# 01. target -> required gate matrix (full baseline)
+# 01. 质量目标到必需门禁的全量基线矩阵。
 QUALITY_TARGETS: dict[str, list[str]] = {
     'python-standard': [
         'pythonFormat',
@@ -27,6 +20,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     'hook-runtime': [
         'settingsJson',
         'bashSyntax',
+        'scriptCommentLanguage',
         'pythonCompile',
         'noTestSkips',
         'languagePolicy',
@@ -42,6 +36,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     ],
     'harness': [
         'bashSyntax',
+        'scriptCommentLanguage',
         'pythonCompile',
         'noTestSkips',
         'languagePolicy',
@@ -111,9 +106,9 @@ TARGET_DOMINANCE: dict[str, dict[str, list[str]]] = {
 }
 
 
-# 02. gate -> file pattern map (incremental trigger)
-# A gate runs only when at least one changed file matches one of its patterns.
-# If callers omit changed files, such as manual --target runs, use the full baseline.
+# 02. gate 到文件 pattern 映射（incremental trigger）
+# 只有 changed file 命中 pattern 时，对应 gate 才会运行。
+# 调用方省略 changed files（如手动 --target）时使用 full baseline。
 GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
     'python-standard': {
         'pythonFormat': [
@@ -174,6 +169,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             '.qoder/hooks/**/*.sh',
             'scripts/hooks/**/*.sh',
             'scripts/agent_hooks/**/*.sh',
+        ],
+        'scriptCommentLanguage': [
+            '.claude/hooks/**/*.sh',
+            '.codex/hooks/**/*.sh',
+            'scripts/**/*.py',
+            'scripts/**/*.sh',
         ],
         'pythonCompile': [
             'scripts/claude_hooks/**/*.py',
@@ -272,6 +273,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
     'harness': {
         'bashSyntax': [
             'scripts/harness/**/*.sh',
+        ],
+        'scriptCommentLanguage': [
+            '.claude/hooks/**/*.sh',
+            '.codex/hooks/**/*.sh',
+            'scripts/**/*.py',
+            'scripts/**/*.sh',
         ],
         'pythonCompile': [
             'scripts/harness/**/*.py',
@@ -459,15 +466,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
 }
 
 
-# 03. path normalization and glob matching
+# 规范化注释文本。
 def _normalize(path: str) -> str:
-    """Normalize a repository path before comparing it with trigger patterns.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Input value for path.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     value = path.replace('\\', '/')
     while value.startswith('./'):
@@ -475,15 +480,14 @@ def _normalize(path: str) -> str:
     return value.strip('/')
 
 
+# 维护glob 匹配。
 def _glob_match(path: str, pattern: str) -> bool:
-    """Return whether a path matches the gate glob, including `**` directory spans.
+    """参数：
+        path: 待检查的路径。
+        pattern: 匹配用的 glob pattern。
 
-    Args:
-        path: Input value for path.
-        pattern: Input value for pattern.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     p = _normalize(path)
     pat = _normalize(pattern)
@@ -496,47 +500,43 @@ def _glob_match(path: str, pattern: str) -> bool:
     return bool(re.match(f'^{regex}$', p))
 
 
+# 维护pattern 匹配。
 def _pattern_matches(path: str, pattern: str) -> bool:
-    """Return whether a normalized path matches a quality gate pattern.
+    """参数：
+        path: 待检查的路径。
+        pattern: 匹配用的 glob pattern。
 
-    Args:
-        path: Input value for path.
-        pattern: Input value for pattern.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     return _glob_match(path, pattern)
 
 
-# 04. query functions
+# 维护必需 gates target。
 def required_gates_for_target(target: str) -> list[str]:
-    """Return the ordered baseline gates required for a quality target.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
 
-    Args:
-        target: Input value for target.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     return list(QUALITY_TARGETS.get(target, []))
 
 
+# 维护applicable gates target。
 def applicable_gates_for_target(target: str, changed_files: list[str] | None = None) -> list[str]:
-    """Return gates to run for a target after applying changed-file triggers.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
+        changed_files: 待检查的文件列表。
 
-    Args:
-        target: Input value for target.
-        changed_files: Input value for changed_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     if changed_files is None:
         return required_gates_for_target(target)
 
     gate_patterns = GATE_PATTERNS.get(target, {})
-    # Baseline gates without trigger rules still run as an incremental safety fallback.
+    # 没有 trigger rule 的 baseline gate 仍运行，作为增量安全兜底。
     all_gates = set(required_gates_for_target(target))
     applicable: set[str] = set()
 
@@ -546,7 +546,7 @@ def applicable_gates_for_target(target: str, changed_files: list[str] | None = N
                 applicable.add(gate)
                 break
 
-    # Keep undefined baseline gates active so new gates are not accidentally suppressed.
+    # 保持未定义 trigger 的 baseline gate 活跃，避免新 gate 被意外抑制。
     defined_gates = set(gate_patterns.keys())
     for gate in all_gates - defined_gates:
         applicable.add(gate)
@@ -554,32 +554,26 @@ def applicable_gates_for_target(target: str, changed_files: list[str] | None = N
     return [g for g in required_gates_for_target(target) if g in applicable]
 
 
-# 05. target validation
+# 验证target。
 def validate_target(target: str) -> None:
-    """Raise when a caller requests an unknown quality target.
-
-    Args:
-        target: Input value for target.
-
-    Raises:
-        ValueError: Raised when validation fails.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
     """
     if target not in QUALITY_TARGETS:
         raise ValueError(f'Unknown quality target: {target}')
 
 
-# 06. dominance 去重
+# 维护有效 targets。
 def effective_targets(targets: list[str]) -> list[str]:
-    """Apply dominance rules to remove redundant quality targets.
-
-    当 java-src 在列表中时，java-build 会被移除，因为 java-src 的 Gradle
-    检查已经覆盖了 java-build 需要的全部检查。
-
-    Args:
+    """参数：
         targets: 初始质量目标列表。
 
-    Returns:
+    返回：
         去重后的目标列表，保留原始顺序。
+
+    说明：
+        当 java-src 在列表中时，java-构建 会被移除，因为 java-src 的 Gradle。
+        检查已经覆盖了 java-构建 需要的全部检查。
     """
     result: list[str] = list(targets)
     for t in targets:
@@ -590,15 +584,13 @@ def effective_targets(targets: list[str]) -> list[str]:
     return result
 
 
-# 07. 并行元数据查询
+# 维护target 并行 metadata。
 def target_parallel_meta(target: str) -> dict[str, object]:
-    """Return parallel execution metadata for a quality target.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
 
-    Args:
-        target: Quality target name.
-
-    Returns:
-        Metadata dict with parallel_safe, exclusive_resources, and timeout.
+    返回：
+        结果映射。
     """
     return dict(
         TARGET_META.get(target, {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300})

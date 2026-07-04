@@ -1,12 +1,5 @@
 #!/usr/bin/env python3
-"""Report whether the current Claude session wrote files.
-
-The stop hook calls this script with Claude hook JSON on stdin. It reads the session id,
-checks ``changed-files.jsonl``, and prints one token: ``no_changes`` for read-only
-sessions, ``has_changes`` when matching write evidence exists, or ``unknown`` when input
-cannot identify a session. Unknown is conservative and should be treated as changed by
-callers.
-"""
+"""提供 write session 检查 脚本能力。"""
 
 from __future__ import annotations
 
@@ -14,49 +7,50 @@ import json
 import sys
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[3]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+from scripts.quality import changed_files as changed_file_utils  # noqa: E402
+
+
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Print write status for the current hook session.
-
-    The function reads stdin and local JSONL evidence, then writes exactly one status
-    token to stdout. JSON parse failures in evidence are ignored so a corrupt line does
-    not crash the stop hook.
+    """说明：
+        token到 stdout. JSON 解析 失败项 in evidence are ignored so corrupt 行 does。
     """
-    repo_root = Path(__file__).resolve().parent.parent.parent.parent
-    changed_file = repo_root / 'tmp' / 'agent_logs' / 'current' / 'changed-files.jsonl'
-
     # 尝试从 stdin 读取 session ID (Claude hook 传入的 JSON)。
-    session_id = _read_session_id_from_stdin()
+    session_id, agent_id = _read_identity_from_stdin()
 
     if not session_id:
         print('unknown')
         return
 
-    if not changed_file.exists() or changed_file.stat().st_size == 0:
+    identity = runtime_paths.identity_from_values(session_id=session_id, agent_id=agent_id or '')
+    changed_paths = [
+        path / 'changed-files.jsonl'
+        for path in runtime_paths.session_log_dirs(
+            REPO_ROOT,
+            identity,
+            include_agents=not identity.is_agent,
+        )
+    ]
+    files = changed_file_utils.read_recorded_changed_files_from_paths(
+        changed_paths,
+        session_id,
+        agent_id=agent_id,
+    )
+    if not files:
         print('no_changes')
         return
-
-    for raw_line in changed_file.read_text(encoding='utf-8').splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-            if record.get('sessionId') == session_id:
-                print('has_changes')
-                return
-        except json.JSONDecodeError:
-            continue
-
-    print('no_changes')
+    print('has_changes')
 
 
+# 读取session id stdin。
 def _read_session_id_from_stdin() -> str | None:
-    """Extract the Claude session id from stdin JSON.
-
-    Returns:
-        Session id when stdin contains a JSON object with ``session_id`` or
-        ``sessionId``; otherwise ``None``.
+    """返回：
+        从 stdin 读取的 session id 字符串。
     """
     try:
         text = sys.stdin.read()
@@ -69,6 +63,25 @@ def _read_session_id_from_stdin() -> str | None:
         return sid if sid else None
     except Exception:
         return None
+
+
+# 读取identity stdin。
+def _read_identity_from_stdin() -> tuple[str | None, str | None]:
+    """返回：
+        结果 tuple。
+    """
+    try:
+        text = sys.stdin.read()
+        if not text or not text.strip():
+            return None, None
+        data = json.loads(text)
+        if not isinstance(data, dict):
+            return None, None
+        sid = data.get('session_id') or data.get('sessionId') or ''
+        aid = data.get('agent_id') or data.get('agentId') or ''
+        return (sid if sid else None), (aid if aid else None)
+    except Exception:
+        return None, None
 
 
 if __name__ == '__main__':

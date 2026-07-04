@@ -4,8 +4,8 @@
 # 供 release 发布和消费者验证使用。
 #
 # 用法：
-#   scripts/release/generate-checksums.sh <dist-dir>
-#   scripts/release/generate-checksums.sh <dist-dir> --verify
+# 校验脚本运行前置条件和输入输出边界。
+# 校验脚本运行前置条件和输入输出边界。
 #
 # <dist-dir> 包含 *.zip / *.tar.gz 发行文件的目录。
 # --verify  读取目录中的 MANIFEST.SHA256 并逐一校验。

@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""Deterministic quality gate runner.
-
-Run quality gates for the selected target and write a structured summary artifact.
-
-Usage:
-    python3 scripts/quality/run_quality_gate.py --target session-detail --change-id fix-xyz
-    python3 scripts/quality/run_quality_gate.py --target hook-runtime \
-        --change-id hook-runtime-selftest
-"""
+"""运行确定性的 quality gate，并写入结构化 summary artifact。"""
 
 from __future__ import annotations
 
@@ -30,12 +22,11 @@ import urllib.request
 from functools import lru_cache
 from pathlib import Path
 
-# Ensure repo_root is importable when this file is executed directly.
+# 确保repo_root is importable 当 this 文件 is executed directly。
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-# Imports depend on the direct-execution path bootstrap above.
 from scripts.harness.python_env import resolve_python  # noqa: E402
 from scripts.quality.quality_artifact import (  # noqa: E402
     BLOCKED,
@@ -66,15 +57,14 @@ FIXTURE_SERVER_READY_ATTEMPTS = 30
 FIXTURE_SERVER_READY_TIMEOUT_SECONDS = 15
 
 
+# 维护relative existing 文件。
 def _relative_existing_files(repo_root: Path, patterns: list[str]) -> list[str]:
-    """Return existing files matching repository-relative glob patterns.
+    """参数：
+        repo_root: 仓库根目录。
+        patterns: 匹配用的 glob pattern 列表。
 
-    Args:
-        repo_root: Repository root used to resolve glob patterns.
-        patterns: Repository-relative glob patterns.
-
-    Returns:
-        Stable, de-duplicated repository-relative file paths.
+    返回：
+        稳定排序且去重后的 repository-relative 文件路径列表。
     """
     result: list[str] = []
     seen: set[str] = set()
@@ -89,18 +79,13 @@ def _relative_existing_files(repo_root: Path, patterns: list[str]) -> list[str]:
     return result
 
 
-# 01. Command execution helpers
-
-
+# 维护Python 候选项。
 def _python_candidates(repo_root: Path) -> list[str]:
-    """Build ordered Python executable candidates for quality gate commands.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root used to locate the project virtualenv.
-
-    Returns:
-        De-duplicated executable names or paths, preferring explicit
-        environment overrides before local virtualenv and system Python.
+    返回：
+        结果列表。
     """
     candidates: list[str] = []
 
@@ -133,17 +118,15 @@ def _python_candidates(repo_root: Path) -> list[str]:
     return result
 
 
+# 维护Python supports modules。
 def _python_supports_modules(executable: str, repo_root: Path, modules: tuple[str, ...]) -> bool:
-    """Check whether a Python executable can import required gate modules.
+    """参数：
+        executable: 待探测的 Python executable 名称或路径。
+        repo_root: subprocess 工作目录使用的 repo root。
+        modules: 需要导入验证的 module 名称。
 
-    Args:
-        executable: Python executable name or path to probe.
-        repo_root: Repository root used for subprocess working directory and
-            ``PYTHONPATH``.
-        modules: Import module names required by the selected gate.
-
-    Returns:
-        True when the subprocess imports every module before timeout.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     if shutil.which(executable) is None:
         return False
@@ -173,33 +156,32 @@ def _python_supports_modules(executable: str, repo_root: Path, modules: tuple[st
         )
     except Exception:
         return False
+# 解析和 cache the project Python用于repeated gate 命令。
     return proc.returncode == 0
 
 
+# 维护project Python cached。
 @lru_cache(maxsize=8)
 def _project_python_cached(repo_root: str, modules: tuple[str, ...]) -> str:
-    """Resolve and cache the project Python for repeated gate commands.
+    """参数：
+        repo_root: 仓库根目录。
+        modules: 需要导入验证的 module 名称。
 
-    Args:
-        repo_root: Repository root serialized for cache stability.
-        modules: Required modules included in the cache key.
-
-    Returns:
-        Python executable path selected by the shared environment resolver.
+    返回：
+        项目 Python executable 路径。
     """
     del modules
     return resolve_python(Path(repo_root))
 
 
+# 维护project Python。
 def _project_python(repo_root: Path, *, dev: bool = False) -> str:
-    """Resolve the Python executable used by subprocess quality gates.
+    """参数：
+        repo_root: 仓库根目录。
+        dev: 是否需要 pytest 等开发依赖。
 
-    Args:
-        repo_root: Repository root passed to the environment resolver.
-        dev: Whether pytest and other development dependencies are required.
-
-    Returns:
-        Executable path for the project environment.
+    返回：
+        项目环境使用的 executable 路径。
     """
     modules = ('jinja2', 'markdown_it')
     if dev:
@@ -207,11 +189,10 @@ def _project_python(repo_root: Path, *, dev: bool = False) -> str:
     return _project_python_cached(str(repo_root), modules)
 
 
+# 维护Playwright workers。
 def _playwright_workers() -> int:
-    """Return the minimum parallelism for Playwright quality gates.
-
-    Returns:
-        Worker count from environment overrides, never below the gate minimum.
+    """返回：
+        从环境变量读取的 worker 数量，且不低于 gate 最小值。
     """
     raw = (
         os.environ.get('SESSION_BROWSER_PLAYWRIGHT_WORKERS')
@@ -226,16 +207,14 @@ def _playwright_workers() -> int:
     return PLAYWRIGHT_MIN_WORKERS
 
 
+# 维护tail 文件。
 def _tail_file(path: Path, max_chars: int = 2000) -> str:
-    """Read the tail of a log file for fixture-server failure diagnostics.
+    """参数：
+        path: subprocess gate fixture 产生的日志文件路径。
+        max_chars: 摘要中包含的最大尾部字符数。
 
-    Args:
-        path: Log file path written by a subprocess gate fixture.
-        max_chars: Maximum trailing characters included in the summary.
-
-    Returns:
-        Log tail with surrounding whitespace removed, or an empty string when
-        the file cannot be read.
+    返回：
+        去除首尾空白后的日志尾部；无法读取时返回空字符串。
     """
     try:
         text = path.read_text(encoding='utf-8', errors='replace')
@@ -247,26 +226,24 @@ def _tail_file(path: Path, max_chars: int = 2000) -> str:
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
 
 
+# 维护去除 ANSI。
 def _strip_ansi(text: str) -> str:
-    """Remove ANSI color escapes before parsing quality gate output.
+    """参数：
+        text: 原始 subprocess 输出。
 
-    Args:
-        text: Raw subprocess output.
-
-    Returns:
-        Output text without terminal color sequences.
+    返回：
+        不含 terminal color sequences 的输出文本。
     """
     return _ANSI_RE.sub('', text)
 
 
+# 判断是否Playwright 命令。
 def _is_playwright_command(cmd: list[str]) -> bool:
-    """Detect Playwright test commands that need gate-specific output parsing.
+    """参数：
+        cmd: gate 命令矩阵中的 subprocess 命令列表。
 
-    Args:
-        cmd: Subprocess command list from the gate command matrix.
-
-    Returns:
-        True when the command starts with ``npx playwright test``.
+    返回：
+        命令以 ``npx playwright test`` 开头时返回 true。
     """
     return (
         len(cmd) >= PLAYWRIGHT_COMMAND_MIN_PARTS
@@ -275,22 +252,27 @@ def _is_playwright_command(cmd: list[str]) -> bool:
     )
 
 
+# 维护Playwright skip count。
 def _playwright_skip_count(output: str) -> int:
-    """Return Playwright's reported skipped test count from command output.
+    """参数：
+        output: 原始或 ANSI-colored Playwright 输出。
 
-    Args:
-        output: Raw or ANSI-colored Playwright output.
-
-    Returns:
-        Sum of all ``N skipped`` counters reported by Playwright.
+    返回：
+        Playwright 输出中所有 ``N skipped`` 计数的总和。
     """
     clean = _strip_ansi(output)
     matches = re.findall(r'\b(\d+)\s+skipped\b', clean)
     return sum(int(value) for value in matches)
 
 
+# 判断是否pytest 命令。
 def _is_pytest_command(cmd: list[str]) -> bool:
-    """Detect pytest commands whose skipped outcome must fail selected gates."""
+    """参数：
+        cmd: 待执行的命令。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     if not cmd:
         return False
     executable = Path(cmd[0]).name
@@ -299,23 +281,28 @@ def _is_pytest_command(cmd: list[str]) -> bool:
     return len(cmd) >= 3 and executable.startswith('python') and cmd[1:3] == ['-m', 'pytest']
 
 
+# 维护pytest skip count。
 def _pytest_skip_count(output: str) -> int:
-    """Return pytest's reported skipped test count from command output."""
+    """参数：
+        output: output 参数。
+
+    返回：
+        进程退出码。
+    """
     clean = _strip_ansi(output)
     matches = re.findall(r'\b(\d+)\s+skipped\b', clean)
     return sum(int(value) for value in matches)
 
 
+# 维护去除 allowed warning noise。
 def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str]) -> str:
-    """Remove known non-test warning metadata before warning enforcement.
+    """参数：
+        output: 选中 gate 的原始 subprocess 输出。
+        gate_name: 用于应用 gate 专用 allowlist 噪声的名称。
+        cmd: 用于识别 Playwright 输出的命令列表。
 
-    Args:
-        output: Raw subprocess output from a selected gate.
-        gate_name: Gate name used to apply gate-specific allowlisted noise.
-        cmd: Command list used to detect Playwright output.
-
-    Returns:
-        Output with accepted warning-like metadata removed.
+    返回：
+        已移除 allowlist 警告-like metadata 的输出。
     """
     clean = _strip_ansi(output)
 
@@ -364,22 +351,21 @@ def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str])
             lines.append(line)
         return '\n'.join(lines)
 
+# 返回一个失败项 reason 当 a selected gate reports warning。
     return clean
 
 
+# 记录触发后的 warning 原因。
 def _warning_after_trigger_reason(
     output: str, *, gate_name: str = '', cmd: list[str] | None = None
 ) -> str | None:
-    """Return a failure reason when a selected gate reports warnings.
+    """参数：
+        output: Subprocess 输出用于a gate that was actually triggered。
+        gate_name: gate 名称。
+        cmd: 可选命令 列表 used到detect Playwright 输出。
 
-    Args:
-        output: Subprocess output for a gate that was actually triggered.
-        gate_name: Gate name used for allowlisted warning noise.
-        cmd: Optional command list used to detect Playwright output.
-
-    Returns:
-        Human-readable warning failure reason, or ``None`` when the cleaned
-        output is warning-free.
+    返回：
+        人类可读的 警告 失败项 reason, 或 ``None`` 当 cleaned。 输出 is 警告-free。
     """
     clean = _strip_allowed_warning_noise(output, gate_name=gate_name, cmd=cmd or [])
     warning_count = 0
@@ -420,8 +406,15 @@ def _warning_after_trigger_reason(
     return None
 
 
+# 审计network 阻断 reason。
 def _audit_network_block_reason(output: str, *, gate_name: str) -> str | None:
-    """Detect pip-audit failures caused by external network/proxy transport."""
+    """参数：
+        output: output 参数。
+        gate_name: gate 名称。
+
+    返回：
+        network 阻断审计原因字符串。
+    """
     if gate_name != 'pythonAudit':
         return None
     clean = _strip_ansi(output)
@@ -437,17 +430,17 @@ def _audit_network_block_reason(output: str, *, gate_name: str) -> str | None:
     )
     if any(marker in clean for marker in network_markers):
         return 'pip-audit vulnerability service/network unavailable'
+# 检查是否the Java HIFI fixture sessions are 可用 on a server。
     return None
 
 
+# 维护fixture session 可用。
 def _fixture_session_available(base_url: str) -> bool:
-    """Check whether the Java HIFI fixture sessions are available on a server.
+    """参数：
+        base_url: base url 参数。
 
-    Args:
-        base_url: Candidate session-browser server URL.
-
-    Returns:
-        True when dashboard, short fixture, and long fixture routes respond with HTTP 200.
+    返回：
+        当dashboard, short fixture, 和 long fixture routes respond带HTTP 200.时返回 true。
     """
     required_paths = (
         '/dashboard',
@@ -461,11 +454,15 @@ def _fixture_session_available(base_url: str) -> bool:
             return False
         if resp.status != HTTP_OK:
             return False
+# 合并long-session fixture data into a copied HIFI fixture 目录。
     return True
 
 
+# 合并long fixture 数据。
 def _merge_long_fixture_data(data_dir: Path) -> None:
-    """Merge long-session fixture data into a copied HIFI fixture directory."""
+    """参数：
+        data_dir: fixture server 使用的临时数据目录。
+    """
     long_root = REPO_ROOT / 'tests' / 'fixtures' / 'session_hifi_long_fixture'
     if not long_root.exists():
         return
@@ -486,32 +483,33 @@ def _merge_long_fixture_data(data_dir: Path) -> None:
         existing = history_file.read_text(encoding='utf-8') if history_file.exists() else ''
         history_file.write_text(
             existing + long_history.read_text(encoding='utf-8'), encoding='utf-8'
+# 解析 Gradle installDist 生成的 Java CLI launcher 路径。
         )
 
 
+# 维护Java launcher。
 def _java_launcher() -> Path | None:
-    """Resolve the Gradle-installed Java CLI launcher path.
-
-    Returns:
-        Path to the ``app-cli`` launcher script, or ``None`` when not built.
+    """返回：
+        路径到 ``app-cli`` launcher script, 或 ``None`` 当 不 built。
     """
     launcher = REPO_ROOT / 'java' / 'app-cli' / 'build' / 'install' / 'app-cli' / 'bin' / 'app-cli'
+# 直接读取 fixture JSONL 文件并写入 SQLite，绕过 Java scan 归一化引擎
+# 尚未填充 session 元数据的已知限制。
     return launcher if launcher.exists() else None
 
 
+# 维护填充 fixture index。
 def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
-    """Populate the temporary SQLite index from HIFI fixture JSONL data.
+    """参数：
+        data_dir: fixture server 使用的临时数据目录。
+        index_dir: 包含 index.sqlite 的临时 index 目录。
 
-    直接读取 fixture JSONL 文件并写入 SQLite，绕过 Java scan 归一化引擎
-    尚未填充 session 元数据的已知限制。
+    返回：
+        populate fixture index 字符串。
 
-    Args:
-        data_dir: Temporary Claude data directory copied from test fixtures.
-        index_dir: Temporary index directory where the SQLite database is created.
-
-    Returns:
-        ``None`` on success, otherwise a failure reason consumed by the gate
-        summary.
+    说明：
+        直接读取 fixture JSONL 文件并写入 SQLite，绕过 Java 扫描 归一化引擎。
+        尚未填充 session 元数据的已知限制。
     """
     sqlite_path = index_dir / 'index.sqlite'
     try:
@@ -543,15 +541,10 @@ def _populate_fixture_index(data_dir: Path, index_dir: Path) -> str | None:
     return None
 
 
+# 调整fixture 日期 近期。
 def _shift_fixture_dates_to_recent(conn: sqlite3.Connection) -> None:
-    """Shift fixture session dates so the most recent session falls within the dashboard query window.
-
-    Dashboard queries filter sessions from the last 30 days. Static fixture dates become stale over
-    time, causing chart data to be empty. This function shifts all dates forward so the latest
-    ``ended_at`` is approximately 2 days ago, keeping fixture data inside the query window.
-
-    Args:
-        conn: Active SQLite connection with fixture sessions already inserted.
+    """参数：
+        conn: 打开的 SQLite connection。
     """
     from datetime import datetime, timezone, timedelta
 
@@ -578,13 +571,13 @@ def _shift_fixture_dates_to_recent(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+# 加载fixture history。
 def _load_fixture_history(data_dir: Path) -> dict[str, dict[str, object]]:
-    """Load fixture history metadata keyed by session id.
+    """参数：
+        data_dir: fixture server 使用的临时数据目录。
 
-    The Python/main fixture server uses ``history.jsonl`` to map synthetic
-    HIFI sessions into multiple projects.  The Java fixture indexer must honor
-    the same metadata; otherwise Projects pages collapse into a single
-    directory-name project and visual smoke cannot catch main/java drift.
+    返回：
+        结果映射。
     """
     history_file = data_dir / 'history.jsonl'
     if not history_file.exists():
@@ -604,19 +597,32 @@ def _load_fixture_history(data_dir: Path) -> dict[str, dict[str, object]]:
     return result
 
 
+# 维护fixture event timestamp 秒。
 def _fixture_event_timestamp_seconds(event: dict) -> float | None:
-    """Parse the top-level Claude fixture timestamp into epoch seconds."""
+    """参数：
+        event: event 参数。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
     value = event.get('timestamp')
     if not isinstance(value, str) or not value:
         return None
     try:
         return _dt.datetime.fromisoformat(value.replace('Z', '+00:00')).timestamp()
     except ValueError:
+# 返回true用于user prompt 行, excluding pure tool_result 行。
         return None
 
 
+# 维护fixture 用户 has 文本。
 def _fixture_user_has_text(event: dict) -> bool:
-    """Return True for user prompt rows, excluding pure tool_result rows."""
+    """参数：
+        event: event 参数。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     msg = event.get('message', {})
     if not isinstance(msg, dict):
         return False
@@ -633,8 +639,14 @@ def _fixture_user_has_text(event: dict) -> bool:
     return False
 
 
+# 维护fixture first 用户 标题。
 def _fixture_first_user_title(events: list[dict]) -> str:
-    """Derive fixture title from the first user prompt, matching main parser."""
+    """参数：
+        events: events 参数。
+
+    返回：
+        fixture 中首个用户标题字符串。
+    """
     for event in events:
         if event.get('type') != 'user':
             continue
@@ -659,8 +671,14 @@ def _fixture_first_user_title(events: list[dict]) -> str:
     return ""
 
 
+# 维护fixture 序列化 tool result。
 def _fixture_stringify_tool_result(value: object) -> str:
-    """Match the main fixture parser's tool-result text normalization."""
+    """参数：
+        value: value 参数。
+
+    返回：
+        fixture stringify tool result 字符串。
+    """
     if isinstance(value, list):
         parts: list[str] = []
         for item in value:
@@ -675,11 +693,19 @@ def _fixture_stringify_tool_result(value: object) -> str:
         return '\n'.join(part for part in parts if part)
     if isinstance(value, dict):
         return json.dumps(value, ensure_ascii=False)
+# Detect obvious tool runtime 失败项用于Java HIFI fixture parity。
     return str(value)
 
 
+# 维护fixture tool result looks 失败。
 def _fixture_tool_result_looks_failed(result_content: object, tool_name: str = '') -> bool:
-    """Detect obvious tool runtime failures for Java HIFI fixture parity."""
+    """参数：
+        result_content: tool result 内容。
+        tool_name: tool name 参数。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     text = _fixture_stringify_tool_result(result_content).lower()
     if not text:
         return False
@@ -730,8 +756,14 @@ def _fixture_tool_result_looks_failed(result_content: object, tool_name: str = '
     )
 
 
+# 维护fixture usage 总量。
 def _fixture_usage_totals(events: list[dict]) -> tuple[int, int, int, int]:
-    """Sum assistant usage tokens as (output, fresh, cache_read, cache_write)."""
+    """参数：
+        events: events 参数。
+
+    返回：
+        结果 tuple。
+    """
     output_tokens = 0
     fresh_input_tokens = 0
     cache_read_tokens = 0
@@ -750,8 +782,14 @@ def _fixture_usage_totals(events: list[dict]) -> tuple[int, int, int, int]:
     return output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens
 
 
+# 维护fixture subagent usage 总量。
 def _fixture_subagent_usage_totals(jsonl_file: Path) -> tuple[int, int, int, int]:
-    """Include subagent token totals so Java fixture matches main HIFI data."""
+    """参数：
+        jsonl_file: jsonl file 参数。
+
+    返回：
+        结果 tuple。
+    """
     totals = [0, 0, 0, 0]
     subagents_dir = jsonl_file.with_suffix('') / 'subagents'
     for subagent_file in sorted(subagents_dir.glob('*.jsonl')):
@@ -765,14 +803,14 @@ def _fixture_subagent_usage_totals(jsonl_file: Path) -> tuple[int, int, int, int
             continue
         for idx, value in enumerate(_fixture_usage_totals(events)):
             totals[idx] += value
+# 创建the minimum SQLite schema用于 fixture server。
     return tuple(totals)  # type: ignore[return-value]
 
 
+# 确保fixture schema。
 def _ensure_fixture_schema(conn: sqlite3.Connection) -> None:
-    """Create the minimum SQLite schema for the fixture server.
-
-    Args:
-        conn: Active SQLite connection.
+    """参数：
+        conn: 打开的 SQLite connection。
     """
     conn.executescript("""
         CREATE TABLE IF NOT EXISTS schema_migrations (
@@ -841,6 +879,7 @@ def _ensure_fixture_schema(conn: sqlite3.Connection) -> None:
     """)
 
 
+# 维护插入 fixture session。
 def _insert_fixture_session(
     conn: sqlite3.Connection,
     data_dir: Path,
@@ -849,16 +888,16 @@ def _insert_fixture_session(
     artifact_dir: Path,
     fixture_history: dict[str, dict[str, object]],
 ) -> int:
-    """Parse a single fixture JSONL file and insert a session row.
+    """参数：
+        conn: 打开的 SQLite connection。
+        data_dir: fixture data root 目录。
+        project_dir: Project 目录 containing JSONL 文件。
+        jsonl_file: session JSONL 文件到解析。
+        artifact_dir: artifact dir 参数。
+        fixture_history: fixture history 参数。
 
-    Args:
-        conn: Active SQLite connection.
-        data_dir: Fixture data root directory.
-        project_dir: Project directory containing the JSONL file.
-        jsonl_file: Session JSONL file to parse.
-
-    Returns:
-        1 on success, 0 on skip (empty or unreadable file).
+    返回：
+        1 on success, 0 on skip (空 或 un读取able 文件)。
     """
     events: list[dict] = []
     with open(jsonl_file, encoding='utf-8') as fh:
@@ -975,9 +1014,11 @@ def _insert_fixture_session(
         ),
     )
     _insert_fixture_artifact(conn, artifact_dir, jsonl_file, events, session_key, file_stat, now)
+# 写入和 associate a deterministic 规范化 artifact用于fixture sessions。
     return 1
 
 
+# 维护插入 fixture artifact。
 def _insert_fixture_artifact(
     conn: sqlite3.Connection,
     artifact_dir: Path,
@@ -987,7 +1028,15 @@ def _insert_fixture_artifact(
     file_stat: os.stat_result,
     now: float,
 ) -> None:
-    """Write and associate a deterministic normalized artifact for fixture sessions."""
+    """参数：
+        conn: 打开的 SQLite connection。
+        artifact_dir: artifact dir 参数。
+        jsonl_file: jsonl file 参数。
+        events: events 参数。
+        session_key: session key 参数。
+        file_stat: file stat 参数。
+        now: now 参数。
+    """
     artifact = _build_fixture_normalized_artifact(jsonl_file, events)
     payload = json.dumps(artifact, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
     content_hash = hashlib.sha256(payload).hexdigest()
@@ -1009,18 +1058,30 @@ def _insert_fixture_artifact(
             now,
             now,
         ),
+# 构建the subset of 规范化 artifact fields consumed by Java detail pages。
     )
 
 
+# 构建fixture normalized artifact。
 def _build_fixture_normalized_artifact(jsonl_file: Path, events: list[dict]) -> dict:
-    """Build the subset of normalized artifact fields consumed by Java detail pages."""
+    """参数：
+        jsonl_file: jsonl file 参数。
+        events: events 参数。
+
+    返回：
+        结果映射。
+    """
     calls: list[dict] = []
     tool_executions: list[dict] = []
     tool_declared_by: dict[str, str] = {}
     pending_results: list[dict] = []
     main_call_index = 0
 
+    # 追加tool 执行 call。
     def append_tool_executions_for_call(call_id: str) -> None:
+        """参数：
+            call_id: call id 参数。
+        """
         nonlocal pending_results
         remaining = []
         for result in pending_results:
@@ -1079,7 +1140,6 @@ def _build_fixture_normalized_artifact(jsonl_file: Path, events: list[dict]) -> 
             )
         )
 
-    # Tool results without a later assistant response still represent executions.
     for result in pending_results:
         tool_id = result.get('tool_call_id') or result.get('tool_use_id') or ''
         declared_by = tool_declared_by.get(tool_id, '')
@@ -1129,6 +1189,7 @@ def _build_fixture_normalized_artifact(jsonl_file: Path, events: list[dict]) -> 
     }
 
 
+# 维护fixture call。
 def _fixture_call(
     *,
     call_id: str,
@@ -1141,6 +1202,20 @@ def _fixture_call(
     usage: dict,
     tool_call_ids: list[str],
 ) -> dict:
+    """参数：
+        call_id: call id 参数。
+        call_index: call index 参数。
+        scope: scope 参数。
+        parent_call_id: parent call id 参数。
+        parent_tool_call_id: 父级 tool call id。
+        model: model 参数。
+        timestamp: timestamp 参数。
+        usage: usage 参数。
+        tool_call_ids: tool call ids 参数。
+
+    返回：
+        结果映射。
+    """
     fresh = int(usage.get('input_tokens') or 0)
     cache_read = int(usage.get('cache_read_input_tokens') or 0)
     cache_write = int(usage.get('cache_creation_input_tokens') or 0)
@@ -1165,12 +1240,22 @@ def _fixture_call(
         },
         'request': {'toolResultIds': []},
         'response': {'toolCallIds': tool_call_ids},
+# 构建subagent calls。
     }
 
 
+# 构建subagent call。
 def _build_subagent_calls(
     jsonl_file: Path, tool_declared_by: dict[str, str], start_index: int
 ) -> list[dict]:
+    """参数：
+        jsonl_file: jsonl file 参数。
+        tool_declared_by: 声明 tool 的来源。
+        start_index: start index 参数。
+
+    返回：
+        结果列表。
+    """
     subagent_calls: list[dict] = []
     subagent_root = jsonl_file.with_suffix('') / 'subagents'
     if not subagent_root.is_dir():
@@ -1219,7 +1304,14 @@ def _build_subagent_calls(
     return subagent_calls
 
 
+# 维护tool name id。
 def _tool_name_from_id(tool_id: str) -> str:
+    """参数：
+        tool_id: tool id 参数。
+
+    返回：
+        tool name from id 字符串。
+    """
     if 'agent' in tool_id.lower():
         return 'Agent'
     if 'bash' in tool_id.lower():
@@ -1231,20 +1323,25 @@ def _tool_name_from_id(tool_id: str) -> str:
     return 'Tool'
 
 
+# 维护subagent id tool。
 def _subagent_id_for_tool(jsonl_file: Path, tool_id: str) -> str:
+    """参数：
+        jsonl_file: jsonl file 参数。
+        tool_id: tool id 参数。
+
+    返回：
+        subagent id for tool 字符串。
+    """
     if not tool_id:
         return ''
     subagent_path = jsonl_file.with_suffix('') / 'subagents' / f'{tool_id}.jsonl'
     return tool_id if subagent_path.exists() else ''
 
 
+# 维护启动 fixture server。
 def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | None, str | None]:
-    """Start a temporary fixture server with HIFI test data.
-
-    Returns:
-        Tuple of process, base URL, temp directory, and error string. On
-        startup failure the process, URL, and temp directory are ``None`` and
-        the error explains why fixture-dependent gates are blocked.
+    """返回：
+        结果 tuple。
     """
     fixture_root = REPO_ROOT / 'tests' / 'fixtures' / 'session_hifi_fixture'
     if not fixture_root.exists():
@@ -1263,7 +1360,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
         shutil.rmtree(tmpdir_path, ignore_errors=True)
         return None, None, None, populate_error
 
-    # Find a free port for the temporary server.
+    # 查找a free port用于 temporary server。
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         s.bind(('127.0.0.1', 0))
         s.listen(1)
@@ -1301,7 +1398,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     finally:
         log_handle.close()
 
-    # Wait for the server to start.
+    # 等待用于 the server到start。
     base_url = f'http://127.0.0.1:{port}'
     for _ in range(FIXTURE_SERVER_READY_ATTEMPTS):
         try:
@@ -1331,15 +1428,15 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
         None,
         f'fixture server did not become ready within {FIXTURE_SERVER_READY_TIMEOUT_SECONDS}s: '
         f'{output}',
+# 停止the fixture server 和 clean up temp 文件。
     )
 
 
+# 维护stop fixture server。
 def _stop_fixture_server(proc: subprocess.Popen, tmpdir: str | None) -> None:
-    """Stop the fixture server and clean up temp files.
-
-    Args:
-        proc: Fixture server process started by ``_start_fixture_server``.
-        tmpdir: Temporary directory to remove after the process stops.
+    """参数：
+        proc: proc 参数。
+        tmpdir: tmpdir 参数。
     """
     if tmpdir:
         shutil.rmtree(tmpdir, ignore_errors=True)
@@ -1349,9 +1446,11 @@ def _stop_fixture_server(proc: subprocess.Popen, tmpdir: str | None) -> None:
             proc.wait(timeout=5)
         except Exception:
             proc.kill()
+# 运行one gate 命令 和 normalize its 结果 into a gate detail。
             proc.wait()
 
 
+# 运行cmd。
 def run_cmd(
     name: str,
     cmd: list[str],
@@ -1359,18 +1458,15 @@ def run_cmd(
     required: bool = True,
     env_overrides: dict[str, str] | None = None,
 ) -> GateDetail:
-    """Run one gate command and normalize its result into a gate detail.
+    """参数：
+        name: 条目名称。
+        cmd: Subprocess 命令到execute。
+        cwd: repo root用于命令 execution。
+        required: 是否缺失 命令 should be treated as BLOCKED。
+        env_overrides: 可选environment 值用于fixture 或 trigger data。
 
-    Args:
-        name: Gate name used in the summary artifact.
-        cmd: Subprocess command to execute.
-        cwd: Repository root for command execution.
-        required: Whether missing command should be treated as BLOCKED.
-        env_overrides: Optional environment values for fixture or trigger data.
-
-    Returns:
-        Structured gate detail containing status, command, duration, and
-        truncated output. The command is the only side effect.
+    返回：
+        结构化 gate detail containing 状态, 命令, duration, 和。 t运行cated 输出. 命令 is 仅 side effect。
     """
     started = time.time()
     if not cmd or shutil.which(cmd[0]) is None:
@@ -1383,17 +1479,15 @@ def run_cmd(
             output=f'命令不存在: {cmd[0] if cmd else "<empty>"}',
         )
 
-    # Playwright tests should finish quickly after parallelization.
     timeout = (
         PLAYWRIGHT_TIMEOUT_SECONDS if cmd[:2] == ['npx', 'playwright'] else DEFAULT_TIMEOUT_SECONDS
     )
 
-    # Build the subprocess environment with optional overrides.
+    # 构建the subprocess environment带可选 overrides。
     run_env = os.environ.copy()
     if env_overrides:
         run_env.update(env_overrides)
     if _is_playwright_command(cmd) and run_env.get('FORCE_COLOR') and run_env.get('NO_COLOR'):
-        # Node warns when both are present; Playwright output is parsed after ANSI stripping.
         run_env.pop('NO_COLOR', None)
 
     try:
@@ -1472,21 +1566,18 @@ def run_cmd(
         )
 
 
-# 02. Gate command mapping
+# 维护gate 命令。
 def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa: PLR0911, PLR0912
-    """Return the command for a quality gate.
+    """参数：
+        gate: gate 参数。
+        repo_root: repo root used到test 可选 文件 availability。
+        target: 当前要运行或解析的 quality gate target 名称。
 
-    The explicit gate-to-command matrix is kept flat so existing test assertions and operational
-    behavior stay easy to audit.
+    返回：
+        结果列表。
 
-    Args:
-        gate: Gate identifier selected for the target.
-        repo_root: Repository root used to test optional file availability.
-        target: Quality target whose gate command may differ by scope.
-
-    Returns:
-        Command list for the gate, or an empty list when dependencies are
-        unavailable and the gate should be reported as blocked.
+    说明：
+        explicit gate-到-命令 matrix is kept flat so 现有 test assertions 和 operational。
     """
     python = _project_python(repo_root)
     dev_python = _project_python(repo_root, dev=True)
@@ -1506,6 +1597,22 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             ],
         )
         return ['bash', '-n', *existing] if existing else []
+    if gate == 'scriptCommentLanguage':
+        checker = repo_root / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        policy = repo_root / 'config' / 'technical-terms.json'
+        if not checker.exists():
+            return []
+        cmd = [
+            python,
+            str(checker),
+            '--script-comments',
+            'scripts',
+            '.claude/hooks',
+            '.codex/hooks',
+        ]
+        if policy.exists():
+            cmd.extend(['--policy', str(policy)])
+        return cmd
     if gate == 'pythonCompile':
         paths = ['scripts/claude_hooks', 'scripts/quality']
         if target == 'harness':
@@ -1631,7 +1738,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        # Gradle 9.6.0 SerializableTestResultStore 竞态：binary results 文件偶发 EOFException / NoSuchFileException。
+        # Gradle 9.6.0 SerializableTestResultStore 竞态：binary 结果 文件偶发 EOFException / NoSuchFileException。
         # 策略：逐模块 cleanTest + test --no-daemon，每个模块独立 JVM 进程。
         # exit code 0 → 通过；非零但含 binary results 错误 → 测试实际通过（仅 binary 存储损坏）。
         gw = str(gradlew)
@@ -1719,46 +1826,39 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         test_path = repo_root / 'tests' / 'script_commands' / 'test_session_browser_scan_smoke.py'
         if not test_path.exists():
             return []
+# 打印简明 human-facing runner progress到stderr。
         return [dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)]
     return []
 
 
-# 03. Target execution
-
-# Gates that require the HIFI fixture session (need `hifi-viz-session-001`).
 _FIXTURE_GATES = {'browserLayout', 'browserInteraction'}
 
-
+# 维护进度。
 def _progress(message: str) -> None:
-    """Print concise human-facing runner progress to stderr.
-
-    Args:
-        message: Progress line without prefix.
+    """参数：
+        message: 不带前缀的进度行。
     """
     print(f'[quality-gate] {message}', file=sys.stderr, flush=True)
 
 
+# 运行target。
 def run_target(
     repo_root: Path, target: str, changed_files: list[str] | None = None
 ) -> list[GateDetail]:
-    """Run the complete required baseline for a selected target.
+    """参数：
+        repo_root: 执行命令时使用的 repo root。
+        target: 已验证的 quality target 名称。
+        changed_files: 导出给 child gate 的可选 changed-files 上下文；不用于裁剪已选 gate。
 
-    Args:
-        repo_root: Repository root where commands are executed.
-        target: Validated quality target name.
-        changed_files: Optional changed-file list exported to child gates as
-            context. It does not prune gates after this target is selected.
-
-    Returns:
-        Gate details in execution order. Fixture server lifecycle is contained
-        inside this function and cleaned up before returning.
+    返回：
+        按执行顺序排列的 gate details；fixture server 生命周期在函数内收口。
     """
     details: list[GateDetail] = []
     gates = required_gates_for_target(target)
     total_gates = len(gates)
     _progress(f'target={target} start ({total_gates} gates)')
 
-    # Check if any fixture-dependent gate will run.
+    # 检查是否需要运行依赖 fixture 的 gate。
     needs_fixture = any(g in _FIXTURE_GATES for g in gates)
 
     fixture_proc = None
@@ -1796,7 +1896,7 @@ def run_target(
                 command_label = command_label[:177] + '...'
             _progress(f'[{index}/{total_gates}] {gate} start: {command_label}')
 
-            # For fixture-dependent gates, inject BASE_URL if fixture server is running.
+            # 用于 fixture-dependent gate, inject BASE_URL 如果 fixture server is running。
             env_override: dict[str, str] = {}
             env_override['SESSION_BROWSER_PYTHON'] = _project_python(repo_root)
             if changed_files is not None:
@@ -1843,7 +1943,7 @@ def run_target(
     return details
 
 
-# 04. Summary generation
+# 构建summary。
 def build_summary(
     target: str,
     change_id: str,
@@ -1852,18 +1952,16 @@ def build_summary(
     not_triggered_gates: list[str] | None = None,
     repo_root: Path | None = None,
 ) -> QualitySummary:
-    """Build the persisted summary artifact from gate details.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
+        change_id: 当前 OpenSpec change id。
+        started_at: started at 参数。
+        details: gate 结果 收集ed从``运行_target``。
+        not_triggered_gates: 必需 gate omitted by changed-文件 映射。
+        repo_root: 仓库根目录。
 
-    Args:
-        target: Quality target that was executed.
-        change_id: OpenSpec change or caller-supplied run identifier.
-        started_at: UTC timestamp captured before gate execution.
-        details: Gate results collected from ``run_target``.
-        not_triggered_gates: Required gates omitted by changed-file mapping.
-        repo_root: Repository root for git metadata resolution.
-
-    Returns:
-        Summary object ready for ``write_quality_summary``.
+    返回：
+        summary 对象 读取y用于``write_quality_summary``。
     """
     required = {detail.name: detail.status for detail in details}
     status, failures = compute_overall(required)
@@ -1894,13 +1992,10 @@ def build_summary(
     )
 
 
-# 05. CLI
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the command-line quality gate runner.
-
-    Returns:
-        ``0`` when the computed summary status is PASS, otherwise ``1`` after
-        writing the quality artifact.
+    """返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(description='Deterministic quality gate runner')
     parser.add_argument(
@@ -1923,10 +2018,16 @@ def main() -> int:
     validate_target(args.target)
     started_at = utc_now()
 
-    # Resolve output directory. Defaults to tmp/quality.
+    # 解析输出目录；有 session identity 时默认写入隔离 quality path。
     out_dir = Path(args.out)
+    if args.out == 'tmp/quality':
+        from scripts.claude_hooks import paths as runtime_paths
 
-    # Resolve changed files.
+        identity = runtime_paths.identity_from_values()
+        if identity.has_session:
+            out_dir = runtime_paths.quality_dir(repo_root, identity)
+
+    # 解析changed 文件。
     changed_files: list[str] | None = None
     if args.changed_files == 'auto':
         changed_files = _read_changed_files(repo_root)
@@ -1941,40 +2042,29 @@ def main() -> int:
     return 0 if summary.status == PASS else 1
 
 
+# 读取changed-files 文件。
 def _read_changed_files(repo_root: Path) -> list[str]:
-    """Read changed file paths from the current agent log.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root containing ``tmp/agent_logs/current``.
-
-    Returns:
-        Changed paths for the current session id. Missing log files produce an
-        empty list, which means no path-triggered gates are selected.
+    返回：
+        结果列表。
     """
-    changed_file = repo_root / 'tmp' / 'agent_logs' / 'current' / 'changed-files.jsonl'
-    if not changed_file.exists():
-        return []
+    from scripts.claude_hooks import paths as runtime_paths
+    from scripts.quality import changed_files as changed_file_utils
 
-    session_id_file = repo_root / 'tmp' / 'agent_logs' / 'current' / 'session-id.txt'
-    session_id = None
-    if session_id_file.exists():
-        session_id = session_id_file.read_text().strip() or None
-
-    files: list[str] = []
-    for raw_line in changed_file.read_text(encoding='utf-8').splitlines():
-        line = raw_line.strip()
-        if not line:
-            continue
-        try:
-            record = json.loads(line)
-            if session_id and record.get('sessionId') != session_id:
-                continue
-            f = record.get('file') or record.get('file_path')
-            if f:
-                files.append(f)
-        except (json.JSONDecodeError, Exception):
-            continue
-    return files
+    identity = runtime_paths.identity_from_values()
+    log_dirs = runtime_paths.session_log_dirs(
+        repo_root,
+        identity,
+        include_agents=identity.has_session and not identity.is_agent,
+    )
+    jsonl_paths = [path / 'changed-files.jsonl' for path in log_dirs]
+    return changed_file_utils.read_recorded_changed_files_from_paths(
+        jsonl_paths,
+        identity.raw_session_id or None,
+        agent_id=identity.raw_agent_id or None,
+    )
 
 
 if __name__ == '__main__':

@@ -1,13 +1,5 @@
 #!/usr/bin/env python3
-"""P0 门禁：检查 legacy-aliases.css 不存在，且全仓库无引用。
-
-用法:
-    python3 scripts/quality/check_no_legacy_css.py
-
-退出码:
-    0 — 通过
-    1 — 发现遗留 CSS
-"""
+"""P0 门禁：检查 legacy-aliases.css 不存在，且全仓库无引用。"""
 
 from __future__ import annotations
 
@@ -19,8 +11,8 @@ CSS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' /
 SRC_DIR = REPO_ROOT / 'src'
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Run the legacy CSS deletion and reference contract check."""
     errors: list[str] = []
 
     # 检查 1: legacy-aliases.css 文件不存在

@@ -1,30 +1,5 @@
 #!/usr/bin/env python3
-"""T109 — Static QA for projects-list page HTML structure.
-
-Validates projects.html against the page behavior contract:
-
-1. File existence: projects.html exists
-2. Template structure: extends base.html, active_page set, ui_primitives imported
-3. No inline: no onclick, no inline <script> (except application/json), no inline <style>
-4. CSS/JS imports: projects.css and projects.js imported
-5. Page head: .page-head with h1, subtitle text
-6. Metric grid: 4 metric cards, each with metric-icon, metric-label, metric-value
-7. Info buttons: data-action="metric-info" with data-metric attributes
-8. Filter card: filter-card class, search input with data-search, Apply/Clear buttons
-9. Active filters: active-filters region with filter-chip
-10. Table: data-table class, 6 column headers
-11. Sortable headers: data-action="sort" with data-sort for sessions, tokens, tools, last_active
-12. Table toolbar: table-toolbar, table-title, table-note
-13. Row structure: data-action="open-project", open-project-link, canonical copy protocol
-14. Agent badges: badge cc/cx/qd classes with dot claude/codex/qoder
-15. Token bar: tokenbar class with 4 segment classes, tooltip present
-16. Pagination: nav with role="navigation", data-action="page-input", data-action="next-page"
-17. Empty states: empty_state macro, error_state macro, state-strip class
-18. data-action coverage: verify all expected data-action values exist
-
-Run from repo root:
-  python scripts/qa/ui/check_projects_list_html.py
-"""
+"""提供 检查 projects list HTML 脚本能力。"""
 
 from __future__ import annotations
 
@@ -36,35 +11,32 @@ PROJECTS_HTML = ROOT / 'src/session_browser/web/templates/projects.html'
 UI_HELPERS = ROOT / 'src/session_browser/web/templates/components/ui_primitives/_helpers.html'
 
 
+# 读取文件内容。
 def read(path: Path) -> str:
-    """Read a projects-list template or asset for the static contract checks.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Source-tree path to read.
-
-    Returns:
-        File text, or an empty string when the path is absent.
+    返回：
+        文件 text, 或 空 字符串 当 路径 缺失。
     """
     return path.read_text(encoding='utf-8') if path.exists() else ''
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
-    """Run the projects-list static HTML contract gate.
-
-    Returns:
-        Exit code 0 when all checks pass, otherwise 1.
+    """返回：
+        进程退出码。
     """
     html = read(PROJECTS_HTML)
     macro_html = read(UI_HELPERS)
     contract_html = html + '\n' + macro_html
 
     checks: list[tuple[str, callable]] = [
-        # ── 1. File existence ──────────────────────────────────────
+        # 1. 文件 existence。
         (
             'T109-H01 projects.html exists',
             lambda: (PROJECTS_HTML.exists(), 'exists' if PROJECTS_HTML.exists() else 'MISSING'),
         ),
-        # ── 2. Template structure ──────────────────────────────────
         (
             'T109-H02 extends base.html',
             lambda: (
@@ -90,7 +62,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── 3. No inline style/script/onclick ──────────────────────
         (
             'T109-H05 No inline <style> blocks',
             lambda: (
@@ -114,7 +85,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'clean' if 'onclick=' not in html else 'INLINE ONCLICK FOUND',
             ),
         ),
-        # ── 4. CSS/JS imports ──────────────────────────────────────
         (
             'T109-H08 projects.css imported',
             lambda: (
@@ -129,7 +99,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'projects.js found' if 'src="/static/js/projects.js"' in html else 'MISSING',
             ),
         ),
-        # ── 5. Page head ───────────────────────────────────────────
         (
             'T109-H10 .page-head present',
             lambda: (
@@ -151,7 +120,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'subtitle found' if '<p>Indexed local workspaces</p>' in html else 'MISSING',
             ),
         ),
-        # ── 6. Metric grid ─────────────────────────────────────────
         (
             'T109-H13 metric-grid present',
             lambda: (
@@ -189,7 +157,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'metric-value found' if 'class="metric-value' in html else 'MISSING',
             ),
         ),
-        # ── 7. Info buttons ────────────────────────────────────────
         (
             'T109-H18 metric-info buttons present',
             lambda: (
@@ -233,7 +200,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── 8. Filter card ─────────────────────────────────────────
         (
             'T109-H23 filter-card present',
             lambda: (
@@ -262,7 +228,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'clear-search button found' if 'data-action="clear-search"' in html else 'MISSING',
             ),
         ),
-        # ── 9. Active filters ──────────────────────────────────────
         (
             'T109-H27 active-filters region',
             lambda: (
@@ -277,7 +242,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'filter-chip found' if 'class="filter-chip"' in html else 'MISSING',
             ),
         ),
-        # ── 10. Table ──────────────────────────────────────────────
         (
             'T109-H29 data-table present',
             lambda: (
@@ -314,7 +278,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING column headers',
             ),
         ),
-        # ── 11. Sortable headers ───────────────────────────────────
         (
             'T109-H31 Sortable headers (data-action=sort)',
             lambda: (
@@ -350,7 +313,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'data-sort=last_active found' if 'data-sort="last_active"' in html else 'MISSING',
             ),
         ),
-        # ── 12. Table toolbar ──────────────────────────────────────
         (
             'T109-H36 table-toolbar present',
             lambda: (
@@ -372,7 +334,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'table-note found' if 'class="table-note"' in html else 'MISSING',
             ),
         ),
-        # ── 13. Row structure ──────────────────────────────────────
         (
             'T109-H39 data-action=open-project',
             lambda: (
@@ -403,7 +364,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'data-copy-text found' if 'data-copy-text="' in contract_html else 'MISSING',
             ),
         ),
-        # ── 14. Agent badges ───────────────────────────────────────
         (
             'T109-H43 badge cc (Claude Code)',
             lambda: (
@@ -446,7 +406,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'dot qoder found' if 'class="dot qoder"' in html else 'MISSING',
             ),
         ),
-        # ── 15. Token bar ──────────────────────────────────────────
         (
             'T109-H49 tokenbar present',
             lambda: (
@@ -491,7 +450,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── 16. Pagination ─────────────────────────────────────────
         (
             'T109-H55 nav with role=navigation',
             lambda: (
@@ -520,7 +478,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'page-status found' if 'class="page-status"' in html else 'MISSING',
             ),
         ),
-        # ── 17. Empty/error states ─────────────────────────────────
+        # 17. 空/错误 states。
         (
             'T109-H59 empty_state macro',
             lambda: (
@@ -542,7 +500,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'state-strip found' if 'class="state-strip' in html else 'MISSING',
             ),
         ),
-        # ── 18. data-action coverage ───────────────────────────────
+        # 18. data-action 覆盖率。
         (
             'T109-H62 data-action coverage (sort, open-project, copy, pagination)',
             lambda: (

@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""CSS 所有权门禁检查.
-
-基于本脚本内的当前职责边界,检查:
-
-1. 层纯度:tokens/base 层是否包含越权选择器
-2. 跨层重复定义:页面 CSS 是否重写 ui-primitives 中的全局组件
-3. 依赖方向:低层 CSS 是否反向引用页面级选择器
-4. 硬编码颜色:页面 CSS 是否绕过 token 变量
-
-用法:
-    python3 scripts/quality/check_css_ownership.py
-
-退出码:
-    0 — 无 BLOCK 级违规(可能有 WARN)
-    1 — 存在 BLOCK 级违规
-"""
+"""CSS 所有权门禁检查。"""
 
 from __future__ import annotations
 
@@ -28,14 +13,14 @@ from pathlib import Path
 
 @dataclass
 class Violation:
-    """Describe one CSS ownership finding for quality-gate artifacts.
+    """表示一条 Violation 检查发现。
 
-    Attributes:
-        severity: Stored severity value.
-        rule: Stored rule value.
-        file: Stored file value.
-        detail: Stored detail value.
-        line: Stored line value.
+    属性：
+        severity: severity 参数。
+        rule: rule 参数。
+        file: 待检查的文件。
+        detail: detail 参数。
+        line: 待检查的源码行。
     """
 
     severity: str  # "BLOCK" | "WARN"
@@ -47,13 +32,13 @@ class Violation:
 
 @dataclass
 class OwnershipCheck:
-    """Aggregate CSS ownership findings for one gate run.
+    """表示 OwnershipCheck。
 
-    Attributes:
-        blocks: Stored blocks value.
-        warnings: Stored warnings value.
-        files_scanned: Stored files_scanned value.
-        selectors_analyzed: Stored selectors_analyzed value.
+    属性：
+        blocks: blocks 参数。
+        warnings: 警告列表。
+        files_scanned: files scanned 参数。
+        selectors_analyzed: selectors analyzed 参数。
     """
 
     blocks: list[Violation] = field(default_factory=list)
@@ -112,17 +97,13 @@ EXEMPT_FROM_DUPLICATE = {
 }
 
 
-# ── CSS 解析工具 ─────────────────────────────────────────────────────────
-
-
+# 提取CSS rules。
 def extract_css_rules(text: str) -> list[tuple[int, str, str]]:
-    """提取 CSS 规则,返回 (行号, 选择器, 声明块) 列表.
+    """参数：
+        text: 待检查的文本。
 
-    Args:
-        text: Input value for text.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     rules: list[tuple[int, str, str]] = []
     # 去掉注释
@@ -158,14 +139,13 @@ def extract_css_rules(text: str) -> list[tuple[int, str, str]]:
     return rules
 
 
+# 维护拆分 selectors。
 def split_selectors(selector_str: str) -> list[str]:
-    """按逗号拆分选择器,避开 :not() 等函数内的逗号.
+    """参数：
+        selector_str: 待拆分的 selector 字符串。
 
-    Args:
-        selector_str: Input value for selector_str.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     depth = 0
     parts: list[str] = []
@@ -185,14 +165,13 @@ def split_selectors(selector_str: str) -> list[str]:
     return [p for p in parts if p and not p.startswith('@')]
 
 
+# 判断是否base selector。
 def is_base_selector(sel: str) -> bool:
-    """判断是否为 HTML 基础元素选择器.
+    """参数：
+        sel: sel 参数。
 
-    Args:
-        sel: Input value for sel.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     base_pattern = re.compile(
         r'^(html|body|div|span|p|a|img|ul|ol|li|table|th|td|thead|tbody|tfoot|'
@@ -207,21 +186,17 @@ def is_base_selector(sel: str) -> bool:
     return bool(base_pattern.match(sel))
 
 
-# ── 检查函数 ─────────────────────────────────────────────────────────────
-
-
+# 检查layer purity。
 def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules stay grouped.
     filename: str,
     rules: list[tuple[int, str, str]],
 ) -> list[Violation]:
-    """检查 1: 层纯度 — tokens/base/shell 是否包含越权选择器.
+    """参数：
+        filename: 待检查的文件名。
+        rules: 用于匹配的规则集合。
 
-    Args:
-        filename: Input value for filename.
-        rules: Input value for rules.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     violations: list[Violation] = []
 
@@ -339,20 +314,19 @@ def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules st
     return violations
 
 
+# 检查cross layer duplicate。
 def check_cross_layer_duplicate(
     filename: str,
     rules: list[tuple[int, str, str]],
     ui_primitives_selectors: set[str],
 ) -> list[Violation]:
-    """检查 2: 跨层重复定义 — 页面 CSS 是否直接重写全局组件.
+    """参数：
+        filename: 待检查的文件名。
+        rules: 用于匹配的规则集合。
+        ui_primitives_selectors: 待检查的 UI primitive selector 集合。
 
-    Args:
-        filename: Input value for filename.
-        rules: Input value for rules.
-        ui_primitives_selectors: Input value for ui_primitives_selectors.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     violations: list[Violation] = []
 
@@ -394,18 +368,17 @@ def check_cross_layer_duplicate(
     return violations
 
 
+# 检查dependency direction。
 def check_dependency_direction(
     filename: str,
     rules: list[tuple[int, str, str]],
 ) -> list[Violation]:
-    """检查 3: 依赖方向 — 低层不得反向引用页面级选择器.
+    """参数：
+        filename: 待检查的文件名。
+        rules: 用于匹配的规则集合。
 
-    Args:
-        filename: Input value for filename.
-        rules: Input value for rules.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     violations: list[Violation] = []
 
@@ -454,18 +427,17 @@ def check_dependency_direction(
     return violations
 
 
+# 检查hardcoded colors。
 def check_hardcoded_colors(
     filename: str,
     rules: list[tuple[int, str, str]],
 ) -> list[Violation]:
-    """检查 4: 硬编码颜色 — 页面 CSS 应优先使用 token 变量.
+    """参数：
+        filename: 待检查的文件名。
+        rules: 用于匹配的规则集合。
 
-    Args:
-        filename: Input value for filename.
-        rules: Input value for rules.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     violations: list[Violation] = []
 
@@ -497,14 +469,13 @@ def check_hardcoded_colors(
 # ── 入口 ─────────────────────────────────────────────────────────────────
 
 
+# 检查CSS ownership。
 def check_css_ownership(repo_root: Path) -> OwnershipCheck:
-    """Run CSS ownership checks for repository static styles.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Input value for repo_root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     result = OwnershipCheck()
     css_dir = repo_root / 'java/web/src/main/resources/static/css'
@@ -535,7 +506,7 @@ def check_css_ownership(repo_root: Path) -> OwnershipCheck:
     # 逐文件检查
     for css_path in css_files:
         filename = css_path.name
-        text = css_path.read_text(encoding='utf-8')
+# 运行脚本主流程并返回进程退出码。
         rules = extract_css_rules(text)
         result.selectors_analyzed += len(rules)
 
@@ -556,14 +527,13 @@ def check_css_ownership(repo_root: Path) -> OwnershipCheck:
     return result
 
 
+# 格式化报告。
 def format_report(result: OwnershipCheck) -> str:
-    """格式化检查报告.
+    """参数：
+        result: 用于累积检查结果的可变对象。
 
-    Args:
-        result: Input value for result.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     lines: list[str] = []
     lines.append('=' * 60)
@@ -602,22 +572,18 @@ def format_report(result: OwnershipCheck) -> str:
     return '\n'.join(lines)
 
 
-# ── CLI ──────────────────────────────────────────────────────────────────
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the CSS ownership quality gate and write report artifacts.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     repo_root = Path(__file__).resolve().parent.parent.parent
     result = check_css_ownership(repo_root)
     report = format_report(result)
     print(report)
 
-    # 写入 artifact
-    out_dir = repo_root / 'tmp' / 'agent_logs' / 'current' / 'css-ownership'
+    # 写入本地 quality artifact。
+    out_dir = repo_root / 'tmp' / 'quality' / 'css-ownership'
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / 'css-ownership-report.txt'
     out_file.write_text(report + '\n', encoding='utf-8')

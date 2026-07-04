@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-"""CSS Selector Depth 阻断检查.
-
-解析项目 CSS 文件中的所有选择器,计算嵌套深度,对超过阈值的
-选择器标记 BLOCK/WARN 级别违规.
-
-深度计算规则:
-- 以空格,>,+,~ 等 CSS 组合符拆分选择器
-- 拆分后非空部分的数量即为深度
-- 例:".a .b .c" 深度 3;".a > .b + .c .d" 深度 4
-
-阈值:
-- depth > 3: BLOCK(阻断)
-- depth == 3: WARN(警告,建议收敛)
-
-用法:
-    python3 scripts/quality/check_selector_depth.py
-
-退出码:
-    0 — 无 BLOCK 级违规(可能有 WARN)
-    1 — 存在 BLOCK 级违规
-"""
+"""CSS Selector Depth 阻断检查。"""
 
 from __future__ import annotations
 
@@ -32,14 +12,14 @@ from pathlib import Path
 
 @dataclass
 class DepthViolation:
-    """Describe one selector-depth violation emitted by the CSS quality gate.
+    """表示一条 DepthViolation 检查发现。
 
-    Attributes:
-        severity: Stored severity value.
-        file: Stored file value.
-        selector: Stored selector value.
-        depth: Stored depth value.
-        line: Stored line value.
+    属性：
+        severity: severity 参数。
+        file: 待检查的文件。
+        selector: 待检查的 CSS selector。
+        depth: depth 参数。
+        line: 待检查的源码行。
     """
 
     severity: str  # "BLOCK" | "WARN"
@@ -51,16 +31,16 @@ class DepthViolation:
 
 @dataclass
 class DepthReport:
-    """Aggregate selector-depth scan results for one quality gate invocation.
+    """汇总 DepthReport 的检查结果。
 
-    Attributes:
-        blocks: Stored blocks value.
-        warnings: Stored warnings value.
-        files_scanned: Stored files_scanned value.
-        selectors_analyzed: Stored selectors_analyzed value.
-        max_depth_seen: Stored max_depth_seen value.
-        deepest_selector: Stored deepest_selector value.
-        deepest_file: Stored deepest_file value.
+    属性：
+        blocks: blocks 参数。
+        warnings: 警告列表。
+        files_scanned: files scanned 参数。
+        selectors_analyzed: selectors analyzed 参数。
+        max_depth_seen: max depth seen 参数。
+        deepest_selector: deepest selector 参数。
+        deepest_file: deepest file 参数。
     """
 
     blocks: list[DepthViolation] = field(default_factory=list)
@@ -97,17 +77,13 @@ CSS_DIR = (
 COMBINATOR_RE = re.compile(r'\s+|(?<=[^\s])\s*(?:>|[+~])\s*|(?<=[^\s])(?:>|[+~])(?=[^\s])')
 
 
-# ── CSS 解析工具 ─────────────────────────────────────────────────────────
-
-
+# 提取CSS rules。
 def extract_css_rules(text: str) -> list[tuple[int, str, str]]:
-    """提取 CSS 规则,返回 (行号, 选择器, 声明块) 列表.
+    """参数：
+        text: 待检查的文本。
 
-    Args:
-        text: Input value for text.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     rules: list[tuple[int, str, str]] = []
     stripped = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
@@ -140,14 +116,13 @@ def extract_css_rules(text: str) -> list[tuple[int, str, str]]:
     return rules
 
 
+# 维护拆分 selectors。
 def split_selectors(selector_str: str) -> list[str]:
-    """按逗号拆分选择器,避开 :not() / :has() 等函数内的逗号.
+    """参数：
+        selector_str: 待拆分的 selector 字符串。
 
-    Args:
-        selector_str: Input value for selector_str.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     depth = 0
     parts: list[str] = []
@@ -167,14 +142,13 @@ def split_selectors(selector_str: str) -> list[str]:
     return [p for p in parts if p and not p.startswith('@')]
 
 
+# 计算selector depth。
 def calculate_selector_depth(selector: str) -> int:
-    """计算单个 CSS 选择器的嵌套深度.
+    """参数：
+        selector: 待检查的 CSS selector。
 
-    Args:
-        selector: Input value for selector.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     selector = selector.strip()
     if not selector:
@@ -186,14 +160,13 @@ def calculate_selector_depth(selector: str) -> int:
     # 将括号内内容临时替换,避免内部空格被误拆
     bracket_contents: list[str] = []
 
+    # 维护保护 括号。
     def protect_brackets(m: re.Match) -> str:
-        """Replace one bracketed selector fragment with a stable placeholder.
+        """参数：
+            m: m 参数。
 
-        Args:
-            m: Input value for m.
-
-        Returns:
-            Computed result.
+        返回：
+            Computed 结果。
         """
         idx = len(bracket_contents)
         bracket_contents.append(m.group(0))
@@ -209,17 +182,13 @@ def calculate_selector_depth(selector: str) -> int:
     return len(parts)
 
 
-# ── 核心检查 ─────────────────────────────────────────────────────────────
-
-
+# 检查selector depth。
 def check_selector_depth(css_path: Path) -> DepthReport:
-    """扫描单个 CSS 文件的选择器深度.
+    """参数：
+        css_path: 待检查的路径。
 
-    Args:
-        css_path: Input value for css_path.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     report = DepthReport()
 
@@ -270,14 +239,13 @@ def check_selector_depth(css_path: Path) -> DepthReport:
     return report
 
 
+# 运行全部 检查。
 def run_all_checks(css_dir: Path) -> DepthReport:
-    """扫描目录下所有 CSS 文件.
+    """参数：
+        css_dir: CSS dir 参数。
 
-    Args:
-        css_dir: Input value for css_dir.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     total = DepthReport()
 
@@ -303,11 +271,10 @@ def run_all_checks(css_dir: Path) -> DepthReport:
 # ── 报告输出 ─────────────────────────────────────────────────────────────
 
 
+# 打印报告。
 def print_report(report: DepthReport) -> None:  # noqa: PLR0912 - report sections mirror gate output.
-    """打印人类可读的检查报告.
-
-    Args:
-        report: Input value for report.
+    """参数：
+        report: report 参数。
     """
     print('=' * 72)
     print('CSS Selector Depth 检查报告')
@@ -374,11 +341,10 @@ def print_report(report: DepthReport) -> None:  # noqa: PLR0912 - report section
 # ── 主入口 ───────────────────────────────────────────────────────────────
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the selector-depth quality gate for repository CSS files.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     if not CSS_DIR.exists():
         print(f'[ERROR] CSS 目录不存在: {CSS_DIR}')

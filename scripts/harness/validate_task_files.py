@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that task markdown files contain the required section headings."""
+"""验证 that task markdown files contain 必需 section headings。"""
 
 import sys
 from pathlib import Path

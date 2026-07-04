@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""DOM-oriented contract checks using rendered/static template text.
-
-This is intentionally conservative and complements pytest/Playwright.
-
-Checks:
-  1. Primitive macro existence in ui_primitives.html
-  2. Button data-action coverage
-  3. Pagination prev/next/input structure
-  4. Token bar segment color classes
-  5. Payload modal data attributes
-  6. Empty state and error state presence
-"""
+"""提供 检查 DOM contracts 脚本能力。"""
 
 from __future__ import annotations
 
@@ -23,17 +12,15 @@ errors: list[str] = []
 passes: list[str] = []
 
 # ---------------------------------------------------------------------------
-# 1. Primitive macro existence
 # ---------------------------------------------------------------------------
 primitive_file = ROOT / 'src/session_browser/web/templates/components/ui_primitives.html'
 primitive_dir = primitive_file.parent / 'ui_primitives'
 
 
+# 读取primitive 源码。
 def _read_primitive_source() -> str:
-    """Read the UI primitive template source for DOM contract inspection.
-
-    Returns:
-        ui_primitives.html text used by this static QA gate.
+    """返回：
+        读取到的 primitive source 文本。
     """
     parts: list[str] = []
     if primitive_file.exists():
@@ -44,15 +31,14 @@ def _read_primitive_source() -> str:
     return '\n'.join(parts)
 
 
+# 维护macro 块。
 def _macro_blocks(text: str, name: str) -> str:
-    """Extract macro bodies from the primitive template for focused contract checks.
+    """参数：
+        text: 待检查的文本。
+        name: 条目名称。
 
-    Args:
-        text: Full primitive template source.
-        name: Macro name whose body should be returned.
-
-    Returns:
-        Matching macro body text, or an empty string when the macro is absent.
+    返回：
+        Matching macro body text, 或 空 字符串 当 macro 缺失。
     """
     pattern = re.compile(
         rf'{{% macro {re.escape(name)}\b.*?{{%-?\s*endmacro\s*%}}',
@@ -64,7 +50,6 @@ def _macro_blocks(text: str, name: str) -> str:
 if primitive_file.exists():
     text = _read_primitive_source()
 
-    # Canonical macros (T032/T034)
     canonical_macros = [
         'button',
         'icon_button',
@@ -99,7 +84,6 @@ else:
     errors.append(f'ui_primitives.html not found: {primitive_file}')
 
 # ---------------------------------------------------------------------------
-# 2. Button data-action coverage
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
     text = _read_primitive_source()
@@ -123,13 +107,12 @@ if primitive_file.exists():
         passes.append(f'Button data-action coverage: {buttons_with_action} covered, 0 uncovered')
 
 # ---------------------------------------------------------------------------
-# 3. Pagination prev/next/input structure
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
     text = _read_primitive_source()
     pagination_checks: list[str] = []
 
-    # Check for pagination macro block
+    # 检查用于 pagination macro block。
     block = _macro_blocks(text, 'pagination')
     if not block:
         errors.append('pagination macro not found')
@@ -151,7 +134,6 @@ if primitive_file.exists():
             passes.append(f'Pagination structure complete: {", ".join(pagination_checks)}')
 
 # ---------------------------------------------------------------------------
-# 4. Token bar segment color classes
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
     text = _read_primitive_source()
@@ -162,7 +144,6 @@ if primitive_file.exists():
         segment_kinds = ['fresh', 'read', 'write', 'out']
         found_segments: list[str] = []
         for kind in segment_kinds:
-            # Check that the segment class is referenced (as CSS class, not inline)
             if re.search(rf"['\"]{re.escape(kind)}['\"]", block):
                 found_segments.append(kind)
             else:
@@ -172,7 +153,6 @@ if primitive_file.exists():
             passes.append(f'Token bar segment classes: {", ".join(found_segments)}')
 
 # ---------------------------------------------------------------------------
-# 5. Payload modal data attributes
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
     text = _read_primitive_source()
@@ -201,13 +181,12 @@ if primitive_file.exists():
             passes.append(f'Payload modal data attributes: {", ".join(modal_attrs)}')
 
 # ---------------------------------------------------------------------------
-# 6. Empty state and error state presence
+# 6. 空 state 和 错误 state presence。
 # ---------------------------------------------------------------------------
 if primitive_file.exists():
     text = _read_primitive_source()
     state_checks_passed: list[str] = []
 
-    # Empty state
     block = _macro_blocks(text, 'empty_state')
     if not block:
         errors.append('empty_state macro not found')
@@ -225,7 +204,7 @@ if primitive_file.exists():
             else:
                 errors.append(f'empty_state missing: {label}')
 
-    # Error state
+    # 错误 state。
     block = _macro_blocks(text, 'error_state')
     if not block:
         errors.append('error_state macro not found')
@@ -247,7 +226,7 @@ if primitive_file.exists():
         passes.append(f'Empty/Error states verified: {", ".join(state_checks_passed)}')
 
 # ---------------------------------------------------------------------------
-# Summary
+# 结果汇总。
 # ---------------------------------------------------------------------------
 if passes:
     print('DOM contract checks:')

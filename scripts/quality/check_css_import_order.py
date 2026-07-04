@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""CSS @import 顺序检查。
-
-所有 CSS 文件的 @import 必须位于任何 selector/style rule 之前。
-允许 @charset 在最前，允许 @layer statement 在 import 前。
-
-用法:
-    python3 scripts/quality/check_css_import_order.py
-
-退出码:
-    0 — 全部通过
-    1 — 发现 import 顺序错误
-"""
+"""CSS @import 顺序检查。"""
 
 from __future__ import annotations
 
@@ -22,16 +11,21 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 CSS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css'
 
 
+# 检查CSS import order。
 def check_css_import_order(css_path: Path) -> list[str]:
-    """检查单个 CSS 文件的 @import 顺序。
+    """参数：
+        css_path: 待检查的路径。
 
-    规则：
-    1. @import 必须出现在任何 selector { rule } 之前
-    2. 允许 @charset 在 import 之前
-    3. 允许 @layer statement（无 body）在 import 之前
-    4. 注释不视为 rule
+    返回：
+        结果列表。
 
-    返回错误列表。
+    说明：
+        规则：。
+        1. @import 必须出现在任何 selector { rule } 之前。
+        2. 允许 @charset 在 import 之前。
+        3. 允许 @layer statement（无 body）在 import 之前。
+        4. 注释不视为 rule。
+        返回错误列表。
     """
     errors: list[str] = []
     rel = css_path.relative_to(REPO_ROOT).as_posix()
@@ -53,7 +47,6 @@ def check_css_import_order(css_path: Path) -> list[str]:
         # 计数括号
         open_braces = stripped.count('{')
         close_braces = stripped.count('}')
-
         # 检查是否是 @import
         if stripped.startswith('@import') and in_block == 0:
             continue
@@ -62,7 +55,6 @@ def check_css_import_order(css_path: Path) -> list[str]:
         if stripped.startswith('@charset'):
             continue
         if stripped.startswith('@layer') and '{' not in stripped and '}' not in stripped:
-            # @layer statement (e.g., @layer settings, tools, generic;)
             continue
 
         in_block += open_braces - close_braces
@@ -85,8 +77,8 @@ def check_css_import_order(css_path: Path) -> list[str]:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """执行全部 CSS 文件的 import 顺序检查。"""
     if not CSS_DIR.exists():
         print(f'[BLOCK] CSS 目录不存在: {CSS_DIR}')
         sys.exit(1)

@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""Layout quality scoring for the Phase 1 session detail structure.
-
-Usage:
-    python scripts/qa/session_ui/check_layout_quality.py [--url URL] [--html PATH]
-
-Checks:
-    1. Hero: [data-session-overview-hero], .hero, .hero-alerts (only if failures exist), KPIs
-    2. Trace Panel: [data-trace-panel], .trace-panel__toolbar, All/Failed buttons
-    3. Token KPIs: token total present in hero KPIs (no separate token-charts-card)
-    4. Legacy tabs: no data-workbench, no data-switch="calls", no data-switch="hotspots"
-    5. Inspector: [data-context-inspector] in base.html but session detail uses no-inspector
-    6. Overflow: no obvious horizontal overflow markers
-    7. Button roles: no duplication of expand/collapse, no disabled placeholder buttons
-
-Exits non-zero on any FAIL.
-"""
+"""提供 检查 布局 quality 脚本能力。"""
 
 from __future__ import annotations
 
@@ -34,7 +19,7 @@ except ImportError:
     sys.exit(2)
 
 # ---------------------------------------------------------------------------
-# Paths
+# 路径。
 # ---------------------------------------------------------------------------
 REPO_ROOT = Path(__file__).resolve().parents[3]
 DEFAULT_BASELINE = (
@@ -42,20 +27,15 @@ DEFAULT_BASELINE = (
 )
 DEFAULT_URL = 'http://localhost:18999/session/93ecbcf2'
 
-# ---------------------------------------------------------------------------
-# Data fetching
-# ---------------------------------------------------------------------------
 
-
+# 维护获取 HTML。
 def fetch_html(url: str, timeout: float = 3.0) -> str | None:
-    """Fetch session-detail HTML from a running app for layout quality QA.
+    """参数：
+        url: 待请求的 URL。
+        timeout: 超时时间，单位为秒。
 
-    Args:
-        url: HTTP URL to request.
-        timeout: Request timeout in seconds.
-
-    Returns:
-        HTML text when the request succeeds; None after printing the fetch error.
+    返回：
+        fetch HTML 字符串。
     """
     try:
         req = urllib.request.Request(url, headers={'User-Agent': 'layout-quality-check/2.0'})
@@ -65,14 +45,13 @@ def fetch_html(url: str, timeout: float = 3.0) -> str | None:
         return None
 
 
+# 读取HTML。
 def read_html(path: Path) -> str | None:
-    """Read a saved HTML fixture for layout quality QA.
+    """参数：
+        path: Local HTML 文件路径 supplied on CLI。
 
-    Args:
-        path: Local HTML file path supplied on the CLI.
-
-    Returns:
-        HTML text when the file exists; None after printing the file error.
+    返回：
+        HTML text 当 文件 exists；None 之后 printing 文件 错误。
     """
     try:
         return path.read_text(encoding='utf-8', errors='replace')
@@ -80,16 +59,14 @@ def read_html(path: Path) -> str | None:
         return None
 
 
+# 加载源码。
 def load_source(url: str | None, html_path: Path | None) -> tuple[str | None, str]:
-    """Load layout quality input from either a URL or an HTML file.
+    """参数：
+        url: 待请求的 URL。
+        html_path: 可选local fixture 路径 selected by CLI。
 
-    Args:
-        url: Optional HTTP source selected by the CLI.
-        html_path: Optional local fixture path selected by the CLI.
-
-    Returns:
-        Tuple of HTML text and source label; exits with status 2 when no readable source
-        is available.
+    返回：
+        由HTML text 和 source label; exits带状态 2 当 no 读取able source组成的 tuple。 is 可用。
     """
     if url:
         content = fetch_html(url)
@@ -102,25 +79,19 @@ def load_source(url: str | None, html_path: Path | None) -> tuple[str | None, st
     return None, None
 
 
-# ---------------------------------------------------------------------------
-# Individual checks
-# ---------------------------------------------------------------------------
-
-
+# 检查hero。
 def check_hero(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Validate session-detail hero structure and density contracts.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for hero layout checks.
+    返回：
+        状态 label 和 诊断信息用于hero layout 检查。
     """
     notes: list[str] = []
     pass_count = 0
 
-    # Check for HIFI hero data attribute
+    # 检查用于 HIFI hero data attribute。
     hero = soup.select_one('[data-session-overview-hero]')
     if hero:
         notes.append('[data-session-overview-hero] found')
@@ -128,7 +99,6 @@ def check_hero(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa
     else:
         notes.append('[data-session-overview-hero] MISSING')
 
-    # Fallback: check for hero class-based element
     hero_class = soup.select_one('.hero, .hero-main, .session-header')
     if hero_class:
         notes.append(f'hero element found (.{hero_class.get("class", ["?"])[0]})')
@@ -136,7 +106,6 @@ def check_hero(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa
     else:
         notes.append('hero element MISSING')
 
-    # Hero KPIs section
     kpis = soup.select_one('.kpis')
     if kpis:
         kpi_items = kpis.select('.kpi')
@@ -145,33 +114,30 @@ def check_hero(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa
     else:
         notes.append('hero KPIs section MISSING')
 
-    # Hero alerts section (only expected when anomalies exist)
     alerts = soup.select_one('.hero-alerts')
     if alerts:
         notes.append('hero-alerts section found (anomalies present)')
         pass_count += 1
     else:
         notes.append('hero-alerts section absent (OK if no anomalies)')
-        # Not a failure — alerts only appear when anomalies exist
+        # 不 a 失败项 — alerts 仅 appear 当 anomalies exist。
 
     status = 'PASS' if pass_count >= 3 else ('WARN' if pass_count >= 2 else 'FAIL')
     return status, notes
 
 
+# 检查trace panel。
 def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Validate trace panel structure and required controls in session-detail HTML.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for trace panel checks.
+    返回：
+        状态 label 和 诊断信息用于trace panel 检查。
     """
     notes: list[str] = []
     pass_count = 0
 
-    # HIFI data attribute
     panel = soup.select_one('[data-trace-panel]')
     if panel:
         notes.append('[data-trace-panel] found')
@@ -179,7 +145,6 @@ def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]: 
     else:
         notes.append('[data-trace-panel] MISSING')
 
-    # Toolbar
     toolbar = soup.select_one('.trace-panel__toolbar')
     if toolbar:
         notes.append('.trace-panel__toolbar found')
@@ -187,7 +152,6 @@ def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]: 
     else:
         notes.append('.trace-panel__toolbar MISSING')
 
-    # All/Failed filter buttons
     all_btn = soup.select_one('[data-action="status-all"]')
     failed_btn = soup.select_one('[data-action="status-failed"]')
     if all_btn and failed_btn:
@@ -201,7 +165,6 @@ def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]: 
             missing.append('Failed')
         notes.append(f'filter buttons MISSING: {", ".join(missing)}')
 
-    # Expand/Collapse buttons
     expand_btn = soup.select_one('[data-action="expand-all"]')
     collapse_btn = soup.select_one('[data-action="collapse-all"]')
     if expand_btn and collapse_btn:
@@ -210,7 +173,6 @@ def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]: 
     else:
         notes.append('Expand/Collapse buttons MISSING')
 
-    # Trace rows
     trace_rows = soup.select('.trace-row')
     if trace_rows:
         notes.append(f'trace rows found (count={len(trace_rows)})')
@@ -222,20 +184,18 @@ def check_trace_panel(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]: 
     return status, notes
 
 
+# 检查token kpis。
 def check_token_kpis(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Validate token KPI placement and legacy chart removal.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for token KPI checks.
+    返回：
+        状态 label 和 诊断信息用于ken KPI 检查。
     """
     notes: list[str] = []
     pass_count = 0
 
-    # Verify token-charts-card is NOT present (it was deleted in Phase 1)
     chart_cards = soup.select('.token-charts-card')
     if chart_cards:
         notes.append(f'WARN: token-charts-card still present (count={len(chart_cards)})')
@@ -243,7 +203,7 @@ def check_token_kpis(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  
         notes.append('token-charts-card removed (expected for Phase 1)')
         pass_count += 1
 
-    # Check for total tokens in hero KPIs
+    # 检查用于 total tokens in hero KPIs。
     kpis = soup.select_one('.kpis')
     if kpis:
         kpi_labels = kpis.select('.kpi .l')
@@ -258,7 +218,7 @@ def check_token_kpis(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  
         if not has_token_kpi:
             notes.append('No token-related KPI label found in hero')
 
-        # Check secondary metrics for total token value
+        # 检查secondary metrics用于total token 值。
         secondary = soup.select_one('.hero-secondary-metrics')
         if secondary:
             sec_text = secondary.get_text(strip=True).lower()
@@ -274,20 +234,19 @@ def check_token_kpis(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  
     return status, notes
 
 
+# 检查legacy tabs。
 def check_legacy_tabs(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Validate that legacy tab markup is absent from session detail HTML.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for legacy tab checks.
+    返回：
+        状态 label 和 诊断信息用于legacy tab 检查。
     """
     notes: list[str] = []
     violations = 0
 
-    # Check for data-workbench (removed in Phase 1)
+    # 检查用于 data-workbench (removed in Phase 1)。
     workbench = soup.select_one('[data-workbench]')
     if workbench:
         violations += 1
@@ -295,7 +254,7 @@ def check_legacy_tabs(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     else:
         notes.append('OK: [data-workbench] not found (expected)')
 
-    # Check for data-switch="calls" (removed in Phase 1)
+    # 检查用于 data-switch="calls" (removed in Phase 1)。
     calls_switch = soup.select_one('[data-switch="calls"]')
     if calls_switch:
         violations += 1
@@ -303,7 +262,7 @@ def check_legacy_tabs(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     else:
         notes.append('OK: [data-switch="calls"] not found (expected)')
 
-    # Check for data-switch="hotspots" (removed in Phase 1)
+    # 检查用于 data-switch="hotspots" (removed in Phase 1)。
     hotspots_switch = soup.select_one('[data-switch="hotspots"]')
     if hotspots_switch:
         violations += 1
@@ -311,7 +270,7 @@ def check_legacy_tabs(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     else:
         notes.append('OK: [data-switch="hotspots"] not found (expected)')
 
-    # Check for old tab-nav/tab-bar structures
+    # 检查用于 old tab-nav/tab-bar structures。
     old_tabs = soup.select('.tab-nav, .tab-bar, .tab-item, .wb-viewbar')
     if old_tabs:
         violations += len(old_tabs)
@@ -326,20 +285,19 @@ def check_legacy_tabs(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     return 'PASS', notes
 
 
+# 检查inspector。
 def check_inspector(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Validate inspector entry points and modal contract in session detail HTML.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for inspector checks.
+    返回：
+        状态 label 和 诊断信息用于inspector 检查。
     """
     notes: list[str] = []
     pass_count = 0
 
-    # Check that the session detail shell exists
+    # 检查the session detail shell exists。
     detail_shell = soup.select_one('[data-session-detail-shell]')
     if detail_shell:
         notes.append('[data-session-detail-shell] found')
@@ -347,7 +305,7 @@ def check_inspector(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  #
     else:
         notes.append('[data-session-detail-shell] MISSING')
 
-    # Check for no-inspector class on the shell or body
+    # 检查用于 no-inspector class on the shell 或 body。
     shell_cls = detail_shell.get('class', []) if detail_shell else []
     body_cls = soup.body.get('class', []) if soup.body else []
     has_no_inspector = 'no-inspector' in shell_cls or 'no-inspector' in body_cls
@@ -356,7 +314,6 @@ def check_inspector(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  #
         notes.append("'no-inspector' class found on shell/body (inspector suppressed)")
         pass_count += 1
     else:
-        # Inspector may still be rendered — check if it's present
         inspector = soup.select_one('[data-context-inspector]')
         if inspector:
             notes.append('[data-context-inspector] is rendered on session detail')
@@ -366,11 +323,9 @@ def check_inspector(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  #
             notes.append('No inspector element found (suppressed via template or class)')
             pass_count += 1
 
-    # Verify inspector does NOT appear as a visible panel on the detail page
-    # In Phase 1, inspector is conditionally excluded via Jinja template
     inspector_aside = soup.select_one('aside.inspector')
     if inspector_aside and detail_shell:
-        # Check if it's inside the detail shell (meaning it's rendered on this page)
+        # 检查如果 it's inside the detail shell (meaning it's rendered on this page)。
         if inspector_aside.parent and _is_ancestor_of(inspector_aside.parent, detail_shell):
             notes.append('WARN: aside.inspector is rendered inside session detail shell')
         else:
@@ -384,15 +339,14 @@ def check_inspector(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  #
     return status, notes
 
 
+# 判断是否ancestor。
 def _is_ancestor_of(potential_ancestor: Any, element: Any) -> bool:
-    """Determine whether one parsed HTML element contains another.
+    """参数：
+        potential_ancestor: 可能的祖先 DOM 节点。
+        element: element 参数。
 
-    Args:
-        potential_ancestor: Candidate ancestor BeautifulSoup element.
-        element: Candidate descendant BeautifulSoup element.
-
-    Returns:
-        True when element is inside potential_ancestor; otherwise False.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     current = element
     while current:
@@ -402,20 +356,19 @@ def _is_ancestor_of(potential_ancestor: Any, element: Any) -> bool:
     return False
 
 
+# 检查overflow。
 def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # noqa: PLR2004 - QA thresholds encode contract counts.
-    """Validate overflow-prone structures in session detail HTML.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for overflow checks.
+    返回：
+        状态 label 和 诊断信息用于overflow 检查。
     """
     notes: list[str] = []
     issues = 0
 
-    # Check for very wide inline styles (width > 2000px)
+    # 检查用于 very wide inline styles (width > 2000px)。
     wide_elements = soup.select('[style*="width"]')
     for el in wide_elements:
         style = el.get('style', '')
@@ -424,7 +377,7 @@ def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # 
             issues += 1
             notes.append(f'OVERFLOW: element with width={match.group(1)}px exceeds 2000px')
 
-    # Check for min-width that forces wide layouts
+    # 检查用于 min-width that forces wide layouts。
     min_width_elements = soup.select('[style*="min-width"]')
     for el in min_width_elements:
         style = el.get('style', '')
@@ -435,7 +388,6 @@ def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # 
                 f'OVERFLOW: element with min-width={match.group(1)}px may cause horizontal scroll'
             )
 
-    # Check body min-width in style tags
     style_tags = soup.find_all('style')
     for tag in style_tags:
         text = tag.string or ''
@@ -447,7 +399,7 @@ def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # 
                     f'OVERFLOW: body min-width={mw}px may cause horizontal scroll on narrow screens'
                 )
 
-    # Check for scrollable containers with very large widths
+    # 检查用于 scrollable containers带very large widths。
     scrollable = soup.select('[style*="overflow-x"]')
     for el in scrollable:
         style = el.get('style', '')
@@ -464,20 +416,19 @@ def check_overflow(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:  # 
     return 'PASS', notes
 
 
+# 检查button roles。
 def check_button_roles(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
-    """Validate button semantics and roles in session detail HTML.
+    """参数：
+        soup: 已解析的session-detail HTML document。
+        html: 原始HTML text used用于字符串-level assertions。
 
-    Args:
-        soup: Parsed session-detail HTML document.
-        html: Raw HTML text used for string-level assertions.
-
-    Returns:
-        Status label and diagnostics for button role checks.
+    返回：
+        状态 label 和 诊断信息用于button role 检查。
     """
     notes: list[str] = []
     issues = 0
 
-    # Check for expand/collapse button duplication
+    # 检查用于 expand/collapse button duplication。
     expand_all = soup.select('[data-action="expand-all"]')
     collapse_all = soup.select('[data-action="collapse-all"]')
 
@@ -493,11 +444,10 @@ def check_button_roles(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
     elif len(collapse_all) == 1:
         notes.append("[data-action='collapse-all'] present (single)")
 
-    # Check for disabled placeholder buttons (should not have duplicate functional roles)
     disabled_placeholders = soup.select('button[disabled].topbar-action--placeholder')
     if disabled_placeholders:
         notes.append(f'disabled placeholder buttons found (count={len(disabled_placeholders)})')
-        # Check for duplicates by aria-label
+        # 检查用于 duplicates by aria-label。
         labels = [b.get('aria-label', '').strip().lower() for b in disabled_placeholders]
         dup_labels = {label for label, count in Counter(labels).items() if count > 1 and label}
         if dup_labels:
@@ -506,7 +456,7 @@ def check_button_roles(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
         else:
             notes.append('disabled placeholders have unique roles (OK)')
 
-    # Check for duplicate "Jump to Trace" buttons
+    # 检查用于 duplicate "Jump到Trace" buttons。
     jump_buttons = soup.select('button.jump[data-action="jump-anomaly"]')
     if len(jump_buttons) > len(soup.select('.hero-alerts .alert')):
         issues += 1
@@ -522,7 +472,7 @@ def check_button_roles(soup: BeautifulSoup, html: str) -> tuple[str, list[str]]:
 
 
 # ---------------------------------------------------------------------------
-# Main
+# 主流程。
 # ---------------------------------------------------------------------------
 
 CHECKS = [
@@ -536,15 +486,14 @@ CHECKS = [
 ]
 
 
+# 运行检查。
 def run_checks(html: str, source: str) -> dict:
-    """Run all session-detail layout quality checks against one HTML source.
+    """参数：
+        html: 待检查的 HTML 文本。
+        source: 输入来源标识。
 
-    Args:
-        html: Session-detail HTML to inspect.
-        source: Human-readable label printed in reports.
-
-    Returns:
-        Mapping from check name to status and diagnostic messages.
+    返回：
+        映射从check name到状态 和 diagnostic messages。
     """
     soup = BeautifulSoup(html, 'html.parser')
     results = {}
@@ -554,15 +503,14 @@ def run_checks(html: str, source: str) -> dict:
     return results
 
 
+# 打印报告。
 def print_report(results: dict, source: str) -> bool:
-    """Print session-detail layout quality results for CLI and quality gate logs.
+    """参数：
+        results: results 参数。
+        source: 输入来源标识。
 
-    Args:
-        results: Mapping produced by run_checks.
-        source: Human-readable source label.
-
-    Returns:
-        True when every check passed; False when any check failed.
+    返回：
+        当every 检查 passed; 当 any 检查 失败.时返回 true。
     """
     print(f'\n{"=" * 60}')
     print('  Layout Quality Report (Phase 1)')
@@ -580,7 +528,7 @@ def print_report(results: dict, source: str) -> bool:
             print(f'        {note}')
         print()
 
-    # Summary
+    # 结果汇总。
     counts = {'PASS': 0, 'WARN': 0, 'FAIL': 0}
     for data in results.values():
         counts[data['status']] = counts.get(data['status'], 0) + 1
@@ -599,8 +547,8 @@ def print_report(results: dict, source: str) -> bool:
     return not any_fail
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Parse layout quality QA options and exit with the contract result."""
     parser = argparse.ArgumentParser(
         description='Layout quality scoring for Phase 1 session detail'
     )

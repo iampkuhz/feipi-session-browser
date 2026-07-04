@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate the minimal OpenSpec directory layout required by harness checks."""
+"""验证 minimal OpenSpec directory layout 必需 by harness 检查。"""
 
 import sys
 from pathlib import Path

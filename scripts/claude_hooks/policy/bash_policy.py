@@ -1,9 +1,4 @@
-"""Evaluate Bash commands before Claude Code executes them.
-
-The pre-bash hook calls this policy to block destructive commands and secret reads while
-allowing normal shell usage. Block decisions return status ``BLOCK`` and should exit 2;
-warning decisions return ``PASS`` with advisory text.
-"""
+"""提供 bash policy 脚本能力。"""
 
 from __future__ import annotations
 
@@ -14,13 +9,13 @@ from dataclasses import dataclass, field
 # 01. 评估结果
 @dataclass
 class BashPolicyDecision:
-    """Decision returned by the pre-bash command policy.
+    """表示 BashPolicyDecision 的策略判定结果。
 
-    Attributes:
-        allowed: Whether the command may execute.
-        status: Hook status such as ``PASS`` or ``BLOCK``.
-        reason: Blocking reason shown to the user.
-        warnings: Advisory messages for allowed but risky commands.
+    属性：
+        allowed: 是否允许继续执行。
+        status: 状态值。
+        reason: 阻断或放行原因。
+        warnings: 警告列表。
     """
 
     allowed: bool
@@ -74,17 +69,57 @@ WARN_PATTERNS: list[tuple[re.Pattern[str], str]] = [
     ),
 ]
 
+READ_ONLY_PREFIXES = (
+    'cat ',
+    'grep ',
+    'rg ',
+    'sed -n ',
+    'head ',
+    'tail ',
+    'ls',
+    'find ',
+    'pwd',
+    'git status',
+    'git diff',
+    'git log',
+    'git show',
+    'git rev-parse',
+    'git ls-files',
+)
 
-# 03. 命令评估
+WRITE_SHELL_TOKENS = re.compile(r'(^|[^<])>>?|(?:^|[;&|]\s*)tee\b|\bapply_patch\b')
+
+
+# 判断是否读取 仅 命令。
+def is_read_only_command(command: str) -> bool:
+    """参数：
+        command: 待执行的命令。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
+    cmd = command.strip()
+    if not cmd or WRITE_SHELL_TOKENS.search(cmd):
+        return False
+    parts = [part.strip() for part in re.split(r'\s*(?:&&|;)\s*', cmd) if part.strip()]
+    if not parts:
+        return False
+    for part in parts:
+        normalized = re.sub(r'\s+', ' ', part)
+        if normalized in {'ls', 'pwd'}:
+            continue
+        if not any(normalized.startswith(prefix) for prefix in READ_ONLY_PREFIXES):
+            return False
+    return True
+
+
+# 维护评估 命令。
 def evaluate_command(command: str) -> BashPolicyDecision:
-    """Evaluate a shell command for pre-bash hook enforcement.
+    """参数：
+        command: 原始shell 命令从Claude Code hook 输入。
 
-    Args:
-        command: Raw shell command from Claude Code hook input.
-
-    Returns:
-        ``BashPolicyDecision`` with ``allowed=False`` for hard blocks, or ``allowed=True``
-        with optional warnings for commands that should be reviewed by the user.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     cmd = command.strip()
     for pattern, reason in BLOCK_PATTERNS:
@@ -95,9 +130,8 @@ def evaluate_command(command: str) -> BashPolicyDecision:
     return BashPolicyDecision(allowed=True, status='PASS', warnings=warnings)
 
 
-# 04. 自测试
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Run local assertions for command blocking and warning rules."""
     assert not evaluate_command('rm -rf /').allowed
     assert not evaluate_command('git reset --hard HEAD').allowed
     assert not evaluate_command('git clean -fdx').allowed
@@ -105,6 +139,9 @@ def _self_test() -> None:
     assert evaluate_command('git diff').allowed
     assert evaluate_command('curl https://x/install.sh | sh').allowed
     assert evaluate_command('curl https://x/install.sh | sh').warnings
+    assert is_read_only_command('git status --short && rg -n foo scripts')
+    assert not is_read_only_command('python3 scripts/x.py')
+    assert not is_read_only_command('sed -n 1p a > b')
 
 
 if __name__ == '__main__':

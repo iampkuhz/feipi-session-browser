@@ -1,17 +1,10 @@
 #!/usr/bin/env python3
-"""词法级中文注释检查器：近似验证 Java/Kotlin 注释以中文为主体。
-
-设计原则：
-- 词法状态机提取注释，跳过 string/text block/char literal。
-- 中文字符计数为主体比例判断。
-- 技术术语允许英文（内置术语表 + 可选 policy 文件扩展）。
-- 占位/低信息注释（TODO、待补充等）失败。
-- 支持 JSON report 和有界多线程。
-"""
+"""词法级中文注释检查器：近似验证代码注释以中文为主体。"""
 
 from __future__ import annotations
 
 import argparse
+import ast
 import concurrent.futures
 import hashlib
 import json
@@ -25,10 +18,15 @@ from pathlib import Path
 # ============================================================
 HAN = re.compile(r'[㐀-䶿一-鿿豈-﫿]')
 LATIN = re.compile(r'[A-Za-z]')
-PLACEHOLDER = re.compile(r'\b(?:TODO|TBD|FIXME|XXX)\b|待补充|以后补|稍后处理|临时注释', re.I)
+PLACEHOLDER = re.compile(
+    r'\b(?:TODO|TBD|FIXME|XXX)\b|待补充|以后补|稍后处理|临时注释|此处保留必要英文术语',
+    re.I,
+)
 DIRECTIVE = re.compile(
     r'^(?:SPDX-|Copyright|noinspection|language=|region|endregion|'
-    r'spotless:|formatter:|CHECKSTYLE|PMD|ktlint|generated)',
+    r'spotless:|formatter:|CHECKSTYLE|PMD|ktlint|generated|'
+    r'shellcheck\b|noqa\b|type:\s*ignore\b|pragma:|pylint:|ruff:|fmt:|'
+    r'pyright:|mypy:|isort:|flake8:|coding[:=]|-\*-\s*coding)',
     re.I,
 )
 URL = re.compile(r'https?://\S+')
@@ -38,6 +36,14 @@ TAG = re.compile(
     r'|@(?:param|return|throws|exception|since|see|deprecated)\b'
 )
 IDENT = re.compile(r'`[^`]+`|\b(?:[A-Za-z_$][\w$]*\.)+[A-Za-z_$][\w$]*\b')
+SHELL_FUNCTION = re.compile(
+    r'^\s*(?:function\s+)?([A-Za-z_][A-Za-z0-9_-]*)\s*(?:\(\))?\s*\{'
+)
+DOCSTRING_ENGLISH_LABEL = re.compile(
+    r'^(?:Args|Arguments|Parameters|Returns|Yields|Raises|Examples|Attributes|Note|Notes):\s*$'
+)
+DOCSTRING_CHINESE_LABEL = re.compile(r'^(?:参数|返回|异常|示例|说明)[:：]\s*$')
+CHINESE_SECTION_LABEL = re.compile(r'^(?:参数|返回|异常|示例|说明)[:：]$')
 
 TERMS: set[str] = {
     'Java',
@@ -78,6 +84,22 @@ TERMS: set[str] = {
     'SQL',
     'Git',
     'Python',
+    'Bash',
+    'shell',
+    'hook',
+    'hooks',
+    'Stop',
+    'PreToolUse',
+    'PostToolUse',
+    'SubagentStop',
+    'OpenSpec',
+    'Qoder',
+    'Codex',
+    'Claude',
+    'pytest',
+    'Ruff',
+    'Pyright',
+    'MCP',
 }
 
 # 排除的目录片段
@@ -89,6 +111,8 @@ EXCLUDED_PARTS = {
     'third_party',
     'vendor',
     'node_modules',
+    '__pycache__',
+    'tmp',
 }
 
 
@@ -97,7 +121,14 @@ EXCLUDED_PARTS = {
 # ============================================================
 @dataclass(frozen=True)
 class Comment:
-    """一条从源码中提取的注释。"""
+    """表示 Comment。
+
+    属性：
+        path: 待检查的路径。
+        line: 待检查的源码行。
+        kind: kind 参数。
+        text: 待检查的文本。
+    """
 
     path: str
     line: int
@@ -107,7 +138,15 @@ class Comment:
 
 @dataclass(frozen=True)
 class Violation:
-    """一条注释违规。"""
+    """表示一条 Violation 检查发现。
+
+    属性：
+        path: 待检查的路径。
+        line: 待检查的源码行。
+        code: code 参数。
+        message: 用户可读消息。
+        preview: preview 参数。
+    """
 
     path: str
     line: int
@@ -119,8 +158,14 @@ class Violation:
 # ============================================================
 # 注释提取 — 词法状态机
 # ============================================================
+# 提取源码注释。
 def extract(path: Path) -> list[Comment]:
-    """从源文件中提取所有注释，跳过字符串和字符字面量。"""
+    """参数：
+        path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
     text = path.read_text(encoding='utf-8')
     out: list[Comment] = []
     i = 0
@@ -129,7 +174,14 @@ def extract(path: Path) -> list[Comment]:
     start = 0
     depth = 0
 
+    # 计算源码行号。
     def line(pos: int) -> int:
+        """参数：
+            pos: pos 参数。
+
+        返回：
+            进程退出码。
+        """
         return text.count('\n', 0, pos) + 1
 
     while i < n:
@@ -193,11 +245,322 @@ def extract(path: Path) -> list[Comment]:
     return out
 
 
-# ============================================================
-# 规范化与检查
-# ============================================================
+# 提取脚本 注释。
+def extract_script_comments(path: Path) -> list[Comment]:
+    """参数：
+        path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
+    comments: list[Comment] = []
+    for lineno, raw in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
+        stripped = raw.lstrip()
+        if not stripped.startswith('#'):
+            continue
+        if lineno == 1 and stripped.startswith('#!'):
+            continue
+        text = stripped[1:].strip()
+        if not text:
+            continue
+        if DIRECTIVE.match(text):
+            continue
+        if CHINESE_SECTION_LABEL.match(text):
+            continue
+        # 仅由分隔符组成的段落边界不是叙述性注释。
+        if not re.search(r'[A-Za-z㐀-䶿一-鿿豈-﫿]', text):
+            continue
+        comments.append(Comment(str(path), lineno, 'script-line', text))
+    return comments
+
+
+# 从单行文本中提取可检查的脚本注释。
+def _script_comment_from_line(path: Path, line_no: int, raw: str) -> Comment | None:
+    """参数：
+        path: 待检查的路径。
+        line_no: 源码行号。
+        raw: 原始输入文本。
+
+    返回：
+        可检查的脚本注释；该行不属于叙述性注释时返回 None。
+    """
+    stripped = raw.lstrip()
+    if not stripped.startswith('#') or stripped.startswith('#!'):
+        return None
+    text = stripped[1:].strip()
+    if not text or DIRECTIVE.match(text):
+        return None
+    if CHINESE_SECTION_LABEL.match(text):
+        return None
+    if not re.search(r'[A-Za-z㐀-䶿一-鿿豈-﫿]', text):
+        return None
+    return Comment(str(path), line_no, 'script-line', text)
+
+
+# 查找函数定义前最近的叙述性注释。
+def _previous_narrative_comment(path: Path, lines: list[str], index: int) -> Comment | None:
+    """参数：
+        path: 待检查的路径。
+        lines: 待检查的源码行列表。
+        index: 开始向上查找的源码行下标。
+
+    返回：
+        最近的叙述性注释；没有找到时返回 None。
+    """
+    idx = index
+    while idx >= 0:
+        raw = lines[idx]
+        if not raw.strip():
+            idx -= 1
+            continue
+        stripped = raw.lstrip()
+        if not stripped.startswith('#'):
+            return None
+        comment = _script_comment_from_line(path, idx + 1, raw)
+        if comment is not None:
+            return comment
+        idx -= 1
+    return None
+
+
+# 查找 Python 函数定义前的说明注释。
+def _previous_comment_for_python_function(
+    path: Path,
+    lines: list[str],
+    lineno: int,
+) -> Comment | None:
+    """参数：
+        path: 待检查的路径。
+        lines: 待检查的源码行列表。
+        lineno: Python 函数定义所在行号。
+
+    返回：
+        函数上方的说明注释；没有找到时返回 None。
+    """
+    idx = lineno - 2
+    while idx >= 0 and not lines[idx].strip():
+        idx -= 1
+    while idx >= 0 and lines[idx].lstrip().startswith('@'):
+        idx -= 1
+        while idx >= 0 and not lines[idx].strip():
+            idx -= 1
+    return _previous_narrative_comment(path, lines, idx)
+
+
+# 查找 shell 函数定义前的说明注释。
+def _previous_comment_for_shell_function(
+    path: Path,
+    lines: list[str],
+    index: int,
+) -> Comment | None:
+    """参数：
+        path: 待检查的路径。
+        lines: 待检查的源码行列表。
+        index: shell 函数定义所在行下标。
+
+    返回：
+        函数上方的说明注释；没有找到时返回 None。
+    """
+    idx = index - 1
+    while idx >= 0 and not lines[idx].strip():
+        idx -= 1
+    return _previous_narrative_comment(path, lines, idx)
+
+
+# 检查脚本函数的中文注释布局。
+def check_function_comments(
+    path: Path,
+    terms: set[str],
+    forbidden: tuple[str, ...],
+) -> list[Violation]:
+    """参数：
+        path: 待检查的路径。
+        terms: 允许保留英文的规范技术术语集合。
+        forbidden: 禁止出现的非规范技术术语翻译。
+
+    返回：
+        函数注释布局和语言质量违规列表。
+    """
+    violations: list[Violation] = []
+    text = path.read_text(encoding='utf-8')
+    lines = text.splitlines()
+    if path.suffix == '.py':
+        try:
+            tree = ast.parse(text, filename=str(path))
+        except SyntaxError:
+            return violations
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            comment = _previous_comment_for_python_function(path, lines, node.lineno)
+            if comment is None:
+                violations.append(
+                    Violation(
+                        str(path),
+                        node.lineno,
+                        'FUNCTION_COMMENT_MISSING',
+                        '函数说明必须放在 def 上方',
+                        node.name,
+                    )
+                )
+            docstring = ast.get_docstring(node, clean=False)
+            if docstring:
+                doc_line = node.body[0].lineno if node.body else node.lineno
+                doc_comment = Comment(
+                    str(path),
+                    doc_line,
+                    'function-doc',
+                    docstring,
+                )
+                doc_violations = check(doc_comment, terms, forbidden)
+                doc_violations.extend(
+                    check_docstring_lines(
+                        doc_comment,
+                        terms,
+                        forbidden,
+                    )
+                )
+                doc_violations.extend(check_docstring_layout(doc_comment))
+                violations.extend(doc_violations)
+            elif _python_function_needs_detail_doc(node):
+                violations.append(
+                    Violation(
+                        str(path),
+                        node.lineno,
+                        'FUNCTION_DETAIL_MISSING',
+                        '参数和返回值说明必须放在 def 内开头 docstring',
+                        node.name,
+                    )
+                )
+        return violations
+
+    if path.suffix == '.sh':
+        for index, raw in enumerate(lines):
+            match = SHELL_FUNCTION.match(raw)
+            if not match:
+                continue
+            comment = _previous_comment_for_shell_function(path, lines, index)
+            if comment is None:
+                violations.append(
+                    Violation(
+                        str(path),
+                        index + 1,
+                        'FUNCTION_COMMENT_MISSING',
+                        '函数缺少中文注释',
+                        match.group(1),
+                    )
+                )
+    return violations
+
+
+# 判断 Python 函数是否需要函数内参数或返回值说明。
+def _python_function_needs_detail_doc(node: ast.FunctionDef | ast.AsyncFunctionDef) -> bool:
+    """参数：
+        node: 待检查的 Python 函数 AST 节点。
+
+    返回：
+        存在业务参数或显式非 None 返回值时返回 true。
+    """
+    args = (
+        list(node.args.posonlyargs)
+        + list(node.args.args)
+        + list(node.args.kwonlyargs)
+    )
+    if any(arg.arg not in {'self', 'cls'} for arg in args):
+        return True
+    if node.args.vararg or node.args.kwarg:
+        return True
+    if node.returns is None:
+        return False
+    try:
+        return ast.unparse(node.returns) != 'None'
+    except Exception:
+        return True
+
+
+# 检查docstring 布局。
+def check_docstring_layout(comment: Comment) -> list[Violation]:
+    """参数：
+        comment: 函数开头的 docstring 注释。
+
+    返回：
+        docstring 布局违规列表。
+    """
+    for offset, raw in enumerate(comment.text.splitlines()):
+        value = raw.strip()
+        if not value:
+            continue
+        if DOCSTRING_CHINESE_LABEL.match(value) or CHINESE_SECTION_LABEL.match(value):
+            return []
+        return [
+            Violation(
+                comment.path,
+                comment.line + offset,
+                'FUNCTION_DOCSTRING_SUMMARY_IN_BODY',
+                '函数说明放在 def 上方，def 内 docstring 只写参数、返回值、异常或示例',
+                value[:160],
+            )
+        ]
+    return []
+
+
+# 检查docstring 行。
+def check_docstring_lines(
+    comment: Comment,
+    terms: set[str],
+    forbidden: tuple[str, ...],
+) -> list[Violation]:
+    """参数：
+        comment: comment 参数。
+        terms: terms 参数。
+        forbidden: forbidden 参数。
+
+    返回：
+        结果列表。
+    """
+    violations: list[Violation] = []
+    for offset, raw in enumerate(comment.text.splitlines()):
+        value = raw.strip()
+        if not value:
+            continue
+        if DOCSTRING_CHINESE_LABEL.match(value):
+            continue
+        if CHINESE_SECTION_LABEL.match(value):
+            continue
+        if DOCSTRING_ENGLISH_LABEL.match(value):
+            violations.append(
+                Violation(
+                    comment.path,
+                    comment.line + offset,
+                    'DOCSTRING_ENGLISH_SECTION_LABEL',
+                    'docstring 段落标题必须使用中文',
+                    value,
+                )
+            )
+            continue
+        line_violations = check(
+            Comment(
+                comment.path,
+                comment.line + offset,
+                'function-doc-line',
+                value,
+            ),
+            terms,
+            forbidden,
+        )
+        violations.extend(line_violations)
+    return violations
+
+
+# 规范化注释文本。
 def normalize(text: str, terms: set[str]) -> str:
-    """去除注释格式、URL、HTML 标签、Javadoc 标记和已知术语。"""
+    """参数：
+        text: 待检查的文本。
+        terms: terms 参数。
+
+    返回：
+        normalize 字符串。
+    """
     lines = []
     for raw in text.splitlines():
         value = re.sub(r'^\s*\*?\s?', '', raw).strip()
@@ -219,8 +582,16 @@ def normalize(text: str, terms: set[str]) -> str:
     return re.sub(r'\s+', ' ', value).strip()
 
 
+# 维护检查。
 def check(comment: Comment, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
-    """检查单条注释是否合规。"""
+    """参数：
+        comment: comment 参数。
+        terms: terms 参数。
+        forbidden: forbidden 参数。
+
+    返回：
+        结果列表。
+    """
     raw = comment.text.strip()
     first = re.sub(r'^\s*\*?\s?', '', raw.splitlines()[0]).strip() if raw else ''
     if not raw or DIRECTIVE.match(first):
@@ -257,8 +628,9 @@ def check(comment: Comment, terms: set[str], forbidden: tuple[str, ...]) -> list
 
     han_count = len(HAN.findall(value))
     latin_count = len(LATIN.findall(value))
-    min_han = 4 if comment.kind != 'line' else 2
-    min_ratio = 0.12 if comment.kind != 'line' else 0.08
+    line_like = comment.kind in {'line', 'script-line', 'function-doc-line'}
+    min_han = 2 if line_like else 4
+    min_ratio = 0.08 if line_like else 0.12
     ratio = han_count / max(1, han_count + latin_count)
 
     violations: list[Violation] = []
@@ -272,6 +644,22 @@ def check(comment: Comment, terms: set[str], forbidden: tuple[str, ...]) -> list
                 first[:160],
             )
         )
+    if comment.kind in {'script-line', 'function-doc-line'}:
+        semantic = re.sub(r'^说明[:：]\s*', '', raw)
+        # 移除中文前缀后再次计算主体语言，避免用“说明：”包裹英文。
+        semantic_value = normalize(semantic, terms)
+        semantic_han = len(HAN.findall(semantic_value))
+        semantic_latin_words = re.findall(r'\b[A-Za-z]{3,}\b', semantic_value)
+        if semantic_han < 4 and len(semantic_latin_words) >= 3:
+            violations.append(
+                Violation(
+                    comment.path,
+                    comment.line,
+                    'COMMENT_ENGLISH_FRAGMENT',
+                    '注释不得用中文前缀包裹英文说明',
+                    first[:160],
+                )
+            )
     if '{@inheritDoc}' in raw and han_count < 4:
         violations.append(
             Violation(
@@ -288,23 +676,74 @@ def check(comment: Comment, terms: set[str], forbidden: tuple[str, ...]) -> list
 # ============================================================
 # 文件发现
 # ============================================================
-def discover(values: list[str]) -> list[Path]:
-    """从给定路径发现所有 Java/Kotlin 源文件。"""
+# 发现待扫描文件。
+def discover(values: list[str], *, script_comments: bool = False) -> list[Path]:
+    """参数：
+        values: values 参数。
+        script_comments: 是否启用脚本注释扫描。
+
+    返回：
+        结果列表。
+    """
+    suffixes = {'.py', '.sh'} if script_comments else {'.java', '.kt', '.kts'}
     result: set[Path] = set()
     for raw in values:
         p = Path(raw)
-        if p.is_file() and p.suffix in {'.java', '.kt', '.kts'}:
+        if p.is_file() and p.suffix in suffixes:
             result.add(p)
         elif p.is_dir():
-            for ext in ('*.java', '*.kt', '*.kts'):
+            patterns = ('*.py', '*.sh') if script_comments else ('*.java', '*.kt', '*.kts')
+            for ext in patterns:
                 result.update(x for x in p.rglob(ext) if not (set(x.parts) & EXCLUDED_PARTS))
     return sorted(result, key=lambda x: x.as_posix())
+
+
+# 判断是否under。
+def _is_under(path: Path, root: Path) -> bool:
+    """参数：
+        path: 待检查的路径。
+        root: 扫描根目录。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
+    try:
+        path.relative_to(root)
+        return True
+    except ValueError:
+        return False
+
+
+# 过滤changed-files 路径。
+def filter_changed_paths(values: list[str], changed_files: list[str]) -> list[str]:
+    """参数：
+        values: values 参数。
+        changed_files: 待检查的文件列表。
+
+    返回：
+        结果列表。
+    """
+    roots = [Path(raw) for raw in values]
+    result: list[str] = []
+    seen: set[str] = set()
+    for raw in changed_files:
+        path = Path(raw)
+        if any(path == root or _is_under(path, root) for root in roots):
+            normalized = path.as_posix()
+            if normalized not in seen:
+                seen.add(normalized)
+                result.append(normalized)
+    return result
 
 
 # ============================================================
 # 主入口
 # ============================================================
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     ap = argparse.ArgumentParser(
         description='词法级中文注释检查器',
     )
@@ -318,6 +757,15 @@ def main() -> int:
     ap.add_argument('--json-report', help='JSON 报告输出路径')
     ap.add_argument('--cache', help='增量缓存路径')
     ap.add_argument('--files-from', help='从 JSON 文件读取要扫描的路径列表')
+    ap.add_argument(
+        '--script-comments',
+        action='store_true',
+        help='扫描 shell/Python 脚本的独立 # 注释',
+    )
+    ap.add_argument(
+        '--changed-files-env',
+        help='从指定环境变量读取 JSON changed-files，并只扫描相交脚本',
+    )
     a = ap.parse_args()
 
     terms = set(TERMS)
@@ -338,7 +786,18 @@ def main() -> int:
             except json.JSONDecodeError:
                 paths = [x.strip() for x in raw.splitlines() if x.strip()]
 
-    files = discover(paths)
+    if a.changed_files_env:
+        raw_changed = os.environ.get(a.changed_files_env, '').strip()
+        try:
+            parsed_changed = json.loads(raw_changed) if raw_changed else []
+        except json.JSONDecodeError:
+            parsed_changed = []
+        if isinstance(parsed_changed, list):
+            paths = filter_changed_paths(paths, [x for x in parsed_changed if isinstance(x, str)])
+        else:
+            paths = []
+
+    files = discover(paths, script_comments=a.script_comments)
     jobs = (
         min(16, max(1, os.cpu_count() or 1), max(1, len(files)))
         if a.jobs == 'auto'
@@ -360,15 +819,25 @@ def main() -> int:
             except Exception:
                 pass
 
+    # 扫描目标文件。
     def scan(path: Path) -> tuple[str, str, list[Violation]]:
+        """参数：
+            path: 待检查的路径。
+
+        返回：
+            结果 tuple。
+        """
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         key = path.as_posix()
         old = cache.get('entries', {}).get(key)
         if old and old.get('sha256') == digest:
             return str(path), digest, [Violation(**x) for x in old.get('violations', [])]
         violations: list[Violation] = []
-        for c in extract(path):
+        comments = extract_script_comments(path) if a.script_comments else extract(path)
+        for c in comments:
             violations.extend(check(c, terms, forbidden))
+        if a.script_comments:
+            violations.extend(check_function_comments(path, terms, forbidden))
         return str(path), digest, violations
 
     all_violations: list[Violation] = []

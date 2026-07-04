@@ -1,11 +1,12 @@
 #!/usr/bin/env bash
-# Project doctor for feipi-session-browser.
+# feipi-session-browser 项目环境体检脚本。
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
 
+# 检查 Python 版本是否兼容。
 python_is_compatible() {
   local candidate="$1"
   "$candidate" - <<'PY' >/dev/null 2>&1
@@ -14,6 +15,7 @@ raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 }
 
+# 解析可用的 Python executable。
 python_bin() {
   if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
     if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
@@ -43,6 +45,7 @@ PYTHON="$(python_bin)" || PYTHON=""
 
 fail=0
 
+# 检查文件。
 check_file() {
   local file="$1"
   if [[ -f "$file" ]]; then
@@ -53,6 +56,7 @@ check_file() {
   fi
 }
 
+# 检查dir。
 check_dir() {
   local dir="$1"
   if [[ -d "$dir" ]]; then
@@ -71,11 +75,12 @@ check_file requirements-dev.txt
 check_file requirements-dev.lock
 check_file scripts/session-browser.sh
 check_file .claude/settings.json
-# Hook entry scripts — each hook type has its own shell script.
+# Hook 入口脚本：每类 hook 都有独立 shell 脚本。
 check_file .claude/hooks/stop.sh
 check_file .claude/hooks/session-start.sh
 check_file .claude/hooks/subagent-start.sh
 check_file .claude/hooks/pre-bash.sh
+check_file .claude/hooks/post-bash.sh
 check_file .claude/hooks/pre-write.sh
 check_file .claude/hooks/post-write.sh
 check_file .claude/hooks/tool-failure.sh
@@ -83,9 +88,11 @@ check_file .claude/hooks/subagent-stop.sh
 check_file .claude/hooks/config-change.sh
 check_file .claude/hooks/lib/common.sh
 check_file .codex/hooks/pre_tool_guard.sh
+check_file .codex/hooks/post_bash_guard.sh
 check_file .codex/hooks/post_tool_guard.sh
 check_file .codex/hooks/stop_check.sh
 check_file .qoder/hooks/pre_tool_guard.sh
+check_file .qoder/hooks/post_bash_guard.sh
 check_file .qoder/hooks/post_tool_guard.sh
 check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
@@ -120,7 +127,7 @@ if [[ -n "$PYTHON" ]]; then
   "$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
 fi
 
-# CSS ownership validation
+# CSS ownership 校验。
 css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || true
 css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
 css_expected=1  # .sd-shell duplicate (pre-existing)
@@ -132,11 +139,11 @@ else
   echo "[PASS] CSS ownership validation (${css_total} known warning)"
 fi
 
-# Check that personal/ephemeral files and dirs do NOT exist on disk.
-# Must use `test ! -e` (not git status) because .gitignore hides them.
+# 检查个人文件和临时目录是否不存在于磁盘。
+# 必须使用 `test ! -e`，因为 `.gitignore` 会隐藏 git status 结果。
 local_files=(.mcp.json .env)
-# Note: .pytest_cache is NOT checked here because it is a normal side-effect
-# of running pytest (which doctor itself triggers via product tests).
+# 注意：不检查 `.pytest_cache`，因为它是 pytest 正常副作用。
+# doctor 本身也可能通过产品测试触发 pytest。
 local_dirs=(data output)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
@@ -146,8 +153,8 @@ for f in "${local_files[@]}"; do
     echo "[PASS] personal file absent: $f"
   fi
 done
-# settings.local.json is a normal user config that should be kept locally;
-# just warn but don't block quality gate.
+# `settings.local.json` 是应保留在本地的用户配置。
+# 这里只告警，不阻断 quality gate。
 if [[ -e ".claude/settings.local.json" ]]; then
   echo "[WARN] personal config present: .claude/settings.local.json (gitignored, allowed)"
 fi

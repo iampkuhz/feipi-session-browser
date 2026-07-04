@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Guard OpenSpec-protected edits from running without an active change.
-
-Claude Code calls this lightweight hook before implementation edits. It blocks
-when the repository has no active OpenSpec change directory, so protected work
-keeps proposal, design, and task evidence in sync.
-"""
+"""Guard OpenSpec-protected edits 从 运行ning 不使用 active change。"""
 
 import sys
 from pathlib import Path

@@ -1,26 +1,5 @@
 #!/usr/bin/env python3
-"""静态资源契约检查.
-
-Exit 1 仅针对真正阻塞性问题(!important,load order,dead CSS,duplicate base CSS,
-css-ownership,global-component-override,selector-depth,
-raw-innerHTML,layout-inline-style).
-
-position: fixed,payload-modal ownership,shell ownership 作为警告输出,不阻塞提交.
-
-纯函数拆出以支持单测:
-- check_no_important(css_files)
-- check_css_load_order(base_html_text)
-- check_no_dead_css(css_files)
-- check_no_duplicate_base_css(html_files)
-- check_payload_modal_ownership(css_files) -> (errors, warnings)
-- check_shell_ownership(css_files)
-- check_innerhtml_safety(js_files)
-- check_css_ownership_gate(css_files)        [NEW]
-- check_no_global_component_override(css_files)  [NEW]
-- check_selector_depth_new_block(css_files)  [NEW]
-- check_no_raw_innerhtml_new_block(js_files) [NEW]
-- check_no_layout_inline_style_new_block(html_files, js_files) [NEW]
-"""
+"""静态资源契约检查。"""
 
 from __future__ import annotations
 
@@ -58,17 +37,14 @@ JS_STYLE_ASSIGN_RE = re.compile(
     r'|overflow|overflowX|overflowY|zIndex)\s*='
 )
 
-# ── Pure functions ─────────────────────────────────────────────────────
 
-
+# 检查无 important。
 def check_no_important(css_files: list[Path]) -> list[str]:
-    """检查 CSS 文件中是否有 !important.BLOCK.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     for path in css_files:
@@ -78,14 +54,13 @@ def check_no_important(css_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查没有重复的 base CSS 导入。
 def check_no_duplicate_base_css(html_files: list[Path]) -> list[str]:
-    """检查页面模板是否重复加载 base 已加载的 CSS.BLOCK.
+    """参数：
+        html_files: 待检查的文件列表。
 
-    Args:
-        html_files: Input value for html_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     base_names = {'tokens.css', 'base.css', 'shell.css', 'ui-primitives.css'}
@@ -109,14 +84,13 @@ def check_no_duplicate_base_css(html_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查CSS load order。
 def check_css_load_order(base_html_text: str) -> list[str]:
-    """检查 base.html 中 CSS link 顺序是否符合 contract.BLOCK.
+    """参数：
+        base_html_text: 待检查的文本。
 
-    Args:
-        base_html_text: Input value for base_html_text.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     expected = [
@@ -145,50 +119,46 @@ def check_css_load_order(base_html_text: str) -> list[str]:
     return errors
 
 
+# 判断是否import wrapper。
 def _is_import_wrapper(text: str) -> bool:
-    """Check if a CSS file only contains @import statements (no rule bodies).
+    """参数：
+        text: 待检查的文本。
 
-    Args:
-        text: Input value for text.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     stripped = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL).strip()
     if not stripped:
         return False  # Empty files are NOT import wrappers — they're dead CSS
-    # If only @import lines and no { }, it's an import wrapper
+    # 如果 仅 @import 行 和 no { }, it's an import wrapper。
     lines = [css_line.strip() for css_line in stripped.splitlines() if css_line.strip()]
     has_import = any(css_line.startswith('@import') for css_line in lines)
     has_rules = '{' in stripped and '}' in stripped
     return has_import and not has_rules
 
 
+# 判断是否UI primitives subdir。
 def _is_in_ui_primitives_subdir(path: Path) -> bool:
-    """Check if the file is under a ui-primitives/ subdirectory.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Input value for path.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     return 'ui-primitives' in path.parent.name or path.parent.name == 'ui-primitives'
 
 
+# 检查无 失效 CSS。
 def check_no_dead_css(css_files: list[Path]) -> list[str]:
-    """检查是否存在 0 有效规则的 CSS 文件.BLOCK.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     for path in css_files:
         text = path.read_text(encoding='utf-8', errors='replace')
-        # @import wrapper files are intentional — skip
         if _is_import_wrapper(text):
             continue
         # 去掉 CSS 注释
@@ -202,18 +172,16 @@ def check_no_dead_css(css_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查payload modal ownership。
 def check_payload_modal_ownership(css_files: list[Path]) -> tuple[list[str], list[str]]:
-    """检查 payload-modal 裸定义的位置.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     warnings: list[str] = []
-    # Bare payload-modal selectors outside comments or page-specific prefixes are blockers.
     bare_pattern = re.compile(
         r'^(?!\s*/\*|\s*\*|\s*\.session-detail-page|\s*\.sd-page|\s*\.sd-shell|\s*\.sd-payload-modal)'
         r'\s*(?:\.payload-modal\b(?![-_:\s]*--)|#payload-modal\b)',
@@ -236,14 +204,13 @@ def check_payload_modal_ownership(css_files: list[Path]) -> tuple[list[str], lis
     return errors, warnings
 
 
+# 检查shell ownership。
 def check_shell_ownership(css_files: list[Path]) -> list[str]:
-    """检查 page CSS 是否出现 shell 级选择器.WARN.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     warnings: list[str] = []
     shell_selectors = [
@@ -270,14 +237,13 @@ def check_shell_ownership(css_files: list[Path]) -> list[str]:
     return warnings
 
 
+# 检查innerhtml safety。
 def check_innerhtml_safety(js_files: list[Path]) -> list[str]:
-    """检查 JS 文件中 innerHTML 使用是否配套 sanitize/escape helper.WARN.
+    """参数：
+        js_files: 待检查的 JavaScript 文件列表。
 
-    Args:
-        js_files: Input value for js_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     warnings: list[str] = []
     safety_patterns = re.compile(
@@ -291,12 +257,11 @@ def check_innerhtml_safety(js_files: list[Path]) -> list[str]:
             continue
         if safety_patterns.search(text):
             continue  # has safety helper, OK
-        # Find lines with innerHTML for detailed warning
+        # 查找行带innerHTML用于detailed warning。
         lines_with_inner = []
         for lineno, line in enumerate(text.splitlines(), 1):
             if 'innerHTML' in line:
                 stripped = line.strip()
-                # skip clearing innerHTML = ''
                 if "''" not in stripped and '""' not in stripped:
                     lines_with_inner.append(lineno)
         if lines_with_inner:
@@ -309,8 +274,6 @@ def check_innerhtml_safety(js_files: list[Path]) -> list[str]:
             )
     return warnings
 
-
-# ── CSS/JS ownership gates ─────────────────────────────────────────────
 
 # CSS 自定义属性白名单(允许 inline style 中使用)
 INLINE_CUSTOM_PROP_WHITELIST = re.compile(
@@ -359,14 +322,13 @@ PRIMITIVE_ROOT_CLASSES = {
 }
 
 
+# 检查CSS ownership gate。
 def check_css_ownership_gate(css_files: list[Path]) -> list[str]:
-    """检查:页面 CSS 不得定义 shell 架构选择器.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     exempt_shell = {'shell.css'}
@@ -404,19 +366,17 @@ def check_css_ownership_gate(css_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查没有全局 component override。
 def check_no_global_component_override(css_files: list[Path]) -> list[str]:
-    """检查:页面 CSS 不得裸定义原语根组件.BLOCK.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     exempt = {'ui-primitives.css', 'tokens.css', 'base.css', 'shell.css'}
     for path in css_files:
-        # Exempt both the main wrapper and all files in ui-primitives/ subdirectory
         if path.name in exempt or _is_in_ui_primitives_subdir(path):
             continue
         text = path.read_text(encoding='utf-8', errors='replace')
@@ -458,14 +418,13 @@ def check_no_global_component_override(css_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查selector depth new 阻断。
 def check_selector_depth_new_block(css_files: list[Path]) -> list[str]:
-    """检查:新选择器嵌套深度 > 3.BLOCK.
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
 
-    Args:
-        css_files: Input value for css_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     for path in css_files:
@@ -515,18 +474,17 @@ def check_selector_depth_new_block(css_files: list[Path]) -> list[str]:
                 protected = sel
                 bracket_contents: list[str] = []
 
+                # 维护保护 括号。
                 def protect_brackets(
                     m: re.Match,
                     bracket_values: list[str] = bracket_contents,
                 ) -> str:
-                    """Replace bracketed selector content before depth splitting.
+                    """参数：
+                        m: m 参数。
+                        bracket_values: bracket 中解析出的值列表。
 
-                    Args:
-                        m: Input value for m.
-                        bracket_values: Input value for bracket_values.
-
-                    Returns:
-                        Computed result.
+                    返回：
+                        Computed 结果。
                     """
                     idx = len(bracket_values)
                     bracket_values.append(m.group(0))
@@ -551,14 +509,13 @@ def check_selector_depth_new_block(css_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查无 raw innerhtml new 阻断。
 def check_no_raw_innerhtml_new_block(js_files: list[Path]) -> list[str]:
-    """检查:JS 文件中不得有原始 innerHTML 赋值(清空操作除外).BLOCK.
+    """参数：
+        js_files: 待检查的 JavaScript 文件列表。
 
-    Args:
-        js_files: Input value for js_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
 
@@ -586,18 +543,17 @@ def check_no_raw_innerhtml_new_block(js_files: list[Path]) -> list[str]:
     return errors
 
 
+# 检查无 布局 inline style new 阻断。
 def check_no_layout_inline_style_new_block(  # noqa: PLR0912 - keeps HTML and JS checks together.
     html_files: list[Path],
     js_files: list[Path],
 ) -> list[str]:
-    """检查:HTML 模板和 JS 文件中不得有 layout 相关 inline style / .style.xxx 赋值.
+    """参数：
+        html_files: 待检查的文件列表。
+        js_files: 待检查的 JavaScript 文件列表。
 
-    Args:
-        html_files: Input value for html_files.
-        js_files: Input value for js_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
 
@@ -654,17 +610,13 @@ def check_no_layout_inline_style_new_block(  # noqa: PLR0912 - keeps HTML and JS
     return errors
 
 
-# ── Composite check ────────────────────────────────────────────────────
-
-
+# 检查static。
 def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
-    """返回 (errors, warnings).
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Input value for repo_root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -675,34 +627,27 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
     css_files = list(static.rglob('*.css'))
     js_files = list(static.rglob('*.js'))
 
-    # BLOCK: no-important
     errors.extend(check_no_important(css_files))
 
-    # BLOCK: css-load-order-contract
     base_html = static.parent / 'templates' / 'base.html'
     if base_html.exists():
         errors.extend(check_css_load_order(base_html.read_text(encoding='utf-8')))
     else:
         errors.append(f'css-load-order-contract: base.html 不存在:{base_html}')
 
-    # BLOCK: no-dead-css-file
     errors.extend(check_no_dead_css(css_files))
 
-    # BLOCK: no-duplicate-base-css
     templates = static.parent / 'templates'
     if templates.exists():
         html_files = list(templates.rglob('*.html'))
         errors.extend(check_no_duplicate_base_css(html_files))
 
-    # BLOCK: payload-modal ownership (new violations)
     pm_errors, pm_warnings = check_payload_modal_ownership(css_files)
     errors.extend(pm_errors)
     warnings.extend(pm_warnings)
 
-    # WARN: shell ownership
     warnings.extend(check_shell_ownership(css_files))
 
-    # WARN: innerHTML safety (replaces old inline JS safety check)
     warnings.extend(check_innerhtml_safety(js_files))
     for path in css_files:
         rel = path.relative_to(repo_root).as_posix()
@@ -718,18 +663,15 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         ):
             warnings.append(f'{rel}: fixed 布局需确认是否符合桌面端 contract.')
 
-    # BLOCK: eval is forbidden
     for path in js_files:
         rel = path.relative_to(repo_root).as_posix()
         text = path.read_text(encoding='utf-8', errors='replace')
         if 'eval(' in text:
             errors.append(f'{rel}: 禁止 eval.')
 
-    # ── CSS/JS ownership gates ─────────────────────────────────────
     # 加载历史债务 baseline,存量违规 = WARN,新增 = BLOCK
     baseline = _load_ownership_baseline(repo_root)
 
-    # BLOCK: css-ownership-gate (shell selector ownership)
     _apply_baseline_gate(
         errors,
         warnings,
@@ -738,7 +680,6 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         'css-ownership',
     )
 
-    # BLOCK: no-global-component-override
     _apply_baseline_gate(
         errors,
         warnings,
@@ -747,7 +688,6 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         'component-override',
     )
 
-    # BLOCK: selector-depth-new-block
     _apply_baseline_gate(
         errors,
         warnings,
@@ -756,7 +696,6 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         'selector-depth',
     )
 
-    # BLOCK: no-raw-innerHTML-new-block
     _apply_baseline_gate(
         errors,
         warnings,
@@ -765,7 +704,6 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         'raw-innerhtml',
     )
 
-    # BLOCK: no-layout-inline-style-new-block (HTML + JS)
     html_files_for_style = list(templates.rglob('*.html')) if templates.exists() else []
     layout_errors = check_no_layout_inline_style_new_block(html_files_for_style, js_files)
     _apply_baseline_gate_combined(
@@ -776,28 +714,30 @@ def check_static(repo_root: Path) -> tuple[list[str], list[str]]:
         + baseline.get('layout_style_js_violations', []),
         'layout-inline-style',
     )
+# 加载 ownership baseline JSON.
 
     return errors, warnings
 
 
+# 加载ownership baseline。
 def _load_ownership_baseline(repo_root: Path) -> dict:
-    """加载 ownership baseline JSON.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Input value for repo_root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     baseline_path = Path(__file__).parent / 'ownership_baseline.json'
     if baseline_path.exists():
         try:
             return json.loads(baseline_path.read_text(encoding='utf-8'))
         except (json.JSONDecodeError, ValueError):
+# 将 gate 结果与 baseline 比对:存量 = WARN,新增 = BLOCK.
             pass
     return {}
 
 
+# 应用baseline gate。
 def _apply_baseline_gate(
     errors: list[str],
     warnings: list[str],
@@ -805,14 +745,12 @@ def _apply_baseline_gate(
     baseline_items: list[str],
     gate_name: str,
 ) -> None:
-    """将 gate 结果与 baseline 比对:存量 = WARN,新增 = BLOCK.
-
-    Args:
-        errors: Input value for errors.
-        warnings: Input value for warnings.
-        gate_results: Input value for gate_results.
-        baseline_items: Input value for baseline_items.
-        gate_name: Input value for gate_name.
+    """参数：
+        errors: errors 参数。
+        warnings: 已收集的警告列表。
+        gate_results: gate 执行结果列表。
+        baseline_items: baseline 条目列表。
+        gate_name: gate 名称。
     """
     # 创建 baseline 匹配集合(简化:用子串匹配)
     baseline_set = set()
@@ -821,12 +759,11 @@ def _apply_baseline_gate(
         # 也添加文件名部分用于匹配
         if ':' in item:
             baseline_set.add(item.split(':')[0])
-            # Also add the selector part (after path:prefix) for cross-path matching
-            # Format: "path/to/file.css:selector" or "path/file.css: selector ..."
+            # Also add the selector part (after 路径:prefix)用于cross-路径 matching。
+            # Format: "路径/到/文件.css:selector" 或 "路径/文件.css: selector ..."。
             colon_idx = item.index(':')
             selector_part = item[colon_idx + 1 :].strip()
             if selector_part:
-                # Extract just the selector (before any " (depth=" or other annotations)
                 sel = selector_part.split(' (')[0].strip()
                 if sel:
                     baseline_set.add(sel)
@@ -835,10 +772,12 @@ def _apply_baseline_gate(
         is_known = any(b in result for b in baseline_set)
         if is_known:
             warnings.append(f'[{gate_name}] 存量: {result}')
+# 同上,但 baseline 中可能包含文件路径前缀.
         else:
             errors.append(f'[{gate_name}] 新增: {result}')
 
 
+# 应用baseline gate 合并。
 def _apply_baseline_gate_combined(
     errors: list[str],
     warnings: list[str],
@@ -846,14 +785,12 @@ def _apply_baseline_gate_combined(
     baseline_items: list[str],
     gate_name: str,
 ) -> None:
-    """同上,但 baseline 中可能包含文件路径前缀.
-
-    Args:
-        errors: Input value for errors.
-        warnings: Input value for warnings.
-        gate_results: Input value for gate_results.
-        baseline_items: Input value for baseline_items.
-        gate_name: Input value for gate_name.
+    """参数：
+        errors: errors 参数。
+        warnings: 已收集的警告列表。
+        gate_results: gate 执行结果列表。
+        baseline_items: baseline 条目列表。
+        gate_name: gate 名称。
     """
     baseline_set = set()
     for item in baseline_items:
@@ -863,7 +800,7 @@ def _apply_baseline_gate_combined(
         if parts:
             baseline_set.add(parts[-1])
             baseline_set.add(item.split(':')[0] if ':' in item else item)
-        # Also add selector part for cross-path matching
+        # Also add selector part用于cross-路径 matching。
         if ':' in item:
             colon_idx = item.index(':')
             selector_part = item[colon_idx + 1 :].strip()
@@ -883,11 +820,10 @@ def _apply_baseline_gate_combined(
 # ── CLI ────────────────────────────────────────────────────────────────
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run static asset contract checks as a CLI quality gate.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     errors, warnings = check_static(Path.cwd())
     if os.environ.get('SESSION_BROWSER_STATIC_CONTRACT_SHOW_WARNINGS') == '1':

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Validate active OpenSpec change layout for required quality gates.
-
-The script scans openspec/changes from the repository root, skips the archive,
-and fails when active changes are missing proposal.md or tasks.md. It has no
-write side effects; stdout lists structural errors and the exit code is 1 on
-layout drift or 0 when the layout is valid.
-"""
+"""验证 active OpenSpec change layout for 必需 quality gates。"""
 
 import sys
 from pathlib import Path

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate Codex custom agent metadata and handoff contracts."""
+"""提供 检查 codex agent policy 脚本能力。"""
 
 from __future__ import annotations
 
@@ -28,17 +28,13 @@ ALLOWED_REASONING_EFFORTS = {'low', 'medium', 'high', 'xhigh'}
 MIN_DEVELOPER_INSTRUCTIONS_CHARS = 300
 
 
+# 加载输入数据。
 def _load(path: Path) -> dict:
-    """Load one agent TOML file for the Codex agent policy gate.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Agent config path under ``.codex/agents``.
-
-    Returns:
-        Parsed TOML mapping used by downstream contract checks.
-
-    Raises:
-        ValueError: Raised when the file cannot be parsed as TOML.
+    返回：
+        已解析的TOML 映射 供 downstream contract 检查。
     """
     try:
         return tomllib.loads(path.read_text(encoding='utf-8'))
@@ -46,15 +42,13 @@ def _load(path: Path) -> dict:
         raise ValueError(f'{path.relative_to(REPO_ROOT)}: TOML 解析失败: {exc}') from exc
 
 
+# 检查agent。
 def check_agent(path: Path) -> list[str]:
-    """Validate one Codex agent config and return contract failures.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Agent TOML path selected by the quality gate.
-
-    Returns:
-        Failure messages. The list is empty when metadata, sandbox mode, and
-        handoff wording satisfy the repository's custom agent policy.
+    返回：
+        结果列表。
     """
     failures: list[str] = []
     rel = path.relative_to(REPO_ROOT)
@@ -100,13 +94,10 @@ def check_agent(path: Path) -> list[str]:
     return failures
 
 
+# 运行检查。
 def run_check() -> list[str]:
-    """Run the Codex agent policy gate across configured custom agents.
-
-    Returns:
-        Failure messages for every ``.codex/agents/*.toml`` file. Missing agent
-        directory is treated as a passing no-op so other quality targets can run
-        in worktrees without local custom agents.
+    """返回：
+        结果列表。
     """
     if not AGENTS_DIR.exists():
         return []
@@ -119,19 +110,17 @@ def run_check() -> list[str]:
     return failures
 
 
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Check fixed policy sets used by the CLI ``--self-test`` path."""
     assert 'implementer' in WRITE_CAPABLE_AGENTS
     assert 'qa-verifier' in READ_ONLY_AGENTS
     assert 'high' in ALLOWED_REASONING_EFFORTS
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI flags, run the agent policy gate, and return exit status.
-
-    Returns:
-        ``0`` when the self-test or policy scan passes, otherwise ``1`` after
-        printing all failures for the quality summary artifact.
+    """返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(description='检查 Codex custom agent 配置')
     parser.add_argument('--self-test', action='store_true')

@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Guard implementation edits until an active OpenSpec change exists.
-
-Agent hooks call this script before protected implementation work. It checks
-openspec/changes for at least one non-archive directory, prints the blocking
-reason to stderr, and exits 2 when OpenSpec setup is missing; otherwise it exits
-0 without modifying the repository.
-"""
+"""提供 guard OpenSpec change 脚本能力。"""
 
 import sys
 from pathlib import Path

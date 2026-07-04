@@ -1,16 +1,5 @@
 #!/usr/bin/env python3
-"""Doctor: single-entry health check for spec+harness standard installation.
-
-Runs all validators, hook self-tests, settings verification, and gitignore
-checks in one pass. Prints a concise summary table.
-
-Usage:
-    python3 scripts/quality/doctor.py
-
-Exit codes:
-    0  all hard gates pass
-    1  one or more hard failures
-"""
+"""提供 doctor 脚本能力。"""
 
 from __future__ import annotations
 
@@ -23,21 +12,20 @@ from pathlib import Path
 REPO_ROOT = Path.cwd().resolve()
 
 # ---------------------------------------------------------------------------
-# Check definitions
+# 检查definitions。
 # ---------------------------------------------------------------------------
 
 CHECKS: list[tuple[str, str, int]] = []  # (name, cmd_or_note, exit_code)
 
 
+# 运行检查流程。
 def _run(name: str, cmd: str) -> int:
-    """Run a command and record the result.
+    """参数：
+        name: 条目名称。
+        cmd: 待执行的命令。
 
-    Args:
-        name: Input value for name.
-        cmd: Input value for cmd.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     print(f'  [{name}] running ...', end=' ')
     try:
@@ -63,45 +51,35 @@ def _run(name: str, cmd: str) -> int:
         return 2
 
 
+# 记录诊断备注。
 def _note(name: str, note: str) -> None:
-    """Record a non-blocking doctor observation as a passing check.
-
-    Args:
-        name: Input value for name.
-        note: Input value for note.
+    """参数：
+        name: 条目名称。
+        note: note 参数。
     """
     print(f'  [{name}] {note}')
     CHECKS.append((name, note, 0))
 
 
-# ---------------------------------------------------------------------------
-# Main
-# ---------------------------------------------------------------------------
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> int:  # noqa: PLR0915 - doctor keeps ordered diagnostic sections inline.
-    """Run repository harness and hook health checks.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     print(f'\n{"=" * 60}')
     print('doctor: feipi-session-browser harness health check')
     print(f'root: {REPO_ROOT}')
     print(f'{"=" * 60}\n')
 
-    # Section 1: Repo structure
     print('--- repo structure ---')
     _run('repo structure', 'python3 scripts/quality/validate_repo_structure.py')
     print()
 
-    # Section 2: Harness validators
     print('--- harness validators ---')
     _run('harness structure', 'python3 scripts/harness/validate_harness_structure.py')
     _run('openspec layout', 'python3 scripts/harness/validate_openspec_layout.py')
     print()
 
-    # Section 3: Hook self-tests
     print('--- hook self-tests ---')
     _run('guard guard', 'python3 scripts/agent_hooks/guard_active_openspec_change.py --self-test')
     _run('stop validate', 'python3 scripts/agent_hooks/stop_validate_change.py --self-test')
@@ -109,7 +87,6 @@ def main() -> int:  # noqa: PLR0915 - doctor keeps ordered diagnostic sections i
     _run('log evidence', 'python3 scripts/agent_hooks/log_change_evidence.py --self-test')
     print()
 
-    # Section 4: Settings JSON
     print('--- settings ---')
     settings_path = REPO_ROOT / '.claude/settings.json'
     if settings_path.is_file():
@@ -129,7 +106,6 @@ def main() -> int:  # noqa: PLR0915 - doctor keeps ordered diagnostic sections i
         _note('settings.json', 'MISSING')
     print()
 
-    # Section 5: Gitignore
     print('--- gitignore ---')
     gitignore = REPO_ROOT / '.gitignore'
     if gitignore.is_file():
@@ -141,7 +117,7 @@ def main() -> int:  # noqa: PLR0915 - doctor keeps ordered diagnostic sections i
         _note('.gitignore', 'MISSING')
     print()
 
-    # Section 6: Default agents
+    # section 6: 默认 agents。
     print('--- default agents ---')
     agents_dir = REPO_ROOT / '.claude/agents'
     for agent in ['openspec-planner.md', 'implementer.md', 'qa-verifier.md']:
@@ -150,7 +126,7 @@ def main() -> int:  # noqa: PLR0915 - doctor keeps ordered diagnostic sections i
         _note(agent, 'present' if exists else 'MISSING')
     print()
 
-    # Summary
+    # 结果汇总。
     hard_failures = sum(1 for _, _, code in CHECKS if code != 0)
     total = len(CHECKS)
     passed = total - hard_failures

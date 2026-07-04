@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-"""Check Profile table DOM structure in session.html.
-
-Static analysis: ensures Profile is LLM Call Index only, not carrying
-inline request/response expansion blocks.
-
-Checks:
-  1. Profile table contains only call summary columns (no inline detail rows).
-  2. No .llm-call-detail__pre-block, "Request Context:", or large inline <pre>.
-  3. Each row has an Inspect button that can open Inspector.
-  4. Marker container exists in the template.
-  5. Preview column has truncation class for single/two-line clipping.
-
-Usage:
-    cd <repo-root>
-    PYTHONPATH=src python scripts/check_profile_table_structure.py
-
-Exit codes:
-    0 — all checks passed
-    1 — one or more checks failed
-    2 — input error (template file not found)
-"""
+"""提供 检查 profile 表格 结构 脚本能力。"""
 
 from __future__ import annotations
 
@@ -29,17 +9,11 @@ from pathlib import Path
 
 MAX_INLINE_PRE_CHARS = 200
 
-# ── locate template ──────────────────────────────────────────────────
 
-
+# 查找session HTML。
 def find_session_html() -> Path:
-    """Locate the session.html template for the profile table static gate.
-
-    Returns:
-        Path to the first existing session.html candidate.
-
-    Raises:
-        FileNotFoundError: When neither repo-root nor cwd-based candidate exists.
+    """返回：
+        路径到 first 现有 session.html candidate。
     """
     candidates = [
         Path(__file__).resolve().parent.parent
@@ -56,17 +30,13 @@ def find_session_html() -> Path:
     raise FileNotFoundError('Cannot find session.html. Run from repo root or set PYTHONPATH.')
 
 
-# ── extraction ───────────────────────────────────────────────────────
-
-
+# 提取profile template。
 def extract_profile_template(source: str) -> str | None:
-    """Extract the profile template block from session.html for focused checks.
+    """参数：
+        source: 输入来源标识。
 
-    Args:
-        source: Full session.html source text.
-
-    Returns:
-        Inner profile template HTML, or None when the template block is absent.
+    返回：
+        提取出的 profile template 文本。
     """
     m = re.search(
         r'<template id="profile-template">(.*?)</template>',
@@ -76,30 +46,25 @@ def extract_profile_template(source: str) -> str | None:
     return m.group(1) if m else None
 
 
+# 提取profile 表格。
 def extract_profile_table(template: str) -> str | None:
-    """Extract the profile table block from the profile template.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML.
-
-    Returns:
-        Table HTML, or None when no table block exists.
+    返回：
+        extract profile 表格 字符串。
     """
     m = re.search(r'(<table.*?</table>)', template, re.DOTALL)
     return m.group(1) if m else None
 
 
-# ── checks ───────────────────────────────────────────────────────────
-
-
+# 检查没有 inline detail 行。
 def check_no_inline_detail_rows(template: str) -> tuple[bool, str]:
-    """Check that the Profile table does not contain inline detail expansion rows.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
     if re.search(r'class="[^"]*\bllm-call-detail\b[^"]*"', template):
         return (
@@ -110,14 +75,13 @@ def check_no_inline_detail_rows(template: str) -> tuple[bool, str]:
     return True, 'No inline llm-call-detail expansion rows'
 
 
+# 检查无 pre 块。
 def check_no_pre_blocks(template: str) -> tuple[bool, str]:
-    """Check that Profile markup omits legacy inline pre-block containers.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
     if 'llm-call-detail__pre-block' in template:
         return (
@@ -128,32 +92,31 @@ def check_no_pre_blocks(template: str) -> tuple[bool, str]:
     return True, 'No .llm-call-detail__pre-block elements'
 
 
+# 检查没有 request context 标签。
 def check_no_request_context_label(template: str) -> tuple[bool, str]:
-    """Check that Profile markup does not expose request context labels inline.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
     if 'Request Context:' in template:
         return (
             False,
+# 检查Profile 行 provide Inspect buttons wired到 inspector。
             'Found "Request Context:" label — Profile should not expose inline request '
             'context labels',
         )
     return True, 'No "Request Context:" inline label'
 
 
+# 检查inspect buttons exist。
 def check_inspect_buttons_exist(template: str) -> tuple[bool, str]:
-    """Check that Profile rows provide Inspect buttons wired to the inspector.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
     buttons = re.findall(
         r'<button[^>]*class="[^"]*inspect-btn[^"]*"[^>]*>',
@@ -162,39 +125,35 @@ def check_inspect_buttons_exist(template: str) -> tuple[bool, str]:
     if not buttons:
         return False, 'No inspect buttons found — each profile row should have an Inspect button'
 
-    # Verify they reference openLLMInspector
     has_open = 'openLLMInspector' in template
+# 检查Profile markup exposes a marker container用于行 indicators。
     if not has_open:
         return False, 'Inspect buttons exist but openLLMInspector function not found'
 
     return True, f'{len(buttons)} inspect button(s) found with openLLMInspector handler'
 
 
+# 检查marker container。
 def check_marker_container(template: str) -> tuple[bool, str]:
-    """Check that Profile markup exposes a marker container for row indicators.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
-    # Look for a marker-style container (data-marker, or a div with marker class)
     if 'data-marker' in template or 'marker-container' in template or 'profile-marker' in template:
         return True, 'Marker container found'
     return False, 'No marker container found (data-marker / marker-container / profile-marker)'
 
 
+# 检查preview truncation。
 def check_preview_truncation(template: str) -> tuple[bool, str]:
-    """Check that the Profile preview column uses truncation styling.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
-    # Look for truncate class on preview cells
     if (
         'class="text-xs mono truncate"' in template
         or 'class="truncate"' in template
@@ -204,16 +163,14 @@ def check_preview_truncation(template: str) -> tuple[bool, str]:
     return False, 'Preview column missing truncation class'
 
 
+# 检查没有大块 inline pre 内容。
 def check_no_large_inline_pre(template: str) -> tuple[bool, str]:
-    """Check that Profile detail markup does not embed large inline pre blocks.
+    """参数：
+        template: 待检查的 template HTML。
 
-    Args:
-        template: Profile template HTML to inspect.
-
-    Returns:
-        Tuple of pass status and diagnostic detail.
+    返回：
+        由pass 状态 和 diagnostic detail.组成的 tuple。
     """
-    # Find <pre> blocks inside llm-call-detail__grid area
     detail_section = re.search(
         r'llm-call-detail__grid.*?(?=</template>)',
         template,
@@ -225,7 +182,6 @@ def check_no_large_inline_pre(template: str) -> tuple[bool, str]:
     section = detail_section.group()
     pre_blocks = re.findall(r'<pre[^>]*>(.*?)</pre>', section, re.DOTALL)
     for i, content in enumerate(pre_blocks):
-        # Strip Jinja2 template syntax for length check
         stripped = re.sub(r'\{\{.*?\}\}', '', content)
         stripped = re.sub(r'\{%.*?%\}', '', stripped)
         stripped_len = len(stripped.strip())
@@ -239,27 +195,25 @@ def check_no_large_inline_pre(template: str) -> tuple[bool, str]:
     return True, 'No large inline <pre> blocks in detail grid'
 
 
-# ── runner ───────────────────────────────────────────────────────────
-
 CHECKS = [
     ('No inline detail rows', check_no_inline_detail_rows),
     ('No pre-blocks', check_no_pre_blocks),
     ('No Request Context label', check_no_request_context_label),
     ('Inspect buttons exist', check_inspect_buttons_exist),
+# 运行all Profile table structure checks against a template 路径。
     ('Marker container', check_marker_container),
     ('Preview truncation', check_preview_truncation),
     ('No large inline <pre>', check_no_large_inline_pre),
 ]
 
 
+# 运行检查流程。
 def run(template_path: Path) -> int:
-    """Run all Profile table structure checks against a template path.
+    """参数：
+        template_path: 待检查的路径。
 
-    Args:
-        template_path: session.html path selected by find_session_html.
-
-    Returns:
-        Exit code 0 when all checks pass, 1 for contract failures, or 2 for input errors.
+    返回：
+        exit code 0 当 all 检查 pass, 1用于contract 失败项, 或 2用于输入 错误。
     """
     source = template_path.read_text(encoding='utf-8')
     template = extract_profile_template(source)
@@ -292,11 +246,10 @@ def run(template_path: Path) -> int:
     return 1 if failures > 0 else 0
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Locate session.html and run the Profile table structure gate.
-
-    Returns:
-        Exit code from run, or 2 when the template cannot be located.
+    """返回：
+        进程退出码。
     """
     try:
         path = find_session_html()

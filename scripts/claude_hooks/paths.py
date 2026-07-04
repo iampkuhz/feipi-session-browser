@@ -1,76 +1,167 @@
-"""Build repository and runtime paths for Claude hook evidence.
-
-Hook handlers use this module to locate the repository root, current agent log files,
-and active change metadata. Directory creation is limited to runtime artifact paths under
-``tmp`` so hook setup does not modify product sources.
-"""
+"""构建 repository and 运行time paths for Claude hook evidence。"""
 
 from __future__ import annotations
 
+import hashlib
+import os
+import re
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Any
+
+
+SAFE_SEGMENT_RE = re.compile(r'[^A-Za-z0-9._-]+')
+MAX_SEGMENT_LENGTH = 80
 
 
 # 01. 数据结构
 @dataclass(frozen=True)
-class RepoPaths:
-    """Repository root and hook runtime paths used by event handlers.
+class RuntimeIdentity:
+    """表示 RuntimeIdentity。
 
-    Attributes:
-        repo_root: Resolved repository root.
-        agent_log_dir: Current runtime directory for hook JSONL evidence.
+    属性：
+        client: agent client 适配器名称。
+        session_id: 隔离运行数据的 session id。
+        agent_id: 可选 subagent id。
+        raw_session_id: 原始 session id。
+        raw_agent_id: 原始 agent id。
+    """
+
+    client: str
+    session_id: str
+    agent_id: str = ''
+    raw_session_id: str = ''
+    raw_agent_id: str = ''
+
+    # 判断是否存在session。
+    @property
+    def has_session(self) -> bool:
+        """返回：
+            满足条件时返回 true，否则返回 false。
+        """
+        return bool(self.raw_session_id)
+
+    # 判断是否agent。
+    @property
+    def is_agent(self) -> bool:
+        """返回：
+            满足条件时返回 true，否则返回 false。
+        """
+        return bool(self.raw_agent_id)
+
+
+@dataclass(frozen=True)
+class RepoPaths:
+    """表示 RepoPaths。
+
+    属性：
+        repo_root: 仓库根目录。
+        agent_log_dir: 当前 runtime 的 hook evidence 目录。
+        identity: 当前 hook runtime identity。
     """
 
     repo_root: Path
     agent_log_dir: Path
+    identity: RuntimeIdentity = field(
+        default_factory=lambda: identity_from_values(
+            agent_client='unknown', session_id='', agent_id=''
+        )
+    )
 
+    # 维护changed-files 文件。
     @property
     def changed_files(self) -> Path:
-        """Return the JSONL path that stores post-write file evidence."""
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
         return self.agent_log_dir / 'changed-files.jsonl'
 
+    # 维护session id 文件。
+    @property
+    def session_id_file(self) -> Path:
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
+        return self.agent_log_dir / 'session-id.txt'
+
+    # 维护base commit。
+    @property
+    def base_commit(self) -> Path:
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
+        return self.agent_log_dir / 'base-commit.txt'
+
+    # 维护hook event。
     @property
     def hook_events(self) -> Path:
-        """Return the JSONL path that stores hook lifecycle events."""
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
         return self.agent_log_dir / 'hook-events.jsonl'
 
+    # 维护命令 event。
     @property
     def command_events(self) -> Path:
-        """Return the JSONL path reserved for command event evidence."""
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
         return self.agent_log_dir / 'command-events.jsonl'
 
+    # 维护任务 evidence 目录。
     @property
     def task_evidence_dir(self) -> Path:
-        """Return the directory that stores per-change evidence JSONL files."""
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
         return self.agent_log_dir / 'task-evidence'
 
+    # 维护quality 目录。
     @property
     def quality_dir(self) -> Path:
-        """Return the directory for hook-local quality artifacts."""
-        return self.agent_log_dir / 'quality'
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
+        return quality_dir(self.repo_root, self.identity)
 
+    # 维护stop summary。
     @property
     def stop_summary(self) -> Path:
-        """Return the stop-hook summary JSON path."""
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
         return self.agent_log_dir / 'stop-check-summary.json'
 
+    # 维护active change。
     @property
     def active_change(self) -> Path:
-        """Return the active OpenSpec change metadata path."""
-        return self.repo_root / 'tmp' / 'active_change.json'
+        """返回：
+            解析后的 HookContext；失败时携带 parse_error。
+        """
+        return self.active_change_candidates[0]
+
+    # 维护active change 候选项。
+    @property
+    def active_change_candidates(self) -> list[Path]:
+        """返回：
+            结果列表。
+        """
+        if not self.identity.has_session:
+            return [legacy_active_change_path(self.repo_root)]
+        session_main = session_main_log_dir(self.repo_root, self.identity) / 'active_change.json'
+        if self.identity.is_agent:
+            return [self.agent_log_dir / 'active_change.json', session_main]
+        return [session_main]
 
 
-# 02. 仓库根目录定位
+# 查找repo 根目录。
 def find_repo_root(start: str | Path | None = None) -> Path:
-    """Locate the repository root for a hook event.
+    """参数：
+        start: 可选路径 used as starting point用于git root detection。
 
-    Args:
-        start: Optional path used as the starting point for git root detection.
-
-    Returns:
-        Git repository root when available, otherwise the resolved starting path. The
-        fallback keeps hooks usable in tests and partial checkouts.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     start_path = Path.cwd() if start is None else Path(start).resolve()
     try:
@@ -86,56 +177,194 @@ def find_repo_root(start: str | Path | None = None) -> Path:
     return start_path
 
 
-# 02. 固定路径常量
-AGENT_LOG_DIR_NAME = 'current'
 QUALITY_DIR_NAME = 'quality'
 
 
-def agent_log_dir(repo_root: Path) -> Path:
-    """Return the current agent log directory under ``tmp/agent_logs``.
+# 维护清理 路径 片段。
+def sanitize_path_segment(value: str | None, fallback: str = 'unknown') -> str:
+    """参数：
+        value: value 参数。
+        fallback: fallback 参数。
 
-    Args:
-        repo_root: Repository root path.
-
-    Returns:
-        Runtime log directory for the current hook session.
+    返回：
+        sanitize 路径 segment 字符串。
     """
-    return repo_root / 'tmp' / 'agent_logs' / AGENT_LOG_DIR_NAME
+    raw = str(value or '').strip()
+    if not raw:
+        raw = fallback
+    cleaned = SAFE_SEGMENT_RE.sub('-', raw).strip('.-_/')
+    if not cleaned:
+        cleaned = fallback
+    if cleaned in {'.', '..'}:
+        cleaned = fallback
+    if cleaned == raw and len(cleaned) <= MAX_SEGMENT_LENGTH and '/' not in cleaned:
+        return cleaned
+    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()[:12]
+    prefix = cleaned[: max(1, MAX_SEGMENT_LENGTH - 13)].rstrip('.-')
+    return f'{prefix}-{digest}'
 
 
-def quality_dir(repo_root: Path) -> Path:
-    """Return the repository-level quality artifact directory under ``tmp``.
+# 维护identity 值。
+def identity_from_values(
+    agent_client: str | None = None,
+    session_id: str | None = None,
+    agent_id: str | None = None,
+) -> RuntimeIdentity:
+    """参数：
+        agent_client: agent client 参数。
+        session_id: 用于筛选记录的 session id。
+        agent_id: 用于筛选记录的 agent id。
 
-    Args:
-        repo_root: Repository root path.
-
-    Returns:
-        Path to ``tmp/quality``.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
-    return repo_root / 'tmp' / QUALITY_DIR_NAME
+    raw_client = agent_client or os.environ.get('FEIPI_AGENT_CLIENT') or 'unknown'
+    raw_session = session_id or os.environ.get('FEIPI_SESSION_ID') or ''
+    raw_agent = agent_id or os.environ.get('FEIPI_AGENT_ID') or ''
+    return RuntimeIdentity(
+        client=sanitize_path_segment(raw_client, fallback='unknown'),
+        session_id=sanitize_path_segment(raw_session, fallback='unknown'),
+        agent_id=sanitize_path_segment(raw_agent, fallback='') if raw_agent else '',
+        raw_session_id=raw_session,
+        raw_agent_id=raw_agent,
+    )
 
 
-# 03. 运行态路径构造
-def build_paths(repo_root: str | Path | None = None) -> RepoPaths:
-    """Build all paths needed by Claude hook handlers.
+# 维护identity hook context。
+def identity_from_hook_context(ctx: Any, agent_client: str | None = None) -> RuntimeIdentity:
+    """参数：
+        ctx: ctx 参数。
+        agent_client: agent client 参数。
 
-    Args:
-        repo_root: Optional repository root override for tests.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    client = (
+        agent_client
+        or getattr(ctx, 'agent_client', '')
+        or os.environ.get('FEIPI_AGENT_CLIENT')
+        or 'unknown'
+    )
+    return identity_from_values(
+        agent_client=client,
+        session_id=getattr(ctx, 'session_id', ''),
+        agent_id=getattr(ctx, 'agent_id', ''),
+    )
 
-    Returns:
-        ``RepoPaths`` containing the repository root and current agent log directory.
+
+# 维护legacy active change 路径。
+def legacy_active_change_path(repo_root: Path) -> Path:
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    return repo_root / 'tmp' / 'active_change.json'
+
+
+# 维护session 根目录 目录。
+def session_root_dir(repo_root: Path, identity: RuntimeIdentity) -> Path:
+    """参数：
+        repo_root: 仓库根目录。
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    return repo_root / 'tmp' / 'agent_logs' / identity.client / identity.session_id
+
+
+# 维护session main log 目录。
+def session_main_log_dir(repo_root: Path, identity: RuntimeIdentity) -> Path:
+    """参数：
+        repo_root: 仓库根目录。
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    return session_root_dir(repo_root, identity) / 'main'
+
+
+# 维护agent log 目录。
+def agent_log_dir(repo_root: Path, identity: RuntimeIdentity | None = None) -> Path:
+    """参数：
+        repo_root: repo root 路径。
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        运行time 日志 目录用于当前 hook session。
+    """
+    identity = identity or identity_from_values()
+    if identity.is_agent:
+        return session_root_dir(repo_root, identity) / 'agents' / identity.agent_id
+    return session_main_log_dir(repo_root, identity)
+
+
+# 维护session log 目录。
+def session_log_dirs(
+    repo_root: Path,
+    identity: RuntimeIdentity,
+    *,
+    include_agents: bool = False,
+) -> list[Path]:
+    """参数：
+        repo_root: 仓库根目录。
+        identity: 当前 hook 运行time identity。
+        include_agents: 是否包含 agent 目录。
+
+    返回：
+        结果列表。
+    """
+    if identity.is_agent:
+        return [agent_log_dir(repo_root, identity)]
+    dirs = [session_main_log_dir(repo_root, identity)]
+    if include_agents:
+        agents_root = session_root_dir(repo_root, identity) / 'agents'
+        if agents_root.exists():
+            dirs.extend(sorted(p for p in agents_root.iterdir() if p.is_dir()))
+    return dirs
+
+
+# 维护quality 目录。
+def quality_dir(repo_root: Path, identity: RuntimeIdentity | None = None) -> Path:
+    """参数：
+        repo_root: repo root 路径。
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        路径到 ``tmp/quality``。
+    """
+    identity = identity or identity_from_values()
+    base = repo_root / 'tmp' / QUALITY_DIR_NAME / identity.client / identity.session_id
+    if identity.is_agent:
+        return base / 'agents' / identity.agent_id
+    return base / 'main'
+
+
+# 构建路径。
+def build_paths(
+    repo_root: str | Path | None = None,
+    identity: RuntimeIdentity | None = None,
+) -> RepoPaths:
+    """参数：
+        repo_root: 可选repo root override用于tests。
+        identity: 当前 hook 运行time identity。
+
+    返回：
+        ``RepoPaths`` containing repo root 和 当前 agent 日志 目录。
     """
     root = find_repo_root(repo_root)
-    log_dir = agent_log_dir(root)
-    return RepoPaths(repo_root=root, agent_log_dir=log_dir)
+    resolved_identity = identity or identity_from_values()
+    log_dir = agent_log_dir(root, resolved_identity)
+    return RepoPaths(repo_root=root, agent_log_dir=log_dir, identity=resolved_identity)
 
 
-# 04. 目录初始化
+# 确保runtime 目录。
 def ensure_runtime_dirs(paths: RepoPaths) -> None:
-    """Create hook runtime directories before writing evidence.
-
-    Args:
-        paths: Repository runtime paths whose log directories should exist.
+    """参数：
+        paths: Repository 运行time 路径 whose 日志 目录 should exist。
     """
     for path in [
         paths.agent_log_dir,
@@ -146,17 +375,14 @@ def ensure_runtime_dirs(paths: RepoPaths) -> None:
         path.mkdir(parents=True, exist_ok=True)
 
 
-# 05. 相对路径转换
+# 维护相对 repo。
 def rel_to_repo(path: str | Path, repo_root: str | Path) -> str:
-    """Convert a tool-supplied path to a repository-relative path when possible.
+    """参数：
+        path: Absolute 或 relative 路径从hook 输入。
+        repo_root: 用于把绝对路径转为相对路径的 repo root。
 
-    Args:
-        path: Absolute or relative path from hook input.
-        repo_root: Repository root used to relativize absolute paths.
-
-    Returns:
-        Repository-relative POSIX path, or the original absolute path string when the
-        input is outside the repository.
+    返回：
+        repository-relative POSIX 路径, 或 original absolute 路径 字符串 当 the。 输入 is outside repository。
     """
     p = Path(path)
     root = Path(repo_root).resolve()

@@ -1,10 +1,4 @@
-"""Evaluate file paths before Claude Code writes to them.
-
-The pre-write hook calls this policy with each candidate path from Write, Edit,
-MultiEdit, or NotebookEdit. Sensitive user credential paths are blocked; generated and
-runtime paths are allowed but produce warnings so stop checks can prevent accidental git
-tracking.
-"""
+"""提供 file policy 脚本能力。"""
 
 from __future__ import annotations
 
@@ -21,16 +15,16 @@ if TYPE_CHECKING:
 # 01. 文件策略结果
 @dataclass
 class FilePolicyDecision:
-    """Decision returned by the pre-write file policy.
+    """表示 FilePolicyDecision 的策略判定结果。
 
-    Attributes:
-        allowed: Whether the write may proceed.
-        status: Hook status such as ``PASS`` or ``BLOCK``.
-        reason: Blocking reason shown to the user.
-        warnings: Advisory messages for allowed paths.
-        category: File classification category.
-        requires_quality_gate: Whether the path triggers gate evidence.
-        quality_target: Quality target name required by the path, when any.
+    属性：
+        allowed: 是否允许继续执行。
+        status: 状态值。
+        reason: 阻断或放行原因。
+        warnings: 警告列表。
+        category: 文件分类。
+        requires_quality_gate: 该路径是否触发 quality gate evidence。
+        quality_target: 需要运行的 quality target。
     """
 
     allowed: bool
@@ -42,17 +36,14 @@ class FilePolicyDecision:
     quality_target: str | None = None
 
 
-# 02. 写入策略: 默认允许, 少数明显敏感路径阻止。
+# 维护评估 write 路径。
 def evaluate_write_path(path: str, repo_root: str | Path) -> FilePolicyDecision:
-    """Evaluate one candidate write path for hook enforcement.
+    """参数：
+        path: Candidate 文件路径 reported by 写入 tool。
+        repo_root: repo root used到normalize 路径。
 
-    Args:
-        path: Candidate file path reported by a write tool.
-        repo_root: Repository root used to normalize paths.
-
-    Returns:
-        ``FilePolicyDecision``. Sensitive SSH/AWS paths are blocked with exit semantics
-        handled by the caller; local/generated paths pass with a warning.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     rel = rel_to_repo(path, repo_root)
     cls = classify_file(rel)
@@ -81,9 +72,8 @@ def evaluate_write_path(path: str, repo_root: str | Path) -> FilePolicyDecision:
     )
 
 
-# 03. 自测试
+# 运行脚本自测试场景。
 def _self_test() -> None:
-    """Run local assertions for file write policy decisions."""
     d = evaluate_write_path('src/session_browser/web/static/app.css', '.')
     assert d.allowed
     assert d.requires_quality_gate

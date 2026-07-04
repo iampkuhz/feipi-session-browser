@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that required harness contract files and entrypoints exist."""
+"""验证 that 必需 harness contract files and entrypoints exist。"""
 
 import sys
 from pathlib import Path
@@ -12,9 +12,11 @@ required = [
     '.claude/agents',
     '.codex/hooks.json',
     '.codex/hooks/pre_tool_guard.sh',
+    '.codex/hooks/post_bash_guard.sh',
     '.codex/hooks/post_tool_guard.sh',
     '.codex/hooks/stop_check.sh',
     '.qoder/hooks/pre_tool_guard.sh',
+    '.qoder/hooks/post_bash_guard.sh',
     '.qoder/hooks/post_tool_guard.sh',
     '.qoder/hooks/stop_check.sh',
     'skills/authoring/feipi-openspec-orchestrate-change/SKILL.md',

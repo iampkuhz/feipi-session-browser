@@ -1,35 +1,30 @@
 #!/usr/bin/env python3
-"""Gate: reject new product Python files in src/session_browser/.
-
-This script enforces the Python retirement policy (P40/P43). It scans
-src/session_browser/ for .py files and fails if any are found.
-Since P43 (2026-06-26), all product Python has been removed and
-any new product Python is prohibited.
-
-Harness, quality, test, and dev_tool Python files are NOT restricted
-by this gate -- only new product runtime or web Python is blocked.
-
-Exit 0 on pass, exit 1 on fail.
-"""
+"""提供 检查 no new product python 脚本能力。"""
 
 from __future__ import annotations
 
 import sys
 from pathlib import Path
 
-# Repository root is two levels up from this script (scripts/quality/ -> repo root).
+# 定义 _SCRIPT_DIR 常量配置。
 _SCRIPT_DIR = Path(__file__).resolve().parent
 _REPO_ROOT = _SCRIPT_DIR.parent.parent
 
 
+# 维护扫描 产品 Python。
 def _scan_product_python(repo_root: Path) -> list[str]:
-    """Return sorted list of .py file paths under src/session_browser/."""
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        结果列表。
+    """
     src_dir = repo_root / "src" / "session_browser"
     if not src_dir.is_dir():
         return []
     results: list[str] = []
     for py_file in sorted(src_dir.rglob("*.py")):
-        # Skip __pycache__
+        # 判断 "__pycache__" in py_file.parts 是否满足。
         if "__pycache__" in py_file.parts:
             continue
         rel = py_file.relative_to(repo_root).as_posix()
@@ -37,8 +32,11 @@ def _scan_product_python(repo_root: Path) -> list[str]:
     return results
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the gate check. Returns 0 on pass, 1 on fail."""
+    """返回：
+        进程退出码。
+    """
     repo_root = _REPO_ROOT
     all_py = _scan_product_python(repo_root)
 

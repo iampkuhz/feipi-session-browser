@@ -1,4 +1,4 @@
 #!/usr/bin/env python3
-"""UI reference docs are no longer maintained in the repository."""
+"""提供 validate UI reference links 脚本能力。"""
 
 print('ui reference docs: skipped')

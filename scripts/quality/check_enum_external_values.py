@@ -1,14 +1,5 @@
 #!/usr/bin/env python3
-"""Enum 外部值守卫检查脚本。
-
-扫描共享 Java 模块中的 enum 声明，验证对外暴露的枚举都具备显式外部值模式：
-  - 拥有 ``private final String value`` 字段
-  - 拥有 ``public static <Enum> fromValue(String)`` 工厂方法
-
-仅使用 Python 标准库。退出码：
-  0 — 所有对外枚举合规
-  1 — 存在缺失外部值的枚举
-"""
+"""Enum 外部值守卫检查脚本。"""
 
 from __future__ import annotations
 
@@ -40,7 +31,16 @@ INTERNAL_ENUMS: set[str] = {
 
 @dataclass
 class EnumInfo:
-    """一个 Java enum 的扫描结果。"""
+    """表示 EnumInfo。
+
+    属性：
+        fqn: fqn 参数。
+        file_path: 待检查的路径。
+        has_value_field: 控制对应检查行为的布尔开关。
+        has_get_value: 控制对应检查行为的布尔开关。
+        has_from_value: 控制对应检查行为的布尔开关。
+        constants: constants 参数。
+    """
 
     fqn: str
     file_path: str
@@ -65,15 +65,24 @@ _FROM_VALUE = re.compile(r"(?:public\s+static\s+\w+\s+fromValue\s*\(\s*String\s+
 _FROM_STRING = re.compile(r"(?:public\s+static\s+\w+\s+fromString\s*\(\s*String\s+\w*\s*\))")
 
 
+# 查找repo 根目录。
 def _find_repo_root() -> Path:
-    """从脚本位置推断仓库根目录。"""
+    """返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
     script = Path(__file__).resolve()
-    # scripts/quality/check_enum_external_values.py -> repo root
+    # 返回 script.parent.parent.parent 的计算结果。
     return script.parent.parent.parent
 
 
+# 维护扫描 文件。
 def _scan_file(file_path: Path) -> EnumInfo | None:
-    """解析单个 Java 文件，提取 enum 信息。"""
+    """参数：
+        file_path: 待检查的路径。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
     text = file_path.read_text(encoding="utf-8")
     match = _ENUM_DECL.search(text)
     if not match:
@@ -94,8 +103,14 @@ def _scan_file(file_path: Path) -> EnumInfo | None:
     )
 
 
+# 维护扫描 全部。
 def scan_all(repo_root: Path) -> list[EnumInfo]:
-    """扫描所有配置模块中的 enum 声明。"""
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        结果列表。
+    """
     results: list[EnumInfo] = []
     for module in SCAN_MODULES:
         module_dir = repo_root / module
@@ -113,14 +128,26 @@ def scan_all(repo_root: Path) -> list[EnumInfo]:
 # ---------------------------------------------------------------------------
 
 
+# 判断是否external。
 def _is_external(enum_info: EnumInfo) -> bool:
-    """判断枚举是否为对外暴露。"""
+    """参数：
+        enum_info: enum info 参数。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     simple_name = enum_info.fqn.rsplit(".", 1)[-1]
     return simple_name not in INTERNAL_ENUMS
 
 
+# 维护报告。
 def report(enums: list[EnumInfo]) -> tuple[list[EnumInfo], list[EnumInfo]]:
-    """生成合规与不合规枚举列表。"""
+    """参数：
+        enums: enums 参数。
+
+    返回：
+        结果 tuple。
+    """
     compliant: list[EnumInfo] = []
     violations: list[EnumInfo] = []
     for e in enums:
@@ -133,7 +160,11 @@ def report(enums: list[EnumInfo]) -> tuple[list[EnumInfo], list[EnumInfo]]:
     return compliant, violations
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     repo_root = _find_repo_root()
     enums = scan_all(repo_root)
 

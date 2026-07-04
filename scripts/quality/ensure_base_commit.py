@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Record the current git HEAD as the agent session base commit if absent."""
+"""提供 ensure base commit 脚本能力。"""
 
 from __future__ import annotations
 
@@ -13,8 +13,14 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.quality.changed_files import write_base_commit_if_missing  # noqa: E402
 
 
+# 解析命令行参数并运行脚本入口。
 def main(argv: list[str] | None = None) -> int:
-    """Write the base commit marker used by fail-closed changed-file routing."""
+    """参数：
+        argv: 命令行参数列表。
+
+    返回：
+        进程退出码。
+    """
     argv = sys.argv[1:] if argv is None else argv
     write_base_commit_if_missing(REPO_ROOT, overwrite='--force' in argv)
     return 0

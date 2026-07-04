@@ -22,7 +22,7 @@ def _setup_env(
 ) -> Path:
     """Create a temporary hook log environment for one runner scenario."""
     td = Path(tempfile.mkdtemp())
-    agent_log = td / 'agent_logs' / 'current'
+    agent_log = td / 'agent_logs' / 'codex' / 'test-session-001' / 'main'
     agent_log.mkdir(parents=True)
     quality = td / 'quality'
     quality.mkdir(parents=True)
@@ -38,6 +38,7 @@ def _setup_env(
     _runner.AGENT_LOG_DIR = agent_log
     _runner.CHANGED_FILES = cf
     _runner.SESSION_ID_FILE = agent_log / 'session-id.txt'
+    _runner.BASE_COMMIT_FILE = agent_log / 'base-commit.txt'
     _runner.QUALITY_DIR = quality
     _runner.REPO_ROOT = td
 

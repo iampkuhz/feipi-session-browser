@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-"""Validate subagent catalog structure and required fields.
-
-Only uses Python stdlib - implements minimal YAML parsing for catalog structure.
-"""
+"""验证 subagent catalog structure and 必需 fields。"""
 
 import sys
 from pathlib import Path
@@ -23,11 +20,13 @@ LIST_FIELDS = {'read_scope', 'write_scope', 'forbidden_scope', 'trigger_rules', 
 VALID_KINDS = {'readonly-analysis', 'restricted-writer', 'verification-only'}
 
 
+# 解析simple YAML。
 def parse_simple_yaml(content: str) -> dict:
-    """Parse simple YAML structure (mappings and lists only).
+    """参数：
+        content: 要写入的文本内容。
 
-    This is a minimal parser for the specific catalog.yaml structure.
-    Handles: top-level mappings, nested mappings, lists of mappings.
+    返回：
+        结果映射。
     """
     lines = content.split('\n')
     result = {}
@@ -41,17 +40,16 @@ def parse_simple_yaml(content: str) -> dict:
         stripped = line.rstrip()
         lstripped = line.lstrip()
 
-        # Skip empty lines and comments
+        # 跳过空 行 和 comments。
         if not stripped or stripped.startswith('#'):
             i += 1
             continue
 
-        # Calculate indentation
+        # 计算indentation。
         indent = len(line) - len(line.lstrip())
 
-        # Top-level key
         if indent == 0 and ':' in stripped:
-            # Save previous list item if any
+            # 保存previous 列表 item 如果 any。
             if current_list_item is not None and in_subagents:
                 if not isinstance(result.get('subagents'), list):
                     result['subagents'] = []
@@ -63,35 +61,33 @@ def parse_simple_yaml(content: str) -> dict:
             value = value.strip()
 
             if value:
-                # Simple key: value
                 result[key] = parse_value(value)
                 current_section = None
                 in_subagents = False
             else:
-                # Start of nested structure
+                # 启动of nested structure。
                 result[key] = {}
                 current_section = key
                 in_subagents = key == 'subagents'
                 current_list_item = None
 
-        # Nested content
         elif current_section and indent > 0:
-            # List item under subagents
+            # 列出item under subagents。
             if in_subagents and lstripped.startswith('- '):
-                # Save previous list item if any
+                # 保存previous 列表 item 如果 any。
                 if current_list_item is not None:
                     if not isinstance(result.get('subagents'), list):
                         result['subagents'] = []
                     result['subagents'].append(current_list_item)
 
-                # Start new list item
+                # 启动new 列表 item。
                 current_list_item = {}
                 item_content = lstripped[2:]  # Remove '- '
                 if ':' in item_content:
                     key, _, value = item_content.partition(':')
                     current_list_item[key.strip()] = parse_value(value.strip())
 
-            # Continuation of list item
+            # Continuation of 列表 item。
             elif current_list_item is not None and indent >= 4:
                 if ':' in lstripped:
                     key, _, value = lstripped.partition(':')
@@ -99,12 +95,11 @@ def parse_simple_yaml(content: str) -> dict:
                     value = value.strip()
 
                     if value:
-                        # Simple key: value
                         current_list_item[key] = parse_value(value)
                     else:
-                        # Start of list value
+                        # 启动of 列表 值。
                         current_list_item[key] = []
-                        # Collect list items
+                        # 收集列表 items。
                         j = i + 1
                         while j < len(lines):
                             next_line = lines[j]
@@ -122,7 +117,7 @@ def parse_simple_yaml(content: str) -> dict:
                             j += 1
                         i = j - 1
 
-            # Nested mapping (not in subagents list)
+            # Nested 映射 (不 in subagents 列表)。
             elif ':' in lstripped and not in_subagents:
                 key, _, value = lstripped.partition(':')
                 key = key.strip()
@@ -132,7 +127,7 @@ def parse_simple_yaml(content: str) -> dict:
 
         i += 1
 
-    # Save last list item
+    # 保存last 列表 item。
     if current_list_item is not None:
         if not isinstance(result.get('subagents'), list):
             result['subagents'] = []
@@ -141,28 +136,31 @@ def parse_simple_yaml(content: str) -> dict:
     return result
 
 
+# 解析值。
 def parse_value(value: str):
-    """Parse a simple YAML value (string, number, boolean, empty list)."""
+    """参数：
+        value: value 参数。
+    """
     if not value:
         return None
 
-    # Empty list
+    # 空 列表。
     if value == '[]':
         return []
 
-    # Remove quotes
+    # 移除quotes。
     if (value.startswith('"') and value.endswith('"')) or (
         value.startswith("'") and value.endswith("'")
     ):
         return value[1:-1]
 
-    # Boolean
+    # 布尔值。
     if value.lower() == 'true':
         return True
     if value.lower() == 'false':
         return False
 
-    # Number
+    # 数字。
     try:
         if '.' in value:
             return float(value)
@@ -170,12 +168,18 @@ def parse_value(value: str):
     except ValueError:
         pass
 
-    # String
+    # 字符串。
     return value
 
 
+# 验证catalog。
 def validate_catalog(catalog_path: Path) -> list[str]:
-    """Validate catalog.yaml and return list of errors."""
+    """参数：
+        catalog_path: 待检查的路径。
+
+    返回：
+        结果列表。
+    """
     errors = []
 
     if not catalog_path.exists():
@@ -191,7 +195,7 @@ def validate_catalog(catalog_path: Path) -> list[str]:
     if not isinstance(catalog, dict):
         return ['Catalog root must be a mapping']
 
-    # Check top-level structure
+    # 检查top-level structure。
     if 'version' not in catalog:
         errors.append('Missing top-level "version" field')
     elif catalog['version'] != 1:
@@ -220,7 +224,7 @@ def validate_catalog(catalog_path: Path) -> list[str]:
         errors.append('"subagents" list is empty')
         return errors
 
-    # Check each subagent
+    # 检查each subagent。
     seen_ids = set()
     for i, sa in enumerate(subagents):
         prefix = f'subagents[{i}]'
@@ -229,13 +233,13 @@ def validate_catalog(catalog_path: Path) -> list[str]:
             errors.append(f'{prefix}: must be a mapping')
             continue
 
-        # Check required fields
+        # 检查必需 fields。
         missing = REQUIRED_FIELDS - set(sa.keys())
         if missing:
             errors.append(f'{prefix}: missing required fields: {sorted(missing)}')
             continue
 
-        # Check id
+        # 检查id。
         sa_id = sa['id']
         if not isinstance(sa_id, str) or not sa_id.strip():
             errors.append(f'{prefix}: "id" must be a non-empty string')
@@ -244,18 +248,18 @@ def validate_catalog(catalog_path: Path) -> list[str]:
                 errors.append(f'{prefix}: duplicate id "{sa_id}"')
             seen_ids.add(sa_id)
 
-        # Check kind
+        # 检查kind。
         kind = sa['kind']
         if kind not in VALID_KINDS:
             errors.append(f'{prefix}: invalid kind "{kind}", must be one of {sorted(VALID_KINDS)}')
 
-        # Check list fields
+        # 检查列表 fields。
         for field in LIST_FIELDS:
             val = sa.get(field)
             if val is not None and not isinstance(val, list):
                 errors.append(f'{prefix}: "{field}" must be a list')
 
-        # Check retry_policy
+        # 检查retry_policy。
         retry = sa.get('retry_policy')
         if not isinstance(retry, str) or not retry.strip():
             errors.append(f'{prefix}: "retry_policy" must be a non-empty string')
@@ -263,6 +267,7 @@ def validate_catalog(catalog_path: Path) -> list[str]:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main():
     repo_root = Path(__file__).resolve().parent.parent.parent
     catalog_path = repo_root / 'harness' / 'subagents' / 'catalog.yaml'

@@ -29,8 +29,10 @@
 ## Stop 门禁
 
 - 三类 agent 的 Stop 入口都应调用 `scripts/harness/agent_stop_check.py`。
-- Stop 门禁必须同时读取 `tmp/agent_logs/current/changed-files.jsonl` 和 `git status --short --untracked-files=all`。
-- `changed-files.jsonl` 用于捕获 Write/Edit/MultiEdit；`git status` 用于捕获 Bash 删除、非 Claude agent 修改和未记录的文件变更。
+- Stop 门禁在 hook stdin 提供 `session_id` / `agent_id` 时，必须只按 `tmp/agent_logs/<client>/<session-id>/main/` 或 `tmp/agent_logs/<client>/<session-id>/agents/<agent-id>/` 下的当前 identity evidence 判断 read-only；不得因其他并发 agent 的 dirty worktree 触发当前只读 session 的门禁。
+- Stop hook 无法识别当前 session 时必须 fail-closed，继续读取 session base commit 以来的 git diff 和 untracked paths，避免未归因修改绕过 target 路由。
+- `changed-files.jsonl` 用于捕获 Write/Edit/MultiEdit/NotebookEdit 和 Bash mutation evidence；Bash evidence 由 PreToolUse 快照与 PostToolUse/Failure 对比产生。
+- 有 changed files 的 Stop 门禁必须先获取 shared stop-check lock；锁被占用时返回 blocked/retry，不得并发运行第二组修复或 required quality gates。
 - Stop 门禁必须通过 `scripts/claude_hooks/classify.py` 计算 quality target，再通过 `scripts/quality/run_required_quality_gates.py` 执行。
 - changed files 只能用于判断本次必须执行哪些 quality target；一旦 target 被选中，target 内部必须执行完整 required gate baseline，不得再按 changed files 裁剪 gate。
 - required gate 失败时，Stop 门禁必须阻断。失败不得因为“不是当前 agent 的改动”“已有失败”“与本次改动无关”而被降级、跳过或描述为通过。
@@ -46,6 +48,7 @@ Claude Code 的 hook 真源是 `.claude/settings.json`：
 | `SubagentStart` | 无 | `.claude/hooks/subagent-start.sh` |
 | `PreToolUse` | `Bash` | `.claude/hooks/pre-bash.sh` |
 | `PreToolUse` | `Write|Edit|MultiEdit|NotebookEdit` | `.claude/hooks/pre-write.sh` |
+| `PostToolUse` | `Bash` | `.claude/hooks/post-bash.sh` |
 | `PostToolUse` | `Write|Edit|MultiEdit|NotebookEdit` | `.claude/hooks/post-write.sh` |
 | `PostToolUseFailure` | 无 | `.claude/hooks/tool-failure.sh` |
 | `Stop` | 无 | `.claude/hooks/stop.sh` |
@@ -57,10 +60,11 @@ Codex 的 hook 真源是 `.codex/hooks.json`：
 | 事件 | 匹配器 | 入口脚本 |
 |---|---|---|
 | `PreToolUse` | `Bash` | `.codex/hooks/pre_tool_guard.sh` |
+| `PostToolUse` | `Bash` | `.codex/hooks/post_bash_guard.sh` |
 | `PostToolUse` | `Write|Edit|MultiEdit` | `.codex/hooks/post_tool_guard.sh` |
 | `Stop` | 无 | `.codex/hooks/stop_check.sh` |
 
-Qoder 当前没有仓库内独立 hook JSON 配置；仓库只维护 `.qoder/hooks/pre_tool_guard.sh`、`.qoder/hooks/post_tool_guard.sh`、`.qoder/hooks/stop_check.sh` 三个 wrapper。pre/post wrapper 复用 Codex-compatible guards，Stop wrapper 调用 `scripts/harness/agent_stop_check.py --agent qoder`。
+Qoder 当前没有仓库内独立 hook JSON 配置；仓库维护 `.qoder/hooks/pre_tool_guard.sh`、`.qoder/hooks/post_bash_guard.sh`、`.qoder/hooks/post_tool_guard.sh`、`.qoder/hooks/stop_check.sh` 四个 wrapper。pre/post wrapper 复用 Codex-compatible guards，Stop wrapper 调用 `scripts/harness/agent_stop_check.py --agent qoder`。
 
 `.claude/agents/*.md` 与 `.codex/agents/*.toml` 不定义 per-agent hooks；项目级 hooks 是唯一执行面。
 

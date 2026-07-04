@@ -1,28 +1,16 @@
 #!/usr/bin/env python3
-"""Validate CSS ownership rules for feipi-session-browser.
-
-Checks:
-  1. Shell selector violations in Layer 3/4 files
-  2. Forbidden CSS filenames (versioned, patch, fix, overlay)
-  3. style.css bloat (page-specific selectors in Layer 1)
-  4. Duplicate selectors across files (excluding allowed additive overrides)
-
-Usage:
-    python3 scripts/validate_css_ownership.py [--verbose]
-
-Exit code 0 = PASS, 1 = FAIL.
-"""
+"""校验 feipi-session-browser 的 CSS ownership 规则。"""
 
 import argparse
 import re
 import sys
 from pathlib import Path
 
-# ── Configuration ──────────────────────────────────────────────────────────
+# ── 配置 ──────────────────────────────────────────────────────────
 
 ROOT = Path(__file__).resolve().parent.parent / 'src' / 'session_browser' / 'web' / 'static'
 
-# Shell selectors that MUST only be defined in style.css
+# 必须只在 style.css 中定义的 shell selectors
 SHELL_SELECTORS = {
     '.shell',
     '.app-shell',
@@ -39,7 +27,7 @@ SHELL_SELECTORS = {
     '.sd-content',
 }
 
-# Layout properties that indicate a shell override (not just additive)
+# 表示 shell override 的 layout properties（不只是 additive）
 LAYOUT_PROPERTIES = {
     'display',
     'grid-template-columns',
@@ -84,7 +72,7 @@ LAYOUT_PROPERTIES = {
     'z-index',
 }
 
-# Selectors where additive (color/font/background only) is allowed in Layer 3
+# Layer 3 允许 additive（仅 color/font/background）的 selectors
 SHELL_SELECTORS_ADDITIVE = {
     '.topbar-breadcrumb',
     '.sidebar',  # compat-era: background, border-right (additive)
@@ -92,7 +80,7 @@ SHELL_SELECTORS_ADDITIVE = {
     '.sd-shell',  # compat-era: background var; session-detail: CSS variables only
 }
 
-# Page-specific selectors that should NOT appear in style.css
+# 不应出现在 style.css 中的 page-specific selectors
 PAGE_SPECIFIC_SELECTORS = [
     '.chart-card',
     '.chart-group',
@@ -132,7 +120,7 @@ PAGE_SPECIFIC_SELECTORS = [
     '.ui-search',
 ]
 
-# Forbidden filename patterns
+# 禁止的 filename patterns
 FORBIDDEN_PATTERNS = [
     re.compile(r'-v\d+\.css$'),  # versioned CSS like dashboard-v16.css
     re.compile(r'-patch\.css$'),  # session-patch.css
@@ -141,7 +129,7 @@ FORBIDDEN_PATTERNS = [
     re.compile(r'-reference\.css$'),  # something-reference.css
 ]
 
-# Known legitimate Layer 3/4 files (allowed to exist)
+# 已知合法的 Layer 3/4 文件（允许存在）
 KNOWN_CSS = {
     'css/dashboard.css',
     'css/sessions-list.css',
@@ -153,17 +141,16 @@ KNOWN_CSS = {
     'css/shell.css',
 }
 
-# ── Helpers ────────────────────────────────────────────────────────────────
+# ── 辅助函数 ────────────────────────────────────────────────────────────────
 
 
+# 提取selectors。
 def extract_selectors(css_path: Path) -> set[str]:
-    """Extract top-level selectors from a CSS file for ownership checks.
+    """参数：
+        css_path: CSS 文件以检查。
 
-    Args:
-        css_path: CSS file to inspect.
-
-    Returns:
-        Set of class or id selectors defined by the file; read errors produce an empty set.
+    返回：
+        Set of class 或 id selectors defined by 文件；读取 错误 produce 空 set。
     """
     selectors = set()
     try:
@@ -171,21 +158,21 @@ def extract_selectors(css_path: Path) -> set[str]:
     except Exception:
         return selectors
 
-    # Remove CSS comments
+    # 移除 CSS comments
     text = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
 
-    # Match selectors before { — handles comma-separated groups
+    # 匹配 `{` 之前的 selectors，并处理逗号分组
     for match in re.finditer(r'([^{}]+?)\s*\{', text):
         group = match.group(1).strip()
-        # Skip @-rules
+        # 跳过 @-rules
         if group.startswith('@') or not group:
             continue
-        # Split comma-separated selectors
+        # 拆分逗号分隔的 selector
         for raw_sel in group.split(','):
             sel = raw_sel.strip()
             if not sel or sel.startswith('@'):
                 continue
-            # Extract the base selector (first class/element name)
+            # 提取 base selector（第一个 class/element 名称）
             parts = sel.split()
             if parts:
                 full = parts[0].split(':')[0].split('[')[0]
@@ -194,14 +181,13 @@ def extract_selectors(css_path: Path) -> set[str]:
     return selectors
 
 
+# 判断是否存在shell selector。
 def has_shell_selector(css_path: Path) -> list[tuple[str, str]]:
-    """Find shell layout selector violations in page-specific CSS files.
+    """参数：
+        css_path: CSS 文件以检查。
 
-    Args:
-        css_path: CSS file to inspect.
-
-    Returns:
-        List of selector and line-number details that violate shell ownership rules.
+    返回：
+        列出of selector 和 行-数字 details that violate shell ownership rules。
     """
     violations = []
     try:
@@ -209,10 +195,10 @@ def has_shell_selector(css_path: Path) -> list[tuple[str, str]]:
     except Exception:
         return violations
 
-    # Remove comments for analysis
+    # 移除 comments 便于分析
     clean = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
 
-    # Find all rule blocks
+    # 查找所有 rule blocks
     pos = 0
     while True:
         m = re.search(r'([^{}]+?)\s*\{([^{}]*)\}', clean[pos:])
@@ -223,22 +209,22 @@ def has_shell_selector(css_path: Path) -> list[tuple[str, str]]:
         rule_body = m.group(2).strip()
         abs_pos = pos + m.start()
 
-        # Count line number
+        # 计算当前规则所在行号
         line_num = clean[:abs_pos].count('\n') + 1
 
-        # Split comma-separated selectors
+        # 拆分逗号分隔的 selector
         selectors = [s.strip() for s in selector_text.split(',') if s.strip()]
 
         for sel_full in selectors:
-            # A target shell selector is one where the selector is ONLY the
-            # shell class (possibly with a modifier like .no-inspector),
-            # NOT a descendant chain like ".sd-shell .child".
-            # e.g. ".topbar" → target (1 part)
-            # e.g. ".shell.no-inspector" → target (1 part, modifier on same class)
-            # e.g. ".sd-shell .child" → NOT target (2+ parts, descendant)
+            # 目标 shell selector 必须只匹配 shell class 本身，
+            # 可以带 `.no-inspector` 这类 modifier，
+            # 但不能是 `.sd-shell .child` 这类 descendant chain。
+            # 例如 `.topbar` → target（单段）
+            # 例如 `.shell.no-inspector` → target（同一 class 上的 modifier）
+            # 例如 `.sd-shell .child` → 非 target（多段 descendant）
             parts = sel_full.split()
             if len(parts) > 1:
-                continue  # Descendant selector — skip
+                continue  # descendant selector，跳过
             if not parts:
                 continue
             first_part = parts[0].split(':')[0].split('[')[0]
@@ -246,16 +232,16 @@ def has_shell_selector(css_path: Path) -> list[tuple[str, str]]:
             if first_part not in SHELL_SELECTORS:
                 continue
 
-            # Check if this is an allowed additive selector
+            # 检查是否为允许的 additive selector
             if first_part in SHELL_SELECTORS_ADDITIVE:
-                # Check if it defines layout properties
+                # 检查是否定义 layout properties
                 has_layout = any(
                     re.search(rf'\b{re.escape(prop)}\s*:', rule_body) for prop in LAYOUT_PROPERTIES
                 )
                 if not has_layout:
                     continue
 
-            # This is a violation
+            # 这是违规 selector
             preview = rule_body[:80].replace('\n', ' ').strip()
             violations.append((first_part, f'line {line_num}: {sel_full} {{ {preview} ... }}'))
 
@@ -264,14 +250,13 @@ def has_shell_selector(css_path: Path) -> list[tuple[str, str]]:
     return violations
 
 
+# 检查bloat。
 def check_bloat(css_path: Path) -> list[tuple[str, str]]:
-    """Find page-specific selectors that leaked into the global stylesheet.
+    """参数：
+        css_path: Global style.css 路径以检查。
 
-    Args:
-        css_path: Global style.css path to inspect.
-
-    Returns:
-        List of selector and reason tuples for bloat violations.
+    返回：
+        列出of selector 和 reason tuples用于bloat violations。
     """
     violations = []
     try:
@@ -280,7 +265,7 @@ def check_bloat(css_path: Path) -> list[tuple[str, str]]:
         return violations
 
     for sel in PAGE_SPECIFIC_SELECTORS:
-        # Use word boundary to avoid false positives
+        # 使用 word boundary 避免误报
         pattern = re.compile(
             r'(?:^|[\s,;{}])' + re.escape(sel) + r'(?:\.[\w-]+|::?\w+|\[.*?\])?\s*\{', re.MULTILINE
         )
@@ -290,14 +275,13 @@ def check_bloat(css_path: Path) -> list[tuple[str, str]]:
     return violations
 
 
+# 检查forbidden names。
 def check_forbidden_names(css_dir: Path) -> list[tuple[str, str]]:
-    """Find CSS files whose names indicate versioned or patch-style ownership drift.
+    """参数：
+        css_dir: Static CSS 目录到scan。
 
-    Args:
-        css_dir: Static CSS directory to scan.
-
-    Returns:
-        List of relative file paths and reasons for forbidden filenames.
+    返回：
+        列出of relative 文件路径s 和 reasons用于forbidden filenames。
     """
     violations = []
     for f in sorted(css_dir.rglob('*.css')):
@@ -313,15 +297,14 @@ def check_forbidden_names(css_dir: Path) -> list[tuple[str, str]]:
     return violations
 
 
+# 检查duplicates。
 def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, str]]:  # noqa: PLR0912, PLR0915 - duplicate scan keeps rule context inline.
-    """Find duplicate CSS selectors across owned stylesheet files.
+    """参数：
+        css_dir: Static CSS 目录到scan。
+        verbose: 当 true, 打印 duplicate selector 诊断信息 当 scanning。
 
-    Args:
-        css_dir: Static CSS directory to scan.
-        verbose: When True, print duplicate selector diagnostics while scanning.
-
-    Returns:
-        List of selector and file-list details for disallowed duplicates.
+    返回：
+        列出of selector 和 文件-列表 details用于disallowed duplicates。
     """
     violations = []
     selector_map: dict[str, list[str]] = {}
@@ -330,9 +313,9 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
     for f in css_files:
         rel = str(f.relative_to(css_dir))
         if f.name == 'style.css':
-            continue  # Layer 1 is the authority
+            continue  # Layer 1 是权威定义
         if rel == 'css/shell.css':
-            continue  # Layer 2 shell authority
+            continue  # Layer 2 是 shell 权威定义
         sels = extract_selectors(f)
         for sel in sels:
             if sel not in selector_map:
@@ -341,12 +324,12 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
 
     for sel, files in sorted(selector_map.items()):
         if len(files) > 1:
-            # Check if this is a shell selector (should only be in style.css)
+            # 检查是否为 shell selector（应只在 style.css 中定义）
             base = sel.split(':')[0].split('[')[0]
             if base in SHELL_SELECTORS:
-                # Exception: shell selectors used only for CSS variable scoping
-                # (e.g. .sd-shell { --sd-bg: ... }) are allowed in multiple files
-                # because they don't define layout — just token namespaces.
+                # 例外：仅用于 CSS variable scoping 的 shell selector
+                # 例如 `.sd-shell { --sd-bg: ... }` 可出现在多个文件
+                # 因为它们不定义 layout，只定义 token namespace。
                 all_var_only = True
                 for f in files:
                     full_path = css_dir / f
@@ -355,27 +338,27 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
                     except Exception:
                         all_var_only = False
                         break
-                    # Find all rules and check if `sel` appears as a target selector.
+                    # 查找所有规则，并检查 `sel` 是否作为 target selector 出现。
                     rule_pattern = re.compile(r'([^{}]+?)\s*\{([^}]*)\}')
                     found_target = False
                     for m in rule_pattern.finditer(text):
                         sel_text = m.group(1).strip()
                         body = m.group(2)
-                        # Check each comma-separated sub-selector
+                        # 检查每个逗号分隔的 sub-selector
                         for raw_sub in sel_text.split(','):
                             sub = raw_sub.strip()
                             parts = sub.split()
                             if not parts:
                                 continue
-                            # Only match exact target selectors, not descendants
+                            # 只匹配精确 target selector，不匹配 descendant
                             if len(parts) > 1:
                                 continue
                             first = parts[0].split(':')[0].split('[')[0]
                             if first == sel:
-                                # This is a target rule for the shell selector
-                                # Strip CSS variable definitions (--name: value),
-                                # variable usages (var(--name) → VAR), and
-                                # properties whose value is purely VAR.
+                                # 这是页面外壳选择器对应的目标规则。
+                                # 去除 CSS 变量定义（--name: value），
+                                # 去除变量使用（var(--name) → VAR），以及
+                                # 属性值仅为变量占位符时不计入冗余样式。
                                 stripped = re.sub(r'--[\w-]+\s*:[^;]*;', '', body)
                                 stripped = re.sub(r'var\([^)]*\)', 'VAR', stripped)
                                 stripped = re.sub(r'[\w-]+\s*:\s*VAR\s*;?', '', stripped)
@@ -391,7 +374,7 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
                         all_var_only = False
                         break
                 if all_var_only:
-                    continue  # CSS variable scoping only, allowed
+                    continue  # 仅 CSS variable scoping，允许
                 violations.append(
                     (
                         sel,
@@ -400,7 +383,7 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
                     )
                 )
             elif verbose:
-                # Non-shell duplicates: info only, not a violation
+                # 非 shell duplicate 仅作为信息，不算违规
                 if verbose:
                     violations.append(
                         (sel, f'[INFO] defined in {len(files)} files: {", ".join(files)}')
@@ -408,18 +391,21 @@ def check_duplicates(css_dir: Path, verbose: bool = False) -> list[tuple[str, st
     return violations
 
 
-# ── Main ───────────────────────────────────────────────────────────────────
+# ── 主流程 ───────────────────────────────────────────────────────────────────
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run CSS ownership validation and exit nonzero when violations are found."""
+    """返回：
+        进程退出码。
+    """
     parser = argparse.ArgumentParser(description='Validate CSS ownership rules')
     parser.add_argument('--verbose', action='store_true', help='Show info-level duplicates')
     args = parser.parse_args()
 
     violations = []
 
-    # 1. Check shell selector violations in Layer 3/4 files
+    # 1. 检查 Layer 3/4 文件中的 shell selector 违规
     layer34_files = [
         ROOT / 'css/dashboard.css',
         ROOT / 'css/sessions-list.css',
@@ -436,23 +422,23 @@ def main() -> int:
         for sel, ctx in v:
             violations.append(('shell_selector_violation', rel, f'{sel} — {ctx}'))
 
-    # 2. Check forbidden filenames
+    # 2. 检查禁止的文件名
     for name, ctx in check_forbidden_names(ROOT):
         violations.append(('forbidden_filename', name, ctx))
 
-    # 3. Check style.css bloat
+    # 3. 检查 style.css bloat
     style_css = ROOT / 'style.css'
     if style_css.exists():
         for sel, ctx in check_bloat(style_css):
             violations.append(('style_bloat', 'style.css', f'{sel} — {ctx}'))
 
-    # 4. Check duplicate selectors
+    # 4. 检查 duplicate selectors
     for sel, ctx in check_duplicates(ROOT, verbose=args.verbose):
         if '[INFO]' in ctx:
-            continue  # Info only, skip in non-verbose mode
+            continue  # 仅信息项，非 verbose 模式跳过
         violations.append(('duplicate_selector', 'multiple', f'{sel} — {ctx}'))
 
-    # ── Report ─────────────────────────────────────────────────────────
+    # ── 报告 ─────────────────────────────────────────────────────────
     if violations:
         print(f'\n{"=" * 60}')
         print('CSS Ownership Validation — FAIL')

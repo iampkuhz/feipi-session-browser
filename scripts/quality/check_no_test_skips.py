@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Fail when pytest or Playwright tests use skip APIs.
-
-This gate protects the repository policy that required, selected, full, and
-release test runs must execute with 0 skipped outcomes. Changed-file mapping can
-still leave gates not triggered; it must not be represented as a test skip.
-"""
+"""提供 检查 no test skips 脚本能力。"""
 
 from __future__ import annotations
 
@@ -18,12 +13,12 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 @dataclass(frozen=True)
 class PatternRule:
-    """Regex rule that identifies a forbidden test skip API.
+    """表示 PatternRule。
 
-    Attributes:
-        name: Stable rule id emitted in failure reports.
-        regex: Compiled expression matched against non-comment source lines.
-        message: Operator-facing remediation guidance for the finding.
+    属性：
+        name: 名称。
+        regex: regex 参数。
+        message: 用户可读消息。
     """
 
     name: str
@@ -83,14 +78,14 @@ COMMENT_LINE_RE = re.compile(r'^\s*(#|//|/\*|\*)')
 
 @dataclass(frozen=True)
 class Finding:
-    """One no-skip gate violation found in a scanned source file.
+    """表示一条 Finding 检查发现。
 
-    Attributes:
-        file: Path relative to the scanned repository root.
-        line: One-based line number containing the skip API.
-        rule: Stable rule id that matched the line.
-        message: Remediation guidance associated with the rule.
-        snippet: Trimmed source line excerpt for the report.
+    属性：
+        file: 待检查的文件。
+        line: 待检查的源码行。
+        rule: rule 参数。
+        message: 用户可读消息。
+        snippet: snippet 参数。
     """
 
     file: str
@@ -100,16 +95,15 @@ class Finding:
     snippet: str
 
 
+# 维护遍历 文件。
 def _iter_files(root: Path, relative_roots: list[str], suffixes: tuple[str, ...]) -> list[Path]:
-    """Collect matching files beneath configured roots.
+    """参数：
+        root: 扫描根目录。
+        relative_roots: Relative 目录 或 文件以检查。
+        suffixes: 文件 suffixes included in 结果。
 
-    Args:
-        root: Repository root for relative scan roots.
-        relative_roots: Relative directories or files to inspect.
-        suffixes: File suffixes included in the result.
-
-    Returns:
-        Sorted unique paths that exist and match the requested suffixes.
+    返回：
+        结果列表。
     """
     files: list[Path] = []
     for rel in relative_roots:
@@ -124,29 +118,26 @@ def _iter_files(root: Path, relative_roots: list[str], suffixes: tuple[str, ...]
     return sorted(set(files))
 
 
+# 判断是否注释 仅。
 def _is_comment_only(line: str) -> bool:
-    """Return whether a source line is only a comment marker.
+    """参数：
+        line: source 行到classify。
 
-    Args:
-        line: Source line to classify.
-
-    Returns:
-        True when scanning should ignore the line as comment-only.
+    返回：
+        当scanning should ignore 行 as comment-仅.时返回 true。
     """
     return bool(COMMENT_LINE_RE.match(line.strip()))
 
 
+# 维护扫描 文件。
 def scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding]:
-    """Scan a single file for forbidden skip APIs.
+    """参数：
+        path: 文件以检查。
+        root: 扫描根目录。
+        rules: 用于匹配的规则集合。
 
-    Args:
-        path: File to inspect.
-        root: Repository root used to format relative paths.
-        rules: Rule set applied to each non-comment source line.
-
-    Returns:
-        Findings for matching skip APIs. Unreadable files are treated as no findings
-        so the gate remains focused on repository policy violations.
+    返回：
+        结果列表。
     """
     try:
         lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
@@ -176,14 +167,13 @@ def scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding]
     return findings
 
 
+# 维护扫描 repo。
 def scan_repo(root: Path = REPO_ROOT) -> list[Finding]:
-    """Scan repository test entry points for APIs that can produce skipped outcomes.
+    """参数：
+        root: repo root containing `tests` 和 可选 Playwright config 文件。
 
-    Args:
-        root: Repository root containing `tests` and optional Playwright config files.
-
-    Returns:
-        All findings across pytest/unittest files and Playwright test sources.
+    返回：
+        结果列表。
     """
     python_files = _iter_files(root, ['tests'], ('.py',))
     playwright_files = _iter_files(root, ['tests', 'playwright.config.js'], ('.js', '.ts'))
@@ -196,12 +186,10 @@ def scan_repo(root: Path = REPO_ROOT) -> list[Finding]:
     return findings
 
 
+# 打印报告。
 def print_report(findings: list[Finding]) -> None:
-    """Print no-skip gate results with explicit pass/fail semantics.
-
-    Args:
-        findings: Violations found by `scan_repo`. Any non-empty list makes the gate
-            fail because triggered required test runs must not produce skipped outcomes.
+    """参数：
+        findings: 已收集的检查发现列表。
     """
     print('=== no-test-skips quality gate ===')
     print(
@@ -218,14 +206,13 @@ def print_report(findings: list[Finding]) -> None:
             print(f'         {item.message}')
 
 
+# 解析命令行参数并运行脚本入口。
 def main(argv: list[str] | None = None) -> int:
-    """Run the no-test-skips quality gate from the command line.
+    """参数：
+        argv: 测试传入的可选命令行参数列表。
 
-    Args:
-        argv: Optional command-line argument list for tests.
-
-    Returns:
-        Zero when no skip APIs are found, otherwise one.
+    返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(
         description='Fail when repository tests use pytest or Playwright skip APIs'

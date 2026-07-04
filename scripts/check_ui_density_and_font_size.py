@@ -1,17 +1,5 @@
 #!/usr/bin/env python3
-"""Check UI density and font-size thresholds for compact mode.
-
-Performs static analysis on style.css CSS variable tokens and selector
-font-size declarations, verifying readability thresholds.
-
-Usage:
-    cd <repo-root>
-    PYTHONPATH=src python scripts/check_ui_density_and_font_size.py
-
-Exit codes:
-    0 — all checks pass
-    1 — one or more checks fail
-"""
+"""提供 检查 UI density and font size 脚本能力。"""
 
 from __future__ import annotations
 
@@ -20,7 +8,7 @@ import sys
 from pathlib import Path
 
 # ---------------------------------------------------------------------------
-# Configuration
+# 配置项。
 # ---------------------------------------------------------------------------
 
 CSS_FILE = (
@@ -34,7 +22,6 @@ CSS_FILE = (
 MAX_SELECTOR_LENGTH = 200
 MAX_TINY_RULES_SHOWN = 50
 
-# Typography token definitions expected in :root
 TEXT_TOKENS = {
     '--text-micro': {'value_px': None},
     '--text-xs': {'value_px': None},
@@ -46,39 +33,24 @@ TEXT_TOKENS = {
     '--text-metric-sm': {'value_px': None},
 }
 
-# Threshold table: (selector_pattern, area_name, min_px, allowed_token)
-# selector_pattern is a regex matched against the selector line.
-# allowed_token is the minimum CSS --text-* token that is acceptable.
 THRESHOLDS = [
-    # Requirement 1: --text-base >= 14px
     ('__token__--text-base', 'CSS variable --text-base', 14, '--text-lg'),
-    # Requirement 2: Table body >= 13px
     (r'\.data-table\b', 'Table body (.data-table)', 13, '--text-sm'),
-    # Requirement 3: Timeline preview >= 14px
     (r'\.preview-cell\b', 'Timeline preview (.preview-cell)', 14, '--text-lg'),
-    # Requirement 4: Button text >= 13px
     (r'\.btn\b', 'Button (.btn)', 13, '--text-sm'),
-    # Requirement 5: Timestamp >= 12px (inherits from parent bar)
     (r'\.session-info-bar\b', 'Timestamp bar (.session-info-bar)', 12, '--text-sm'),
-    # Requirement 6 (bonus): metrics strip label readable
     (r'\.metrics-strip__label\b', 'Metrics strip label', 12, '--text-sm'),
-    # Requirement 6 (bonus): metrics strip value readable
     (r'\.metrics-strip__value\b', 'Metrics strip value', 12, '--text-sm'),
 ]
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-
+# 解析px。
 def parse_px(value: str) -> float | None:
-    """Parse a CSS pixel value for the UI density quality gate.
+    """参数：
+        value: 待解析的值。
 
-    Args:
-        value: CSS value such as '12px' or a variable reference.
-
-    Returns:
-        Numeric pixel value when directly parseable; otherwise None.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     m = re.match(r'^([0-9.]+)\s*px$', value.strip())
     if m:
@@ -86,17 +58,15 @@ def parse_px(value: str) -> float | None:
     return None
 
 
+# 解析CSS tokens。
 def parse_css_tokens(css_text: str) -> dict[str, dict]:
-    """Extract density-related CSS custom properties from the root block.
+    """参数：
+        css_text: 待检查的 CSS 文本。
 
-    Args:
-        css_text: Full CSS source for the target stylesheet.
-
-    Returns:
-        Mapping from token name to raw value and parsed pixel value metadata.
+    返回：
+        token name 到原始值和已解析 pixel metadata 的映射。
     """
     tokens: dict[str, dict] = {name: {'value_px': None} for name in TEXT_TOKENS}
-    # Grab the :root { ... } block
     root_m = re.search(r':root\s*\{((?:[^{}]|\{[^{}]*\})*)\}', css_text)
     if not root_m:
         return tokens
@@ -110,24 +80,21 @@ def parse_css_tokens(css_text: str) -> dict[str, dict]:
     return tokens
 
 
+# 解析token ref。
 def resolve_token_ref(value: str, tokens: dict[str, dict]) -> tuple[float | None, str]:
-    """Resolve a CSS value to pixels for density threshold comparisons.
+    """参数：
+        value: 待解析的值。
+        tokens: 已解析的 token metadata。
 
-    Args:
-        value: CSS value or var(...) reference to resolve.
-        tokens: Token metadata returned by parse_css_tokens.
-
-    Returns:
-        Tuple of resolved pixel value and a display label used in the report.
+    返回：
+        由resolved pixel 值 和 display label used in 报告.组成的 tuple。
     """
     value = value.strip()
 
-    # Plain pixel value
     px = parse_px(value)
     if px is not None:
         return px, f'{px}px (literal)'
 
-    # var(--token)
     m = re.match(r'^var\(\s*(--[a-zA-Z0-9_-]+)\s*\)$', value)
     if m:
         token_name = m.group(1)
@@ -136,40 +103,32 @@ def resolve_token_ref(value: str, tokens: dict[str, dict]) -> tuple[float | None
             return px_val, f'{px_val}px (via {token_name})'
         return None, f'unresolved: {value}'
 
-    # var(--token, fallback) — extract fallback
     m = re.match(r'^var\(\s*--[a-zA-Z0-9_-]+\s*,\s*(.+?)\s*\)$', value)
     if m:
         fallback = m.group(1).strip()
-        # Recurse into fallback
         return resolve_token_ref(fallback, tokens)
 
     return None, f'unresolved: {value}'
 
 
+# 提取font 大小 rules。
 def extract_font_size_rules(css_text: str) -> list[dict]:
-    """Extract font-size declarations for page-area density checks.
+    """参数：
+        css_text: 待检查的 CSS 文本。
 
-    Args:
-        css_text: Full CSS source for the target stylesheet.
-
-    Returns:
-        List of selector, value, and source line dictionaries.
+    返回：
+        列出of selector, 值, 和 source 行 dictionaries。
     """
     results = []
 
-    # Strip CSS comments for cleaner parsing
     css_no_comments = re.sub(r'/\*.*?\*/', '', css_text, flags=re.DOTALL)
 
-    # Pattern 1: inline selector { property: value; } — single-line
-    # e.g. ".text-xs { font-size: var(--text-xs); }"
     inline_pat = re.compile(r'([^{@][^{]*?)\s*\{\s*font-size\s*:\s*([^;]+)\s*;\s*\}')
     for m in inline_pat.finditer(css_no_comments):
         selector = m.group(1).strip()
         value = m.group(2).strip()
-        # Skip @media, @keyframes, etc.
         if selector.startswith('@') or '/' in selector:
             continue
-        # Clean up multi-line selectors
         selector = re.sub(r'\s+', ' ', selector).strip()
         if not selector or len(selector) > MAX_SELECTOR_LENGTH:
             continue
@@ -177,7 +136,6 @@ def extract_font_size_rules(css_text: str) -> list[dict]:
             {'selector': selector, 'value': value, 'line': _line_number(css_text, m.start())}
         )
 
-    # Pattern 2: multi-line blocks — find font-size inside a rule block
     block_pat = re.compile(r'([^{@][^{]*?)\s*\{([^}]+)\}', re.MULTILINE)
     for m in block_pat.finditer(css_no_comments):
         selector = m.group(1).strip()
@@ -185,10 +143,8 @@ def extract_font_size_rules(css_text: str) -> list[dict]:
         fs_m = re.search(r'font-size\s*:\s*([^;]+);', block)
         if fs_m:
             value = fs_m.group(1).strip()
-            # Avoid duplicates from inline pattern
             already = any(r['selector'] == selector and r['value'] == value for r in results)
             if not already:
-                # Clean up multi-line selectors
                 selector = re.sub(r'\s+', ' ', selector).strip()
                 if not selector or len(selector) > MAX_SELECTOR_LENGTH:
                     continue
@@ -203,45 +159,37 @@ def extract_font_size_rules(css_text: str) -> list[dict]:
     return results
 
 
+# 维护行 number。
 def _line_number(text: str, pos: int) -> int:
-    """Convert a character offset to a one-based CSS source line number.
+    """参数：
+        text: 待检查的文本。
+        pos: pos 参数。
 
-    Args:
-        text: Source text being scanned.
-        pos: Character offset inside text.
-
-    Returns:
-        One-based line number used in density reports.
+    返回：
+        进程退出码。
     """
     return text[:pos].count('\n') + 1
 
 
+# 维护selector 匹配。
 def _selector_matches(pattern: str, selector: str) -> bool:
-    """Check whether a density-area regex matches a CSS selector.
+    """参数：
+        pattern: 匹配用的 glob pattern。
+        selector: 待检查的 CSS selector。
 
-    Args:
-        pattern: Regex pattern for the target UI area.
-        selector: CSS selector extracted from a rule.
-
-    Returns:
-        True when the selector belongs to the area; otherwise False.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     return bool(re.search(pattern, selector))
 
 
-# ---------------------------------------------------------------------------
-# Main check logic
-# ---------------------------------------------------------------------------
-
-
+# 运行检查。
 def run_checks(css_path: Path) -> tuple[bool, list[str]]:  # noqa: PLR0912, PLR0915 - keeps ordered static gate report.
-    """Run compact UI density and font-size checks for a stylesheet.
+    """参数：
+        css_path: CSS 文件路径 selected by CLI 或 默认 gate。
 
-    Args:
-        css_path: CSS file path selected by the CLI or default gate.
-
-    Returns:
-        Tuple containing overall pass status and ordered report lines.
+    返回：
+        Tuple containing overall pass 状态 和 ordered 报告 行。
     """
     if not css_path.is_file():
         return False, [f'FAIL: CSS file not found: {css_path}']
@@ -256,7 +204,6 @@ def run_checks(css_path: Path) -> tuple[bool, list[str]]:  # noqa: PLR0912, PLR0
     lines.append('=' * 72)
     lines.append('')
 
-    # --- Section 1: Token summary ---
     lines.append('── CSS Token Values ──')
     for name, info in tokens.items():
         status = 'OK' if info['value_px'] is not None else '??'
@@ -264,12 +211,10 @@ def run_checks(css_path: Path) -> tuple[bool, list[str]]:  # noqa: PLR0912, PLR0
         lines.append(f'  [{status}] {name} = {val}')
     lines.append('')
 
-    # --- Section 2: Threshold checks ---
     lines.append('── Threshold Checks ──')
     all_pass = True
 
     for pattern, area, min_px, min_token in THRESHOLDS:
-        # Special case: direct token check (marked with __token__ prefix)
         if pattern.startswith('__token__'):
             token_name = pattern.replace('__token__', '')
             actual_px = tokens.get(token_name, {}).get('value_px')
@@ -292,7 +237,6 @@ def run_checks(css_path: Path) -> tuple[bool, list[str]]:  # noqa: PLR0912, PLR0
                 all_pass = False
             continue
 
-        # Selector-based check
         matching = [r for r in rules if _selector_matches(pattern, r['selector'])]
         if not matching:
             lines.append(f"  [WARN] {area}: no font-size rule matching '{pattern}'")
@@ -325,13 +269,10 @@ def run_checks(css_path: Path) -> tuple[bool, list[str]]:  # noqa: PLR0912, PLR0
 
     lines.append('')
 
-    # --- Section 3: All font-size declarations using text-micro or text-xs ---
     lines.append('── Potentially Too-Small Declarations (text-micro / text-xs) ──')
     tiny_rules = [r for r in rules if 'text-micro' in r['value'] or 'text-xs' in r['value']]
-    # Sort by selector for readability
     tiny_rules.sort(key=lambda r: r['selector'])
 
-    # Show first 30 as a sample
     shown = 0
     for shown, rule in enumerate(tiny_rules, start=1):
         _px, desc = resolve_token_ref(rule['value'], tokens)
@@ -356,8 +297,8 @@ def run_checks(css_path: Path) -> tuple[bool, list[str]]:  # noqa: PLR0912, PLR0
     return all_pass, lines
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Run the UI density CLI and exit nonzero when compact-mode checks fail."""
     css_path = CSS_FILE
     if len(sys.argv) > 1:
         css_path = Path(sys.argv[1])

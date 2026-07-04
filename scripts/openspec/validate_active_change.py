@@ -1,10 +1,5 @@
 #!/usr/bin/env python3
-"""Validate that an active OpenSpec change has all required files.
-
-Usage:
-    python scripts/openspec/validate_active_change.py --change-id <id>
-    python scripts/openspec/validate_active_change.py --self-test
-"""
+"""验证 that active OpenSpec change has all 必需 files。"""
 
 import argparse
 import shutil
@@ -13,14 +8,13 @@ import tempfile
 from pathlib import Path
 
 
+# 验证change。
 def validate_change(change_id: str) -> list[str]:
-    """Validate that an active OpenSpec change has required scaffold files.
+    """参数：
+        change_id: 当前 OpenSpec change id。
 
-    Args:
-        change_id: Change id under openspec/changes to inspect.
-
-    Returns:
-        List of validation error messages; empty means the change is valid.
+    返回：
+        列出of validation 错误 messages; 空 means change is 有效。
     """
     root = Path.cwd()
     change_dir = root / 'openspec' / 'changes' / change_id
@@ -39,26 +33,24 @@ def validate_change(change_id: str) -> list[str]:
         errors.append(f'Missing directory: openspec/changes/{change_id}/specs/')
     else:
         spec_files = list(specs_dir.rglob('*.md'))
-        # Filter out README.md or other non-spec files if needed
-        # At least one spec.md should exist (any .md in specs/ counts)
+        # Filter out README.md 或 other non-spec 文件 如果 needed。
         if not spec_files:
             errors.append(f'No spec.md files found under openspec/changes/{change_id}/specs/')
 
     return errors
 
 
+# 运行self test。
 def run_self_test() -> bool:
-    """Run lightweight self-tests for the active-change validator.
-
-    Returns:
-        True when all embedded validator scenarios pass; False after printing failures.
+    """返回：
+        当all embedded validator scenarios pass; false 之后 printing 失败项.时返回 true。
     """
     tmp_root = Path(tempfile.mkdtemp(prefix='openspec_selftest_'))
     change_dir = tmp_root / 'openspec' / 'changes' / 'test-change'
     specs_dir = change_dir / 'specs'
 
     try:
-        # Test 1: missing everything
+        # Test 1: 缺失 everything。
         (change_dir / 'specs').mkdir(parents=True)
         errors = validate_change_at_root('test-change', tmp_root)
         if not errors:
@@ -66,7 +58,6 @@ def run_self_test() -> bool:
             return False
         print(f'  PASS: detected missing files ({len(errors)} errors)')
 
-        # Test 2: all files present
         for fname in ['proposal.md', 'design.md', 'tasks.md']:
             (change_dir / fname).write_text(f'# {fname}\n')
         (specs_dir / 'spec.md').write_text('# spec\n')
@@ -77,7 +68,6 @@ def run_self_test() -> bool:
             return False
         print('  PASS: complete change validates clean')
 
-        # Test 3: non-existent change
         errors = validate_change_at_root('no-such-change', tmp_root)
         if not errors:
             print('  FAIL: expected error for non-existent change')
@@ -89,15 +79,14 @@ def run_self_test() -> bool:
         shutil.rmtree(tmp_root, ignore_errors=True)
 
 
+# 验证change at 根目录。
 def validate_change_at_root(change_id: str, root: Path) -> list[str]:
-    """Validate an active OpenSpec change under an explicit repository root.
+    """参数：
+        change_id: 当前 OpenSpec change id。
+        root: 扫描根目录。
 
-    Args:
-        change_id: Change id under openspec/changes to inspect.
-        root: Repository root used by tests or callers.
-
-    Returns:
-        List of validation error messages; empty means the change is valid.
+    返回：
+        列出of validation 错误 messages; 空 means change is 有效。
     """
     change_dir = root / 'openspec' / 'changes' / change_id
     errors: list[str] = []
@@ -121,8 +110,8 @@ def validate_change_at_root(change_id: str, root: Path) -> list[str]:
     return errors
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Parse validator CLI flags and report active-change validation results."""
     parser = argparse.ArgumentParser(description='Validate active OpenSpec change structure')
     parser.add_argument('--change-id', help='Change ID to validate')
     parser.add_argument('--self-test', action='store_true', help='Run self-test and exit')

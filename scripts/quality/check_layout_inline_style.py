@@ -1,25 +1,5 @@
 #!/usr/bin/env python3
-"""layout-inline-style 阻断 gate.
-
-扫描 HTML 模板和 JS 文件,查找 layout 相关的 inline style,执行以下策略:
-- CSS custom property(--segment-width,--fill-width 等)不视为违规
-- 存量 layout inline style 标记为 WARN(技术债务)
-- 新增 layout inline style 标记为 BLOCK(阻断)
-
-用法:
-    # 全量扫描(生成 baseline 或仅报告)
-    python3 scripts/quality/check_layout_inline_style.py
-
-    # 增量检查(对比 baseline,发现新增则 BLOCK)
-    python3 scripts/quality/check_layout_inline_style.py --check
-
-    # 更新 baseline(在已知安全的新增后手动运行)
-    python3 scripts/quality/check_layout_inline_style.py --update-baseline
-
-退出码:
-    0 — 无新增 layout inline style(全量扫描始终返回 0)
-    1 — 发现新增 layout inline style(--check 模式)
-"""
+"""提供 检查 布局 inline style 脚本能力。"""
 
 from __future__ import annotations
 
@@ -44,10 +24,10 @@ LAYOUT_PROPERTIES = re.compile(
     re.IGNORECASE,
 )
 
-# CSS custom property 赋值:--xxx:
+# 匹配 CSS custom property 赋值，确保扫描可识别设计 token 变量声明。
 CSS_CUSTOM_PROPERTY_RE = re.compile(r'\-\-[\w-]+\s*:')
 
-# JS 中 .style.xxx 赋值模式(如 .style.display = )
+# 匹配 JS 中直接写入布局 style 属性的赋值模式。
 JS_STYLE_ASSIGN_RE = re.compile(
     r'\.style\.(display|position|flex|grid|width|height|minWidth|minHeight|maxWidth|maxHeight|top|left|right|bottom|padding|paddingTop|paddingRight|paddingBottom|paddingLeft|margin|marginTop|marginRight|marginBottom|marginLeft|overflow|overflowX|overflowY|zIndex)\s*='
 )
@@ -56,14 +36,13 @@ JS_STYLE_ASSIGN_RE = re.compile(
 JS_COMMENT_LINE_RE = re.compile(r'^\s*(?://|/\*|\*)')
 
 
+# 查找HTML 文件。
 def find_html_files(root: Path) -> list[Path]:
-    """递归查找所有 HTML 模板文件.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Input value for root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     templates_dir = root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates'
     results: list[Path] = []
@@ -72,14 +51,13 @@ def find_html_files(root: Path) -> list[Path]:
     return results
 
 
+# 查找JavaScript 文件。
 def find_js_files(root: Path) -> list[Path]:
-    """递归查找所有 JS 文件.
+    """参数：
+        root: 扫描根目录。
 
-    Args:
-        root: Input value for root.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     js_dirs = [
         root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js',
@@ -91,14 +69,13 @@ def find_js_files(root: Path) -> list[Path]:
     return results
 
 
+# 维护扫描 HTML inline styles。
 def scan_html_inline_styles(html_files: list[Path]) -> list[dict]:
-    """扫描 HTML 文件中 layout 相关的 inline style.
+    """参数：
+        html_files: 待检查的文件列表。
 
-    Args:
-        html_files: Input value for html_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     findings: list[dict] = []
     for html_file in html_files:
@@ -147,14 +124,13 @@ def scan_html_inline_styles(html_files: list[Path]) -> list[dict]:
     return findings
 
 
+# 维护扫描 JavaScript style assignments。
 def scan_js_style_assignments(js_files: list[Path]) -> list[dict]:
-    """扫描 JS 文件中 .style.xxx 布局属性赋值.
+    """参数：
+        js_files: 待检查的 JavaScript 文件列表。
 
-    Args:
-        js_files: Input value for js_files.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     findings: list[dict] = []
     for js_file in js_files:
@@ -180,11 +156,10 @@ def scan_js_style_assignments(js_files: list[Path]) -> list[dict]:
     return findings
 
 
+# 加载baseline。
 def load_baseline() -> set[str]:
-    """加载 baseline,返回已知违规位置的集合.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     if not BASELINE_PATH.exists():
         return set()
@@ -195,11 +170,10 @@ def load_baseline() -> set[str]:
         return set()
 
 
+# 保存baseline。
 def save_baseline(findings: list[dict]) -> None:
-    """将当前扫描结果保存为 baseline.
-
-    Args:
-        findings: Input value for findings.
+    """参数：
+        findings: 已收集的检查发现列表。
     """
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(
@@ -212,11 +186,10 @@ def save_baseline(findings: list[dict]) -> None:
     )
 
 
+# 运行全部 scans。
 def run_all_scans() -> list[dict]:
-    """执行全部扫描,合并 HTML 和 JS 结果.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     html_files = find_html_files(REPO_ROOT)
     js_files = find_js_files(REPO_ROOT)
@@ -226,14 +199,13 @@ def run_all_scans() -> list[dict]:
     return findings
 
 
+# 运行检查。
 def run_check(args: argparse.Namespace) -> int:
-    """Run the layout-inline-style scan with optional baseline enforcement.
+    """参数：
+        args: 命令行参数对象。
 
-    Args:
-        args: Input value for args.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     findings = run_all_scans()
     baseline = load_baseline()
@@ -288,14 +260,13 @@ def run_check(args: argparse.Namespace) -> int:
     return 0
 
 
+# 运行update baseline。
 def run_update_baseline(args: argparse.Namespace) -> int:
-    """Rewrite the layout-inline-style baseline from current findings.
+    """参数：
+        args: 命令行参数对象。
 
-    Args:
-        args: Input value for args.
-
-    Returns:
-        Computed result.
+    返回：
+        Computed 结果。
     """
     findings = run_all_scans()
     save_baseline(findings)
@@ -304,11 +275,10 @@ def run_update_baseline(args: argparse.Namespace) -> int:
     return 0
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI flags and dispatch the layout-inline-style quality gate.
-
-    Returns:
-        Computed result.
+    """返回：
+        Computed 结果。
     """
     parser = argparse.ArgumentParser(description='layout-inline-style 阻断 gate')
     mode = parser.add_mutually_exclusive_group()

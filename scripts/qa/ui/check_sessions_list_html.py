@@ -1,20 +1,5 @@
 #!/usr/bin/env python3
-"""T081 — Static QA for sessions-list page HTML structure.
-
-Validates sessions.html and sessions_list_components.html against
-the current sessions-list DOM contract:
-
-1. Filter form: search input, agent/model/project selects, Apply button
-2. Active filters region with chip structure
-3. Table: column headers, sortable columns, token bar, pagination
-4. Row click: data-action="row" on tbody rows
-5. Pagination: prev/next buttons, page input, page-status spans
-6. No inline style/script/onclick in sessions.html
-7. Token bar segment classes present
-
-Run from repo root:
-  python scripts/qa/ui/check_sessions_list_html.py
-"""
+"""提供 检查 sessions list HTML 脚本能力。"""
 
 from __future__ import annotations
 
@@ -26,23 +11,21 @@ SESSIONS_HTML = ROOT / 'src/session_browser/web/templates/sessions.html'
 COMPONENTS = ROOT / 'src/session_browser/web/templates/components/sessions_list_components.html'
 
 
+# 读取文件内容。
 def read(path: Path) -> str:
-    """Read a sessions-list template used by the static HTML contract checks.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Template path to read from the source tree.
-
-    Returns:
-        Template text, or an empty string when missing so the check reports failure.
+    返回：
+        Template text, 或 空 字符串 当 缺失 so 检查 reports 失败项。
     """
     return path.read_text(encoding='utf-8') if path.exists() else ''
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
-    """Run the sessions-list static HTML contract gate.
-
-    Returns:
-        Exit code 0 when all sessions-list checks pass, otherwise 1.
+    """返回：
+        进程退出码。
     """
     sessions = read(SESSIONS_HTML)
     components = read(COMPONENTS)
@@ -56,7 +39,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
             'T081-H02 sessions_list_components.html exists',
             lambda: (COMPONENTS.exists(), 'exists' if COMPONENTS.exists() else 'MISSING'),
         ),
-        # Filter form
         (
             'T081-H03 Filter form present',
             lambda: (
@@ -111,7 +93,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'apply button NOT FOUND',
             ),
         ),
-        # Active filters
         (
             'T081-H09 Active filters macro present',
             lambda: (
@@ -121,7 +102,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'active filters NOT FOUND',
             ),
         ),
-        # Table
         (
             'T081-H10 Data table present',
             lambda: (
@@ -143,7 +123,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'tokenbar segments found',
             ),
         ),
-        # Row click
         (
             'T081-H13 Row click action present',
             lambda: (
@@ -153,7 +132,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'data-action=row NOT FOUND',
             ),
         ),
-        # Pagination
         (
             'T081-H14 Pagination prev button',
             lambda: (
@@ -176,7 +154,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
             'T081-H17 Pagination page-status',
             lambda: ('page-status' in sessions, 'page-status spans found'),
         ),
-        # No inline style/script
+        # 没有inline style/script。
         (
             'T081-H18 No inline <style> blocks',
             lambda: (
@@ -204,7 +182,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'clean' if 'onclick=' not in sessions else 'INLINE ONCLICK FOUND',
             ),
         ),
-        # data-action coverage
+        # data-action 覆盖率。
         (
             'T081-H21 data-action coverage (clear, row, sort)',
             lambda: (

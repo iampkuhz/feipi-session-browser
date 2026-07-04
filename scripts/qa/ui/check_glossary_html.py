@@ -1,24 +1,5 @@
 #!/usr/bin/env python3
-"""T165 — Static QA for glossary page HTML structure.
-
-Validates glossary.html against the page behavior contract:
-
-1. Template structure: extends base.html, active_page set, ui_primitives imported
-2. Header: .page-head, h1, .subtitle
-3. No inline: no onclick, no inline <script>, no inline <style>
-4. CSS/JS imports: glossary.css and glossary.js imported
-5. Metric grid: 4 metric cards with icon, label, value, note
-6. Filter card: .filter-card, .input.search, data-search attribute
-7. Empty state: .state-strip with ARIA attributes
-8. Sections: 7 .card.section with .section-head
-9. Tables: 5 data-tables with data-table-enhanced, sortable headers
-10. data-action coverage: sort, search
-11. Accessibility: aria-hidden, aria-label, aria-live, role
-12. Stale patterns: no page-header, hero, legacy-, onclick
-
-Run from repo root:
-  python scripts/qa/ui/check_glossary_html.py
-"""
+"""提供 检查 glossary HTML 脚本能力。"""
 
 from __future__ import annotations
 
@@ -31,30 +12,27 @@ GLOSSARY_CSS = ROOT / 'src/session_browser/web/static/css/glossary.css'
 GLOSSARY_JS = ROOT / 'src/session_browser/web/static/js/glossary.js'
 
 
+# 读取文件内容。
 def read(path: Path) -> str:
-    """Read a glossary template or asset for the static contract checks.
+    """参数：
+        path: 待检查的路径。
 
-    Args:
-        path: Source-tree path to read.
-
-    Returns:
-        File text, or an empty string when the path is absent.
+    返回：
+        文件 text, 或 空 字符串 当 路径 缺失。
     """
     return path.read_text(encoding='utf-8') if path.exists() else ''
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
-    """Run the glossary static HTML and JavaScript contract gate.
-
-    Returns:
-        Exit code 0 when all glossary checks pass, otherwise 1.
+    """返回：
+        进程退出码。
     """
     html = read(GLOSSARY_HTML)
     read(GLOSSARY_CSS)
     js = read(GLOSSARY_JS)
 
     checks: list[tuple[str, callable]] = [
-        # ── Template structure ─────────────────────────────────────
         (
             'T165-H01 glossary.html exists',
             lambda: (GLOSSARY_HTML.exists(), 'exists' if GLOSSARY_HTML.exists() else 'MISSING'),
@@ -88,7 +66,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── Header ─────────────────────────────────────────────────
         (
             'T165-H05 .page-head present',
             lambda: (
@@ -107,7 +84,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'subtitle found' if 'class="subtitle"' in html else 'MISSING',
             ),
         ),
-        # ── No inline ──────────────────────────────────────────────
+        # 没有inline。
         (
             'T165-H08 No inline <style> blocks',
             lambda: (
@@ -131,7 +108,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'clean' if 'onclick=' not in html else 'INLINE ONCLICK FOUND',
             ),
         ),
-        # ── CSS/JS ─────────────────────────────────────────────────
         (
             'T165-H11 glossary.css exists',
             lambda: (GLOSSARY_CSS.exists(), 'exists' if GLOSSARY_CSS.exists() else 'MISSING'),
@@ -151,7 +127,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'glossary.js imported' if '/static/js/glossary.js' in html else 'MISSING',
             ),
         ),
-        # ── Metric grid ────────────────────────────────────────────
         (
             'T165-H15 .metric-grid present',
             lambda: (
@@ -214,7 +189,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING metric labels',
             ),
         ),
-        # ── Filter card ────────────────────────────────────────────
         (
             'T165-H21 .filter-card present',
             lambda: (
@@ -236,7 +210,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'data-search found' if 'data-search=' in html else 'MISSING',
             ),
         ),
-        # ── Empty state ────────────────────────────────────────────
         (
             'T165-H24 .state-strip present',
             lambda: (
@@ -258,7 +231,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'aria-live=polite found' if 'aria-live="polite"' in html else 'MISSING',
             ),
         ),
-        # ── Sections ───────────────────────────────────────────────
         (
             'T165-H27 7 .card.section elements',
             lambda: (
@@ -289,7 +261,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'section-desc found' if 'class="section-desc"' in html else 'MISSING',
             ),
         ),
-        # ── Tables ─────────────────────────────────────────────────
         (
             'T165-H31 5 .data-table elements',
             lambda: (
@@ -315,7 +286,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'table-wrap found' if 'class="table-wrap"' in html else 'MISSING',
             ),
         ),
-        # ── Sortable headers ───────────────────────────────────────
         (
             'T165-H34 data-action="sort" on sortable headers',
             lambda: (
@@ -332,7 +302,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 'data-sort-key found' if 'data-sort-key=' in html else 'MISSING',
             ),
         ),
-        # ── Section content checks ─────────────────────────────────
         (
             'T165-H36 Badge reference section with status badges',
             lambda: (
@@ -406,7 +375,7 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── data-action coverage ───────────────────────────────────
+        # data-action 覆盖率。
         (
             'T165-H42 data-action: sort',
             lambda: (
@@ -423,7 +392,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── Accessibility ──────────────────────────────────────────
         (
             'T165-H44 aria-hidden="true" on emoji spans',
             lambda: (
@@ -449,7 +417,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── Breadcrumb ─────────────────────────────────────────────
         (
             'T165-H47 Breadcrumb present with dashboard link',
             lambda: (
@@ -459,7 +426,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'MISSING',
             ),
         ),
-        # ── Token formatting ───────────────────────────────────────
         (
             'T165-H48 No raw compact token format (glossary is static)',
             lambda: (
@@ -469,7 +435,6 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
                 else 'UNEXPECTED format_compact_token in static page',
             ),
         ),
-        # ── Stale patterns ─────────────────────────────────────────
         (
             'T165-H49 No stale patterns: no page-header, no hero, no legacy-, no onclick',
             lambda: (
@@ -514,14 +479,13 @@ def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
     return 1
 
 
+# 检查JavaScript syntax。
 def _check_js_syntax(js: str) -> tuple[bool, str]:  # noqa: PLR0912 - mirrors JS parser diagnostics.
-    """Validate glossary JavaScript syntax when Node.js is available for QA.
+    """参数：
+        js: 待执行的 JavaScript 表达式。
 
-    Args:
-        js: JavaScript source extracted from the glossary asset.
-
-    Returns:
-        Tuple of check success and diagnostic detail; missing Node.js is reported as a non-blocking skip detail.
+    返回：
+        由check success 和 diagnostic detail; 缺失 Node.js is reported as non-阻断 skip detail.组成的 tuple。
     """
     if not js:
         return (False, 'glossary.js is empty or missing')

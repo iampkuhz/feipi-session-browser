@@ -1,15 +1,5 @@
 #!/usr/bin/env python3
-"""PreToolUse hook: block protected writes without an active OpenSpec change.
-
-Usage:
-    python3 scripts/agent_hooks/guard_active_openspec_change.py <target_file>
-    python3 scripts/agent_hooks/guard_active_openspec_change.py --self-test
-
-Exit codes:
-    0  ALLOW  - edit is permitted
-    1  BLOCK  - edit is blocked (error on stderr)
-    2  ERROR  - internal/script error (self-test failure, bad args, etc.)
-"""
+"""提供 guard active OpenSpec change 脚本能力。"""
 
 from __future__ import annotations
 
@@ -19,12 +9,16 @@ import sys
 import tempfile
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+
 # ---------------------------------------------------------------------------
-# Configuration
+# 配置项。
 # ---------------------------------------------------------------------------
 
-# Protected root patterns.  A target whose resolved path starts with any of
-# these is considered "protected" and requires an active OpenSpec change.
 PROTECTED_ROOTS = [
     'CLAUDE.md',
     'AGENTS.md',
@@ -37,8 +31,7 @@ PROTECTED_ROOTS = [
     'src',
 ]
 
-# Paths that are part of *creating* a change - always allowed even if under
-# openspec/changes/ or tmp/.
+# 路径 that are part of *creating* a change - 始终 allowed even 如果 under。
 CREATION_EXCEPTIONS = [
     'openspec/changes',
     'tmp/active_change.json',
@@ -47,20 +40,15 @@ CREATION_EXCEPTIONS = [
 ACTIVE_CHANGE_FILE = 'tmp/active_change.json'
 REQUIRED_CHANGE_FILES = ('proposal.md', 'design.md', 'tasks.md')
 
-# ---------------------------------------------------------------------------
-# Helpers
-# ---------------------------------------------------------------------------
 
-
+# 解析target。
 def resolve_target(target: str, repo_root: Path) -> Path:
-    """Return the absolute path for a hook target.
+    """参数：
+        target: 当前要运行或解析的 quality gate target 名称。
+        repo_root: 仓库根目录。
 
-    Args:
-        target: File path received from the hook payload or CLI.
-        repo_root: Repository root used to resolve relative targets.
-
-    Returns:
-        Absolute resolved target path.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     p = Path(target)
     if not p.is_absolute():
@@ -68,17 +56,16 @@ def resolve_target(target: str, repo_root: Path) -> Path:
     return p.resolve()
 
 
+# 判断是否protected。
 def is_protected(target_resolved: Path, repo_root: Path) -> bool:
-    """Check whether a target is inside a protected root.
+    """参数：
+        target_resolved: Absolute 路径到evaluate。
+        repo_root: 仓库根目录。
 
-    Args:
-        target_resolved: Absolute path to evaluate.
-        repo_root: Repository root containing the protected roots.
-
-    Returns:
-        True when the target requires an active OpenSpec change.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
-    # Exact match for repo-level files (CLAUDE.md, AGENTS.md)
+    # Exact match用于repo-level 文件 (CLAUDE.md, AGENTS.md)。
     for root_name in PROTECTED_ROOTS:
         candidate = repo_root / root_name
         candidate = candidate.resolve()
@@ -89,15 +76,14 @@ def is_protected(target_resolved: Path, repo_root: Path) -> bool:
     return False
 
 
+# 判断是否creation exception。
 def is_creation_exception(target_resolved: Path, repo_root: Path) -> bool:
-    """Check whether a protected target is allowed during change creation.
+    """参数：
+        target_resolved: Absolute 路径到evaluate。
+        repo_root: 仓库根目录。
 
-    Args:
-        target_resolved: Absolute path to evaluate.
-        repo_root: Repository root containing the exception paths.
-
-    Returns:
-        True when the target is an OpenSpec creation exception.
+    返回：
+        满足条件时返回 true，否则返回 false。
     """
     for exc_rel in CREATION_EXCEPTIONS:
         candidate = (repo_root / exc_rel).resolve()
@@ -108,39 +94,44 @@ def is_creation_exception(target_resolved: Path, repo_root: Path) -> bool:
     return False
 
 
+# 检查active change。
 def check_active_change(repo_root: Path) -> tuple[bool, str]:  # noqa: PLR0911
-    """Validate that an active OpenSpec change exists and is complete.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root where active change metadata is stored.
-
-    Returns:
-        Tuple of success flag and human-readable status or blocking message.
+    返回：
+        由success flag 和 human-读取able 状态 或 阻断 message.组成的 tuple。
     """
-    active_change_path = repo_root / ACTIVE_CHANGE_FILE
+    identity = runtime_paths.identity_from_values()
+    if identity.has_session:
+        candidates = runtime_paths.build_paths(repo_root, identity).active_change_candidates
+    else:
+        candidates = [repo_root / ACTIVE_CHANGE_FILE]
+
+    active_change_path = next((path for path in candidates if path.exists()), candidates[0])
     if not active_change_path.exists():
         return False, (
-            'BLOCKED: No active OpenSpec change (tmp/active_change.json not found).\n'
+            f'BLOCKED: No active OpenSpec change ({active_change_path} not found).\n'
             'Create a change with /change before editing protected files.'
         )
 
-    # Validate JSON
+    # 校验 JSON。
     try:
         data = json.loads(active_change_path.read_text(encoding='utf-8'))
     except (json.JSONDecodeError, UnicodeDecodeError) as exc:
         return False, (
-            f'BLOCKED: tmp/active_change.json is not valid JSON: {exc}\n'
+            f'BLOCKED: {active_change_path} is not valid JSON: {exc}\n'
             'Fix or recreate the active change file.'
         )
 
     change_id = data.get('change_id', '')
     if not change_id:
         return False, (
-            "BLOCKED: tmp/active_change.json is missing 'change_id'.\n"
+            f"BLOCKED: {active_change_path} is missing 'change_id'.\n"
             'Recreate the active change file with a valid change_id.'
         )
 
-    # Check that a matching non-archive directory exists under openspec/changes/
+    # 检查a matching non-archive 目录 exists under openspec/changes/。
     changes_dir = repo_root / 'openspec' / 'changes'
     if not changes_dir.is_dir():
         return False, (
@@ -173,20 +164,14 @@ def check_active_change(repo_root: Path) -> tuple[bool, str]:  # noqa: PLR0911
     return True, f"Active change '{change_id}' verified."
 
 
-# ---------------------------------------------------------------------------
-# Main guard logic
-# ---------------------------------------------------------------------------
-
-
+# 维护保护。
 def guard(target: str, repo_root: Path | None = None) -> int:
-    """Run the protected-edit guard for one target path.
+    """参数：
+        target: 文件路径 requested by editing tool。
+        repo_root: 可选repo root override用于self-tests。
 
-    Args:
-        target: File path requested by the editing tool.
-        repo_root: Optional repository root override for self-tests.
-
-    Returns:
-        Process-style exit code where 0 allows and 1 blocks.
+    返回：
+        进程退出码。
     """
     if repo_root is None:
         repo_root = Path.cwd()
@@ -194,15 +179,13 @@ def guard(target: str, repo_root: Path | None = None) -> int:
 
     target_resolved = resolve_target(target, repo_root)
 
-    # Creation exceptions are always allowed.
     if is_creation_exception(target_resolved, repo_root):
         return 0
 
-    # Non-protected files are always allowed.
+    # Non-protected 文件 are 始终 allowed。
     if not is_protected(target_resolved, repo_root):
         return 0
 
-    # Protected file - require active change.
     ok, message = check_active_change(repo_root)
     if not ok:
         print(message, file=sys.stderr)
@@ -211,23 +194,16 @@ def guard(target: str, repo_root: Path | None = None) -> int:
     return 0
 
 
-# ---------------------------------------------------------------------------
-# Self-test
-# ---------------------------------------------------------------------------
-
-
+# 运行self test。
 def run_self_test() -> int:  # noqa: PLR0915
-    """Run the guard self-test suite in a temporary repository.
-
-    Returns:
-        Process exit code where 0 means all self-tests passed.
+    """返回：
+        进程退出码。
     """
     results: list[tuple[str, bool, str]] = []
 
     with tempfile.TemporaryDirectory(prefix='guard_self_test_') as tmpdir:
         tmp = Path(tmpdir)
 
-        # -- Build a minimal fake repo --
         (tmp / 'openspec' / 'changes' / 'archive').mkdir(parents=True)
         (tmp / 'tmp').mkdir(parents=True)
         for r in ['scripts', 'src']:
@@ -236,14 +212,12 @@ def run_self_test() -> int:  # noqa: PLR0915
         (tmp / 'AGENTS.md').touch()
         (tmp / 'non-protected.txt').touch()
 
-        # --- Sub-test A: No active_change.json -> protected file should BLOCK ---
         target_a = str(tmp / 'CLAUDE.md')
         ret_a = guard(target_a, repo_root=tmp)
         results.append(
             ('no_active_change -> BLOCK protected file', ret_a == 1, f'exit={ret_a} (expected 1)')
         )
 
-        # --- Sub-test B: Valid active_change.json + matching change dir -> ALLOW ---
         active_change_data = {
             'change_id': 'test-change',
             'change_path': 'openspec/changes/test-change/',
@@ -266,17 +240,15 @@ def run_self_test() -> int:  # noqa: PLR0915
             )
         )
 
-        # --- Sub-test C: Non-protected file is always ALLOW ---
+        # Sub-test C: Non-protected 文件 is 始终 ALLOW。
         target_c = str(tmp / 'non-protected.txt')
         ret_c = guard(target_c, repo_root=tmp)
         results.append(('non_protected_file -> ALLOW', ret_c == 0, f'exit={ret_c} (expected 0)'))
 
-        # --- Sub-test D: Non-protected external file (e.g. /tmp/…) -> ALLOW ---
         target_d = '/tmp/guard_test_file.txt'
         ret_d = guard(target_d, repo_root=tmp)
         results.append(('external_file -> ALLOW', ret_d == 0, f'exit={ret_d} (expected 0)'))
 
-        # --- Sub-test E: Active change with non-matching dir -> BLOCK ---
         (tmp / ACTIVE_CHANGE_FILE).write_text(
             json.dumps({'change_id': 'nonexistent-change'}, indent=2), encoding='utf-8'
         )
@@ -290,7 +262,6 @@ def run_self_test() -> int:  # noqa: PLR0915
             )
         )
 
-        # --- Sub-test F: Invalid JSON in active_change.json -> BLOCK ---
         (tmp / ACTIVE_CHANGE_FILE).write_text('not json {{{', encoding='utf-8')
         target_f = str(tmp / 'scripts' / 'test.py')
         ret_f = guard(target_f, repo_root=tmp)
@@ -298,7 +269,6 @@ def run_self_test() -> int:  # noqa: PLR0915
             ('invalid_json -> BLOCK protected file', ret_f == 1, f'exit={ret_f} (expected 1)')
         )
 
-        # --- Sub-test G: Creation exception (writing to openspec/changes/) -> ALLOW ---
         (tmp / ACTIVE_CHANGE_FILE).write_text(
             json.dumps({'change_id': 'test-change'}, indent=2), encoding='utf-8'
         )
@@ -312,7 +282,6 @@ def run_self_test() -> int:  # noqa: PLR0915
             )
         )
 
-        # --- Sub-test H: Creation exception (tmp/active_change.json) -> ALLOW ---
         target_h = str(tmp / 'tmp' / 'active_change.json')
         ret_h = guard(target_h, repo_root=tmp)
         results.append(
@@ -323,7 +292,7 @@ def run_self_test() -> int:  # noqa: PLR0915
             )
         )
 
-    # Report
+    # 报告输出。
     all_pass = True
     print(f'\n{"=" * 60}')
     print('self-test results')
@@ -340,16 +309,10 @@ def run_self_test() -> int:  # noqa: PLR0915
     return 0 if all_pass else 1
 
 
-# ---------------------------------------------------------------------------
-# Entry point
-# ---------------------------------------------------------------------------
-
-
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Parse CLI arguments and run the active-change guard.
-
-    Returns:
-        Process exit code for the CLI invocation.
+    """返回：
+        进程退出码。
     """
     parser = argparse.ArgumentParser(
         description='PreToolUse hook: block protected writes without active OpenSpec change.'
@@ -371,7 +334,7 @@ def main() -> int:
         return run_self_test()
 
     if not args.target:
-        # No target provided; allow (guard is not applicable without a target).
+        # 没有target provided; allow (guard is 不 applicable 不带 a target)。
         return 0
 
     ret = guard(args.target)

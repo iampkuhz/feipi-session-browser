@@ -18,6 +18,7 @@ export PYTHONPATH="${PYTHONPATH:-}"
 CMD="${1:-help}"
 shift || true
 
+# 读取当前版本号，优先使用环境变量，其次读取 VERSION 文件。
 read_version() {
     if [[ -n "${SESSION_BROWSER_VERSION:-}" ]]; then
         printf '%s\n' "$SESSION_BROWSER_VERSION"
@@ -29,6 +30,7 @@ read_version() {
     fi
 }
 
+# 校验维护版本号格式，支持 x.y 和 x.y.z 形式。
 validate_version() {
     local version="$1"
     if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$|^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
@@ -38,6 +40,7 @@ validate_version() {
     fi
 }
 
+# 写入新的版本号到 VERSION 文件。
 set_version() {
     local version="$1"
     validate_version "$version"
@@ -45,6 +48,7 @@ set_version() {
     echo "版本已更新：$version"
 }
 
+# 解析本地测试索引目录，并按非 main 分支自动区分。
 local_test_index_dir() {
     local base_dir="$DEFAULT_LOCAL_DATA_DIR"
     if [[ -z "${SESSION_BROWSER_LOCAL_DATA_DIR:-}" ]]; then
@@ -57,6 +61,7 @@ local_test_index_dir() {
     expand_path "${SESSION_BROWSER_LOCAL_DATA_DIR:-$base_dir}"
 }
 
+# 判断参数列表中是否包含指定 option。
 arg_has_option() {
     local opt="$1"
     shift || true
@@ -69,11 +74,13 @@ arg_has_option() {
     return 1
 }
 
+# 判断当前 Java opts 中是否已经配置 -Xmx。
 jvm_opts_have_max_heap() {
     local combined=" ${JAVA_OPTS:-} ${APP_CLI_OPTS:-} "
     [[ "$combined" =~ [[:space:]]-Xmx[^[:space:]]+ ]]
 }
 
+# full scan 时为 Java launcher 注入有界 heap profile。
 apply_scan_jvm_profile() {
     if ! arg_has_option "--full" "$@"; then
         return 0
@@ -90,6 +97,7 @@ apply_scan_jvm_profile() {
     export APP_CLI_OPTS
 }
 
+# 将用户输入路径展开为绝对路径，支持 ~ 和相对路径。
 expand_path() {
     local value="$1"
     local expanded
@@ -105,7 +113,7 @@ expand_path() {
     esac
 }
 
-# Java launcher 定位（help/version cutover）。
+# 定位 Java launcher，用于 help/version cutover。
 # 不执行 Gradle build；launcher 必须已预构建。
 java_launcher_path() {
     printf '%s\n' "$PROJECT_DIR/java/app-cli/build/install/app-cli/bin/app-cli"
@@ -117,6 +125,7 @@ run_java_help_version() {
     run_java_command "$@"
 }
 
+# 选择满足版本要求的 Python 解释器。
 python_bin() {
     if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
         if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
@@ -146,6 +155,7 @@ python_bin() {
     exit 1
 }
 
+# 检查候选 Python 是否满足最低版本要求。
 python_is_compatible() {
     local candidate="$1"
     "$candidate" - <<'PY' >/dev/null 2>&1
@@ -154,6 +164,7 @@ raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
 PY
 }
 
+# 在项目目录中优先通过 venv 或 uv 执行开发工具。
 run_dev_tool() {
     local tool="$1"
     shift || true
@@ -169,6 +180,7 @@ run_dev_tool() {
     PATH="$VENV_DIR/bin:${PATH:-}" "$tool" "$@"
 }
 
+# 执行测试前确认 test profile 依赖已安装。
 run_tests() {
     cd "$PROJECT_DIR"
     "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" check-installed --profile test
@@ -182,6 +194,7 @@ run_tests() {
     PYTHONPATH="${PYTHONPATH:-}" "$(python_bin)" -m pytest "${pytest_args[@]}"
 }
 
+# 打印 deps 子命令帮助。
 print_deps_usage() {
     cat <<'EOF'
 用法：./scripts/session-browser.sh deps [--dry-run] [--dev] [dev installer options]
@@ -199,6 +212,7 @@ print_deps_usage() {
 EOF
 }
 
+# 安装 Python 开发依赖；dry-run 只检查环境和锁文件。
 install_dev_deps() {
     cd "$PROJECT_DIR"
     if [[ "${1:-}" == "--dry-run" ]]; then
@@ -216,6 +230,7 @@ install_dev_deps() {
     "$(python_bin)" -m pip install -r requirements-dev.txt "$@"
 }
 
+# 安装或检查项目依赖；默认构建 Java launcher，--dev 安装 Python 开发依赖。
 install_deps() {
     local dry_run=false
     local dev=false
@@ -301,24 +316,29 @@ install_deps() {
     echo "  ./scripts/session-browser.sh serve"
 }
 
+# 执行 Ruff 格式化和 import 自动修复。
 run_format() {
     run_dev_tool ruff format .
     run_dev_tool ruff check --select I --fix .
 }
 
+# 检查 Ruff 格式和 import 排序，不修改文件。
 run_format_check() {
     run_dev_tool ruff format --check .
     run_dev_tool ruff check --select I .
 }
 
+# 执行 Ruff lint 检查。
 run_lint() {
     run_dev_tool ruff check .
 }
 
+# 执行 Pyright 类型检查。
 run_type_check() {
     PYRIGHT_PYTHON_IGNORE_WARNINGS=1 run_dev_tool pyright
 }
 
+# 执行脚本文档覆盖率和 docstring 质量检查。
 run_doc_checks() {
     run_dev_tool interrogate scripts
     if ! run_dev_tool pydoclint scripts; then
@@ -326,6 +346,7 @@ run_doc_checks() {
     fi
 }
 
+# 执行 Python harness/quality 测试并生成 coverage 报告。
 run_coverage() {
     run_dev_tool pytest -W error \
         tests/harness \
@@ -353,6 +374,7 @@ run_coverage() {
         "$@"
 }
 
+# 使用 dev lock 运行 pip-audit，并把网络不可用降级为诊断提示。
 run_pip_audit_dev_lock() {
     local output
     local status
@@ -384,25 +406,30 @@ run_pip_audit_dev_lock() {
     return "$status"
 }
 
+# 执行依赖漏洞和高危 Bandit 安全检查。
 run_audit() {
     run_pip_audit_dev_lock
     run_dev_tool bandit -r scripts --severity-level high
 }
 
+# 执行 Xenon 复杂度检查并报告历史复杂度债务。
 run_complexity() {
     if ! run_dev_tool xenon --max-absolute B --max-modules B --max-average A scripts; then
         echo "提示：complexity report 已生成；python-standard 暂不因历史复杂度债务阻断。" >&2
     fi
 }
 
+# 执行 Vulture dead-code 检查。
 run_dead_code() {
     run_dev_tool vulture
 }
 
+# 执行 Deptry 依赖声明检查。
 run_deps_check() {
     run_dev_tool deptry scripts
 }
 
+# 串行执行本地 Python 质量基线。
 run_quality() {
     run_format_check
     run_lint
@@ -428,6 +455,7 @@ run_java_command() {
     exec "$launcher" "$@"
 }
 
+# 通过 Java launcher 执行 scan，并设置本地测试索引目录。
 run_scan() {
     local index_dir
     index_dir="$(local_test_index_dir)"
@@ -441,6 +469,7 @@ run_scan() {
     run_java_command scan "$@"
 }
 
+# 通过 Java launcher 启动本地 serve，并补齐默认 host/port。
 run_serve() {
     local index_dir
     index_dir="$(local_test_index_dir)"
@@ -462,10 +491,12 @@ run_serve() {
     run_java_command serve "${java_args[@]}"
 }
 
+# 通过 Java launcher 执行 stop 命令。
 run_stop() {
     run_java_command stop "$@"
 }
 
+# 打印 session-browser.sh 命令帮助。
 print_usage() {
     cat <<'EOF'
 用法：./scripts/session-browser.sh <command> [options]

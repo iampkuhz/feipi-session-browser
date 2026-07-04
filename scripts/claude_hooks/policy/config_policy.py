@@ -1,9 +1,4 @@
-"""Record and validate Claude hook configuration changes.
-
-The config-change hook records lightweight metadata when agent settings change. The JSON
-validator is used by diagnostics to report malformed settings without mutating config
-files or blocking unrelated hook events.
-"""
+"""提供 config policy 脚本能力。"""
 
 from __future__ import annotations
 
@@ -20,19 +15,18 @@ if TYPE_CHECKING:
     from ..paths import RepoPaths
 
 
-# 01. ConfigChange 记录
+# 记录配置 change。
 def record_config_change(paths: RepoPaths, ctx: HookContext) -> None:
-    """Record a config-change hook event.
-
-    Args:
-        paths: Repository runtime paths for config evidence output.
-        ctx: Parsed Claude hook context with session and agent identifiers.
+    """参数：
+        paths: Repository 运行time 路径用于config evidence 输出。
+        ctx: 已解析的Claude hook context带session 和 agent identifiers。
     """
     ensure_runtime_dirs(paths)
     record = {
         'schemaVersion': 1,
         'ts': utc_now(),
         'event': 'config-change',
+        'client': paths.identity.client,
         'sessionId': ctx.session_id,
         'agentId': ctx.agent_id,
         'agentType': ctx.agent_type,
@@ -40,16 +34,13 @@ def record_config_change(paths: RepoPaths, ctx: HookContext) -> None:
     append_jsonl(paths.agent_log_dir / 'config-change-log.jsonl', record)
 
 
-# 02. settings.json 轻量校验
+# 验证settings JSON。
 def validate_settings_json(repo_root: Path) -> tuple[bool, str]:
-    """Validate Claude settings JSON syntax for diagnostics.
+    """参数：
+        repo_root: 仓库根目录。
 
-    Args:
-        repo_root: Repository root that contains ``.claude/settings.json``.
-
-    Returns:
-        Tuple of success flag and user-facing diagnostic message. Invalid JSON returns
-        ``False`` instead of raising so callers can report a controlled failure.
+    返回：
+        由success flag 和 user-facing diagnostic message. 无效 JSON 返回组成的 tuple。 ``false`` instead of raising so callers can 报告 controlled 失败项。
     """
     path = repo_root / '.claude/settings.json'
     try:

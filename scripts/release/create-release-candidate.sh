@@ -8,7 +8,7 @@
 # 4. 创建 release tag 并输出 candidate 元数据
 #
 # 用法：
-#   scripts/release/create-release-candidate.sh [--dry-run]
+# 校验脚本运行前置条件和输入输出边界。
 #
 # 参数：
 #   --dry-run  只验证不创建 tag

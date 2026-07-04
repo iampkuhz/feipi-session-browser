@@ -225,6 +225,7 @@ class TestQualityGateRuntime:
             '.claude/hooks/session-start.sh',
             '.claude/hooks/subagent-start.sh',
             '.claude/hooks/pre-bash.sh',
+            '.claude/hooks/post-bash.sh',
             '.claude/hooks/pre-write.sh',
             '.claude/hooks/post-write.sh',
             '.claude/hooks/tool-failure.sh',
@@ -233,10 +234,12 @@ class TestQualityGateRuntime:
             '.claude/hooks/config-change.sh',
             '.claude/hooks/lib/common.sh',
             '.codex/hooks/pre_tool_guard.sh',
+            '.codex/hooks/post_bash_guard.sh',
             '.codex/hooks/post_tool_guard.sh',
             '.codex/hooks/stop_check.sh',
             '.codex/hooks/lib/common.sh',
             '.qoder/hooks/pre_tool_guard.sh',
+            '.qoder/hooks/post_bash_guard.sh',
             '.qoder/hooks/post_tool_guard.sh',
             '.qoder/hooks/stop_check.sh',
         ]:
@@ -708,6 +711,44 @@ class TestJavaChineseCommentsGateCommand:
         assert cmd == []
 
 
+class TestScriptCommentLanguageGateCommand:
+    """scriptCommentLanguage gate 必须覆盖 hook/harness 脚本注释。"""
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_hook_runtime_includes_script_comment_language(self):
+        """hook-runtime target 必须运行脚本注释中文门禁。"""
+        gates = required_gates_for_target('hook-runtime')
+        assert 'scriptCommentLanguage' in gates
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_harness_includes_script_comment_language(self):
+        """harness target 必须运行脚本注释中文门禁。"""
+        gates = required_gates_for_target('harness')
+        assert 'scriptCommentLanguage' in gates
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_gate_command_scans_script_and_hook_roots(self, tmp_path: Path):
+        """gate 命令必须全量扫描 scripts 与 Claude/Codex hook 入口。"""
+        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# checker\n', encoding='utf-8')
+        policy = tmp_path / 'config' / 'technical-terms.json'
+        policy.parent.mkdir(parents=True)
+        policy.write_text('{}\n', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('scriptCommentLanguage', tmp_path, 'hook-runtime')
+
+        assert cmd, '仓库内脚本存在时命令不应为空'
+        assert any('check_code_comment_language.py' in str(c) for c in cmd)
+        assert '--script-comments' in cmd
+        assert 'scripts' in cmd
+        assert '.claude/hooks' in cmd
+        assert '.codex/hooks' in cmd
+        assert '--changed-files-env' not in cmd
+        assert 'QUALITY_CHANGED_FILES' not in cmd
+        assert '--policy' in cmd
+
+
 class TestReportHashInSummary:
     """build_summary 和 write_quality_summary 必须生成 reportHash。"""
 
@@ -834,6 +875,47 @@ class TestRequiredGateChangedFiles:
         assert run_required_quality_gates.get_changed_files(
             '["java/app-cli/src/main/java/Foo.java"]'
         ) == ['java/app-cli/src/main/java/Foo.java']
+
+    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
+    def test_run_quality_gate_auto_reads_identity_scoped_evidence(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        """--changed-files auto 只读取当前 session 的 changed-files evidence。"""
+        monkeypatch.setenv('FEIPI_AGENT_CLIENT', 'claude')
+        monkeypatch.setenv('FEIPI_SESSION_ID', 'reader-session')
+        reader_file = (
+            tmp_path
+            / 'tmp'
+            / 'agent_logs'
+            / 'claude'
+            / 'reader-session'
+            / 'main'
+            / 'changed-files.jsonl'
+        )
+        writer_file = (
+            tmp_path
+            / 'tmp'
+            / 'agent_logs'
+            / 'claude'
+            / 'writer-session'
+            / 'main'
+            / 'changed-files.jsonl'
+        )
+        reader_file.parent.mkdir(parents=True)
+        writer_file.parent.mkdir(parents=True)
+        reader_file.write_text(
+            json.dumps({'sessionId': 'reader-session', 'file': 'scripts/quality/run_quality_gate.py'})
+            + '\n',
+            encoding='utf-8',
+        )
+        writer_file.write_text(
+            json.dumps({'sessionId': 'writer-session', 'file': 'java/Foo.java'}) + '\n',
+            encoding='utf-8',
+        )
+
+        changed = run_quality_gate._read_changed_files(tmp_path)
+
+        assert changed == ['scripts/quality/run_quality_gate.py']
 
     @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
     def test_stop_target_artifact_must_match_active_change_id(

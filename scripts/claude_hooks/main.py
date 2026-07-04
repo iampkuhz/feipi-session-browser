@@ -1,63 +1,80 @@
-"""Dispatch Claude hook events to policy evaluators and evidence writers.
-
-The shell hook entry points invoke this module with an event label such as ``pre-bash``,
-``pre-write``, or ``post-write``. Handlers convert policy decisions into concise hook
-output: PASS returns zero, BLOCK returns exit code 2, and observed/default events only
-record evidence.
-"""
+"""提供 主流程 脚本能力。"""
 
 from __future__ import annotations
 
 import sys
 
-from .evidence import record_hook_event, record_post_write
+from .evidence import (
+    acquire_bash_mutation_lock,
+    record_hook_event,
+    record_post_bash,
+    record_post_write,
+    record_pre_bash_snapshot,
+)
 from .hook_io import HookContext, read_stdin_json
-from .paths import RepoPaths, build_paths, ensure_runtime_dirs
-from .policy.bash_policy import evaluate_command
+from .paths import RepoPaths, build_paths, ensure_runtime_dirs, identity_from_hook_context
+from .policy.bash_policy import evaluate_command, is_read_only_command
 from .policy.config_policy import record_config_change
 from .policy.file_policy import evaluate_write_path
 from .policy.session_context import handle_session_start
 from .result import HookResult, emit
 from .self_test import run_self_test
+from scripts.quality import changed_files as changed_file_utils
 
 
-# 01. 事件处理: pre-bash
+# 分发 PreToolUse Bash 事件。
 def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
-    """Evaluate a Bash command before Claude executes it.
+    """参数：
+        paths: Repository 运行time 路径用于evidence 输出。
+        ctx: 已解析的pre-bash hook context containing 命令。
 
-    Args:
-        paths: Repository runtime paths for evidence output.
-        ctx: Parsed pre-bash hook context containing the command.
-
-    Returns:
-        PASS with warnings for allowed commands, or BLOCK with exit code 2 for commands
-        that match destructive or secret-reading patterns.
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
     """
     decision = evaluate_command(ctx.command)
+    snapshot_written = False
+    mutation_tracking = False
+    if decision.allowed:
+        changed_file_utils.write_base_commit_if_missing(paths.repo_root, paths.base_commit)
+        mutation_tracking = not is_read_only_command(ctx.command)
+        if mutation_tracking and not acquire_bash_mutation_lock(paths, ctx):
+            reason = '另一个 Bash mutation attribution 正在运行；请稍后重试该命令。'
+            record_hook_event(
+                paths,
+                ctx,
+                status='BLOCK',
+                extra={'reason': reason, 'bashMutationLock': 'busy'},
+            )
+            return HookResult(status='BLOCK', exit_code=2, message=reason)
+        if mutation_tracking:
+            snapshot_written = record_pre_bash_snapshot(paths, ctx)
     record_hook_event(
         paths,
         ctx,
         status=decision.status,
-        extra={'reason': decision.reason, 'warnings': decision.warnings},
+        extra={
+            'reason': decision.reason,
+            'warnings': decision.warnings,
+            'bashSnapshot': snapshot_written,
+            'bashMutationTracking': mutation_tracking,
+        },
     )
     if not decision.allowed:
         return HookResult(status='BLOCK', exit_code=2, message=decision.reason)
     return HookResult(status='PASS', warnings=decision.warnings)
 
 
-# 02. 事件处理: pre-write
+# 分发 PreToolUse 写入事件。
 def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
-    """Evaluate candidate write paths before Claude edits files.
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: 已解析的pre-写入 hook context containing candidate 文件路径s。
 
-    Args:
-        paths: Repository runtime paths and repository root.
-        ctx: Parsed pre-write hook context containing candidate file paths.
-
-    Returns:
-        PASS when all paths are allowed, possibly with warnings for generated/runtime
-        files. BLOCK with exit code 2 is returned for sensitive directories.
+    返回：
+        PASS 当 all 路径 are allowed, possibly带warning用于generated/运行time。 文件. BLOCK带exit code 2 is returned用于sensitive 目录。
     """
     warnings: list[str] = []
+    changed_file_utils.write_base_commit_if_missing(paths.repo_root, paths.base_commit)
     for path in ctx.candidate_paths:
         decision = evaluate_write_path(path, paths.repo_root)
         warnings.extend(decision.warnings)
@@ -72,58 +89,65 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
     return HookResult(status='PASS', warnings=warnings)
 
 
-# 03. 事件处理: post-write
+# 分发 PostToolUse 写入事件。
 def handle_post_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
-    """Record changed-file evidence after Claude writes files.
+    """参数：
+        paths: Repository 运行time 路径用于changed-文件 evidence。
+        ctx: 已解析的post-写入 hook context containing candidate 文件路径s。
 
-    Args:
-        paths: Repository runtime paths for changed-file evidence.
-        ctx: Parsed post-write hook context containing candidate file paths.
-
-    Returns:
-        PASS with the number of changed-file evidence records written.
+    返回：
+        PASS带the 数字 of changed-文件 evidence record written。
     """
     records = record_post_write(paths, ctx)
     return HookResult(status='PASS', details={'changedFileCount': len(records)})
 
 
-# 04. 通用事件
+# 分发 PostToolUse Bash 事件。
+def handle_post_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
+    """参数：
+        paths: 待检查的路径列表。
+        ctx: ctx 参数。
+
+    返回：
+        解析后的 HookContext；失败时携带 parse_error。
+    """
+    records = record_post_bash(paths, ctx)
+    return HookResult(status='PASS', details={'changedFileCount': len(records)})
+
+
+# 分发默认 hook 事件。
 def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult:
-    """Record non-blocking hook events that have no dedicated policy.
+    """参数：
+        paths: Repository 运行time 路径用于event evidence。
+        ctx: 已解析的hook context。
+        label: 输出中显示的人类可读标签。
 
-    Args:
-        paths: Repository runtime paths for event evidence.
-        ctx: Parsed hook context.
-        label: Event label supplied by the CLI wrapper.
-
-    Returns:
-        PASS because default events only record evidence and never block execution.
+    返回：
+        PASS because 默认 events 仅 record evidence 和 绝不 block execution。
     """
     if label in {'session-start', 'subagent-start'}:
         handle_session_start(paths, ctx, label)
     elif label == 'config-change':
         record_config_change(paths, ctx)
         record_hook_event(paths, ctx, status='CONFIG')
+    elif label == 'tool-failure' and ctx.tool_name == 'Bash':
+        records = record_post_bash(paths, ctx)
+        return HookResult(status='PASS', details={'changedFileCount': len(records)})
     else:
         record_hook_event(paths, ctx, status='OBSERVED')
     return HookResult(status='PASS')
 
 
-# 06. CLI 入口
+# 解析命令行参数并运行脚本入口。
 def main(argv: list[str] | None = None) -> int:
-    """Run the Claude hook dispatcher from CLI arguments and stdin.
+    """参数：
+        argv: 可选参数 列表 whose first item is hook event label。
 
-    Args:
-        argv: Optional argument list whose first item is the hook event label.
-
-    Returns:
-        Process exit code for the hook wrapper. Zero means pass, while two is used for
-        policy blocks.
+    返回：
+        进程退出码。
     """
     argv = argv if argv is not None else sys.argv[1:]
     event_name = argv[0] if argv else 'unknown'
-    paths = build_paths()
-    ensure_runtime_dirs(paths)
 
     # --self-test 不需要 stdin，必须在 read_stdin_json 之前分发，
     # 否则 sys.stdin.read() 会在没有管道输入时阻塞等待 EOF。
@@ -133,6 +157,8 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ctx = read_stdin_json(event_name)
+    paths = build_paths(identity=identity_from_hook_context(ctx))
+    ensure_runtime_dirs(paths)
 
     if event_name == 'pre-bash':
         return emit(handle_pre_bash(paths, ctx))
@@ -140,6 +166,8 @@ def main(argv: list[str] | None = None) -> int:
         return emit(handle_pre_write(paths, ctx))
     if event_name == 'post-write':
         return emit(handle_post_write(paths, ctx))
+    if event_name == 'post-bash':
+        return emit(handle_post_bash(paths, ctx))
 
     return emit(handle_default(paths, ctx, event_name))
 

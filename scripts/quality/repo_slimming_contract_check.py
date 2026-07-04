@@ -1,19 +1,11 @@
 #!/usr/bin/env python3
-"""仓库瘦身回归门禁。
-
-在 repo slimming sprint 之后，防止后续 agent 重新引入：
-1. 历史版本注释（HIFI vN、DEPRECATED Tn、migrated Task n 等）
-2. harness/ 中的已删除/changelog/历史日志引用
-3. 移动设备/平板视口支持
-4. 无实际作用的兼容垫片（只有注释的 CSS/JS、未引用的 display:none）
-"""
+"""仓库瘦身回归门禁。"""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-# ── Rule 1: no-historical-version-comments ────────────────────────────
 
 # 禁止的历史版本注释模式
 HISTORICAL_VERSION_PATTERNS = [
@@ -25,12 +17,18 @@ HISTORICAL_VERSION_PATTERNS = [
 ]
 
 
+# 检查无 historical version 注释。
 def check_no_historical_version_comments(
     files: list[Path],
 ) -> tuple[list[str], list[str]]:
-    """扫描文件中的历史版本注释模式。
+    """参数：
+        files: 待检查的文件列表。
 
-    命中即 BLOCK：仓库文档和代码只描述当前状态，不维护版本残留说明。
+    返回：
+        结果 tuple。
+
+    说明：
+        命中即 BLOCK：仓库文档和代码只描述当前状态，不维护版本残留说明。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -49,8 +47,6 @@ def check_no_historical_version_comments(
                 )
     return errors, warnings
 
-
-# ── Rule 2: harness-current-state-only ────────────────────────────────
 
 # harness/ 中禁止出现的模式（描述当前状态即可，不需要历史痕迹）
 HARNESS_FORBIDDEN_PATTERNS = [
@@ -71,20 +67,32 @@ HARNESS_ALLOWED_CONTEXT = [
 ]
 
 
+# 判断当前行是否具备允许的上下文。
 def _line_has_allowed_context(line: str) -> bool:
-    """检查一行是否包含允许该 forbidden pattern 出现的上下文。"""
+    """参数：
+        line: 待检查的源码行。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     for ctx in HARNESS_ALLOWED_CONTEXT:
         if ctx.search(line):
             return True
     return False
 
 
+# 检查harness 当前 state。
 def check_harness_current_state(
     harness_files: list[Path],
 ) -> tuple[list[str], list[str]]:
-    """检查 harness/ 中是否包含历史痕迹。
+    """参数：
+        harness_files: 待检查的文件列表。
 
-    命中即 BLOCK：harness 只描述当前可执行状态。
+    返回：
+        结果 tuple。
+
+    说明：
+        命中即 BLOCK：harness 只描述当前可执行状态。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -107,8 +115,6 @@ def check_harness_current_state(
     return errors, warnings
 
 
-# ── Rule 3: supported-viewports-only ─────────────────────────────────
-
 # 禁止的移动/平板视口模式
 MOBILE_VIEWPORT_PATTERNS = [
     re.compile(r'max-width\s*:\s*767px', re.IGNORECASE),
@@ -123,21 +129,34 @@ MOBILE_VIEWPORT_PATTERNS = [
 ALLOWED_DESKTOP_VIEWPORTS = {1400, 1440, 1512, 1920, 2560}
 
 
+# 判断是否allowed viewport。
 def _is_allowed_viewport(line: str) -> bool:
-    """检查是否为允许的桌面视口 breakpoint。"""
+    """参数：
+        line: 待检查的源码行。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     for vw in ALLOWED_DESKTOP_VIEWPORTS:
         if f'{vw}px' in line:
             return True
     return False
 
 
+# 检查supported viewports 仅。
 def check_supported_viewports_only(
     css_files: list[Path],
     js_files: list[Path],
 ) -> tuple[list[str], list[str]]:
-    """检查 CSS/JS 中是否引入移动/平板视口支持。
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
+        js_files: 待检查的 JavaScript 文件列表。
 
-    当前仓库无此类引用，直接 BLOCK。
+    返回：
+        结果 tuple。
+
+    说明：
+        当前仓库无此类引用，直接 BLOCK。
     """
     errors: list[str] = []
     warnings: list[str] = []
@@ -165,19 +184,22 @@ def check_supported_viewports_only(
     return errors, warnings
 
 
-# ── Rule 4: no-dead-compat-shim ──────────────────────────────────────
-
-
+# 维护CSS has 仅 注释 空。
 def _css_has_only_comments_or_empty(text: str) -> bool:
-    """去掉注释和空白后，判断是否没有有效 CSS rule。
+    """参数：
+        text: 待检查的文本。
 
-    豁免：纯 @import wrapper 文件（如拆分后的 ui-primitives.css）。
+    返回：
+        满足条件时返回 true，否则返回 false。
+
+    说明：
+        豁免：纯 @import wrapper 文件（如拆分后的 ui-primitives.css）。
     """
     stripped = re.sub(r'/\*.*?\*/', '', text, flags=re.DOTALL)
     stripped = stripped.strip()
     if not stripped:
         return True
-    # Check if file is an @import wrapper: has @import but no rule bodies
+    # 检查如果 文件 is an @import wrapper: has @import but no rule bodies。
     lines = [l.strip() for l in stripped.splitlines() if l.strip()]
     has_import = any(l.startswith('@import') for l in lines)
     has_rules = '{' in stripped and '}' in stripped
@@ -186,8 +208,14 @@ def _css_has_only_comments_or_empty(text: str) -> bool:
     return not stripped or ('{' not in stripped and '}' not in stripped)
 
 
+# 维护JavaScript 仅 注释 空。
 def _js_is_only_comments_or_empty(text: str) -> bool:
-    """去掉注释后，判断是否没有有效 JS 代码。"""
+    """参数：
+        text: 待检查的文本。
+
+    返回：
+        满足条件时返回 true，否则返回 false。
+    """
     stripped = re.sub(r'//.*?$', '', text, flags=re.MULTILINE)
     stripped = re.sub(r'/\*.*?\*/', '', stripped, flags=re.DOTALL)
     # 去掉空白行
@@ -195,22 +223,28 @@ def _js_is_only_comments_or_empty(text: str) -> bool:
     return len(lines) == 0
 
 
+# 检查无 失效 兼容 shim。
 def check_no_dead_compat_shim(
     css_files: list[Path],
     js_files: list[Path],
 ) -> tuple[list[str], list[str]]:
-    """检查 CSS/JS 文件是否只有注释或无实际作用。
+    """参数：
+        css_files: 待检查的 CSS 文件列表。
+        js_files: 待检查的 JavaScript 文件列表。
 
-    同时检查 display:none 模式：如果有选择器只在 display:none 中
-    被引用，且没有其他规则引用它，这是死兼容垫片。
+    返回：
+        结果 tuple。
 
-    BLOCK：只有注释/空白的 CSS/JS 文件。
-    BLOCK：display:none 用于保持未引用的旧选择器。
+    说明：
+        同时检查 display:None 模式：如果有选择器只在 display:None 中。
+        被引用，且没有其他规则引用它，这是死兼容垫片。
+        BLOCK：只有注释/空白的 CSS/JS 文件。
+        BLOCK：display:None 用于保持未引用的旧选择器。
     """
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Check 4a: only-comments-or-empty files
+    # 检查4a: 仅-comments-或-空 文件。
     for path in css_files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
@@ -231,7 +265,6 @@ def check_no_dead_compat_shim(
                 f'{path}: 死 JS 文件（只有注释或空白，无有效代码，rule: no-dead-compat-shim）。'
             )
 
-    # Check 4b: display:none on selectors that look like compatibility aliases.
     legacy_like_pattern = re.compile(
         r'\.(?:old[-_]?|legacy[-_]?|deprecated[-_]?|compat[-_]?|v\d[-_]?)',
         re.IGNORECASE,
@@ -243,8 +276,7 @@ def check_no_dead_compat_shim(
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             if 'display' in line and 'none' in line:
-                # Check if the preceding selector looks like a legacy shim
-                # Look backwards for the selector
+                # 检查如果 the preceding selector looks like a legacy shim。
                 all_lines = text.splitlines()
                 selector_lines = []
                 for prev_idx in range(lineno - 2, max(lineno - 11, -1), -1):
@@ -266,23 +298,23 @@ def check_no_dead_compat_shim(
     return errors, warnings
 
 
-# ── Composite check ────────────────────────────────────────────────────
-
-
+# 检查repo 瘦身。
 def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
-    """返回 (errors, warnings)。
+    """参数：
+        repo_root: 仓库根目录。
 
-    综合运行所有瘦身回归门禁。
+    返回：
+        结果 tuple。
+
+    说明：
+        综合运行所有瘦身回归门禁。
     """
     errors: list[str] = []
     warnings: list[str] = []
 
-    # Rule 1: no-historical-version-comments
-    # Scan all tracked text files in the repo
     all_text_files: list[Path] = []
     for ext in ('*.css', '*.js', '*.html', '*.py', '*.md', '*.sh', '*.yaml', '*.json', '*.txt'):
         all_text_files.extend(repo_root.rglob(ext))
-    # Exclude build/cache dirs and the check file itself (patterns in regex source)
     exclude_dirs = {
         '.git',
         'node_modules',
@@ -306,7 +338,6 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
     errors.extend(e)
     warnings.extend(w)
 
-    # Rule 2: harness-current-state-only
     harness_dir = repo_root / 'harness'
     if harness_dir.exists():
         harness_files = list(harness_dir.rglob('*.md')) + list(harness_dir.rglob('*.yaml'))
@@ -314,7 +345,6 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
         errors.extend(e)
         warnings.extend(w)
 
-    # Rule 3: supported-viewports-only
     static = repo_root / 'java/web/src/main/resources/static'
     if static.exists():
         css_files = list(static.rglob('*.css'))
@@ -323,7 +353,6 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
         errors.extend(e)
         warnings.extend(w)
 
-        # Rule 4: no-dead-compat-shim
         e, w = check_no_dead_compat_shim(css_files, js_files)
         errors.extend(e)
         warnings.extend(w)
@@ -334,11 +363,10 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
 # ── CLI ────────────────────────────────────────────────────────────────
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """Run the repository slimming contract check for the current workspace.
-
-    Returns:
-        Process exit code where ``0`` means the contract passed.
+    """返回：
+        进程退出码。
     """
     errors, warnings = check_repo_slimming(Path.cwd())
     for item in warnings:

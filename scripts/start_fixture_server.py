@@ -1,11 +1,5 @@
 #!/usr/bin/env python3
-"""Start a fixture session server for Playwright e2e tests.
-
-The Playwright workflow runs this long-lived helper in one terminal before e2e
-commands point PW_SESSION_URL or PW_LONG_SESSION_URL at the printed URLs. The
-script copies fixture session data into a temporary directory, builds an index,
-starts the local server, and cleans all temporary data on signals or exit.
-"""
+"""启动供 Playwright e2e 测试使用的 fixture session server。"""
 
 from __future__ import annotations
 
@@ -35,30 +29,28 @@ DEFAULT_PORT = 19099
 HTTP_OK = 200
 
 
+# 维护Java launcher。
 def _java_launcher() -> Path | None:
-    """Resolve the Gradle-installed Java CLI launcher.
-
-    Returns:
-        Path to the app-cli launcher, or None when installDist has not run.
+    """返回：
+        路径到 app-cli launcher, 或 None 当 installDist has 未运行。
     """
     launcher = SB_ROOT / 'java' / 'app-cli' / 'build' / 'install' / 'app-cli' / 'bin' / 'app-cli'
     return launcher if launcher.exists() else None
 
 
+# 维护填充 index。
 def populate_index(claude_data_dir: Path, index_dir: Path) -> str | None:
-    """Index copied fixture sessions into a temporary SQLite database.
+    """参数：
+        claude_data_dir: claude data dir 参数。
+        index_dir: 包含 index.sqlite 的临时 index 目录。
 
-    Args:
-        claude_data_dir: Temporary Claude data directory populated from test fixtures.
-        index_dir: Temporary index directory consumed by the Java fixture server.
-
-    Returns:
-        None on success; otherwise a human-readable failure reason.
+    返回：
+        populate index 字符串。
     """
-    # Reuse the same deterministic Java fixture index builder used by
-    # scripts/quality/run_quality_gate.py so local Playwright and required gates
-    # exercise identical HIFI data. This intentionally avoids
-    # `python -m session_browser serve` and any Python product package import.
+    # 复用 required gates 使用的 deterministic Java fixture index builder，
+    # 让本地 Playwright 和 required gates
+    # 使用完全相同的 HIFI data。这里刻意避免
+    # 避免启动产品包命令或导入产品 Python package。
     from scripts.quality.run_quality_gate import _populate_fixture_index
 
     error = _populate_fixture_index(claude_data_dir, index_dir)
@@ -67,11 +59,10 @@ def populate_index(claude_data_dir: Path, index_dir: Path) -> str | None:
     return error
 
 
+# 解析端口。
 def _resolve_port() -> int:
-    """Resolve the fixture server port from Playwright environment variables.
-
-    Returns:
-        Port from BASE_URL, SESSION_BROWSER_PLAYWRIGHT_PORT, or the default.
+    """返回：
+        Port从BASE_URL, SESSION_BROWSER_PLAYWRIGHT_PORT, 或 默认。
     """
     port = int(os.environ.get('SESSION_BROWSER_PLAYWRIGHT_PORT') or DEFAULT_PORT)
     base_url_env = os.environ.get('BASE_URL', '')
@@ -82,12 +73,11 @@ def _resolve_port() -> int:
     return port
 
 
+# 复制tree contents。
 def _copy_tree_contents(source_root: Path, destination_root: Path) -> None:
-    """Copy direct children from one fixture directory into a destination.
-
-    Args:
-        source_root: Fixture directory whose children should be copied.
-        destination_root: Temporary directory receiving fixture files.
+    """参数：
+        source_root: source 根目录 参数。
+        destination_root: 临时 目录 receiving fixture 文件。
     """
     for item in source_root.iterdir():
         destination = destination_root / item.name
@@ -97,11 +87,10 @@ def _copy_tree_contents(source_root: Path, destination_root: Path) -> None:
             shutil.copy2(item, destination)
 
 
+# 合并long fixture。
 def _merge_long_fixture(data_dir: Path) -> None:
-    """Merge long-session fixture projects and history into the temp data dir.
-
-    Args:
-        data_dir: Temporary Claude data directory already populated with hifi fixtures.
+    """参数：
+        data_dir: fixture server 使用的临时数据目录。
     """
     long_projects = LONG_FIXTURE_ROOT / 'projects'
     if long_projects.exists():
@@ -130,11 +119,10 @@ def _merge_long_fixture(data_dir: Path) -> None:
         )
 
 
+# 维护prepare fixture 数据。
 def _prepare_fixture_data() -> tuple[Path, Path, Path]:
-    """Create temporary fixture data and index directories for the server.
-
-    Returns:
-        Tuple of temporary root directory, index directory, and data directory.
+    """返回：
+        由temporary root 目录, index 目录, 和 data 目录.组成的 tuple。
     """
     tmpdir = Path(tempfile.mkdtemp(prefix='playwright_fixture_'))
     index_dir = tmpdir / 'index'
@@ -146,16 +134,15 @@ def _prepare_fixture_data() -> tuple[Path, Path, Path]:
     return tmpdir, index_dir, data_dir
 
 
+# 构建server 环境。
 def _build_server_env(index_dir: Path, data_dir: Path, port: int) -> dict[str, str]:
-    """Build the environment used by the fixture server process.
+    """参数：
+        index_dir: 包含 index.sqlite 的临时 index 目录。
+        data_dir: 临时 Claude data 目录 used as server 输入。
+        port: 本地服务端口。
 
-    Args:
-        index_dir: Temporary index directory containing index.sqlite.
-        data_dir: Temporary Claude data directory used as server input.
-        port: Localhost port assigned to the fixture server.
-
-    Returns:
-        Environment mapping passed to subprocess.Popen.
+    返回：
+        结果映射。
     """
     env = os.environ.copy()
     env['PYTHONPATH'] = str(SB_ROOT / 'src')
@@ -168,15 +155,14 @@ def _build_server_env(index_dir: Path, data_dir: Path, port: int) -> dict[str, s
     return env
 
 
+# 等待until ready。
 def _wait_until_ready(base_url: str, proc: subprocess.Popen[bytes]) -> bool:
-    """Poll fixture server endpoints until both session URLs are available.
+    """参数：
+        base_url: base url 参数。
+        proc: Server subprocess, used 仅到stop polling 如果 it exits early。
 
-    Args:
-        base_url: Local server base URL including port.
-        proc: Server subprocess, used only to stop polling if it exits early.
-
-    Returns:
-        True when dashboard and fixture sessions return HTTP 200 within timeout.
+    返回：
+        当dashboard 和 fixture sessions 返回 HTTP 200 内 timeout.时返回 true。
     """
     for _ in range(30):
         if proc.poll() is not None:
@@ -198,11 +184,10 @@ def _wait_until_ready(base_url: str, proc: subprocess.Popen[bytes]) -> bool:
     return False
 
 
+# 维护stop process。
 def _stop_process(proc: subprocess.Popen[bytes]) -> None:
-    """Terminate the fixture server process if it is still running.
-
-    Args:
-        proc: Server subprocess created by main.
+    """参数：
+        proc: proc 参数。
     """
     if proc.poll() is not None:
         return
@@ -217,13 +202,8 @@ def _stop_process(proc: subprocess.Popen[bytes]) -> None:
         pass
 
 
+# 解析命令行参数并运行脚本入口。
 def main() -> None:
-    """Start the fixture server and block until interrupted.
-
-    The script is triggered by Playwright e2e setup or a developer terminal. It
-    prints fixture URLs on success, returns via sys.exit(1) if readiness checks
-    fail, and removes temporary data during signal, atexit, or normal cleanup.
-    """
     port = _resolve_port()
     tmpdir, index_dir, data_dir = _prepare_fixture_data()
     sqlite_path = index_dir / 'index.sqlite'
@@ -273,12 +253,11 @@ def main() -> None:
     print(f'Server ready at {base_url}')
     print('Press Ctrl+C to stop and clean up')
 
+    # 维护清理。
     def cleanup(signum: int | None = None, frame: FrameType | None = None) -> None:
-        """Stop the server and delete temporary fixture data.
-
-        Args:
-            signum: Optional signal number supplied by signal handlers.
-            frame: Optional interpreter frame supplied by signal handlers.
+        """参数：
+            signum: 可选signal 数字 supplied by signal handlers。
+            frame: frame 参数。
         """
         del signum, frame
         print(f'\nShutting down server (PID {proc.pid})...')
@@ -290,8 +269,8 @@ def main() -> None:
     signal.signal(signal.SIGINT, cleanup)
     signal.signal(signal.SIGTERM, cleanup)
 
+    # 维护退出清理 清理。
     def _atexit_cleanup() -> None:
-        """Clean temp data when Python exits without receiving a signal."""
         _stop_process(proc)
         shutil.rmtree(tmpdir, ignore_errors=True)
 

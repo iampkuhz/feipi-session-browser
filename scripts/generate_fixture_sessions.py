@@ -1,9 +1,5 @@
 #!/usr/bin/env python3
-"""Generate 43 mock sessions for the hifi fixture.
-
-43 sessions at page_size=20 gives exactly 3 pages (20 + 20 + 3),
-enough to test pagination (next from page 1 -> page 2).
-"""
+"""提供 generate fixture sessions 脚本能力。"""
 
 import json
 from pathlib import Path
@@ -74,7 +70,7 @@ TITLES = [
 
 assert len(TITLES) == 43, f'Need 43 titles, got {len(TITLES)}'
 
-# Base timestamp: 2026-04-24 10:00:00 UTC
+# 定义 BASE_TS 常量配置。
 BASE_TS = 1713952800000
 
 history_lines = []
@@ -109,7 +105,6 @@ for i in range(43):
         )
     )
 
-    # Write minimal JSONL event file
     event_lines = [
         json.dumps(
             {
@@ -138,7 +133,7 @@ for i in range(43):
         ),
     ]
 
-    # If status is failed, add a tool error
+    # 判断 status == 'failed' 是否满足。
     if status == 'failed':
         event_lines.append(
             json.dumps(
@@ -187,7 +182,6 @@ for i in range(43):
 
     (projects_dir / f'{sid}.jsonl').write_text('\n'.join(event_lines) + '\n', encoding='utf-8')
 
-# Write history.jsonl
 (FIXTURE_DIR / 'history.jsonl').write_text('\n'.join(history_lines) + '\n', encoding='utf-8')
 
 print(
