@@ -580,7 +580,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
 
   private static void appendSubagentDiagnostics(
       CodexParseState state, List<SourceDiagnostic> diagnostics) {
-    if (state.sessionMeta != null && isSubagentMeta(state.sessionMeta)) {
+    if (state.sessionMeta != null && CodexDiscovery.isSubagentMetaEvent(state.sessionMeta)) {
       diagnostics.add(
           codexInfoDiagnostic(
               "Session identified as subagent thread", "SUBAGENT_SESSION", state.locator));
@@ -655,27 +655,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @return payload 字段的扁平字符串映射，缺失时返回空 map
    */
   private static Map<String, String> extractSessionMeta(JsonNode event) {
-    JsonNode payload = event.get("payload");
-    if (payload == null || !payload.isObject()) {
-      return Map.of();
-    }
-    var result = new java.util.HashMap<String, String>();
-    var fields = payload.fields();
-    while (fields.hasNext()) {
-      var entry = fields.next();
-      JsonNode value = entry.getValue();
-      if (value.isTextual()) {
-        result.put(entry.getKey(), value.asText());
-      } else if (value.isNumber()) {
-        result.put(entry.getKey(), String.valueOf(value.asLong()));
-      } else if (value.isBoolean()) {
-        result.put(entry.getKey(), String.valueOf(value.asBoolean()));
-      } else if (value.isObject() || value.isArray()) {
-        // 嵌套结构序列化为 JSON 字符串保留
-        result.put(entry.getKey(), value.toString());
-      }
-    }
-    return Map.copyOf(result);
+    return Map.copyOf(CodexDiscovery.flattenPayloadFields(event));
   }
 
   /**
@@ -773,60 +753,6 @@ public final class CodexSourceAdapter implements SourceAdapter {
       }
     }
     return 0L;
-  }
-
-  /**
-   * 判断 session_meta 是否表示 subagent 会话。
-   *
-   * <p>检测条件与 Python 参考实现 {@code is_codex_subagent_session_meta} 对齐：
-   *
-   * <ul>
-   *   <li>{@code thread_source} 为 "subagent"
-   *   <li>{@code parent_thread_id} 非空
-   *   <li>{@code source.subagent.thread_spawn.parent_thread_id} 非空
-   * </ul>
-   *
-   * @param meta session_meta payload 映射
-   * @return 识别为 subagent 时返回 {@code true}
-   */
-  private static boolean isSubagentMeta(Map<String, String> meta) {
-    // 检查 thread_source
-    String threadSource = meta.getOrDefault("thread_source", "");
-    if ("subagent".equalsIgnoreCase(threadSource.trim())) {
-      return true;
-    }
-    // 检查 parent_thread_id
-    String parentId = meta.getOrDefault("parent_thread_id", "").trim();
-    if (!parentId.isEmpty()) {
-      return true;
-    }
-    // 检查嵌套 source.subagent.thread_spawn.parent_thread_id
-    String sourceJson = meta.get("source");
-    if (sourceJson != null && !sourceJson.isEmpty()) {
-      try {
-        com.fasterxml.jackson.databind.ObjectMapper mapper =
-            new com.fasterxml.jackson.databind.ObjectMapper();
-        JsonNode sourceNode = mapper.readTree(sourceJson);
-        if (sourceNode.isObject()) {
-          JsonNode subagent = sourceNode.get("subagent");
-          if (subagent != null && subagent.isObject()) {
-            JsonNode spawn = subagent.get("thread_spawn");
-            if (spawn != null && spawn.isObject()) {
-              JsonNode spawnParent = spawn.get("parent_thread_id");
-              if (spawnParent != null
-                  && spawnParent.isTextual()
-                  && !spawnParent.asText().trim().isEmpty()) {
-                return true;
-              }
-            }
-          }
-        }
-      } catch (IOException e) {
-        // source 字段不是合法 JSON，忽略
-        LOG.log(Level.FINEST, "session_meta.source 解析失败", e);
-      }
-    }
-    return false;
   }
 
   /**

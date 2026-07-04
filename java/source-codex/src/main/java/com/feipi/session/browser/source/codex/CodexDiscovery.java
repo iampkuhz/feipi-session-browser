@@ -398,9 +398,41 @@ public final class CodexDiscovery {
   }
 
   /**
-   * 读取 JSONL 文件的第一行事件，解析为扁平字符串映射。
+   * 将 JSON 节点的 payload 字段扁平化为字符串映射。
    *
    * <p>对 {@code payload} 内的文本、数字、布尔值字段做扁平化处理， 嵌套结构序列化为 JSON 字符串保留。
+   * 供 {@link CodexSourceAdapter#extractSessionMeta} 等方法复用，避免重复实现。
+   *
+   * @param event JSON 事件节点
+   * @return payload 字段映射；payload 不存在时返回空 map
+   */
+  static Map<String, String> flattenPayloadFields(JsonNode event) {
+    Map<String, String> result = new LinkedHashMap<>();
+    JsonNode payload = event.get("payload");
+    if (payload == null || !payload.isObject()) {
+      return result;
+    }
+    var fields = payload.fields();
+    while (fields.hasNext()) {
+      var entry = fields.next();
+      JsonNode value = entry.getValue();
+      if (value.isTextual()) {
+        result.put(entry.getKey(), value.asText());
+      } else if (value.isNumber()) {
+        result.put(entry.getKey(), String.valueOf(value.asLong()));
+      } else if (value.isBoolean()) {
+        result.put(entry.getKey(), String.valueOf(value.asBoolean()));
+      } else if (value.isObject() || value.isArray()) {
+        result.put(entry.getKey(), value.toString());
+      }
+    }
+    return result;
+  }
+
+  /**
+   * 读取 JSONL 文件的第一行事件，解析为扁平字符串映射。
+   *
+   * <p>委托 {@link #flattenPayloadFields} 做 payload 扁平化。
    *
    * @param filePath JSONL 文件路径
    * @return 事件字段映射；文件为空或解析失败时返回 null
@@ -416,29 +448,11 @@ public final class CodexDiscovery {
       if (!event.isObject()) {
         return null;
       }
-      Map<String, String> result = new LinkedHashMap<>();
+      Map<String, String> result = flattenPayloadFields(event);
       // 顶层 type 字段
       JsonNode typeNode = event.get("type");
       if (typeNode != null && typeNode.isTextual()) {
         result.put("type", typeNode.asText());
-      }
-      // payload 内字段扁平化
-      JsonNode payload = event.get("payload");
-      if (payload != null && payload.isObject()) {
-        var fields = payload.fields();
-        while (fields.hasNext()) {
-          var entry = fields.next();
-          JsonNode value = entry.getValue();
-          if (value.isTextual()) {
-            result.put(entry.getKey(), value.asText());
-          } else if (value.isNumber()) {
-            result.put(entry.getKey(), String.valueOf(value.asLong()));
-          } else if (value.isBoolean()) {
-            result.put(entry.getKey(), String.valueOf(value.asBoolean()));
-          } else if (value.isObject() || value.isArray()) {
-            result.put(entry.getKey(), value.toString());
-          }
-        }
       }
       return result;
     } catch (IOException e) {
