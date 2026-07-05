@@ -6,7 +6,6 @@ import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
-import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
@@ -126,17 +125,19 @@ public final class SessionDetailApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     long sessionTokens = detail.sessionRow().totalTokens();
+    String traceStatus = ApiQueryParams.normalizeAll(ctx.queryParam("trace_status"));
     List<RoundIndexDto> rows =
-        detail.rounds().stream().map(round -> roundDto(round, sessionTokens)).toList();
+        detail.rounds().stream()
+            .map(round -> roundDto(round, sessionTokens))
+            .filter(round -> statusMatches(traceStatus, round.status()))
+            .toList();
     ctx.json(
         new SessionRoundsResponse(
             ApiResponses.SCHEMA_VERSION,
-            loaded.echo(),
+            loaded.echo().withTraceStatus(traceStatus),
             rows.size(),
             rows,
-            rows.isEmpty()
-                ? PageStateDto.empty("No round artifact", "No normalized round data is available.")
-                : PageStateDto.ready()));
+            roundState(rows.size(), traceStatus)));
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/payloads 的 GET 请求。 */
@@ -145,19 +146,22 @@ public final class SessionDetailApiHandler {
     if (loaded == null) {
       return;
     }
+    String payloadStatus = ApiQueryParams.normalizeAll(ctx.queryParam("status"));
     List<PayloadIndexDto> rows =
         loaded.annotated().detail().payloadSources().stream()
-            .map(SessionDetailApiHandler::payloadDto)
+            .map(
+                source ->
+                    SessionDetailApiResponses.payloadIndexDto(
+                        source, loaded.echo().agent(), loaded.echo().sessionId()))
+            .filter(payload -> payloadStatusMatches(payloadStatus, payload.status()))
             .toList();
     ctx.json(
         new SessionPayloadsResponse(
             ApiResponses.SCHEMA_VERSION,
-            loaded.echo(),
+            loaded.echo().withPayloadStatus(payloadStatus),
             rows.size(),
             rows,
-            rows.isEmpty()
-                ? PageStateDto.empty("No payload index", "No normalized payload data is available.")
-                : PageStateDto.ready()));
+            payloadState(rows.size(), payloadStatus)));
   }
 
   private LoadedDetail load(Context ctx) throws SQLException {
@@ -174,7 +178,8 @@ public final class SessionDetailApiHandler {
         return null;
       }
       return new LoadedDetail(
-          new SessionDetailFilterEcho(agent, sessionId, visibilityValue(visibility)), detail.get());
+          new SessionDetailFilterEcho(agent, sessionId, visibility.getValue(), "", ""),
+          detail.get());
     } catch (IOException e) {
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.json(
@@ -185,6 +190,7 @@ public final class SessionDetailApiHandler {
 
   private static RoundIndexDto roundDto(CallRound round, long sessionTokens) {
     Double tokenShare = sessionTokens > 0 ? round.totalTokens() / (double) sessionTokens : null;
+    boolean failed = round.failedToolCount() > 0;
     return new RoundIndexDto(
         round.roundIndex(),
         round.calls(),
@@ -197,16 +203,11 @@ public final class SessionDetailApiHandler {
             round.outputTokens()),
         round.callCount(),
         round.toolCallCount(),
-        tokenShare);
-  }
-
-  private static PayloadIndexDto payloadDto(PayloadSource source) {
-    return new PayloadIndexDto(
-        source.payloadId(),
-        source.kind().getValue(),
-        source.callId(),
-        source.title(),
-        source.truncated());
+        round.failedToolCount(),
+        round.failedToolCallIds(),
+        tokenShare,
+        failed ? "failed" : "ok",
+        failed ? List.of("Failed") : List.of());
   }
 
   private static AnomalyDto anomaly(DetectedAnomaly anomaly) {
@@ -220,8 +221,50 @@ public final class SessionDetailApiHandler {
         : PayloadVisibility.STANDARD;
   }
 
-  private static String visibilityValue(PayloadVisibility visibility) {
-    return visibility == PayloadVisibility.FULL ? "full" : "standard";
+  private static boolean statusMatches(String filter, String status) {
+    return "all".equals(filter) || filter.equals(status);
+  }
+
+  private static boolean payloadStatusMatches(String filter, String status) {
+    if ("failed".equals(filter)) {
+      return List.of("failed", "missing", "error").contains(status);
+    }
+    return statusMatches(filter, status);
+  }
+
+  private static PageStateDto roundState(long count, String filter) {
+    return emptyOrFilteredState(
+        count,
+        filter,
+        "No round artifact",
+        "No normalized round data is available.",
+        "No rounds match the selected trace status",
+        "Clear the trace status filter or inspect all rounds.");
+  }
+
+  private static PageStateDto payloadState(long count, String filter) {
+    return emptyOrFilteredState(
+        count,
+        filter,
+        "No payload index",
+        "No normalized payload data is available.",
+        "No payloads match the selected status",
+        "Clear the payload status filter or inspect all payloads.");
+  }
+
+  private static PageStateDto emptyOrFilteredState(
+      long count,
+      String filter,
+      String emptyTitle,
+      String emptyMessage,
+      String noResultsTitle,
+      String noResultsMessage) {
+    if (count > 0) {
+      return PageStateDto.ready();
+    }
+    return "all".equals(filter)
+        ? PageStateDto.empty(emptyTitle, emptyMessage)
+        : PageStateDto.noResults(noResultsTitle, noResultsMessage, List.of());
   }
 
   private static String canonicalAgent(String agent) {

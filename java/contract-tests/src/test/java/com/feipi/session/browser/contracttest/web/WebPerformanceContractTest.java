@@ -70,7 +70,11 @@ class WebPerformanceContractTest {
             var response = client.get("/sessions");
             assertThat(response.code()).isEqualTo(200);
             String body = response.body().string();
-            assertThat(body).contains("5 matching sessions");
+            assertThat(body).contains("data-api-rows=\"/api/sessions/rows\"");
+            assertThat(body).contains("Loading matching sessions…");
+
+            String apiBody = client.get("/api/sessions/summary").body().string();
+            assertThat(apiBody).contains("\"totalCount\":5");
           });
     }
 
@@ -84,8 +88,9 @@ class WebPerformanceContractTest {
           (testApp, client) -> {
             var response = client.get("/sessions?page_size=25");
             assertThat(response.code()).isEqualTo(200);
-            String body = response.body().string();
-            assertThat(body).contains("of 30");
+            String body = client.get("/api/sessions/rows?page_size=25").body().string();
+            assertThat(body).contains("\"totalItems\":30");
+            assertThat(body).contains("\"pageSize\":25");
           });
     }
 
@@ -99,9 +104,10 @@ class WebPerformanceContractTest {
           (testApp, client) -> {
             var response = client.get("/sessions?page=2&page_size=25");
             assertThat(response.code()).isEqualTo(200);
-            String body = response.body().string();
-            assertThat(body).contains("value=\"2\" data-total-pages=\"2\"");
-            assertThat(body).contains("of 2 of 30");
+            String body = client.get("/api/sessions/rows?page=2&page_size=25").body().string();
+            assertThat(body).contains("\"page\":2");
+            assertThat(body).contains("\"totalPages\":2");
+            assertThat(body).contains("\"totalItems\":30");
           });
     }
 
@@ -133,7 +139,10 @@ class WebPerformanceContractTest {
             var response = client.get("/sessions");
             assertThat(response.code()).isEqualTo(200);
             String body = response.body().string();
-            assertThat(body).contains("No matching sessions");
+            assertThat(body).contains("Loading sessions");
+            String apiBody = client.get("/api/sessions/summary").body().string();
+            assertThat(apiBody).contains("\"totalCount\":0");
+            assertThat(apiBody).contains("\"kind\":\"empty\"");
           });
     }
   }
@@ -169,8 +178,8 @@ class WebPerformanceContractTest {
           (testApp, client) -> {
             var response = client.get("/sessions");
             assertThat(response.code()).isEqualTo(200);
-            String body = response.body().string();
-            assertThat(body).contains("100 matching sessions");
+            String body = client.get("/api/sessions/summary").body().string();
+            assertThat(body).contains("\"totalCount\":100");
           });
     }
 
@@ -283,8 +292,9 @@ class WebPerformanceContractTest {
           (testApp, client) -> {
             var response = client.get("/sessions?agent=claude_code");
             assertThat(response.code()).isEqualTo(200);
-            String body = response.body().string();
-            assertThat(body).contains("3 matching sessions");
+            String body = client.get("/api/sessions/summary?agent=claude_code").body().string();
+            assertThat(body).contains("\"totalCount\":3");
+            assertThat(body).contains("\"agent\":\"claude_code\"");
           });
     }
 

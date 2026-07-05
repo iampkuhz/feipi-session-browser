@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.util.List;
@@ -11,19 +12,60 @@ public final class SessionDetailApiResponses {
   private SessionDetailApiResponses() {}
 
   /**
+   * 构建 payload index DTO。
+   *
+   * @param source payload 来源。
+   * @param agent agent 类型标识。
+   * @param sessionId provider session 标识符。
+   * @return payload index DTO。
+   */
+  public static PayloadIndexDto payloadIndexDto(
+      PayloadSource source, String agent, String sessionId) {
+    String status = source.truncated() ? "hidden" : "available";
+    return new PayloadIndexDto(
+        source.payloadId(),
+        source.kind().getValue(),
+        source.callId(),
+        source.title(),
+        source.truncated(),
+        status,
+        "/api/sessions/"
+            + ApiQueryParams.url(agent)
+            + "/"
+            + ApiQueryParams.url(sessionId)
+            + "/payload/"
+            + ApiQueryParams.url(source.payloadId()));
+  }
+
+  /**
    * 表示 SessionDetailFilterEcho 数据。
    *
    * @param agent agent 类型标识。
    * @param sessionId provider session 标识符。
    * @param visibility 导出可见性策略。
+   * @param traceStatus 轮次状态过滤条件。
+   * @param payloadStatus payload 状态过滤条件。
    */
-  public record SessionDetailFilterEcho(String agent, String sessionId, String visibility) {
+  public record SessionDetailFilterEcho(
+      String agent, String sessionId, String visibility, String traceStatus, String payloadStatus) {
 
     /** 规范化输入字段并校验边界。 */
     public SessionDetailFilterEcho {
       agent = ApiResponses.required(agent, "agent");
       sessionId = ApiResponses.required(sessionId, "sessionId");
       visibility = ApiResponses.required(visibility, "visibility");
+      traceStatus = ApiResponses.empty(traceStatus);
+      payloadStatus = ApiResponses.empty(payloadStatus);
+    }
+
+    /** 返回带轮次状态过滤回显的新对象。 */
+    public SessionDetailFilterEcho withTraceStatus(String value) {
+      return new SessionDetailFilterEcho(agent, sessionId, visibility, value, payloadStatus);
+    }
+
+    /** 返回带 payload 状态过滤回显的新对象。 */
+    public SessionDetailFilterEcho withPayloadStatus(String value) {
+      return new SessionDetailFilterEcho(agent, sessionId, visibility, traceStatus, value);
     }
   }
 
@@ -231,7 +273,11 @@ public final class SessionDetailApiResponses {
    * @param tokens token 组成统计。
    * @param callCount 当前统计口径下的数量。
    * @param toolCallCount 工具调用数量。
+   * @param failedToolCount 失败工具调用数量。
+   * @param failedToolCallIds 失败工具调用 ID 列表。
    * @param tokenShare token 占比。
+   * @param status 轮次状态。
+   * @param signals 轮次信号列表。
    */
   public record RoundIndexDto(
       int roundIndex,
@@ -241,19 +287,31 @@ public final class SessionDetailApiResponses {
       TokenSegments tokens,
       int callCount,
       int toolCallCount,
-      Double tokenShare) {
+      int failedToolCount,
+      List<String> failedToolCallIds,
+      Double tokenShare,
+      String status,
+      List<String> signals) {
 
     /** 校验字段和业务不变量。 */
     public RoundIndexDto {
-      if (roundIndex < 1 || callCount < 0 || toolCallCount < 0) {
+      if (roundIndex < 1 || callCount < 0 || toolCallCount < 0 || failedToolCount < 0) {
         throw new IllegalArgumentException("round values out of range");
       }
       Objects.requireNonNull(calls, "calls must not be null");
       Objects.requireNonNull(toolCallIds, "toolCallIds must not be null");
+      Objects.requireNonNull(failedToolCallIds, "failedToolCallIds must not be null");
       Objects.requireNonNull(tokens, "tokens must not be null");
+      status = ApiResponses.required(status, "status");
+      Objects.requireNonNull(signals, "signals must not be null");
       calls = List.copyOf(calls);
       toolCallIds = List.copyOf(toolCallIds);
+      failedToolCallIds = List.copyOf(failedToolCallIds);
+      signals = List.copyOf(signals);
       parentCallId = ApiResponses.empty(parentCallId);
+      if (failedToolCount != failedToolCallIds.size()) {
+        throw new IllegalArgumentException("failedToolCount must equal failedToolCallIds size");
+      }
       if (tokenShare != null && (tokenShare < 0.0 || tokenShare > 1.0)) {
         throw new IllegalArgumentException("tokenShare must be between 0 and 1");
       }
@@ -297,9 +355,17 @@ public final class SessionDetailApiResponses {
    * @param callId 调用标识符。
    * @param title 会话标题。
    * @param truncated 该字段在 API 响应中的业务值。
+   * @param status payload 状态。
+   * @param apiUrl payload lazy-load API 地址。
    */
   public record PayloadIndexDto(
-      String payloadId, String kind, String callId, String title, boolean truncated) {
+      String payloadId,
+      String kind,
+      String callId,
+      String title,
+      boolean truncated,
+      String status,
+      String apiUrl) {
 
     /** 校验字段和业务不变量。 */
     public PayloadIndexDto {
@@ -307,6 +373,8 @@ public final class SessionDetailApiResponses {
       kind = ApiResponses.required(kind, "kind");
       callId = ApiResponses.required(callId, "callId");
       title = ApiResponses.empty(title);
+      status = ApiResponses.required(status, "status");
+      apiUrl = ApiResponses.required(apiUrl, "apiUrl");
     }
   }
 }

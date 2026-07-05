@@ -29,16 +29,6 @@
         <a href="/sessions" class="state-panel__link">Open Sessions</a>
     </nav>
 </div>
-{% elseif stats is defined and stats.totalSessions == 0 %}
-<div class="state-panel" role="region" aria-live="polite" aria-labelledby="dashboard-empty-title">
-    <div class="state-panel__icon" aria-hidden="true">📊</div>
-    <h2 class="state-panel__title" id="dashboard-empty-title">暂无已索引 session</h2>
-    <p class="state-panel__desc">请先运行 scan，或查看 Sessions 列表。</p>
-    <nav class="state-panel__links" aria-label="Navigation links">
-        <a href="/" class="state-panel__link state-panel__link--primary" data-action="run-scan">运行 Scan</a>
-        <a href="/sessions" class="state-panel__link">Open Sessions</a>
-    </nav>
-</div>
 {% else %}
 
 <div class="dashboard-head page-head">
@@ -78,45 +68,157 @@
     </div>
 </div>
 
-<section class="kpi-grid" data-dashboard-kpis>
-    {% for kpi in kpis %}
-    <article class="metric-card metric-card--kpi" aria-label="{{ kpi.label }}">
-        <div class="metric-icon {{ kpi.icon_color }}" aria-hidden="true">{{ kpi.icon }}</div>
+<section class="kpi-grid" data-dashboard-kpis data-api-source="/api/dashboard/summary">
+    <article class="metric-card metric-card--kpi" aria-label="Projects">
+        <div class="metric-icon blue" aria-hidden="true">📁</div>
         <div class="metric-card__body">
             <div class="metric-card__primary-row">
-                <span class="metric-card__label">{{ kpi.label }}</span>
+                <span class="metric-card__label">Projects</span>
                 <span class="metric-card__value-group">
                     <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="{{ kpi.label }}"
-                          data-tooltip-def="{{ kpi.description }}"
+                          data-kpi-tooltip="Projects"
+                          data-tooltip-def="Loaded from /api/dashboard/summary"
                           tabindex="0"
-                          aria-label="{{ kpi.label }}：{{ kpi.description }}">{{ kpi.value }}</span>
-                    {% if kpi.badge is defined and kpi.badge is not empty %}
-                    <span class="metric-card__badge metric-card__badge--{{ kpi.badge_tone }} metric-card__tooltip-target"
-                          data-kpi-badge-tooltip="{{ kpi.label }}"
-                          data-tooltip-def="{{ kpi.badge_description }}"
-                          tabindex="0"
-                          aria-label="{{ kpi.label }} badge：{{ kpi.badge_description }}">{{ kpi.badge }}</span>
-                    {% endif %}
+                          aria-label="Projects：Loaded from /api/dashboard/summary">Loading…</span>
                 </span>
             </div>
-            {% if kpi.secondary is defined and kpi.secondary is not empty %}
             <div class="metric-card__secondary">
-                {% for sm in kpi.secondary %}
                 <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="{{ sm.label }}"
-                     data-tooltip-def="{{ sm.description }}"
+                     data-secondary-tooltip="API source"
+                     data-tooltip-def="Loaded from /api/dashboard/summary"
                      tabindex="0"
-                     aria-label="{{ sm.label }}：{{ sm.description }}">
-                    <span class="metric-card__secondary-label">{{ sm.label }}</span>
-                    <span class="metric-card__secondary-value">{{ sm.value }}</span>
+                     aria-label="API source：Loaded from /api/dashboard/summary">
+                    <span class="metric-card__secondary-label">Source</span>
+                    <span class="metric-card__secondary-value">API</span>
                 </div>
-                {% endfor %}
             </div>
-            {% endif %}
         </div>
     </article>
-    {% endfor %}
+    <article class="metric-card metric-card--kpi" aria-label="Sessions">
+        <div class="metric-icon green" aria-hidden="true">🗂️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Sessions</span>
+                <span class="metric-card__value-group">
+                    <span class="metric-card__value tabular metric-card__tooltip-target"
+                          data-kpi-tooltip="Sessions"
+                          data-tooltip-def="Loaded from /api/dashboard/summary"
+                          tabindex="0"
+                          aria-label="Sessions：Loaded from /api/dashboard/summary">Loading…</span>
+                </span>
+            </div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row metric-card__tooltip-target"
+                     data-secondary-tooltip="API source"
+                     data-tooltip-def="Loaded from /api/dashboard/summary"
+                     tabindex="0"
+                     aria-label="API source：Loaded from /api/dashboard/summary">
+                    <span class="metric-card__secondary-label">Source</span>
+                    <span class="metric-card__secondary-value">API</span>
+                </div>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Total Tokens">
+        <div class="metric-icon purple" aria-hidden="true">🧮</div>
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Total Tokens</span>
+                <span class="metric-card__value-group">
+                    <span class="metric-card__value tabular metric-card__tooltip-target"
+                          data-kpi-tooltip="Total Tokens"
+                          data-tooltip-def="Loaded from /api/dashboard/summary"
+                          tabindex="0"
+                          aria-label="Total Tokens：Loaded from /api/dashboard/summary">Loading…</span>
+                </span>
+            </div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row metric-card__tooltip-target"
+                     data-secondary-tooltip="API source"
+                     data-tooltip-def="Loaded from /api/dashboard/summary"
+                     tabindex="0"
+                     aria-label="API source：Loaded from /api/dashboard/summary">
+                    <span class="metric-card__secondary-label">Source</span>
+                    <span class="metric-card__secondary-value">API</span>
+                </div>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="User Prompts">
+        <div class="metric-icon amber" aria-hidden="true">💬</div>
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">User Prompts</span>
+                <span class="metric-card__value-group">
+                    <span class="metric-card__value tabular metric-card__tooltip-target"
+                          data-kpi-tooltip="User Prompts"
+                          data-tooltip-def="Loaded from /api/dashboard/summary"
+                          tabindex="0"
+                          aria-label="User Prompts：Loaded from /api/dashboard/summary">Loading…</span>
+                </span>
+            </div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row metric-card__tooltip-target"
+                     data-secondary-tooltip="API source"
+                     data-tooltip-def="Loaded from /api/dashboard/summary"
+                     tabindex="0"
+                     aria-label="API source：Loaded from /api/dashboard/summary">
+                    <span class="metric-card__secondary-label">Source</span>
+                    <span class="metric-card__secondary-value">API</span>
+                </div>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Cache Read Ratio">
+        <div class="metric-icon teal" aria-hidden="true">♻️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Cache Read Ratio</span>
+                <span class="metric-card__value-group">
+                    <span class="metric-card__value tabular metric-card__tooltip-target"
+                          data-kpi-tooltip="Cache Read Ratio"
+                          data-tooltip-def="Loaded from /api/dashboard/summary"
+                          tabindex="0"
+                          aria-label="Cache Read Ratio：Loaded from /api/dashboard/summary">Loading…</span>
+                </span>
+            </div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row metric-card__tooltip-target"
+                     data-secondary-tooltip="API source"
+                     data-tooltip-def="Loaded from /api/dashboard/summary"
+                     tabindex="0"
+                     aria-label="API source：Loaded from /api/dashboard/summary">
+                    <span class="metric-card__secondary-label">Source</span>
+                    <span class="metric-card__secondary-value">API</span>
+                </div>
+            </div>
+        </div>
+    </article>
+    <article class="metric-card metric-card--kpi" aria-label="Failed Tools">
+        <div class="metric-icon red" aria-hidden="true">⚠️</div>
+        <div class="metric-card__body">
+            <div class="metric-card__primary-row">
+                <span class="metric-card__label">Failed Tools</span>
+                <span class="metric-card__value-group">
+                    <span class="metric-card__value tabular metric-card__tooltip-target"
+                          data-kpi-tooltip="Failed Tools"
+                          data-tooltip-def="Loaded from /api/dashboard/summary"
+                          tabindex="0"
+                          aria-label="Failed Tools：Loaded from /api/dashboard/summary">Loading…</span>
+                </span>
+            </div>
+            <div class="metric-card__secondary">
+                <div class="metric-card__secondary-row metric-card__tooltip-target"
+                     data-secondary-tooltip="API source"
+                     data-tooltip-def="Loaded from /api/dashboard/summary"
+                     tabindex="0"
+                     aria-label="API source：Loaded from /api/dashboard/summary">
+                    <span class="metric-card__secondary-label">Source</span>
+                    <span class="metric-card__secondary-value">API</span>
+                </div>
+            </div>
+        </div>
+    </article>
 </section>
 
 <section class="trend-section">
@@ -125,64 +227,48 @@
             <div class="chart-card__head">
                 <div><div class="chart-card__title-row"><h2>Session Trend</h2></div></div>
                 <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-sessions">Latest: {{ dashboard_summary.latest_sessions }}</span>
-                    <span class="chart-stat" data-stat="range-total-sessions">Range total: {{ dashboard_summary.range_total_sessions }}</span>
+                    <span class="chart-stat" data-stat="latest-sessions">Latest: Loading…</span>
+                    <span class="chart-stat" data-stat="range-total-sessions">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">{{ chart_notes.sessions }}</p>
-            {% if trend is defined and trend is not empty %}
+            <p class="chart-card__note">Loaded from /api/dashboard/trends/sessions.</p>
             <div class="chart-container" id="trend-chart" data-dashboard-chart="sessions"></div>
-            {% else %}
-            <p class="chart-empty">该时间窗口无数据。</p>
-            {% endif %}
         </section>
 
         <section class="chart-card" data-chart-card="prompts">
             <div class="chart-card__head">
                 <div><div class="chart-card__title-row"><h2>Prompt Activity Trend</h2></div></div>
                 <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-prompts">Latest: {{ dashboard_summary.latest_prompts }}</span>
-                    <span class="chart-stat" data-stat="range-total-prompts">Range total: {{ dashboard_summary.range_total_prompts }}</span>
+                    <span class="chart-stat" data-stat="latest-prompts">Latest: Loading…</span>
+                    <span class="chart-stat" data-stat="range-total-prompts">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">{{ chart_notes.prompts }}</p>
-            {% if prompt_activity is defined and prompt_activity is not empty %}
+            <p class="chart-card__note">Loaded from /api/dashboard/trends/prompts.</p>
             <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
-            {% else %}
-            <p class="chart-empty">该时间窗口无数据。</p>
-            {% endif %}
         </section>
 
         <section class="chart-card" data-chart-card="tokens">
             <div class="chart-card__head">
                 <div><div class="chart-card__title-row"><h2>Token Trend</h2></div></div>
                 <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-tokens">Latest: {{ dashboard_summary.latest_tokens }}</span>
-                    <span class="chart-stat" data-stat="range-total-tokens">Range total: {{ dashboard_summary.range_total_tokens }}</span>
+                    <span class="chart-stat" data-stat="latest-tokens">Latest: Loading…</span>
+                    <span class="chart-stat" data-stat="range-total-tokens">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">{{ chart_notes.tokens }}</p>
-            {% if trend is defined and trend is not empty %}
+            <p class="chart-card__note">Loaded from /api/dashboard/trends/tokens.</p>
             <div class="chart-container" id="token-trend-chart" data-dashboard-chart="tokens"></div>
-            {% else %}
-            <p class="chart-empty">该时间窗口无数据。</p>
-            {% endif %}
         </section>
 
         <section class="chart-card cache-health-section" data-chart-card="cache-health">
             <div class="chart-card__head">
                 <div><div class="chart-card__title-row"><h2>Cache Health</h2></div></div>
                 <div class="chart-card__stats">
-                    <span class="chart-stat" data-stat="latest-ratio">Latest ratio: {{ dashboard_summary.latest_ratio }}</span>
-                    <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: {{ dashboard_summary.lowest_ratio }}</span>
+                    <span class="chart-stat" data-stat="latest-ratio">Latest ratio: Loading…</span>
+                    <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">{{ chart_notes.cache_health }}</p>
-            {% if cache_health.series is defined and cache_health.series is not empty %}
+            <p class="chart-card__note">Loaded from /api/dashboard/trends/cache-health.</p>
             <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
-            {% else %}
-            <p class="chart-empty">该时间窗口无数据。</p>
-            {% endif %}
         </section>
     </div>
 </section>
@@ -195,91 +281,36 @@
             <div class="card-sub">Session, token and prompt share across agents</div>
         </div>
     </div>
-    <div class="contribution-grid">
+    <div class="contribution-grid" data-api-source="/api/dashboard/agents/contribution">
         <div class="contribution-card">
             <h3 class="contribution-title">Session Share</h3>
-            <div class="hbar" data-hbar="session-share">
-                {% for agent in all_agents_branch.agent_rows %}
-                {% set share_value = agent.session_share_value %}
-                {% if agent.sessions_raw > 0 %}
-                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elseif share_value < 18 %} hbar-seg--small{% endif %}"
-                     style="--seg-width: {{ share_value }}%"
-                     data-agent="{{ agent.display }}"
-                     data-value="{{ agent.sessions_raw }}"
-                     data-share="{{ agent.session_share }}"
-                     aria-label="{{ agent.display }} sessions {{ agent.sessions }} · {{ agent.session_share }}">
-                    <span class="hbar-seg__label">{{ agent.display }}</span>
-                    <span class="hbar-seg__pct">{{ agent.session_share }}</span>
-                </div>
-                {% endif %}
-                {% endfor %}
+            <div class="hbar" data-hbar="session-share" role="status" aria-live="polite">
+                <span class="muted">Loading session share from API…</span>
             </div>
-            <div class="hbar-legend">
-                {% for agent in all_agents_branch.agent_rows %}
-                <span class="hbar-legend__item"><i class="hbar-legend__dot hbar-legend__dot--{{ agent.db_agent }}"></i>{{ agent.display }} {{ agent.session_share }}</span>
-                {% endfor %}
-            </div>
+            <div class="hbar-legend" aria-hidden="true"></div>
         </div>
 
         <div class="contribution-card">
             <h3 class="contribution-title">Token Share</h3>
-            <div class="hbar" data-hbar="token-share">
-                {% for agent in all_agents_branch.agent_rows %}
-                {% set share_value = agent.token_share_value %}
-                {% if agent.tokens_raw > 0 %}
-                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elseif share_value < 18 %} hbar-seg--small{% endif %}"
-                     style="--seg-width: {{ share_value }}%"
-                     data-agent="{{ agent.display }}"
-                     data-value="{{ agent.tokens }}"
-                     data-share="{{ agent.token_share }}"
-                     aria-label="{{ agent.display }} tokens {{ agent.tokens }} · {{ agent.token_share }}">
-                    <span class="hbar-seg__label">{{ agent.display }}</span>
-                    <span class="hbar-seg__pct">{{ agent.token_share }}</span>
-                </div>
-                {% endif %}
-                {% endfor %}
+            <div class="hbar" data-hbar="token-share" role="status" aria-live="polite">
+                <span class="muted">Loading token share from API…</span>
             </div>
-            <div class="hbar-legend">
-                {% for agent in all_agents_branch.agent_rows %}
-                <span class="hbar-legend__item"><i class="hbar-legend__dot hbar-legend__dot--{{ agent.db_agent }}"></i>{{ agent.display }} {{ agent.token_share }}</span>
-                {% endfor %}
-            </div>
+            <div class="hbar-legend" aria-hidden="true"></div>
         </div>
 
         <div class="contribution-card">
             <h3 class="contribution-title">Prompt Activity Share</h3>
-            <div class="hbar" data-hbar="prompt-share">
-                {% for agent in all_agents_branch.agent_rows %}
-                {% set share_value = agent.prompt_share_value %}
-                {% if agent.prompts_raw > 0 %}
-                <div class="hbar-seg hbar-seg--{{ agent.db_agent }}{% if share_value < 8 %} hbar-seg--tiny{% elseif share_value < 18 %} hbar-seg--small{% endif %}"
-                     style="--seg-width: {{ share_value }}%"
-                     data-agent="{{ agent.display }}"
-                     data-value="{{ agent.prompts_raw }}"
-                     data-share="{{ agent.prompt_share }}"
-                     aria-label="{{ agent.display }} prompts {{ agent.prompts }} · {{ agent.prompt_share }}">
-                    <span class="hbar-seg__label">{{ agent.display }}</span>
-                    <span class="hbar-seg__pct">{{ agent.prompt_share }}</span>
-                </div>
-                {% endif %}
-                {% endfor %}
+            <div class="hbar" data-hbar="prompt-share" role="status" aria-live="polite">
+                <span class="muted">Loading prompt share from API…</span>
             </div>
-            <div class="hbar-legend">
-                {% for agent in all_agents_branch.agent_rows %}
-                <span class="hbar-legend__item"><i class="hbar-legend__dot hbar-legend__dot--{{ agent.db_agent }}"></i>{{ agent.display }} {{ agent.prompt_share }}</span>
-                {% endfor %}
-            </div>
+            <div class="hbar-legend" aria-hidden="true"></div>
         </div>
     </div>
-    <p class="scope-summary">
-        Dominant:
-        <span class="agent-name agent-name--{{ all_agents_branch.session_leader.db_agent }}">{{ all_agents_branch.session_leader.display }}</span> leads sessions,
-        <span class="agent-name agent-name--{{ all_agents_branch.token_leader.db_agent }}">{{ all_agents_branch.token_leader.display }}</span> leads tokens,
-        <span class="agent-name agent-name--{{ all_agents_branch.prompt_leader.db_agent }}">{{ all_agents_branch.prompt_leader.display }}</span> leads prompts.
+    <p class="scope-summary" data-agent-contribution-summary>
+        Dominant agent signals are loaded from /api/dashboard/agents/contribution.
     </p>
 </section>
 
-{% if all_agents_branch.agent_rows is defined and all_agents_branch.agent_rows is not empty %}
 <section class="card table-card" aria-label="All Agents">
     <div class="table-toolbar">
         <div>
@@ -301,29 +332,18 @@
                 </tr>
             </thead>
             <tbody>
-                {% for agent in all_agents_branch.agent_rows %}
-                <tr class="agent-row" data-action="switch-agent-scope" data-scope="{{ agent.db_agent | db_agent_to_scope }}">
-                    <td data-sort-value="{{ agent.display }}">
-                        <span class="agent-badge agent-badge--{{ agent.db_agent }}">{{ agent.display }}</span>
-                        <a href="/sessions?agent={{ agent.db_agent | db_agent_to_scope }}" class="row-link" data-action="view-agent-sessions">View Sessions</a>
-                    </td>
-                    <td class="numeric" data-sort-value="{{ agent.sessions_full_raw | default(agent.sessions_raw) }}">{{ agent.sessions_full | default(agent.sessions) }} <span class="muted">· {{ agent.session_full_share | default(agent.session_share) }}</span></td>
-                    <td class="numeric token-cell" data-sort-value="{{ agent.tokens_full_raw | default(agent.tokens_raw) }}">
-                        <span class="token-cell__value">{{ agent.tokens_full | default(agent.tokens) }} <span class="muted">· {{ agent.token_full_share | default(agent.token_share) }}</span></span>
-                    </td>
-                    <td class="numeric" data-sort-value="{{ agent.prompts_full_raw | default(agent.prompts_raw) }}">{{ agent.prompts_full | default(agent.prompts) }} <span class="muted">· {{ agent.prompt_full_share | default(agent.prompt_share) }}</span></td>
-                    <td class="numeric" data-sort-value="{{ agent.projects_raw | default(0) }}">{{ agent.projects | default(0) }}</td>
-                    <td class="numeric" data-sort-value="{{ agent.failure_rate_raw | default(0) }}">{{ agent.failure_rate | default('0.0%') }}</td>
-                    <td class="numeric" data-sort-value="{{ agent.last_active_raw | default('') }}">{{ agent.last_active | default('') }}</td>
-                </tr>
-                {% endfor %}
+                <tr><td colspan="7">
+                    <div class="empty-state" role="status" aria-live="polite">
+                        <div class="empty-state__icon" aria-hidden="true">⏳</div>
+                        <h2 class="empty-state__title">Loading agent summary</h2>
+                        <p class="empty-state__text">Agent rows are loaded from /api/dashboard/agents/contribution.</p>
+                    </div>
+                </td></tr>
             </tbody>
         </table>
     </div>
 </section>
-{% endif %}
 
-{% if all_agents_branch.efficiency_rows is defined and all_agents_branch.efficiency_rows is not empty %}
 <section class="card table-card" aria-label="Agent / Model Efficiency">
     <div class="table-toolbar">
         <div>
@@ -344,27 +364,23 @@
                 </tr>
             </thead>
             <tbody>
-                {% for row in all_agents_branch.efficiency_rows %}
-                <tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="{{ row.db_agent | db_agent_to_scope }}" data-model="{{ row.model }}">
-                    <td data-sort-value="{{ row.agent }}"><span class="agent-badge agent-badge--{{ row.db_agent }}">{{ row.agent }}</span></td>
-                    <td class="mono" data-sort-value="{{ row.model }}">{{ row.model }}</td>
-                    <td class="numeric" data-sort-value="{{ row.sessions_raw }}">{{ row.sessions }}</td>
-                    <td class="numeric" data-sort-value="{{ row.tokens_per_session_raw }}">{{ row.tokens_per_session }}</td>
-                    <td class="numeric" data-sort-value="{{ row.cache_read_raw }}">{{ row.cache_read }}</td>
-                    <td class="numeric" data-sort-value="{{ row.failure_raw }}">{{ row.failure }}</td>
-                </tr>
-                {% endfor %}
+                <tr><td colspan="6">
+                    <div class="empty-state" role="status" aria-live="polite">
+                        <div class="empty-state__icon" aria-hidden="true">⏳</div>
+                        <h2 class="empty-state__title">Loading agent/model efficiency</h2>
+                        <p class="empty-state__text">Efficiency rows are loaded from /api/dashboard/agents/efficiency.</p>
+                    </div>
+                </td></tr>
             </tbody>
         </table>
     </div>
 </section>
-{% endif %}
 
 {% else %}
 <section class="card section-card" aria-label="Agent Deep Dive">
     <div class="section-head">
         <div>
-            <div class="card-title">Agent Deep Dive — {{ single_agent_branch.display_name }}</div>
+            <div class="card-title">Agent Deep Dive</div>
             <div class="card-sub">模型、工具、失败信号与效率分析</div>
         </div>
     </div>
@@ -374,28 +390,28 @@
     <div class="chart-card__head">
         <div><div class="chart-card__title-row"><h2>Model Mix</h2></div></div>
     </div>
-    <p class="chart-card__note">{{ chart_notes.model_mix }}</p>
-    {% if single_agent_branch.model_rows is defined and single_agent_branch.model_rows is not empty %}
+    <p class="chart-card__note">Loaded from /api/dashboard/agents/{agent}/deep-dive.</p>
     <div class="table-wrap">
         <table class="data-table" data-table-enhanced>
             <thead><tr><th>Model</th><th class="numeric">Sessions</th><th class="numeric">Avg Tokens</th><th class="numeric">Cache Read</th></tr></thead>
             <tbody>
-            {% for row in single_agent_branch.model_rows %}
-                <tr><td class="mono">{{ row.model }}</td><td class="numeric">{{ row.sessions }}</td><td class="numeric">{{ row.avg_tokens }}</td><td class="numeric">{{ row.cache_read }}</td></tr>
-            {% endfor %}
+                <tr><td colspan="4">
+                    <div class="empty-state" role="status" aria-live="polite">
+                        <div class="empty-state__icon" aria-hidden="true">⏳</div>
+                        <h2 class="empty-state__title">Loading model mix</h2>
+                        <p class="empty-state__text">Model rows are loaded from /api/dashboard/agents/{agent}/deep-dive.</p>
+                    </div>
+                </td></tr>
             </tbody>
         </table>
     </div>
-    {% else %}
-    <p class="chart-empty">无模型数据。</p>
-    {% endif %}
 </section>
 
 <section class="chart-card" data-chart-card="tool-dist">
     <div class="chart-card__head">
         <div><div class="chart-card__title-row"><h2>Tool Distribution</h2></div></div>
     </div>
-    <p class="chart-card__note">{{ chart_notes.tool_dist }}</p>
+    <p class="chart-card__note">Tool distribution requires indexed tool names; current API returns explicit unavailable state when absent.</p>
     <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist">
         <p class="chart-empty">Tool distribution data unavailable. Current index stores aggregate tool-call counts but not tool names.</p>
     </div>
@@ -405,48 +421,36 @@
     <div class="table-toolbar">
         <div>
             <div class="card-title">Model Efficiency Detail</div>
-            <div class="card-sub">Per model efficiency within {{ single_agent_branch.display_name }}</div>
+            <div class="card-sub">Per model efficiency within selected agent</div>
         </div>
     </div>
-    {% if single_agent_branch.efficiency_rows is defined and single_agent_branch.efficiency_rows is not empty %}
     <div class="table-wrap">
         <table class="data-table" data-table-enhanced>
             <thead>
                 <tr><th>Model</th><th class="numeric">Sessions</th><th class="numeric">Avg Tokens</th><th class="numeric">Avg Process Time</th><th class="numeric">Cache Read</th><th class="numeric">Tool Calls / Session</th><th class="numeric">Failure</th><th>Notes</th></tr>
             </thead>
             <tbody>
-            {% for row in single_agent_branch.efficiency_rows %}
-                <tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="{{ agent_scope }}" data-model="{{ row.model }}">
-                    <td class="mono">{{ row.model }}</td><td class="numeric">{{ row.sessions }}</td><td class="numeric">{{ row.avg_tokens }}</td><td class="numeric">{{ row.avg_process_time }}</td><td class="numeric">{{ row.cache_read }}</td><td class="numeric">{{ row.tool_calls_per_session }}</td><td class="numeric">{{ row.failure }}</td><td><span class="badge badge-info">{{ row.notes }}</span></td>
-                </tr>
-            {% endfor %}
+                <tr><td colspan="8">
+                    <div class="empty-state" role="status" aria-live="polite">
+                        <div class="empty-state__icon" aria-hidden="true">⏳</div>
+                        <h2 class="empty-state__title">Loading model efficiency</h2>
+                        <p class="empty-state__text">Efficiency rows are loaded from /api/dashboard/agents/{agent}/deep-dive.</p>
+                    </div>
+                </td></tr>
             </tbody>
         </table>
     </div>
-    {% else %}
-    <p class="chart-empty">No model efficiency data in current agent scope.</p>
-    {% endif %}
 </section>
 
 <section class="sessions-cta" aria-label="View Sessions">
     <div>
-        <div class="sessions-cta__title">View {{ single_agent_branch.display_name }} Sessions</div>
-        <div class="sessions-cta__meta">{{ agent_sessions_total }} sessions in current agent scope</div>
+        <div class="sessions-cta__title">View Agent Sessions</div>
+        <div class="sessions-cta__meta">Session count is loaded from Dashboard APIs</div>
     </div>
     <a href="/sessions?agent={{ agent_scope }}" class="btn primary sessions-cta__button" data-action="view-sessions-full">View Sessions</a>
 </section>
 {% endif %}
 
-{% endif %}
-
-{% if trend is defined and trend is not empty %}
-<script type="application/json" id="dashboard-graph-data">{{ trend | tojson }}</script>
-{% endif %}
-{% if prompt_activity is defined and prompt_activity is not empty %}
-<script type="application/json" id="dashboard-prompt-data">{{ prompt_activity | tojson }}</script>
-{% endif %}
-{% if cache_health.series is defined and cache_health.series is not empty %}
-<script type="application/json" id="dashboard-cache-health-data">{{ cache_health.series | tojson }}</script>
 {% endif %}
 
 <div class="tooltip" id="chartTooltip" hidden></div>

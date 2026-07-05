@@ -68,11 +68,70 @@ class ExportResourceApiTest {
           assertThat(body.get("roundCount").asLong()).isEqualTo(1);
           assertThat(body.get("payloadCount").asLong()).isEqualTo(2);
           assertThat(body.get("maxBytes").asLong()).isGreaterThan(1_000_000);
+          assertThat(body.get("maxSizeBytes").asLong()).isEqualTo(body.get("maxBytes").asLong());
+          assertThat(body.get("estimatedSizeBytes").asLong())
+              .isLessThan(body.get("maxSizeBytes").asLong());
+          assertThat(body.get("embeddedDataCapable").asBoolean()).isTrue();
+          assertThat(body.get("offlineInteractionSupported").asBoolean()).isTrue();
           assertThat(values(body.get("formats"), "format")).containsExactly("html", "mhtml");
           assertThat(body.at("/formats/0/href").asText())
               .isEqualTo("/sessions/claude_code/s-alpha-001/export.html?visibility=standard");
           assertThat(body.at("/formats/1/contentType").asText()).isEqualTo("multipart/related");
           assertThat(body.at("/formats/1/offlineCapable").asBoolean()).isTrue();
+        });
+  }
+
+  @Test
+  @DisplayName("manifest 支持按 format 过滤导出能力")
+  void manifestSupportsFormatFilter() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get(ALPHA_EXPORT + "/manifest?format=html");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(values(body.get("formats"), "format")).containsExactly("html");
+          assertThat(body.at("/formats/0/contentType").asText()).contains("text/html");
+          assertThat(body.at("/state/kind").asText()).isEqualTo("ready");
+        });
+  }
+
+  @Test
+  @DisplayName("manifest 对 unsupported format 返回 400 JSON error")
+  void manifestUnsupportedFormatReturns400() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get(ALPHA_EXPORT + "/manifest?format=pdf");
+          assertThat(response.code()).isEqualTo(400);
+          String body = response.body().string();
+          assertThat(body).contains("unsupported_format");
+          assertThat(body).doesNotContain("state-panel");
+        });
+  }
+
+  @Test
+  @DisplayName("manifest 超出 max_bytes 时返回 too_large state 且不声明 ready formats")
+  void manifestTooLargeReturnsExplicitState() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get(ALPHA_EXPORT + "/manifest?max_bytes=1");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.get("estimatedSizeBytes").asLong())
+              .isGreaterThan(body.get("maxSizeBytes").asLong());
+          assertThat(body.get("formats")).isEmpty();
+          assertThat(body.at("/state/kind").asText()).isEqualTo("too_large");
+          assertThat(body.at("/state/reason").asText()).isEqualTo("export_size_limit_exceeded");
         });
   }
 
@@ -94,6 +153,9 @@ class ExportResourceApiTest {
           assertThat(body.at("/rounds/0/tokens/total").asLong()).isEqualTo(2000);
           assertThat(body.get("payloadCount").asLong()).isEqualTo(2);
           assertThat(body.at("/payloads/0/truncated").asBoolean()).isFalse();
+          assertThat(body.at("/payloads/0/status").asText()).isEqualTo("available");
+          assertThat(body.at("/payloads/0/apiUrl").asText())
+              .isEqualTo("/api/sessions/claude_code/s-alpha-001/payload/main%3Areq%3Aalpha-call-1");
           assertThat(body.get("anomalyCount").asInt()).isGreaterThan(0);
         });
   }

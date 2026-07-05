@@ -5,7 +5,7 @@
 
 /* === FilterCard ============================================================
 * Reusable filter card with consistent control heights (30px).
-* HTML structure (via ui_primitives.html#filter_card macro):
+* Canonical page/API shell structure:
 *
 *   <section class="card filter-card">
 *     <form method="get" action="..." class="filter-form">

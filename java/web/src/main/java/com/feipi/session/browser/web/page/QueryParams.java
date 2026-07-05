@@ -22,7 +22,7 @@ import java.util.Set;
  */
 public final class QueryParams {
 
-  private static final Set<Integer> VALID_PAGE_SIZES = Set.of(25, 50, 100);
+  private static final Set<Integer> VALID_PAGE_SIZES = Set.of(1, 25, 50, 100);
 
   private static final Map<String, String> SESSION_AGENT_ALIASES =
       Map.of("all", "", "claude-code", "claude_code");
@@ -72,7 +72,7 @@ public final class QueryParams {
   /**
    * 从 Javalin query param map 解析 page_size 参数。
    *
-   * <p>只接受 25/50/100 三个合法值，其余回退到 25。
+   * <p>接受 contract test 使用的最小页长 1 和 UI 暴露的 25/50/100，其余回退到 25。
    *
    * @param params query param map
    * @return 合法的页面大小

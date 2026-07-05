@@ -19,13 +19,14 @@ LOCAL_PORT = int(os.environ.get('SESSION_BROWSER_LOCAL_PORT', '18999'))
 BASE_URL = f'http://{LOCAL_HOST}:{LOCAL_PORT}'
 
 TARGET_SELECTORS = [
-    '.token-charts-card__body',
-    '.token-charts-card__body-grid',
-    '.round-summary-table',
-    '.tabs',
-    '#profile',
-    '#timeline',
-    'content-modal',
+    '.sd-hero',
+    '.sd-kpis',
+    '.sd-tabs',
+    '.sd-trace-panel',
+    '.trace-table',
+    '[data-trace-list]',
+    '[data-payload-sources-container]',
+    '[data-session-metrics-shell]',
     'template',
 ]
 
@@ -59,26 +60,22 @@ class SelectorInventoryParser(HTMLParser):
         for cls in attrs_dict.get('class', '').split():
             self._classes_seen.add(cls)
             classes.add(cls)
-
-        if 'token-charts-card__body' in classes:
-            self.found['.token-charts-card__body'] = True
-        if 'token-charts-card__body-grid' in classes:
-            self.found['.token-charts-card__body-grid'] = True
-        if 'round-summary-table' in classes:
-            self.found['.round-summary-table'] = True
-        if 'tabs' in classes:
-            self.found['.tabs'] = True
+            selector = f'.{cls}'
+            if selector in self.found:
+                self.found[selector] = True
 
         tag_id = attrs_dict.get('id', '')
         if tag_id:
             self._ids_seen.add(tag_id)
-            if tag_id == 'profile':
-                self.found['#profile'] = True
-            if tag_id == 'timeline':
-                self.found['#timeline'] = True
+            selector = f'#{tag_id}'
+            if selector in self.found:
+                self.found[selector] = True
 
-        if tag_name == 'content-modal':
-            self.found['content-modal'] = True
+        for selector in TARGET_SELECTORS:
+            if selector.startswith('[data-') and selector[1:-1] in attrs_dict:
+                self.found[selector] = True
+        if tag_name in self.found:
+            self.found[tag_name] = True
 
 
 # 查找session url。

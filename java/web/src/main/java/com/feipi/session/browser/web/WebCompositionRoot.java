@@ -209,11 +209,14 @@ public final class WebCompositionRoot {
         "/api/glossary/derived-metrics", glossaryApiHandler::handleDerivedMetrics);
     javalinConfig.routes.get(
         "/api/glossary/provider-mapping", glossaryApiHandler::handleProviderMapping);
+    javalinConfig.routes.get(
+        "/api/glossary/provider-mappings", glossaryApiHandler::handleProviderMapping);
     javalinConfig.routes.get("/api/glossary/round-signals", glossaryApiHandler::handleRoundSignals);
 
     ProjectsApiHandler projectsApiHandler = new ProjectsApiHandler(queryRoot);
     javalinConfig.routes.get("/api/projects/summary", projectsApiHandler::handleSummary);
     javalinConfig.routes.get("/api/projects/rows", projectsApiHandler::handleRows);
+    javalinConfig.routes.get("/api/projects/active-filters", projectsApiHandler::handleActiveFilters);
     ProjectDetailApiHandler projectDetailApiHandler = new ProjectDetailApiHandler(queryRoot);
     javalinConfig.routes.get(
         "/api/projects/{projectKey}/summary", projectDetailApiHandler::handleSummary);
@@ -233,6 +236,8 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get("/api/sessions/summary", sessionsListApiHandler::handleSummary);
     javalinConfig.routes.get("/api/sessions/options", sessionsListApiHandler::handleOptions);
     javalinConfig.routes.get("/api/sessions/rows", sessionsListApiHandler::handleRows);
+    javalinConfig.routes.get(
+        "/api/sessions/active-filters", sessionsListApiHandler::handleActiveFilters);
 
     SessionDetailApiHandler sessionDetailApiHandler = new SessionDetailApiHandler(queryRoot);
     javalinConfig.routes.get(

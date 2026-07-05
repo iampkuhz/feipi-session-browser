@@ -108,10 +108,14 @@ class ProjectsResourceApiTest {
           assertThat(first.get("totalSessions").asLong()).isEqualTo(2);
           assertThat(first.get("claudeSessions").asLong()).isEqualTo(2);
           assertThat(first.get("codexSessions").asLong()).isEqualTo(0);
+          assertThat(first.at("/agents/0/agent").asText()).isEqualTo("claude_code");
+          assertThat(first.at("/agents/0/sessions").asLong()).isEqualTo(2);
+          assertThat(first.get("agents")).hasSize(1);
           assertThat(first.at("/tokens/total").asLong()).isEqualTo(3250);
           assertTokenInvariant(first.get("tokens"));
           JsonNode second = body.at("/rows/1");
           assertThat(second.get("projectKey").asText()).isEqualTo("/repo/beta");
+          assertThat(second.at("/agents/0/agent").asText()).isEqualTo("codex");
           assertThat(second.at("/tokens/total").asLong()).isEqualTo(800);
         });
   }
@@ -133,6 +137,70 @@ class ProjectsResourceApiTest {
           assertThat(body.at("/rows/0/failedTools").asLong()).isEqualTo(3);
           assertThat(body.at("/rows/0/detailUrl").asText()).isEqualTo("/projects/%2Frepo%2Falpha");
           assertThat(body.at("/filters/q").asText()).isEqualTo("alpha");
+        });
+  }
+
+  @Test
+  @DisplayName("rows 支持 failed 降序和单页分页样例")
+  void rowsSupportFailedSortAndSecondPage() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          JsonNode failedSort =
+              MAPPER.readTree(
+                  client.get("/api/projects/rows?sort=failed&dir=desc").body().string());
+          assertThat(failedSort.at("/rows/0/projectKey").asText()).isEqualTo("/repo/alpha");
+          assertThat(failedSort.at("/rows/0/failedTools").asLong()).isEqualTo(3);
+          assertThat(failedSort.at("/rows/1/projectKey").asText()).isEqualTo("/repo/beta");
+          assertThat(failedSort.at("/rows/1/failedTools").asLong()).isEqualTo(0);
+
+          JsonNode pageTwo =
+              MAPPER.readTree(
+                  client
+                      .get("/api/projects/rows?page_size=1&page=2&sort=tokens&dir=desc")
+                      .body()
+                      .string());
+          assertThat(pageTwo.at("/pagination/totalPages").asLong()).isEqualTo(2);
+          assertThat(pageTwo.at("/rows/0/projectKey").asText()).isEqualTo("/repo/beta");
+        });
+  }
+
+  @Test
+  @DisplayName("rows 对非法 page_size 回退到 normalized 25")
+  void rowsInvalidPageSizeFallsBackTo25() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get("/api/projects/rows?page_size=13");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.at("/filters/pageSize").asInt()).isEqualTo(25);
+          assertThat(body.at("/pagination/pageSize").asInt()).isEqualTo(25);
+        });
+  }
+
+  @Test
+  @DisplayName("active-filters 返回 projects 搜索 chip")
+  void activeFiltersReturnProjectSearchChip() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get("/api/projects/active-filters?q=alpha");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.get("chips")).hasSize(1);
+          assertThat(body.at("/chips/0/key").asText()).isEqualTo("q");
+          assertThat(body.at("/chips/0/value").asText()).isEqualTo("alpha");
+          assertThat(body.at("/chips/0/removeUrl").asText()).isEqualTo("/projects");
+          assertThat(body.at("/clearAllUrl").asText()).isEqualTo("/projects");
         });
   }
 

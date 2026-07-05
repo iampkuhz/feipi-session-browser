@@ -10,6 +10,7 @@ import com.feipi.session.browser.index.sqlite.SchemaVersion;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
 import io.javalin.testtools.JavalinTest;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -164,7 +165,7 @@ class WebAccessibilityContractTest {
     }
 
     @Test
-    @DisplayName("Dashboard 空状态包含可操作的导航按钮")
+    @DisplayName("Dashboard API-first shell 包含键盘可操作 scope/grain 控件")
     void scopeButtonsAreNativeButtons() {
       WebCompositionRoot webRoot = createWebRoot();
       JavalinTest.test(
@@ -172,27 +173,43 @@ class WebAccessibilityContractTest {
           (testApp, client) -> {
             var response = client.get("/dashboard");
             String body = response.body().string();
-            // 空状态包含 "运行 Scan" 按钮
-            assertThat(body).contains("data-action=\"run-scan\"");
-            // 导航链接都是 <a> 标签
+            assertThat(body).contains("data-dashboard-kpis");
+            assertThat(body).contains("data-api-source=\"/api/dashboard/summary\"");
+            assertThat(body).contains("data-action=\"agent-scope\"");
+            assertThat(body).contains("data-action=\"grain\"");
+            assertThat(body).contains("Loading…");
             assertThat(body).contains("href=\"/dashboard\"");
             assertThat(body).contains("href=\"/sessions\"");
+
+            String apiBody = client.get("/api/dashboard/summary").body().string();
+            assertThat(apiBody).contains("\"schemaVersion\"");
+            assertThat(apiBody).contains("\"state\"");
           });
     }
 
     @Test
-    @DisplayName("Session 链接使用 <a> 标签")
-    void sessionLinksAreAnchors() throws Exception {
+    @DisplayName("Session API rows 由 JS 渲染为 <a> 链接")
+    void sessionApiRowsRenderedAsAnchors() throws Exception {
       insertTestSession();
       WebCompositionRoot webRoot = createWebRoot();
       JavalinTest.test(
           webRoot.app(),
           (testApp, client) -> {
-            var response = client.get("/sessions");
-            String body = response.body().string();
-            // session 链接必须是 <a> 标签
-            assertThat(body).contains("class=\"session-link\"");
-            assertThat(body).contains("data-action=\"open-session\"");
+            String pageBody = client.get("/sessions").body().string();
+            assertThat(pageBody).contains("data-api-rows=\"/api/sessions/rows\"");
+
+            String rowsBody = client.get("/api/sessions/rows").body().string();
+            assertThat(rowsBody).contains("\"detailUrl\":\"/sessions/claude_code/test-session-1\"");
+
+            var jsResource =
+                WebAccessibilityContractTest.class
+                    .getClassLoader()
+                    .getResource("static/js/sessions-list.js");
+            assertThat(jsResource).isNotNull();
+            String jsBody =
+                new String(jsResource.openStream().readAllBytes(), StandardCharsets.UTF_8);
+            assertThat(jsBody).contains("<a class=\"session-link\"");
+            assertThat(jsBody).contains("data-action=\"open-session\"");
           });
     }
   }

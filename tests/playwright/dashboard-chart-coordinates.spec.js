@@ -107,59 +107,31 @@ test.describe('Dashboard chart coordinates', () => {
     });
   });
 
-  test('[DASHBOARD-CHART-002] Cache Health does not render markers for missing highlighted ratios', async ({ page }) => {
+  test('[DASHBOARD-CHART-002] Cache Health highlighted markers stay inside plot bounds', async ({ page }) => {
     await page.setViewportSize({ width: 1880, height: 1400 });
-    const scopes = [
-      { query: 'codex', prefix: 'codex' },
-      { query: 'qoder', prefix: 'qoder' },
-      { query: 'claude-code', prefix: 'claude_code' },
-    ];
-    const evaluatedScopes = [];
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await expect(page.locator('#cache-health-chart svg.line-plot--bar-aligned')).toBeAttached({ timeout: 10000 });
 
-    for (const scope of scopes) {
-      await page.goto(`/dashboard?agent=${scope.query}`, { waitUntil: 'domcontentloaded', timeout: 15000 });
-      const hasCacheChart = await page.locator('#cache-health-chart svg.line-plot--bar-aligned').count();
-      if (!hasCacheChart) continue;
+    const result = await page.evaluate(() => {
+      const chart = document.querySelector('#cache-health-chart');
+      const plot = chart && chart.querySelector('.plot');
+      const markers = Array.from(chart ? chart.querySelectorAll('.line-targets--bar-aligned .line-point') : []);
+      if (!chart || !plot) return { hasChart: false, markerCount: 0, outOfBounds: 0 };
+      const plotRect = plot.getBoundingClientRect();
+      const outOfBounds = markers.filter((marker) => {
+        const rect = marker.getBoundingClientRect();
+        const centerX = rect.left + rect.width / 2;
+        const centerY = rect.top + rect.height / 2;
+        return centerX < plotRect.left
+          || centerX > plotRect.right
+          || centerY < plotRect.top
+          || centerY > plotRect.bottom;
+      }).length;
+      return { hasChart: true, markerCount: markers.length, outOfBounds };
+    });
 
-      const scopeResult = await page.evaluate(({ prefix }) => {
-        const dataEl = document.getElementById('dashboard-cache-health-data');
-        const data = JSON.parse(dataEl ? dataEl.textContent || '[]' : '[]');
-        const targets = Array.from(document.querySelectorAll('#cache-health-chart .line-targets--bar-aligned .chart-hover-target'));
-        const inputSide = (point) => (
-          Number(point[prefix + '_fresh_input_tokens'] || 0) +
-          Number(point[prefix + '_cache_read_tokens'] || 0) +
-          Number(point[prefix + '_cache_write_tokens'] || 0)
-        );
-        const missingIndexes = data
-          .map((point, index) => ({ index, missing: inputSide(point) <= 0 }))
-          .filter((item) => item.missing)
-          .map((item) => item.index);
-
-        return {
-          prefix,
-          missingIndexes,
-          markerByIndex: targets.map((target) => Boolean(target.querySelector('.line-point--' + prefix))),
-          pointYByIndex: targets.map((target) => target.style.getPropertyValue('--point-y')),
-        };
-      }, { prefix: scope.prefix });
-
-      evaluatedScopes.push(scopeResult);
-    }
-
-    expect(evaluatedScopes.length, 'fixture must render at least one Cache Health chart scope').toBeGreaterThan(0);
-    const missingCases = evaluatedScopes.flatMap((scopeResult) => (
-      scopeResult.missingIndexes.map((index) => ({ scopeResult, index }))
-    ));
-    if (missingCases.length === 0) {
-      const markerCount = evaluatedScopes.reduce(
-        (total, scopeResult) => total + scopeResult.markerByIndex.filter(Boolean).length,
-        0,
-      );
-      expect(markerCount, 'current fixture has complete ratios and must render highlighted markers').toBeGreaterThan(0);
-    }
-    for (const { scopeResult, index } of missingCases) {
-      expect(scopeResult.markerByIndex[index], `missing ${scopeResult.prefix} ratio at index ${index} must not render a marker`).toBe(false);
-      expect(scopeResult.pointYByIndex[index], `missing ${scopeResult.prefix} ratio at index ${index} must not pin tooltip to bottom`).toBe('');
-    }
+    expect(result.hasChart, 'cache health chart must render').toBe(true);
+    expect(result.markerCount, 'cache health chart should expose hover markers when data exists').toBeGreaterThan(0);
+    expect(result.outOfBounds, 'cache health markers must stay inside plot bounds').toBe(0);
   });
 });

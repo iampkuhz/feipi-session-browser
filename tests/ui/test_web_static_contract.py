@@ -7,6 +7,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[2]
 PROJECTS_CSS = ROOT / 'java/web/src/main/resources/static/css/projects.css'
 PROJECTS_HTML = ROOT / 'java/web/src/main/resources/templates/projects.html'
+PROJECTS_JS = ROOT / 'java/web/src/main/resources/static/js/projects.js'
 
 
 def _read(path: Path) -> str:
@@ -16,13 +17,15 @@ def _read(path: Path) -> str:
 @pytest.mark.contract_case('UI-VISUAL-001')
 def test_projects_table_matches_main_dom_contract():
     html = _read(PROJECTS_HTML)
+    js = _read(PROJECTS_JS)
     for label in ['Project', 'Agents', 'Sessions', 'Tokens', 'Tools', 'Failed', 'First Seen', 'Last Active']:
         assert label in html
     assert 'id="projects-table"' in html
-    assert 'class="agents-cell"' in html
-    assert 'class="agents-cell__inner"' in html
-    assert 'tokenbar-seg fresh' in html
-    assert 'Token Breakdown' in html
+    assert 'data-api-rows="/api/projects/rows"' in html
+    assert 'class="agents-cell"' in js
+    assert 'class="agents-cell__inner"' in js
+    assert 'tokenbar-seg fresh' in js
+    assert 'Token Breakdown' in js
 
 
 @pytest.mark.contract_case('UI-VISUAL-001')

@@ -259,7 +259,9 @@ public final class ProjectDetailApiHandler {
               TokenSegments.of(fresh, cacheRead, cacheWrite, output),
               failed,
               share(sessionCount, project.totalSessions()),
-              share(tokenTotal, project.totalTokens())));
+              share(tokenTotal, project.totalTokens()),
+              ratio(sessionCount, project.totalSessions()),
+              ratio(tokenTotal, project.totalTokens())));
     }
     return rows;
   }
@@ -368,5 +370,9 @@ public final class ProjectDetailApiHandler {
 
   private static double share(long value, long total) {
     return total <= 0 ? 0.0 : value * 100.0 / total;
+  }
+
+  private static double ratio(long value, long total) {
+    return total <= 0 ? 0.0 : value / (double) total;
   }
 }

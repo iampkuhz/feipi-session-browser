@@ -38,65 +38,19 @@
 
     /* ── Sort state ─────────────────────────────────────────── */
     var currentSort = { key: null, ascending: false };
+    var projectDetailSortState = { key: null, ascending: false };
 
     window.applyProjectFilters = function() { filterProjects(); };
 
     function filterProjects() {
-        var q = document.getElementById('project-search').value.toLowerCase().trim();
-        var rows = document.querySelectorAll('#projects-table tbody tr');
-        var visibleCount = 0;
-
-        rows.forEach(function(row) {
-            var name = (row.dataset.name || '').toLowerCase();
-            var path = (row.dataset.path || '').toLowerCase();
-            var show = !q || name.indexOf(q) >= 0 || path.indexOf(q) >= 0;
-            row.hidden = !show;
-            if (show) visibleCount++;
-        });
-
-        var countEl = document.getElementById('projects-count');
-        if (countEl) countEl.textContent = visibleCount;
-        var label = document.getElementById('projects-count-label');
-        if (label) label.textContent = visibleCount + ' projects';
-
-        // Update filter footer match count
-        var matchEl = document.getElementById('projects-match-count');
-        if (matchEl) matchEl.textContent = visibleCount + ' matching projects';
-
-        var empty = document.getElementById('projects-empty');
-        if (empty) {
-            if (visibleCount === 0 && rows.length > 0) {
-                empty.classList.remove('is-hidden');
-                empty.hidden = false;
-            } else {
-                empty.classList.add('is-hidden');
-                empty.hidden = true;
-            }
-        }
-
-        // Update page status
-        updatePageStatus(visibleCount, rows.length);
-
-        // Update active-filters chip
-        updateFilterChip(q);
+        var params = getProjectListParams();
+        params.delete('page');
+        fetchProjectsList(params);
     }
 
     window.applyProjectSort = function() { sortProjects(); };
 
     function sortProjects() {
-        var tbody = document.querySelector('#projects-table tbody');
-        if (!tbody) return;
-
-        var rows = Array.from(tbody.querySelectorAll('tr'));
-        rows.sort(function(a, b) {
-            var va = getSortValue(a, currentSort.key);
-            var vb = getSortValue(b, currentSort.key);
-            if (va === vb) return 0;
-            var cmp = (va < vb) ? -1 : 1;
-            return currentSort.ascending ? cmp : -cmp;
-        });
-
-        rows.forEach(function(r) { tbody.appendChild(r); });
         updateSortIndicators();
     }
 
@@ -168,6 +122,11 @@
         return div.innerHTML;
     }
 
+    function setMarkup(target, markup) {
+        var parsed = new DOMParser().parseFromString(markup || '', 'text/html');
+        target.replaceChildren.apply(target, Array.prototype.slice.call(parsed.body.childNodes));
+    }
+
     function formatNumber(value) {
         return String(Math.round(Number(value || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
     }
@@ -221,13 +180,6 @@
         });
     }
 
-    function updatePageStatus(visible, total) {
-        var statusEl = document.getElementById('page-status-text');
-        if (statusEl) {
-            statusEl.textContent = 'of 1 · ' + visible + ' of ' + total + ' projects';
-        }
-    }
-
     function getProjectListParams() {
         var params = new URLSearchParams(window.location.search);
         var searchEl = document.getElementById('project-search');
@@ -247,10 +199,12 @@
         var url = '/projects' + (qs.toString() ? '?' + qs.toString() : '');
         Promise.all([
             apiFetch('/api/projects/summary', qs),
-            apiFetch('/api/projects/rows', qs)
+            apiFetch('/api/projects/rows', qs),
+            apiFetch('/api/projects/active-filters', qs)
         ]).then(function(parts) {
             renderProjectSummary(parts[0]);
             renderProjectRows(parts[1]);
+            renderProjectsActiveFilters(parts[2]);
             if (replaceState) window.history.replaceState({ api: true }, '', url);
             else window.history.pushState({ api: true }, '', url);
         }).catch(function(err) {
@@ -262,7 +216,7 @@
     function renderProjectSummary(summary) {
         if (!summary) return;
         var count = document.getElementById('projects-count');
-        if (count) count.innerHTML = '<b>' + escapeHtml(summary.projectCount) + '</b> projects';
+        if (count) setMarkup(count, '<b>' + escapeHtml(summary.projectCount) + '</b> projects');
         var cards = document.querySelectorAll('.metric-grid .metric-card');
         setMetricCardValue(cards[0], summary.projectCount);
         setMetricCardValue(cards[1], summary.sessionCount);
@@ -271,6 +225,28 @@
         var match = document.getElementById('projects-match-count');
         if (match) match.textContent = summary.projectCount + ' matching projects';
         updateFilterChip((summary.filters && summary.filters.q) || '');
+    }
+
+    function renderProjectsActiveFilters(activeFilters) {
+        var container = document.getElementById('projects-active-filters');
+        if (!container || !activeFilters) return;
+        var chips = Array.isArray(activeFilters.chips) ? activeFilters.chips : [];
+        if (!chips.length) {
+            container.replaceChildren();
+            return;
+        }
+        container.replaceChildren.apply(container, chips.map(function(chip) {
+            var span = document.createElement('span');
+            span.className = 'filter-chip';
+            span.appendChild(document.createTextNode((chip.label || chip.key || 'Filter') + ': ' + (chip.value || '')));
+            span.appendChild(document.createTextNode(' '));
+            var a = document.createElement('a');
+            a.href = chip.removeUrl || activeFilters.clearAllUrl || '/projects';
+            a.setAttribute('aria-label', 'Remove ' + (chip.key || 'filter') + ' filter');
+            a.textContent = '×';
+            span.appendChild(a);
+            return span;
+        }));
     }
 
     function setMetricCardValue(card, value) {
@@ -298,11 +274,11 @@
         var tr = document.createElement('tr');
         var td = document.createElement('td');
         td.colSpan = 8;
-        td.innerHTML = '<div class="empty-state"><div class="empty-state__icon" aria-hidden="true">📁</div><h2 class="empty-state__title">'
+        setMarkup(td, '<div class="empty-state"><div class="empty-state__icon" aria-hidden="true">📁</div><h2 class="empty-state__title">'
             + escapeHtml(state && state.title ? state.title : 'No projects match current filters')
             + '</h2><p class="empty-state__text">'
             + escapeHtml(state && state.message ? state.message : 'Try adjusting the project search.')
-            + '</p><button class="btn primary" data-action="clear-search">Clear Search</button></div>';
+            + '</p><button class="btn primary" data-action="clear-search">Clear Search</button></div>');
         tr.appendChild(td);
         return tr;
     }
@@ -320,24 +296,40 @@
         tr.dataset.totalTokens = tokens.total || 0;
         tr.dataset.totalTools = row.toolCalls || 0;
         tr.dataset.totalFailed = row.failedTools || 0;
-        tr.innerHTML = [
+        setMarkup(tr, [
             '<td class="project-cell"><a href="', escapeHtml(row.detailUrl || '#'), '" class="project-name-link" data-project="', escapeHtml(projectName), '" data-action="open-project-link">',
             escapeHtml(projectName), '</a><div class="project-path-row"><span class="path-text truncate" data-tooltip="', escapeHtml(row.projectKey), '">',
             escapeHtml(row.projectKey || ''), '</span><button class="path-copy-btn" data-action="copy" data-copy-text="', escapeHtml(row.projectKey), '" title="Copy full path" aria-label="Copy project path">Copy</button></div></td>',
-            '<td class="agents-cell"><span class="agents-cell__inner">', agentBadge('cc', 'claude', 'CC', row.claudeSessions), agentBadge('cx', 'codex', 'CX', row.codexSessions), agentBadge('qd', 'qoder', 'QD', row.qoderSessions), '</span></td>',
+            '<td class="agents-cell"><span class="agents-cell__inner">', agentBadges(row), '</span></td>',
             '<td class="numeric mono"><strong>', formatNumber(row.totalSessions), '</strong></td>',
             projectTokenCell(tokens),
             '<td class="numeric mono">', formatNumber(row.toolCalls), Number(row.failedTools || 0) > 0 ? '<span class="badge err tools-failed" data-tooltip="' + escapeHtml(row.failedTools) + ' failed tool results">' + escapeHtml(row.failedTools) + ' failed</span>' : '', '</td>',
             '<td class="numeric mono">', formatNumber(row.failedTools), '</td>',
             '<td class="text-xs text-muted" title="', escapeHtml(row.firstSeen), '">', escapeHtml(formatDate(row.firstSeen)), '</td>',
             '<td class="text-xs text-muted">', escapeHtml(formatDate(row.lastSeen)), '</td>'
-        ].join('');
+        ].join(''));
         return tr;
     }
 
-    function agentBadge(cls, dot, label, count) {
-        if (!Number(count || 0)) return '';
-        return '<span class="badge ' + cls + ' badge--has-dot" data-tooltip="' + escapeHtml(count) + ' sessions" role="status"><span class="badge-dot badge-dot--' + dot + '" aria-hidden="true"></span>' + label + '</span>';
+    function agentBadges(row) {
+        var agents = Array.isArray(row.agents) && row.agents.length
+            ? row.agents
+            : [
+                { agent: 'claude_code', label: 'Claude Code', sessions: row.claudeSessions },
+                { agent: 'qoder', label: 'Qoder', sessions: row.qoderSessions },
+                { agent: 'codex', label: 'Codex', sessions: row.codexSessions }
+            ].filter(function(agent) { return Number(agent.sessions || 0) > 0; });
+        if (!agents.length) return '<span class="muted-zero">—</span>';
+        return agents.map(function(agent) {
+            var meta = agentBadgeMeta(agent.agent);
+            return '<span class="badge ' + meta.cls + ' badge--has-dot" data-tooltip="' + escapeHtml(agent.sessions) + ' sessions" role="status"><span class="badge-dot badge-dot--' + meta.dot + '" aria-hidden="true"></span>' + escapeHtml(meta.shortLabel) + '</span>';
+        }).join('');
+    }
+
+    function agentBadgeMeta(agent) {
+        if (agent === 'claude_code') return { cls: 'cc', dot: 'claude', shortLabel: 'CC' };
+        if (agent === 'codex') return { cls: 'cx', dot: 'codex', shortLabel: 'CX' };
+        return { cls: 'qd', dot: 'qoder', shortLabel: 'QD' };
     }
 
     function projectTokenCell(tokens) {
@@ -346,7 +338,7 @@
         var writePct = segmentPct(tokens, 'cacheWrite');
         var outPct = segmentPct(tokens, 'output');
         return '<td class="token-cell"><div class="token-total"><span class="token-total__value">' + formatCompact(tokens && tokens.total)
-            + '</span><span class="tokenbar" aria-hidden="true"><span class="tokenbar-seg fresh" style="--segment-width:' + freshPct
+            + '</span><span class="tokenbar" aria-label="Token Breakdown" title="Token Breakdown"><span class="tokenbar-seg fresh" style="--segment-width:' + freshPct
             + '%"></span><span class="tokenbar-seg read" style="--segment-width:' + readPct
             + '%"></span><span class="tokenbar-seg write" style="--segment-width:' + writePct
             + '%"></span><span class="tokenbar-seg out" style="--segment-width:' + outPct + '%"></span></span></div></td>';
@@ -356,7 +348,7 @@
         var nav = document.querySelector('#projects-table').closest('.table-card').querySelector('.pagination');
         if (!nav || !pagination) return;
         var disabled = (pagination.totalPages || 0) <= 1;
-        nav.innerHTML = '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
+        setMarkup(nav, '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
             + (!pagination.hasPrevious || disabled ? ' disabled' : '') + '>&lsaquo; prev</button><span class="page-status">Page</span>'
             + '<input class="page-input mono" data-action="page-input" value="' + escapeHtml(pagination.page) + '" aria-label="Page number"'
             + (disabled ? ' disabled' : '') + ' data-total-pages="' + escapeHtml(pagination.totalPages || 1) + '"/>'
@@ -365,7 +357,7 @@
             + '<label class="page-size-label" aria-label="每页条数"><span class="page-status">每页</span><select class="page-size-select" data-action="page-size">'
             + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize) + pageSizeOption(100, pagination.pageSize)
             + '</select></label><button class="btn sm" data-action="next-page" aria-label="Next page"'
-            + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>';
+            + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>');
     }
 
     function pageSizeOption(value, selected) {
@@ -390,14 +382,11 @@
         if (searchEl) searchEl.value = '';
         currentSort = { key: null, ascending: false };
         updateSortIndicators();
-        filterProjects();
         if (typeof arpStorage !== 'undefined') {
             arpStorage.remove('projects_search');
         }
         updateFilterChip('');
-        if (window.location.search) {
-            fetchProjectsList(new URLSearchParams(), false);
-        }
+        fetchProjectsList(new URLSearchParams(), false);
     };
 
     /* ── List page event binding ────────────────────────────── */
@@ -426,13 +415,11 @@
         // Real-time search on input (preserved behavior)
         if (searchEl) {
             searchEl.addEventListener('input', function() {
-                filterProjects();
                 scheduleServerSearch();
             });
             searchEl.addEventListener('keydown', function(e) {
                 if (e.key === 'Enter') {
                     e.preventDefault();
-                    filterProjects();
                     scheduleServerSearch();
                 }
             });
@@ -442,7 +429,6 @@
         if (filterForm) {
             filterForm.addEventListener('submit', function(e) {
                 e.preventDefault();
-                filterProjects();
                 scheduleServerSearch();
             });
         }
@@ -459,7 +445,7 @@
                     currentSort.key = key;
                     currentSort.ascending = false; // default: descending
                 }
-                sortProjects();
+                updateSortIndicators();
                 var params = getProjectListParams();
                 params.set('sort', key);
                 params.set('dir', currentSort.ascending ? 'asc' : 'desc');
@@ -488,9 +474,6 @@
         // Row click: navigate to project detail (list page)
         bindProjectRowClicks();
 
-        if (searchEl && searchEl.value) {
-            filterProjects();
-        }
         fetchProjectsList(new URLSearchParams(window.location.search), true);
     }
 
@@ -514,19 +497,6 @@
 
             if (detailSearch) {
                 detailSearch.addEventListener('input', function() {
-                    var q = detailSearch.value.toLowerCase().trim();
-                    var rows = detailTable.querySelectorAll('tbody tr');
-                    var visibleCount = 0;
-                    rows.forEach(function(row) {
-                        var title = (row.dataset.title || '').toLowerCase();
-                        var sessionId = (row.dataset.sessionId || '').toLowerCase();
-                        var show = !q || title.indexOf(q) >= 0 || sessionId.indexOf(q) >= 0;
-                        row.hidden = !show;
-                        if (show) visibleCount++;
-                    });
-                    // Update count if element exists
-                    var countLabel = document.getElementById('project-sessions-count');
-                    if (countLabel) countLabel.textContent = visibleCount + ' sessions';
                     clearTimeout(detailSearch._apiTimer);
                     detailSearch._apiTimer = setTimeout(function() {
                         var params = projectDetailParams();
@@ -542,27 +512,29 @@
              * ─────────────────────────────────────────────────────────── */
 
             /* ── Detail: row click navigation ────────────────────── */
-            var detailRows = detailTable.querySelectorAll('tbody tr[data-action="open-session"]');
-            detailRows.forEach(function(row) {
-                row.addEventListener('click', function(e) {
-                    if (e.target.closest('a') || e.target.closest('button')) return;
-                    // T117: use data-href on tr when no link inside
-                    var href = row.dataset.href;
-                    if (href) {
-                        window.location.href = href;
-                        return;
-                    }
-                    var link = row.querySelector('a.link, a[data-action="open-session-link"]');
-                    if (link && link.href) {
-                        window.location.href = link.href;
-                    }
-                });
+            detailTable.addEventListener('click', function(e) {
+                var row = e.target.closest('tbody tr[data-action="open-session"]');
+                if (!row || !detailTable.contains(row)) return;
+                if (e.target.closest('a') || e.target.closest('button')) return;
+                var href = row.dataset.href;
+                if (href) {
+                    window.location.href = href;
+                    return;
+                }
+                var link = row.querySelector('a.link, a[data-action="open-session-link"]');
+                if (link && link.href) {
+                    window.location.href = link.href;
+                }
             });
 
             /* ── Detail: sortable headers ────────────────────────── */
             var detailSortBtns = detailTable.querySelectorAll('th .c-data-table__sort');
             var detailSortableThs = detailTable.querySelectorAll('th.sortable');
-            var detailSortState = { key: null, ascending: false };
+            var initialDetailParams = new URLSearchParams(window.location.search);
+            projectDetailSortState = {
+                key: initialDetailParams.get('sort') || null,
+                ascending: (initialDetailParams.get('dir') || 'desc') === 'asc'
+            };
 
             // Button-based sortable headers
             detailSortBtns.forEach(function(btn) {
@@ -570,14 +542,18 @@
                     e.stopPropagation();
                     var key = btn.dataset.sortKey;
                     if (!key) return;
-                    if (detailSortState.key === key) {
-                        detailSortState.ascending = !detailSortState.ascending;
+                    if (projectDetailSortState.key === key) {
+                        projectDetailSortState.ascending = !projectDetailSortState.ascending;
                     } else {
-                        detailSortState.key = key;
-                        detailSortState.ascending = false;
+                        projectDetailSortState.key = key;
+                        projectDetailSortState.ascending = false;
                     }
-                    sortDetailTable();
                     updateDetailSortIndicators();
+                    var params = projectDetailParams();
+                    params.set('sort', key);
+                    params.set('dir', projectDetailSortState.ascending ? 'asc' : 'desc');
+                    params.delete('page');
+                    fetchProjectSessions(params);
                 });
             });
 
@@ -588,70 +564,28 @@
                     if (e.target.closest('button')) return;
                     var key = th.dataset.sort;
                     if (!key) return;
-                    if (detailSortState.key === key) {
-                        detailSortState.ascending = !detailSortState.ascending;
+                    if (projectDetailSortState.key === key) {
+                        projectDetailSortState.ascending = !projectDetailSortState.ascending;
                     } else {
-                        detailSortState.key = key;
-                        detailSortState.ascending = false;
+                        projectDetailSortState.key = key;
+                        projectDetailSortState.ascending = false;
                     }
-                    sortDetailTable();
                     updateDetailSortIndicators();
+                    var params = projectDetailParams();
+                    params.set('sort', key);
+                    params.set('dir', projectDetailSortState.ascending ? 'asc' : 'desc');
+                    params.delete('page');
+                    fetchProjectSessions(params);
                 });
             });
-
-            function sortDetailTable() {
-                var tbody = detailTable.querySelector('tbody');
-                if (!tbody) return;
-
-                var rows = Array.from(tbody.querySelectorAll('tr'));
-                var key = detailSortState.key;
-                var asc = detailSortState.ascending;
-
-                rows.sort(function(a, b) {
-                    var va = getDetailSortValue(a, key);
-                    var vb = getDetailSortValue(b, key);
-                    if (va === vb) return 0;
-                    var cmp = (va < vb) ? -1 : 1;
-                    return asc ? cmp : -cmp;
-                });
-
-                rows.forEach(function(r) { tbody.appendChild(r); });
-            }
-
-            function getDetailSortValue(row, key) {
-                var colIndex = -1;
-                var headers = Array.from(detailTable.querySelectorAll('thead th'));
-                for (var i = 0; i < headers.length; i++) {
-                    var sortBtn = headers[i].querySelector('.c-data-table__sort');
-                    if (sortBtn && sortBtn.dataset.sortKey === key) {
-                        colIndex = i;
-                        break;
-                    }
-                    // T117: also check data-sort directly on th
-                    if (headers[i].dataset.sort === key) {
-                        colIndex = i;
-                        break;
-                    }
-                }
-                if (colIndex < 0) return '';
-
-                var cells = row.querySelectorAll('td');
-                if (colIndex >= cells.length) return '';
-                var text = cells[colIndex].textContent.trim();
-
-                // Try numeric for numeric columns
-                var num = parseFloat(text.replace(/,/g, ''));
-                if (!isNaN(num)) return num;
-                return text.toLowerCase();
-            }
 
             function updateDetailSortIndicators() {
                 // Update button-based carets
                 detailSortBtns.forEach(function(btn) {
                     var caret = btn.querySelector('.c-data-table__sort-icon');
                     if (!caret) return;
-                    if (btn.dataset.sortKey === detailSortState.key) {
-                        caret.textContent = detailSortState.ascending ? '↑' : '↓';
+                    if (btn.dataset.sortKey === projectDetailSortState.key) {
+                        caret.textContent = projectDetailSortState.ascending ? '↑' : '↓';
                     } else {
                         caret.textContent = '↕';
                     }
@@ -660,13 +594,14 @@
                 // T117: update data-sorted attribute on th for CSS :after indicator
                 var allSortableThs = detailTable.querySelectorAll('th.sortable');
                 allSortableThs.forEach(function(th) {
-                    if (th.dataset.sort === detailSortState.key) {
-                        th.setAttribute('data-sorted', detailSortState.ascending ? 'asc' : 'desc');
+                    if (th.dataset.sort === projectDetailSortState.key) {
+                        th.setAttribute('data-sorted', projectDetailSortState.ascending ? 'asc' : 'desc');
                     } else {
                         th.removeAttribute('data-sorted');
                     }
                 });
             }
+            updateDetailSortIndicators();
 
         } // end if (detailTable)
     }
@@ -683,6 +618,10 @@
             : null;
         if (search && search.value.trim()) params.set('q', search.value.trim());
         else params.delete('q');
+        if (projectDetailSortState.key) {
+            params.set('sort', projectDetailSortState.key);
+            params.set('dir', projectDetailSortState.ascending ? 'asc' : 'desc');
+        }
         return params;
     }
 
@@ -696,13 +635,15 @@
             apiFetch('/api/projects/' + encoded + '/token-trend', params),
             apiFetch('/api/projects/' + encoded + '/agent-mix', params),
             apiFetch('/api/projects/' + encoded + '/tool-hotspots', params),
+            apiFetch('/api/projects/' + encoded + '/sessions/summary', params),
             apiFetch('/api/projects/' + encoded + '/sessions/rows', params)
         ]).then(function(parts) {
             renderProjectDetailSummary(parts[0]);
             renderProjectTokenTrend(parts[1]);
             renderProjectAgentMix(parts[2]);
             renderToolHotspots(parts[3]);
-            renderProjectSessions(parts[4], detailTable);
+            renderProjectSessionSummary(parts[4]);
+            renderProjectSessions(parts[5], detailTable);
             window.history.replaceState({ api: true }, '', window.location.pathname + (normalizeProjectParams(params).toString() ? '?' + normalizeProjectParams(params).toString() : ''));
         }).catch(function(err) {
             console.error('Project Detail API hydration failed:', err.message || err);
@@ -715,8 +656,12 @@
         if (!detailTable || !projectKey) return;
         var encoded = encodeURIComponent(projectKey);
         var qs = normalizeProjectParams(params || projectDetailParams());
-        apiFetch('/api/projects/' + encoded + '/sessions/rows', qs).then(function(response) {
-            renderProjectSessions(response, detailTable);
+        Promise.all([
+            apiFetch('/api/projects/' + encoded + '/sessions/summary', qs),
+            apiFetch('/api/projects/' + encoded + '/sessions/rows', qs)
+        ]).then(function(parts) {
+            renderProjectSessionSummary(parts[0]);
+            renderProjectSessions(parts[1], detailTable);
             var url = window.location.pathname + (qs.toString() ? '?' + qs.toString() : '');
             if (replaceState) window.history.replaceState({ api: true }, '', url);
             else window.history.pushState({ api: true }, '', url);
@@ -739,6 +684,19 @@
         setMetricCardValue(cards[4], formatNumber(summary.failedTools));
     }
 
+    function renderProjectSessionSummary(summary) {
+        if (!summary) return;
+        var subtitle = document.querySelector('#project-sessions-table')
+            ? document.querySelector('#project-sessions-table').closest('.card').querySelector('.card-sub')
+            : null;
+        if (subtitle) {
+            var total = Number(summary.totalCount || 0);
+            var tokenTotal = summary.tokens ? Number(summary.tokens.total || 0) : 0;
+            subtitle.textContent = formatNumber(total) + ' sessions in this project · ' + formatCompact(tokenTotal) + ' tokens';
+        }
+        document.body.setAttribute('data-project-sessions-total', String(summary.totalCount || 0));
+    }
+
     function renderProjectTokenTrend(response) {
         var points = response && response.points ? response.points : [];
         var wrap = document.querySelector('.project-trend-points');
@@ -755,9 +713,10 @@
     function renderProjectAgentMix(response) {
         var bar = document.querySelector('.agent-mix-bar');
         if (!bar || !response || !Array.isArray(response.rows)) return;
-        bar.replaceChildren.apply(bar, response.rows.filter(function(row) {
+        var activeRows = response.rows.filter(function(row) {
             return Number(row.sessions || 0) > 0;
-        }).map(function(row) {
+        });
+        bar.replaceChildren.apply(bar, activeRows.map(function(row) {
             var a = document.createElement('a');
             var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
             a.className = 'agent-mix-bar__segment agent-mix-bar__segment--' + scope;
@@ -765,6 +724,19 @@
             a.style.setProperty('--segment-width', Math.max(2, row.sessionShare || 0) + '%');
             a.textContent = row.label + ' · ' + formatNumber(row.sessions);
             return a;
+        }));
+        var list = document.querySelector('.agent-mix-list');
+        if (!list) return;
+        list.replaceChildren.apply(list, response.rows.map(function(row) {
+            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
+            var link = document.createElement('a');
+            link.href = '/dashboard?agent=' + encodeURIComponent(scope);
+            link.className = 'agent-mix-row';
+            setMarkup(link, '<span><span class="badge ' + agentBadgeMeta(row.agent).cls + ' badge--has-dot" role="status"><span class="badge-dot badge-dot--' + agentBadgeMeta(row.agent).dot + '" aria-hidden="true"></span>' + agentBadgeMeta(row.agent).shortLabel + '</span></span>'
+                + '<span>' + escapeHtml(formatNumber(row.sessions)) + ' sessions</span>'
+                + '<span>' + escapeHtml(formatCompact(row.tokens && row.tokens.total)) + ' tokens</span>'
+                + '<span>' + escapeHtml(formatNumber(row.failedTools)) + ' failed</span>');
+            return link;
         }));
     }
 
@@ -784,9 +756,9 @@
             var empty = document.createElement('tr');
             var td = document.createElement('td');
             td.colSpan = 12;
-            td.innerHTML = '<div class="empty-state"><div class="empty-state__icon" aria-hidden="true">📁</div><h2 class="empty-state__title">'
+            setMarkup(td, '<div class="empty-state"><div class="empty-state__icon" aria-hidden="true">📁</div><h2 class="empty-state__title">'
                 + escapeHtml(response.state && response.state.title ? response.state.title : 'No sessions in this project yet')
-                + '</h2><a class="btn primary" href="/sessions" data-action="view-all">View all sessions</a></div>';
+                + '</h2><a class="btn primary" href="/sessions" data-action="view-all">View all sessions</a></div>');
             empty.appendChild(td);
             tbody.replaceChildren(empty);
         } else {
@@ -803,7 +775,7 @@
         tr.dataset.href = row.detailUrl || '';
         tr.dataset.title = title;
         tr.dataset.sessionId = row.sessionId || '';
-        tr.innerHTML = [
+        setMarkup(tr, [
             '<td><div class="title-main"><a href="', escapeHtml(row.detailUrl || '#'), '" class="session-link">', escapeHtml(title), '</a></div>',
             '<div class="title-sub mono">', escapeHtml((row.sessionId || '').slice(-8)), '<button class="btn sm session-copy-btn" data-action="copy" data-copy-text="', escapeHtml(row.sessionId || ''), '" aria-label="Copy session ID" title="Copy session ID">Copy</button></div></td>',
             '<td><span class="badge ', row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd'), '">', row.agent === 'claude_code' ? 'CC' : (row.agent === 'codex' ? 'CX' : 'QD'), '</span></td>',
@@ -814,7 +786,7 @@
             '<td class="num mono" data-tooltip="', escapeHtml(row.processSeconds), 's">', formatDuration(row.processSeconds), '</td>',
             '<td class="', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">', Number(row.failedTools || 0) > 0 ? '<span class="badge err">' + escapeHtml(row.failedTools) + ' failed</span>' : 'No failures', '</td>',
             '<td class="mono" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td><td class="muted">', escapeHtml(formatDate(row.updatedAt)), '</td>'
-        ].join('');
+        ].join(''));
         return tr;
     }
 
@@ -822,7 +794,7 @@
         var nav = table.closest('.card').querySelector('.pagination');
         if (!nav || !pagination) return;
         var disabled = (pagination.totalPages || 0) <= 1;
-        nav.innerHTML = '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
+        setMarkup(nav, '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
             + (!pagination.hasPrevious || disabled ? ' disabled' : '') + '>&lsaquo; prev</button><span class="page-status">Page</span>'
             + '<input class="page-input mono" data-action="page-input" value="' + escapeHtml(pagination.page) + '" aria-label="Page number"'
             + (disabled ? ' disabled' : '') + ' data-total-pages="' + escapeHtml(pagination.totalPages || 1) + '"/>'
@@ -831,7 +803,7 @@
             + '<label class="page-size-label" aria-label="每页条数"><span class="page-status">每页</span><select class="page-size-select" data-action="page-size">'
             + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize) + pageSizeOption(100, pagination.pageSize)
             + '</select></label><button class="btn sm" data-action="next-page" aria-label="Next page"'
-            + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>';
+            + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>');
     }
 
     /* ── Server-side pagination (both list and detail pages) ── */

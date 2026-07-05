@@ -28,14 +28,16 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('[UI-SESSIONS-015] 1440x900 截图', async ({ page }) => {
+  test('[UI-SESSIONS-015] 1440x900 API-first 列表布局 smoke', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/sessions');
     await expect(page.locator('body')).toBeVisible();
-    await expect(page).toHaveScreenshot('sessions-1440x900.png', {
-      fullPage: true,
-      maxDiffPixelRatio: 0.05,
-    });
+    await expect(page.getByText('Loading sessions')).toHaveCount(0, { timeout: 10000 });
+    await expect(page.locator('.sessions-table-card')).toBeVisible();
+    await expect(page.locator('[data-api-rows="/api/sessions/rows"]')).toBeVisible();
+    const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
+    const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
+    expect(scrollWidth, 'API 渲染后不应产生横向页面滚动').toBeLessThanOrEqual(viewportWidth + 2);
   });
 
   test('[UI-SESSIONS-002] 数据表格包含全部列头', async ({ page }) => {

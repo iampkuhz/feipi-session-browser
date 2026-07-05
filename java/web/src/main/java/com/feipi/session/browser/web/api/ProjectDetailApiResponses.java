@@ -167,6 +167,8 @@ public final class ProjectDetailApiResponses {
    * @param failedTools 当前统计口径下的工具数量。
    * @param sessionShare session 占比。
    * @param tokenShare token 占比。
+   * @param sessionShareRatio session 占比原始比例。
+   * @param tokenShareRatio token 占比原始比例。
    */
   public record ProjectAgentMixRow(
       String agent,
@@ -175,7 +177,9 @@ public final class ProjectDetailApiResponses {
       TokenSegments tokens,
       long failedTools,
       double sessionShare,
-      double tokenShare) {
+      double tokenShare,
+      double sessionShareRatio,
+      double tokenShareRatio) {
 
     /** 校验字段和业务不变量。 */
     public ProjectAgentMixRow {
@@ -184,6 +188,12 @@ public final class ProjectDetailApiResponses {
       Objects.requireNonNull(tokens, "tokens must not be null");
       if (sessions < 0 || failedTools < 0) {
         throw new IllegalArgumentException("agent mix counts must be non-negative");
+      }
+      if (sessionShareRatio < 0.0
+          || sessionShareRatio > 1.0
+          || tokenShareRatio < 0.0
+          || tokenShareRatio > 1.0) {
+        throw new IllegalArgumentException("agent mix ratios must be between 0 and 1");
       }
     }
   }

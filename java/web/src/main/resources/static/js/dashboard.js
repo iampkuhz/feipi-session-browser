@@ -148,17 +148,15 @@
 
 /**
  * dashboard-charts.js - Chart rendering for Dashboard.
- * Reads data from JSON data blocks injected by Jinja2 template.
+ * Business data is hydrated from Dashboard resource APIs.
  */
 (function() {
     'use strict';
 
     document.addEventListener('DOMContentLoaded', function() {
-        var rawData = parseJsonBlock('dashboard-graph-data');
-        var promptRawData = parseJsonBlock('dashboard-prompt-data');
-        var cacheRawData = parseJsonBlock('dashboard-cache-health-data');
-
-        if (!rawData.length && !promptRawData.length && !cacheRawData.length) return;
+        var rawData = [];
+        var promptRawData = [];
+        var cacheRawData = [];
 
         var AGENTS = [
             { key: 'claude_code', scope: 'claude-code', label: 'Claude Code', countKey: 'claude_count', promptKey: 'claude_prompts', tokenKey: 'claude_tokens', dot: 'claude' },
@@ -171,17 +169,6 @@
             { key: 'cache_write_tokens', cls: 'write', label: 'Cache Write' },
             { key: 'output_tokens', cls: 'out', label: 'Output' }
         ];
-
-        function parseJsonBlock(id) {
-            var el = document.getElementById(id);
-            if (!el) return [];
-            try {
-                var data = JSON.parse(el.textContent || '[]');
-                return Array.isArray(data) ? data : [];
-            } catch (err) {
-                return [];
-            }
-        }
 
         function weekKey(dateStr) {
             if (!dateStr) return '';
@@ -831,6 +818,7 @@
             setKpiValue('Sessions', formatNumber(summary.sessionCount));
             setKpiValue('Projects', formatNumber(summary.projectCount));
             setKpiValue('Total Tokens', formatTokens(summary.tokens && summary.tokens.total));
+            setKpiValue('User Prompts', formatNumber(summary.userMessages));
             setKpiValue('Failed Tools', formatNumber(summary.failedTools));
             setKpiValue('Cache Read Ratio', summary.cacheReadRatio && summary.cacheReadRatio.value != null
                 ? formatPct(summary.cacheReadRatio.value * 100)
@@ -932,7 +920,7 @@
             if (!table) return;
             var tbody = table.querySelector('tbody');
             if (!tbody) return;
-            tbody.innerHTML = resp.rows.map(function(row) {
+            setChartMarkup(tbody, resp.rows.map(function(row) {
                 var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
                 return '<tr class="agent-row" data-action="switch-agent-scope" data-scope="' + escapeHtml(scope) + '">' +
                     '<td data-sort-value="' + escapeHtml(row.label) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.label) + '</span></td>' +
@@ -941,18 +929,18 @@
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.prompts) + '">' + formatNumber(row.prompts) + ' <span class="muted">· ' + formatPct(row.promptShare) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.projectCount) + '">' + formatNumber(row.projectCount) + '</td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.failedTools) + '">' + formatNumber(row.failedTools) + ' failed</td><td class="numeric">—</td></tr>';
-            }).join('');
+            }).join(''));
         }
 
         function renderContributionBar(name, rows, valueKey, shareKey, formatter) {
             var bar = document.querySelector('[data-hbar="' + name + '"]');
             if (!bar) return;
-            bar.innerHTML = rows.filter(function(row) { return valueOf(row, valueKey) > 0; }).map(function(row) {
+            setChartMarkup(bar, rows.filter(function(row) { return valueOf(row, valueKey) > 0; }).map(function(row) {
                 var value = valueOf(row, valueKey);
                 var shareValue = row[shareKey] || 0;
                 return '<div class="hbar-seg hbar-seg--' + escapeHtml(row.agent) + '" style="--seg-width: ' + Math.max(2, shareValue) + '%" data-agent="' + escapeHtml(row.label) + '" data-value="' + escapeHtml(value) + '" data-share="' + escapeHtml(formatPct(shareValue)) + '">' +
                     '<span class="hbar-seg__label">' + escapeHtml(row.label) + '</span><span class="hbar-seg__pct">' + escapeHtml(formatPct(shareValue)) + '</span></div>';
-            }).join('');
+            }).join(''));
         }
 
         function valueOf(row, key) {
@@ -964,12 +952,12 @@
             if (table && allResp && Array.isArray(allResp.rows)) {
                 var tbody = table.querySelector('tbody');
                 if (tbody) {
-                    tbody.innerHTML = allResp.rows.map(efficiencyRowHtml).join('');
+                    setChartMarkup(tbody, allResp.rows.map(efficiencyRowHtml).join(''));
                 }
             }
             var detailTable = document.querySelector('section[aria-label="Model Efficiency Detail"] table.data-table tbody');
             if (detailTable && deepResp && Array.isArray(deepResp.rows)) {
-                detailTable.innerHTML = deepResp.rows.map(efficiencyDetailRowHtml).join('');
+                setChartMarkup(detailTable, deepResp.rows.map(efficiencyDetailRowHtml).join(''));
             }
         }
 

@@ -25,6 +25,7 @@ import java.util.Objects;
  * @param cacheWriteTokens cache write token 数量。
  * @param outputTokens output token 数量。
  * @param totalTokens token 汇总数量。
+ * @param failedToolCallIds 本轮次内状态为失败的工具调用 ID 列表。
  */
 public record CallRound(
     int roundIndex,
@@ -35,7 +36,8 @@ public record CallRound(
     long cacheReadTokens,
     long cacheWriteTokens,
     long outputTokens,
-    long totalTokens) {
+    long totalTokens,
+    List<String> failedToolCallIds) {
 
   /**
    * 紧凑构造器，验证轮次不变量。
@@ -49,8 +51,10 @@ public record CallRound(
     }
     Objects.requireNonNull(calls, "calls 不得为 null");
     Objects.requireNonNull(toolCallIds, "toolCallIds 不得为 null");
+    Objects.requireNonNull(failedToolCallIds, "failedToolCallIds 不得为 null");
     calls = List.copyOf(calls);
     toolCallIds = List.copyOf(toolCallIds);
+    failedToolCallIds = List.copyOf(failedToolCallIds);
     parentCallId = parentCallId == null ? "" : parentCallId;
     requireNonNegative(freshInputTokens, "freshInputTokens");
     requireNonNegative(cacheReadTokens, "cacheReadTokens");
@@ -70,8 +74,36 @@ public record CallRound(
    * <p>缺少 per-round usage 的调用方使用零值 token 统计；由 assembler 创建的生产 round 会填入真实 usage。
    */
   public CallRound(
+      int roundIndex,
+      List<String> calls,
+      List<String> toolCallIds,
+      String parentCallId,
+      long freshInputTokens,
+      long cacheReadTokens,
+      long cacheWriteTokens,
+      long outputTokens,
+      long totalTokens) {
+    this(
+        roundIndex,
+        calls,
+        toolCallIds,
+        parentCallId,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        outputTokens,
+        totalTokens,
+        List.of());
+  }
+
+  /**
+   * 兼容旧调用方的轻量构造器。
+   *
+   * <p>缺少 per-round usage 的调用方使用零值 token 统计；由 assembler 创建的生产 round 会填入真实 usage。
+   */
+  public CallRound(
       int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId) {
-    this(roundIndex, calls, toolCallIds, parentCallId, 0, 0, 0, 0, 0);
+    this(roundIndex, calls, toolCallIds, parentCallId, 0, 0, 0, 0, 0, List.of());
   }
 
   /**
@@ -100,6 +132,11 @@ public record CallRound(
   /** 本轮次的工具调用数量。 */
   public int toolCallCount() {
     return toolCallIds.size();
+  }
+
+  /** 本轮次失败工具调用数量。 */
+  public int failedToolCount() {
+    return failedToolCallIds.size();
   }
 
   /** 是否为空轮次（无调用且无工具调用）。 */

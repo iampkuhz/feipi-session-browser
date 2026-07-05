@@ -1,557 +1,71 @@
 #!/usr/bin/env python3
-"""提供 检查 projects list HTML 脚本能力。"""
+"""API-first static smoke checks for the Java Projects list page."""
 
 from __future__ import annotations
 
-import re
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-PROJECTS_HTML = ROOT / 'src/session_browser/web/templates/projects.html'
-UI_HELPERS = ROOT / 'src/session_browser/web/templates/components/ui_primitives/_helpers.html'
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from _api_first_checklib import CSS, JS, TEMPLATES, exists, has_all, has_none, read, run
 
 
-# 读取文件内容。
-def read(path: Path) -> str:
-    """参数：
-        path: 待检查的路径。
-
-    返回：
-        文件 text, 或 空 字符串 当 路径 缺失。
-    """
-    return path.read_text(encoding='utf-8') if path.exists() else ''
-
-
-# 解析命令行参数并运行脚本入口。
-def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
-    """返回：
-        进程退出码。
-    """
-    html = read(PROJECTS_HTML)
-    macro_html = read(UI_HELPERS)
-    contract_html = html + '\n' + macro_html
-
-    checks: list[tuple[str, callable]] = [
-        # 1. 文件 existence。
+def main() -> int:
+    html_path = TEMPLATES / 'projects.html'
+    js_path = JS / 'projects.js'
+    css_path = CSS / 'projects.css'
+    html = read(html_path)
+    js = read(js_path)
+    checks = [
+        ('projects.html exists', lambda: exists(html_path)),
+        ('projects.js exists', lambda: exists(js_path)),
+        ('projects.css exists', lambda: exists(css_path)),
         (
-            'T109-H01 projects.html exists',
-            lambda: (PROJECTS_HTML.exists(), 'exists' if PROJECTS_HTML.exists() else 'MISSING'),
-        ),
-        (
-            'T109-H02 extends base.html',
-            lambda: (
-                '{% extends "base.html" %}' in html,
-                'extends base.html found' if '{% extends "base.html" %}' in html else 'MISSING',
+            'template declares resource APIs',
+            lambda: has_all(
+                html,
+                [
+                    'data-api-summary="/api/projects/summary"',
+                    'data-api-rows="/api/projects/rows"',
+                    'Project rows are loaded from /api/projects/rows.',
+                ],
             ),
         ),
         (
-            'T109-H03 active_page set to projects',
-            lambda: (
-                "{% set active_page = 'projects' %}" in html,
-                "active_page='projects' found"
-                if "{% set active_page = 'projects' %}" in html
-                else 'MISSING',
+            'template keeps loading/state shell',
+            lambda: has_all(
+                html,
+                ['Loading projects', 'Loading matching projects', 'projects-empty', 'role="status"', 'aria-live="polite"'],
             ),
         ),
         (
-            'T109-H04 ui_primitives imported',
-            lambda: (
-                '{% import "components/ui_primitives.html" as ui %}' in html,
-                'ui_primitives imported'
-                if '{% import "components/ui_primitives.html" as ui %}' in html
-                else 'MISSING',
+            'template keeps API-first controls',
+            lambda: has_all(
+                html,
+                ['data-action="sort"', 'data-action="clear-search"', 'data-action="prev-page"', 'data-action="next-page"', 'data-action="page-size"'],
             ),
         ),
         (
-            'T109-H05 No inline <style> blocks',
-            lambda: (
-                not bool(re.search(r'<style>', html)),
-                'clean' if not re.search(r'<style>', html) else 'INLINE STYLE FOUND',
+            'template has no SSR business rows/tokenbars',
+            lambda: has_none(
+                html,
+                ['{% for project', '{% for p in projects', 'class="tokenbar"', 'class="tokenbar-seg fresh"', 'project_' + 'summary.'],
             ),
         ),
         (
-            'T109-H06 No inline <script> (non-JSON)',
-            lambda: (
-                not bool(re.findall(r'<script(?![^>]*type="application/json")[^>]*>[^<]', html)),
-                'clean'
-                if not re.findall(r'<script(?![^>]*type="application/json")[^>]*>[^<]', html)
-                else 'INLINE SCRIPT FOUND',
-            ),
+            'JS fetches split Projects APIs',
+            lambda: has_all(js, ['/api/projects/summary', '/api/projects/rows', '/api/projects/active-filters']),
         ),
         (
-            'T109-H07 No inline onclick',
-            lambda: (
-                'onclick=' not in html,
-                'clean' if 'onclick=' not in html else 'INLINE ONCLICK FOUND',
-            ),
+            'JS owns dynamic row/tokenbar rendering',
+            lambda: has_all(js, ['renderProjectRows', 'data-action', 'open-project', 'copy', 'tokenbar-seg fresh', 'tokenbar-seg out']),
         ),
-        (
-            'T109-H08 projects.css imported',
-            lambda: (
-                'href="/static/css/projects.css"' in html,
-                'projects.css found' if 'href="/static/css/projects.css"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H09 projects.js imported',
-            lambda: (
-                'src="/static/js/projects.js"' in html,
-                'projects.js found' if 'src="/static/js/projects.js"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H10 .page-head present',
-            lambda: (
-                'class="page-head"' in html,
-                'page-head found' if 'class="page-head"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H11 h1 in page-head',
-            lambda: (
-                '<h1>Projects</h1>' in html,
-                'h1 found' if '<h1>Projects</h1>' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H12 Subtitle text present',
-            lambda: (
-                '<p>Indexed local workspaces</p>' in html,
-                'subtitle found' if '<p>Indexed local workspaces</p>' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H13 metric-grid present',
-            lambda: (
-                'class="metric-grid"' in html,
-                'metric-grid found' if 'class="metric-grid"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H14 4 metric cards',
-            lambda: (
-                html.count('class="metric-card"') >= 4,
-                "{} metric-card(s) found".format(html.count('class="metric-card"'))
-                if html.count('class="metric-card"') >= 4
-                else "ONLY {} metric-card(s)".format(html.count('class="metric-card"')),
-            ),
-        ),
-        (
-            'T109-H15 metric-icon present in cards',
-            lambda: (
-                'class="metric-icon' in html,
-                'metric-icon found' if 'class="metric-icon' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H16 metric-label present in cards',
-            lambda: (
-                'class="metric-label"' in html,
-                'metric-label found' if 'class="metric-label"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H17 metric-value present in cards',
-            lambda: (
-                'class="metric-value' in html,
-                'metric-value found' if 'class="metric-value' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H18 metric-info buttons present',
-            lambda: (
-                html.count('data-action="metric-info"') >= 4,
-                "{} metric-info button(s) found".format(html.count('data-action="metric-info"')),
-            ),
-        ),
-        (
-            'T109-H19 data-metric: projects-count',
-            lambda: (
-                'data-metric="projects-count"' in html,
-                'data-metric=projects-count found'
-                if 'data-metric="projects-count"' in html
-                else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H20 data-metric: total-sessions',
-            lambda: (
-                'data-metric="total-sessions"' in html,
-                'data-metric=total-sessions found'
-                if 'data-metric="total-sessions"' in html
-                else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H21 data-metric: total-tokens',
-            lambda: (
-                'data-metric="total-tokens"' in html,
-                'data-metric=total-tokens found'
-                if 'data-metric="total-tokens"' in html
-                else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H22 data-metric: failed-tools',
-            lambda: (
-                'data-metric="failed-tools"' in html,
-                'data-metric=failed-tools found'
-                if 'data-metric="failed-tools"' in html
-                else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H23 filter-card present',
-            lambda: (
-                'class="card filter-card"' in html,
-                'filter-card found' if 'class="card filter-card"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H24 Search input with data-search',
-            lambda: (
-                'data-search="project-name"' in html,
-                'data-search found' if 'data-search="project-name"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H25 Apply button',
-            lambda: (
-                'data-action="apply-search"' in html,
-                'apply-search button found' if 'data-action="apply-search"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H26 Clear button',
-            lambda: (
-                'data-action="clear-search"' in html,
-                'clear-search button found' if 'data-action="clear-search"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H27 active-filters region',
-            lambda: (
-                'class="active-filters"' in html,
-                'active-filters found' if 'class="active-filters"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H28 filter-chip present',
-            lambda: (
-                'class="filter-chip"' in html,
-                'filter-chip found' if 'class="filter-chip"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H29 data-table present',
-            lambda: (
-                'class="data-table"' in html,
-                'data-table found' if 'class="data-table"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H30 6 column headers',
-            lambda: (
-                all(
-                    x in html
-                    for x in [
-                        '<th>Project</th>',
-                        '<th>Agents</th>',
-                        'Sessions',
-                        'Tokens',
-                        'Tools',
-                        'Last Active',
-                    ]
-                ),
-                'all 6 columns found'
-                if all(
-                    x in html
-                    for x in [
-                        '<th>Project</th>',
-                        '<th>Agents</th>',
-                        'Sessions',
-                        'Tokens',
-                        'Tools',
-                        'Last Active',
-                    ]
-                )
-                else 'MISSING column headers',
-            ),
-        ),
-        (
-            'T109-H31 Sortable headers (data-action=sort)',
-            lambda: (
-                html.count('data-action="sort"') >= 4,
-                "{} sortable header(s) found".format(html.count('data-action="sort"')),
-            ),
-        ),
-        (
-            'T109-H32 data-sort=sessions',
-            lambda: (
-                'data-sort="sessions"' in html,
-                'data-sort=sessions found' if 'data-sort="sessions"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H33 data-sort=tokens',
-            lambda: (
-                'data-sort="tokens"' in html,
-                'data-sort=tokens found' if 'data-sort="tokens"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H34 data-sort=tools',
-            lambda: (
-                'data-sort="tools"' in html,
-                'data-sort=tools found' if 'data-sort="tools"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H35 data-sort=last_active',
-            lambda: (
-                'data-sort="last_active"' in html,
-                'data-sort=last_active found' if 'data-sort="last_active"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H36 table-toolbar present',
-            lambda: (
-                'class="table-toolbar"' in html,
-                'table-toolbar found' if 'class="table-toolbar"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H37 table-title present',
-            lambda: (
-                'class="table-title"' in html,
-                'table-title found' if 'class="table-title"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H38 table-note present',
-            lambda: (
-                'class="table-note"' in html,
-                'table-note found' if 'class="table-note"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H39 data-action=open-project',
-            lambda: (
-                'data-action="open-project"' in html,
-                'open-project found' if 'data-action="open-project"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H40 data-action=open-project-link',
-            lambda: (
-                'data-action="open-project-link"' in html,
-                'open-project-link found'
-                if 'data-action="open-project-link"' in html
-                else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H41 canonical copy action',
-            lambda: (
-                'data-action="copy"' in contract_html,
-                'copy action found' if 'data-action="copy"' in contract_html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H42 data-copy-text present',
-            lambda: (
-                'data-copy-text="' in contract_html,
-                'data-copy-text found' if 'data-copy-text="' in contract_html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H43 badge cc (Claude Code)',
-            lambda: (
-                'class="badge cc"' in html,
-                'badge cc found' if 'class="badge cc"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H44 badge cx (Codex)',
-            lambda: (
-                'class="badge cx"' in html,
-                'badge cx found' if 'class="badge cx"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H45 badge qd (Qoder)',
-            lambda: (
-                'class="badge qd"' in html,
-                'badge qd found' if 'class="badge qd"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H46 dot claude',
-            lambda: (
-                'class="dot claude"' in html,
-                'dot claude found' if 'class="dot claude"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H47 dot codex',
-            lambda: (
-                'class="dot codex"' in html,
-                'dot codex found' if 'class="dot codex"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H48 dot qoder',
-            lambda: (
-                'class="dot qoder"' in html,
-                'dot qoder found' if 'class="dot qoder"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H49 tokenbar present',
-            lambda: (
-                'class="tokenbar"' in html,
-                'tokenbar found' if 'class="tokenbar"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H50 tokenbar-seg fresh',
-            lambda: (
-                'class="tokenbar-seg fresh"' in html,
-                'fresh segment found' if 'class="tokenbar-seg fresh"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H51 tokenbar-seg read',
-            lambda: (
-                'class="tokenbar-seg read"' in html,
-                'read segment found' if 'class="tokenbar-seg read"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H52 tokenbar-seg write',
-            lambda: (
-                'class="tokenbar-seg write"' in html,
-                'write segment found' if 'class="tokenbar-seg write"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H53 tokenbar-seg out',
-            lambda: (
-                'class="tokenbar-seg out"' in html,
-                'out segment found' if 'class="tokenbar-seg out"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H54 Token tooltip present',
-            lambda: (
-                'class="tooltip"' in html and 'class="tip-title"' in html,
-                'tooltip found'
-                if 'class="tooltip"' in html and 'class="tip-title"' in html
-                else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H55 nav with role=navigation',
-            lambda: (
-                'role="navigation"' in html,
-                'role=navigation found' if 'role="navigation"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H56 page-input present',
-            lambda: (
-                'data-action="page-input"' in html,
-                'page-input found' if 'data-action="page-input"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H57 next-page button',
-            lambda: (
-                'data-action="next-page"' in html,
-                'next-page found' if 'data-action="next-page"' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H58 page-status present',
-            lambda: (
-                'class="page-status"' in html,
-                'page-status found' if 'class="page-status"' in html else 'MISSING',
-            ),
-        ),
-        # 17. 空/错误 states。
-        (
-            'T109-H59 empty_state macro',
-            lambda: (
-                'ui.empty_state(' in html,
-                'empty_state found' if 'ui.empty_state(' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H60 error_state macro',
-            lambda: (
-                'ui.error_state(' in html,
-                'error_state found' if 'ui.error_state(' in html else 'MISSING',
-            ),
-        ),
-        (
-            'T109-H61 state-strip present',
-            lambda: (
-                'class="state-strip' in html,
-                'state-strip found' if 'class="state-strip' in html else 'MISSING',
-            ),
-        ),
-        # 18. data-action 覆盖率。
-        (
-            'T109-H62 data-action coverage (sort, open-project, copy, pagination)',
-            lambda: (
-                all(
-                    x in contract_html
-                    for x in [
-                        'data-action="sort"',
-                        'data-action="open-project"',
-                        'data-action="open-project-link"',
-                        'data-action="copy"',
-                        'data-action="apply-search"',
-                        'data-action="clear-search"',
-                        'data-action="page-input"',
-                        'data-action="next-page"',
-                        'data-action="metric-info"',
-                    ]
-                ),
-                'all covered'
-                if all(
-                    x in contract_html
-                    for x in [
-                        'data-action="sort"',
-                        'data-action="open-project"',
-                        'data-action="open-project-link"',
-                        'data-action="copy"',
-                        'data-action="apply-search"',
-                        'data-action="clear-search"',
-                        'data-action="page-input"',
-                        'data-action="next-page"',
-                        'data-action="metric-info"',
-                    ]
-                )
-                else 'MISSING some data-action values',
-            ),
-        ),
+        ('JS no legacy HTML fragment fetch', lambda: has_none(js, ['X-Requested-With', "fetch('/projects'", 'fetch("/projects"'])),
     ]
-
-    all_pass = True
-    for label, run in checks:
-        ok, detail = run()
-        status = 'PASS' if ok else 'FAIL'
-        if not ok:
-            all_pass = False
-        print(f'  [{status}] {label}: {detail}')
-
-    print()
-    if all_pass:
-        print('PASS: projects-list HTML QA checks')
-        return 0
-    print('FAIL: projects-list HTML QA checks -- see details above')
-    return 1
+    return run('projects list API-first QA checks', checks)
 
 
 if __name__ == '__main__':

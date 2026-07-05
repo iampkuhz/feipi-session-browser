@@ -1,218 +1,62 @@
 #!/usr/bin/env python3
-"""提供 检查 sessions list HTML 脚本能力。"""
+"""API-first static smoke checks for the Java Sessions list page."""
 
 from __future__ import annotations
 
-import re
+import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[3]
-SESSIONS_HTML = ROOT / 'src/session_browser/web/templates/sessions.html'
-COMPONENTS = ROOT / 'src/session_browser/web/templates/components/sessions_list_components.html'
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
+
+from _api_first_checklib import CSS, JS, TEMPLATES, exists, has_all, has_none, read, run
 
 
-# 读取文件内容。
-def read(path: Path) -> str:
-    """参数：
-        path: 待检查的路径。
-
-    返回：
-        Template text, 或 空 字符串 当 缺失 so 检查 reports 失败项。
-    """
-    return path.read_text(encoding='utf-8') if path.exists() else ''
-
-
-# 解析命令行参数并运行脚本入口。
-def main() -> int:  # noqa: PLR2004 - thresholds are static DOM contract counts.
-    """返回：
-        进程退出码。
-    """
-    sessions = read(SESSIONS_HTML)
-    components = read(COMPONENTS)
-
-    checks: list[tuple[str, callable]] = [
+def main() -> int:
+    html_path = TEMPLATES / 'sessions.html'
+    js_path = JS / 'sessions-list.js'
+    css_path = CSS / 'sessions-list.css'
+    html = read(html_path)
+    js = read(js_path)
+    checks = [
+        ('sessions.html exists', lambda: exists(html_path)),
+        ('sessions-list.js exists', lambda: exists(js_path)),
+        ('sessions-list.css exists', lambda: exists(css_path)),
         (
-            'T081-H01 sessions.html exists',
-            lambda: (SESSIONS_HTML.exists(), 'exists' if SESSIONS_HTML.exists() else 'MISSING'),
-        ),
-        (
-            'T081-H02 sessions_list_components.html exists',
-            lambda: (COMPONENTS.exists(), 'exists' if COMPONENTS.exists() else 'MISSING'),
-        ),
-        (
-            'T081-H03 Filter form present',
-            lambda: (
-                'id="session-filter-form"' in sessions,
-                'form#session-filter-form found'
-                if 'id="session-filter-form"' in sessions
-                else 'form#session-filter-form NOT FOUND',
+            'template declares split Sessions APIs',
+            lambda: has_all(
+                html,
+                [
+                    'data-api-summary="/api/sessions/summary"',
+                    'data-api-options="/api/sessions/options"',
+                    'data-api-rows="/api/sessions/rows"',
+                    'Filters loaded from /api/sessions/active-filters',
+                ],
             ),
         ),
         (
-            'T081-H04 Search input present',
-            lambda: (
-                'id="session-search"' in sessions,
-                'search input found'
-                if 'id="session-search"' in sessions
-                else 'search input NOT FOUND',
+            'template keeps loading shell and controls',
+            lambda: has_all(
+                html,
+                ['Loading sessions', 'Loading matching sessions', 'data-action="sort"', 'data-action="clear"', 'data-action="prev-page"', 'data-action="next-page"', 'data-action="page-size"'],
             ),
         ),
         (
-            'T081-H05 Agent select present',
-            lambda: (
-                'id="filter-agent"' in sessions,
-                'agent select found'
-                if 'id="filter-agent"' in sessions
-                else 'agent select NOT FOUND',
-            ),
+            'template has no SSR session rows/tokenbars',
+            lambda: has_none(html, ['{% for session', '{% for row', 'tokenbar-seg fresh', 'sessions_' + 'aggregate', 'data-action="row"']),
         ),
         (
-            'T081-H06 Model select present',
-            lambda: (
-                'id="filter-model"' in sessions,
-                'model select found'
-                if 'id="filter-model"' in sessions
-                else 'model select NOT FOUND',
-            ),
+            'JS fetches split Sessions APIs',
+            lambda: has_all(js, ['/api/sessions/summary', '/api/sessions/options', '/api/sessions/rows', '/api/sessions/active-filters']),
         ),
         (
-            'T081-H07 Project select present',
-            lambda: (
-                'id="filter-project"' in sessions,
-                'project select found'
-                if 'id="filter-project"' in sessions
-                else 'project select NOT FOUND',
-            ),
+            'JS owns dynamic row/tokenbar/pagination rendering',
+            lambda: has_all(js, ['renderRows', 'renderPagination', 'data-action', "setAttribute('data-action', 'row')", 'tokenbar-seg fresh', 'tokenbar-seg out']),
         ),
-        (
-            'T081-H08 Apply button present',
-            lambda: (
-                "data_action='apply'" in sessions or 'data_action="apply"' in sessions,
-                'apply button found'
-                if ("data_action='apply'" in sessions or 'data_action="apply"' in sessions)
-                else 'apply button NOT FOUND',
-            ),
-        ),
-        (
-            'T081-H09 Active filters macro present',
-            lambda: (
-                'active_filters' in components or 'active-filters' in sessions,
-                'active filters found'
-                if ('active_filters' in components or 'active-filters' in sessions)
-                else 'active filters NOT FOUND',
-            ),
-        ),
-        (
-            'T081-H10 Data table present',
-            lambda: (
-                'class="data-table"' in sessions,
-                'data-table found' if 'class="data-table"' in sessions else 'data-table NOT FOUND',
-            ),
-        ),
-        (
-            'T081-H11 Sortable columns present',
-            lambda: (
-                sessions.count('data-action="sort"') >= 4,
-                "{} sortable columns found".format(sessions.count('data-action="sort"')),
-            ),
-        ),
-        (
-            'T081-H12 Token bar segments present',
-            lambda: (
-                'tokenbar-seg fresh' in sessions and 'tokenbar-seg out' in sessions,
-                'tokenbar segments found',
-            ),
-        ),
-        (
-            'T081-H13 Row click action present',
-            lambda: (
-                'data-action="row"' in sessions,
-                'data-action=row found'
-                if 'data-action="row"' in sessions
-                else 'data-action=row NOT FOUND',
-            ),
-        ),
-        (
-            'T081-H14 Pagination prev button',
-            lambda: (
-                'data-action="prev-page"' in sessions or 'data-action="prev"' in sessions,
-                'prev button found',
-            ),
-        ),
-        (
-            'T081-H15 Pagination next button',
-            lambda: (
-                'data-action="next-page"' in sessions or 'data-action="next"' in sessions,
-                'next button found',
-            ),
-        ),
-        (
-            'T081-H16 Pagination page input',
-            lambda: ('data-action="page-input"' in sessions, 'page input found'),
-        ),
-        (
-            'T081-H17 Pagination page-status',
-            lambda: ('page-status' in sessions, 'page-status spans found'),
-        ),
-        # 没有inline style/script。
-        (
-            'T081-H18 No inline <style> blocks',
-            lambda: (
-                not bool(re.search(r'<style>(?!.*mhtml)', sessions, re.DOTALL)),
-                'clean'
-                if not re.search(r'<style>(?!.*mhtml)', sessions, re.DOTALL)
-                else 'INLINE STYLE FOUND',
-            ),
-        ),
-        (
-            'T081-H19 No inline <script> (non-JSON)',
-            lambda: (
-                not bool(
-                    re.findall(r'<script(?![^>]*type="application/json")[^>]*>[^<]', sessions)
-                ),
-                'clean'
-                if not re.findall(r'<script(?![^>]*type="application/json")[^>]*>[^<]', sessions)
-                else 'INLINE SCRIPT FOUND',
-            ),
-        ),
-        (
-            'T081-H20 No inline onclick',
-            lambda: (
-                'onclick=' not in sessions,
-                'clean' if 'onclick=' not in sessions else 'INLINE ONCLICK FOUND',
-            ),
-        ),
-        # data-action 覆盖率。
-        (
-            'T081-H21 data-action coverage (clear, row, sort)',
-            lambda: (
-                ("data_action='clear'" in sessions or 'data_action="clear"' in sessions)
-                and 'data-action="row"' in sessions
-                and 'data-action="sort"' in sessions,
-                'all present'
-                if all(
-                    x in sessions
-                    for x in ["data_action='clear'", 'data-action="row"', 'data-action="sort"']
-                )
-                else 'MISSING some',
-            ),
-        ),
+        ('JS no legacy /sessions HTML fetch headers', lambda: has_none(js, ['X-Requested-With'])),
     ]
-
-    all_pass = True
-    for label, run in checks:
-        ok, detail = run()
-        status = 'PASS' if ok else 'FAIL'
-        if not ok:
-            all_pass = False
-        print(f'  [{status}] {label}: {detail}')
-
-    print()
-    if all_pass:
-        print('PASS: sessions-list HTML QA checks')
-        return 0
-    print('FAIL: sessions-list HTML QA checks — see details above')
-    return 1
+    return run('sessions list API-first QA checks', checks)
 
 
 if __name__ == '__main__':

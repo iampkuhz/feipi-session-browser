@@ -130,6 +130,29 @@ class SessionDetailResourceApiTest {
           assertThat(body.at("/rounds/0/toolCallIds/0").asText()).isEqualTo("tool-call-1");
           assertTokens(body.at("/rounds/0/tokens"), 1000, 400, 100, 500, 2000);
           assertThat(body.at("/rounds/0/tokenShare").asDouble()).isCloseTo(1.0, EPSILON);
+          assertThat(body.at("/rounds/0/failedToolCount").asInt()).isEqualTo(1);
+          assertThat(body.at("/rounds/0/failedToolCallIds/0").asText()).isEqualTo("tool-call-1");
+          assertThat(body.at("/rounds/0/status").asText()).isEqualTo("failed");
+          assertThat(body.at("/rounds/0/signals/0").asText()).isEqualTo("Failed");
+        });
+  }
+
+  @Test
+  @DisplayName("rounds 支持 trace_status=failed 过滤并回显 normalized filter")
+  void roundsFilterFailedTraceStatus() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get(ALPHA_URL + "/rounds?trace_status=failed");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.at("/filters/traceStatus").asText()).isEqualTo("failed");
+          assertThat(body.get("roundCount").asLong()).isEqualTo(1);
+          assertThat(body.at("/rounds/0/status").asText()).isEqualTo("failed");
+          assertThat(body.at("/rounds/0/signals/0").asText()).isEqualTo("Failed");
         });
   }
 
@@ -149,12 +172,35 @@ class SessionDetailResourceApiTest {
           assertThat(standardBody.at("/payloads/0/payloadId").asText())
               .isEqualTo("main:req:alpha-call-1");
           assertThat(standardBody.at("/payloads/0/truncated").asBoolean()).isTrue();
+          assertThat(standardBody.at("/payloads/0/status").asText()).isEqualTo("hidden");
+          assertThat(standardBody.at("/payloads/0/apiUrl").asText())
+              .isEqualTo("/api/sessions/claude_code/s-alpha-001/payload/main%3Areq%3Aalpha-call-1");
 
           var full = client.get(ALPHA_URL + "/payloads?visibility=full");
           assertThat(full.code()).isEqualTo(200);
           JsonNode fullBody = MAPPER.readTree(full.body().string());
           assertThat(fullBody.at("/filters/visibility").asText()).isEqualTo("full");
           assertThat(fullBody.at("/payloads/0/truncated").asBoolean()).isFalse();
+          assertThat(fullBody.at("/payloads/0/status").asText()).isEqualTo("available");
+        });
+  }
+
+  @Test
+  @DisplayName("payloads 支持 status=failed 过滤并返回显式 no_results state")
+  void payloadsFilterFailedStatus() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get(ALPHA_URL + "/payloads?status=failed");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.at("/filters/payloadStatus").asText()).isEqualTo("failed");
+          assertThat(body.get("payloadCount").asLong()).isEqualTo(0);
+          assertThat(body.get("payloads")).isEmpty();
+          assertThat(body.at("/state/kind").asText()).isEqualTo("no_results");
         });
   }
 

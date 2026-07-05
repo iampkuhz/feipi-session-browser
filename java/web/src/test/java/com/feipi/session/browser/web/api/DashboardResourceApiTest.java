@@ -210,6 +210,29 @@ class DashboardResourceApiTest {
   }
 
   @Test
+  @DisplayName("agent efficiency 返回全局 model efficiency rows")
+  void agentEfficiencyReturnsAllModelRows() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get("/api/dashboard/agents/efficiency");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.at("/filters/agent").asText()).isEqualTo("all");
+          assertThat(body.get("rows")).hasSize(2);
+          JsonNode claude = findEfficiencyRow(body.get("rows"), "claude_code", "claude-sonnet-4.5");
+          assertThat(claude.get("sessionCount").asLong()).isEqualTo(2);
+          assertThat(claude.get("avgTokensPerSession").asLong()).isEqualTo(1625);
+          JsonNode codex = findEfficiencyRow(body.get("rows"), "codex", "gpt-5.4");
+          assertThat(codex.get("sessionCount").asLong()).isEqualTo(1);
+          assertThat(codex.get("avgTokensPerSession").asLong()).isEqualTo(800);
+        });
+  }
+
+  @Test
   @DisplayName("agent deep-dive 只返回目标 agent 的 model efficiency")
   void agentDeepDiveFiltersEfficiencyRows() {
     WebCompositionRoot webRoot = createWebRoot();
@@ -272,5 +295,14 @@ class DashboardResourceApiTest {
       }
     }
     throw new AssertionError("agent row not found: " + agent);
+  }
+
+  private static JsonNode findEfficiencyRow(JsonNode rows, String agent, String model) {
+    for (JsonNode row : rows) {
+      if (agent.equals(row.get("agent").asText()) && model.equals(row.get("model").asText())) {
+        return row;
+      }
+    }
+    throw new AssertionError("efficiency row not found: " + agent + " / " + model);
   }
 }

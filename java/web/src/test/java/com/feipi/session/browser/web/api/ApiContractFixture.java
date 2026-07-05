@@ -147,6 +147,8 @@ final class ApiContractFixture {
                     "main",
                     "declared_by_call_id",
                     "alpha-call-1",
+                    "status",
+                    "error: exit 1",
                     "duration_ms",
                     120)));
     MAPPER.writeValue(artifactPath.toFile(), artifact);

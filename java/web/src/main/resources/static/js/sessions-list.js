@@ -87,6 +87,11 @@
       .replace(/'/g, '&#39;');
   }
 
+  function setMarkup(target, markup) {
+    var parsed = new DOMParser().parseFromString(markup || '', 'text/html');
+    target.replaceChildren.apply(target, Array.prototype.slice.call(parsed.body.childNodes));
+  }
+
   function formatNumber(value) {
     return String(Math.round(Number(value || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
   }
@@ -179,27 +184,13 @@
   var _searchTimer = null;
 
   /**
-   * Filter visible table rows based on search input value (instant feedback).
-   * Only affects rows currently in the DOM (current page).
+   * 标记搜索 pending 状态；数据过滤只由 /api/sessions/* 响应决定。
    */
   function filterVisibleRows(query) {
-    var q = (query || '').toLowerCase().trim();
-    var tbody = document.querySelector('.table-card .data-table tbody');
-    if (!tbody) return;
-    var rows = tbody.querySelectorAll('tr.sessions-row');
-    var visibleCount = 0;
-    for (var i = 0; i < rows.length; i++) {
-      var row = rows[i];
-      var sessionId = (row.dataset.sessionId || '').toLowerCase();
-      var title = (row.dataset.title || '').toLowerCase();
-      var show = !q || sessionId.indexOf(q) >= 0 || title.indexOf(q) >= 0;
-      row.classList.toggle('is-hidden', !show);
-      if (show) visibleCount++;
-    }
-    // Update matching count in filter footer
+    var q = (query || '').trim();
     var countEl = document.querySelector('.active-filters__count');
     if (countEl) {
-      countEl.textContent = visibleCount + ' matching sessions';
+      countEl.textContent = q ? 'Searching sessions…' : 'Loading sessions…';
     }
   }
 
@@ -221,7 +212,7 @@
 
     searchInput.addEventListener('input', function () {
       var query = searchInput.value;
-      // Instant client-side filter on current page rows
+      // 仅显示 pending；最终结果必须来自 API。
       filterVisibleRows(query);
       // Debounced server-side search across all sessions
       if (_searchTimer) clearTimeout(_searchTimer);
@@ -242,7 +233,7 @@
       }
     });
 
-    // Apply saved search on load (server already filtered, but sync UI)
+    // Apply saved search on load (server/API response remains the data source).
     if (searchInput.value) {
       filterVisibleRows(searchInput.value);
     }
@@ -586,6 +577,28 @@
     }
   }
 
+  function renderActiveFilters(activeFilters) {
+    var container = document.querySelector('.active-filters');
+    if (!container || !activeFilters) return;
+    var chips = Array.isArray(activeFilters.chips) ? activeFilters.chips : [];
+    if (!chips.length) {
+      container.replaceChildren();
+      return;
+    }
+    container.replaceChildren.apply(container, chips.map(function (chip) {
+      var span = document.createElement('span');
+      span.className = 'ui-filter-chip';
+      span.appendChild(document.createTextNode((chip.label || chip.key || 'Filter') + ': ' + (chip.value || '')));
+      span.appendChild(document.createTextNode(' '));
+      var a = document.createElement('a');
+      a.href = chip.removeUrl || activeFilters.clearAllUrl || '/sessions';
+      a.setAttribute('aria-label', 'Remove ' + (chip.key || 'filter') + ' filter');
+      a.textContent = '×';
+      span.appendChild(a);
+      return span;
+    }));
+  }
+
   function statPill(value, label) {
     var span = document.createElement('span');
     span.className = 'ui-stat-pill';
@@ -626,9 +639,9 @@
     cell.colSpan = 13;
     var title = state && state.title ? state.title : 'No sessions found';
     var message = state && state.message ? state.message : 'No sessions match your current filters.';
-    cell.innerHTML = '<div class="empty-state"><div><div class="empty-state__icon">🔎</div><h2 class="empty-state__title">'
+    setMarkup(cell, '<div class="empty-state"><div><div class="empty-state__icon">🔎</div><h2 class="empty-state__title">'
       + escapeHtml(title) + '</h2><p class="empty-state__text">' + escapeHtml(message)
-      + '</p><a href="/sessions" class="btn primary" data-action="clear">Clear Filters</a></div></div>';
+      + '</p><a href="/sessions" class="btn primary" data-action="clear">Clear Filters</a></div></div>');
     row.appendChild(cell);
     return row;
   }
@@ -657,7 +670,7 @@
     tr.dataset.processTime = row.processSeconds || 0;
     tr.dataset.failedTools = row.failedTools || 0;
     tr.dataset.createdAt = row.createdAt || '';
-    tr.innerHTML = [
+    setMarkup(tr, [
       '<td class="col-session"><div class="title-main"><a class="session-link" href="', escapeHtml(row.detailUrl), '" data-action="open-session" data-session-link>',
       escapeHtml(title), '</a></div><div class="title-sub mono"><span>', escapeHtml((row.sessionId || '').slice(0, 12)), '</span></div></td>',
       '<td class="col-project"><div class="project-cell"><span class="project-name"><a href="', escapeHtml(row.projectUrl || '#'), '" class="link-muted" data-project="', escapeHtml(row.projectKey || ''), '" title="', escapeHtml(row.cwd || ''), '">',
@@ -674,7 +687,7 @@
       Number(row.failedTools || 0) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
       '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td>',
       '<td class="muted col-updated">', escapeHtml(formatDate(row.updatedAt)), '</td>'
-    ].join('');
+    ].join(''));
     return tr;
   }
 
@@ -720,7 +733,7 @@
     }
     if (!wrapper || !pagination) return;
     var disabled = (pagination.totalPages || 0) <= 1;
-    wrapper.innerHTML = '<nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination" data-pagination>'
+    setMarkup(wrapper, '<nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination" data-pagination>'
       + '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
       + (!pagination.hasPrevious || disabled ? ' disabled' : '') + '>&lsaquo; prev</button>'
       + '<span class="page-status">Page</span>'
@@ -734,7 +747,7 @@
       + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize)
       + pageSizeOption(100, pagination.pageSize) + '</select></label>'
       + '<button class="btn sm" data-action="next-page" aria-label="Next page"'
-      + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button></nav>';
+      + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button></nav>');
   }
 
   function pageSizeOption(value, selected) {
@@ -783,12 +796,14 @@
     Promise.all([
       fetch(apiUrl('/api/sessions/summary', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
       fetch(apiUrl('/api/sessions/options', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
-      fetch(apiUrl('/api/sessions/rows', qs), { headers: { 'Accept': 'application/json' } }).then(readJson)
+      fetch(apiUrl('/api/sessions/rows', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
+      fetch(apiUrl('/api/sessions/active-filters', qs), { headers: { 'Accept': 'application/json' } }).then(readJson)
     ])
     .then(function (parts) {
       renderSummary(parts[0]);
       renderOptions(parts[1], parts[2].filters || {});
       renderRows(parts[2]);
+      renderActiveFilters(parts[3]);
       if (replaceState) {
         window.history.replaceState({ api: true }, '', url);
       } else {

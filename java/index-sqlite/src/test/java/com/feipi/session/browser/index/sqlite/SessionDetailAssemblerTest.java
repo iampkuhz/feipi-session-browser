@@ -10,6 +10,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
@@ -139,6 +140,24 @@ class SessionDetailAssemblerTest {
       assertThat(rounds.get(0).cacheWriteTokens()).isEqualTo(7);
       assertThat(rounds.get(0).outputTokens()).isEqualTo(16);
       assertThat(rounds.get(0).totalTokens()).isEqualTo(60);
+    }
+
+    @Test
+    @DisplayName("轮次聚合失败工具调用 ID")
+    void roundAggregatesFailedToolIds() {
+      NormalizedCall call1 = makeCall("c1", 1, CallScope.MAIN, Optional.empty());
+      NormalizedCall call2 = makeCall("c2", 2, CallScope.MAIN, Optional.empty());
+      List<CallRound> rounds =
+          SessionDetailAssembler.buildRounds(
+              List.of(call1, call2),
+              List.of(
+                  makeToolExecution("tool-ok", "c1", Optional.empty()),
+                  makeToolExecution("tool-failed", "c2", Optional.of("error: failed"))));
+
+      assertThat(rounds).hasSize(2);
+      assertThat(rounds.get(0).failedToolCallIds()).isEmpty();
+      assertThat(rounds.get(1).failedToolCallIds()).containsExactly("tool-failed");
+      assertThat(rounds.get(1).failedToolCount()).isEqualTo(1);
     }
 
     @Test
@@ -337,6 +356,21 @@ class SessionDetailAssemblerTest {
         List.of(),
         Map.of(),
         Map.of());
+  }
+
+  private static NormalizedToolExecution makeToolExecution(
+      String toolCallId, String declaredByCallId, Optional<String> status) {
+    return new NormalizedToolExecution(
+        toolCallId,
+        "tool",
+        CallScope.MAIN,
+        declaredByCallId,
+        Optional.empty(),
+        status,
+        Optional.empty(),
+        1,
+        List.of(),
+        Optional.empty());
   }
 
   private static NormalizedSessionArtifact makeEmptyArtifact() {

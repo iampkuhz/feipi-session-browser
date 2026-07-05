@@ -49,7 +49,7 @@
         var tdDetail = document.createElement('td');
         tdDetail.setAttribute('colspan', '6');
         detailRow.appendChild(tdDetail);
-        setHtml(tdDetail, data.html);
+        setHtml(tdDetail, data.html || renderRoundDetailFromJson(data.round, roundId));
         row.parentNode.insertBefore(detailRow, row.nextSibling);
         qsa(detailRow, '[data-sub-round-id]').forEach(function (subRound) {
           if (typeof syncSubRoundToggle === 'function') syncSubRoundToggle(subRound);
@@ -129,4 +129,72 @@
       }
       container.appendChild(tpl);
     }
+  }
+
+  function renderRoundDetailFromJson(round, roundId) {
+    round = round || {};
+    var calls = Array.isArray(round.calls) ? round.calls : [];
+    var toolCallIds = Array.isArray(round.toolCallIds) ? round.toolCallIds : [];
+    var html = '<div class="sd-round-detail"><div class="sd-detail-grid">'
+      + '<section class="sd-card"><h3>Round R' + escapeRoundHtml(roundId) + ' detail</h3>'
+      + '<p>' + escapeRoundHtml(String(calls.length)) + ' LLM calls and '
+      + escapeRoundHtml(String(toolCallIds.length)) + ' tool calls are indexed for this round.</p></section>'
+      + '<section class="sd-card"><h3>Calls</h3>';
+    if (!calls.length) {
+      html += '<div class="sd-card-empty">No normalized calls returned by the round API.</div>';
+    } else {
+      html += '<table class="sd-compact-table"><tbody>';
+      calls.forEach(function (call, idx) {
+        var callIndex = idx + 1;
+        var usage = call.usage || {};
+        var reqId = payloadIdFor(call, 'req');
+        var respId = payloadIdFor(call, 'resp');
+        var reqKind = payloadKindFor(call, 'req');
+        var respKind = payloadKindFor(call, 'resp');
+        html += '<tr><th>' + escapeRoundHtml(call.callKey || call.callId || ('call ' + callIndex)) + '</th>'
+          + '<td><span class="mono">' + escapeRoundHtml(call.model || '') + '</span> · '
+          + escapeRoundHtml(String(usage.total || 0)) + ' tokens '
+          + '<div class="sd-payload-control-group" aria-label="Round R' + escapeRoundHtml(roundId) + ' call ' + callIndex + ' payload controls">'
+          + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
+          + escapeRoundHtml(reqId) + '" data-payload-kind="' + escapeRoundHtml(reqKind)
+          + '" data-payload-title="Request ' + escapeRoundHtml(call.callKey || call.callId || callIndex) + '">Request payload</button> '
+          + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
+          + escapeRoundHtml(respId) + '" data-payload-kind="' + escapeRoundHtml(respKind)
+          + '" data-payload-title="Response ' + escapeRoundHtml(call.callKey || call.callId || callIndex) + '">Response payload</button> '
+          + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-attribution" data-attribution-kind="request" data-attribution-url="'
+          + escapeRoundHtml(attributionUrl(roundId, callIndex, 'request')) + '" data-payload-title="调用详情">Request attribution</button> '
+          + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-attribution" data-attribution-kind="response" data-attribution-url="'
+          + escapeRoundHtml(attributionUrl(roundId, callIndex, 'response')) + '" data-payload-title="调用详情">Response attribution</button>'
+          + '</div></td></tr>';
+      });
+      html += '</tbody></table>';
+    }
+    html += '</section><section class="sd-card"><h3>Signals</h3><table class="sd-compact-table"><tbody>'
+      + '<tr><th>Status</th><td>' + (toolCallIds.length > 0 ? 'loaded' : 'no tools') + '</td></tr>'
+      + '<tr><th>Calls</th><td>' + escapeRoundHtml(String(calls.length)) + '</td></tr>'
+      + '<tr><th>Tools</th><td>' + escapeRoundHtml(String(toolCallIds.length)) + '</td></tr>'
+      + '</tbody></table></section></div></div>';
+    return html;
+  }
+
+  function payloadIdFor(call, side) {
+    var prefix = call && call.scope === 'subagent' ? 'sa' : 'main';
+    return prefix + ':' + side + ':' + (call && call.callId ? call.callId : '');
+  }
+
+  function payloadKindFor(call, side) {
+    var subagent = call && call.scope === 'subagent';
+    if (side === 'req') return subagent ? 'subagent_request' : 'llm_request';
+    return subagent ? 'subagent_response' : 'llm_response';
+  }
+
+  function attributionUrl(roundId, callIndex, kind) {
+    var apiBase = getApiBase().replace(/\/$/, '');
+    return apiBase + '/attribution/' + encodeURIComponent(roundId) + '/' + encodeURIComponent(callIndex) + '/' + kind;
+  }
+
+  function escapeRoundHtml(value) {
+    return String(value == null ? '' : value).replace(/[&<>"']/g, function (ch) {
+      return ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch];
+    });
   }

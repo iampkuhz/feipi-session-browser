@@ -166,6 +166,46 @@ public final class PageApiDtos {
   }
 
   /**
+   * 表示 ActiveFilterDto 数据。
+   *
+   * @param key 过滤条件字段名。
+   * @param label 用户可读标签。
+   * @param value 当前过滤值。
+   * @param removeUrl 移除此过滤条件后的页面 URL。
+   */
+  public record ActiveFilterDto(String key, String label, String value, String removeUrl) {
+
+    /** 校验字段和业务不变量。 */
+    public ActiveFilterDto {
+      key = ApiResponses.required(key, "key");
+      label = ApiResponses.required(label, "label");
+      value = ApiResponses.empty(value);
+      removeUrl = ApiResponses.required(removeUrl, "removeUrl");
+    }
+  }
+
+  /**
+   * 表示 ActiveFiltersResponse 数据。
+   *
+   * @param schemaVersion 响应 schema 版本号。
+   * @param chips 当前过滤条件 chip 列表。
+   * @param clearAllUrl 清空全部过滤条件后的页面 URL。
+   * @param state 页面或 API 状态描述。
+   */
+  public record ActiveFiltersResponse(
+      String schemaVersion, List<ActiveFilterDto> chips, String clearAllUrl, PageStateDto state) {
+
+    /** 校验字段和业务不变量。 */
+    public ActiveFiltersResponse {
+      schemaVersion = schemaVersion == null ? ApiResponses.SCHEMA_VERSION : schemaVersion;
+      Objects.requireNonNull(chips, "chips must not be null");
+      clearAllUrl = ApiResponses.required(clearAllUrl, "clearAllUrl");
+      Objects.requireNonNull(state, "state must not be null");
+      chips = List.copyOf(chips);
+    }
+  }
+
+  /**
    * 表示 PageStateModel 数据。
    *
    * @param kind 该字段在 API 响应中的业务值。

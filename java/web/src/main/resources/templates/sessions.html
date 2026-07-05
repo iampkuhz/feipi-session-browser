@@ -29,11 +29,9 @@
         <p class="subtitle">Browse indexed local agent runs</p>
     </div>
     <div class="page-head-actions page-head__stats">
-        <span class="ui-stat-pill" role="status"><b>{{ total_count }}</b> sessions</span>
-        {% if sessions_aggregate is defined %}
-        <span class="ui-stat-pill" role="status"><b>{{ sessions_aggregate.projectCount }}</b> projects</span>
-        <span class="ui-stat-pill" role="status"><b>{{ sessions_aggregate.totalTokens | format_compact_token }}</b> total tokens</span>
-        {% endif %}
+        <span class="ui-stat-pill" role="status"><b>Loading…</b> sessions</span>
+        <span class="ui-stat-pill" role="status"><b>Loading…</b> projects</span>
+        <span class="ui-stat-pill" role="status"><b>Loading…</b> total tokens</span>
     </div>
 </div>
 
@@ -99,12 +97,9 @@
         </div>
         <div class="filter-footer">
             <div class="active-filters" aria-live="polite">
-                {% if filter_agent is not empty %}<span class="ui-filter-chip">Agent: {{ filter_agent }} <a href="/sessions" aria-label="Remove agent filter">×</a></span>{% endif %}
-                {% if filter_model is not empty %}<span class="ui-filter-chip">Model: {{ filter_model }} <a href="/sessions" aria-label="Remove model filter">×</a></span>{% endif %}
-                {% if filter_project is not empty %}<span class="ui-filter-chip">Project: {{ filter_project }} <a href="/sessions" aria-label="Remove project filter">×</a></span>{% endif %}
-                {% if filter_status is not empty %}<span class="ui-filter-chip">Status: {{ filter_status == 'failed' ? 'Failed' : 'No failures' }} <a href="/sessions" aria-label="Remove status filter">×</a></span>{% endif %}
+                <span class="ui-filter-chip ui-filter-chip--loading">Filters loaded from /api/sessions/active-filters</span>
             </div>
-            <span class="active-filters__count">{% if total_count > 0 %}{{ total_count }} matching sessions{% else %}No matching sessions{% endif %}</span>
+            <span class="active-filters__count">Loading matching sessions…</span>
         </div>
     </form>
 </section>
@@ -137,115 +132,38 @@
                     </tr>
                 </thead>
                 <tbody>
-                    {% if sessions is defined and sessions is not empty %}
-                    {% for s in sessions %}
-                    {% set s_total = s.totalTokens %}
-                    {% if s_total > 0 %}
-                        {% set s_fresh_pct = (s.freshInputTokens * 100.0 / s_total) | round(1) %}
-                        {% set s_read_pct = (s.cacheReadTokens * 100.0 / s_total) | round(1) %}
-                        {% set s_write_pct = (s.cacheWriteTokens * 100.0 / s_total) | round(1) %}
-                        {% set s_out_pct = (s.outputTokens * 100.0 / s_total) | round(1) %}
-                    {% else %}
-                        {% set s_fresh_pct = 0 %}{% set s_read_pct = 0 %}{% set s_write_pct = 0 %}{% set s_out_pct = 0 %}
-                    {% endif %}
-                    {% set process_seconds = s.modelExecutionSeconds + s.toolExecutionSeconds %}
-                    <tr class="sessions-row" data-action="row"
-                        data-session-key="{{ s.sessionKey }}"
-                        data-agent="{{ s.agent }}"
-                        data-model="{{ s.model }}"
-                        data-project="{{ s.projectKey }}"
-                        data-session-id="{{ s.sessionId }}"
-                        data-detail-url="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}"
-                        data-title="{{ s.title is not empty ? s.title : s.sessionId }}"
-                        data-ended-at="{{ s.endedAt }}"
-                        data-total-tokens="{{ s.totalTokens }}"
-                        data-rounds="{{ s.assistantMessageCount }}"
-                        data-tool-count="{{ s.toolCallCount }}"
-                        data-duration="{{ s.durationSeconds }}"
-                        data-process-time="{{ process_seconds }}"
-                        data-failed-tools="{{ s.failedToolCount }}"
-                        data-created-at="{{ s.startedAt }}">
-                        <td class="col-session">
-                            <div class="title-main"><a class="session-link" href="/sessions/{{ s.agent | urlencode }}/{{ s.sessionId | urlencode }}" data-action="open-session" data-session-link>{{ s.title is not empty ? s.title : s.sessionId }}</a></div>
-                            <div class="title-sub mono">
-                                <span>{{ s.sessionId | first_chars(12) }}</span>
-                                {% if s.gitBranch is not empty %}<span class="session-branch">· {{ s.gitBranch }}</span>{% endif %}
-                            </div>
-                        </td>
-                        <td class="col-project">
-                            <div class="project-cell">
-                                <span class="project-name"><a href="/projects/{{ s.projectKey | urlencode }}" class="link-muted" data-project="{{ s.projectKey }}" title="{{ s.cwd }}">{{ s.projectName is not empty ? s.projectName : s.projectKey }}</a></span>
-                            </div>
-                        </td>
-                        <td class="col-agent"><span class="badge {{ s.agent == 'claude_code' ? 'cc' : (s.agent == 'codex' ? 'cx' : 'qd') }}">{{ s.agent == 'claude_code' ? 'CC' : (s.agent == 'codex' ? 'CX' : 'QD') }}</span></td>
-                        <td class="mono col-model" title="{{ s.model }}">{{ s.model is not empty ? s.model : 'Unknown model' }}</td>
-                        <td class="mono token-cell col-tokens">
-                            <span class="token-total">
-                                <span class="token-total__value">{{ s_total | format_compact_token }}</span>
-                                <span class="tokenbar tokenbar-in-cell" aria-hidden="true">
-                                    <span class="tokenbar-seg fresh t-fresh" style="--segment-width:{{ s_fresh_pct }}%"></span>
-                                    <span class="tokenbar-seg read t-read" style="--segment-width:{{ s_read_pct }}%"></span>
-                                    <span class="tokenbar-seg write t-write" style="--segment-width:{{ s_write_pct }}%"></span>
-                                    <span class="tokenbar-seg out t-out" style="--segment-width:{{ s_out_pct }}%"></span>
-                                    <span class="token-tooltip" aria-hidden="true">
-                                        <span class="token-tooltip__title">Token Breakdown</span>
-                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--fresh"></span><span class="token-tooltip__type-name">Fresh input</span></span><span class="token-tooltip__value">{{ s.freshInputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_fresh_pct }}%</span></span>
-                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--read"></span><span class="token-tooltip__type-name">Cached Rd</span></span><span class="token-tooltip__value">{{ s.cacheReadTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_read_pct }}%</span></span>
-                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--write"></span><span class="token-tooltip__type-name">Cached Wr</span></span><span class="token-tooltip__value">{{ s.cacheWriteTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_write_pct }}%</span></span>
-                                        <span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--out"></span><span class="token-tooltip__type-name">Output</span></span><span class="token-tooltip__value">{{ s.outputTokens | format_compact_token }}</span><span class="token-tooltip__pct">{{ s_out_pct }}%</span></span>
-                                        <span class="token-tooltip__sep"></span>
-                                        <span class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">{{ s_total | format_compact_token }}</span></span>
-                                    </span>
-                                </span>
-                            </span>
-                        </td>
-                        <td class="num mono col-rounds">{{ s.assistantMessageCount }}</td>
-                        <td class="num mono col-tools">{{ s.toolCallCount }}</td>
-                        <td class="num mono col-subagents">{{ s.subagentInstanceCount }}</td>
-                        <td class="mono col-duration" data-tooltip="{{ s.durationSeconds }}s">{{ s.durationSeconds | format_duration }}</td>
-                        <td class="mono col-process-time" data-tooltip="active processing {{ process_seconds }}s">{{ process_seconds | format_duration }}</td>
-                        <td class="col-failure {{ s.failedToolCount == 0 ? 'muted' : '' }}">{% if s.failedToolCount > 0 %}{{ s.failedToolCount }} failed{% else %}No failures{% endif %}</td>
-                        <td class="mono col-created" title="{{ s.startedAt }}">{{ s.startedAt | local_time }}</td>
-                        <td class="muted col-updated">{{ s.endedAt | relative_time }}</td>
-                    </tr>
-                    {% endfor %}
-                    {% else %}
                     <tr><td colspan="13">
-                        <div class="empty-state">
+                        <div class="empty-state" role="status" aria-live="polite">
                             <div>
-                                <div class="empty-state__icon">🔎</div>
-                                <h2 class="empty-state__title">No sessions found</h2>
-                                <p class="empty-state__text">No sessions match your current filters.</p>
-                                <a href="/sessions" class="btn primary" data-action="clear">Clear Filters</a>
+                                <div class="empty-state__icon" aria-hidden="true">⏳</div>
+                                <h2 class="empty-state__title">Loading sessions</h2>
+                                <p class="empty-state__text">Session rows are loaded from /api/sessions/rows.</p>
                             </div>
                         </div>
                     </td></tr>
-                    {% endif %}
                 </tbody>
             </table>
         </div>
 
-        {% if total_count > 0 %}
         <div class="table-card-pagination">
             <div id="ajax-pagination">
                 <nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination" data-pagination>
-                    <button class="btn sm" data-action="prev-page" aria-label="Previous page"{% if not has_prev or total_pages <= 1 %} disabled{% endif %}>&lsaquo; prev</button>
+                    <button class="btn sm" data-action="prev-page" aria-label="Previous page" disabled>&lsaquo; prev</button>
                     <span class="page-status">Page</span>
-                    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="{{ page }}" data-total-pages="{{ total_pages }}"{% if total_pages <= 1 %} disabled{% endif %} title="输入页码后按 Enter，跳转到指定页">
-                    <span class="page-status">of {{ total_pages }}{% if total_count > 0 %} of {{ total_count }}{% endif %}</span>
+                    <input class="page-input mono" data-action="page-input" aria-label="Page number" value="1" data-total-pages="0" disabled title="输入页码后按 Enter，跳转到指定页">
+                    <span class="page-status">of 0</span>
                     <span class="spacer"></span>
                     <label class="page-size-label page-status">每页
                         <select class="page-size-select sessions-footer-page-size__select" data-action="page-size" aria-label="Page size">
-                            <option value="25"{{ page_size == 25 ? ' selected' : '' }}>25</option>
-                            <option value="50"{{ page_size == 50 ? ' selected' : '' }}>50</option>
-                            <option value="100"{{ page_size == 100 ? ' selected' : '' }}>100</option>
+                            <option value="25" selected>25</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
                         </select>
                     </label>
-                    <button class="btn sm" data-action="next-page" aria-label="Next page"{% if not has_next or total_pages <= 1 %} disabled{% endif %}>next &rsaquo;</button>
+                    <button class="btn sm" data-action="next-page" aria-label="Next page" disabled>next &rsaquo;</button>
                 </nav>
             </div>
         </div>
-        {% endif %}
     </div>
 </section>
 

@@ -5,10 +5,13 @@ import com.feipi.session.browser.index.sqlite.ProjectListSummaryRow;
 import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
+import com.feipi.session.browser.web.api.PageApiDtos.ActiveFilterDto;
+import com.feipi.session.browser.web.api.PageApiDtos.ActiveFiltersResponse;
 import com.feipi.session.browser.web.api.PageApiDtos.ApiLink;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
+import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectAgentBadgeDto;
 import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectRowDto;
 import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsFilterEcho;
 import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsRowsResponse;
@@ -68,6 +71,24 @@ public final class ProjectsApiHandler {
             rowsState(page.totalCount(), hasUserFilter(params))));
   }
 
+  /** 处理 /api/projects/active-filters 的 GET 请求。 */
+  public void handleActiveFilters(Context ctx) {
+    Map<String, String> params = ApiQueryParams.flat(ctx);
+    String q = params.getOrDefault("q", "").trim();
+    List<ActiveFilterDto> chips =
+        q.isEmpty()
+            ? List.of()
+            : List.of(new ActiveFilterDto("q", "Search", q, "/projects"));
+    ctx.json(
+        new ActiveFiltersResponse(
+            ApiResponses.SCHEMA_VERSION,
+            chips,
+            "/projects",
+            chips.isEmpty()
+                ? PageStateDto.empty("No active filters", "Projects list is using the full scope.")
+                : PageStateDto.ready()));
+  }
+
   private static ProjectRowDto rowDto(ProjectStatsRow row) {
     return new ProjectRowDto(
         row.projectKey(),
@@ -76,6 +97,13 @@ public final class ProjectsApiHandler {
         row.claudeSessions(),
         row.codexSessions(),
         row.qoderSessions(),
+        List.of(
+                new ProjectAgentBadgeDto("claude_code", "Claude Code", row.claudeSessions()),
+                new ProjectAgentBadgeDto("qoder", "Qoder", row.qoderSessions()),
+                new ProjectAgentBadgeDto("codex", "Codex", row.codexSessions()))
+            .stream()
+            .filter(agent -> agent.sessions() > 0)
+            .toList(),
         TokenSegments.of(
             row.totalFreshInputTokens(),
             row.totalCacheReadTokens(),

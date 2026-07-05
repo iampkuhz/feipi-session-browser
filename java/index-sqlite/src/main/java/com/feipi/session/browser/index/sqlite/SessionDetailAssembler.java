@@ -3,6 +3,7 @@ package com.feipi.session.browser.index.sqlite;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
@@ -51,7 +52,7 @@ public final class SessionDetailAssembler {
     Objects.requireNonNull(artifact, "artifact 不得为 null");
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
-    List<CallRound> rounds = buildRounds(artifact.calls());
+    List<CallRound> rounds = buildRounds(artifact.calls(), artifact.toolExecutions());
     if (rounds.isEmpty() && sessionRow.userMessageCount() > 0) {
       rounds = List.of(new CallRound(1, List.of(), List.of(), null));
     }
@@ -77,6 +78,20 @@ public final class SessionDetailAssembler {
    * @return 轮次列表
    */
   public static List<CallRound> buildRounds(List<NormalizedCall> calls) {
+    return buildRounds(calls, List.of());
+  }
+
+  /**
+   * 将调用列表按轮次分组，并把失败工具执行聚合到对应轮次。
+   *
+   * @param calls 归一化调用列表，按遍历顺序排列
+   * @param toolExecutions 归一化工具执行列表，按遍历顺序排列
+   * @return 轮次列表
+   */
+  public static List<CallRound> buildRounds(
+      List<NormalizedCall> calls, List<NormalizedToolExecution> toolExecutions) {
+    Objects.requireNonNull(calls, "calls 不得为 null");
+    Objects.requireNonNull(toolExecutions, "toolExecutions 不得为 null");
     if (calls.isEmpty()) {
       return List.of();
     }
@@ -152,9 +167,25 @@ public final class SessionDetailAssembler {
               usage[1],
               usage[2],
               usage[3],
-              usage[4]));
+              usage[4],
+              failedToolCallIds(roundCallIds.get(i), toolExecutions)));
     }
     return result;
+  }
+
+  private static List<String> failedToolCallIds(
+      List<String> roundCalls, List<NormalizedToolExecution> toolExecutions) {
+    List<String> result = new ArrayList<>();
+    for (NormalizedToolExecution execution : toolExecutions) {
+      if (roundCalls.contains(execution.declaredByCallId()) && hasFailedStatus(execution)) {
+        result.add(execution.toolCallId());
+      }
+    }
+    return result;
+  }
+
+  private static boolean hasFailedStatus(NormalizedToolExecution execution) {
+    return execution.status().map(status -> !status.isBlank()).orElse(false);
   }
 
   private static List<String> toolIds(NormalizedCall call) {

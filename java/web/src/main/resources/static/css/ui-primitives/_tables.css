@@ -6,7 +6,7 @@
 /* Canonical project cell for data tables with project name link
 * and optional path row with copy button.
 *
-* HTML structure (via ui_primitives.html#project_cell macro):
+* Canonical page/API shell structure:
 *   <td class="project-cell [extra]">
 *     <a href="..." class="project-name-link">name</a>
 *     <div class="project-path-row">
@@ -66,7 +66,7 @@
 /* Two-line title pattern: primary title + optional subtitle.
 * Used in table cells for session/agent/project rows.
 *
-* Canonical HTML structure (via ui_primitives.html#title_subtitle macro):
+* Canonical page/API shell structure:
 *   <div class="[extra_classes]">
 *     <div class="title-main">Title text</div>
 *     <div class="title-sub mono">subtitle</div>

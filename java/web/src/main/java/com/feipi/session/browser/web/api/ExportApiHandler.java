@@ -5,7 +5,6 @@ import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
-import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.web.api.ExportApiResponses.ExportDataBundleResponse;
 import com.feipi.session.browser.web.api.ExportApiResponses.ExportFormatDto;
@@ -36,11 +35,25 @@ public final class ExportApiHandler {
 
   /** 处理 /api/export/session/{agent}/{sessionId}/manifest 的 GET 请求。 */
   public void handleManifest(Context ctx) throws SQLException {
+    String requestedFormat = normalizeFormat(ctx.queryParam("format"));
+    if ("unsupported".equals(requestedFormat)) {
+      ctx.status(HttpStatus.BAD_REQUEST);
+      ctx.json(
+          new ApiResponses.ApiErrorResponse("unsupported_format", "unsupported export format"));
+      return;
+    }
     LoadedExport loaded = load(ctx);
     if (loaded == null) {
       return;
     }
     SessionDetail detail = loaded.annotated().detail();
+    long maxBytes = parseMaxBytes(ctx);
+    long estimatedSizeBytes = estimateSizeBytes(detail);
+    boolean ready = estimatedSizeBytes <= maxBytes;
+    List<ExportFormatDto> formatRows =
+        ready
+            ? formats(loaded.agent(), loaded.sessionId(), loaded.visibilityValue(), requestedFormat)
+            : List.of();
     ctx.json(
         new ExportManifestResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -48,12 +61,23 @@ public final class ExportApiHandler {
             loaded.sessionId(),
             detail.sessionRow().sessionKey(),
             loaded.visibilityValue(),
-            MAX_EXPORT_BYTES,
+            maxBytes,
+            estimatedSizeBytes,
+            maxBytes,
+            detail.hasArtifact(),
+            true,
             detail.hasArtifact(),
             detail.roundCount(),
             detail.payloadSourceCount(),
-            formats(loaded.agent(), loaded.sessionId(), loaded.visibilityValue()),
-            PageStateDto.ready()));
+            formatRows,
+            ready
+                ? PageStateDto.ready()
+                : new PageStateDto(
+                    "too_large",
+                    "export_size_limit_exceeded",
+                    "Export bundle is too large",
+                    "Estimated export size exceeds the configured max size.",
+                    List.of())));
   }
 
   /** 处理 /api/export/session/{agent}/{sessionId}/data-bundle 的 GET 请求。 */
@@ -67,7 +91,12 @@ public final class ExportApiHandler {
     List<RoundIndexDto> rounds =
         detail.rounds().stream().map(round -> roundDto(round, row.totalTokens())).toList();
     List<PayloadIndexDto> payloads =
-        detail.payloadSources().stream().map(ExportApiHandler::payloadDto).toList();
+        detail.payloadSources().stream()
+            .map(
+                source ->
+                    SessionDetailApiResponses.payloadIndexDto(
+                        source, loaded.agent(), loaded.sessionId()))
+            .toList();
     ctx.json(
         new ExportDataBundleResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -101,7 +130,7 @@ public final class ExportApiHandler {
         ctx.json(new ApiResponses.ApiErrorResponse("not_found", "session not found"));
         return null;
       }
-      return new LoadedExport(agent, sessionId, visibilityValue(visibility), detail.get());
+      return new LoadedExport(agent, sessionId, visibility.getValue(), detail.get());
     } catch (IOException e) {
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.json(
@@ -111,17 +140,18 @@ public final class ExportApiHandler {
   }
 
   private static List<ExportFormatDto> formats(
-      String agent, String sessionId, String visibilityValue) {
+      String agent, String sessionId, String visibilityValue, String requestedFormat) {
     String encodedAgent = ApiQueryParams.url(agent);
     String encodedSession = ApiQueryParams.url(sessionId);
     String visibility = "?visibility=" + ApiQueryParams.url(visibilityValue);
-    return List.of(
+    ExportFormatDto html =
         new ExportFormatDto(
             "html",
             "/sessions/" + encodedAgent + "/" + encodedSession + "/export.html" + visibility,
             "GET",
             "text/html; charset=utf-8",
-            true),
+            true);
+    ExportFormatDto mhtml =
         new ExportFormatDto(
             "mhtml",
             "/export/mhtml?agent="
@@ -132,7 +162,12 @@ public final class ExportApiHandler {
                 + ApiQueryParams.url(visibilityValue),
             "GET",
             "multipart/related",
-            true));
+            true);
+    return switch (requestedFormat) {
+      case "html" -> List.of(html);
+      case "mhtml" -> List.of(mhtml);
+      default -> List.of(html, mhtml);
+    };
   }
 
   private static RoundIndexDto roundDto(CallRound round, long sessionTokens) {
@@ -149,16 +184,11 @@ public final class ExportApiHandler {
             round.outputTokens()),
         round.callCount(),
         round.toolCallCount(),
-        tokenShare);
-  }
-
-  private static PayloadIndexDto payloadDto(PayloadSource source) {
-    return new PayloadIndexDto(
-        source.payloadId(),
-        source.kind().getValue(),
-        source.callId(),
-        source.title(),
-        source.truncated());
+        round.failedToolCount(),
+        round.failedToolCallIds(),
+        tokenShare,
+        round.failedToolCount() > 0 ? "failed" : "ok",
+        round.failedToolCount() > 0 ? List.of("Failed") : List.of());
   }
 
   private static PayloadVisibility parseVisibility(Context ctx) {
@@ -167,8 +197,32 @@ public final class ExportApiHandler {
         : PayloadVisibility.STANDARD;
   }
 
-  private static String visibilityValue(PayloadVisibility visibility) {
-    return visibility == PayloadVisibility.FULL ? "full" : "standard";
+  private static String normalizeFormat(String value) {
+    String normalized = ApiQueryParams.normalizeAll(value);
+    if ("all".equals(normalized) || "html".equals(normalized) || "mhtml".equals(normalized)) {
+      return normalized;
+    }
+    return "unsupported";
+  }
+
+  private static long parseMaxBytes(Context ctx) {
+    String raw = ctx.queryParam("max_bytes");
+    if (raw == null || raw.isBlank()) {
+      return MAX_EXPORT_BYTES;
+    }
+    try {
+      long parsed = Long.parseLong(raw);
+      return parsed > 0 ? parsed : MAX_EXPORT_BYTES;
+    } catch (NumberFormatException ignored) {
+      return MAX_EXPORT_BYTES;
+    }
+  }
+
+  private static long estimateSizeBytes(SessionDetail detail) {
+    long base = 16L * 1024;
+    long roundBytes = detail.roundCount() * 4096L;
+    long payloadBytes = detail.payloadSourceCount() * 4096L;
+    return base + roundBytes + payloadBytes;
   }
 
   private static String canonicalAgent(String agent) {

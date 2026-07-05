@@ -19,6 +19,10 @@ public final class ExportApiResponses {
    * @param sessionKey 规范化 session key。
    * @param visibility 导出可见性策略。
    * @param maxBytes 最大字节数。
+   * @param estimatedSizeBytes 预计导出字节数。
+   * @param maxSizeBytes 最大允许导出字节数。
+   * @param embeddedDataCapable 是否可嵌入离线数据。
+   * @param offlineInteractionSupported 是否支持离线交互。
    * @param hasArtifact 是否存在导出 artifact。
    * @param roundCount round 数量。
    * @param payloadCount payload 数量。
@@ -32,6 +36,10 @@ public final class ExportApiResponses {
       String sessionKey,
       String visibility,
       long maxBytes,
+      long estimatedSizeBytes,
+      long maxSizeBytes,
+      boolean embeddedDataCapable,
+      boolean offlineInteractionSupported,
       boolean hasArtifact,
       long roundCount,
       long payloadCount,
@@ -48,7 +56,11 @@ public final class ExportApiResponses {
       Objects.requireNonNull(formats, "formats must not be null");
       Objects.requireNonNull(state, "state must not be null");
       formats = List.copyOf(formats);
-      if (maxBytes < 1 || roundCount < 0 || payloadCount < 0) {
+      if (maxBytes < 1
+          || estimatedSizeBytes < 0
+          || maxSizeBytes < 1
+          || roundCount < 0
+          || payloadCount < 0) {
         throw new IllegalArgumentException("export manifest counts out of range");
       }
     }

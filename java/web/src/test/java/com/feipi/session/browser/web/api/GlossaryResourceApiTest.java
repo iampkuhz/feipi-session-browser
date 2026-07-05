@@ -102,6 +102,11 @@ class GlossaryResourceApiTest {
           assertThat(findTerm(providers.get("terms"), "openai").get("providerFields"))
               .hasSizeGreaterThanOrEqualTo(4);
 
+          var providerAlias = client.get("/api/glossary/provider-mappings");
+          assertThat(providerAlias.code()).isEqualTo(200);
+          JsonNode aliasBody = MAPPER.readTree(providerAlias.body().string());
+          assertThat(keys(aliasBody.get("terms"))).contains("anthropic", "openai");
+
           JsonNode signals =
               MAPPER.readTree(client.get("/api/glossary/round-signals").body().string());
           assertThat(keys(signals.get("terms")))

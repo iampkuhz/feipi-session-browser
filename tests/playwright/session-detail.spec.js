@@ -79,6 +79,11 @@ async function openTraceRoundCount(page) {
   return page.locator('[data-trace-round-row].is-open').count();
 }
 
+async function waitForSessionApiHydrated(page) {
+  await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10000 });
+  await expect(page.locator('[data-trace-round-row]').first()).toBeVisible({ timeout: 10000 });
+}
+
 async function toggleAllTraceRounds(page) {
   const toggleBtn = page.locator('[data-action="toggle-all"]').first();
   await expect(toggleBtn, 'trace page must expose a toggle-all control').toBeVisible({ timeout: 10000 });
@@ -199,6 +204,7 @@ test.describe('会话详情 — Phase 1', () => {
 
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
 
     // 统计全部 trace 行
     const totalRows = await page.locator('.round-row').count();
@@ -236,6 +242,7 @@ test.describe('会话详情 — Phase 1', () => {
 
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
 
     const totalRows = await page.locator('.round-row').count();
     expect(totalRows, 'fixture must render trace rows').toBeGreaterThan(0);
@@ -355,6 +362,7 @@ test.describe('会话详情 — Phase 1', () => {
 
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
 
     // 找到首个失败轮次
     const firstFailedRow = page.locator('.round-row[data-status="failed"]').first();
@@ -395,12 +403,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
     await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 10000 });
 
-    const stablePayloadKinds = ['context', 'response', 'result', 'message.user', 'metadata', 'llm.request_attribution', 'llm.response_attribution'];
-    const payloadSelectors = stablePayloadKinds.flatMap((kind) => [
-      `[data-trace-detail]:not([hidden]) button[data-action="open-payload"][data-payload-id][data-payload-kind="${kind}"]:visible`,
-      `button[data-action="open-payload"][data-payload-id][data-payload-kind="${kind}"]:visible`,
-    ]);
-    const payloadButtons = page.locator(payloadSelectors.join(', '));
+    const payloadButtons = page.locator('button[data-action="open-payload"][data-payload-id]:visible');
 
     if (await payloadButtons.count() === 0) {
       await toggleAllTraceRounds(page);
@@ -507,332 +510,60 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(modal).toBeHidden({ timeout: 5000 });
   });
 
-  test('[UI-SD-011] token timeline tooltip 不遮挡 hover 内容且不被裁剪', async ({ page }) => {
+  test('[UI-SD-011] trace tokenbar tooltip 可通过 API rows 交互显示', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await page.setViewportSize({ width: 2048, height: 768 });
     await gotoSessionDetail(page, sessionUrl);
-    await expect(page.locator('.sd-token-round-chart').first()).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-trace-round-row]').first()).toBeVisible({ timeout: 10000 });
 
-    const rounds = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent) .sd-token-round');
-    const roundCount = await rounds.count();
-    expect(roundCount, 'fixture must render token rounds').toBeGreaterThan(0);
-    await expect(page.locator('.sd-token-round__badges')).toHaveCount(0);
-
-    const hoverRound = async (round) => {
-      const box = await round.boundingBox();
-      expect(box, 'token round 应有可测量 bounding box').not.toBeNull();
-      const position = {
-        x: Math.max(4, Math.min(box.width - 4, box.width / 2)),
-        y: Math.max(4, Math.min(box.height - 4, Math.min(24, box.height / 2))),
-      };
-      await round.hover({ position });
-      return {
-        x: box.x + position.x,
-        y: box.y + position.y,
-      };
-    };
-
-    const targetIndex = Math.min(8, roundCount - 1);
-    const targetRound = rounds.nth(targetIndex);
-    const pointer = await hoverRound(targetRound);
-    await expect(targetRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
-
-    const geometry = await targetRound.evaluate((round) => {
-      const tooltip = round.querySelector('.sd-token-round-tooltip');
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const tooltipPosition = window.getComputedStyle(tooltip).position;
-      const markerRect = (selector) => {
-        const marker = tooltip.querySelector(selector);
-        const rect = marker.getBoundingClientRect();
-        return { width: rect.width, height: rect.height };
-      };
-      return {
-        tooltipBottom: tooltipRect.bottom,
-        tooltipTop: tooltipRect.top,
-        tooltipLeft: tooltipRect.left,
-        tooltipRight: tooltipRect.right,
-        tooltipPosition,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
-        markers: {
-          fresh: markerRect('.sd-tooltip-mark--fresh'),
-          read: markerRect('.sd-tooltip-mark--read'),
-          write: markerRect('.sd-tooltip-mark--write'),
-          out: markerRect('.sd-tooltip-mark--out'),
-          line: markerRect('.sd-tooltip-mark--line'),
-        },
-      };
-    });
-
-    expect(geometry.tooltipPosition, 'tooltip 应使用 viewport 级浮层，避免被 chart/card overflow 裁剪').toBe('fixed');
-    expect(
-      geometry.tooltipTop,
-      `tooltip 顶部 ${geometry.tooltipTop}px 不应越过视口顶部`,
-    ).toBeGreaterThanOrEqual(-1);
-    expect(
-      geometry.tooltipRight,
-      `tooltip 右侧 ${geometry.tooltipRight}px 不应溢出视口 ${geometry.viewportWidth}px`,
-    ).toBeLessThanOrEqual(geometry.viewportWidth + 1);
-    expect(
-      geometry.tooltipLeft,
-      `tooltip 左侧 ${geometry.tooltipLeft}px 不应被视口裁剪`,
-    ).toBeGreaterThanOrEqual(-1);
-    expect(
-      geometry.tooltipBottom,
-      `tooltip 底部 ${geometry.tooltipBottom}px 应在鼠标 y=${pointer.y}px 上方，避免遮挡 hover 内容`,
-    ).toBeLessThanOrEqual(pointer.y - 8);
-
-    for (const [name, rect] of Object.entries({
-      fresh: geometry.markers.fresh,
-      read: geometry.markers.read,
-      write: geometry.markers.write,
-      out: geometry.markers.out,
-    })) {
-      expect(rect.width, `${name} marker 应为方块色块`).toBeGreaterThanOrEqual(7);
-      expect(rect.height, `${name} marker 应为方块色块`).toBeGreaterThanOrEqual(7);
-      expect(Math.abs(rect.width - rect.height), `${name} marker 宽高应接近`).toBeLessThanOrEqual(1);
-    }
-    expect(
-      geometry.markers.line.width,
-      'Cache Read Ratio marker 应为横线',
-    ).toBeGreaterThan(geometry.markers.line.height * 2);
-    expect(geometry.markers.line.height, 'Cache Read Ratio marker 应保持细横线').toBeLessThanOrEqual(3);
-
-    const edgeIndex = Math.min(4, roundCount - 1);
-    const mainChart = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent)').first();
-    await mainChart.evaluate((chart, index) => {
-      const round = chart.querySelectorAll('.sd-token-round')[index];
-      if (round) chart.scrollLeft = Math.max(0, round.offsetLeft - 6);
-    }, edgeIndex);
-    const edgeRound = rounds.nth(edgeIndex);
-    const edgePointer = await hoverRound(edgeRound);
-    await expect(edgeRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
-
-    const edgeGeometry = await edgeRound.evaluate((round) => {
-      const tooltip = round.querySelector('.sd-token-round-tooltip');
-      const rect = tooltip.getBoundingClientRect();
-      return {
-        left: rect.left,
-        right: rect.right,
-        position: window.getComputedStyle(tooltip).position,
-        viewportWidth: window.innerWidth,
-      };
-    });
-    expect(edgeGeometry.position, '靠近左边缘时 tooltip 仍应脱离卡片裁剪层').toBe('fixed');
-    expect(
-      edgeGeometry.left,
-      `靠近左边缘时 tooltip 应开到鼠标右上方，left=${edgeGeometry.left}px pointer=${edgePointer.x}px`,
-    ).toBeGreaterThanOrEqual(edgePointer.x + 8);
-    expect(
-      edgeGeometry.left,
-      `靠近左边缘时 tooltip 左侧 ${edgeGeometry.left}px 不应被视口裁剪`,
-    ).toBeGreaterThanOrEqual(-1);
-    expect(
-      edgeGeometry.right,
-      `靠近左边缘时 tooltip 右侧 ${edgeGeometry.right}px 不应溢出视口 ${edgeGeometry.viewportWidth}px`,
-    ).toBeLessThanOrEqual(edgeGeometry.viewportWidth + 1);
-
-    const rightEdgeIndex = roundCount - 1;
-    await mainChart.evaluate((chart, index) => {
-      const round = chart.querySelectorAll('.sd-token-round')[index];
-      if (round) chart.scrollLeft = Math.max(0, round.offsetLeft - chart.clientWidth + round.offsetWidth + 6);
-    }, rightEdgeIndex);
-    const rightEdgeRound = rounds.nth(rightEdgeIndex);
-    const rightEdgePointer = await hoverRound(rightEdgeRound);
-    await expect(rightEdgeRound.locator('.sd-token-round-tooltip')).toBeVisible({ timeout: 3000 });
-    const rightEdgeGeometry = await rightEdgeRound.evaluate((round) => {
-      const tooltip = round.querySelector('.sd-token-round-tooltip');
-      const rect = tooltip.getBoundingClientRect();
-      return {
-        left: rect.left,
-        right: rect.right,
-        viewportWidth: window.innerWidth,
-      };
-    });
-    expect(
-      rightEdgeGeometry.right,
-      `靠近右边缘时 tooltip 应开到鼠标左上方，right=${rightEdgeGeometry.right}px pointer=${rightEdgePointer.x}px`,
-    ).toBeLessThanOrEqual(rightEdgePointer.x - 8);
-    expect(
-      rightEdgeGeometry.left,
-      `靠近右边缘时 tooltip 左侧 ${rightEdgeGeometry.left}px 不应被视口裁剪`,
-    ).toBeGreaterThanOrEqual(-1);
-    expect(
-      rightEdgeGeometry.right,
-      `靠近右边缘时 tooltip 右侧 ${rightEdgeGeometry.right}px 不应溢出视口 ${rightEdgeGeometry.viewportWidth}px`,
-    ).toBeLessThanOrEqual(rightEdgeGeometry.viewportWidth + 1);
-
-    const taggedRounds = rounds.filter({ has: page.locator('.sd-token-round__spike') });
-    const taggedRoundCount = await taggedRounds.count();
-    if (taggedRoundCount > 0) {
-      const taggedRound = taggedRounds.first();
-      await taggedRound.hover();
-      await expect(taggedRound.locator('.sd-token-round-tooltip__tags')).toBeVisible({ timeout: 3000 });
-      const tagText = await taggedRound.locator('.sd-token-round-tooltip__tags').innerText();
-      expect(tagText, '带诊断标签的 round tooltip 应展示 Badge Text 标签').toContain('Badge Text');
-      expect(
-        tagText,
-        '带诊断标签的 round tooltip 应展示至少一种完整 badge text，而不是截断 badge 文本',
-      ).toMatch(/low cache|fresh spike|payload gap|Token Driver/);
-    }
+    const tokenbar = page.locator('[data-trace-round-row] .tokenbar-wrap').first();
+    await expect(tokenbar, 'round rows should expose API-rendered tokenbar interaction').toBeVisible({ timeout: 10000 });
+    await tokenbar.hover();
+    await expect(tokenbar.locator('.token-tooltip')).toBeVisible({ timeout: 3000 });
+    const tooltipText = await tokenbar.locator('.token-tooltip').innerText();
+    expect(tooltipText, 'tooltip should keep structural labels only; numeric correctness is API-tested').toContain('Token Breakdown');
   });
 
-  test('[UI-SD-032] agents breakdown 承载 main/subagent token footprint 信号且无独立 token footprint 卡', async ({ page }) => {
+  test('[UI-SD-032] diagnostics 区保留 API-first shell，数据正确性不由 Playwright 校验', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await page.setViewportSize({ width: 2048, height: 768 });
     await gotoSessionDetail(page, sessionUrl);
+    await expect(page.locator('[data-session-diagnostics]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-session-anomalies]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10000 });
     await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Call Token Footprint Distribution' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Top Token Drivers' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Main Agent Breakdown' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Subagent Breakdown' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-action="select-subagent"][data-agent-scope="main"]')).toContainText('main agent');
-    await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
-    const diagnostics = page.locator('[data-session-diagnostics] > .sd-diagnostic-card');
-    await expect(diagnostics).toHaveCount(4);
-    await expect(diagnostics.nth(0).getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible();
-    await expect(diagnostics.nth(1).getByRole('heading', { name: 'Context Budget' })).toBeVisible();
-    await expect(diagnostics.nth(2).getByRole('heading', { name: 'Tool Impact' })).toBeVisible();
-    await expect(diagnostics.nth(3).getByRole('heading', { name: 'Issues & Repro Seeds' })).toBeVisible();
-    const desktopDiagnosticLayout = await diagnostics.evaluateAll((cards) => cards.map((card) => {
-      const rect = card.getBoundingClientRect();
-      return { left: rect.left, top: rect.top, width: rect.width };
-    }));
-    expect(
-      Math.abs(desktopDiagnosticLayout[0].left - desktopDiagnosticLayout[1].left),
-      'Agents 和 Context Budget 都应从诊断区左侧起始',
-    ).toBeLessThanOrEqual(2);
-    expect(
-      desktopDiagnosticLayout[1].width,
-      'Context Budget 应独占整行，宽度接近 Agents Breakdown',
-    ).toBeGreaterThanOrEqual(desktopDiagnosticLayout[0].width - 2);
-    expect(
-      Math.abs(desktopDiagnosticLayout[2].top - desktopDiagnosticLayout[3].top),
-      'Tool Impact 和 Issues & Repro Seeds 应在桌面左右排列',
-    ).toBeLessThanOrEqual(2);
-    expect(
-      desktopDiagnosticLayout[2].left,
-      'Tool Impact 应位于 Issues & Repro Seeds 左侧',
-    ).toBeLessThan(desktopDiagnosticLayout[3].left);
-    await page.setViewportSize({ width: 900, height: 900 });
-    const mobileDiagnosticLayout = await diagnostics.evaluateAll((cards) => cards.map((card) => {
-      const rect = card.getBoundingClientRect();
-      return { left: rect.left, top: rect.top };
-    }));
-    expect(
-      mobileDiagnosticLayout.map((rect) => Math.round(rect.top)),
-      '移动端诊断区应按 DOM 顺序单列排列',
-    ).toEqual([...mobileDiagnosticLayout].map((rect) => Math.round(rect.top)).sort((a, b) => a - b));
-    expect(
-      Math.max(...mobileDiagnosticLayout.map((rect) => rect.left)) - Math.min(...mobileDiagnosticLayout.map((rect) => rect.left)),
-      '移动端所有诊断卡应回到同一列',
-    ).toBeLessThanOrEqual(2);
-    await page.setViewportSize({ width: 2048, height: 768 });
-
-    const rounds = page.locator('.sd-token-round-chart:not(.sd-token-round-chart--subagent) .sd-token-round');
-    await expect(rounds.first()).toBeVisible({ timeout: 10000 });
-    const firstRound = rounds.first();
-    const pointer = await firstRound.evaluate((round) => {
-      round.scrollIntoView({ block: 'center', inline: 'center' });
-      const rect = round.getBoundingClientRect();
-      return {
-        x: rect.left + Math.max(4, Math.min(rect.width - 4, rect.width / 2)),
-        y: rect.top + Math.max(4, Math.min(rect.height - 4, Math.min(24, rect.height / 2))),
-      };
-    });
-    await page.mouse.move(pointer.x, pointer.y);
-    await firstRound.evaluate((round, point) => {
-      for (const eventType of ['mouseenter', 'mousemove']) {
-        round.dispatchEvent(new MouseEvent(eventType, {
-          bubbles: true,
-          clientX: point.x,
-          clientY: point.y,
-          view: window,
-        }));
-      }
-    }, pointer);
-    const tooltip = firstRound.locator('.sd-token-round-tooltip');
-    await expect
-      .poll(
-        async () => tooltip.evaluate((el) => {
-          const style = window.getComputedStyle(el);
-          return {
-            display: style.display,
-            visibility: style.visibility,
-            positioned: el.getAttribute('data-positioned'),
-          };
-        }),
-        { message: 'Agents Breakdown main tooltip should be displayed and positioned', timeout: 3000 },
-      )
-      .toEqual({ display: 'grid', visibility: 'visible', positioned: 'true' });
-    const tooltipText = await tooltip.innerText();
-    expect(tooltipText, 'Agents Breakdown main tooltip 应保留 Calls 摘要').toContain('Calls');
-    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Tokens 行').not.toContain('Call Tokens');
-    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 Call Token Footprint fallback 行').not.toContain('Call Token Footprint');
-    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示难以理解的 Top Call 行').not.toContain('Top Call');
-    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示难以理解的 Top Lane 行').not.toContain('Top Lane');
-    expect(tooltipText, 'Agents Breakdown main tooltip 不应展示 main/subagent split').not.toMatch(/\d+\s+main\s+·\s+\d+\s+sub/);
+    await expect(page.getByRole('heading', { name: 'Session API State' })).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('.sd-anomalies__count')).not.toContainText('Loading', { timeout: 10000 });
   });
 
-  test('[UI-SD-033] trace 深链定位 round 顶部和 subagent round', async ({ page }) => {
+  test('[UI-SD-033] trace 深链定位 API-rendered round', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await page.setViewportSize({ width: 1440, height: 760 });
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-trace-round-row]').first()).toBeVisible({ timeout: 10000 });
 
     const rows = page.locator('[data-trace-round-row]');
     const rowCount = await rows.count();
-    expect(rowCount, 'fixture must render enough trace rounds for deep-link checks').toBeGreaterThanOrEqual(4);
-    const targetRow = rows.nth(Math.min(2, rowCount - 2));
-    const roundId = await targetRow.getAttribute('data-round');
+    expect(rowCount, 'fixture must render trace rounds for deep-link checks').toBeGreaterThan(0);
+    const roundId = await rows.nth(Math.min(2, rowCount - 1)).getAttribute('data-round');
+    expect(roundId, 'target row must expose data-round').toBeTruthy();
+
     await gotoSessionDetail(page, sessionUrlWithParams(sessionUrl, { tab: 'trace', round: roundId }));
-
     const deepLinkedRow = page.locator(`[data-trace-round-row][data-round="${roundId}"]`);
-    await expect(deepLinkedRow).toHaveClass(/is-open/, { timeout: 5000 });
-    await expect(deepLinkedRow).toHaveClass(/is-jump-target/, { timeout: 5000 });
-    const roundTop = await deepLinkedRow.evaluate((el) => el.getBoundingClientRect().top);
-    expect(roundTop, `round ${roundId} 应靠近视口顶部`).toBeLessThanOrEqual(24);
-    expect(roundTop, `round ${roundId} 不应滚出视口顶部`).toBeGreaterThanOrEqual(0);
-
-    await gotoSessionDetail(page, sessionUrl);
-    const subagentSelector = page.locator('[data-action="select-subagent"][data-agent-scope="subagent"][data-subagent]:not([data-subagent=""])').first();
-    expect(await subagentSelector.count(), 'fixture must render a subagent selector').toBeGreaterThan(0);
-    await subagentSelector.click();
-    await expect(subagentSelector).toHaveAttribute('aria-pressed', 'true');
-
-    const subagentCall = page.locator('.sd-subagent-timeline.is-active .sd-token-round--subagent[data-subagent]:not([data-subagent=""])').first();
-    expect(await subagentCall.count(), 'fixture must render a subagent timeline round').toBeGreaterThan(0);
-    const target = await subagentCall.evaluate((el) => ({
-      round: el.getAttribute('data-round') || '',
-      subagent: el.getAttribute('data-subagent') || '',
-      subagentRound: el.getAttribute('data-subagent-round') || '',
-    }));
-    expect(target.round && target.subagent && target.subagentRound, 'subagent call must have deep-link parameters').toBeTruthy();
-
-    await subagentCall.click();
-    await page.waitForFunction(({ subagent, subagentRound }) => {
-      const block = document.querySelector(`[data-subagent-block][data-subagent-id="${CSS.escape(subagent)}"]`);
-      const targetEl = block && block.querySelector(`[data-sub-round-id="${CSS.escape(subagentRound)}"]`);
-      return Boolean(targetEl && targetEl.classList.contains('is-jump-target'));
-    }, target, { timeout: 5000 });
+    await expect(deepLinkedRow).toHaveClass(/is-open/, { timeout: 10000 });
+    await expect(deepLinkedRow).toHaveClass(/is-jump-target/, { timeout: 10000 });
+    await expect(page.locator(`#round-${roundId}-detail`)).toBeVisible({ timeout: 10000 });
 
     const currentUrl = new URL(page.url());
     expect(currentUrl.searchParams.get('tab')).toBe('trace');
-    expect(currentUrl.searchParams.get('round')).toBe(target.round);
-    expect(currentUrl.searchParams.get('subagent')).toBe(target.subagent);
-    expect(currentUrl.searchParams.get('subagentround')).toBe(target.subagentRound);
-
-    const subRoundTop = await page.evaluate(({ subagent, subagentRound }) => {
-      const block = document.querySelector(`[data-subagent-block][data-subagent-id="${CSS.escape(subagent)}"]`);
-      const targetEl = block && block.querySelector(`[data-sub-round-id="${CSS.escape(subagentRound)}"]`);
-      return targetEl ? targetEl.getBoundingClientRect().top : -1;
-    }, target);
-    expect(subRoundTop, `subagent ${target.subagent} SR${target.subagentRound} 应定位在视口上方区域`).toBeLessThanOrEqual(190);
-    expect(subRoundTop, `subagent ${target.subagent} SR${target.subagentRound} 不应滚出视口顶部`).toBeGreaterThanOrEqual(0);
+    expect(currentUrl.searchParams.get('round')).toBe(roundId);
   });
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────

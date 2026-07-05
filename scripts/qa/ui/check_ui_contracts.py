@@ -1,92 +1,52 @@
 #!/usr/bin/env python3
-"""提供 检查 UI contracts 脚本能力。"""
+"""Repository-level UI static contract smoke for the Java web resources."""
 
 from __future__ import annotations
 
-import re
 import sys
 from pathlib import Path
 
-ROOT = Path.cwd()
-TEMPLATES = ROOT / 'src/session_browser/web/templates'
-STATIC = ROOT / 'src/session_browser/web/static'
+SCRIPT_DIR = Path(__file__).resolve().parent
+if str(SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(SCRIPT_DIR))
 
-errors: list[str] = []
-passes: list[str] = []
-
-
-# 读取文件内容。
-def read(path: Path) -> str:
-    """参数：
-        path: Template 或 asset 路径以检查。
-
-    返回：
-        文件 text, 或 空 字符串 当 缺失 so caller can fail relevant 检查。
-    """
-    return path.read_text(encoding='utf-8', errors='ignore')
+from _api_first_checklib import CSS, JS, TEMPLATES, LEGACY_PY_ROOT, LEGACY_TEMPLATE_ROOT, exists, has_all, has_none, read, run
 
 
-for base in [TEMPLATES, STATIC / 'css', STATIC / 'js']:
-    if base.exists():
-        passes.append(f'directory exists: {base.relative_to(ROOT)}')
-    else:
-        errors.append(f'missing directory: {base.relative_to(ROOT)}')
+def main() -> int:
+    templates = ''.join(read(path) for path in sorted(TEMPLATES.glob('*.html')))
+    css = ''.join(read(path) for path in sorted(CSS.glob('*.css')))
+    js = ''.join(read(path) for path in sorted(JS.glob('*.js')))
+    checks = [
+        ('Java templates directory exists', lambda: exists(TEMPLATES)),
+        ('Java static css directory exists', lambda: exists(CSS)),
+        ('Java static js directory exists', lambda: exists(JS)),
+        (
+            'core pages declare API-first resource links',
+            lambda: has_all(
+                templates,
+                ['/api/dashboard/summary', '/api/sessions/rows', '/api/projects/rows', '/api/projects/{projectKey}/sessions/rows', '/api/sessions/{agent}/{sessionId}/rounds'],
+            ),
+        ),
+        (
+            'shared UI primitive assets are present',
+            lambda: has_all(css + js, ['.tokenbar-seg', '.empty-state', '.data-table', 'data-action']),
+        ),
+        (
+            'templates avoid legacy Python paths and inline event handlers',
+            lambda: has_none(templates + css + js, [LEGACY_PY_ROOT, LEGACY_TEMPLATE_ROOT, 'onclick=']),
+        ),
+        (
+            'API-first JS avoids legacy XHR HTML fragment header',
+            lambda: has_none(js, ['X-Requested-With']),
+        ),
+        (
+            'responsive shell constraints exist',
+            lambda: has_all(read(CSS / 'shell.css') + read(CSS / 'base.css'), ['--max', '.main', '@media']),
+        ),
+    ]
+    return run('Java UI contract QA checks', checks)
 
-for base in [TEMPLATES, STATIC / 'css', STATIC / 'js']:
-    if not base.exists():
-        continue
-    for path in base.rglob('*'):
-        if not path.is_file():
-            continue
-        rel = path.relative_to(ROOT)
-        if re.search(r'v\d+\.(css|js|html)$', path.name):
-            errors.append(f'versioned filename: {rel}')
-        if re.search(r'(patch|fix|overlay)\.(css|js)$', path.name):
-            errors.append(f'patch/fix/overlay filename: {rel}')
-        if path.suffix in {'.html', '.css', '.js'}:
-            text = read(path)
-            for pattern, label in [
-                (r'session-browser-v\d+\.css', 'versioned global css reference'),
-                (r'dashboard-v\d+\.css', 'versioned dashboard css reference'),
-                (r'session_browser_ui_v\d+\.js', 'versioned ui js reference'),
-            ]:
-                if re.search(pattern, text):
-                    errors.append(f'{label}: {rel}')
 
-css_text = '\n'.join(read(path) for path in (STATIC / 'css').rglob('*.css'))
-if re.search(r'@media\s*\([^)]*min-width:\s*1400px', css_text):
-    passes.append('desktop viewport rule exists')
-else:
-    errors.append('missing desktop viewport rule: min-width 1400px')
-
-for pattern in [
-    r'max-width:\s*(767|768|820)px',
-    r'@media[^{]*(mobile|tablet|ipad)',
-]:
-    if re.search(pattern, css_text, re.IGNORECASE):
-        errors.append('forbidden mobile/tablet viewport rule in CSS')
-
-dashboard = TEMPLATES / 'dashboard.html'
-if dashboard.exists():
-    text = read(dashboard)
-    if 'css/dashboard.css' in text:
-        passes.append('dashboard imports dashboard.css')
-    else:
-        errors.append('dashboard.html does not import dashboard.css')
-    if 'js/dashboard.js' in text:
-        passes.append('dashboard imports dashboard.js')
-    else:
-        errors.append('dashboard.html does not import dashboard.js')
-
-if passes:
-    print('UI contract checks:')
-    for item in passes:
-        print(f'  PASS: {item}')
-
-if errors:
-    print('\nUI contract check failed:')
-    for item in errors:
-        print(f'  FAIL: {item}')
-    sys.exit(1)
-
-print(f'\nAll UI contract checks passed ({len(passes)} checks)')
+if __name__ == '__main__':
+    raise SystemExit(main())

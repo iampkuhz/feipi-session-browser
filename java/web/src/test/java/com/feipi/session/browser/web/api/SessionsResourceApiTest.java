@@ -120,6 +120,24 @@ class SessionsResourceApiTest {
           assertThat(body.at("/pagination/totalItems").asLong()).isEqualTo(1);
           assertThat(body.at("/rows/0/sessionId").asText()).isEqualTo("s-beta-001");
           assertThat(body.at("/rows/0/projectKey").asText()).isEqualTo("/repo/beta");
+          assertThat(textValues(body.at("/rows/0/matchReasons"))).contains("projectKey");
+        });
+  }
+
+  @Test
+  @DisplayName("rows 对非法 page_size 回退到 normalized 25")
+  void rowsInvalidPageSizeFallsBackTo25() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get("/api/sessions/rows?page_size=13");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.at("/filters/pageSize").asInt()).isEqualTo(25);
+          assertThat(body.at("/pagination/pageSize").asInt()).isEqualTo(25);
         });
   }
 
@@ -139,6 +157,32 @@ class SessionsResourceApiTest {
           assertThat(values(body.get("models"))).contains("claude-sonnet-4.5", "gpt-5.4");
           assertThat(values(body.get("projects"))).contains("/repo/alpha", "/repo/beta");
           assertThat(values(body.get("statuses"))).contains("failed", "no-failures");
+        });
+  }
+
+  @Test
+  @DisplayName("active-filters 返回 chip 和保留其它参数的 removeUrl")
+  void activeFiltersReturnRemoveLinks() {
+    WebCompositionRoot webRoot = createWebRoot();
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response =
+              client.get(
+                  "/api/sessions/active-filters?agent=claude_code&status=failed&q=alpha&sort=tokens&dir=desc");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+
+          assertThat(body.get("chips")).hasSize(3);
+          assertThat(body.at("/chips/0/key").asText()).isEqualTo("agent");
+          assertThat(body.at("/chips/0/value").asText()).isEqualTo("Claude Code");
+          assertThat(body.at("/chips/0/removeUrl").asText())
+              .isEqualTo("/sessions?status=failed&q=alpha&sort=tokens&dir=desc");
+          assertThat(body.at("/chips/1/key").asText()).isEqualTo("status");
+          assertThat(body.at("/chips/2/key").asText()).isEqualTo("q");
+          assertThat(body.at("/clearAllUrl").asText()).isEqualTo("/sessions");
+          assertThat(body.at("/state/kind").asText()).isEqualTo("ready");
         });
   }
 
@@ -188,6 +232,12 @@ class SessionsResourceApiTest {
   private static java.util.List<String> values(JsonNode options) {
     java.util.List<String> result = new java.util.ArrayList<>();
     options.forEach(node -> result.add(node.get("value").asText()));
+    return result;
+  }
+
+  private static java.util.List<String> textValues(JsonNode nodes) {
+    java.util.List<String> result = new java.util.ArrayList<>();
+    nodes.forEach(node -> result.add(node.asText()));
     return result;
   }
 }

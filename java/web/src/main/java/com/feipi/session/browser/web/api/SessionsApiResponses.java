@@ -168,6 +168,7 @@ public final class SessionsApiResponses {
    * @param updatedAt 时间戳。
    * @param detailUrl 该字段在 API 响应中的业务值。
    * @param projectUrl 该字段在 API 响应中的业务值。
+   * @param matchReasons 搜索命中的字段来源列表。
    */
   public record SessionRowDto(
       String sessionKey,
@@ -188,7 +189,8 @@ public final class SessionsApiResponses {
       String createdAt,
       String updatedAt,
       String detailUrl,
-      String projectUrl) {
+      String projectUrl,
+      List<String> matchReasons) {
 
     /** 校验字段和业务不变量。 */
     public SessionRowDto {
@@ -205,6 +207,8 @@ public final class SessionsApiResponses {
       updatedAt = ApiResponses.empty(updatedAt);
       detailUrl = ApiResponses.empty(detailUrl);
       projectUrl = ApiResponses.empty(projectUrl);
+      Objects.requireNonNull(matchReasons, "matchReasons must not be null");
+      matchReasons = List.copyOf(matchReasons);
       if (rounds < 0 || tools < 0 || subagents < 0 || failedTools < 0) {
         throw new IllegalArgumentException("row counts must be non-negative");
       }

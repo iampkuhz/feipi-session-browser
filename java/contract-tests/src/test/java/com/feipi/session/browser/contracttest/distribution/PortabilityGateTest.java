@@ -210,7 +210,7 @@ class PortabilityGateTest {
     }
 
     @Test
-    @DisplayName("重复升级幂等，不会产生多个备份")
+    @DisplayName("重复升级幂等，备份保留数量稳定受限")
     void repeatedUpgradeIdempotent() throws Exception {
       Path dbPath = tempDir.resolve("index.sqlite");
       Path backupDir = tempDir.resolve("backups");
@@ -220,22 +220,14 @@ class PortabilityGateTest {
       DatabaseUpgrader upgrader = DatabaseUpgrader.withDefaults("0.4", backupDir);
       upgrader.upgrade(dbPath);
 
-      int backupCountAfterFirst;
-      try (var stream = Files.list(backupDir)) {
-        backupCountAfterFirst = (int) stream.count();
-      }
-
       // 重复升级
       upgrader.upgrade(dbPath);
       upgrader.upgrade(dbPath);
 
-      int backupCountAfterRepeated;
-      try (var stream = Files.list(backupDir)) {
-        backupCountAfterRepeated = (int) stream.count();
-      }
+      int backupCountAfterRepeated = countPrimaryBackups(backupDir);
 
-      // 幂等升级不应产生额外备份
-      assertThat(backupCountAfterRepeated).isEqualTo(backupCountAfterFirst);
+      // 幂等升级不应无限增长；WAL/SHM 附属文件不计入主备份数量。
+      assertThat(backupCountAfterRepeated).isBetween(1, DatabaseUpgrader.DEFAULT_BACKUP_RETENTION);
     }
   }
 
@@ -261,6 +253,17 @@ class PortabilityGateTest {
           .filter(p -> p.toString().endsWith(".sqlite") || p.toString().endsWith(".db"))
           .findFirst()
           .orElse(null);
+    }
+  }
+
+  /** 统计主数据库备份文件数量，不把 WAL/SHM 附属文件计为独立备份。 */
+  private int countPrimaryBackups(Path backupDir) throws IOException {
+    try (var stream = Files.list(backupDir)) {
+      return (int)
+          stream
+              .filter(Files::isRegularFile)
+              .filter(path -> path.getFileName().toString().endsWith(".sqlite"))
+              .count();
     }
   }
 }

@@ -106,6 +106,7 @@ public final class ProjectsApiResponses {
    * @param claudeSessions 该字段在 API 响应中的业务值。
    * @param codexSessions 该字段在 API 响应中的业务值。
    * @param qoderSessions 该字段在 API 响应中的业务值。
+   * @param agents 非零 session 的 agent badge 列表。
    * @param tokens token 组成统计。
    * @param toolCalls 当前统计口径下的调用数量。
    * @param failedTools 当前统计口径下的工具数量。
@@ -122,6 +123,7 @@ public final class ProjectsApiResponses {
       long claudeSessions,
       long codexSessions,
       long qoderSessions,
+      List<ProjectAgentBadgeDto> agents,
       TokenSegments tokens,
       long toolCalls,
       long failedTools,
@@ -135,7 +137,9 @@ public final class ProjectsApiResponses {
     public ProjectRowDto {
       projectKey = ApiResponses.required(projectKey, "projectKey");
       projectName = ApiResponses.empty(projectName);
+      Objects.requireNonNull(agents, "agents must not be null");
       Objects.requireNonNull(tokens, "tokens must not be null");
+      agents = List.copyOf(agents);
       firstSeen = ApiResponses.empty(firstSeen);
       lastSeen = ApiResponses.empty(lastSeen);
       detailUrl = ApiResponses.empty(detailUrl);
@@ -152,6 +156,25 @@ public final class ProjectsApiResponses {
       long agentSessions = claudeSessions + codexSessions + qoderSessions;
       if (agentSessions > totalSessions) {
         throw new IllegalArgumentException("agent session counts must not exceed totalSessions");
+      }
+    }
+  }
+
+  /**
+   * 表示 ProjectAgentBadgeDto 数据。
+   *
+   * @param agent agent 类型标识。
+   * @param label 用户可读标签。
+   * @param sessions agent 在当前项目下的 session 数量。
+   */
+  public record ProjectAgentBadgeDto(String agent, String label, long sessions) {
+
+    /** 校验字段和业务不变量。 */
+    public ProjectAgentBadgeDto {
+      agent = ApiResponses.required(agent, "agent");
+      label = ApiResponses.empty(label);
+      if (sessions < 0) {
+        throw new IllegalArgumentException("agent sessions must be non-negative");
       }
     }
   }

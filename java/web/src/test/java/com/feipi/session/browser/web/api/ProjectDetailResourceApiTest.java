@@ -130,9 +130,13 @@ class ProjectDetailResourceApiTest {
           assertThat(claude.at("/tokens/total").asLong()).isEqualTo(3250);
           assertThat(claude.get("failedTools").asLong()).isEqualTo(3);
           assertThat(claude.get("sessionShare").asDouble()).isCloseTo(100.0, EPSILON);
+          assertThat(claude.get("sessionShareRatio").asDouble()).isCloseTo(1.0, EPSILON);
+          assertThat(claude.get("tokenShareRatio").asDouble()).isCloseTo(1.0, EPSILON);
           JsonNode codex = findByAgent(body.get("rows"), "codex");
           assertThat(codex.get("sessions").asLong()).isEqualTo(0);
           assertThat(codex.at("/tokens/total").asLong()).isEqualTo(0);
+          assertThat(sum(body.get("rows"), "sessionShareRatio")).isCloseTo(1.0, EPSILON);
+          assertThat(sum(body.get("rows"), "tokenShareRatio")).isCloseTo(1.0, EPSILON);
         });
   }
 
@@ -219,6 +223,14 @@ class ProjectDetailResourceApiTest {
     long total = 0;
     for (JsonNode point : points) {
       total += point.get(objectField).get(field).asLong();
+    }
+    return total;
+  }
+
+  private static double sum(JsonNode rows, String field) {
+    double total = 0.0;
+    for (JsonNode row : rows) {
+      total += row.get(field).asDouble();
     }
     return total;
   }
