@@ -667,7 +667,14 @@ public final class FullScanEngine {
     return projectKey;
   }
 
-  /** Full scan 注入 session override 时使用的 token 组件。 */
+  /**
+   * 表示 token 组件汇总数据，用于保存输入、cache 与输出 token 数量。
+   *
+   * @param freshInputTokens 当前统计口径下的 fresh input token 数量。
+   * @param cacheReadTokens 当前统计口径下的 cache read token 数量。
+   * @param cacheWriteTokens 当前统计口径下的 cache write token 数量。
+   * @param outputTokens 当前统计口径下的 output token 数量。
+   */
   private record TokenComponents(
       long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
     private long total() {
@@ -899,7 +906,13 @@ public final class FullScanEngine {
     log.info("已清理旧 index 数据（sessions + session_artifacts）");
   }
 
-  /** 候选项处理结果。 */
+  /**
+   * 表示 CandidateResult 数据。
+   *
+   * @param outcome 处理结果。
+   * @param phase 处理阶段。
+   * @param message 消息文本。
+   */
   record CandidateResult(CandidateOutcome outcome, ScanIssue.ScanPhase phase, String message) {}
 
   /** 候选项处理结果枚举。 */

@@ -308,6 +308,13 @@
             return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
         }
 
+        function formatDuration(seconds) {
+            var n = Math.max(0, Math.round(Number(seconds || 0)));
+            if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'm';
+            if (n >= 60) return Math.floor(n / 60) + 'm ' + (n % 60) + 's';
+            return n + 's';
+        }
+
         function formatPct(n) {
             if (n == null || !isFinite(n)) return '';
             return n.toFixed(1) + '%';
@@ -778,16 +785,231 @@
                 xAxisHtml(data) + '<div class="chart-legend">' + legend + '</div></div>');
         }
 
-        renderSessionChart();
-        renderTokenChart();
-        renderPromptChart();
-        renderCacheHealthChart();
+        function currentApiParams() {
+            var params = new URLSearchParams(window.location.search || '');
+            params.set('agent', getActiveScope());
+            params.set('grain', getGrain());
+            return params;
+        }
 
-        window.renderDashboardCharts = function() {
+        function apiGet(path, params) {
+            var qs = params ? params.toString() : '';
+            return fetch(path + (qs ? '?' + qs : ''), { headers: { 'Accept': 'application/json' } })
+                .then(function(response) {
+                    if (!response.ok) throw new Error('HTTP ' + response.status);
+                    return response.json();
+                });
+        }
+
+        function loadDashboardApiData() {
+            if (!window.fetch) return Promise.resolve(null);
+            var params = currentApiParams();
+            var activeScope = getActiveScope();
+            return Promise.all([
+                apiGet('/api/dashboard/summary', params),
+                apiGet('/api/dashboard/trends/sessions', params),
+                apiGet('/api/dashboard/trends/tokens', params),
+                apiGet('/api/dashboard/trends/prompts', params),
+                apiGet('/api/dashboard/trends/cache-health', params),
+                apiGet('/api/dashboard/agents/contribution', params),
+                apiGet('/api/dashboard/agents/efficiency', params),
+                apiGet('/api/dashboard/agents/' + encodeURIComponent(activeScope === 'all' ? 'claude-code' : activeScope) + '/deep-dive', params)
+            ]).then(function(parts) {
+                updateDashboardSummary(parts[0]);
+                rawData = mergeSessionTokenTrends(parts[1], parts[2]);
+                promptRawData = promptTrendRows(parts[3]);
+                cacheRawData = cacheHealthRows(parts[4]);
+                updateAgentContribution(parts[5]);
+                updateAgentEfficiency(parts[6], parts[7]);
+                updateChartStats(parts[1], parts[2], parts[3], parts[4]);
+                renderAll();
+            });
+        }
+
+        function updateDashboardSummary(summary) {
+            if (!summary) return;
+            setKpiValue('Sessions', formatNumber(summary.sessionCount));
+            setKpiValue('Projects', formatNumber(summary.projectCount));
+            setKpiValue('Total Tokens', formatTokens(summary.tokens && summary.tokens.total));
+            setKpiValue('Failed Tools', formatNumber(summary.failedTools));
+            setKpiValue('Cache Read Ratio', summary.cacheReadRatio && summary.cacheReadRatio.value != null
+                ? formatPct(summary.cacheReadRatio.value * 100)
+                : 'N/A');
+        }
+
+        function setKpiValue(label, value) {
+            var cards = document.querySelectorAll('.metric-card--kpi');
+            for (var i = 0; i < cards.length; i++) {
+                var labelEl = cards[i].querySelector('.metric-card__label');
+                if (!labelEl || labelEl.textContent.trim() !== label) continue;
+                var valueEl = cards[i].querySelector('.metric-card__value');
+                if (valueEl) valueEl.textContent = value;
+            }
+        }
+
+        function mergeSessionTokenTrends(sessionResp, tokenResp) {
+            var byDate = {};
+            (sessionResp && sessionResp.points || []).forEach(function(point) {
+                byDate[point.date] = byDate[point.date] || { date: point.date };
+                byDate[point.date].total_count = point.totalCount || 0;
+                byDate[point.date].claude_count = point.claudeCount || 0;
+                byDate[point.date].codex_count = point.codexCount || 0;
+                byDate[point.date].qoder_count = point.qoderCount || 0;
+                byDate[point.date].tool_calls = point.toolCalls || 0;
+                byDate[point.date].failed_tools = point.failedTools || 0;
+            });
+            (tokenResp && tokenResp.points || []).forEach(function(point) {
+                byDate[point.date] = byDate[point.date] || { date: point.date };
+                var tokens = point.tokens || {};
+                byDate[point.date].fresh_input_tokens = tokens.fresh || 0;
+                byDate[point.date].cache_read_tokens = tokens.cacheRead || 0;
+                byDate[point.date].cache_write_tokens = tokens.cacheWrite || 0;
+                byDate[point.date].output_tokens = tokens.output || 0;
+                byDate[point.date].total_tokens = tokens.total || 0;
+                byDate[point.date].claude_tokens = point.claudeTokens || 0;
+                byDate[point.date].codex_tokens = point.codexTokens || 0;
+                byDate[point.date].qoder_tokens = point.qoderTokens || 0;
+            });
+            return Object.keys(byDate).sort().map(function(key) { return byDate[key]; });
+        }
+
+        function promptTrendRows(resp) {
+            return (resp && resp.points || []).map(function(point) {
+                return {
+                    date: point.date,
+                    claude_prompts: point.claudePrompts || 0,
+                    codex_prompts: point.codexPrompts || 0,
+                    qoder_prompts: point.qoderPrompts || 0,
+                    total_prompts: point.totalPrompts || 0,
+                    assistant_turns: point.assistantTurns || 0,
+                    tool_calls: point.toolCalls || 0
+                };
+            });
+        }
+
+        function cacheHealthRows(resp) {
+            return (resp && resp.points || []).map(function(point) {
+                var row = { date: point.date };
+                copyCacheTuple(row, 'average', point.average);
+                copyCacheTuple(row, 'claude_code', point.claudeCode);
+                copyCacheTuple(row, 'codex', point.codex);
+                copyCacheTuple(row, 'qoder', point.qoder);
+                return row;
+            });
+        }
+
+        function copyCacheTuple(target, prefix, tuple) {
+            tuple = tuple || {};
+            target[prefix + '_fresh_input_tokens'] = tuple.fresh || 0;
+            target[prefix + '_cache_read_tokens'] = tuple.cacheRead || 0;
+            target[prefix + '_cache_write_tokens'] = tuple.cacheWrite || 0;
+            target[prefix + '_cache_metric_known'] = !(tuple.ratio && tuple.ratio.value == null);
+        }
+
+        function updateChartStats(sessions, tokens, prompts, cache) {
+            setStatText('range-total-sessions', 'Range total: ' + formatNumber(sessions && sessions.rangeTotal));
+            setStatText('range-total-tokens', 'Range total: ' + formatTokens(tokens && tokens.rangeTotals && tokens.rangeTotals.total));
+            setStatText('range-total-prompts', 'Range total: ' + formatNumber(prompts && prompts.rangeTotalPrompts));
+            setStatText('latest-ratio', 'Latest ratio: ' + ratioText(cache && cache.latestRatio));
+            setStatText('lowest-ratio', 'Lowest ratio: ' + ratioText(cache && cache.lowestRatio));
+        }
+
+        function ratioText(ratio) {
+            return ratio && ratio.value != null ? formatPct(ratio.value * 100) : 'N/A';
+        }
+
+        function setStatText(name, text) {
+            var el = document.querySelector('[data-stat="' + name + '"]');
+            if (el) el.textContent = text;
+        }
+
+        function updateAgentContribution(resp) {
+            if (!resp || !Array.isArray(resp.rows)) return;
+            renderContributionBar('session-share', resp.rows, 'sessionCount', 'sessionShare', formatNumber);
+            renderContributionBar('token-share', resp.rows, function(row) { return row.tokens && row.tokens.total; }, 'tokenShare', formatTokens);
+            renderContributionBar('prompt-share', resp.rows, 'prompts', 'promptShare', formatNumber);
+            var table = document.getElementById('dashboard-all-agents-table');
+            if (!table) return;
+            var tbody = table.querySelector('tbody');
+            if (!tbody) return;
+            tbody.innerHTML = resp.rows.map(function(row) {
+                var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
+                return '<tr class="agent-row" data-action="switch-agent-scope" data-scope="' + escapeHtml(scope) + '">' +
+                    '<td data-sort-value="' + escapeHtml(row.label) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.label) + '</span></td>' +
+                    '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + ' <span class="muted">· ' + formatPct(row.sessionShare) + '</span></td>' +
+                    '<td class="numeric token-cell" data-sort-value="' + escapeHtml(row.tokens && row.tokens.total) + '">' + formatTokens(row.tokens && row.tokens.total) + ' <span class="muted">· ' + formatPct(row.tokenShare) + '</span></td>' +
+                    '<td class="numeric" data-sort-value="' + escapeHtml(row.prompts) + '">' + formatNumber(row.prompts) + ' <span class="muted">· ' + formatPct(row.promptShare) + '</span></td>' +
+                    '<td class="numeric" data-sort-value="' + escapeHtml(row.projectCount) + '">' + formatNumber(row.projectCount) + '</td>' +
+                    '<td class="numeric" data-sort-value="' + escapeHtml(row.failedTools) + '">' + formatNumber(row.failedTools) + ' failed</td><td class="numeric">—</td></tr>';
+            }).join('');
+        }
+
+        function renderContributionBar(name, rows, valueKey, shareKey, formatter) {
+            var bar = document.querySelector('[data-hbar="' + name + '"]');
+            if (!bar) return;
+            bar.innerHTML = rows.filter(function(row) { return valueOf(row, valueKey) > 0; }).map(function(row) {
+                var value = valueOf(row, valueKey);
+                var shareValue = row[shareKey] || 0;
+                return '<div class="hbar-seg hbar-seg--' + escapeHtml(row.agent) + '" style="--seg-width: ' + Math.max(2, shareValue) + '%" data-agent="' + escapeHtml(row.label) + '" data-value="' + escapeHtml(value) + '" data-share="' + escapeHtml(formatPct(shareValue)) + '">' +
+                    '<span class="hbar-seg__label">' + escapeHtml(row.label) + '</span><span class="hbar-seg__pct">' + escapeHtml(formatPct(shareValue)) + '</span></div>';
+            }).join('');
+        }
+
+        function valueOf(row, key) {
+            return typeof key === 'function' ? Number(key(row) || 0) : Number(row[key] || 0);
+        }
+
+        function updateAgentEfficiency(allResp, deepResp) {
+            var table = document.getElementById('dashboard-agent-model-efficiency-table');
+            if (table && allResp && Array.isArray(allResp.rows)) {
+                var tbody = table.querySelector('tbody');
+                if (tbody) {
+                    tbody.innerHTML = allResp.rows.map(efficiencyRowHtml).join('');
+                }
+            }
+            var detailTable = document.querySelector('section[aria-label="Model Efficiency Detail"] table.data-table tbody');
+            if (detailTable && deepResp && Array.isArray(deepResp.rows)) {
+                detailTable.innerHTML = deepResp.rows.map(efficiencyDetailRowHtml).join('');
+            }
+        }
+
+        function efficiencyRowHtml(row) {
+            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
+            return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
+                '<td data-sort-value="' + escapeHtml(row.agent) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.agent) + '</span></td>' +
+                '<td class="mono" data-sort-value="' + escapeHtml(row.model) + '">' + escapeHtml(row.model) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.sessionCount) + '">' + formatNumber(row.sessionCount) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.avgTokensPerSession) + '">' + formatTokens(row.avgTokensPerSession) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.cacheReuseRatio || 0) + '">' + (row.cacheReuseRatio == null ? 'N/A' : formatPct(row.cacheReuseRatio * 100)) + '</td>' +
+                '<td class="numeric" data-sort-value="' + escapeHtml(row.failedPerSession || 0) + '">' + (row.failedPerSession == null ? '0.0' : row.failedPerSession.toFixed(1)) + '</td></tr>';
+        }
+
+        function efficiencyDetailRowHtml(row) {
+            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
+            return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
+                '<td class="mono">' + escapeHtml(row.model) + '</td><td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
+                '<td class="numeric">' + formatTokens(row.avgTokensPerSession) + '</td>' +
+                '<td class="numeric">' + formatDuration(row.avgDurationSeconds) + '</td>' +
+                '<td class="numeric">' + (row.cacheReuseRatio == null ? 'N/A' : formatPct(row.cacheReuseRatio * 100)) + '</td>' +
+                '<td class="numeric">' + (row.avgToolsPerSession == null ? '0.0' : row.avgToolsPerSession.toFixed(1)) + '</td>' +
+                '<td class="numeric">' + (row.failedPerSession == null ? '0.0' : row.failedPerSession.toFixed(1)) + '</td>' +
+                '<td><span class="badge badge-info">API contract</span></td></tr>';
+        }
+
+        function renderAll() {
             renderSessionChart();
             renderTokenChart();
             renderPromptChart();
             renderCacheHealthChart();
+        }
+
+        renderAll();
+        loadDashboardApiData().catch(function(err) {
+            console.error('Dashboard API hydration failed:', err.message || err);
+        });
+
+        window.renderDashboardCharts = function() {
+            renderAll();
         };
     });
 })();

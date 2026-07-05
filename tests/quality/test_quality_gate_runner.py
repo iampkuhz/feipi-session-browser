@@ -1,6 +1,7 @@
 """测试 scripts/quality/run_quality_gate.py 的质量门禁运行器."""
 
 import json
+import stat
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -171,6 +172,19 @@ class TestQualityTargets:
         assert 'noTestSkips' in gates
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_java_src_includes_record_component_javadocs(self):
+        gates = required_gates_for_target('java-src')
+        assert 'javaRecordComponentJavadocs' in gates
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_java_record_component_gate_triggers_for_main_java(self):
+        gates = applicable_gates_for_target(
+            'java-src',
+            ['java/index-sqlite/src/main/java/com/feipi/session/browser/index/sqlite/ProjectListSummaryRow.java'],
+        )
+        assert 'javaRecordComponentJavadocs' in gates
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_hook_runtime_runs_no_skip_gate_for_gate_changes(self):
         gates = applicable_gates_for_target(
             'hook-runtime',
@@ -186,6 +200,29 @@ class TestQualityTargets:
         )
         assert 'doctor' in gates
         assert 'repoStructure' in gates
+
+
+class TestCodexHookConfiguration:
+    """Codex hook 配置必须覆盖写入工具并保持入口可执行。"""
+
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_post_bash_wrapper_is_executable(self):
+        """PostToolUse/Bash wrapper 必须可执行，否则 Bash evidence 会缺失。"""
+        path = Path.cwd() / '.codex' / 'hooks' / 'post_bash_guard.sh'
+        assert path.exists()
+        assert path.stat().st_mode & stat.S_IXUSR
+
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_write_matcher_includes_notebook_edit(self):
+        """Codex 写入 matcher 与共享 hook evidence 契约保持一致。"""
+        hooks = json.loads((Path.cwd() / '.codex' / 'hooks.json').read_text(encoding='utf-8'))
+        matchers = [
+            item.get('matcher', '')
+            for item in hooks.get('hooks', {}).get('PostToolUse', [])
+            if isinstance(item, dict)
+        ]
+
+        assert any('NotebookEdit' in matcher for matcher in matchers)
 
 
 class TestQualityGateRuntime:
@@ -708,6 +745,29 @@ class TestJavaChineseCommentsGateCommand:
     def test_gate_blocked_when_checker_absent(self, tmp_path: Path):
         """检查脚本不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
         cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        assert cmd == []
+
+
+class TestJavaRecordComponentJavadocsGateCommand:
+    """javaRecordComponentJavadocs gate 必须使用仓库内脚本。"""
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_command_uses_repo_checker(self, tmp_path: Path):
+        """gate 命令指向 record component Javadoc 检查脚本。"""
+        checker = tmp_path / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
+
+        assert cmd, '仓库内脚本存在时命令不应为空'
+        assert any('check_java_record_component_javadocs.py' in str(c) for c in cmd)
+        assert 'java' in cmd
+
+    @pytest.mark.contract_case('JR-020-001')
+    def test_gate_blocked_when_checker_absent(self, tmp_path: Path):
+        """检查脚本不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
+        cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
         assert cmd == []
 
 

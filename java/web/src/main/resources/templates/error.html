@@ -15,10 +15,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="state-panel" role="alert" aria-live="assertive" aria-labelledby="state-page-title">
+<div class="state-panel" role="{{ state is defined ? state.role : 'alert' }}" aria-live="{{ state is defined ? state.ariaLive : 'assertive' }}" aria-labelledby="state-page-title">
     <div class="state-panel__icon state-panel__icon--error" aria-hidden="true">!</div>
-    <h2 class="state-panel__title" id="state-page-title">Something Went Wrong</h2>
-    <p class="state-panel__desc">{{ error is defined ? error : 'An unexpected error occurred while processing your request.' }}</p>
+    <h2 class="state-panel__title" id="state-page-title">{{ state is defined ? state.title : 'Something Went Wrong' }}</h2>
+    <p class="state-panel__desc">{{ state is defined ? state.message : (error is defined ? error : 'An unexpected error occurred while processing your request.') }}</p>
     <nav class="state-panel__links" aria-label="Navigation links">
         <a href="/dashboard" class="state-panel__link state-panel__link--primary">Go to Dashboard</a>
         <a href="{{ request_path is defined ? request_path : '#' }}" class="state-panel__link" data-action="reload-page">Reload page</a>
@@ -26,11 +26,11 @@
     {% if error_details is defined and error_details is not empty %}
     <details class="state-panel__details">
         <summary>Error details</summary>
-        <pre class="state-panel__raw">error type: {{ error_details.error_type }}
-request path: {{ error_details.request_path }}
-request id: {{ error_details.request_id }}
+        <pre class="state-panel__raw">error type: {{ error_details.errorType is defined ? error_details.errorType : error_details.error_type }}
+request path: {{ error_details.requestPath is defined ? error_details.requestPath : error_details.request_path }}
+request id: {{ error_details.requestId is defined ? error_details.requestId : error_details.request_id }}
 timestamp: {{ error_details.timestamp }}
-message summary: {{ error_details.message_summary }}</pre>
+message summary: {{ error_details.messageSummary is defined ? error_details.messageSummary : error_details.message_summary }}</pre>
     </details>
     {% endif %}
 </div>

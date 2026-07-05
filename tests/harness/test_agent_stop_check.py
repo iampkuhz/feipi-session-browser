@@ -348,6 +348,22 @@ def test_stop_changed_files_fail_closed_without_explicit_session(monkeypatch):
     assert paths == ['scripts/harness/agent_stop_check.py']
 
 
+def test_codex_stop_without_session_uses_dirty_java_fail_closed(monkeypatch):
+    """Codex Stop 缺少 session id 时，dirty Java 文件必须触发 java-src。"""
+    identity = runtime_paths.identity_from_values(agent_client='codex')
+    monkeypatch.setattr(
+        agent_stop_check,
+        'read_git_dirty_files',
+        lambda: ['java/index-sqlite/src/main/java/com/feipi/Foo.java'],
+    )
+
+    paths, mode = agent_stop_check.collect_stop_changed_files(identity, None)
+
+    assert mode == 'fail-closed-git'
+    assert paths == ['java/index-sqlite/src/main/java/com/feipi/Foo.java']
+    assert 'java-src' in required_targets(paths)
+
+
 def test_stop_check_lock_is_exclusive(tmp_path):
     lock_path = tmp_path / 'stop-check.lock'
     first = agent_stop_check.StopCheckLock(lock_path, 'claude', 's1')

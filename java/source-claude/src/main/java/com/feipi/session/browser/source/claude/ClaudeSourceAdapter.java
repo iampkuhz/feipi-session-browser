@@ -548,13 +548,30 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     private boolean hasContent;
   }
 
-  /** 去重后的 Claude assistant 语义消息。 */
+  /**
+   * 表示 AssistantRecord 数据。
+   *
+   * @param usageRows usage 行列表。
+   * @param toolUses tool use 列表。
+   */
   private record AssistantRecord(List<JsonNode> usageRows, List<ToolUse> toolUses) {}
 
-  /** Claude assistant 消息中的 tool_use 引用。 */
+  /**
+   * 表示 ToolUse 数据。
+   *
+   * @param id 标识符。
+   * @param name 名称。
+   */
   private record ToolUse(String id, String name) {}
 
-  /** Claude usage 行的 token 组件合计。 */
+  /**
+   * 表示 UsageTotals 数据。
+   *
+   * @param inputTokens 输入 token 数量。
+   * @param cacheReadTokens cache read token 数量。
+   * @param cacheWriteTokens cache write token 数量。
+   * @param outputTokens output token 数量。
+   */
   private record UsageTotals(
       long inputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
     private static UsageTotals empty() {
@@ -562,7 +579,17 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     }
   }
 
-  /** Claude 父会话需要吸收的 subagent 汇总指标。 */
+  /**
+   * 表示 ClaudeSubagentTotals 数据。
+   *
+   * @param subagentInstanceCount subagent 实例数量。
+   * @param toolCallCount 工具调用数量。
+   * @param failedToolCount 失败工具数量。
+   * @param freshInputTokens fresh input token 数量。
+   * @param cacheReadTokens cache read token 数量。
+   * @param cacheWriteTokens cache write token 数量。
+   * @param outputTokens output token 数量。
+   */
   private record ClaudeSubagentTotals(
       long subagentInstanceCount,
       long toolCallCount,
@@ -800,7 +827,14 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     return "";
   }
 
-  /** Claude transcript 中可提升到 session row 的展示元数据。 */
+  /**
+   * 表示 ClaudeCandidateMetadata 数据。
+   *
+   * @param cwd 工作目录。
+   * @param title 会话标题。
+   * @param model 模型名称。
+   * @param gitBranch Git branch 名称。
+   */
   private record ClaudeCandidateMetadata(String cwd, String title, String model, String gitBranch) {
     private static ClaudeCandidateMetadata empty() {
       return new ClaudeCandidateMetadata("", "", "", "");

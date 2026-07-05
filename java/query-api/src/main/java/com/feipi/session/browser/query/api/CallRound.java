@@ -20,6 +20,11 @@ import java.util.Objects;
  * @param calls 本轮次包含的归一化调用 callId 列表
  * @param toolCallIds 本轮次关联的工具调用 ID 列表
  * @param parentCallId 触发本轮次的父调用 ID，首轮次为空
+ * @param freshInputTokens fresh input token 数量。
+ * @param cacheReadTokens cache read token 数量。
+ * @param cacheWriteTokens cache write token 数量。
+ * @param outputTokens output token 数量。
+ * @param totalTokens token 汇总数量。
  */
 public record CallRound(
     int roundIndex,

@@ -713,7 +713,15 @@ public final class ReuseAnalyzer {
     return recordComponentNames.contains(method.getSimpleName());
   }
 
-  /** 方法 occurrence 的内部记录。 */
+  /**
+   * 表示 MethodOccurrence 数据。
+   *
+   * @param methodId 方法标识符。
+   * @param typeName 类型名称。
+   * @param methodName 方法名称。
+   * @param ownership 归属分类。
+   * @param peerGroup 同组方法标识。
+   */
   private record MethodOccurrence(
       String methodId, String typeName, String methodName, Ownership ownership, String peerGroup) {}
 }

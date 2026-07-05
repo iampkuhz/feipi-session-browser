@@ -355,7 +355,11 @@ public final class NormalizedArtifactLoader {
     return new FieldValue(firstValue(map, key, aliases));
   }
 
-  /** 从 JSON map 中读取并转换字段值的轻量包装。 */
+  /**
+   * 表示 FieldValue 数据。
+   *
+   * @param value 字段原始值。
+   */
   private record FieldValue(Object value) {
     String asString(String defaultValue) {
       return value == null ? defaultValue : String.valueOf(value);

@@ -466,8 +466,7 @@ class FullScanEngineTest {
   }
 
   @Test
-  void candidateSubagentMetadataStillBackfillsWhenOnlySidecarTotalsAreAvailable()
-      throws Exception {
+  void candidateSubagentMetadataStillBackfillsWhenOnlySidecarTotalsAreAvailable() throws Exception {
     Candidate candidate =
         makeCandidate(
             "claude-session.jsonl",
@@ -507,11 +506,7 @@ class FullScanEngineTest {
     NormalizedSessionArtifact artifact =
         artifactWith(
             List.of(
-                call(
-                    "main-call",
-                    1,
-                    CallScope.MAIN,
-                    new NormalizedCallUsage(10, 20, 30, 40, 100))),
+                call("main-call", 1, CallScope.MAIN, new NormalizedCallUsage(10, 20, 30, 40, 100))),
             List.of());
 
     invokeApplyCandidateMetadata(

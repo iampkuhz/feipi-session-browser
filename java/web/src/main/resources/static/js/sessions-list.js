@@ -78,6 +78,52 @@
     return normalized;
   }
 
+  function escapeHtml(value) {
+    return String(value == null ? '' : value)
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
+  function formatNumber(value) {
+    return String(Math.round(Number(value || 0))).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+  }
+
+  function formatCompact(value) {
+    var n = Number(value || 0);
+    if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'B';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return formatNumber(n);
+  }
+
+  function formatDuration(seconds) {
+    var n = Math.max(0, Math.round(Number(seconds || 0)));
+    if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'm';
+    if (n >= 60) return Math.floor(n / 60) + 'm ' + (n % 60) + 's';
+    return n + 's';
+  }
+
+  function formatDate(value) {
+    if (!value) return '—';
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return value;
+    return date.toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+  }
+
+  function segmentPct(tokens, key) {
+    var total = Number(tokens && tokens.total || 0);
+    if (!total) return 0;
+    return Math.round(Number(tokens[key] || 0) * 1000 / total) / 10;
+  }
+
+  function apiUrl(path, params) {
+    var qs = cleanParams(params instanceof URLSearchParams ? params : new URLSearchParams(params || {}));
+    return path + (qs.toString() ? '?' + qs.toString() : '');
+  }
+
   function cleanParams(params) {
     var cleaned = new URLSearchParams();
     params.forEach(function (value, key) {
@@ -114,14 +160,17 @@
   function submitFilter() {
     var form = document.getElementById('session-filter-form');
     if (!form) return;
-    navigate(paramsToObject(getFilterParams()));
+    var params = getFilterParams();
+    params.set('page', '1');
+    fetchPage(paramsToObject(params));
   }
 
   /**
-   * Handle browser back/forward: full reload since state is server-side.
+   * Handle browser back/forward: refresh from resource APIs.
    */
   window.addEventListener('popstate', function () {
-    window.location.reload();
+    syncFormFromLocation();
+    fetchPage(paramsToObject(getFilterParams()), true);
   });
 
   // ── Real-time client-side search + debounced server-side search ──────
@@ -163,32 +212,7 @@
     params.set('q', query || '');
     params.set('page', '1');
 
-    var qs = new URLSearchParams();
-    params.forEach(function (value, key) {
-      if (value !== '' && value != null) {
-        qs.set(key, value);
-      }
-    });
-    var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
-
-    var tbody = document.querySelector('.table-card .data-table tbody');
-    if (!tbody) return;
-
-    fetch(url, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(function (response) {
-      if (!response.ok) throw new Error('HTTP ' + response.status);
-      return response.text();
-    })
-    .then(function (html) {
-      applyAjaxTableResponse(html, url);
-    })
-    .catch(function (err) {
-      console.error('AJAX search error:', err.message || err);
-      // Fall back to full page navigation
-      window.location.href = url;
-    });
+    fetchPage(paramsToObject(params));
   }
 
   function bindRealtimeSearch() {
@@ -242,7 +266,7 @@
       if (pageInput) {
         pageInput.value = '1';
       }
-      // Submit form for server-side filter
+      // Refresh from JSON APIs.
       submitFilter();
     });
   }
@@ -285,6 +309,8 @@
     bindRealtimeSearch();
     bindSelectAutoSubmit();
     setupTokenTooltips();
+    syncFormFromLocation();
+    fetchPage(paramsToObject(getFilterParams()), true);
 
     // Expose public API
     window.SessionsList = {
@@ -352,39 +378,6 @@
         handleSort(sortBtn);
         return;
       }
-
-      var pageBtn = closest(e.target, '.pagination [data-action="prev-page"], .pagination [data-action="next-page"]');
-      if (!pageBtn) return;
-      e.preventDefault();
-
-      var pagination = closest(pageBtn, '.pagination');
-      var input = pagination ? pagination.querySelector('input[data-action="page-input"]') : null;
-      var current = input ? parseInt(input.value, 10) : 1;
-      if (isNaN(current)) current = 1;
-      var delta = pageBtn.getAttribute('data-action') === 'next-page' ? 1 : -1;
-      var nextPage = current + delta;
-      var totalPages = input ? parseInt(input.getAttribute('data-total-pages'), 10) : NaN;
-      if (nextPage < 1) return;
-      if (!isNaN(totalPages) && nextPage > totalPages) return;
-
-      var params = getFilterParams();
-      params.set('page', String(nextPage));
-      fetchPage(paramsToObject(params));
-    });
-
-    document.addEventListener('keydown', function (e) {
-      var input = e.target;
-      if (!input || input.getAttribute('data-action') !== 'page-input') return;
-      if (e.key !== 'Enter') return;
-      e.preventDefault();
-      var page = parseInt(input.value, 10);
-      if (isNaN(page) || page < 1) page = 1;
-      var totalPages = parseInt(input.getAttribute('data-total-pages'), 10);
-      if (!isNaN(totalPages) && page > totalPages) page = totalPages;
-      input.value = String(page);
-      var params = getFilterParams();
-      params.set('page', String(page));
-      fetchPage(paramsToObject(params));
     });
   }
 
@@ -408,7 +401,7 @@
         bubbles: true,
         detail: { form: form }
       }));
-      navigate(paramsToObject(getFilterParams()));
+      fetchPage(paramsToObject(getFilterParams()));
     });
   }
 
@@ -542,20 +535,239 @@
     tbody.replaceChildren(row);
   }
 
+  function syncFormFromLocation() {
+    var form = document.getElementById('session-filter-form');
+    if (!form) return;
+    var params = new URLSearchParams(window.location.search);
+    ['q', 'agent', 'model', 'project', 'status', 'sort', 'dir', 'page_size', 'page'].forEach(function (key) {
+      var field = form.querySelector('[name="' + key + '"]');
+      if (!field) return;
+      var value = params.get(key) || '';
+      if (key === 'agent') value = normalizeAgent(value);
+      if (key === 'page' && !value) value = '1';
+      if (key === 'page_size' && !value) value = '25';
+      if (key === 'dir' && !value) value = 'desc';
+      field.value = value;
+    });
+  }
+
+  function setSelectOptions(select, options, selectedValue, allLabel) {
+    if (!select || !Array.isArray(options)) return;
+    var current = selectedValue == null ? '' : String(selectedValue);
+    var normalized = options.slice();
+    if (allLabel && (!normalized.length || (normalized[0].value !== '' && normalized[0].value !== 'all'))) {
+      normalized.unshift({ value: '', label: allLabel });
+    }
+    select.replaceChildren.apply(select, normalized.map(function (option) {
+      var value = option.value === 'all' ? '' : String(option.value || '');
+      var opt = document.createElement('option');
+      opt.value = value;
+      opt.textContent = option.label || (value || allLabel || 'All');
+      if (value === current || (!value && !current)) opt.selected = true;
+      return opt;
+    }));
+  }
+
+  function renderSummary(summary) {
+    if (!summary) return;
+    var stats = document.querySelector('.page-head__stats');
+    if (stats) {
+      stats.replaceChildren(
+        statPill(summary.totalCount, 'sessions'),
+        statPill(summary.projectCount, 'projects'),
+        statPill(formatCompact(summary.tokens && summary.tokens.total), 'total tokens')
+      );
+    }
+    var countEl = document.querySelector('.active-filters__count');
+    if (countEl) {
+      countEl.textContent = summary.totalCount > 0
+        ? summary.totalCount + ' matching sessions'
+        : 'No matching sessions';
+    }
+  }
+
+  function statPill(value, label) {
+    var span = document.createElement('span');
+    span.className = 'ui-stat-pill';
+    span.setAttribute('role', 'status');
+    var b = document.createElement('b');
+    b.textContent = String(value);
+    span.appendChild(b);
+    span.appendChild(document.createTextNode(' ' + label));
+    return span;
+  }
+
+  function renderOptions(options, filters) {
+    if (!options) return;
+    setSelectOptions(document.getElementById('filter-agent'), options.agents, filters.agent, 'All Agents');
+    setSelectOptions(document.getElementById('filter-model'), options.models, filters.model, 'All Models');
+    setSelectOptions(document.getElementById('filter-project'), options.projects, filters.project, 'All Projects');
+    setSelectOptions(document.getElementById('filter-status'), options.statuses, filters.status, 'All');
+  }
+
+  function renderRows(rowsResponse) {
+    var tbody = document.querySelector('.table-card .data-table tbody');
+    if (!tbody || !rowsResponse) return;
+    var rows = rowsResponse.rows || [];
+    if (!rows.length) {
+      tbody.replaceChildren(emptyRow(rowsResponse.state));
+    } else {
+      tbody.replaceChildren.apply(tbody, rows.map(sessionRowElement));
+    }
+    renderPagination(rowsResponse.pagination);
+    updateHiddenPaging(rowsResponse.filters, rowsResponse.pagination);
+    augmentSortableHeaders();
+    setupTokenTooltips();
+  }
+
+  function emptyRow(state) {
+    var row = document.createElement('tr');
+    var cell = document.createElement('td');
+    cell.colSpan = 13;
+    var title = state && state.title ? state.title : 'No sessions found';
+    var message = state && state.message ? state.message : 'No sessions match your current filters.';
+    cell.innerHTML = '<div class="empty-state"><div><div class="empty-state__icon">🔎</div><h2 class="empty-state__title">'
+      + escapeHtml(title) + '</h2><p class="empty-state__text">' + escapeHtml(message)
+      + '</p><a href="/sessions" class="btn primary" data-action="clear">Clear Filters</a></div></div>';
+    row.appendChild(cell);
+    return row;
+  }
+
+  function sessionRowElement(row) {
+    var tr = document.createElement('tr');
+    var tokens = row.tokens || {};
+    var title = row.title || row.sessionId;
+    var projectLabel = row.projectName || row.projectKey || '—';
+    var agentClass = row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd');
+    var agentText = row.agent === 'claude_code' ? 'CC' : (row.agent === 'codex' ? 'CX' : 'QD');
+    tr.className = 'sessions-row';
+    tr.setAttribute('data-action', 'row');
+    tr.dataset.sessionKey = row.sessionKey || '';
+    tr.dataset.agent = row.agent || '';
+    tr.dataset.model = row.model || '';
+    tr.dataset.project = row.projectKey || '';
+    tr.dataset.sessionId = row.sessionId || '';
+    tr.dataset.detailUrl = row.detailUrl || '';
+    tr.dataset.title = title;
+    tr.dataset.endedAt = row.updatedAt || '';
+    tr.dataset.totalTokens = tokens.total || 0;
+    tr.dataset.rounds = row.rounds || 0;
+    tr.dataset.toolCount = row.tools || 0;
+    tr.dataset.duration = row.durationSeconds || 0;
+    tr.dataset.processTime = row.processSeconds || 0;
+    tr.dataset.failedTools = row.failedTools || 0;
+    tr.dataset.createdAt = row.createdAt || '';
+    tr.innerHTML = [
+      '<td class="col-session"><div class="title-main"><a class="session-link" href="', escapeHtml(row.detailUrl), '" data-action="open-session" data-session-link>',
+      escapeHtml(title), '</a></div><div class="title-sub mono"><span>', escapeHtml((row.sessionId || '').slice(0, 12)), '</span></div></td>',
+      '<td class="col-project"><div class="project-cell"><span class="project-name"><a href="', escapeHtml(row.projectUrl || '#'), '" class="link-muted" data-project="', escapeHtml(row.projectKey || ''), '" title="', escapeHtml(row.cwd || ''), '">',
+      escapeHtml(projectLabel), '</a></span></div></td>',
+      '<td class="col-agent"><span class="badge ', agentClass, '">', agentText, '</span></td>',
+      '<td class="mono col-model" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
+      tokenCellHtml(tokens, 'col-tokens'),
+      '<td class="num mono col-rounds">', formatNumber(row.rounds), '</td>',
+      '<td class="num mono col-tools">', formatNumber(row.tools), '</td>',
+      '<td class="num mono col-subagents">', formatNumber(row.subagents), '</td>',
+      '<td class="mono col-duration" data-tooltip="', escapeHtml(row.durationSeconds), 's">', formatDuration(row.durationSeconds), '</td>',
+      '<td class="mono col-process-time" data-tooltip="active processing ', escapeHtml(row.processSeconds), 's">', formatDuration(row.processSeconds), '</td>',
+      '<td class="col-failure ', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">',
+      Number(row.failedTools || 0) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
+      '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td>',
+      '<td class="muted col-updated">', escapeHtml(formatDate(row.updatedAt)), '</td>'
+    ].join('');
+    return tr;
+  }
+
+  function tokenCellHtml(tokens, extraClass) {
+    var freshPct = segmentPct(tokens, 'fresh');
+    var readPct = segmentPct(tokens, 'cacheRead');
+    var writePct = segmentPct(tokens, 'cacheWrite');
+    var outPct = segmentPct(tokens, 'output');
+    return [
+      '<td class="mono token-cell ', extraClass || '', '"><span class="token-total"><span class="token-total__value">',
+      formatCompact(tokens && tokens.total), '</span><span class="tokenbar tokenbar-in-cell" aria-hidden="true">',
+      '<span class="tokenbar-seg fresh t-fresh" style="--segment-width:', freshPct, '%"></span>',
+      '<span class="tokenbar-seg read t-read" style="--segment-width:', readPct, '%"></span>',
+      '<span class="tokenbar-seg write t-write" style="--segment-width:', writePct, '%"></span>',
+      '<span class="tokenbar-seg out t-out" style="--segment-width:', outPct, '%"></span>',
+      '<span class="token-tooltip" aria-hidden="true"><span class="token-tooltip__title">Token Breakdown</span>',
+      tooltipRowHtml('fresh', 'Fresh input', tokens && tokens.fresh, freshPct),
+      tooltipRowHtml('read', 'Cached Rd', tokens && tokens.cacheRead, readPct),
+      tooltipRowHtml('write', 'Cached Wr', tokens && tokens.cacheWrite, writePct),
+      tooltipRowHtml('out', 'Output', tokens && tokens.output, outPct),
+      '<span class="token-tooltip__sep"></span><span class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">',
+      formatCompact(tokens && tokens.total), '</span></span></span></span></span></td>'
+    ].join('');
+  }
+
+  function tooltipRowHtml(cls, label, value, pct) {
+    return '<span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--'
+      + cls + '"></span><span class="token-tooltip__type-name">' + escapeHtml(label)
+      + '</span></span><span class="token-tooltip__value">' + formatCompact(value)
+      + '</span><span class="token-tooltip__pct">' + pct + '%</span></span>';
+  }
+
+  function renderPagination(pagination) {
+    var wrapper = document.getElementById('ajax-pagination');
+    var card = document.querySelector('.sessions-table-card');
+    if (!wrapper && card) {
+      var paginationShell = document.createElement('div');
+      paginationShell.className = 'table-card-pagination';
+      wrapper = document.createElement('div');
+      wrapper.id = 'ajax-pagination';
+      paginationShell.appendChild(wrapper);
+      card.appendChild(paginationShell);
+    }
+    if (!wrapper || !pagination) return;
+    var disabled = (pagination.totalPages || 0) <= 1;
+    wrapper.innerHTML = '<nav class="pagination unified-pagination" role="navigation" aria-label="Sessions pagination" data-pagination>'
+      + '<button class="btn sm" data-action="prev-page" aria-label="Previous page"'
+      + (!pagination.hasPrevious || disabled ? ' disabled' : '') + '>&lsaquo; prev</button>'
+      + '<span class="page-status">Page</span>'
+      + '<input class="page-input mono" data-action="page-input" aria-label="Page number" value="'
+      + escapeHtml(pagination.page) + '" data-total-pages="' + escapeHtml(pagination.totalPages || 1) + '"'
+      + (disabled ? ' disabled' : '') + ' title="输入页码后按 Enter，跳转到指定页">'
+      + '<span class="page-status">of ' + escapeHtml(pagination.totalPages || 0)
+      + (pagination.totalItems > 0 ? ' of ' + escapeHtml(pagination.totalItems) : '') + '</span>'
+      + '<span class="spacer"></span><label class="page-size-label page-status">每页 '
+      + '<select class="page-size-select sessions-footer-page-size__select" data-action="page-size" aria-label="Page size">'
+      + pageSizeOption(25, pagination.pageSize) + pageSizeOption(50, pagination.pageSize)
+      + pageSizeOption(100, pagination.pageSize) + '</select></label>'
+      + '<button class="btn sm" data-action="next-page" aria-label="Next page"'
+      + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button></nav>';
+  }
+
+  function pageSizeOption(value, selected) {
+    return '<option value="' + value + '"' + (Number(selected) === value ? ' selected' : '') + '>' + value + '</option>';
+  }
+
+  function updateHiddenPaging(filters, pagination) {
+    var form = document.getElementById('session-filter-form');
+    if (!form) return;
+    var page = form.querySelector('input[name="page"]');
+    var pageSize = form.querySelector('input[name="page_size"]');
+    var sort = form.querySelector('input[name="sort"]');
+    var dir = form.querySelector('input[name="dir"]');
+    if (page && pagination) page.value = String(pagination.page || 1);
+    if (pageSize && pagination) pageSize.value = String(pagination.pageSize || 25);
+    if (sort && filters) sort.value = filters.sort || '';
+    if (dir && filters) dir.value = filters.dir || 'desc';
+  }
+
   /**
-   * Fetch a page via AJAX and replace table body + pagination.
-   * Uses X-Requested-With header to trigger partial response from server.
+   * Fetch a page via JSON resource APIs and replace table body + pagination.
    * pushState only happens AFTER successful response — never before.
    * On failure, does full reload to target URL — never leaves a loading/empty table.
    * After replacing pagination, re-augments sortable headers so new DOM has data-action.
    */
-  function fetchPage(params) {
+  function fetchPage(params, replaceState) {
     var qs = new URLSearchParams();
     for (var k in params) {
       if (params[k] !== '' && params[k] != null) {
         qs.set(k, params[k]);
       }
     }
+    qs = cleanParams(qs);
     var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
 
     var tbody = document.querySelector('.table-card .data-table tbody');
@@ -568,23 +780,31 @@
     // Show loading state
     showLoadingRow(tbody);
 
-    fetch(url, {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' }
-    })
-    .then(function (response) {
-      if (!response.ok) {
-        throw new Error('HTTP ' + response.status);
+    Promise.all([
+      fetch(apiUrl('/api/sessions/summary', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
+      fetch(apiUrl('/api/sessions/options', qs), { headers: { 'Accept': 'application/json' } }).then(readJson),
+      fetch(apiUrl('/api/sessions/rows', qs), { headers: { 'Accept': 'application/json' } }).then(readJson)
+    ])
+    .then(function (parts) {
+      renderSummary(parts[0]);
+      renderOptions(parts[1], parts[2].filters || {});
+      renderRows(parts[2]);
+      if (replaceState) {
+        window.history.replaceState({ api: true }, '', url);
+      } else {
+        window.history.pushState({ api: true }, '', url);
       }
-      return response.text();
-    })
-    .then(function (html) {
-      applyAjaxTableResponse(html, url);
     })
     .catch(function (err) {
-      console.error('AJAX pagination fallback:', err.message || err);
+      console.error('Sessions API pagination fallback:', err.message || err);
       // Safe fallback: direct full-page navigation without restore attempt.
       window.location.href = url;
     });
+  }
+
+  function readJson(response) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
   }
 
   /**

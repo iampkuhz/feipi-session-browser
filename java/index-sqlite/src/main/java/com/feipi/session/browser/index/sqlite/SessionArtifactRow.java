@@ -54,21 +54,9 @@ public record SessionArtifactRow(
     path = path == null ? "" : path;
     schemaVersion = schemaVersion == null ? "" : schemaVersion;
     sourcePath = sourcePath == null ? "" : sourcePath;
-    requireNonNegative(sourceMtime, "sourceMtime");
-    requireNonNegative(sizeBytes, "sizeBytes");
-    requireNonNegative(createdAt, "createdAt");
-    requireNonNegative(updatedAt, "updatedAt");
-  }
-
-  private static void requireNonNegative(double value, String fieldName) {
-    if (value < 0) {
-      throw new IllegalArgumentException(fieldName + " 必须非负; got " + value);
-    }
-  }
-
-  private static void requireNonNegative(long value, String fieldName) {
-    if (value < 0) {
-      throw new IllegalArgumentException(fieldName + " 必须非负; got " + value);
-    }
+    RowValidators.requireNonNegative(sourceMtime, "sourceMtime");
+    RowValidators.requireNonNegative(sizeBytes, "sizeBytes");
+    RowValidators.requireNonNegative(createdAt, "createdAt");
+    RowValidators.requireNonNegative(updatedAt, "updatedAt");
   }
 }

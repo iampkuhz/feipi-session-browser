@@ -90,6 +90,12 @@ final class RuntimePreflight {
     }
   }
 
-  /** 单项检查结果。 */
+  /**
+   * 表示 CheckResult 数据。
+   *
+   * @param name 名称。
+   * @param passed 检查是否通过。
+   * @param detail 详情文本。
+   */
   record CheckResult(String name, boolean passed, String detail) {}
 }

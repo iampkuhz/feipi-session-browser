@@ -1,5 +1,7 @@
 package com.feipi.session.browser.web.api;
 
+import java.net.URLDecoder;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
@@ -228,9 +230,15 @@ public final class ApiResponses {
    * @param roundIndex 轮次序号（1-based）
    * @param text bucket 内容文本
    * @param tokens 估算 token 数量
+   * @param unavailableReason 该字段在 API 响应中的业务值。
    */
   public record BucketDetailResponse(
-      String kind, String bucketKey, int roundIndex, String text, long tokens) {
+      String kind,
+      String bucketKey,
+      int roundIndex,
+      String text,
+      long tokens,
+      String unavailableReason) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -241,6 +249,7 @@ public final class ApiResponses {
       Objects.requireNonNull(kind, "kind 不得为 null");
       Objects.requireNonNull(bucketKey, "bucketKey 不得为 null");
       text = text == null ? "" : text;
+      unavailableReason = unavailableReason == null ? "" : unavailableReason;
     }
   }
 
@@ -290,4 +299,39 @@ public final class ApiResponses {
 
   /** API 响应 schema 版本常量。 */
   public static final String SCHEMA_VERSION = "1";
+
+  /**
+   * 规范化可为空字符串字段。
+   *
+   * @param value 原始字段值
+   * @return 非 null 字符串
+   */
+  static String empty(String value) {
+    return value == null ? "" : value;
+  }
+
+  /**
+   * 校验必填字符串字段。
+   *
+   * @param value 原始字段值
+   * @param fieldName 字段名称
+   * @return 原始字段值
+   */
+  static String required(String value, String fieldName) {
+    Objects.requireNonNull(value, fieldName + " must not be null");
+    if (value.isBlank()) {
+      throw new IllegalArgumentException(fieldName + " must not be blank");
+    }
+    return value;
+  }
+
+  /**
+   * 解码 URL 路径参数。
+   *
+   * @param value 已编码路径段
+   * @return UTF-8 解码后的路径段
+   */
+  static String decodePathParam(String value) {
+    return URLDecoder.decode(value, StandardCharsets.UTF_8);
+  }
 }

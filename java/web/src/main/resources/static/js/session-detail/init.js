@@ -99,6 +99,65 @@
     });
   }
 
+  function hydrateSessionDetailApis() {
+    if (!window.fetch || typeof getApiBase !== 'function') return;
+    var apiBase = getApiBase();
+    if (!apiBase) return;
+    var base = apiBase.replace(/\/$/, '');
+    Promise.all([
+      fetch(base + '/meta', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
+      fetch(base + '/metrics', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
+      fetch(base + '/diagnostics', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
+      fetch(base + '/rounds', { headers: { 'Accept': 'application/json' } }).then(readSessionJson),
+      fetch(base + '/payloads', { headers: { 'Accept': 'application/json' } }).then(readSessionJson)
+    ]).then(function(parts) {
+      applySessionMeta(parts[0]);
+      applySessionMetrics(parts[1]);
+      document.body.setAttribute('data-session-api-hydrated', 'true');
+      document.body.setAttribute('data-session-round-count', String(parts[3].roundCount || 0));
+      document.body.setAttribute('data-session-payload-count', String(parts[4].payloadCount || 0));
+      document.body.setAttribute('data-session-anomaly-count', String(parts[2].anomalyCount || 0));
+    }).catch(function(err) {
+      console.error('Session Detail API hydration failed:', err.message || err);
+      document.body.setAttribute('data-session-api-hydrated', 'false');
+    });
+  }
+
+  function readSessionJson(response) {
+    if (!response.ok) throw new Error('HTTP ' + response.status);
+    return response.json();
+  }
+
+  function applySessionMeta(meta) {
+    if (!meta) return;
+    var title = qs(document, '[data-session-hero] h1');
+    if (title && meta.title) {
+      title.textContent = meta.title;
+      title.title = meta.title;
+    }
+    document.body.setAttribute('data-session-api-session-key', meta.sessionKey || '');
+    document.body.setAttribute('data-session-api-artifact', meta.hasArtifact ? 'available' : 'missing');
+  }
+
+  function applySessionMetrics(metrics) {
+    if (!metrics || !metrics.tokens) return;
+    var tokenKpi = qs(document, '.sd-kpi[aria-label="Total Tokens"] .sd-kpi__value');
+    if (tokenKpi) {
+      tokenKpi.textContent = formatSessionCompact(metrics.tokens.total);
+      tokenKpi.title = 'Loaded from /metrics API';
+    }
+    document.body.setAttribute('data-session-api-total-tokens', String(metrics.tokens.total || 0));
+    document.body.setAttribute('data-session-api-failed-tools', String(metrics.failedTools || 0));
+  }
+
+  function formatSessionCompact(value) {
+    var n = Number(value || 0);
+    if (n >= 1000000000) return (n / 1000000000).toFixed(1) + 'B';
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    if (n >= 1000) return (n / 1000).toFixed(1) + 'K';
+    return String(Math.round(n));
+  }
+
   function selectSubagent(button) {
     if (!button) return;
     var workbench = button.closest('[data-subagent-workbench]');
@@ -164,4 +223,5 @@
     // Setup dynamic token tooltip positioning
     setupTokenTooltips();
     setupTokenRoundTooltips();
+    hydrateSessionDetailApis();
   });

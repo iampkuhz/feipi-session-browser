@@ -6231,6 +6231,966 @@
         "occurrences": 2,
         "touchesChangedCode": true
       }
+    },
+    {
+      "fingerprint": "fc378d524d8ed9a7ce6655f5ec04814a00777cc6e2e87a00c4fba4ce9a950652",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "fc378d524d8ed9a7ce6655f5ec04814a00777cc6e2e87a00c4fba4ce9a950652"
+    },
+    {
+      "fingerprint": "d62586784963242ccdc28bb08b138cbdb8d909626204b7268399a50c41d076cc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "d62586784963242ccdc28bb08b138cbdb8d909626204b7268399a50c41d076cc"
+    },
+    {
+      "fingerprint": "42eedcf5898eb5c6b65dfed4844622ad497c3a03e2787e406a87e00fed07373b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "42eedcf5898eb5c6b65dfed4844622ad497c3a03e2787e406a87e00fed07373b"
+    },
+    {
+      "fingerprint": "b34a4b27d49390be106152b0e52313c9ee10aedd835c33ac3cc41b7c033f9b4f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "b34a4b27d49390be106152b0e52313c9ee10aedd835c33ac3cc41b7c033f9b4f"
+    },
+    {
+      "fingerprint": "579e95405565306fd6859c96d56dcd59b2609c3de11c50757ece509f179854cb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "579e95405565306fd6859c96d56dcd59b2609c3de11c50757ece509f179854cb"
+    },
+    {
+      "fingerprint": "31be4422813b521a2690c2356909377dcf2a191d935838eefd6bd3ef7d9f61c4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "31be4422813b521a2690c2356909377dcf2a191d935838eefd6bd3ef7d9f61c4"
+    },
+    {
+      "fingerprint": "ffb3e379ba16999af23281880cbbd5ffc9692341e3324d8257cbf31fc01b872c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "ffb3e379ba16999af23281880cbbd5ffc9692341e3324d8257cbf31fc01b872c"
+    },
+    {
+      "fingerprint": "b39228799269ea5c2cc04835f34a50d732ff9b623f756d55a1a0c5326a8a6ee7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "b39228799269ea5c2cc04835f34a50d732ff9b623f756d55a1a0c5326a8a6ee7"
+    },
+    {
+      "fingerprint": "0c7f3ac5767640d9205092703ad1e073000a2cf9461039909ad7c8e1782fe26b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 EXACT_METHOD_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "0c7f3ac5767640d9205092703ad1e073000a2cf9461039909ad7c8e1782fe26b"
+    },
+    {
+      "fingerprint": "8c3c954c7fbbd7bc158130ad18356aef33832788596d4aefabf55fe1c55919b4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "8c3c954c7fbbd7bc158130ad18356aef33832788596d4aefabf55fe1c55919b4"
+    },
+    {
+      "fingerprint": "198080943650c06548f791c8b2fd3d17f8efc4a4d35e7071275012209bacb375",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "198080943650c06548f791c8b2fd3d17f8efc4a4d35e7071275012209bacb375"
+    },
+    {
+      "fingerprint": "5ffbefd9496165380f92b89c64e65b76305ba89bc43018b4c2f57582c512b9e7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "5ffbefd9496165380f92b89c64e65b76305ba89bc43018b4c2f57582c512b9e7"
+    },
+    {
+      "fingerprint": "41d98ce97528d44265e535c84153e2b8d75c2f8a92691dd04d7b3811a0cefdb4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.index.sqlite.AggregateQueryRepository 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "41d98ce97528d44265e535c84153e2b8d75c2f8a92691dd04d7b3811a0cefdb4"
+    },
+    {
+      "fingerprint": "7c8ad4e2b97e850848e1a15c0aca9130b9a43b8271cca7c3f66dd9ceaa29a12b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ApiQueryParams 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "apiqueryparams",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "7c8ad4e2b97e850848e1a15c0aca9130b9a43b8271cca7c3f66dd9ceaa29a12b"
+    },
+    {
+      "fingerprint": "2478e797c89757605a4d9fbd677654def1b0ce97e922510790c8a9bfc13475cd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "2478e797c89757605a4d9fbd677654def1b0ce97e922510790c8a9bfc13475cd"
+    },
+    {
+      "fingerprint": "f63c5b6cc0ca59b78ef475686deea0ffedf027cfe8c21c4a337ffba251cd6ecf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "f63c5b6cc0ca59b78ef475686deea0ffedf027cfe8c21c4a337ffba251cd6ecf"
+    },
+    {
+      "fingerprint": "36e1c9e9d4d0b6cb823b8469e2ab4d031f951e6da26e78d01b03db504b4fcb9a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "36e1c9e9d4d0b6cb823b8469e2ab4d031f951e6da26e78d01b03db504b4fcb9a"
+    },
+    {
+      "fingerprint": "8e75c78f3fe199e50843a9a5d64b955c13e64389ea7fdea6237daf2173c4d448",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "8e75c78f3fe199e50843a9a5d64b955c13e64389ea7fdea6237daf2173c4d448"
+    },
+    {
+      "fingerprint": "31768c7863c8b0200269fa139aca6e2e61a20c5c448e58d59340853fe40aeaed",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "31768c7863c8b0200269fa139aca6e2e61a20c5c448e58d59340853fe40aeaed"
+    },
+    {
+      "fingerprint": "f4c396cb1498cdc31497971def3858e0b97b2a1e728921ec5d52279fa875c498",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "f4c396cb1498cdc31497971def3858e0b97b2a1e728921ec5d52279fa875c498"
+    },
+    {
+      "fingerprint": "ed9d8f1c768c8ae2cacc29e5d2b155a2f8f6bebc38afde06ea255a5457c5424a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "ed9d8f1c768c8ae2cacc29e5d2b155a2f8f6bebc38afde06ea255a5457c5424a"
+    },
+    {
+      "fingerprint": "5d83379973c5537811b2330d796e26936ce05e9fcf2a261f0a2aff1d572e9c76",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "5d83379973c5537811b2330d796e26936ce05e9fcf2a261f0a2aff1d572e9c76"
+    },
+    {
+      "fingerprint": "1961766396bc9e817d57d8c794a70da763ab51f12d2e308ee16ed03ed6709cb4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "1961766396bc9e817d57d8c794a70da763ab51f12d2e308ee16ed03ed6709cb4"
+    },
+    {
+      "fingerprint": "fbbe4a9591e9a9dfe2f43a64f6ac70207857b8efe769ef789f6cec276e2c123b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.SessionDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "sessiondetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "fbbe4a9591e9a9dfe2f43a64f6ac70207857b8efe769ef789f6cec276e2c123b"
+    },
+    {
+      "fingerprint": "8a91e32c270212500f528dcdd2ba299eb1b87c3fbcda056818719ed2b4e9d00a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectsApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectsapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "8a91e32c270212500f528dcdd2ba299eb1b87c3fbcda056818719ed2b4e9d00a"
+    },
+    {
+      "fingerprint": "221d5a7591f40c86ea74907022628af8c6a6c4aed0cdf19567eba2ddde5e55b9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "221d5a7591f40c86ea74907022628af8c6a6c4aed0cdf19567eba2ddde5e55b9"
+    },
+    {
+      "fingerprint": "397666710e97674a27955fa4cf28267b6aad03e282d777002c963f07599904d4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "397666710e97674a27955fa4cf28267b6aad03e282d777002c963f07599904d4"
+    },
+    {
+      "fingerprint": "b1ecafc7402b652b5fcd14a7ce3a7f5c703e7ab1b355709ec21f776792c2fe8a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "b1ecafc7402b652b5fcd14a7ce3a7f5c703e7ab1b355709ec21f776792c2fe8a"
+    },
+    {
+      "fingerprint": "b44fb455fa11e84df973c68425b91d7ef2900f0b99421971f79fd64f12d2feb5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.index.sqlite.AggregateQueryRepository 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "b44fb455fa11e84df973c68425b91d7ef2900f0b99421971f79fd64f12d2feb5"
+    },
+    {
+      "fingerprint": "3226d5c786b651e8d23078eeed52c85f571e13e9c9759db291eb72fecc66ae8d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "3226d5c786b651e8d23078eeed52c85f571e13e9c9759db291eb72fecc66ae8d"
+    },
+    {
+      "fingerprint": "e464168cae1ead6fa818e04763c45fb5e953c0214ccb204dc6c751d2477ca1f6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "e464168cae1ead6fa818e04763c45fb5e953c0214ccb204dc6c751d2477ca1f6"
+    },
+    {
+      "fingerprint": "c9bf4bda733f70c2eb18ac65cfe90cd9adb59dffe02545b4019b9e8dafa4c98f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "c9bf4bda733f70c2eb18ac65cfe90cd9adb59dffe02545b4019b9e8dafa4c98f"
+    },
+    {
+      "fingerprint": "3e3a6e0fea78dc76d5cf6e500e9a7b164ad932aa1fd9f8aa36dd05d292e88edf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "3e3a6e0fea78dc76d5cf6e500e9a7b164ad932aa1fd9f8aa36dd05d292e88edf"
+    },
+    {
+      "fingerprint": "dc9715052863b9a34a5eb15516e724c0297ea1cd01e2164d11bb741a1e633cc8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "dc9715052863b9a34a5eb15516e724c0297ea1cd01e2164d11bb741a1e633cc8"
+    },
+    {
+      "fingerprint": "a40da2163edfe321569e8276ae8366140379bbd0fb5de497e03b8eda9955cb4d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "a40da2163edfe321569e8276ae8366140379bbd0fb5de497e03b8eda9955cb4d"
+    },
+    {
+      "fingerprint": "e8897c808f7f2de36bfb22190934efa79bd599da47cec906368e5a75cd4dd4c6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "e8897c808f7f2de36bfb22190934efa79bd599da47cec906368e5a75cd4dd4c6"
+    },
+    {
+      "fingerprint": "dc144b005b09c1a3dc59c27ab09831b5484f00cc6853a99c49510758eb659650",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "dc144b005b09c1a3dc59c27ab09831b5484f00cc6853a99c49510758eb659650"
+    },
+    {
+      "fingerprint": "ac1b9600ef9ecd42469481a600e1b631391e272134e4c403f5f8f70dd7ec7a87",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ApiQueryParams 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "apiqueryparams",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "ac1b9600ef9ecd42469481a600e1b631391e272134e4c403f5f8f70dd7ec7a87"
+    },
+    {
+      "fingerprint": "274a23d307f4c2993874697a1628393d00f40c9988f96a43bd73a77096450597",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.normalization.NormalizationEngine 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "normalizationengine",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "274a23d307f4c2993874697a1628393d00f40c9988f96a43bd73a77096450597"
+    },
+    {
+      "fingerprint": "bad5a8a698c737b14d13c566d7dc70bee0bb1db6249fecd37de19ec97374b80e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "bad5a8a698c737b14d13c566d7dc70bee0bb1db6249fecd37de19ec97374b80e"
+    },
+    {
+      "fingerprint": "a97d836d8c6adb006fc3b17a80dc7b87d23f93864a2228b8b4090f4013bec35b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "a97d836d8c6adb006fc3b17a80dc7b87d23f93864a2228b8b4090f4013bec35b"
+    },
+    {
+      "fingerprint": "59ab3c487c57fd6263091ccaab1a9813423018d1d4ce09990fd2f18fb76e6bc0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "59ab3c487c57fd6263091ccaab1a9813423018d1d4ce09990fd2f18fb76e6bc0"
+    },
+    {
+      "fingerprint": "3e0394d308d8d359eec3e406c9cd31cb39aa0dbe37227e3cfa2788c58e291b71",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "3e0394d308d8d359eec3e406c9cd31cb39aa0dbe37227e3cfa2788c58e291b71"
+    },
+    {
+      "fingerprint": "cf84ac24e2cb4d822f6b796db795b6819510463939d3530332633b8be9f95743",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "cf84ac24e2cb4d822f6b796db795b6819510463939d3530332633b8be9f95743"
+    },
+    {
+      "fingerprint": "da7e2dbea37a85299808d9aef62b71f6ef4e1332359f8739395562af8469799d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "da7e2dbea37a85299808d9aef62b71f6ef4e1332359f8739395562af8469799d"
+    },
+    {
+      "fingerprint": "0e387a8b2974c91836b8e2997a35d85dc24038f07699fba3303d7a3d6b44a2aa",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "0e387a8b2974c91836b8e2997a35d85dc24038f07699fba3303d7a3d6b44a2aa"
+    },
+    {
+      "fingerprint": "21321a523425cab2b1ce8461805fc15eff679852ced13bf30591aa51e76a8904",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.normalization.TokenAccountant 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "tokenaccountant",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "21321a523425cab2b1ce8461805fc15eff679852ced13bf30591aa51e76a8904"
+    },
+    {
+      "fingerprint": "10f29316ca7ca695f852b0a584e760d7b923d42456cb0d06d4ba8344f15a881e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "10f29316ca7ca695f852b0a584e760d7b923d42456cb0d06d4ba8344f15a881e"
+    },
+    {
+      "fingerprint": "52610604e2063c9081876ae89c40101e0e7c548a773c0338d456e72b12144e49",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "52610604e2063c9081876ae89c40101e0e7c548a773c0338d456e72b12144e49"
+    },
+    {
+      "fingerprint": "f3960a91fbbb42f41e50bfa5cc7d0395f22f4de2b6c5212282618d610d9a53ec",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.normalization.NormalizationEngine 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "normalizationengine",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "f3960a91fbbb42f41e50bfa5cc7d0395f22f4de2b6c5212282618d610d9a53ec"
+    },
+    {
+      "fingerprint": "77b3f71d62dacb719dd6600dd7ab6ca6d71f8a165177957a5195ec090800792b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "77b3f71d62dacb719dd6600dd7ab6ca6d71f8a165177957a5195ec090800792b"
+    },
+    {
+      "fingerprint": "bbfa078a966d266c9ab2edae4efe884110b8c29adffa100a85f6e9fe5f2478e4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.index.sqlite.SessionQueryRepository 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "sessionqueryrepository",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "bbfa078a966d266c9ab2edae4efe884110b8c29adffa100a85f6e9fe5f2478e4"
+    },
+    {
+      "fingerprint": "a420d9a08d5145826521e0d6f723f239b5ae0dc58ea3e346c3436161025564a7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "a420d9a08d5145826521e0d6f723f239b5ae0dc58ea3e346c3436161025564a7"
+    },
+    {
+      "fingerprint": "f7324556417f09eaf105741d42d43d4a2f338c6872a0cb9aec5120d9837540dd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.SessionApiRouter 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "sessionapirouter",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "f7324556417f09eaf105741d42d43d4a2f338c6872a0cb9aec5120d9837540dd"
+    },
+    {
+      "fingerprint": "17e3bfadaa87afad32151bb7149abe221fe28b6c1036b4bb4163a06233139bd6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.SessionDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "sessiondetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "17e3bfadaa87afad32151bb7149abe221fe28b6c1036b4bb4163a06233139bd6"
+    },
+    {
+      "fingerprint": "08639c9600193f3235f2ba0685b15d4806f5b1f6398b952cc2ae620da377a420",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "08639c9600193f3235f2ba0685b15d4806f5b1f6398b952cc2ae620da377a420"
+    },
+    {
+      "fingerprint": "674e954d4537ce34950a4d1ac0bbe7fe076f3a863844481b806fa1604f31a0ea",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "674e954d4537ce34950a4d1ac0bbe7fe076f3a863844481b806fa1604f31a0ea"
+    },
+    {
+      "fingerprint": "08daa3bcc46e755a0ad0985bbe6c771d6fda9b6db093d099299446a1d7fb9a89",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "08daa3bcc46e755a0ad0985bbe6c771d6fda9b6db093d099299446a1d7fb9a89"
+    },
+    {
+      "fingerprint": "d244e434c9b59fed3240c484344333f870c7bee6187260de745a80036609cc54",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "d244e434c9b59fed3240c484344333f870c7bee6187260de745a80036609cc54"
+    },
+    {
+      "fingerprint": "8bd09533e4daf0f18f447e74a1d9f622c349dc5c7126ca1ae32e5f97161ac0ac",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ApiQueryParams 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "apiqueryparams",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "8bd09533e4daf0f18f447e74a1d9f622c349dc5c7126ca1ae32e5f97161ac0ac"
+    },
+    {
+      "fingerprint": "0ef35284b7f5f18a9be4c345c6480322c46debaa29c06adbd9d74baed6299f8c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "0ef35284b7f5f18a9be4c345c6480322c46debaa29c06adbd9d74baed6299f8c"
+    },
+    {
+      "fingerprint": "70321e1251e6f72e23271b77685739ca70cb3838c3d1ded7b6043716e58fe5ca",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "70321e1251e6f72e23271b77685739ca70cb3838c3d1ded7b6043716e58fe5ca"
+    },
+    {
+      "fingerprint": "eb7d6cd5f416c32947ddbb37e40981cb1d9e942337562cbac51d7f4ef08135d1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "eb7d6cd5f416c32947ddbb37e40981cb1d9e942337562cbac51d7f4ef08135d1"
+    },
+    {
+      "fingerprint": "eaca07afdd4c63dedc441367f96fcbf0416f4b13798f32802254685d7c9da4b2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.WebCompositionRoot 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "webcompositionroot",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "eaca07afdd4c63dedc441367f96fcbf0416f4b13798f32802254685d7c9da4b2"
+    },
+    {
+      "fingerprint": "1dec7bbf9622ab29c30a0f9f76670fb866b9b7630e438f6eb8e33514def98cf2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "1dec7bbf9622ab29c30a0f9f76670fb866b9b7630e438f6eb8e33514def98cf2"
+    },
+    {
+      "fingerprint": "bd37599fcd39f9c965b68324f4da7adc1694dd6221b96cf31f53fa2b9f0e0a35",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "bd37599fcd39f9c965b68324f4da7adc1694dd6221b96cf31f53fa2b9f0e0a35"
+    },
+    {
+      "fingerprint": "0716948d2bb682d6f64fb44d3118531f7c8634c246f2e5cc444dad514e4387a6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.normalization.NormalizationEngine 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "normalizationengine",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "0716948d2bb682d6f64fb44d3118531f7c8634c246f2e5cc444dad514e4387a6"
+    },
+    {
+      "fingerprint": "527879a1d493d8af0c6e3f62aadfa48a2371f5bc7598f450be08c0cec65c9c91",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "527879a1d493d8af0c6e3f62aadfa48a2371f5bc7598f450be08c0cec65c9c91"
+    },
+    {
+      "fingerprint": "1b147c02911d5c919dc1e42a951b22953ba6c5a26802265808e42c88a11b691d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.index.sqlite.AggregateQueryRepository 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "1b147c02911d5c919dc1e42a951b22953ba6c5a26802265808e42c88a11b691d"
+    },
+    {
+      "fingerprint": "b2c8b85ee56f85e298f414256ebfef7631bd93c777b86fecf2292ca18c2ed6e2",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "b2c8b85ee56f85e298f414256ebfef7631bd93c777b86fecf2292ca18c2ed6e2"
+    },
+    {
+      "fingerprint": "82e002d2c2bbff5e952d5e1d3e534c94e20fcca599935c8b0c770ca1b31f2189",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "82e002d2c2bbff5e952d5e1d3e534c94e20fcca599935c8b0c770ca1b31f2189"
+    },
+    {
+      "fingerprint": "045295852f41410cca4f0a76b462b8e85c57e01d2c012406e0092433f454831a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "045295852f41410cca4f0a76b462b8e85c57e01d2c012406e0092433f454831a"
+    },
+    {
+      "fingerprint": "0a306d0911fd411271ccdbab7dfa111730c8bfb20f41f546735465b405faa629",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectsApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectsapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "0a306d0911fd411271ccdbab7dfa111730c8bfb20f41f546735465b405faa629"
+    },
+    {
+      "fingerprint": "edc27a5edac2255165dcab03bf81b8a58caca140533bfec0df2ad21f6a9347fb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "edc27a5edac2255165dcab03bf81b8a58caca140533bfec0df2ad21f6a9347fb"
+    },
+    {
+      "fingerprint": "e95eb6cfeaeffd2f29393c7a72281a8862f6d7f006d79a25f7eb94bd47096d13",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "e95eb6cfeaeffd2f29393c7a72281a8862f6d7f006d79a25f7eb94bd47096d13"
+    },
+    {
+      "fingerprint": "480c6377033edcc30c795b4f399ab098d7e1f6e0a29629cf8f21c748420630c4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "480c6377033edcc30c795b4f399ab098d7e1f6e0a29629cf8f21c748420630c4"
+    },
+    {
+      "fingerprint": "7ee8544c2f699a3288a228179fec48f78151a98d637bcb08101cefe8a3aa75a3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "7ee8544c2f699a3288a228179fec48f78151a98d637bcb08101cefe8a3aa75a3"
+    },
+    {
+      "fingerprint": "30541e8d25a935f7ac94cc77865d88431dd0c25316b7eb7582d588915b96b58f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.index.sqlite.AggregateQueryRepository 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "aggregatequeryrepository",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "30541e8d25a935f7ac94cc77865d88431dd0c25316b7eb7582d588915b96b58f"
+    },
+    {
+      "fingerprint": "e4236e21a157221163ade7bd75a98a7c3271f98ac1e8e1cf90ba4266df77ecfc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectsApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectsapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "e4236e21a157221163ade7bd75a98a7c3271f98ac1e8e1cf90ba4266df77ecfc"
+    },
+    {
+      "fingerprint": "4df1b641386db596ff752cfd86061534e3863f2b4bb8d43a168bbafc8251bbeb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "4df1b641386db596ff752cfd86061534e3863f2b4bb8d43a168bbafc8251bbeb"
+    },
+    {
+      "fingerprint": "afa1eaef750903341caf0b04a19faf9b0170fd98698eab77be93ee8ba02d92ac",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.normalization.NormalizationEngine 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "normalizationengine",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "afa1eaef750903341caf0b04a19faf9b0170fd98698eab77be93ee8ba02d92ac"
+    },
+    {
+      "fingerprint": "50d864b09fd3b22fcef9e7e344fdf58ef9886e4c8f17f62d074ab87b96f2c220",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "50d864b09fd3b22fcef9e7e344fdf58ef9886e4c8f17f62d074ab87b96f2c220"
+    },
+    {
+      "fingerprint": "d8a889714f07d22999e2bc3f87fb32f71a3b6bff3f20ba3bb36f0b334857214d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "d8a889714f07d22999e2bc3f87fb32f71a3b6bff3f20ba3bb36f0b334857214d"
+    },
+    {
+      "fingerprint": "7efcc71c6d01722c450d83e3dc44738d8f1d81ebf223a86154d2ac9f882901ef",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.ApiQueryParams 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "apiqueryparams",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "7efcc71c6d01722c450d83e3dc44738d8f1d81ebf223a86154d2ac9f882901ef"
+    },
+    {
+      "fingerprint": "f70f8b47a4a3629a2d313930cca5801fc0dff4e7d227a9870ff92bc09b3c02ce",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 STATEMENT_DUPLICATE，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "f70f8b47a4a3629a2d313930cca5801fc0dff4e7d227a9870ff92bc09b3c02ce"
+    },
+    {
+      "fingerprint": "a5a115b6c625d680243483672ebb9e0506b6c5e1810ead30bdaa5400ddeb2815",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "a5a115b6c625d680243483672ebb9e0506b6c5e1810ead30bdaa5400ddeb2815"
+    },
+    {
+      "fingerprint": "1ae4af8acac8ff7c868d37f0717d65c5b02041d271fe09ca346dd8f4493e0835",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.DashboardApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "dashboardapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "1ae4af8acac8ff7c868d37f0717d65c5b02041d271fe09ca346dd8f4493e0835"
+    },
+    {
+      "fingerprint": "c416587138707c05f979a4db29169e44a0d2dd4698d983eb0e4a45ee5da164ff",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "c416587138707c05f979a4db29169e44a0d2dd4698d983eb0e4a45ee5da164ff"
+    },
+    {
+      "fingerprint": "c2afd7f72e6972508adc73b00223c65d29a91cbcb1813b9b69535560e0ed678e",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "c2afd7f72e6972508adc73b00223c65d29a91cbcb1813b9b69535560e0ed678e"
+    },
+    {
+      "fingerprint": "5e0acf402670083728d5d719642b1e4b2d56e18f8417bbbe4a7469d95aaf81e5",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.query.api.CallRound 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "callround",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "5e0acf402670083728d5d719642b1e4b2d56e18f8417bbbe4a7469d95aaf81e5"
+    },
+    {
+      "fingerprint": "d466434e282937419c3763bac2567ef8f36ca00327ad98eb19855d92ab4238f2",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "d466434e282937419c3763bac2567ef8f36ca00327ad98eb19855d92ab4238f2"
+    },
+    {
+      "fingerprint": "68f42549576274eef46845db64f5feebdbd2efc795cab1cad1ac6b86d23f097d",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "68f42549576274eef46845db64f5feebdbd2efc795cab1cad1ac6b86d23f097d"
+    },
+    {
+      "fingerprint": "1dc7f482e2e6914641a60e48462407f86905f7274b49140414dfc03847cce95e",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "1dc7f482e2e6914641a60e48462407f86905f7274b49140414dfc03847cce95e"
+    },
+    {
+      "fingerprint": "e6d1801567384c22bb21c850e2714c62c81f4531b9bbd84d7e8fa0036b9a55d8",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ProjectDetailApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "projectdetailapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "e6d1801567384c22bb21c850e2714c62c81f4531b9bbd84d7e8fa0036b9a55d8"
+    },
+    {
+      "fingerprint": "1437d09fffef12e080221b6b8f0a4055d3a0c92700372a8b66cc19adb93d2c26",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.index.sqlite.SqlUtils 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "sqlutils",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "1437d09fffef12e080221b6b8f0a4055d3a0c92700372a8b66cc19adb93d2c26"
+    },
+    {
+      "fingerprint": "6d6522361f126bf6e3e770ba936b2a6225bf948d8d996ab22c06bcd741ab352e",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "com.feipi.session.browser.web.api.ExportApiHandler 的 ALPHA_EQUIVALENT，API-first 与 record 注释门禁改造后 baseline 自动刷新",
+      "owner": "exportapihandler",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": "6d6522361f126bf6e3e770ba936b2a6225bf948d8d996ab22c06bcd741ab352e"
     }
   ]
 }

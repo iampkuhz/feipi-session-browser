@@ -3,8 +3,6 @@ package com.feipi.session.browser.web.api;
 import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import java.net.URLDecoder;
-import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -84,8 +82,8 @@ public final class SessionApiRouter {
       return;
     }
 
-    String agent = decode(parts[3]);
-    String sessionId = decode(parts[4]);
+    String agent = ApiResponses.decodePathParam(parts[3]);
+    String sessionId = ApiResponses.decodePathParam(parts[4]);
     String resource = parts[5];
 
     try {
@@ -113,7 +111,7 @@ public final class SessionApiRouter {
           "invalid API path, expected: /api/sessions/{agent}/{session_id}/payload/{payload_id}");
       return;
     }
-    String payloadId = decode(parts[6]);
+    String payloadId = ApiResponses.decodePathParam(parts[6]);
     handler.handlePayload(ctx, agent, sessionId, payloadId);
   }
 
@@ -147,9 +145,9 @@ public final class SessionApiRouter {
   private void routeAttribution(Context ctx, String[] parts, String agent, String sessionId) {
     // 检测 subagent 模式
     if (parts.length == ATTRIBUTION_SUBAGENT_PARTS && "subagent".equals(parts[6])) {
-      String subagentId = decode(parts[7]);
+      String subagentId = ApiResponses.decodePathParam(parts[7]);
       int callIndex = parsePositiveInt(parts[8], "call_index");
-      String kind = decode(parts[9]);
+      String kind = ApiResponses.decodePathParam(parts[9]);
       handler.handleSubagentAttribution(ctx, agent, sessionId, subagentId, callIndex, kind);
       return;
     }
@@ -158,7 +156,7 @@ public final class SessionApiRouter {
     if (parts.length == ATTRIBUTION_MAIN_PARTS) {
       int roundIndex = parsePositiveInt(parts[6], "round_index");
       int callIndex = parsePositiveInt(parts[7], "call_index");
-      String kind = decode(parts[8]);
+      String kind = ApiResponses.decodePathParam(parts[8]);
       handler.handleAttribution(ctx, agent, sessionId, roundIndex, callIndex, kind);
       return;
     }
@@ -179,13 +177,8 @@ public final class SessionApiRouter {
       return;
     }
     int roundIndex = parsePositiveInt(parts[6], "round_index");
-    String bucketKey = decode(parts[7]);
+    String bucketKey = ApiResponses.decodePathParam(parts[7]);
     handler.handleBucketDetail(ctx, agent, sessionId, roundIndex, bucketKey);
-  }
-
-  /** URL 解码路径段。 */
-  private static String decode(String value) {
-    return URLDecoder.decode(value, StandardCharsets.UTF_8);
   }
 
   /**

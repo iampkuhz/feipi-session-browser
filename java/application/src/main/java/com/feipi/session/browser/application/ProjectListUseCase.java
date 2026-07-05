@@ -1,6 +1,7 @@
 package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
+import com.feipi.session.browser.index.sqlite.ProjectListSummaryRow;
 import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
@@ -71,6 +72,18 @@ public final class ProjectListUseCase {
   public long count(ProjectListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
     return repository.countProjects(filter);
+  }
+
+  /**
+   * 查询项目列表页聚合摘要。
+   *
+   * @param filter 项目列表过滤器
+   * @return 当前过滤条件下的项目列表摘要
+   * @throws SQLException 查询失败
+   */
+  public ProjectListSummaryRow summary(ProjectListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    return repository.projectListSummary(filter);
   }
 
   /**

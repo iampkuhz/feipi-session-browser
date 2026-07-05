@@ -489,10 +489,22 @@ public final class NormalizationEngine {
     return candidateIndex > currentIndex;
   }
 
-  /** records/calls 推导出的 provider 时间范围。 */
+  /**
+   * 表示 TimestampRange 数据。
+   *
+   * @param startedAt 开始时间戳。
+   * @param endedAt 结束时间戳。
+   */
   private record TimestampRange(Optional<String> startedAt, Optional<String> endedAt) {}
 
-  /** 规范化阶段合并后的 token 组件。 */
+  /**
+   * 表示 token 组件汇总数据，用于保存输入、cache 与输出 token 数量。
+   *
+   * @param freshInputTokens 当前统计口径下的 fresh input token 数量。
+   * @param cacheReadTokens 当前统计口径下的 cache read token 数量。
+   * @param cacheWriteTokens 当前统计口径下的 cache write token 数量。
+   * @param outputTokens 当前统计口径下的 output token 数量。
+   */
   private record TokenComponents(
       long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
     private static TokenComponents empty() {

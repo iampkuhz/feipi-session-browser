@@ -355,6 +355,27 @@ class SessionApiHandlerTest {
     }
 
     @Test
+    @DisplayName("bucket detail 不返回伪成功空值，使用 unavailable reason")
+    void bucketDetailUnavailableHasExplicitReason() throws Exception {
+      ApiContractFixture.insertThreeSessionFixture(indexConnection);
+      ApiContractFixture.insertNormalizedArtifactForAlpha(indexConnection, tempDir);
+      WebCompositionRoot webRoot = createWebRoot();
+
+      JavalinTest.test(
+          webRoot.app(),
+          (testApp, client) -> {
+            var response =
+                client.get(
+                    "/api/sessions/claude_code/s-alpha-001/bucket-detail/1/current_user_message");
+            assertThat(response.code()).isEqualTo(200);
+            String body = response.body().string();
+            assertThat(body).contains("\"kind\":\"unavailable\"");
+            assertThat(body).contains("\"unavailableReason\":\"bucket_detail_source_not_indexed\"");
+            assertThat(body).contains("\"text\":\"\"");
+          });
+    }
+
+    @Test
     @DisplayName("无制品会话 round 超出范围返回 404")
     void roundOutOfRangeReturns404() throws Exception {
       insertTestSession();

@@ -106,6 +106,10 @@ public final class WebServer {
     ctx.json(new HealthResponse("ok"));
   }
 
-  /** 健康检查 JSON 响应载体。 */
+  /**
+   * 表示 HealthResponse 数据。
+   *
+   * @param status 状态值。
+   */
   record HealthResponse(String status) {}
 }

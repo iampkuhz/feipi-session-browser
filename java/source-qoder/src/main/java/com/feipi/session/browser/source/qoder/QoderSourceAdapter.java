@@ -643,7 +643,18 @@ public final class QoderSourceAdapter implements SourceAdapter {
     return child.textValue();
   }
 
-  /** Qoder candidate 级别的补充元数据与 token override。 */
+  /**
+   * 表示 QoderCandidateMetadata 数据。
+   *
+   * @param cwd 工作目录。
+   * @param title 会话标题。
+   * @param model 模型名称。
+   * @param gitBranch Git branch 名称。
+   * @param freshInputTokens fresh input token 数量。
+   * @param cacheReadTokens cache read token 数量。
+   * @param cacheWriteTokens cache write token 数量。
+   * @param outputTokens output token 数量。
+   */
   private record QoderCandidateMetadata(
       String cwd,
       String title,
@@ -662,14 +673,24 @@ public final class QoderSourceAdapter implements SourceAdapter {
     }
   }
 
-  /** 按 Python main 兼容口径估算的 Qoder 文本 token。 */
+  /**
+   * 表示 TokenEstimate 数据。
+   *
+   * @param freshInputTokens fresh input token 数量。
+   * @param outputTokens output token 数量。
+   */
   private record TokenEstimate(long freshInputTokens, long outputTokens) {
     private static TokenEstimate empty() {
       return new TokenEstimate(0, 0);
     }
   }
 
-  /** Qoder cache 事件中可用于 token 估算的文本片段。 */
+  /**
+   * 表示 EventText 数据。
+   *
+   * @param category 分类值。
+   * @param text 文本内容。
+   */
   private record EventText(String category, String text) {
     private static EventText empty() {
       return new EventText("", "");

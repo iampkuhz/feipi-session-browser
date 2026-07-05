@@ -2,10 +2,19 @@ package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
+import com.feipi.session.browser.web.api.DashboardApiHandler;
+import com.feipi.session.browser.web.api.ExportApiHandler;
+import com.feipi.session.browser.web.api.GlossaryApiHandler;
+import com.feipi.session.browser.web.api.PageApiDtos.PageStateModel;
+import com.feipi.session.browser.web.api.PageApiDtos.SafeErrorDetails;
+import com.feipi.session.browser.web.api.ProjectDetailApiHandler;
+import com.feipi.session.browser.web.api.ProjectsApiHandler;
 import com.feipi.session.browser.web.api.SessionApiHandler;
 import com.feipi.session.browser.web.api.SessionApiRouter;
 import com.feipi.session.browser.web.api.SessionApiService;
 import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
+import com.feipi.session.browser.web.api.SessionDetailApiHandler;
+import com.feipi.session.browser.web.api.SessionsApiHandler;
 import com.feipi.session.browser.web.export.ExportHandler;
 import com.feipi.session.browser.web.page.DashboardPage;
 import com.feipi.session.browser.web.page.GlossaryPage;
@@ -17,9 +26,11 @@ import io.javalin.Javalin;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -169,11 +180,84 @@ public final class WebCompositionRoot {
             queryRoot.indexConnection());
     com.feipi.session.browser.index.sqlite.SessionDetailRepository detailRepo =
         new com.feipi.session.browser.index.sqlite.SessionDetailRepository(sessionQueryRepo);
+    DashboardApiHandler dashboardApiHandler = new DashboardApiHandler(queryRoot);
+    javalinConfig.routes.get("/api/dashboard/summary", dashboardApiHandler::handleSummary);
+    javalinConfig.routes.get(
+        "/api/dashboard/trends/sessions", dashboardApiHandler::handleSessionsTrend);
+    javalinConfig.routes.get("/api/dashboard/trends/tokens", dashboardApiHandler::handleTokenTrend);
+    javalinConfig.routes.get(
+        "/api/dashboard/trends/prompts", dashboardApiHandler::handlePromptTrend);
+    javalinConfig.routes.get(
+        "/api/dashboard/trends/cache-health", dashboardApiHandler::handleCacheHealth);
+    javalinConfig.routes.get(
+        "/api/dashboard/agents/contribution", dashboardApiHandler::handleAgentContribution);
+    javalinConfig.routes.get(
+        "/api/dashboard/agents/efficiency", dashboardApiHandler::handleAgentEfficiency);
+    javalinConfig.routes.get(
+        "/api/dashboard/agents/{agent}/deep-dive", dashboardApiHandler::handleAgentDeepDive);
+
+    ExportApiHandler exportApiHandler = new ExportApiHandler(queryRoot);
+    javalinConfig.routes.get(
+        "/api/export/session/{agent}/{sessionId}/manifest", exportApiHandler::handleManifest);
+    javalinConfig.routes.get(
+        "/api/export/session/{agent}/{sessionId}/data-bundle", exportApiHandler::handleDataBundle);
+
+    GlossaryApiHandler glossaryApiHandler = new GlossaryApiHandler();
+    javalinConfig.routes.get("/api/glossary/summary", glossaryApiHandler::handleSummary);
+    javalinConfig.routes.get("/api/glossary/token-types", glossaryApiHandler::handleTokenTypes);
+    javalinConfig.routes.get(
+        "/api/glossary/derived-metrics", glossaryApiHandler::handleDerivedMetrics);
+    javalinConfig.routes.get(
+        "/api/glossary/provider-mapping", glossaryApiHandler::handleProviderMapping);
+    javalinConfig.routes.get("/api/glossary/round-signals", glossaryApiHandler::handleRoundSignals);
+
+    ProjectsApiHandler projectsApiHandler = new ProjectsApiHandler(queryRoot);
+    javalinConfig.routes.get("/api/projects/summary", projectsApiHandler::handleSummary);
+    javalinConfig.routes.get("/api/projects/rows", projectsApiHandler::handleRows);
+    ProjectDetailApiHandler projectDetailApiHandler = new ProjectDetailApiHandler(queryRoot);
+    javalinConfig.routes.get(
+        "/api/projects/{projectKey}/summary", projectDetailApiHandler::handleSummary);
+    javalinConfig.routes.get(
+        "/api/projects/{projectKey}/token-trend", projectDetailApiHandler::handleTokenTrend);
+    javalinConfig.routes.get(
+        "/api/projects/{projectKey}/agent-mix", projectDetailApiHandler::handleAgentMix);
+    javalinConfig.routes.get(
+        "/api/projects/{projectKey}/tool-hotspots", projectDetailApiHandler::handleToolHotspots);
+    javalinConfig.routes.get(
+        "/api/projects/{projectKey}/sessions/summary",
+        projectDetailApiHandler::handleSessionsSummary);
+    javalinConfig.routes.get(
+        "/api/projects/{projectKey}/sessions/rows", projectDetailApiHandler::handleSessionsRows);
+
+    SessionsApiHandler sessionsListApiHandler = new SessionsApiHandler(queryRoot);
+    javalinConfig.routes.get("/api/sessions/summary", sessionsListApiHandler::handleSummary);
+    javalinConfig.routes.get("/api/sessions/options", sessionsListApiHandler::handleOptions);
+    javalinConfig.routes.get("/api/sessions/rows", sessionsListApiHandler::handleRows);
+
+    SessionDetailApiHandler sessionDetailApiHandler = new SessionDetailApiHandler(queryRoot);
+    javalinConfig.routes.get(
+        "/api/sessions/{agent}/{sessionId}/meta", sessionDetailApiHandler::handleMeta);
+    javalinConfig.routes.get(
+        "/api/sessions/{agent}/{sessionId}/metrics", sessionDetailApiHandler::handleMetrics);
+    javalinConfig.routes.get(
+        "/api/sessions/{agent}/{sessionId}/diagnostics",
+        sessionDetailApiHandler::handleDiagnostics);
+    javalinConfig.routes.get(
+        "/api/sessions/{agent}/{sessionId}/rounds", sessionDetailApiHandler::handleRounds);
+    javalinConfig.routes.get(
+        "/api/sessions/{agent}/{sessionId}/payloads", sessionDetailApiHandler::handlePayloads);
+
     SessionApiService apiService = new SessionApiService(detailRepo);
     SessionApiHandler apiHandler = new SessionApiHandler(apiService);
     SessionApiRouter apiRouter = new SessionApiRouter(apiHandler);
 
     javalinConfig.routes.get("/api/sessions/*", apiRouter::route);
+    javalinConfig.routes.get(
+        "/api/*",
+        ctx -> {
+          ctx.status(HttpStatus.NOT_FOUND);
+          ctx.json(new ApiErrorResponse("not_found", "资源不存在"));
+        });
   }
 
   /** 注册异常和错误 handler。 */
@@ -195,7 +279,7 @@ public final class WebCompositionRoot {
           if (isApiPath(ctx)) {
             ctx.json(new ApiErrorResponse("artifact_error", "归一化制品加载失败"));
           } else {
-            ctx.html(renderErrorPage(templates, "归一化制品加载失败", "请稍后重试或检查制品数据。"));
+            ctx.html(renderErrorPage(templates, "归一化制品加载失败", "请稍后重试或检查制品数据。", ctx, e));
           }
         });
 
@@ -207,7 +291,7 @@ public final class WebCompositionRoot {
           if (isApiPath(ctx)) {
             ctx.json(new ApiErrorResponse("internal_error", "查询失败"));
           } else {
-            ctx.html(renderErrorPage(templates, "查询失败", "请稍后重试或检查索引数据库。"));
+            ctx.html(renderErrorPage(templates, "查询失败", "请稍后重试或检查索引数据库。", ctx, e));
           }
         });
 
@@ -219,7 +303,7 @@ public final class WebCompositionRoot {
           if (isApiPath(ctx)) {
             ctx.json(new ApiErrorResponse("internal_error", "服务器内部错误"));
           } else {
-            ctx.html(renderErrorPage(templates, "服务器内部错误", "请稍后重试。"));
+            ctx.html(renderErrorPage(templates, "服务器内部错误", "请稍后重试。", ctx, e));
           }
         });
 
@@ -245,15 +329,30 @@ public final class WebCompositionRoot {
   }
 
   private static String renderNotFoundPage(PebbleEnvironment templates) {
+    PageStateModel state =
+        PageStateModel.notFound("The page you're looking for doesn't exist or has been removed.");
     Map<String, Object> context = new HashMap<>();
-    context.put("error", "The page you're looking for doesn't exist or has been removed.");
+    context.put("state", state);
+    context.put("error", state.message());
     return templates.render("404.html", context);
   }
 
-  private static String renderErrorPage(PebbleEnvironment templates, String error, String detail) {
+  private static String renderErrorPage(
+      PebbleEnvironment templates, String error, String detail, Context ctx, Exception exception) {
+    SafeErrorDetails safeDetails =
+        new SafeErrorDetails(
+            exception == null ? "" : exception.getClass().getSimpleName(),
+            ctx == null ? "" : ctx.path(),
+            UUID.randomUUID().toString(),
+            Instant.now().toString(),
+            exception == null ? error : error + ": " + exception.getMessage());
+    PageStateModel state = PageStateModel.error(error, safeDetails);
     Map<String, Object> context = new HashMap<>();
+    context.put("state", state);
     context.put("error", error);
     context.put("detail", detail);
+    context.put("request_path", ctx == null ? "#" : ctx.path());
+    context.put("error_details", safeDetails);
     return templates.render("error.html", context);
   }
 

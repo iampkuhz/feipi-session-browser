@@ -70,6 +70,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     'java-src': [
         'javaCheck',
         'javaChineseComments',
+        'javaRecordComponentJavadocs',
         'noJavaTestSkips',
         'noJavaSuppressWarnings',
         'reuseIncremental',
@@ -422,6 +423,10 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'javaChineseComments': [
             'java/**/src/main/java/**/*.java',
             'java/**/src/test/java/**/*.java',
+            '**/*.java',
+        ],
+        'javaRecordComponentJavadocs': [
+            'java/**/src/main/java/**/*.java',
             '**/*.java',
         ],
         'noJavaTestSkips': [

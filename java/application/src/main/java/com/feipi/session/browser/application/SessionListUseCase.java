@@ -1,7 +1,9 @@
 package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.index.sqlite.AnomalyDetector;
+import com.feipi.session.browser.index.sqlite.ProjectOptionRow;
 import com.feipi.session.browser.index.sqlite.SessionListAggregate;
+import com.feipi.session.browser.index.sqlite.SessionListSummaryRow;
 import com.feipi.session.browser.index.sqlite.SessionQueryRepository;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.PageResult;
@@ -93,6 +95,42 @@ public final class SessionListUseCase {
   public SessionListAggregate aggregate(SessionListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
     return repository.listAggregate(filter);
+  }
+
+  /**
+   * 过滤后会话列表完整聚合。
+   *
+   * @param filter 会话列表过滤器
+   * @return 完整聚合结果，包含 token 四段和 failed tool
+   * @throws SQLException 查询失败
+   */
+  public SessionListSummaryRow summary(SessionListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    return repository.listSummary(filter);
+  }
+
+  /**
+   * 查询会话列表 model 筛选候选项。
+   *
+   * @param filter 会话列表过滤器
+   * @return model 候选值
+   * @throws SQLException 查询失败
+   */
+  public List<String> modelOptions(SessionListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    return repository.listModelOptions(filter);
+  }
+
+  /**
+   * 查询会话列表 project 筛选候选项。
+   *
+   * @param filter 会话列表过滤器
+   * @return project 候选值
+   * @throws SQLException 查询失败
+   */
+  public List<ProjectOptionRow> projectOptions(SessionListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    return repository.listProjectOptions(filter);
   }
 
   /** 计算过滤器哈希，用于缓存键。 */

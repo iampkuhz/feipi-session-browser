@@ -15,10 +15,10 @@
 {% endblock %}
 
 {% block content %}
-<div class="state-panel" role="region" aria-live="polite" aria-labelledby="state-page-title">
+<div class="state-panel" role="{{ state is defined ? state.role : 'region' }}" aria-live="{{ state is defined ? state.ariaLive : 'polite' }}" aria-labelledby="state-page-title">
     <div class="state-panel__icon" aria-hidden="true">404</div>
-    <h2 class="state-panel__title" id="state-page-title">Page Not Found</h2>
-    <p class="state-panel__desc">{{ error is defined ? error : "The page you're looking for doesn't exist or has been removed." }}</p>
+    <h2 class="state-panel__title" id="state-page-title">{{ state is defined ? state.title : 'Page Not Found' }}</h2>
+    <p class="state-panel__desc">{{ state is defined ? state.message : (error is defined ? error : "The page you're looking for doesn't exist or has been removed.") }}</p>
     {% if detail is defined and detail is not empty %}
     <p class="state-panel__desc">{{ detail }}</p>
     {% endif %}

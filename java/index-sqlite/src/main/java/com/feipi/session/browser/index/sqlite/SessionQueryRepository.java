@@ -104,6 +104,12 @@ public final class SessionQueryRepository {
     }
   }
 
+  /**
+   * 表示 RouteIdentity 数据。
+   *
+   * @param agent agent 类型标识。
+   * @param sessionId provider session 标识符。
+   */
   private record RouteIdentity(String agent, String sessionId) {
     static RouteIdentity fromSessionKey(String sessionKey) {
       int colonIdx = sessionKey.indexOf(':');
@@ -180,9 +186,118 @@ public final class SessionQueryRepository {
   }
 
   /**
-   * 过滤后会话列表聚合总量。
+   * 过滤后会话列表完整聚合总量。
    *
-   * <p>对应 Python {@code get_sessions_list_aggregate}。返回会话数、去重项目数和 token 总量。
+   * <p>与列表 API contract 对齐：返回会话数、项目数、token 四段合计和 failed tool 数。
+   *
+   * @param filter 会话列表复合过滤器
+   * @return 完整聚合结果
+   * @throws SQLException 查询失败
+   */
+  public SessionListSummaryRow listSummary(SessionListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    WhereClauses clauses = buildFilterClauses(filter);
+    String sql =
+        "SELECT COUNT(*) AS session_count,"
+            + " COUNT(DISTINCT "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + ") AS project_count,"
+            + " COALESCE(SUM(fresh_input_tokens), 0) AS fresh_input_tokens,"
+            + " COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,"
+            + " COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,"
+            + " COALESCE(SUM(output_tokens), 0) AS output_tokens,"
+            + " COALESCE(SUM(failed_tool_count), 0) AS failed_tool_count"
+            + " FROM sessions "
+            + clauses.whereFragment();
+
+    try (ReadTransaction rt = indexConnection.readTransaction();
+        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
+      SqlUtils.bindParams(ps, clauses.params(), 1);
+      try (ResultSet rs = ps.executeQuery()) {
+        rs.next();
+        long fresh = rs.getLong("fresh_input_tokens");
+        long cacheRead = rs.getLong("cache_read_tokens");
+        long cacheWrite = rs.getLong("cache_write_tokens");
+        long output = rs.getLong("output_tokens");
+        return new SessionListSummaryRow(
+            rs.getLong("session_count"),
+            rs.getLong("project_count"),
+            fresh,
+            cacheRead,
+            cacheWrite,
+            output,
+            fresh + cacheRead + cacheWrite + output,
+            rs.getLong("failed_tool_count"));
+      }
+    }
+  }
+
+  /**
+   * 返回当前过滤条件下可用的 model 候选项。
+   *
+   * @param filter 会话列表复合过滤器
+   * @return 按大小写无关顺序排列的非空 model 列表
+   * @throws SQLException 查询失败
+   */
+  public List<String> listModelOptions(SessionListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    WhereClauses clauses = buildFilterClauses(filter);
+    String sql =
+        "SELECT DISTINCT model FROM sessions "
+            + clauses.whereFragment()
+            + (clauses.whereFragment().isEmpty() ? " WHERE" : " AND")
+            + " model <> '' ORDER BY LOWER(model), model";
+    try (ReadTransaction rt = indexConnection.readTransaction();
+        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
+      SqlUtils.bindParams(ps, clauses.params(), 1);
+      try (ResultSet rs = ps.executeQuery()) {
+        List<String> result = new ArrayList<>();
+        while (rs.next()) {
+          result.add(rs.getString(1));
+        }
+        return List.copyOf(result);
+      }
+    }
+  }
+
+  /**
+   * 返回当前过滤条件下可用的 project 候选项。
+   *
+   * @param filter 会话列表复合过滤器
+   * @return 按显示名称和 key 排列的项目候选项
+   * @throws SQLException 查询失败
+   */
+  public List<ProjectOptionRow> listProjectOptions(SessionListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    WhereClauses clauses = buildFilterClauses(filter);
+    String projectKeyExpr = CANONICAL_PROJECT_KEY_EXPR;
+    String sql =
+        "SELECT "
+            + projectKeyExpr
+            + " AS project_key,"
+            + " COALESCE(NULLIF(project_name, ''), "
+            + projectKeyExpr
+            + ") AS project_name"
+            + " FROM sessions "
+            + clauses.whereFragment()
+            + " GROUP BY project_key"
+            + " ORDER BY LOWER(project_name), LOWER(project_key)";
+    try (ReadTransaction rt = indexConnection.readTransaction();
+        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
+      SqlUtils.bindParams(ps, clauses.params(), 1);
+      try (ResultSet rs = ps.executeQuery()) {
+        List<ProjectOptionRow> result = new ArrayList<>();
+        while (rs.next()) {
+          result.add(
+              new ProjectOptionRow(rs.getString("project_key"), rs.getString("project_name")));
+        }
+        return List.copyOf(result);
+      }
+    }
+  }
+
+  /**
+   * 对应 Python {@code get_sessions_list_aggregate}。返回会话数、去重项目数和 token 总量。
    *
    * @param filter 会话列表复合过滤器
    * @return 聚合结果
@@ -241,11 +356,23 @@ public final class SessionQueryRepository {
       params.add(modelFilter.model());
     }
 
-    // 标题搜索：同时匹配 title 和 session_id，与 Python 行为一致
+    // 全局搜索：匹配 title、session_id、project、agent 和 model。
     TitleFilter titleFilter = filter.titleFilter();
     if (!titleFilter.isUnfiltered()) {
-      clauses.add("(LOWER(title) LIKE LOWER(?) OR LOWER(session_id) LIKE LOWER(?))");
+      clauses.add(
+          "(LOWER(title) LIKE LOWER(?)"
+              + " OR LOWER(session_id) LIKE LOWER(?)"
+              + " OR LOWER(project_name) LIKE LOWER(?)"
+              + " OR LOWER("
+              + CANONICAL_PROJECT_KEY_EXPR
+              + ") LIKE LOWER(?)"
+              + " OR LOWER(agent) LIKE LOWER(?)"
+              + " OR LOWER(model) LIKE LOWER(?))");
       String pattern = "%" + titleFilter.keyword() + "%";
+      params.add(pattern);
+      params.add(pattern);
+      params.add(pattern);
+      params.add(pattern);
       params.add(pattern);
       params.add(pattern);
     }

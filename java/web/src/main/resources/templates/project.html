@@ -18,7 +18,7 @@
 {% endblock %}
 
 {% block content %}
-<div class="p-projects">
+<div class="p-projects" data-api-summary="/api/projects/{{ project.projectKey | urlencode }}/summary" data-api-token-trend="/api/projects/{{ project.projectKey | urlencode }}/token-trend" data-api-agent-mix="/api/projects/{{ project.projectKey | urlencode }}/agent-mix" data-api-tool-hotspots="/api/projects/{{ project.projectKey | urlencode }}/tool-hotspots" data-api-sessions="/api/projects/{{ project.projectKey | urlencode }}/sessions/rows">
 
 {% if error is defined and error is not empty %}
 <section class="page-section">
@@ -152,7 +152,7 @@
 
     <article class="project-analysis-card">
         <header class="project-analysis-card__header"><h2>Tool Hotspots</h2></header>
-        <div class="state-strip" role="status" aria-live="polite"><div class="state-icon" aria-hidden="true">🧰</div><div><div class="state-title">Tool hotspot data unavailable</div><div class="muted">{{ project_detail.tool_hotspots_reason }}</div></div></div>
+        <div class="state-strip" data-project-tool-hotspots role="status" aria-live="polite"><div class="state-icon" aria-hidden="true">🧰</div><div><div class="state-title">Tool hotspot data unavailable</div><div class="muted">{{ project_detail.tool_hotspots_reason }}</div></div></div>
     </article>
 </section>
 

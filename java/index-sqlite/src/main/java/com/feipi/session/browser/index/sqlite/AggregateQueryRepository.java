@@ -139,6 +139,55 @@ public final class AggregateQueryRepository {
   }
 
   /**
+   * 查询项目列表页在当前搜索条件下的完整聚合总量。
+   *
+   * <p>与 Projects list API contract 对齐：返回项目数、会话数、token 四段合计、工具调用和失败工具数。
+   *
+   * @param filter 项目列表过滤器
+   * @return 项目列表聚合摘要
+   * @throws SQLException 查询失败
+   */
+  public ProjectListSummaryRow projectListSummary(ProjectListFilter filter) throws SQLException {
+    Objects.requireNonNull(filter, "filter 不得为 null");
+    WhereClauses clauses = buildProjectSearchClauses(filter.titleFilter());
+    String sql =
+        "SELECT COUNT(DISTINCT "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + ") AS project_count,"
+            + " COUNT(*) AS session_count,"
+            + " COALESCE(SUM(fresh_input_tokens), 0) AS fresh_input_tokens,"
+            + " COALESCE(SUM(cache_read_tokens), 0) AS cache_read_tokens,"
+            + " COALESCE(SUM(cache_write_tokens), 0) AS cache_write_tokens,"
+            + " COALESCE(SUM(output_tokens), 0) AS output_tokens,"
+            + " COALESCE(SUM(tool_call_count), 0) AS tool_call_count,"
+            + " COALESCE(SUM(failed_tool_count), 0) AS failed_tool_count"
+            + " FROM sessions "
+            + clauses.whereFragment();
+
+    try (ReadTransaction rt = indexConnection.readTransaction();
+        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
+      SqlUtils.bindParams(ps, clauses.params(), 1);
+      try (ResultSet rs = ps.executeQuery()) {
+        rs.next();
+        long fresh = rs.getLong("fresh_input_tokens");
+        long cacheRead = rs.getLong("cache_read_tokens");
+        long cacheWrite = rs.getLong("cache_write_tokens");
+        long output = rs.getLong("output_tokens");
+        return new ProjectListSummaryRow(
+            rs.getLong("project_count"),
+            rs.getLong("session_count"),
+            fresh,
+            cacheRead,
+            cacheWrite,
+            output,
+            fresh + cacheRead + cacheWrite + output,
+            rs.getLong("tool_call_count"),
+            rs.getLong("failed_tool_count"));
+      }
+    }
+  }
+
+  /**
    * 分页查询项目聚合列表。
    *
    * <p>对应 Python {@code list_projects}。排序字段由枚举白名单限定。

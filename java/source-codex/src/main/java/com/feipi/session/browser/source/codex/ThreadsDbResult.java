@@ -13,6 +13,9 @@ import java.util.Optional;
  * #threads()} 为空列表， {@link #diagnostic()} 携带错误描述。
  *
  * <p>该类不可变，线程安全。
+ *
+ * @param threads Threads DB 线程列表。
+ * @param diagnostic 诊断信息。
  */
 public record ThreadsDbResult(
     List<Map<String, String>> threads, Optional<SourceDiagnostic> diagnostic) {

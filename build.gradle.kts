@@ -230,6 +230,37 @@ tasks.named("check") {
 }
 
 // ============================================================
+// verifyJavaRecordComponentJavadocs —— 校验 record component 中文 Javadoc。
+// ============================================================
+val verifyJavaRecordComponentJavadocs = tasks.register<Exec>("verifyJavaRecordComponentJavadocs") {
+    group = "verification"
+    description = "Verifies every Java record component has a Chinese @param Javadoc entry."
+
+    val checkerScript = file("scripts/quality/check_java_record_component_javadocs.py")
+    val reportFile = layout.buildDirectory.file("reports/java-record-component-javadocs/result.txt")
+
+    inputs.file(checkerScript).withPropertyName("checkerScript")
+    inputs.files(
+        fileTree("java").apply {
+            include("**/src/main/java/**/*.java")
+            exclude("**/build/**")
+        },
+    ).withPropertyName("javaMainSourceFiles")
+    outputs.file(reportFile).withPropertyName("resultFile")
+
+    commandLine("python3", checkerScript.absolutePath, "java")
+    doLast {
+        val result = reportFile.get().asFile
+        result.parentFile.mkdirs()
+        result.writeText("PASSED\n", Charsets.UTF_8)
+    }
+}
+
+tasks.named("check") {
+    dependsOn(verifyJavaRecordComponentJavadocs)
+}
+
+// ============================================================
 // verifyJavaApiSnapshot —— 校验 Java public API 基线。
 // ============================================================
 val verifyJavaApiSnapshot = tasks.register<Exec>("verifyJavaApiSnapshot") {

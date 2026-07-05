@@ -262,7 +262,16 @@ public final class CallBuilder {
     return tail.isBlank() ? Optional.empty() : Optional.of(tail);
   }
 
-  /** 单个 assistant 调用在归一化过程中的稳定帧。 */
+  /**
+   * 表示 AssistantCallFrame 数据。
+   *
+   * @param index 顺序索引。
+   * @param record 原始记录对象。
+   * @param callId 调用标识符。
+   * @param scope 调用作用域。
+   * @param parentCallId 父调用标识符。
+   * @param subagentId subagent 标识符。
+   */
   private record AssistantCallFrame(
       int index,
       SourceRecord record,
@@ -271,7 +280,12 @@ public final class CallBuilder {
       Optional<String> parentCallId,
       Optional<String> subagentId) {}
 
-  /** 构建 {@link NormalizedCall} 时使用的共享上下文。 */
+  /**
+   * 表示 CallBuildContext 数据。
+   *
+   * @param frames assistant 调用帧列表。
+   * @param toolResultConsumers tool result 消费者映射。
+   */
   private record CallBuildContext(
       List<AssistantCallFrame> frames, Map<String, String> toolResultConsumers) {
 
@@ -317,7 +331,12 @@ public final class CallBuilder {
     }
   }
 
-  /** 构建 {@link NormalizedToolExecution} 时使用的共享上下文。 */
+  /**
+   * 表示 ExecutionContext 数据。
+   *
+   * @param frames assistant 调用帧列表。
+   * @param toolResultConsumers tool result 消费者映射。
+   */
   private record ExecutionContext(
       List<AssistantCallFrame> frames, Map<String, String> toolResultConsumers) {
 

@@ -116,36 +116,24 @@ public record SessionRow(
     }
 
     // 数值非负
-    requireNonNegative(durationSeconds, "durationSeconds");
-    requireNonNegative(modelExecutionSeconds, "modelExecutionSeconds");
-    requireNonNegative(toolExecutionSeconds, "toolExecutionSeconds");
-    requireNonNegative(userMessageCount, "userMessageCount");
-    requireNonNegative(assistantMessageCount, "assistantMessageCount");
-    requireNonNegative(toolCallCount, "toolCallCount");
-    requireNonNegative(outputTokens, "outputTokens");
-    requireNonNegative(freshInputTokens, "freshInputTokens");
-    requireNonNegative(cacheReadTokens, "cacheReadTokens");
-    requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
-    requireNonNegative(totalTokens, "totalTokens");
-    requireNonNegative(failedToolCount, "failedToolCount");
-    requireNonNegative(subagentInstanceCount, "subagentInstanceCount");
-    requireNonNegative(indexedAt, "indexedAt");
-    requireNonNegative(fileMtime, "fileMtime");
+    RowValidators.requireNonNegative(durationSeconds, "durationSeconds");
+    RowValidators.requireNonNegative(modelExecutionSeconds, "modelExecutionSeconds");
+    RowValidators.requireNonNegative(toolExecutionSeconds, "toolExecutionSeconds");
+    RowValidators.requireNonNegative(userMessageCount, "userMessageCount");
+    RowValidators.requireNonNegative(assistantMessageCount, "assistantMessageCount");
+    RowValidators.requireNonNegative(toolCallCount, "toolCallCount");
+    RowValidators.requireNonNegative(outputTokens, "outputTokens");
+    RowValidators.requireNonNegative(freshInputTokens, "freshInputTokens");
+    RowValidators.requireNonNegative(cacheReadTokens, "cacheReadTokens");
+    RowValidators.requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
+    RowValidators.requireNonNegative(totalTokens, "totalTokens");
+    RowValidators.requireNonNegative(failedToolCount, "failedToolCount");
+    RowValidators.requireNonNegative(subagentInstanceCount, "subagentInstanceCount");
+    RowValidators.requireNonNegative(indexedAt, "indexedAt");
+    RowValidators.requireNonNegative(fileMtime, "fileMtime");
   }
 
   private static String defaultEmpty(String value) {
     return value == null ? "" : value;
-  }
-
-  private static void requireNonNegative(double value, String fieldName) {
-    if (value < 0) {
-      throw new IllegalArgumentException(fieldName + " 必须非负; got " + value);
-    }
-  }
-
-  private static void requireNonNegative(long value, String fieldName) {
-    if (value < 0) {
-      throw new IllegalArgumentException(fieldName + " 必须非负; got " + value);
-    }
   }
 }

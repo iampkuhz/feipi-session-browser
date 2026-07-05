@@ -12,6 +12,7 @@ dependencies {
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
+    testImplementation(libs.jackson.databind)
     testImplementation(libs.javalin.testtools)
     testImplementation(libs.sqlite.jdbc)
     testImplementation(project(":java:test-support"))

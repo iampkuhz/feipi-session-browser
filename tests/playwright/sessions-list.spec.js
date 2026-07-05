@@ -108,7 +108,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('[UI-SESSIONS-007][UI-SESSIONS-011] next 一次到 page 2 且使用 AJAX partial', async ({ page }) => {
+  test('[UI-SESSIONS-007][UI-SESSIONS-011] next 一次到 page 2 且使用 JSON rows API', async ({ page }) => {
     // Regression test for S-09: duplicate JS listeners caused next click
     // to jump from page 1 to page 3 instead of page 2.
     await page.goto('/sessions?page=1');
@@ -123,12 +123,12 @@ test.describe('会话列表页', () => {
     const pageInput = page.locator('.page-input');
     await expect(pageInput).toHaveValue('1');
 
-    // AJAX pagination updates the DOM and history.pushState without a load navigation.
+    // JSON pagination updates the DOM and history.pushState without a load navigation.
     const page2Response = page.waitForResponse((response) => {
       const url = new URL(response.url());
-      return url.pathname === '/sessions'
+      return url.pathname === '/api/sessions/rows'
         && url.searchParams.get('page') === '2'
-        && response.request().headers()['x-requested-with'] === 'XMLHttpRequest';
+        && (response.request().headers().accept || '').includes('application/json');
     }, { timeout: 10000 });
     await Promise.all([
       page2Response,

@@ -858,10 +858,23 @@ public final class CodexSourceAdapter implements SourceAdapter {
         OptionalInt.empty());
   }
 
-  /** 单条 Codex 事件映射结果与后续 token 累计基线。 */
+  /**
+   * 表示 CodexRecordMapping 数据。
+   *
+   * @param record 原始记录对象。
+   * @param previousTotals 上一条累计 token 值。
+   */
   private record CodexRecordMapping(SourceRecord record, TokenTotals previousTotals) {}
 
-  /** Codex token_count 事件中的累计 token 组件。 */
+  /**
+   * 表示 TokenTotals 数据。
+   *
+   * @param freshInput 该字段在 API 响应中的业务值。
+   * @param cacheRead cache read token 数量。
+   * @param cacheWrite cache write token 数量。
+   * @param output 该字段在 API 响应中的业务值。
+   * @param rawTotal provider 原始 token 总数。
+   */
   private record TokenTotals(
       long freshInput, long cacheRead, long cacheWrite, long output, long rawTotal) {
     private static TokenTotals zero() {

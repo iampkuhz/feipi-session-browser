@@ -1,0 +1,129 @@
+package com.feipi.session.browser.web.api;
+
+import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.index.sqlite.ProjectListSummaryRow;
+import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
+import com.feipi.session.browser.query.api.PageResult;
+import com.feipi.session.browser.query.api.ProjectListFilter;
+import com.feipi.session.browser.web.api.PageApiDtos.ApiLink;
+import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
+import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
+import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
+import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectRowDto;
+import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsFilterEcho;
+import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsRowsResponse;
+import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsSummaryResponse;
+import com.feipi.session.browser.web.page.QueryParams;
+import io.javalin.http.Context;
+import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+
+/** Projects list 页面的资源 API。 */
+public final class ProjectsApiHandler {
+
+  private final QueryCompositionRoot queryRoot;
+
+  /** 创建对应对象。 */
+  public ProjectsApiHandler(QueryCompositionRoot queryRoot) {
+    this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot must not be null");
+  }
+
+  /** 处理 /api/projects/summary 的 GET 请求。 */
+  public void handleSummary(Context ctx) throws SQLException {
+    Map<String, String> params = ApiQueryParams.flat(ctx);
+    ProjectListFilter filter = QueryParams.parseProjectListFilter(params);
+    ProjectListSummaryRow summary = queryRoot.projectList().summary(filter);
+    ctx.json(
+        new ProjectsSummaryResponse(
+            ApiResponses.SCHEMA_VERSION,
+            echo(params),
+            summary.projectCount(),
+            summary.sessionCount(),
+            TokenSegments.of(
+                summary.freshInputTokens(),
+                summary.cacheReadTokens(),
+                summary.cacheWriteTokens(),
+                summary.outputTokens()),
+            summary.toolCallCount(),
+            summary.failedToolCount(),
+            summaryState(summary.projectCount(), hasUserFilter(params))));
+  }
+
+  /** 处理 /api/projects/rows 的 GET 请求。 */
+  public void handleRows(Context ctx) throws SQLException {
+    Map<String, String> params = ApiQueryParams.flat(ctx);
+    ProjectListFilter filter = QueryParams.parseProjectListFilter(params);
+    PageResult<ProjectStatsRow> page = queryRoot.projectList().list(filter);
+    int currentPage = QueryParams.parsePage(params);
+    int pageSize = QueryParams.parsePageSize(params);
+    List<ProjectRowDto> rows = page.items().stream().map(ProjectsApiHandler::rowDto).toList();
+    ctx.json(
+        new ProjectsRowsResponse(
+            ApiResponses.SCHEMA_VERSION,
+            echo(params),
+            rows,
+            PaginationDto.of(currentPage, pageSize, page.totalCount()),
+            rowsState(page.totalCount(), hasUserFilter(params))));
+  }
+
+  private static ProjectRowDto rowDto(ProjectStatsRow row) {
+    return new ProjectRowDto(
+        row.projectKey(),
+        row.projectName(),
+        row.totalSessions(),
+        row.claudeSessions(),
+        row.codexSessions(),
+        row.qoderSessions(),
+        TokenSegments.of(
+            row.totalFreshInputTokens(),
+            row.totalCacheReadTokens(),
+            row.totalCacheWriteTokens(),
+            row.totalOutputTokens()),
+        row.totalToolCalls(),
+        row.totalFailedTools(),
+        row.totalUserMessages(),
+        row.totalAssistantMessages(),
+        row.firstSeen(),
+        row.lastSeen(),
+        "/projects/" + ApiQueryParams.url(row.projectKey()));
+  }
+
+  private static ProjectsFilterEcho echo(Map<String, String> params) {
+    return new ProjectsFilterEcho(
+        params.getOrDefault("q", ""),
+        params.getOrDefault("sort", "last_active"),
+        ApiQueryParams.normalizeDir(params.getOrDefault("dir", "desc")),
+        QueryParams.parsePage(params),
+        QueryParams.parsePageSize(params));
+  }
+
+  private static PageStateDto summaryState(long projectCount, boolean hasFilter) {
+    if (projectCount > 0) {
+      return PageStateDto.ready();
+    }
+    return hasFilter
+        ? PageStateDto.noResults(
+            "No projects match your current search",
+            "Clear search or adjust your query.",
+            List.of(ApiLink.get("clear_search", "/api/projects/summary")))
+        : PageStateDto.empty("No projects indexed yet", "Run a scan before browsing projects.");
+  }
+
+  private static PageStateDto rowsState(long projectCount, boolean hasFilter) {
+    if (projectCount > 0) {
+      return PageStateDto.ready();
+    }
+    return hasFilter
+        ? PageStateDto.noResults(
+            "No projects match your current search",
+            "Clear search or adjust your query.",
+            List.of(ApiLink.get("clear_search", "/projects")))
+        : PageStateDto.empty("No projects indexed yet", "Run a scan before browsing projects.");
+  }
+
+  private static boolean hasUserFilter(Map<String, String> params) {
+    return !params.getOrDefault("q", "").trim().isEmpty();
+  }
+}

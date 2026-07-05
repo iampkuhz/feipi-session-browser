@@ -359,8 +359,10 @@ public final class SessionApiHandler {
           }
 
           // bucket-detail 内容需要完整的 session 解析数据，当前归一化模型不直接提供。
-          // 返回结构化的元信息作为占位。
-          ctx.json(new BucketDetailResponse("bucket_detail", bucketKey, roundIndex, "", 0));
+          // 不返回伪成功空值；用显式 unavailable contract 暴露不可用原因。
+          ctx.json(
+              new BucketDetailResponse(
+                  "unavailable", bucketKey, roundIndex, "", 0, "bucket_detail_source_not_indexed"));
         });
   }
 
