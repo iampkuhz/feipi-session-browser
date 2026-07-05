@@ -126,6 +126,20 @@ class SessionDetailRepositoryTest {
     }
 
     @Test
+    @DisplayName("canonical route key 可查到 project-scoped Qoder 会话")
+    void canonicalRouteKeyFindsProjectScopedSession() throws Exception {
+      insertProjectScopedQoderSession();
+
+      Optional<SessionRow> result =
+          repository.findSessionRow("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+
+      assertThat(result).isPresent();
+      assertThat(result.get().sessionKey())
+          .isEqualTo("qoder:/work/project:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+      assertThat(result.get().title()).isEqualTo("model");
+    }
+
+    @Test
     @DisplayName("不存在的会话返回 empty")
     void missingSession() throws Exception {
       Optional<SessionRow> result = repository.findSessionRow("cc:notexist");
@@ -144,6 +158,20 @@ class SessionDetailRepositoryTest {
       assertThat(result).isPresent();
       assertThat(result.get().artifactType()).isEqualTo("normalized");
       assertThat(result.get().path()).isEqualTo("/artifacts/cc_s1.json");
+    }
+
+    @Test
+    @DisplayName("canonical route key 可查到 project-scoped session artifact")
+    void canonicalRouteKeyFindsProjectScopedArtifact() throws Exception {
+      insertProjectScopedQoderSession();
+
+      Optional<SessionArtifactRow> result =
+          repository.findNormalizedArtifact("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+
+      assertThat(result).isPresent();
+      assertThat(result.get().sessionKey())
+          .isEqualTo("qoder:/work/project:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+      assertThat(result.get().path()).isEqualTo("/artifacts/qoder_project_scoped.json");
     }
 
     @Test
@@ -177,6 +205,39 @@ class SessionDetailRepositoryTest {
       assertThat(result.get().artifactType()).isEqualTo("normalized_session_json");
       assertThat(result.get().path()).isEqualTo("/artifacts/legacy_cc_s1.json");
     }
+  }
+
+  private void insertProjectScopedQoderSession() throws Exception {
+    String sessionKey = "qoder:/work/project:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea";
+    String sessionSql =
+        "INSERT INTO sessions"
+            + " (session_key, agent, session_id, title, project_key, project_name, cwd,"
+            + " started_at, ended_at, duration_seconds, model_execution_seconds,"
+            + " tool_execution_seconds, model, git_branch, source,"
+            + " user_message_count, assistant_message_count, tool_call_count,"
+            + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
+            + " total_tokens, failed_tool_count, subagent_instance_count,"
+            + " indexed_at, file_mtime, file_path)"
+            + " VALUES"
+            + " ('"
+            + sessionKey
+            + "', 'qoder', 'f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea', 'model',"
+            + " '/work/project', 'project', '/work/project',"
+            + " '2024-01-02T00:00:00Z', '2024-01-02T01:00:00Z', 3600, 3000, 600,"
+            + " 'Qwen', 'main', 'cli', 1, 1, 1, 10, 20, 30, 40, 100, 0, 0,"
+            + " 1704153600, 1704153600, '/qoder.jsonl')";
+    indexConnection.writerConnection().createStatement().execute(sessionSql);
+
+    String artifactSql =
+        "INSERT INTO session_artifacts"
+            + " (session_key, artifact_type, path, schema_version, source_path,"
+            + " source_mtime, size_bytes, created_at, updated_at)"
+            + " VALUES"
+            + " ('"
+            + sessionKey
+            + "', 'normalized', '/artifacts/qoder_project_scoped.json', '1.0',"
+            + " '/qoder.jsonl', 1704153600, 1024, 1704153600, 1704153600)";
+    indexConnection.writerConnection().createStatement().execute(artifactSql);
   }
 
   @Nested

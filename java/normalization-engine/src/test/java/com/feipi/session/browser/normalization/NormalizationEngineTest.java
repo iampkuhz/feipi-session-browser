@@ -610,6 +610,112 @@ class NormalizationEngineTest {
 
       assertThat(artifact.session()).containsEntry("userMessageCount", 2L);
     }
+
+    @Test
+    @DisplayName("CLAUDE_CODE Dashboard 消息计数排除物化 subagent sidecar")
+    void claudeCodeDashboardMessageCountsExcludeMaterializedSubagentSidecars() {
+      ObjectNode user = MAPPER.createObjectNode().put("type", "user");
+
+      ObjectNode mainAssistant =
+          MAPPER
+              .createObjectNode()
+              .put("type", "assistant")
+              .put("id", "main-call")
+              .put("turnId", "main-turn");
+      mainAssistant.putObject("usage").put("input_tokens", 10).put("output_tokens", 1);
+      ArrayNode mainContent = mainAssistant.putArray("content");
+      ObjectNode mainToolUse = mainContent.addObject();
+      mainToolUse.put("type", "tool_use");
+      mainToolUse.put("id", "toolu_main");
+      mainToolUse.put("name", "Task");
+
+      ObjectNode subagentUser =
+          MAPPER
+              .createObjectNode()
+              .put("type", "user")
+              .put("locator", "sessions/main/subagents/agent-worker.jsonl#event[0]");
+
+      ObjectNode subagentAssistant =
+          MAPPER
+              .createObjectNode()
+              .put("type", "assistant")
+              .put("id", "subagent-call")
+              .put("turnId", "subagent-turn")
+              .put("locator", "sessions/main/subagents/agent-worker.jsonl#event[1]");
+      subagentAssistant.putObject("usage").put("input_tokens", 20).put("output_tokens", 2);
+      ArrayNode subagentContent = subagentAssistant.putArray("content");
+      ObjectNode subagentToolUse = subagentContent.addObject();
+      subagentToolUse.put("type", "tool_use");
+      subagentToolUse.put("id", "toolu_subagent");
+      subagentToolUse.put("name", "Read");
+
+      ObjectNode subagentToolResult =
+          MAPPER
+              .createObjectNode()
+              .put("type", "tool_result")
+              .put("tool_use_id", "toolu_subagent")
+              .put("is_error", "true")
+              .put("locator", "sessions/main/subagents/agent-worker.jsonl#event[2]");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(
+                  user, mainAssistant, subagentUser, subagentAssistant, subagentToolResult),
+              List.of(),
+              List.of());
+
+      assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+      assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
+      assertThat(artifact.session()).containsEntry("toolCallCount", 2L);
+      assertThat(artifact.session()).containsEntry("failedToolCount", 1L);
+      assertThat(artifact.session()).containsEntry("totalTokens", 33L);
+    }
+
+    @Test
+    @DisplayName("CLAUDE_CODE ended_at 使用全量事件最大时间而非追加的 subagent call 顺序")
+    void claudeCodeTimestampRangeUsesRecordMaxInsteadOfAppendedSubagentCallOrder() {
+      ObjectNode user =
+          MAPPER
+              .createObjectNode()
+              .put("type", "user")
+              .put("timestamp", "2026-06-21T15:38:40.332Z");
+
+      ObjectNode mainAssistant =
+          MAPPER
+              .createObjectNode()
+              .put("type", "assistant")
+              .put("id", "main-call")
+              .put("turnId", "main-turn")
+              .put("timestamp", "2026-06-22T00:32:18.535Z");
+
+      ObjectNode finalSystemEvent =
+          MAPPER
+              .createObjectNode()
+              .put("type", "system")
+              .put("timestamp", "2026-06-22T00:35:45.454Z");
+
+      ObjectNode appendedSubagentAssistant =
+          MAPPER
+              .createObjectNode()
+              .put("type", "assistant")
+              .put("id", "subagent-call")
+              .put("turnId", "subagent-turn")
+              .put("timestamp", "2026-06-21T17:07:02.663Z")
+              .put("locator", "sessions/main/subagents/agent-worker.jsonl#event[1]");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CLAUDE_CODE,
+              TestSourceRecords.records(
+                  user, mainAssistant, finalSystemEvent, appendedSubagentAssistant),
+              List.of(),
+              List.of());
+
+      assertThat(artifact.session()).containsEntry("started_at", "2026-06-21T15:38:40.332Z");
+      assertThat(artifact.session()).containsEntry("ended_at", "2026-06-22T00:35:45.454Z");
+      assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
+    }
   }
 
   @Nested

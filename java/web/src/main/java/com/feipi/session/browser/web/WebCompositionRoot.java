@@ -131,7 +131,7 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get("/dashboard", dashboardPage::handle);
     javalinConfig.routes.get("/projects", projectsPage::handleList);
     javalinConfig.routes.get(
-        "/projects/{key}",
+        "/projects/<key>",
         ctx -> {
           String key = ctx.pathParam("key");
           projectsPage.handleDetail(ctx, key);

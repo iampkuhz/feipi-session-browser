@@ -34,10 +34,20 @@ import java.util.Objects;
 public final class AggregateQueryRepository {
 
   /** 项目统计聚合 SELECT 子句，projectStats 和 listProjects 共享。 */
+  private static final String CANONICAL_PROJECT_KEY_EXPR =
+      """
+      CASE
+          WHEN project_key LIKE '/%' THEN project_key
+          WHEN project_key LIKE '-Users-%' AND cwd LIKE '/%' THEN cwd
+          ELSE project_key
+      END\
+      """;
+
   private static final String PROJECT_STATS_SELECT =
       """
       SELECT
-          project_key, project_name,
+          %s as project_key,
+          COALESCE(NULLIF(MAX(project_name), ''), %s) as project_name,
           COUNT(*) as total_sessions,
           SUM(CASE WHEN agent='claude_code' THEN 1 ELSE 0 END) as claude_sessions,
           SUM(CASE WHEN agent='codex' THEN 1 ELSE 0 END) as codex_sessions,
@@ -54,7 +64,8 @@ public final class AggregateQueryRepository {
           COALESCE(SUM(user_message_count), 0) as total_user_messages,
           COALESCE(SUM(assistant_message_count), 0) as total_assistant_messages
       FROM sessions\
-      """;
+      """
+          .formatted(CANONICAL_PROJECT_KEY_EXPR, CANONICAL_PROJECT_KEY_EXPR);
 
   /** Top-N 项目聚合基础 SELECT，topProjectsByTokens 和 topProjectsByTools 共享。 */
   private static final String TOP_PROJECTS_BASE =
@@ -92,7 +103,12 @@ public final class AggregateQueryRepository {
    */
   public ProjectStatsRow projectStats(String projectKey) throws SQLException {
     Objects.requireNonNull(projectKey, "projectKey 不得为 null");
-    String sql = PROJECT_STATS_SELECT + " WHERE project_key = ? GROUP BY project_key";
+    String sql =
+        PROJECT_STATS_SELECT
+            + " WHERE "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + " = ? GROUP BY "
+            + CANONICAL_PROJECT_KEY_EXPR;
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setString(1, projectKey);
@@ -117,14 +133,8 @@ public final class AggregateQueryRepository {
   public long countProjects(ProjectListFilter filter) throws SQLException {
     Objects.requireNonNull(filter, "filter 不得为 null");
     WhereClauses clauses = buildProjectSearchClauses(filter.titleFilter());
-    String sql = "SELECT COUNT(DISTINCT project_key) FROM sessions " + clauses.whereFragment();
-    try (ReadTransaction rt = indexConnection.readTransaction();
-        PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      SqlUtils.bindParams(ps, clauses.params(), 1);
-      try (ResultSet rs = ps.executeQuery()) {
-        rs.next();
-        return rs.getLong(1);
-      }
+    try (ReadTransaction rt = indexConnection.readTransaction()) {
+      return countDistinctProjects(rt, clauses);
     }
   }
 
@@ -145,8 +155,14 @@ public final class AggregateQueryRepository {
 
     String orderExpr = projectSortToSql(sort);
     String sql =
-        (PROJECT_STATS_SELECT + " %s GROUP BY project_key ORDER BY %s LIMIT ? OFFSET ?")
-            .formatted(clauses.whereFragment(), orderExpr);
+        PROJECT_STATS_SELECT
+            + " "
+            + clauses.whereFragment()
+            + " GROUP BY "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + " ORDER BY "
+            + orderExpr
+            + " LIMIT ? OFFSET ?";
 
     try (ReadTransaction rt = indexConnection.readTransaction()) {
       long totalCount = countDistinctProjects(rt, clauses);
@@ -697,8 +713,9 @@ public final class AggregateQueryRepository {
             COALESCE(SUM(cache_read_tokens), 0) as total_cache_read,
             COALESCE(SUM(failed_tool_count), 0) as total_failed
         FROM sessions
-        WHERE model IS NOT NULL AND model != '' AND total_tokens > 0
+        WHERE model IS NOT NULL AND model != ''
         GROUP BY agent, model
+        HAVING COALESCE(SUM(total_tokens), 0) > 0
         ORDER BY session_count DESC\
         """;
 
@@ -707,7 +724,14 @@ public final class AggregateQueryRepository {
         """
         SELECT agent, model, duration_seconds
         FROM sessions WHERE duration_seconds > 0
-          AND model IS NOT NULL AND model != '' AND total_tokens > 0
+          AND model IS NOT NULL AND model != ''
+          AND (agent, model) IN (
+            SELECT agent, model
+            FROM sessions
+            WHERE model IS NOT NULL AND model != ''
+            GROUP BY agent, model
+            HAVING COALESCE(SUM(total_tokens), 0) > 0
+          )
         ORDER BY agent, model, duration_seconds\
         """;
 
@@ -1059,7 +1083,11 @@ public final class AggregateQueryRepository {
   /** 统计去重项目数。 */
   private static long countDistinctProjects(ReadTransaction rt, WhereClauses clauses)
       throws SQLException {
-    String sql = "SELECT COUNT(DISTINCT project_key) FROM sessions " + clauses.whereFragment();
+    String sql =
+        "SELECT COUNT(DISTINCT "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + ") FROM sessions "
+            + clauses.whereFragment();
     try (PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       SqlUtils.bindParams(ps, clauses.params(), 1);
       try (ResultSet rs = ps.executeQuery()) {
@@ -1071,9 +1099,11 @@ public final class AggregateQueryRepository {
 
   /** 映射 ProjectStatsRow（单项目和列表共用）。 */
   private static ProjectStatsRow mapProjectStatsRow(ResultSet rs) throws SQLException {
+    String projectKey = rs.getString("project_key");
+    String projectName = displayProjectName(projectKey, rs.getString("project_name"));
     return new ProjectStatsRow(
-        rs.getString("project_key"),
-        rs.getString("project_name"),
+        projectKey,
+        projectName,
         rs.getLong("total_sessions"),
         rs.getLong("claude_sessions"),
         rs.getLong("codex_sessions"),
@@ -1089,6 +1119,23 @@ public final class AggregateQueryRepository {
         rs.getLong("total_failed_tools"),
         rs.getLong("total_user_messages"),
         rs.getLong("total_assistant_messages"));
+  }
+
+  /** 详情/列表使用 canonical key 做路由，展示名优先使用路径 basename。 */
+  private static String displayProjectName(String projectKey, String rawProjectName) {
+    if (projectKey == null || projectKey.isBlank()) {
+      return SqlUtils.nullToEmpty(rawProjectName);
+    }
+    if (projectKey.startsWith("/")) {
+      String trimmed =
+          projectKey.endsWith("/") ? projectKey.substring(0, projectKey.length() - 1) : projectKey;
+      int lastSlash = trimmed.lastIndexOf('/');
+      if (lastSlash >= 0 && lastSlash < trimmed.length() - 1) {
+        return trimmed.substring(lastSlash + 1);
+      }
+    }
+    String name = SqlUtils.nullToEmpty(rawProjectName);
+    return name.isBlank() ? projectKey : name;
   }
 
   /** 读取趋势日数据行。 */

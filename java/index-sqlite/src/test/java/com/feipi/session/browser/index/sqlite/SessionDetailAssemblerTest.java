@@ -93,6 +93,19 @@ class SessionDetailAssemblerTest {
     }
 
     @Test
+    @DisplayName("同一 provider turn 的多条主调用合并为一个逻辑轮次")
+    void sameTurnMainCallsMerged() {
+      NormalizedCall call1 = makeCallWithTurn("c1", 1, "msg-1", List.of(), List.of("tool-1"));
+      NormalizedCall call2 = makeCallWithTurn("c2", 2, "msg-1", List.of("tool-1"), List.of());
+      NormalizedCall call3 = makeCallWithTurn("c3", 3, "msg-2", List.of(), List.of());
+      List<CallRound> rounds = SessionDetailAssembler.buildRounds(List.of(call1, call2, call3));
+      assertThat(rounds).hasSize(2);
+      assertThat(rounds.get(0).calls()).containsExactly("c1", "c2");
+      assertThat(rounds.get(0).toolCallIds()).containsExactly("tool-1");
+      assertThat(rounds.get(1).calls()).containsExactly("c3");
+    }
+
+    @Test
     @DisplayName("子 agent 调用合并到父调用轮次")
     void subagentCallMergedToParent() {
       NormalizedCall mainCall = makeCall("c1", 1, CallScope.MAIN, Optional.empty());
@@ -295,6 +308,31 @@ class SessionDetailAssemblerTest {
         usage,
         NormalizedCallRequest.empty(),
         NormalizedCallResponse.empty(),
+        List.of(),
+        List.of(),
+        Map.of(),
+        Map.of());
+  }
+
+  private static NormalizedCall makeCallWithTurn(
+      String callId,
+      int callIndex,
+      String turnId,
+      List<String> toolResultIds,
+      List<String> toolCallIds) {
+    return new NormalizedCall(
+        callId,
+        callIndex,
+        "C" + callIndex,
+        CallScope.MAIN,
+        Optional.empty(),
+        Optional.empty(),
+        Optional.of(turnId),
+        "claude-3",
+        Optional.empty(),
+        NormalizedCallUsage.empty(),
+        new NormalizedCallRequest(toolResultIds),
+        new NormalizedCallResponse(toolCallIds),
         List.of(),
         List.of(),
         Map.of(),

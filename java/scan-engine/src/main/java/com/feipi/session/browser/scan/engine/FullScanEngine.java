@@ -2,6 +2,7 @@ package com.feipi.session.browser.scan.engine;
 
 import com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter;
 import com.feipi.session.browser.artifact.normalized.WriteResult;
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
@@ -484,6 +485,7 @@ public final class FullScanEngine {
 
     putStringIfAbsent(session, "title", meta.get("title"));
     putStringIfAbsent(session, "model", meta.get("model"));
+    putStringIfAbsent(session, "git_branch", meta.get("git_branch"));
     putStringIfAbsent(
         session, "source", meta.getOrDefault("source", adapter.sourceId().getValue()));
 
@@ -499,6 +501,7 @@ public final class FullScanEngine {
       session.put("project_name", projectName(projectKey));
     }
 
+    boolean hasMaterializedSubagentRecords = hasMaterializedSubagentRecords(artifact);
     TokenComponents base = tokenComponentsFromSessionOrCalls(session, artifact.calls());
     TokenComponents direct =
         new TokenComponents(
@@ -514,7 +517,7 @@ public final class FullScanEngine {
             longMeta(meta, "subagentOutputTokens"));
     if (direct.total() > 0) {
       putTokenComponents(session, direct);
-    } else if (subagent.total() > 0) {
+    } else if (subagent.total() > 0 && !hasMaterializedSubagentRecords) {
       putTokenComponents(session, base.plus(subagent));
     }
 
@@ -523,13 +526,16 @@ public final class FullScanEngine {
       session.put("totalTokens", directTotal);
     }
     long subagentTotal = longMeta(meta, "subagentTotalTokens");
-    if (subagentTotal > 0 && direct.total() == 0 && subagent.total() == 0) {
+    if (subagentTotal > 0
+        && direct.total() == 0
+        && subagent.total() == 0
+        && !hasMaterializedSubagentRecords) {
       long baseTotal = numberValue(session.get("totalTokens"));
       session.put("totalTokens", baseTotal + subagentTotal);
     }
 
     long subagentTools = longMeta(meta, "subagentToolCallCount");
-    if (subagentTools > 0) {
+    if (subagentTools > 0 && !hasMaterializedSubagentRecords) {
       long baseTools =
           session.get("toolCallCount") instanceof Number num
               ? num.longValue()
@@ -538,7 +544,7 @@ public final class FullScanEngine {
     }
 
     long subagentFailed = longMeta(meta, "subagentFailedToolCount");
-    if (subagentFailed > 0) {
+    if (subagentFailed > 0 && !hasMaterializedSubagentRecords) {
       long baseFailed = numberValue(session.get("failedToolCount"));
       session.put("failedToolCount", baseFailed + subagentFailed);
     }
@@ -547,6 +553,25 @@ public final class FullScanEngine {
     if (subagentInstances > 0) {
       session.put("subagentInstanceCount", subagentInstances);
     }
+  }
+
+  private static boolean hasMaterializedSubagentRecords(NormalizedSessionArtifact artifact) {
+    boolean hasSubagentCall =
+        artifact.calls().stream().anyMatch(call -> call.scope() == CallScope.SUBAGENT);
+    if (hasSubagentCall) {
+      return true;
+    }
+    boolean hasSubagentTool =
+        artifact.toolExecutions().stream()
+            .anyMatch(tool -> tool.scope() == CallScope.SUBAGENT || tool.subagentId().isPresent());
+    if (hasSubagentTool) {
+      return true;
+    }
+    return artifact.sourceFiles().stream()
+        .anyMatch(
+            sourceFile ->
+                sourceFile.subagentId().isPresent()
+                    || sourceFile.path().toString().replace('\\', '/').contains("/subagents/"));
   }
 
   private static void putStringIfAbsent(Map<String, Object> session, String key, String value) {

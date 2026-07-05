@@ -1,6 +1,7 @@
 package com.feipi.session.browser.source.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.claude.ClaudeDiscovery.ClaudeSessionDiscovery;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.json.JsonlReader;
@@ -119,6 +120,11 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
         meta.put(ClaudeConstants.META_HAS_TRANSCRIPT, String.valueOf(disc.hasFile()));
         meta.put(ClaudeConstants.META_TIMESTAMP, String.valueOf(disc.entry().timestamp()));
         if (disc.hasFile()) {
+          ClaudeCandidateMetadata transcriptMeta = inspectCandidateMetadata(disc.transcriptPath());
+          putIfNotEmpty(meta, "title", transcriptMeta.title());
+          putIfNotEmpty(meta, "cwd", transcriptMeta.cwd());
+          putIfNotEmpty(meta, "model", transcriptMeta.model());
+          putIfNotEmpty(meta, "git_branch", transcriptMeta.gitBranch());
           putSubagentMetadata(meta, inspectSubagents(disc.transcriptPath()));
         }
 
@@ -149,6 +155,122 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     if (value > 0) {
       meta.put(key, Long.toString(value));
     }
+  }
+
+  private static void putIfNotEmpty(Map<String, String> meta, String key, String value) {
+    if (value == null) {
+      return;
+    }
+    String trimmed = value.trim();
+    if (!trimmed.isEmpty()) {
+      meta.put(key, trimmed);
+    }
+  }
+
+  private ClaudeCandidateMetadata inspectCandidateMetadata(Path transcriptPath) {
+    try {
+      JsonlReaderResult result = jsonlReader.read(transcriptPath);
+      String cwd = "";
+      String title = "";
+      String model = "";
+      String gitBranch = "";
+      for (JsonNode event : result.events()) {
+        if (cwd.isEmpty()) {
+          cwd = text(event, "cwd");
+        }
+        if (title.isEmpty() && "user".equals(text(event, "type")) && !isMetaEvent(event)) {
+          title = firstMessageText(event);
+        }
+        if (model.isEmpty()) {
+          model = text(objectChild(event, "message"), "model");
+        }
+        if (gitBranch.isEmpty()) {
+          gitBranch = extractGitBranch(event);
+        }
+        if (!cwd.isEmpty() && !title.isEmpty() && !model.isEmpty() && !gitBranch.isEmpty()) {
+          break;
+        }
+      }
+      return new ClaudeCandidateMetadata(cwd, title, model, gitBranch);
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "读取 Claude 候选元数据失败: " + transcriptPath, e);
+      return ClaudeCandidateMetadata.empty();
+    }
+  }
+
+  private static boolean isMetaEvent(JsonNode event) {
+    JsonNode isMeta = event == null ? null : event.get("isMeta");
+    return isMeta != null && isMeta.isBoolean() && isMeta.asBoolean();
+  }
+
+  private static String firstMessageText(JsonNode event) {
+    JsonNode message = objectChild(event, "message");
+    String value = contentText(message == null ? event.get("content") : message.get("content"));
+    if (value.isBlank()) {
+      value = text(event, "text");
+    }
+    value = cleanTitle(value);
+    return value.length() > 120 ? value.substring(0, 120) : value;
+  }
+
+  private static String cleanTitle(String value) {
+    if (value == null || value.isBlank()) {
+      return "";
+    }
+    String message = between(value, "<command-message>", "</command-message>");
+    if (!message.isBlank()) {
+      return message.strip();
+    }
+    return value.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").strip();
+  }
+
+  private static String between(String value, String start, String end) {
+    String[] parts = value.split(java.util.regex.Pattern.quote(start), 2);
+    if (parts.length < 2) {
+      return "";
+    }
+    String[] tail = parts[1].split(java.util.regex.Pattern.quote(end), 2);
+    return tail.length < 2 ? "" : tail[0];
+  }
+
+  private static String contentText(JsonNode content) {
+    if (content == null || content.isNull()) {
+      return "";
+    }
+    if (content.isTextual()) {
+      return content.asText();
+    }
+    if (!content.isArray()) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder();
+    for (JsonNode item : content) {
+      String text = item != null && item.isObject() ? text(item, "text") : "";
+      if (!text.isBlank()) {
+        if (!sb.isEmpty()) {
+          sb.append('\n');
+        }
+        sb.append(text);
+      }
+    }
+    return sb.toString();
+  }
+
+  private static String extractGitBranch(JsonNode event) {
+    String branch = text(event, "gitBranch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    branch = text(event, "git_branch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    JsonNode git = objectChild(event, "git");
+    branch = text(git, "branch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    return text(objectChild(event, "metadata"), "git_branch");
   }
 
   private ClaudeSubagentTotals inspectSubagents(Path transcriptPath) {
@@ -393,11 +515,14 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   }
 
   private static String text(JsonNode node, String fieldName) {
-    if (node == null || !node.isObject()) {
+    if (node == null) {
       return "";
     }
-    JsonNode child = node.get(fieldName);
-    return child != null && child.isTextual() ? child.asText() : "";
+    if (!node.isObject()) {
+      return "";
+    }
+    JsonNode child = node.path(fieldName);
+    return child.isTextual() ? child.asText() : "";
   }
 
   private static boolean booleanValue(JsonNode node, String fieldName) {
@@ -532,13 +657,66 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
           List.of(), "Transcript file missing for session " + candidate.sessionKey());
     }
 
-    return JsonCandidateParser.parse(
-        candidate,
-        cancellation,
-        jsonlReader,
-        ClaudeSourceAdapter::extractEventType,
-        ClaudeSourceAdapter::collectEventDiagnostics,
-        (diagnostics, eventCount) -> {});
+    SourceResult primary =
+        JsonCandidateParser.parse(
+            candidate,
+            cancellation,
+            jsonlReader,
+            ClaudeSourceAdapter::extractEventType,
+            ClaudeSourceAdapter::collectEventDiagnostics,
+            (diagnostics, eventCount) -> {});
+    if (!(primary instanceof SourceResult.Success success)) {
+      return primary;
+    }
+
+    List<Path> sidecars = subagentFiles(Path.of(candidate.fingerprint().locator()));
+    if (sidecars.isEmpty()) {
+      return primary;
+    }
+    List<SourceDiagnostic> diagnostics = new ArrayList<>(success.diagnostics());
+    List<SourceRecord> records = new ArrayList<>(success.records());
+    int candidateCount = success.candidateCount();
+    for (Path sidecar : sidecars) {
+      SourceResult sidecarResult =
+          JsonCandidateParser.parse(
+              new Candidate(
+                  fingerprint(sidecar),
+                  candidate.sessionKey(),
+                  candidate.projectKey(),
+                  candidate.metadata()),
+              cancellation,
+              jsonlReader,
+              ClaudeSourceAdapter::extractEventType,
+              ClaudeSourceAdapter::collectEventDiagnostics,
+              (ignored, eventCount) -> {});
+      if (sidecarResult instanceof SourceResult.Success sidecarSuccess) {
+        diagnostics.addAll(sidecarSuccess.diagnostics());
+        records.addAll(sidecarSuccess.records());
+        candidateCount += sidecarSuccess.candidateCount();
+      } else if (sidecarResult instanceof SourceResult.Fatal fatal) {
+        return fatal;
+      }
+    }
+    return new SourceResult.Success(
+        diagnostics, candidateCount, records, success.fingerprint(), success.locator());
+  }
+
+  private static List<Path> subagentFiles(Path transcriptPath) {
+    Path subagentsDir = sidecarSubagentsDir(transcriptPath);
+    if (!Files.isDirectory(subagentsDir)) {
+      return List.of();
+    }
+    List<Path> files = new ArrayList<>();
+    try (var stream = Files.list(subagentsDir)) {
+      stream
+          .filter(Files::isRegularFile)
+          .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+          .sorted()
+          .forEach(files::add);
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "读取 Claude subagent 文件列表失败: " + subagentsDir, e);
+    }
+    return List.copyOf(files);
   }
 
   private static void collectEventDiagnostics(
@@ -620,5 +798,12 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       return relative.getName(nameCount - 2).toString();
     }
     return "";
+  }
+
+  /** Claude transcript 中可提升到 session row 的展示元数据。 */
+  private record ClaudeCandidateMetadata(String cwd, String title, String model, String gitBranch) {
+    private static ClaudeCandidateMetadata empty() {
+      return new ClaudeCandidateMetadata("", "", "", "");
+    }
   }
 }

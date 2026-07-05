@@ -68,19 +68,42 @@
   function getFilterParams() {
     var form = document.getElementById('session-filter-form');
     if (!form) return new URLSearchParams();
-    return new URLSearchParams(new FormData(form));
+    return cleanParams(new URLSearchParams(new FormData(form)));
+  }
+
+  function normalizeAgent(value) {
+    var normalized = (value || '').trim().toLowerCase();
+    if (!normalized || normalized === 'all') return '';
+    if (normalized === 'claude-code') return 'claude_code';
+    return normalized;
+  }
+
+  function cleanParams(params) {
+    var cleaned = new URLSearchParams();
+    params.forEach(function (value, key) {
+      var v = value == null ? '' : String(value).trim();
+      if (key === 'agent') v = normalizeAgent(v);
+      if (!v) return;
+      if (key === 'page' && v === '1') return;
+      if (key === 'page_size' && v === '25') return;
+      if ((key === 'sort' && (v === 'ended-at' || v === 'updated')) || (key === 'dir' && v === 'desc' && !params.get('sort'))) return;
+      cleaned.set(key, v);
+    });
+    if (!cleaned.get('sort')) cleaned.delete('dir');
+    return cleaned;
   }
 
   /**
    * Navigate to /sessions with the given params object.
    */
   function navigate(params) {
-    var qs = new URLSearchParams();
+    var raw = new URLSearchParams();
     for (var k in params) {
       if (params[k] !== '' && params[k] != null) {
-        qs.set(k, params[k]);
+        raw.set(k, params[k]);
       }
     }
+    var qs = cleanParams(raw);
     var url = '/sessions' + (qs.toString() ? '?' + qs.toString() : '');
     window.location.href = url;
   }
@@ -90,7 +113,8 @@
    */
   function submitFilter() {
     var form = document.getElementById('session-filter-form');
-    if (form) form.submit();
+    if (!form) return;
+    navigate(paramsToObject(getFilterParams()));
   }
 
   /**
@@ -373,6 +397,7 @@
     if (!form) return;
 
     form.addEventListener('submit', function (e) {
+      e.preventDefault();
       // Remove any existing hidden page param to reset to page 1
       var pageInput = form.querySelector('input[name="page"]');
       if (pageInput) {
@@ -383,7 +408,7 @@
         bubbles: true,
         detail: { form: form }
       }));
-      // Let form submit naturally (GET /sessions?...)
+      navigate(paramsToObject(getFilterParams()));
     });
   }
 

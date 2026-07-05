@@ -152,6 +152,10 @@ public final class CodexSourceAdapter implements SourceAdapter {
       if (!cwd.isEmpty()) {
         meta.put("cwd", cwd);
       }
+      String gitBranch = firstNonEmpty(disc.threadInfo(), "git_branch", "gitBranch", "branch");
+      if (!gitBranch.isEmpty()) {
+        meta.put("git_branch", gitBranch);
+      }
     }
     // 回退到 session_index.jsonl
     if (!meta.containsKey("title") && disc.indexEntry() != null) {
@@ -181,12 +185,64 @@ public final class CodexSourceAdapter implements SourceAdapter {
       }
     }
     if (disc.hasFile()) {
+      Map<String, String> fileMeta = readFirstSessionMeta(disc.rolloutPath());
+      if (!meta.containsKey("cwd")) {
+        String cwd = fileMeta.getOrDefault("cwd", "");
+        if (!cwd.isEmpty()) {
+          meta.put("cwd", cwd);
+        }
+      }
+      if (!meta.containsKey("git_branch")) {
+        String gitBranch = firstNonEmpty(fileMeta, "git_branch", "gitBranch", "branch");
+        if (gitBranch.isEmpty()) {
+          gitBranch = extractGitBranchFromSource(fileMeta.getOrDefault("source", ""));
+        }
+        if (!gitBranch.isEmpty()) {
+          meta.put("git_branch", gitBranch);
+        }
+      }
+    }
+    if (disc.hasFile()) {
       long subagentCount = countSubagentChildren(disc.rolloutPath(), disc.sessionId());
       if (subagentCount > 0) {
         meta.put("subagentInstanceCount", Long.toString(subagentCount));
       }
     }
     return Map.copyOf(meta);
+  }
+
+  private static String firstNonEmpty(Map<String, String> values, String... keys) {
+    if (values == null) {
+      return "";
+    }
+    for (String key : keys) {
+      String value = values.getOrDefault(key, "").trim();
+      if (!value.isEmpty()) {
+        return value;
+      }
+    }
+    return "";
+  }
+
+  private static String extractGitBranchFromSource(String source) {
+    if (source == null || source.isBlank()) {
+      return "";
+    }
+    try {
+      JsonNode sourceNode = MAPPER.readTree(source);
+      JsonNode git = sourceNode.path("git");
+      JsonNode branch = git.get("branch");
+      if (branch != null && branch.isTextual()) {
+        return branch.asText().trim();
+      }
+      JsonNode direct = sourceNode.get("git_branch");
+      if (direct != null && direct.isTextual()) {
+        return direct.asText().trim();
+      }
+    } catch (IOException e) {
+      return "";
+    }
+    return "";
   }
 
   private static long countSubagentChildren(Path rolloutPath, String parentSessionId) {

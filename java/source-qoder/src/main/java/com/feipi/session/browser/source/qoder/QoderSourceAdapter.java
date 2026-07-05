@@ -147,8 +147,10 @@ public final class QoderSourceAdapter implements SourceAdapter {
 
         Map<String, String> meta = new HashMap<>();
         meta.put("source_kind", disc.sourceKind().name().toLowerCase(Locale.ROOT));
+        putIfNotEmpty(meta, "title", discoveredMeta.title());
         putIfNotEmpty(meta, "cwd", discoveredMeta.cwd());
         putIfNotEmpty(meta, "model", discoveredMeta.model());
+        putIfNotEmpty(meta, "git_branch", discoveredMeta.gitBranch());
         putIfPositive(meta, "freshInputTokens", discoveredMeta.freshInputTokens());
         putIfPositive(meta, "outputTokens", discoveredMeta.outputTokens());
         putIfPositive(meta, "cacheReadTokens", discoveredMeta.cacheReadTokens());
@@ -193,15 +195,23 @@ public final class QoderSourceAdapter implements SourceAdapter {
       JsonlReaderResult result = jsonlReader.read(path);
       List<JsonNode> events = result.events();
       String cwd = "";
+      String title = "";
       String model = "";
+      String gitBranch = "";
       for (JsonNode event : events) {
         if (cwd.isEmpty() && isUserEvent(event)) {
           cwd = text(event, "cwd");
         }
+        if (title.isEmpty() && isUserEvent(event) && !isMetaEvent(event)) {
+          title = firstMessageText(event);
+        }
         if (model.isEmpty()) {
           model = extractModel(event);
         }
-        if (!cwd.isEmpty() && !model.isEmpty()) {
+        if (gitBranch.isEmpty()) {
+          gitBranch = extractGitBranch(event);
+        }
+        if (!cwd.isEmpty() && !title.isEmpty() && !model.isEmpty() && !gitBranch.isEmpty()) {
           break;
         }
       }
@@ -213,7 +223,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
               ? estimateCacheTokens(events)
               : estimateProjectTokens(events);
       return new QoderCandidateMetadata(
-          cwd, model, estimate.freshInputTokens(), 0, 0, estimate.outputTokens());
+          cwd, title, model, gitBranch, estimate.freshInputTokens(), 0, 0, estimate.outputTokens());
     } catch (IOException e) {
       LOG.log(Level.FINEST, "读取 Qoder 候选元数据失败: " + path, e);
       return QoderCandidateMetadata.empty();
@@ -242,9 +252,10 @@ public final class QoderSourceAdapter implements SourceAdapter {
   }
 
   private static void putIfPositive(Map<String, String> meta, String key, long value) {
-    if (value > 0) {
-      meta.put(key, Long.toString(value));
+    if (value <= 0) {
+      return;
     }
+    meta.put(key, Long.toString(value));
   }
 
   private static String extractModel(JsonNode event) {
@@ -419,6 +430,64 @@ public final class QoderSourceAdapter implements SourceAdapter {
     return contentText(content);
   }
 
+  private static String firstMessageText(JsonNode event) {
+    String value = messageText(event).strip();
+    if (value.isEmpty()) {
+      value = text(event, "text").strip();
+    }
+    value = cleanTitle(value);
+    if (value.length() > 120) {
+      return value.substring(0, 120);
+    }
+    return value;
+  }
+
+  private static String cleanTitle(String value) {
+    if (value == null || value.isBlank()) {
+      return "";
+    }
+    String message = between(value, "<command-message>", "</command-message>");
+    if (!message.isBlank()) {
+      return message.strip();
+    }
+    return value.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").strip();
+  }
+
+  private static String between(String value, String start, String end) {
+    int startIndex = value.indexOf(start);
+    if (startIndex < 0) {
+      return "";
+    }
+    int contentStart = startIndex + start.length();
+    int endIndex = value.indexOf(end, contentStart);
+    if (endIndex < 0) {
+      return "";
+    }
+    return value.substring(contentStart, endIndex);
+  }
+
+  private static String extractGitBranch(JsonNode event) {
+    String branch = text(event, "git_branch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    branch = text(event, "gitBranch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    JsonNode git = objectChild(event, "git");
+    branch = text(git, "branch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    JsonNode metadata = objectChild(event, "metadata");
+    branch = text(metadata, "git_branch");
+    if (!branch.isEmpty()) {
+      return branch;
+    }
+    return text(metadata, "gitBranch");
+  }
+
   private static String contentText(JsonNode content) {
     if (content == null) {
       return "";
@@ -550,31 +619,42 @@ public final class QoderSourceAdapter implements SourceAdapter {
   }
 
   private static JsonNode objectChild(JsonNode node, String fieldName) {
-    if (node == null || !node.isObject()) {
+    if (node == null) {
       return null;
     }
-    JsonNode child = node.get(fieldName);
-    return child != null && child.isObject() ? child : null;
+    if (!node.isObject()) {
+      return null;
+    }
+    JsonNode child = node.path(fieldName);
+    return child.isObject() ? child : null;
   }
 
   private static String text(JsonNode node, String fieldName) {
-    if (node == null || !node.isObject()) {
+    if (node == null) {
+      return "";
+    }
+    if (!node.isObject()) {
       return "";
     }
     JsonNode child = node.get(fieldName);
-    return child != null && child.isTextual() ? child.asText() : "";
+    if (child == null || !child.isTextual()) {
+      return "";
+    }
+    return child.textValue();
   }
 
   /** Qoder candidate 级别的补充元数据与 token override。 */
   private record QoderCandidateMetadata(
       String cwd,
+      String title,
       String model,
+      String gitBranch,
       long freshInputTokens,
       long cacheReadTokens,
       long cacheWriteTokens,
       long outputTokens) {
     private static QoderCandidateMetadata empty() {
-      return new QoderCandidateMetadata("", "", 0, 0, 0, 0);
+      return new QoderCandidateMetadata("", "", "", "", 0, 0, 0, 0);
     }
 
     private long totalTokens() {

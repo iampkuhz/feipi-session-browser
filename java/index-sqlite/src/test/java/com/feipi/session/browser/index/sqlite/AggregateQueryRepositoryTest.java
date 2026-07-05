@@ -234,6 +234,82 @@ class AggregateQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("absolute project 统计合并 hyphen cache key 并展示 basename")
+    void canonicalProjectStatsMergeHyphenCacheKey() throws Exception {
+      String sql =
+          "INSERT INTO sessions"
+              + " (session_key, agent, session_id, title, project_key, project_name, cwd,"
+              + " started_at, ended_at, duration_seconds, model_execution_seconds,"
+              + " tool_execution_seconds, model, git_branch, source,"
+              + " user_message_count, assistant_message_count, tool_call_count,"
+              + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
+              + " total_tokens, failed_tool_count, subagent_instance_count,"
+              + " indexed_at, file_mtime, file_path)"
+              + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
+              + " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+      insertSession(
+          sql,
+          "codex:workspace-1",
+          "codex",
+          "workspace-1",
+          "canonical workspace",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "2026-06-24T09:00:00Z",
+          "2026-06-24T10:00:00Z",
+          100.0,
+          90.0,
+          10.0,
+          "gpt-5",
+          1,
+          2,
+          10,
+          100,
+          200,
+          300,
+          400,
+          1000,
+          1,
+          0);
+      insertSession(
+          sql,
+          "qoder:workspace-2",
+          "qoder",
+          "workspace-2",
+          "cache workspace",
+          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "2026-06-24T11:00:00Z",
+          "2026-06-24T12:00:00Z",
+          100.0,
+          90.0,
+          10.0,
+          "qoder",
+          1,
+          2,
+          20,
+          1000,
+          2000,
+          3000,
+          4000,
+          10000,
+          2,
+          0);
+
+      ProjectStatsRow row =
+          repo.projectStats("/Users/zhehan/Documents/tools/llm/feipi-session-browser-java");
+      assertThat(row.projectName()).isEqualTo("feipi-session-browser-java");
+      assertThat(row.totalSessions()).isEqualTo(2);
+      assertThat(row.codexSessions()).isEqualTo(1);
+      assertThat(row.qoderSessions()).isEqualTo(1);
+      assertThat(row.totalTokens()).isEqualTo(11000);
+      assertThat(row.totalToolCalls()).isEqualTo(30);
+      assertThat(row.totalFailedTools()).isEqualTo(3);
+    }
+
+    @Test
     @DisplayName("null projectKey 抛 NullPointerException")
     void nullKeyThrows() {
       assertThatThrownBy(() -> repo.projectStats(null)).isInstanceOf(NullPointerException.class);
@@ -248,6 +324,73 @@ class AggregateQueryRepositoryTest {
     @DisplayName("默认过滤器返回全部项目数")
     void defaultCount() throws Exception {
       assertThat(repo.countProjects(ProjectListFilter.defaults())).isEqualTo(2);
+    }
+
+    @Test
+    @DisplayName("hyphen cache key 按 cwd canonical 后不增加项目数")
+    void canonicalCountDoesNotDoubleCountHyphenCacheKey() throws Exception {
+      String sql =
+          "INSERT INTO sessions"
+              + " (session_key, agent, session_id, title, project_key, project_name, cwd,"
+              + " started_at, ended_at, duration_seconds, model_execution_seconds,"
+              + " tool_execution_seconds, model, git_branch, source,"
+              + " user_message_count, assistant_message_count, tool_call_count,"
+              + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
+              + " total_tokens, failed_tool_count, subagent_instance_count,"
+              + " indexed_at, file_mtime, file_path)"
+              + " VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,"
+              + " ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+      insertSession(
+          sql,
+          "codex:workspace-count-1",
+          "codex",
+          "workspace-count-1",
+          "canonical workspace",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "2026-06-24T09:00:00Z",
+          "2026-06-24T10:00:00Z",
+          100.0,
+          90.0,
+          10.0,
+          "gpt-5",
+          1,
+          2,
+          10,
+          100,
+          200,
+          300,
+          400,
+          1000,
+          1,
+          0);
+      insertSession(
+          sql,
+          "qoder:workspace-count-2",
+          "qoder",
+          "workspace-count-2",
+          "cache workspace",
+          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "2026-06-24T11:00:00Z",
+          "2026-06-24T12:00:00Z",
+          100.0,
+          90.0,
+          10.0,
+          "qoder",
+          1,
+          2,
+          20,
+          1000,
+          2000,
+          3000,
+          4000,
+          10000,
+          2,
+          0);
+      assertThat(repo.countProjects(ProjectListFilter.defaults())).isEqualTo(3);
     }
 
     @Test

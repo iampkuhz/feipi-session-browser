@@ -69,9 +69,9 @@ public final class CallBuilder {
         frame.callId(),
         frame.index(),
         "C" + frame.index(),
-        CallScope.MAIN,
-        Optional.empty(),
-        Optional.empty(),
+        frame.scope(),
+        frame.parentCallId(),
+        frame.subagentId(),
         record.turnId(),
         record.model().orElse(""),
         record.timestamp(),
@@ -115,7 +115,9 @@ public final class CallBuilder {
                     toolCall.name(),
                     frame.callId(),
                     Optional.ofNullable(consumers.get(toolCall.toolCallId())),
-                    Optional.ofNullable(toolErrors.get(toolCall.toolCallId()))));
+                    Optional.ofNullable(toolErrors.get(toolCall.toolCallId())),
+                    frame.scope(),
+                    frame.subagentId()));
   }
 
   private static List<NormalizedToolExecution> standaloneToolExecutions(
@@ -136,7 +138,9 @@ public final class CallBuilder {
               toolName.get(),
               declaredByLastCall(calls),
               Optional.ofNullable(consumers.get(toolCallId.get())),
-              toolUseRecord.toolError()));
+              toolUseRecord.toolError(),
+              callScope(toolUseRecord),
+              displaySubagentId(toolUseRecord)));
     }
     return executions;
   }
@@ -146,18 +150,20 @@ public final class CallBuilder {
       String name,
       String declaredByCallId,
       Optional<String> consumedByCallId,
-      Optional<String> errorStatus) {
+      Optional<String> errorStatus,
+      CallScope scope,
+      Optional<String> subagentId) {
     return new NormalizedToolExecution(
         toolCallId,
         name,
-        CallScope.MAIN,
+        scope,
         declaredByCallId,
         consumedByCallId,
         errorStatus,
         Optional.empty(),
         0L,
         List.of(),
-        Optional.empty());
+        subagentId);
   }
 
   /**
@@ -224,8 +230,46 @@ public final class CallBuilder {
     return record.callId().orElse("C" + fallbackIndex);
   }
 
+  private static CallScope callScope(SourceRecord record) {
+    return subagentId(record).isPresent() ? CallScope.SUBAGENT : CallScope.MAIN;
+  }
+
+  private static Optional<String> displaySubagentId(SourceRecord record) {
+    return subagentId(record).map(id -> "agent-" + id);
+  }
+
+  private static Optional<String> subagentId(SourceRecord record) {
+    String locator = record.locator().replace('\\', '/');
+    int marker = locator.lastIndexOf("/subagents/");
+    if (marker < 0) {
+      return Optional.empty();
+    }
+    String tail = locator.substring(marker + "/subagents/".length());
+    int hash = tail.indexOf('#');
+    if (hash >= 0) {
+      tail = tail.substring(0, hash);
+    }
+    int slash = tail.indexOf('/');
+    if (slash >= 0) {
+      tail = tail.substring(0, slash);
+    }
+    if (tail.endsWith(".jsonl")) {
+      tail = tail.substring(0, tail.length() - ".jsonl".length());
+    }
+    if (tail.startsWith("agent-")) {
+      tail = tail.substring("agent-".length());
+    }
+    return tail.isBlank() ? Optional.empty() : Optional.of(tail);
+  }
+
   /** 单个 assistant 调用在归一化过程中的稳定帧。 */
-  private record AssistantCallFrame(int index, SourceRecord record, String callId) {}
+  private record AssistantCallFrame(
+      int index,
+      SourceRecord record,
+      String callId,
+      CallScope scope,
+      Optional<String> parentCallId,
+      Optional<String> subagentId) {}
 
   /** 构建 {@link NormalizedCall} 时使用的共享上下文。 */
   private record CallBuildContext(
@@ -233,16 +277,39 @@ public final class CallBuilder {
 
     private static CallBuildContext create(
         List<? extends SourceRecord> records, List<SourceRecord> assistantMessages) {
-      List<AssistantCallFrame> frames =
-          IntStream.range(0, assistantMessages.size())
-              .mapToObj(
-                  index -> {
-                    SourceRecord record = assistantMessages.get(index);
-                    return new AssistantCallFrame(
-                        index + 1, record, extractCallId(record, index + 1));
-                  })
-              .toList();
+      List<AssistantCallFrame> frames = assistantFrames(assistantMessages);
       return new CallBuildContext(frames, mapToolResultConsumers(records, callIds(frames)));
+    }
+
+    private static List<AssistantCallFrame> assistantFrames(List<SourceRecord> assistantMessages) {
+      List<AssistantCallFrame> frames = new ArrayList<>();
+      Map<String, Integer> subagentCounters = new LinkedHashMap<>();
+      for (int index = 0; index < assistantMessages.size(); index++) {
+        SourceRecord record = assistantMessages.get(index);
+        Optional<String> subagent = displaySubagentId(record);
+        if (subagent.isPresent()) {
+          String id = subagent.get();
+          int subRound = subagentCounters.merge(id, 1, Integer::sum);
+          frames.add(
+              new AssistantCallFrame(
+                  index + 1,
+                  record,
+                  id + "-SR" + subRound,
+                  CallScope.SUBAGENT,
+                  Optional.of("subagent:" + id),
+                  Optional.of(id)));
+        } else {
+          frames.add(
+              new AssistantCallFrame(
+                  index + 1,
+                  record,
+                  extractCallId(record, index + 1),
+                  CallScope.MAIN,
+                  Optional.empty(),
+                  Optional.empty()));
+        }
+      }
+      return List.copyOf(frames);
     }
 
     private static List<String> callIds(List<AssistantCallFrame> frames) {
@@ -274,7 +341,14 @@ public final class CallBuilder {
           zeroBasedIndex < callIds.size()
               ? callIds.get(zeroBasedIndex)
               : extractCallId(record, callIndex);
-      return new AssistantCallFrame(callIndex, record, callId);
+      Optional<String> subagent = displaySubagentId(record);
+      return new AssistantCallFrame(
+          callIndex,
+          record,
+          callId,
+          subagent.isPresent() ? CallScope.SUBAGENT : CallScope.MAIN,
+          subagent.map(id -> "subagent:" + id),
+          subagent);
     }
   }
 }

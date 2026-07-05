@@ -395,7 +395,7 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
     await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 10000 });
 
-    const stablePayloadKinds = ['context', 'response', 'result', 'message.user'];
+    const stablePayloadKinds = ['context', 'response', 'result', 'message.user', 'metadata', 'llm.request_attribution', 'llm.response_attribution'];
     const payloadSelectors = stablePayloadKinds.flatMap((kind) => [
       `[data-trace-detail]:not([hidden]) button[data-action="open-payload"][data-payload-id][data-payload-kind="${kind}"]:visible`,
       `button[data-action="open-payload"][data-payload-id][data-payload-kind="${kind}"]:visible`,

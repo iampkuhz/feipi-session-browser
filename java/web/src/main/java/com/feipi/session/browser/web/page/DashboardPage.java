@@ -217,6 +217,9 @@ public final class DashboardPage {
       }
       if (latest != null && prev != null) {
         double deltaPp = (latest - prev) * 100.0;
+        if (Math.abs(deltaPp) < 0.05) {
+          deltaPp = 0.0;
+        }
         cacheRatioBadge = String.format(java.util.Locale.ROOT, "%+.1fpp", deltaPp);
         cacheRatioBadgeTone = deltaPp >= 0 ? "positive" : "negative";
       } else if (latest != null) {
@@ -238,7 +241,7 @@ public final class DashboardPage {
 
     // 说明:Project badge——最近 7d 相对上个 7d 的变化
     long projectDelta = supplement.activeProjects7d() - supplement.activeProjectsPrevious7d();
-    String projectBadge = projectDelta >= 0 ? "+" + projectDelta : String.valueOf(projectDelta);
+    String projectBadge = projectDelta > 0 ? "+" + projectDelta : String.valueOf(projectDelta);
     String projectBadgeTone = projectDelta >= 0 ? "positive" : "negative";
 
     // 说明:Sessions badge
@@ -590,7 +593,7 @@ public final class DashboardPage {
         trendRows.isEmpty()
             ? "0"
             : formatDashboardCompact(trendRows.get(trendRows.size() - 1).totalTokens()));
-    summary.put("range_total_tokens", formatDashboardCompact(totalTokens));
+    summary.put("range_total_tokens", formatDashboardTrendTokens(totalTokens));
     summary.put(
         "latest_prompts",
         activityRows.isEmpty() ? "—" : activityRows.get(activityRows.size() - 1).totalPrompts());
@@ -602,10 +605,10 @@ public final class DashboardPage {
 
   private static Map<String, String> buildChartNotes() {
     Map<String, String> notes = new LinkedHashMap<>();
-    notes.put("sessions", "按所选时间粒度展示各 agent session 数。");
-    notes.put("prompts", "按用户 prompt、助手轮次与工具调用展示活动趋势。");
-    notes.put("tokens", "按 Fresh、Cache Read、Cache Write、Output 组件展示 token 趋势。");
-    notes.put("cache_health", "展示缓存读取在输入侧 token 中的占比；缺失明细不以假数据补齐。");
+    notes.put("sessions", "按天新增的 session 总数,按照不同 agent 堆叠.");
+    notes.put("prompts", "按天展示 user prompts 总数,并用折线显示每个 session 的平均 prompts.");
+    notes.put("tokens", "按天展示 total tokens,按照 Fresh、Cache Read、Cache Write、Output 组成展示.");
+    notes.put("cache_health", "按天展示整体和各 agent 的 Cache Read Ratio;Average 为全局平均.");
     notes.put("model_mix", "当前 Java index 暂未暴露完整模型占比图数据时显示明细表或空态。");
     notes.put("tool_dist", "当前 index 保存聚合工具调用数，不保存工具名称分布。");
     return notes;
@@ -618,23 +621,7 @@ public final class DashboardPage {
       List<AgentEfficiencyRow> efficiencyRows,
       List<AgentBreakdownRow> agentBreakdown) {
 
-    // 说明: Contribution bars — 使用 range 数据，确保加总为 100%
-    long rangeTotalSessions = trendRows.stream().mapToLong(TrendDayRow::totalCount).sum();
-    long rangeTotalTokens = trendRows.stream().mapToLong(TrendDayRow::totalTokens).sum();
-    long rangeTotalPrompts = activityRows.stream().mapToLong(ActivityTrendRow::totalPrompts).sum();
-
-    long rangeClaudeSessions = trendRows.stream().mapToLong(TrendDayRow::claudeCount).sum();
-    long rangeQoderSessions = trendRows.stream().mapToLong(TrendDayRow::qoderCount).sum();
-    long rangeCodexSessions = trendRows.stream().mapToLong(TrendDayRow::codexCount).sum();
-    long rangeClaudeTokens = trendRows.stream().mapToLong(TrendDayRow::claudeTokens).sum();
-    long rangeQoderTokens = trendRows.stream().mapToLong(TrendDayRow::qoderTokens).sum();
-    long rangeCodexTokens = trendRows.stream().mapToLong(TrendDayRow::codexTokens).sum();
-    long rangeClaudePrompts =
-        activityRows.stream().mapToLong(ActivityTrendRow::claudePrompts).sum();
-    long rangeQoderPrompts = activityRows.stream().mapToLong(ActivityTrendRow::qoderPrompts).sum();
-    long rangeCodexPrompts = activityRows.stream().mapToLong(ActivityTrendRow::codexPrompts).sum();
-
-    // 说明: All Agents 表 — 使用全量 indexed sessions
+    // 说明: Contribution bars 与 All Agents 表均使用全量 indexed sessions。
     Map<String, AgentBreakdownRow> breakdownMap = new LinkedHashMap<>();
     for (AgentBreakdownRow row : agentBreakdown) {
       breakdownMap.put(row.agent(), row);
@@ -651,12 +638,12 @@ public final class DashboardPage {
         buildAgentContributionRow(
             "claude_code",
             "Claude Code",
-            rangeClaudeSessions,
-            rangeClaudeTokens,
-            rangeClaudePrompts,
-            rangeTotalSessions,
-            rangeTotalTokens,
-            rangeTotalPrompts,
+            contributionSessions(breakdownMap.get("claude_code")),
+            contributionTokens(breakdownMap.get("claude_code")),
+            contributionPrompts(breakdownMap.get("claude_code")),
+            totalSessionsAll,
+            totalTokensAll,
+            totalPromptsAll,
             totalSessionsAll,
             totalTokensAll,
             totalPromptsAll,
@@ -665,12 +652,12 @@ public final class DashboardPage {
         buildAgentContributionRow(
             "qoder",
             "Qoder",
-            rangeQoderSessions,
-            rangeQoderTokens,
-            rangeQoderPrompts,
-            rangeTotalSessions,
-            rangeTotalTokens,
-            rangeTotalPrompts,
+            contributionSessions(breakdownMap.get("qoder")),
+            contributionTokens(breakdownMap.get("qoder")),
+            contributionPrompts(breakdownMap.get("qoder")),
+            totalSessionsAll,
+            totalTokensAll,
+            totalPromptsAll,
             totalSessionsAll,
             totalTokensAll,
             totalPromptsAll,
@@ -679,12 +666,12 @@ public final class DashboardPage {
         buildAgentContributionRow(
             "codex",
             "Codex",
-            rangeCodexSessions,
-            rangeCodexTokens,
-            rangeCodexPrompts,
-            rangeTotalSessions,
-            rangeTotalTokens,
-            rangeTotalPrompts,
+            contributionSessions(breakdownMap.get("codex")),
+            contributionTokens(breakdownMap.get("codex")),
+            contributionPrompts(breakdownMap.get("codex")),
+            totalSessionsAll,
+            totalTokensAll,
+            totalPromptsAll,
             totalSessionsAll,
             totalTokensAll,
             totalPromptsAll,
@@ -765,7 +752,8 @@ public final class DashboardPage {
           "failure_rate",
           String.format(
               java.util.Locale.ROOT,
-              "%.1f%%",
+              "%,d · %.1f%%",
+              breakdown.totalFailedTools(),
               breakdown.totalToolCalls() > 0
                   ? breakdown.totalFailedTools() * 100.0 / breakdown.totalToolCalls()
                   : 0.0));
@@ -788,7 +776,7 @@ public final class DashboardPage {
           "token_full_share",
           DisplayFormatters.percentShareLabel(breakdown.totalTokens(), totalTokensAll));
       row.put("prompts_full_raw", breakdown.totalUserMessages());
-      row.put("prompts_full", breakdown.totalUserMessages());
+      row.put("prompts_full", formatDashboardCompact(breakdown.totalUserMessages()));
       row.put(
           "prompt_full_share",
           DisplayFormatters.percentShareLabel(breakdown.totalUserMessages(), totalPromptsAll));
@@ -805,7 +793,7 @@ public final class DashboardPage {
       row.put("projects_raw", 0);
       row.put("failed", 0);
       row.put("failed_raw", 0);
-      row.put("failure_rate", "0.0%");
+      row.put("failure_rate", "0 · 0.0%");
       row.put("failure_rate_raw", 0.0);
       row.put("last_active", "");
       row.put("last_active_raw", "");
@@ -903,9 +891,10 @@ public final class DashboardPage {
       map.put("failure_raw", row.failedPerSession() == null ? 0.0 : row.failedPerSession());
       map.put(
           "failure",
-          row.failedPerSession() == null
-              ? "—"
-              : String.format(java.util.Locale.ROOT, "%.2f / session", row.failedPerSession()));
+          String.format(
+              java.util.Locale.ROOT,
+              "%.2f / session",
+              row.failedPerSession() == null ? 0.0 : row.failedPerSession()));
       map.put(
           "tool_calls_per_session",
           row.avgTools() == 0.0
@@ -924,6 +913,25 @@ public final class DashboardPage {
       case "codex" -> "Codex";
       default -> dbAgent == null || dbAgent.isEmpty() ? "Unknown" : dbAgent;
     };
+  }
+
+  private static long contributionSessions(AgentBreakdownRow row) {
+    return row == null ? 0 : row.sessionCount();
+  }
+
+  private static long contributionTokens(AgentBreakdownRow row) {
+    return row == null ? 0 : row.totalTokens();
+  }
+
+  private static long contributionPrompts(AgentBreakdownRow row) {
+    return row == null ? 0 : row.totalUserMessages();
+  }
+
+  private static String formatDashboardTrendTokens(long value) {
+    if (value <= 0) {
+      return "0";
+    }
+    return String.format(java.util.Locale.ROOT, "%.1fM", value / COMPACT_MILLION);
   }
 
   private static String scopeToCachePrefix(String agentScope) {

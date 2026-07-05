@@ -37,6 +37,15 @@ import java.util.Optional;
  */
 public final class SessionQueryRepository {
 
+  private static final String CANONICAL_PROJECT_KEY_EXPR =
+      """
+      CASE
+          WHEN project_key LIKE '/%' THEN project_key
+          WHEN project_key LIKE '-Users-%' AND cwd LIKE '/%' THEN cwd
+          ELSE project_key
+      END\
+      """;
+
   private final IndexConnection indexConnection;
 
   /**
@@ -71,16 +80,38 @@ public final class SessionQueryRepository {
   public Optional<SessionRow> getSession(String sessionKey) throws SQLException {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
     String sql =
-        "SELECT " + SessionResultSetMapper.ALL_COLUMNS + " FROM sessions WHERE session_key = ?";
+        "SELECT "
+            + SessionResultSetMapper.ALL_COLUMNS
+            + " FROM sessions"
+            + " WHERE session_key = ?"
+            + " OR (agent = ? AND session_id = ?)"
+            + " ORDER BY CASE WHEN session_key = ? THEN 0 ELSE 1 END,"
+            + " ended_at DESC, indexed_at DESC, session_key ASC"
+            + " LIMIT 1";
     try (ReadTransaction rt = indexConnection.readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
       ps.setString(1, sessionKey);
+      RouteIdentity routeIdentity = RouteIdentity.fromSessionKey(sessionKey);
+      ps.setString(2, routeIdentity.agent());
+      ps.setString(3, routeIdentity.sessionId());
+      ps.setString(4, sessionKey);
       try (ResultSet rs = ps.executeQuery()) {
         if (rs.next()) {
           return Optional.of(SessionResultSetMapper.mapRow(rs));
         }
         return Optional.empty();
       }
+    }
+  }
+
+  private record RouteIdentity(String agent, String sessionId) {
+    static RouteIdentity fromSessionKey(String sessionKey) {
+      int colonIdx = sessionKey.indexOf(':');
+      if (colonIdx <= 0 || colonIdx >= sessionKey.length() - 1) {
+        return new RouteIdentity("", "");
+      }
+      return new RouteIdentity(
+          sessionKey.substring(0, colonIdx), sessionKey.substring(colonIdx + 1));
     }
   }
 
@@ -162,7 +193,9 @@ public final class SessionQueryRepository {
     WhereClauses clauses = buildFilterClauses(filter);
     String sql =
         "SELECT COUNT(*) AS session_count,"
-            + " COUNT(DISTINCT project_key) AS project_count,"
+            + " COUNT(DISTINCT "
+            + CANONICAL_PROJECT_KEY_EXPR
+            + ") AS project_count,"
             + " COALESCE(SUM(total_tokens), 0) AS total_tokens"
             + " FROM sessions "
             + clauses.whereFragment();
@@ -197,7 +230,7 @@ public final class SessionQueryRepository {
     // 项目过滤
     ProjectFilter projectFilter = filter.projectFilter();
     if (!projectFilter.isUnfiltered()) {
-      clauses.add("project_key = ?");
+      clauses.add(CANONICAL_PROJECT_KEY_EXPR + " = ?");
       params.add(projectFilter.projectKey());
     }
 

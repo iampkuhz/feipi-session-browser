@@ -2,6 +2,8 @@ package com.feipi.session.browser.web.page;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.query.api.FailureStatus;
+import com.feipi.session.browser.query.api.SessionListFilter;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
@@ -78,6 +80,35 @@ class QueryParamsTest {
     @DisplayName("其他 sort 原样返回")
     void otherSort() {
       assertThat(QueryParams.uiSortKey(Map.of("sort", "tokens"))).isEqualTo("tokens");
+    }
+  }
+
+  @Nested
+  @DisplayName("Sessions agent/status 参数解析")
+  class SessionFilterParsing {
+
+    @Test
+    @DisplayName("agent=all 等价于不过滤")
+    void agentAllMeansUnfiltered() {
+      SessionListFilter filter = QueryParams.parseSessionListFilter(Map.of("agent", "all"));
+
+      assertThat(filter.agentFilter().isUnfiltered()).isTrue();
+    }
+
+    @Test
+    @DisplayName("claude-code URL 别名归一化为 claude_code")
+    void claudeCodeAliasNormalizesToUnderscore() {
+      SessionListFilter filter = QueryParams.parseSessionListFilter(Map.of("agent", "claude-code"));
+
+      assertThat(filter.agentFilter().agent()).isEqualTo("claude_code");
+    }
+
+    @Test
+    @DisplayName("status=failed 解析为仅失败会话")
+    void failedStatusParsesToFailedOnly() {
+      SessionListFilter filter = QueryParams.parseSessionListFilter(Map.of("status", "failed"));
+
+      assertThat(filter.failureStatus()).isEqualTo(FailureStatus.FAILED_ONLY);
     }
   }
 }

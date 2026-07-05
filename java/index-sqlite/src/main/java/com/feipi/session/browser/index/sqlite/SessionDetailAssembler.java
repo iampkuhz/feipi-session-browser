@@ -52,6 +52,9 @@ public final class SessionDetailAssembler {
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
     List<CallRound> rounds = buildRounds(artifact.calls());
+    if (rounds.isEmpty() && sessionRow.userMessageCount() > 0) {
+      rounds = List.of(new CallRound(1, List.of(), List.of(), null));
+    }
     List<PayloadSource> payloadSources = buildPayloadSources(artifact.calls(), visibility);
     String cacheKey = buildCacheKey(artifactPath, indexVersion);
 
@@ -80,6 +83,7 @@ public final class SessionDetailAssembler {
 
     // callId → 所在轮次索引的映射
     Map<String, Integer> callToRoundIndex = new LinkedHashMap<>();
+    Map<String, Integer> turnToRoundIndex = new LinkedHashMap<>();
     List<List<String>> roundCallIds = new ArrayList<>();
     List<List<String>> roundToolCallIds = new ArrayList<>();
     List<String> roundParentCallIds = new ArrayList<>();
@@ -87,22 +91,34 @@ public final class SessionDetailAssembler {
 
     for (NormalizedCall call : calls) {
       if (call.scope() == CallScope.MAIN) {
-        // 主会话调用创建新轮次
-        int roundIdx = roundCallIds.size();
-        List<String> callIds = new ArrayList<>();
-        callIds.add(call.callId());
-        roundCallIds.add(callIds);
-        roundToolCallIds.add(new ArrayList<>(call.response().toolCallIds()));
-        roundParentCallIds.add("");
-        roundUsage.add(usageValues(call));
-        callToRoundIndex.put(call.callId(), roundIdx);
+        String turnKey = call.turnId().orElse("");
+        Integer existingRoundIdx = turnKey.isEmpty() ? null : turnToRoundIndex.get(turnKey);
+        if (existingRoundIdx != null) {
+          roundCallIds.get(existingRoundIdx).add(call.callId());
+          addUnique(roundToolCallIds.get(existingRoundIdx), toolIds(call));
+          addUsage(roundUsage.get(existingRoundIdx), call);
+          callToRoundIndex.put(call.callId(), existingRoundIdx);
+        } else {
+          // 主会话逻辑 turn 创建新轮次；同一个 provider turn 内的多条 request/response 记录合并展示。
+          int roundIdx = roundCallIds.size();
+          List<String> callIds = new ArrayList<>();
+          callIds.add(call.callId());
+          roundCallIds.add(callIds);
+          roundToolCallIds.add(new ArrayList<>(toolIds(call)));
+          roundParentCallIds.add("");
+          roundUsage.add(usageValues(call));
+          callToRoundIndex.put(call.callId(), roundIdx);
+          if (!turnKey.isEmpty()) {
+            turnToRoundIndex.put(turnKey, roundIdx);
+          }
+        }
       } else {
         // 子 agent 调用合并到父调用所在轮次
         String parentCallId = call.parentCallId().orElse("");
         Integer parentRoundIdx = callToRoundIndex.get(parentCallId);
         if (parentRoundIdx != null) {
           roundCallIds.get(parentRoundIdx).add(call.callId());
-          roundToolCallIds.get(parentRoundIdx).addAll(call.response().toolCallIds());
+          addUnique(roundToolCallIds.get(parentRoundIdx), toolIds(call));
           addUsage(roundUsage.get(parentRoundIdx), call);
           callToRoundIndex.put(call.callId(), parentRoundIdx);
         } else {
@@ -111,7 +127,7 @@ public final class SessionDetailAssembler {
           List<String> callIds = new ArrayList<>();
           callIds.add(call.callId());
           roundCallIds.add(callIds);
-          roundToolCallIds.add(new ArrayList<>(call.response().toolCallIds()));
+          roundToolCallIds.add(new ArrayList<>(toolIds(call)));
           roundParentCallIds.add(parentCallId);
           roundUsage.add(usageValues(call));
           callToRoundIndex.put(call.callId(), roundIdx);
@@ -139,6 +155,25 @@ public final class SessionDetailAssembler {
               usage[4]));
     }
     return result;
+  }
+
+  private static List<String> toolIds(NormalizedCall call) {
+    List<String> result = new ArrayList<>();
+    result.addAll(call.response().toolCallIds());
+    for (String toolResultId : call.request().toolResultIds()) {
+      if (!result.contains(toolResultId)) {
+        result.add(toolResultId);
+      }
+    }
+    return result;
+  }
+
+  private static void addUnique(List<String> target, List<String> values) {
+    for (String value : values) {
+      if (!target.contains(value)) {
+        target.add(value);
+      }
+    }
   }
 
   private static long[] usageValues(NormalizedCall call) {

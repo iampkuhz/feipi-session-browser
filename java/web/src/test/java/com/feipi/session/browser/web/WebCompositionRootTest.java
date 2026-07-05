@@ -105,6 +105,49 @@ class WebCompositionRootTest {
   }
 
   @Test
+  @DisplayName("项目详情路由接受 raw slash path 和 encoded path")
+  void projectDetailRouteAcceptsRawAndEncodedAbsolutePath() throws Exception {
+    String projectKey = "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java";
+    indexConnection
+        .writerConnection()
+        .createStatement()
+        .executeUpdate(
+            "INSERT INTO sessions"
+                + " (session_key, agent, session_id, title, project_key, project_name, cwd,"
+                + " started_at, ended_at, duration_seconds, model_execution_seconds,"
+                + " tool_execution_seconds, model, git_branch, source,"
+                + " user_message_count, assistant_message_count, tool_call_count,"
+                + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
+                + " total_tokens, failed_tool_count, subagent_instance_count,"
+                + " indexed_at, file_mtime, file_path)"
+                + " VALUES ('codex:raw-route', 'codex', 'raw-route', 'Raw route session',"
+                + " '/Users/zhehan/Documents/tools/llm/feipi-session-browser-java',"
+                + " 'feipi-session-browser-java',"
+                + " '/Users/zhehan/Documents/tools/llm/feipi-session-browser-java',"
+                + " '2026-07-04T10:00:00Z', '2026-07-04T10:01:00Z',"
+                + " 60.0, 45.0, 5.0, 'gpt-5', 'main', 'fixture',"
+                + " 1, 1, 0, 10, 20, 30, 40, 100, 0, 0,"
+                + " '2026-07-04T10:02:00Z', 1, '/tmp/raw-route.json')");
+
+    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          for (String path :
+              new String[] {
+                "/projects/%2FUsers%2Fzhehan%2FDocuments%2Ftools%2Fllm%2Ffeipi-session-browser-java",
+                "/projects//Users/zhehan/Documents/tools/llm/feipi-session-browser-java"
+              }) {
+            var response = client.get(path);
+            assertThat(response.code()).isEqualTo(200);
+            assertThat(response.body().string()).contains("<h1>feipi-session-browser-java</h1>");
+          }
+        });
+  }
+
+  @Test
   @DisplayName("queryRoot 返回构造时传入的实例")
   void queryRootReturnsSameInstance() {
     QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));

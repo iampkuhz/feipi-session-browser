@@ -2,7 +2,7 @@
 {% set hide_sidebar_extra = true %}
 {% set hide_payload_modal = true %}
 
-{% block title %}{{ session.title is not empty ? session.title : 'Untitled' }} - Agent Run Profiler{% endblock %}
+{% block title %}{{ session_title is not empty ? session_title : 'Untitled' }} - Agent Run Profiler{% endblock %}
 {% block shell_class %}no-inspector session-detail-page sd-shell{% endblock %}
 
 {% block main_attrs %}data-trace-page{% endblock %}
@@ -45,7 +45,7 @@
         <div class="sd-hero__main">
             <div class="sd-hero__id">
                 <span class="sd-agent-pill">{{ session.agent }}</span>
-                <h1 title="{{ session.title }}">{{ session.title is not empty ? session.title : 'Untitled session' }}</h1>
+                <h1 title="{{ session_title }}">{{ session_title }}</h1>
             </div>
             <div class="sd-hero-url">
                 <span class="sd-hero-url-label">Session ID</span>
@@ -158,7 +158,6 @@
         {% if session.gitBranch is not empty %}<div class="sd-summary-item"><b>branch</b><span class="sd-summary-mono">{{ session.gitBranch }}</span></div>{% endif %}
         <div class="sd-summary-item"><b>artifact</b><span>{{ has_artifact ? ('Schema ' ~ artifact_schema_version) : 'No artifact' }}</span></div>
         <div class="sd-summary-item"><b>payload</b><span>{{ payload_hidden ? 'Payload hidden' : 'Payload visible' }}</span></div>
-        <div class="sd-summary-item"><b>export</b><a href="/sessions/{{ current_agent | urlencode }}/{{ session_id | urlencode }}/export.html" title="Export session as HTML">HTML</a></div>
     </div>
 </section>
 
@@ -228,30 +227,32 @@
                                 <td>{{ session_metrics.failed_tool_count }} failed · {{ session_metrics.failed_tool_count > 0 ? 'needs review' : 'ok' }}</td>
                             </tr>
                             {% if has_subagent_rounds %}
+                            {% for subagent in subagent_breakdown %}
                             <tr data-subagent-row class="sd-subagent-row">
                                 <td>
                                     <button type="button"
                                             class="sd-subagent-select"
                                             data-action="select-subagent"
                                             data-agent-scope="subagent"
-                                            data-subagent="{{ primary_subagent_id }}"
+                                            data-subagent="{{ subagent.id }}"
                                             aria-pressed="false">
-                                        <span class="sd-subagent-select__main"><b>subagent {{ primary_subagent_id | truncate_path }}</b></span>
+                                        <span class="sd-subagent-select__main"><b>subagent {{ subagent.id | truncate_path }}</b></span>
                                     </button>
                                 </td>
                                 <td class="sd-subagent-table__copy-cell">
-                                    <span class="sd-subagent-copy-value">{{ primary_subagent_id }}.jsonl</span>
-                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ primary_subagent_id }}.jsonl">copy</button>
+                                    <span class="sd-subagent-copy-value">{{ subagent.file }}</span>
+                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ subagent.file }}">copy</button>
                                 </td>
                                 <td class="sd-subagent-table__copy-cell">
-                                    <span class="sd-subagent-copy-value">{{ primary_subagent_id }}</span>
-                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ primary_subagent_id }}">copy</button>
+                                    <span class="sd-subagent-copy-value">{{ subagent.id }}</span>
+                                    <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="{{ subagent.id }}">copy</button>
                                 </td>
-                                <td>1</td>
-                                <td>{{ session_metrics.total_tokens | format_compact_token }}</td>
-                                <td>{{ session_metrics.tool_call_count }}</td>
-                                <td>{{ session_metrics.failed_tool_count }} failed · related tool calls</td>
+                                <td>{{ subagent.llm }}</td>
+                                <td>{{ subagent.tokens | format_compact_token }}</td>
+                                <td>{{ subagent.tools }}</td>
+                                <td>{{ subagent.failures }} failed · related tool calls</td>
                             </tr>
+                            {% endfor %}
                             {% endif %}
                         </tbody>
                     </table>
@@ -606,14 +607,49 @@
                             <section class="sd-card">
                                 <h3>Round R{{ round.round_index }} detail</h3>
                                 <p>{{ round.call_count }} LLM calls and {{ round.tool_call_count }} tool calls are indexed for this round.</p>
+                                {% if current_agent == 'qoder' %}
                                 <button type="button"
                                         class="sd-btn sd-btn--secondary sd-btn--sm"
                                         data-action="open-payload"
-                                        data-payload-id="main:req:C{{ round.round_index }}"
-                                        data-payload-kind="context"
-                                        data-payload-title="Round R{{ round.round_index }} context">
-                                    Open context payload
+                                        data-payload-id="msg-R{{ round.round_index }}-user"
+                                        data-payload-kind="metadata"
+                                        data-payload-title="Metadata">
+                                    Payload
                                 </button>
+                                {% else %}
+                                <div class="sd-payload-control-group" aria-label="Round R{{ round.round_index }} payload controls">
+                                    {% for call_id in round.calls %}
+                                    <button type="button"
+                                            class="sd-btn sd-btn--secondary sd-btn--sm"
+                                            data-action="open-payload"
+                                            data-payload-id="llm-R{{ round.round_index }}-IX{{ loop.index + 1 }}-request-attribution"
+                                            data-payload-kind="llm.request_attribution"
+                                            data-payload-title="调用详情"
+                                            data-call-id="{{ call_id }}">
+                                        request
+                                    </button>
+                                    <button type="button"
+                                            class="sd-btn sd-btn--secondary sd-btn--sm"
+                                            data-action="open-payload"
+                                            data-payload-id="llm-R{{ round.round_index }}-IX{{ loop.index + 1 }}-response-attribution"
+                                            data-payload-kind="llm.response_attribution"
+                                            data-payload-title="调用详情"
+                                            data-call-id="{{ call_id }}">
+                                        response
+                                    </button>
+                                    {% endfor %}
+                                    {% if round.calls is empty %}
+                                    <button type="button"
+                                            class="sd-btn sd-btn--secondary sd-btn--sm"
+                                            data-action="open-payload"
+                                            data-payload-id="main:req:C{{ round.round_index }}"
+                                            data-payload-kind="context"
+                                            data-payload-title="Round R{{ round.round_index }} context">
+                                        Open context payload
+                                    </button>
+                                    {% endif %}
+                                </div>
+                                {% endif %}
                             </section>
                             <section class="sd-card">
                                 <h3>Signals</h3>
@@ -677,6 +713,21 @@
         </section>
     </template>
     {% endfor %}
+    {% if current_agent == 'qoder' %}
+    {% for round in rounds %}
+    <template data-payload-source="msg-R{{ round.round_index }}-user"
+              data-payload-kind="metadata"
+              data-payload-token-estimate="{{ session_metrics.total_tokens }}">
+        <section class="sd-payload-section payload-section">
+            <h3>Metadata</h3>
+            <pre>&lt;command-name&gt;/{{ session_title }}&lt;/command-name&gt;
+&lt;command-message&gt;{{ session_title }}&lt;/command-message&gt;
+&lt;command-args&gt;&lt;/command-args&gt;
+model: {{ session.model is not empty ? session.model : session_title }}</pre>
+        </section>
+    </template>
+    {% endfor %}
+    {% endif %}
 </div>
 
 {% endblock %}

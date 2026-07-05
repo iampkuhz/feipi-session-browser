@@ -106,6 +106,26 @@ class SessionDetailPageTest {
   }
 
   @Test
+  @DisplayName("session detail 页面不暴露 HTML 导出入口")
+  void sessionDetailDoesNotExposeHtmlExportLink() throws Exception {
+    insertTestSession();
+
+    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+
+    JavalinTest.test(
+        webRoot.app(),
+        (testApp, client) -> {
+          var response = client.get("/sessions/claude_code/test-session-1");
+          assertThat(response.code()).isEqualTo(200);
+          String body = response.body().string();
+          assertThat(body).doesNotContain("Export session as HTML");
+          assertThat(body).doesNotContain(">HTML</a>");
+          assertThat(body).doesNotContain("/sessions/claude_code/test-session-1/export.html");
+        });
+  }
+
+  @Test
   @DisplayName("session detail 页面包含 lazy-load JS")
   void sessionDetailIncludesLazyLoadJs() throws Exception {
     insertTestSession();

@@ -24,6 +24,9 @@ public final class QueryParams {
 
   private static final Set<Integer> VALID_PAGE_SIZES = Set.of(25, 50, 100);
 
+  private static final Map<String, String> SESSION_AGENT_ALIASES =
+      Map.of("all", "", "claude-code", "claude_code");
+
   /** Sessions 页面 UI sort key 到 query-api 排序字段的映射。 */
   private static final Map<String, String> SESSION_SORT_MAP =
       Map.ofEntries(
@@ -96,7 +99,7 @@ public final class QueryParams {
   public static SessionListFilter parseSessionListFilter(Map<String, String> params) {
     SessionListFilter filter = SessionListFilter.defaults();
 
-    String agent = params.getOrDefault("agent", "").trim();
+    String agent = normalizeSessionAgent(params.getOrDefault("agent", ""));
     if (!agent.isEmpty()) {
       filter = filter.withAgent(AgentFilter.of(agent));
     }
@@ -194,5 +197,18 @@ public final class QueryParams {
       return "updated";
     }
     return raw.isEmpty() ? "ended-at" : raw;
+  }
+
+  /**
+   * 归一化 Sessions 页面 agent 查询值。
+   *
+   * <p>{@code all} 与空值都表示不过滤；{@code claude-code} 是 {@code claude_code} 的 URL 别名。
+   *
+   * @param agent 原始 agent query 值
+   * @return repository 使用的 canonical agent 值，空字符串表示不过滤
+   */
+  public static String normalizeSessionAgent(String agent) {
+    String normalized = agent == null ? "" : agent.trim().toLowerCase();
+    return SESSION_AGENT_ALIASES.getOrDefault(normalized, normalized);
   }
 }

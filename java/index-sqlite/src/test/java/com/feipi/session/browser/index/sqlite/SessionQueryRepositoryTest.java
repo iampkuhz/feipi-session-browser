@@ -203,6 +203,38 @@ class SessionQueryRepositoryTest {
     }
 
     @Test
+    @DisplayName("route key 可按 agent 与 canonical session_id 查找 project-scoped row")
+    void routeKeyFindsProjectScopedRowByCanonicalSessionId() throws Exception {
+      insertSession(
+          "qoder:/work/project:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea",
+          "qoder",
+          "f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea",
+          "model");
+      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+
+      Optional<SessionRow> result = repo.getSession("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+
+      assertThat(result).isPresent();
+      assertThat(result.get().sessionKey())
+          .isEqualTo("qoder:/work/project:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+      assertThat(result.get().sessionId()).isEqualTo("f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+    }
+
+    @Test
+    @DisplayName("主键精确匹配优先于 route fallback")
+    void exactKeyPreferredOverRouteFallback() throws Exception {
+      insertSession("codex:canonical-id", "codex", "canonical-id", "canonical");
+      insertSession("codex:legacy-scope:canonical-id", "codex", "canonical-id", "legacy");
+      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+
+      Optional<SessionRow> result = repo.getSession("codex:canonical-id");
+
+      assertThat(result).isPresent();
+      assertThat(result.get().sessionKey()).isEqualTo("codex:canonical-id");
+      assertThat(result.get().title()).isEqualTo("canonical");
+    }
+
+    @Test
     @DisplayName("不存在的 key 返回 empty")
     void missingKeyReturnsEmpty() throws Exception {
       SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
@@ -216,6 +248,78 @@ class SessionQueryRepositoryTest {
       SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
       assertThatThrownBy(() -> repo.getSession(null)).isInstanceOf(NullPointerException.class);
     }
+  }
+
+  private void insertSession(String sessionKey, String agent, String sessionId, String title)
+      throws Exception {
+    String sql =
+        "INSERT INTO sessions"
+            + " (session_key, agent, session_id, title, project_key, project_name, cwd,"
+            + " started_at, ended_at, duration_seconds, model_execution_seconds,"
+            + " tool_execution_seconds, model, git_branch, source,"
+            + " user_message_count, assistant_message_count, tool_call_count,"
+            + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
+            + " total_tokens, failed_tool_count, subagent_instance_count,"
+            + " indexed_at, file_mtime, file_path)"
+            + " VALUES (?, ?, ?, ?, 'proj-route', 'Route 项目', '/work/project',"
+            + " '2024-06-04T08:00:00Z', '2024-06-04T09:00:00Z', 3600, 3000,"
+            + " 600, 'model-x', 'main', 'cli', 1, 1, 1, 10, 20, 30, 40,"
+            + " 100, 0, 0, 1717500000, 1717500000, '/path/to/route.jsonl')";
+    indexConnection
+        .writeQueue()
+        .submit(
+            c -> {
+              try (var ps = c.prepareStatement(sql)) {
+                ps.setString(1, sessionKey);
+                ps.setString(2, agent);
+                ps.setString(3, sessionId);
+                ps.setString(4, title);
+                ps.executeUpdate();
+              }
+            })
+        .get();
+  }
+
+  private void insertSessionWithProject(
+      String sessionKey,
+      String agent,
+      String sessionId,
+      String projectKey,
+      String projectName,
+      String cwd,
+      long totalTokens,
+      long failedTools)
+      throws Exception {
+    String sql =
+        "INSERT INTO sessions"
+            + " (session_key, agent, session_id, title, project_key, project_name, cwd,"
+            + " started_at, ended_at, duration_seconds, model_execution_seconds,"
+            + " tool_execution_seconds, model, git_branch, source,"
+            + " user_message_count, assistant_message_count, tool_call_count,"
+            + " output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens,"
+            + " total_tokens, failed_tool_count, subagent_instance_count,"
+            + " indexed_at, file_mtime, file_path)"
+            + " VALUES (?, ?, ?, 'workspace session', ?, ?, ?,"
+            + " '2024-06-05T08:00:00Z', '2024-06-05T09:00:00Z', 3600, 3000,"
+            + " 600, 'model-x', 'main', 'cli', 1, 1, 1, 10, 20, 30, 40,"
+            + " ?, ?, 0, 1717600000, 1717600000, '/path/to/workspace.jsonl')";
+    indexConnection
+        .writeQueue()
+        .submit(
+            c -> {
+              try (var ps = c.prepareStatement(sql)) {
+                ps.setString(1, sessionKey);
+                ps.setString(2, agent);
+                ps.setString(3, sessionId);
+                ps.setString(4, projectKey);
+                ps.setString(5, projectName);
+                ps.setString(6, cwd);
+                ps.setLong(7, totalTokens);
+                ps.setLong(8, failedTools);
+                ps.executeUpdate();
+              }
+            })
+        .get();
   }
 
   @Nested
@@ -258,6 +362,40 @@ class SessionQueryRepositoryTest {
 
       assertThat(result.size()).isEqualTo(2);
       assertThat(result.items()).allMatch(r -> r.projectKey().equals("proj-alpha"));
+    }
+
+    @Test
+    @DisplayName("项目过滤器按 canonical key 合并 hyphen cache key")
+    void projectFilterUsesCanonicalProjectKey() throws Exception {
+      String canonical = "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java";
+      insertSessionWithProject(
+          "codex:workspace-a",
+          "codex",
+          "workspace-a",
+          canonical,
+          "feipi-session-browser-java",
+          canonical,
+          1000,
+          1);
+      insertSessionWithProject(
+          "qoder:workspace-b",
+          "qoder",
+          "workspace-b",
+          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "feipi-session-browser-java",
+          canonical,
+          2000,
+          2);
+
+      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SessionListFilter filter =
+          SessionListFilter.defaults().withProject(ProjectFilter.of(canonical));
+      PageResult<SessionRow> result = repo.listSessions(filter);
+
+      assertThat(result.totalCount()).isEqualTo(2);
+      assertThat(result.items())
+          .extracting(SessionRow::agent)
+          .containsExactlyInAnyOrder("codex", "qoder");
     }
 
     @Test
@@ -525,6 +663,39 @@ class SessionQueryRepositoryTest {
       assertThat(agg.projectCount()).isEqualTo(1);
       // 200000 + 390000 = 590000
       assertThat(agg.totalTokens()).isEqualTo(590000);
+    }
+
+    @Test
+    @DisplayName("项目过滤器聚合按 canonical key 合并 hyphen cache key")
+    void projectFilterAggregateUsesCanonicalProjectKey() throws Exception {
+      String canonical = "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java";
+      insertSessionWithProject(
+          "codex:workspace-a",
+          "codex",
+          "workspace-a",
+          canonical,
+          "feipi-session-browser-java",
+          canonical,
+          1000,
+          1);
+      insertSessionWithProject(
+          "qoder:workspace-b",
+          "qoder",
+          "workspace-b",
+          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "feipi-session-browser-java",
+          canonical,
+          2000,
+          2);
+
+      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SessionListFilter filter =
+          SessionListFilter.defaults().withProject(ProjectFilter.of(canonical));
+      SessionListAggregate agg = repo.listAggregate(filter);
+
+      assertThat(agg.sessionCount()).isEqualTo(2);
+      assertThat(agg.projectCount()).isEqualTo(1);
+      assertThat(agg.totalTokens()).isEqualTo(3000);
     }
 
     @Test

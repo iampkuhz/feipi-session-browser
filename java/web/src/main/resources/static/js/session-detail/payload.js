@@ -48,7 +48,7 @@
     if (modal) return modal;
 
     modal = document.createElement("dialog");
-    modal.id = "sd-payload-modal";
+    modal.id = "payload-modal";
     modal.className = "sd-payload-modal payload-modal payload-modal--sd";
     modal.setAttribute("aria-labelledby", "sd-payload-title");
     // Build modal structure using DOM APIs to avoid innerHTML quality gate

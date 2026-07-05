@@ -61,6 +61,7 @@ public final class SessionDetailRepository {
    */
   public List<SessionArtifactRow> findArtifacts(String sessionKey) throws SQLException {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
+    String effectiveSessionKey = resolveStoredSessionKey(sessionKey);
     String sql =
         "SELECT session_key, artifact_type, path, schema_version, source_path,"
             + " source_mtime, size_bytes, created_at, updated_at"
@@ -68,7 +69,7 @@ public final class SessionDetailRepository {
     List<SessionArtifactRow> rows = new ArrayList<>();
     try (ReadTransaction rt = sessionQueryRepository.indexConnection().readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setString(1, sessionKey);
+      ps.setString(1, effectiveSessionKey);
       try (ResultSet rs = ps.executeQuery()) {
         while (rs.next()) {
           rows.add(mapArtifactRow(rs));
@@ -91,6 +92,7 @@ public final class SessionDetailRepository {
   public Optional<SessionArtifactRow> findNormalizedArtifact(String sessionKey)
       throws SQLException {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
+    String effectiveSessionKey = resolveStoredSessionKey(sessionKey);
     String sql =
         "SELECT session_key, artifact_type, path, schema_version, source_path,"
             + " source_mtime, size_bytes, created_at, updated_at"
@@ -100,7 +102,7 @@ public final class SessionDetailRepository {
             + " LIMIT 1";
     try (ReadTransaction rt = sessionQueryRepository.indexConnection().readTransaction();
         PreparedStatement ps = rt.connection().prepareStatement(sql)) {
-      ps.setString(1, sessionKey);
+      ps.setString(1, effectiveSessionKey);
       ps.setString(2, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED);
       ps.setString(3, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED_SESSION_JSON);
       ps.setString(4, ArtifactRowMapper.ARTIFACT_TYPE_NORMALIZED);
@@ -111,6 +113,11 @@ public final class SessionDetailRepository {
         return Optional.empty();
       }
     }
+  }
+
+  private String resolveStoredSessionKey(String routeSessionKey) throws SQLException {
+    Optional<SessionRow> row = sessionQueryRepository.getSession(routeSessionKey);
+    return row.map(SessionRow::sessionKey).orElse(routeSessionKey);
   }
 
   /**

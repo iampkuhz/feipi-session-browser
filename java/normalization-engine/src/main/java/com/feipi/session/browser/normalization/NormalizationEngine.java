@@ -1,5 +1,6 @@
 package com.feipi.session.browser.normalization;
 
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.ByteRange;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -255,39 +256,25 @@ public final class NormalizationEngine {
       session.put("toolCallCount", codexToolCount);
     } else {
       session.put("userMessageCount", countUserMessages(classified.userMessages()));
-      session.put("assistantMessageCount", countDistinctAssistantMessages(classified));
+      session.put("assistantMessageCount", countMainAssistantTurns(calls));
       session.put("toolCallCount", (long) toolExecutions.size());
       TokenComponents mergedUsage = aggregateMergedAssistantUsage(classified.assistantMessages());
       putTokenComponents(session, mergedUsage);
     }
 
-    // 从 calls 提取时间范围
-    Optional<String> startedAt = Optional.empty();
-    Optional<String> endedAt = Optional.empty();
-    for (NormalizedCall call : calls) {
-      if (call.timestamp().isPresent() && !call.timestamp().get().isEmpty()) {
-        if (startedAt.isEmpty()) {
-          startedAt = call.timestamp();
-        }
-        endedAt = call.timestamp(); // 最后一个有 timestamp 的 call
-      }
-    }
-    // 如果 calls 中没有时间，从 records 中提取
-    if (startedAt.isEmpty()) {
-      for (SourceRecord record : records) {
-        if (record.timestamp().isPresent() && !record.timestamp().get().isEmpty()) {
-          startedAt = record.timestamp();
-          break;
-        }
-      }
-    }
-    if (endedAt.isEmpty()) {
-      for (int i = records.size() - 1; i >= 0; i--) {
-        if (records.get(i).timestamp().isPresent() && !records.get(i).timestamp().get().isEmpty()) {
-          endedAt = records.get(i).timestamp();
-          break;
-        }
-      }
+    // 从全量 records 的 provider timestamp 提取时间范围。
+    //
+    // Claude sidecar subagent records 会在解析阶段追加到 parent transcript 后面，但其时间可能早于
+    // parent transcript 后续事件；如果按 calls 顺序取最后一个 timestamp，会把 Dashboard daily trend
+    // 分桶错误地归到 subagent 结束日期。这里按真实时间 min/max 计算，与 main 稳定版的 session 结束
+    // 语义对齐。
+    TimestampRange timestampRange = timestampRangeFromRecords(records);
+    Optional<String> startedAt = timestampRange.startedAt();
+    Optional<String> endedAt = timestampRange.endedAt();
+    if (startedAt.isEmpty() || endedAt.isEmpty()) {
+      timestampRange = timestampRangeFromCalls(calls);
+      startedAt = startedAt.or(timestampRange::startedAt);
+      endedAt = endedAt.or(timestampRange::endedAt);
     }
     startedAt.ifPresent(v -> session.put("started_at", v));
     endedAt.ifPresent(v -> session.put("ended_at", v));
@@ -334,11 +321,65 @@ public final class NormalizationEngine {
     session.put("totalTokens", usage.total());
   }
 
-  private static long countDistinctAssistantMessages(EventClassifier.ClassifiedEvents classified) {
+  private static TimestampRange timestampRangeFromRecords(List<? extends SourceRecord> records) {
+    Optional<String> startedAt = Optional.empty();
+    Optional<String> endedAt = Optional.empty();
+    Optional<Instant> startInstant = Optional.empty();
+    Optional<Instant> endInstant = Optional.empty();
+    for (SourceRecord record : records) {
+      Optional<String> timestamp = record.timestamp().filter(value -> !value.isBlank());
+      if (timestamp.isEmpty()) {
+        continue;
+      }
+      Optional<Instant> parsed = parseInstant(timestamp.get());
+      if (parsed.isEmpty()) {
+        continue;
+      }
+      Instant instant = parsed.get();
+      if (startInstant.isEmpty() || instant.isBefore(startInstant.get())) {
+        startInstant = Optional.of(instant);
+        startedAt = timestamp;
+      }
+      if (endInstant.isEmpty() || instant.isAfter(endInstant.get())) {
+        endInstant = Optional.of(instant);
+        endedAt = timestamp;
+      }
+    }
+    return new TimestampRange(startedAt, endedAt);
+  }
+
+  private static TimestampRange timestampRangeFromCalls(List<NormalizedCall> calls) {
+    Optional<String> startedAt = Optional.empty();
+    Optional<String> endedAt = Optional.empty();
+    for (NormalizedCall call : calls) {
+      Optional<String> timestamp = call.timestamp().filter(value -> !value.isBlank());
+      if (timestamp.isEmpty()) {
+        continue;
+      }
+      if (startedAt.isEmpty()) {
+        startedAt = timestamp;
+      }
+      endedAt = timestamp;
+    }
+    return new TimestampRange(startedAt, endedAt);
+  }
+
+  private static Optional<Instant> parseInstant(String timestamp) {
+    try {
+      return Optional.of(Instant.parse(timestamp));
+    } catch (Exception ignored) {
+      return Optional.empty();
+    }
+  }
+
+  private static long countMainAssistantTurns(List<NormalizedCall> calls) {
     Set<String> seen = new LinkedHashSet<>();
     long count = 0;
-    for (SourceRecord record : classified.assistantMessages()) {
-      String key = record.turnId().or(() -> record.callId()).orElse("event:" + record.eventIndex());
+    for (NormalizedCall call : calls) {
+      if (call.scope() != CallScope.MAIN) {
+        continue;
+      }
+      String key = call.turnId().orElse(call.callId());
       if (seen.add(key)) {
         count++;
       }
@@ -349,12 +390,16 @@ public final class NormalizationEngine {
   private static long countUserMessages(List<SourceRecord> userMessages) {
     long count = 0;
     for (SourceRecord record : userMessages) {
-      if (record.toolUseId().isPresent()) {
+      if (record.toolUseId().isPresent() || isSubagentSidecarRecord(record)) {
         continue;
       }
       count++;
     }
     return count;
+  }
+
+  private static boolean isSubagentSidecarRecord(SourceRecord record) {
+    return record.locator().replace('\\', '/').contains("/subagents/");
   }
 
   private static long countCodexTokenCountAssistantMessages(List<SourceRecord> assistantMessages) {
@@ -443,6 +488,9 @@ public final class NormalizationEngine {
     }
     return candidateIndex > currentIndex;
   }
+
+  /** records/calls 推导出的 provider 时间范围。 */
+  private record TimestampRange(Optional<String> startedAt, Optional<String> endedAt) {}
 
   /** 规范化阶段合并后的 token 组件。 */
   private record TokenComponents(

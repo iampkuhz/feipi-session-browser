@@ -39,14 +39,10 @@
 </section>
 
 {% if projects is defined and projects | length > 0 %}
-{% set m_total_sessions = 0 %}
-{% set m_total_tokens = 0 %}
-{% set m_total_failed = 0 %}
-{% for p in projects %}
-{% set m_total_sessions = m_total_sessions + p.totalSessions %}
-{% set m_total_tokens = m_total_tokens + p.totalTokens %}
-{% set m_total_failed = m_total_failed + p.totalFailedTools %}
-{% endfor %}
+{% set m_total_projects = project_summary.totalProjects is defined ? project_summary.totalProjects : total_count %}
+{% set m_total_sessions = project_summary.totalSessions is defined ? project_summary.totalSessions : 0 %}
+{% set m_total_tokens = project_summary.totalTokens is defined ? project_summary.totalTokens : 0 %}
+{% set m_total_failed = project_summary.totalFailedTools is defined ? project_summary.totalFailedTools : 0 %}
 <section class="metric-grid" aria-label="Project overview metrics">
     <div class="metric-card">
         <div class="metric-icon purple" aria-hidden="true">📁</div>
@@ -55,7 +51,7 @@
                 <span class="metric-card__label">Projects</span>
                 <button class="icon-button icon-button--info" data-action="metric-info" data-metric="projects-count" aria-label="Metric info: number of indexed projects" title="说明：当前索引中识别到的本地项目/工作区数量">&#9432;</button>
             </div>
-            <div class="metric-card__value mono">{{ projects | length }}</div>
+            <div class="metric-card__value mono">{{ m_total_projects | format_number }}</div>
             <div class="metric-card__sub">Indexed workspaces</div>
         </div>
     </div>
@@ -117,7 +113,7 @@
         <div class="table-toolbar">
             <div>
                 <div class="card-title">All Projects</div>
-                <div class="card-sub">({{ projects | length }} projects)</div>
+                <div class="card-sub">({{ total_count }} projects)</div>
             </div>
         </div>
         <div class="table-wrap">

@@ -133,6 +133,33 @@ class QoderSourceAdapterTest {
     }
 
     @Test
+    @DisplayName("候选项从 transcript 提取 title、cwd、model 和 branch")
+    void candidateIncludesDisplayMetadataFromTranscript() throws IOException {
+      Path projects = tempDir.resolve("projects");
+      Path projectDir = projects.resolve("-Users-zhehan-project");
+      Files.createDirectories(projectDir);
+      Path sessionFile = projectDir.resolve("abc-123.jsonl");
+      Files.writeString(
+          sessionFile,
+          """
+          {"type":"user","cwd":"/Users/zhehan/project","gitBranch":"main_java","message":{"content":"<command-name>/model</command-name>\\n<command-message>model</command-message>\\n<command-args></command-args>"}}
+          {"type":"assistant","message":{"model":"qwen-max","content":[{"type":"text","text":"ok"}]}}
+          """,
+          StandardCharsets.UTF_8);
+
+      BoundedStream<Candidate> stream = adapter.discover(tempDir);
+
+      assertThat(stream.size()).isEqualTo(1);
+      Candidate candidate = stream.orderedItems().get(0);
+      assertThat(candidate.projectKey()).isEqualTo("/Users/zhehan/project");
+      assertThat(candidate.metadata())
+          .containsEntry("title", "model")
+          .containsEntry("cwd", "/Users/zhehan/project")
+          .containsEntry("model", "qwen-max")
+          .containsEntry("git_branch", "main_java");
+    }
+
+    @Test
     @DisplayName("cache/projects/ 目录中的会话也被发现")
     void cacheProjectsSessionsAreDiscovered() throws IOException {
       Path cacheProjects = tempDir.resolve("cache").resolve("projects");

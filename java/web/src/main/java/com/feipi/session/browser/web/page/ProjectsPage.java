@@ -75,6 +75,8 @@ public final class ProjectsPage {
       ProjectListUseCase useCase = queryRoot.projectList();
       long totalCount = useCase.count(filter);
       var pageResult = useCase.list(filter);
+      var summaryResult =
+          useCase.list(filter.withPage(PageRequest.ofOffset(0, PageRequest.MAX_LIMIT)));
 
       int currentPage = QueryParams.parsePage(params);
       int pageSize = QueryParams.parsePageSize(params);
@@ -82,6 +84,7 @@ public final class ProjectsPage {
 
       Map<String, Object> context = new HashMap<>();
       context.put("projects", pageResult.items());
+      context.put("project_summary", buildProjectsSummary(summaryResult.items(), totalCount));
       context.put("total_count", totalCount);
       context.putAll(pagination.toTemplateContext());
       context.put("filter_q", params.getOrDefault("q", ""));
@@ -165,6 +168,19 @@ public final class ProjectsPage {
       ctx.html(
           templates.render("error.html", Map.of("error", "查询项目详情失败", "active_page", "projects")));
     }
+  }
+
+  private static Map<String, Object> buildProjectsSummary(
+      List<ProjectStatsRow> projects, long totalCount) {
+    return Map.of(
+        "totalProjects",
+        totalCount,
+        "totalSessions",
+        projects.stream().mapToLong(ProjectStatsRow::totalSessions).sum(),
+        "totalTokens",
+        projects.stream().mapToLong(ProjectStatsRow::totalTokens).sum(),
+        "totalFailedTools",
+        projects.stream().mapToLong(ProjectStatsRow::totalFailedTools).sum());
   }
 
   /**

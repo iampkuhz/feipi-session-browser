@@ -21,7 +21,7 @@ final class TestSourceRecords {
   static SourceRecord from(JsonNode node, int index) {
     String type = text(node, "type").orElse("unknown");
     return new SourceRecord(
-        "test#event[" + index + "]",
+        text(node, "locator").orElse("test#event[" + index + "]"),
         index,
         type,
         firstText(node, "id", "uuid"),

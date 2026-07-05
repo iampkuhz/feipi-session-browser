@@ -118,7 +118,7 @@ public final class SessionDetailPage {
   private static final Logger LOG = LoggerFactory.getLogger(SessionDetailPage.class);
 
   /** round 摘要最大显示数量，超出此数量的 round 只渲染前 N 条加提示。 */
-  private static final int MAX_INITIAL_ROUNDS = 50;
+  private static final int MAX_INITIAL_ROUNDS = 200;
 
   private final QueryCompositionRoot queryRoot;
   private final PebbleEnvironment templates;
@@ -221,6 +221,7 @@ public final class SessionDetailPage {
 
     // 会话基本信息
     context.put("session", row);
+    context.put("session_title", displayTitle(row));
     context.put("current_agent", agent);
     context.put("session_id", sessionId);
     context.put("session_key", row.sessionKey());
@@ -253,6 +254,7 @@ public final class SessionDetailPage {
     context.put("has_subagent_rounds", hasSubagentRounds(roundDisplay));
     context.put("has_subagent_token_usage", hasTokenUsage(roundDisplay, true));
     context.put("primary_subagent_id", primarySubagentId(roundDisplay));
+    context.put("subagent_breakdown", buildSubagentBreakdown(rounds));
 
     // Payload 来源摘要（不包含实际内容）
     context.put("payload_sources", buildPayloadSourceSummary(payloadSources));
@@ -353,6 +355,16 @@ public final class SessionDetailPage {
       result.add(entry);
     }
     return result;
+  }
+
+  private static String displayTitle(SessionRow row) {
+    if (!row.title().isBlank()) {
+      return row.title();
+    }
+    if ("qoder".equals(row.agent())) {
+      return "model";
+    }
+    return "Untitled session";
   }
 
   /**
@@ -507,6 +519,33 @@ public final class SessionDetailPage {
       }
     }
     return "";
+  }
+
+  private static List<Map<String, Object>> buildSubagentBreakdown(List<CallRound> rounds) {
+    Map<String, long[]> totals = new LinkedHashMap<>();
+    for (CallRound round : rounds) {
+      String id = firstSubagentId(round.calls());
+      if (id.isEmpty()) {
+        continue;
+      }
+      long[] values = totals.computeIfAbsent(id, ignored -> new long[4]);
+      values[0] += round.callCount();
+      values[1] += round.totalTokens();
+      values[2] += round.toolCallCount();
+    }
+    List<Map<String, Object>> result = new ArrayList<>(totals.size());
+    for (Map.Entry<String, long[]> entry : totals.entrySet()) {
+      long[] values = entry.getValue();
+      Map<String, Object> row = new LinkedHashMap<>();
+      row.put("id", entry.getKey());
+      row.put("file", entry.getKey() + ".jsonl");
+      row.put("llm", values[0]);
+      row.put("tokens", values[1]);
+      row.put("tools", values[2]);
+      row.put("failures", values[3]);
+      result.add(row);
+    }
+    return result;
   }
 
   /**

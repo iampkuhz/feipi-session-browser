@@ -2,6 +2,15 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
+import com.feipi.session.browser.domain.normalized.NormalizedCallRequest;
+import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
+import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
+import com.feipi.session.browser.domain.normalized.NormalizedConstants;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -11,12 +20,14 @@ import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourceResult;
 import com.feipi.session.browser.source.spi.SourceRoot;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
+import java.lang.reflect.Method;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -328,7 +339,17 @@ class FullScanEngineTest {
                 Optional.of("SHA-256")),
             "codex:019d2fca-cb74-70a0-b00b-426b38f34584",
             "/tmp/project",
-            Map.of());
+            Map.of(
+                "title",
+                "真实标题",
+                "cwd",
+                "/tmp/project",
+                "model",
+                "gpt-test",
+                "git_branch",
+                "main_java",
+                "source",
+                "codex"));
 
     ScanConfig config =
         ScanConfig.defaults(
@@ -343,13 +364,167 @@ class FullScanEngineTest {
     try (Statement stmt = conn.createStatement();
         ResultSet rs =
             stmt.executeQuery(
-                "SELECT session_key, session_id FROM sessions WHERE session_key = "
+                "SELECT session_key, session_id, title, project_key, project_name, cwd, model,"
+                    + " git_branch, source FROM sessions WHERE session_key = "
                     + "'codex:019d2fca-cb74-70a0-b00b-426b38f34584'")) {
       assertThat(rs.next()).isTrue();
       assertThat(rs.getString("session_key"))
           .isEqualTo("codex:019d2fca-cb74-70a0-b00b-426b38f34584");
       assertThat(rs.getString("session_id")).isEqualTo("019d2fca-cb74-70a0-b00b-426b38f34584");
+      assertThat(rs.getString("title")).isEqualTo("真实标题");
+      assertThat(rs.getString("project_key")).isEqualTo("/tmp/project");
+      assertThat(rs.getString("project_name")).isEqualTo("project");
+      assertThat(rs.getString("cwd")).isEqualTo("/tmp/project");
+      assertThat(rs.getString("model")).isEqualTo("gpt-test");
+      assertThat(rs.getString("git_branch")).isEqualTo("main_java");
+      assertThat(rs.getString("source")).isEqualTo("codex");
     }
+  }
+
+  @Test
+  void candidateSubagentMetadataDoesNotDoubleCountWhenSubagentRecordsAreMaterialized()
+      throws Exception {
+    Candidate candidate =
+        makeCandidate(
+            "claude-session.jsonl",
+            "claude:session",
+            Map.of(
+                "subagentInstanceCount",
+                "1",
+                "subagentToolCallCount",
+                "2",
+                "subagentFailedToolCount",
+                "1",
+                "subagentFreshInputTokens",
+                "20",
+                "subagentCacheReadTokens",
+                "10",
+                "subagentCacheWriteTokens",
+                "5",
+                "subagentOutputTokens",
+                "15",
+                "subagentTotalTokens",
+                "50"));
+    Map<String, Object> session =
+        new HashMap<>(
+            Map.of(
+                "freshInputTokens",
+                40L,
+                "cacheReadTokens",
+                20L,
+                "cacheWriteTokens",
+                10L,
+                "outputTokens",
+                30L,
+                "totalTokens",
+                100L,
+                "toolCallCount",
+                3L,
+                "failedToolCount",
+                1L));
+    NormalizedSessionArtifact artifact =
+        artifactWith(
+            List.of(
+                call("main-call", 1, CallScope.MAIN, new NormalizedCallUsage(20, 10, 5, 15, 50)),
+                call(
+                    "agent-sub-SR1",
+                    2,
+                    CallScope.SUBAGENT,
+                    new NormalizedCallUsage(20, 10, 5, 15, 50))),
+            List.of(
+                new NormalizedToolExecution(
+                    "tool-main",
+                    "Read",
+                    CallScope.MAIN,
+                    "main-call",
+                    Optional.empty(),
+                    Optional.empty(),
+                    Optional.empty(),
+                    0L,
+                    List.of(),
+                    Optional.empty()),
+                new NormalizedToolExecution(
+                    "tool-sub",
+                    "Bash",
+                    CallScope.SUBAGENT,
+                    "agent-sub-SR1",
+                    Optional.empty(),
+                    Optional.of("error"),
+                    Optional.empty(),
+                    0L,
+                    List.of(),
+                    Optional.of("agent-sub"))));
+
+    invokeApplyCandidateMetadata(
+        session, candidate, new EmptyAdapter(SourceId.CLAUDE_CODE), artifact);
+
+    assertThat(session.get("totalTokens")).isEqualTo(100L);
+    assertThat(session.get("freshInputTokens")).isEqualTo(40L);
+    assertThat(session.get("toolCallCount")).isEqualTo(3L);
+    assertThat(session.get("failedToolCount")).isEqualTo(1L);
+    assertThat(session.get("subagentInstanceCount")).isEqualTo(1L);
+  }
+
+  @Test
+  void candidateSubagentMetadataStillBackfillsWhenOnlySidecarTotalsAreAvailable()
+      throws Exception {
+    Candidate candidate =
+        makeCandidate(
+            "claude-session.jsonl",
+            "claude:session",
+            Map.of(
+                "subagentInstanceCount",
+                "1",
+                "subagentToolCallCount",
+                "2",
+                "subagentFailedToolCount",
+                "1",
+                "subagentFreshInputTokens",
+                "1",
+                "subagentCacheReadTokens",
+                "2",
+                "subagentCacheWriteTokens",
+                "3",
+                "subagentOutputTokens",
+                "4"));
+    Map<String, Object> session =
+        new HashMap<>(
+            Map.of(
+                "freshInputTokens",
+                10L,
+                "cacheReadTokens",
+                20L,
+                "cacheWriteTokens",
+                30L,
+                "outputTokens",
+                40L,
+                "totalTokens",
+                100L,
+                "toolCallCount",
+                1L,
+                "failedToolCount",
+                0L));
+    NormalizedSessionArtifact artifact =
+        artifactWith(
+            List.of(
+                call(
+                    "main-call",
+                    1,
+                    CallScope.MAIN,
+                    new NormalizedCallUsage(10, 20, 30, 40, 100))),
+            List.of());
+
+    invokeApplyCandidateMetadata(
+        session, candidate, new EmptyAdapter(SourceId.CLAUDE_CODE), artifact);
+
+    assertThat(session.get("freshInputTokens")).isEqualTo(11L);
+    assertThat(session.get("cacheReadTokens")).isEqualTo(22L);
+    assertThat(session.get("cacheWriteTokens")).isEqualTo(33L);
+    assertThat(session.get("outputTokens")).isEqualTo(44L);
+    assertThat(session.get("totalTokens")).isEqualTo(110L);
+    assertThat(session.get("toolCallCount")).isEqualTo(3L);
+    assertThat(session.get("failedToolCount")).isEqualTo(1L);
+    assertThat(session.get("subagentInstanceCount")).isEqualTo(1L);
   }
 
   // ===== 辅助方法 =====
@@ -363,8 +538,65 @@ class FullScanEngineTest {
     }
   }
 
+  private static void invokeApplyCandidateMetadata(
+      Map<String, Object> session,
+      Candidate candidate,
+      SourceAdapter adapter,
+      NormalizedSessionArtifact artifact)
+      throws Exception {
+    Method method =
+        FullScanEngine.class.getDeclaredMethod(
+            "applyCandidateMetadata",
+            Map.class,
+            Candidate.class,
+            SourceAdapter.class,
+            NormalizedSessionArtifact.class);
+    method.setAccessible(true);
+    method.invoke(null, session, candidate, adapter, artifact);
+  }
+
+  private static NormalizedSessionArtifact artifactWith(
+      List<NormalizedCall> calls, List<NormalizedToolExecution> toolExecutions) {
+    return new NormalizedSessionArtifact(
+        NormalizedConstants.SCHEMA_VERSION,
+        NormalizedAgent.CLAUDE_CODE,
+        List.of(),
+        Map.of(),
+        calls,
+        toolExecutions,
+        List.of(),
+        Map.of(),
+        Map.of());
+  }
+
+  private static NormalizedCall call(
+      String callId, int callIndex, CallScope scope, NormalizedCallUsage usage) {
+    return new NormalizedCall(
+        callId,
+        callIndex,
+        "C" + callIndex,
+        scope,
+        scope == CallScope.SUBAGENT ? Optional.of("subagent:agent-sub") : Optional.empty(),
+        scope == CallScope.SUBAGENT ? Optional.of("agent-sub") : Optional.empty(),
+        Optional.empty(),
+        "model",
+        Optional.empty(),
+        usage,
+        NormalizedCallRequest.empty(),
+        NormalizedCallResponse.empty(),
+        List.of(),
+        List.of(),
+        Map.of(),
+        Map.of());
+  }
+
   /** 创建测试候选项。 */
   private static Candidate makeCandidate(String locator, String sessionKey) {
+    return makeCandidate(locator, sessionKey, Map.of());
+  }
+
+  private static Candidate makeCandidate(
+      String locator, String sessionKey, Map<String, String> metadata) {
     return new Candidate(
         new SourceFingerprint(
             locator,
@@ -375,7 +607,7 @@ class FullScanEngineTest {
             Optional.of("SHA-256")),
         sessionKey,
         "test-project",
-        Map.of());
+        metadata);
   }
 
   // ===== 测试用适配器 =====

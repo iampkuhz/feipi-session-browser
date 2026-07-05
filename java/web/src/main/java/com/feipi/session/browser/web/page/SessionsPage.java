@@ -11,8 +11,11 @@ import com.feipi.session.browser.web.model.PaginationModel;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
+import java.net.URLEncoder;
+import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -82,13 +85,17 @@ public final class SessionsPage {
       context.putAll(pagination.toTemplateContext());
 
       // 过滤器回显值
-      context.put("filter_agent", params.getOrDefault("agent", ""));
+      context.put(
+          "filter_agent", QueryParams.normalizeSessionAgent(params.getOrDefault("agent", "")));
       context.put("filter_model", params.getOrDefault("model", ""));
       context.put("filter_project", params.getOrDefault("project", ""));
       context.put("filter_q", params.getOrDefault("q", ""));
       context.put("filter_status", params.getOrDefault("status", ""));
-      context.put("sort_by", QueryParams.uiSortKey(params));
-      context.put("sort_dir", params.getOrDefault("dir", "desc"));
+      String sortBy = QueryParams.uiSortKey(params);
+      context.put("sort_by", sortBy);
+      String sortDir = normalizeSortDir(params.getOrDefault("dir", "desc"));
+      context.put("sort_dir", sortDir);
+      context.put("sort_urls", buildSortUrls(params, sortBy, sortDir, pageSize));
       context.put("active_page", "sessions");
 
       String html = templates.render("sessions.html", context);
@@ -99,6 +106,67 @@ public final class SessionsPage {
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.html(renderError(ctx, "查询会话列表失败"));
     }
+  }
+
+  private static String normalizeSortDir(String value) {
+    return "asc".equalsIgnoreCase(value) ? "asc" : "desc";
+  }
+
+  private static Map<String, String> buildSortUrls(
+      Map<String, String> params, String currentSort, String currentDir, int pageSize) {
+    String[] keys = {
+      "tokens",
+      "rounds",
+      "tools",
+      "subagents",
+      "duration",
+      "process-time",
+      "failure",
+      "created",
+      "updated"
+    };
+    Map<String, String> urls = new HashMap<>();
+    for (String key : keys) {
+      String nextDir = key.equals(currentSort) && "desc".equals(currentDir) ? "asc" : "desc";
+      urls.put(key, buildSessionsUrl(params, key, nextDir, pageSize));
+    }
+    return urls;
+  }
+
+  private static String buildSessionsUrl(
+      Map<String, String> params, String sortKey, String sortDir, int pageSize) {
+    Map<String, String> clean = new LinkedHashMap<>();
+    putIfNotEmpty(clean, "q", params.getOrDefault("q", ""));
+    putIfNotEmpty(
+        clean, "agent", QueryParams.normalizeSessionAgent(params.getOrDefault("agent", "")));
+    putIfNotEmpty(clean, "status", params.getOrDefault("status", ""));
+    putIfNotEmpty(clean, "model", params.getOrDefault("model", ""));
+    putIfNotEmpty(clean, "project", params.getOrDefault("project", ""));
+    clean.put("sort", sortKey);
+    clean.put("dir", normalizeSortDir(sortDir));
+    if (pageSize != 25) {
+      clean.put("page_size", Integer.toString(pageSize));
+    }
+
+    StringBuilder query = new StringBuilder();
+    for (Map.Entry<String, String> entry : clean.entrySet()) {
+      if (query.length() > 0) {
+        query.append('&');
+      }
+      query.append(encode(entry.getKey())).append('=').append(encode(entry.getValue()));
+    }
+    return "/sessions" + (query.length() == 0 ? "" : "?" + query);
+  }
+
+  private static void putIfNotEmpty(Map<String, String> target, String key, String value) {
+    String trimmed = value == null ? "" : value.trim();
+    if (!trimmed.isEmpty()) {
+      target.put(key, trimmed);
+    }
+  }
+
+  private static String encode(String value) {
+    return URLEncoder.encode(value, StandardCharsets.UTF_8).replace("+", "%20");
   }
 
   private String renderError(Context ctx, String message) {

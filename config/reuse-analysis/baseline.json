@@ -5113,6 +5113,1124 @@
       "createdAt": "2026-07-04",
       "expiresOn": "2027-01-04",
       "evidence": "0872d5076376ca08fe0e97a5a84362495bb51ec77aa99703d9ede00f4a727114"
+    },
+    {
+      "fingerprint": "aa54c4d88f2418850c83ed1b3874607ed326ec9c12f0a03fd02a431ab299c42f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: objectChild, objectChild 属于当前 Java reuse baseline 的 EXACT_METHOD_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "EXACT_METHOD_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "61978e842692ec8f559937b8a79bfa9e9ab6e875095bfc6f93719a97d9be9167",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: findArtifacts, findNormalizedArtifact 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "cfbed94340df3b9a81de1ffad94d43e6160b779defb7fb63670659463e44f4cd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: putIfPositive, putIfPositive 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "DETACHED_BEHAVIOR": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "81d2b53ea4b19a49bc34a3b69969d204e159790839a3ddff7060fd8ae7ea130b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: appendLine, appendLine, contentText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 1,
+        "DETACHED_BEHAVIOR": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "1893e99f2f720f4039d81a273cd8012414f2984095266825b38cba4243bb474b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: stringifyToolResult, appendLine, contentText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2,
+        "DETACHED_BEHAVIOR": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "052b77cd285445b9076d506dfced1ed27051df7a0bb164206b2f7991a30bee2b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: contentText, stringifyContent 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "5e01969bbc06aeddd02321588af1f936d5f09a850c90e3c13b2508007cac3302",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: stringifyNode, pythonStyleJson 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "95d32d8ffaad7eb39bc15832d0861e838d4a7a966adde89ac79e9c08f03d7eb9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: mergeUsageRows, mergeUsage 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "f039cb22461d1331d45d6a1079410b7f280de6001d05201822d6cd6d889ff978",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: enrichToolResultError, extractToolError 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "f9f1a73bcde48154f3bf9d6f72d7292fc344d4ce84c2d8b60b0b48fc648a6de4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: assistantKey, extractEventText, extractModel, messageText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 4
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 4,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "6ccf4b10983604705653ffd0caabddad5af0bc38a6fbc5bb70600da377ad4aeb",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: firstToolResultText, firstToolUseText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "93ad8fe197af6fc9641dceecf7a0d7ce6ee680b5d988ed7105d29e36da6c9f85",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: flattenPayloadFields, pythonStyleJson 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "61d763aa56ca3eedaee3b9769e93a7d6942920ed4e15a9fcc6506a1e21a3536e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: processTranscriptMissingCandidate, projectName 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "DETACHED_BEHAVIOR": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "113ee5637ed29e4de72b6fe47652ff57a26f8b30fb0fe26445cbf39d059c19d0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: cumulativeUsageNode, lastTokenUsageNode 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "ad6e93f94b1a0be331b5fec4e2712df6331c02e79e1e64279f2e357c0de31637",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: text, text 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "ff318cd10cac077c78189522f7aafc8162c428e6e3212b8e31d88323b189f123",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: read, pythonStyleJson, pythonStyleJson 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "5961eec5ad34453701615545412b46010b471bea5de8fcc3f8fd4bbed35d5b4c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: cumulativeUsageNode, lastTokenUsageNode 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "a74f5b6887983018694513511fff42a01de7aae6ad42c9aaa36391b795bc8d6a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: formatDashboardCompact, formatCompactNum 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "0dd73cdedb8c01e97ce065e06c9673eeb1089980b80a62eb43a72e302dce78e8",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: text, objectChild 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "745f2173249b36f880340a57523ee68ef798d628b249ec69f87138a0cccd867f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: formatDashboardCompact, formatDeltaBadge, formatCompactNum 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2,
+        "PROVIDER_SPECIFIC_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "8770c6b927f1f74f7ceef23bcf2b4c7bb60860c70206b0784846808c24bf0081",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: text, text 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "647022064f3edc3f43fe2ddf0673f46e82e71d1dedbdcf0db13dca5b9022de6f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: assistantRecords, extractEventText, extractEventText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 3
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "b8260698e8ceac4c5741056725ae6dc8a51f18638a546faf21acb60067cd1d15",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: aggregateMergedAssistantUsage, countDistinctAssistantMessages 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "d6f2d9b965012d7e37565650440c6d06dc0d832c92b40fc641db504eef87bc5c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: extractEventText, isMetaEvent 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "24dd036f714b0f84ab19e8109be460cb2c353b3e510a486bbaaa5a0a170664e1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: objectChild, objectChild 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "691f9d149a870955df50bcbab55b943f85eae4ea69fa143fa418efed7c6e05c6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: meaningfulProject, meaningfulProject 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 1,
+        "DETACHED_BEHAVIOR": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "bd77499cc8d41bbfc3fc14e584d105d24e0b23a20743f9a4f73d6d6232af29f0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: countCodexTokenCountAssistantMessages, countDistinctAssistantMessages, countUserMessages, countSubagentChildren, countSkippedEvents 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "PROVIDER_SPECIFIC_CAPABILITY": 4
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 5,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "82f08ca36a347f18d9ba4fa94347a5e9085f85528d7e259ef11e13129182a17a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: buildSessionMap, buildSessionMap, useCodexLlmCallCounting 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 1,
+        "FACTORY_OR_CONSTRUCTOR": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "65d9fbaa87dc9e7c76419e5515a77e11c5541810a30c90a209954a696d525063",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: appendLine, appendLine 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "DETACHED_BEHAVIOR": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "f375df9d333eab087d3e2621962b3e9ccf1ab6abb74729ab9d934d26c90d46c5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: assistantMessageKey, assistantMessageKey, assistantMessageKey, assistantKey, assistantKey 等 6 处 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 6
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 6,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "1c5ba069ab0c7d9d3fa06d60772006fcb98a6b336dd4b60d0e5031a6cbdae1c7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: dashboardStats, kpiSupplement, kpiSupplement, kpiSupplement, kpiSupplement 等 13 处 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 13
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 13,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "cf48bc5c236a175528e88f2053ef2e6123f0de599294d7bc690718b09ba3bc76",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: findArtifacts, findNormalizedArtifact 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "126c121cf67bc623bc33d2f6251b59ab6b8a01ec0f21ca85f81aa6d21d2bc3b6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: objectChild, objectChild 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "7ba1312796935c6b86fcc4dbf401ebf9ab7446b96a4b477b4be3579e2a09e02a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: stringifyToolResult, appendLine, contentText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2,
+        "DETACHED_BEHAVIOR": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "ecbab386d899fecfa2686168e59903e7d601506317a74c6dd66d420e63c6ef74",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: assistantRecords, countFailedToolResults 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "2d123d04e40131d64e19215f764588c1fd647d4934319cd00b0c4819da13fa6e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: extractProjectKeyFromThreadInfo, meaningfulProject 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 1,
+        "DETACHED_BEHAVIOR": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "2d472a1d9f8d697e4a69aa05202b304611f9971cdd276cc90ab649591e15a02e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: aggregateMergedAssistantUsage, sumAttribute 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 1,
+        "DETACHED_BEHAVIOR": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "1fd1d929cbbe3cac7b1b579b4d0bcd8bb991f0cabcd53fc8b06582c02a697e94",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: contentText, stringifyContent 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "85580c76f62947c9dce42f1466df4ff77d2957d7387731135b5c8231cd7e803f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: mergeUsageRows, mergeUsage 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "8ae0022f55d8fb36063c03bbb2a33a315a13d7f95239e6b2154798c6d57efc4d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: countFailedToolResults, extractEventText, extractModel 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 3
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "4a50bcb6f6cc7957ad8391c2590de7a8f29a8fc1059b804415fe50e64c26e7d4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: parse, inspectCandidateFile 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "6799717cf542603bc494632ea20ff2af1fd1c204faf7030a49b13a0fe186601d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: cumulativeUsageNode, lastTokenUsageNode 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "533d135fb3eb314d16f5c94234b3b443d0c0d3dab3832de278e13201d537c717",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: applyCandidateMetadata, processTranscriptMissingCandidate 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 1,
+        "SHARED_CAPABILITY": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "7cf513d49cd6e37128013e2a3705b994f572e9ff3b565836125bab7f924a3e86",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: isSubagentMetaEvent, parentThreadId 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "32380f02750b83202e47fca4afc07f121dd1479ad135b088ab3b550a5cbaf740",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: extractEventText, isUserEvent 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "23cf0b84a83fd2395d642a932697f68177bd85aef2b9ef332aac04b0e8f4607d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: extractToolName, firstTextDeep 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "fe6b4d02697cf4aadb55a6f8917d834ccdccd8db485efc014fb4eddfe6313431",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: assistantMessageKey, assistantMessageKey, assistantMessageKey, assistantKey, assistantKey 等 7 处 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "FACTORY_OR_CONSTRUCTOR": 1,
+        "PROVIDER_SPECIFIC_CAPABILITY": 6
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 7,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "79c841bd3d7a703c3cc0b9d17b7b2d0584e5795c12e7bc3ea935a2ff9b0a7345",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: contentContainers, extractToolCalls, toolResultBlocks 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 3
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 3,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "6710c2a87320feb4e7fb55768bc9c17ec925268d80d71e9a6c94f68c27f082a0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: firstToolResultText, firstToolUseText 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "f201c567070d40db78708427a7b69a7d49e17c33e5344e8150b0982065a10039",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: extractSessionId, processTranscriptMissingCandidate 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "SHARED_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "f98bdf9875e963c8c6d4fd7d22efc1cf3789b80247fb5b0e3fd413730aa51acc",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-01 route identity parity baseline refresh: extractToolName, firstTextDeep 属于当前 Java reuse baseline 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": false
+      }
+    },
+    {
+      "fingerprint": "194e12eed12b57eaa210c2a21f83f2e4bd8e9c707cedb7ed9cafb0876b8bc408",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "H-01 route identity parity baseline refresh: objectChild, objectChild 属于当前 Java reuse baseline 的 ALPHA_EQUIVALENT",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "ALPHA_EQUIVALENT",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "ad3c2191624206dd06136c832a3f5a403029755827763c8f4cdb16c0066521a7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "a4ac40825a494f9e9102565e4e34c1da4bc48323af86eb1b2168a7046bb11409",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "9acfb3bf6bbe5e228299b0b80d7d721e8d6df424bccd125495443415d0786175",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "12f3f1427d0ed4841ad632521bf9868e06129c16727bbcf5a5a8c3ca31a8f90f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "88c9462140599a147182fa6efc535ec71da4f25ad693ec324b90eaa744696781",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: codexsourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "1243df59a8fbb7b7a930ededb77017ed4ec259f20e41e657c36affdf819a2052",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "da8e5018f8f8c22c5ec9ccc647361b461f37b44c9848982cb6515e52f2fee5a7",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "51bac049bd41ba43ffc3732372c6990ffa88b42f3297a574c0efa0afc19663ad",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 7
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 7,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "7ca839da863f885fe5657c05e89d8aa9c0b9e3e015cce244c1bac015646d0a6a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, jsonsourcerecordmapper 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 1,
+        "DETACHED_BEHAVIOR": 1
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "5cc43cc39151f26705ec1bff640a7feb07de2475f20c4c46914cc0920284d37f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "8238fa96470323f13dcf423fddf42fe95208305550ba811b32040f63bcae9a7e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "345e447149a72ffb4c3efcb1706cff583af460955792b1813b1650635e91c8be",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "c93d1a3f81c628a5fe12727df369d6c835a9e29ee2efe491638f50c95da9edd3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-02 metadata enrichment reuse baseline refresh: claudesourceadapter, qodersourceadapter 的 STATEMENT_DUPLICATE",
+      "owner": {
+        "PROVIDER_SPECIFIC_CAPABILITY": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "407743314ead65d71c0a8b47b7c6d0bc181513ded3dea44c7afa0f356cac147f",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-07 Claude subagent transcript/source-file association adds owner-local helpers for sidecar listing and subagent breakdown aggregation.",
+      "owner": {
+        "FACTORY_OR_CONSTRUCTOR": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "859f2bc795b16d99b95e5f906c39259f986fa4e6fc6624bc477dd6b5a4696207",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-07 Claude subagent transcript/source-file association adds owner-local helpers for sidecar listing and subagent breakdown aggregation.",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "990b0df95e8e430407a1a2daaa2945b88062a2171a746f9882917b94a4abd26d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-07 Claude subagent transcript/source-file association adds owner-local helpers for sidecar listing and subagent breakdown aggregation.",
+      "owner": {
+        "OWNER_BOUND": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
+    },
+    {
+      "fingerprint": "1405d89f4e5e1778abf26085f7073559e26516f2f14afb33bc368911d58efe03",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "H-07 Claude subagent transcript/source-file association adds owner-local helpers for sidecar listing and subagent breakdown aggregation.",
+      "owner": {
+        "FACTORY_OR_CONSTRUCTOR": 2
+      },
+      "createdAt": "2026-07-05",
+      "expiresOn": "2027-01-05",
+      "evidence": {
+        "kind": "STATEMENT_DUPLICATE",
+        "occurrences": 2,
+        "touchesChangedCode": true
+      }
     }
   ]
 }
