@@ -153,9 +153,7 @@ class CliContractTest {
 
       assertThat(result.exitCode()).isEqualTo(0);
       assertThat(result.stderr()).isEmpty();
-      assertThat(result.stdout()).startsWith("feipi-session-browser");
-      // 版本号应为非空字符串
-      assertThat(result.stdout()).matches("feipi-session-browser \\S+");
+      assertThat(result.stdout()).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
     }
 
     @Test
@@ -165,18 +163,16 @@ class CliContractTest {
 
       assertThat(result.exitCode()).isEqualTo(0);
       assertThat(result.stderr()).isEmpty();
-      assertThat(result.stdout()).startsWith("feipi-session-browser");
+      assertThat(result.stdout()).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
     }
 
     @Test
-    @DisplayName("BuildInfoVersionProvider 读取 classpath 中的 build-info.properties")
+    @DisplayName("BuildInfoVersionProvider 从 classpath 读取 app.version")
     void versionFromBuildInfo() throws Exception {
-      BuildInfoVersionProvider provider = new BuildInfoVersionProvider();
-      String[] version = provider.getVersion();
+      String version = BuildInfoVersionProvider.readAppVersion();
 
-      assertThat(version).hasSize(1);
-      assertThat(version[0]).startsWith("feipi-session-browser");
-      assertThat(version[0]).containsPattern("\\d+");
+      assertThat(version).isNotNull();
+      assertThat(version).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
     }
 
     @Test
@@ -353,7 +349,7 @@ class CliContractTest {
       int exitCode = process.waitFor();
 
       assertThat(exitCode).withFailMessage("发行目录路径含空格运行失败: stderr=%s", stderr).isZero();
-      assertThat(stdout).contains("feipi-session-browser");
+      assertThat(stdout.trim()).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
 
       // 清理测试创建的临时目录
       deleteRecursively(spaceDir);

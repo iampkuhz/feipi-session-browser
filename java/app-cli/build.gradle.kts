@@ -143,8 +143,8 @@ abstract class CliSmokeTestTask : DefaultTask() {
         require(versionResult.second == 0) {
             "Smoke test failed: --version exit=${versionResult.second}"
         }
-        require(versionResult.first.contains("feipi-session-browser")) {
-            "Smoke test failed: --version output missing app name"
+        require(versionResult.first.trim().matches(Regex("""\d+\.\d+(\.\d+)?(-[\w.]+)?"""))) {
+            "Smoke test failed: --version output is not a plain version"
         }
     }
 

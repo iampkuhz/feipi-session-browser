@@ -5,6 +5,7 @@
 """
 
 import os
+import re
 import shutil
 import stat
 import subprocess
@@ -128,7 +129,7 @@ class TestHelpVersionRoutesToJava:
         """version 命令通过 Java launcher 执行。"""
         result, trap_called = _run_shell_with_trap('version')
         assert result.returncode == 0, f'stderr: {result.stderr}'
-        assert 'feipi-session-browser' in result.stdout
+        assert re.fullmatch(r'\d+\.\d+(\.\d+)?(-[\w.]+)?', result.stdout.strip())
         assert not trap_called, 'version 不应调用 Python'
 
     def test_help_outside_repo_cwd(self):

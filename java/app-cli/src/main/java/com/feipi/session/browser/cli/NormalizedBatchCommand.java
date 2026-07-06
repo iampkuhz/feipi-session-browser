@@ -39,7 +39,7 @@ import picocli.CommandLine.Option;
  * <p><strong>处理流程</strong>：逐行输入后，每个请求经过：
  *
  * <ol>
- *   <li>反序列化为 {@link BatchInputRecord}
+ *   <li>反序列化为 {@link SourceRootRequestRecord}
  *   <li>通过 {@code sourceId} 解析适配器并校验根目录安全性
  *   <li>调用适配器发现会话候选项
  *   <li>对每个候选项调用 {@link SourceAdapter#parse} 执行 SPI 解析
@@ -52,7 +52,7 @@ import picocli.CommandLine.Option;
  * <ol>
  *   <li><strong>版本头</strong>：{@code {"protocol":"normalized-batch","version":"1.0"}}
  *   <li><strong>请求处理</strong>：每行输入对应一条 {@code {"type":"request",...}}
- *   <li><strong>逐候选结果</strong>：每个候选项对应一条 {@link BatchOutputRecord}
+ *   <li><strong>逐候选结果</strong>：每个候选项对应一条 {@link NormalizationResultRecord}
  *   <li><strong>结束摘要</strong>：{@code {"type":"end","totalRequests":...,...}}
  * </ol>
  *
@@ -153,10 +153,10 @@ final class NormalizedBatchCommand implements Callable<Integer> {
    * @param line 输入行
    */
   private void processInputLine(String line) {
-    BatchInputRecord input;
+    SourceRootRequestRecord input;
     String requestId = null;
     try {
-      input = mapper.readValue(line, BatchInputRecord.class);
+      input = mapper.readValue(line, SourceRootRequestRecord.class);
       requestId = input.requestId();
       if (requestId == null || requestId.isBlank()) {
         requestId = generateRequestId();
@@ -165,7 +165,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
       requestId = generateRequestId();
       ensureHeader();
       emitRequest(requestId, null, null);
-      emitResult(new BatchOutputRecord(requestId, "", "error", null, "Invalid input JSON", null));
+      emitResult(new NormalizationResultRecord(requestId, "", "error", null, "Invalid input JSON", null));
       return;
     }
 
@@ -173,7 +173,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
       ensureHeader();
       emitRequest(requestId, input.sourceId(), input.rootPath());
       emitResult(
-          new BatchOutputRecord(
+          new NormalizationResultRecord(
               requestId, "", "error", null, "Missing sourceId or rootPath in input", null));
       return;
     }
@@ -187,9 +187,9 @@ final class NormalizedBatchCommand implements Callable<Integer> {
       Path rootPath = Path.of(input.rootPath());
       processRootInput(adapter, rootPath, input.rootPath(), requestId);
     } catch (IllegalArgumentException e) {
-      emitResult(new BatchOutputRecord(requestId, "", "error", null, sanitizeError(e), null));
+      emitResult(new NormalizationResultRecord(requestId, "", "error", null, sanitizeError(e), null));
     } catch (Exception e) {
-      emitResult(new BatchOutputRecord(requestId, "", "error", null, sanitizeError(e), null));
+      emitResult(new NormalizationResultRecord(requestId, "", "error", null, sanitizeError(e), null));
     }
   }
 
@@ -205,7 +205,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
       SourceAdapter adapter, Path rootPath, String rootPathStr, String requestId) {
     SourceRoot root = adapter.checkRoot(rootPath);
     if (!root.isSafe()) {
-      emitResult(new BatchOutputRecord(requestId, "", "error", null, "Unsafe root path", null));
+      emitResult(new NormalizationResultRecord(requestId, "", "error", null, "Unsafe root path", null));
       return;
     }
 
@@ -233,26 +233,26 @@ final class NormalizedBatchCommand implements Callable<Integer> {
       // 2) 处理非成功的解析状态
       if (parseResult instanceof SourceResult.Skipped skipped) {
         emitResult(
-            new BatchOutputRecord(
+            new NormalizationResultRecord(
                 requestId, sessionKey, "skipped", null, sanitizeError(skipped.reason()), null));
         return;
       }
       if (parseResult instanceof SourceResult.Fatal fatal) {
         emitResult(
-            new BatchOutputRecord(
+            new NormalizationResultRecord(
                 requestId, sessionKey, "error", null, sanitizeError(fatal.errorDetail()), null));
         return;
       }
       if (parseResult instanceof SourceResult.RetryableIncomplete retryable) {
         emitResult(
-            new BatchOutputRecord(
+            new NormalizationResultRecord(
                 requestId, sessionKey, "error", null, sanitizeError(retryable.reason()), null));
         return;
       }
 
       if (!(parseResult instanceof SourceResult.Success success)) {
         emitResult(
-            new BatchOutputRecord(
+            new NormalizationResultRecord(
                 requestId, sessionKey, "error", null, "Unknown parse status", null));
         return;
       }
@@ -282,7 +282,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
 
       // 8) 输出成功结果，artifactPath 为实际 data 文件路径
       emitResult(
-          new BatchOutputRecord(
+          new NormalizationResultRecord(
               requestId,
               sessionKey,
               "success",
@@ -291,7 +291,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
               writeResult.contentHash()));
     } catch (Exception e) {
       emitResult(
-          new BatchOutputRecord(requestId, sessionKey, "error", null, sanitizeError(e), null));
+          new NormalizationResultRecord(requestId, sessionKey, "error", null, sanitizeError(e), null));
     }
   }
 
@@ -352,7 +352,7 @@ final class NormalizedBatchCommand implements Callable<Integer> {
    *
    * @param record 结果记录
    */
-  private void emitResult(BatchOutputRecord record) {
+  private void emitResult(NormalizationResultRecord record) {
     try {
       System.out.println(mapper.writeValueAsString(record));
     } catch (Exception e) {

@@ -1,7 +1,5 @@
 # TODO
 
-- [ ] java/com/feipi/session/browser/cli/BatchInputRecord.java 为什么要带 batch？
-
 - [x] normalized json 必须添加 结构定义的类
 - [ ] pmd\checkstyle\Spotless\archunit
 - [ ] 注解、modal

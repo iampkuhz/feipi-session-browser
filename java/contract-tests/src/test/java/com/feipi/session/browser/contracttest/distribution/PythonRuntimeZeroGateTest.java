@@ -148,7 +148,7 @@ class PythonRuntimeZeroGateTest {
       }
       ProcessResult result = runCliWithoutPython(binScript, "--version");
       assertThat(result.exitCode).as("--version 退出码应为 0，stderr: %s", result.stderr).isZero();
-      assertThat(result.stdout).contains("feipi-session-browser");
+      assertThat(result.stdout.trim()).matches("\\d+\\.\\d+(\\.\\d+)?(-[\\w.]+)?");
     }
 
     @Test
