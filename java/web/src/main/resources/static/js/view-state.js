@@ -1,26 +1,4 @@
-/**
- * view-state.js — Density toggle & Saved Views
- *
- * 职责：
- * 1. density 切换（compact / comfortable），通过 body class + localStorage 持久化
- * 2. 简单 saved views（存储当前 URL 参数集合）
- *
- * 用法：
- *   // 初始化：恢复上一次 density 状态
- *   ViewState.init();
- *
- *   // 切换 density
- *   ViewState.toggleDensity();
- *
- *   // 读取当前 density
- *   ViewState.getDensity(); // 'compact' | 'comfortable'
- *
- *   // Saved Views
- *   ViewState.saveView('my-view');
- *   ViewState.loadView('my-view');
- *   ViewState.deleteView('my-view');
- *   ViewState.listViews(); // [{ name, url, savedAt }]
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * view-state.js — Density toggle & Saved Views * * 职责： * 1. density 切换（compact / comfortable），通过 body class + localStorage 持久化 * 2. 简单 saved views（存储当前 URL 参数集合） * * 用法： * // 初始化：恢复上一次 density 状态 * ViewState.init(); * * // 切换 density * ViewState.toggleDensity(); * * // 读取当前 density * ViewState.get` */
 (function () {
     'use strict';
 
@@ -35,7 +13,7 @@
         comfortable: 'density-comfortable'
     };
 
-    /* ── Density ─────────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Density ───────────────────────────────────────────────` */
 
     function getDensity() {
         try {
@@ -49,7 +27,7 @@
     function setDensity(mode) {
         try {
             localStorage.setItem(DENSITY_KEY, mode);
-        } catch (e) { /* storage full */ }
+        } catch (e) { /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`storage full` */ }
         applyDensity(mode);
     }
 
@@ -78,7 +56,7 @@
         btn.title = isComfortable ? '当前：宽松 · 点击切换为紧凑' : '当前：紧凑 · 点击切换为宽松';
     }
 
-    /* ── Layout Mode (Map / Inspector / Focus) ───────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Layout Mode (Map / Inspector / Focus) ─────────────────` */
 
     var LAYOUT_KEY = STORAGE_PREFIX + 'layout_mode';
     var VALID_LAYOUTS = ['map', 'inspector', 'focus'];
@@ -97,7 +75,7 @@
         if (VALID_LAYOUTS.indexOf(mode) < 0) mode = DEFAULT_LAYOUT;
         try {
             localStorage.setItem(LAYOUT_KEY, mode);
-        } catch (e) { /* storage full */ }
+        } catch (e) { /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`storage full` */ }
         applyLayoutMode(mode);
         updateLayoutBtns(mode);
     }
@@ -110,7 +88,7 @@
         } else if (mode === 'focus') {
             body.classList.add('focus');
         }
-        // 'map' = default, no class needed
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`'map' = default, no class needed`
     }
 
     function updateLayoutBtns(mode) {
@@ -119,13 +97,13 @@
         });
     }
 
-    /* ── Workbench View (Trace / Calls / Hotspots) ──────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Workbench View (Trace / Calls / Hotspots) ────────────────` */
 
     var WORKBENCH_KEY = STORAGE_PREFIX + 'workbench_view';
     var VALID_VIEWS = ['trace', 'calls', 'hotspots'];
     var DEFAULT_VIEW = 'trace';
 
-    /** Get the preferred workbench view. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Get the preferred workbench view.` */
     function getWorkbenchView() {
         try {
             var saved = localStorage.getItem(WORKBENCH_KEY);
@@ -135,23 +113,23 @@
         }
     }
 
-    /** Set and apply the workbench view, persisting to localStorage. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Set and apply the workbench view, persisting to localStorage.` */
     function setWorkbenchView(name) {
         if (VALID_VIEWS.indexOf(name) < 0) name = DEFAULT_VIEW;
         try {
             localStorage.setItem(WORKBENCH_KEY, name);
-        } catch (e) { /* storage full */ }
+        } catch (e) { /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`storage full` */ }
         _applyWorkbenchView(name);
         _updateViewSwitchBtns(name);
     }
 
-    /** Apply view visibility in the DOM. Uses window.switchView if available. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Apply view visibility in the DOM. Uses window.switchView if available.` */
     function _applyWorkbenchView(name) {
         if (typeof window.switchView === 'function') {
             window.switchView(name);
             return;
         }
-        // Direct DOM fallback
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Direct DOM fallback`
         var wbBody = document.querySelector('.wb-body');
         if (!wbBody) return;
         wbBody.querySelectorAll('[data-view]').forEach(function(el) {
@@ -159,22 +137,19 @@
         });
     }
 
-    /** Update active state on view switch buttons. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Update active state on view switch buttons.` */
     function _updateViewSwitchBtns(name) {
         document.querySelectorAll('.wb-head [data-switch]').forEach(function(btn) {
             btn.classList.toggle('active', btn.dataset.switch === name);
         });
     }
 
-    /**
-     * Initialize workbench view: restore from URL hash > localStorage > default.
-     * Defers until the workbench body exists in the DOM.
-     */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Initialize workbench view: restore from URL hash > localStorage > default. * Defers until the workbench body exists in the DOM.` */
     function initWorkbenchView() {
         function restore() {
             if (!document.querySelector('.wb-body')) return;
 
-            // 1. URL hash takes highest precedence
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`1. URL hash takes highest precedence`
             var hash = window.location.hash.replace('#', '').toLowerCase();
             if (VALID_VIEWS.indexOf(hash) >= 0) {
                 try { localStorage.setItem(WORKBENCH_KEY, hash); } catch (e) {}
@@ -182,14 +157,14 @@
                 return;
             }
 
-            // 2. Fall back to saved preference
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`2. Fall back to saved preference`
             var saved = getWorkbenchView();
             if (saved !== DEFAULT_VIEW) {
                 setWorkbenchView(saved);
             }
         }
 
-        // DOM may not be ready — defer
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`DOM may not be ready — defer`
         if (document.readyState === 'loading') {
             document.addEventListener('DOMContentLoaded', function() {
                 setTimeout(restore, 0);
@@ -199,7 +174,7 @@
         }
     }
 
-    /* ── Saved Views ────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Saved Views ──────────────────────────────────────────` */
 
     function saveView(name) {
         if (!name) return false;
@@ -251,23 +226,9 @@
         }
     }
 
-    /* ── Unified Selection Model ───────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Unified Selection Model ─────────────────────────────────` */
 
-    /**
-     * Selection tracks a single active object across all workbench views.
-     *
-     * State shape:
-     *   {
-     *     activeView: 'trace' | 'calls' | 'hotspots',
-     *     selectedRoundId: string|null,
-     *     selectedSpanId: string|null,
-     *     selectedCallId: string|null,
-     *     selectedHotspotId: string|null,
-     *   }
-     *
-     * Only one of selectedRoundId/selectedSpanId/selectedCallId/selectedHotspotId
-     * is non-null at any time — they represent the currently selected object.
-     */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Selection tracks a single active object across all workbench views. * * State shape: * { * activeView: 'trace' | 'calls' | 'hotspots', * selectedRoundId: string|null, * selectedSpanId: string|null, * selectedCallId: string|null, * selectedHotspotId: string|null, * } * * Only one of selectedRound` */
     var _selection = {
         activeView: 'trace',
         selectedRoundId: null,
@@ -277,11 +238,11 @@
     };
 
     function _applySelectionCSS() {
-        // Remove .selected from all selectable elements
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Remove .selected from all selectable elements`
         document.querySelectorAll('.trace-row.selected, .span.selected, .table-row.selected, .hot-card.selected').forEach(function(el) {
             el.classList.remove('selected');
         });
-        // Re-apply based on current state
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Re-apply based on current state`
         if (_selection.selectedRoundId) {
             var row = document.querySelector('.trace-row[data-round-idx="' + _selection.selectedRoundId + '"]');
             if (row) row.classList.add('selected');
@@ -327,7 +288,7 @@
             return;
         }
 
-        // Hotspot: no dedicated inspector; open generic inspector
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Hotspot: no dedicated inspector; open generic inspector`
         if (_selection.selectedHotspotId) {
             var card = document.querySelector('.hot-card[data-hotspot-id="' + _selection.selectedHotspotId + '"]');
             if (card) {
@@ -349,7 +310,7 @@
     function _fireChange() {
         _applySelectionCSS();
         _renderInspector();
-        // Broadcast for other consumers
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Broadcast for other consumers`
         if (typeof window.dispatchEvent === 'function') {
             try {
                 window.dispatchEvent(new CustomEvent('selection:change', { detail: getSelection() }));
@@ -357,7 +318,7 @@
         }
     }
 
-    /** Get a snapshot of the current selection state. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Get a snapshot of the current selection state.` */
     function getSelection() {
         return {
             activeView: _selection.activeView,
@@ -368,7 +329,7 @@
         };
     }
 
-    /** Clear all selection state. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Clear all selection state.` */
     function clearSelection() {
         _selection.selectedRoundId = null;
         _selection.selectedSpanId = null;
@@ -377,13 +338,13 @@
         _fireChange();
     }
 
-    /** Select a round in the Trace view. Expands if collapsed. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Select a round in the Trace view. Expands if collapsed.` */
     function selectRound(roundId, expand) {
         _selection.selectedRoundId = String(roundId);
         _selection.selectedSpanId = null;
         _selection.selectedCallId = null;
         _selection.selectedHotspotId = null;
-        // Optionally expand the round detail
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Optionally expand the round detail`
         if (expand !== false) {
             var row = document.querySelector('.trace-row[data-round-idx="' + roundId + '"]');
             if (row && typeof window.toggleRoundDetail === 'function') {
@@ -396,7 +357,7 @@
         _fireChange();
     }
 
-    /** Select a span/tool-call node inside a trace-detail. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Select a span/tool-call node inside a trace-detail.` */
     function selectSpan(spanId) {
         _selection.selectedSpanId = String(spanId);
         _selection.selectedRoundId = null;
@@ -405,7 +366,7 @@
         _fireChange();
     }
 
-    /** Select a call in the Calls view. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Select a call in the Calls view.` */
     function selectCall(callId) {
         _selection.selectedCallId = String(callId);
         _selection.selectedRoundId = null;
@@ -414,7 +375,7 @@
         _fireChange();
     }
 
-    /** Select a hotspot card. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Select a hotspot card.` */
     function selectHotspot(hotspotId) {
         _selection.selectedHotspotId = String(hotspotId);
         _selection.selectedRoundId = null;
@@ -423,10 +384,10 @@
         _fireChange();
     }
 
-    /** Set the active workbench view and clear cross-view selection. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Set the active workbench view and clear cross-view selection.` */
     function setActiveView(viewName) {
         _selection.activeView = viewName;
-        // Clear selections that belong to other views
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Clear selections that belong to other views`
         if (viewName === 'trace') {
             _selection.selectedCallId = null;
             _selection.selectedHotspotId = null;
@@ -442,7 +403,7 @@
         _fireChange();
     }
 
-    /* ── Public API ─────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Public API ───────────────────────────────────────────` */
 
     window.ViewState = {
         getDensity: getDensity,
@@ -468,7 +429,7 @@
             updateLayoutBtns(layoutMode);
             initWorkbenchView();
         },
-        // Selection API
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Selection API`
         Selection: {
             get: getSelection,
             clear: clearSelection,

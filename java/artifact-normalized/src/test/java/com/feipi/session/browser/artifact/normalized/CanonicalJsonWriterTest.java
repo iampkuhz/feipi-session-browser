@@ -141,12 +141,12 @@ class CanonicalJsonWriterTest {
     byte[] bytes = writer.serialize(artifact);
     String json = new String(bytes, StandardCharsets.UTF_8);
 
-    // sourceFiles 为空 list，应该序列化为 []
-    assertThat(json).contains("\"sourceFiles\":[]");
+    // source.files 为空 list，应该序列化为 []
+    assertThat(json).contains("\"source\":{\"files\":[]}");
     // 调用列表为空
     assertThat(json).contains("\"calls\":[]");
-    // toolExecutions 为空 list
-    assertThat(json).contains("\"toolExecutions\":[]");
+    // tool_executions 为空 list
+    assertThat(json).contains("\"tool_executions\":[]");
     // 诊断信息列表为空
     assertThat(json).contains("\"diagnostics\":[]");
   }
@@ -196,7 +196,7 @@ class CanonicalJsonWriterTest {
   }
 
   @Test
-  @DisplayName("Optional 字段：present 序列化值，empty 序列化 null")
+  @DisplayName("Optional 字段：按 normalized v3 snake_case 序列化")
   void optionalFieldPresentAndEmpty() {
     NormalizedCall call =
         new NormalizedCall(
@@ -231,10 +231,10 @@ class CanonicalJsonWriterTest {
 
     byte[] bytes = writer.serialize(artifact);
     String json = new String(bytes, StandardCharsets.UTF_8);
-    // parentCallId 有值 → 序列化值
-    assertThat(json).contains("\"parentCallId\":\"parent-call-001\"");
-    // parentToolCallId 为空 → 序列化 null
-    assertThat(json).contains("\"parentToolCallId\":null");
+    // parent_call_id 有值 → 序列化值
+    assertThat(json).contains("\"parent_call_id\":\"parent-call-001\"");
+    // parent_tool_call_id 为空 → 序列化空字符串以保持调用契约稳定
+    assertThat(json).contains("\"parent_tool_call_id\":\"\"");
   }
 
   @Test

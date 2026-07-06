@@ -13,32 +13,27 @@
 .shell.no-inspector {
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
 }
-/* ─── Body class 切换规则（统一覆盖块） ───────────────────────
- * All body-level shell state rules are defined here in one block
- * to avoid specificity conflicts.
- * .no-inspector variants use single-column;
- * others use appropriate column count.
- */
-/* hide-left: sidebar hidden, main + inspector visible */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Body class 切换规则（统一覆盖块） ─────────────────────── * All body-level shell state rules are defined here in one block * to avoid specificity conflicts. * .no-inspector variants use single-column; * others use appropriate column count.` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`hide-left: sidebar hidden, main + inspector visible` */
 body.hide-left .shell                  {
   grid-template-columns: minmax(0, 1fr) var(--inspector);
 }
 body.hide-left .shell.no-inspector     {
   grid-template-columns: minmax(0, 1fr);
 }
-/* hide-right: sidebar + main visible, inspector hidden */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`hide-right: sidebar + main visible, inspector hidden` */
 body.hide-right .shell                 {
   grid-template-columns: var(--sidebar) minmax(0, 1fr);
 }
 body.hide-right .shell.no-inspector    {
   grid-template-columns: minmax(0, 1fr);
 }
-/* focus: only main visible */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`focus: only main visible` */
 body.focus .shell,
 body.focus .shell.no-inspector         {
   grid-template-columns: minmax(0, 1fr);
 }
-/* Hide sidebar/inspector when their columns are 0 */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Hide sidebar/inspector when their columns are 0` */
 body.hide-left .sidebar,
 body.focus .sidebar                    {
   display: none;
@@ -55,7 +50,7 @@ body.focus .inspector                  {
   min-width: 0;
   max-width: 100%;
 }
-/* ─── Session detail shell containment (moved from session-detail.css) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Session detail shell containment (moved from session-detail.css) ──` */
 .sd-shell {
   min-width: 0;
   max-width: 100%;
@@ -77,13 +72,13 @@ body.focus .inspector                  {
   display: flex;
   flex-direction: column;
 }
-/* ─── Main: grid 中间栏 ───────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Main: grid 中间栏 ─────────────────────────────────────` */
 .main {
   min-width: 0;
   display: flex;
   flex-direction: column;
 }
-/* ─── Top bar ─────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Top bar ───────────────────────────────────────────────────` */
 .topbar {
   height: var(--header-h);
   background: var(--surface);
@@ -132,7 +127,7 @@ body.focus .inspector                  {
   align-items: center;
   gap: 8px;
 }
-/* ─── Content ─────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Content ───────────────────────────────────────────────────` */
 .content {
   padding: var(--space-md) 32px;
   max-width: min(100%, var(--max));
@@ -140,7 +135,7 @@ body.focus .inspector                  {
   margin-left: auto;
   margin-right: auto;
 }
-/* ─── Topbar actions ──────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Topbar actions ────────────────────────────────────────────` */
 .topbar-action {
   width: var(--topbar-action-size);
   height: var(--topbar-action-size);
@@ -166,7 +161,7 @@ body.focus .inspector                  {
   font-size: var(--text-lg);
   line-height: 1;
 }
-/* Placeholder actions: visible but clearly not wired to real features */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Placeholder actions: visible but clearly not wired to real features` */
 .topbar-action--placeholder {
   opacity: 0.4;
   cursor: not-allowed;
@@ -178,19 +173,19 @@ body.focus .inspector                  {
 .topbar-action--placeholder:disabled {
   pointer-events: none;
 }
-/* ─── Top actions container ─── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Top actions container ───` */
 .top-actions {
   display: flex;
   align-items: center;
   gap: 6px;
   flex-shrink: 0;
 }
-/* ─ Sessions list: no-inspector main area ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─ Sessions list: no-inspector main area ──` */
 .shell.no-inspector .main {
   padding: 0;
   padding-bottom: var(--space-md);
 }
-/* ─── Footer ──────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Footer ────────────────────────────────────────────────────` */
 .footer {
   margin-top: auto;
   padding: 12px 20px;
@@ -198,7 +193,7 @@ body.focus .inspector                  {
   font-size: var(--text-micro);
   color: var(--text-muted);
 }
-/* ─── Brand card (sidebar header) ─────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Brand card (sidebar header) ───────────────────────────────` */
 .brand-card {
   display: flex;
   align-items: flex-start;
@@ -233,7 +228,7 @@ body.focus .inspector                  {
   color: var(--text-muted);
 }
 
-/* ─── Nav list ────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Nav list ──────────────────────────────────────────────────` */
 .nav-list {
   display: flex;
   flex-direction: column;
@@ -241,7 +236,7 @@ body.focus .inspector                  {
   padding: var(--space-sm) var(--space-sm);
 }
 
-/* ─── Nav item — button-style layout (canonical contract) ─────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Nav item — button-style layout (canonical contract) ───────` */
 .nav-item {
   display: flex;
   align-items: center;
@@ -272,7 +267,7 @@ body.focus .inspector                  {
 }
 
 
-/* ── Desktop: >=1400px ─────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Desktop: >=1400px ───────────────────────────────────────────` */
 @media (min-width: 1400px) {
   .main {
     padding: var(--space-lg) var(--space-xl);
@@ -282,10 +277,7 @@ body.focus .inspector                  {
   }
 }
 
-/* ── Narrow fallback: <1024px ─────────────────────────────────────
- * Keep the same navigation targets, but stack shell regions so the
- * main content is not squeezed by fixed sidebar/inspector columns.
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Narrow fallback: <1024px ───────────────────────────────────── * Keep the same navigation targets, but stack shell regions so the * main content is not squeezed by fixed sidebar/inspector columns.` */
 @media (max-width: 1023px) {
   .shell,
   .shell.no-inspector,
@@ -333,10 +325,7 @@ body.focus .inspector                  {
   }
 }
 
-/* ── Global utility: hide element ──────────────────────────────
- * Used by JS for class-based show/hide instead of inline style.display.
- * Must stay at end of shell.css to avoid being overridden by page CSS.
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Global utility: hide element ────────────────────────────── * Used by JS for class-based show/hide instead of inline style.display. * Must stay at end of shell.css to avoid being overridden by page CSS.` */
 .is-hidden {
   display: none;
 }

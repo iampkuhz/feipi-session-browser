@@ -1,4 +1,4 @@
-/* ── Tab navigation ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tab navigation ──` */
 .sd-tabs {
   display: flex;
   gap: 2px;
@@ -33,7 +33,7 @@
   font-size: 14px;
   line-height: 1;
 }
-/* ── Tab panel visibility ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tab panel visibility ──` */
 [data-tab-panel][hidden] {
   display: none;
 }
@@ -49,7 +49,7 @@
   color: var(--sd-muted);
   font-size: 13px;
 }
-/* sd-trace-head mapped to table-toolbar */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`sd-trace-head mapped to table-toolbar` */
 .sd-trace-head {
   height: 46px;
   display: flex;

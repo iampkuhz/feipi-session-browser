@@ -15,7 +15,7 @@
 (function () {
     'use strict';
 
-    /* ── State ─────────────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── State ───────────────────────────────────────────────────` */
 
     var chartTooltip = null;
 
@@ -24,7 +24,7 @@
             || document.querySelector('.chart-tooltip');
     }
 
-    /* ── Helpers ───────────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Helpers ─────────────────────────────────────────────────` */
 
     function hideFloating() {
         if (chartTooltip) {
@@ -34,7 +34,7 @@
         }
     }
 
-    /* ── Agent scope selector → URL reload ───────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent scope selector → URL reload ─────────────────────` */
 
     function handleAgentScope(scope) {
         var params = new URLSearchParams(window.location.search);
@@ -49,7 +49,7 @@
         window.location.href = url;
     }
 
-    /* ── Time grain control → URL reload ─────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Time grain control → URL reload ───────────────────────` */
 
     function handleGrain(grain) {
         var params = new URLSearchParams(window.location.search);
@@ -58,7 +58,7 @@
         window.location.href = url;
     }
 
-    /* ── Main document-level click delegation ────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Main document-level click delegation ──────────────────` */
 
     document.addEventListener('click', function (event) {
         var target = event.target;
@@ -119,12 +119,12 @@
         }
     });
 
-    /* ── Window events ───────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Window events ─────────────────────────────────────────` */
 
     window.addEventListener('resize', hideFloating);
     window.addEventListener('scroll', hideFloating, true);
 
-    /* ── Keyboard: Escape closes popovers ────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Keyboard: Escape closes popovers ──────────────────────` */
 
     document.addEventListener('keydown', function (event) {
         if (event.key === 'Escape' || event.key === 'Esc') {
@@ -132,7 +132,7 @@
         }
     });
 
-    /* ── Public API ──────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Public API ────────────────────────────────────────────` */
 
     window.DashboardPage = {
         openSettings: null,
@@ -140,16 +140,13 @@
         hideFloating: hideFloating
     };
 
-    /* ── Init ────────────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Init ──────────────────────────────────────────────────` */
 
     _cacheElements();
 })();
 
 
-/**
- * dashboard-charts.js - Chart rendering for Dashboard.
- * Business data is hydrated from Dashboard resource APIs.
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * dashboard-charts.js - Chart rendering for Dashboard. * Business data is hydrated from Dashboard resource APIs.` */
 (function() {
     'use strict';
 

@@ -1,6 +1,6 @@
-  /* ── Token tooltip dynamic positioning ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token tooltip dynamic positioning ──` */
 
-  var TOOLTIP_FLIP_THRESHOLD = 180; // px from bottom of viewport to trigger flip
+  var TOOLTIP_FLIP_THRESHOLD = 180; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`px from bottom of viewport to trigger flip`
 
   function positionTokenTooltip(tokenbar) {
     var tooltip = qs(tokenbar, '.token-tooltip');

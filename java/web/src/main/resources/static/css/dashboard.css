@@ -1,6 +1,6 @@
-/* Dashboard page styles. Shared primitives stay in ui-primitives.css. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Dashboard page styles. Shared primitives stay in ui-primitives.css.` */
 
-/* ── Page width ============================================================ */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Page width ============================================================` */
 .main[data-page="dashboard"] {
   --max: 1760px;
   --dashboard-average-color: #111827;
@@ -14,7 +14,7 @@
   }
 }
 
-/* ── Dashboard Head ====================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Dashboard Head ======================================================` */
 .dashboard-head {
   display: flex;
   align-items: flex-start;
@@ -34,7 +34,7 @@
   flex-wrap: wrap;
 }
 
-/* ── Agent Scope Selector ================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent Scope Selector =================================================` */
 .scope-selector {
   display: flex;
   align-items: center;
@@ -89,7 +89,7 @@
   color: var(--dashboard-average-color);
 }
 
-/* ── Grain Control ======================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Grain Control ========================================================` */
 .grain-control {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -119,9 +119,9 @@
   color: white;
 }
 
-/* Button styles are in ui-primitives.css */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Button styles are in ui-primitives.css` */
 
-/* ── KPI Grid ============================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── KPI Grid =============================================================` */
 .kpi-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
@@ -215,7 +215,7 @@
   background: var(--surface-hover);
 }
 
-/* ── Trend Section ======================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Trend Section ========================================================` */
 .trend-section {
   margin-bottom: 16px;
 }
@@ -255,7 +255,7 @@
   }
 }
 
-/* ── Chart Card =========================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Chart Card ===========================================================` */
 .chart-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -310,7 +310,7 @@
   white-space: nowrap;
 }
 
-/* ── Chart layout ========================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Chart layout =========================================================` */
 .chart {
   display: grid;
   grid-template-columns: minmax(44px, auto) minmax(0, 1fr);
@@ -726,7 +726,7 @@
   color: var(--green);
 }
 
-/* ── Model Mix ============================================================ */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Model Mix ============================================================` */
 .model-mix-layout {
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(0, 1.4fr);
@@ -873,12 +873,12 @@
   margin-right: 6px;
 }
 
-/* ── Cache Health Section ================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Cache Health Section =================================================` */
 .cache-health-section {
   margin-bottom: 12px;
 }
 
-/* ── Contribution (horizontal bar) charts ================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Contribution (horizontal bar) charts =================================` */
 .contribution-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -998,7 +998,7 @@
   background: var(--green);
 }
 
-/* ── Scope Summary ======================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Scope Summary ========================================================` */
 .scope-summary {
   margin-top: 12px;
   font-size: 13px;
@@ -1019,7 +1019,7 @@
   color: var(--green);
 }
 
-/* ── Agent Badge ========================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent Badge ==========================================================` */
 .agent-badge {
   display: inline-block;
   padding: 2px 8px;
@@ -1040,7 +1040,7 @@
   color: var(--agent-codex);
 }
 
-/* ── Agent row click behavior ============================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent row click behavior =============================================` */
 .agent-row {
   cursor: pointer;
 }
@@ -1057,7 +1057,7 @@
   text-decoration: underline;
 }
 
-/* ── Clickable table row ================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Clickable table row ==================================================` */
 .clickable-row {
   cursor: pointer;
 }
@@ -1065,9 +1065,9 @@
   background: var(--table-row-hover-bg);
 }
 
-/* Badge styles are in ui-primitives.css */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Badge styles are in ui-primitives.css` */
 
-/* ── Tooltip dot colors for dashboard charts ============================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tooltip dot colors for dashboard charts ==============================` */
 .tooltip-dot--fresh {
   background: var(--token-input-fresh);
 }
@@ -1084,7 +1084,7 @@
   background: var(--status-error);
 }
 
-/* ── Tooltip (dark overlay on chart bars) ================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tooltip (dark overlay on chart bars) =================================` */
 .dashboard-tooltip {
   position: absolute;
   left: 50%;
@@ -1226,7 +1226,7 @@
   transform: translateY(-100%);
 }
 
-/* ── Table styles (overrides from shared) ================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Table styles (overrides from shared) =================================` */
 .table-card {
   margin-bottom: 12px;
 }
@@ -1268,7 +1268,7 @@
   color: var(--brand);
 }
 
-/* ── KPI card row tooltips ================================================ */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── KPI card row tooltips ================================================` */
 .metric-card__tooltip-target[data-tooltip-def] {
   cursor: help;
   position: relative;
@@ -1303,7 +1303,7 @@
   box-shadow: none;
 }
 
-/* ── Sessions CTA ======================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Sessions CTA =======================================================` */
 .sessions-cta {
   display: flex;
   align-items: center;
@@ -1346,12 +1346,12 @@
   }
 }
 
-/* ── Chart empty state ================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Chart empty state ==================================================` */
 .chart-empty {
   padding: 12px;
 }
 
-/* ── Pagination (Dashboard Agent Sessions) ================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Pagination (Dashboard Agent Sessions) =================================` */
 .pagination-footer {
   display: flex;
   align-items: center;
@@ -1401,7 +1401,7 @@
   padding: 0 4px;
 }
 
-/* ── Token Cell (Dashboard Agent Sessions) ================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token Cell (Dashboard Agent Sessions) =================================` */
 .token-cell {
   position: relative;
 }
@@ -1441,7 +1441,7 @@
   background: var(--token-output-visible, #f97316);
 }
 
-/* ── Single-agent horizontal charts ======================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Single-agent horizontal charts ========================================` */
 .dashboard-horizontal-chart {
   display: grid;
   gap: 10px;

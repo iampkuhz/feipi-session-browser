@@ -76,9 +76,7 @@ public final class ProjectsApiHandler {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     String q = params.getOrDefault("q", "").trim();
     List<ActiveFilterDto> chips =
-        q.isEmpty()
-            ? List.of()
-            : List.of(new ActiveFilterDto("q", "Search", q, "/projects"));
+        q.isEmpty() ? List.of() : List.of(new ActiveFilterDto("q", "Search", q, "/projects"));
     ctx.json(
         new ActiveFiltersResponse(
             ApiResponses.SCHEMA_VERSION,

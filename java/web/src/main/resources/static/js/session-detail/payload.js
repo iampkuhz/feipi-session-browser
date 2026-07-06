@@ -1,4 +1,4 @@
-  /* ── Payload modal: single shell ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Payload modal: single shell ──` */
 
   function escapeHtml(value) {
     return String(value == null ? "" : value)
@@ -51,7 +51,7 @@
     modal.id = "payload-modal";
     modal.className = "sd-payload-modal payload-modal payload-modal--sd";
     modal.setAttribute("aria-labelledby", "sd-payload-title");
-    // Build modal structure using DOM APIs to avoid innerHTML quality gate
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Build modal structure using DOM APIs to avoid innerHTML quality gate`
     var panel = document.createElement("div");
     panel.className = "sd-modal-panel payload-modal__panel";
     var head = document.createElement("div");
@@ -111,7 +111,7 @@
           : source.innerHTML;
         setHtml(body, htmlContent);
       } else if (payloadId && window.fetch) {
-        // No template found (slim mode) — fetch from payload API
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`No template found (slim mode) — fetch from payload API`
         setHtml(body, '<div class="sd-payload-loading"><p>Loading payload...</p></div>');
         var apiBase = getApiBase();
         var fetchUrl = apiBase.replace(/\/$/, '') + '/payload/' + encodeURIComponent(payloadId);
@@ -139,8 +139,8 @@
   }
 
   function openPayload(button) {
-    // Attribution buttons should open the analysis modal directly; only
-    // ordinary payload buttons fall back to raw request/response/result data.
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Attribution buttons should open the analysis modal directly; only`
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`ordinary payload buttons fall back to raw request/response/result data.`
     if (typeof openAttributionModal === "function") {
       openAttributionModal(button).then(function(handled) {
         if (!handled) openPayloadContent(button);

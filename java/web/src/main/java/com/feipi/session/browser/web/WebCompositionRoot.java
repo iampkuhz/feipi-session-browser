@@ -216,7 +216,8 @@ public final class WebCompositionRoot {
     ProjectsApiHandler projectsApiHandler = new ProjectsApiHandler(queryRoot);
     javalinConfig.routes.get("/api/projects/summary", projectsApiHandler::handleSummary);
     javalinConfig.routes.get("/api/projects/rows", projectsApiHandler::handleRows);
-    javalinConfig.routes.get("/api/projects/active-filters", projectsApiHandler::handleActiveFilters);
+    javalinConfig.routes.get(
+        "/api/projects/active-filters", projectsApiHandler::handleActiveFilters);
     ProjectDetailApiHandler projectDetailApiHandler = new ProjectDetailApiHandler(queryRoot);
     javalinConfig.routes.get(
         "/api/projects/{projectKey}/summary", projectDetailApiHandler::handleSummary);

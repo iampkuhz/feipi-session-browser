@@ -17,9 +17,7 @@
 
   var DataTable = {};
 
-  /* ──────────────────────────────────────────────
-     排序
-     ────────────────────────────────────────────── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`────────────────────────────────────────────── 排序 ──────────────────────────────────────────────` */
   DataTable.sort = function (table, colIndex, direction) {
     var tbody = table.querySelector('tbody');
     if (!tbody) return;
@@ -66,9 +64,7 @@
     }
   };
 
-  /* ──────────────────────────────────────────────
-     选中
-     ────────────────────────────────────────────── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`────────────────────────────────────────────── 选中 ──────────────────────────────────────────────` */
   DataTable.getSelectedRows = function (table) {
     return Array.prototype.slice.call(table.querySelectorAll('tbody tr.selected'));
   };
@@ -114,7 +110,9 @@
     if (currentPage < 1) currentPage = 1;
     if (currentPage > totalPages) currentPage = totalPages;
 
-    container.innerHTML = '';
+    while (container.firstChild) {
+      container.removeChild(container.firstChild);
+    }
     container.className = 'pagination unified-pagination';
     container.setAttribute('role', 'navigation');
     container.setAttribute('aria-label', 'Pagination');
@@ -158,7 +156,7 @@
     statusText.textContent = 'of ' + totalPages + ' · ' + start + '–' + end + ' of ' + totalRows;
     container.appendChild(statusText);
 
-    // spacer
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`spacer`
     var spacer = document.createElement('span');
     spacer.className = 'spacer';
     container.appendChild(spacer);
@@ -193,9 +191,7 @@
     return visibleCount;
   };
 
-  /* ──────────────────────────────────────────────
-     初始化
-     ────────────────────────────────────────────── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`────────────────────────────────────────────── 初始化 ──────────────────────────────────────────────` */
   DataTable.init = function (selector, opts) {
     opts = opts || {};
     var tables;
@@ -243,7 +239,7 @@
      内部工具函数
      ────────────────────────────────────────────── */
   function _getColIndex(th) {
-    // th.cellIndex gives column index
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`th.cellIndex gives column index`
     return th.cellIndex;
   }
 
@@ -256,7 +252,7 @@
   function _getCellText(row, colIndex, type) {
     var cell = row.querySelector('td:nth-child(' + (colIndex + 1) + ')');
     if (!cell) return '';
-    // Prefer data-sort-value if present (avoids parsing formatted display text)
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Prefer data-sort-value if present (avoids parsing formatted display text)`
     var sortValue = cell.getAttribute('data-sort-value');
     if (sortValue !== null) {
       var num = parseFloat(sortValue);
@@ -264,7 +260,7 @@
     }
     var raw = (cell.textContent || '').trim();
     if (type === 'numeric') {
-      // Handle K/M/B suffixes: "1.2M" → 1200000
+      // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Handle K/M/B suffixes: "1.2M" → 1200000`
       var suffixMatch = raw.match(/^([+-]?\d+\.?\d*)\s*([kKmMbB])?$/);
       if (suffixMatch) {
         var val = parseFloat(suffixMatch[1]);

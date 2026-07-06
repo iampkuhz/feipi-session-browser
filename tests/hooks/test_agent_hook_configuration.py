@@ -40,7 +40,7 @@ def test_codex_project_hook_matrix_is_complete():
     assert commands == {
         ('PreToolUse', 'Bash'): ['.codex/hooks/pre_tool_guard.sh'],
         ('PostToolUse', 'Bash'): ['.codex/hooks/post_bash_guard.sh'],
-        ('PostToolUse', 'Write|Edit|MultiEdit'): ['.codex/hooks/post_tool_guard.sh'],
+        ('PostToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): ['.codex/hooks/post_tool_guard.sh'],
         ('Stop', ''): ['.codex/hooks/stop_check.sh'],
     }
 

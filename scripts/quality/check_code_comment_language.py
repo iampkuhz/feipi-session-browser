@@ -297,6 +297,26 @@ def _script_comment_from_line(path: Path, line_no: int, raw: str) -> Comment | N
     return Comment(str(path), line_no, 'script-line', text)
 
 
+# 提取 HTML/Jinja 模板注释。
+def extract_template_comments(path: Path) -> list[Comment]:
+    """参数：
+        path: 待检查的模板路径。
+
+    返回：
+        模板注释列表。
+    """
+    text = path.read_text(encoding='utf-8')
+    comments: list[Comment] = []
+    for pattern, kind in ((r'<!--(.*?)-->', 'html-comment'), (r'\{#(.*?)#\}', 'jinja-comment')):
+        for match in re.finditer(pattern, text, re.DOTALL):
+            body = match.group(1).strip()
+            if not body:
+                continue
+            line_no = text.count('\n', 0, match.start()) + 1
+            comments.append(Comment(str(path), line_no, kind, body))
+    return comments
+
+
 # 查找函数定义前最近的叙述性注释。
 def _previous_narrative_comment(path: Path, lines: list[str], index: int) -> Comment | None:
     """参数：
@@ -685,14 +705,22 @@ def discover(values: list[str], *, script_comments: bool = False) -> list[Path]:
     返回：
         结果列表。
     """
-    suffixes = {'.py', '.sh'} if script_comments else {'.java', '.kt', '.kts'}
+    suffixes = (
+        {'.py', '.sh', '.js', '.css', '.html'}
+        if script_comments
+        else {'.java', '.kt', '.kts'}
+    )
     result: set[Path] = set()
     for raw in values:
         p = Path(raw)
         if p.is_file() and p.suffix in suffixes:
             result.add(p)
         elif p.is_dir():
-            patterns = ('*.py', '*.sh') if script_comments else ('*.java', '*.kt', '*.kts')
+            patterns = (
+                ('*.py', '*.sh', '*.js', '*.css', '*.html')
+                if script_comments
+                else ('*.java', '*.kt', '*.kts')
+            )
             for ext in patterns:
                 result.update(x for x in p.rglob(ext) if not (set(x.parts) & EXCLUDED_PARTS))
     return sorted(result, key=lambda x: x.as_posix())
@@ -833,10 +861,15 @@ def main() -> int:
         if old and old.get('sha256') == digest:
             return str(path), digest, [Violation(**x) for x in old.get('violations', [])]
         violations: list[Violation] = []
-        comments = extract_script_comments(path) if a.script_comments else extract(path)
+        if a.script_comments and path.suffix in {'.py', '.sh'}:
+            comments = extract_script_comments(path)
+        elif a.script_comments and path.suffix == '.html':
+            comments = extract_template_comments(path)
+        else:
+            comments = extract(path)
         for c in comments:
             violations.extend(check(c, terms, forbidden))
-        if a.script_comments:
+        if a.script_comments and path.suffix in {'.py', '.sh'}:
             violations.extend(check_function_comments(path, terms, forbidden))
         return str(path), digest, violations
 

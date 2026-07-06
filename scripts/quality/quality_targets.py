@@ -55,6 +55,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     'session-detail': [
         'pythonCompile',
         'noTestSkips',
+        'scriptCommentLanguage',
         'templateContract',
         'staticCssContract',
         'cssOwnership',
@@ -81,6 +82,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     ],
     'scan-script-smoke': [
         'scanScriptSmoke',
+        'sessionSamples',
     ],
 }
 
@@ -174,8 +176,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'scriptCommentLanguage': [
             '.claude/hooks/**/*.sh',
             '.codex/hooks/**/*.sh',
+            '.qoder/hooks/**/*.sh',
             'scripts/**/*.py',
             'scripts/**/*.sh',
+            'java/web/src/main/resources/static/**/*.js',
+            'java/web/src/main/resources/static/**/*.css',
+            'java/web/src/main/resources/templates/**/*.html',
         ],
         'pythonCompile': [
             'scripts/claude_hooks/**/*.py',
@@ -278,8 +284,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'scriptCommentLanguage': [
             '.claude/hooks/**/*.sh',
             '.codex/hooks/**/*.sh',
+            '.qoder/hooks/**/*.sh',
             'scripts/**/*.py',
             'scripts/**/*.sh',
+            'java/web/src/main/resources/static/**/*.js',
+            'java/web/src/main/resources/static/**/*.css',
+            'java/web/src/main/resources/templates/**/*.html',
         ],
         'pythonCompile': [
             'scripts/harness/**/*.py',
@@ -363,6 +373,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
     'session-detail': {
+        'scriptCommentLanguage': [
+            'java/web/src/main/resources/static/**/*.js',
+            'java/web/src/main/resources/static/**/*.css',
+            'java/web/src/main/resources/templates/**/*.html',
+            'scripts/quality/check_code_comment_language.py',
+            'config/technical-terms.json',
+        ],
         'pythonCompile': [
             'scripts/quality/check_session_detail_*.py',
             'scripts/quality/run_session_detail_*.py',
@@ -466,6 +483,16 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'java/index-sqlite/**',
             'scripts/quality/**',
             'tests/script_commands/**',
+        ],
+        'sessionSamples': [
+            'docs/session-samples/**',
+            'java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**',
+            'java/source-claude/**',
+            'java/source-codex/**',
+            'java/source-qoder/**',
+            'java/normalization-engine/**',
+            'java/artifact-normalized/**',
+            'java/contract-tests/src/test/java/com/feipi/session/browser/contracttest/sample/**',
         ],
     },
 }

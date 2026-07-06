@@ -1,4 +1,4 @@
-  /* ── Lazy load round detail from API ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Lazy load round detail from API ──` */
 
   function getApiBase() {
     var meta = document.querySelector('meta[name="payload-api-base"]');
@@ -12,7 +12,7 @@
     if (!apiBase) return null;
     var url = apiBase.replace(/\/$/, '') + '/round/' + encodeURIComponent(roundId);
 
-    // Insert loading indicator using DOM APIs
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Insert loading indicator using DOM APIs`
     var loadingRow = document.createElement('tr');
     loadingRow.className = 'sd-round-detail-loading';
     loadingRow.setAttribute('data-loading-for', roundId);
@@ -38,10 +38,10 @@
         return resp.json();
       })
       .then(function (data) {
-        // Remove loading row
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Remove loading row`
         if (loadingRow && loadingRow.parentNode) loadingRow.parentNode.removeChild(loadingRow);
 
-        // Inject the expanded row HTML after the summary row
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Inject the expanded row HTML after the summary row`
         var detailRow = document.createElement('tr');
         detailRow.className = 'expanded-row';
         detailRow.id = 'round-' + roundId + '-detail';
@@ -58,10 +58,10 @@
           if (typeof syncSubagentToggle === 'function') syncSubagentToggle(block);
         });
 
-        // Mark as loaded
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Mark as loaded`
         row.setAttribute('data-detail-loaded', 'true');
 
-        // Inject payload sources as <template> elements if present
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Inject payload sources as <template> elements if present`
         if (data.payload_sources && data.payload_sources.length > 0) {
           injectPayloadSources(data.payload_sources);
         }
@@ -76,7 +76,7 @@
           } else {
             msg = 'Failed to load round detail';
           }
-          // Replace loading row content with error state using DOM APIs
+          // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Replace loading row content with error state using DOM APIs`
           while (loadingRow.firstChild) loadingRow.removeChild(loadingRow.firstChild);
           var tdError = document.createElement('td');
           tdError.setAttribute('colspan', '6');

@@ -18,7 +18,15 @@ if str(HELPER_DIR) not in sys.path:
 from _api_first_checklib import CSS, JS, TEMPLATES, has_all, has_none, read, run  # noqa: E402
 
 
+# 加载待检查的 HTML 内容。
 def load_html(html_path: str | None, url: str | None) -> tuple[str, str]:
+    """参数：
+        html_path: 本地 HTML 文件路径。
+        url: 待请求的页面 URL。
+
+    返回：
+        HTML 内容和来源描述。
+    """
     if url:
         try:
             req = urllib.request.Request(url, headers={'User-Agent': 'layout-quality-check/3.0'})
@@ -33,13 +41,24 @@ def load_html(html_path: str | None, url: str | None) -> tuple[str, str]:
     return read(path), f'default:{path.relative_to(REPO_ROOT)}'
 
 
+# 检查 HTML 内联宽度是否存在明显异常。
 def no_wide_inline_styles(html: str) -> tuple[bool, str]:
+    """参数：
+        html: 待检查的 HTML 内容。
+
+    返回：
+        检查是否通过和说明文本。
+    """
     widths = [int(value) for value in re.findall(r'(?:min-)?width\s*:\s*(\d+)px', html)]
     bad = [value for value in widths if value > 2000]
     return not bad, 'clean' if not bad else f'wide inline widths: {bad[:5]}'
 
 
+# 运行 Session Detail 布局质量检查。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     parser = argparse.ArgumentParser(description='Session Detail API-first layout quality smoke')
     parser.add_argument('--url')
     parser.add_argument('--html')

@@ -1,10 +1,10 @@
-  /* ── Event delegation (single listener) ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Event delegation (single listener) ──` */
 
   document.addEventListener('click', function (event) {
     var actionEl = closest(event.target, '[data-action]');
     var page = closest(actionEl, '[data-trace-page]') || document;
 
-    // ── Bucket toggle handler ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Bucket toggle handler ──`
     var toggleEl = closest(event.target, '[data-bucket-toggle]');
     if (toggleEl) {
       event.preventDefault();
@@ -15,7 +15,7 @@
         if (body) {
           var isExpanded = body.hasAttribute('hidden');
           if (isExpanded) {
-            // Check if this bucket needs dynamic loading
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Check if this bucket needs dynamic loading`
             var modal = document.getElementById("sd-payload-modal") || document.getElementById("payload-modal");
             var roundIdx = modal ? modal.getAttribute("data-bucket-detail-round") : "";
             var bucketLabel = card.getAttribute("data-bucket-label") || "";
@@ -37,14 +37,14 @@
       return;
     }
 
-    // ── Bucket dynamic content fetch trigger (template-rendered) ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Bucket dynamic content fetch trigger (template-rendered) ──`
     var fetchTrigger = closest(event.target, '[data-bucket-dynamic-load]');
     if (fetchTrigger && fetchTrigger.getAttribute("data-loaded") !== "1") {
       event.preventDefault();
       event.stopPropagation();
       var card = closest(fetchTrigger, '.sd-attribution-bucket-card');
       var bucketKey = card ? (card.getAttribute("data-bucket-key") || "") : "";
-      // Fallback to bucket label if key not available
+      // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Fallback to bucket label if key not available`
       if (!bucketKey) {
         var bucketLabel = card ? (card.getAttribute("data-bucket-label") || "") : "";
         if (bucketLabel.indexOf("当前用户输入") >= 0) bucketKey = "current_user_message";
@@ -55,13 +55,13 @@
       var pageSource = modal ? modal.getAttribute("data-bucket-detail-source") : "";
 
       if (!pageSource) {
-        // Fallback: try to extract from page meta
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Fallback: try to extract from page meta`
         var metaSource = document.querySelector('meta[name="session-source"]');
         pageSource = metaSource ? metaSource.getAttribute("content") : "";
       }
 
       if (roundIdx && bucketKey && pageSource) {
-        // Show loading on the trigger itself
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Show loading on the trigger itself`
         fetchTrigger.textContent = '';
         var loadingSpan = document.createElement('span');
         loadingSpan.className = 'sd-bucket-detail-loading';
@@ -72,7 +72,7 @@
         var apiUrl = "/api/sessions/" + encodeURIComponent(pageSource) + "/" +
           encodeURIComponent(_getPageSourceAndSessionId().sessionId || "") + "/bucket-detail/" + roundIdx + "/" + bucketKey;
 
-        // If sessionId not from modal, try to get from page
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`If sessionId not from modal, try to get from page`
         var sid = _getPageSourceAndSessionId().sessionId;
         if (!sid) {
           var metaSid = document.querySelector('meta[name="session-id"]');
@@ -106,7 +106,7 @@
       return;
     }
 
-    // ── Bucket leaf full-content toggle handler ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Bucket leaf full-content toggle handler ──`
     var bucketLeafToggleEl = closest(event.target, '[data-bucket-leaf-toggle]');
     if (bucketLeafToggleEl) {
       event.preventDefault();
@@ -124,7 +124,7 @@
       return;
     }
 
-    // ── Tool detail toggle handler ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Tool detail toggle handler ──`
     var toolToggleEl = closest(event.target, '[data-tool-detail-toggle]');
     if (toolToggleEl) {
       event.preventDefault();
@@ -147,7 +147,7 @@
       return;
     }
 
-    // ── KV value click-to-copy handler (non-blocking, text still selectable) ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── KV value click-to-copy handler (non-blocking, text still selectable) ──`
     var kvValueEl = closest(event.target, '.sd-attribution-topcard .sd-kv > span:last-child, .sd-attribution-rail__card .sd-kv > span:last-child');
     if (kvValueEl && kvValueEl.textContent && kvValueEl.textContent !== "—" && kvValueEl.textContent !== "" && navigator.clipboard && navigator.clipboard.writeText) {
       var fullText = kvValueEl.getAttribute('title') || kvValueEl.textContent;
@@ -158,7 +158,7 @@
       }).catch(function() {});
     }
 
-    // Subround summary row click toggles the single subround unless a child action handles it.
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Subround summary row click toggles the single subround unless a child action handles it.`
     var subRoundToggleEl = closest(event.target, '[data-sub-round-toggle]');
     if (subRoundToggleEl && !actionEl) {
       event.preventDefault();
@@ -167,7 +167,7 @@
       return;
     }
 
-    // Handle data-action elements
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Handle data-action elements`
     if (actionEl) {
       var action = actionEl.getAttribute('data-action');
 
@@ -237,7 +237,7 @@
           var retryRow = qs(document, '[data-trace-round-row][data-round="' + retryRoundId + '"]');
           if (retryRow) {
             retryRow.removeAttribute('data-detail-loaded');
-            // Remove any existing loading/error rows for this round
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Remove any existing loading/error rows for this round`
             var loadingRows = qsa(document, '[data-loading-for="' + retryRoundId + '"]');
             loadingRows.forEach(function (lr) { if (lr.parentNode) lr.parentNode.removeChild(lr); });
             var detailRow = document.getElementById('round-' + retryRoundId + '-detail');
@@ -249,8 +249,8 @@
       return;
     }
 
-    // Tab click fallback: delegate on [data-tab] even without [data-action].
-    // This ensures tab switching works regardless of how tabs are authored.
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Tab click fallback: delegate on [data-tab] even without [data-action].`
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`This ensures tab switching works regardless of how tabs are authored.`
     var tabEl = closest(event.target, '[data-tab]');
     if (tabEl) {
       var tabName = tabEl.getAttribute('data-tab');
@@ -262,7 +262,7 @@
       }
     }
 
-    // Row click: toggle round detail when clicking anywhere on the row
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Row click: toggle round detail when clicking anywhere on the row`
     var roundRow = closest(event.target, '[data-trace-round-row]');
     if (roundRow) {
       event.preventDefault();

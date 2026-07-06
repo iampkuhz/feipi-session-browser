@@ -257,7 +257,7 @@
   background: #fffbeb;
   color: var(--sd-warn);
 }
-/* ── Issue strip all-ok state ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Issue strip all-ok state ──` */
 .sd-issue-strip--ok .sd-issue-title {
   background: #f0fdf4;
   color: var(--sd-ok, #16a34a);
@@ -276,7 +276,7 @@
   align-items: center;
   white-space: nowrap;
 }
-/* ── Hero URL line with copy button ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Hero URL line with copy button ──` */
 .sd-hero-url {
   display: flex;
   align-items: center;
@@ -326,7 +326,7 @@
   background: var(--sd-panel);
   border-color: var(--sd-line);
 }
-/* ── Summary strip ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Summary strip ──` */
 .sd-summary-strip {
   display: flex;
   gap: 16px;

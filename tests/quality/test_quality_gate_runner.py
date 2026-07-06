@@ -772,7 +772,7 @@ class TestJavaRecordComponentJavadocsGateCommand:
 
 
 class TestScriptCommentLanguageGateCommand:
-    """scriptCommentLanguage gate 必须覆盖 hook/harness 脚本注释。"""
+    """scriptCommentLanguage gate 必须覆盖 hook/harness 和前端资源注释。"""
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_hook_runtime_includes_script_comment_language(self):
@@ -788,7 +788,7 @@ class TestScriptCommentLanguageGateCommand:
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_gate_command_scans_script_and_hook_roots(self, tmp_path: Path):
-        """gate 命令必须全量扫描 scripts 与 Claude/Codex hook 入口。"""
+        """gate 命令必须全量扫描 scripts、hook 入口与前端资源。"""
         checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# checker\n', encoding='utf-8')
@@ -804,9 +804,42 @@ class TestScriptCommentLanguageGateCommand:
         assert 'scripts' in cmd
         assert '.claude/hooks' in cmd
         assert '.codex/hooks' in cmd
+        assert '.qoder/hooks' in cmd
+        assert 'java/web/src/main/resources/static' in cmd
+        assert 'java/web/src/main/resources/templates' in cmd
         assert '--changed-files-env' not in cmd
         assert 'QUALITY_CHANGED_FILES' not in cmd
         assert '--policy' in cmd
+
+
+class TestSessionSamplesGateCommand:
+    """session samples gate 必须接入 scan-script-smoke target。"""
+
+    @pytest.mark.contract_case('SESSION-SAMPLES-001')
+    def test_scan_script_smoke_includes_session_samples(self):
+        """scan-script-smoke target 必须运行样例集成测试 gate。"""
+        gates = required_gates_for_target('scan-script-smoke')
+        assert 'sessionSamples' in gates
+
+    @pytest.mark.contract_case('SESSION-SAMPLES-001')
+    def test_session_samples_uses_gradlew_task(self, tmp_path: Path):
+        """sessionSamples gate 必须通过独立 Gradle task 执行。"""
+        gradlew = tmp_path / 'gradlew'
+        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('sessionSamples', tmp_path, 'scan-script-smoke')
+
+        assert cmd == [str(gradlew), ':java:contract-tests:sampleIntegrationTest', '--no-daemon']
+
+    @pytest.mark.contract_case('SESSION-SAMPLES-001')
+    def test_session_sample_docs_trigger_scan_target(self):
+        """docs/session-samples 变更必须触发 scan-script-smoke。"""
+        from scripts.claude_hooks.classify import required_quality_targets
+
+        targets = required_quality_targets(
+            ['docs/session-samples/codex/demo/expected.normalized.jsonc']
+        )
+        assert 'scan-script-smoke' in targets
 
 
 class TestReportHashInSummary:

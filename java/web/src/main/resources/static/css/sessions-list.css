@@ -1,7 +1,4 @@
-/* ───────────────────────────────────────────────────────────────
-* Sessions List — page-scoped component CSS
-* Scope: only `.sessions-page` descendants. Do not style session detail here.
-* ─────────────────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─────────────────────────────────────────────────────────────── * Sessions List — page-scoped component CSS * Scope: only '.sessions-page' descendants. Do not style session detail here. * ───────────────────────────────────────────────────────────────` */
 .sessions-page {
   --sessions-line: var(--border, #d9e2ef);
   --sessions-line-soft: var(--border-light, #e8eef6);
@@ -450,7 +447,7 @@
   border-radius: 999px;
   overflow: hidden;
   display: flex;
-  /* background/color handled by ui-primitives .tokenbar */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`background/color handled by ui-primitives .tokenbar` */
   border: 1px solid var(--sessions-line-soft);
 }
 
@@ -459,7 +456,7 @@
   display: block;
 }
 
-/* Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-* */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-*` */
 
 .sessions-page .sessions-table-footer {
   height: 42px;
@@ -503,7 +500,7 @@
   cursor: pointer;
 }
 
-/* ── Empty State ──────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Empty State ────────────────────────────────────────────────` */
 .sessions-page .empty-state {
   display: flex;
   align-items: center;
@@ -517,7 +514,7 @@
   grid-column: 1 / -1;
 }
 
-/* ── Pagination Nav Buttons (in footer) ───────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Pagination Nav Buttons (in footer) ─────────────────────────` */
 .sessions-page .sessions-table-footer .ui-btn {
   height: 28px;
   display: inline-flex;
@@ -533,7 +530,7 @@
   cursor: default;
 }
 
-/* ── Title Link ───────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Title Link ─────────────────────────────────────────────────` */
 .sessions-page .sessions-title a {
   color: var(--sessions-text);
   text-decoration: none;
@@ -544,7 +541,7 @@
   text-decoration: underline;
 }
 
-/* ── Project Link (link-muted) ────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project Link (link-muted) ──────────────────────────────────` */
 .sessions-page .link-muted {
   color: var(--sessions-text-2);
   text-decoration: none;
@@ -555,13 +552,13 @@
   text-decoration: underline;
 }
 
-/* ── Branch Text ──────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Branch Text ────────────────────────────────────────────────` */
 .sessions-page .session-branch {
   color: var(--sessions-text-3);
   font-size: 11px;
 }
 
-/* ── Active Filters Chip Spacing ──────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Active Filters Chip Spacing ────────────────────────────────` */
 .sessions-page .sessions-active-filters .ui-filter-chip,
 .sessions-page .card.filter-card .filter-chip {
   margin-left: 4px;
@@ -573,17 +570,8 @@
   font-size: 13px;
 }
 
-/* ── Data Table Structure (HIFI canonical, migrated from inline style block) ── */
-/*
-* Column width system: unit = 50px, min 2x, max 10x.
-* Total = 35x = 1750px;
-table-layout:fixed scales proportionally
-* when container is narrower.
-*
-* Session(10x) Project(4x) Agent(2x) Model(3x) Tokens(3x)
-* Rounds(2x) Tools(2x) Subagents(2x) Duration(3x)
-* Process Time(3x) Failure(3x) Created(3x) Updated(3x)
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Data Table Structure (HIFI canonical, migrated from inline style block) ──` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Column width system: unit = 50px, min 2x, max 10x. * Total = 35x = 1750px; table-layout:fixed scales proportionally * when container is narrower. * * Session(10x) Project(4x) Agent(2x) Model(3x) Tokens(3x) * Rounds(2x) Tools(2x) Subagents(2x) Duration(3x) * Process Time(3x) Failure(3x) Created(3x)` */
 .sessions-page .table-wrap {
   min-width: 100%;
   max-width: 1900px;
@@ -598,7 +586,7 @@ table-layout:fixed scales proportionally
   table-layout: fixed;
 }
 
-/* per-column widths applied to both th and td */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`per-column widths applied to both th and td` */
 .sessions-page .data-table .col-session {
   width: 500px;
 }
@@ -811,7 +799,7 @@ table-layout:fixed scales proportionally
   border-radius: 999px;
   overflow: hidden;
   display: flex;
-  /* background/color handled by ui-primitives .tokenbar */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`background/color handled by ui-primitives .tokenbar` */
   border: 1px solid var(--sessions-line-soft);
 }
 
@@ -820,7 +808,7 @@ table-layout:fixed scales proportionally
   display: block;
 }
 
-/* Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-* */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Token bar segment colors: handled by ui-primitives .tokenbar-seg.* / .t-*` */
 
 .sessions-page .data-table td.muted {
   color: var(--sessions-text-3);
@@ -879,13 +867,7 @@ table-layout:fixed scales proportionally
   white-space: nowrap;
 }
 
-/* ── Apply Button Dirty State ─────────────────────────────────────
-* When the filter form has no unapplied changes (is-muted),
-* the Apply button appears visually subdued.
-* When the form is dirty (is-dirty), the button shows as active/primary.
-* This gives users clear visual feedback that their filter changes
-* are ready to be applied.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Apply Button Dirty State ───────────────────────────────────── * When the filter form has no unapplied changes (is-muted), * the Apply button appears visually subdued. * When the form is dirty (is-dirty), the button shows as active/primary. * This gives users clear visual feedback that their filt` */
 .sessions-page .card.filter-card .btn[data-action="apply"] {
   transition: opacity 0.15s ease, filter 0.15s ease;
   font-weight: 850;
@@ -902,7 +884,7 @@ table-layout:fixed scales proportionally
   filter: brightness(1.05);
 }
 
-/* Muted state: form values match initial snapshot — no changes to apply */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Muted state: form values match initial snapshot — no changes to apply` */
 .sessions-page .card.filter-card .btn[data-action="apply"].is-muted {
   opacity: 0.5;
   filter: saturate(0.4) brightness(0.95);
@@ -914,7 +896,7 @@ table-layout:fixed scales proportionally
   opacity: 0.6;
 }
 
-/* Dirty state: form values differ from initial — changes ready to apply */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Dirty state: form values differ from initial — changes ready to apply` */
 .sessions-page .card.filter-card .btn[data-action="apply"].is-dirty {
   opacity: 1;
   filter: none;
@@ -925,10 +907,7 @@ table-layout:fixed scales proportionally
   filter: brightness(1.02);
 }
 
-/* ── Token tooltip dynamic flip (T085) ──
-   Base positioning comes from ui-primitives.css (.token-tooltip).
-   This adds the flip class so tooltip appears above the bar when
-   viewport space below is limited (e.g. bottom rows in table). */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token tooltip dynamic flip (T085) ── Base positioning comes from ui-primitives.css (.token-tooltip). This adds the flip class so tooltip appears above the bar when viewport space below is limited (e.g. bottom rows in table).` */
 
 @media (max-width: 899px) {
   .sessions-page .card.filter-card .filter-row {

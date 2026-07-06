@@ -23,6 +23,7 @@ import java.util.Optional;
  * @param toolUseId 工具结果引用的工具调用标识，缺失时为空
  * @param toolName 独立工具调用记录的工具名称，缺失时为空
  * @param toolError 工具结果中的错误信息，非空表示工具执行失败；缺失时为空
+ * @param relation 该记录携带的父子关系证据，缺失时为空关系
  */
 @DomainModel
 public record SourceRecord(
@@ -37,7 +38,42 @@ public record SourceRecord(
     List<SourceToolCall> toolCalls,
     Optional<String> toolUseId,
     Optional<String> toolName,
-    Optional<String> toolError) {
+    Optional<String> toolError,
+    SourceRecordRelation relation) {
+
+  /**
+   * 兼容旧调用点的构造器。
+   *
+   * <p>未显式传入关系时使用空关系。
+   */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        SourceRecordRelation.empty());
+  }
 
   /** 校验并防御性复制源记录字段。 */
   public SourceRecord {
@@ -52,6 +88,7 @@ public record SourceRecord(
     Objects.requireNonNull(toolUseId, "toolUseId 不得为 null");
     Objects.requireNonNull(toolName, "toolName 不得为 null");
     Objects.requireNonNull(toolError, "toolError 不得为 null");
+    Objects.requireNonNull(relation, "relation 不得为 null");
     if (locator.isBlank()) {
       throw new IllegalArgumentException("locator 不得为空");
     }

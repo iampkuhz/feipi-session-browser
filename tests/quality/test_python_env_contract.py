@@ -12,6 +12,7 @@ def _write_project(root: Path, *, dev_extra: str = '') -> None:
         '\n'.join(
             [
                 '[project]',
+                'requires-python = ">=3.12,<3.13"',
                 'dependencies = ["jinja2", "markdown-it-py"]',
                 '',
                 '[project.optional-dependencies]',
@@ -34,6 +35,10 @@ def _write_project(root: Path, *, dev_extra: str = '') -> None:
         'jinja2==3.1.6\nmarkdown-it-py==4.0.0\npytest==9.0.3\npytest-xdist==3.8.0\nplaywright==1.59.0\n',
         encoding='utf-8',
     )
+    (root / 'uv.lock').write_text(
+        'version = 1\nrequires-python = ">=3.12,<3.13"\n', encoding='utf-8'
+    )
+    (root / '.python-version').write_text('3.12.11\n', encoding='utf-8')
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
@@ -86,6 +91,16 @@ def test_lock_check_rejects_unpinned_lock_entries(tmp_path: Path):
 
     problems = python_env.check_locks(tmp_path)
     assert any('requirements-dev.lock 未固定版本' in problem for problem in problems)
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_lock_check_requires_python_312_contract(tmp_path: Path):
+    _write_project(tmp_path)
+    (tmp_path / '.python-version').write_text('3.13.0\n', encoding='utf-8')
+
+    problems = python_env.check_locks(tmp_path)
+
+    assert any('.python-version 必须锁定到 Python 3.12 patch' in problem for problem in problems)
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')

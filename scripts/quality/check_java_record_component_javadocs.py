@@ -88,6 +88,7 @@ class Violation:
     message: str
 
 
+# 执行源码解析辅助逻辑。
 def _line(text: str, pos: int) -> int:
     """参数：
         text: 源码文本。
@@ -99,6 +100,7 @@ def _line(text: str, pos: int) -> int:
     return text.count('\n', 0, pos) + 1
 
 
+# 执行源码解析辅助逻辑。
 def mask_source(text: str) -> tuple[str, list[JavadocBlock]]:
     """参数：
         text: Java 源码文本。
@@ -157,6 +159,7 @@ def mask_source(text: str) -> tuple[str, list[JavadocBlock]]:
     return ''.join(chars), javadocs
 
 
+# 执行源码解析辅助逻辑。
 def _mask(chars: list[str], start: int, end: int) -> None:
     """参数：
         chars: 可变字符列表。
@@ -168,6 +171,7 @@ def _mask(chars: list[str], start: int, end: int) -> None:
             chars[index] = ' '
 
 
+# 执行源码解析辅助逻辑。
 def _skip_space(text: str, pos: int) -> int:
     """参数：
         text: 源码文本。
@@ -181,6 +185,7 @@ def _skip_space(text: str, pos: int) -> int:
     return pos
 
 
+# 执行源码解析辅助逻辑。
 def _find_matching(text: str, open_index: int, open_char: str, close_char: str) -> int:
     """参数：
         text: 已掩码源码文本。
@@ -203,6 +208,7 @@ def _find_matching(text: str, open_index: int, open_char: str, close_char: str) 
     return -1
 
 
+# 执行源码解析辅助逻辑。
 def _skip_type_params(masked: str, pos: int) -> int:
     """参数：
         masked: 已掩码源码文本。
@@ -219,6 +225,7 @@ def _skip_type_params(masked: str, pos: int) -> int:
     return pos
 
 
+# 执行源码解析辅助逻辑。
 def split_components(masked_components: str, base_offset: int, original: str) -> list[tuple[str, int]]:
     """参数：
         masked_components: record header 中 component 原文对应的掩码文本。
@@ -259,6 +266,7 @@ def split_components(masked_components: str, base_offset: int, original: str) ->
     return result
 
 
+# 执行源码解析辅助逻辑。
 def _component_name(component: str) -> str | None:
     """参数：
         component: 单个 record component 声明片段。
@@ -272,6 +280,7 @@ def _component_name(component: str) -> str | None:
     return names[-1]
 
 
+# 执行源码解析辅助逻辑。
 def extract_records(text: str) -> tuple[str, list[JavadocBlock], list[RecordDecl]]:
     """参数：
         text: Java 源码文本。
@@ -306,6 +315,7 @@ def extract_records(text: str) -> tuple[str, list[JavadocBlock], list[RecordDecl
     return masked, javadocs, records
 
 
+# 执行源码解析辅助逻辑。
 def nearest_javadoc(
     masked: str,
     javadocs: list[JavadocBlock],
@@ -329,6 +339,7 @@ def nearest_javadoc(
     return None
 
 
+# 执行源码解析辅助逻辑。
 def _only_annotations_and_modifiers(segment: str) -> bool:
     """参数：
         segment: Javadoc 与 record 关键字之间的源码片段。
@@ -362,6 +373,7 @@ def _only_annotations_and_modifiers(segment: str) -> bool:
         return False
 
 
+# 执行源码解析辅助逻辑。
 def parse_param_docs(javadoc: JavadocBlock) -> dict[str, str]:
     """参数：
         javadoc: Javadoc 注释块。
@@ -395,6 +407,7 @@ def parse_param_docs(javadoc: JavadocBlock) -> dict[str, str]:
     return {name: ' '.join(parts).strip() for name, parts in params.items()}
 
 
+# 执行源码解析辅助逻辑。
 def check_file(path: Path) -> list[Violation]:
     """参数：
         path: 待检查 Java 文件路径。
@@ -441,6 +454,7 @@ def check_file(path: Path) -> list[Violation]:
     return violations
 
 
+# 执行源码解析辅助逻辑。
 def discover(values: list[str]) -> list[Path]:
     """参数：
         values: 命令行传入的路径列表。
@@ -462,6 +476,7 @@ def discover(values: list[str]) -> list[Path]:
     return sorted(result, key=lambda item: item.as_posix())
 
 
+# 执行源码解析辅助逻辑。
 def _is_main_java_source(path: Path) -> bool:
     """参数：
         path: 待判断 Java 文件路径。
@@ -476,6 +491,7 @@ def _is_main_java_source(path: Path) -> bool:
     )
 
 
+# 执行源码解析辅助逻辑。
 def _load_files_from(path: Path) -> list[str]:
     """参数：
         path: 文件列表路径。
@@ -495,6 +511,7 @@ def _load_files_from(path: Path) -> list[str]:
     return []
 
 
+# 执行源码解析辅助逻辑。
 def main() -> int:
     """返回：
         进程退出码。

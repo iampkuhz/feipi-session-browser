@@ -19,7 +19,10 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MIN_VERSION = (3, 10)
+MIN_VERSION = (3, 12)
+MAX_VERSION = (3, 13)
+PYTHON_REQUIRES = '>=3.12,<3.13'
+_PYTHON_VERSION_LOCK = '.python-version'
 _RUNTIME_LOCK = 'requirements.lock'
 _DEV_LOCK = 'requirements-dev.lock'
 _TEST_PACKAGES = {'pytest', 'pytest-xdist'}
@@ -63,7 +66,10 @@ def _supports_python_version(executable: str) -> bool:
     """
     if not _is_executable(executable):
         return False
-    code = 'import sys; raise SystemExit(0 if sys.version_info >= (3, 10) else 1)'
+    code = (
+        'import sys; '
+        'raise SystemExit(0 if (3, 12) <= sys.version_info[:2] < (3, 13) else 1)'
+    )
     try:
         result = subprocess.run(
             [executable, '-c', code],
@@ -122,8 +128,100 @@ def resolve_python(repo_root: Path = REPO_ROOT) -> str:
         if _supports_python_version(candidate):
             return candidate
         if explicit and candidate == explicit:
-            raise SystemExit(f'SESSION_BROWSER_PYTHON 不可执行或低于 Python 3.10: {explicit}')
-    raise SystemExit('未找到可用 Python 解释器(需要 Python >= 3.10)。')
+            raise SystemExit(
+                f'SESSION_BROWSER_PYTHON 不可执行或不满足 Python {PYTHON_REQUIRES}: {explicit}'
+            )
+    raise SystemExit(f'未找到可用 Python 解释器(需要 Python {PYTHON_REQUIRES})。')
+
+
+# 解析版本tuple。
+def _parse_version(value: str) -> tuple[int, int, int] | None:
+    """参数：
+        value: 版本字符串，例如 ``3.12.11``。
+
+    返回：
+        可比较的三段版本；无法解析时返回 None。
+    """
+    parts = value.strip().split('.')
+    if len(parts) != 3:
+        return None
+    try:
+        return (int(parts[0]), int(parts[1]), int(parts[2]))
+    except ValueError:
+        return None
+
+
+# 判断版本是否满足项目 Python minor 合约。
+def _version_in_range(version: tuple[int, int, int]) -> bool:
+    """参数：
+        version: 三段 Python 版本。
+
+    返回：
+        满足 ``>=3.12,<3.13`` 时返回 true。
+    """
+    major_minor = version[:2]
+    return MIN_VERSION <= major_minor < MAX_VERSION
+
+
+# 读取 pyproject requires-python。
+def _pyproject_requires_python(path: Path) -> str:
+    """参数：
+        path: pyproject.toml 路径。
+
+    返回：
+        requires-python 字符串，缺失时为空。
+    """
+    if tomllib is None:
+        for raw in path.read_text(encoding='utf-8').splitlines():
+            line = raw.strip()
+            if line.startswith('requires-python'):
+                return line.split('=', 1)[1].strip().strip('"').strip("'")
+        return ''
+    data = tomllib.loads(path.read_text(encoding='utf-8'))
+    return str(data.get('project', {}).get('requires-python', ''))
+
+
+# 读取 uv.lock requires-python。
+def _uv_requires_python(path: Path) -> str:
+    """参数：
+        path: uv.lock 路径。
+
+    返回：
+        lock 文件声明的 requires-python。
+    """
+    if not path.is_file():
+        return ''
+    for raw in path.read_text(encoding='utf-8').splitlines()[:20]:
+        line = raw.strip()
+        if line.startswith('requires-python'):
+            return line.split('=', 1)[1].strip().strip('"').strip("'")
+    return ''
+
+
+# 检查 Python 版本合约文件。
+def _python_contract_problems(repo_root: Path) -> list[str]:
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        Python 版本合约 drift 列表。
+    """
+    problems: list[str] = []
+    pyproject_requires = _pyproject_requires_python(repo_root / 'pyproject.toml')
+    if pyproject_requires != PYTHON_REQUIRES:
+        problems.append(f'pyproject requires-python 应为 {PYTHON_REQUIRES}: {pyproject_requires}')
+    uv_requires = _uv_requires_python(repo_root / 'uv.lock')
+    if uv_requires and uv_requires != PYTHON_REQUIRES:
+        problems.append(f'uv.lock requires-python 应为 {PYTHON_REQUIRES}: {uv_requires}')
+    lock_path = repo_root / _PYTHON_VERSION_LOCK
+    if not lock_path.is_file():
+        problems.append(f'缺少 Python 版本契约: {_PYTHON_VERSION_LOCK}')
+        return problems
+    raw_version = lock_path.read_text(encoding='utf-8').strip()
+    version = _parse_version(raw_version)
+    if version is None or not _version_in_range(version):
+        problems.append(f'{_PYTHON_VERSION_LOCK} 必须锁定到 Python 3.12 patch: {raw_version}')
+    return problems
 
 
 # 维护去除 注释。
@@ -303,6 +401,7 @@ def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
         结果列表。
     """
     problems: list[str] = []
+    problems.extend(_python_contract_problems(repo_root))
     req_runtime = requirement_names(repo_root / 'requirements.txt')
     req_dev = requirement_names(repo_root / 'requirements-dev.txt')
     py_runtime, py_dev = pyproject_names(repo_root / 'pyproject.toml')
@@ -374,6 +473,8 @@ def print_report(repo_root: Path = REPO_ROOT) -> int:
     """
     python = resolve_python(repo_root)
     print(f'[INFO] python: {python}')
+    print(f'[INFO] python requires: {PYTHON_REQUIRES}')
+    print(f'[INFO] python lock: {_PYTHON_VERSION_LOCK}')
     print(f'[INFO] python candidates: {", ".join(python_candidates(repo_root))}')
     print('[INFO] requirements: requirements.txt, requirements-dev.txt')
     print(f'[INFO] locks: {_RUNTIME_LOCK}, {_DEV_LOCK}')

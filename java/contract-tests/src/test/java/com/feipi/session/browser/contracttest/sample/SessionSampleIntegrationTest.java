@@ -3,6 +3,8 @@ package com.feipi.session.browser.contracttest.sample;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.fail;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.artifact.normalized.CanonicalJsonWriter;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
@@ -12,6 +14,7 @@ import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.normalization.NormalizationEngine;
 import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
 import com.feipi.session.browser.source.codex.CodexSourceAdapter;
+import com.feipi.session.browser.source.json.JsonlReader;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
@@ -43,6 +46,8 @@ import org.junit.jupiter.api.Test;
 class SessionSampleIntegrationTest {
 
   private static final Logger LOG = Logger.getLogger(SessionSampleIntegrationTest.class.getName());
+  private static final ObjectMapper MAPPER = new ObjectMapper();
+  private static final JsonlReader JSONL_READER = new JsonlReader();
 
   private static final Path PROJECT_ROOT = resolveProjectRoot();
   private static final Path SAMPLES_ROOT = PROJECT_ROOT.resolve("docs/session-samples");
@@ -113,8 +118,7 @@ class SessionSampleIntegrationTest {
   /**
    * Claude Code 样例管线对比。
    *
-   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。 默认 test task 不包含此标签，避免
-   * schema 未对齐时的假性失败。
+   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。
    */
   @Test
   @Tag("sample-integration")
@@ -123,10 +127,8 @@ class SessionSampleIntegrationTest {
     Path expectedFile = sampleDir.resolve("expected.normalized.jsonc");
     Path jsonlFile = sampleDir.resolve("8a283a61-e3f0-4e8f-ba06-6711e2fcf2ed.jsonl");
 
-    if (!Files.exists(jsonlFile)) {
-      LOG.warning("Claude 样例 JSONL 不存在: " + jsonlFile);
-      return;
-    }
+    assertFileExists(jsonlFile, "Claude 样例 JSONL");
+    assertFileExists(expectedFile, "Claude 样例 expected.normalized.jsonc");
 
     runPipelineAndCompare(
         sampleDir,
@@ -140,8 +142,7 @@ class SessionSampleIntegrationTest {
   /**
    * Codex 样例管线对比。
    *
-   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。 当前仅解析主 JSONL 文件，rollout
-   * 子线程多文件解析待后续实现。
+   * <p>标记为 {@code sample-integration} 标签，仅在 sampleIntegrationTest task 中执行。
    */
   @Test
   @Tag("sample-integration")
@@ -150,12 +151,9 @@ class SessionSampleIntegrationTest {
     Path expectedFile = sampleDir.resolve("expected.normalized.jsonc");
     Path jsonlFile = sampleDir.resolve("019ede24-67de-7b11-b46f-7922530907a9.jsonl");
 
-    if (!Files.exists(jsonlFile)) {
-      LOG.warning("Codex 样例 JSONL 不存在: " + jsonlFile);
-      return;
-    }
+    assertFileExists(jsonlFile, "Codex 样例 JSONL");
+    assertFileExists(expectedFile, "Codex 样例 expected.normalized.jsonc");
 
-    // 注意：当前仅解析主 JSONL 文件。Codex rollout 子线程多文件解析待实现。
     runPipelineAndCompare(
         sampleDir,
         jsonlFile,
@@ -236,13 +234,7 @@ class SessionSampleIntegrationTest {
     LOG.info("解析到 " + records.size() + " 条记录, " + diagnostics.size() + " 条诊断");
 
     // 3. 构造源文件列表
-    NormalizedSourceFile sourceFile =
-        new NormalizedSourceFile(
-            SourceFileRole.TRANSCRIPT,
-            jsonlFile.toAbsolutePath(),
-            Optional.empty(),
-            Optional.empty());
-    List<NormalizedSourceFile> sourceFiles = List.of(sourceFile);
+    List<NormalizedSourceFile> sourceFiles = sourceFilesForSample(sampleDir, jsonlFile, agent);
 
     // 4. 通过 NormalizationEngine 归一化
     NormalizationEngine engine = new NormalizationEngine();
@@ -252,6 +244,13 @@ class SessionSampleIntegrationTest {
     CanonicalJsonWriter writer = new CanonicalJsonWriter();
     byte[] javaOutputBytes = writer.serialize(artifact);
     String javaOutput = new String(javaOutputBytes, StandardCharsets.UTF_8);
+    if (Boolean.getBoolean("session.samples.writeExpected")) {
+      Files.writeString(
+          expectedFile,
+          MAPPER.writerWithDefaultPrettyPrinter().writeValueAsString(MAPPER.readTree(javaOutput))
+              + System.lineSeparator(),
+          StandardCharsets.UTF_8);
+    }
 
     // 6. 读取期望输出
     String expectedJsonc = Files.readString(expectedFile, StandardCharsets.UTF_8);
@@ -277,6 +276,132 @@ class SessionSampleIntegrationTest {
               + "。前 5 条差异: "
               + differences.subList(0, Math.min(5, differences.size())));
     }
+  }
+
+  private static void assertFileExists(Path path, String label) {
+    assertTrue(Files.exists(path), label + " 不存在: " + path);
+  }
+
+  private static List<NormalizedSourceFile> sourceFilesForSample(
+      Path sampleDir, Path jsonlFile, NormalizedAgent agent) throws IOException {
+    if (agent == NormalizedAgent.CODEX) {
+      return codexSourceFiles(sampleDir, jsonlFile);
+    }
+    return List.of(
+        new NormalizedSourceFile(
+            SourceFileRole.MAIN_SESSION,
+            PROJECT_ROOT.relativize(jsonlFile.toAbsolutePath()),
+            Optional.empty(),
+            Optional.empty()));
+  }
+
+  private static List<NormalizedSourceFile> codexSourceFiles(Path sampleDir, Path jsonlFile)
+      throws IOException {
+    String parentThreadId = sampleDir.getFileName().toString();
+    Map<String, String> spawnParents = codexSpawnParentToolIds(jsonlFile);
+    List<NormalizedSourceFile> sourceFiles = new ArrayList<>();
+    sourceFiles.add(
+        new NormalizedSourceFile(
+            SourceFileRole.CODEX_ROLLOUT,
+            PROJECT_ROOT.relativize(jsonlFile.toAbsolutePath()),
+            Optional.empty(),
+            Optional.empty()));
+
+    List<Path> childFiles = new ArrayList<>();
+    try (DirectoryStream<Path> stream = Files.newDirectoryStream(sampleDir, "rollout-*.jsonl")) {
+      for (Path candidate : stream) {
+        Map<String, String> meta = readFirstSessionMeta(candidate);
+        if (parentThreadId.equals(parentThreadId(meta))) {
+          childFiles.add(candidate);
+        }
+      }
+    }
+    childFiles.sort(Path::compareTo);
+    for (Path childFile : childFiles) {
+      Map<String, String> meta = readFirstSessionMeta(childFile);
+      String childId = meta.getOrDefault("id", "").trim();
+      String parentToolUseId = spawnParents.get(childId);
+      assertTrue(
+          parentToolUseId != null && !parentToolUseId.isBlank(),
+          "Codex child rollout 缺少 parent spawn_agent 映射: " + childFile);
+      sourceFiles.add(
+          new NormalizedSourceFile(
+              SourceFileRole.SUBAGENT_SESSION,
+              PROJECT_ROOT.relativize(childFile.toAbsolutePath()),
+              Optional.of(childId),
+              Optional.of(parentToolUseId)));
+    }
+    return List.copyOf(sourceFiles);
+  }
+
+  private static Map<String, String> codexSpawnParentToolIds(Path jsonlFile) throws IOException {
+    Map<String, Boolean> spawnCalls = new LinkedHashMap<>();
+    Map<String, String> parents = new LinkedHashMap<>();
+    for (JsonNode event : JSONL_READER.read(jsonlFile).events()) {
+      JsonNode payload = event.path("payload");
+      String payloadType = text(payload, "type");
+      String callId = text(payload, "call_id");
+      if (("function_call".equals(payloadType) || "custom_tool_call".equals(payloadType))
+          && "spawn_agent".equals(text(payload, "name"))
+          && !callId.isBlank()) {
+        spawnCalls.put(callId, Boolean.TRUE);
+      }
+      if (("function_call_output".equals(payloadType)
+              || "custom_tool_call_output".equals(payloadType))
+          && spawnCalls.containsKey(callId)) {
+        String agentId = spawnAgentId(payload.get("output"));
+        if (!agentId.isBlank()) {
+          parents.put(agentId, callId);
+        }
+      }
+    }
+    return Map.copyOf(parents);
+  }
+
+  private static Map<String, String> readFirstSessionMeta(Path file) throws IOException {
+    for (JsonNode event : JSONL_READER.read(file).events()) {
+      if ("session_meta".equals(text(event, "type"))) {
+        JsonNode payload = event.path("payload");
+        Map<String, String> values = new LinkedHashMap<>();
+        payload
+            .fields()
+            .forEachRemaining(
+                entry -> {
+                  JsonNode value = entry.getValue();
+                  values.put(entry.getKey(), value.isTextual() ? value.asText() : value.toString());
+                });
+        return Map.copyOf(values);
+      }
+    }
+    return Map.of();
+  }
+
+  private static String parentThreadId(Map<String, String> meta) throws IOException {
+    String direct = meta.getOrDefault("parent_thread_id", "").trim();
+    if (!direct.isBlank()) {
+      return direct;
+    }
+    String source = meta.getOrDefault("source", "").trim();
+    if (source.isBlank() || !source.startsWith("{")) {
+      return "";
+    }
+    JsonNode sourceNode = MAPPER.readTree(source);
+    JsonNode parent = sourceNode.path("subagent").path("thread_spawn").get("parent_thread_id");
+    return parent != null && parent.isTextual() ? parent.asText().trim() : "";
+  }
+
+  private static String spawnAgentId(JsonNode output) throws IOException {
+    if (output == null || output.isMissingNode() || output.isNull()) {
+      return "";
+    }
+    JsonNode result = output.isTextual() ? MAPPER.readTree(output.asText()) : output;
+    JsonNode agentId = result.get("agent_id");
+    return agentId != null && agentId.isTextual() ? agentId.asText().trim() : "";
+  }
+
+  private static String text(JsonNode node, String fieldName) {
+    JsonNode value = node == null ? null : node.get(fieldName);
+    return value != null && value.isTextual() ? value.asText() : "";
   }
 
   /**

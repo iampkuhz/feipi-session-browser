@@ -1,6 +1,6 @@
-/* ── Consolidation: modal, truncation, tool tone, failed status, payload body ── */
-/* CSS variables are already defined in .sd-shell, .session-detail-page above. */
-/* 1) Round grid: preserve metric columns under narrow widths. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Consolidation: modal, truncation, tool tone, failed status, payload body ──` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`CSS variables are already defined in .sd-shell, .session-detail-page above.` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`1) Round grid: preserve metric columns under narrow widths.` */
 .session-detail-page .sd-round-summary,
 .sd-page .sd-round-summary,
 .sd-shell .sd-round-summary {
@@ -17,27 +17,27 @@
 .sd-shell .sd-user-round .sd-round-summary {
   grid-template-columns: 56px 92px minmax(0, 1fr) 96px 88px 112px;
 }
-/* ── User-message round green/teal highlight (collapsed + expanded) ── */
-/* Collapsed user round: subtle green/teal background. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── User-message round green/teal highlight (collapsed + expanded) ──` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Collapsed user round: subtle green/teal background.` */
 .session-detail-page .sd-user-round .sd-round-summary,
 .sd-page .sd-user-round .sd-round-summary,
 .sd-shell .sd-user-round .sd-round-summary {
   background: linear-gradient(90deg, rgba(20, 184, 166, .05), #fff);
 }
-/* Expanded user round: stronger teal gradient + left accent border. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Expanded user round: stronger teal gradient + left accent border.` */
 .session-detail-page .sd-user-round.is-open .sd-round-summary,
 .sd-page .sd-user-round.is-open .sd-round-summary,
 .sd-shell .sd-user-round.is-open .sd-round-summary {
   background: linear-gradient(90deg, rgba(20, 184, 166, .11), rgba(255, 255, 255, .98));
   border-left: 4px solid #14b8a6;
 }
-/* Expanded user round row: teal left border on the article itself. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Expanded user round row: teal left border on the article itself.` */
 .session-detail-page .sd-user-round.is-open,
 .sd-page .sd-user-round.is-open,
 .sd-shell .sd-user-round.is-open {
   border-left: 4px solid #14b8a6;
 }
-/* Expanded inner User Message card: retain user-input teal tone. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Expanded inner User Message card: retain user-input teal tone.` */
 .session-detail-page .sd-user-round.is-open .sd-user-card,
 .sd-page .sd-user-round.is-open .sd-user-card,
 .sd-shell .sd-user-round.is-open .sd-user-card {
@@ -84,7 +84,7 @@
   text-overflow: ellipsis;
   text-align: right;
 }
-/* 2) Failed status: visible error tone. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`2) Failed status: visible error tone.` */
 .session-detail-page .sd-round-status--failed,
 .session-detail-page .sd-round-status--fail,
 .session-detail-page .sd-round-status[data-status="failed"],
@@ -101,8 +101,7 @@
   background: var(--sd-err-bg);
   border-color: var(--sd-err-line);
 }
-/* 3) Tool result tone: neutral by default;
-red only on failed rows. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`3) Tool result tone: neutral by default; red only on failed rows.` */
 .session-detail-page .sd-tool-result,
 .sd-page .sd-tool-result,
 .sd-shell .sd-tool-result {
@@ -143,7 +142,7 @@ red only on failed rows. */
 .sd-shell .sd-tool-row[data-status="fail"] .sd-tool-result {
   color: var(--sd-err);
 }
-/* 5) Payload body layout. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`5) Payload body layout.` */
 .session-detail-page .sd-payload-shell,
 .session-detail-page .payload-shell,
 .sd-page .sd-payload-shell,
@@ -205,7 +204,7 @@ red only on failed rows. */
   background: #fbfcff;
   font-size: 12px;
 }
-/* 5b) Payload metadata key/value grid rail. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`5b) Payload metadata key/value grid rail.` */
 .session-detail-page .sd-kv,
 .session-detail-page .payload-kv,
 .session-detail-page .sd-payload-meta__row,
@@ -356,7 +355,7 @@ red only on failed rows. */
   color: var(--sd-muted);
   font: 11.5px/1.45 var(--sd-mono);
 }
-/* Response blocks. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Response blocks.` */
 .session-detail-page .sd-response-block-list,
 .session-detail-page .block-list,
 .sd-page .sd-response-block-list,
@@ -417,7 +416,7 @@ red only on failed rows. */
 .sd-shell .block-body {
   padding: 9px 10px;
 }
-/* Result payload. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Result payload.` */
 .session-detail-page .sd-result-status,
 .session-detail-page .result-status,
 .sd-page .sd-result-status,

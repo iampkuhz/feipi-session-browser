@@ -1,21 +1,6 @@
-/* ───────────────────────────────────────────────────────────────
-* Projects — Canonical CSS (T098, T103)
-*
-* ITCSS+BEM compliant. All selectors namespaced under .p-projects.
-*
-* Scope:
-*   projects.html only (projects list and project detail views).
-*
-* Do not globally override .card, .btn, .pill, .tabs, or
-* sessions-list styles.
-*
-* T103: Added table toolbar, sortable headers, token bars,
-* agent badges, and merged project/path cell styles.
-*
-* ─────────────────────────────────────────────────────────────── */
-/* ── Page Head (canonical .page-head pattern, T100) ─── */
-/* Base .page-head styles in ui-primitives.css;
-overrides below. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─────────────────────────────────────────────────────────────── * Projects — Canonical CSS (T098, T103) * * ITCSS+BEM compliant. All selectors namespaced under .p-projects. * * Scope: * projects.html only (projects list and project detail views). * * Do not globally override .card, .btn, .pill, .tab` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Page Head (canonical .page-head pattern, T100) ───` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Base .page-head styles in ui-primitives.css; overrides below.` */
 .p-projects .page-head-stats {
   display: flex;
   gap: 8px;
@@ -33,19 +18,17 @@ overrides below. */
   color: var(--text-primary);
   font-weight: 700;
 }
-/* ── Metric grid spacing below page head ─────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Metric grid spacing below page head ───────` */
 .p-projects .page-head + .metric-grid {
   margin-top: 12px;
 }
-/* ── Table toolbar (T103: migrated from .card-title.flex) ─── */
-/* NOTE: .table-card overflow, .table-toolbar, .table-title,
-   and .table-note are defined in ui-primitives.css.
-   Do not redefine them here to avoid cascade conflicts. */
-/* ── Sortable th — ensure hover color (T117) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Table toolbar (T103: migrated from .card-title.flex) ───` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`NOTE: .table-card overflow, .table-toolbar, .table-title, and .table-note are defined in ui-primitives.css. Do not redefine them here to avoid cascade conflicts.` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Sortable th — ensure hover color (T117) ──` */
 .p-projects th.sortable:hover {
   color: var(--purple);
 }
-/* ── Token total above tokenbar (T117) ────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token total above tokenbar (T117) ──────────────────────` */
 .p-projects .token-total {
   display: flex;
   align-items: center;
@@ -57,7 +40,7 @@ overrides below. */
   font-weight: 800;
   color: var(--text);
 }
-/* ── Sortable header buttons — canonical c-data-table__sort override (T103) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Sortable header buttons — canonical c-data-table__sort override (T103) ──` */
 .p-projects .c-data-table__sort {
   font: 850 11px var(--font-sans);
 }
@@ -82,13 +65,13 @@ overrides below. */
   width: 140px;
 }
 
-/* ── Token cell with tokenbar (T103) ─────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token cell with tokenbar (T103) ───────────────────────` */
 .p-projects .token-cell {
   min-width: 170px;
   padding-top: 6px;
   padding-bottom: 6px;
 }
-/* Tokenbar inside data table — uses .tokenbar-seg with --segment-width */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tokenbar inside data table — uses .tokenbar-seg with --segment-width` */
 .p-projects .token-cell .tokenbar {
   position: relative;
   width: 46px;
@@ -104,7 +87,7 @@ overrides below. */
   height: 100%;
   display: block;
 }
-/* Tooltip inside tokenbar — centered below bar, arrow pointing up */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tooltip inside tokenbar — centered below bar, arrow pointing up` */
 .p-projects .token-cell .token-tooltip {
   left: 50%;
   top: calc(100% + 8px);
@@ -168,7 +151,7 @@ overrides below. */
 .p-projects .token-tooltip__type-name {
   line-height: 1;
 }
-/* Tooltip dot colors now managed by ui-primitives.css (.dot--fresh/.read/.write/.out) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tooltip dot colors now managed by ui-primitives.css (.dot--fresh/.read/.write/.out)` */
 .p-projects .token-tooltip__value {
   font-family: var(--font-mono);
   font-weight: 750;
@@ -189,10 +172,8 @@ overrides below. */
   border-top: 1px solid var(--line-strong);
   margin: 8px 0;
 }
-/* ── Agent badges (T103: dot + soft badge) ────────────────── */
-/* P-20/T026: .agents-cell must NOT define display:flex.
-   Flex on <td> breaks border-height alignment with adjacent cells.
-   Use .agents-cell__inner wrapper for layout isolation. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent badges (T103: dot + soft badge) ──────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`P-20/T026: .agents-cell must NOT define display:flex. Flex on <td> breaks border-height alignment with adjacent cells. Use .agents-cell__inner wrapper for layout isolation.` */
 .p-projects .agents-cell {
   vertical-align: middle;
 }
@@ -225,14 +206,14 @@ overrides below. */
 .p-projects .dot.total {
   background: var(--output);
 }
-/* ── Tools failed badge inline ────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tools failed badge inline ──────────────────────────────` */
 .p-projects .tools-failed {
   margin-left: 6px;
   font-size: 10px;
   height: 20px;
   padding: 0 6px;
 }
-/* ── Pagination ───────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Pagination ─────────────────────────────────────────────` */
 .p-projects .unified-pagination {
   height: 58px;
   display: flex;
@@ -246,35 +227,30 @@ overrides below. */
   width: 64px;
   text-align: center;
 }
-/* ── Empty state ──────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Empty state ────────────────────────────────────────────` */
 .p-projects #projects-empty.is-hidden {
   display: none;
 }
-/* T090: Empty state inside .table-wrap must break out of
-   horizontal scroll context and get proper card spacing.
-   Uses .state-strip tokens from ui-primitives.css. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`T090: Empty state inside .table-wrap must break out of horizontal scroll context and get proper card spacing. Uses .state-strip tokens from ui-primitives.css.` */
 .p-projects .table-wrap > #projects-empty {
   overflow-x: visible;
   margin: 12px 0 4px;
 }
-/* ── Emoji size classes (T106: icon size contract) ────────── */
-/* These classes document and enforce the icon sizing contract.
-* Actual rendered size may be governed by the parent container
-* (.metric-icon, .state-icon) which sets a larger font-size.
-* ─────────────────────────────────────────────────────────── */
-/* inline action / nav icon: 14–16px */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Emoji size classes (T106: icon size contract) ──────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`These classes document and enforce the icon sizing contract. * Actual rendered size may be governed by the parent container * (.metric-icon, .state-icon) which sets a larger font-size. * ───────────────────────────────────────────────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`inline action / nav icon: 14–16px` */
 .p-projects .emoji {
   font-size: 16px;
   line-height: 1;
   display: inline-block;
 }
-/* metric / state / decorative icon: 20–24px (inherited from container) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`metric / state / decorative icon: 20–24px (inherited from container)` */
 .p-projects .emoji.lg {
   font-size: 22px;
   line-height: 1;
   display: inline-block;
 }
-/* ── Utility ──────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Utility ────────────────────────────────────────────────` */
 .p-projects .text-muted {
   color: var(--text-subtle);
 }
@@ -295,8 +271,8 @@ overrides below. */
   color: var(--text-subtle);
   opacity: 0.5;
 }
-/* ── Project detail: page head extras ───────────────────────── */
-/* Back button (HIFI canonical, used alongside .page-header__back) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: page head extras ─────────────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Back button (HIFI canonical, used alongside .page-header__back)` */
 .p-projects .back-btn {
   width: 42px;
   height: 42px;
@@ -314,13 +290,13 @@ overrides below. */
   background: var(--surface-soft);
   border-color: var(--line-strong);
 }
-/* Subtitle text below page title */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Subtitle text below page title` */
 .p-projects .subtitle {
   color: var(--text-subtle);
   font-size: 14px;
   margin: 0;
 }
-/* ── Project detail: path row ───────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: path row ─────────────────────────────────` */
 .p-projects .path-row {
   display: flex;
   align-items: center;
@@ -337,7 +313,7 @@ overrides below. */
   color: var(--text);
   font-size: 12px;
 }
-/* ── Project detail: session title cells ────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: session title cells ──────────────────────` */
 .p-projects .title-main {
   font-weight: 850;
   line-height: 1.3;
@@ -347,20 +323,17 @@ overrides below. */
   color: var(--text-subtle);
   margin-top: 2px;
 }
-/* ── Project detail: failed row tone ────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: failed row tone ──────────────────────────` */
 .p-projects tr.row--failed {
   background: var(--red-soft);
 }
 .p-projects tr.row--failed:hover {
   background: var(--red-soft);
 }
-/* ── Project detail: sessions table toolbar ─────────────────── */
-/* T086: Removed .page-section .card-title override that added
-   margin-bottom and disrupted table-card toolbar layout.
-   .card-title sizing is governed by ui-primitives.css. */
-/* ── Project sessions table column widths (T086) ───────────── */
-/* Column min-widths via CSS classes, not inline styles,
-   to satisfy the layout-inline-style quality gate. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: sessions table toolbar ───────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`T086: Removed .page-section .card-title override that added margin-bottom and disrupted table-card toolbar layout. .card-title sizing is governed by ui-primitives.css.` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project sessions table column widths (T086) ─────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Column min-widths via CSS classes, not inline styles, to satisfy the layout-inline-style quality gate.` */
 .p-projects .project-sessions-table col.col-title {
   min-width: 280px;
 }
@@ -388,7 +361,7 @@ overrides below. */
 .p-projects .project-sessions-table col.col-updated {
   min-width: 0;
 }
-/* ── Active filters — hide when empty ───────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Active filters — hide when empty ─────────────────────────` */
 .p-projects .filter-footer .active-filters {
   display: inline-flex;
   align-items: center;
@@ -405,24 +378,24 @@ overrides below. */
   display: none;
 }
 
-/* ── Filter chip styling ────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Filter chip styling ──────────────────────────────────────` */
 .p-projects .filter-chip.is-hidden {
   display: none;
 }
 
-/* ── Card-sub inside table-toolbar: compact with breathing room ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Card-sub inside table-toolbar: compact with breathing room ──` */
 .p-projects .table-toolbar .card-sub {
   margin-bottom: 4px;
   line-height: 1.3;
 }
 
-/* Allow table-toolbar to grow when subtitle is present */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Allow table-toolbar to grow when subtitle is present` */
 .p-projects .table-toolbar:has(.card-sub) {
   height: auto;
   min-height: 48px;
 }
 
-/* ── data-tooltip hover tooltip (for badges and inline elements) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── data-tooltip hover tooltip (for badges and inline elements) ──` */
 .p-projects [data-tooltip] {
   position: relative;
 }
@@ -470,7 +443,7 @@ overrides below. */
   transform: translateX(-50%) translateY(0);
 }
 
-/* ── Session copy button: minimal border ────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Session copy button: minimal border ──────────────────────` */
 .p-projects .session-copy-btn {
   border: 1px solid var(--line-soft);
   padding: 0 5px;
@@ -486,7 +459,7 @@ overrides below. */
   font-size: 13px;
 }
 
-/* ── Token cell vertical alignment ──────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token cell vertical alignment ────────────────────────────` */
 .p-projects .token-cell {
   vertical-align: middle;
 }
@@ -501,7 +474,7 @@ overrides below. */
   margin-top: 0;
 }
 
-/* ── Agent dot alias for projects.css scope ─────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Agent dot alias for projects.css scope ───────────────────` */
 .p-projects .agent-dot {
   width: 8px;
   height: 8px;
@@ -518,12 +491,12 @@ overrides below. */
   background: var(--qoder);
 }
 
-/* ── All table cells left-aligned (override numeric right-align from _tables.css) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── All table cells left-aligned (override numeric right-align from _tables.css) ──` */
 .p-projects .data-table th,
 .p-projects .data-table td {
   text-align: left;
 }
-/* Numeric cells: keep tabular-nums but left-align */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Numeric cells: keep tabular-nums but left-align` */
 .p-projects .data-table th.numeric,
 .p-projects .data-table td.numeric,
 .p-projects .data-table th.col-num,
@@ -532,7 +505,7 @@ overrides below. */
   font-variant-numeric: tabular-nums;
 }
 
-/* ── Project detail: canonical KPI + analysis layout ───────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: canonical KPI + analysis layout ─────────` */
 .p-projects .project-path-summary {
   margin: -4px 0 14px;
 }

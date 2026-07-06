@@ -1,36 +1,11 @@
-// sessions-list.js — canonical page JS for Sessions List.
-// Uses data-action event delegation; delegates shared primitives to ui_primitives.js.
-// No inline event handlers. Does NOT duplicate logic from ui_primitives.js.
-/**
- * sessions-list.js — Sessions List page behavior
- * =================================================
- *
- * Covered interactions:
- *   - sort:         intercept sortable header clicks (link or button),
- *                   update hidden sort/dir fields, dispatch table-sort,
- *                   then submit filter form.
- *   - filter:       form submit handler for #session-filter-form.
- *   - clear:        data-action="clear" (handled by ui_primitives),
- *                   dispatches filter-clear event consumed here.
- *   - pagination:   prev/next links, page-input Enter, page-size select.
- *   - row-click:    click .sessions-row → navigate to session detail.
- *   - nav:          sidebar navigation buttons.
- *
- * Delegation model:
- *   - Click events use document-level delegation via data-action attributes.
- *   - Sortable headers are augmented at init with data-action="sort".
- *   - ui_primitives.js handles the delegation dispatch; this file augments
- *     elements that lack data-action and listens for CustomEvents.
- *
- * Public API — window.SessionsList:
- *   - init()                initialize all behaviors (auto-called on DOMContentLoaded)
- *   - getFilterParams()     return current filter params as URLSearchParams
- *   - navigate(params)      navigate to /sessions with given params
- */
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`sessions-list.js — canonical page JS for Sessions List.`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Uses data-action event delegation; delegates shared primitives to ui_primitives.js.`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`No inline event handlers. Does NOT duplicate logic from ui_primitives.js.`
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * sessions-list.js — Sessions List page behavior * ================================================= * * Covered interactions: * - sort: intercept sortable header clicks (link or button), * update hidden sort/dir fields, dispatch table-sort, * then submit filter form. * - filter: form submit handl` */
 (function () {
   'use strict';
 
-  // ── Helpers ──────────────────────────────────────────────────────────────
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Helpers ──────────────────────────────────────────────────────────────`
 
   function closest(el, selector) {
     while (el && el.nodeType === 1) {
@@ -40,9 +15,7 @@
     return null;
   }
 
-  /**
-   * Extract sort key from element: data-sort-key attribute or href ?sort= param.
-   */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Extract sort key from element: data-sort-key attribute or href ?sort= param.` */
   function getSortKey(el) {
     var key = el.getAttribute('data-sort-key');
     if (key) return key;
@@ -52,9 +25,7 @@
     return null;
   }
 
-  /**
-   * Extract sort direction from href ?dir= param.
-   */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Extract sort direction from href ?dir= param.` */
   function getSortDir(el) {
     var href = el.getAttribute('href') || '';
     var m = href.match(/[?&]dir=([^&]+)/);
@@ -62,9 +33,7 @@
     return null;
   }
 
-  /**
-   * Build URLSearchParams from current filter form.
-   */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Build URLSearchParams from current filter form.` */
   function getFilterParams() {
     var form = document.getElementById('session-filter-form');
     if (!form) return new URLSearchParams();

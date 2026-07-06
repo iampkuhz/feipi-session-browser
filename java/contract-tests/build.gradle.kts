@@ -56,7 +56,10 @@ val sampleIntegrationTest = tasks.register<Test>("sampleIntegrationTest") {
 
     // 漂移报告写入项目根目录
     systemProperty("user.dir", project.rootDir.absolutePath)
+    System.getProperty("session.samples.writeExpected")?.let {
+        systemProperty("session.samples.writeExpected", it)
+    }
 
-    // schema 对齐完成前允许测试失败，仅生成漂移报告
-    ignoreFailures = true
+    // 样例漂移属于 required contract failure，禁止忽略失败。
+    ignoreFailures = false
 }

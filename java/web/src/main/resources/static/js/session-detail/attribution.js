@@ -1,4 +1,4 @@
-  /* ── Attribution API fetch support ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution API fetch support ──` */
 
   /** 安全取回 primary 值，0 视为有效值，仅在 null/undefined 时 fallback。 */
   function coalesceDefined(primary, fallback) {
@@ -231,7 +231,7 @@
   function attributionApiUrl(button, kind) {
     var payloadId = button.getAttribute("data-payload-id") || "";
 
-    // Try main LLM call pattern: llm-R{round}-IX{call}-...
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Try main LLM call pattern: llm-R{round}-IX{call}-...`
     var m = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
     if (m) {
       var pageInfo = _getPageSourceAndSessionId();
@@ -239,7 +239,7 @@
       return "/api/sessions/" + encodeURIComponent(pageInfo.source) + "/" + encodeURIComponent(pageInfo.sessionId) + "/attribution/" + m[1] + "/" + m[2] + "/" + kind;
     }
 
-    // Try subagent pattern: sub-{sa_id}-IX{n}-request-attribution / sub-{sa_id}-IX{n}-response-attribution
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Try subagent pattern: sub-{sa_id}-IX{n}-request-attribution / sub-{sa_id}-IX{n}-response-attribution`
     var sa_m = payloadId.match(/^sub-([^-]+(?:-[^-]+)*)-IX(\d+)-(request|response)-attribution$/);
     if (sa_m) {
       var saId = sa_m[1];
@@ -284,7 +284,7 @@
       .then(function (resp) {
         if (!resp.ok) {
           return resp.json().then(function (d) {
-            // Structured attribution error from server — render directly.
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Structured attribution error from server — render directly.`
             if (d && d.kind === "llm.attribution_error") {
               renderAttributionError(body, d, url);
               return;
@@ -457,7 +457,7 @@
         var hasDetails = bucketHasDetails(b);
         var isChild = b.contributes_to_total === false && b.parent_key;
 
-        if (isChild) return; // skip child buckets from top-level list
+        if (isChild) return; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`skip child buckets from top-level list`
 
         html += '<div class="sd-attribution-bucket-card' + (hasDetails ? ' is-expandable' : '') + '" data-bucket-key="' + escapeHtml(b.key) + '" data-canonical-key="' + escapeHtml(b.canonical_key || b.key) + '" data-color-key="' + escapeHtml(b.color_key || b.canonical_key || b.key) + '" data-bucket-label="' + escapeHtml(b.label || b.key) + '">';
         html += '<div class="sd-attribution-bucket-head"' + (hasDetails ? ' data-bucket-toggle aria-expanded="false"' : '') + '>';
@@ -466,28 +466,28 @@
         if (b.count_label) {
           html += '<span class="sd-attribution-bucket-count">' + escapeHtml(b.count_label) + '</span>';
         }
-        // Merge tokens + %
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Merge tokens + %`
         html += '<span class="sd-attribution-bucket-usage">' + formatCompactToken(b.tokens) + '（' + (b.percent || 0).toFixed(1) + '%）</span>';
         html += '<span class="sd-precision-tag sd-precision-tag--' + escapeHtml(b.precision || "") + '">' + translatePrecision(b.precision) + '</span>';
         if (hasDetails) {
           html += '<span class="sd-attribution-bucket-chevron">▾</span>';
         }
-        html += '</div>'; // end bucket-head
+        html += '</div>'; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end bucket-head`
 
         if (hasDetails) {
           var detailKind = (b.details && b.details.kind) ? b.details.kind : "";
           html += '<div class="sd-attribution-bucket-body" hidden' +
             (detailKind ? ' data-bucket-detail-kind="' + escapeHtml(detailKind) + '"' : '') + '>';
           html += renderBucketDetails(b);
-          html += '</div>'; // end bucket-body
+          html += '</div>'; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end bucket-body`
         }
 
-        html += '</div>'; // end bucket-card
+        html += '</div>'; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end bucket-card`
       });
-      html += '</div>'; // end bucket-list
+      html += '</div>'; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end bucket-list`
     }
 
-    // ── v2 Ordered API Spans ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── v2 Ordered API Spans ──`
     if (orderedSpans.length > 0) {
       html += '<div class="sd-attribution-section-label">有序 API 片段 (' + orderedSpans.length + ')</div>';
       html += '<div class="sd-attribution-span-list">';
@@ -506,7 +506,7 @@
       html += '</div>';
     }
 
-    // ── v2 Credit Summary (Qoder) ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── v2 Credit Summary (Qoder) ──`
     if (creditSummary) {
       html += '<div class="sd-attribution-section-label">Credit 归因</div>';
       html += '<div class="sd-attribution-credit">';
@@ -522,7 +522,7 @@
       html += '</div>';
     }
 
-    // ── v2 Diagnostics Warnings ──
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── v2 Diagnostics Warnings ──`
     if (diagnostics && diagnostics.warnings && diagnostics.warnings.length > 0) {
       html += '<div class="sd-attribution-section-label">诊断警告</div>';
       html += '<ul class="sd-attribution-warnings">';
@@ -532,13 +532,13 @@
       html += '</ul>';
     }
 
-    html += '</main>'; // end right main
-    html += '</div>'; // end two-column shell
+    html += '</main>'; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end right main`
+    html += '</div>'; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end two-column shell`
 
     setHtml(body, html);
   }
 
-  // ── Bucket detail renderer ──
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Bucket detail renderer ──`
 
   function renderBucketDetails(b) {
     var explanationLines = bucketExplanationLines(b);
@@ -566,16 +566,16 @@
     return idx >= 0 ? (idx % 9) : 7;
   }
 
-  /** Dynamically load bucket detail content from backend API. */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Dynamically load bucket detail content from backend API.` */
   function loadBucketDetailDynamic(modal, bodyEl, roundIdx, bucketKey) {
-    // Skip if already loaded
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Skip if already loaded`
     if (bodyEl.getAttribute("data-bucket-detail-loaded") === "1") return;
 
     var pageInfo = _getPageSourceAndSessionId();
     var source = pageInfo.source;
     var sessionId = pageInfo.sessionId;
 
-    // Use modal-stored values as fallback
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Use modal-stored values as fallback`
     if (!source && modal) source = modal.getAttribute("data-bucket-detail-source") || "";
     if (!sessionId && modal) sessionId = modal.getAttribute("data-bucket-detail-session-id") || "";
 
@@ -584,7 +584,7 @@
     var apiUrl = "/api/sessions/" + encodeURIComponent(source) + "/" +
       encodeURIComponent(sessionId) + "/bucket-detail/" + roundIdx + "/" + bucketKey;
 
-    // Show loading state
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Show loading state`
     bodyEl.textContent = '';
     var loadingDiv = document.createElement('div');
     loadingDiv.className = 'sd-bucket-detail-loading';
@@ -712,7 +712,7 @@
     var url = attributionApiUrl(button, apiKind);
     if (!url) return false;
 
-    // Extract round_index from payloadId for bucket-detail API
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Extract round_index from payloadId for bucket-detail API`
     var payloadId = button.getAttribute("data-payload-id") || "";
     var roundIdx = "";
     var rm = payloadId.match(/^llm-R(\d+)-IX(\d+)-/);
@@ -722,7 +722,7 @@
     var modal = ensurePayloadModal();
     if (roundIdx) modal.setAttribute("data-bucket-detail-round", roundIdx);
 
-    // Store session source for bucket-detail API
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Store session source for bucket-detail API`
     var pageInfo = _getPageSourceAndSessionId();
     if (pageInfo.source) modal.setAttribute("data-bucket-detail-source", pageInfo.source);
     if (pageInfo.sessionId) modal.setAttribute("data-bucket-detail-session-id", pageInfo.sessionId);
@@ -749,15 +749,15 @@
         var resp = await fetch(url, { headers: { "Accept": "application/json" } });
         if (!resp.ok) {
           var errData = await resp.json().catch(function () { return null; });
-          // If the server returned a structured attribution error payload,
-          // render it directly instead of falling through to the generic catch.
+          // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`If the server returned a structured attribution error payload,`
+          // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`render it directly instead of falling through to the generic catch.`
           if (errData && errData.kind === "llm.attribution_error") {
             renderAttributionError(body, errData, url);
             modal.setAttribute("data-attribution-state", "error");
             if (subtitleEl) subtitleEl.textContent = "error";
             return true;
           }
-          // For other server errors (NotFound, etc.), also try to surface the message.
+          // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`For other server errors (NotFound, etc.), also try to surface the message.`
           if (errData && errData.message) {
             var genericPayload = {
               error_type: "HTTP_" + resp.status,

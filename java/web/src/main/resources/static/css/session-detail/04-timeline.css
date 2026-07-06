@@ -251,7 +251,7 @@
   gap: 10px;
   padding: 10px;
 }
-/* ── LLM call card 3-column layout (metrics | note | actions) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── LLM call card 3-column layout (metrics | note | actions) ──` */
 .sd-llm-content-row {
   display: grid;
   grid-template-columns: minmax(420px, 1fr) minmax(0, .9fr) auto;
@@ -381,13 +381,13 @@
   display: flex;
   justify-content: flex-end;
 }
-/* Note inside LLM content row: keep existing styles, add overflow handling */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Note inside LLM content row: keep existing styles, add overflow handling` */
 .sd-llm-content-row .sd-note {
   min-width: 0;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-/* ── sub-LLM 3-column variant ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── sub-LLM 3-column variant ──` */
 .sd-sub-llm-content-row {
   display: grid;
   grid-template-columns: minmax(340px, 1fr) minmax(0, .8fr) auto;
@@ -618,7 +618,7 @@
   overflow: visible;
   scroll-margin-top: 12px;
 }
-/* Nested subagent under parent LLM call (Issues 3, 4) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Nested subagent under parent LLM call (Issues 3, 4)` */
 .sd-subagent-nested {
   margin-left: 0;
   margin-top: 6px;
@@ -753,7 +753,7 @@
   flex-shrink: 0;
   margin-left: 4px;
 }
-/* ── Subagent tokenbar (lighter tint, right-aligned) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Subagent tokenbar (lighter tint, right-aligned) ──` */
 .sd-sub-tokenbar {
   position: relative;
   display: flex;
@@ -861,8 +861,7 @@
   background: #bae6fd;
   border-radius: 99px;
 }
-/* Reused macro cards (llm_call, tool_batch) inside sub-steps:
-shift dot left to align with the container timeline line */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Reused macro cards (llm_call, tool_batch) inside sub-steps: shift dot left to align with the container timeline line` */
 .sd-sub-steps .sd-timeline-item {
   position: relative;
   padding-left: 0;
@@ -906,7 +905,7 @@ shift dot left to align with the container timeline line */
   font-size: 11px;
   color: var(--sd-muted);
 }
-/* ── Payload empty / diagnostic states inside modal ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Payload empty / diagnostic states inside modal ──` */
 .sd-payload-empty-state {
   display: flex;
   flex-direction: column;
@@ -931,7 +930,7 @@ shift dot left to align with the container timeline line */
   font-size: 13px;
   line-height: 1.5;
 }
-/* ── Payload diagnostic note ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Payload diagnostic note ──` */
 .sd-payload-diagnostic {
   padding: 8px 10px;
   border-radius: 8px;
@@ -967,7 +966,7 @@ shift dot left to align with the container timeline line */
   white-space: pre-wrap;
   font: 12px/1.45 var(--sd-mono);
 }
-/* ── Trace table (T089 HIFI migration) ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Trace table (T089 HIFI migration) ──` */
 .trace-table {
   width: 100%;
   border-collapse: collapse;
@@ -1064,7 +1063,7 @@ shift dot left to align with the container timeline line */
 .expanded-row .sd-tool-table {
   min-width: 0;
 }
-/* round-row base states */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`round-row base states` */
 .round-row.is-filtered-out {
   display: none;
 }
@@ -1111,7 +1110,7 @@ shift dot left to align with the container timeline line */
   background: transparent;
   box-shadow: none;
 }
-/* round-row status backgrounds — applied to both tr and td so background is visible */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`round-row status backgrounds — applied to both tr and td so background is visible` */
 .round-row:not(.is-open)[data-status="user"],
 .round-row:not(.is-open)[data-status="user"] td {
   background: #f0fdf4;
@@ -1142,7 +1141,7 @@ shift dot left to align with the container timeline line */
 .round-row.is-open[data-status="failed"] {
   box-shadow: inset 3px 0 0 var(--sd-err), inset 0 1px 0 rgba(220, 38, 38, 0.16), inset 0 -1px 0 rgba(220, 38, 38, 0.16);
 }
-/* metric-cell for trace table */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`metric-cell for trace table` */
 .metric-cell {
   display: flex;
   flex-direction: row;
@@ -1168,7 +1167,7 @@ shift dot left to align with the container timeline line */
   color: var(--sd-text);
   white-space: nowrap;
 }
-/* tokenbar in trace table */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`tokenbar in trace table` */
 .tokenbar-wrap {
   position: relative;
   display: inline-flex;
@@ -1220,7 +1219,7 @@ shift dot left to align with the container timeline line */
   font-size: 11px;
   line-height: 1;
 }
-/* token breakdown tooltip */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`token breakdown tooltip` */
 .tokenbar-wrap .token-tooltip {
   position: absolute;
   left: var(--token-tooltip-left, 50%);
@@ -1345,7 +1344,7 @@ shift dot left to align with the container timeline line */
 .round-id.failed {
   color: var(--sd-err);
 }
-/* Time column */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Time column` */
 .time-col {
   white-space: nowrap;
 }
@@ -1375,6 +1374,5 @@ shift dot left to align with the container timeline line */
       var(--sd-tool-action-col);
   }
 }
-/* Badge variants moved to ui-primitives.css (.badge-manual, .badge-err, .badge-warn, .badge-info, .badge-model)
-Page CSS should not redefine global primitives. */
-/* ── Trace table (T089 HIFI migration) END ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Badge variants moved to ui-primitives.css (.badge-manual, .badge-err, .badge-warn, .badge-info, .badge-model) Page CSS should not redefine global primitives.` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Trace table (T089 HIFI migration) END ──` */

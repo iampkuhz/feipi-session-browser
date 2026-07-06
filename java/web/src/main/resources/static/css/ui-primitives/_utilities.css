@@ -1,10 +1,6 @@
-/* ======================================================================
-* _utilities.css — PageHead, SectionCard, PathRow, Breadcrumb,
-*                   Hide non-standard pagination, viewer body,
-*                   migrated style.css card/misc rules
-* ====================================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`====================================================================== * _utilities.css — PageHead, SectionCard, PathRow, Breadcrumb, * Hide non-standard pagination, viewer body, * migrated style.css card/misc rules * ======================================================================` */
 
-/* === SectionCard ========================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== SectionCard ==========================================================` */
 .card {
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid var(--line);
@@ -36,7 +32,7 @@
   width: 100%;
 }
 
-/* === PageHead ============================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== PageHead ==============================================================` */
 .page-head {
   display: flex;
   align-items: flex-start;
@@ -60,15 +56,8 @@
   gap: 8px;
 }
 
-/* === PathRow ================================================================ */
-/* Canonical path row with mono chip and optional copy button.
-* Structure:
-*   <div class="path-row [extra]">
-*     <span class="path-chip mono" data-tooltip="...">...</span>
-*     <button class="btn small" data-action="copy" data-copy-text="...">...</button>
-*   </div>
-* Page-specific overrides (e.g. projects.css) may adjust dimensions or colors.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== PathRow ================================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical path row with mono chip and optional copy button. * Structure: * <div class="path-row [extra]"> * <span class="path-chip mono" data-tooltip="...">...</span> * <button class="btn small" data-action="copy" data-copy-text="...">...</button> * </div> * Page-specific overrides (e.g. projects.cs` */
 .path-row {
   display: flex;
   align-items: center;
@@ -91,17 +80,8 @@
   white-space: nowrap;
 }
 
-/* === Breadcrumb ============================================================ */
-/* Canonical breadcrumb navigation bar.
-* Structure:
-*   <div class="breadcrumb [extra_classes]" aria-label="...">
-*     <a href="...">label</a>
-*     <span class="sep">/</span>
-*     ...
-*     <span class="current">label</span>
-*   </div>
-* Page-specific overrides may adjust colors or spacing.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== Breadcrumb ============================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical breadcrumb navigation bar. * Structure: * <div class="breadcrumb [extra_classes]" aria-label="..."> * <a href="...">label</a> * <span class="sep">/</span> * ... * <span class="current">label</span> * </div> * Page-specific overrides may adjust colors or spacing.` */
 .breadcrumb {
   display: flex;
   align-items: center;
@@ -126,14 +106,14 @@
   font-weight: 700;
 }
 
-/* Hide non-standard pagination controls */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Hide non-standard pagination controls` */
 
-/* ── Viewer body (from viewer.html macro) ──────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Viewer body (from viewer.html macro) ────────────────────────` */
 .viewer__body[data-scroll-max] {
   overflow-y: auto;
 }
 
-/* ── Tab content ──────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tab content ────────────────────────────────────────────────` */
 .tab-content {
   display: none;
 }

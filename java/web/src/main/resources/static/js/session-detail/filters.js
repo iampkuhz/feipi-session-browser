@@ -10,7 +10,7 @@
       b.classList.toggle('is-active', status === 'low-cache');
     });
 
-    // Toggle round-row visibility
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Toggle round-row visibility`
     qsa(page, '[data-trace-round-row]').forEach(function (round) {
       var rowStatus = (round.getAttribute('data-status') || '').toLowerCase();
       var hasIssues = round.getAttribute('data-has-issues') === 'true';
@@ -47,7 +47,7 @@
       if (round.getAttribute('data-detail-loaded') === 'true') {
         setRoundOpen(round, true);
       } else {
-        // Batch the first few, skip the rest to avoid flooding
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Batch the first few, skip the rest to avoid flooding`
         if (loadCount < maxConcurrent) {
           loadCount++;
           lazyLoadRoundDetail(round);
@@ -232,7 +232,7 @@
     };
 
     var detailEl = document.getElementById('round-' + roundId + '-detail');
-    // If detail not loaded and not pre-rendered, trigger lazy load then scroll after load.
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`If detail not loaded and not pre-rendered, trigger lazy load then scroll after load.`
     if (round.getAttribute('data-detail-loaded') !== 'true' && !detailEl) {
       var load = lazyLoadRoundDetail(round);
       if (load && typeof load.then === 'function') {

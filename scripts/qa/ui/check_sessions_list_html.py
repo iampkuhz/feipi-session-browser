@@ -13,7 +13,11 @@ if str(SCRIPT_DIR) not in sys.path:
 from _api_first_checklib import CSS, JS, TEMPLATES, exists, has_all, has_none, read, run
 
 
+# 运行页面静态契约检查。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     html_path = TEMPLATES / 'sessions.html'
     js_path = JS / 'sessions-list.js'
     css_path = CSS / 'sessions-list.css'

@@ -7,7 +7,7 @@ import lombok.RequiredArgsConstructor;
 /**
  * 源文件角色枚举。
  *
- * <p>标识源文件在归一化制品中的角色。{@code transcript} 表示主会话转录， {@code companion} 表示伴随元数据。
+ * <p>标识源文件在归一化制品中的角色。兼容旧的 {@code transcript}/{@code companion} 值， 并提供 normalized v3 的展示角色值。
  */
 @DomainModel
 @RequiredArgsConstructor
@@ -16,7 +16,16 @@ public enum SourceFileRole {
   TRANSCRIPT("transcript"),
 
   /** 伴随元数据文件。 */
-  COMPANION("companion");
+  COMPANION("companion"),
+
+  /** 主会话文件。 */
+  MAIN_SESSION("main_session"),
+
+  /** Codex 主会话 rollout 源文件。 */
+  CODEX_ROLLOUT("codex_rollout"),
+
+  /** 子 agent 会话文件。 */
+  SUBAGENT_SESSION("subagent_session");
 
   /** 稳定外部协议值。 */
   @Getter private final String value;

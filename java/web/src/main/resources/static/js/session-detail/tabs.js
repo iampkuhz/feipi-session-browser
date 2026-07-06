@@ -1,14 +1,14 @@
-  /* ── Tab switching ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Tab switching ──` */
 
   function switchTab(page, tabName, updateUrl) {
     if (updateUrl == null) updateUrl = true;
-    // Update tab active state + aria-selected
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Update tab active state + aria-selected`
     qsa(page, '.sd-tabs [data-tab]').forEach(function(tab) {
       var isActive = tab.getAttribute('data-tab') === tabName;
       tab.classList.toggle('is-active', isActive);
       tab.setAttribute('aria-selected', isActive ? 'true' : 'false');
     });
-    // Show/hide panels
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Show/hide panels`
     qsa(page, '[data-tab-panel]').forEach(function(panel) {
       panel.hidden = panel.getAttribute('data-tab-panel') !== tabName;
     });

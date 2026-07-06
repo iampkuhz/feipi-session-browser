@@ -1,8 +1,6 @@
-/* ======================================================================
-* _modals.css — Modal, PayloadModal, Tooltip, Popover, Toast
-* ====================================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`====================================================================== * _modals.css — Modal, PayloadModal, Tooltip, Popover, Toast * ======================================================================` */
 
-/* === Tooltip ============================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== Tooltip ==============================================================` */
 .tooltip-wrap {
   position: relative;
   display: inline-block;
@@ -51,7 +49,7 @@
   font-weight: 800;
 }
 
-/* === Popover ============================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== Popover ==============================================================` */
 .popover-wrap {
   position: relative;
   display: inline-block;
@@ -103,7 +101,7 @@
   background: #f5f7fd;
 }
 
-/* === Modal (PayloadModal) ================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== Modal (PayloadModal) =================================================` */
 .modal-backdrop,
 .payload-modal__overlay {
   position: fixed;
@@ -151,8 +149,8 @@
   font-family: var(--font-mono);
 }
 
-/* --- Mode tabs (context / response / result / rendered / raw) --- */
-/* (Authoritative .payload-modal__tab defined in dialog primitive section below) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- Mode tabs (context / response / result / rendered / raw) ---` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`(Authoritative .payload-modal__tab defined in dialog primitive section below)` */
 .modal-tabs {
   display: flex;
   align-items: center;
@@ -186,7 +184,7 @@
   color: var(--purple);
 }
 
-/* --- Metadata rail (left panel of modal body) --- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- Metadata rail (left panel of modal body) ---` */
 .modal-metadata,
 .metadata {
   border: 1px solid var(--line);
@@ -230,7 +228,7 @@
   word-break: break-all;
 }
 
-/* --- Content area with pre/code formatting --- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- Content area with pre/code formatting ---` */
 .modal-content-area {
   padding: 10px;
 }
@@ -257,7 +255,7 @@
   border-radius: 4px;
 }
 
-/* --- Payload block variants (semantic tones) --- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- Payload block variants (semantic tones) ---` */
 .payload-block {
   border: 1px solid var(--line);
   border-radius: var(--radius-md);
@@ -281,7 +279,7 @@
   padding: 9px 10px;
 }
 
-/* Semantic payload block tones */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Semantic payload block tones` */
 .payload-block.context {
   background: #f5f8ff;
   border-color: #bfdbfe;
@@ -307,13 +305,13 @@
   border-color: #fecdca;
 }
 
-/* --- Close button (in modal header) --- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- Close button (in modal header) ---` */
 .modal-close-btn {
   margin-left: auto;
 }
 
-/* --- PayloadModal: authoritative <dialog> primitive --- */
-/* Dialog element: fullscreen transparent container */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- PayloadModal: authoritative <dialog> primitive ---` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Dialog element: fullscreen transparent container` */
 .payload-modal {
   position: fixed;
   inset: 0;
@@ -331,12 +329,12 @@
   z-index: 60;
 }
 
-/* Native dialog backdrop */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Native dialog backdrop` */
 .payload-modal::backdrop {
   background: rgba(11, 16, 29, 0.30);
 }
 
-/* Visible panel card inside the dialog */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Visible panel card inside the dialog` */
 .payload-modal__panel {
   position: absolute;
   top: 50%;
@@ -353,7 +351,7 @@
   overflow: hidden;
 }
 
-/* Modal header bar */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Modal header bar` */
 .payload-modal__header {
   display: flex;
   align-items: center;
@@ -413,7 +411,7 @@
   margin-left: auto;
 }
 
-/* Content areas: rendered and raw panels */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Content areas: rendered and raw panels` */
 .payload-modal__rendered,
 .payload-modal__raw {
   padding: 12px 20px 20px;
@@ -449,7 +447,7 @@
   border-radius: 4px;
 }
 
-/* Rendered content sub-elements */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Rendered content sub-elements` */
 .payload-modal__rendered .rendered-section {
   margin-bottom: 16px;
 }
@@ -530,11 +528,10 @@
   font-weight: 600;
 }
 
-/* --- PayloadModal modifier: session-detail variant --- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`--- PayloadModal modifier: session-detail variant ---` */
 .payload-modal--sd {
-  /* Wider dialog for session detail */
-  /* z-index inherited from base;
-  page container ensures stacking */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Wider dialog for session detail` */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`z-index inherited from base; page container ensures stacking` */
 }
 .payload-modal--sd::backdrop {
   background: rgba(15, 23, 42, 0.36);
@@ -571,7 +568,7 @@
   background: #fff;
 }
 
-/* Ensure pre elements in session-detail modal are not height-constrained */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Ensure pre elements in session-detail modal are not height-constrained` */
 .payload-modal--sd .sd-modal-body pre,
 .payload-modal--sd .payload-modal__body pre,
 .payload-modal--sd [data-payload-body] pre {
@@ -581,7 +578,7 @@
   overflow-wrap: anywhere;
 }
 
-/* Dynamically-generated payload shell */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Dynamically-generated payload shell` */
 .payload-modal--sd .payload-shell pre,
 .payload-modal--sd .sd-payload-shell pre {
   white-space: pre-wrap;
@@ -589,7 +586,7 @@
   overflow-wrap: anywhere;
 }
 
-/* === Toast ================================================================ */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== Toast ================================================================` */
 .toast {
   position: fixed;
   left: 50%;

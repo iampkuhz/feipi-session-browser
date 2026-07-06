@@ -7191,6 +7191,66 @@
       "createdAt": "2026-07-05",
       "expiresOn": "2027-01-05",
       "evidence": "6d6522361f126bf6e3e770ba936b2a6225bf948d8d996ab22c06bcd741ab352e"
+    },
+    {
+      "fingerprint": "9161b8936fecbf393019f1d3ab670f3796abbfd8427451beefcc92594f1d581d",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder tool 声明和结果消费者遍历同一事件流，保留镜像结构便于维护归因语义",
+      "owner": "callbuilder-tool-mapping",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2026-12-31",
+      "evidence": "9161b8936fecbf393019f1d3ab670f3796abbfd8427451beefcc92594f1d581d"
+    },
+    {
+      "fingerprint": "2dee58f47d685a383f7dde9bea73df6c417e8b16d97ece5147dadf8d613b8f47",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder tool 声明和结果消费者遍历同一事件流，保留镜像结构便于维护归因语义",
+      "owner": "callbuilder-tool-mapping",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2026-12-31",
+      "evidence": "2dee58f47d685a383f7dde9bea73df6c417e8b16d97ece5147dadf8d613b8f47"
+    },
+    {
+      "fingerprint": "95955c61379bff7a9025157a7e478b74d304ac357d184ab362c2f3e7ac88d99f",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "CallBuilder tool 声明和结果消费者遍历同一事件流，保留镜像结构便于维护归因语义",
+      "owner": "callbuilder-tool-mapping",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2026-12-31",
+      "evidence": "95955c61379bff7a9025157a7e478b74d304ac357d184ab362c2f3e7ac88d99f"
+    },
+    {
+      "fingerprint": "4e6d63e1f9ea8fa4333790f5781d057ec03172c7ccfa828bec89f375679817af",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Codex payload 字段读取需要在模型提取和 response item 归属中保持显式防御式分支",
+      "owner": "codex-payload-reading",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2026-12-31",
+      "evidence": "4e6d63e1f9ea8fa4333790f5781d057ec03172c7ccfa828bec89f375679817af"
+    },
+    {
+      "fingerprint": "e04bea9187e9202bef3170012b42863830b0ec2086e632baa761f5bba5681539",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Codex payload 字段读取需要在模型提取和 response item 归属中保持显式防御式分支",
+      "owner": "codex-payload-reading",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2026-12-31",
+      "evidence": "e04bea9187e9202bef3170012b42863830b0ec2086e632baa761f5bba5681539"
+    },
+    {
+      "fingerprint": "b1219e2065fbd78bcd540e709b41ea3039c7d7a5c080eba6c4ccabe835665c12",
+      "severity": "P1",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Codex payload 字段读取需要在模型提取和 response item 归属中保持显式防御式分支",
+      "owner": "codex-payload-reading",
+      "createdAt": "2026-07-05",
+      "expiresOn": "2026-12-31",
+      "evidence": "b1219e2065fbd78bcd540e709b41ea3039c7d7a5c080eba6c4ccabe835665c12"
     }
   ]
 }

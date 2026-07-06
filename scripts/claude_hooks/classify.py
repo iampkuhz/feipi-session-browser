@@ -302,7 +302,11 @@ SCAN_SCRIPT_SMOKE_PATTERNS: list[str] = [
     'java/source-claude/**',
     'java/source-codex/**',
     'java/source-qoder/**',
+    'java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**',
+    'java/normalization-engine/**',
+    'java/artifact-normalized/**',
     'java/index-sqlite/**',
+    'docs/session-samples/**',
     'scripts/quality/**',
 ]
 

@@ -1,16 +1,8 @@
-/**
- * projects.js — Projects page search, sort, filter, and project-detail behaviors.
- *
- * Loaded via script_extra in projects.html (list + detail pages).
- * Uses shared UI primitive classes and data-action attributes (T102).
- *
- * T103: Migrated from select-based sorting to sortable header buttons.
- * T113: Added project-detail behaviors scoped to #project-sessions-table.
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * projects.js — Projects page search, sort, filter, and project-detail behaviors. * * Loaded via script_extra in projects.html (list + detail pages). * Uses shared UI primitive classes and data-action attributes (T102). * * T103: Migrated from select-based sorting to sortable header buttons. * T11` */
 (function() {
     'use strict';
 
-    /* ── Toast helper (shared across all behaviors) ──────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Toast helper (shared across all behaviors) ────────────` */
     function showToast(msg) {
         var toast = document.querySelector('.toast');
         if (!toast) {
@@ -27,16 +19,11 @@
     }
     window.showToast = showToast;
 
-    /* ── Copy project path — REMOVED (T044) ───────────────────
-     * Copy behavior now handled exclusively by the unified
-     * handler in ui_primitives.js via data-copy-text.
-     * ─────────────────────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Copy project path — REMOVED (T044) ─────────────────── * Copy behavior now handled exclusively by the unified * handler in ui_primitives.js via data-copy-text. * ───────────────────────────────────────────────────────────` */
 
-    /* ===========================================================
-     * LIST PAGE behaviors (scoped to #projects-table)
-     * =========================================================== */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=========================================================== * LIST PAGE behaviors (scoped to #projects-table) * ===========================================================` */
 
-    /* ── Sort state ─────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Sort state ───────────────────────────────────────────` */
     var currentSort = { key: null, ascending: false };
     var projectDetailSortState = { key: null, ascending: false };
 
@@ -90,7 +77,7 @@
         var container = document.getElementById('projects-active-filters');
         if (!container) return;
 
-        // Clear existing chips using DOM methods
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Clear existing chips using DOM methods`
         while (container.firstChild) {
             container.removeChild(container.firstChild);
         }
@@ -389,7 +376,7 @@
         fetchProjectsList(new URLSearchParams(), false);
     };
 
-    /* ── List page event binding ────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── List page event binding ──────────────────────────────` */
     function initListPage() {
         var searchEl = document.getElementById('project-search');
         var serverSearchTimer = null;
@@ -412,7 +399,7 @@
             }, 250);
         }
 
-        // Real-time search on input (preserved behavior)
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Real-time search on input (preserved behavior)`
         if (searchEl) {
             searchEl.addEventListener('input', function() {
                 scheduleServerSearch();
@@ -433,7 +420,7 @@
             });
         }
 
-        // Sortable header buttons (list page)
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Sortable header buttons (list page)`
         var sortButtons = document.querySelectorAll('#projects-table th .c-data-table__sort');
         sortButtons.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
@@ -443,7 +430,7 @@
                     currentSort.ascending = !currentSort.ascending;
                 } else {
                     currentSort.key = key;
-                    currentSort.ascending = false; // default: descending
+                    currentSort.ascending = false; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`default: descending`
                 }
                 updateSortIndicators();
                 var params = getProjectListParams();
@@ -454,7 +441,7 @@
             });
         });
 
-        // Clear button: reset all filters
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Clear button: reset all filters`
         var clearBtns = document.querySelectorAll('[data-action="clear-search"]');
         clearBtns.forEach(function(btn) {
             btn.addEventListener('click', function(e) {
@@ -463,7 +450,7 @@
             });
         });
 
-        // Remove single filter chip (x button) — event delegation
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Remove single filter chip (x button) — event delegation`
         document.addEventListener('click', function(e) {
             if (e.target.closest('[data-action="remove-filter"]')) {
                 e.preventDefault();
@@ -471,22 +458,19 @@
             }
         });
 
-        // Row click: navigate to project detail (list page)
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Row click: navigate to project detail (list page)`
         bindProjectRowClicks();
 
         fetchProjectsList(new URLSearchParams(window.location.search), true);
     }
 
-    /* ===========================================================
-     * PROJECT DETAIL PAGE behaviors (scoped to #project-sessions-table)
-     * All handlers check that #project-sessions-table exists first.
-     * =========================================================== */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=========================================================== * PROJECT DETAIL PAGE behaviors (scoped to #project-sessions-table) * All handlers check that #project-sessions-table exists first. * ===========================================================` */
     function initDetailPage() {
         var detailTable = document.getElementById('project-sessions-table');
 
         if (detailTable) {
             hydrateProjectDetailFromApis(detailTable);
-            /* ── Detail: search in table toolbar ──────────────────── */
+            /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Detail: search in table toolbar ────────────────────` */
             var detailSection = detailTable.closest('.page-section') || detailTable.closest('.card');
             var detailSearch = detailSection
                 ? detailSection.querySelector('.table-toolbar [data-action="search"]')
@@ -506,12 +490,9 @@
                 });
             }
 
-            /* ── Detail: copy session ID — REMOVED (T044) ────────────
-             * Copy behavior now handled exclusively by the unified
-             * handler in ui_primitives.js.
-             * ─────────────────────────────────────────────────────────── */
+            /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Detail: copy session ID — REMOVED (T044) ──────────── * Copy behavior now handled exclusively by the unified * handler in ui_primitives.js. * ───────────────────────────────────────────────────────────` */
 
-            /* ── Detail: row click navigation ────────────────────── */
+            /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Detail: row click navigation ──────────────────────` */
             detailTable.addEventListener('click', function(e) {
                 var row = e.target.closest('tbody tr[data-action="open-session"]');
                 if (!row || !detailTable.contains(row)) return;
@@ -527,7 +508,7 @@
                 }
             });
 
-            /* ── Detail: sortable headers ────────────────────────── */
+            /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Detail: sortable headers ──────────────────────────` */
             var detailSortBtns = detailTable.querySelectorAll('th .c-data-table__sort');
             var detailSortableThs = detailTable.querySelectorAll('th.sortable');
             var initialDetailParams = new URLSearchParams(window.location.search);
@@ -536,7 +517,7 @@
                 ascending: (initialDetailParams.get('dir') || 'desc') === 'asc'
             };
 
-            // Button-based sortable headers
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Button-based sortable headers`
             detailSortBtns.forEach(function(btn) {
                 btn.addEventListener('click', function(e) {
                     e.stopPropagation();
@@ -557,10 +538,10 @@
                 });
             });
 
-            // Direct th-based sortable headers (T117 pattern)
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Direct th-based sortable headers (T117 pattern)`
             detailSortableThs.forEach(function(th) {
                 th.addEventListener('click', function(e) {
-                    // Skip if click was on a button inside the th
+                    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Skip if click was on a button inside the th`
                     if (e.target.closest('button')) return;
                     var key = th.dataset.sort;
                     if (!key) return;
@@ -580,7 +561,7 @@
             });
 
             function updateDetailSortIndicators() {
-                // Update button-based carets
+                // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Update button-based carets`
                 detailSortBtns.forEach(function(btn) {
                     var caret = btn.querySelector('.c-data-table__sort-icon');
                     if (!caret) return;
@@ -591,7 +572,7 @@
                     }
                 });
 
-                // T117: update data-sorted attribute on th for CSS :after indicator
+                // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`T117: update data-sorted attribute on th for CSS :after indicator`
                 var allSortableThs = detailTable.querySelectorAll('th.sortable');
                 allSortableThs.forEach(function(th) {
                     if (th.dataset.sort === projectDetailSortState.key) {
@@ -603,7 +584,7 @@
             }
             updateDetailSortIndicators();
 
-        } // end if (detailTable)
+        } // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`end if (detailTable)`
     }
 
     function projectKeyFromLocation() {
@@ -806,9 +787,9 @@
             + (!pagination.hasNext || disabled ? ' disabled' : '') + '>next &rsaquo;</button>');
     }
 
-    /* ── Server-side pagination (both list and detail pages) ── */
-    // Scoped to projects pages only — do NOT activate on sessions-list
-    // where sessions-list.js handles pagination via AJAX.
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Server-side pagination (both list and detail pages) ──` */
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Scoped to projects pages only — do NOT activate on sessions-list`
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`where sessions-list.js handles pagination via AJAX.`
     function _isProjectsPage() {
         return !!(document.getElementById('projects-table')
             || document.getElementById('project-sessions-table'));
@@ -849,7 +830,7 @@
         window.location.search = params.toString();
     }
 
-    /* ── DOM ready: initialize all behaviors ──────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── DOM ready: initialize all behaviors ────────────────────` */
     if (document.readyState === 'loading') {
         document.addEventListener('DOMContentLoaded', function() {
             initListPage();
@@ -857,7 +838,7 @@
             initPagination();
         });
     } else {
-        // DOM already ready (e.g. script loaded defer or async)
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`DOM already ready (e.g. script loaded defer or async)`
         initListPage();
         initDetailPage();
         initPagination();

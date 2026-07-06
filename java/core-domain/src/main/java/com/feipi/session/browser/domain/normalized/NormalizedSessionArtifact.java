@@ -40,12 +40,77 @@ public record NormalizedSessionArtifact(
     @CoreField String schemaVersion,
     @CoreField NormalizedAgent agent,
     @CoreField List<NormalizedSourceFile> sourceFiles,
-    @CoreField Map<String, Object> session,
+    @CoreField NormalizedSessionMetadata session,
     @CoreField List<NormalizedCall> calls,
     @CoreField List<NormalizedToolExecution> toolExecutions,
-    List<Map<String, Object>> diagnostics,
+    List<NormalizedDiagnostic> diagnostics,
     Map<String, SourceUnitCatalogEntry> sourceUnitCatalog,
     Map<String, List<String>> sourceUnitSequences) {
+
+  /**
+   * 兼容旧调用点的构造器。
+   *
+   * @param schemaVersion schema 版本
+   * @param agent agent 类型
+   * @param sourceFiles 源文件列表
+   * @param session 会话元数据 map
+   * @param calls 调用列表
+   * @param toolExecutions 工具执行列表
+   * @param diagnostics 诊断 map 或 {@link NormalizedDiagnostic} 列表
+   * @param sourceUnitCatalog 源单元目录
+   * @param sourceUnitSequences 源单元序列
+   */
+  public NormalizedSessionArtifact(
+      String schemaVersion,
+      NormalizedAgent agent,
+      List<NormalizedSourceFile> sourceFiles,
+      Map<String, Object> session,
+      List<NormalizedCall> calls,
+      List<NormalizedToolExecution> toolExecutions,
+      List<?> diagnostics,
+      Map<String, SourceUnitCatalogEntry> sourceUnitCatalog,
+      Map<String, List<String>> sourceUnitSequences) {
+    this(
+        schemaVersion,
+        agent,
+        sourceFiles,
+        NormalizedSessionMetadata.fromMap(session),
+        calls,
+        toolExecutions,
+        normalizedDiagnostics(diagnostics),
+        sourceUnitCatalog,
+        sourceUnitSequences);
+  }
+
+  /**
+   * 规范化诊断列表。
+   *
+   * @param diagnostics 诊断 map 或结构化诊断列表
+   * @return 不可变诊断列表
+   */
+  private static List<NormalizedDiagnostic> normalizedDiagnostics(List<?> diagnostics) {
+    if (diagnostics == null) {
+      return List.of();
+    }
+    return diagnostics.stream().map(NormalizedSessionArtifact::normalizedDiagnostic).toList();
+  }
+
+  /**
+   * 规范化单条诊断。
+   *
+   * @param diagnostic 诊断 map 或结构化诊断对象
+   * @return 结构化诊断
+   */
+  @SuppressWarnings("unchecked")
+  private static NormalizedDiagnostic normalizedDiagnostic(Object diagnostic) {
+    if (diagnostic instanceof NormalizedDiagnostic normalizedDiagnostic) {
+      return normalizedDiagnostic;
+    }
+    if (diagnostic instanceof Map<?, ?> map) {
+      return NormalizedDiagnostic.fromMap((Map<String, Object>) map);
+    }
+    throw new IllegalArgumentException("unsupported diagnostic element: " + diagnostic);
+  }
 
   /**
    * 紧凑构造器，验证顶层不变量并执行防御性拷贝。
@@ -71,14 +136,6 @@ public record NormalizedSessionArtifact(
           "sourceFiles size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
     }
     sourceFiles = sourceFilesCopy;
-
-    // session 不可变副本，大小受限
-    Map<String, Object> sessionCopy = Map.copyOf(session);
-    if (sessionCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "session map size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    session = sessionCopy;
 
     // 调用列表防御性拷贝 + callId 唯一性验证
     Objects.requireNonNull(calls, "calls 不得为 null");
@@ -106,7 +163,7 @@ public record NormalizedSessionArtifact(
     toolExecutions = toolsCopy;
 
     // 诊断信息防御性拷贝
-    List<Map<String, Object>> diagCopy =
+    List<NormalizedDiagnostic> diagCopy =
         diagnostics == null ? Collections.emptyList() : List.copyOf(diagnostics);
     if (diagCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
       throw new IllegalArgumentException(

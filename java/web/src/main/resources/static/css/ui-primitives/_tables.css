@@ -1,22 +1,7 @@
-/* ======================================================================
-* _tables.css — DataTable, TableCard, table-related cell primitives
-* ====================================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`====================================================================== * _tables.css — DataTable, TableCard, table-related cell primitives * ======================================================================` */
 
-/* === ProjectCell =========================================================== */
-/* Canonical project cell for data tables with project name link
-* and optional path row with copy button.
-*
-* Canonical page/API shell structure:
-*   <td class="project-cell [extra]">
-*     <a href="..." class="project-name-link">name</a>
-*     <div class="project-path-row">
-*       <span class="path-text truncate" data-tooltip="path">path</span>
-*       <button class="path-copy-btn" ...>...</button>  <!-- optional -->
-*     </div>  <!-- optional -->
-*   </td>
-*
-* Page-specific overrides (e.g. projects.css) may adjust widths or spacing.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== ProjectCell ===========================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical project cell for data tables with project name link * and optional path row with copy button. * * Canonical page/API shell structure: * <td class="project-cell [extra]"> * <a href="..." class="project-name-link">name</a> * <div class="project-path-row"> * <span class="path-text truncate" d` */
 .project-cell {
   min-width: 200px;
   max-width: 320px;
@@ -62,18 +47,8 @@
   outline-offset: -1px;
 }
 
-/* === TitleSubtitle ======================================================== */
-/* Two-line title pattern: primary title + optional subtitle.
-* Used in table cells for session/agent/project rows.
-*
-* Canonical page/API shell structure:
-*   <div class="[extra_classes]">
-*     <div class="title-main">Title text</div>
-*     <div class="title-sub mono">subtitle</div>
-*   </div>
-*
-* Page-specific overrides may adjust max-width, line-height, or font-size.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== TitleSubtitle ========================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Two-line title pattern: primary title + optional subtitle. * Used in table cells for session/agent/project rows. * * Canonical page/API shell structure: * <div class="[extra_classes]"> * <div class="title-main">Title text</div> * <div class="title-sub mono">subtitle</div> * </div> * * Page-specific ` */
 .title-main {
   font-weight: 820;
   color: var(--text);
@@ -90,16 +65,13 @@
   text-overflow: ellipsis;
   max-width: 440px;
 }
-/* .title-sub.mono — reinforce monospace when macro toggles mono=True */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`.title-sub.mono — reinforce monospace when macro toggles mono=True` */
 .title-sub.mono {
   font-family: var(--font-mono);
 }
 
-/* ── TableCard + scrollable table-wrap ────────────────────── */
-/* .table-card constrains to page width;
-.table-wrap can exceed
-* it and scrolls horizontally. The inner .data-table uses
-* min-width: max-content so columns keep their natural width. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── TableCard + scrollable table-wrap ──────────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`.table-card constrains to page width; .table-wrap can exceed * it and scrolls horizontally. The inner .data-table uses * min-width: max-content so columns keep their natural width.` */
 .card.table-card {
   overflow: hidden;
 }
@@ -113,13 +85,11 @@
   overflow-x: auto;
   overflow-y: visible;
 }
-/* When a table sits inside a scrollable .table-wrap, let it
-* grow beyond the card width instead of squishing columns. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`When a table sits inside a scrollable .table-wrap, let it * grow beyond the card width instead of squishing columns.` */
 .table-wrap > .data-table {
   min-width: max-content;
 }
-/* Sticky first column when table scrolls horizontally:
-* Apply via <th class="sticky-col"> / <td class="sticky-col"> */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Sticky first column when table scrolls horizontally: * Apply via <th class="sticky-col"> / <td class="sticky-col">` */
 .table-wrap > .data-table th.sticky-col,
 .table-wrap > .data-table td.sticky-col {
   position: sticky;
@@ -131,10 +101,8 @@
   z-index: 4;
 }
 
-/* ── Scrollable cell content (inside td) ─────────────────── */
-/* .cell-scroll wraps td content that may overflow horizontally.
-* It scrolls within the cell boundary without affecting table layout.
-* Only activates when content exceeds the column's available width. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Scrollable cell content (inside td) ───────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`.cell-scroll wraps td content that may overflow horizontally. * It scrolls within the cell boundary without affecting table layout. * Only activates when content exceeds the column's available width.` */
 .cell-scroll {
   overflow-x: auto;
   overflow-y: hidden;
@@ -142,23 +110,21 @@
   min-width: 0;
   display: block;
 }
-/* Reset overflow/truncate on direct children so content can
-* actually overflow and trigger the scroll on .cell-scroll. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Reset overflow/truncate on direct children so content can * actually overflow and trigger the scroll on .cell-scroll.` */
 .cell-scroll > * {
   white-space: normal;
   overflow: visible;
   text-overflow: unset;
   max-width: none;
 }
-/* Preserve nowrap for .mono children (numbers, tokens, etc.)
-* while allowing horizontal overflow to scroll. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Preserve nowrap for .mono children (numbers, tokens, etc.) * while allowing horizontal overflow to scroll.` */
 .cell-scroll > .mono {
   white-space: nowrap;
   overflow: visible;
   text-overflow: unset;
 }
 
-/* ── DataTable (canonical table primitives) ============================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── DataTable (canonical table primitives) ==============================` */
 .data-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -169,14 +135,14 @@
   padding: var(--table-cell-padding-y) var(--table-cell-padding-x);
   vertical-align: middle;
 }
-/* Default left alignment */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Default left alignment` */
 .data-table th {
   text-align: left;
 }
 .data-table td {
   text-align: left;
 }
-/* Column min-width via CSS custom property (set inline as --col-min-width) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Column min-width via CSS custom property (set inline as --col-min-width)` */
 .data-table col {
   min-width: var(--col-min-width, 0);
 }
@@ -184,7 +150,7 @@
 .data-table td {
   min-width: var(--col-min-width, 0);
 }
-/* Numeric column: right alignment + mono font */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Numeric column: right alignment + mono font` */
 .data-table th.col-num,
 .data-table td.col-num,
 .data-table th.numeric,
@@ -192,11 +158,11 @@
   text-align: right;
   font-family: var(--font-mono);
 }
-/* Column-specific alignment — all th/td in a named column share alignment */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Column-specific alignment — all th/td in a named column share alignment` */
 .data-table th.col-num {
   font-size: 12px;
 }
-/* Thead */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Thead` */
 .data-table thead th {
   padding: 0;
   height: 40px;
@@ -211,17 +177,17 @@
   z-index: 3;
   vertical-align: middle;
 }
-/* Sortable header — canonical contract: button fills cell, hover covers entire th */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Sortable header — canonical contract: button fills cell, hover covers entire th` */
 .data-table th.sortable {
   cursor: pointer;
   padding: 0;
 }
-/* Static headers and non-sortable cells get padding directly */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Static headers and non-sortable cells get padding directly` */
 .data-table th.static-header,
 .data-table th:not(.sortable) {
   padding: 0 var(--table-cell-padding-x, 10px);
 }
-/* Sort button inside sortable th — fills full width of cell for consistent hover area */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Sort button inside sortable th — fills full width of cell for consistent hover area` */
 .data-table th .c-data-table__sort {
   height: 100%;
   min-height: 36px;
@@ -251,7 +217,7 @@
 .data-table th .c-data-table__sort:hover {
   text-decoration: none;
 }
-/* Sort indicator icon — canonical .c-data-table__sort-icon */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Sort indicator icon — canonical .c-data-table__sort-icon` */
 .data-table th .c-data-table__sort-icon {
   display: inline-block;
   width: var(--icon-inline-size, 14px);
@@ -265,7 +231,7 @@
   background-size: 14px 14px;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 3v8M4.5 5.5L7 3l2.5 2.5M4.5 8.5L7 11l2.5-2.5'/%3E%3C/svg%3E");
 }
-/* Sorted states: single arrow (asc/desc) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Sorted states: single arrow (asc/desc)` */
 .data-table th.sortable[data-sort-dir="asc"] .c-data-table__sort-icon,
 .data-table th[aria-sort="ascending"] .c-data-table__sort-icon {
   color: var(--purple);
@@ -276,7 +242,7 @@
   color: var(--purple);
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='14' height='14' viewBox='0 0 14 14' fill='none' stroke='currentColor' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7 4v6M4.5 7.5L7 10l2.5-2.5'/%3E%3C/svg%3E");
 }
-/* Tbody */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tbody` */
 .data-table tbody td {
   height: 50px;
   border-bottom: 1px solid var(--line-strong);
@@ -286,7 +252,7 @@
   background: var(--surface-soft);
 }
 
-/* TokenBar inside a cell */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`TokenBar inside a cell` */
 .tokenbar-in-cell {
   position: relative;
   width: 130px;
@@ -319,13 +285,13 @@
   background: var(--token-output-visible);
 }
 
-/* Token cell minimum width */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Token cell minimum width` */
 .data-table .token-cell,
 .data-table .token-col {
   min-width: 120px;
 }
 
-/* Round row semantic tones */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Round row semantic tones` */
 .round-row.failed td {
   background: var(--red-soft);
 }
@@ -333,7 +299,7 @@
   background: #f5f3ff;
 }
 
-/* === TableToolbar =========================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== TableToolbar ===========================================================` */
 .table-toolbar {
   height: 48px;
   padding: 0 16px;
@@ -390,7 +356,7 @@
 }
 .data-table tbody tr.active td:first-child {
   padding-left: 7px;
-  /* compensate for 3px border */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`compensate for 3px border` */
 }
 .data-table tbody tr.row--failed:hover {
   background: var(--status-error-bg);

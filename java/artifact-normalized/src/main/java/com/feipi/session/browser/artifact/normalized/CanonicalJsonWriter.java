@@ -9,13 +9,20 @@ import com.fasterxml.jackson.databind.SerializerProvider;
 import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
+import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
+import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.nio.file.Path;
+import java.util.LinkedHashMap;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Optional;
 
 /**
@@ -131,7 +138,152 @@ public final class CanonicalJsonWriter {
    * @throws UncheckedIOException 当序列化过程发生 I/O 错误时
    */
   public byte[] serialize(NormalizedSessionArtifact artifact) {
-    return serializeObject(artifact);
+    return serializeObject(toCanonicalMap(artifact));
+  }
+
+  private static Map<String, Object> toCanonicalMap(NormalizedSessionArtifact artifact) {
+    Map<String, Object> root = new LinkedHashMap<>();
+    root.put("schema_version", artifact.schemaVersion());
+    root.put("agent", artifact.agent().getValue());
+    root.put(
+        "source",
+        Map.of(
+            "files",
+            artifact.sourceFiles().stream()
+                .map(sourceFile -> sourceFileMap(artifact.agent(), sourceFile))
+                .toList()));
+    root.put("session", artifact.session().toMap());
+    root.put("calls", artifact.calls().stream().map(CanonicalJsonWriter::callMap).toList());
+    root.put(
+        "tool_executions",
+        artifact.toolExecutions().stream().map(CanonicalJsonWriter::toolExecutionMap).toList());
+    root.put(
+        "diagnostics",
+        artifact.diagnostics().stream().map(CanonicalJsonWriter::diagnosticMap).toList());
+    if (!artifact.sourceUnitCatalog().isEmpty()) {
+      root.put("source_unit_catalog", artifact.sourceUnitCatalog());
+    }
+    if (!artifact.sourceUnitSequences().isEmpty()) {
+      root.put("source_unit_sequences", artifact.sourceUnitSequences());
+    }
+    return root;
+  }
+
+  private static Map<String, Object> sourceFileMap(
+      NormalizedAgent agent, NormalizedSourceFile sourceFile) {
+    Map<String, Object> map = new LinkedHashMap<>();
+    map.put("role", sourceFileRoleValue(agent, sourceFile));
+    map.put("path", sourceFile.path().toString());
+    putOptional(map, "subagent_id", sourceFile.subagentId());
+    putOptional(map, "parent_tool_use_id", sourceFile.parentToolUseId());
+    return map;
+  }
+
+  private static String sourceFileRoleValue(
+      NormalizedAgent agent, NormalizedSourceFile sourceFile) {
+    if (sourceFile.role() == SourceFileRole.TRANSCRIPT) {
+      return agent == NormalizedAgent.CODEX ? "codex_rollout" : "main_session";
+    }
+    return sourceFile.role().getValue();
+  }
+
+  private static Map<String, Object> callMap(NormalizedCall call) {
+    Map<String, Object> map = new LinkedHashMap<>();
+    map.put("call_id", call.callId());
+    map.put("call_index", call.callIndex());
+    map.put("call_key", call.callKey());
+    map.put("scope", call.scope().getValue());
+    map.put("parent_call_id", optionalString(call.parentCallId()));
+    map.put("parent_tool_call_id", optionalString(call.parentToolCallId()));
+    map.put("turn_id", optionalString(call.turnId()));
+    map.put("model", call.model());
+    map.put("timestamp", optionalString(call.timestamp()));
+    map.put("usage", usageMap(call));
+    map.put("request", Map.of("tool_result_ids", call.request().toolResultIds()));
+    map.put("response", Map.of("tool_call_ids", call.response().toolCallIds()));
+    if (!call.sourceUnitRefRanges().isEmpty()) {
+      map.put(
+          "source_unit_ref_ranges",
+          call.sourceUnitRefRanges().stream()
+              .map(CanonicalJsonWriter::sourceUnitRefRangeMap)
+              .toList());
+    }
+    if (!call.sourceUnits().isEmpty()) {
+      map.put("source_units", call.sourceUnits());
+    }
+    if (!call.attributionCandidates().isEmpty()) {
+      map.put("attribution_candidates", call.attributionCandidates());
+    }
+    if (!call.usageSource().isEmpty()) {
+      map.put("usage_source", call.usageSource());
+    }
+    putOptional(map, "subagent_id", call.subagentId());
+    putOptional(map, "parent_tool_name", call.parentToolName());
+    return map;
+  }
+
+  private static Map<String, Object> usageMap(NormalizedCall call) {
+    Map<String, Object> map = new LinkedHashMap<>();
+    map.put("fresh", call.usage().fresh());
+    map.put("cache_read", call.usage().cacheRead());
+    map.put("cache_write", call.usage().cacheWrite());
+    map.put("output", call.usage().output());
+    map.put("total", call.usage().total());
+    return map;
+  }
+
+  private static Map<String, Object> sourceUnitRefRangeMap(SourceUnitRefRange refRange) {
+    Map<String, Object> map = new LinkedHashMap<>();
+    map.put("sequence", optionalString(refRange.sequence()));
+    map.put("start", refRange.start());
+    map.put("end", refRange.end());
+    map.put("refs", refRange.refs());
+    map.put("role", optionalString(refRange.role()));
+    return map;
+  }
+
+  private static Map<String, Object> toolExecutionMap(NormalizedToolExecution tool) {
+    Map<String, Object> map = new LinkedHashMap<>();
+    map.put("tool_call_id", tool.toolCallId());
+    map.put("name", tool.name());
+    map.put("scope", tool.scope().getValue());
+    map.put("declared_by_call_id", tool.declaredByCallId());
+    map.put("result_consumed_by_call_id", optionalString(tool.resultConsumedByCallId()));
+    putOptional(map, "status", tool.status());
+    tool.exitCode().ifPresent(exitCode -> map.put("exit_code", exitCode));
+    if (tool.durationMs() > 0L) {
+      map.put("duration_ms", tool.durationMs());
+    }
+    if (!tool.filesTouched().isEmpty()) {
+      map.put("files_touched", tool.filesTouched());
+    }
+    putOptional(map, "subagent_id", tool.subagentId());
+    return map;
+  }
+
+  private static Map<String, Object> diagnosticMap(
+      com.feipi.session.browser.domain.normalized.NormalizedDiagnostic diagnostic) {
+    Map<String, Object> source = diagnostic.toMap();
+    Map<String, Object> map = new LinkedHashMap<>();
+    for (Map.Entry<String, Object> entry : source.entrySet()) {
+      map.put(toSnakeCase(entry.getKey()), entry.getValue());
+    }
+    return map;
+  }
+
+  private static String optionalString(Optional<String> value) {
+    return value == null ? "" : value.orElse("");
+  }
+
+  private static void putOptional(
+      Map<String, Object> map, String key, Optional<String> optionalValue) {
+    if (optionalValue != null && optionalValue.isPresent()) {
+      map.put(key, optionalValue.get());
+    }
+  }
+
+  private static String toSnakeCase(String value) {
+    return value.replaceAll("([A-Z])", "_$1").toLowerCase(Locale.ROOT);
   }
 
   /**

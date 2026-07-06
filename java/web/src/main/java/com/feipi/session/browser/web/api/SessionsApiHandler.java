@@ -235,8 +235,12 @@ public final class SessionsApiHandler {
             .filter(key -> !key.equals(removeKey))
             .map(key -> Map.entry(key, params.getOrDefault(key, "").trim()))
             .filter(entry -> !entry.getValue().isEmpty())
-            .filter(entry -> !("agent".equals(entry.getKey()) && "all".equalsIgnoreCase(entry.getValue())))
-            .map(entry -> ApiQueryParams.url(entry.getKey()) + "=" + ApiQueryParams.url(entry.getValue()))
+            .filter(
+                entry ->
+                    !("agent".equals(entry.getKey()) && "all".equalsIgnoreCase(entry.getValue())))
+            .map(
+                entry ->
+                    ApiQueryParams.url(entry.getKey()) + "=" + ApiQueryParams.url(entry.getValue()))
             .collect(Collectors.joining("&"));
     return query.isEmpty() ? basePath : basePath + "?" + query;
   }

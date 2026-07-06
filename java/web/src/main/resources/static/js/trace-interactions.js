@@ -1,11 +1,11 @@
-// Session Browser UI — payload interactions and conservative page interactions.
-// Scope: session detail payload interactions and conservative page interactions.
-// Required actions:
-// - toggle-round
-// - toggle-all
-// - jump-round
-// - open-payload  (handled by session-detail/payload.js)
-// - close-payload (handled by session-detail/payload.js)
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Session Browser UI — payload interactions and conservative page interactions.`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Scope: session detail payload interactions and conservative page interactions.`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Required actions:`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`- toggle-round`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`- toggle-all`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`- jump-round`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`- open-payload (handled by session-detail/payload.js)`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`- close-payload (handled by session-detail/payload.js)`
 (function(){
   "use strict";
 

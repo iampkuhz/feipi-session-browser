@@ -1609,6 +1609,9 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             'scripts',
             '.claude/hooks',
             '.codex/hooks',
+            '.qoder/hooks',
+            'java/web/src/main/resources/static',
+            'java/web/src/main/resources/templates',
         ]
         if policy.exists():
             cmd.extend(['--policy', str(policy)])
@@ -1719,6 +1722,11 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return [dev_python, '-m', 'pytest', '-q', '-W', 'error', *items] if items else []
     if gate == 'doctor':
         return ['bash', 'scripts/harness/doctor.sh']
+    if gate == 'sessionSamples':
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
+            return []
+        return [str(gradlew), ':java:contract-tests:sampleIntegrationTest', '--no-daemon']
     if gate == 'repoStructure':
         return [python, 'scripts/quality/validate_repo_structure.py']
     if gate == 'harnessStructure':

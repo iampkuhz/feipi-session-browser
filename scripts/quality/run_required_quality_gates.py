@@ -21,6 +21,9 @@ required_quality_targets = importlib.import_module(
 # 导入 dominance 去重函数，避免重复运行被包含的 target。
 effective_targets = importlib.import_module('scripts.claude_hooks.classify').effective_targets
 QUALITY_TARGETS = importlib.import_module('scripts.quality.quality_targets').QUALITY_TARGETS
+target_parallel_meta = importlib.import_module(
+    'scripts.quality.quality_targets'
+).target_parallel_meta
 changed_file_utils = importlib.import_module('scripts.quality.changed_files')
 runtime_paths = importlib.import_module('scripts.claude_hooks.paths')
 
@@ -202,6 +205,8 @@ def run_gate(
     try:
         env = os.environ.copy()
         env.pop('QUALITY_CHANGED_FILES', None)
+        # 使用 target 元数据里的 timeout，避免 Java baseline 被固定 300 秒上限误杀。
+        timeout = int(target_parallel_meta(target).get('timeout', 300))
         proc = subprocess.run(
             cmd,
             cwd=REPO_ROOT,
@@ -210,7 +215,7 @@ def run_gate(
             stdout=subprocess.PIPE,
             stderr=subprocess.STDOUT,
             env=env,
-            timeout=300,
+            timeout=timeout,
         )
         if proc.returncode != 0:
             return False, artifact_path

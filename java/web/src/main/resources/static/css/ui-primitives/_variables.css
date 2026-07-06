@@ -1,11 +1,7 @@
-/* ======================================================================
-* _variables.css — Token System
-* ======================================================================
-* Color, spacing, typography, and UI component tokens.
-* ====================================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`====================================================================== * _variables.css — Token System * ====================================================================== * Color, spacing, typography, and UI component tokens. * ===================================================================` */
 
 :root {
-  /* Color variables */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Color variables` */
   --bg: #f6f8fc;
   --surface: #ffffff;
   --surface-soft: #fbfcff;
@@ -31,7 +27,7 @@
   --warn-bg: #fffbeb;
   --err: #dc2626;
   --err-bg: #fef2f2;
-  /* Spacing variables */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Spacing variables` */
   --shadow: 0 8px 24px rgba(27, 39, 94, 0.07);
   --radius-lg: 18px;
   --radius-md: 14px;
@@ -41,11 +37,11 @@
   --sidebar: 226px;
   --topbar: 52px;
   --max: 1320px;
-  /* Typography variables (aliases to style.css canonical --font-sans/--font-mono) */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Typography variables (aliases to style.css canonical --font-sans/--font-mono)` */
   --icon-nav-size: 18px;
   --icon-inline-size: 16px;
   --icon-metric-size: 22px;
-  /* UI component tokens */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`UI component tokens` */
   --ui-radius-btn: 9px;
   --ui-radius-pill: 999px;
   --ui-h-control-sm: 28px;

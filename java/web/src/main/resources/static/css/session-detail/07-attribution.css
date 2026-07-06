@@ -1,5 +1,5 @@
 
-/* Availability compact rows in rail */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Availability compact rows in rail` */
 .sd-attribution-avail-row {
   display: grid;
   grid-template-columns: 1fr auto;
@@ -16,7 +16,7 @@
   white-space: nowrap;
 }
 
-/* Notes in attribution topgrid */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Notes in attribution topgrid` */
 .sd-attribution-topnotes,
 .sd-attribution-rail__notes {
   padding: 8px 10px;
@@ -36,7 +36,7 @@
   border-bottom: none;
 }
 
-/* ── Section labels ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Section labels ──` */
 .sd-attribution-section-label {
   font-size: 11px;
   font-weight: 800;
@@ -46,7 +46,7 @@
   margin-bottom: 6px;
 }
 
-/* ── Expandable bucket cards ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Expandable bucket cards ──` */
 .sd-attribution-bucket-list {
   display: flex;
   flex-direction: column;
@@ -81,7 +81,7 @@
   flex-shrink: 0;
 }
 
-/* Bucket dot colors must match distribution bar segment colors for consistency. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Bucket dot colors must match distribution bar segment colors for consistency.` */
 .sd-attribution-bucket-dot--0 { background: #2563eb; }
 .sd-attribution-bucket-dot--1 { background: #16a34a; }
 .sd-attribution-bucket-dot--2 { background: #f97316; }
@@ -134,7 +134,7 @@
   display: none;
 }
 
-/* ── Bucket detail content ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Bucket detail content ──` */
 .sd-bucket-detail-list {
   display: flex;
   flex-direction: column;
@@ -249,7 +249,7 @@
   font-size: 12px;
 }
 
-/* Expandable tool detail item */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Expandable tool detail item` */
 .sd-bucket-detail-item--expandable {
   cursor: pointer;
   transition: background 120ms ease;
@@ -335,7 +335,7 @@
   color: var(--sd-text-2);
 }
 
-/* Full preview variant: no max-height, shows all content with local scroll */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Full preview variant: no max-height, shows all content with local scroll` */
 .sd-bucket-detail-preview--full {
   max-height: none;
   max-height: 480px;
@@ -391,7 +391,7 @@
   color: var(--text-subtle);
 }
 
-/* ── Attribution disclaimer ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution disclaimer ──` */
 .sd-attribution-disclaimer {
   font-size: 11px;
   color: var(--sd-muted);
@@ -399,12 +399,12 @@
   font-style: italic;
 }
 
-/* ── Modal width constraint ── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Modal width constraint ──` */
 .sd-payload-modal .sd-payload-modal__panel {
   max-width: 1500px;
 }
 
-/* Attribution overview section */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Attribution overview section` */
 .sd-attribution-overview {
   padding: 8px 0;
 }

@@ -1,6 +1,6 @@
-// Session Detail Timeline interactions.
-// Scope: data-trace-page only. No inline onclick.
-// Payload modal: single shell, ensurePayloadModal, diagnostic fallback.
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Session Detail Timeline interactions.`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Scope: data-trace-page only. No inline onclick.`
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Payload modal: single shell, ensurePayloadModal, diagnostic fallback.`
 
 (function () {
   function qs(root, sel) { return (root || document).querySelector(sel); }

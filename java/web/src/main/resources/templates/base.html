@@ -7,23 +7,7 @@
     {% if export_mhtml is defined and export_mhtml %}
     <style>{{ mhtml_css | raw }}</style>
     {% else %}
-    <!-- ============================================================
-         CSS Import Ownership Model
-
-         Layer 0 — Tokens + Base (global):
-           /static/css/tokens.css         → 设计令牌（CSS 变量）
-           /static/css/base.css           → reset、html、body、typography、focus
-
-         Layer 1 — Shell (global):
-           /static/css/shell.css          → 布局骨架
-
-         Layer 2 — Shared Primitives (global):
-           /static/css/ui-primitives.css  → 按钮、徽章、卡片等原子组件
-
-         Layer 3 — Page-specific CSS (per-page, via block head_extra):
-           css/dashboard.css, css/sessions-list.css, css/session-detail.css,
-           css/projects.css, css/glossary.css, css/states.css
-         ============================================================ -->
+    <!-- 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`============================================================ CSS Import Ownership Model Layer 0 — Tokens + Base (global): /static/css/tokens.css → 设计令牌（CSS 变量） /static/css/base.css → reset、html、body、typography、focus Layer 1 — Shell (global): /static/css/shell.css → 布局骨架 Layer 2 — Shared Primitives (` -->
     <link rel="stylesheet" href="/static/css/tokens.css">
     <link rel="stylesheet" href="/static/css/base.css">
     <link rel="stylesheet" href="/static/css/shell.css">

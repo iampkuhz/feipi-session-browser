@@ -1,5 +1,4 @@
-/* Session-detail page CSS variables (scoped to .session-detail-page).
-* Shell layout (.sd-shell, .sd-content) is defined in style.css. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Session-detail page CSS variables (scoped to .session-detail-page). * Shell layout (.sd-shell, .sd-content) is defined in style.css.` */
 .sd-shell,
 .session-detail-page {
   --sd-bg: #f6f8fb;

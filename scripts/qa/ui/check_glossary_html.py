@@ -13,7 +13,11 @@ if str(SCRIPT_DIR) not in sys.path:
 from _api_first_checklib import CSS, JS, TEMPLATES, LEGACY_PY_ROOT, exists, has_all, has_none, read, run
 
 
+# 运行页面静态契约检查。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     html_path = TEMPLATES / 'glossary.html'
     js_path = JS / 'glossary.js'
     css_path = CSS / 'glossary.css'

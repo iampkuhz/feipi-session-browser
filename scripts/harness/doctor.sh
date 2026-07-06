@@ -5,45 +5,25 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
+fail=0
 
-# 检查 Python 版本是否兼容。
-python_is_compatible() {
-  local candidate="$1"
-  "$candidate" - <<'PY' >/dev/null 2>&1
-import sys
-raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
-PY
-}
-
-# 解析可用的 Python executable。
+# 通过共享 resolver 解析项目 Python executable。
 python_bin() {
-  if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
-    if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
-      printf '%s\n' "$SESSION_BROWSER_PYTHON"
-      return 0
-    fi
-    echo "[FAIL] SESSION_BROWSER_PYTHON 不可执行或低于 Python 3.10：$SESSION_BROWSER_PYTHON" >&2
+  local resolver=""
+  if [[ -x "$VENV_DIR/bin/python" ]]; then
+    resolver="$VENV_DIR/bin/python"
+  elif command -v python3 >/dev/null 2>&1; then
+    resolver="python3"
+  elif command -v python >/dev/null 2>&1; then
+    resolver="python"
+  else
+    echo "[FAIL] 未找到可运行 resolver 的 Python executable。" >&2
     return 1
   fi
-  if [[ -x "$VENV_DIR/bin/python" ]] && python_is_compatible "$VENV_DIR/bin/python"; then
-    printf '%s\n' "$VENV_DIR/bin/python"
-    return 0
-  fi
-  if command -v python >/dev/null 2>&1 && python_is_compatible python; then
-    printf 'python\n'
-    return 0
-  fi
-  if command -v python3 >/dev/null 2>&1 && python_is_compatible python3; then
-    printf 'python3\n'
-    return 0
-  fi
-  echo "[FAIL] 未找到可用 Python 解释器（需要 Python >= 3.10）。" >&2
-  return 1
+  "$resolver" scripts/harness/python_env.py resolve
 }
 
 PYTHON="$(python_bin)" || PYTHON=""
-
-fail=0
 
 # 检查文件。
 check_file() {
@@ -128,15 +108,16 @@ if [[ -n "$PYTHON" ]]; then
 fi
 
 # CSS ownership 校验。
-css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || true
-css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
-css_expected=1  # .sd-shell duplicate (pre-existing)
-if [[ "$css_total" -gt "$css_expected" ]]; then
-  echo "[FAIL] CSS ownership violations: $css_total (expected $css_expected or fewer)" >&2
-  echo "$css_output" >&2
-  fail=1
-else
-  echo "[PASS] CSS ownership validation (${css_total} known warning)"
+if [[ -n "$PYTHON" ]]; then
+  css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || true
+  css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
+  if [[ "$css_total" -gt 0 ]]; then
+    echo "[FAIL] CSS ownership violations: $css_total" >&2
+    echo "$css_output" >&2
+    fail=1
+  else
+    echo "[PASS] CSS ownership validation"
+  fi
 fi
 
 # 检查个人文件和临时目录是否不存在于磁盘。

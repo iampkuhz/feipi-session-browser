@@ -50,12 +50,12 @@
     }
     var roundId = row.getAttribute('data-round');
     var detailEl = roundId ? document.getElementById('round-' + roundId + '-detail') : null;
-    // Check if detail is already loaded (via lazy load) or pre-rendered in DOM
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Check if detail is already loaded (via lazy load) or pre-rendered in DOM`
     if (row.getAttribute('data-detail-loaded') === 'true' || detailEl) {
       setRoundOpen(row, true);
       return;
     }
-    // Lazy load round detail from API
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Lazy load round detail from API`
     lazyLoadRoundDetail(row);
   }
 

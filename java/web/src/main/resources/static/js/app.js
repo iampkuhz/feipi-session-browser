@@ -1,13 +1,4 @@
-/**
- * Unified copy-to-clipboard helper.
- *
- * Usage:
- *   // Copy text, show feedback on a button element
- *   arpCopy(btn, 'text to copy');
- *
- *   // Copy text with explicit original/feedback strings
- *   arpCopy(btn, text, { original: 'Copy', feedback: 'Copied!' });
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Unified copy-to-clipboard helper. * * Usage: * // Copy text, show feedback on a button element * arpCopy(btn, 'text to copy'); * * // Copy text with explicit original/feedback strings * arpCopy(btn, text, { original: 'Copy', feedback: 'Copied!' });` */
 (function() {
     'use strict';
 
@@ -16,16 +7,9 @@
     }
 
     var DEFAULT_FEEDBACK = '✓';  // ✓
-    var DEFAULT_DURATION  = 1200;     // ms
+    var DEFAULT_DURATION  = 1200;     // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`ms`
 
-    /**
-     * Copy `text` to clipboard and give brief visual feedback on `btn`.
-     * Falls back to execCommand if the Clipboard API is unavailable.
-     *
-     * @param {HTMLElement} btn       Element to show feedback on.
-     * @param {string}      text      Text to copy.
-     * @param {Object}      [opts]    Optional: { original, feedback, duration }.
-     */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Copy 'text' to clipboard and give brief visual feedback on 'btn'. * Falls back to execCommand if the Clipboard API is unavailable. * * @param {HTMLElement} btn Element to show feedback on. * @param {string} text Text to copy. * @param {Object} [opts] Optional: { original, feedback, duration }.` */
     window.arpCopy = function(btn, text, opts) {
         opts = opts || {};
         var feedbackText = opts.feedback || DEFAULT_FEEDBACK;
@@ -78,14 +62,14 @@
                 if (!fallbackCopy()) { fail(); }
             });
         } else {
-            // Textarea fallback when Clipboard API is unavailable.
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Textarea fallback when Clipboard API is unavailable.`
             if (!fallbackCopy()) { fail(); }
         }
     };
 
-    /* ─── Convenience wrappers used by current templates ─────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Convenience wrappers used by current templates ───────` */
 
-    /** Copy raw session JSON data. */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Copy raw session JSON data.` */
     window.copyRawData = function() {
         var el = document.getElementById('raw-json');
         if (!el) return;
@@ -96,7 +80,7 @@
         });
     };
 
-    /* ─── Global event delegation for canonical data-actions ─────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`─── Global event delegation for canonical data-actions ───────` */
 
     document.addEventListener('click', function(event) {
         var actionEl = event.target.closest('[data-action]');

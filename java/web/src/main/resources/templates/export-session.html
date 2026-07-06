@@ -94,7 +94,7 @@
 </head>
 <body>
 
-{# ── Export header ── #}
+{# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Export header ──` #}
 <div class="export-header">
     <h1>Session Export</h1>
     <div class="export-meta">
@@ -104,7 +104,7 @@
     </div>
 </div>
 
-{# ── Session hero ── #}
+{# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Session hero ──` #}
 <section class="sd-hero">
     <div class="sd-hero__main">
         <h2 class="sd-hero__title">{{ session.title is not empty ? session.title : 'Untitled session' }}</h2>
@@ -122,7 +122,7 @@
         </div>
     </div>
 
-    {# ── Metrics ── #}
+    {# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Metrics ──` #}
     <div class="sd-metrics">
         <div class="sd-metric" title="Total tokens">
             <span class="sd-metric__value">{{ session_metrics.total_tokens | format_compact_token }}</span>
@@ -174,7 +174,7 @@
         </div>
     </div>
 
-    {# ── Token composition bar ── #}
+    {# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Token composition bar ──` #}
     {% set total = session_metrics.fresh_input_tokens + session_metrics.cache_read_tokens + session_metrics.cache_write_tokens + session_metrics.output_tokens %}
     {% if total > 0 %}
     <div class="tokenbar">
@@ -191,7 +191,7 @@
     </div>
     {% endif %}
 
-    {# ── Visibility note ── #}
+    {# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Visibility note ──` #}
     <div class="visibility-note">
         {% if payload_hidden %}
         Payload content is hidden (standard visibility).
@@ -204,7 +204,7 @@
     </div>
 </section>
 
-{# ── Anomalies ── #}
+{# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Anomalies ──` #}
 {% if has_anomalies %}
 <section class="sd-anomalies">
     <div class="sd-anomalies__head">
@@ -223,7 +223,7 @@
 </section>
 {% endif %}
 
-{# ── Rounds ── #}
+{# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Rounds ──` #}
 <section class="rounds-section">
     <h2>Rounds ({{ round_count }})</h2>
     {% if not has_rounds %}
@@ -268,7 +268,7 @@
     {% endif %}
 </section>
 
-{# ── Payload sources ── #}
+{# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Payload sources ──` #}
 {% if payload_source_count > 0 %}
 <section class="payload-section">
     <h2>Payload Sources ({{ payload_source_count }})</h2>
@@ -297,7 +297,7 @@
 </section>
 {% endif %}
 
-{# ── Footer ── #}
+{# 中文说明：维护当前模板结构说明，原注释作为代码上下文保留：`── Footer ──` #}
 <div class="export-footer">
     Feipi Session Browser - Export generated at {{ export_timestamp }}
 </div>

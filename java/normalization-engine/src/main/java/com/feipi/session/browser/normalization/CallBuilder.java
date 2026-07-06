@@ -7,12 +7,14 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -55,7 +57,11 @@ public final class CallBuilder {
     return Stream.concat(
             assistantToolExecutions(context, toolErrors).stream(),
             standaloneToolExecutions(
-                classified.toolUses(), calls, context.toolResultConsumers(), toolErrors)
+                classified.toolUses(),
+                calls,
+                context.toolResultConsumers(),
+                toolErrors,
+                context.toolDeclarations())
                 .stream())
         .toList();
   }
@@ -71,7 +77,7 @@ public final class CallBuilder {
         "C" + frame.index(),
         frame.scope(),
         frame.parentCallId(),
-        frame.subagentId(),
+        frame.parentToolCallId(),
         record.turnId(),
         record.model().orElse(""),
         record.timestamp(),
@@ -83,7 +89,9 @@ public final class CallBuilder {
         List.of(),
         List.of(),
         Map.of(),
-        Map.of());
+        Map.of(),
+        frame.subagentId(),
+        frame.parentToolName());
   }
 
   private static List<String> toolResultIdsForCall(
@@ -124,7 +132,8 @@ public final class CallBuilder {
       List<SourceRecord> toolUses,
       List<NormalizedCall> calls,
       Map<String, String> consumers,
-      Map<String, String> toolErrors) {
+      Map<String, String> toolErrors,
+      Map<String, String> declarations) {
     List<NormalizedToolExecution> executions = new ArrayList<>();
     for (SourceRecord toolUseRecord : toolUses) {
       Optional<String> toolCallId = toolUseRecord.callId();
@@ -136,11 +145,11 @@ public final class CallBuilder {
           toolExecution(
               toolCallId.get(),
               toolName.get(),
-              declaredByLastCall(calls),
+              declarations.getOrDefault(toolCallId.get(), declaredByLastCall(calls)),
               Optional.ofNullable(consumers.get(toolCallId.get())),
               toolUseRecord.toolError(),
               callScope(toolUseRecord),
-              displaySubagentId(toolUseRecord)));
+              toolExecutionSubagentId(toolUseRecord)));
     }
     return executions;
   }
@@ -226,16 +235,69 @@ public final class CallBuilder {
                         : lastCallId));
   }
 
+  private static Map<String, String> mapToolDeclarations(
+      List<? extends SourceRecord> records, List<String> callIds) {
+    Map<String, String> map = new LinkedHashMap<>();
+    if (callIds.isEmpty()) {
+      return map;
+    }
+    int nextAssistantIndex = 0;
+    String currentAssistantCallId = "";
+    for (SourceRecord record : records) {
+      if (record == null) {
+        continue;
+      }
+      if ("assistant".equals(record.eventType())) {
+        currentAssistantCallId = callIds.get(Math.min(nextAssistantIndex, callIds.size() - 1));
+        nextAssistantIndex = Math.min(nextAssistantIndex + 1, callIds.size());
+        String owner = currentAssistantCallId;
+        for (SourceToolCall toolCall : record.toolCalls()) {
+          map.put(toolCall.toolCallId(), owner);
+        }
+      } else if ("tool_use".equals(record.eventType())) {
+        String owner = declaredToolOwner(callIds, nextAssistantIndex, currentAssistantCallId);
+        record.callId().ifPresent(toolCallId -> map.put(toolCallId, owner));
+      }
+    }
+    return map;
+  }
+
+  private static String declaredToolOwner(
+      List<String> callIds, int nextAssistantIndex, String currentAssistantCallId) {
+    if (currentAssistantCallId.isBlank()) {
+      return callIds.get(Math.min(nextAssistantIndex, callIds.size() - 1));
+    }
+    if (currentAssistantCallId.startsWith("token_count:") && nextAssistantIndex < callIds.size()) {
+      return callIds.get(nextAssistantIndex);
+    }
+    return currentAssistantCallId;
+  }
+
   private static String extractCallId(SourceRecord record, int fallbackIndex) {
     return record.callId().orElse("C" + fallbackIndex);
   }
 
   private static CallScope callScope(SourceRecord record) {
+    boolean relationSubagent = relationValue(record, SourceRecordRelation::subagentId).isPresent();
+    Optional<String> parentToolCallId =
+        relationValue(record, SourceRecordRelation::parentToolCallId);
+    boolean parentSpawnTool =
+        "spawn_agent".equals(record.toolName().orElse(""))
+            && parentToolCallId.isPresent()
+            && record.callId().equals(parentToolCallId);
+    if (relationSubagent && !parentSpawnTool) {
+      return CallScope.SUBAGENT;
+    }
     return subagentId(record).isPresent() ? CallScope.SUBAGENT : CallScope.MAIN;
   }
 
   private static Optional<String> displaySubagentId(SourceRecord record) {
-    return subagentId(record).map(id -> "agent-" + id);
+    return relationValue(record, SourceRecordRelation::subagentId)
+        .or(() -> subagentId(record).map(id -> "agent-" + id));
+  }
+
+  private static Optional<String> toolExecutionSubagentId(SourceRecord record) {
+    return displaySubagentId(record);
   }
 
   private static Optional<String> subagentId(SourceRecord record) {
@@ -271,6 +333,8 @@ public final class CallBuilder {
    * @param scope 调用作用域。
    * @param parentCallId 父调用标识符。
    * @param subagentId subagent 标识符。
+   * @param parentToolCallId 父工具调用标识符。
+   * @param parentToolName 父工具名。
    */
   private record AssistantCallFrame(
       int index,
@@ -278,7 +342,9 @@ public final class CallBuilder {
       String callId,
       CallScope scope,
       Optional<String> parentCallId,
-      Optional<String> subagentId) {}
+      Optional<String> subagentId,
+      Optional<String> parentToolCallId,
+      Optional<String> parentToolName) {}
 
   /**
    * 表示 CallBuildContext 数据。
@@ -292,7 +358,32 @@ public final class CallBuilder {
     private static CallBuildContext create(
         List<? extends SourceRecord> records, List<SourceRecord> assistantMessages) {
       List<AssistantCallFrame> frames = assistantFrames(assistantMessages);
+      Map<String, String> declarations = mapToolDeclarations(records, callIds(frames));
+      frames = attachParentCallIds(frames, declarations);
       return new CallBuildContext(frames, mapToolResultConsumers(records, callIds(frames)));
+    }
+
+    private static List<AssistantCallFrame> attachParentCallIds(
+        List<AssistantCallFrame> frames, Map<String, String> declarations) {
+      List<AssistantCallFrame> result = new ArrayList<>(frames.size());
+      for (AssistantCallFrame frame : frames) {
+        Optional<String> parentCallId =
+            frame
+                .parentCallId()
+                .or(() -> frame.parentToolCallId().map(declarations::get))
+                .filter(value -> value != null && !value.isBlank());
+        result.add(
+            new AssistantCallFrame(
+                frame.index(),
+                frame.record(),
+                frame.callId(),
+                frame.scope(),
+                parentCallId,
+                frame.subagentId(),
+                frame.parentToolCallId(),
+                frame.parentToolName()));
+      }
+      return List.copyOf(result);
     }
 
     private static List<AssistantCallFrame> assistantFrames(List<SourceRecord> assistantMessages) {
@@ -301,6 +392,10 @@ public final class CallBuilder {
       for (int index = 0; index < assistantMessages.size(); index++) {
         SourceRecord record = assistantMessages.get(index);
         Optional<String> subagent = displaySubagentId(record);
+        Optional<String> parentToolCallId =
+            relationValue(record, SourceRecordRelation::parentToolCallId);
+        Optional<String> parentToolName =
+            relationValue(record, SourceRecordRelation::parentToolName);
         if (subagent.isPresent()) {
           String id = subagent.get();
           int subRound = subagentCounters.merge(id, 1, Integer::sum);
@@ -310,15 +405,20 @@ public final class CallBuilder {
                   record,
                   id + "-SR" + subRound,
                   CallScope.SUBAGENT,
-                  Optional.of("subagent:" + id),
-                  Optional.of(id)));
+                  relationValue(record, SourceRecordRelation::parentCallId),
+                  Optional.of(id),
+                  parentToolCallId,
+                  parentToolName));
         } else {
+          String callId = extractCallId(record, index + 1);
           frames.add(
               new AssistantCallFrame(
                   index + 1,
                   record,
-                  extractCallId(record, index + 1),
+                  callId,
                   CallScope.MAIN,
+                  Optional.empty(),
+                  Optional.empty(),
                   Optional.empty(),
                   Optional.empty()));
         }
@@ -336,9 +436,12 @@ public final class CallBuilder {
    *
    * @param frames assistant 调用帧列表。
    * @param toolResultConsumers tool result 消费者映射。
+   * @param toolDeclarations tool declaration 归属映射。
    */
   private record ExecutionContext(
-      List<AssistantCallFrame> frames, Map<String, String> toolResultConsumers) {
+      List<AssistantCallFrame> frames,
+      Map<String, String> toolResultConsumers,
+      Map<String, String> toolDeclarations) {
 
     private static ExecutionContext create(
         List<? extends SourceRecord> records,
@@ -350,7 +453,10 @@ public final class CallBuilder {
               .mapToObj(index -> executionFrame(assistantMessages.get(index), index, callIds))
               .toList();
       List<String> consumerCallIds = callIds.isEmpty() ? CallBuildContext.callIds(frames) : callIds;
-      return new ExecutionContext(frames, mapToolResultConsumers(records, consumerCallIds));
+      return new ExecutionContext(
+          frames,
+          mapToolResultConsumers(records, consumerCallIds),
+          mapToolDeclarations(records, consumerCallIds));
     }
 
     private static AssistantCallFrame executionFrame(
@@ -361,13 +467,23 @@ public final class CallBuilder {
               ? callIds.get(zeroBasedIndex)
               : extractCallId(record, callIndex);
       Optional<String> subagent = displaySubagentId(record);
+      Optional<String> parentToolCallId =
+          relationValue(record, SourceRecordRelation::parentToolCallId);
       return new AssistantCallFrame(
           callIndex,
           record,
           callId,
           subagent.isPresent() ? CallScope.SUBAGENT : CallScope.MAIN,
-          subagent.map(id -> "subagent:" + id),
-          subagent);
+          relationValue(record, SourceRecordRelation::parentCallId),
+          subagent,
+          parentToolCallId,
+          relationValue(record, SourceRecordRelation::parentToolName));
     }
+  }
+
+  private static Optional<String> relationValue(
+      SourceRecord record, Function<SourceRecordRelation, Optional<String>> getter) {
+    SourceRecordRelation relation = record.relation();
+    return relation == null ? Optional.empty() : getter.apply(relation);
   }
 }

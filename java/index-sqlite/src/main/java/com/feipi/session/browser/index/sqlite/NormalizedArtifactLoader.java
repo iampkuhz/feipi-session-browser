@@ -175,7 +175,9 @@ public final class NormalizedArtifactLoader {
         List.of(),
         List.of(),
         Map.of(),
-        Map.of());
+        Map.of(),
+        optionalString(cm, "subagentId", "subagent_id"),
+        optionalString(cm, "parentToolName", "parent_tool_name"));
   }
 
   /** 解析调用用量。 */
@@ -263,6 +265,14 @@ public final class NormalizedArtifactLoader {
   /** 解析源文件列表。 */
   private static List<NormalizedSourceFile> parseSourceFiles(Map<String, Object> root) {
     Object sfObj = firstValue(root, "sourceFiles", "source_files");
+    if (sfObj == null) {
+      Object sourceObj = root.get("source");
+      if (sourceObj instanceof Map<?, ?> sourceMap) {
+        @SuppressWarnings("unchecked")
+        Map<String, Object> source = (Map<String, Object>) sourceMap;
+        sfObj = source.get("files");
+      }
+    }
     if (!(sfObj instanceof List<?> sfList)) {
       return List.of();
     }

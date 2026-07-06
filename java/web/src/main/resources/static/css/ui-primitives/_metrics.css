@@ -1,31 +1,8 @@
-/* ======================================================================
-* _metrics.css — MetricCard, MetricGrid, TokenBar, TokenTotal,
-*                 TokenTooltip, ProgressBar, ChartLegend, ScopeSwitch
-* ====================================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`====================================================================== * _metrics.css — MetricCard, MetricGrid, TokenBar, TokenTotal, * TokenTooltip, ProgressBar, ChartLegend, ScopeSwitch * ======================================================================` */
 
-/* === MetricCard / MetricGrid ============================================= */
-/*
-* Unified metric card component — the ONLY definition across all pages.
-* HTML template (every page uses this exact structure):
-*
-*   <article class="metric-card">
-*     <div class="metric-icon purple" aria-hidden="true">...</div>
-*     <div class="metric-card__body">
-*       <div class="metric-card__label-row">
-*         <span class="metric-card__label">Label</span>
-*         <button class="icon-button icon-button--info" title="..." aria-label="...">...</button>
-*       </div>
-*       <div class="metric-card__value">123</div>
-*       <div class="metric-card__sub">Optional subtitle</div>
-*     </div>
-*   </article>
-*
-* Grid wrapper:
-*   <section class="metric-grid"> ...cards... </section>
-*
-* Icon can use either .metric-card__icon (dashboard) or .metric-icon + color variant (other pages).
-*/
-/* ── Grid ───────────────────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== MetricCard / MetricGrid =============================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* Unified metric card component — the ONLY definition across all pages. * HTML template (every page uses this exact structure): * * <article class="metric-card"> * <div class="metric-icon purple" aria-hidden="true">...</div> * <div class="metric-card__body"> * <div class="metric-card__label-row"> * ` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Grid ─────────────────────────────────────────────────────────────────` */
 .metric-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
@@ -33,9 +10,8 @@
   margin-bottom: 16px;
 }
 
-/* ── Card container ─────────────────────────────────────────────────────── */
-/* Horizontal layout: icon on left, label/value/sub stacked on right.
-* align-items: center centers the icon vertically within the card. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Card container ───────────────────────────────────────────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Horizontal layout: icon on left, label/value/sub stacked on right. * align-items: center centers the icon vertically within the card.` */
 .metric-card {
   background: var(--surface);
   border: 1px solid var(--line);
@@ -50,8 +26,8 @@
   min-width: 0;
 }
 
-/* ── Icon ───────────────────────────────────────────────────────────────── */
-/* .metric-card__icon (dashboard) and .metric-icon (other pages) are aliases. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Icon ─────────────────────────────────────────────────────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`.metric-card__icon (dashboard) and .metric-icon (other pages) are aliases.` */
 .metric-card__icon,
 .metric-icon {
   width: 38px;
@@ -64,7 +40,7 @@
   flex: 0 0 auto;
 }
 
-/* Color variants for icon background */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Color variants for icon background` */
 .metric-icon.blue   {
   background: #edeaff;
   color: var(--purple);
@@ -86,7 +62,7 @@
   color: var(--red);
 }
 
-/* ── Body ───────────────────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Body ─────────────────────────────────────────────────────────────────` */
 .metric-card__body {
   display: flex;
   flex-direction: column;
@@ -96,7 +72,7 @@
   gap: 2px;
 }
 
-/* ── Label row ──────────────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Label row ────────────────────────────────────────────────────────────` */
 .metric-card__label-row {
   display: flex;
   align-items: center;
@@ -108,7 +84,7 @@
   font-weight: 700;
 }
 
-/* ── Value ──────────────────────────────────────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Value ────────────────────────────────────────────────────────────────` */
 .metric-card__value {
   font-size: 28px;
   font-weight: 800;
@@ -123,7 +99,7 @@
   font-variant-numeric: var(--tabular-nums, tabular-nums);
 }
 
-/* ── Secondary metrics (inside KPI cards) ───────────────────────────────── */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Secondary metrics (inside KPI cards) ─────────────────────────────────` */
 .metric-card__secondary {
   display: flex;
   flex-direction: column;
@@ -147,8 +123,8 @@
   text-align: right;
 }
 
-/* ── Subtitle ───────────────────────────────────────────────────────────── */
-/* min-height = 2 lines so cards align even when some have no subtitle. */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Subtitle ─────────────────────────────────────────────────────────────` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`min-height = 2 lines so cards align even when some have no subtitle.` */
 .metric-card__sub {
   font-size: 13px;
   color: var(--text-subtle);
@@ -166,7 +142,7 @@
   color: var(--red);
 }
 
-/* === TokenBar ============================================================= */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== TokenBar =============================================================` */
 .tokenbar {
   position: relative;
   width: 130px;
@@ -190,7 +166,7 @@
   border-radius: 0 999px 999px 0;
 }
 
-/* CSS custom property for segment widths */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`CSS custom property for segment widths` */
 .tokenbar-seg[style*="--segment-width"],
 .sessions-token-bar [style*="--segment-width"],
 .sessions-token-bar__fresh,
@@ -199,7 +175,7 @@
   width: var(--segment-width);
 }
 
-/* Standalone segments */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Standalone segments` */
 .tokenbar-seg.fresh {
   background: var(--token-input-fresh);
 }
@@ -213,7 +189,7 @@
   background: var(--token-output-visible);
 }
 
-/* DataTable-embedded segments (t- prefix) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`DataTable-embedded segments (t- prefix)` */
 .t-fresh {
   background: var(--token-input-fresh);
 }
@@ -227,15 +203,8 @@
   background: var(--token-output-visible);
 }
 
-/* === TokenTotal ============================================================ */
-/* Canonical wrapper for token value + bar combination.
-* Structure:
-*   <div class="token-total">
-*     <span class="token-total__value">12.3K</span>
-*     <span class="tokenbar">...</span>
-*   </div>
-* Page-specific overrides may adjust font size, margin, or layout.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== TokenTotal ============================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical wrapper for token value + bar combination. * Structure: * <div class="token-total"> * <span class="token-total__value">12.3K</span> * <span class="tokenbar">...</span> * </div> * Page-specific overrides may adjust font size, margin, or layout.` */
 .token-total {
   display: flex;
   align-items: center;
@@ -247,17 +216,8 @@
   white-space: nowrap;
 }
 
-/* === TokenTooltip ========================================================== */
-/* CSS-only hover tooltip for token cells.
-* Structure:
-*   <td class="token-cell">
-*     <div class="token-total">
-*       <span class="token-total__value">...</span>
-*       <span class="tokenbar">...</span>
-*       <div class="token-tooltip" aria-hidden="true">...</div>
-*     </div>
-*   </td>
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== TokenTooltip ==========================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`CSS-only hover tooltip for token cells. * Structure: * <td class="token-cell"> * <div class="token-total"> * <span class="token-total__value">...</span> * <span class="tokenbar">...</span> * <div class="token-tooltip" aria-hidden="true">...</div> * </div> * </td>` */
 .token-cell {
   position: relative;
 }
@@ -281,7 +241,7 @@
   display: block;
 }
 
-/* Arrow pointing up */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Arrow pointing up` */
 .token-tooltip::before {
   content: '';
   position: absolute;
@@ -365,14 +325,8 @@
   margin: 6px 0;
 }
 
-/* === ProgressBar ========================================================== */
-/* Canonical progress bar for showing proportional fill (e.g. tool calls %).
-* Structure:
-*   <div class="progress-bar" style="--fill-width: 42.3%">
-*     <div class="progress-fill [color_class]"></div>
-*   </div>
-* Color classes (optional): .progress-fill--purple, .progress-fill--green, etc.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== ProgressBar ==========================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical progress bar for showing proportional fill (e.g. tool calls %). * Structure: * <div class="progress-bar" style="--fill-width: 42.3%"> * <div class="progress-fill [color_class]"></div> * </div> * Color classes (optional): .progress-fill--purple, .progress-fill--green, etc.` */
 .progress-bar {
   width: 100%;
   height: 4px;
@@ -409,15 +363,8 @@
   background: var(--qoder);
 }
 
-/* === ChartLegend =========================================================== */
-/* Canonical chart legend row with colored dots and labels.
-* Structure:
-*   <div class="legend-row [extra_classes]">
-*     <span class="legend-item"><span class="legend-dot legend-dot--*"></span>Label</span>
-*     ...
-*   </div>
-* Page-specific overrides (e.g. dashboard.css) may adjust layout or spacing.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== ChartLegend ===========================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical chart legend row with colored dots and labels. * Structure: * <div class="legend-row [extra_classes]"> * <span class="legend-item"><span class="legend-dot legend-dot--*"></span>Label</span> * ... * </div> * Page-specific overrides (e.g. dashboard.css) may adjust layout or spacing.` */
 .legend-row {
   display: flex;
   gap: 12px;
@@ -447,16 +394,8 @@
   background: var(--qoder);
 }
 
-/* === ScopeSwitch =========================================================== */
-/* Canonical scope switch / time-range toggle group.
-* Commonly used in dashboard headers for Day/Week/Month selection.
-* Structure:
-*   <div class="scope-switch">
-*     <button class="scope-switch__btn is-active" data-scope="day">Day</button>
-*     ...
-*   </div>
-* Page-specific overrides (e.g. dashboard.css) may adjust dimensions or colors.
-*/
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== ScopeSwitch ===========================================================` */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Canonical scope switch / time-range toggle group. * Commonly used in dashboard headers for Day/Week/Month selection. * Structure: * <div class="scope-switch"> * <button class="scope-switch__btn is-active" data-scope="day">Day</button> * ... * </div> * Page-specific overrides (e.g. dashboard.css) may` */
 .scope-switch {
   display: inline-flex;
   border: 1px solid var(--line);
@@ -516,6 +455,6 @@
 }
 .toolbar .tab--chart {
   height: auto;
-  /* let padding define height */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`let padding define height` */
   line-height: 1;
 }

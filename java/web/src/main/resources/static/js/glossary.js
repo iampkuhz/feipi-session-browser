@@ -1,18 +1,8 @@
-/**
- * glossary.js — Glossary page canonical JavaScript.
- *
- * Loaded via script_extra in glossary.html.
- *
- * Features:
- * - Search filtering with 150ms debounce
- * - Match count display
- * - Empty state toggle (class-based, no inline styles)
- * - Info-icon hover tooltips for metric labels
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * glossary.js — Glossary page canonical JavaScript. * * Loaded via script_extra in glossary.html. * * Features: * - Search filtering with 150ms debounce * - Match count display * - Empty state toggle (class-based, no inline styles) * - Info-icon hover tooltips for metric labels` */
 (function () {
   'use strict';
 
-  // ── Search filtering ──────────────────────────────────────
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Search filtering ──────────────────────────────────────`
 
   var searchInput = document.getElementById('glossary-search');
   var matchCount = document.getElementById('glossary-match-count');
@@ -21,10 +11,7 @@
 
   if (!searchInput) return;
 
-  /**
-   * Filter glossary tables based on search query.
-   * Uses class toggling (.is-hidden) — never sets inline style.display.
-   */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Filter glossary tables based on search query. * Uses class toggling (.is-hidden) — never sets inline style.display.` */
   function filterGlossary(query) {
     var q = (query || '').trim().toLowerCase();
     var totalVisible = 0;
@@ -67,14 +54,14 @@
       }
     });
 
-    // Match count display
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Match count display`
     if (q) {
       matchCount.textContent = totalVisible + ' 条匹配';
     } else {
       matchCount.textContent = '';
     }
 
-    // Empty state toggle
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Empty state toggle`
     if (q && totalVisible === 0) {
       emptyState.classList.remove('is-hidden');
     } else {
@@ -82,7 +69,7 @@
     }
   }
 
-  // Debounced input listener (150ms)
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Debounced input listener (150ms)`
   var debounceTimer;
   searchInput.addEventListener('input', function () {
     clearTimeout(debounceTimer);
@@ -92,18 +79,18 @@
     }, 150);
   });
 
-  // Auto-focus search on page load
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Auto-focus search on page load`
   searchInput.focus();
 
-  // ── Info-icon tooltips for metric labels ──────────────────
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`── Info-icon tooltips for metric labels ──────────────────`
 
   var infoIcons = document.querySelectorAll('.metric-label .info-icon');
   infoIcons.forEach(function (icon) {
     icon.addEventListener('click', function (e) {
       e.preventDefault();
     });
-    // Native title attribute handles tooltip; this listener
-    // ensures no default action and provides a hook for future
-    // custom tooltip implementation.
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Native title attribute handles tooltip; this listener`
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`ensures no default action and provides a hook for future`
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`custom tooltip implementation.`
   });
 })();

@@ -7,7 +7,7 @@ name = "feipi-session-browser"
 dynamic = ["version"]
 description = "Local session browser for Claude Code, Codex, and Qoder session data."
 readme = "README.md"
-requires-python = ">=3.10"
+requires-python = ">=3.12,<3.13"
 dependencies = []
 
 [project.optional-dependencies]
@@ -152,7 +152,7 @@ exclude = [
 ]
 venvPath = "."
 venv = ".venv"
-pythonVersion = "3.10"
+pythonVersion = "3.12"
 typeCheckingMode = "standard"
 reportMissingImports = "none"
 reportMissingTypeStubs = false

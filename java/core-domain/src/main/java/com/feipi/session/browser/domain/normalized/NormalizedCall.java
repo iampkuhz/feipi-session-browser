@@ -40,6 +40,8 @@ import java.util.Optional;
  * @param sourceUnits 内联源单元列表，兼容性保留
  * @param attributionCandidates 适配器归因元数据
  * @param usageSource 估算用量元数据
+ * @param subagentId 子 agent 标识，主会话为空
+ * @param parentToolName 触发子 agent 的父工具名，主会话为空
  */
 @DomainModel
 public record NormalizedCall(
@@ -58,7 +60,52 @@ public record NormalizedCall(
     List<SourceUnitRefRange> sourceUnitRefRanges,
     List<Map<String, Object>> sourceUnits,
     Map<String, Object> attributionCandidates,
-    Map<String, Object> usageSource) {
+    Map<String, Object> usageSource,
+    Optional<String> subagentId,
+    Optional<String> parentToolName) {
+
+  /**
+   * 兼容旧调用点的构造器。
+   *
+   * <p>旧调用点没有独立 subagent 标识和父工具名时，使用空值。
+   */
+  public NormalizedCall(
+      String callId,
+      int callIndex,
+      String callKey,
+      CallScope scope,
+      Optional<String> parentCallId,
+      Optional<String> parentToolCallId,
+      Optional<String> turnId,
+      String model,
+      Optional<String> timestamp,
+      NormalizedCallUsage usage,
+      NormalizedCallRequest request,
+      NormalizedCallResponse response,
+      List<SourceUnitRefRange> sourceUnitRefRanges,
+      List<Map<String, Object>> sourceUnits,
+      Map<String, Object> attributionCandidates,
+      Map<String, Object> usageSource) {
+    this(
+        callId,
+        callIndex,
+        callKey,
+        scope,
+        parentCallId,
+        parentToolCallId,
+        turnId,
+        model,
+        timestamp,
+        usage,
+        request,
+        response,
+        sourceUnitRefRanges,
+        sourceUnits,
+        attributionCandidates,
+        usageSource,
+        Optional.empty(),
+        Optional.empty());
+  }
 
   /**
    * 紧凑构造器，验证调用不变量并执行防御性拷贝。
@@ -91,6 +138,8 @@ public record NormalizedCall(
     parentToolCallId = parentToolCallId == null ? Optional.empty() : parentToolCallId;
     turnId = turnId == null ? Optional.empty() : turnId;
     timestamp = timestamp == null ? Optional.empty() : timestamp;
+    subagentId = subagentId == null ? Optional.empty() : subagentId;
+    parentToolName = parentToolName == null ? Optional.empty() : parentToolName;
 
     // 集合防御性拷贝
     List<SourceUnitRefRange> refRangesCopy =

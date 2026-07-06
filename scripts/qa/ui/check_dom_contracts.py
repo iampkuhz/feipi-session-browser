@@ -13,7 +13,11 @@ if str(SCRIPT_DIR) not in sys.path:
 from _api_first_checklib import CSS, JS, LEGACY_PY_ROOT, exists, has_all, has_none, read, run
 
 
+# 运行页面静态契约检查。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     css_path = CSS / 'ui-primitives.css'
     js_path = JS / 'ui_primitives.js'
     css = read(css_path) + '\n'.join(read(path) for path in sorted((CSS / 'ui-primitives').glob('*.css')))

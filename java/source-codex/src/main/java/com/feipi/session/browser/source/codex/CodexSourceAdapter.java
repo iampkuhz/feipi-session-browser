@@ -3,6 +3,7 @@ package com.feipi.session.browser.source.codex;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.domain.source.SourceToolCall;
 import com.feipi.session.browser.source.json.JsonlReader;
@@ -26,6 +27,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -249,31 +251,7 @@ public final class CodexSourceAdapter implements SourceAdapter {
     if (rolloutPath == null || parentSessionId == null || parentSessionId.isBlank()) {
       return 0;
     }
-    Path dayDir = rolloutPath.getParent();
-    if (dayDir == null || !Files.isDirectory(dayDir)) {
-      return 0;
-    }
-    long count = 0;
-    try (var stream = Files.list(dayDir)) {
-      for (Path candidate :
-          stream
-              .filter(Files::isRegularFile)
-              .filter(path -> path.getFileName().toString().startsWith("rollout-"))
-              .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
-              .sorted()
-              .toList()) {
-        if (candidate.equals(rolloutPath)) {
-          continue;
-        }
-        Map<String, String> meta = readFirstSessionMeta(candidate);
-        if (parentSessionId.equals(parentThreadId(meta))) {
-          count++;
-        }
-      }
-    } catch (IOException e) {
-      LOG.log(Level.FINEST, "扫描 Codex subagent children 失败: " + dayDir, e);
-    }
-    return count;
+    return childRolloutFiles(rolloutPath, parentSessionId).size();
   }
 
   private static Map<String, String> readFirstSessionMeta(Path candidate) {
@@ -406,47 +384,253 @@ public final class CodexSourceAdapter implements SourceAdapter {
       return new SourceResult.Skipped(List.of(), "文件不存在: " + filePath);
     }
 
-    CodexParseState state = new CodexParseState();
     try {
       JsonlReaderResult result = jsonlReader.read(filePath);
       String locator = candidate.fingerprint().locator();
-      state.locator = locator;
       // 从候选元数据初始化模型，确保早期事件可使用发现阶段提取的模型
       String metaModel = candidate.metadata().get("model");
-      if (metaModel != null && !metaModel.isBlank()) {
-        state.currentModel = metaModel;
-      }
+      String initialModel = metaModel == null || metaModel.isBlank() ? "" : metaModel;
       List<SourceDiagnostic> diagnostics = new ArrayList<>(result.diagnostics());
       List<JsonNode> events = result.events();
-      boolean hasTokenUsage = events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);
-      TokenTotals previousTotals = TokenTotals.zero();
       List<SourceRecord> records = new ArrayList<>(events.size());
+      Map<String, SourceRecordRelation> spawnRelations = spawnRelations(events);
 
-      for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
-        JsonNode event = events.get(eventIndex);
-        String rawEventType = extractEventType(event);
-        String ts = extractTimestamp(event);
-        collectEventDiagnostics(state, event, eventIndex, rawEventType, locator, diagnostics);
-        updateCurrentModel(state, event);
+      int candidateCount =
+          appendParsedEvents(
+              events,
+              locator,
+              initialModel,
+              SourceRecordRelation.empty(),
+              spawnRelations,
+              diagnostics,
+              records);
 
-        CodexRecordMapping mapped =
-            mapCodexRecord(
-                event, eventIndex, locator, state.currentModel, hasTokenUsage, previousTotals, ts);
-        previousTotals = mapped.previousTotals();
-        records.add(mapped.record());
+      Map<String, String> parentMeta = readFirstSessionMeta(filePath);
+      if (!CodexDiscovery.isSubagentMetaEvent(parentMeta)) {
+        String parentThreadId = parentThreadIdForParent(parentMeta, candidate.sessionKey());
+        List<Path> childRollouts = childRolloutFiles(filePath, parentThreadId);
+        for (Path childRollout : childRollouts) {
+          Map<String, String> childMeta = readFirstSessionMeta(childRollout);
+          String childId = childMeta.getOrDefault("id", "").trim();
+          SourceRecordRelation parentRelation = spawnRelations.get(childId);
+          if (parentRelation == null) {
+            diagnostics.add(
+                codexInfoDiagnostic(
+                    "Subagent rollout has parent metadata but no visible spawn_agent output: "
+                        + childId,
+                    "SUBAGENT_SPAWN_UNMATCHED",
+                    childRollout.toString()));
+            continue;
+          }
+          JsonlReaderResult childResult = jsonlReader.read(childRollout);
+          diagnostics.addAll(childResult.diagnostics());
+          candidateCount +=
+              appendParsedEvents(
+                  childResult.events(),
+                  childRollout.toAbsolutePath().toString(),
+                  initialModel,
+                  parentRelation,
+                  spawnRelations(childResult.events()),
+                  diagnostics,
+                  records);
+        }
       }
 
-      collectCompletionDiagnostics(state, diagnostics);
       return new SourceResult.Success(
-          diagnostics,
-          result.events().size(),
-          List.copyOf(records),
-          candidate.fingerprint(),
-          locator);
+          diagnostics, candidateCount, List.copyOf(records), candidate.fingerprint(), locator);
     } catch (IOException e) {
       String detail = "文件读取失败: " + filePath + " - " + e.getMessage();
       return new SourceResult.Fatal(List.of(), detail);
     }
+  }
+
+  private static int appendParsedEvents(
+      List<JsonNode> events,
+      String locator,
+      String initialModel,
+      SourceRecordRelation defaultRelation,
+      Map<String, SourceRecordRelation> toolRelations,
+      List<SourceDiagnostic> diagnostics,
+      List<SourceRecord> records) {
+    CodexParseState state = new CodexParseState();
+    state.locator = locator;
+    state.currentModel = initialModel == null ? "" : initialModel;
+    boolean hasTokenUsage = events.stream().anyMatch(CodexSourceAdapter::hasCumulativeUsage);
+    TokenTotals previousTotals = TokenTotals.zero();
+    for (int eventIndex = 0; eventIndex < events.size(); eventIndex++) {
+      JsonNode event = events.get(eventIndex);
+      String rawEventType = extractEventType(event);
+      String ts = extractTimestamp(event);
+      collectEventDiagnostics(state, event, eventIndex, rawEventType, locator, diagnostics);
+      updateCurrentModel(state, event);
+
+      CodexRecordMapping mapped =
+          mapCodexRecord(
+              event, eventIndex, locator, state.currentModel, hasTokenUsage, previousTotals, ts);
+      previousTotals = mapped.previousTotals();
+      records.add(
+          withRelation(mapped.record(), relationForEvent(event, defaultRelation, toolRelations)));
+    }
+    collectCompletionDiagnostics(state, diagnostics);
+    return events.size();
+  }
+
+  private static SourceRecord withRelation(SourceRecord record, SourceRecordRelation relation) {
+    return new SourceRecord(
+        record.locator(),
+        record.eventIndex(),
+        record.eventType(),
+        record.callId(),
+        record.model(),
+        record.timestamp(),
+        record.turnId(),
+        record.usage(),
+        record.toolCalls(),
+        record.toolUseId(),
+        record.toolName(),
+        record.toolError(),
+        relation == null ? SourceRecordRelation.empty() : relation);
+  }
+
+  private static SourceRecordRelation relationForEvent(
+      JsonNode event,
+      SourceRecordRelation defaultRelation,
+      Map<String, SourceRecordRelation> toolRelations) {
+    String callId = responseItemCallId(event);
+    if (!callId.isBlank()) {
+      SourceRecordRelation relation = toolRelations.get(callId);
+      if (relation != null) {
+        return relation;
+      }
+    }
+    return defaultRelation == null ? SourceRecordRelation.empty() : defaultRelation;
+  }
+
+  private static Map<String, SourceRecordRelation> spawnRelations(List<JsonNode> events) {
+    Map<String, String> spawnCalls = new LinkedHashMap<>();
+    for (JsonNode event : events) {
+      JsonNode payload = event.path("payload");
+      String payloadType = text(payload, "type");
+      if (("function_call".equals(payloadType) || "custom_tool_call".equals(payloadType))
+          && "spawn_agent".equals(text(payload, "name"))) {
+        String callId = text(payload, "call_id");
+        if (!callId.isBlank()) {
+          spawnCalls.put(callId, "spawn_agent");
+        }
+      }
+    }
+
+    Map<String, SourceRecordRelation> relations = new LinkedHashMap<>();
+    for (JsonNode event : events) {
+      JsonNode payload = event.path("payload");
+      String payloadType = text(payload, "type");
+      if (!("function_call_output".equals(payloadType)
+          || "custom_tool_call_output".equals(payloadType))) {
+        continue;
+      }
+      String callId = text(payload, "call_id");
+      if (!spawnCalls.containsKey(callId)) {
+        continue;
+      }
+      Optional<SpawnAgentResult> spawnResult = parseSpawnAgentResult(payload.get("output"));
+      if (spawnResult.isEmpty()) {
+        continue;
+      }
+      SpawnAgentResult result = spawnResult.get();
+      SourceRecordRelation relation =
+          new SourceRecordRelation(
+              Optional.of(result.agentId()),
+              Optional.empty(),
+              Optional.of(callId),
+              Optional.empty(),
+              Optional.of("spawn_agent"));
+      relations.put(callId, relation);
+      relations.put(result.agentId(), relation);
+    }
+    return Map.copyOf(relations);
+  }
+
+  private static Optional<SpawnAgentResult> parseSpawnAgentResult(JsonNode output) {
+    if (output == null || output.isMissingNode() || output.isNull()) {
+      return Optional.empty();
+    }
+    JsonNode resultNode = output;
+    if (output.isTextual()) {
+      try {
+        resultNode = MAPPER.readTree(output.asText());
+      } catch (IOException e) {
+        return Optional.empty();
+      }
+    }
+    if (!resultNode.isObject()) {
+      return Optional.empty();
+    }
+    JsonNode agentId = resultNode.get("agent_id");
+    if (agentId == null || !agentId.isTextual() || agentId.asText().isBlank()) {
+      return Optional.empty();
+    }
+    JsonNode nickname = resultNode.get("nickname");
+    return Optional.of(
+        new SpawnAgentResult(
+            agentId.asText().trim(),
+            nickname != null && nickname.isTextual() ? nickname.asText().trim() : ""));
+  }
+
+  private static List<Path> childRolloutFiles(Path parentRollout, String parentThreadId) {
+    if (parentRollout == null || parentThreadId == null || parentThreadId.isBlank()) {
+      return List.of();
+    }
+    Path dir = parentRollout.getParent();
+    if (dir == null || !Files.isDirectory(dir)) {
+      return List.of();
+    }
+    List<Path> children = new ArrayList<>();
+    try (var stream = Files.list(dir)) {
+      for (Path candidate :
+          stream
+              .filter(Files::isRegularFile)
+              .filter(path -> path.getFileName().toString().startsWith("rollout-"))
+              .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+              .sorted()
+              .toList()) {
+        if (candidate.equals(parentRollout)) {
+          continue;
+        }
+        Map<String, String> meta = readFirstSessionMeta(candidate);
+        if (parentThreadId.equals(parentThreadId(meta))) {
+          children.add(candidate);
+        }
+      }
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, "扫描 Codex child rollout 失败: " + dir, e);
+    }
+    return List.copyOf(children);
+  }
+
+  private static String parentThreadIdForParent(Map<String, String> parentMeta, String sessionKey) {
+    String id = parentMeta.getOrDefault("id", "").trim();
+    if (!id.isEmpty()) {
+      return id;
+    }
+    return sessionKey.startsWith("codex:") ? sessionKey.substring("codex:".length()) : sessionKey;
+  }
+
+  private static String responseItemCallId(JsonNode event) {
+    Optional<JsonNode> payloadNode = objectPayload(event);
+    if (payloadNode.isEmpty()) {
+      return "";
+    }
+    JsonNode payload = payloadNode.get();
+    String rawType = extractEventType(event);
+    String payloadType = text(payload, "type");
+    if (!"response_item".equals(rawType)
+        || !("function_call".equals(payloadType)
+            || "custom_tool_call".equals(payloadType)
+            || "function_call_output".equals(payloadType)
+            || "custom_tool_call_output".equals(payloadType))) {
+      return "";
+    }
+    return text(payload, "call_id");
   }
 
   private static void updateCurrentModel(CodexParseState state, JsonNode event) {
@@ -457,10 +641,11 @@ public final class CodexSourceAdapter implements SourceAdapter {
   }
 
   private static String extractPayloadModel(JsonNode event) {
-    JsonNode payload = event.get("payload");
-    if (payload == null || !payload.isObject()) {
+    Optional<JsonNode> payloadNode = objectPayload(event);
+    if (payloadNode.isEmpty()) {
       return "";
     }
+    JsonNode payload = payloadNode.get();
     JsonNode model = payload.get("model");
     if (model != null && model.isTextual()) {
       return model.asText();
@@ -490,6 +675,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
     }
     JsonNode ts = event.get("timestamp");
     return ts != null && ts.isTextual() ? ts.asText() : "";
+  }
+
+  private static Optional<JsonNode> objectPayload(JsonNode event) {
+    if (event == null || !event.isObject()) {
+      return Optional.empty();
+    }
+    JsonNode payload = event.get("payload");
+    return payload != null && payload.isObject() ? Optional.of(payload) : Optional.empty();
   }
 
   private static CodexRecordMapping mapCodexRecord(
@@ -865,6 +1058,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @param previousTotals 上一条累计 token 值。
    */
   private record CodexRecordMapping(SourceRecord record, TokenTotals previousTotals) {}
+
+  /**
+   * 表示 spawn_agent 输出中的稳定归属字段。
+   *
+   * @param agentId Codex 子线程标识。
+   * @param nickname 子线程展示昵称。
+   */
+  private record SpawnAgentResult(String agentId, String nickname) {}
 
   /**
    * 表示 TokenTotals 数据。

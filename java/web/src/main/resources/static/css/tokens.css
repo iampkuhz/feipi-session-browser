@@ -18,7 +18,7 @@
   --gray-700: #334155;
   --gray-800: #1e293b;
   --gray-900: #0f172a;
-  /* Spacing scale */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Spacing scale` */
   --space-0:   0;
   --space-xs:  4px;
   --space-sm:  8px;
@@ -27,7 +27,7 @@
   --space-xl:  24px;
   --space-2xl: 32px;
   --space-3xl: 48px;
-  /* Typography scale — compact density for devtools */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Typography scale — compact density for devtools` */
   --text-micro:   10px;
   --text-xs:      12px;
   --text-sm:      13px;
@@ -36,14 +36,14 @@
   --text-xl:      16px;
   --text-metric:  22px;
   --text-metric-sm: 18px;
-  /* Font families */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Font families` */
   --font-sans: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Arial, "Noto Sans", sans-serif;
   --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', Menlo, Consolas, monospace;
-  /* Line heights */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Line heights` */
   --lh-tight:   1.2;
   --lh-normal:  1.4;
   --lh-loose:   1.6;
-  /* Compact font-weight shortcuts — Hi-Fi uses non-standard values */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Compact font-weight shortcuts — Hi-Fi uses non-standard values` */
   --fw-710: 710;
   --fw-720: 720;
   --fw-730: 730;
@@ -54,11 +54,11 @@
   --fw-820: 820;
   --fw-840: 840;
   --fw-850: 850;
-  /* Density / component heights */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Density / component heights` */
   --toolbar-h:   32px;
   --table-row-h: 32px;
   --badge-h:     20px;
-  /* Border radius */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Border radius` */
   --radius-xs:    2px;
   --radius-sm:    4px;
   --radius:       6px;
@@ -66,55 +66,55 @@
   --radius-lg:    12px;
   --radius-full:  9999px;
   --radius-card:  22px;
-  /* hero / card 容器 — Hi-Fi */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`hero / card 容器 — Hi-Fi` */
   --radius-row:   15px;
-  /* trace / table 行容器 — Hi-Fi */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`trace / table 行容器 — Hi-Fi` */
   --radius-btn:   9px;
-  /* 按钮 / chip — Hi-Fi */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`按钮 / chip — Hi-Fi` */
   --radius-pill:  9999px;
-  /* badge / pill — alias to --radius-full */
-  /* Shadow */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`badge / pill — alias to --radius-full` */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Shadow` */
   --shadow-sm: 0 1px 2px rgba(0,0,0,0.04);
   --shadow:    0 1px 3px rgba(0,0,0,0.06);
   --shadow-md: 0 4px 6px rgba(0,0,0,0.07);
   --shadow-card: 0 1px 2px rgba(0,0,0,0.04), 0 1px 3px rgba(0,0,0,0.06);
-  /* Z-index scale — semantic layers */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Z-index scale — semantic layers` */
   --z-dropdown:    100;
   --z-sticky:      200;
   --z-overlay:    1000;
   --z-modal:      2000;
   --z-toast:      9999;
-  /* Transition timing */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Transition timing` */
   --ease-out:    cubic-bezier(0.16, 1, 0.3, 1);
   --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
   --duration-fast: 100ms;
   --duration-normal: 150ms;
   --duration-slow: 250ms;
-  /* Layout primitives */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Layout primitives` */
   --sidebar-w:  220px;
   --header-h:   40px;
   --content-max: 1920px;
   --desktop-min: 1180px;
-  /* Brand color */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Brand color` */
   --brand:       #5b5ce2;
   --brand-light: #eef2ff;
   /* ── 2. Semantic tokens（赋予业务含义，引用 primitive） ── */
-  /* Backgrounds */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Backgrounds` */
   --bg-app:       var(--gray-50);
   --bg-surface:   #ffffff;
   --bg-surface-hover: var(--gray-75);
   --bg-panel:     var(--gray-100);
   --bg-inset:     var(--gray-50);
-  /* Text */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Text` */
   --text-primary:    var(--gray-900);
   --text-secondary:  var(--gray-600);
   --text-muted:      var(--gray-500);
   --text-inverse:    #ffffff;
-  /* Borders */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Borders` */
   --border:       var(--gray-200);
   --border-light: var(--gray-100);
   --border-focus: var(--brand);
-  /* Status — restrained, devtools-grade tones */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Status — restrained, devtools-grade tones` */
   --status-success:    #059669;
   --status-success-bg: #ecfdf5;
   --status-warning:    #d97706;
@@ -124,7 +124,7 @@
   --status-unknown:    var(--gray-500);
   --status-info:       #4f46e5;
   --status-info-bg:    #eef2ff;
-  /* Token type colors (LLM token categories) */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Token type colors (LLM token categories)` */
   --token-input-fresh:     #3b82f6;
   --token-input-fresh-bg:  #eff6ff;
   --token-cache-read:      #f59e0b;
@@ -139,19 +139,18 @@
   --token-tool-bg:         #ecfeff;
   --token-unknown:         var(--gray-500);
   --token-unknown-bg:      var(--gray-100);
-  /* Agent colors */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Agent colors` */
   --agent-claude:    #8b5cf6;
   --agent-claude-bg: #f5f3ff;
   --agent-codex:     #10b981;
   --agent-codex-bg:  #ecfdf5;
   --agent-qoder:     #f59e0b;
   --agent-qoder-bg:  #fffbeb;
-  /* Accent (alias to brand) */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Accent (alias to brand)` */
   --accent:     var(--brand);
   --accent-bg:  var(--brand-light);
   /* ── 3. Component tokens（组件级语义，引用 semantic） ── */
-  /* Density tokens — default is compact;
-  override via body.density-comfortable */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Density tokens — default is compact; override via body.density-comfortable` */
   --density-row-h:       32px;
   --density-cell-padding: 4px 8px;
   --density-font-size:   var(--text-sm);
@@ -159,7 +158,7 @@
   --density-badge-h:     20px;
   --density-gap:         var(--space-xs);
   --density-card-gap:    var(--space-sm);
-  /* Sidebar component */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Sidebar component` */
   --sidebar-bg:       var(--bg-surface);
   --sidebar-border:   var(--border);
   --sidebar-text:     var(--text-secondary);
@@ -167,66 +166,66 @@
   --sidebar-hover-bg: var(--bg-surface-hover);
   --sidebar-active-bg: var(--accent-bg);
   --sidebar-active-text: var(--accent);
-  /* Topbar component */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Topbar component` */
   --topbar-bg:       var(--bg-surface);
   --topbar-border:   var(--border);
   --topbar-breadcrumb: var(--text-muted);
   --topbar-action-size: 28px;
-  /* Content area + inspector layout */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Content area + inspector layout` */
   --inspector-w: 520px;
-  /* Table row component */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Table row component` */
   --table-row-border:    var(--border-light);
   --table-row-hover-bg:  var(--bg-surface-hover);
   --table-row-stripe-bg: transparent;
   --table-header-bg:     var(--gray-75);
   --table-header-border: var(--gray-300);
-  /* Card component */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Card component` */
   --card-bg:       var(--bg-surface);
   --card-border:   var(--gray-200);
   --card-shadow:   var(--shadow-card);
   --card-radius:   var(--radius-md);
-  /* Badge component */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Badge component` */
   --badge-radius:  var(--radius-full);
   --badge-radius-sm: var(--radius-xs);
-  /* Tooltip component */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tooltip component` */
   --tooltip-bg:      var(--text-primary);
   --tooltip-text:    var(--bg-surface);
   --tooltip-radius:  var(--radius-sm);
   --tooltip-shadow:  var(--shadow);
-  /* ── Alias variables (short names → core tokens) ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Alias variables (short names → core tokens) ──` */
   --bg:             var(--bg-app);
   --surface:        var(--bg-surface);
   --surface-hover:  var(--bg-surface-hover);
   --panel:          var(--bg-panel);
   --text:           var(--text-primary);
-  /* ── 4. Hi-Fi aliases — compact names used in prototype ── */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── 4. Hi-Fi aliases — compact names used in prototype ──` */
   --sans:       var(--font-sans);
   --mono:       var(--font-mono);
-  /* Background aliases */
-  --bg-app:     #f6f8fb;  /* Hi-Fi override — direct value to avoid cascading --gray-50 change */
-  --surface2:   #fbfcff;  /* Hi-Fi 次级 surface */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Background aliases` */
+  --bg-app:     #f6f8fb;  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Hi-Fi override — direct value to avoid cascading --gray-50 change` */
+  --surface2:   #fbfcff;  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Hi-Fi 次级 surface` */
   --soft:       #f3f6fb;  /* Hi-Fi 软背景 / pill 背景 */
-  /* Text aliases */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Text aliases` */
   --text:       var(--text-primary);
   --t2:         var(--text-secondary);
-  --t3:         #64748b;  /* muted text — new primitive */
-  --t4:         #6b7280;  /* placeholder / label text — gray-500 for WCAG AA */
-  /* Border aliases */
+  --t3:         #64748b;  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`muted text — new primitive` */
+  --t4:         #6b7280;  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`placeholder / label text — gray-500 for WCAG AA` */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Border aliases` */
   --line:       var(--border);
   --line2:      #e8eef6;  /* 次级分割线 — new primitive */
-  /* Brand aliases */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Brand aliases` */
   --brand50:    #f0f2ff;  /* brand 极浅背景 — new primitive */
-  /* Shadow aliases — Hi-Fi */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Shadow aliases — Hi-Fi` */
   --shadow:     0 10px 28px rgba(15,23,42,.07);
   --sm:         0 1px 3px rgba(15,23,42,.07);
-  /* Layout shortcuts — Hi-Fi */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Layout shortcuts — Hi-Fi` */
   --sidebar:    226px;  /* Hi-Fi 侧边栏宽度 */
   --inspector:  410px;  /* Hi-Fi 面板宽度 */
-  /* Motion design tokens */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Motion design tokens` */
   --motion-duration-fast: 120ms;
   --motion-duration-normal: 200ms;
   --motion-duration-slow: 320ms;
   --motion-easing-standard: ease;
-  /* Tabular numbers for metrics and token values */
+  /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Tabular numbers for metrics and token values` */
   --tabular-nums: tabular-nums;
 }

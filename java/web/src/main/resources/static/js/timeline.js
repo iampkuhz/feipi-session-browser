@@ -1,22 +1,15 @@
-/**
- * Timeline control bar: expand-all, collapse-all, type filter, jump-to.
- *
- * Works with both the round-summary-table (current) and the
- * timeline-structured / timeline-node tree (future).
- *
- * Exposes `window.TimelineCtrl` for inline onclick handlers.
- */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`* * Timeline control bar: expand-all, collapse-all, type filter, jump-to. * * Works with both the round-summary-table (current) and the * timeline-structured / timeline-node tree (future). * * Exposes 'window.TimelineCtrl' for inline onclick handlers.` */
 (function () {
     'use strict';
 
     var _activeFilter = 'all';
 
-    /* ── Single node toggle ──────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Single node toggle ────────────────────────────────────` */
 
     function toggleNode(nodeOrEvent) {
         var node;
         if (nodeOrEvent && nodeOrEvent.target) {
-            // Called from event delegation — find the .timeline-node ancestor
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Called from event delegation — find the .timeline-node ancestor`
             node = nodeOrEvent.target.closest('.timeline-node');
         } else if (nodeOrEvent) {
             node = nodeOrEvent;
@@ -36,7 +29,7 @@
         }
     }
 
-    /* ── Round detail helpers ────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Round detail helpers ──────────────────────────────────` */
 
     function expandRoundDetail(headerRow) {
         var detailRow = headerRow.nextElementSibling;
@@ -58,7 +51,7 @@
         }
     }
 
-    /* ── Node helpers ────────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Node helpers ──────────────────────────────────────────` */
 
     function expandNode(nodeEl) {
         if (!nodeEl || !nodeEl.classList.contains('timeline-node')) return;
@@ -74,22 +67,22 @@
         if (toggle) toggle.setAttribute('aria-expanded', 'false');
     }
 
-    /* ── Expand / Collapse ───────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Expand / Collapse ─────────────────────────────────` */
 
     function expandAll() {
-        // Round summary table rows
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Round summary table rows`
         var headers = document.querySelectorAll('.round-header-row');
         headers.forEach(function (header) {
             expandRoundDetail(header);
         });
 
-        // Timeline nodes with children
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Timeline nodes with children`
         var nodes = document.querySelectorAll('.timeline-node.has-children:not(.is-expanded)');
         nodes.forEach(function (node) {
             expandNode(node);
         });
 
-        // Persist expand-all state
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Persist expand-all state`
         var key = 'rounds_' + (window._sessionId || '');
         if (window.arpStorage && window._sessionId) {
             var allIdx = [];
@@ -100,31 +93,31 @@
     }
 
     function collapseAll() {
-        // Round summary table rows
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Round summary table rows`
         var headers = document.querySelectorAll('.round-header-row');
         headers.forEach(function (header) {
             collapseRoundDetail(header);
         });
 
-        // Timeline nodes
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Timeline nodes`
         var nodes = document.querySelectorAll('.timeline-node.is-expanded');
         nodes.forEach(function (node) {
             collapseNode(node);
         });
 
-        // Persist collapse-all state
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Persist collapse-all state`
         if (window.arpStorage && window._sessionId) {
             window.arpStorage.set('rounds_' + window._sessionId, []);
         }
         try { localStorage.setItem('arp_timelineExpandAll', 'collapsed'); } catch (e) {}
     }
 
-    /* ── Type filter ──────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Type filter ────────────────────────────────────────` */
 
     function filter(type) {
         _activeFilter = type;
 
-        // Update active chip
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Update active chip`
         document.querySelectorAll('.timeline-toolbar__filter').forEach(function (chip) {
             chip.classList.toggle('active', chip.dataset.filter === type);
         });
@@ -134,17 +127,17 @@
             return;
         }
 
-        // Filter round summary table rows by type keywords in preview
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Filter round summary table rows by type keywords in preview`
         var rows = document.querySelectorAll('.round-header-row');
         rows.forEach(function (row) {
             var visible;
             if (type === 'error') {
-                // Error only: check for error/fail status badges or row--failed class
+                // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Error only: check for error/fail status badges or row--failed class`
                 visible = row.classList.contains('row--failed') ||
                     !!row.querySelector('[class*="badge-error"], [class*="badge--status-error"]') ||
                     (row.dataset.status && row.dataset.status.toLowerCase().indexOf('fail') >= 0);
             } else if (type === 'expensive') {
-                // High token only: check for token data above a threshold
+                // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`High token only: check for token data above a threshold`
                 visible = _isHighTokenRow(row);
             } else {
                 var preview = row.querySelector('.preview-cell__text');
@@ -152,14 +145,14 @@
                 visible = _matchesFilter(text, type);
             }
             row.hidden = !visible;
-            // Hide corresponding detail row too
+            // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Hide corresponding detail row too`
             var detailRow = row.nextElementSibling;
             if (detailRow && detailRow.classList.contains('round-detail-row')) {
                 detailRow.hidden = !visible;
             }
         });
 
-        // Filter future timeline-structured nodes
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Filter future timeline-structured nodes`
         var nodes = document.querySelectorAll('.timeline-node');
         nodes.forEach(function (node) {
             var cls = node.className;
@@ -177,13 +170,13 @@
     }
 
     function _isHighTokenRow(row) {
-        // Check for data attributes with raw token counts
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Check for data attributes with raw token counts`
         var tokens = row.dataset.tokens || row.dataset.totalTokens;
         if (tokens) {
             var n = parseInt(tokens, 10);
             if (!isNaN(n)) return n > 50000;
         }
-        // Fallback: look for formatted token text like "123.4K" or "1.2M"
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Fallback: look for formatted token text like "123.4K" or "1.2M"`
         var tokenCell = row.querySelector('[class*="token-cell"], td.numeric');
         if (tokenCell) {
             var text = tokenCell.textContent.trim();
@@ -226,10 +219,10 @@
         });
     }
 
-    /* ── Jump to node ─────────────────────────────────────── */
+    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Jump to node ───────────────────────────────────────` */
 
     function _escapeSelector(s) {
-        // CSS.escape polyfill for safe querySelector
+        // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`CSS.escape polyfill for safe querySelector`
         return s.replace(/"/g, '\\"').replace(/\\/g, '\\\\');
     }
 

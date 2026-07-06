@@ -1,8 +1,6 @@
-/* ======================================================================
-* _empty-states.css — EmptyState / ErrorState primitives
-* ====================================================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`====================================================================== * _empty-states.css — EmptyState / ErrorState primitives * ======================================================================` */
 
-/* === EmptyState / ErrorState ============================================== */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=== EmptyState / ErrorState ==============================================` */
 .state-strip {
   margin: 16px 0;
   display: flex;
@@ -35,13 +33,13 @@
   color: var(--text-subtle);
 }
 
-/* ErrorState: red icon background to differentiate from EmptyState */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`ErrorState: red icon background to differentiate from EmptyState` */
 .state-strip.error-state .state-icon {
   background: var(--err-bg);
   color: var(--err);
 }
 
-/* EmptyState: centered layout variant for full-page or standalone use */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`EmptyState: centered layout variant for full-page or standalone use` */
 .state-strip.empty-state--centered {
   flex-direction: column;
   text-align: center;
@@ -53,7 +51,7 @@
   margin-bottom: 8px;
 }
 
-/* ErrorState: centered layout variant */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`ErrorState: centered layout variant` */
 .state-strip.error-state--centered {
   flex-direction: column;
   text-align: center;
@@ -65,7 +63,7 @@
   margin-bottom: 8px;
 }
 
-/* Dismissed state strip (JS toggled) */
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Dismissed state strip (JS toggled)` */
 .state-strip.is-dismissed {
   display: none;
 }

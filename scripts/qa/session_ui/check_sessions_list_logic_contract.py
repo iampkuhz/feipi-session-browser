@@ -22,7 +22,15 @@ if str(HELPER_DIR) not in sys.path:
 from _api_first_checklib import JS, TEMPLATES, has_all, has_none, read, run  # noqa: E402
 
 
+# 加载待检查的 HTML 内容。
 def load_html(html_path: str | None, url: str | None) -> tuple[str, str]:
+    """参数：
+        html_path: 本地 HTML 文件路径。
+        url: 待请求的页面 URL。
+
+    返回：
+        HTML 内容和来源描述。
+    """
     if url:
         try:
             with urllib.request.urlopen(url, timeout=10) as response:
@@ -36,7 +44,11 @@ def load_html(html_path: str | None, url: str | None) -> tuple[str, str]:
     return read(path), f'default:{path.relative_to(REPO_ROOT)}'
 
 
+# 运行 Sessions 列表逻辑契约检查。
 def main() -> int:
+    """返回：
+        进程退出码。
+    """
     parser = argparse.ArgumentParser(description='Sessions list API-first logic contract smoke')
     parser.add_argument('--html')
     parser.add_argument('--url')

@@ -1,4 +1,4 @@
-// states.js — Canonical page JS for state pages (404, error)
+// 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`states.js — Canonical page JS for state pages (404, error)`
 // ================================================================
 //
 // Behavior: 无 — 状态页面为纯静态内容，无需 JavaScript 行为。
