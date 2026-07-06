@@ -24,6 +24,7 @@ import io.javalin.http.HttpStatus;
 import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -45,6 +46,7 @@ public final class SessionDetailApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     SessionRow row = detail.sessionRow();
+    SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
     ctx.json(
         new SessionMetaResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -62,6 +64,7 @@ public final class SessionDetailApiHandler {
             detail.hasArtifact(),
             detail.artifactSchemaVersion(),
             detail.cacheKey(),
+            parity.meta,
             PageStateDto.ready()));
   }
 
@@ -73,6 +76,8 @@ public final class SessionDetailApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     SessionRow row = detail.sessionRow();
+    SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
+    Map<String, Object> parityMetrics = parity.metrics;
     ctx.json(
         new SessionMetricsResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -81,17 +86,18 @@ public final class SessionDetailApiHandler {
                 row.freshInputTokens(),
                 row.cacheReadTokens(),
                 row.cacheWriteTokens(),
-                row.outputTokens()),
+            row.outputTokens()),
             row.userMessageCount(),
             row.assistantMessageCount(),
-            row.toolCallCount(),
-            row.failedToolCount(),
-            row.subagentInstanceCount(),
+            longMetric(parityMetrics, "toolCalls", row.toolCallCount()),
+            longMetric(parityMetrics, "failedTools", row.failedToolCount()),
+            longMetric(parityMetrics, "subagentRuns", row.subagentInstanceCount()),
             row.durationSeconds(),
             row.modelExecutionSeconds(),
             row.toolExecutionSeconds(),
             detail.roundCount(),
             detail.payloadSourceCount(),
+            parity.metrics,
             PageStateDto.ready()));
   }
 
@@ -102,6 +108,8 @@ public final class SessionDetailApiHandler {
       return;
     }
     SessionAnomalySummary anomalies = loaded.annotated().anomalies();
+    SessionDetailParityAnalyzer.Result parity =
+        SessionDetailParityAnalyzer.analyze(loaded.annotated().detail());
     List<AnomalyDto> rows =
         anomalies.anomalies().stream().map(SessionDetailApiHandler::anomaly).toList();
     ctx.json(
@@ -112,6 +120,7 @@ public final class SessionDetailApiHandler {
             anomalies.maxSeverity().getValue(),
             anomalies.mainReason(),
             rows,
+            parity.diagnostics,
             rows.isEmpty()
                 ? PageStateDto.empty("No diagnostics triggered", "This session has no anomalies.")
                 : PageStateDto.ready()));
@@ -124,12 +133,13 @@ public final class SessionDetailApiHandler {
       return;
     }
     SessionDetail detail = loaded.annotated().detail();
+    SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
     long sessionTokens = detail.sessionRow().totalTokens();
     String traceStatus = ApiQueryParams.normalizeAll(ctx.queryParam("trace_status"));
     List<RoundIndexDto> rows =
         detail.rounds().stream()
-            .map(round -> roundDto(round, sessionTokens))
-            .filter(round -> statusMatches(traceStatus, round.status()))
+            .map(round -> roundDto(round, sessionTokens, parity.round(round.roundIndex())))
+            .filter(round -> statusMatches(traceStatus, round))
             .toList();
     ctx.json(
         new SessionRoundsResponse(
@@ -188,9 +198,16 @@ public final class SessionDetailApiHandler {
     }
   }
 
-  private static RoundIndexDto roundDto(CallRound round, long sessionTokens) {
+  private static RoundIndexDto roundDto(
+      CallRound round, long sessionTokens, SessionDetailParityAnalyzer.RoundParity parity) {
     Double tokenShare = sessionTokens > 0 ? round.totalTokens() / (double) sessionTokens : null;
-    boolean failed = round.failedToolCount() > 0;
+    List<String> failedToolIds =
+        parity.failedToolIds.isEmpty() ? round.failedToolCallIds() : List.copyOf(parity.failedToolIds);
+    List<String> signals =
+        parity.signals.isEmpty()
+            ? (round.failedToolCount() > 0 ? List.of("Failed") : List.of())
+            : List.copyOf(new java.util.LinkedHashSet<>(parity.signals));
+    boolean failed = !failedToolIds.isEmpty() || Boolean.TRUE.equals(parity.toMap().get("hasIssues"));
     return new RoundIndexDto(
         round.roundIndex(),
         round.calls(),
@@ -203,11 +220,12 @@ public final class SessionDetailApiHandler {
             round.outputTokens()),
         round.callCount(),
         round.toolCallCount(),
-        round.failedToolCount(),
-        round.failedToolCallIds(),
+        failedToolIds.size(),
+        failedToolIds,
         tokenShare,
         failed ? "failed" : "ok",
-        failed ? List.of("Failed") : List.of());
+        signals,
+        parity.toMap());
   }
 
   private static AnomalyDto anomaly(DetectedAnomaly anomaly) {
@@ -221,15 +239,30 @@ public final class SessionDetailApiHandler {
         : PayloadVisibility.STANDARD;
   }
 
-  private static boolean statusMatches(String filter, String status) {
-    return "all".equals(filter) || filter.equals(status);
+  private static boolean statusMatches(String filter, RoundIndexDto round) {
+    if ("all".equals(filter)) {
+      return true;
+    }
+    if ("failed".equals(filter)) {
+      return "failed".equals(round.status())
+          || Boolean.TRUE.equals(round.parity().get("hasIssues"));
+    }
+    if ("low-cache".equals(filter)) {
+      return Boolean.TRUE.equals(round.parity().get("isLowCache"));
+    }
+    return filter.equals(round.status());
   }
 
   private static boolean payloadStatusMatches(String filter, String status) {
     if ("failed".equals(filter)) {
       return List.of("failed", "missing", "error").contains(status);
     }
-    return statusMatches(filter, status);
+    return "all".equals(filter) || filter.equals(status);
+  }
+
+  private static long longMetric(Map<String, Object> values, String key, long fallback) {
+    Object value = values.get(key);
+    return value instanceof Number number ? number.longValue() : fallback;
   }
 
   private static PageStateDto roundState(long count, String filter) {

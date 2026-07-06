@@ -464,7 +464,7 @@ class NormalizationEngineTest {
               .put("type", "tool_use")
               .put("turnId", "function_call")
               .put("name", "shell");
-      // 自定义工具调用，不计入工具计数
+      // 自定义工具调用，计入工具计数
       ObjectNode customCall =
           MAPPER
               .createObjectNode()
@@ -481,7 +481,7 @@ class NormalizationEngineTest {
 
       assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
       assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
-      assertThat(artifact.session()).containsEntry("toolCallCount", 1L);
+      assertThat(artifact.session()).containsEntry("toolCallCount", 2L);
     }
 
     @Test

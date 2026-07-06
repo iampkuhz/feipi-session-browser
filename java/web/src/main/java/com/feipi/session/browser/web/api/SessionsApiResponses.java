@@ -157,6 +157,7 @@ public final class SessionsApiResponses {
    * @param cwd 工作目录。
    * @param agent agent 类型标识。
    * @param model 模型名称。
+   * @param gitBranch Git branch 名称。
    * @param tokens token 组成统计。
    * @param rounds round 列表。
    * @param tools 该字段在 API 响应中的业务值。
@@ -179,6 +180,7 @@ public final class SessionsApiResponses {
       String cwd,
       String agent,
       String model,
+      String gitBranch,
       TokenSegments tokens,
       long rounds,
       long tools,
@@ -202,6 +204,7 @@ public final class SessionsApiResponses {
       cwd = ApiResponses.empty(cwd);
       agent = ApiResponses.required(agent, "agent");
       model = ApiResponses.empty(model);
+      gitBranch = ApiResponses.empty(gitBranch);
       Objects.requireNonNull(tokens, "tokens must not be null");
       createdAt = ApiResponses.empty(createdAt);
       updatedAt = ApiResponses.empty(updatedAt);

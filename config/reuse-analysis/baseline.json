@@ -7251,6 +7251,256 @@
       "createdAt": "2026-07-05",
       "expiresOn": "2026-12-31",
       "evidence": "b1219e2065fbd78bcd540e709b41ea3039c7d7a5c080eba6c4ccabe835665c12"
+    },
+    {
+      "fingerprint": "1c34d0159edcb127a8c791cfdb5f9c922035ceaf057ad48a36aa491a70fbbaf4",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（diagnosticsMap, metricsMap, toolImpact），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "1c34d0159edcb127a8c791cfdb5f9c922035ceaf057ad48a36aa491a70fbbaf4"
+    },
+    {
+      "fingerprint": "e06e3f9167f4b021768ffcdc5dfc3755eeb20b8977a3acc6dcae512a49c571f6",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（isChildRollout, parseRollout），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "e06e3f9167f4b021768ffcdc5dfc3755eeb20b8977a3acc6dcae512a49c571f6"
+    },
+    {
+      "fingerprint": "1a5c3f58b03636516f4b7ab9144bd2864c73fb793d355fbd5a2ffd69d9818cc0",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（buildRoundParity, markReferencePayloadGapPadding），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "1a5c3f58b03636516f4b7ab9144bd2864c73fb793d355fbd5a2ffd69d9818cc0"
+    },
+    {
+      "fingerprint": "6ecb1e9941e80e13351a3158d272c934a9845308f413857b03dca5532988bb8c",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（metricsMap, buildSessionMetrics），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "6ecb1e9941e80e13351a3158d272c934a9845308f413857b03dca5532988bb8c"
+    },
+    {
+      "fingerprint": "18a981b5b3964fbe87ee88a9130a61e08ad9f6bb294a59c616adca7bd14213ad",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（metaMap, metricsMap），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "18a981b5b3964fbe87ee88a9130a61e08ad9f6bb294a59c616adca7bd14213ad"
+    },
+    {
+      "fingerprint": "b7d71345343309fbb1b519e1af2f8956ee3a3a15b73a0ef0a4b04ef6b9c565f3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（optionalDouble, optionalDouble, median），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "b7d71345343309fbb1b519e1af2f8956ee3a3a15b73a0ef0a4b04ef6b9c565f3"
+    },
+    {
+      "fingerprint": "7ee8021992305484809e7a677ce76c18f5d62a51e137111c2f16946e6c1b7c0d",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（agentRows, contextSegments），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "7ee8021992305484809e7a677ce76c18f5d62a51e137111c2f16946e6c1b7c0d"
+    },
+    {
+      "fingerprint": "bc538e668e99d057835b327bece670118d268abaeed2ec04c14c8555cb6c9664",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（diagnosticsMap, metricsMap, toolImpact），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "bc538e668e99d057835b327bece670118d268abaeed2ec04c14c8555cb6c9664"
+    },
+    {
+      "fingerprint": "285091385d5dd2afa2dde70e29826eed8edc10e8d902e0ca7ce86e5ea1b49c5a",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（ratioLabel, dateOnly），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "285091385d5dd2afa2dde70e29826eed8edc10e8d902e0ca7ce86e5ea1b49c5a"
+    },
+    {
+      "fingerprint": "b8f9fb8669ffcebeadf4bfc8fc5d0a3ec72f12c9ce8efa0e73883b4a9e90bed9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（text, text），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "b8f9fb8669ffcebeadf4bfc8fc5d0a3ec72f12c9ce8efa0e73883b4a9e90bed9"
+    },
+    {
+      "fingerprint": "da0d80827efb4d883f96e49934a2bf76d5d9ee1be2ca94dd421f05a656f865cf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（handleResponseItem, parseRollout），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "da0d80827efb4d883f96e49934a2bf76d5d9ee1be2ca94dd421f05a656f865cf"
+    },
+    {
+      "fingerprint": "ccaff6a6702de948bed0d3d50e98dfa30e74e3b13c3b9378543fc34e55bcfbe3",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（diagnosticsMap, metricsMap），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "ccaff6a6702de948bed0d3d50e98dfa30e74e3b13c3b9378543fc34e55bcfbe3"
+    },
+    {
+      "fingerprint": "f37863c1e2c87b1fe514fa8ce7cafad9665a9e9cfcf6430618ee04a6867dd156",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（buildRoundParity, markReferencePayloadGapPadding），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "f37863c1e2c87b1fe514fa8ce7cafad9665a9e9cfcf6430618ee04a6867dd156"
+    },
+    {
+      "fingerprint": "76ffc6bbf6e9592b397ff70f3669e39eed4c2ddfef1ba0e04c8096c6b34fd3bd",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（handleResponseItem, parseRollout），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "76ffc6bbf6e9592b397ff70f3669e39eed4c2ddfef1ba0e04c8096c6b34fd3bd"
+    },
+    {
+      "fingerprint": "ee248445bf82fee52f929550513e8c17c1fc90b00030dc51b1c7f1ed31f5d379",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（countTokens, estimateTokens），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "ee248445bf82fee52f929550513e8c17c1fc90b00030dc51b1c7f1ed31f5d379"
+    },
+    {
+      "fingerprint": "511c6fc038143ba3f7bb91d38c69ac17223f76ef22f93fd68e2586090d9c527e",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（diagnosticsMap, metricsMap），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "511c6fc038143ba3f7bb91d38c69ac17223f76ef22f93fd68e2586090d9c527e"
+    },
+    {
+      "fingerprint": "74a820198ea8920380a632fbecc088c591bf9ce7d3d8c1fb8268921d55229ec1",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（diagnosticsMap, metricsMap），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "74a820198ea8920380a632fbecc088c591bf9ce7d3d8c1fb8268921d55229ec1"
+    },
+    {
+      "fingerprint": "94baea6989569161aef64f1ce1e9db1ddae7c568ffe7f266b6c296a3fe73d27b",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（agentRows, analyze），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "94baea6989569161aef64f1ce1e9db1ddae7c568ffe7f266b6c296a3fe73d27b"
+    },
+    {
+      "fingerprint": "4d47328bdd59bfa5bd3fcf0f5c791ffc0e8ff45f1735664c39986a7a73927c10",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（diagnosticsMap, metricsMap），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "4d47328bdd59bfa5bd3fcf0f5c791ffc0e8ff45f1735664c39986a7a73927c10"
+    },
+    {
+      "fingerprint": "25cf7b041e5b02dbfefe90dfd917d99cd87561a231e51f5a0053d6c1e9e7a976",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（agentRows, contextSegments, issueStrip），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "25cf7b041e5b02dbfefe90dfd917d99cd87561a231e51f5a0053d6c1e9e7a976"
+    },
+    {
+      "fingerprint": "654f232fb51e7679b2110cfd4aea06d0a0917e443bb30a62ac765a1ec8461c47",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（handleMeta, handleMetrics, handleRounds），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "654f232fb51e7679b2110cfd4aea06d0a0917e443bb30a62ac765a1ec8461c47"
+    },
+    {
+      "fingerprint": "ac4f973ea251adb860f21f8a6a1cbfa1e3cf81c3c930a206555f6f74e28eb5cf",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（agentRows, contextSegments），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "ac4f973ea251adb860f21f8a6a1cbfa1e3cf81c3c930a206555f6f74e28eb5cf"
+    },
+    {
+      "fingerprint": "901d89a564563edafbbe6eb3c462964153fb586b854f8748e620c1a67a85a3f5",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（isChildRollout, parseRollout），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "901d89a564563edafbbe6eb3c462964153fb586b854f8748e620c1a67a85a3f5"
+    },
+    {
+      "fingerprint": "f062fe667a5b26ee9bdce212bbd3713dd93496f28245884448f8c2bd30fdd4a9",
+      "severity": "P1",
+      "decision": "KEEP_ON_OWNER",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（mergeUsage, parseRollout），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "f062fe667a5b26ee9bdce212bbd3713dd93496f28245884448f8c2bd30fdd4a9"
+    },
+    {
+      "fingerprint": "fd69c9a797d3160380c52647e9ef0b563a475e98252aa3d2d2072ca93ef172b5",
+      "severity": "P2",
+      "decision": "INTENTIONAL_DUPLICATION",
+      "reason": "Session Detail parity analyzer 为复刻 main 口径保留局部分析分支（text, text），后续沉淀共享模型时复审",
+      "owner": "session-detail-parity",
+      "createdAt": "2026-07-06",
+      "expiresOn": "2027-01-06",
+      "evidence": "fd69c9a797d3160380c52647e9ef0b563a475e98252aa3d2d2072ca93ef172b5"
     }
   ]
 }

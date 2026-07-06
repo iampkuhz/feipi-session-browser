@@ -74,6 +74,137 @@ arg_has_option() {
     return 1
 }
 
+# 读取 serve 参数中的 option 值；支持 --port 8848、--port=8848、-p 8848、-p=8848。
+serve_option_value() {
+    local long_opt="$1"
+    local short_opt="$2"
+    shift 2 || true
+
+    local -a args=("$@")
+    local value=""
+    local i=0
+    local len="${#args[@]}"
+    local arg
+
+    while [[ "$i" -lt "$len" ]]; do
+        arg="${args[$i]}"
+        case "$arg" in
+            "$long_opt")
+                if [[ $((i + 1)) -lt "$len" ]]; then
+                    i=$((i + 1))
+                    value="${args[$i]}"
+                fi
+                ;;
+            "$long_opt="*)
+                value="${arg#*=}"
+                ;;
+        esac
+
+        if [[ -n "$short_opt" ]]; then
+            case "$arg" in
+                "$short_opt")
+                    if [[ $((i + 1)) -lt "$len" ]]; then
+                        i=$((i + 1))
+                        value="${args[$i]}"
+                    fi
+                    ;;
+                "$short_opt="*)
+                    value="${arg#*=}"
+                    ;;
+            esac
+        fi
+
+        i=$((i + 1))
+    done
+
+    if [[ -n "$value" ]]; then
+        printf '%s\n' "$value"
+        return 0
+    fi
+    return 1
+}
+
+# 查找指定 TCP 端口的监听进程 PID。
+listen_pids_for_port() {
+    local port="$1"
+    if command -v lsof >/dev/null 2>&1; then
+        lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u
+        return 0
+    fi
+    if command -v fuser >/dev/null 2>&1; then
+        fuser -n tcp "$port" 2>/dev/null | tr ' ' '\n' | awk 'NF' | sort -u
+        return 0
+    fi
+    return 0
+}
+
+# 等待端口释放。
+wait_for_port_release() {
+    local port="$1"
+    local max_attempts="${2:-20}"
+    local attempt=0
+    local pids
+    while [[ "$attempt" -lt "$max_attempts" ]]; do
+        pids="$(listen_pids_for_port "$port" || true)"
+        if [[ -z "$pids" ]]; then
+            return 0
+        fi
+        sleep 0.25
+        attempt=$((attempt + 1))
+    done
+    return 1
+}
+
+# serve 启动前处理端口占用：默认自动终止监听进程，可用环境变量关闭。
+ensure_serve_port_available() {
+    local port="$1"
+    if [[ ! "$port" =~ ^[0-9]+$ || "$port" == "0" ]]; then
+        return 0
+    fi
+
+    local pids
+    pids="$(listen_pids_for_port "$port" || true)"
+    if [[ -z "$pids" ]]; then
+        return 0
+    fi
+
+    local pids_display="${pids//$'\n'/ }"
+    case "${SESSION_BROWSER_SERVE_AUTO_KILL_PORT:-1}" in
+        0|false|FALSE|False|no|NO|No)
+            echo "错误：端口 $port 已被占用，监听进程：$pids_display" >&2
+            echo "请先停止占用进程，或取消 SESSION_BROWSER_SERVE_AUTO_KILL_PORT=0 后重试。" >&2
+            return 1
+            ;;
+    esac
+
+    echo "端口 $port 已被占用，自动终止监听进程：$pids_display" >&2
+    local pid
+    for pid in $pids; do
+        if [[ "$pid" != "$$" ]]; then
+            kill "$pid" 2>/dev/null || true
+        fi
+    done
+
+    if ! wait_for_port_release "$port" 20; then
+        pids="$(listen_pids_for_port "$port" || true)"
+        pids_display="${pids//$'\n'/ }"
+        echo "端口 $port 未释放，强制终止监听进程：$pids_display" >&2
+        for pid in $pids; do
+            if [[ "$pid" != "$$" ]]; then
+                kill -9 "$pid" 2>/dev/null || true
+            fi
+        done
+    fi
+
+    if ! wait_for_port_release "$port" 20; then
+        pids="$(listen_pids_for_port "$port" || true)"
+        pids_display="${pids//$'\n'/ }"
+        echo "错误：端口 $port 仍被占用，无法启动 serve。监听进程：$pids_display" >&2
+        return 1
+    fi
+    echo "端口 $port 已释放，继续启动 serve。" >&2
+}
+
 # 判断当前 Java opts 中是否已经配置 -Xmx。
 jvm_opts_have_max_heap() {
     local combined=" ${JAVA_OPTS:-} ${APP_CLI_OPTS:-} "
@@ -479,14 +610,21 @@ run_serve() {
     export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
     local -a java_args
     java_args=()
-    if ! arg_has_option "--host" "$@"; then
+    local explicit_host
+    local explicit_port
+    explicit_host="$(serve_option_value "--host" "" "$@" || true)"
+    explicit_port="$(serve_option_value "--port" "-p" "$@" || true)"
+    if [[ -z "$explicit_host" ]]; then
         java_args+=("--host" "${SESSION_BROWSER_LOCAL_HOST:-$DEFAULT_LOCAL_HOST}")
     fi
-    if ! arg_has_option "--port" "$@"; then
+    if [[ -z "$explicit_port" ]]; then
         java_args+=("--port" "${SESSION_BROWSER_LOCAL_PORT:-$DEFAULT_LOCAL_PORT}")
     fi
     if [[ $# -gt 0 ]]; then
         java_args+=("$@")
+    fi
+    if ! arg_has_option "--help" "$@" && ! arg_has_option "-h" "$@"; then
+        ensure_serve_port_available "${explicit_port:-${SESSION_BROWSER_LOCAL_PORT:-$DEFAULT_LOCAL_PORT}}"
     fi
     run_java_command serve "${java_args[@]}"
 }
@@ -532,6 +670,8 @@ print_usage() {
   SESSION_BROWSER_DEPS_INSTALLER   deps --dev 默认：uv；设为 pip 可使用 requirements-dev.txt 安装
   SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
   SESSION_BROWSER_LOCAL_PORT       默认：8848
+  SESSION_BROWSER_SERVE_AUTO_KILL_PORT
+                                   默认：1；serve 启动前自动终止占用端口的监听进程，设为 0 关闭
   SESSION_BROWSER_LOCAL_DATA_DIR   默认：~/.local/share/feipi/session-browser/local-test-index
   SESSION_BROWSER_LOG_LEVEL        默认：WARN；可设为 INFO 或 DEBUG 输出更多日志
   SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE

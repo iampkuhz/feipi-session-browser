@@ -145,6 +145,7 @@ public final class SessionsApiHandler {
         row.cwd(),
         row.agent(),
         row.model(),
+        row.gitBranch(),
         TokenSegments.of(
             row.freshInputTokens(),
             row.cacheReadTokens(),

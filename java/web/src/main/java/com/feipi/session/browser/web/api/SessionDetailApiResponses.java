@@ -4,6 +4,7 @@ import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** Session Detail page resource APIs 的类型化 JSON 响应。 */
@@ -87,6 +88,7 @@ public final class SessionDetailApiResponses {
    * @param hasArtifact 是否存在导出 artifact。
    * @param artifactSchemaVersion 该字段在 API 响应中的业务值。
    * @param cacheKey 该字段在 API 响应中的业务值。
+   * @param parity main 分支 parity 分析字段。
    * @param state 页面或 API 状态描述。
    */
   public record SessionMetaResponse(
@@ -105,6 +107,7 @@ public final class SessionDetailApiResponses {
       boolean hasArtifact,
       String artifactSchemaVersion,
       String cacheKey,
+      Map<String, Object> parity,
       PageStateDto state) {
 
     /** 校验字段和业务不变量。 */
@@ -123,6 +126,7 @@ public final class SessionDetailApiResponses {
       source = ApiResponses.empty(source);
       artifactSchemaVersion = ApiResponses.empty(artifactSchemaVersion);
       cacheKey = ApiResponses.empty(cacheKey);
+      parity = parity == null ? Map.of() : Map.copyOf(parity);
       Objects.requireNonNull(state, "state must not be null");
     }
   }
@@ -143,6 +147,7 @@ public final class SessionDetailApiResponses {
    * @param toolExecutionSeconds 持续时间秒数。
    * @param roundCount round 数量。
    * @param payloadCount payload 数量。
+   * @param parity main 分支 parity 分析字段。
    * @param state 页面或 API 状态描述。
    */
   public record SessionMetricsResponse(
@@ -159,6 +164,7 @@ public final class SessionDetailApiResponses {
       double toolExecutionSeconds,
       long roundCount,
       long payloadCount,
+      Map<String, Object> parity,
       PageStateDto state) {
 
     /** 校验字段和业务不变量。 */
@@ -166,6 +172,7 @@ public final class SessionDetailApiResponses {
       schemaVersion = schemaVersion == null ? ApiResponses.SCHEMA_VERSION : schemaVersion;
       Objects.requireNonNull(filters, "filters must not be null");
       Objects.requireNonNull(tokens, "tokens must not be null");
+      parity = parity == null ? Map.of() : Map.copyOf(parity);
       Objects.requireNonNull(state, "state must not be null");
       if (userMessages < 0
           || assistantMessages < 0
@@ -191,6 +198,7 @@ public final class SessionDetailApiResponses {
    * @param maxSeverity 该字段在 API 响应中的业务值。
    * @param mainReason 该字段在 API 响应中的业务值。
    * @param anomalies 该字段在 API 响应中的业务值。
+   * @param parity main 分支 parity 分析字段。
    * @param state 页面或 API 状态描述。
    */
   public record SessionDiagnosticsResponse(
@@ -200,6 +208,7 @@ public final class SessionDetailApiResponses {
       String maxSeverity,
       String mainReason,
       List<AnomalyDto> anomalies,
+      Map<String, Object> parity,
       PageStateDto state) {
 
     /** 校验字段和业务不变量。 */
@@ -209,6 +218,7 @@ public final class SessionDetailApiResponses {
       maxSeverity = ApiResponses.empty(maxSeverity);
       mainReason = ApiResponses.empty(mainReason);
       Objects.requireNonNull(anomalies, "anomalies must not be null");
+      parity = parity == null ? Map.of() : Map.copyOf(parity);
       Objects.requireNonNull(state, "state must not be null");
       anomalies = List.copyOf(anomalies);
       if (anomalyCount < 0) {
@@ -278,6 +288,7 @@ public final class SessionDetailApiResponses {
    * @param tokenShare token 占比。
    * @param status 轮次状态。
    * @param signals 轮次信号列表。
+   * @param parity main 分支 parity 分析字段。
    */
   public record RoundIndexDto(
       int roundIndex,
@@ -291,7 +302,8 @@ public final class SessionDetailApiResponses {
       List<String> failedToolCallIds,
       Double tokenShare,
       String status,
-      List<String> signals) {
+      List<String> signals,
+      Map<String, Object> parity) {
 
     /** 校验字段和业务不变量。 */
     public RoundIndexDto {
@@ -304,6 +316,7 @@ public final class SessionDetailApiResponses {
       Objects.requireNonNull(tokens, "tokens must not be null");
       status = ApiResponses.required(status, "status");
       Objects.requireNonNull(signals, "signals must not be null");
+      parity = parity == null ? Map.of() : Map.copyOf(parity);
       calls = List.copyOf(calls);
       toolCallIds = List.copyOf(toolCallIds);
       failedToolCallIds = List.copyOf(failedToolCallIds);

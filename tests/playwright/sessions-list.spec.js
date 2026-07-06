@@ -35,6 +35,11 @@ test.describe('会话列表页', () => {
     await expect(page.getByText('Loading sessions')).toHaveCount(0, { timeout: 10000 });
     await expect(page.locator('.sessions-table-card')).toBeVisible();
     await expect(page.locator('[data-api-rows="/api/sessions/rows"]')).toBeVisible();
+    const firstDataRow = page.locator('.data-table tbody tr[data-action="row"]').first();
+    await expect(firstDataRow).toBeVisible({ timeout: 10000 });
+    await expect(firstDataRow.locator(':scope > td')).toHaveCount(13);
+    const firstRowHeight = await firstDataRow.evaluate((row) => row.getBoundingClientRect().height);
+    expect(firstRowHeight, 'API 渲染出的表格行应保持 table row 结构，不能因 <td> 被剥离而撑高').toBeLessThanOrEqual(70);
     const viewportWidth = await page.evaluate(() => document.documentElement.clientWidth);
     const scrollWidth = await page.evaluate(() => document.documentElement.scrollWidth);
     expect(scrollWidth, 'API 渲染后不应产生横向页面滚动').toBeLessThanOrEqual(viewportWidth + 2);

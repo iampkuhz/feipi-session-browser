@@ -526,7 +526,29 @@ test.describe('会话详情 — Phase 1', () => {
     expect(tooltipText, 'tooltip should keep structural labels only; numeric correctness is API-tested').toContain('Token Breakdown');
   });
 
-  test('[UI-SD-032] diagnostics 区保留 API-first shell，数据正确性不由 Playwright 校验', async ({ page }) => {
+  test('[UI-SD-034] API trace rows 保留表格单元格结构', async ({ page }) => {
+    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoSessionDetail(page, sessionUrl);
+    await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
+
+    const firstRow = page.locator('[data-trace-round-row]').first();
+    await expect(firstRow, 'fixture must render API trace rows').toBeVisible({ timeout: 10000 });
+
+    const structure = await firstRow.evaluate((row) => ({
+      directCellCount: Array.from(row.children).filter((child) => child.tagName === 'TD').length,
+      directChildTags: Array.from(row.children).map((child) => child.tagName),
+      rowHeight: row.getBoundingClientRect().height,
+    }));
+
+    expect(structure.directCellCount, `trace row children must be table cells: ${structure.directChildTags.join(',')}`).toBe(6);
+    expect(structure.directChildTags).toEqual(['TD', 'TD', 'TD', 'TD', 'TD', 'TD']);
+    expect(structure.rowHeight, `trace row should stay compact after API hydration (${structure.rowHeight}px)`).toBeLessThanOrEqual(96);
+  });
+
+  test('[UI-SD-032] diagnostics 区渲染 API-first parity 卡片', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await page.setViewportSize({ width: 2048, height: 768 });
@@ -537,7 +559,11 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Call Token Footprint Distribution' })).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Top Token Drivers' })).toHaveCount(0);
-    await expect(page.getByRole('heading', { name: 'Session API State' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Session API State' })).toHaveCount(0);
+    await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Tool Impact' })).toBeVisible({ timeout: 10000 });
+    await expect(page.getByRole('heading', { name: 'Issues & Repro Seeds' })).toBeVisible({ timeout: 10000 });
     await expect(page.locator('.sd-anomalies__count')).not.toContainText('Loading', { timeout: 10000 });
   });
 
@@ -620,6 +646,7 @@ test.describe('长会话 — 100 轮性能', () => {
 
     // 验证 trace 面板可见
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 5000 });
+    await waitForSessionApiHydrated(page);
 
     // 统计可见 trace 行数（应匹配 100 轮）
     const rowCount = await page.locator('[data-trace-round-row]').count();
@@ -644,6 +671,7 @@ test.describe('长会话 — 100 轮性能', () => {
 
     await gotoSessionDetail(page, longUrl);
     await expect(page.locator('.sd-hero').first()).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
 
     // 折叠所有轮次后统计 DOM 节点 — 应低于 20k
     const toggleBtn = page.locator('[data-action="toggle-all"]');
@@ -677,6 +705,7 @@ test.describe('长会话 — 100 轮性能', () => {
 
     await gotoSessionDetail(page, longUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
+    await waitForSessionApiHydrated(page);
 
     const totalRows = await page.locator('[data-trace-round-row]').count();
     expect(totalRows).toBeGreaterThanOrEqual(100);

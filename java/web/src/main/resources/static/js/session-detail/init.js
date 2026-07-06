@@ -146,6 +146,7 @@
 
   function applySessionMeta(meta) {
     if (!meta) return;
+    var parity = meta.parity || {};
     var title = qs(document, '[data-session-hero] h1');
     if (title && meta.title) {
       title.textContent = meta.title;
@@ -154,7 +155,7 @@
     document.body.setAttribute('data-session-api-session-key', meta.sessionKey || '');
     document.body.setAttribute('data-session-api-artifact', meta.hasArtifact ? 'available' : 'missing');
     var agent = qs(document, '[data-session-agent]');
-    if (agent) agent.textContent = (meta.filters && meta.filters.agent) || agent.textContent || '';
+    if (agent) agent.textContent = parity.agentLabel || (meta.filters && meta.filters.agent) || agent.textContent || '';
     var idText = qs(document, '[data-session-id-text]');
     if (idText && meta.filters && meta.filters.sessionId) {
       idText.textContent = meta.filters.sessionId;
@@ -162,51 +163,55 @@
     }
     var fileRow = qs(document, '[data-session-file-path]');
     var fileText = qs(document, '[data-session-file-text]');
-    if (fileRow && fileText && meta.cwd) {
+    var sessionFilePath = parity.sessionFilePath || meta.sessionFilePath || '';
+    if (fileRow && fileText && sessionFilePath) {
       fileRow.hidden = false;
-      fileText.textContent = meta.cwd;
-      fileText.title = meta.cwd;
+      fileText.textContent = sessionFilePath;
+      fileText.title = sessionFilePath;
       var copy = fileRow.querySelector('[data-action="copy"]');
-      if (copy) copy.setAttribute('data-copy-text', meta.cwd);
+      if (copy) copy.setAttribute('data-copy-text', sessionFilePath);
     }
     var chips = qs(document, '[data-session-meta-chips]');
     if (chips) {
       chips.replaceChildren(
         chip(meta.model || 'Unknown model', true),
         chip(meta.projectName || meta.projectKey || 'Unknown project'),
-        chip(meta.updatedAt ? 'Updated ' + meta.updatedAt : 'Updated —'),
+        chip(parity.date || '—'),
+        chip(parity.updatedLocal ? 'Updated ' + parity.updatedLocal : (meta.updatedAt ? 'Updated ' + meta.updatedAt : 'Updated —')),
         meta.gitBranch ? chip(meta.gitBranch, true) : chip('Branch —', true)
       );
     }
-    setText('[data-session-updated]', meta.updatedAt || '—');
+    setText('[data-session-updated]', parity.updatedLocal || meta.updatedAt || '—');
     setText('[data-session-artifact]', meta.hasArtifact ? ('Schema ' + (meta.artifactSchemaVersion || 'available')) : 'No artifact');
   }
 
   function applySessionMetrics(metrics) {
     if (!metrics || !metrics.tokens) return;
+    var parity = metrics.parity || {};
     setKpi('Total Tokens', formatSessionCompact(metrics.tokens.total), [
-      'Fresh ' + formatSessionCompact(metrics.tokens.fresh),
-      'Cache Read ' + formatSessionCompact(metrics.tokens.cacheRead),
-      'Cache Write ' + formatSessionCompact(metrics.tokens.cacheWrite),
-      'Output ' + formatSessionCompact(metrics.tokens.output)
+      subline('Fresh', formatSessionCompact(metrics.tokens.fresh) + ' · ' + (parity.freshShare || pctLabel(metrics.tokens.fresh, metrics.tokens.total))),
+      subline('Cache Read', formatSessionCompact(metrics.tokens.cacheRead) + ' · ' + (parity.cacheReadShare || pctLabel(metrics.tokens.cacheRead, metrics.tokens.total))),
+      subline('Cache Write', formatSessionCompact(metrics.tokens.cacheWrite) + ' · ' + (parity.cacheWriteShare || pctLabel(metrics.tokens.cacheWrite, metrics.tokens.total))),
+      subline('Output', formatSessionCompact(metrics.tokens.output) + ' · ' + (parity.outputShare || pctLabel(metrics.tokens.output, metrics.tokens.total)))
     ]);
     var inputSide = Number(metrics.tokens.fresh || 0) + Number(metrics.tokens.cacheRead || 0) + Number(metrics.tokens.cacheWrite || 0);
-    var cacheRatio = inputSide > 0 ? ((Number(metrics.tokens.cacheRead || 0) / inputSide) * 100).toFixed(1) + '%' : 'N/A';
-    setKpi('Cache Health', cacheRatio, [
-      'Input-side Tokens ' + formatSessionCompact(inputSide),
-      'Cache ratio source API'
+    setKpi('Cache Health', parity.cacheReuse || pctLabel(metrics.tokens.cacheRead, inputSide), [
+      subline('Input-side Tokens', formatSessionCompact(parity.inputSideTokens || inputSide)),
+      subline('Low-cache Rounds', formatNumber(parity.lowCacheRounds || 0)),
+      subline('Fresh Spike Rounds', formatNumber(parity.freshSpikeRounds || 0))
     ]);
-    setKpi('Workload', formatSessionCompact(Number(metrics.userMessages || 0) + Number(metrics.assistantMessages || 0)), [
-      'User Messages ' + formatNumber(metrics.userMessages),
-      'Assistant Messages ' + formatNumber(metrics.assistantMessages),
-      'Tool Calls ' + formatNumber(metrics.toolCalls),
-      'Subagent Runs ' + formatNumber(metrics.subagents)
+    setKpi('Workload', formatNumber(parity.workloadCalls || (Number(metrics.userMessages || 0) + Number(metrics.assistantMessages || 0))), [
+      subline('Main Calls', formatNumber(parity.mainCalls || metrics.assistantMessages)),
+      subline('Subagent Calls', formatNumber(parity.subagentCalls || 0)),
+      subline('Tool Calls', formatNumber(parity.toolCalls || metrics.toolCalls)),
+      subline('Subagent Runs', formatNumber(parity.subagentRuns || metrics.subagents))
     ]);
-    var activeSeconds = Number(metrics.modelExecutionSeconds || 0) + Number(metrics.toolExecutionSeconds || 0);
+    var activeSeconds = Number(parity.activeSeconds || 0);
     setKpi('Active Time', formatDuration(activeSeconds), [
-      'Duration ' + formatDuration(metrics.durationSeconds),
-      'Model Time ' + formatDuration(metrics.modelExecutionSeconds),
-      'Tool Time ' + formatDuration(metrics.toolExecutionSeconds)
+      subline('Duration', formatDuration(metrics.durationSeconds)),
+      subline('Waiting Time', formatDuration(parity.waitingSeconds || Math.max(Number(metrics.durationSeconds || 0) - activeSeconds, 0))),
+      subline('Model Time', parity.modelTimeAvailable ? formatDuration(metrics.modelExecutionSeconds) : 'N/A'),
+      subline('Tool Time', parity.toolTimeAvailable ? formatDuration(metrics.toolExecutionSeconds) : 'N/A')
     ]);
     document.body.setAttribute('data-session-api-total-tokens', String(metrics.tokens.total || 0));
     document.body.setAttribute('data-session-api-failed-tools', String(metrics.failedTools || 0));
@@ -214,12 +219,13 @@
 
   function applySessionDiagnostics(diagnostics) {
     if (!diagnostics) return;
-    var count = Number(diagnostics.anomalyCount || 0);
-    setKpi('Run Health', count > 0 ? 'Needs Review' : 'OK', [
-      'Issue Rounds ' + formatNumber(count),
-      'Failed Tools ' + (count > 0 ? 'See diagnostics' : '0'),
-      'Payload Gaps loaded from API',
-      'Attribution Gaps loaded from API'
+    var parity = diagnostics.parity || {};
+    var count = Number(parity.issueRounds || diagnostics.anomalyCount || 0);
+    setKpi('Run Health', parity.runHealth || (count > 0 ? 'Completed with issue signals' : 'Completed'), [
+      subline('Issue Rounds', formatNumber(count)),
+      subline('Failed Tools', formatNumber(parity.failedTools || 0) + (parity.failedToolsRate ? ' · ' + parity.failedToolsRate : '')),
+      subline('Payload Gaps', formatNumber(parity.payloadGaps || 0)),
+      subline('Attribution Gaps', formatNumber(parity.attributionGaps || 0))
     ]);
     var strip = qs(document, '[data-issue-strip]');
     if (strip) {
@@ -230,13 +236,13 @@
       title.className = 'sd-issue-title';
       title.textContent = count > 0 ? 'Issue Signals' : 'No issue signals';
       strip.appendChild(title);
-      (diagnostics.anomalies || []).forEach(function (anomaly) {
+      (parity.issueStrip || []).forEach(function (issue) {
         var button = document.createElement('button');
         button.type = 'button';
-        button.className = 'sd-issue-link sd-issue-link--' + severityTone(anomaly.severity);
+        button.className = 'sd-issue-link sd-issue-link--' + (issue.tone || 'warn');
         button.setAttribute('data-action', 'jump-round');
-        button.setAttribute('data-round', '1');
-        button.textContent = anomaly.type || 'anomaly';
+        button.setAttribute('data-round', String(issue.roundId || 1));
+        button.textContent = issue.label || 'Issue';
         strip.appendChild(button);
       });
       if (count === 0) {
@@ -247,26 +253,15 @@
       }
     }
     var countEl = qs(document, '.sd-anomalies__count');
-    if (countEl) countEl.textContent = formatNumber(count) + ' detected';
+    if (countEl) countEl.textContent = formatNumber(count) + ' issue rounds';
     var list = qs(document, '.sd-anomalies__list');
     if (list) {
-      var anomalies = diagnostics.anomalies || [];
-      if (!anomalies.length) {
-        var empty = document.createElement('div');
-        empty.className = 'sd-card-empty';
-        empty.textContent = diagnostics.state && diagnostics.state.message ? diagnostics.state.message : 'No anomaly was detected for this session.';
-        list.replaceChildren(empty);
-      } else {
-        list.replaceChildren.apply(list, anomalies.map(function (anomaly) {
-          var row = document.createElement('div');
-          row.className = 'sd-anomaly sd-anomaly--' + severityTone(anomaly.severity);
-          setMarkup(row, '<span class="sd-anomaly__type">' + escapeHtml(anomaly.type || '') + '</span>'
-            + '<span class="sd-anomaly__severity sd-badge sd-badge--' + severityTone(anomaly.severity) + '">' + escapeHtml(anomaly.severity || '') + '</span>'
-            + '<span class="sd-anomaly__reason">' + escapeHtml(anomaly.reason || '') + '</span>');
-          return row;
-        }));
-      }
+      var empty = document.createElement('div');
+      empty.className = 'sd-card-empty';
+      empty.textContent = count > 0 ? 'Actionable issues are listed in Diagnostics.' : 'No actionable issues detected.';
+      list.replaceChildren(empty);
     }
+    renderDiagnosticsCards(parity);
   }
 
   function applySessionRounds(roundsResponse) {
@@ -294,9 +289,10 @@
   function roundRow(round) {
     var tr = document.createElement('tr');
     var tokens = round.tokens || {};
+    var parity = round.parity || {};
     var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
-    var isLowCache = inputSide > 0 && (Number(tokens.cacheRead || 0) / inputSide) < 0.2;
-    var hasIssues = (round.status || '') === 'failed' || Number(round.failedToolCount || 0) > 0;
+    var isLowCache = Boolean(parity.isLowCache) || (inputSide > 0 && (Number(tokens.cacheRead || 0) / inputSide) < 0.2);
+    var hasIssues = Boolean(parity.hasIssues) || (round.status || '') === 'failed' || Number(round.failedToolCount || 0) > 0;
     tr.className = 'round-row sd-trace-round-row';
     tr.setAttribute('data-trace-round-row', '');
     tr.setAttribute('data-round', String(round.roundIndex));
@@ -308,11 +304,11 @@
     setMarkup(tr, [
       '<td class="round-col"><span role="button" tabindex="0" class="sd-round-toggle" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
       '<span class="sd-round-toggle__icon" aria-hidden="true">▶</span><span class="sd-round-id">R', round.roundIndex, '</span></span></td>',
-      '<td><span class="sd-round-summary">', formatNumber(round.callCount), ' calls, ', formatNumber(round.toolCallCount), ' tools</span></td>',
-      '<td class="metrics-col mono"><span class="sd-round-metrics">', formatNumber(round.callCount), ' LLM</span>', tokenbarHtml(tokens), '</td>',
-      '<td class="attribution-col"><span class="sd-round-attribution">lazy</span></td>',
+      '<td><span class="sd-round-summary">', escapeHtml(parity.summary || ('Round ' + round.roundIndex)), '</span></td>',
+      '<td class="metrics-col mono"><span class="sd-round-metrics">', formatNumber(round.toolCallCount), ' tools</span>', tokenbarHtml(tokens), '</td>',
+      '<td class="attribution-col"><span class="sd-round-attribution"><button type="button" class="sd-link-btn sd-link-btn--inline" data-action="retry-attribution" data-round="', round.roundIndex, '">request</button> <button type="button" class="sd-link-btn sd-link-btn--inline" data-action="retry-attribution" data-round="', round.roundIndex, '">response</button></span></td>',
       '<td class="status-col">', statusBadges(round, hasIssues, isLowCache), '</td>',
-      '<td class="time-col"><span class="sd-round-time">API</span></td>'
+      '<td class="time-col"><span class="sd-round-time">', escapeHtml(parity.time || ''), '</span></td>'
     ].join(''));
     return tr;
   }
@@ -338,6 +334,101 @@
     }));
   }
 
+  function renderDiagnosticsCards(parity) {
+    var root = qs(document, '[data-session-diagnostics]');
+    if (!root || !parity) return;
+    var agents = parity.agents || [];
+    var toolImpact = parity.toolImpact || {};
+    var contextSegments = parity.contextSegments || [];
+    var issues = parity.issues || [];
+    var issuePreview = issues.slice(0, 5);
+    var html = ''
+      + '<article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--agents">'
+      + '<header class="sd-diagnostic-card__head"><h2>Agents Breakdown</h2><span>' + formatNumber(agents.length) + ' agents</span></header>'
+      + '<div class="sd-diagnostic-card__body">' + agentsTableHtml(agents) + '</div></article>'
+      + '<article class="sd-diagnostic-card sd-diagnostic-card--context">'
+      + '<header class="sd-diagnostic-card__head"><h2>Context Budget</h2><span>Session-level</span></header>'
+      + '<div class="sd-diagnostic-card__body">' + contextBudgetHtml(contextSegments) + '</div></article>'
+      + '<article class="sd-diagnostic-card">'
+      + '<header class="sd-diagnostic-card__head"><h2>Tool Impact</h2><span>' + formatNumber(toolImpact.allToolCalls || 0) + ' calls</span></header>'
+      + '<div class="sd-diagnostic-card__body">' + toolImpactHtml(toolImpact) + '</div></article>'
+      + '<article class="sd-diagnostic-card">'
+      + '<header class="sd-diagnostic-card__head"><h2>Issues &amp; Repro Seeds</h2><span>' + formatNumber(parity.issueCount || issues.length || 0) + ' issues</span></header>'
+      + '<div class="sd-diagnostic-card__body">' + issuesHtml(issuePreview) + '</div></article>';
+    setMarkup(root, html);
+  }
+
+  function agentsTableHtml(agents) {
+    if (!agents.length) return '<div class="sd-card-empty">No agent runs indexed</div>';
+    var rows = agents.map(function (row, idx) {
+      var active = idx === 0 ? ' is-active' : '';
+      return '<tr class="sd-subagent-row' + active + '" data-subagent-row>'
+        + '<td class="sd-subagent-table__agent"><span class="sd-subagent-select' + active + '"><span class="sd-subagent-select__main"><b>'
+        + escapeHtml(row.agent || 'agent') + '</b><span class="sd-subagent-instance sd-subagent-instance--main">'
+        + escapeHtml(row.shortId || '') + '</span></span></span></td>'
+        + '<td class="sd-subagent-table__copy-cell"><span class="sd-subagent-copy-value" title="' + escapeHtml(row.sessionFile || '') + '">'
+        + escapeHtml(row.sessionFileDisplay || '—') + '</span> <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="'
+        + escapeHtml(row.sessionFile || '') + '">Copy</button></td>'
+        + '<td class="sd-subagent-table__copy-cell"><span class="sd-subagent-copy-value" title="' + escapeHtml(row.sessionId || '') + '">'
+        + escapeHtml(row.sessionIdDisplay || '—') + '</span> <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="'
+        + escapeHtml(row.sessionId || '') + '">Copy</button></td>'
+        + '<td>' + formatNumber(row.llmCalls) + ' LLM</td>'
+        + '<td>' + escapeHtml(row.tokens || '0') + ' · ' + escapeHtml(row.tokenShare || 'N/A') + '</td>'
+        + '<td>' + formatNumber(row.tools) + ' tools</td>'
+        + '<td><b class="sd-rate">' + escapeHtml(row.failureLabel || (formatNumber(row.failures) + ' failed · ' + (row.failureRate || 'N/A'))) + '</b></td>'
+        + '</tr>';
+    }).join('');
+    return '<div class="sd-subagent-workbench"><div class="sd-subagent-table-scroll"><table class="sd-subagent-table">'
+      + '<thead><tr><th>Agent</th><th>Session file</th><th>Session id</th><th>LLM</th><th>Tokens</th><th>Tools</th><th>Failures</th></tr></thead>'
+      + '<tbody>' + rows + '</tbody></table></div></div>';
+  }
+
+  function contextBudgetHtml(segments) {
+    if (!segments.length) return '<div class="sd-card-empty">No context budget available</div>';
+    var bars = segments.map(function (segment, idx) {
+      return '<span class="sd-context-segment sd-context-segment--' + (idx + 1) + ' sd-context-segment--' + escapeHtml(segment.status || 'available')
+        + '" style="--seg-width:' + escapeHtml(segment.shareValue || 0) + '%"><span class="sd-context-segment__label">'
+        + escapeHtml(segment.label || '') + '</span><span class="sd-context-segment__pct">' + escapeHtml(segment.share || 'N/A') + '</span></span>';
+    }).join('');
+    var legend = segments.map(function (segment, idx) {
+      return '<div class="sd-context-budget__item sd-context-budget__item--' + escapeHtml(segment.status || 'available') + '"><i class="sd-context-budget__dot sd-context-budget__dot--'
+        + (idx + 1) + '" aria-hidden="true"></i><span>' + escapeHtml(segment.label || '') + '</span><b>'
+        + escapeHtml(segment.tokensLabel || 'N/A') + ' · ' + escapeHtml(segment.share || 'N/A') + '</b></div>';
+    }).join('');
+    return '<div class="sd-context-segmented" aria-label="Context budget segmented bar">' + bars + '</div>'
+      + '<div class="sd-context-budget">' + legend + '</div>'
+      + '<div class="sd-context-note">Unavailable segments are not treated as 0%; tool result tokens are local estimates from transcript result length.</div>';
+  }
+
+  function toolImpactHtml(toolImpact) {
+    var rows = toolImpact.rows || [];
+    if (!rows.length) return '<div class="sd-card-empty">No tool calls indexed</div>';
+    var body = rows.map(function (row) {
+      return '<tr title="' + escapeHtml(row.splitNote || '') + '"><td>' + escapeHtml(row.tool || 'tool') + '</td><td>'
+        + formatNumber(row.calls) + '</td><td>' + escapeHtml(row.tokens || '0') + '</td><td><span class="sd-rate">'
+        + formatNumber(row.failures) + ' · ' + escapeHtml(row.failureRate || 'N/A') + '</span></td></tr>';
+    }).join('');
+    return '<table class="sd-compact-table"><thead><tr><th>Tool</th><th>Calls</th><th>Result Tokens</th><th>Failures</th></tr></thead><tbody>'
+      + body + '<tr class="sd-table-summary-row"><td>Summary</td><td>' + formatNumber(toolImpact.allToolCalls || 0)
+      + '</td><td>' + formatNumber(toolImpact.distinctTools || 0) + ' tools</td><td><span class="sd-rate">'
+      + formatNumber(toolImpact.failedTools || 0) + ' · ' + escapeHtml(toolImpact.failedToolsRate || 'N/A') + '</span></td></tr></tbody></table>';
+  }
+
+  function issuesHtml(issues) {
+    if (!issues.length) return '<div class="sd-card-empty">No actionable issues detected</div>';
+    var rows = issues.map(function (issue) {
+      return '<tr><td><span class="sd-signal-badge sd-signal-badge--' + escapeHtml(issue.tone || 'warning') + '">'
+        + escapeHtml(issue.issue || 'Issue') + '</span></td><td>' + escapeHtml(issue.evidence || '') + '</td><td>'
+        + '<button type="button" class="sd-link-btn sd-link-btn--inline" data-action="jump-round" data-round="' + escapeHtml(issue.roundId || '') + '">'
+        + escapeHtml(issue.roundLabel || ('R' + issue.roundId)) + '</button></td><td>'
+        + '<button type="button" class="sd-seed-btn" data-action="copy" data-copy-text="' + escapeHtml(issue.seed || '') + '" title="' + escapeHtml(issue.seed || '') + '">Copy locator</button>'
+        + '</td></tr>';
+    }).join('');
+    return '<div class="sd-chart-note">Rows are the actionable issue locators used to jump back to Trace or copy a stable repro locator.</div>'
+      + '<table class="sd-compact-table"><thead><tr><th>Issue</th><th>Evidence</th><th>Round</th><th>Locator</th></tr></thead><tbody>'
+      + rows + '</tbody></table>';
+  }
+
   function setKpi(label, value, sublines) {
     var card = qs(document, '.sd-kpi[aria-label="' + label + '"]');
     if (!card) return;
@@ -350,18 +441,29 @@
     if (subgrid && Array.isArray(sublines)) {
       subgrid.replaceChildren.apply(subgrid, sublines.map(function (line) {
         var span = document.createElement('span');
-        var idx = String(line).lastIndexOf(' ');
-        if (idx > 0) {
-          span.appendChild(document.createTextNode(line.slice(0, idx) + ' '));
+        if (line && typeof line === 'object') {
+          span.appendChild(document.createTextNode((line.label || '') + ' '));
           var b = document.createElement('b');
-          b.textContent = line.slice(idx + 1);
+          b.textContent = line.value == null ? '' : String(line.value);
           span.appendChild(b);
         } else {
-          span.textContent = line;
+          var idx = String(line).lastIndexOf(' ');
+          if (idx > 0) {
+            span.appendChild(document.createTextNode(line.slice(0, idx) + ' '));
+            var fallback = document.createElement('b');
+            fallback.textContent = line.slice(idx + 1);
+            span.appendChild(fallback);
+          } else {
+            span.textContent = line;
+          }
         }
         return span;
       }));
     }
+  }
+
+  function subline(label, value) {
+    return { label: label, value: value };
   }
 
   function tokenbarHtml(tokens) {
@@ -386,12 +488,10 @@
   }
 
   function statusBadges(round, hasIssues, isLowCache) {
-    var html = hasIssues
-      ? '<span class="sd-signal-badge sd-signal-badge--failed">failed</span>'
-      : '<span class="sd-signal-badge sd-signal-badge--ok">ok</span>';
-    if (isLowCache) html += '<span class="sd-signal-badge sd-signal-badge--low-cache">low-cache</span>';
+    var html = '';
     (round.signals || []).forEach(function (signal) {
-      if (signal !== 'Failed') html += '<span class="sd-signal-badge">' + escapeHtml(signal) + '</span>';
+      var tone = signal === 'Failed' ? ' sd-signal-badge--failed' : '';
+      html += '<span class="sd-signal-badge' + tone + '">' + escapeHtml(signal) + '</span>';
     });
     return html;
   }
@@ -411,6 +511,12 @@
   function pct(value, total) {
     if (!total) return 0;
     return Math.max(0, Math.min(100, Math.round((Number(value || 0) / total) * 1000) / 10));
+  }
+
+  function pctLabel(value, total) {
+    total = Number(total || 0);
+    if (!total) return 'N/A';
+    return ((Number(value || 0) / total) * 100).toFixed(1) + '%';
   }
 
   function formatNumber(value) {
@@ -438,8 +544,20 @@
   }
 
   function setMarkup(target, markup) {
-    var parsed = new DOMParser().parseFromString(markup || '', 'text/html');
-    target.replaceChildren.apply(target, Array.prototype.slice.call(parsed.body.childNodes));
+    var parsed;
+    var source;
+    if (target && target.tagName === 'TR') {
+      parsed = new DOMParser().parseFromString(
+        '<table><tbody><tr>' + (markup || '') + '</tr></tbody></table>',
+        'text/html'
+      );
+      source = parsed.querySelector('tbody tr');
+    } else {
+      parsed = new DOMParser().parseFromString(markup || '', 'text/html');
+      source = parsed.body;
+    }
+    if (!source) return;
+    target.replaceChildren.apply(target, Array.prototype.slice.call(source.childNodes));
   }
 
   function formatSessionCompact(value) {

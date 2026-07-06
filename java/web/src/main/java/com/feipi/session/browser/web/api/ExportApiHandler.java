@@ -188,7 +188,8 @@ public final class ExportApiHandler {
         round.failedToolCallIds(),
         tokenShare,
         round.failedToolCount() > 0 ? "failed" : "ok",
-        round.failedToolCount() > 0 ? List.of("Failed") : List.of());
+        round.failedToolCount() > 0 ? List.of("Failed") : List.of(),
+        java.util.Map.of());
   }
 
   private static PayloadVisibility parseVisibility(Context ctx) {

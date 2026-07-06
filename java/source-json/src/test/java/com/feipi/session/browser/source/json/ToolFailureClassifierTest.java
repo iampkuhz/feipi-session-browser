@@ -207,6 +207,26 @@ class ToolFailureClassifierTest {
     }
 
     @Test
+    @DisplayName("Codex 非零退出码返回 true")
+    void nonZeroExitCodeReturnsTrue() {
+      assertThat(
+              ToolFailureClassifier.looksFailed(
+                  "Chunk ID: abc\nProcess exited with code 1\nOutput:\nboom", "exec_command"))
+          .isTrue();
+      assertThat(ToolFailureClassifier.looksFailed("Exit code: 2\nOutput:\nfailed", "Bash"))
+          .isTrue();
+    }
+
+    @Test
+    @DisplayName("Codex 零退出码不误报")
+    void zeroExitCodeReturnsFalse() {
+      assertThat(ToolFailureClassifier.looksFailed("Process exited with code 0", "exec_command"))
+          .isFalse();
+      assertThat(ToolFailureClassifier.looksFailed("Exit code: 0\nOutput:\nok", "Bash"))
+          .isFalse();
+    }
+
+    @Test
     @DisplayName("多行内容中某行以错误标记开头返回 true")
     void multiLineWithErrorMarkerReturnsTrue() {
       assertThat(

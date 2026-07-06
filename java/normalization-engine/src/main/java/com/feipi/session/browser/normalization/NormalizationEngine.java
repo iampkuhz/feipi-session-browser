@@ -241,7 +241,8 @@ public final class NormalizationEngine {
           codexUserCount++;
         } else if ("event_msg".equals(et) && "agent_message".equals(ti)) {
           codexAgentMessageCount++;
-        } else if ("tool_use".equals(et) && "function_call".equals(ti)) {
+        } else if ("tool_use".equals(et)
+            && ("function_call".equals(ti) || "custom_tool_call".equals(ti))) {
           codexToolCount++;
         }
       }

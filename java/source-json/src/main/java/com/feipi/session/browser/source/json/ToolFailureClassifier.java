@@ -55,6 +55,9 @@ public final class ToolFailureClassifier {
       Pattern.compile("^(?:ba)?sh:\\s+.*:\\s+command not found");
   private static final Pattern TIMEOUT_AT_LINE_START =
       Pattern.compile("(?:^|\\n)\\s*timeout\\b", Pattern.MULTILINE);
+  private static final Pattern NON_ZERO_EXIT_CODE =
+      Pattern.compile(
+          "(?i)(?:process exited with code|exit code:|exit status)\\s+([1-9][0-9]*)");
 
   /** 防止实例化。 */
   private ToolFailureClassifier() {}
@@ -167,6 +170,9 @@ public final class ToolFailureClassifier {
     if (checkTimeout(text)) {
       return true;
     }
+    if (checkNonZeroExit(text)) {
+      return true;
+    }
 
     return false;
   }
@@ -208,6 +214,16 @@ public final class ToolFailureClassifier {
    */
   private static boolean checkTimeout(String text) {
     return TIMEOUT_AT_LINE_START.matcher(text.toLowerCase(Locale.ROOT)).find();
+  }
+
+  /**
+   * 检查明确非零退出码。
+   *
+   * <p>Codex exec/write_stdin 输出会记录 {@code Process exited with code 1} 或 {@code Exit code: 1}，
+   * 这些属于确定失败；退出码 0 不得误报。
+   */
+  private static boolean checkNonZeroExit(String text) {
+    return NON_ZERO_EXIT_CODE.matcher(text).find();
   }
 
   /** 将 JSON 内容节点转换为纯文本。 */

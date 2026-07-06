@@ -57,8 +57,22 @@
   }
 
   function setMarkup(target, markup) {
-    var parsed = new DOMParser().parseFromString(markup || '', 'text/html');
-    target.replaceChildren.apply(target, Array.prototype.slice.call(parsed.body.childNodes));
+    var parsed;
+    var source;
+    if (target && target.tagName === 'TR') {
+      // 中文说明：DOMParser 解析孤立 <td> 时会按 HTML 规则剥离 table cell。
+      // 这里补齐 table 上下文，确保 API 渲染出的 session row 仍然是合法 <tr><td>...</td></tr>。
+      parsed = new DOMParser().parseFromString(
+        '<table><tbody><tr>' + (markup || '') + '</tr></tbody></table>',
+        'text/html'
+      );
+      source = parsed.querySelector('tbody tr');
+    } else {
+      parsed = new DOMParser().parseFromString(markup || '', 'text/html');
+      source = parsed.body;
+    }
+    if (!source) return;
+    target.replaceChildren.apply(target, Array.prototype.slice.call(source.childNodes));
   }
 
   function formatNumber(value) {
@@ -73,24 +87,49 @@
     return formatNumber(n);
   }
 
+  function formatMillions(value) {
+    var n = Number(value || 0);
+    if (n >= 1000000) return (n / 1000000).toFixed(1) + 'M';
+    return formatCompact(n);
+  }
+
   function formatDuration(seconds) {
     var n = Math.max(0, Math.round(Number(seconds || 0)));
-    if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'm';
-    if (n >= 60) return Math.floor(n / 60) + 'm ' + (n % 60) + 's';
+    if (n >= 3600) return Math.floor(n / 3600) + 'h ' + Math.floor((n % 3600) / 60) + 'min';
+    if (n >= 60) return Math.floor(n / 60) + 'min ' + (n % 60) + 's';
     return n + 's';
   }
 
-  function formatDate(value) {
+  function pad2(value) {
+    return String(value).padStart(2, '0');
+  }
+
+  function formatDateTime(value) {
     if (!value) return '—';
     var date = new Date(value);
     if (isNaN(date.getTime())) return value;
-    return date.toLocaleString([], { month: 'short', day: '2-digit', hour: '2-digit', minute: '2-digit' });
+    return date.getFullYear() + '-' + pad2(date.getMonth() + 1) + '-' + pad2(date.getDate())
+      + ' ' + pad2(date.getHours()) + ':' + pad2(date.getMinutes()) + ':' + pad2(date.getSeconds());
+  }
+
+  function formatRelativeTime(value) {
+    if (!value) return '—';
+    var date = new Date(value);
+    if (isNaN(date.getTime())) return value;
+    var seconds = Math.max(0, Math.floor((Date.now() - date.getTime()) / 1000));
+    if (seconds < 3600) return Math.floor(seconds / 60) + 'm ago';
+    if (seconds < 86400) return Math.floor(seconds / 3600) + 'h ago';
+    return Math.floor(seconds / 86400) + 'd ago';
   }
 
   function segmentPct(tokens, key) {
     var total = Number(tokens && tokens.total || 0);
     if (!total) return 0;
     return Math.round(Number(tokens[key] || 0) * 1000 / total) / 10;
+  }
+
+  function formatPct(value) {
+    return Number(value || 0).toFixed(1);
   }
 
   function apiUrl(path, params) {
@@ -535,7 +574,7 @@
       stats.replaceChildren(
         statPill(summary.totalCount, 'sessions'),
         statPill(summary.projectCount, 'projects'),
-        statPill(formatCompact(summary.tokens && summary.tokens.total), 'total tokens')
+        statPill(formatMillions(summary.tokens && summary.tokens.total), 'total tokens')
       );
     }
     var countEl = document.querySelector('.active-filters__count');
@@ -621,7 +660,10 @@
     var title = row.title || row.sessionId;
     var projectLabel = row.projectName || row.projectKey || '—';
     var agentClass = row.agent === 'claude_code' ? 'cc' : (row.agent === 'codex' ? 'cx' : 'qd');
+    var agentDotClass = row.agent === 'claude_code' ? 'claude' : (row.agent === 'codex' ? 'codex' : 'qoder');
     var agentText = row.agent === 'claude_code' ? 'CC' : (row.agent === 'codex' ? 'CX' : 'QD');
+    var agentLabel = row.agent === 'claude_code' ? 'Claude Code' : (row.agent === 'codex' ? 'Codex' : 'Qoder');
+    var branch = row.gitBranch || '';
     tr.className = 'sessions-row';
     tr.setAttribute('data-action', 'row');
     tr.dataset.sessionKey = row.sessionKey || '';
@@ -641,12 +683,14 @@
     tr.dataset.createdAt = row.createdAt || '';
     setMarkup(tr, [
       '<td class="col-session"><div class="title-main"><a class="session-link" href="', escapeHtml(row.detailUrl), '" data-action="open-session" data-session-link>',
-      escapeHtml(title), '</a></div><div class="title-sub mono"><span>', escapeHtml((row.sessionId || '').slice(0, 12)), '</span></div></td>',
+      escapeHtml(title), '</a></div><div class="title-sub mono"><span class="mono">', escapeHtml((row.sessionId || '').slice(0, 12)), '</span>',
+      branch ? '<span class="session-branch">· ' + escapeHtml(branch) + '</span>' : '',
+      '</div></td>',
       '<td class="col-project"><div class="project-cell"><span class="project-name"><a href="', escapeHtml(row.projectUrl || '#'), '" class="link-muted" data-project="', escapeHtml(row.projectKey || ''), '" title="', escapeHtml(row.cwd || ''), '">',
       escapeHtml(projectLabel), '</a></span></div></td>',
-      '<td class="col-agent"><span class="badge ', agentClass, '">', agentText, '</span></td>',
+      '<td class="col-agent"><span class="badge ', agentClass, ' badge--has-dot" data-tooltip="', escapeHtml(agentLabel), '" role="status"><span class="badge-dot badge-dot--', agentDotClass, '" aria-hidden="true"></span>', agentText, '</span></td>',
       '<td class="mono col-model" title="', escapeHtml(row.model || ''), '">', escapeHtml(row.model || 'Unknown model'), '</td>',
-      tokenCellHtml(tokens, 'col-tokens'),
+      tokenCellHtml(tokens),
       '<td class="num mono col-rounds">', formatNumber(row.rounds), '</td>',
       '<td class="num mono col-tools">', formatNumber(row.tools), '</td>',
       '<td class="num mono col-subagents">', formatNumber(row.subagents), '</td>',
@@ -654,39 +698,39 @@
       '<td class="mono col-process-time" data-tooltip="active processing ', escapeHtml(row.processSeconds), 's">', formatDuration(row.processSeconds), '</td>',
       '<td class="col-failure ', Number(row.failedTools || 0) === 0 ? 'muted' : '', '">',
       Number(row.failedTools || 0) > 0 ? formatNumber(row.failedTools) + ' failed' : 'No failures', '</td>',
-      '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDate(row.createdAt)), '</td>',
-      '<td class="muted col-updated">', escapeHtml(formatDate(row.updatedAt)), '</td>'
+      '<td class="mono col-created" title="', escapeHtml(row.createdAt || ''), '">', escapeHtml(formatDateTime(row.createdAt)), '</td>',
+      '<td class="muted col-updated">', escapeHtml(formatRelativeTime(row.updatedAt)), '</td>'
     ].join(''));
     return tr;
   }
 
-  function tokenCellHtml(tokens, extraClass) {
+  function tokenCellHtml(tokens) {
     var freshPct = segmentPct(tokens, 'fresh');
     var readPct = segmentPct(tokens, 'cacheRead');
     var writePct = segmentPct(tokens, 'cacheWrite');
     var outPct = segmentPct(tokens, 'output');
     return [
-      '<td class="mono token-cell ', extraClass || '', '"><span class="token-total"><span class="token-total__value">',
-      formatCompact(tokens && tokens.total), '</span><span class="tokenbar tokenbar-in-cell" aria-hidden="true">',
-      '<span class="tokenbar-seg fresh t-fresh" style="--segment-width:', freshPct, '%"></span>',
-      '<span class="tokenbar-seg read t-read" style="--segment-width:', readPct, '%"></span>',
-      '<span class="tokenbar-seg write t-write" style="--segment-width:', writePct, '%"></span>',
-      '<span class="tokenbar-seg out t-out" style="--segment-width:', outPct, '%"></span>',
-      '<span class="token-tooltip" aria-hidden="true"><span class="token-tooltip__title">Token Breakdown</span>',
+      '<td class="token-cell"><div class="token-total"><span class="token-total__value">',
+      formatCompact(tokens && tokens.total), '</span><span class="tokenbar" aria-hidden="true">',
+      '<span class="tokenbar-seg fresh" style="--segment-width:', formatPct(freshPct), '%"></span>',
+      '<span class="tokenbar-seg read" style="--segment-width:', formatPct(readPct), '%"></span>',
+      '<span class="tokenbar-seg write" style="--segment-width:', formatPct(writePct), '%"></span>',
+      '<span class="tokenbar-seg out" style="--segment-width:', formatPct(outPct), '%"></span>',
+      '<div class="token-tooltip" aria-hidden="true"><div class="token-tooltip__title">Token Breakdown</div>',
       tooltipRowHtml('fresh', 'Fresh input', tokens && tokens.fresh, freshPct),
       tooltipRowHtml('read', 'Cached Rd', tokens && tokens.cacheRead, readPct),
       tooltipRowHtml('write', 'Cached Wr', tokens && tokens.cacheWrite, writePct),
       tooltipRowHtml('out', 'Output', tokens && tokens.output, outPct),
-      '<span class="token-tooltip__sep"></span><span class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">',
-      formatCompact(tokens && tokens.total), '</span></span></span></span></span></td>'
+      '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">',
+      formatCompact(tokens && tokens.total), '</span></div></div></span></div></td>'
     ].join('');
   }
 
   function tooltipRowHtml(cls, label, value, pct) {
-    return '<span class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--'
+    return '<div class="token-tooltip__row"><span class="token-tooltip__label"><span class="dot dot--'
       + cls + '"></span><span class="token-tooltip__type-name">' + escapeHtml(label)
       + '</span></span><span class="token-tooltip__value">' + formatCompact(value)
-      + '</span><span class="token-tooltip__pct">' + pct + '%</span></span>';
+      + '</span><span class="token-tooltip__pct">' + formatPct(pct) + '%</span></div>';
   }
 
   function renderPagination(pagination) {

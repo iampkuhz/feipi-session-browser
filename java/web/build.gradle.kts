@@ -9,6 +9,7 @@ dependencies {
     implementation(project(":java:index-sqlite"))
     implementation(libs.slf4j.api)
     implementation(libs.bundles.web)
+    implementation(libs.bundles.jackson)
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
