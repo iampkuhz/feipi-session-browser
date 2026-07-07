@@ -702,82 +702,97 @@ public final class JsonlReader {
   /** 构建 BAD_JSON 诊断信息（带专用代码和字节范围）。 */
   private SourceDiagnostic buildBadJsonDiagnostic(
       int lineNo, String text, String code, long startByte, long endByte) {
-    String preview = sanitizePreview(text);
-    return new SourceDiagnostic(
+    return buildDiagnostic(
         ParseSeverity.ERROR,
         ParseIssueType.BAD_JSON,
         "Unparseable JSON at line " + lineNo,
-        lineNo,
-        Optional.of(preview),
-        code,
-        "",
-        OptionalInt.empty(),
-        startByte >= 0 ? OptionalInt.of((int) startByte) : OptionalInt.empty(),
-        endByte >= 0 ? OptionalInt.of((int) endByte) : OptionalInt.empty());
+        DiagnosticContext.of(lineNo, Optional.of(sanitizePreview(text)), startByte, endByte),
+        code);
   }
 
   /** 构建非法 UTF-8 诊断信息，不附带文件路径或载荷预览。 */
   private SourceDiagnostic buildInvalidUtf8Diagnostic(int lineNo) {
-    return new SourceDiagnostic(
+    return buildDiagnostic(
         ParseSeverity.ERROR,
         ParseIssueType.BAD_JSON,
         "Invalid UTF-8 input at line " + lineNo,
-        lineNo,
-        Optional.empty(),
-        JsonlConstants.CODE_INVALID_UTF8,
-        "",
-        OptionalInt.empty(),
-        OptionalInt.empty(),
-        OptionalInt.empty());
+        DiagnosticContext.of(lineNo, Optional.empty(), -1, -1),
+        JsonlConstants.CODE_INVALID_UTF8);
   }
 
   /** 构建 NON_OBJECT_SKIPPED 诊断信息。 */
   private SourceDiagnostic buildNonObjectDiagnostic(
       int lineNo, String typeName, String text, long startByte, long endByte) {
-    String preview = sanitizePreview(text);
-    return new SourceDiagnostic(
+    return buildDiagnostic(
         ParseSeverity.WARNING,
         ParseIssueType.NON_OBJECT_SKIPPED,
         "Non-dict JSON value skipped: " + typeName,
-        lineNo,
-        Optional.of(preview),
-        ParseIssueType.NON_OBJECT_SKIPPED.name(),
-        "",
-        OptionalInt.empty(),
-        startByte >= 0 ? OptionalInt.of((int) startByte) : OptionalInt.empty(),
-        endByte >= 0 ? OptionalInt.of((int) endByte) : OptionalInt.empty());
+        DiagnosticContext.of(lineNo, Optional.of(sanitizePreview(text)), startByte, endByte),
+        ParseIssueType.NON_OBJECT_SKIPPED.name());
   }
 
   /** 构建 INFO 级别诊断信息（如 STOPPED_BY_LIMIT）。 */
   private SourceDiagnostic buildInfoDiagnostic(
       int lineNo, String code, String message, long startByte, long endByte) {
-    return new SourceDiagnostic(
+    return buildDiagnostic(
         ParseSeverity.INFO,
         ParseIssueType.BAD_JSON,
         message,
-        lineNo,
-        Optional.empty(),
-        code,
-        "",
-        OptionalInt.empty(),
-        startByte >= 0 ? OptionalInt.of((int) startByte) : OptionalInt.empty(),
-        endByte >= 0 ? OptionalInt.of((int) endByte) : OptionalInt.empty());
+        DiagnosticContext.of(lineNo, Optional.empty(), startByte, endByte),
+        code);
   }
 
   /** 构建 WARNING 级别诊断信息（如 RETRYABLE_INCOMPLETE）。 */
   private SourceDiagnostic buildWarnDiagnostic(
       int lineNo, String code, String message, long byteOff) {
-    return new SourceDiagnostic(
+    return buildDiagnostic(
         ParseSeverity.WARNING,
         ParseIssueType.BAD_JSON,
         message,
-        lineNo,
-        Optional.empty(),
+        DiagnosticContext.of(lineNo, Optional.empty(), byteOff, -1),
+        code);
+  }
+
+  private SourceDiagnostic buildDiagnostic(
+      ParseSeverity severity,
+      ParseIssueType issueType,
+      String message,
+      DiagnosticContext context,
+      String code) {
+    return new SourceDiagnostic(
+        severity,
+        issueType,
+        message,
+        context.lineNo,
+        context.preview,
         code,
         "",
         OptionalInt.empty(),
-        byteOff >= 0 ? OptionalInt.of((int) byteOff) : OptionalInt.empty(),
-        OptionalInt.empty());
+        optionalByte(context.startByte),
+        optionalByte(context.endByte));
+  }
+
+  private static OptionalInt optionalByte(long value) {
+    return value >= 0 ? OptionalInt.of((int) value) : OptionalInt.empty();
+  }
+
+  private static final class DiagnosticContext {
+    private final int lineNo;
+    private final Optional<String> preview;
+    private final long startByte;
+    private final long endByte;
+
+    private DiagnosticContext(int lineNo, Optional<String> preview, long startByte, long endByte) {
+      this.lineNo = lineNo;
+      this.preview = preview;
+      this.startByte = startByte;
+      this.endByte = endByte;
+    }
+
+    private static DiagnosticContext of(
+        int lineNo, Optional<String> preview, long startByte, long endByte) {
+      return new DiagnosticContext(lineNo, preview, startByte, endByte);
+    }
   }
 
   /** 获取 JsonNode 的类型名称（用于诊断消息）。 */

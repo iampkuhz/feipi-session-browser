@@ -94,6 +94,7 @@
     var source = payloadId
       ? qs(document, 'template[data-payload-source="' + cssEscape(payloadId) + '"], [data-payload-source="' + cssEscape(payloadId) + '"]')
       : null;
+    var sourceIsIndexOnly = !!(source && source.getAttribute && source.getAttribute("data-payload-index-only") === "true");
     var sourceTokenEstimate = source ? source.getAttribute("data-payload-token-estimate") : "";
     var sourceTokenSummary = formatPayloadTokenEstimate(sourceTokenEstimate);
 
@@ -105,7 +106,7 @@
     if (subtitleEl) subtitleEl.textContent = (payloadId || "diagnostic") + (sourceTokenSummary ? " · " + sourceTokenSummary : "");
 
     if (body) {
-      if (source) {
+      if (source && !sourceIsIndexOnly) {
         var htmlContent = (source.tagName && source.tagName.toLowerCase() === "template")
           ? source.innerHTML
           : source.innerHTML;

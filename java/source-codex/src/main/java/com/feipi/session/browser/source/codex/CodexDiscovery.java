@@ -2,6 +2,8 @@ package com.feipi.session.browser.source.codex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.source.json.JsonNodeReaders;
+import com.feipi.session.browser.source.json.JsonlObjectReader;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -157,31 +159,35 @@ public final class CodexDiscovery {
     }
 
     // 检查嵌套 source.subagent.thread_spawn.parent_thread_id
-    String sourceJson = threadInfo.get("source");
-    if (sourceJson != null && !sourceJson.isEmpty()) {
-      try {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode sourceNode = mapper.readTree(sourceJson);
-        if (sourceNode.isObject()) {
-          JsonNode subagent = sourceNode.get("subagent");
-          if (subagent != null && subagent.isObject()) {
-            JsonNode spawn = subagent.get("thread_spawn");
-            if (spawn != null && spawn.isObject()) {
-              JsonNode spawnParent = spawn.get("parent_thread_id");
-              if (spawnParent != null
-                  && spawnParent.isTextual()
-                  && !spawnParent.asText().trim().isEmpty()) {
-                return true;
-              }
-            }
-          }
-        }
-      } catch (IOException e) {
-        LOG.log(Level.FINEST, "source 字段解析失败", e);
-      }
-    }
+    return hasNestedSubagentParent(threadInfo.get("source"), "source 字段解析失败");
+  }
 
-    return false;
+  private static boolean hasNestedSubagentParent(String sourceJson, String parseErrorMessage) {
+    if (sourceJson == null || sourceJson.isEmpty()) {
+      return false;
+    }
+    try {
+      ObjectMapper mapper = new ObjectMapper();
+      JsonNode sourceNode = mapper.readTree(sourceJson);
+      if (!sourceNode.isObject()) {
+        return false;
+      }
+      JsonNode subagent = sourceNode.get("subagent");
+      if (subagent == null || !subagent.isObject()) {
+        return false;
+      }
+      JsonNode spawn = subagent.get("thread_spawn");
+      if (spawn == null || !spawn.isObject()) {
+        return false;
+      }
+      JsonNode spawnParent = spawn.get("parent_thread_id");
+      return spawnParent != null
+          && spawnParent.isTextual()
+          && !spawnParent.asText().trim().isEmpty();
+    } catch (IOException e) {
+      LOG.log(Level.FINEST, parseErrorMessage, e);
+      return false;
+    }
   }
 
   /** 读取会话索引文件。 */
@@ -192,51 +198,25 @@ public final class CodexDiscovery {
     }
 
     Map<String, Map<String, String>> entries = new LinkedHashMap<>();
-    ObjectMapper mapper = new ObjectMapper();
-
-    try (BufferedReader reader = Files.newBufferedReader(indexPath, StandardCharsets.UTF_8)) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        String trimmed = line.trim();
-        if (trimmed.isEmpty()) {
-          continue;
-        }
-        try {
-          JsonNode node = mapper.readTree(trimmed);
-          if (!node.isObject()) {
-            continue;
-          }
-          String id = textOrEmpty(node, "id");
-          if (id.isEmpty()) {
-            continue;
-          }
-          Map<String, String> entry = new LinkedHashMap<>();
-          entry.put("id", id);
-          entry.put("thread_name", textOrEmpty(node, "thread_name"));
-          entry.put("updated_at", textOrEmpty(node, "updated_at"));
-          String model = textOrEmpty(node, "model");
-          if (!model.isEmpty()) {
-            entry.put("model", model);
-          }
-          entries.put(id, entry);
-        } catch (IOException e) {
-          LOG.log(Level.FINE, "跳过无法解析的 session_index.jsonl 行", e);
-        }
+    for (JsonNode node :
+        JsonlObjectReader.readObjects(
+            indexPath, LOG, "跳过无法解析的 session_index.jsonl 行", "读取 session_index.jsonl 失败: ")) {
+      String id = JsonNodeReaders.textOrEmpty(node, "id");
+      if (id.isEmpty()) {
+        continue;
       }
-    } catch (IOException e) {
-      LOG.log(Level.FINE, "读取 session_index.jsonl 失败: " + indexPath, e);
-      return Map.of();
+      Map<String, String> entry = new LinkedHashMap<>();
+      entry.put("id", id);
+      entry.put("thread_name", JsonNodeReaders.textOrEmpty(node, "thread_name"));
+      entry.put("updated_at", JsonNodeReaders.textOrEmpty(node, "updated_at"));
+      String model = JsonNodeReaders.textOrEmpty(node, "model");
+      if (!model.isEmpty()) {
+        entry.put("model", model);
+      }
+      entries.put(id, entry);
     }
 
     return entries;
-  }
-
-  private static String textOrEmpty(JsonNode node, String field) {
-    JsonNode child = node.get(field);
-    if (child != null && child.isTextual()) {
-      return child.asText();
-    }
-    return "";
   }
 
   /**
@@ -371,30 +351,7 @@ public final class CodexDiscovery {
     if (!parentId.isEmpty()) {
       return true;
     }
-    String sourceJson = meta.get("source");
-    if (sourceJson != null && !sourceJson.isEmpty()) {
-      try {
-        ObjectMapper mapper = new ObjectMapper();
-        JsonNode sourceNode = mapper.readTree(sourceJson);
-        if (sourceNode.isObject()) {
-          JsonNode subagent = sourceNode.get("subagent");
-          if (subagent != null && subagent.isObject()) {
-            JsonNode spawn = subagent.get("thread_spawn");
-            if (spawn != null && spawn.isObject()) {
-              JsonNode spawnParent = spawn.get("parent_thread_id");
-              if (spawnParent != null
-                  && spawnParent.isTextual()
-                  && !spawnParent.asText().trim().isEmpty()) {
-                return true;
-              }
-            }
-          }
-        }
-      } catch (IOException e) {
-        LOG.log(Level.FINEST, "session_meta.source 解析失败", e);
-      }
-    }
-    return false;
+    return hasNestedSubagentParent(meta.get("source"), "session_meta.source 解析失败");
   }
 
   /**

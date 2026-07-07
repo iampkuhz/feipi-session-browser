@@ -135,7 +135,33 @@ final class ApiContractFixture {
                     "request",
                     Map.of("tool_result_ids", List.of()),
                     "response",
-                    Map.of("tool_call_ids", List.of("tool-call-1")))),
+                    Map.of("tool_call_ids", List.of("tool-call-1"))),
+                Map.ofEntries(
+                    Map.entry("call_id", "alpha-sub-call-1"),
+                    Map.entry("call_index", 2),
+                    Map.entry("call_key", "C2"),
+                    Map.entry("scope", "subagent"),
+                    Map.entry("parent_call_id", "alpha-call-1"),
+                    Map.entry("parent_tool_call_id", "tool-call-1"),
+                    Map.entry("subagent_id", "sa-alpha"),
+                    Map.entry("parent_tool_name", "Agent"),
+                    Map.entry("turn_id", "turn-alpha-sub-1"),
+                    Map.entry("model", "claude-sonnet-4.5"),
+                    Map.entry(
+                        "usage",
+                        Map.of(
+                            "fresh",
+                            100,
+                            "cache_read",
+                            0,
+                            "cache_write",
+                            0,
+                            "output",
+                            10,
+                            "total",
+                            110)),
+                    Map.entry("request", Map.of("tool_result_ids", List.of("sub-tool-1"))),
+                    Map.entry("response", Map.of("tool_call_ids", List.of())))),
             "tool_executions",
             List.of(
                 Map.of(
@@ -150,7 +176,20 @@ final class ApiContractFixture {
                     "status",
                     "error: exit 1",
                     "duration_ms",
-                    120)));
+                    120),
+                Map.of(
+                    "tool_call_id",
+                    "sub-tool-1",
+                    "name",
+                    "Read",
+                    "scope",
+                    "subagent",
+                    "declared_by_call_id",
+                    "alpha-sub-call-1",
+                    "duration_ms",
+                    80,
+                    "subagent_id",
+                    "sa-alpha")));
     MAPPER.writeValue(artifactPath.toFile(), artifact);
     String sql =
         "INSERT INTO session_artifacts"

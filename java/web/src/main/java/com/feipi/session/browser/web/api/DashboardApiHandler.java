@@ -27,6 +27,7 @@ import com.feipi.session.browser.web.api.DashboardApiResponses.SessionTrendPoint
 import com.feipi.session.browser.web.api.DashboardApiResponses.TokenTrendPoint;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
+import com.feipi.session.browser.web.model.WebDisplayValues;
 import io.javalin.http.Context;
 import java.sql.SQLException;
 import java.util.Comparator;
@@ -295,11 +296,21 @@ public final class DashboardApiHandler {
       long totalPrompts) {
     if (row == null) {
       return new AgentContributionDto(
-          agent, agentDisplay(agent), 0, TokenSegments.of(0, 0, 0, 0), 0, 0, 0, 0, 0.0, 0.0, 0.0);
+          agent,
+          WebDisplayValues.agentDisplay(agent),
+          0,
+          TokenSegments.of(0, 0, 0, 0),
+          0,
+          0,
+          0,
+          0,
+          0.0,
+          0.0,
+          0.0);
     }
     return new AgentContributionDto(
         row.agent(),
-        agentDisplay(row.agent()),
+        WebDisplayValues.agentDisplay(row.agent()),
         row.sessionCount(),
         TokenSegments.of(
             row.freshInputTokens(),
@@ -310,9 +321,9 @@ public final class DashboardApiHandler {
         row.projectCount(),
         row.totalToolCalls(),
         row.totalFailedTools(),
-        share(row.sessionCount(), totalSessions),
-        share(row.totalTokens(), totalTokens),
-        share(row.totalUserMessages(), totalPrompts));
+        WebDisplayValues.share(row.sessionCount(), totalSessions),
+        WebDisplayValues.share(row.totalTokens(), totalTokens),
+        WebDisplayValues.share(row.totalUserMessages(), totalPrompts));
   }
 
   private static AgentEfficiencyDto efficiencyRow(AgentEfficiencyRow row) {
@@ -349,19 +360,6 @@ public final class DashboardApiHandler {
     }
     String dbAgent = SCOPE_TO_DB.getOrDefault(agentScope, "");
     return dbAgent.isEmpty() ? AgentFilter.NONE : AgentFilter.of(dbAgent);
-  }
-
-  private static String agentDisplay(String dbAgent) {
-    return switch (dbAgent) {
-      case "claude_code" -> "Claude Code";
-      case "qoder" -> "Qoder";
-      case "codex" -> "Codex";
-      default -> dbAgent == null || dbAgent.isEmpty() ? "Unknown" : dbAgent;
-    };
-  }
-
-  private static double share(long value, long total) {
-    return total <= 0 ? 0.0 : value * 100.0 / total;
   }
 
   /**

@@ -28,7 +28,7 @@ include(
     "java:architecture-tests",
     "java:contract-tests",
     "java:query-api",
-    "java:reuse-analyzer",
+    "java:data",
     "java:application",
     "java:web",
 )

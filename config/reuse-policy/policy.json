@@ -1,0 +1,33 @@
+{
+  "schemaVersion": 1,
+  "policyVersion": "2.0.0",
+  "standardDuplicateDetection": {
+    "engine": "PMD_CPD_CLI",
+    "language": "java",
+    "minimumTokens": 250,
+    "ignoreAnnotations": true,
+    "ignoreLiterals": false,
+    "ignoreIdentifiers": false,
+    "skipDuplicateFiles": true,
+    "profiles": [
+      {
+        "id": "exact-blocks",
+        "minimumTokens": 250,
+        "ignoreAnnotations": true,
+        "ignoreLiterals": false,
+        "ignoreIdentifiers": false,
+        "skipDuplicateFiles": true,
+        "scope": "all-sources"
+      },
+      {
+        "id": "normalized-sibling-methods",
+        "minimumTokens": 130,
+        "ignoreAnnotations": true,
+        "ignoreLiterals": false,
+        "ignoreIdentifiers": true,
+        "skipDuplicateFiles": true,
+        "scope": "same-file"
+      }
+    ]
+  }
+}

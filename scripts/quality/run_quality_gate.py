@@ -43,6 +43,7 @@ from scripts.quality.quality_artifact import (  # noqa: E402
 from scripts.quality.quality_targets import (  # noqa: E402
     QUALITY_TARGETS,
     required_gates_for_target,
+    target_parallel_meta,
     validate_target,
 )
 
@@ -333,6 +334,11 @@ def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str])
             is_module_register_noise = bool(
                 re.match(
                     r'^(?:[^`\s]*\s+)?\[DEP0205\]\s+DeprecationWarning:\s+'
+                    r'`module\.register\(\)` is deprecated\.',
+                    stripped,
+                )
+                or re.match(
+                    r'^\d+\]\s+DeprecationWarning:\s+'
                     r'`module\.register\(\)` is deprecated\.',
                     stripped,
                 )
@@ -1457,6 +1463,7 @@ def run_cmd(
     cwd: Path,
     required: bool = True,
     env_overrides: dict[str, str] | None = None,
+    timeout_seconds: int | None = None,
 ) -> GateDetail:
     """参数：
         name: 条目名称。
@@ -1464,6 +1471,7 @@ def run_cmd(
         cwd: repo root用于命令 execution。
         required: 是否缺失 命令 should be treated as BLOCKED。
         env_overrides: 可选environment 值用于fixture 或 trigger data。
+        timeout_seconds: 当前 target 声明的命令超时秒数。
 
     返回：
         结构化 gate detail containing 状态, 命令, duration, 和。 t运行cated 输出. 命令 is 仅 side effect。
@@ -1479,9 +1487,8 @@ def run_cmd(
             output=f'命令不存在: {cmd[0] if cmd else "<empty>"}',
         )
 
-    timeout = (
-        PLAYWRIGHT_TIMEOUT_SECONDS if cmd[:2] == ['npx', 'playwright'] else DEFAULT_TIMEOUT_SECONDS
-    )
+    default_timeout = timeout_seconds or DEFAULT_TIMEOUT_SECONDS
+    timeout = PLAYWRIGHT_TIMEOUT_SECONDS if cmd[:2] == ['npx', 'playwright'] else default_timeout
 
     # 构建the subprocess environment带可选 overrides。
     run_env = os.environ.copy()
@@ -1502,12 +1509,13 @@ def run_cmd(
             check=False,
         )
         duration = int((time.time() - started) * 1000)
-        output = (proc.stdout or '').strip()
+        full_output = (proc.stdout or '').strip()
+        output = full_output
         if len(output) > COMMAND_OUTPUT_TAIL_CHARS:
             output = output[-COMMAND_OUTPUT_TAIL_CHARS:]
         status = PASS if proc.returncode == 0 else FAIL
         audit_block_reason = (
-            _audit_network_block_reason(output, gate_name=name) if status == FAIL else None
+            _audit_network_block_reason(full_output, gate_name=name) if status == FAIL else None
         )
         if audit_block_reason:
             status = BLOCKED
@@ -1520,10 +1528,10 @@ def run_cmd(
         skipped = 0
         skipped_kind = ''
         if status == PASS and _is_playwright_command(cmd):
-            skipped = _playwright_skip_count(output)
+            skipped = _playwright_skip_count(full_output)
             skipped_kind = 'Playwright'
         elif status == PASS and _is_pytest_command(cmd):
-            skipped = _pytest_skip_count(output)
+            skipped = _pytest_skip_count(full_output)
             skipped_kind = 'pytest'
         if skipped:
             status = FAIL
@@ -1536,7 +1544,7 @@ def run_cmd(
                 'if it is required, provide the needed fixture or environment instead of skipping.'
             )
         warning_reason = (
-            _warning_after_trigger_reason(output, gate_name=name, cmd=cmd)
+            _warning_after_trigger_reason(full_output, gate_name=name, cmd=cmd)
             if status == PASS
             else None
         )
@@ -1766,7 +1774,6 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             'index-sqlite',
             'scan-engine',
             'query-api',
-            'reuse-analyzer',
             'application',
             'web',
             'app-cli',
@@ -1824,16 +1831,21 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             f'   /tmp/noJavaTestSkips.log 2>/dev/null; then exit 0; fi; '
             f'cat /tmp/noJavaTestSkips.log; exit $rc',
         ]
-    if gate == 'reuseIncremental':
+    if gate == 'javaModuleBoundaries':
+        checker = repo_root / 'scripts' / 'quality' / 'check_java_module_boundaries.py'
+        if not checker.exists():
+            return []
+        return [python, str(checker)]
+    if gate in {'reuseIncremental', 'reuseAnalyzeIncremental'}:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
         return [str(gradlew), 'reuseAnalyzeIncremental']
-    if gate == 'reuseBaselineVerify':
+    if gate == 'reuseStandardCpd':
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        return [str(gradlew), 'reuseBaselineVerify']
+        return [str(gradlew), 'reuseStandardCpd']
     if gate == 'noJavaSuppressWarnings':
         checker = repo_root / 'scripts' / 'quality' / 'check_no_java_suppress_warnings.py'
         if not checker.exists():
@@ -1873,6 +1885,7 @@ def run_target(
     details: list[GateDetail] = []
     gates = required_gates_for_target(target)
     total_gates = len(gates)
+    target_timeout = int(target_parallel_meta(target).get('timeout', DEFAULT_TIMEOUT_SECONDS))
     _progress(f'target={target} start ({total_gates} gates)')
 
     # 检查是否需要运行依赖 fixture 的 gate。
@@ -1942,7 +1955,12 @@ def run_target(
                 continue
 
             detail = run_cmd(
-                gate, cmd, repo_root, required=True, env_overrides=env_override or None
+                gate,
+                cmd,
+                repo_root,
+                required=True,
+                env_overrides=env_override or None,
+                timeout_seconds=target_timeout,
             )
             details.append(detail)
             status_label = detail.status.upper()
@@ -2009,6 +2027,29 @@ def build_summary(
     )
 
 
+# 解析 quality artifact 的 change-id。
+def resolve_change_id(explicit: str | None, repo_root: Path) -> str:
+    """参数：
+        explicit: 命令行显式传入的 change-id。
+        repo_root: 仓库根目录。
+
+    返回：
+        可用于 quality artifact 的 change-id。
+    """
+    if explicit:
+        return explicit
+    active_change = repo_root / 'tmp' / 'active_change.json'
+    if active_change.exists():
+        try:
+            data = json.loads(active_change.read_text(encoding='utf-8'))
+            change_id = data.get('change_id')
+            if isinstance(change_id, str) and change_id.strip():
+                return change_id
+        except (OSError, json.JSONDecodeError):
+            pass
+    return 'manual-run'
+
+
 # 解析命令行参数并运行脚本入口。
 def main() -> int:
     """返回：
@@ -2020,7 +2061,7 @@ def main() -> int:
         required=True,
         choices=sorted(QUALITY_TARGETS),
     )
-    parser.add_argument('--change-id', required=True)
+    parser.add_argument('--change-id', default=None)
     parser.add_argument(
         '--out', default='tmp/quality', help='Quality artifact directory. Default: tmp/quality'
     )
@@ -2032,6 +2073,7 @@ def main() -> int:
     args = parser.parse_args()
 
     repo_root = Path.cwd()
+    change_id = resolve_change_id(args.change_id, repo_root)
     validate_target(args.target)
     started_at = utc_now()
 
@@ -2052,7 +2094,7 @@ def main() -> int:
         changed_files = json.loads(args.changed_files)
 
     details = run_target(repo_root, args.target, changed_files)
-    summary = build_summary(args.target, args.change_id, started_at, details, [], repo_root)
+    summary = build_summary(args.target, change_id, started_at, details, [], repo_root)
     out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
     print(f'quality summary: {out}')
     print(f'status: {summary.status}')

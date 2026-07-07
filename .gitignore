@@ -3,6 +3,8 @@
 # Runtime output
 output/
 data/
+!java/data/
+!java/data/**
 
 # Hook/harness runtime logs (per-session subdirectories)
 tmp/agent_logs/

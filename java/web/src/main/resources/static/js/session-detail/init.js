@@ -1,6 +1,11 @@
   /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Token tooltip dynamic positioning ──` */
 
   var TOOLTIP_FLIP_THRESHOLD = 180; // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`px from bottom of viewport to trigger flip`
+  var sessionDetailState = {
+    diagnosticsParity: null,
+    rounds: [],
+    maxRoundTokens: 0
+  };
 
   function positionTokenTooltip(tokenbar) {
     var tooltip = qs(tokenbar, '.token-tooltip');
@@ -177,22 +182,20 @@
         chip(meta.model || 'Unknown model', true),
         chip(meta.projectName || meta.projectKey || 'Unknown project'),
         chip(parity.date || '—'),
-        chip(parity.updatedLocal ? 'Updated ' + parity.updatedLocal : (meta.updatedAt ? 'Updated ' + meta.updatedAt : 'Updated —')),
-        meta.gitBranch ? chip(meta.gitBranch, true) : chip('Branch —', true)
+        chip(parity.updatedLocal ? 'Updated ' + parity.updatedLocal : (meta.updatedAt ? 'Updated ' + meta.updatedAt : 'Updated —'))
       );
     }
     setText('[data-session-updated]', parity.updatedLocal || meta.updatedAt || '—');
-    setText('[data-session-artifact]', meta.hasArtifact ? ('Schema ' + (meta.artifactSchemaVersion || 'available')) : 'No artifact');
   }
 
   function applySessionMetrics(metrics) {
     if (!metrics || !metrics.tokens) return;
     var parity = metrics.parity || {};
     setKpi('Total Tokens', formatSessionCompact(metrics.tokens.total), [
-      subline('Fresh', formatSessionCompact(metrics.tokens.fresh) + ' · ' + (parity.freshShare || pctLabel(metrics.tokens.fresh, metrics.tokens.total))),
-      subline('Cache Read', formatSessionCompact(metrics.tokens.cacheRead) + ' · ' + (parity.cacheReadShare || pctLabel(metrics.tokens.cacheRead, metrics.tokens.total))),
-      subline('Cache Write', formatSessionCompact(metrics.tokens.cacheWrite) + ' · ' + (parity.cacheWriteShare || pctLabel(metrics.tokens.cacheWrite, metrics.tokens.total))),
-      subline('Output', formatSessionCompact(metrics.tokens.output) + ' · ' + (parity.outputShare || pctLabel(metrics.tokens.output, metrics.tokens.total)))
+      tokenShareSubline('Fresh', metrics.tokens.fresh, metrics.tokens.total, parity.freshShare),
+      tokenShareSubline('Cache Read', metrics.tokens.cacheRead, metrics.tokens.total, parity.cacheReadShare),
+      tokenShareSubline('Cache Write', metrics.tokens.cacheWrite, metrics.tokens.total, parity.cacheWriteShare),
+      tokenShareSubline('Output', metrics.tokens.output, metrics.tokens.total, parity.outputShare)
     ]);
     var inputSide = Number(metrics.tokens.fresh || 0) + Number(metrics.tokens.cacheRead || 0) + Number(metrics.tokens.cacheWrite || 0);
     setKpi('Cache Health', parity.cacheReuse || pctLabel(metrics.tokens.cacheRead, inputSide), [
@@ -223,7 +226,7 @@
     var count = Number(parity.issueRounds || diagnostics.anomalyCount || 0);
     setKpi('Run Health', parity.runHealth || (count > 0 ? 'Completed with issue signals' : 'Completed'), [
       subline('Issue Rounds', formatNumber(count)),
-      subline('Failed Tools', formatNumber(parity.failedTools || 0) + (parity.failedToolsRate ? ' · ' + parity.failedToolsRate : '')),
+      rateSubline('Failed Tools', parity.failedTools || 0, parity.failedToolsTotal || parity.toolCalls || (parity.toolImpact && parity.toolImpact.allToolCalls) || 0, parity.failedToolsRate),
       subline('Payload Gaps', formatNumber(parity.payloadGaps || 0)),
       subline('Attribution Gaps', formatNumber(parity.attributionGaps || 0))
     ]);
@@ -252,15 +255,7 @@
         strip.appendChild(ok);
       }
     }
-    var countEl = qs(document, '.sd-anomalies__count');
-    if (countEl) countEl.textContent = formatNumber(count) + ' issue rounds';
-    var list = qs(document, '.sd-anomalies__list');
-    if (list) {
-      var empty = document.createElement('div');
-      empty.className = 'sd-card-empty';
-      empty.textContent = count > 0 ? 'Actionable issues are listed in Diagnostics.' : 'No actionable issues detected.';
-      list.replaceChildren(empty);
-    }
+    sessionDetailState.diagnosticsParity = parity;
     renderDiagnosticsCards(parity);
   }
 
@@ -281,41 +276,61 @@
       tbody.replaceChildren(tr);
       return;
     }
-    tbody.replaceChildren.apply(tbody, rows.map(roundRow));
+    sessionDetailState.rounds = rows;
+    sessionDetailState.maxRoundTokens = rows.reduce(function (max, round) {
+      return Math.max(max, Number(round && round.tokens && round.tokens.total || 0));
+    }, 0);
+    var globalCallIndex = 1;
+    tbody.replaceChildren.apply(tbody, rows.map(function (round) {
+      var row = roundRow(round, globalCallIndex, sessionDetailState.maxRoundTokens);
+      globalCallIndex += Math.max(1, Number(round.callCount || 1));
+      return row;
+    }));
     setupTokenTooltips();
+    if (sessionDetailState.diagnosticsParity) renderDiagnosticsCards(sessionDetailState.diagnosticsParity);
     syncToggleAllButton(document);
   }
 
-  function roundRow(round) {
+  function roundRow(round, globalCallIndex, maxRoundTokens) {
     var tr = document.createElement('tr');
     var tokens = round.tokens || {};
     var parity = round.parity || {};
     var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
     var isLowCache = Boolean(parity.isLowCache) || (inputSide > 0 && (Number(tokens.cacheRead || 0) / inputSide) < 0.2);
     var hasIssues = Boolean(parity.hasIssues) || (round.status || '') === 'failed' || Number(round.failedToolCount || 0) > 0;
-    tr.className = 'round-row sd-trace-round-row';
+    var isUserInput = Boolean(parity.isUserInput);
+    var visualStatus = hasIssues ? 'failed' : (isUserInput ? 'user' : (round.status || 'ok'));
+    var firstCallIndex = 1;
+    var globalLabel = 'LLM Call #' + formatNumber(globalCallIndex || round.roundIndex || 1);
+    var requestPayloadId = 'llm-R' + round.roundIndex + '-IX' + firstCallIndex + '-request-attribution';
+    var responsePayloadId = 'llm-R' + round.roundIndex + '-IX' + firstCallIndex + '-response-attribution';
+    tr.className = 'round-row sd-trace-round-row' + (isUserInput ? ' sd-user-round' : '') + (hasIssues ? ' sd-failed-round' : '');
     tr.setAttribute('data-trace-round-row', '');
     tr.setAttribute('data-round', String(round.roundIndex));
-    tr.setAttribute('data-status', round.status || (hasIssues ? 'failed' : 'ok'));
+    tr.setAttribute('data-status', visualStatus);
+    tr.setAttribute('data-round-status', round.status || '');
     tr.setAttribute('data-has-issues', hasIssues ? 'true' : 'false');
+    tr.setAttribute('data-is-user-input', isUserInput ? 'true' : 'false');
     tr.setAttribute('data-is-low-cache', isLowCache ? 'true' : 'false');
+    tr.setAttribute('data-is-fresh-spike', parity.isFreshSpike ? 'true' : 'false');
     tr.setAttribute('data-detail-loaded', 'false');
     tr.id = 'round-' + round.roundIndex;
     setMarkup(tr, [
-      '<td class="round-col"><span role="button" tabindex="0" class="sd-round-toggle" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
-      '<span class="sd-round-toggle__icon" aria-hidden="true">▶</span><span class="sd-round-id">R', round.roundIndex, '</span></span></td>',
-      '<td><span class="sd-round-summary">', escapeHtml(parity.summary || ('Round ' + round.roundIndex)), '</span></td>',
-      '<td class="metrics-col mono"><span class="sd-round-metrics">', formatNumber(round.toolCallCount), ' tools</span>', tokenbarHtml(tokens), '</td>',
-      '<td class="attribution-col"><span class="sd-round-attribution"><button type="button" class="sd-link-btn sd-link-btn--inline" data-action="retry-attribution" data-round="', round.roundIndex, '">request</button> <button type="button" class="sd-link-btn sd-link-btn--inline" data-action="retry-attribution" data-round="', round.roundIndex, '">response</button></span></td>',
+      '<td class="round-col"><button type="button" class="sd-round-toggle round-id', hasIssues ? ' failed' : '', '" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
+      'R', round.roundIndex, '</button></td>',
+      '<td><span class="summary-title">', escapeHtml(parity.summary || ('Round ' + round.roundIndex)), '</span></td>',
+      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-tools">', formatNumber(round.toolCallCount), ' tools</span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
+      '<td class="attribution-col"><span class="sd-attribution-actions sd-attribution-actions--row" aria-label="', escapeHtml(globalLabel), ' attribution">',
+      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(requestPayloadId), '" data-payload-kind="llm.request_attribution" data-payload-title="Request attribution · ', escapeHtml(globalLabel), '">request</button> ',
+      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(responsePayloadId), '" data-payload-kind="llm.response_attribution" data-payload-title="Response attribution · ', escapeHtml(globalLabel), '">response</button></span></td>',
       '<td class="status-col">', statusBadges(round, hasIssues, isLowCache), '</td>',
-      '<td class="time-col"><span class="sd-round-time">', escapeHtml(parity.time || ''), '</span></td>'
+      '<td class="time-col"><span class="round-time">', escapeHtml(parity.time || ''), '</span></td>'
     ].join(''));
     return tr;
   }
 
   function applySessionPayloads(payloadsResponse) {
     if (!payloadsResponse) return;
-    setText('[data-session-payload-policy]', 'Payload hidden by default · ' + formatNumber(payloadsResponse.payloadCount || 0) + ' payload sources loaded from API');
     var container = qs(document, '[data-payload-sources-container]');
     if (!container) return;
     var payloads = payloadsResponse.payloads || [];
@@ -325,11 +340,9 @@
       tpl.setAttribute('data-payload-kind', payload.kind || '');
       tpl.setAttribute('data-payload-status', payload.status || '');
       tpl.setAttribute('data-payload-token-estimate', '');
-      var section = document.createElement('section');
-      section.className = 'sd-payload-section payload-section';
-      setMarkup(section, '<h3>' + escapeHtml(payload.title || payload.payloadId || 'Payload') + '</h3>'
-        + '<pre>Payload source ' + escapeHtml(payload.payloadId || '') + ' is loaded through ' + escapeHtml(payload.apiUrl || '') + '.</pre>');
-      tpl.content.appendChild(section);
+      tpl.setAttribute('data-payload-index-only', 'true');
+      tpl.setAttribute('data-payload-api-url', payload.apiUrl || '');
+      tpl.setAttribute('data-payload-title', payload.title || payload.payloadId || 'Payload');
       return tpl;
     }));
   }
@@ -343,7 +356,7 @@
     var issues = parity.issues || [];
     var issuePreview = issues.slice(0, 5);
     var html = ''
-      + '<article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--agents">'
+      + '<article class="sd-diagnostic-card sd-diagnostic-card--wide sd-diagnostic-card--subagents sd-diagnostic-card--agents">'
       + '<header class="sd-diagnostic-card__head"><h2>Agents Breakdown</h2><span>' + formatNumber(agents.length) + ' agents</span></header>'
       + '<div class="sd-diagnostic-card__body">' + agentsTableHtml(agents) + '</div></article>'
       + '<article class="sd-diagnostic-card sd-diagnostic-card--context">'
@@ -356,31 +369,108 @@
       + '<header class="sd-diagnostic-card__head"><h2>Issues &amp; Repro Seeds</h2><span>' + formatNumber(parity.issueCount || issues.length || 0) + ' issues</span></header>'
       + '<div class="sd-diagnostic-card__body">' + issuesHtml(issuePreview) + '</div></article>';
     setMarkup(root, html);
+    setupTokenRoundTooltips();
   }
 
   function agentsTableHtml(agents) {
     if (!agents.length) return '<div class="sd-card-empty">No agent runs indexed</div>';
     var rows = agents.map(function (row, idx) {
       var active = idx === 0 ? ' is-active' : '';
+      var scope = row.scope || (idx === 0 ? 'main' : 'subagent');
+      var subagentId = row.subagentId || '';
+      var instanceClass = scope === 'main' ? 'sd-subagent-instance--main' : ('sd-subagent-instance--subagent-' + ((idx - 1) % 5));
+      var failures = Number(row.failures || 0);
+      var rateClass = failures > 0 ? ' sd-rate--warn' : ' sd-rate--ok';
+      var failureLabel = row.failureLabel || (formatNumber(row.failures) + ' failed · ' + (row.failureRate || 'N/A'));
+      if (scope !== 'main' && failures === 0) {
+        failureLabel = 'Success · 0 failed';
+      }
       return '<tr class="sd-subagent-row' + active + '" data-subagent-row>'
-        + '<td class="sd-subagent-table__agent"><span class="sd-subagent-select' + active + '"><span class="sd-subagent-select__main"><b>'
-        + escapeHtml(row.agent || 'agent') + '</b><span class="sd-subagent-instance sd-subagent-instance--main">'
-        + escapeHtml(row.shortId || '') + '</span></span></span></td>'
+        + '<td class="sd-subagent-table__agent"><button type="button" class="sd-subagent-select' + active + '" data-action="select-subagent" data-subagent="'
+        + escapeHtml(subagentId) + '" data-agent-scope="' + escapeHtml(scope) + '" aria-pressed="' + (idx === 0 ? 'true' : 'false') + '"><span class="sd-subagent-select__main"><b>'
+        + escapeHtml(row.agent || 'agent') + '</b><span class="sd-subagent-instance ' + instanceClass + '">'
+        + escapeHtml(row.shortId || '') + '</span></span></button></td>'
         + '<td class="sd-subagent-table__copy-cell"><span class="sd-subagent-copy-value" title="' + escapeHtml(row.sessionFile || '') + '">'
         + escapeHtml(row.sessionFileDisplay || '—') + '</span> <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="'
-        + escapeHtml(row.sessionFile || '') + '">Copy</button></td>'
+        + escapeHtml(row.sessionFile || '') + '" aria-label="Copy session file" title="Copy full session file">Copy</button></td>'
         + '<td class="sd-subagent-table__copy-cell"><span class="sd-subagent-copy-value" title="' + escapeHtml(row.sessionId || '') + '">'
         + escapeHtml(row.sessionIdDisplay || '—') + '</span> <button type="button" class="sd-subagent-copy-btn" data-action="copy" data-copy-text="'
-        + escapeHtml(row.sessionId || '') + '">Copy</button></td>'
-        + '<td>' + formatNumber(row.llmCalls) + ' LLM</td>'
-        + '<td>' + escapeHtml(row.tokens || '0') + ' · ' + escapeHtml(row.tokenShare || 'N/A') + '</td>'
+        + escapeHtml(row.sessionId || '') + '" aria-label="Copy session id" title="Copy full session id">Copy</button></td>'
+        + '<td title="' + (scope === 'main' ? 'Main agent LLM calls' : 'Subagent internal LLM calls') + '">' + formatNumber(row.llmCalls) + ' LLM</td>'
+        + '<td title="' + escapeHtml(row.tokens || '0') + ' · ' + escapeHtml(row.tokenShare || 'N/A') + '">' + escapeHtml(row.tokens || '0') + ' · ' + escapeHtml(row.tokenShare || 'N/A') + '</td>'
         + '<td>' + formatNumber(row.tools) + ' tools</td>'
-        + '<td><b class="sd-rate">' + escapeHtml(row.failureLabel || (formatNumber(row.failures) + ' failed · ' + (row.failureRate || 'N/A'))) + '</b></td>'
+        + '<td><b class="sd-rate' + rateClass + '">' + escapeHtml(failureLabel) + '</b></td>'
         + '</tr>';
     }).join('');
-    return '<div class="sd-subagent-workbench"><div class="sd-subagent-table-scroll"><table class="sd-subagent-table">'
+    var panels = agents.map(function (row, idx) {
+      return agentTimelinePanelHtml(row, idx);
+    }).join('');
+    return '<div class="sd-subagent-workbench" data-subagent-workbench><div class="sd-subagent-table-scroll" aria-label="Agent candidates"><table class="sd-subagent-table">'
       + '<thead><tr><th>Agent</th><th>Session file</th><th>Session id</th><th>LLM</th><th>Tokens</th><th>Tools</th><th>Failures</th></tr></thead>'
-      + '<tbody>' + rows + '</tbody></table></div></div>';
+      + '<tbody>' + rows + '</tbody></table></div><div class="sd-subagent-timeline-area">' + panels + '</div></div>';
+  }
+
+  function agentTimelinePanelHtml(agent, idx) {
+    var scope = agent.scope || (idx === 0 ? 'main' : 'subagent');
+    var subagentId = agent.subagentId || '';
+    var active = idx === 0;
+    var timeline = scope === 'main'
+      ? tokenRoundChartHtml(sessionDetailState.rounds, agent.agent || 'main agent')
+      : '<div class="sd-card-empty">Subagent round timeline is loaded through Trace subagent details.</div>';
+    return '<section class="sd-subagent-timeline' + (active ? ' is-active' : '') + '" data-subagent-timeline-panel data-subagent="'
+      + escapeHtml(subagentId) + '" data-agent-scope="' + escapeHtml(scope) + '"' + (active ? '' : ' hidden') + '>'
+      + '<div class="sd-subagent-timeline__head"><div><b>' + escapeHtml(agent.agent || 'agent') + '</b><span>'
+      + escapeHtml((agent.shortId || scope) + (scope === 'main' ? ' · session rounds' : ' · subagent rounds')) + '</span></div><small>'
+      + formatNumber(agent.llmCalls) + ' LLM · ' + escapeHtml(agent.tokens || '0') + ' tokens · '
+      + formatNumber(agent.tools) + ' tools · ' + formatNumber(agent.failures) + ' failures</small></div>'
+      + timeline + '</section>';
+  }
+
+  function tokenRoundChartHtml(rounds, label) {
+    if (!rounds || !rounds.length) {
+      return '<div class="sd-card-empty">Round timeline is loading from /rounds API.</div>';
+    }
+    var maxTotal = Math.max(1, sessionDetailState.maxRoundTokens || 1);
+    var plotWidth = Math.max(320, rounds.length * 32 + 44);
+    var points = rounds.map(function (round, idx) {
+      var tokens = round.tokens || {};
+      var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
+      var ratio = inputSide > 0 ? (Number(tokens.cacheRead || 0) / inputSide) * 100 : 0;
+      return (idx * 32) + ',' + (100 - Math.max(0, Math.min(100, ratio))).toFixed(1);
+    }).join(' ');
+    var buttons = rounds.map(function (round) {
+      var tokens = round.tokens || {};
+      var total = Number(tokens.total || 0);
+      var height = Math.max(6, Math.min(118, (total / maxTotal) * 118));
+      var fresh = pct(tokens.fresh, total);
+      var read = pct(tokens.cacheRead, total);
+      var write = pct(tokens.cacheWrite, total);
+      var out = pct(tokens.output, total);
+      var parity = round.parity || {};
+      var tags = [];
+      if (round.status === 'failed' || parity.hasIssues) tags.push('issue');
+      if (parity.isLowCache) tags.push('low cache');
+      if (parity.isFreshSpike) tags.push('fresh spike');
+      return '<button type="button" class="sd-token-round" data-action="jump-round" data-round="' + escapeHtml(round.roundIndex) + '" aria-label="R' + escapeHtml(round.roundIndex) + ' token timeline">'
+        + '<span class="sd-token-round__bar" aria-label="R' + escapeHtml(round.roundIndex) + '" style="--bar-height-px:' + height.toFixed(1) + 'px">'
+        + '<span class="sd-token-round__seg sd-token-round__seg--fresh" style="--seg-height:' + fresh + '%"></span>'
+        + '<span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height:' + read + '%"></span>'
+        + '<span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height:' + write + '%"></span>'
+        + '<span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height:' + out + '%"></span></span>'
+        + '<span class="sd-token-round-tooltip" role="tooltip"><b>R' + escapeHtml(round.roundIndex) + ' · ' + escapeHtml(parity.time || '') + '</b>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>' + formatSessionCompact(tokens.fresh) + '</em><strong>' + fresh + '%</strong></span>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>' + formatSessionCompact(tokens.cacheRead) + '</em><strong>' + read + '%</strong></span>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>' + formatSessionCompact(tokens.cacheWrite) + '</em><strong>' + write + '%</strong></span>'
+        + '<span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>' + formatSessionCompact(tokens.output) + '</em><strong>' + out + '%</strong></span>'
+        + '<span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>' + formatSessionCompact(total) + '</em><strong>100.0%</strong></span>'
+        + (tags.length ? '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>' + escapeHtml(tags.join(', ')) + '</em></span>' : '')
+        + '</span><span class="sd-token-round__signal-slot" aria-hidden="true">' + (tags.length ? '<span class="sd-token-round__spike"></span>' : '') + '</span>'
+        + '<span class="sd-token-round__label">R' + escapeHtml(round.roundIndex) + '</span></button>';
+    }).join('');
+    return '<div class="sd-token-round-chart" aria-label="' + escapeHtml(label || 'agent') + ' token composition">'
+      + '<div class="sd-token-round-plot" style="--plot-width:' + plotWidth + 'px; --ratio-line-left:22px; --ratio-line-width:' + Math.max(0, plotWidth - 44) + 'px">'
+      + '<svg class="sd-token-ratio-line" viewBox="0 0 ' + Math.max(1, plotWidth - 44) + ' 100" preserveAspectRatio="none" aria-label="Agent cache read ratio line">'
+      + '<polyline points="' + escapeHtml(points) + '"></polyline></svg>' + buttons + '</div></div>';
   }
 
   function contextBudgetHtml(segments) {
@@ -402,15 +492,17 @@
 
   function toolImpactHtml(toolImpact) {
     var rows = toolImpact.rows || [];
-    if (!rows.length) return '<div class="sd-card-empty">No tool calls indexed</div>';
+    if (!rows.length && !Number(toolImpact.allToolCalls || 0)) return '<div class="sd-card-empty">No tool calls indexed</div>';
     var body = rows.map(function (row) {
+      var rowTone = rateTone(row.failures, row.calls);
       return '<tr title="' + escapeHtml(row.splitNote || '') + '"><td>' + escapeHtml(row.tool || 'tool') + '</td><td>'
-        + formatNumber(row.calls) + '</td><td>' + escapeHtml(row.tokens || '0') + '</td><td><span class="sd-rate">'
+        + formatNumber(row.calls) + '</td><td>' + escapeHtml(row.tokens || '0') + '</td><td><span class="sd-rate sd-rate--' + rowTone + '">'
         + formatNumber(row.failures) + ' · ' + escapeHtml(row.failureRate || 'N/A') + '</span></td></tr>';
     }).join('');
+    var summaryTone = rateTone(toolImpact.failedTools, toolImpact.allToolCalls);
     return '<table class="sd-compact-table"><thead><tr><th>Tool</th><th>Calls</th><th>Result Tokens</th><th>Failures</th></tr></thead><tbody>'
       + body + '<tr class="sd-table-summary-row"><td>Summary</td><td>' + formatNumber(toolImpact.allToolCalls || 0)
-      + '</td><td>' + formatNumber(toolImpact.distinctTools || 0) + ' tools</td><td><span class="sd-rate">'
+      + '</td><td>' + formatNumber(toolImpact.distinctTools || 0) + ' tools</td><td><span class="sd-rate sd-rate--' + summaryTone + '">'
       + formatNumber(toolImpact.failedTools || 0) + ' · ' + escapeHtml(toolImpact.failedToolsRate || 'N/A') + '</span></td></tr></tbody></table>';
   }
 
@@ -444,6 +536,8 @@
         if (line && typeof line === 'object') {
           span.appendChild(document.createTextNode((line.label || '') + ' '));
           var b = document.createElement('b');
+          if (line.valueClass) b.className = line.valueClass;
+          if (line.title) b.title = line.title;
           b.textContent = line.value == null ? '' : String(line.value);
           span.appendChild(b);
         } else {
@@ -466,15 +560,56 @@
     return { label: label, value: value };
   }
 
-  function tokenbarHtml(tokens) {
+  function tokenShareSubline(label, value, total, shareLabel) {
+    var ratio = ratioValue(value, total);
+    var tone = tokenShareTone(ratio);
+    return {
+      label: label,
+      value: formatSessionCompact(value) + ' · ' + (shareLabel || pctLabel(value, total)),
+      valueClass: 'sd-kpi-token-share sd-kpi-token-share--' + tone,
+      title: label + ' share: ' + ratio.toFixed(1) + '%'
+    };
+  }
+
+  function rateSubline(label, failures, total, rateLabel) {
+    var tone = rateTone(failures, total);
+    return {
+      label: label,
+      value: formatNumber(failures) + ' · ' + (rateLabel || pctLabel(failures, total)),
+      valueClass: 'sd-kpi-tone sd-kpi-tone--' + tone
+    };
+  }
+
+  function tokenShareTone(ratio) {
+    if (ratio >= 50) return 'major';
+    if (ratio >= 20) return 'mid';
+    return 'minor';
+  }
+
+  function rateTone(failures, total) {
+    var ratio = ratioValue(failures, total);
+    if (ratio >= 10) return 'bad';
+    if (Number(failures || 0) > 0) return 'warn';
+    return 'ok';
+  }
+
+  function ratioValue(value, total) {
+    var denominator = Number(total || 0);
+    if (denominator <= 0) return 0;
+    return Math.max(0, Math.min(100, (Number(value || 0) / denominator) * 100));
+  }
+
+  function tokenbarHtml(tokens, maxRoundTokens) {
     var total = Number(tokens && tokens.total || 0);
     if (total <= 0) return '';
     var fresh = pct(tokens.fresh, total);
     var read = pct(tokens.cacheRead, total);
     var write = pct(tokens.cacheWrite, total);
     var out = pct(tokens.output, total);
+    var scale = maxRoundTokens > 0 ? Math.max(2, Math.min(100, Math.round((total / maxRoundTokens) * 1000) / 10)) : 100;
+    var scaleLabel = scale + '% of max round tokens';
     return '<div class="token-group"><span class="metric-token">' + formatSessionCompact(total) + '</span>'
-      + '<span class="tokenbar-wrap" tabindex="0" title="Loaded from rounds API" aria-label="Token breakdown loaded from rounds API" style="--token-total-width:100%;">'
+      + '<span class="tokenbar-wrap" tabindex="0" title="' + escapeHtml(scaleLabel) + '" aria-label="' + escapeHtml(scaleLabel) + '" style="--token-total-width:' + scale + '%;">'
       + '<span class="tokenbar"><span class="tokenbar-seg fresh" style="--segment-width:' + fresh + '%"></span>'
       + '<span class="tokenbar-seg read" style="--segment-width:' + read + '%"></span>'
       + '<span class="tokenbar-seg write" style="--segment-width:' + write + '%"></span>'
@@ -484,13 +619,17 @@
       + '<div class="token-tooltip__row"><span>Cache Read</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.cacheRead) + '</span></div>'
       + '<div class="token-tooltip__row"><span>Cache Write</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.cacheWrite) + '</span></div>'
       + '<div class="token-tooltip__row"><span>Output</span><span class="token-tooltip__value">' + formatSessionCompact(tokens.output) + '</span></div>'
+      + '<div class="token-tooltip__sep"></div><div class="token-tooltip__row token-tooltip__total"><span>Total</span><span class="token-tooltip__value">' + formatSessionCompact(total) + '</span></div>'
+      + '<div class="token-tooltip__row"><span>Scale</span><span class="token-tooltip__value">' + escapeHtml(scaleLabel) + '</span></div>'
       + '</div></span></div>';
   }
 
   function statusBadges(round, hasIssues, isLowCache) {
     var html = '';
-    (round.signals || []).forEach(function (signal) {
-      var tone = signal === 'Failed' ? ' sd-signal-badge--failed' : '';
+    var signals = (round.signals || []).slice();
+    if (hasIssues && signals.indexOf('Failed') < 0) signals.unshift('Failed');
+    signals.forEach(function (signal) {
+      var tone = signal === 'Failed' ? ' sd-signal-badge--failed' : (signal === 'Subagent' ? ' sd-signal-badge--subagent' : '');
       html += '<span class="sd-signal-badge' + tone + '">' + escapeHtml(signal) + '</span>';
     });
     return html;

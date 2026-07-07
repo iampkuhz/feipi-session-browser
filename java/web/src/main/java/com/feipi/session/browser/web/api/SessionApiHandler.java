@@ -7,7 +7,6 @@ import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.index.sqlite.PayloadLookup;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
-import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionData;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionResponse;
 import com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse;
@@ -17,6 +16,7 @@ import com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse;
 import com.feipi.session.browser.web.api.ApiResponses.PayloadResponse;
 import com.feipi.session.browser.web.api.ApiResponses.RoundResponse;
 import com.feipi.session.browser.web.api.ApiResponses.RoundSummary;
+import com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary;
 import com.feipi.session.browser.web.api.SessionApiService.SessionApiContext;
 import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
 import io.javalin.http.Context;
@@ -48,6 +48,11 @@ import org.slf4j.LoggerFactory;
 public final class SessionApiHandler {
 
   private static final Logger LOG = LoggerFactory.getLogger(SessionApiHandler.class);
+  private static final String ERROR_BAD_REQUEST = "bad_request";
+  private static final String ERROR_NOT_FOUND = "not_found";
+  private static final String MESSAGE_SESSION_NOT_FOUND = "session not found";
+  private static final String ATTRIBUTION_KIND_REQUEST = "request";
+  private static final String ATTRIBUTION_KIND_RESPONSE = "response";
 
   private final SessionApiService apiService;
 
@@ -72,7 +77,8 @@ public final class SessionApiHandler {
    */
   public void handlePayload(Context ctx, String agent, String sessionId, String payloadId) {
     if (payloadId.isBlank()) {
-      sendError(ctx, HttpStatus.BAD_REQUEST, "bad_request", "payload_id 不得为空");
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.BAD_REQUEST, ERROR_BAD_REQUEST, "payload_id 不得为空");
       return;
     }
 
@@ -82,9 +88,8 @@ public final class SessionApiHandler {
         sessionId,
         "payload",
         () -> {
-          Optional<SessionApiContext> ctxOpt = loadContext(agent, sessionId);
+          Optional<SessionApiContext> ctxOpt = loadContextOrSend(ctx, agent, sessionId);
           if (ctxOpt.isEmpty()) {
-            sendError(ctx, HttpStatus.NOT_FOUND, "not_found", "session not found");
             return;
           }
 
@@ -98,7 +103,7 @@ public final class SessionApiHandler {
             ctx.status(HttpStatus.NOT_FOUND);
             ctx.json(
                 new PayloadNotFoundResponse(
-                    "not_found", "payload " + payloadId + " not found", sample));
+                    ERROR_NOT_FOUND, "payload " + payloadId + " not found", sample));
             return;
           }
 
@@ -125,38 +130,14 @@ public final class SessionApiHandler {
    * @param roundIndex 轮次序号（1-based，已由路由层校验）
    */
   public void handleRound(Context ctx, String agent, String sessionId, int roundIndex) {
-    executeWithExceptionHandling(
+    executeWithRound(
         ctx,
         agent,
         sessionId,
+        roundIndex,
         "round",
-        () -> {
-          Optional<SessionApiContext> ctxOpt = loadContext(agent, sessionId);
-          if (ctxOpt.isEmpty()) {
-            sendError(ctx, HttpStatus.NOT_FOUND, "not_found", "session not found");
-            return;
-          }
-
-          SessionApiContext sessionCtx = ctxOpt.get();
-          Optional<CallRound> roundOpt = sessionCtx.findRound(roundIndex);
-
-          if (roundOpt.isEmpty()) {
-            sendError(
-                ctx,
-                HttpStatus.NOT_FOUND,
-                "not_found",
-                "round_index "
-                    + roundIndex
-                    + " out of range (1-"
-                    + sessionCtx.rounds().size()
-                    + ")");
-            return;
-          }
-
-          CallRound round = roundOpt.get();
-          List<NormalizedCall> roundCalls = sessionCtx.callsInRound(round);
+        (sessionCtx, round, roundCalls) -> {
           RoundSummary summary = buildRoundSummary(round, roundCalls, sessionCtx);
-
           ctx.json(new RoundResponse(roundIndex, summary, ApiResponses.SCHEMA_VERSION));
         });
   }
@@ -175,51 +156,23 @@ public final class SessionApiHandler {
    */
   public void handleAttribution(
       Context ctx, String agent, String sessionId, int roundIndex, int callIndex, String kind) {
-    if (!"request".equals(kind) && !"response".equals(kind)) {
-      sendError(
-          ctx,
-          HttpStatus.BAD_REQUEST,
-          "bad_request",
-          "invalid kind '" + kind + "', expected 'request' or 'response'");
+    if (!isAttributionKind(kind)) {
+      sendInvalidAttributionKind(ctx, kind);
       return;
     }
 
-    executeWithExceptionHandling(
+    executeWithRound(
         ctx,
         agent,
         sessionId,
+        roundIndex,
         "attribution",
-        () -> {
-          Optional<SessionApiContext> ctxOpt = loadContext(agent, sessionId);
-          if (ctxOpt.isEmpty()) {
-            sendError(ctx, HttpStatus.NOT_FOUND, "not_found", "session not found");
-            return;
-          }
-
-          SessionApiContext sessionCtx = ctxOpt.get();
-          Optional<CallRound> roundOpt = sessionCtx.findRound(roundIndex);
-
-          if (roundOpt.isEmpty()) {
-            sendError(
-                ctx,
-                HttpStatus.NOT_FOUND,
-                "not_found",
-                "round_index "
-                    + roundIndex
-                    + " out of range (1-"
-                    + sessionCtx.rounds().size()
-                    + ")");
-            return;
-          }
-
-          CallRound round = roundOpt.get();
-          List<NormalizedCall> roundCalls = sessionCtx.callsInRound(round);
-
+        (sessionCtx, round, roundCalls) -> {
           if (callIndex > roundCalls.size()) {
-            sendError(
+            ApiSessionDetails.sendError(
                 ctx,
                 HttpStatus.NOT_FOUND,
-                "not_found",
+                ERROR_NOT_FOUND,
                 "call_index "
                     + callIndex
                     + " out of range for round "
@@ -230,10 +183,8 @@ public final class SessionApiHandler {
             return;
           }
 
-          NormalizedCall call = roundCalls.get(callIndex - 1);
-          AttributionResponse response =
-              buildAttributionResponse(agent, sessionId, roundIndex, callIndex, kind, call);
-          ctx.json(response);
+          sendAttributionResponse(
+              ctx, agent, sessionId, roundIndex, callIndex, kind, roundCalls.get(callIndex - 1));
         });
   }
 
@@ -251,12 +202,8 @@ public final class SessionApiHandler {
    */
   public void handleSubagentAttribution(
       Context ctx, String agent, String sessionId, String subagentId, int callIndex, String kind) {
-    if (!"request".equals(kind) && !"response".equals(kind)) {
-      sendError(
-          ctx,
-          HttpStatus.BAD_REQUEST,
-          "bad_request",
-          "invalid kind '" + kind + "', expected 'request' or 'response'");
+    if (!isAttributionKind(kind)) {
+      sendInvalidAttributionKind(ctx, kind);
       return;
     }
 
@@ -266,9 +213,8 @@ public final class SessionApiHandler {
         sessionId,
         "subagent attribution",
         () -> {
-          Optional<SessionApiContext> ctxOpt = loadContext(agent, sessionId);
+          Optional<SessionApiContext> ctxOpt = loadContextOrSend(ctx, agent, sessionId);
           if (ctxOpt.isEmpty()) {
-            sendError(ctx, HttpStatus.NOT_FOUND, "not_found", "session not found");
             return;
           }
 
@@ -282,16 +228,19 @@ public final class SessionApiHandler {
                   .toList();
 
           if (subagentCalls.isEmpty()) {
-            sendError(
-                ctx, HttpStatus.NOT_FOUND, "not_found", "subagent '" + subagentId + "' not found");
+            ApiSessionDetails.sendError(
+                ctx,
+                HttpStatus.NOT_FOUND,
+                ERROR_NOT_FOUND,
+                "subagent '" + subagentId + "' not found");
             return;
           }
 
           if (callIndex > subagentCalls.size()) {
-            sendError(
+            ApiSessionDetails.sendError(
                 ctx,
                 HttpStatus.NOT_FOUND,
-                "not_found",
+                ERROR_NOT_FOUND,
                 "call_index "
                     + callIndex
                     + " out of range for subagent '"
@@ -306,9 +255,7 @@ public final class SessionApiHandler {
 
           // 确定该调用所在的轮次
           int roundIndex = findRoundIndexForCall(sessionCtx, call);
-          AttributionResponse response =
-              buildAttributionResponse(agent, sessionId, roundIndex, callIndex, kind, call);
-          ctx.json(response);
+          sendAttributionResponse(ctx, agent, sessionId, roundIndex, callIndex, kind, call);
         });
   }
 
@@ -326,38 +273,18 @@ public final class SessionApiHandler {
   public void handleBucketDetail(
       Context ctx, String agent, String sessionId, int roundIndex, String bucketKey) {
     if (bucketKey.isBlank()) {
-      sendError(ctx, HttpStatus.BAD_REQUEST, "bad_request", "bucket_key 不得为空");
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.BAD_REQUEST, ERROR_BAD_REQUEST, "bucket_key 不得为空");
       return;
     }
 
-    executeWithExceptionHandling(
+    executeWithRound(
         ctx,
         agent,
         sessionId,
+        roundIndex,
         "bucket-detail",
-        () -> {
-          Optional<SessionApiContext> ctxOpt = loadContext(agent, sessionId);
-          if (ctxOpt.isEmpty()) {
-            sendError(ctx, HttpStatus.NOT_FOUND, "not_found", "session not found");
-            return;
-          }
-
-          SessionApiContext sessionCtx = ctxOpt.get();
-          Optional<CallRound> roundOpt = sessionCtx.findRound(roundIndex);
-
-          if (roundOpt.isEmpty()) {
-            sendError(
-                ctx,
-                HttpStatus.NOT_FOUND,
-                "not_found",
-                "round_index "
-                    + roundIndex
-                    + " out of range (1-"
-                    + sessionCtx.rounds().size()
-                    + ")");
-            return;
-          }
-
+        (sessionCtx, round, roundCalls) -> {
           // bucket-detail 内容需要完整的 session 解析数据，当前归一化模型不直接提供。
           // 不返回伪成功空值；用显式 unavailable contract 暴露不可用原因。
           ctx.json(
@@ -388,43 +315,65 @@ public final class SessionApiHandler {
                   usage.total()),
               call.scope().name().toLowerCase(),
               call.request().toolResultIds(),
-              call.response().toolCallIds()));
+              call.response().toolCallIds(),
+              call.timestamp().orElse(""),
+              call.subagentId().orElse(""),
+              call.parentToolCallId().orElse(""),
+              call.parentToolName().orElse("")));
     }
 
     // 查找该轮次关联的工具执行
-    List<String> toolExecIds = findToolExecutionsForRound(round, sessionCtx);
+    List<NormalizedToolExecution> toolExecutions = findToolExecutionsForRound(round, sessionCtx);
+    List<String> toolExecIds =
+        toolExecutions.stream().map(NormalizedToolExecution::toolCallId).toList();
+    List<ToolExecutionSummary> toolSummaries =
+        toolExecutions.stream().map(SessionApiHandler::toolSummary).toList();
 
     boolean isSubagent = !round.parentCallId().isEmpty();
 
     return new RoundSummary(
-        round.calls(), toolExecIds, callSummaries, totalTokens, isSubagent, round.parentCallId());
+        round.calls(),
+        toolExecIds,
+        toolSummaries,
+        callSummaries,
+        totalTokens,
+        isSubagent,
+        round.parentCallId());
   }
 
   /** 查找轮次关联的工具执行 ID。 */
-  private static List<String> findToolExecutionsForRound(
+  private static List<NormalizedToolExecution> findToolExecutionsForRound(
       CallRound round, SessionApiContext sessionCtx) {
     List<NormalizedToolExecution> allToolExecs = sessionCtx.toolExecutions();
-    List<String> result = new ArrayList<>();
+    List<NormalizedToolExecution> result = new ArrayList<>();
     for (String callId : round.calls()) {
       for (NormalizedToolExecution exec : allToolExecs) {
         if (callId.equals(exec.declaredByCallId())) {
-          result.add(exec.toolCallId());
+          result.add(exec);
         }
       }
     }
     return result;
   }
 
+  /** 构建工具执行摘要。 */
+  private static ToolExecutionSummary toolSummary(NormalizedToolExecution exec) {
+    return new ToolExecutionSummary(
+        exec.toolCallId(),
+        exec.name(),
+        exec.scope().name().toLowerCase(),
+        exec.declaredByCallId(),
+        exec.status().orElse(""),
+        exec.exitCode().orElse(null),
+        exec.durationMs(),
+        exec.subagentId().orElse(""));
+  }
+
   /** 构建 attribution 响应。 */
   private static AttributionResponse buildAttributionResponse(
-      String agent,
-      String sessionId,
-      int roundIndex,
-      int callIndex,
-      String kind,
-      NormalizedCall call) {
+      AttributionRequest request, NormalizedCall call) {
     NormalizedCallUsage usage = call.usage();
-    String attributionKind = "llm." + kind + "_attribution";
+    String attributionKind = "llm." + request.kind() + "_attribution";
 
     AttributionData data =
         new AttributionData(
@@ -438,7 +387,26 @@ public final class SessionApiHandler {
             call.request().toolResultIds().size(),
             call.response().toolCallIds().size());
 
-    return new AttributionResponse(attributionKind, agent, sessionId, roundIndex, callIndex, data);
+    return new AttributionResponse(
+        attributionKind,
+        request.agent(),
+        request.sessionId(),
+        request.roundIndex(),
+        request.callIndex(),
+        data);
+  }
+
+  private static void sendAttributionResponse(
+      Context ctx,
+      String agent,
+      String sessionId,
+      int roundIndex,
+      int callIndex,
+      String kind,
+      NormalizedCall call) {
+    ctx.json(
+        buildAttributionResponse(
+            new AttributionRequest(agent, sessionId, roundIndex, callIndex, kind), call));
   }
 
   /** 判断调用是否匹配指定的 subagent ID。 */
@@ -464,10 +432,40 @@ public final class SessionApiHandler {
     return apiService.getContext(sessionKey, PayloadVisibility.STANDARD);
   }
 
-  /** 发送统一错误响应。 */
-  private static void sendError(Context ctx, HttpStatus status, String error, String message) {
-    ctx.status(status);
-    ctx.json(new ApiErrorResponse(error, message));
+  private Optional<SessionApiContext> loadContextOrSend(Context ctx, String agent, String sessionId)
+      throws SQLException {
+    Optional<SessionApiContext> loaded = loadContext(agent, sessionId);
+    if (loaded.isEmpty()) {
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, MESSAGE_SESSION_NOT_FOUND);
+    }
+    return loaded;
+  }
+
+  private static Optional<CallRound> findRoundOrSend(
+      Context ctx, SessionApiContext sessionCtx, int roundIndex) {
+    Optional<CallRound> round = sessionCtx.findRound(roundIndex);
+    if (round.isEmpty()) {
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.NOT_FOUND, ERROR_NOT_FOUND, roundOutOfRange(roundIndex, sessionCtx));
+    }
+    return round;
+  }
+
+  private static String roundOutOfRange(int roundIndex, SessionApiContext sessionCtx) {
+    return "round_index " + roundIndex + " out of range (1-" + sessionCtx.rounds().size() + ")";
+  }
+
+  private static boolean isAttributionKind(String kind) {
+    return ATTRIBUTION_KIND_REQUEST.equals(kind) || ATTRIBUTION_KIND_RESPONSE.equals(kind);
+  }
+
+  private static void sendInvalidAttributionKind(Context ctx, String kind) {
+    ApiSessionDetails.sendError(
+        ctx,
+        HttpStatus.BAD_REQUEST,
+        ERROR_BAD_REQUEST,
+        "invalid kind '" + kind + "', expected 'request' or 'response'");
   }
 
   /**
@@ -487,11 +485,39 @@ public final class SessionApiHandler {
       action.execute();
     } catch (SessionDataException e) {
       LOG.error("{} API 制品加载失败: {}:{}", endpointName, agent, sessionId, e);
-      sendError(ctx, HttpStatus.INTERNAL_SERVER_ERROR, "artifact_error", "归一化制品加载失败");
+      ApiSessionDetails.sendError(
+          ctx, HttpStatus.INTERNAL_SERVER_ERROR, "artifact_error", "归一化制品加载失败");
     } catch (SQLException e) {
       LOG.error("{} API 查询失败: {}:{}", endpointName, agent, sessionId, e);
-      sendError(ctx, HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "查询失败");
+      ApiSessionDetails.sendError(ctx, HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "查询失败");
     }
+  }
+
+  private void executeWithRound(
+      Context ctx,
+      String agent,
+      String sessionId,
+      int roundIndex,
+      String endpointName,
+      RoundEndpointAction action) {
+    executeWithExceptionHandling(
+        ctx,
+        agent,
+        sessionId,
+        endpointName,
+        () -> {
+          Optional<SessionApiContext> ctxOpt = loadContextOrSend(ctx, agent, sessionId);
+          if (ctxOpt.isEmpty()) {
+            return;
+          }
+          SessionApiContext sessionCtx = ctxOpt.get();
+          Optional<CallRound> roundOpt = findRoundOrSend(ctx, sessionCtx, roundIndex);
+          if (roundOpt.isEmpty()) {
+            return;
+          }
+          CallRound round = roundOpt.get();
+          action.execute(sessionCtx, round, sessionCtx.callsInRound(round));
+        });
   }
 
   /** API 端点业务逻辑函数接口，允许抛出制品异常和数据库异常。 */
@@ -506,4 +532,29 @@ public final class SessionApiHandler {
      */
     void execute() throws SQLException, SessionDataException;
   }
+
+  @FunctionalInterface
+  private interface RoundEndpointAction {
+
+    /**
+     * 执行已加载 round 的端点逻辑。
+     *
+     * @throws SQLException 数据库查询失败
+     * @throws SessionDataException 制品加载失败
+     */
+    void execute(SessionApiContext sessionCtx, CallRound round, List<NormalizedCall> roundCalls)
+        throws SQLException, SessionDataException;
+  }
+
+  /**
+   * 归因 API 请求定位信息。
+   *
+   * @param agent agent 标识
+   * @param sessionId 会话标识
+   * @param roundIndex 轮次序号
+   * @param callIndex 调用序号
+   * @param kind 归因类型
+   */
+  private record AttributionRequest(
+      String agent, String sessionId, int roundIndex, int callIndex, String kind) {}
 }

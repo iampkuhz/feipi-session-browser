@@ -13,6 +13,8 @@ import com.feipi.session.browser.query.api.SessionListFilter;
 import com.feipi.session.browser.query.api.Sort;
 import com.feipi.session.browser.query.api.TitleFilter;
 import com.feipi.session.browser.web.model.PaginationModel;
+import com.feipi.session.browser.web.model.TokenTrendBuckets;
+import com.feipi.session.browser.web.model.WebDisplayValues;
 import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
@@ -20,9 +22,7 @@ import io.javalin.http.HttpStatus;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
-import java.time.Instant;
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -258,7 +258,7 @@ public final class ProjectsPage {
     List<LocalDate> startedDates =
         sessions.stream()
             .map(SessionRow::startedAt)
-            .map(ProjectsPage::parseDate)
+            .map(WebDisplayValues::parseDate)
             .filter(Objects::nonNull)
             .toList();
     long todayCount = startedDates.stream().filter(today::equals).count();
@@ -419,40 +419,24 @@ public final class ProjectsPage {
   }
 
   private static Map<String, Object> buildTokenTrend(List<SessionRow> sessions, String grain) {
-    Map<String, long[]> buckets = new LinkedHashMap<>();
-    for (SessionRow session : sessions) {
-      LocalDate date = parseDate(session.startedAt());
-      if (date == null) {
-        continue;
-      }
-      String key = bucketLabel(date, grain);
-      long[] values = buckets.computeIfAbsent(key, ignored -> new long[5]);
-      values[0] += session.freshInputTokens();
-      values[1] += session.cacheReadTokens();
-      values[2] += session.cacheWriteTokens();
-      values[3] += session.outputTokens();
-      values[4] += session.totalTokens();
-    }
-
     List<Map<String, Object>> points = new ArrayList<>();
     long maxTotal = 0;
-    for (Map.Entry<String, long[]> entry : buckets.entrySet()) {
-      long[] values = entry.getValue();
-      maxTotal = Math.max(maxTotal, values[4]);
+    for (TokenTrendBuckets.Point point : TokenTrendBuckets.fromSessions(sessions, grain)) {
+      maxTotal = Math.max(maxTotal, point.total());
       points.add(
           orderedMap(
               "label",
-              entry.getKey(),
+              point.label(),
               "fresh",
-              values[0],
+              point.fresh(),
               "cache_read",
-              values[1],
+              point.cacheRead(),
               "cache_write",
-              values[2],
+              point.cacheWrite(),
               "output",
-              values[3],
+              point.output(),
               "total",
-              values[4]));
+              point.total()));
     }
 
     return orderedMap(
@@ -495,33 +479,8 @@ public final class ProjectsPage {
     return layers;
   }
 
-  private static String bucketLabel(LocalDate date, String grain) {
-    if ("month".equals(grain)) {
-      return date.getYear()
-          + "-"
-          + String.format(java.util.Locale.ROOT, "%02d", date.getMonthValue());
-    }
-    if ("week".equals(grain)) {
-      return date.minusDays(date.getDayOfWeek().getValue() - 1L).toString();
-    }
-    return date.toString();
-  }
-
-  private static LocalDate parseDate(String value) {
-    if (value == null || value.isEmpty()) {
-      return null;
-    }
-    try {
-      return Instant.parse(value.replace("Z", "+00:00"))
-          .atZone(ZoneId.systemDefault())
-          .toLocalDate();
-    } catch (Exception ignored) {
-      return null;
-    }
-  }
-
   private static String dateLabel(String value) {
-    LocalDate date = parseDate(value);
+    LocalDate date = WebDisplayValues.parseDate(value);
     return date != null ? date.toString() : "N/A";
   }
 

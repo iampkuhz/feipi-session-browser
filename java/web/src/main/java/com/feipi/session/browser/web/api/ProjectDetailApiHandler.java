@@ -21,18 +21,14 @@ import com.feipi.session.browser.web.api.ProjectDetailApiResponses.ProjectDetail
 import com.feipi.session.browser.web.api.ProjectDetailApiResponses.ProjectTokenTrendPoint;
 import com.feipi.session.browser.web.api.ProjectDetailApiResponses.ProjectTokenTrendResponse;
 import com.feipi.session.browser.web.api.ProjectDetailApiResponses.ProjectToolHotspotsResponse;
-import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsFilterEcho;
 import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsRowsResponse;
-import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsSummaryResponse;
+import com.feipi.session.browser.web.model.TokenTrendBuckets;
+import com.feipi.session.browser.web.model.WebDisplayValues;
 import com.feipi.session.browser.web.page.QueryParams;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.sql.SQLException;
-import java.time.Instant;
-import java.time.LocalDate;
-import java.time.ZoneId;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -146,17 +142,9 @@ public final class ProjectDetailApiHandler {
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListSummaryRow summary = queryRoot.sessionList().summary(filter);
     ctx.json(
-        new SessionsSummaryResponse(
-            ApiResponses.SCHEMA_VERSION,
-            sessionsEcho(params),
-            summary.sessionCount(),
-            summary.projectCount(),
-            TokenSegments.of(
-                summary.freshInputTokens(),
-                summary.cacheReadTokens(),
-                summary.cacheWriteTokens(),
-                summary.outputTokens()),
-            summary.failedToolCount(),
+        ApiSessionSummaries.response(
+            params,
+            summary,
             sessionsState(summary.sessionCount(), hasSessionFilter(params), projectKey)));
   }
 
@@ -177,7 +165,7 @@ public final class ProjectDetailApiHandler {
     ctx.json(
         new SessionsRowsResponse(
             ApiResponses.SCHEMA_VERSION,
-            sessionsEcho(params),
+            ApiQueryParams.sessionsFilterEcho(params),
             page.items().stream().map(SessionsApiHandler::rowDto).toList(),
             PaginationDto.of(currentPage, pageSize, page.totalCount()),
             sessionsState(page.totalCount(), hasSessionFilter(params), projectKey)));
@@ -206,25 +194,13 @@ public final class ProjectDetailApiHandler {
 
   private static List<ProjectTokenTrendPoint> tokenTrendPoints(
       List<SessionRow> sessions, String grain) {
-    Map<String, long[]> buckets = new LinkedHashMap<>();
-    for (SessionRow session : sessions) {
-      LocalDate date = parseDate(session.startedAt());
-      if (date == null) {
-        continue;
-      }
-      String key = bucketLabel(date, grain);
-      long[] values = buckets.computeIfAbsent(key, ignored -> new long[4]);
-      values[0] += session.freshInputTokens();
-      values[1] += session.cacheReadTokens();
-      values[2] += session.cacheWriteTokens();
-      values[3] += session.outputTokens();
-    }
     List<ProjectTokenTrendPoint> points = new ArrayList<>();
-    for (Map.Entry<String, long[]> entry : buckets.entrySet()) {
-      long[] values = entry.getValue();
+    for (TokenTrendBuckets.Point point : TokenTrendBuckets.fromSessions(sessions, grain)) {
       points.add(
           new ProjectTokenTrendPoint(
-              entry.getKey(), TokenSegments.of(values[0], values[1], values[2], values[3])));
+              point.label(),
+              TokenSegments.of(
+                  point.fresh(), point.cacheRead(), point.cacheWrite(), point.output())));
     }
     return points;
   }
@@ -254,12 +230,12 @@ public final class ProjectDetailApiHandler {
       rows.add(
           new ProjectAgentMixRow(
               agent,
-              agentDisplay(agent),
+              WebDisplayValues.agentDisplay(agent),
               sessionCount,
               TokenSegments.of(fresh, cacheRead, cacheWrite, output),
               failed,
-              share(sessionCount, project.totalSessions()),
-              share(tokenTotal, project.totalTokens()),
+              WebDisplayValues.share(sessionCount, project.totalSessions()),
+              WebDisplayValues.share(tokenTotal, project.totalTokens()),
               ratio(sessionCount, project.totalSessions()),
               ratio(tokenTotal, project.totalTokens())));
     }
@@ -272,19 +248,6 @@ public final class ProjectDetailApiHandler {
         project.totalCacheReadTokens(),
         project.totalCacheWriteTokens(),
         project.totalOutputTokens());
-  }
-
-  private static SessionsFilterEcho sessionsEcho(Map<String, String> params) {
-    return new SessionsFilterEcho(
-        QueryParams.normalizeSessionAgent(params.getOrDefault("agent", "")),
-        params.getOrDefault("model", ""),
-        params.getOrDefault("project", ""),
-        params.getOrDefault("status", ""),
-        params.getOrDefault("q", ""),
-        QueryParams.uiSortKey(params),
-        ApiQueryParams.normalizeDir(params.getOrDefault("dir", "desc")),
-        QueryParams.parsePage(params),
-        QueryParams.parsePageSize(params));
   }
 
   private static PageStateDto sessionsState(long totalCount, boolean hasFilter, String projectKey) {
@@ -332,44 +295,6 @@ public final class ProjectDetailApiHandler {
       case "week", "month" -> raw;
       default -> "day";
     };
-  }
-
-  private static String bucketLabel(LocalDate date, String grain) {
-    if ("month".equals(grain)) {
-      return date.getYear()
-          + "-"
-          + String.format(java.util.Locale.ROOT, "%02d", date.getMonthValue());
-    }
-    if ("week".equals(grain)) {
-      return date.minusDays(date.getDayOfWeek().getValue() - 1L).toString();
-    }
-    return date.toString();
-  }
-
-  private static LocalDate parseDate(String value) {
-    if (value == null || value.isEmpty()) {
-      return null;
-    }
-    try {
-      return Instant.parse(value.replace("Z", "+00:00"))
-          .atZone(ZoneId.systemDefault())
-          .toLocalDate();
-    } catch (Exception ignored) {
-      return null;
-    }
-  }
-
-  private static String agentDisplay(String agent) {
-    return switch (agent) {
-      case "claude_code" -> "Claude Code";
-      case "qoder" -> "Qoder";
-      case "codex" -> "Codex";
-      default -> agent == null || agent.isEmpty() ? "Unknown" : agent;
-    };
-  }
-
-  private static double share(long value, long total) {
-    return total <= 0 ? 0.0 : value * 100.0 / total;
   }
 
   private static double ratio(long value, long total) {

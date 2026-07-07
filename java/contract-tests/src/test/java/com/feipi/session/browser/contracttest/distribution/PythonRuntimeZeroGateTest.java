@@ -234,7 +234,7 @@ class PythonRuntimeZeroGateTest {
   /**
    * 源码 Python 调用扫描。
    *
-   * <p>验证 Java 产品源码不包含调用 Python 进程的代码。 仅允许开发质量工具（reuse-analyzer）使用 ProcessBuilder。
+   * <p>验证 Java 产品源码不包含调用 Python 进程的代码。 仅允许开发质量工具使用 ProcessBuilder。
    */
   @Nested
   @DisplayName("源码无 Python 进程调用")

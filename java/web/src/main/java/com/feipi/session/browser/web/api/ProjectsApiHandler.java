@@ -9,7 +9,6 @@ import com.feipi.session.browser.web.api.PageApiDtos.ActiveFilterDto;
 import com.feipi.session.browser.web.api.PageApiDtos.ActiveFiltersResponse;
 import com.feipi.session.browser.web.api.PageApiDtos.ApiLink;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
-import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectAgentBadgeDto;
 import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectRowDto;
@@ -59,16 +58,15 @@ public final class ProjectsApiHandler {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     ProjectListFilter filter = QueryParams.parseProjectListFilter(params);
     PageResult<ProjectStatsRow> page = queryRoot.projectList().list(filter);
-    int currentPage = QueryParams.parsePage(params);
-    int pageSize = QueryParams.parsePageSize(params);
     List<ProjectRowDto> rows = page.items().stream().map(ProjectsApiHandler::rowDto).toList();
     ctx.json(
-        new ProjectsRowsResponse(
-            ApiResponses.SCHEMA_VERSION,
-            echo(params),
+        ApiPageRows.response(
+            params,
+            ProjectsApiHandler::echo,
             rows,
-            PaginationDto.of(currentPage, pageSize, page.totalCount()),
-            rowsState(page.totalCount(), hasUserFilter(params))));
+            page.totalCount(),
+            rowsState(page.totalCount(), hasUserFilter(params)),
+            ProjectsRowsResponse::new));
   }
 
   /** 处理 /api/projects/active-filters 的 GET 请求。 */

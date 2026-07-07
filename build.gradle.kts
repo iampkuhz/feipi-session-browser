@@ -535,287 +535,226 @@ private fun runChineseCommentCheckChangedAction(
 }
 
 // ============================================================
-// Reuse Analyzer 任务 —— Spoon AST 分析。
-// 这些任务使用 java:reuse-analyzer 模块的 classpath 运行分析器。
-// Spoon 仅作为构建期工具，不进入产品 runtime。
+// Reuse quality gates —— PMD only.
+// Copy-paste duplicate 检测直接调用 PMD CPD CLI；语义类复用规则交给 pmdMain。
 // ============================================================
 
-// 分析器 classpath 配置
-val analyzerRuntime = configurations.create("analyzerRuntime") {
+val pmdCpdRuntime = configurations.create("pmdCpdRuntime") {
     isCanBeConsumed = false
     isCanBeResolved = true
 }
 
 dependencies {
-    add("analyzerRuntime", project(":java:reuse-analyzer"))
+    add("pmdCpdRuntime", libs.pmd.cli)
+    add("pmdCpdRuntime", libs.pmd.java)
 }
 
-// 分析器缓存目录（local state，不提交）
-val reuseAnalysisCacheDir = layout.projectDirectory.dir(".gradle/feipi-reuse-analysis")
 val reuseAnalysisReportDir = layout.buildDirectory.dir("reports/reuse-analysis")
+val policyFilePath = file("config/reuse-policy/policy.json").absolutePath
 
-// 策略和 schema 文件路径
-val policyFilePath = file("config/reuse-analysis/policy.json").absolutePath
-val bootstrapStatePath = file("config/reuse-analysis/bootstrap-state.json").absolutePath
+data class ReuseCpdProfile(
+    val id: String,
+    val minimumTokens: Int,
+    val ignoreAnnotations: Boolean,
+    val ignoreLiterals: Boolean,
+    val ignoreIdentifiers: Boolean,
+    val skipDuplicateFiles: Boolean,
+    val scope: String,
+)
 
-// ============================================================
-// reuseAnalyzerSelfTest —— 分析器自测。
-// ============================================================
-val reuseAnalyzerSelfTest = tasks.register<JavaExec>("reuseAnalyzerSelfTest") {
-    group = "verification"
-    description = "验证 Spoon analyzer 自测通过。"
-    classpath = analyzerRuntime
-    mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
-    args(
-        "--mode", "selftest",
-        "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
-        "--output", reuseAnalysisReportDir.get().file("selftest-result.json").asFile.absolutePath,
+fun reuseBoolean(value: Any?, defaultValue: Boolean): Boolean =
+    if (value is Boolean) value else defaultValue
+
+fun reuseInt(value: Any?, defaultValue: Int): Int =
+    if (value is Number) value.toInt() else defaultValue
+
+fun reuseString(value: Any?, defaultValue: String): String =
+    if (value is String && value.isNotBlank()) value else defaultValue
+
+fun sanitizeReuseProfileId(value: String): String =
+    value.replace(Regex("[^A-Za-z0-9._-]"), "-").ifBlank { "profile" }
+
+fun loadReuseCpdProfiles(policyFile: File): List<ReuseCpdProfile> {
+    val defaultProfile = ReuseCpdProfile(
+        id = "exact-blocks",
+        minimumTokens = 50,
+        ignoreAnnotations = true,
+        ignoreLiterals = false,
+        ignoreIdentifiers = false,
+        skipDuplicateFiles = true,
+        scope = "all-sources",
     )
-    outputs.file(reuseAnalysisReportDir.get().file("selftest-result.json"))
-        .withPropertyName("resultFile")
+    if (!policyFile.isFile) {
+        return listOf(defaultProfile)
+    }
+    val policy = groovy.json.JsonSlurper().parse(policyFile) as? Map<*, *> ?: return listOf(defaultProfile)
+    val standard = policy["standardDuplicateDetection"] as? Map<*, *> ?: return listOf(defaultProfile)
+    val base = ReuseCpdProfile(
+        id = reuseString(standard["id"], defaultProfile.id),
+        minimumTokens = reuseInt(standard["minimumTokens"], defaultProfile.minimumTokens),
+        ignoreAnnotations = reuseBoolean(standard["ignoreAnnotations"], defaultProfile.ignoreAnnotations),
+        ignoreLiterals = reuseBoolean(standard["ignoreLiterals"], defaultProfile.ignoreLiterals),
+        ignoreIdentifiers = reuseBoolean(standard["ignoreIdentifiers"], defaultProfile.ignoreIdentifiers),
+        skipDuplicateFiles = reuseBoolean(standard["skipDuplicateFiles"], defaultProfile.skipDuplicateFiles),
+        scope = reuseString(standard["scope"], defaultProfile.scope),
+    )
+    val rawProfiles = standard["profiles"] as? List<*> ?: return listOf(base)
+    val profiles = rawProfiles.mapIndexedNotNull { index, raw ->
+        val profile = raw as? Map<*, *> ?: return@mapIndexedNotNull null
+        ReuseCpdProfile(
+            id = sanitizeReuseProfileId(reuseString(profile["id"], "profile-${index + 1}")),
+            minimumTokens = reuseInt(profile["minimumTokens"], base.minimumTokens),
+            ignoreAnnotations = reuseBoolean(profile["ignoreAnnotations"], base.ignoreAnnotations),
+            ignoreLiterals = reuseBoolean(profile["ignoreLiterals"], base.ignoreLiterals),
+            ignoreIdentifiers = reuseBoolean(profile["ignoreIdentifiers"], base.ignoreIdentifiers),
+            skipDuplicateFiles = reuseBoolean(profile["skipDuplicateFiles"], base.skipDuplicateFiles),
+            scope = reuseString(profile["scope"], base.scope),
+        )
+    }
+    return profiles.ifEmpty { listOf(base) }
 }
 
-// ============================================================
-// JSON 辅助函数 —— 根构建脚本不使用 Jackson，手动构造 JSON。
-// ============================================================
-fun escapeJsonString(s: String): String {
-    return s.replace("\\", "\\\\")
-        .replace("\"", "\\\"")
-        .replace("\n", "\\n")
-        .replace("\r", "\\r")
-        .replace("\t", "\\t")
-}
+fun reuseCpdArgs(profile: ReuseCpdProfile, sourceDirs: List<File>, reportFile: File, root: File): List<String> =
+    buildList {
+        add("cpd")
+        add("--language")
+        add("java")
+        add("--minimum-tokens")
+        add(profile.minimumTokens.toString())
+        if (profile.skipDuplicateFiles) {
+            add("--skip-duplicate-files")
+        }
+        if (profile.ignoreAnnotations) {
+            add("--ignore-annotations")
+        }
+        if (profile.ignoreLiterals) {
+            add("--ignore-literals")
+        }
+        if (profile.ignoreIdentifiers) {
+            add("--ignore-identifiers")
+        }
+        add("--format")
+        add("xml")
+        add("--report-file")
+        add(reportFile.absolutePath)
+        add("--relativize-paths-with")
+        add(root.absolutePath)
+        add("--dir")
+        add(sourceDirs.joinToString(",") { it.absolutePath })
+    }
 
-fun jsonArrayOfStrings(items: List<String>): String {
-    return "[" + items.joinToString(", ") { "\"${escapeJsonString(it)}\"" } + "]"
-}
-
-// ============================================================
-// 生成分析器输入清单。
-// 每个生产模块在自身项目中解析 compileClasspath（避免跨项目配置解析限制），
-// 由根任务聚合各模块信息生成最终清单。
-// ============================================================
 gradle.projectsEvaluated {
     val productionModules = leafSubprojects.filter { sub ->
-        sub.path != ":java:reuse-analyzer"
-            && sub.path != ":java:test-support"
+        sub.path != ":java:test-support"
             && sub.path != ":java:architecture-tests"
             && sub.path != ":java:contract-tests"
-            && sub.file("src/main/java").exists()
+            && sub.file("src/main/java").isDirectory
     }
+    val productionSourceDirs = productionModules.map { it.file("src/main/java") }
 
-    // --------------------------------------------------------
-    // 为每个生产模块注册 classpath 信息收集任务。
-    // 任务在子项目内解析自身的 compileClasspath，输出 JSON。
-    // 配置缓存兼容：doLast 内不调用脚本级函数，不捕获 Project 引用。
-    // --------------------------------------------------------
-    val classpathInfoTasks = productionModules.map { sub ->
-        val modulePath = sub.path
-        val sourceRootPath = sub.file("src/main/java").absolutePath
-        val cpFiles: FileCollection = files(sub.configurations.getByName("compileClasspath"))
-        val outputDirPath = sub.layout.buildDirectory.dir("classes/java/main").get().asFile.absolutePath
-        val infoFile = layout.buildDirectory.get().asFile
-            .resolve("reports/reuse-analysis/classpath-info")
-            .resolve(modulePath.removePrefix(":").replace(":", "-") + ".json")
-
-        sub.tasks.register("reuseClasspathInfo") {
-            group = "verification"
-            description = "收集 ${modulePath} 的 classpath 信息供 reuse analyzer 使用。"
-
-            inputs.files(cpFiles).withPropertyName("classpathFiles").optional(true)
-            outputs.file(infoFile).withPropertyName("classpathInfoFile")
-
-            doLast {
-                val resolvedCp = cpFiles.files.map { it.absolutePath }.sorted()
-                // Inline JSON helpers to avoid capturing the build-script object.
-                fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
-                    .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-                fun jsonArr(items: List<String>) =
-                    "[" + items.joinToString(", ") { "\"${esc(it)}\"" } + "]"
-                val json = """{
-  "id": "${esc(modulePath)}",
-  "productionSourceRoots": ${jsonArr(listOf(sourceRootPath))},
-  "compileClasspath": ${jsonArr(resolvedCp)},
-  "compiledOutputs": ${jsonArr(listOf(outputDirPath))}
-}
-"""
-                infoFile.parentFile.mkdirs()
-                infoFile.writeText(json, Charsets.UTF_8)
-            }
-        }
-    }
-
-    // --------------------------------------------------------
-    // reuseGenerateManifest —— 聚合各模块 classpath 信息，生成输入清单。
-    // 配置缓存兼容：预计算所有 File 路径，doLast 内仅使用 String/File/List。
-    // --------------------------------------------------------
-    val moduleInfoFiles = productionModules.map { sub ->
-        val modulePath = sub.path
-        layout.buildDirectory.get().asFile
-            .resolve("reports/reuse-analysis/classpath-info")
-            .resolve(modulePath.removePrefix(":").replace(":", "-") + ".json")
-    }
-
-    val generateManifest = tasks.register("reuseGenerateManifest") {
+    tasks.register("reuseStandardCpd") {
         group = "verification"
-        description = "生成 reuse analyzer 输入清单 JSON。"
+        description = "使用 PMD CPD CLI 执行标准重复代码检测。"
 
-        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile
-        val rootDirPath = rootDir.absolutePath
         val policyFileRef = file(policyFilePath)
-        val srcDirPaths = productionModules.map { it.file("src/main/java").absolutePath }
-
-        dependsOn(classpathInfoTasks)
-
-        // 声明 inputs
-        inputs.files(srcDirPaths.map { path ->
-            fileTree(path).matching { include("**/*.java") }
+        val reportDir = reuseAnalysisReportDir.get().asFile
+        inputs.file(policyFileRef).withPropertyName("policyFile").optional(true)
+        inputs.files(productionSourceDirs.map { dir ->
+            fileTree(dir).matching { include("**/*.java") }
         }).withPropertyName("sourceFiles").optional(true)
-        if (policyFileRef.exists()) {
-            inputs.file(policyFileRef).withPropertyName("policyFile")
-        }
-
-        // 声明 outputs
-        outputs.file(manifestFile).withPropertyName("manifestFile")
+        outputs.dir(reportDir).withPropertyName("reportDir")
+        notCompatibleWithConfigurationCache("PMD CPD CLI is launched as external processes")
 
         doLast {
-            // 读取各模块 classpath 信息（使用预计算的 File 列表，不访问 Task 引用）
-            val moduleJsons = moduleInfoFiles.map { f ->
-                f.readText(Charsets.UTF_8).trim()
+            val sourceDirs = productionSourceDirs.filter { it.isDirectory }
+            reportDir.mkdirs()
+            if (sourceDirs.isEmpty()) {
+                logger.lifecycle("reuseStandardCpd: no Java production source dirs")
+                return@doLast
+            }
+            val profiles = loadReuseCpdProfiles(policyFileRef)
+            val failures = mutableListOf<String>()
+            val javaExecutable = File(System.getProperty("java.home"), "bin/java").absolutePath
+            val pmdClasspath = pmdCpdRuntime.resolve().joinToString(File.pathSeparator) { it.absolutePath }
+            val sourceFiles = sourceDirs.flatMap { dir ->
+                dir.walkTopDown().filter { it.isFile && it.extension == "java" }.toList()
             }
 
-            // git changed files（执行时，非配置时）
-            val changedFiles = try {
-                val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
-                    .directory(File(rootDirPath)).redirectErrorStream(true).start()
-                proc.inputStream.bufferedReader().readLines().filter { it.endsWith(".java") }
-            } catch (e: Exception) {
-                emptyList<String>()
+            fun runCpd(profile: ReuseCpdProfile, inputs: List<File>, reportFile: File): Int {
+                reportFile.parentFile.mkdirs()
+                val command = listOf(
+                    javaExecutable,
+                    "-cp",
+                    pmdClasspath,
+                    "net.sourceforge.pmd.cli.PmdCli",
+                ) + reuseCpdArgs(profile, inputs, reportFile, rootDir)
+                val process = ProcessBuilder(command)
+                    .directory(rootDir)
+                    .inheritIO()
+                    .start()
+                return process.waitFor()
             }
 
-            val baseSha = try {
-                ProcessBuilder("git", "rev-parse", "HEAD").directory(File(rootDirPath))
-                    .redirectErrorStream(true).start()
-                    .inputStream.bufferedReader().readText().trim()
-            } catch (e: Exception) { "unknown" }
-
-            val policyDigest = if (policyFileRef.exists()) {
-                val digest = java.security.MessageDigest.getInstance("SHA-256")
-                val hash = digest.digest(policyFileRef.readBytes())
-                hash.joinToString("") { "%02x".format(it) }
-            } else "0000000000000000000000000000000000000000000000000000000000000000"
-
-            // Inline JSON helpers to avoid capturing the build-script object.
-            fun esc(s: String) = s.replace("\\", "\\\\").replace("\"", "\\\"")
-                .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
-            fun jsonArr(items: List<String>) =
-                "[" + items.joinToString(", ") { "\"${esc(it)}\"" } + "]"
-
-            val json = """{
-  "javaVersion": 25,
-  "modules": [
-${moduleJsons.joinToString(",\n")}
-  ],
-  "changedFiles": ${jsonArr(changedFiles.sorted())},
-  "baseSha": "${esc(baseSha)}",
-  "policyDigest": "$policyDigest"
-}
-"""
-            manifestFile.parentFile.mkdirs()
-            manifestFile.writeText(json, Charsets.UTF_8)
-            logger.lifecycle("输入清单已生成：${manifestFile.absolutePath}")
+            profiles.forEach { profile ->
+                if (profile.scope == "same-file") {
+                    sourceFiles.forEach { sourceFile ->
+                        val relative = rootDir.toPath().relativize(sourceFile.toPath()).toString()
+                        val reportName = sanitizeReuseProfileId(relative) + ".xml"
+                        val reportFile = reportDir.resolve("cpd-${profile.id}").resolve(reportName)
+                        val exitValue = runCpd(profile, listOf(sourceFile), reportFile)
+                        if (exitValue != 0) {
+                            failures.add(
+                                "${profile.id}:${relative}(exit=$exitValue, report=${reportFile.absolutePath})"
+                            )
+                        }
+                    }
+                } else {
+                    val reportFile = reportDir.resolve("cpd-${profile.id}.xml")
+                    val exitValue = runCpd(profile, sourceDirs, reportFile)
+                    if (exitValue != 0) {
+                        failures.add("${profile.id}(exit=$exitValue, report=${reportFile.absolutePath})")
+                    }
+                }
+            }
+            val summaryFile = reportDir.resolve("standard-cpd-summary.json")
+            val profileJson = profiles.joinToString(", ") { "\"${it.id}\"" }
+            val reportsJson = reportDir.absolutePath.replace("\\", "\\\\").replace("\"", "\\\"")
+            summaryFile.writeText(
+                "{\n" +
+                    "  \"engine\": \"PMD_CPD_CLI\",\n" +
+                    "  \"status\": \"${if (failures.isEmpty()) "PASS" else "FAIL"}\",\n" +
+                    "  \"profiles\": [$profileJson],\n" +
+                    "  \"reports\": \"$reportsJson\"\n" +
+                    "}\n",
+                Charsets.UTF_8,
+            )
+            if (failures.isNotEmpty()) {
+                throw org.gradle.api.GradleException("PMD CPD duplicate violations: ${failures.joinToString(", ")}")
+            }
+            logger.lifecycle("reuseStandardCpd: PMD CPD PASS (${profiles.size} profile(s))")
         }
     }
 
-    // ============================================================
-    // reuseBootstrapFull —— 全量引导分析。
-    // ============================================================
-    tasks.register<JavaExec>("reuseBootstrapFull") {
+    tasks.register("reuseAnalyzeIncremental") {
         group = "verification"
-        description = "执行全量 bootstrap 分析，构建完整 fingerprint 索引。"
-        dependsOn(generateManifest)
-        classpath = analyzerRuntime
-        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
-        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
-        val outputFile = reuseAnalysisReportDir.get().file("bootstrap-full-result.json").asFile.absolutePath
-        args(
-            "--mode", "full",
-            "--manifest", manifestFile,
-            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
-            "--output", outputFile,
-        )
-        inputs.file(manifestFile).withPropertyName("manifest")
+        description = "复用语义规则已迁移到 PMD；运行所有 pmdMain 作为增量复用门禁。"
+        val pmdTasks = subprojects.mapNotNull { sub -> sub.tasks.findByName("pmdMain") }
+        dependsOn(pmdTasks)
+        val outputFile = reuseAnalysisReportDir.get().file("incremental-result.json").asFile
         outputs.file(outputFile).withPropertyName("resultFile")
-        // Bootstrap 模式仅构建索引，发现不阻断构建。
-        isIgnoreExitValue = true
-    }
-
-    // ============================================================
-    // reuseAnalyzeIncremental —— 增量分析。
-    // 当 bootstrap state 不存在时返回 BOOTSTRAP_REQUIRED。
-    // ============================================================
-    tasks.register<JavaExec>("reuseAnalyzeIncremental") {
-        group = "verification"
-        description = "增量分析：只分析 changed files，无 bootstrap state 时返回 BOOTSTRAP_REQUIRED。"
-        dependsOn(generateManifest)
-        classpath = analyzerRuntime
-        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
-        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
-        val outputFile = reuseAnalysisReportDir.get().file("incremental-result.json").asFile.absolutePath
-        args(
-            "--mode", "incremental",
-            "--manifest", manifestFile,
-            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
-            "--bootstrap-state", bootstrapStatePath,
-            "--output", outputFile,
-        )
-        inputs.file(manifestFile).withPropertyName("manifest")
-        outputs.file(outputFile).withPropertyName("resultFile")
-    }
-
-    // ============================================================
-    // reuseAnalyzeFullAdvisory —— 全量 advisory 分析（不阻断）。
-    // ============================================================
-    tasks.register<JavaExec>("reuseAnalyzeFullAdvisory") {
-        group = "verification"
-        description = "全量 advisory 分析，生成报告但不阻断构建。"
-        dependsOn(generateManifest)
-        classpath = analyzerRuntime
-        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
-        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
-        val outputFile = reuseAnalysisReportDir.get().file("full-advisory-result.json").asFile.absolutePath
-        args(
-            "--mode", "full",
-            "--manifest", manifestFile,
-            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
-            "--output", outputFile,
-        )
-        inputs.file(manifestFile).withPropertyName("manifest")
-        outputs.file(outputFile).withPropertyName("resultFile")
-        // advisory：失败不阻断
-        isIgnoreExitValue = true
-    }
-
-    // ============================================================
-    // reuseBaselineVerify —— baseline 验证。
-    // ============================================================
-    val baselineFilePath = file("config/reuse-analysis/baseline.json").absolutePath
-    tasks.register<JavaExec>("reuseBaselineVerify") {
-        group = "verification"
-        description = "验证 baseline 与新 finding 的一致性。"
-        dependsOn(generateManifest)
-        classpath = analyzerRuntime
-        mainClass.set("com.feipi.session.browser.reuse.analyzer.AnalyzerMain")
-        val manifestFile = reuseAnalysisReportDir.get().file("input-manifest.json").asFile.absolutePath
-        val outputFile = reuseAnalysisReportDir.get().file("baseline-verify-result.json").asFile.absolutePath
-        args(
-            "--mode", "baseline",
-            "--manifest", manifestFile,
-            "--cache-dir", reuseAnalysisCacheDir.asFile.absolutePath,
-            "--baseline-file", baselineFilePath,
-            "--output", outputFile,
-        )
-        inputs.file(manifestFile).withPropertyName("manifest")
-        outputs.file(outputFile).withPropertyName("resultFile")
+        doLast {
+            outputFile.parentFile.mkdirs()
+            outputFile.writeText("""{
+  "schemaVersion": 1,
+  "status": "PASS",
+  "findings": [],
+  "metadata": {
+    "engine": "PMD",
+    "delegatedTo": "pmdMain"
+  }
+}
+""", Charsets.UTF_8)
+            logger.lifecycle("reuseAnalyzeIncremental: delegated to PMD pmdMain")
+        }
     }
 }

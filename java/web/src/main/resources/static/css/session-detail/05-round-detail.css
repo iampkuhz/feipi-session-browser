@@ -440,3 +440,187 @@
   border-color: var(--sd-err-line);
   background: var(--sd-err-bg);
 }
+
+/* 中文说明：API-first round detail fallback 使用卡片布局，避免表格错位和调试态文案外露。 */
+.session-detail-page .sd-round-detail-shell,
+.sd-page .sd-round-detail-shell,
+.sd-shell .sd-round-detail-shell {
+  display: grid;
+  gap: 10px;
+  max-width: 100%;
+}
+.session-detail-page .sd-round-detail-summary,
+.session-detail-page .sd-round-detail-section,
+.sd-page .sd-round-detail-summary,
+.sd-page .sd-round-detail-section,
+.sd-shell .sd-round-detail-summary,
+.sd-shell .sd-round-detail-section {
+  border: 1px solid var(--sd-line);
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, .025);
+}
+.session-detail-page .sd-round-detail-summary,
+.sd-page .sd-round-detail-summary,
+.sd-shell .sd-round-detail-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+}
+.session-detail-page .sd-round-detail-summary h3,
+.session-detail-page .sd-round-detail-section h3,
+.sd-page .sd-round-detail-summary h3,
+.sd-page .sd-round-detail-section h3,
+.sd-shell .sd-round-detail-summary h3,
+.sd-shell .sd-round-detail-section h3 {
+  margin: 0;
+  color: var(--sd-text);
+  font-size: 15px;
+  line-height: 1.25;
+}
+.session-detail-page .sd-round-detail-summary p,
+.sd-page .sd-round-detail-summary p,
+.sd-shell .sd-round-detail-summary p {
+  margin: 5px 0 0;
+  color: var(--sd-text-2);
+  font-size: 12px;
+}
+.session-detail-page .sd-round-detail-chips,
+.sd-page .sd-round-detail-chips,
+.sd-shell .sd-round-detail-chips {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+}
+.session-detail-page .sd-round-detail-chip,
+.sd-page .sd-round-detail-chip,
+.sd-shell .sd-round-detail-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 22px;
+  border: 1px solid var(--sd-line);
+  border-radius: 999px;
+  padding: 2px 8px;
+  background: #f8fafc;
+  color: var(--sd-text-2);
+  font-size: 11.5px;
+  font-weight: 780;
+  white-space: nowrap;
+}
+.session-detail-page .sd-round-detail-chip--success,
+.sd-page .sd-round-detail-chip--success,
+.sd-shell .sd-round-detail-chip--success {
+  border-color: #bbf7d0;
+  background: #ecfdf5;
+  color: var(--sd-ok);
+}
+.session-detail-page .sd-round-detail-section,
+.sd-page .sd-round-detail-section,
+.sd-shell .sd-round-detail-section {
+  padding: 12px;
+}
+.session-detail-page .sd-round-call-list,
+.sd-page .sd-round-call-list,
+.sd-shell .sd-round-call-list {
+  display: grid;
+  gap: 8px;
+  margin-top: 8px;
+}
+.session-detail-page .sd-round-call-card,
+.sd-page .sd-round-call-card,
+.sd-shell .sd-round-call-card {
+  display: grid;
+  grid-template-columns: 52px minmax(0, 1fr) minmax(280px, max-content);
+  align-items: center;
+  gap: 12px;
+  border: 1px solid var(--sd-line-soft);
+  border-radius: 12px;
+  background: #fbfcff;
+  padding: 10px;
+  min-width: 0;
+}
+.session-detail-page .sd-round-call-card--subagent,
+.sd-page .sd-round-call-card--subagent,
+.sd-shell .sd-round-call-card--subagent {
+  border-color: #bbf7d0;
+  background: #f0fdf4;
+}
+.session-detail-page .sd-round-call-key,
+.sd-page .sd-round-call-key,
+.sd-shell .sd-round-call-key {
+  color: var(--sd-text-2);
+  font-family: var(--sd-mono);
+  font-weight: 850;
+}
+.session-detail-page .sd-round-call-main,
+.sd-page .sd-round-call-main,
+.sd-shell .sd-round-call-main {
+  min-width: 0;
+}
+.session-detail-page .sd-round-call-model,
+.sd-page .sd-round-call-model,
+.sd-shell .sd-round-call-model {
+  overflow: hidden;
+  color: var(--sd-text);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.session-detail-page .sd-round-call-meta,
+.sd-page .sd-round-call-meta,
+.sd-shell .sd-round-call-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 4px;
+  color: var(--sd-muted);
+  font-size: 11.5px;
+}
+.session-detail-page .sd-round-call-actions,
+.sd-page .sd-round-call-actions,
+.sd-shell .sd-round-call-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+}
+.session-detail-page .sd-round-signal-summary,
+.sd-page .sd-round-signal-summary,
+.sd-shell .sd-round-signal-summary {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--sd-text-2);
+  font-size: 12px;
+}
+@media (max-width: 900px) {
+  .session-detail-page .sd-round-detail {
+    padding-left: 14px;
+  }
+  .session-detail-page .sd-round-detail-summary,
+  .sd-page .sd-round-detail-summary,
+  .sd-shell .sd-round-detail-summary,
+  .session-detail-page .sd-round-call-card,
+  .sd-page .sd-round-call-card,
+  .sd-shell .sd-round-call-card {
+    grid-template-columns: 1fr;
+  }
+  .session-detail-page .sd-round-detail-summary,
+  .sd-page .sd-round-detail-summary,
+  .sd-shell .sd-round-detail-summary {
+    display: grid;
+  }
+  .session-detail-page .sd-round-detail-chips,
+  .session-detail-page .sd-round-call-actions,
+  .sd-page .sd-round-detail-chips,
+  .sd-page .sd-round-call-actions,
+  .sd-shell .sd-round-detail-chips,
+  .sd-shell .sd-round-call-actions {
+    justify-content: flex-start;
+  }
+}

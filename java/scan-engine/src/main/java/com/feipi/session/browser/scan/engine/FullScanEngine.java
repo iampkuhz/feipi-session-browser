@@ -3,11 +3,8 @@ package com.feipi.session.browser.scan.engine;
 import com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter;
 import com.feipi.session.browser.artifact.normalized.WriteResult;
 import com.feipi.session.browser.domain.enums.CallScope;
-import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
-import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.index.sqlite.ArtifactRowMapper;
 import com.feipi.session.browser.index.sqlite.IndexSchema;
 import com.feipi.session.browser.index.sqlite.SessionArtifactRow;
@@ -18,13 +15,14 @@ import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import com.feipi.session.browser.source.spi.SourceFingerprintMaps;
+import com.feipi.session.browser.source.spi.SourceNormalizationInputs;
 import com.feipi.session.browser.source.spi.SourceResult;
 import com.feipi.session.browser.source.spi.SourceRoot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
-import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneOffset;
@@ -33,7 +31,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -168,7 +165,7 @@ public final class FullScanEngine {
 
     // 1b. 清理旧 index 数据（full scan 每次重建完整索引，避免旧逻辑残留）
     try {
-      clearExistingIndex(writeConn);
+      ScanIndexMaintenance.clearExistingIndex(writeConn, log);
     } catch (SQLException e) {
       log.error("清理旧 index 失败", e);
       return buildErrorSummary(startMs, "Clear existing index failed: " + e.getMessage());
@@ -372,18 +369,14 @@ public final class FullScanEngine {
       }
 
       // 2. 归一化
-      Path filePath = Path.of(candidate.fingerprint().locator());
-      NormalizedSourceFile sourceFile =
-          new NormalizedSourceFile(
-              SourceFileRole.TRANSCRIPT,
-              filePath.toAbsolutePath(),
-              Optional.empty(),
-              Optional.empty());
-
-      NormalizedAgent agent = NormalizedAgent.fromValue(adapter.sourceId().getValue());
+      Path filePath = SourceNormalizationInputs.transcriptPath(candidate);
       List<SourceDiagnostic> diagnostics = success.diagnostics();
       NormalizedSessionArtifact artifact =
-          normEngine.normalize(agent, success.records(), diagnostics, List.of(sourceFile));
+          normEngine.normalize(
+              SourceNormalizationInputs.normalizedAgent(adapter),
+              success.records(),
+              diagnostics,
+              SourceNormalizationInputs.transcriptFiles(candidate));
 
       // 2b. 注入 candidate 元数据到 session map（归一化引擎是纯函数，不含源特定标识）
       String safeSessionKey = candidate.sessionKey().replace('/', ':');
@@ -431,7 +424,7 @@ public final class FullScanEngine {
               artifact.sourceUnitSequences());
 
       // 3. 写入制品
-      Map<String, String> fingerprints = buildFingerprints(filePath, candidate);
+      Map<String, String> fingerprints = SourceFingerprintMaps.forCandidate(filePath, candidate);
       WriteResult writeResult;
       try {
         writeResult = artWriter.write(config.artifactOutputDir(), artifact, fingerprints);
@@ -690,15 +683,6 @@ public final class FullScanEngine {
     }
   }
 
-  /** 构建源文件指纹映射。 */
-  private static Map<String, String> buildFingerprints(Path filePath, Candidate candidate) {
-    Optional<String> hash = candidate.fingerprint().contentHash();
-    if (hash.isPresent()) {
-      return Map.of(filePath.toAbsolutePath().toString(), hash.get());
-    }
-    return Map.of();
-  }
-
   /**
    * 判断候选项是否为 transcript 缺失（元数据驱动发现的 fallback 场景）。
    *
@@ -889,21 +873,6 @@ public final class FullScanEngine {
         0,
         Map.of(),
         List.of(new ScanIssue("", "", ScanIssue.ScanPhase.ROOT_CHECK, errorMessage)));
-  }
-
-  /**
-   * 清理现有 index 数据，用于 full scan 重建。
-   *
-   * <p>DELETE sessions 和 session_artifacts 表的所有行，避免旧逻辑产生的残留数据。
-   */
-  private static void clearExistingIndex(Connection conn) throws SQLException {
-    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM session_artifacts")) {
-      stmt.executeUpdate();
-    }
-    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM sessions")) {
-      stmt.executeUpdate();
-    }
-    log.info("已清理旧 index 数据（sessions + session_artifacts）");
   }
 
   /**

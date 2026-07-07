@@ -386,7 +386,7 @@ class WebRouteContractTest {
     }
 
     @Test
-    @DisplayName("存在的会话页面包含 payload 隐藏标识")
+    @DisplayName("存在的会话页面通过 API 懒加载 payload")
     void sessionDetailPayloadHiddenByDefault() throws Exception {
       insertTestSession();
       WebCompositionRoot webRoot = createWebRoot();
@@ -395,8 +395,9 @@ class WebRouteContractTest {
           (testApp, client) -> {
             var response = client.get("/sessions/claude_code/test-session-1");
             String body = response.body().string();
-            assertThat(body).contains("Payload hidden");
             assertThat(body).contains("payload-api-base");
+            assertThat(body).contains("data-payload-sources-container");
+            assertThat(body).doesNotContain("data-session-payload-policy");
           });
     }
 

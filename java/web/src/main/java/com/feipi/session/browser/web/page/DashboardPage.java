@@ -10,6 +10,7 @@ import com.feipi.session.browser.index.sqlite.KpiSupplementRow;
 import com.feipi.session.browser.index.sqlite.TrendDayRow;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.TrendFilter;
+import com.feipi.session.browser.web.model.WebDisplayValues;
 import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
@@ -267,149 +268,187 @@ public final class DashboardPage {
 
     return List.of(
         kpi(
-            "Projects",
-            formatDashboardInteger(stats.projectCount()),
-            "当前 scope 下出现过 session 的 project 数量",
-            "🗂",
-            "purple",
-            projectBadge,
-            projectBadgeTone,
-            List.of(
-                secondary(
-                    "Active 24h",
-                    formatDashboardInteger(supplement.activeProjects24h()),
-                    "最近 24 小时内有 session event 的 project 去重数。"),
-                secondary(
-                    "Active 7d",
-                    formatDashboardInteger(supplement.activeProjects7d()),
-                    "最近 7 个自然日内有 session event 的 project 去重数。"),
-                secondary(
-                    "New 7d",
-                    formatDashboardInteger(supplement.newProjects7d()),
-                    "first seen timestamp 落在最近 7 个自然日内的 project 去重数。"))),
+            new KpiCard(
+                "Projects",
+                formatDashboardInteger(stats.projectCount()),
+                "当前 scope 下出现过 session 的 project 数量",
+                "🗂",
+                "purple",
+                projectBadge,
+                projectBadgeTone,
+                List.of(
+                    secondary(
+                        "Active 24h",
+                        formatDashboardInteger(supplement.activeProjects24h()),
+                        "最近 24 小时内有 session event 的 project 去重数。"),
+                    secondary(
+                        "Active 7d",
+                        formatDashboardInteger(supplement.activeProjects7d()),
+                        "最近 7 个自然日内有 session event 的 project 去重数。"),
+                    secondary(
+                        "New 7d",
+                        formatDashboardInteger(supplement.newProjects7d()),
+                        "first seen timestamp 落在最近 7 个自然日内的 project 去重数。")))),
         kpi(
-            "Sessions",
-            formatDashboardInteger(totalSessions),
-            "当前 scope 下已索引 session 总数",
-            "🧵",
-            "blue",
-            sessionBadge,
-            sessionBadgeTone,
-            List.of(
-                secondary(
-                    "Today",
-                    formatDashboardInteger(supplement.todaySessions()),
-                    "first user message timestamp 落在当前自然日内的 session 数。"),
-                secondary(
-                    "7d Avg",
-                    formatDashboardCompact(supplement.avgDailySessions7d()),
-                    "最近 7 个自然日每日 session 数的算术平均值。"),
-                secondary(
-                    "Median Duration",
-                    DisplayFormatters.formatDuration(supplement.medianDurationSeconds()),
-                    "当前 scope 下 session duration 的中位数。"),
-                secondary(
-                    "Avg Rounds",
-                    String.format(java.util.Locale.ROOT, "%.1f", avgRounds),
-                    "当前 scope 下每个 session 的 LLM round 数平均值。"))),
+            new KpiCard(
+                "Sessions",
+                formatDashboardInteger(totalSessions),
+                "当前 scope 下已索引 session 总数",
+                "🧵",
+                "blue",
+                sessionBadge,
+                sessionBadgeTone,
+                List.of(
+                    secondary(
+                        "Today",
+                        formatDashboardInteger(supplement.todaySessions()),
+                        "first user message timestamp 落在当前自然日内的 session 数。"),
+                    secondary(
+                        "7d Avg",
+                        formatDashboardCompact(supplement.avgDailySessions7d()),
+                        "最近 7 个自然日每日 session 数的算术平均值。"),
+                    secondary(
+                        "Median Duration",
+                        DisplayFormatters.formatDuration(supplement.medianDurationSeconds()),
+                        "当前 scope 下 session duration 的中位数。"),
+                    secondary(
+                        "Avg Rounds",
+                        String.format(java.util.Locale.ROOT, "%.1f", avgRounds),
+                        "当前 scope 下每个 session 的 LLM round 数平均值。")))),
         kpi(
-            "Total Tokens",
-            formatDashboardCompact(stats.totalTokens()),
-            "Fresh + Cache Read + Cache Write + Output",
-            "🧮",
-            "orange",
-            tokenBadge,
-            tokenBadgeTone,
-            List.of(
-                secondary(
-                    "Fresh",
-                    formatDashboardCompact(stats.totalFreshInputTokens()),
-                    "互斥的新输入分段，已扣除 cache read 子集。"),
-                secondary(
-                    "Cache Read",
-                    formatDashboardCompact(stats.totalCacheReadTokens()),
-                    "从缓存读取并计入输入侧的 token 数。"),
-                secondary(
-                    "Cache Write",
-                    formatDashboardCompact(stats.totalCacheWriteTokens()),
-                    "写入缓存并计入输入侧的 token 数。"),
-                secondary(
-                    "Output", formatDashboardCompact(stats.totalOutputTokens()), "模型输出 token 数。"))),
+            new KpiCard(
+                "Total Tokens",
+                formatDashboardCompact(stats.totalTokens()),
+                "Fresh + Cache Read + Cache Write + Output",
+                "🧮",
+                "orange",
+                tokenBadge,
+                tokenBadgeTone,
+                List.of(
+                    secondary(
+                        "Fresh",
+                        formatDashboardCompact(stats.totalFreshInputTokens()),
+                        "互斥的新输入分段，已扣除 cache read 子集。"),
+                    secondary(
+                        "Cache Read",
+                        formatDashboardCompact(stats.totalCacheReadTokens()),
+                        "从缓存读取并计入输入侧的 token 数。"),
+                    secondary(
+                        "Cache Write",
+                        formatDashboardCompact(stats.totalCacheWriteTokens()),
+                        "写入缓存并计入输入侧的 token 数。"),
+                    secondary(
+                        "Output",
+                        formatDashboardCompact(stats.totalOutputTokens()),
+                        "模型输出 token 数。")))),
         kpi(
-            "Prompt Activity",
-            formatDashboardInteger(totalUserMessages),
-            "用户发起输入数量，按 user message 事件计数",
-            "💬",
-            "green",
-            promptBadge,
-            promptBadgeTone,
-            List.of(
-                secondary(
-                    "Assistant Turns",
-                    formatDashboardInteger(totalAssistantMessages),
-                    "assistant message 事件总数。"),
-                secondary(
-                    "Tool Calls",
-                    formatDashboardInteger(totalToolCalls),
-                    "tool call 事件总数，不区分成功和失败。"),
-                secondary(
-                    "Prompts / Session",
-                    totalSessions > 0
-                        ? String.format(java.util.Locale.ROOT, "%.1f", promptsPerSession)
-                        : "N/A",
-                    "User Prompts / Sessions；sessions 为 0 时显示 N/A。"))),
+            new KpiCard(
+                "Prompt Activity",
+                formatDashboardInteger(totalUserMessages),
+                "用户发起输入数量，按 user message 事件计数",
+                "💬",
+                "green",
+                promptBadge,
+                promptBadgeTone,
+                List.of(
+                    secondary(
+                        "Assistant Turns",
+                        formatDashboardInteger(totalAssistantMessages),
+                        "assistant message 事件总数。"),
+                    secondary(
+                        "Tool Calls",
+                        formatDashboardInteger(totalToolCalls),
+                        "tool call 事件总数，不区分成功和失败。"),
+                    secondary(
+                        "Prompts / Session",
+                        totalSessions > 0
+                            ? String.format(java.util.Locale.ROOT, "%.1f", promptsPerSession)
+                            : "N/A",
+                        "User Prompts / Sessions；sessions 为 0 时显示 N/A。")))),
         kpi(
-            "Cache Read Ratio",
-            cacheRatio != null
-                ? String.format(java.util.Locale.ROOT, "%.1f%%", cacheRatio * 100.0)
-                : "N/A",
-            "Cache Read / 输入侧 token 总量",
-            "⚡",
-            "purple",
-            cacheRatioBadge,
-            cacheRatioBadgeTone,
-            List.of(
-                secondary(
-                    "Eligible Sessions",
-                    formatDashboardInteger(supplement.eligibleSessions()),
-                    "Input-side Tokens > 0 的 session 数，也是 Cache Read Ratio 可参与计算的分母样本。"),
-                secondary(
-                    "P50 Session Ratio",
-                    supplement.p50CacheRatio() != null
-                        ? String.format(
-                            java.util.Locale.ROOT, "%.1f%%", supplement.p50CacheRatio() * 100.0)
-                        : "N/A",
-                    "eligible sessions 的 per-session cache read ratio 中位数。"),
-                secondary(
-                    "Low-read Sessions",
-                    formatDashboardInteger(supplement.lowReadSessions()),
-                    "eligible sessions 中 per-session cache read ratio 小于 20.0% 的 session 数。"))),
+            new KpiCard(
+                "Cache Read Ratio",
+                cacheRatio != null
+                    ? String.format(java.util.Locale.ROOT, "%.1f%%", cacheRatio * 100.0)
+                    : "N/A",
+                "Cache Read / 输入侧 token 总量",
+                "⚡",
+                "purple",
+                cacheRatioBadge,
+                cacheRatioBadgeTone,
+                List.of(
+                    secondary(
+                        "Eligible Sessions",
+                        formatDashboardInteger(supplement.eligibleSessions()),
+                        "Input-side Tokens > 0 的 session 数，也是 Cache Read Ratio 可参与计算的分母样本。"),
+                    secondary(
+                        "P50 Session Ratio",
+                        supplement.p50CacheRatio() != null
+                            ? String.format(
+                                java.util.Locale.ROOT, "%.1f%%", supplement.p50CacheRatio() * 100.0)
+                            : "N/A",
+                        "eligible sessions 的 per-session cache read ratio 中位数。"),
+                    secondary(
+                        "Low-read Sessions",
+                        formatDashboardInteger(supplement.lowReadSessions()),
+                        "eligible sessions 中 per-session cache read ratio 小于 20.0% 的 session 数。")))),
         kpi(
-            "Failed Tools",
-            formatDashboardInteger(totalFailedTools),
-            "failed tool result 总数",
-            "⚠",
-            "red",
-            failedBadge,
-            failedBadgeTone,
-            List.of(
-                secondary(
-                    "Failure Rate",
-                    failureRate != null
-                        ? String.format(java.util.Locale.ROOT, "%.1f%%", failureRate * 100.0)
-                        : "N/A",
-                    "Failed Tools / Tool Calls；tool calls 为 0 时显示 N/A。"),
-                secondary(
-                    "Affected Sessions",
-                    formatDashboardInteger(supplement.affectedFailureSessions()),
-                    "failed tool result 数量大于 0 的 session 数。"),
-                secondary(
-                    "Repeated Failure Sessions",
-                    formatDashboardInteger(supplement.repeatedFailureSessions()),
-                    "failed tool result 数量大于 1 的 session 数。"))));
+            new KpiCard(
+                "Failed Tools",
+                formatDashboardInteger(totalFailedTools),
+                "failed tool result 总数",
+                "⚠",
+                "red",
+                failedBadge,
+                failedBadgeTone,
+                List.of(
+                    secondary(
+                        "Failure Rate",
+                        failureRate != null
+                            ? String.format(java.util.Locale.ROOT, "%.1f%%", failureRate * 100.0)
+                            : "N/A",
+                        "Failed Tools / Tool Calls；tool calls 为 0 时显示 N/A。"),
+                    secondary(
+                        "Affected Sessions",
+                        formatDashboardInteger(supplement.affectedFailureSessions()),
+                        "failed tool result 数量大于 0 的 session 数。"),
+                    secondary(
+                        "Repeated Failure Sessions",
+                        formatDashboardInteger(supplement.repeatedFailureSessions()),
+                        "failed tool result 数量大于 1 的 session 数。")))));
   }
 
-  private static Map<String, Object> kpi(
+  private static Map<String, Object> kpi(KpiCard card) {
+    Map<String, Object> row = new LinkedHashMap<>();
+    row.put("label", card.label());
+    row.put("value", card.value());
+    row.put("description", card.description());
+    row.put("icon", card.icon());
+    row.put("icon_color", card.iconColor());
+    row.put("badge", card.badge());
+    row.put("badge_tone", card.badgeTone() == null ? "neutral" : card.badgeTone());
+    row.put("badge_description", card.badge() == null ? "" : card.description());
+    row.put("secondary", card.secondary() == null ? List.of() : card.secondary());
+    return row;
+  }
+
+  private static Map<String, Object> secondary(String label, Object value, String description) {
+    return Map.of("label", label, "value", value, "description", description);
+  }
+
+  /**
+   * Dashboard KPI 卡片输入。
+   *
+   * @param label 卡片标题
+   * @param value 主指标展示值
+   * @param description 指标说明
+   * @param icon 展示图标
+   * @param iconColor 图标颜色标识
+   * @param badge 趋势徽标
+   * @param badgeTone 趋势徽标语义色
+   * @param secondary 二级指标列表
+   */
+  private record KpiCard(
       String label,
       Object value,
       String description,
@@ -417,23 +456,7 @@ public final class DashboardPage {
       String iconColor,
       String badge,
       String badgeTone,
-      List<Map<String, Object>> secondary) {
-    Map<String, Object> row = new LinkedHashMap<>();
-    row.put("label", label);
-    row.put("value", value);
-    row.put("description", description);
-    row.put("icon", icon);
-    row.put("icon_color", iconColor);
-    row.put("badge", badge);
-    row.put("badge_tone", badgeTone == null ? "neutral" : badgeTone);
-    row.put("badge_description", badge == null ? "" : description);
-    row.put("secondary", secondary == null ? List.of() : secondary);
-    return row;
-  }
-
-  private static Map<String, Object> secondary(String label, Object value, String description) {
-    return Map.of("label", label, "value", value, "description", description);
-  }
+      List<Map<String, Object>> secondary) {}
 
   private static String formatDashboardInteger(Number value) {
     long n = value == null ? 0 : value.longValue();
@@ -631,51 +654,16 @@ public final class DashboardPage {
     long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalTokens).sum();
     long totalPromptsAll =
         agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalUserMessages).sum();
+    AgentContributionTotals totals =
+        new AgentContributionTotals(totalSessionsAll, totalTokensAll, totalPromptsAll);
 
     // 说明: 按固定顺序构建 agent rows：Claude Code → Qoder → Codex
     List<Map<String, Object>> agentRows = new ArrayList<>();
     agentRows.add(
         buildAgentContributionRow(
-            "claude_code",
-            "Claude Code",
-            contributionSessions(breakdownMap.get("claude_code")),
-            contributionTokens(breakdownMap.get("claude_code")),
-            contributionPrompts(breakdownMap.get("claude_code")),
-            totalSessionsAll,
-            totalTokensAll,
-            totalPromptsAll,
-            totalSessionsAll,
-            totalTokensAll,
-            totalPromptsAll,
-            breakdownMap.get("claude_code")));
-    agentRows.add(
-        buildAgentContributionRow(
-            "qoder",
-            "Qoder",
-            contributionSessions(breakdownMap.get("qoder")),
-            contributionTokens(breakdownMap.get("qoder")),
-            contributionPrompts(breakdownMap.get("qoder")),
-            totalSessionsAll,
-            totalTokensAll,
-            totalPromptsAll,
-            totalSessionsAll,
-            totalTokensAll,
-            totalPromptsAll,
-            breakdownMap.get("qoder")));
-    agentRows.add(
-        buildAgentContributionRow(
-            "codex",
-            "Codex",
-            contributionSessions(breakdownMap.get("codex")),
-            contributionTokens(breakdownMap.get("codex")),
-            contributionPrompts(breakdownMap.get("codex")),
-            totalSessionsAll,
-            totalTokensAll,
-            totalPromptsAll,
-            totalSessionsAll,
-            totalTokensAll,
-            totalPromptsAll,
-            breakdownMap.get("codex")));
+            "claude_code", "Claude Code", breakdownMap.get("claude_code"), totals));
+    agentRows.add(buildAgentContributionRow("qoder", "Qoder", breakdownMap.get("qoder"), totals));
+    agentRows.add(buildAgentContributionRow("codex", "Codex", breakdownMap.get("codex"), totals));
 
     Map<String, Object> branch = new LinkedHashMap<>();
     branch.put("agent_rows", agentRows);
@@ -689,20 +677,27 @@ public final class DashboardPage {
     return branch;
   }
 
+  /**
+   * Agent 贡献表的总量分母。
+   *
+   * @param sessions session 总数
+   * @param tokens token 总数
+   * @param prompts prompt 总数
+   */
+  private record AgentContributionTotals(long sessions, long tokens, long prompts) {}
+
   /** 构建单个 agent 的贡献行，包含 contribution bar 数据（range）和 All Agents 表数据（全量）。 */
   private static Map<String, Object> buildAgentContributionRow(
-      String dbAgent,
-      String display,
-      long rangeSessions,
-      long rangeTokens,
-      long rangePrompts,
-      long rangeTotalSessions,
-      long rangeTotalTokens,
-      long rangeTotalPrompts,
-      long totalSessionsAll,
-      long totalTokensAll,
-      long totalPromptsAll,
-      AgentBreakdownRow breakdown) {
+      String dbAgent, String display, AgentBreakdownRow breakdown, AgentContributionTotals totals) {
+    long rangeSessions = contributionSessions(breakdown);
+    long rangeTokens = contributionTokens(breakdown);
+    long rangePrompts = contributionPrompts(breakdown);
+    long rangeTotalSessions = totals.sessions();
+    long rangeTotalTokens = totals.tokens();
+    long rangeTotalPrompts = totals.prompts();
+    long totalSessionsAll = totals.sessions();
+    long totalTokensAll = totals.tokens();
+    long totalPromptsAll = totals.prompts();
 
     Map<String, Object> row = new LinkedHashMap<>();
     row.put("db_agent", dbAgent);
@@ -860,7 +855,7 @@ public final class DashboardPage {
     List<Map<String, Object>> rows = buildEfficiencyRows(efficiencyRows, dbAgent);
     Map<String, Object> branch = new LinkedHashMap<>();
     branch.put("db_agent", dbAgent);
-    branch.put("display_name", agentDisplay(dbAgent));
+    branch.put("display_name", WebDisplayValues.agentDisplay(dbAgent));
     branch.put("efficiency_rows", rows);
     branch.put("model_rows", rows);
     branch.put("model_count", rows.size());
@@ -876,7 +871,7 @@ public final class DashboardPage {
       }
       Map<String, Object> map = new LinkedHashMap<>();
       map.put("db_agent", row.agent());
-      map.put("agent", agentDisplay(row.agent()));
+      map.put("agent", WebDisplayValues.agentDisplay(row.agent()));
       map.put("model", row.model());
       map.put("sessions_raw", row.sessionCount());
       map.put("sessions", row.sessionCount());
@@ -904,15 +899,6 @@ public final class DashboardPage {
       result.add(map);
     }
     return result;
-  }
-
-  private static String agentDisplay(String dbAgent) {
-    return switch (dbAgent) {
-      case "claude_code" -> "Claude Code";
-      case "qoder" -> "Qoder";
-      case "codex" -> "Codex";
-      default -> dbAgent == null || dbAgent.isEmpty() ? "Unknown" : dbAgent;
-    };
   }
 
   private static long contributionSessions(AgentBreakdownRow row) {

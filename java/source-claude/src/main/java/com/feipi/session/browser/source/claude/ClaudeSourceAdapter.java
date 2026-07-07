@@ -3,9 +3,12 @@ package com.feipi.session.browser.source.claude;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.claude.ClaudeDiscovery.ClaudeSessionDiscovery;
+import com.feipi.session.browser.source.json.JsonCandidateMetadataReader;
 import com.feipi.session.browser.source.json.JsonCandidateParser;
+import com.feipi.session.browser.source.json.JsonNodeReaders;
 import com.feipi.session.browser.source.json.JsonlReader;
 import com.feipi.session.browser.source.json.JsonlReaderResult;
+import com.feipi.session.browser.source.json.SourceTitleTexts;
 import com.feipi.session.browser.source.json.ToolFailureClassifier;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
@@ -170,28 +173,16 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   private ClaudeCandidateMetadata inspectCandidateMetadata(Path transcriptPath) {
     try {
       JsonlReaderResult result = jsonlReader.read(transcriptPath);
-      String cwd = "";
-      String title = "";
-      String model = "";
-      String gitBranch = "";
-      for (JsonNode event : result.events()) {
-        if (cwd.isEmpty()) {
-          cwd = text(event, "cwd");
-        }
-        if (title.isEmpty() && "user".equals(text(event, "type")) && !isMetaEvent(event)) {
-          title = firstMessageText(event);
-        }
-        if (model.isEmpty()) {
-          model = text(objectChild(event, "message"), "model");
-        }
-        if (gitBranch.isEmpty()) {
-          gitBranch = extractGitBranch(event);
-        }
-        if (!cwd.isEmpty() && !title.isEmpty() && !model.isEmpty() && !gitBranch.isEmpty()) {
-          break;
-        }
-      }
-      return new ClaudeCandidateMetadata(cwd, title, model, gitBranch);
+      JsonCandidateMetadataReader.Metadata metadata =
+          JsonCandidateMetadataReader.firstComplete(
+              result.events(),
+              event -> text(event, "cwd"),
+              event -> "user".equals(text(event, "type")) && !isMetaEvent(event),
+              ClaudeSourceAdapter::firstMessageText,
+              event -> text(JsonNodeReaders.objectChild(event, "message"), "model"),
+              ClaudeSourceAdapter::extractGitBranch);
+      return new ClaudeCandidateMetadata(
+          metadata.cwd(), metadata.title(), metadata.model(), metadata.gitBranch());
     } catch (IOException e) {
       LOG.log(Level.FINEST, "读取 Claude 候选元数据失败: " + transcriptPath, e);
       return ClaudeCandidateMetadata.empty();
@@ -204,33 +195,13 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
   }
 
   private static String firstMessageText(JsonNode event) {
-    JsonNode message = objectChild(event, "message");
+    JsonNode message = JsonNodeReaders.objectChild(event, "message");
     String value = contentText(message == null ? event.get("content") : message.get("content"));
     if (value.isBlank()) {
       value = text(event, "text");
     }
-    value = cleanTitle(value);
+    value = SourceTitleTexts.clean(value);
     return value.length() > 120 ? value.substring(0, 120) : value;
-  }
-
-  private static String cleanTitle(String value) {
-    if (value == null || value.isBlank()) {
-      return "";
-    }
-    String message = between(value, "<command-message>", "</command-message>");
-    if (!message.isBlank()) {
-      return message.strip();
-    }
-    return value.replaceAll("<[^>]+>", " ").replaceAll("\\s+", " ").strip();
-  }
-
-  private static String between(String value, String start, String end) {
-    String[] parts = value.split(java.util.regex.Pattern.quote(start), 2);
-    if (parts.length < 2) {
-      return "";
-    }
-    String[] tail = parts[1].split(java.util.regex.Pattern.quote(end), 2);
-    return tail.length < 2 ? "" : tail[0];
   }
 
   private static String contentText(JsonNode content) {
@@ -265,28 +236,17 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
     if (!branch.isEmpty()) {
       return branch;
     }
-    JsonNode git = objectChild(event, "git");
+    JsonNode git = JsonNodeReaders.objectChild(event, "git");
     branch = text(git, "branch");
     if (!branch.isEmpty()) {
       return branch;
     }
-    return text(objectChild(event, "metadata"), "git_branch");
+    return text(JsonNodeReaders.objectChild(event, "metadata"), "git_branch");
   }
 
   private ClaudeSubagentTotals inspectSubagents(Path transcriptPath) {
-    Path subagentsDir = sidecarSubagentsDir(transcriptPath);
-    if (!Files.isDirectory(subagentsDir)) {
-      return ClaudeSubagentTotals.empty();
-    }
-    List<Path> files = new ArrayList<>();
-    try (var stream = Files.list(subagentsDir)) {
-      stream
-          .filter(Files::isRegularFile)
-          .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
-          .sorted()
-          .forEach(files::add);
-    } catch (IOException e) {
-      LOG.log(Level.FINEST, "读取 Claude subagent 目录失败: " + subagentsDir, e);
+    List<Path> files = subagentFiles(transcriptPath);
+    if (files.isEmpty()) {
       return ClaudeSubagentTotals.empty();
     }
 
@@ -341,14 +301,14 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       if (!"assistant".equals(text(event, "type"))) {
         continue;
       }
-      JsonNode message = objectChild(event, "message");
+      JsonNode message = JsonNodeReaders.objectChild(event, "message");
       if (message == null) {
         continue;
       }
       String key = assistantMessageKey(event, message);
       AssistantRecordBuilder builder =
           records.computeIfAbsent(key, ignored -> new AssistantRecordBuilder());
-      JsonNode usage = objectChild(message, "usage");
+      JsonNode usage = JsonNodeReaders.objectChild(message, "usage");
       if (usage != null) {
         builder.usageRows.add(usage);
       }
@@ -451,7 +411,7 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       if (!"user".equals(text(event, "type"))) {
         continue;
       }
-      JsonNode message = objectChild(event, "message");
+      JsonNode message = JsonNodeReaders.objectChild(event, "message");
       JsonNode content = message == null ? null : message.get("content");
       if (content == null || !content.isArray()) {
         continue;
@@ -504,14 +464,6 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
       return sb.toString();
     }
     return value.toString();
-  }
-
-  private static JsonNode objectChild(JsonNode node, String fieldName) {
-    if (node == null || !node.isObject()) {
-      return null;
-    }
-    JsonNode child = node.get(fieldName);
-    return child != null && child.isObject() ? child : null;
   }
 
   private static String text(JsonNode node, String fieldName) {

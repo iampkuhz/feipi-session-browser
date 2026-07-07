@@ -56,7 +56,7 @@ public final class JsonSourceRecordMapper {
 
   private static Optional<String> extractTurnId(JsonNode event, String eventType) {
     if ("assistant".equals(eventType)) {
-      JsonNode message = objectChild(event, "message");
+      JsonNode message = JsonNodeReaders.objectChild(event, "message");
       Optional<String> messageId = firstText(message, "id");
       if (messageId.isPresent()) {
         return messageId;
@@ -92,22 +92,24 @@ public final class JsonSourceRecordMapper {
     if (direct.isPresent()) {
       return direct;
     }
-    JsonNode message = objectChild(event, "message");
+    JsonNode message = JsonNodeReaders.objectChild(event, "message");
     Optional<String> messageText = firstText(message, fieldNames);
     if (messageText.isPresent()) {
       return messageText;
     }
-    JsonNode payload = objectChild(event, "payload");
+    JsonNode payload = JsonNodeReaders.objectChild(event, "payload");
     Optional<String> payloadText = firstText(payload, fieldNames);
     if (payloadText.isPresent()) {
       return payloadText;
     }
-    JsonNode metadata = objectChild(event, "metadata");
+    JsonNode metadata = JsonNodeReaders.objectChild(event, "metadata");
     Optional<String> metadataText = firstText(metadata, fieldNames);
     if (metadataText.isPresent()) {
       return metadataText;
     }
-    JsonNode settings = objectChild(objectChild(payload, "collaboration_mode"), "settings");
+    JsonNode settings =
+        JsonNodeReaders.objectChild(
+            JsonNodeReaders.objectChild(payload, "collaboration_mode"), "settings");
     return firstText(settings, fieldNames);
   }
 
@@ -176,32 +178,27 @@ public final class JsonSourceRecordMapper {
   }
 
   private static JsonNode usageNode(JsonNode event) {
-    JsonNode usage = objectChild(event, "usage");
+    JsonNode usage = JsonNodeReaders.objectChild(event, "usage");
     if (usage != null) {
       return usage;
     }
-    JsonNode messageUsage = objectChild(objectChild(event, "message"), "usage");
+    JsonNode messageUsage =
+        JsonNodeReaders.objectChild(JsonNodeReaders.objectChild(event, "message"), "usage");
     if (messageUsage != null) {
       return messageUsage;
     }
-    JsonNode payload = objectChild(event, "payload");
-    JsonNode payloadUsage = objectChild(payload, "usage");
+    JsonNode payload = JsonNodeReaders.objectChild(event, "payload");
+    JsonNode payloadUsage = JsonNodeReaders.objectChild(payload, "usage");
     if (payloadUsage != null) {
       return payloadUsage;
     }
-    JsonNode infoUsage = objectChild(objectChild(payload, "info"), "total_token_usage");
+    JsonNode infoUsage =
+        JsonNodeReaders.objectChild(
+            JsonNodeReaders.objectChild(payload, "info"), "total_token_usage");
     if (infoUsage != null) {
       return infoUsage;
     }
-    return objectChild(payload, "total_token_usage");
-  }
-
-  private static JsonNode objectChild(JsonNode node, String fieldName) {
-    if (node == null || !node.isObject()) {
-      return null;
-    }
-    JsonNode child = node.get(fieldName);
-    return child != null && child.isObject() ? child : null;
+    return JsonNodeReaders.objectChild(payload, "total_token_usage");
   }
 
   private static long readLong(JsonNode node, String... fieldNames) {
@@ -245,7 +242,7 @@ public final class JsonSourceRecordMapper {
     if (event == null || !event.isObject()) {
       return false;
     }
-    JsonNode message = objectChild(event, "message");
+    JsonNode message = JsonNodeReaders.objectChild(event, "message");
     if (hasTextBlock(message == null ? null : message.get("content"))) {
       return true;
     }
@@ -325,12 +322,12 @@ public final class JsonSourceRecordMapper {
     List<JsonNode> containers = new ArrayList<>();
     addContainer(containers, event.get("content"));
     addContainer(containers, event.get("parts"));
-    JsonNode message = objectChild(event, "message");
+    JsonNode message = JsonNodeReaders.objectChild(event, "message");
     if (message != null) {
       addContainer(containers, message.get("content"));
       addContainer(containers, message.get("parts"));
     }
-    JsonNode payload = objectChild(event, "payload");
+    JsonNode payload = JsonNodeReaders.objectChild(event, "payload");
     if (payload != null) {
       addContainer(containers, payload.get("content"));
       addContainer(containers, payload.get("parts"));

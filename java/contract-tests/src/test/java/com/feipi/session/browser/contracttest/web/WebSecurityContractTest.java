@@ -234,7 +234,7 @@ class WebSecurityContractTest {
   class PayloadVisibilityDefault {
 
     @Test
-    @DisplayName("默认 payload 隐藏，页面显示 Payload hidden 标识")
+    @DisplayName("默认 payload 不嵌入首屏 HTML")
     void payloadHiddenByDefault() throws Exception {
       insertTestSession();
       WebCompositionRoot webRoot = createWebRoot();
@@ -243,8 +243,9 @@ class WebSecurityContractTest {
           (testApp, client) -> {
             var response = client.get("/sessions/claude_code/test-session-1");
             String body = response.body().string();
-            // 默认 STANDARD 可见性隐藏敏感内容
-            assertThat(body).contains("Payload hidden");
+            // 默认 STANDARD 可见性不把完整 payload 内容嵌入首屏 HTML。
+            assertThat(body).contains("payload-api-base");
+            assertThat(body).doesNotContain("data-session-payload-policy");
             // 不包含实际 payload 内容（没有 raw message 文本）
             assertThat(body).doesNotContain("raw-payload");
           });

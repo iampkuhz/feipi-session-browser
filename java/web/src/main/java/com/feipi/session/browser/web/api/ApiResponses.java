@@ -76,6 +76,7 @@ public final class ApiResponses {
    *
    * @param callIds 本轮次包含的调用 ID 列表
    * @param toolCallIds 本轮次关联的工具调用 ID 列表
+   * @param tools 本轮次每个工具执行的摘要
    * @param calls 本轮次每个调用的摘要
    * @param totalTokens 本轮次累计 token 用量
    * @param isSubagent 是否为子 agent 轮次
@@ -84,6 +85,7 @@ public final class ApiResponses {
   public record RoundSummary(
       List<String> callIds,
       List<String> toolCallIds,
+      List<ToolExecutionSummary> tools,
       List<CallSummary> calls,
       long totalTokens,
       boolean isSubagent,
@@ -97,11 +99,49 @@ public final class ApiResponses {
     public RoundSummary {
       Objects.requireNonNull(callIds, "callIds 不得为 null");
       Objects.requireNonNull(toolCallIds, "toolCallIds 不得为 null");
+      Objects.requireNonNull(tools, "tools 不得为 null");
       Objects.requireNonNull(calls, "calls 不得为 null");
       callIds = List.copyOf(callIds);
       toolCallIds = List.copyOf(toolCallIds);
+      tools = List.copyOf(tools);
       calls = List.copyOf(calls);
       parentCallId = parentCallId == null ? "" : parentCallId;
+    }
+  }
+
+  /**
+   * 工具执行摘要数据。
+   *
+   * @param toolCallId 工具调用 ID
+   * @param name 工具名称
+   * @param scope 调用作用域
+   * @param declaredByCallId 声明该工具调用的 LLM call ID
+   * @param status 工具状态或错误描述
+   * @param exitCode 退出码，缺失时为 null
+   * @param durationMs 执行耗时毫秒
+   * @param subagentId 子 agent 标识，主会话为空
+   */
+  public record ToolExecutionSummary(
+      String toolCallId,
+      String name,
+      String scope,
+      String declaredByCallId,
+      String status,
+      Integer exitCode,
+      long durationMs,
+      String subagentId) {
+
+    /** 校验字段和业务不变量。 */
+    public ToolExecutionSummary {
+      Objects.requireNonNull(toolCallId, "toolCallId 不得为 null");
+      Objects.requireNonNull(name, "name 不得为 null");
+      Objects.requireNonNull(scope, "scope 不得为 null");
+      Objects.requireNonNull(declaredByCallId, "declaredByCallId 不得为 null");
+      status = status == null ? "" : status;
+      subagentId = subagentId == null ? "" : subagentId;
+      if (durationMs < 0) {
+        throw new IllegalArgumentException("durationMs must be non-negative");
+      }
     }
   }
 
@@ -115,6 +155,10 @@ public final class ApiResponses {
    * @param scope 调用作用域
    * @param requestToolResultIds 请求侧工具结果 ID 列表
    * @param responseToolCallIds 响应侧工具调用 ID 列表
+   * @param timestamp provider 时间戳
+   * @param subagentId 子 agent 标识，主会话为空
+   * @param parentToolCallId 触发子 agent 的父工具调用 ID
+   * @param parentToolName 触发子 agent 的父工具名
    */
   public record CallSummary(
       String callId,
@@ -123,7 +167,11 @@ public final class ApiResponses {
       CallUsage usage,
       String scope,
       List<String> requestToolResultIds,
-      List<String> responseToolCallIds) {
+      List<String> responseToolCallIds,
+      String timestamp,
+      String subagentId,
+      String parentToolCallId,
+      String parentToolName) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -140,6 +188,10 @@ public final class ApiResponses {
       Objects.requireNonNull(responseToolCallIds, "responseToolCallIds 不得为 null");
       requestToolResultIds = List.copyOf(requestToolResultIds);
       responseToolCallIds = List.copyOf(responseToolCallIds);
+      timestamp = timestamp == null ? "" : timestamp;
+      subagentId = subagentId == null ? "" : subagentId;
+      parentToolCallId = parentToolCallId == null ? "" : parentToolCallId;
+      parentToolName = parentToolName == null ? "" : parentToolName;
     }
   }
 

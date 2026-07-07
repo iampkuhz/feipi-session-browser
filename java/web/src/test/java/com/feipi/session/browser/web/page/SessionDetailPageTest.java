@@ -87,8 +87,8 @@ class SessionDetailPageTest {
   }
 
   @Test
-  @DisplayName("session detail 页面包含 payload 隐藏状态")
-  void sessionDetailShowsPayloadHidden() throws Exception {
+  @DisplayName("session detail summary strip 不展示 payload policy")
+  void sessionDetailSummaryStripOmitsPayloadPolicy() throws Exception {
     insertTestSession();
 
     QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
@@ -100,8 +100,10 @@ class SessionDetailPageTest {
           var response = client.get("/sessions/claude_code/test-session-1");
           assertThat(response.code()).isEqualTo(200);
           String body = response.body().string();
-          assertThat(body).contains("Payload hidden");
           assertThat(body).contains("data-summary-strip");
+          assertThat(body).contains("data-session-updated");
+          assertThat(body).doesNotContain("Payload hidden");
+          assertThat(body).doesNotContain("data-session-payload-policy");
         });
   }
 

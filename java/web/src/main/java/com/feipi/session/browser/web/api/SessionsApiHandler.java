@@ -11,14 +11,11 @@ import com.feipi.session.browser.web.api.PageApiDtos.ActiveFilterDto;
 import com.feipi.session.browser.web.api.PageApiDtos.ActiveFiltersResponse;
 import com.feipi.session.browser.web.api.PageApiDtos.ApiLink;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
-import com.feipi.session.browser.web.api.PageApiDtos.PaginationDto;
 import com.feipi.session.browser.web.api.PageApiDtos.SelectOptionDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto;
-import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsFilterEcho;
 import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsOptionsResponse;
 import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsRowsResponse;
-import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsSummaryResponse;
 import com.feipi.session.browser.web.page.QueryParams;
 import io.javalin.http.Context;
 import java.sql.SQLException;
@@ -44,20 +41,9 @@ public final class SessionsApiHandler {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListSummaryRow summary = queryRoot.sessionList().summary(filter);
-    SessionsSummaryResponse response =
-        new SessionsSummaryResponse(
-            ApiResponses.SCHEMA_VERSION,
-            echo(params),
-            summary.sessionCount(),
-            summary.projectCount(),
-            TokenSegments.of(
-                summary.freshInputTokens(),
-                summary.cacheReadTokens(),
-                summary.cacheWriteTokens(),
-                summary.outputTokens()),
-            summary.failedToolCount(),
-            summaryState(summary.sessionCount(), hasUserFilter(params)));
-    ctx.json(response);
+    ctx.json(
+        ApiSessionSummaries.response(
+            params, summary, summaryState(summary.sessionCount(), hasUserFilter(params))));
   }
 
   /** 处理 /api/sessions/options 的 GET 请求。 */
@@ -74,7 +60,7 @@ public final class SessionsApiHandler {
     ctx.json(
         new SessionsOptionsResponse(
             ApiResponses.SCHEMA_VERSION,
-            echo(params),
+            ApiQueryParams.sessionsFilterEcho(params),
             agentOptions(),
             modelOptions,
             projectOptions,
@@ -88,17 +74,16 @@ public final class SessionsApiHandler {
     SessionListUseCase.AnnotatedPageResult result =
         queryRoot.sessionList().listWithAnomalies(filter);
     PageResult<SessionRow> page = result.page();
-    int currentPage = QueryParams.parsePage(params);
-    int pageSize = QueryParams.parsePageSize(params);
     String search = params.getOrDefault("q", "");
     List<SessionRowDto> rows = page.items().stream().map(row -> rowDto(row, search)).toList();
     ctx.json(
-        new SessionsRowsResponse(
-            ApiResponses.SCHEMA_VERSION,
-            echo(params),
+        ApiPageRows.response(
+            params,
+            ApiQueryParams::sessionsFilterEcho,
             rows,
-            PaginationDto.of(currentPage, pageSize, page.totalCount()),
-            rowsState(page.totalCount(), hasUserFilter(params))));
+            page.totalCount(),
+            rowsState(page.totalCount(), hasUserFilter(params)),
+            SessionsRowsResponse::new));
   }
 
   /** 处理 /api/sessions/active-filters 的 GET 请求。 */
@@ -162,19 +147,6 @@ public final class SessionsApiHandler {
         "/sessions/" + ApiQueryParams.url(row.agent()) + "/" + ApiQueryParams.url(row.sessionId()),
         "/projects/" + ApiQueryParams.url(row.projectKey()),
         matchReasons(row, search));
-  }
-
-  private static SessionsFilterEcho echo(Map<String, String> params) {
-    return new SessionsFilterEcho(
-        QueryParams.normalizeSessionAgent(params.getOrDefault("agent", "")),
-        params.getOrDefault("model", ""),
-        params.getOrDefault("project", ""),
-        params.getOrDefault("status", ""),
-        params.getOrDefault("q", ""),
-        QueryParams.uiSortKey(params),
-        ApiQueryParams.normalizeDir(params.getOrDefault("dir", "desc")),
-        QueryParams.parsePage(params),
-        QueryParams.parsePageSize(params));
   }
 
   private static PageStateDto summaryState(long totalCount, boolean hasFilter) {

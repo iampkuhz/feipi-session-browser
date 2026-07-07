@@ -796,3 +796,5 @@
 
     return true;
   }
+
+  window.openAttributionModal = openAttributionModal;

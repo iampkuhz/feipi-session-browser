@@ -66,7 +66,7 @@ class ExportResourceApiTest {
           assertThat(body.get("visibility").asText()).isEqualTo("standard");
           assertThat(body.get("hasArtifact").asBoolean()).isTrue();
           assertThat(body.get("roundCount").asLong()).isEqualTo(1);
-          assertThat(body.get("payloadCount").asLong()).isEqualTo(2);
+          assertThat(body.get("payloadCount").asLong()).isEqualTo(4);
           assertThat(body.get("maxBytes").asLong()).isGreaterThan(1_000_000);
           assertThat(body.get("maxSizeBytes").asLong()).isEqualTo(body.get("maxBytes").asLong());
           assertThat(body.get("estimatedSizeBytes").asLong())
@@ -144,14 +144,17 @@ class ExportResourceApiTest {
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get(ALPHA_EXPORT + "/data-bundle?visibility=full");
-          assertThat(response.code()).isEqualTo(200);
-          JsonNode body = MAPPER.readTree(response.body().string());
+          String responseBody = response.body().string();
+          assertThat(response.code()).as(responseBody).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(responseBody);
 
           assertThat(body.get("visibility").asText()).isEqualTo("full");
           assertThat(body.at("/tokens/total").asLong()).isEqualTo(2000);
           assertThat(body.get("roundCount").asLong()).isEqualTo(1);
           assertThat(body.at("/rounds/0/tokens/total").asLong()).isEqualTo(2000);
-          assertThat(body.get("payloadCount").asLong()).isEqualTo(2);
+          assertThat(body.at("/rounds/0/signals/0").asText()).isEqualTo("Failed");
+          assertThat(body.at("/rounds/0/signals/1").asText()).isEqualTo("Subagent");
+          assertThat(body.get("payloadCount").asLong()).isEqualTo(4);
           assertThat(body.at("/payloads/0/truncated").asBoolean()).isFalse();
           assertThat(body.at("/payloads/0/status").asText()).isEqualTo("available");
           assertThat(body.at("/payloads/0/apiUrl").asText())

@@ -53,6 +53,28 @@
   font-weight: 850;
   color: var(--sd-text);
 }
+.sd-round-toggle.round-id {
+  border: 0;
+  border-radius: 4px;
+  padding: 0;
+  background: transparent;
+  appearance: none;
+  cursor: pointer;
+  font: inherit;
+  font-family: var(--sd-mono);
+  font-weight: 850;
+  color: var(--sd-text);
+}
+.sd-round-toggle.round-id:hover {
+  color: var(--sd-brand);
+}
+.sd-round-toggle.round-id:focus-visible {
+  outline: 2px solid rgba(37, 99, 235, .45);
+  outline-offset: 3px;
+}
+.sd-round-toggle.round-id.failed {
+  color: var(--sd-err);
+}
 .sd-round-status {
   height: 22px;
   min-width: 0;
@@ -81,6 +103,16 @@
   background: #eef2ff;
   color: var(--sd-brand);
   border-color: #dfe3ff;
+}
+.sd-signal-badge--failed {
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: var(--sd-err);
+}
+.sd-signal-badge--subagent {
+  border: 1px solid #bae6fd;
+  background: #ecfeff;
+  color: var(--sd-cyan);
 }
 .sd-round-preview {
   min-width: 0;
@@ -1027,6 +1059,10 @@
 .round-row.is-open + .expanded-row {
   display: table-row;
 }
+.round-row.is-open + .expanded-row[hidden],
+.expanded-row[hidden] {
+  display: none;
+}
 .expanded-row td {
   padding: 7px 14px 11px 76px;
   background: transparent;
@@ -1127,18 +1163,25 @@
   box-shadow: inset 3px 0 0 var(--sd-green, #16a34a), inset 0 1px 0 rgba(22, 163, 74, 0.16), inset 0 -1px 0 rgba(22, 163, 74, 0.16);
 }
 .round-row:not(.is-open)[data-status="failed"],
+.round-row:not(.is-open)[data-has-issues="true"],
+.round-row:not(.is-open)[data-has-issues="true"] td,
 .round-row:not(.is-open)[data-status="failed"] td {
   background: #fef2f2;
 }
 .round-row[data-status="failed"]:not(.is-open):hover,
+.round-row[data-has-issues="true"]:not(.is-open):hover,
+.round-row[data-has-issues="true"]:not(.is-open):hover td,
 .round-row[data-status="failed"]:not(.is-open):hover td {
   background: #feeaea;
 }
 .round-row.is-open[data-status="failed"],
+.round-row.is-open[data-has-issues="true"],
+.round-row.is-open[data-has-issues="true"] td,
 .round-row.is-open[data-status="failed"] td {
   background: #fef2f2;
 }
-.round-row.is-open[data-status="failed"] {
+.round-row.is-open[data-status="failed"],
+.round-row.is-open[data-has-issues="true"] {
   box-shadow: inset 3px 0 0 var(--sd-err), inset 0 1px 0 rgba(220, 38, 38, 0.16), inset 0 -1px 0 rgba(220, 38, 38, 0.16);
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`metric-cell for trace table` */

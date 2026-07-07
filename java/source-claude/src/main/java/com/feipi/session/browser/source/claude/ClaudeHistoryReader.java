@@ -1,17 +1,14 @@
 package com.feipi.session.browser.source.claude;
 
 import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import java.io.BufferedReader;
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
+import com.feipi.session.browser.source.json.JsonNodeReaders;
+import com.feipi.session.browser.source.json.JsonlObjectReader;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -49,40 +46,21 @@ public final class ClaudeHistoryReader {
     }
 
     Map<String, ClaudeHistoryEntry> deduplicated = new LinkedHashMap<>();
-    ObjectMapper mapper = new ObjectMapper();
-
-    try (BufferedReader reader = Files.newBufferedReader(historyFile, StandardCharsets.UTF_8)) {
-      String line;
-      while ((line = reader.readLine()) != null) {
-        String trimmed = line.trim();
-        if (trimmed.isEmpty()) {
-          continue;
-        }
-        try {
-          JsonNode node = mapper.readTree(trimmed);
-          if (!node.isObject()) {
-            continue;
-          }
-          String sessionId = textOrEmpty(node, "sessionId");
-          if (sessionId.isEmpty()) {
-            continue;
-          }
-          String project = textOrEmpty(node, "project");
-          String display = textOrEmpty(node, "display");
-          long timestamp = 0;
-          JsonNode tsNode = node.get("timestamp");
-          if (tsNode != null && tsNode.isNumber()) {
-            timestamp = tsNode.asLong();
-          }
-          deduplicated.put(
-              sessionId, new ClaudeHistoryEntry(sessionId, project, display, timestamp));
-        } catch (IOException e) {
-          LOG.log(Level.FINE, "跳过无法解析的 history.jsonl 行", e);
-        }
+    for (JsonNode node :
+        JsonlObjectReader.readObjects(
+            historyFile, LOG, "跳过无法解析的 history.jsonl 行", "读取 history.jsonl 失败: ")) {
+      String sessionId = JsonNodeReaders.textOrEmpty(node, "sessionId");
+      if (sessionId.isEmpty()) {
+        continue;
       }
-    } catch (IOException e) {
-      LOG.log(Level.FINE, "读取 history.jsonl 失败: " + historyFile, e);
-      return List.of();
+      String project = JsonNodeReaders.textOrEmpty(node, "project");
+      String display = JsonNodeReaders.textOrEmpty(node, "display");
+      long timestamp = 0;
+      JsonNode tsNode = node.get("timestamp");
+      if (tsNode != null && tsNode.isNumber()) {
+        timestamp = tsNode.asLong();
+      }
+      deduplicated.put(sessionId, new ClaudeHistoryEntry(sessionId, project, display, timestamp));
     }
 
     List<ClaudeHistoryEntry> entries = new ArrayList<>(deduplicated.values());
@@ -95,13 +73,5 @@ public final class ClaudeHistoryReader {
           return a.sessionId().compareTo(b.sessionId());
         });
     return List.copyOf(entries);
-  }
-
-  private static String textOrEmpty(JsonNode node, String field) {
-    JsonNode child = node.get(field);
-    if (child != null && child.isTextual()) {
-      return child.asText();
-    }
-    return "";
   }
 }

@@ -24,6 +24,15 @@ component com.feipi.session.browser.artifact.normalized.WriteResult status: Stri
 component com.feipi.session.browser.cli.RuntimePaths cacheDir: Path
 component com.feipi.session.browser.cli.RuntimePaths dataDir: Path
 component com.feipi.session.browser.cli.RuntimePaths logDir: Path
+component com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord artifactPath: String
+component com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord contentHash: String
+component com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord error: String
+component com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord requestId: String
+component com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord sessionKey: String
+component com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord status: String
+component com.feipi.session.browser.data.batch.protocol.SourceRootRequestRecord requestId: String
+component com.feipi.session.browser.data.batch.protocol.SourceRootRequestRecord rootPath: String
+component com.feipi.session.browser.data.batch.protocol.SourceRootRequestRecord sourceId: String
 component com.feipi.session.browser.domain.NormalizedTokenBreakdown cacheReadTokens: long
 component com.feipi.session.browser.domain.NormalizedTokenBreakdown cacheWriteTokens: long
 component com.feipi.session.browser.domain.NormalizedTokenBreakdown freshInputTokens: long
@@ -630,9 +639,13 @@ component com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse un
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary callId: String
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary callKey: String
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary model: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary parentToolCallId: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary parentToolName: String
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary requestToolResultIds: List<String>
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary responseToolCallIds: List<String>
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary scope: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary subagentId: String
+component com.feipi.session.browser.web.api.ApiResponses.CallSummary timestamp: String
 component com.feipi.session.browser.web.api.ApiResponses.CallSummary usage: CallUsage
 component com.feipi.session.browser.web.api.ApiResponses.CallUsage cacheRead: long
 component com.feipi.session.browser.web.api.ApiResponses.CallUsage cacheWrite: long
@@ -656,7 +669,16 @@ component com.feipi.session.browser.web.api.ApiResponses.RoundSummary calls: Lis
 component com.feipi.session.browser.web.api.ApiResponses.RoundSummary isSubagent: boolean
 component com.feipi.session.browser.web.api.ApiResponses.RoundSummary parentCallId: String
 component com.feipi.session.browser.web.api.ApiResponses.RoundSummary toolCallIds: List<String>
+component com.feipi.session.browser.web.api.ApiResponses.RoundSummary tools: List<ToolExecutionSummary>
 component com.feipi.session.browser.web.api.ApiResponses.RoundSummary totalTokens: long
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary declaredByCallId: String
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary durationMs: long
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary exitCode: Integer
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary name: String
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary scope: String
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary status: String
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary subagentId: String
+component com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary toolCallId: String
 component com.feipi.session.browser.web.api.AttributionData cacheReadTokens: long
 component com.feipi.session.browser.web.api.AttributionData cacheWriteTokens: long
 component com.feipi.session.browser.web.api.AttributionData freshInputTokens: long
@@ -691,9 +713,13 @@ component com.feipi.session.browser.web.api.CacheInputDto totalInput: long
 component com.feipi.session.browser.web.api.CallSummary callId: String
 component com.feipi.session.browser.web.api.CallSummary callKey: String
 component com.feipi.session.browser.web.api.CallSummary model: String
+component com.feipi.session.browser.web.api.CallSummary parentToolCallId: String
+component com.feipi.session.browser.web.api.CallSummary parentToolName: String
 component com.feipi.session.browser.web.api.CallSummary requestToolResultIds: List<String>
 component com.feipi.session.browser.web.api.CallSummary responseToolCallIds: List<String>
 component com.feipi.session.browser.web.api.CallSummary scope: String
+component com.feipi.session.browser.web.api.CallSummary subagentId: String
+component com.feipi.session.browser.web.api.CallSummary timestamp: String
 component com.feipi.session.browser.web.api.CallSummary usage: CallUsage
 component com.feipi.session.browser.web.api.CallUsage cacheRead: long
 component com.feipi.session.browser.web.api.CallUsage cacheWrite: long
@@ -1202,6 +1228,7 @@ component com.feipi.session.browser.web.api.RoundIndexDto calls: List<String>
 component com.feipi.session.browser.web.api.RoundIndexDto failedToolCallIds: List<String>
 component com.feipi.session.browser.web.api.RoundIndexDto failedToolCount: int
 component com.feipi.session.browser.web.api.RoundIndexDto parentCallId: String
+component com.feipi.session.browser.web.api.RoundIndexDto parity: Map<String, Object>
 component com.feipi.session.browser.web.api.RoundIndexDto roundIndex: int
 component com.feipi.session.browser.web.api.RoundIndexDto signals: List<String>
 component com.feipi.session.browser.web.api.RoundIndexDto status: String
@@ -1217,6 +1244,7 @@ component com.feipi.session.browser.web.api.RoundSummary calls: List<CallSummary
 component com.feipi.session.browser.web.api.RoundSummary isSubagent: boolean
 component com.feipi.session.browser.web.api.RoundSummary parentCallId: String
 component com.feipi.session.browser.web.api.RoundSummary toolCallIds: List<String>
+component com.feipi.session.browser.web.api.RoundSummary tools: List<ToolExecutionSummary>
 component com.feipi.session.browser.web.api.RoundSummary totalTokens: long
 component com.feipi.session.browser.web.api.SafeErrorDetails errorType: String
 component com.feipi.session.browser.web.api.SafeErrorDetails messageSummary: String
@@ -1246,6 +1274,7 @@ component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndex
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto failedToolCallIds: List<String>
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto failedToolCount: int
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto parentCallId: String
+component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto roundIndex: int
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto signals: List<String>
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto status: String
@@ -1263,6 +1292,7 @@ component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDia
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse filters: SessionDetailFilterEcho
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse mainReason: String
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse maxSeverity: String
+component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse schemaVersion: String
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse state: PageStateDto
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse artifactSchemaVersion: String
@@ -1273,6 +1303,7 @@ component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMet
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse gitBranch: String
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse hasArtifact: boolean
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse model: String
+component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse projectKey: String
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse projectName: String
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse schemaVersion: String
@@ -1286,6 +1317,7 @@ component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMet
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse failedTools: long
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse filters: SessionDetailFilterEcho
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse modelExecutionSeconds: double
+component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse payloadCount: long
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse roundCount: long
 component com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse schemaVersion: String
@@ -1315,6 +1347,7 @@ component com.feipi.session.browser.web.api.SessionDiagnosticsResponse anomalyCo
 component com.feipi.session.browser.web.api.SessionDiagnosticsResponse filters: SessionDetailFilterEcho
 component com.feipi.session.browser.web.api.SessionDiagnosticsResponse mainReason: String
 component com.feipi.session.browser.web.api.SessionDiagnosticsResponse maxSeverity: String
+component com.feipi.session.browser.web.api.SessionDiagnosticsResponse parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionDiagnosticsResponse schemaVersion: String
 component com.feipi.session.browser.web.api.SessionDiagnosticsResponse state: PageStateDto
 component com.feipi.session.browser.web.api.SessionMetaResponse artifactSchemaVersion: String
@@ -1325,6 +1358,7 @@ component com.feipi.session.browser.web.api.SessionMetaResponse filters: Session
 component com.feipi.session.browser.web.api.SessionMetaResponse gitBranch: String
 component com.feipi.session.browser.web.api.SessionMetaResponse hasArtifact: boolean
 component com.feipi.session.browser.web.api.SessionMetaResponse model: String
+component com.feipi.session.browser.web.api.SessionMetaResponse parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionMetaResponse projectKey: String
 component com.feipi.session.browser.web.api.SessionMetaResponse projectName: String
 component com.feipi.session.browser.web.api.SessionMetaResponse schemaVersion: String
@@ -1338,6 +1372,7 @@ component com.feipi.session.browser.web.api.SessionMetricsResponse durationSecon
 component com.feipi.session.browser.web.api.SessionMetricsResponse failedTools: long
 component com.feipi.session.browser.web.api.SessionMetricsResponse filters: SessionDetailFilterEcho
 component com.feipi.session.browser.web.api.SessionMetricsResponse modelExecutionSeconds: double
+component com.feipi.session.browser.web.api.SessionMetricsResponse parity: Map<String, Object>
 component com.feipi.session.browser.web.api.SessionMetricsResponse payloadCount: long
 component com.feipi.session.browser.web.api.SessionMetricsResponse roundCount: long
 component com.feipi.session.browser.web.api.SessionMetricsResponse schemaVersion: String
@@ -1363,6 +1398,7 @@ component com.feipi.session.browser.web.api.SessionRowDto cwd: String
 component com.feipi.session.browser.web.api.SessionRowDto detailUrl: String
 component com.feipi.session.browser.web.api.SessionRowDto durationSeconds: double
 component com.feipi.session.browser.web.api.SessionRowDto failedTools: long
+component com.feipi.session.browser.web.api.SessionRowDto gitBranch: String
 component com.feipi.session.browser.web.api.SessionRowDto matchReasons: List<String>
 component com.feipi.session.browser.web.api.SessionRowDto model: String
 component com.feipi.session.browser.web.api.SessionRowDto processSeconds: double
@@ -1390,6 +1426,7 @@ component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto c
 component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto detailUrl: String
 component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto durationSeconds: double
 component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto failedTools: long
+component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto gitBranch: String
 component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto matchReasons: List<String>
 component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto model: String
 component com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto processSeconds: double
@@ -1468,6 +1505,14 @@ component com.feipi.session.browser.web.api.TokenTrendPoint codexTokens: long
 component com.feipi.session.browser.web.api.TokenTrendPoint date: String
 component com.feipi.session.browser.web.api.TokenTrendPoint qoderTokens: long
 component com.feipi.session.browser.web.api.TokenTrendPoint tokens: TokenSegments
+component com.feipi.session.browser.web.api.ToolExecutionSummary declaredByCallId: String
+component com.feipi.session.browser.web.api.ToolExecutionSummary durationMs: long
+component com.feipi.session.browser.web.api.ToolExecutionSummary exitCode: Integer
+component com.feipi.session.browser.web.api.ToolExecutionSummary name: String
+component com.feipi.session.browser.web.api.ToolExecutionSummary scope: String
+component com.feipi.session.browser.web.api.ToolExecutionSummary status: String
+component com.feipi.session.browser.web.api.ToolExecutionSummary subagentId: String
+component com.feipi.session.browser.web.api.ToolExecutionSummary toolCallId: String
 component com.feipi.session.browser.web.model.PaginationModel hasNext: boolean
 component com.feipi.session.browser.web.model.PaginationModel hasPrev: boolean
 component com.feipi.session.browser.web.model.PaginationModel page: int
@@ -1476,6 +1521,18 @@ component com.feipi.session.browser.web.model.PaginationModel pageSize: int
 component com.feipi.session.browser.web.model.PaginationModel pageStart: int
 component com.feipi.session.browser.web.model.PaginationModel totalItems: int
 component com.feipi.session.browser.web.model.PaginationModel totalPages: int
+component com.feipi.session.browser.web.model.Point cacheRead: long
+component com.feipi.session.browser.web.model.Point cacheWrite: long
+component com.feipi.session.browser.web.model.Point fresh: long
+component com.feipi.session.browser.web.model.Point label: String
+component com.feipi.session.browser.web.model.Point output: long
+component com.feipi.session.browser.web.model.Point total: long
+component com.feipi.session.browser.web.model.TokenTrendBuckets.Point cacheRead: long
+component com.feipi.session.browser.web.model.TokenTrendBuckets.Point cacheWrite: long
+component com.feipi.session.browser.web.model.TokenTrendBuckets.Point fresh: long
+component com.feipi.session.browser.web.model.TokenTrendBuckets.Point label: String
+component com.feipi.session.browser.web.model.TokenTrendBuckets.Point output: long
+component com.feipi.session.browser.web.model.TokenTrendBuckets.Point total: long
 constructor com.feipi.session.browser.application.AnnotatedDetail public AnnotatedDetail()
 constructor com.feipi.session.browser.application.AnnotatedPageResult public AnnotatedPageResult()
 constructor com.feipi.session.browser.application.DashboardUseCase public DashboardUseCase( AggregateQueryRepository repository, QueryCache cache, int schemaVersion)
@@ -1496,6 +1553,7 @@ constructor com.feipi.session.browser.artifact.normalized.NormalizedArtifactWrit
 constructor com.feipi.session.browser.artifact.normalized.WriteResult public WriteResult()
 constructor com.feipi.session.browser.cli.RuntimePaths public RuntimePaths()
 constructor com.feipi.session.browser.cli.ServerLifecycle public ServerLifecycle( Path indexDir, String host, int port, boolean noScan, boolean allowEmpty, Set<String> agentFilter)
+constructor com.feipi.session.browser.data.batch.service.NormalizedBatchRunner public NormalizedBatchRunner()
 constructor com.feipi.session.browser.domain.NormalizedTokenBreakdown public NormalizedTokenBreakdown()
 constructor com.feipi.session.browser.domain.normalized.ByteRange public ByteRange()
 constructor com.feipi.session.browser.domain.normalized.NormalizedArtifactSource public NormalizedArtifactSource()
@@ -1574,16 +1632,6 @@ constructor com.feipi.session.browser.query.api.ProjectFilter public static fina
 constructor com.feipi.session.browser.query.api.SensitiveFieldPolicy public static final SensitiveFieldPolicy DEFAULT = new SensitiveFieldPolicy(DEFAULT_SENSITIVE_FIELDS, true)
 constructor com.feipi.session.browser.query.api.SessionAnomalySummary public SessionAnomalySummary()
 constructor com.feipi.session.browser.query.api.TitleFilter public static final TitleFilter NONE = new TitleFilter("")
-constructor com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public ReuseAnalyzer(Path cacheDirectory)
-constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
-constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public SpoonAnalysisException(String message, Throwable cause)
-constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer.SpoonAnalysisException public SpoonAnalysisException(String message)
-constructor com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer.SpoonAnalysisException public SpoonAnalysisException(String message, Throwable cause)
-constructor com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public AnalyzerCache(Path cacheDirectory)
-constructor com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public AnalysisResult( String status, int schemaVersion, List<Finding> findings, Map<String, Object> metadata)
-constructor com.feipi.session.browser.reuse.analyzer.model.Finding public Finding( String id, Severity severity, String kind, String fingerprint, List<Map<String, Object>> occurrences, boolean touchesChangedCode, List<String> suggestedDecisions, Map<String, Object> ownership, String peerGroup)
-constructor com.feipi.session.browser.reuse.analyzer.model.InputManifest public InputManifest( int javaVersion, List<ModuleManifest> modules, List<String> changedFiles, String baseSha, String policyDigest)
-constructor com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public ModuleManifest( String id, List<String> productionSourceRoots, List<String> compileClasspath, List<String> compiledOutputs)
 constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Runnable hotAction, Runnable warmAction)
 constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Runnable hotAction, Runnable warmAction, Clock clock)
 constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter)
@@ -1650,6 +1698,7 @@ constructor com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundRespon
 constructor com.feipi.session.browser.web.api.ApiResponses.PayloadResponse public PayloadResponse()
 constructor com.feipi.session.browser.web.api.ApiResponses.RoundResponse public RoundResponse()
 constructor com.feipi.session.browser.web.api.ApiResponses.RoundSummary public RoundSummary()
+constructor com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary public ToolExecutionSummary()
 constructor com.feipi.session.browser.web.api.AttributionData public AttributionData()
 constructor com.feipi.session.browser.web.api.AttributionResponse public AttributionResponse()
 constructor com.feipi.session.browser.web.api.BucketDetailResponse public BucketDetailResponse()
@@ -1782,6 +1831,7 @@ constructor com.feipi.session.browser.web.api.SessionsRowsResponse public Sessio
 constructor com.feipi.session.browser.web.api.SessionsSummaryResponse public SessionsSummaryResponse()
 constructor com.feipi.session.browser.web.api.TokenSegments public TokenSegments()
 constructor com.feipi.session.browser.web.api.TokenTrendPoint public TokenTrendPoint()
+constructor com.feipi.session.browser.web.api.ToolExecutionSummary public ToolExecutionSummary()
 constructor com.feipi.session.browser.web.export.ExportHandler public ExportHandler(PebbleEnvironment templates)
 constructor com.feipi.session.browser.web.export.ExportHandler public ExportHandler(PebbleEnvironment templates, QueryCompositionRoot queryRoot)
 constructor com.feipi.session.browser.web.model.PaginationModel public PaginationModel()
@@ -1910,6 +1960,20 @@ field com.feipi.session.browser.artifact.normalized.SafeArtifactName public MAX_
 field com.feipi.session.browser.cli.RuntimePaths public ARTIFACT_SUBDIR: static final String
 field com.feipi.session.browser.cli.RuntimePaths public BACKUP_SUBDIR: static final String
 field com.feipi.session.browser.cli.RuntimePaths public DB_FILE_NAME: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_PROTOCOL: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_REQUEST_ID: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_ROOT_PATH: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_SOURCE_ID: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_TOTAL_REQUESTS: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_TYPE: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public FIELD_VERSION: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public PROTOCOL_NAME: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public PROTOCOL_VERSION: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public STATUS_ERROR: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public STATUS_SKIPPED: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public STATUS_SUCCESS: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public TYPE_END: static final String
+field com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public TYPE_REQUEST: static final String
 field com.feipi.session.browser.domain.enums.MigrationPhase public DEFAULT: static final MigrationPhase
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_COLLECTION_SIZE: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
@@ -1935,7 +1999,6 @@ field com.feipi.session.browser.index.sqlite.WriteQueue public DEFAULT_QUEUE_CAP
 field com.feipi.session.browser.query.api.PageRequest public DEFAULT_LIMIT: static final int
 field com.feipi.session.browser.query.api.PageRequest public MAX_LIMIT: static final int
 field com.feipi.session.browser.query.api.TrendFilter public DEFAULT_DAYS: static final int
-field com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public ANALYZER_VERSION: static final String
 field com.feipi.session.browser.scan.engine.IncrementalScanEngine public CURRENT_SCAN_LOGIC_VERSION: static final int
 field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_HOT_INTERVAL: static final long
 field com.feipi.session.browser.scan.engine.TierConfig public DEFAULT_HOT_WINDOW: static final long
@@ -1986,6 +2049,8 @@ field com.feipi.session.browser.source.spi.SourceConstants public MAX_CANDIDATES
 field com.feipi.session.browser.source.spi.SourceConstants public MAX_DIAGNOSTICS_PER_PARSE: static final int
 field com.feipi.session.browser.source.spi.SourceConstants public MAX_METADATA_ENTRIES: static final int
 field com.feipi.session.browser.source.spi.SourceConstants public MAX_PREVIEW_LENGTH: static final int
+field com.feipi.session.browser.source.spi.SourceResult public DIAGNOSTICS_LIMIT_MESSAGE_PREFIX: String
+field com.feipi.session.browser.source.spi.SourceResult public DIAGNOSTICS_NULL_MESSAGE: String
 field com.feipi.session.browser.source.spi.SourceResult public MAX_DIAGNOSTICS: int
 field com.feipi.session.browser.web.WebConfig public DEFAULT_HOST: static final String
 field com.feipi.session.browser.web.WebConfig public DEFAULT_PORT: static final int
@@ -2064,6 +2129,8 @@ method com.feipi.session.browser.cli.ServerLifecycle public int actualPort()
 method com.feipi.session.browser.cli.ServerLifecycle public int start() throws Exception
 method com.feipi.session.browser.cli.ServerLifecycle public void awaitShutdown() throws InterruptedException
 method com.feipi.session.browser.cli.ServerLifecycle public void shutdown()
+method com.feipi.session.browser.data.batch.service.NormalizedBatchRunner public int run( InputStream input, PrintStream output, Path outputDir, SourceAdapterResolver resolver) throws Exception
+method com.feipi.session.browser.data.batch.service.SourceAdapterResolver public SourceAdapter forSourceId(String sourceId)
 method com.feipi.session.browser.domain.NormalizedTokenBreakdown public long componentTotal()
 method com.feipi.session.browser.domain.NormalizedTokenBreakdown public static NormalizedTokenBreakdown empty()
 method com.feipi.session.browser.domain.enums.CallScope public static CallScope fromValue(String value)
@@ -2371,59 +2438,6 @@ method com.feipi.session.browser.query.api.TrendFilter public TrendFilter withDa
 method com.feipi.session.browser.query.api.TrendFilter public int days()
 method com.feipi.session.browser.query.api.TrendFilter public static TrendFilter defaults()
 method com.feipi.session.browser.query.api.TrendFilter public static TrendFilter ofDays(int days)
-method com.feipi.session.browser.reuse.analyzer.AnalyzerMain public static void main(String[] args) throws Exception
-method com.feipi.session.browser.reuse.analyzer.MethodIdGenerator public static String methodId(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.OwnershipClassifier public static Ownership classify(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.PeerGroupResolver public static Map<String, List<String>> buildPeerGroups(Collection<CtType<?>> types)
-method com.feipi.session.browser.reuse.analyzer.PeerGroupResolver public static String resolvePeerGroup(CtType<?> type)
-method com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public AnalysisResult analyzeFull(InputManifest manifest) throws IOException
-method com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public AnalysisResult analyzeIncremental(InputManifest manifest, Path bootstrapStateFile) throws IOException
-method com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public AnalysisResult selfTest()
-method com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public AnalysisResult verifyBaseline(InputManifest manifest, Path baselineFile) throws IOException
-method com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer public static Collection<CtType<?>> getAllTypes(CtModel model)
-method com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer public static CtModel buildModel(List<File> sourceRoots, List<String> classpath)
-method com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer public static CtModel buildModelFromSources(List<VirtualFile> sources, List<String> classpath)
-method com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer public static List<CtMethod<?>> getAllMethods(CtType<?> type)
-method com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public Map<String, Object> load(String cacheKey) throws IOException
-method com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public Path cacheDirectory()
-method com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public boolean isValid(String cacheKey)
-method com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public static String buildCacheKey( String sourceSha256, String spoonVersion, String policyVersion, int javaLevel, String moduleTopologyDigest, String classpathDigest)
-method com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public void clear() throws IOException
-method com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public void store(String cacheKey, Map<String, Object> indexData) throws IOException
-method com.feipi.session.browser.reuse.analyzer.fingerprint.CallSequenceFingerprinter public static List<String> extractCallSequence(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.CallSequenceFingerprinter public static String callSequenceFingerprint(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.CallSequenceFingerprinter public static double callSequenceSimilarity(List<String> seq1, List<String> seq2)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static List<String> allExpressionFingerprints(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static List<String> allStatementFingerprints(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static List<String> rollingStatementFingerprints(CtBlock<?> block)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static String alphaMethodFingerprint(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static String exactMethodFingerprint(CtMethod<?> method)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static String expressionFingerprint(CtExpression<?> expression)
-method com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public static String statementFingerprint(CtStatement statement)
-method com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public List<Finding> findings()
-method com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public Map<String, Object> metadata()
-method com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public String status()
-method com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public int schemaVersion()
-method com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public static AnalysisResult bootstrapRequired(String reason)
-method com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public static AnalysisResult empty()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public List<Map<String, Object>> occurrences()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public List<String> suggestedDecisions()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public Map<String, Object> ownership()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public Severity severity()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public String fingerprint()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public String id()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public String kind()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public String peerGroup()
-method com.feipi.session.browser.reuse.analyzer.model.Finding public boolean touchesChangedCode()
-method com.feipi.session.browser.reuse.analyzer.model.InputManifest public List<ModuleManifest> modules()
-method com.feipi.session.browser.reuse.analyzer.model.InputManifest public List<String> changedFiles()
-method com.feipi.session.browser.reuse.analyzer.model.InputManifest public String baseSha()
-method com.feipi.session.browser.reuse.analyzer.model.InputManifest public String policyDigest()
-method com.feipi.session.browser.reuse.analyzer.model.InputManifest public int javaVersion()
-method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> compileClasspath()
-method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> compiledOutputs()
-method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public List<String> productionSourceRoots()
-method com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public String id()
 method com.feipi.session.browser.scan.engine.BackgroundScanner public boolean isRunning()
 method com.feipi.session.browser.scan.engine.BackgroundScanner public static boolean runStartupScan(Runnable scanAction, ScanLock scanLock)
 method com.feipi.session.browser.scan.engine.BackgroundScanner public void cancelCurrentScan()
@@ -2474,13 +2488,26 @@ method com.feipi.session.browser.source.codex.ThreadsDbReader public static List
 method com.feipi.session.browser.source.codex.ThreadsDbReader public static ThreadsDbResult readThreadsWithDiagnostics(Path dbPath)
 method com.feipi.session.browser.source.codex.ThreadsDbResult public boolean isSuccess()
 method com.feipi.session.browser.source.json.DiagnosticCollector public void collect( JsonNode event, int eventIndex, String eventType, String locator, List<SourceDiagnostic> diagnostics)
+method com.feipi.session.browser.source.json.JsonCandidateMetadataReader public static Metadata firstComplete( Iterable<JsonNode> events, Function<JsonNode, String> cwdExtractor, Predicate<JsonNode> titleEligible, Function<JsonNode, String> titleExtractor, Function<JsonNode, String> modelExtractor, Function<JsonNode, String> gitBranchExtractor)
+method com.feipi.session.browser.source.json.JsonCandidateMetadataReader.Metadata public String cwd()
+method com.feipi.session.browser.source.json.JsonCandidateMetadataReader.Metadata public String gitBranch()
+method com.feipi.session.browser.source.json.JsonCandidateMetadataReader.Metadata public String model()
+method com.feipi.session.browser.source.json.JsonCandidateMetadataReader.Metadata public String title()
 method com.feipi.session.browser.source.json.JsonCandidateParser public static SourceResult parse( Candidate candidate, SourceAdapter.CancellationSignal cancellation, JsonlReader jsonlReader, Function<JsonNode, String> eventTypeExtractor, DiagnosticCollector diagnosticCollector, BiConsumer<List<SourceDiagnostic>, Integer> completionDiagnostics)
 method com.feipi.session.browser.source.json.JsonCandidateParser.DiagnosticCollector public void collect( JsonNode event, int eventIndex, String eventType, String locator, List<SourceDiagnostic> diagnostics)
+method com.feipi.session.browser.source.json.JsonNodeReaders public static JsonNode objectChild(JsonNode node, String fieldName)
+method com.feipi.session.browser.source.json.JsonNodeReaders public static String textOrEmpty(JsonNode node, String field)
 method com.feipi.session.browser.source.json.JsonSourceRecordMapper public static SourceRecord toSourceRecord( String locator, int eventIndex, JsonNode event, String eventType)
+method com.feipi.session.browser.source.json.JsonlObjectReader public static List<JsonNode> readObjects( Path path, Logger logger, String badLineMessage, String readFailurePrefix)
 method com.feipi.session.browser.source.json.JsonlReader public JsonlReaderResult read(Path path) throws IOException
 method com.feipi.session.browser.source.json.JsonlReaderConfig public static JsonlReaderConfig defaults()
 method com.feipi.session.browser.source.json.JsonlReaderConfig public static JsonlReaderConfig of(int maxRecords, int maxBufferSize, int maxPreviewLength)
 method com.feipi.session.browser.source.json.JsonlStats public int warningCount()
+method com.feipi.session.browser.source.json.Metadata public String cwd()
+method com.feipi.session.browser.source.json.Metadata public String gitBranch()
+method com.feipi.session.browser.source.json.Metadata public String model()
+method com.feipi.session.browser.source.json.Metadata public String title()
+method com.feipi.session.browser.source.json.SourceTitleTexts public static String clean(String value)
 method com.feipi.session.browser.source.json.ToolFailureClassifier public static boolean looksFailed(JsonNode contentNode, String toolName)
 method com.feipi.session.browser.source.json.ToolFailureClassifier public static boolean looksFailed(String content, String toolName)
 method com.feipi.session.browser.source.qoder.QoderDiscovery public static List<Path> discoverSessions(Path rootPath)
@@ -2511,7 +2538,11 @@ method com.feipi.session.browser.source.spi.SourceAdapter public default SourceR
 method com.feipi.session.browser.source.spi.SourceAdapter.CancellationSignal public boolean isCancelled()
 method com.feipi.session.browser.source.spi.SourceFingerprint public boolean isStaleComparedTo(SourceFingerprint other)
 method com.feipi.session.browser.source.spi.SourceFingerprint public boolean sameFile(SourceFingerprint other)
+method com.feipi.session.browser.source.spi.SourceFingerprintMaps public static Map<String, String> forCandidate(Path filePath, Candidate candidate)
 method com.feipi.session.browser.source.spi.SourceId public static SourceId fromValue(String value)
+method com.feipi.session.browser.source.spi.SourceNormalizationInputs public static List<NormalizedSourceFile> transcriptFiles(Candidate candidate)
+method com.feipi.session.browser.source.spi.SourceNormalizationInputs public static NormalizedAgent normalizedAgent(SourceAdapter adapter)
+method com.feipi.session.browser.source.spi.SourceNormalizationInputs public static Path transcriptPath(Candidate candidate)
 method com.feipi.session.browser.source.spi.SourceOutcome public boolean isFatal()
 method com.feipi.session.browser.source.spi.SourceOutcome public boolean isRetryable()
 method com.feipi.session.browser.source.spi.SourceOutcome public boolean isSuccess()
@@ -2642,6 +2673,8 @@ method com.feipi.session.browser.web.export.ExportHandler public void exportSess
 method com.feipi.session.browser.web.export.ExportHandler public void handleExport(Context ctx)
 method com.feipi.session.browser.web.model.PaginationModel public Map<String, Object> toTemplateContext()
 method com.feipi.session.browser.web.model.PaginationModel public static PaginationModel of(int page, int pageSize, int totalItems)
+method com.feipi.session.browser.web.model.PayloadSourceSummaries public static List<Map<String, String>> build(List<PayloadSource> sources)
+method com.feipi.session.browser.web.model.PayloadVisibilityQuery public static PayloadVisibility parse(Context ctx)
 method com.feipi.session.browser.web.model.SafeHtml public SafeHtml EMPTY = new SafeHtmlImpl("")
 method com.feipi.session.browser.web.model.SafeHtml public String value()
 method com.feipi.session.browser.web.model.SafeHtml public default SafeHtml append(SafeHtml other)
@@ -2649,6 +2682,22 @@ method com.feipi.session.browser.web.model.SafeHtml public default SafeHtml wrap
 method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml escaped(String raw)
 method com.feipi.session.browser.web.model.SafeHtml public static SafeHtml trusted(String html)
 method com.feipi.session.browser.web.model.SafeHtml public static String escapeAttribute(String raw)
+method com.feipi.session.browser.web.model.SessionDetailRequest public Optional<SessionDetailUseCase.AnnotatedDetail> load(SessionDetailUseCase useCase) throws SQLException, IOException
+method com.feipi.session.browser.web.model.SessionDetailRequest public PayloadVisibility visibility()
+method com.feipi.session.browser.web.model.SessionDetailRequest public String decodedAgent()
+method com.feipi.session.browser.web.model.SessionDetailRequest public String decodedSessionId()
+method com.feipi.session.browser.web.model.SessionDetailRequest public String sessionKey()
+method com.feipi.session.browser.web.model.SessionDetailRequest public static SessionDetailRequest from(Context ctx, String agent, String sessionId)
+method com.feipi.session.browser.web.model.SessionDetailViewModels public static List<Map<String, Object>> exportRounds(List<CallRound> rounds)
+method com.feipi.session.browser.web.model.SessionDetailViewModels public static List<Map<String, String>> anomalyList(SessionAnomalySummary anomalies)
+method com.feipi.session.browser.web.model.SessionDetailViewModels public static Map<String, Object> baseContext( SessionDetail detail, String agent, String sessionId, PayloadVisibility visibility)
+method com.feipi.session.browser.web.model.SessionDetailViewModels public static Map<String, Object> baseMetrics(SessionRow row)
+method com.feipi.session.browser.web.model.SessionDetailViewModels public static Map<String, Object> roundBase(CallRound round)
+method com.feipi.session.browser.web.model.TokenTrendBuckets public static List<Point> fromSessions(List<SessionRow> sessions, String grain)
+method com.feipi.session.browser.web.model.WebDisplayValues public static LocalDate parseDate(String value)
+method com.feipi.session.browser.web.model.WebDisplayValues public static String agentDisplay(String dbAgent)
+method com.feipi.session.browser.web.model.WebDisplayValues public static String bucketLabel(LocalDate date, String grain)
+method com.feipi.session.browser.web.model.WebDisplayValues public static double share(long value, long total)
 method com.feipi.session.browser.web.page.CorruptArtifactException public String agent()
 method com.feipi.session.browser.web.page.CorruptArtifactException public String sessionId()
 method com.feipi.session.browser.web.page.DashboardPage public void handle(Context ctx)
@@ -2734,6 +2783,11 @@ type com.feipi.session.browser.cli.PathResolver public class [app-cli] final cla
 type com.feipi.session.browser.cli.PathUtils public class [app-cli] final class PathUtils
 type com.feipi.session.browser.cli.RuntimePaths public record [app-cli] record RuntimePaths(Path dataDir, Path logDir, Path cacheDir)
 type com.feipi.session.browser.cli.ServerLifecycle public class [app-cli] final class ServerLifecycle
+type com.feipi.session.browser.data.batch.protocol.NormalizationResultRecord public record [data] record NormalizationResultRecord( String requestId, String sessionKey, String status, String artifactPath, String error, String contentHash)
+type com.feipi.session.browser.data.batch.protocol.NormalizedBatchProtocol public class [data] final class NormalizedBatchProtocol
+type com.feipi.session.browser.data.batch.protocol.SourceRootRequestRecord public record [data] record SourceRootRequestRecord(String requestId, String sourceId, String rootPath)
+type com.feipi.session.browser.data.batch.service.NormalizedBatchRunner public class [data] final class NormalizedBatchRunner
+type com.feipi.session.browser.data.batch.service.SourceAdapterResolver public interface [data] interface SourceAdapterResolver
 type com.feipi.session.browser.domain.DomainMarker public class [core-domain] final class DomainMarker
 type com.feipi.session.browser.domain.NormalizedTokenBreakdown public record [core-domain] record NormalizedTokenBreakdown( long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens, TokenPrecision precision, TokenTotalSemantics totalSemantics, TokenSourceKind sourceKind, Map<String, Object> rawFields, List<String> notes)
 type com.feipi.session.browser.domain.annotation.CoreField public @interface [core-domain] CoreField
@@ -2872,23 +2926,6 @@ type com.feipi.session.browser.query.api.Sort public class [query-api] final cla
 type com.feipi.session.browser.query.api.SortOrder public enum [query-api] enum SortOrder
 type com.feipi.session.browser.query.api.TitleFilter public class [query-api] final class TitleFilter
 type com.feipi.session.browser.query.api.TrendFilter public class [query-api] final class TrendFilter
-type com.feipi.session.browser.reuse.analyzer.AnalyzerMain public class [reuse-analyzer] final class AnalyzerMain
-type com.feipi.session.browser.reuse.analyzer.MethodIdGenerator public class [reuse-analyzer] final class MethodIdGenerator
-type com.feipi.session.browser.reuse.analyzer.OwnershipClassifier public class [reuse-analyzer] final class OwnershipClassifier
-type com.feipi.session.browser.reuse.analyzer.PeerGroupResolver public class [reuse-analyzer] final class PeerGroupResolver
-type com.feipi.session.browser.reuse.analyzer.ReuseAnalyzer public class [reuse-analyzer] final class ReuseAnalyzer
-type com.feipi.session.browser.reuse.analyzer.SpoonAnalysisException public class [reuse-analyzer] static final class SpoonAnalysisException extends RuntimeException
-type com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer public class [reuse-analyzer] final class SpoonAnalyzer
-type com.feipi.session.browser.reuse.analyzer.SpoonAnalyzer.SpoonAnalysisException public class [reuse-analyzer] static final class SpoonAnalysisException extends RuntimeException
-type com.feipi.session.browser.reuse.analyzer.cache.AnalyzerCache public class [reuse-analyzer] final class AnalyzerCache
-type com.feipi.session.browser.reuse.analyzer.fingerprint.CallSequenceFingerprinter public class [reuse-analyzer] final class CallSequenceFingerprinter
-type com.feipi.session.browser.reuse.analyzer.fingerprint.Fingerprinter public class [reuse-analyzer] final class Fingerprinter
-type com.feipi.session.browser.reuse.analyzer.model.AnalysisResult public class [reuse-analyzer] final class AnalysisResult
-type com.feipi.session.browser.reuse.analyzer.model.Finding public class [reuse-analyzer] final class Finding
-type com.feipi.session.browser.reuse.analyzer.model.InputManifest public class [reuse-analyzer] final class InputManifest
-type com.feipi.session.browser.reuse.analyzer.model.ModuleManifest public class [reuse-analyzer] final class ModuleManifest
-type com.feipi.session.browser.reuse.analyzer.model.Ownership public enum [reuse-analyzer] enum Ownership
-type com.feipi.session.browser.reuse.analyzer.model.Severity public enum [reuse-analyzer] enum Severity
 type com.feipi.session.browser.scan.engine.BackgroundScanner public class [scan-engine] final class BackgroundScanner
 type com.feipi.session.browser.scan.engine.CandidateState public enum [scan-engine] enum CandidateState
 type com.feipi.session.browser.scan.engine.FullScanEngine public class [scan-engine] final class FullScanEngine
@@ -2927,14 +2964,20 @@ type com.feipi.session.browser.source.codex.CodexSourceAdapter public class [sou
 type com.feipi.session.browser.source.codex.ThreadsDbReader public class [source-codex] final class ThreadsDbReader
 type com.feipi.session.browser.source.codex.ThreadsDbResult public record [source-codex] record ThreadsDbResult( List<Map<String, String>> threads, Optional<SourceDiagnostic> diagnostic)
 type com.feipi.session.browser.source.json.DiagnosticCollector public interface [source-json] interface DiagnosticCollector
+type com.feipi.session.browser.source.json.JsonCandidateMetadataReader public class [source-json] final class JsonCandidateMetadataReader
+type com.feipi.session.browser.source.json.JsonCandidateMetadataReader.Metadata public class [source-json] static final class Metadata
 type com.feipi.session.browser.source.json.JsonCandidateParser public class [source-json] final class JsonCandidateParser
 type com.feipi.session.browser.source.json.JsonCandidateParser.DiagnosticCollector public interface [source-json] interface DiagnosticCollector
+type com.feipi.session.browser.source.json.JsonNodeReaders public class [source-json] final class JsonNodeReaders
 type com.feipi.session.browser.source.json.JsonSourceRecordMapper public class [source-json] final class JsonSourceRecordMapper
 type com.feipi.session.browser.source.json.JsonlConstants public class [source-json] final class JsonlConstants
+type com.feipi.session.browser.source.json.JsonlObjectReader public class [source-json] final class JsonlObjectReader
 type com.feipi.session.browser.source.json.JsonlReader public class [source-json] final class JsonlReader
 type com.feipi.session.browser.source.json.JsonlReaderConfig public record [source-json] record JsonlReaderConfig(int maxRecords, int maxBufferSize, int maxPreviewLength)
 type com.feipi.session.browser.source.json.JsonlReaderResult public record [source-json] record JsonlReaderResult( List<JsonNode> events, List<SourceDiagnostic> diagnostics, JsonlStats stats, boolean stoppedByLimit)
 type com.feipi.session.browser.source.json.JsonlStats public record [source-json] record JsonlStats(int totalLines, int nonEmptyLines, int eventsParsed, int eventsSkipped)
+type com.feipi.session.browser.source.json.Metadata public class [source-json] static final class Metadata
+type com.feipi.session.browser.source.json.SourceTitleTexts public class [source-json] final class SourceTitleTexts
 type com.feipi.session.browser.source.json.ToolFailureClassifier public class [source-json] final class ToolFailureClassifier
 type com.feipi.session.browser.source.qoder.QoderConstants public class [source-qoder] final class QoderConstants
 type com.feipi.session.browser.source.qoder.QoderDiscoveredSession public record [source-qoder] record QoderDiscoveredSession( Path path, String projectKey, String sessionId, SourceKind sourceKind)
@@ -2954,7 +2997,9 @@ type com.feipi.session.browser.source.spi.SourceAdapter.CancellationSignal publi
 type com.feipi.session.browser.source.spi.SourceConstants public class [source-spi] final class SourceConstants
 type com.feipi.session.browser.source.spi.SourceDiagnostic public record [source-spi] record SourceDiagnostic( ParseSeverity severity, ParseIssueType issueType, String message, int lineNo, Optional<String> preview, String code, String locator, OptionalInt column, OptionalInt byteRangeStart, OptionalInt byteRangeEnd)
 type com.feipi.session.browser.source.spi.SourceFingerprint public record [source-spi] record SourceFingerprint( String locator, SourceId sourceId, long sizeBytes, long lastModifiedMs, Optional<String> contentHash, Optional<String> hashAlgorithm)
+type com.feipi.session.browser.source.spi.SourceFingerprintMaps public class [source-spi] final class SourceFingerprintMaps
 type com.feipi.session.browser.source.spi.SourceId public enum [source-spi] enum SourceId
+type com.feipi.session.browser.source.spi.SourceNormalizationInputs public class [source-spi] final class SourceNormalizationInputs
 type com.feipi.session.browser.source.spi.SourceOutcome public enum [source-spi] enum SourceOutcome
 type com.feipi.session.browser.source.spi.SourcePathOps public class [source-spi] final class SourcePathOps
 type com.feipi.session.browser.source.spi.SourceResult public interface [source-spi] sealed interface SourceResult permits SourceResult.Success, SourceResult.RetryableIncomplete, SourceResult.Skipped, SourceResult.Fatal
@@ -2985,18 +3030,19 @@ type com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse public reco
 type com.feipi.session.browser.web.api.ApiResponses.AttributionData public record [web] record AttributionData( String model, String scope, long totalTokens, long freshInputTokens, long outputTokens, long cacheReadTokens, long cacheWriteTokens, int requestToolResultCount, int responseToolCallCount)
 type com.feipi.session.browser.web.api.ApiResponses.AttributionResponse public record [web] record AttributionResponse( String kind, String source, String sessionId, int roundIndex, int callIndex, AttributionData data)
 type com.feipi.session.browser.web.api.ApiResponses.BucketDetailResponse public record [web] record BucketDetailResponse( String kind, String bucketKey, int roundIndex, String text, long tokens, String unavailableReason)
-type com.feipi.session.browser.web.api.ApiResponses.CallSummary public record [web] record CallSummary( String callId, String callKey, String model, CallUsage usage, String scope, List<String> requestToolResultIds, List<String> responseToolCallIds)
+type com.feipi.session.browser.web.api.ApiResponses.CallSummary public record [web] record CallSummary( String callId, String callKey, String model, CallUsage usage, String scope, List<String> requestToolResultIds, List<String> responseToolCallIds, String timestamp, String subagentId, String parentToolCallId, String parentToolName)
 type com.feipi.session.browser.web.api.ApiResponses.CallUsage public record [web] record CallUsage(long fresh, long cacheRead, long cacheWrite, long output, long total)
 type com.feipi.session.browser.web.api.ApiResponses.PayloadNotFoundResponse public record [web] record PayloadNotFoundResponse( String error, String message, List<String> availablePayloadIds)
 type com.feipi.session.browser.web.api.ApiResponses.PayloadResponse public record [web] record PayloadResponse( String payloadId, String kind, String callId, String content, boolean truncated, String schemaVersion)
 type com.feipi.session.browser.web.api.ApiResponses.RoundResponse public record [web] record RoundResponse(int roundId, RoundSummary round, String schemaVersion)
-type com.feipi.session.browser.web.api.ApiResponses.RoundSummary public record [web] record RoundSummary( List<String> callIds, List<String> toolCallIds, List<CallSummary> calls, long totalTokens, boolean isSubagent, String parentCallId)
+type com.feipi.session.browser.web.api.ApiResponses.RoundSummary public record [web] record RoundSummary( List<String> callIds, List<String> toolCallIds, List<ToolExecutionSummary> tools, List<CallSummary> calls, long totalTokens, boolean isSubagent, String parentCallId)
+type com.feipi.session.browser.web.api.ApiResponses.ToolExecutionSummary public record [web] record ToolExecutionSummary( String toolCallId, String name, String scope, String declaredByCallId, String status, Integer exitCode, long durationMs, String subagentId)
 type com.feipi.session.browser.web.api.AttributionData public record [web] record AttributionData( String model, String scope, long totalTokens, long freshInputTokens, long outputTokens, long cacheReadTokens, long cacheWriteTokens, int requestToolResultCount, int responseToolCallCount)
 type com.feipi.session.browser.web.api.AttributionResponse public record [web] record AttributionResponse( String kind, String source, String sessionId, int roundIndex, int callIndex, AttributionData data)
 type com.feipi.session.browser.web.api.BucketDetailResponse public record [web] record BucketDetailResponse( String kind, String bucketKey, int roundIndex, String text, long tokens, String unavailableReason)
 type com.feipi.session.browser.web.api.CacheHealthPoint public record [web] record CacheHealthPoint( String date, CacheInputDto average, CacheInputDto claudeCode, CacheInputDto codex, CacheInputDto qoder)
 type com.feipi.session.browser.web.api.CacheInputDto public record [web] record CacheInputDto( long fresh, long cacheRead, long cacheWrite, long totalInput, RatioDto ratio)
-type com.feipi.session.browser.web.api.CallSummary public record [web] record CallSummary( String callId, String callKey, String model, CallUsage usage, String scope, List<String> requestToolResultIds, List<String> responseToolCallIds)
+type com.feipi.session.browser.web.api.CallSummary public record [web] record CallSummary( String callId, String callKey, String model, CallUsage usage, String scope, List<String> requestToolResultIds, List<String> responseToolCallIds, String timestamp, String subagentId, String parentToolCallId, String parentToolName)
 type com.feipi.session.browser.web.api.CallUsage public record [web] record CallUsage(long fresh, long cacheRead, long cacheWrite, long output, long total)
 type com.feipi.session.browser.web.api.DashboardApiHandler public class [web] final class DashboardApiHandler
 type com.feipi.session.browser.web.api.DashboardApiResponses public class [web] final class DashboardApiResponses
@@ -3089,9 +3135,9 @@ type com.feipi.session.browser.web.api.ProjectsRowsResponse public record [web] 
 type com.feipi.session.browser.web.api.ProjectsSummaryResponse public record [web] record ProjectsSummaryResponse( String schemaVersion, ProjectsFilterEcho filters, long projectCount, long sessionCount, TokenSegments tokens, long toolCalls, long failedTools, PageStateDto state)
 type com.feipi.session.browser.web.api.PromptTrendPoint public record [web] record PromptTrendPoint( String date, long totalPrompts, long claudePrompts, long codexPrompts, long qoderPrompts, long assistantTurns, long toolCalls)
 type com.feipi.session.browser.web.api.RatioDto public record [web] record RatioDto(Double value, String reason)
-type com.feipi.session.browser.web.api.RoundIndexDto public record [web] record RoundIndexDto( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId, TokenSegments tokens, int callCount, int toolCallCount, int failedToolCount, List<String> failedToolCallIds, Double tokenShare, String status, List<String> signals)
+type com.feipi.session.browser.web.api.RoundIndexDto public record [web] record RoundIndexDto( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId, TokenSegments tokens, int callCount, int toolCallCount, int failedToolCount, List<String> failedToolCallIds, Double tokenShare, String status, List<String> signals, Map<String, Object> parity)
 type com.feipi.session.browser.web.api.RoundResponse public record [web] record RoundResponse(int roundId, RoundSummary round, String schemaVersion)
-type com.feipi.session.browser.web.api.RoundSummary public record [web] record RoundSummary( List<String> callIds, List<String> toolCallIds, List<CallSummary> calls, long totalTokens, boolean isSubagent, String parentCallId)
+type com.feipi.session.browser.web.api.RoundSummary public record [web] record RoundSummary( List<String> callIds, List<String> toolCallIds, List<ToolExecutionSummary> tools, List<CallSummary> calls, long totalTokens, boolean isSubagent, String parentCallId)
 type com.feipi.session.browser.web.api.SafeErrorDetails public record [web] record SafeErrorDetails( String errorType, String requestPath, String requestId, String timestamp, String messageSummary)
 type com.feipi.session.browser.web.api.SelectOptionDto public record [web] record SelectOptionDto(String value, String label)
 type com.feipi.session.browser.web.api.SessionApiContext public record [web] record SessionApiContext( SessionDetail detail, NormalizedSessionArtifact artifact, PayloadLookup payloadLookup)
@@ -3105,24 +3151,24 @@ type com.feipi.session.browser.web.api.SessionDetailApiHandler public class [web
 type com.feipi.session.browser.web.api.SessionDetailApiResponses public class [web] final class SessionDetailApiResponses
 type com.feipi.session.browser.web.api.SessionDetailApiResponses.AnomalyDto public record [web] record AnomalyDto(String type, String severity, String reason)
 type com.feipi.session.browser.web.api.SessionDetailApiResponses.PayloadIndexDto public record [web] record PayloadIndexDto( String payloadId, String kind, String callId, String title, boolean truncated, String status, String apiUrl)
-type com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto public record [web] record RoundIndexDto( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId, TokenSegments tokens, int callCount, int toolCallCount, int failedToolCount, List<String> failedToolCallIds, Double tokenShare, String status, List<String> signals)
+type com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto public record [web] record RoundIndexDto( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId, TokenSegments tokens, int callCount, int toolCallCount, int failedToolCount, List<String> failedToolCallIds, Double tokenShare, String status, List<String> signals, Map<String, Object> parity)
 type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDetailFilterEcho public record [web] record SessionDetailFilterEcho( String agent, String sessionId, String visibility, String traceStatus, String payloadStatus)
-type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse public record [web] record SessionDiagnosticsResponse( String schemaVersion, SessionDetailFilterEcho filters, int anomalyCount, String maxSeverity, String mainReason, List<AnomalyDto> anomalies, PageStateDto state)
-type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse public record [web] record SessionMetaResponse( String schemaVersion, SessionDetailFilterEcho filters, String sessionKey, String title, String projectKey, String projectName, String cwd, String model, String createdAt, String updatedAt, String gitBranch, String source, boolean hasArtifact, String artifactSchemaVersion, String cacheKey, PageStateDto state)
-type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse public record [web] record SessionMetricsResponse( String schemaVersion, SessionDetailFilterEcho filters, TokenSegments tokens, long userMessages, long assistantMessages, long toolCalls, long failedTools, long subagents, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, long roundCount, long payloadCount, PageStateDto state)
+type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionDiagnosticsResponse public record [web] record SessionDiagnosticsResponse( String schemaVersion, SessionDetailFilterEcho filters, int anomalyCount, String maxSeverity, String mainReason, List<AnomalyDto> anomalies, Map<String, Object> parity, PageStateDto state)
+type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetaResponse public record [web] record SessionMetaResponse( String schemaVersion, SessionDetailFilterEcho filters, String sessionKey, String title, String projectKey, String projectName, String cwd, String model, String createdAt, String updatedAt, String gitBranch, String source, boolean hasArtifact, String artifactSchemaVersion, String cacheKey, Map<String, Object> parity, PageStateDto state)
+type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetricsResponse public record [web] record SessionMetricsResponse( String schemaVersion, SessionDetailFilterEcho filters, TokenSegments tokens, long userMessages, long assistantMessages, long toolCalls, long failedTools, long subagents, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, long roundCount, long payloadCount, Map<String, Object> parity, PageStateDto state)
 type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionPayloadsResponse public record [web] record SessionPayloadsResponse( String schemaVersion, SessionDetailFilterEcho filters, long payloadCount, List<PayloadIndexDto> payloads, PageStateDto state)
 type com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionRoundsResponse public record [web] record SessionRoundsResponse( String schemaVersion, SessionDetailFilterEcho filters, long roundCount, List<RoundIndexDto> rounds, PageStateDto state)
 type com.feipi.session.browser.web.api.SessionDetailFilterEcho public record [web] record SessionDetailFilterEcho( String agent, String sessionId, String visibility, String traceStatus, String payloadStatus)
-type com.feipi.session.browser.web.api.SessionDiagnosticsResponse public record [web] record SessionDiagnosticsResponse( String schemaVersion, SessionDetailFilterEcho filters, int anomalyCount, String maxSeverity, String mainReason, List<AnomalyDto> anomalies, PageStateDto state)
-type com.feipi.session.browser.web.api.SessionMetaResponse public record [web] record SessionMetaResponse( String schemaVersion, SessionDetailFilterEcho filters, String sessionKey, String title, String projectKey, String projectName, String cwd, String model, String createdAt, String updatedAt, String gitBranch, String source, boolean hasArtifact, String artifactSchemaVersion, String cacheKey, PageStateDto state)
-type com.feipi.session.browser.web.api.SessionMetricsResponse public record [web] record SessionMetricsResponse( String schemaVersion, SessionDetailFilterEcho filters, TokenSegments tokens, long userMessages, long assistantMessages, long toolCalls, long failedTools, long subagents, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, long roundCount, long payloadCount, PageStateDto state)
+type com.feipi.session.browser.web.api.SessionDiagnosticsResponse public record [web] record SessionDiagnosticsResponse( String schemaVersion, SessionDetailFilterEcho filters, int anomalyCount, String maxSeverity, String mainReason, List<AnomalyDto> anomalies, Map<String, Object> parity, PageStateDto state)
+type com.feipi.session.browser.web.api.SessionMetaResponse public record [web] record SessionMetaResponse( String schemaVersion, SessionDetailFilterEcho filters, String sessionKey, String title, String projectKey, String projectName, String cwd, String model, String createdAt, String updatedAt, String gitBranch, String source, boolean hasArtifact, String artifactSchemaVersion, String cacheKey, Map<String, Object> parity, PageStateDto state)
+type com.feipi.session.browser.web.api.SessionMetricsResponse public record [web] record SessionMetricsResponse( String schemaVersion, SessionDetailFilterEcho filters, TokenSegments tokens, long userMessages, long assistantMessages, long toolCalls, long failedTools, long subagents, double durationSeconds, double modelExecutionSeconds, double toolExecutionSeconds, long roundCount, long payloadCount, Map<String, Object> parity, PageStateDto state)
 type com.feipi.session.browser.web.api.SessionPayloadsResponse public record [web] record SessionPayloadsResponse( String schemaVersion, SessionDetailFilterEcho filters, long payloadCount, List<PayloadIndexDto> payloads, PageStateDto state)
 type com.feipi.session.browser.web.api.SessionRoundsResponse public record [web] record SessionRoundsResponse( String schemaVersion, SessionDetailFilterEcho filters, long roundCount, List<RoundIndexDto> rounds, PageStateDto state)
-type com.feipi.session.browser.web.api.SessionRowDto public record [web] record SessionRowDto( String sessionKey, String sessionId, String title, String projectKey, String projectName, String cwd, String agent, String model, TokenSegments tokens, long rounds, long tools, long subagents, double durationSeconds, double processSeconds, long failedTools, String createdAt, String updatedAt, String detailUrl, String projectUrl, List<String> matchReasons)
+type com.feipi.session.browser.web.api.SessionRowDto public record [web] record SessionRowDto( String sessionKey, String sessionId, String title, String projectKey, String projectName, String cwd, String agent, String model, String gitBranch, TokenSegments tokens, long rounds, long tools, long subagents, double durationSeconds, double processSeconds, long failedTools, String createdAt, String updatedAt, String detailUrl, String projectUrl, List<String> matchReasons)
 type com.feipi.session.browser.web.api.SessionTrendPoint public record [web] record SessionTrendPoint( String date, long totalCount, long claudeCount, long codexCount, long qoderCount, long toolCalls, long failedTools)
 type com.feipi.session.browser.web.api.SessionsApiHandler public class [web] final class SessionsApiHandler
 type com.feipi.session.browser.web.api.SessionsApiResponses public class [web] final class SessionsApiResponses
-type com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto public record [web] record SessionRowDto( String sessionKey, String sessionId, String title, String projectKey, String projectName, String cwd, String agent, String model, TokenSegments tokens, long rounds, long tools, long subagents, double durationSeconds, double processSeconds, long failedTools, String createdAt, String updatedAt, String detailUrl, String projectUrl, List<String> matchReasons)
+type com.feipi.session.browser.web.api.SessionsApiResponses.SessionRowDto public record [web] record SessionRowDto( String sessionKey, String sessionId, String title, String projectKey, String projectName, String cwd, String agent, String model, String gitBranch, TokenSegments tokens, long rounds, long tools, long subagents, double durationSeconds, double processSeconds, long failedTools, String createdAt, String updatedAt, String detailUrl, String projectUrl, List<String> matchReasons)
 type com.feipi.session.browser.web.api.SessionsApiResponses.SessionsFilterEcho public record [web] record SessionsFilterEcho( String agent, String model, String project, String status, String q, String sort, String dir, int page, int pageSize)
 type com.feipi.session.browser.web.api.SessionsApiResponses.SessionsOptionsResponse public record [web] record SessionsOptionsResponse( String schemaVersion, SessionsFilterEcho filters, List<SelectOptionDto> agents, List<SelectOptionDto> models, List<SelectOptionDto> projects, List<SelectOptionDto> statuses)
 type com.feipi.session.browser.web.api.SessionsApiResponses.SessionsRowsResponse public record [web] record SessionsRowsResponse( String schemaVersion, SessionsFilterEcho filters, List<SessionRowDto> rows, PaginationDto pagination, PageStateDto state)
@@ -3133,10 +3179,19 @@ type com.feipi.session.browser.web.api.SessionsRowsResponse public record [web] 
 type com.feipi.session.browser.web.api.SessionsSummaryResponse public record [web] record SessionsSummaryResponse( String schemaVersion, SessionsFilterEcho filters, long totalCount, long projectCount, TokenSegments tokens, long failedTools, PageStateDto state)
 type com.feipi.session.browser.web.api.TokenSegments public record [web] record TokenSegments( long fresh, long cacheRead, long cacheWrite, long output, long total)
 type com.feipi.session.browser.web.api.TokenTrendPoint public record [web] record TokenTrendPoint( String date, TokenSegments tokens, long claudeTokens, long codexTokens, long qoderTokens)
+type com.feipi.session.browser.web.api.ToolExecutionSummary public record [web] record ToolExecutionSummary( String toolCallId, String name, String scope, String declaredByCallId, String status, Integer exitCode, long durationMs, String subagentId)
 type com.feipi.session.browser.web.export.ExportHandler public class [web] final class ExportHandler
 type com.feipi.session.browser.web.export.ExportHandler.ExportSizeExceededException public class [web] static final class ExportSizeExceededException extends RuntimeException
 type com.feipi.session.browser.web.model.PaginationModel public record [web] record PaginationModel( int page, int pageSize, int totalItems, int totalPages, int pageStart, int pageEnd, boolean hasPrev, boolean hasNext)
+type com.feipi.session.browser.web.model.PayloadSourceSummaries public class [web] final class PayloadSourceSummaries
+type com.feipi.session.browser.web.model.PayloadVisibilityQuery public class [web] final class PayloadVisibilityQuery
+type com.feipi.session.browser.web.model.Point public record [web] record Point( String label, long fresh, long cacheRead, long cacheWrite, long output, long total)
 type com.feipi.session.browser.web.model.SafeHtml public interface [web] sealed interface SafeHtml permits SafeHtmlImpl
+type com.feipi.session.browser.web.model.SessionDetailRequest public class [web] final class SessionDetailRequest
+type com.feipi.session.browser.web.model.SessionDetailViewModels public class [web] final class SessionDetailViewModels
+type com.feipi.session.browser.web.model.TokenTrendBuckets public class [web] final class TokenTrendBuckets
+type com.feipi.session.browser.web.model.TokenTrendBuckets.Point public record [web] record Point( String label, long fresh, long cacheRead, long cacheWrite, long output, long total)
+type com.feipi.session.browser.web.model.WebDisplayValues public class [web] final class WebDisplayValues
 type com.feipi.session.browser.web.page.CorruptArtifactException public class [web] static final class CorruptArtifactException extends RuntimeException
 type com.feipi.session.browser.web.page.DashboardPage public class [web] final class DashboardPage
 type com.feipi.session.browser.web.page.GlossaryPage public class [web] final class GlossaryPage

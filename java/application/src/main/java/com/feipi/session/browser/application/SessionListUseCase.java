@@ -22,6 +22,8 @@ import java.util.Objects;
  */
 public final class SessionListUseCase {
 
+  private static final String FILTER_NULL_MESSAGE = "filter 不得为 null";
+
   private final SessionQueryRepository repository;
   private final QueryCache cache;
   private final int schemaVersion;
@@ -48,7 +50,7 @@ public final class SessionListUseCase {
    * @throws SQLException 查询失败
    */
   public AnnotatedPageResult listWithAnomalies(SessionListFilter filter) throws SQLException {
-    Objects.requireNonNull(filter, "filter 不得为 null");
+    Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
 
     PageResult<SessionRow> page;
     if (cache != null) {
@@ -81,7 +83,7 @@ public final class SessionListUseCase {
    * @throws SQLException 查询失败
    */
   public long count(SessionListFilter filter) throws SQLException {
-    Objects.requireNonNull(filter, "filter 不得为 null");
+    Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.countSessions(filter);
   }
 
@@ -93,7 +95,7 @@ public final class SessionListUseCase {
    * @throws SQLException 查询失败
    */
   public SessionListAggregate aggregate(SessionListFilter filter) throws SQLException {
-    Objects.requireNonNull(filter, "filter 不得为 null");
+    Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listAggregate(filter);
   }
 
@@ -105,7 +107,7 @@ public final class SessionListUseCase {
    * @throws SQLException 查询失败
    */
   public SessionListSummaryRow summary(SessionListFilter filter) throws SQLException {
-    Objects.requireNonNull(filter, "filter 不得为 null");
+    Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listSummary(filter);
   }
 
@@ -117,7 +119,7 @@ public final class SessionListUseCase {
    * @throws SQLException 查询失败
    */
   public List<String> modelOptions(SessionListFilter filter) throws SQLException {
-    Objects.requireNonNull(filter, "filter 不得为 null");
+    Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listModelOptions(filter);
   }
 
@@ -129,7 +131,7 @@ public final class SessionListUseCase {
    * @throws SQLException 查询失败
    */
   public List<ProjectOptionRow> projectOptions(SessionListFilter filter) throws SQLException {
-    Objects.requireNonNull(filter, "filter 不得为 null");
+    Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listProjectOptions(filter);
   }
 

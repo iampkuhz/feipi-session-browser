@@ -218,7 +218,7 @@ public final class IncrementalScanEngine {
 
         // 真 full rebuild：DELETE 旧 sessions 和 artifacts，避免残留
         try {
-          clearExistingIndex(writeConn);
+          ScanIndexMaintenance.clearExistingIndex(writeConn, log);
           storedFingerprints = Map.of(); // 清空内存指纹缓存
         } catch (SQLException e) {
           log.error("rebuild 清理旧 index 失败", e);
@@ -505,21 +505,6 @@ public final class IncrementalScanEngine {
     } catch (SQLException e) {
       log.warn("保存 scan logic version 失败", e);
     }
-  }
-
-  /**
-   * 清理现有 index 数据，用于 version 变化时的 full rebuild。
-   *
-   * <p>DELETE sessions 和 session_artifacts 表的所有行，避免旧逻辑产生的残留数据。
-   */
-  private static void clearExistingIndex(Connection conn) throws SQLException {
-    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM session_artifacts")) {
-      stmt.executeUpdate();
-    }
-    try (PreparedStatement stmt = conn.prepareStatement("DELETE FROM sessions")) {
-      stmt.executeUpdate();
-    }
-    log.info("已清理旧 index 数据（sessions + session_artifacts）");
   }
 
   /** 构建错误汇总。 */

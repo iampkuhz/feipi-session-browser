@@ -547,6 +547,35 @@ class TestQualityGateRuntime:
         assert detail.status == PASS
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_playwright_known_node_deprecation_noise_uses_full_output_before_tail(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        monkeypatch.setattr(run_quality_gate.shutil, 'which', lambda name: name)
+        monkeypatch.setattr(
+            run_quality_gate.subprocess,
+            'run',
+            lambda *args, **kwargs: SimpleNamespace(
+                returncode=0,
+                stdout=(
+                    ('x' * (run_quality_gate.COMMAND_OUTPUT_TAIL_CHARS - 10))
+                    + '(node:123) [DEP0205] DeprecationWarning: '
+                    + '`module.register()` is deprecated. '
+                    + 'Use `module.registerHooks()` instead.\n'
+                    + '(Use `node --trace-warnings ...` to show where the warning was created)\n'
+                    + '1 passed\n'
+                ),
+            ),
+        )
+
+        detail = run_quality_gate.run_cmd(
+            'browserLayout',
+            ['npx', 'playwright', 'test', 'session-detail-layout', '--workers=8'],
+            tmp_path,
+        )
+
+        assert detail.status == PASS
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_playwright_real_deprecation_warning_still_fails(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
@@ -625,8 +654,9 @@ class TestQualityGateRuntime:
             cwd: Path,
             required: bool = True,
             env_overrides: dict[str, str] | None = None,
+            timeout_seconds: int | None = None,
         ) -> GateDetail:
-            del cwd, required
+            del cwd, required, timeout_seconds
             captured_env.update(env_overrides or {})
             return GateDetail(name=name, status=PASS, command=cmd)
 
@@ -680,6 +710,7 @@ class TestQualityGateRuntime:
         gates = ['javaCheck', 'noJavaTestSkips']
         seen: list[str] = []
         env_by_gate: dict[str, dict[str, str]] = {}
+        timeout_by_gate: dict[str, int | None] = {}
         monkeypatch.setattr(run_quality_gate, 'required_gates_for_target', lambda target: gates)
         monkeypatch.setattr(
             run_quality_gate,
@@ -693,10 +724,12 @@ class TestQualityGateRuntime:
             cwd: Path,
             required: bool = True,
             env_overrides: dict[str, str] | None = None,
+            timeout_seconds: int | None = None,
         ) -> GateDetail:
             del cmd, cwd, required
             seen.append(name)
             env_by_gate[name] = dict(env_overrides or {})
+            timeout_by_gate[name] = timeout_seconds
             return GateDetail(name=name, status=PASS, command=['echo', name])
 
         monkeypatch.setattr(run_quality_gate, 'run_cmd', capture_run_cmd)
@@ -709,6 +742,7 @@ class TestQualityGateRuntime:
 
         assert [detail.name for detail in details] == gates
         assert seen == gates
+        assert timeout_by_gate == {'javaCheck': 600, 'noJavaTestSkips': 600}
         assert json.loads(env_by_gate['noJavaTestSkips']['QUALITY_CHANGED_FILES']) == [
             'java/core-domain/src/main/java/com/feipi/session/browser/core/SessionIdentity.java'
         ]

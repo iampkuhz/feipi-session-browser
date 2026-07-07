@@ -4,18 +4,18 @@ import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
-import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.CallRound;
-import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
+import com.feipi.session.browser.web.model.PayloadSourceSummaries;
+import com.feipi.session.browser.web.model.SessionDetailRequest;
+import com.feipi.session.browser.web.model.SessionDetailViewModels;
 import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.io.IOException;
-import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -144,52 +144,38 @@ public final class SessionDetailPage {
    * @param sessionId URL 中的会话标识（已 URL 编码）
    */
   public void handle(Context ctx, String agent, String sessionId) {
-    String decodedAgent = URLDecoder.decode(agent, StandardCharsets.UTF_8);
-    String decodedSessionId = URLDecoder.decode(sessionId, StandardCharsets.UTF_8);
-    String sessionKey = decodedAgent + ":" + decodedSessionId;
-
-    // 解析 payload 可见性参数，默认 STANDARD（敏感内容隐藏）
-    PayloadVisibility visibility = parseVisibility(ctx);
+    SessionDetailRequest request = SessionDetailRequest.from(ctx, agent, sessionId);
 
     try {
-      SessionDetailUseCase useCase = queryRoot.sessionDetail();
       Optional<SessionDetailUseCase.AnnotatedDetail> resultOpt =
-          useCase.getDetailWithAnomalies(sessionKey, visibility);
+          request.load(queryRoot.sessionDetail());
 
       if (resultOpt.isEmpty()) {
-        throw new SessionNotFoundException(decodedAgent, decodedSessionId);
+        throw new SessionNotFoundException(request.decodedAgent(), request.decodedSessionId());
       }
 
       SessionDetailUseCase.AnnotatedDetail annotated = resultOpt.get();
       SessionDetail detail = annotated.detail();
       SessionAnomalySummary anomalies = annotated.anomalies();
 
-      renderSessionDetail(ctx, detail, anomalies, decodedAgent, decodedSessionId, visibility);
+      renderSessionDetail(
+          ctx,
+          detail,
+          anomalies,
+          request.decodedAgent(),
+          request.decodedSessionId(),
+          request.visibility());
 
     } catch (SessionNotFoundException e) {
       renderNotFound(ctx, e.agent(), e.sessionId());
     } catch (CorruptArtifactException e) {
       renderCorruptArtifact(ctx, e.agent(), e.sessionId());
     } catch (SQLException e) {
-      LOG.error("Session detail 查询失败: {}", sessionKey, e);
-      renderError(ctx, "查询会话详情失败", decodedAgent);
+      LOG.error("Session detail 查询失败: {}", request.sessionKey(), e);
+      renderError(ctx, "查询会话详情失败", request.decodedAgent());
     } catch (IOException e) {
-      throw new CorruptArtifactException(decodedAgent, decodedSessionId, e);
+      throw new CorruptArtifactException(request.decodedAgent(), request.decodedSessionId(), e);
     }
-  }
-
-  /**
-   * 解析 payload 可见性查询参数。
-   *
-   * @param ctx Javalin 请求上下文
-   * @return 可见性策略，默认 STANDARD
-   */
-  private static PayloadVisibility parseVisibility(Context ctx) {
-    String visParam = ctx.queryParam("visibility");
-    if ("full".equalsIgnoreCase(visParam)) {
-      return PayloadVisibility.FULL;
-    }
-    return PayloadVisibility.STANDARD;
   }
 
   /**
@@ -216,32 +202,20 @@ public final class SessionDetailPage {
     List<CallRound> rounds = detail.rounds();
     List<PayloadSource> payloadSources = detail.payloadSources();
 
-    // 构建模板上下文
-    Map<String, Object> context = new HashMap<>();
+    Map<String, Object> context =
+        SessionDetailViewModels.baseContext(detail, agent, sessionId, visibility);
 
     // 会话基本信息
-    context.put("session", row);
     context.put("session_title", displayTitle(row));
-    context.put("current_agent", agent);
-    context.put("session_id", sessionId);
-    context.put("session_key", row.sessionKey());
     context.put("session_url", "/sessions/" + urlEncode(agent) + "/" + urlEncode(sessionId));
     context.put("active_page", "session");
-
-    // 详情元信息
-    context.put("has_artifact", detail.hasArtifact());
-    context.put("artifact_path", detail.artifactPath());
-    context.put("artifact_schema_version", detail.artifactSchemaVersion());
-    context.put("cache_key", detail.cacheKey());
-    context.put("visibility", visibility.name().toLowerCase());
-    context.put("payload_hidden", visibility == PayloadVisibility.STANDARD);
 
     // 异常诊断
     context.put("anomalies", anomalies);
     context.put("anomaly_count", anomalies.anomalyCount());
     context.put("has_anomalies", anomalies.anomalyCount() > 0);
     context.put("max_severity", anomalies.maxSeverity().name().toLowerCase());
-    context.put("anomaly_list", buildAnomalyDisplayList(anomalies));
+    context.put("anomaly_list", SessionDetailViewModels.anomalyList(anomalies));
 
     // 轮次数据与载荷摘要
     List<Map<String, Object>> roundDisplay = buildRoundDisplayList(rounds, row.failedToolCount());
@@ -257,7 +231,7 @@ public final class SessionDetailPage {
     context.put("subagent_breakdown", buildSubagentBreakdown(rounds));
 
     // Payload 来源摘要（不包含实际内容）
-    context.put("payload_sources", buildPayloadSourceSummary(payloadSources));
+    context.put("payload_sources", PayloadSourceSummaries.build(payloadSources));
     context.put("payload_source_count", payloadSources.size());
     context.put("primary_payload_id", primaryPayloadId(payloadSources));
 
@@ -335,28 +309,6 @@ public final class SessionDetailPage {
     ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
   }
 
-  /**
-   * 构建异常展示列表。
-   *
-   * <p>将 typed 异常转换为模板友好的展示数据结构。
-   *
-   * @param anomalies 异常摘要
-   * @return 展示用异常列表，每项包含 type、severity、reason 字段
-   */
-  private static List<Map<String, String>> buildAnomalyDisplayList(
-      SessionAnomalySummary anomalies) {
-    List<Map<String, String>> result = new ArrayList<>();
-    for (DetectedAnomaly anomaly : anomalies.anomalies()) {
-      Map<String, String> entry = new LinkedHashMap<>();
-      entry.put("type", anomaly.type().getValue());
-      entry.put("severity", anomaly.severity().name().toLowerCase());
-      entry.put("reason", anomaly.reason());
-      entry.put("tone", severityTone(anomaly.severity()));
-      result.add(entry);
-    }
-    return result;
-  }
-
   private static String displayTitle(SessionRow row) {
     if (!row.title().isBlank()) {
       return row.title();
@@ -395,14 +347,7 @@ public final class SessionDetailPage {
       if (lowCache) {
         badges.add("low cache");
       }
-      Map<String, Object> entry = new LinkedHashMap<>();
-      entry.put("round_index", round.roundIndex());
-      entry.put("call_count", round.callCount());
-      entry.put("tool_call_count", round.toolCallCount());
-      entry.put("is_subagent", !round.parentCallId().isEmpty());
-      entry.put("parent_call_id", round.parentCallId());
-      entry.put("calls", round.calls());
-      entry.put("tool_call_ids", round.toolCallIds());
+      Map<String, Object> entry = SessionDetailViewModels.roundBase(round);
       entry.put("status", failed ? "failed" : "ok");
       entry.put("status_label", failed ? "failed" : "ok");
       entry.put("has_issues", failed);
@@ -548,29 +493,6 @@ public final class SessionDetailPage {
     return result;
   }
 
-  /**
-   * 构建 payload 来源摘要列表。
-   *
-   * <p>只包含元信息（ID、类型、状态），不包含实际 payload 内容。 敏感 payload 默认隐藏。
-   *
-   * @param sources payload 来源列表
-   * @return 展示用 payload 来源摘要列表
-   */
-  private static List<Map<String, String>> buildPayloadSourceSummary(List<PayloadSource> sources) {
-    List<Map<String, String>> result = new ArrayList<>(sources.size());
-    for (PayloadSource source : sources) {
-      Map<String, String> entry = new LinkedHashMap<>();
-      entry.put("payload_id", source.payloadId());
-      entry.put("kind", source.kind().name().toLowerCase());
-      entry.put("call_id", source.callId());
-      entry.put("title", source.title());
-      entry.put("truncated", source.truncated() ? "true" : "false");
-      entry.put("status", source.truncated() ? "truncated" : "available");
-      result.add(entry);
-    }
-    return result;
-  }
-
   private static String primaryPayloadId(List<PayloadSource> payloadSources) {
     return payloadSources.isEmpty() ? "" : payloadSources.get(0).payloadId();
   }
@@ -583,26 +505,13 @@ public final class SessionDetailPage {
    */
   private static Map<String, Object> buildSessionMetrics(
       SessionRow row, List<CallRound> rounds, SessionAnomalySummary anomalies) {
-    Map<String, Object> metrics = new LinkedHashMap<>();
+    Map<String, Object> metrics = new LinkedHashMap<>(SessionDetailViewModels.baseMetrics(row));
     double activeSeconds = row.modelExecutionSeconds() + row.toolExecutionSeconds();
     double waitingSeconds = Math.max(row.durationSeconds() - activeSeconds, 0.0);
     long subagentCallCount = subagentCallCount(rounds);
     long mainCallCount = Math.max(rounds.size(), row.assistantMessageCount() - subagentCallCount);
     long issueRounds = Math.max(anomalies.anomalyCount(), row.failedToolCount() > 0 ? 1 : 0);
 
-    metrics.put("total_tokens", row.totalTokens());
-    metrics.put("output_tokens", row.outputTokens());
-    metrics.put("fresh_input_tokens", row.freshInputTokens());
-    metrics.put("cache_read_tokens", row.cacheReadTokens());
-    metrics.put("cache_write_tokens", row.cacheWriteTokens());
-    metrics.put("duration_seconds", row.durationSeconds());
-    metrics.put("model_execution_seconds", row.modelExecutionSeconds());
-    metrics.put("tool_execution_seconds", row.toolExecutionSeconds());
-    metrics.put("tool_call_count", row.toolCallCount());
-    metrics.put("failed_tool_count", row.failedToolCount());
-    metrics.put("user_message_count", row.userMessageCount());
-    metrics.put("assistant_message_count", row.assistantMessageCount());
-    metrics.put("subagent_instance_count", row.subagentInstanceCount());
     metrics.put("tokens", DisplayFormatters.formatCompactToken(row.totalTokens()));
     metrics.put("tokens_note", "Fresh + Cache Read + Cache Write + Output");
     metrics.put("fresh", DisplayFormatters.formatCompactToken(row.freshInputTokens()));
@@ -781,16 +690,6 @@ public final class SessionDetailPage {
       result.add(entry);
     }
     return result;
-  }
-
-  /**
-   * 将异常严重度映射为 UI tone 标识。
-   *
-   * @param severity 异常严重度
-   * @return tone 字符串
-   */
-  private static String severityTone(AnomalySeverity severity) {
-    return severity.getValue();
   }
 
   /**

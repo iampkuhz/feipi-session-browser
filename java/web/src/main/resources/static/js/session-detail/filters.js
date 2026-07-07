@@ -22,6 +22,10 @@
         || (status === 'low-cache' && isLowCache)
       );
       round.classList.toggle('is-filtered-out', !shouldShow);
+      var roundId = round.getAttribute('data-round');
+      var detail = roundId ? document.getElementById('round-' + roundId + '-detail') : null;
+      if (detail && !shouldShow) detail.hidden = true;
+      else if (detail && round.classList.contains('is-open')) detail.hidden = false;
     });
     if (window.history && window.URLSearchParams) {
       var url = new URL(window.location.href);
@@ -51,8 +55,6 @@
         if (loadCount < maxConcurrent) {
           loadCount++;
           lazyLoadRoundDetail(round);
-        } else {
-          setRoundOpen(round, true);
         }
       }
     }
@@ -222,7 +224,9 @@
     var round = qs(page, '[data-trace-round-row][data-round="' + cssEscape(roundId) + '"]');
     if (!round) return;
     if (typeof switchTab === 'function') switchTab(page, 'trace', true);
-    round.classList.remove('is-filtered-out');
+    if (round.classList.contains('is-filtered-out')) {
+      setFilter(page, 'all');
+    }
     round.hidden = false;
     updateTraceJumpUrl(roundId, options);
 

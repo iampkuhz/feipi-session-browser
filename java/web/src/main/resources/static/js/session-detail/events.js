@@ -213,10 +213,28 @@
         event.preventDefault();
         event.stopPropagation();
         openPayload(actionEl);
+      } else if (action === 'open-attribution') {
+        event.preventDefault();
+        event.stopPropagation();
+        if (typeof openAttributionModal === 'function') {
+          openAttributionModal(actionEl);
+        }
       } else if (action === 'close-payload') {
         event.preventDefault();
         event.stopPropagation();
         closePayload();
+      } else if (action === 'copy') {
+        event.preventDefault();
+        event.stopPropagation();
+        var copyText = actionEl.getAttribute('data-copy-text') || '';
+        if (copyText && window.arpCopy) {
+          window.arpCopy(actionEl, copyText, {
+            original: actionEl.textContent || 'Copy',
+            feedback: 'Copied!'
+          });
+        } else if (copyText && navigator.clipboard && navigator.clipboard.writeText) {
+          navigator.clipboard.writeText(copyText);
+        }
       } else if (action === 'retry-attribution') {
         event.preventDefault();
         event.stopPropagation();

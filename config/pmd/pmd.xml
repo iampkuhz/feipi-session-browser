@@ -25,6 +25,13 @@
     <!-- AvoidCatchingNPE 在 PMD 8.0.0 中被移除；用 ErrorProne 原生规则替代 -->
     <rule ref="category/java/errorprone.xml/ReturnFromFinallyBlock"/>
     <rule ref="category/java/errorprone.xml/CloseResource"/>
+    <rule ref="category/java/errorprone.xml/AvoidDuplicateLiterals">
+        <properties>
+            <property name="maxDuplicateLiterals" value="8"/>
+            <property name="minimumLength" value="12"/>
+            <property name="skipAnnotations" value="true"/>
+        </properties>
+    </rule>
 
     <!-- ============================================================ -->
     <!-- bestpractices: unused code, lost exception context            -->
@@ -33,6 +40,40 @@
     <rule ref="category/java/bestpractices.xml/UnusedPrivateField"/>
     <rule ref="category/java/bestpractices.xml/UnusedLocalVariable"/>
     <rule ref="category/java/bestpractices.xml/UnusedPrivateMethod"/>
+
+    <!-- ============================================================ -->
+    <!-- design: reuse-oriented semantic rules now delegated to PMD    -->
+    <!-- ============================================================ -->
+    <rule ref="category/java/design.xml/ExcessiveParameterList">
+        <properties>
+            <property name="minimum" value="8"/>
+            <property name="violationSuppressXPath">
+                <value><![CDATA[
+ancestor::RecordDeclaration
+|
+ancestor::ClassDeclaration[pmd-java:modifiers() = "private"]
+]]></value>
+            </property>
+        </properties>
+    </rule>
+
+    <rule name="FeipiMutableStaticState"
+          language="java"
+          message="Mutable static state detected. Use instance state or static final constants."
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule"
+          priority="2">
+        <description>
+            Detects any non-final static field, including private fields. Mutable static
+            state hides ownership and makes reuse boundaries unclear.
+        </description>
+        <properties>
+            <property name="xpath">
+                <value><![CDATA[
+//FieldDeclaration[pmd-java:modifiers() = "static"][not(pmd-java:modifiers() = "final")]
+]]></value>
+            </property>
+        </properties>
+    </rule>
 
     <!-- ============================================================ -->
     <!-- custom: manual enum boilerplate (Lombok candidate)           -->

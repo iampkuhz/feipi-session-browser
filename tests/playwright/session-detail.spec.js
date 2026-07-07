@@ -184,6 +184,7 @@ test.describe('会话详情 — Phase 1', () => {
       'status-low-cache',
       'tab-trace',
       'toggle-all',
+      'toggle-round',
     ]);
 
     const buttonsWithDataAction = page.locator('button:visible[data-action]');
@@ -234,6 +235,23 @@ test.describe('会话详情 — Phase 1', () => {
       expect(filteredOutFailed).toBe(totalRows - totalFailed);
     } else {
       expect(visibleRows).toBe(0);
+    }
+
+    const nonFailedRow = page.locator('.round-row:not([data-status="failed"]):not([data-has-issues="true"])').first();
+    if (totalFailed > 0 && await nonFailedRow.count() > 0) {
+      await allChip.first().click();
+      await page.waitForTimeout(100);
+      const nonFailedRound = await nonFailedRow.getAttribute('data-round');
+      await nonFailedRow.click();
+      await expect(page.locator(`#round-${nonFailedRound}-detail`)).toBeVisible({ timeout: 5000 });
+
+      await failedChip.first().click();
+      await page.waitForTimeout(100);
+      await expect(page.locator(`#round-${nonFailedRound}-detail`)).toBeHidden({ timeout: 3000 });
+
+      await allChip.first().click();
+      await page.waitForTimeout(100);
+      await expect(page.locator(`#round-${nonFailedRound}-detail`)).toBeVisible({ timeout: 3000 });
     }
   });
 
@@ -341,6 +359,8 @@ test.describe('会话详情 — Phase 1', () => {
       }
     }, roundTarget);
     await expect(firstDetail).toBeVisible({ timeout: 5000 });
+    await expect(firstDetail.locator('.sd-timeline')).toBeVisible({ timeout: 5000 });
+    await expect(firstDetail).not.toContainText('Status loaded');
 
     // 再次调用同一 DOM helper 折叠，验证对应详情隐藏。
     await page.evaluate(({ roundId }) => {
@@ -548,13 +568,98 @@ test.describe('会话详情 — Phase 1', () => {
     expect(structure.rowHeight, `trace row should stay compact after API hydration (${structure.rowHeight}px)`).toBeLessThanOrEqual(96);
   });
 
+  test('[UI-SD-035] user input 与 failed round 保留状态底色', async ({ page }) => {
+    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoSessionDetail(page, sessionUrl);
+    await waitForSessionApiHydrated(page);
+
+    const failedRow = page.locator('[data-trace-round-row][data-has-issues="true"]').first();
+    await expect(failedRow, 'fixture must include a failed/issue round for error-tone coverage').toBeVisible({ timeout: 10000 });
+    await expect(failedRow).toHaveAttribute('data-status', 'failed');
+    const failedTone = await failedRow.evaluate((row) => {
+      const cell = row.querySelector('td') || row;
+      const color = window.getComputedStyle(cell).backgroundColor;
+      const nums = (color.match(/\d+/g) || []).slice(0, 3).map(Number);
+      return { color, isRed: nums.length === 3 && nums[0] >= 240 && nums[1] < 245 && nums[2] < 245 };
+    });
+    expect(failedTone.isRed, `failed round must be red-tinted, got ${failedTone.color}`).toBe(true);
+
+    const userRow = page.locator('[data-trace-round-row][data-is-user-input="true"]').first();
+    await expect(userRow, 'fixture must include a user-input round for user-tone coverage').toBeVisible({ timeout: 10000 });
+    await expect(userRow).toHaveAttribute('data-status', 'user');
+    const userTone = await userRow.evaluate((row) => {
+      const cell = row.querySelector('td') || row;
+      const color = window.getComputedStyle(cell).backgroundColor;
+      const nums = (color.match(/\d+/g) || []).slice(0, 3).map(Number);
+      return { color, isGreen: nums.length === 3 && nums[1] > nums[0] && nums[1] > nums[2] };
+    });
+    expect(userTone.isGreen, `user input round must be green-tinted, got ${userTone.color}`).toBe(true);
+
+    const failedRoundId = await failedRow.getAttribute('data-round');
+    await page.evaluate(async (roundId) => {
+      const escaped = window.CSS && typeof CSS.escape === 'function'
+        ? CSS.escape(roundId)
+        : String(roundId).replace(/["\\]/g, '\\$&');
+      const row = document.querySelector(`[data-trace-round-row][data-round="${escaped}"]`);
+      if (!row) throw new Error(`round ${roundId} not found`);
+      const detailId = `round-${roundId}-detail`;
+      const detail = document.getElementById(detailId);
+      if (detail && typeof window.setRoundOpen === 'function') {
+        window.setRoundOpen(row, true);
+      } else if (detail) {
+        row.classList.add('is-open');
+        detail.hidden = false;
+      } else if (typeof window.lazyLoadRoundDetail === 'function') {
+        await window.lazyLoadRoundDetail(row);
+      }
+    }, failedRoundId);
+    const failedTool = page.locator(`#round-${failedRoundId}-detail .sd-tool-row[data-status="failed"]`).first();
+    await expect(failedTool, 'failed round detail must mark failed tools').toBeVisible({ timeout: 10000 });
+    const failedToolTone = await failedTool.evaluate((row) => {
+      const color = window.getComputedStyle(row).backgroundColor;
+      const nums = (color.match(/\d+/g) || []).slice(0, 3).map(Number);
+      return { color, isRed: nums.length === 3 && nums[0] >= 240 && nums[1] < 250 && nums[2] < 250 };
+    });
+    expect(failedToolTone.isRed, `failed tool row must be red-tinted, got ${failedToolTone.color}`).toBe(true);
+  });
+
+  test('[UI-SD-036] KPI 和 Tool Impact 指标保留颜色 tone', async ({ page }) => {
+    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await gotoSessionDetail(page, sessionUrl);
+    await waitForSessionApiHydrated(page);
+
+    const toneState = await page.evaluate(() => {
+      const tokenKpi = document.querySelector('.sd-kpi[aria-label="Total Tokens"]');
+      const tokenStates = Array.from(tokenKpi ? tokenKpi.querySelectorAll('.sd-kpi-token-share') : [])
+        .map((node) => ({ className: node.className, color: window.getComputedStyle(node).color }));
+      const toolImpact = Array.from(document.querySelectorAll('.sd-diagnostic-card'))
+        .find((card) => (card.querySelector('h2')?.textContent || '').trim() === 'Tool Impact');
+      const toolRateStates = Array.from(toolImpact ? toolImpact.querySelectorAll('.sd-rate') : [])
+        .map((node) => ({ className: node.className, color: window.getComputedStyle(node).color }));
+      return { tokenStates, toolRateStates };
+    });
+
+    const toneColor = /^rgb\((21, 128, 61|180, 83, 9|220, 38, 38)\)$/;
+    expect(toneState.tokenStates, 'Total Tokens must render four colored component shares').toHaveLength(4);
+    expect(toneState.tokenStates.every((state) => /sd-kpi-token-share--(minor|mid|major)/.test(state.className))).toBe(true);
+    expect(toneState.tokenStates.some((state) => /sd-kpi-token-share--(mid|major)/.test(state.className))).toBe(true);
+    expect(toneState.tokenStates.every((state) => toneColor.test(state.color))).toBe(true);
+    expect(toneState.toolRateStates.length, 'Tool Impact must render colored failure rates').toBeGreaterThan(0);
+    expect(toneState.toolRateStates.every((state) => /sd-rate--(ok|warn|bad)/.test(state.className))).toBe(true);
+    expect(toneState.toolRateStates.every((state) => toneColor.test(state.color))).toBe(true);
+  });
+
   test('[UI-SD-032] diagnostics 区渲染 API-first parity 卡片', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await page.setViewportSize({ width: 2048, height: 768 });
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-session-diagnostics]')).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('[data-session-anomalies]')).toBeVisible({ timeout: 10000 });
+    await expect(page.locator('[data-session-anomalies]')).toHaveCount(0);
     await expect(page.locator('body')).toHaveAttribute('data-session-api-hydrated', 'true', { timeout: 10000 });
     await expect(page.locator('.sd-call-distribution')).toHaveCount(0);
     await expect(page.getByRole('heading', { name: 'Call Token Footprint Distribution' })).toHaveCount(0);
@@ -564,7 +669,84 @@ test.describe('会话详情 — Phase 1', () => {
     await expect(page.getByRole('heading', { name: 'Context Budget' })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Tool Impact' })).toBeVisible({ timeout: 10000 });
     await expect(page.getByRole('heading', { name: 'Issues & Repro Seeds' })).toBeVisible({ timeout: 10000 });
-    await expect(page.locator('.sd-anomalies__count')).not.toContainText('Loading', { timeout: 10000 });
+    await expect(page.locator('.sd-anomalies__count')).toHaveCount(0);
+    await expect(page.locator('[data-summary-strip]')).not.toContainText(/branch/i);
+    await expect(page.locator('[data-session-payload-policy]')).toHaveCount(0);
+    await expect(page.locator('[data-trace-panel]')).not.toContainText('/api/sessions/{agent}/{sessionId}/rounds');
+    await expect(page.locator('[data-trace-panel]')).not.toContainText('/round/{roundIndex}');
+    if (await page.locator('[data-action="select-subagent"][data-agent-scope="subagent"]').count() > 0) {
+      await expect(page.locator('[data-session-diagnostics]')).toContainText('Success · 0 failed');
+    }
+  });
+
+  test('[UI-SD-020] trace request / response 点击打开 attribution modal', async ({ page }) => {
+    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
+
+    await gotoSessionDetail(page, sessionUrl);
+    await waitForSessionApiHydrated(page);
+
+    const modal = page.locator('dialog.payload-modal');
+    for (const kind of ['request', 'response']) {
+      const button = page
+        .locator(`button[data-action="open-payload"][data-payload-kind="llm.${kind}_attribution"]:visible`)
+        .first();
+      await expect(button, `trace row must expose visible ${kind} attribution action`).toBeVisible({ timeout: 10000 });
+      const payloadId = await button.getAttribute('data-payload-id');
+      expect(payloadId, `${kind} attribution action must carry payload id`).toMatch(/^llm-R\d+-IX\d+-/);
+
+      await button.click({ force: true });
+      await expect
+        .poll(
+          async () => modal.evaluate((dialog) => dialog.open).catch(() => false),
+          { message: `${kind} attribution modal should open`, timeout: 5000 },
+        )
+        .toBe(true);
+      await expect(modal).toHaveAttribute('data-attribution-state', /^(success|error)$/, { timeout: 10000 });
+      await expect(modal).toHaveAttribute('data-attribution-url', new RegExp(`/attribution/\\d+/\\d+/${kind}$`));
+      await expect(modal.locator('[data-payload-body]')).not.toContainText('Payload source', { timeout: 10000 });
+
+      await page.locator('[data-action="close-payload"]').first().click();
+      await expect(modal).toBeHidden({ timeout: 5000 });
+    }
+  });
+
+  test('[UI-SD-032][UI-INTERACTION-005] agent select 和 copy 交互在 diagnostics 内可用', async ({ page }) => {
+    expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
+
+    await gotoSessionDetail(page, sessionUrl);
+    await waitForSessionApiHydrated(page);
+    await expect(page.getByRole('heading', { name: 'Agents Breakdown' })).toBeVisible({ timeout: 10000 });
+
+    const workbench = page.locator('[data-subagent-workbench]').first();
+    await expect(workbench, 'Agents Breakdown must expose an agent workbench').toBeVisible({ timeout: 10000 });
+
+    const agentButtons = workbench.locator('[data-action="select-subagent"]');
+    const agentCount = await agentButtons.count();
+    expect(agentCount, 'agent workbench must render at least one selectable candidate').toBeGreaterThan(0);
+    await expect(workbench.locator('[data-subagent-timeline-panel].is-active:not([hidden])')).toHaveCount(1);
+
+    if (agentCount > 1) {
+      await agentButtons.nth(1).click();
+      await expect(agentButtons.nth(1)).toHaveClass(/is-active/);
+      await expect(agentButtons.nth(1)).toHaveAttribute('aria-pressed', 'true');
+      await expect(workbench.locator('[data-subagent-timeline-panel].is-active:not([hidden])')).toHaveCount(1);
+    }
+
+    await page.evaluate(() => {
+      window.__sessionDetailCopied = [];
+      window.arpCopy = function (button, text, opts) {
+        window.__sessionDetailCopied.push(text);
+        if (button) button.textContent = (opts && opts.feedback) || 'Copied!';
+      };
+    });
+
+    const copyButton = page.locator('button[data-action="copy"][data-copy-text]:visible').first();
+    await expect(copyButton, 'diagnostics should expose copy actions').toBeVisible({ timeout: 10000 });
+    const copyText = await copyButton.getAttribute('data-copy-text');
+    await copyButton.click();
+    await expect
+      .poll(() => page.evaluate(() => window.__sessionDetailCopied && window.__sessionDetailCopied[0]))
+      .toBe(copyText);
   });
 
   test('[UI-SD-033] trace 深链定位 API-rendered round', async ({ page }) => {

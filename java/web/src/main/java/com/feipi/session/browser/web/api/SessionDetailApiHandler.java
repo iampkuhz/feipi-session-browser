@@ -4,9 +4,7 @@ import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
-import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
-import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
@@ -20,8 +18,6 @@ import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetric
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionPayloadsResponse;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionRoundsResponse;
 import io.javalin.http.Context;
-import io.javalin.http.HttpStatus;
-import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -86,7 +82,7 @@ public final class SessionDetailApiHandler {
                 row.freshInputTokens(),
                 row.cacheReadTokens(),
                 row.cacheWriteTokens(),
-            row.outputTokens()),
+                row.outputTokens()),
             row.userMessageCount(),
             row.assistantMessageCount(),
             longMetric(parityMetrics, "toolCalls", row.toolCallCount()),
@@ -134,11 +130,9 @@ public final class SessionDetailApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
-    long sessionTokens = detail.sessionRow().totalTokens();
     String traceStatus = ApiQueryParams.normalizeAll(ctx.queryParam("trace_status"));
     List<RoundIndexDto> rows =
-        detail.rounds().stream()
-            .map(round -> roundDto(round, sessionTokens, parity.round(round.roundIndex())))
+        RoundIndexProjection.pageDtos(detail, parity).stream()
             .filter(round -> statusMatches(traceStatus, round))
             .toList();
     ctx.json(
@@ -175,68 +169,25 @@ public final class SessionDetailApiHandler {
   }
 
   private LoadedDetail load(Context ctx) throws SQLException {
-    String agent = canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
+    String agent =
+        ApiQueryParams.canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
     String sessionId = ApiResponses.decodePathParam(ctx.pathParam("sessionId"));
-    PayloadVisibility visibility = parseVisibility(ctx);
+    var visibility = ApiQueryParams.payloadVisibility(ctx);
     String sessionKey = agent + ":" + sessionId;
-    try {
-      Optional<SessionDetailUseCase.AnnotatedDetail> detail =
-          queryRoot.sessionDetail().getDetailWithAnomalies(sessionKey, visibility);
-      if (detail.isEmpty()) {
-        ctx.status(HttpStatus.NOT_FOUND);
-        ctx.json(new ApiResponses.ApiErrorResponse("not_found", "session not found"));
-        return null;
-      }
-      return new LoadedDetail(
-          new SessionDetailFilterEcho(agent, sessionId, visibility.getValue(), "", ""),
-          detail.get());
-    } catch (IOException e) {
-      ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-      ctx.json(
-          new ApiResponses.ApiErrorResponse("artifact_error", "normalized artifact load failed"));
-      return null;
-    }
-  }
-
-  private static RoundIndexDto roundDto(
-      CallRound round, long sessionTokens, SessionDetailParityAnalyzer.RoundParity parity) {
-    Double tokenShare = sessionTokens > 0 ? round.totalTokens() / (double) sessionTokens : null;
-    List<String> failedToolIds =
-        parity.failedToolIds.isEmpty() ? round.failedToolCallIds() : List.copyOf(parity.failedToolIds);
-    List<String> signals =
-        parity.signals.isEmpty()
-            ? (round.failedToolCount() > 0 ? List.of("Failed") : List.of())
-            : List.copyOf(new java.util.LinkedHashSet<>(parity.signals));
-    boolean failed = !failedToolIds.isEmpty() || Boolean.TRUE.equals(parity.toMap().get("hasIssues"));
-    return new RoundIndexDto(
-        round.roundIndex(),
-        round.calls(),
-        round.toolCallIds(),
-        round.parentCallId(),
-        TokenSegments.of(
-            round.freshInputTokens(),
-            round.cacheReadTokens(),
-            round.cacheWriteTokens(),
-            round.outputTokens()),
-        round.callCount(),
-        round.toolCallCount(),
-        failedToolIds.size(),
-        failedToolIds,
-        tokenShare,
-        failed ? "failed" : "ok",
-        signals,
-        parity.toMap());
+    Optional<SessionDetailUseCase.AnnotatedDetail> detail =
+        ApiSessionDetails.loadAnnotatedDetail(ctx, queryRoot, sessionKey, visibility);
+    return detail
+        .map(
+            annotated ->
+                new LoadedDetail(
+                    new SessionDetailFilterEcho(agent, sessionId, visibility.getValue(), "", ""),
+                    annotated))
+        .orElse(null);
   }
 
   private static AnomalyDto anomaly(DetectedAnomaly anomaly) {
     return new AnomalyDto(
         anomaly.type().getValue(), anomaly.severity().getValue(), anomaly.reason());
-  }
-
-  private static PayloadVisibility parseVisibility(Context ctx) {
-    return "full".equalsIgnoreCase(ctx.queryParam("visibility"))
-        ? PayloadVisibility.FULL
-        : PayloadVisibility.STANDARD;
   }
 
   private static boolean statusMatches(String filter, RoundIndexDto round) {
@@ -298,10 +249,6 @@ public final class SessionDetailApiHandler {
     return "all".equals(filter)
         ? PageStateDto.empty(emptyTitle, emptyMessage)
         : PageStateDto.noResults(noResultsTitle, noResultsMessage, List.of());
-  }
-
-  private static String canonicalAgent(String agent) {
-    return "claude-code".equals(agent) ? "claude_code" : agent;
   }
 
   /**

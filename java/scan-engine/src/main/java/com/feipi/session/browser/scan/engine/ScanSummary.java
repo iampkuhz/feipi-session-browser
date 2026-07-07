@@ -3,7 +3,6 @@ package com.feipi.session.browser.scan.engine;
 import com.feipi.session.browser.source.spi.SourceId;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * Full scan 完成后的汇总结果。
@@ -35,25 +34,13 @@ public record ScanSummary(
    * @throws IllegalArgumentException 当计数为负时
    */
   public ScanSummary {
-    if (totalCandidates < 0) {
-      throw new IllegalArgumentException("totalCandidates 不得为负: " + totalCandidates);
-    }
-    if (successCount < 0) {
-      throw new IllegalArgumentException("successCount 不得为负: " + successCount);
-    }
-    if (skippedCount < 0) {
-      throw new IllegalArgumentException("skippedCount 不得为负: " + skippedCount);
-    }
-    if (errorCount < 0) {
-      throw new IllegalArgumentException("errorCount 不得为负: " + errorCount);
-    }
-    if (scanDurationMs < 0) {
-      throw new IllegalArgumentException("scanDurationMs 不得为负: " + scanDurationMs);
-    }
-    Objects.requireNonNull(perSourceCount, "perSourceCount 不得为 null");
-    perSourceCount = Map.copyOf(perSourceCount);
-    Objects.requireNonNull(issues, "issues 不得为 null");
-    issues = List.copyOf(issues);
+    ScanSummarySupport.requireNonNegative("totalCandidates", totalCandidates);
+    ScanSummarySupport.requireNonNegative("successCount", successCount);
+    ScanSummarySupport.requireNonNegative("skippedCount", skippedCount);
+    ScanSummarySupport.requireNonNegative("errorCount", errorCount);
+    ScanSummarySupport.requireNonNegative("scanDurationMs", scanDurationMs);
+    perSourceCount = ScanSummarySupport.copyPerSourceCount(perSourceCount);
+    issues = ScanSummarySupport.copyIssues(issues);
   }
 
   /**

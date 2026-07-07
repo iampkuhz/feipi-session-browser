@@ -56,8 +56,7 @@ public final class ToolFailureClassifier {
   private static final Pattern TIMEOUT_AT_LINE_START =
       Pattern.compile("(?:^|\\n)\\s*timeout\\b", Pattern.MULTILINE);
   private static final Pattern NON_ZERO_EXIT_CODE =
-      Pattern.compile(
-          "(?i)(?:process exited with code|exit code:|exit status)\\s+([1-9][0-9]*)");
+      Pattern.compile("(?i)(?:process exited with code|exit code:|exit status)\\s+([1-9][0-9]*)");
 
   /** 防止实例化。 */
   private ToolFailureClassifier() {}

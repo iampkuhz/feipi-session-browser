@@ -4,7 +4,6 @@ import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
-import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.web.api.ExportApiResponses.ExportDataBundleResponse;
 import com.feipi.session.browser.web.api.ExportApiResponses.ExportFormatDto;
@@ -15,7 +14,6 @@ import com.feipi.session.browser.web.api.SessionDetailApiResponses.PayloadIndexD
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import java.io.IOException;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
@@ -88,8 +86,7 @@ public final class ExportApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     SessionRow row = detail.sessionRow();
-    List<RoundIndexDto> rounds =
-        detail.rounds().stream().map(round -> roundDto(round, row.totalTokens())).toList();
+    List<RoundIndexDto> rounds = RoundIndexProjection.exportDtos(detail);
     List<PayloadIndexDto> payloads =
         detail.payloadSources().stream()
             .map(
@@ -118,25 +115,16 @@ public final class ExportApiHandler {
   }
 
   private LoadedExport load(Context ctx) throws SQLException {
-    String agent = canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
+    String agent =
+        ApiQueryParams.canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
     String sessionId = ApiResponses.decodePathParam(ctx.pathParam("sessionId"));
-    PayloadVisibility visibility = parseVisibility(ctx);
+    PayloadVisibility visibility = ApiQueryParams.payloadVisibility(ctx);
     String sessionKey = agent + ":" + sessionId;
-    try {
-      Optional<SessionDetailUseCase.AnnotatedDetail> detail =
-          queryRoot.sessionDetail().getDetailWithAnomalies(sessionKey, visibility);
-      if (detail.isEmpty()) {
-        ctx.status(HttpStatus.NOT_FOUND);
-        ctx.json(new ApiResponses.ApiErrorResponse("not_found", "session not found"));
-        return null;
-      }
-      return new LoadedExport(agent, sessionId, visibility.getValue(), detail.get());
-    } catch (IOException e) {
-      ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
-      ctx.json(
-          new ApiResponses.ApiErrorResponse("artifact_error", "normalized artifact load failed"));
-      return null;
-    }
+    Optional<SessionDetailUseCase.AnnotatedDetail> detail =
+        ApiSessionDetails.loadAnnotatedDetail(ctx, queryRoot, sessionKey, visibility);
+    return detail
+        .map(annotated -> new LoadedExport(agent, sessionId, visibility.getValue(), annotated))
+        .orElse(null);
   }
 
   private static List<ExportFormatDto> formats(
@@ -170,34 +158,6 @@ public final class ExportApiHandler {
     };
   }
 
-  private static RoundIndexDto roundDto(CallRound round, long sessionTokens) {
-    Double tokenShare = sessionTokens > 0 ? round.totalTokens() / (double) sessionTokens : null;
-    return new RoundIndexDto(
-        round.roundIndex(),
-        round.calls(),
-        round.toolCallIds(),
-        round.parentCallId(),
-        TokenSegments.of(
-            round.freshInputTokens(),
-            round.cacheReadTokens(),
-            round.cacheWriteTokens(),
-            round.outputTokens()),
-        round.callCount(),
-        round.toolCallCount(),
-        round.failedToolCount(),
-        round.failedToolCallIds(),
-        tokenShare,
-        round.failedToolCount() > 0 ? "failed" : "ok",
-        round.failedToolCount() > 0 ? List.of("Failed") : List.of(),
-        java.util.Map.of());
-  }
-
-  private static PayloadVisibility parseVisibility(Context ctx) {
-    return "full".equalsIgnoreCase(ctx.queryParam("visibility"))
-        ? PayloadVisibility.FULL
-        : PayloadVisibility.STANDARD;
-  }
-
   private static String normalizeFormat(String value) {
     String normalized = ApiQueryParams.normalizeAll(value);
     if ("all".equals(normalized) || "html".equals(normalized) || "mhtml".equals(normalized)) {
@@ -224,10 +184,6 @@ public final class ExportApiHandler {
     long roundBytes = detail.roundCount() * 4096L;
     long payloadBytes = detail.payloadSourceCount() * 4096L;
     return base + roundBytes + payloadBytes;
-  }
-
-  private static String canonicalAgent(String agent) {
-    return "claude-code".equals(agent) ? "claude_code" : agent;
   }
 
   /**

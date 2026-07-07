@@ -87,8 +87,8 @@ class ListShellTemplateContractTest {
         .contains("metrics")
         .contains("diagnostics")
         .contains("rounds")
-        .contains("payloads")
-        .contains("Trace rows are loaded from /api/sessions/{agent}/{sessionId}/rounds.");
+        .contains("data-payload-sources-container")
+        .contains("正在加载轮次摘要。");
     assertThat(template)
         .doesNotContain("{{ session_metrics.")
         .doesNotContain("{% for round in rounds %}")

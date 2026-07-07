@@ -89,7 +89,7 @@ class SessionDetailResourceApiTest {
           assertThat(body.get("toolCalls").asLong()).isEqualTo(4);
           assertThat(body.get("failedTools").asLong()).isEqualTo(1);
           assertThat(body.get("roundCount").asLong()).isEqualTo(1);
-          assertThat(body.get("payloadCount").asLong()).isEqualTo(2);
+          assertThat(body.get("payloadCount").asLong()).isEqualTo(4);
         });
   }
 
@@ -127,13 +127,18 @@ class SessionDetailResourceApiTest {
           assertThat(body.get("roundCount").asLong()).isEqualTo(1);
           assertThat(body.at("/rounds/0/roundIndex").asInt()).isEqualTo(1);
           assertThat(body.at("/rounds/0/calls/0").asText()).isEqualTo("alpha-call-1");
+          assertThat(body.at("/rounds/0/calls").size()).isEqualTo(1);
           assertThat(body.at("/rounds/0/toolCallIds/0").asText()).isEqualTo("tool-call-1");
+          assertThat(body.at("/rounds/0/toolCallIds").size()).isEqualTo(1);
           assertTokens(body.at("/rounds/0/tokens"), 1000, 400, 100, 500, 2000);
           assertThat(body.at("/rounds/0/tokenShare").asDouble()).isCloseTo(1.0, EPSILON);
+          assertThat(body.at("/rounds/0/callCount").asInt()).isEqualTo(1);
+          assertThat(body.at("/rounds/0/toolCallCount").asInt()).isEqualTo(1);
           assertThat(body.at("/rounds/0/failedToolCount").asInt()).isEqualTo(1);
           assertThat(body.at("/rounds/0/failedToolCallIds/0").asText()).isEqualTo("tool-call-1");
           assertThat(body.at("/rounds/0/status").asText()).isEqualTo("failed");
           assertThat(body.at("/rounds/0/signals/0").asText()).isEqualTo("Failed");
+          assertThat(body.at("/rounds/0/signals").toString()).contains("Subagent");
         });
   }
 
@@ -168,7 +173,7 @@ class SessionDetailResourceApiTest {
           assertThat(standard.code()).isEqualTo(200);
           JsonNode standardBody = MAPPER.readTree(standard.body().string());
           assertThat(standardBody.at("/filters/visibility").asText()).isEqualTo("standard");
-          assertThat(standardBody.get("payloadCount").asLong()).isEqualTo(2);
+          assertThat(standardBody.get("payloadCount").asLong()).isEqualTo(4);
           assertThat(standardBody.at("/payloads/0/payloadId").asText())
               .isEqualTo("main:req:alpha-call-1");
           assertThat(standardBody.at("/payloads/0/truncated").asBoolean()).isTrue();

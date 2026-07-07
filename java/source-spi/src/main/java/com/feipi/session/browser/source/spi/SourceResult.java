@@ -30,6 +30,12 @@ public sealed interface SourceResult
   /** 最大诊断列表大小。 */
   int MAX_DIAGNOSTICS = 1000;
 
+  /** 诊断列表为空时的统一错误消息。 */
+  String DIAGNOSTICS_NULL_MESSAGE = "diagnostics 不得为 null";
+
+  /** 诊断列表超限时的统一错误消息前缀。 */
+  String DIAGNOSTICS_LIMIT_MESSAGE_PREFIX = "diagnostics size exceeds limit ";
+
   /**
    * 返回操作结果的终端状态。
    *
@@ -76,10 +82,10 @@ public sealed interface SourceResult
      * @throws IllegalArgumentException 当候选项数量为负或诊断超限时
      */
     public Success {
-      Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
+      Objects.requireNonNull(diagnostics, DIAGNOSTICS_NULL_MESSAGE);
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       if (candidateCount < 0) {
@@ -115,10 +121,10 @@ public sealed interface SourceResult
      * @throws IllegalArgumentException 当 reason 为空或诊断超限时
      */
     public RetryableIncomplete {
-      Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
+      Objects.requireNonNull(diagnostics, DIAGNOSTICS_NULL_MESSAGE);
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       Objects.requireNonNull(reason, "reason 不得为 null");
@@ -154,10 +160,10 @@ public sealed interface SourceResult
      * @throws IllegalArgumentException 当 reason 为空或诊断超限时
      */
     public Skipped {
-      Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
+      Objects.requireNonNull(diagnostics, DIAGNOSTICS_NULL_MESSAGE);
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       Objects.requireNonNull(reason, "reason 不得为 null");
@@ -193,10 +199,10 @@ public sealed interface SourceResult
      * @throws IllegalArgumentException 当 errorDetail 为空或诊断超限时
      */
     public Fatal {
-      Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
+      Objects.requireNonNull(diagnostics, DIAGNOSTICS_NULL_MESSAGE);
       List<SourceDiagnostic> copy = List.copyOf(diagnostics);
       if (copy.size() > MAX_DIAGNOSTICS) {
-        throw new IllegalArgumentException("diagnostics size exceeds limit " + MAX_DIAGNOSTICS);
+        throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
       Objects.requireNonNull(errorDetail, "errorDetail 不得为 null");

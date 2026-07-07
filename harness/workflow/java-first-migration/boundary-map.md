@@ -20,7 +20,7 @@
 | 8 | 应用层用例 | **Java** — `java/application` (DashboardUseCase, SessionListUseCase, SessionDetailUseCase, ProjectListUseCase, DiagnosticsUseCase) | 已完成 | 低 | unit tests in `java/application` |
 | 9 | Web 服务与页面渲染 | **Java** — `java/web` (WebServer, Pebble 模板, CSS/JS 静态资源, API handler) | 已完成 | 中 | `./scripts/session-browser.sh serve` + 浏览器验证 |
 | 10 | Normalized artifact 写入 | **Java** — `java/artifact-normalized` (NormalizedArtifactWriter, CanonicalJsonWriter) | 已完成 | 低 | unit tests in `java/artifact-normalized` |
-| 11 | 代码复用分析 | **Java** — `java/reuse-analyzer` (SpoonAnalyzer, Fingerprinter, OwnershipClassifier) | 已完成 | 低 | unit tests in `java/reuse-analyzer` |
+| 11 | 代码复用分析 | **PMD** — Gradle `reuseStandardCpd` + `pmdMain` | 已完成 | 低 | `./gradlew reuseStandardCpd reuseAnalyzeIncremental` |
 | 12 | Token Attribution 引擎 | **Python** — `src/session_browser/attribution/` (~31K LOC, 145 文件) | **待迁移** — 需移植为 Java 模块 | **高** — 这是 Python 层最大且最复杂的残留模块 | attribution 单元测试覆盖率 + 对比 Java/Python 输出一致性 |
 | 13 | 旧 domain 模型 | **Python** — `src/session_browser/domain/` (~20 文件) | **待删除** — 被 attribution 引用；attribution 迁移后一并删除 | 中 | 确认无其他 Python 调用者后删除 |
 | 14 | 旧 web 模板与渲染器 | **Python** — `src/session_browser/web/` (~30 文件 + Jinja2 模板) | **待删除** — Java `java/web` 已完整接管 | 低 | 确认 `scripts/session-browser.sh` 无 Python web 调用路径 |
@@ -79,7 +79,7 @@
 | 应用用例 | `java/application` | DashboardUseCase, SessionListUseCase, SessionDetailUseCase, ProjectListUseCase, DiagnosticsUseCase, QueryCompositionRoot | unit tests |
 | Web 服务 | `java/web` | WebServer, Pebble 模板渲染, 静态资源 (CSS/JS/images), API handler | `./scripts/session-browser.sh serve` + 浏览器验证 |
 | 扫描引擎 | `java/scan-engine` | FullScanEngine, IncrementalScanEngine, BackgroundScanner, ScanLock, FingerprintRepository | unit tests |
-| 代码复用分析 | `java/reuse-analyzer` | SpoonAnalyzer, Fingerprinter, OwnershipClassifier | unit tests |
+| 代码复用分析 | Gradle/PMD | PMD CPD CLI、PMD rule set | `reuseStandardCpd` / `reuseAnalyzeIncremental` |
 | 架构约束测试 | `java/architecture-tests` | 架构规则测试 | `./gradlew :java:architecture-tests:test` |
 | 契约测试 | `java/contract-tests` | 跨模块契约绑定 | `./gradlew :java:contract-tests:test` |
 | 测试辅助 | `java/test-support` | 共享测试 fixtures 和 utilities | 被其他模块引用 |

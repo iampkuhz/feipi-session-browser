@@ -222,8 +222,7 @@ class ToolFailureClassifierTest {
     void zeroExitCodeReturnsFalse() {
       assertThat(ToolFailureClassifier.looksFailed("Process exited with code 0", "exec_command"))
           .isFalse();
-      assertThat(ToolFailureClassifier.looksFailed("Exit code: 0\nOutput:\nok", "Bash"))
-          .isFalse();
+      assertThat(ToolFailureClassifier.looksFailed("Exit code: 0\nOutput:\nok", "Bash")).isFalse();
     }
 
     @Test

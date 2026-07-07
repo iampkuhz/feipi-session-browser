@@ -36,6 +36,12 @@ public final class IndexSchema {
   /** sessions 表期望的全部列（列名 -> 类型定义），用于验证和修复旧数据库。 */
   private static final Map<String, String> SESSIONS_COLUMNS = buildSessionsColumns();
 
+  /** 非空文本列的默认空字符串定义。 */
+  private static final String TEXT_NOT_NULL_DEFAULT_EMPTY = "TEXT NOT NULL DEFAULT ''";
+
+  /** 非空整数列的默认 0 定义。 */
+  private static final String INTEGER_NOT_NULL_DEFAULT_ZERO = "INTEGER NOT NULL DEFAULT 0";
+
   /** 所有索引定义，在 migration 后统一创建。 */
   private static final String[] INDEX_STATEMENTS = {
     "CREATE INDEX IF NOT EXISTS idx_sessions_project ON sessions(project_key)",
@@ -199,31 +205,31 @@ public final class IndexSchema {
     cols.put("session_key", "TEXT PRIMARY KEY");
     cols.put("agent", "TEXT NOT NULL CHECK(agent <> '')");
     cols.put("session_id", "TEXT NOT NULL CHECK(session_id <> '')");
-    cols.put("title", "TEXT NOT NULL DEFAULT ''");
+    cols.put("title", TEXT_NOT_NULL_DEFAULT_EMPTY);
     cols.put("project_key", "TEXT NOT NULL CHECK(project_key <> '')");
-    cols.put("project_name", "TEXT NOT NULL DEFAULT ''");
-    cols.put("cwd", "TEXT NOT NULL DEFAULT ''");
-    cols.put("started_at", "TEXT NOT NULL DEFAULT ''");
+    cols.put("project_name", TEXT_NOT_NULL_DEFAULT_EMPTY);
+    cols.put("cwd", TEXT_NOT_NULL_DEFAULT_EMPTY);
+    cols.put("started_at", TEXT_NOT_NULL_DEFAULT_EMPTY);
     cols.put("ended_at", "TEXT NOT NULL CHECK(ended_at <> '')");
     cols.put("duration_seconds", "REAL NOT NULL DEFAULT 0");
     cols.put("model_execution_seconds", "REAL NOT NULL DEFAULT 0");
     cols.put("tool_execution_seconds", "REAL NOT NULL DEFAULT 0");
-    cols.put("model", "TEXT NOT NULL DEFAULT ''");
-    cols.put("git_branch", "TEXT NOT NULL DEFAULT ''");
-    cols.put("source", "TEXT NOT NULL DEFAULT ''");
-    cols.put("user_message_count", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("assistant_message_count", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("tool_call_count", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("output_tokens", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("fresh_input_tokens", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("cache_read_tokens", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("cache_write_tokens", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("total_tokens", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("failed_tool_count", "INTEGER NOT NULL DEFAULT 0");
-    cols.put("subagent_instance_count", "INTEGER NOT NULL DEFAULT 0");
+    cols.put("model", TEXT_NOT_NULL_DEFAULT_EMPTY);
+    cols.put("git_branch", TEXT_NOT_NULL_DEFAULT_EMPTY);
+    cols.put("source", TEXT_NOT_NULL_DEFAULT_EMPTY);
+    cols.put("user_message_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("assistant_message_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("tool_call_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("output_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("fresh_input_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("cache_read_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("cache_write_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("total_tokens", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("failed_tool_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
+    cols.put("subagent_instance_count", INTEGER_NOT_NULL_DEFAULT_ZERO);
     cols.put("indexed_at", "REAL NOT NULL DEFAULT 0");
     cols.put("file_mtime", "REAL NOT NULL DEFAULT 0");
-    cols.put("file_path", "TEXT NOT NULL DEFAULT ''");
+    cols.put("file_path", TEXT_NOT_NULL_DEFAULT_EMPTY);
     return Map.copyOf(cols);
   }
 

@@ -28,7 +28,6 @@ logback = "1.5.12"
 sqlite-jdbc = "3.49.1.0"
 
 # AST analysis (build-time only, NOT in product runtime)
-spoon-core = "11.1.0"
 
 # Web
 javalin = "7.0.0"
@@ -77,8 +76,10 @@ logback-core = { module = "ch.qos.logback:logback-core", version.ref = "logback"
 # SQLite
 sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 
-# AST analysis (build-time only, NOT in product runtime)
-spoon-core = { module = "fr.inria.gforge.spoon:spoon-core", version.ref = "spoon-core" }
+# Standard duplicate detection (build-time only, NOT in product runtime)
+pmd-cli = { module = "net.sourceforge.pmd:pmd-cli", version.ref = "pmd" }
+pmd-core = { module = "net.sourceforge.pmd:pmd-core", version.ref = "pmd" }
+pmd-java = { module = "net.sourceforge.pmd:pmd-java", version.ref = "pmd" }
 
 # Compile-time code generation
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }

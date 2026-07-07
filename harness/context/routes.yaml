@@ -87,7 +87,6 @@ routes:
         - java/application/**
         - java/query-api/**
         - java/index-sqlite/**
-        - java/reuse-analyzer/**
     load:
       - java/core-domain targeted files only
       - java/application targeted files only

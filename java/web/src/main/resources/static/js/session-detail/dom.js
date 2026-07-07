@@ -37,8 +37,7 @@
   function toggleRound(button) {
     var round = closest(button, '[data-trace-round-row]');
     if (!round) return;
-    var next = !round.classList.contains('is-open');
-    setRoundOpen(round, next);
+    toggleRoundByRow(round);
   }
 
   function toggleRoundByRow(row) {

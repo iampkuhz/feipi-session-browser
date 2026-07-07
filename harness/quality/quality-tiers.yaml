@@ -75,8 +75,8 @@ trigger_matrix:
     index:
       gates: [indexIntegrity]
     java-src:
-      gates: [javaCheck, javaChineseComments, noJavaTestSkips, noJavaSuppressWarnings, reuseIncremental, reuseBaselineVerify]
+      gates: [javaCheck, javaModuleBoundaries, javaChineseComments, javaRecordComponentJavadocs, noJavaTestSkips, noJavaSuppressWarnings, reuseStandardCpd, reuseAnalyzeIncremental]
     java-build:
-      gates: [javaCheck]
+      gates: [javaCheck, javaModuleBoundaries, reuseStandardCpd, reuseAnalyzeIncremental]
     scan-script-smoke:
       gates: [scanScriptSmoke]

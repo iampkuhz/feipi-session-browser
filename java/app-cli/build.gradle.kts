@@ -19,6 +19,7 @@ application {
 
 dependencies {
     implementation(project(":java:core-domain"))
+    implementation(project(":java:data"))
     implementation(project(":java:source-spi"))
     implementation(project(":java:source-json"))
     implementation(project(":java:source-claude"))

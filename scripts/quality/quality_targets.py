@@ -71,15 +71,19 @@ QUALITY_TARGETS: dict[str, list[str]] = {
     ],
     'java-src': [
         'javaCheck',
+        'javaModuleBoundaries',
         'javaChineseComments',
         'javaRecordComponentJavadocs',
         'noJavaTestSkips',
         'noJavaSuppressWarnings',
-        'reuseIncremental',
-        'reuseBaselineVerify',
+        'reuseStandardCpd',
+        'reuseAnalyzeIncremental',
     ],
     'java-build': [
         'javaCheck',
+        'javaModuleBoundaries',
+        'reuseStandardCpd',
+        'reuseAnalyzeIncremental',
     ],
     'scan-script-smoke': [
         'scanScriptSmoke',
@@ -444,6 +448,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'java/**/src/test/java/**/*.java',
             '**/*.java',
         ],
+        'javaModuleBoundaries': [
+            'config/architecture/java-modules.yaml',
+            'settings.gradle.kts',
+            'java/**/build.gradle.kts',
+            'java/**/src/main/java/**/*.java',
+            '**/*.java',
+        ],
         'javaChineseComments': [
             'java/**/src/main/java/**/*.java',
             'java/**/src/test/java/**/*.java',
@@ -459,24 +470,44 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'noJavaSuppressWarnings': [
             'java/**/src/main/java/**/*.java',
         ],
-        'reuseIncremental': [
+        'reuseAnalyzeIncremental': [
             'java/**/src/main/java/**/*.java',
         ],
-        'reuseBaselineVerify': [
+        'reuseStandardCpd': [
             'java/**/src/main/java/**/*.java',
+            'config/reuse-policy/**',
         ],
     },
     'java-build': {
         'javaCheck': [
             'config/api-snapshots/java-public-api.txt',
+            'config/architecture/java-modules.yaml',
             'build-logic/**',
             'gradle/**',
             'build.gradle.kts',
             'settings.gradle.kts',
+            'java/**/build.gradle.kts',
             'gradle.properties',
             'gradlew',
             'gradlew.bat',
             '*.lockfile',
+        ],
+        'javaModuleBoundaries': [
+            'config/architecture/java-modules.yaml',
+            'settings.gradle.kts',
+            'java/**/build.gradle.kts',
+        ],
+        'reuseAnalyzeIncremental': [
+            'config/reuse-policy/**',
+            'java/**/build.gradle.kts',
+            'settings.gradle.kts',
+            'build.gradle.kts',
+        ],
+        'reuseStandardCpd': [
+            'config/reuse-policy/**',
+            'java/**/build.gradle.kts',
+            'settings.gradle.kts',
+            'build.gradle.kts',
         ],
     },
     'scan-script-smoke': {

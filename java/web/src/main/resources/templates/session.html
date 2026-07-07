@@ -79,7 +79,7 @@
             <div class="sd-issue-strip sd-issue-strip--loading"
                  data-issue-strip
                  aria-label="Session issue summary">
-                <span class="sd-issue-title">Issue signals loading from /api session diagnostics…</span>
+                <span class="sd-issue-title">Issue signals loading…</span>
             </div>
         </div>
 
@@ -135,19 +135,7 @@
     </div>
 
     <div class="sd-summary-strip" data-summary-strip>
-        <div class="sd-summary-item"><b>updated</b><span data-session-updated>Loaded from /meta API</span></div>
-        <div class="sd-summary-item"><b>artifact</b><span data-session-artifact>Loaded from /meta API</span></div>
-        <div class="sd-summary-item"><b>payload</b><span data-session-payload-policy>Payload hidden by default until /payloads API is loaded</span></div>
-    </div>
-</section>
-
-<section class="sd-anomalies" data-session-anomalies aria-label="Session anomalies">
-    <div class="sd-anomalies__head">
-        <h2>Anomalies</h2>
-        <span class="sd-anomalies__count">Loading diagnostics…</span>
-    </div>
-    <div class="sd-anomalies__list">
-        <div class="sd-card-empty">Anomaly rows are loaded from /api/sessions/{agent}/{sessionId}/diagnostics.</div>
+        <div class="sd-summary-item"><b>updated</b><span data-session-updated>Loading…</span></div>
     </div>
 </section>
 
@@ -158,7 +146,7 @@
             <span>API-first</span>
         </div>
         <div class="sd-diagnostic-card__body">
-            <div class="sd-card-empty">Meta, metrics, diagnostics, rounds and payloads are loaded from typed resource APIs.</div>
+            <div class="sd-card-empty">正在加载会话诊断。</div>
         </div>
     </article>
 </section>
@@ -172,7 +160,7 @@
 <section class="sd-trace-panel" id="sd-tab-panel-trace" data-trace-panel data-tab-panel="trace" role="tabpanel">
     <div class="sd-trace-head">
         <div>
-            <div class="sd-trace-sub">Round summaries are loaded from /api/sessions/{agent}/{sessionId}/rounds; details lazy-load from /round/{roundIndex}.</div>
+            <div class="sd-trace-sub">Round 内按触发时间平铺 assistant text、tool call、subagent run；仅并发 tool calls 保留分组。</div>
         </div>
         <div class="sd-trace-actions">
             <div class="sd-seg" role="group" aria-label="Trace status filter">
@@ -186,7 +174,7 @@
 
     <table class="trace-table" data-trace-list>
         <colgroup>
-            <col class="colround"/>
+            <col class="col-round"/>
             <col class="col-summary"/>
             <col class="col-metrics"/>
             <col class="col-attribution"/>
@@ -208,7 +196,7 @@
                 <div class="empty-state" role="status" aria-live="polite">
                     <div class="empty-state__icon" aria-hidden="true">⏳</div>
                     <h2 class="empty-state__title">Loading rounds</h2>
-                    <p class="empty-state__text">Trace rows are loaded from /api/sessions/{agent}/{sessionId}/rounds.</p>
+                    <p class="empty-state__text">正在加载轮次摘要。</p>
                 </div>
             </td></tr>
         </tbody>

@@ -1,5 +1,8 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.query.api.PayloadVisibility;
+import com.feipi.session.browser.web.model.PayloadVisibilityQuery;
+import com.feipi.session.browser.web.page.QueryParams;
 import io.javalin.http.Context;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
@@ -39,6 +42,30 @@ final class ApiQueryParams {
       case "" -> "all";
       default -> normalized;
     };
+  }
+
+  /** 将路径中的 agent 别名规范化为索引中的 canonical agent。 */
+  static String canonicalAgent(String agent) {
+    return "claude-code".equals(agent) ? "claude_code" : agent;
+  }
+
+  /** 解析 payload visibility 查询参数。 */
+  static PayloadVisibility payloadVisibility(Context ctx) {
+    return PayloadVisibilityQuery.parse(ctx);
+  }
+
+  /** 构建会话列表 API 的 filter echo。 */
+  static SessionsApiResponses.SessionsFilterEcho sessionsFilterEcho(Map<String, String> params) {
+    return new SessionsApiResponses.SessionsFilterEcho(
+        QueryParams.normalizeSessionAgent(params.getOrDefault("agent", "")),
+        params.getOrDefault("model", ""),
+        params.getOrDefault("project", ""),
+        params.getOrDefault("status", ""),
+        params.getOrDefault("q", ""),
+        QueryParams.uiSortKey(params),
+        normalizeDir(params.getOrDefault("dir", "desc")),
+        QueryParams.parsePage(params),
+        QueryParams.parsePageSize(params));
   }
 
   /** 使用 UTF-8 对路径片段做 URL 编码，并将空格编码为 %20。 */

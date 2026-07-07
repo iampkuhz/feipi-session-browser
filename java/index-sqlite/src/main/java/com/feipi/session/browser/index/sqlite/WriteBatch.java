@@ -44,8 +44,7 @@ public final class WriteBatch {
    * @throws IllegalStateException 超过批量上限
    */
   public void addInsert(String sql) {
-    checkCapacity();
-    statements.add(sql);
+    addStatement(sql);
   }
 
   /**
@@ -55,8 +54,7 @@ public final class WriteBatch {
    * @throws IllegalStateException 超过批量上限
    */
   public void addUpdate(String sql) {
-    checkCapacity();
-    statements.add(sql);
+    addStatement(sql);
   }
 
   /**
@@ -66,6 +64,10 @@ public final class WriteBatch {
    * @throws IllegalStateException 超过批量上限
    */
   public void addDelete(String sql) {
+    addStatement(sql);
+  }
+
+  private void addStatement(String sql) {
     checkCapacity();
     statements.add(sql);
   }
