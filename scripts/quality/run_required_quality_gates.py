@@ -75,6 +75,10 @@ QUICK_GATES: frozenset[str] = frozenset(
     }
 )
 
+# target 路由前必须执行的全局轻量门禁；用于防止 unknown/ignored 路径绕过分类。
+GLOBAL_PREFLIGHT_GATES: tuple[str, ...] = ('ignoredTrackedFiles',)
+GLOBAL_PREFLIGHT_TIMEOUT_SECONDS = 60
+
 # full 档在全部 target 之外额外执行的验证命令。
 FULL_EXTRA_COMMANDS: list[list[str]] = [
     ['python3', 'scripts/quality/check_java_api_snapshot.py', '--verify'],
@@ -316,6 +320,67 @@ def _run_quick_tier(
     return 1 if failed else 0
 
 
+# 构建全局preflight 命令。
+def _global_preflight_commands(repo_root: Path) -> list[tuple[str, list[str]]]:
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        需要在 target 路由前执行的 gate 命令列表。
+    """
+    rqg = importlib.import_module('scripts.quality.run_quality_gate')
+    commands: list[tuple[str, list[str]]] = []
+    for gate in GLOBAL_PREFLIGHT_GATES:
+        cmd = rqg.gate_command(gate, repo_root, 'hook-runtime')
+        if cmd:
+            commands.append((gate, cmd))
+    return commands
+
+
+# 运行全局preflight gates。
+def _run_global_preflight(repo_root: Path, dry_run: bool) -> bool:
+    """参数：
+        repo_root: 仓库根目录。
+        dry_run: 是否只打印命令。
+
+    返回：
+        全部 preflight gate 是否通过。
+    """
+    commands = _global_preflight_commands(repo_root)
+    if not commands:
+        print('[preflight] no global gates available; not applicable', file=sys.stderr)
+        return True
+    if dry_run:
+        for gate, cmd in commands:
+            print(f'[preflight] would run gate: {gate} -> {" ".join(cmd)}', file=sys.stderr)
+        return True
+
+    passed = True
+    for gate, cmd in commands:
+        try:
+            proc = subprocess.run(
+                cmd,
+                cwd=repo_root,
+                check=False,
+                text=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                timeout=GLOBAL_PREFLIGHT_TIMEOUT_SECONDS,
+            )
+        except subprocess.TimeoutExpired as exc:
+            print(f'[preflight] FAIL gate={gate} timeout: {exc}', file=sys.stderr)
+            passed = False
+            continue
+        output = (proc.stdout or '').strip()
+        if output:
+            print(output, file=sys.stderr)
+        status = 'PASS' if proc.returncode == 0 else 'FAIL/BLOCKED'
+        print(f'[preflight] {status} gate={gate}', file=sys.stderr)
+        if proc.returncode != 0:
+            passed = False
+    return passed
+
+
 # 运行full extra 命令。
 def _run_full_extra_commands(change_id: str) -> list[tuple[str, bool]]:
     """参数：
@@ -438,6 +503,9 @@ def main() -> int:
     print(f'[{tier}-tier] changed-files={changed_display}', file=sys.stderr)
     if changed_files:
         print(f'[{tier}-tier] changed-file count={len(changed_files)}', file=sys.stderr)
+
+    if not _run_global_preflight(REPO_ROOT, args.dry_run):
+        return 1
 
     # quick 档走独立的轻量级 gate 执行路径。
     if tier == 'quick':

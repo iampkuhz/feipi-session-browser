@@ -112,6 +112,7 @@ class TestQualityTargets:
     @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_hook_runtime_gates(self):
         gates = required_gates_for_target('hook-runtime')
+        assert 'ignoredTrackedFiles' in gates
         assert 'settingsJson' in gates
         assert 'bashSyntax' in gates
         assert 'pythonCompile' in gates
@@ -253,6 +254,29 @@ class TestQualityGateRuntime:
         cmd = run_quality_gate.gate_command('noTestSkips', tmp_path, 'hook-runtime')
 
         assert cmd == ['/tmp/runtime-python', 'scripts/quality/check_no_test_skips.py']
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_ignored_tracked_files_gate_command(
+        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+    ):
+        monkeypatch.setattr(
+            run_quality_gate,
+            '_project_python',
+            lambda repo_root, *, dev=False: '/tmp/runtime-python',
+        )
+        checker = tmp_path / 'scripts' / 'quality' / 'check_ignored_tracked_files.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('ignoredTrackedFiles', tmp_path, 'hook-runtime')
+
+        assert cmd == [
+            '/tmp/runtime-python',
+            str(checker),
+            '--root',
+            str(tmp_path),
+            '--staged',
+        ]
 
     @pytest.mark.contract_case('HOOK-HARNESS-010')
     def test_bash_syntax_gate_includes_all_agent_hook_scripts(self):

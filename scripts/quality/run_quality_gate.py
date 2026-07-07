@@ -546,7 +546,7 @@ def _shift_fixture_dates_to_recent(conn: sqlite3.Connection) -> None:
     """参数：
         conn: 打开的 SQLite connection。
     """
-    from datetime import datetime, timezone, timedelta
+    from datetime import datetime, timedelta, timezone
 
     row = conn.execute("SELECT MAX(ended_at) FROM sessions").fetchone()
     if not row or not row[0]:
@@ -1586,6 +1586,9 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         existing = [f for f in json_files if (repo_root / f).exists()]
         code = "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]"
         return [python, '-c', code, *existing] if existing else []
+    if gate == 'ignoredTrackedFiles':
+        checker = repo_root / 'scripts' / 'quality' / 'check_ignored_tracked_files.py'
+        return [python, str(checker), '--root', str(repo_root), '--staged'] if checker.exists() else []
     if gate == 'bashSyntax':
         existing = _relative_existing_files(
             repo_root,

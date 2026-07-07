@@ -134,6 +134,44 @@ class TestNoRequiredTargets:
         assert rc == 0
 
     @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_global_preflight_runs_before_target_routing(self, monkeypatch: pytest.MonkeyPatch):
+        """Run ignored-tracked preflight even when changed files do not map to a target."""
+        _setup_env(
+            [
+                {
+                    'ts': '2026-07-07T00:00:00Z',
+                    'tool': 'Bash',
+                    'file': 'output/forced.txt',
+                    'category': 'unknown',
+                    'requiresQualityGate': False,
+                    'sessionId': 'test-session-001',
+                }
+            ]
+        )
+        captured_cmds: list[list[str]] = []
+        monkeypatch.setattr(
+            _runner,
+            '_global_preflight_commands',
+            lambda repo_root: [('ignoredTrackedFiles', ['python', '-c', 'print("ok")'])],
+        )
+
+        def fake_run(cmd: list[str], **kwargs: object) -> object:
+            captured_cmds.append(list(cmd))
+            return _runner.subprocess.CompletedProcess(cmd, 0, stdout='ok')
+
+        monkeypatch.setattr(_runner.subprocess, 'run', fake_run)
+
+        old_argv = sys.argv
+        try:
+            sys.argv = ['run_required_quality_gates.py']
+            rc = _runner.main()
+        finally:
+            sys.argv = old_argv
+
+        assert rc == 0
+        assert captured_cmds == [['python', '-c', 'print("ok")']]
+
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
     def test_docs_only(self):
         """Return zero for documentation-only edits with no quality target."""
         _setup_env(

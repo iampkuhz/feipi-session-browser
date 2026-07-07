@@ -18,6 +18,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'pythonDeps',
     ],
     'hook-runtime': [
+        'ignoredTrackedFiles',
         'settingsJson',
         'bashSyntax',
         'scriptCommentLanguage',
@@ -161,6 +162,12 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         ],
     },
     'hook-runtime': {
+        'ignoredTrackedFiles': [
+            '.gitignore',
+            'scripts/quality/check_ignored_tracked_files.py',
+            'scripts/quality/run_required_quality_gates.py',
+            'scripts/quality/run_quality_gate.py',
+        ],
         'settingsJson': [
             '.claude/settings.json',
             '.claude/settings.local.json',
