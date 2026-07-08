@@ -56,6 +56,7 @@ RULES: list[tuple[str, list[str], bool, str | None, str, bool]] = [
             'gradle/**',
             'config/api-snapshots/java-public-api.txt',
             'config/architecture/java-modules.yaml',
+            'config/pmd/**',
             'config/reuse-policy/**',
             'settings.gradle.kts',
             'java/**/build.gradle.kts',

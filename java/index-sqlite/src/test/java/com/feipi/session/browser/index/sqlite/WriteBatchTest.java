@@ -41,9 +41,9 @@ class WriteBatchTest {
     @DisplayName("flush 在单事务中执行所有语句")
     void flushExecutesAllInTransaction() throws SQLException {
       WriteBatch batch = new WriteBatch(conn, WriteBatch.DEFAULT_MAX_ENTRIES);
-      batch.addInsert("INSERT INTO test_data VALUES (1, 'a')");
-      batch.addInsert("INSERT INTO test_data VALUES (2, 'b')");
-      batch.addInsert("INSERT INTO test_data VALUES (3, 'c')");
+      batch.add("INSERT INTO test_data VALUES (1, 'a')");
+      batch.add("INSERT INTO test_data VALUES (2, 'b')");
+      batch.add("INSERT INTO test_data VALUES (3, 'c')");
 
       batch.flush();
 
@@ -72,7 +72,7 @@ class WriteBatchTest {
     @DisplayName("flush 后 pendingCount 归零")
     void pendingCountAfterFlush() throws SQLException {
       WriteBatch batch = new WriteBatch(conn, WriteBatch.DEFAULT_MAX_ENTRIES);
-      batch.addInsert("INSERT INTO test_data VALUES (1, 'a')");
+      batch.add("INSERT INTO test_data VALUES (1, 'a')");
       assertThat(batch.pendingCount()).isEqualTo(1);
 
       batch.flush();
@@ -83,9 +83,9 @@ class WriteBatchTest {
     @DisplayName("flush 失败时回滚（原子性）")
     void flushRollsBackOnFailure() throws SQLException {
       WriteBatch batch = new WriteBatch(conn, WriteBatch.DEFAULT_MAX_ENTRIES);
-      batch.addInsert("INSERT INTO test_data VALUES (1, 'a')");
+      batch.add("INSERT INTO test_data VALUES (1, 'a')");
       // 重复主键会导致失败
-      batch.addInsert("INSERT INTO test_data VALUES (1, 'b')");
+      batch.add("INSERT INTO test_data VALUES (1, 'b')");
 
       try {
         batch.flush();
@@ -110,34 +110,34 @@ class WriteBatchTest {
     @DisplayName("超过上限抛异常")
     void exceedLimit() {
       WriteBatch batch = new WriteBatch(conn, 2);
-      batch.addInsert("INSERT INTO test_data VALUES (1, 'a')");
-      batch.addInsert("INSERT INTO test_data VALUES (2, 'b')");
+      batch.add("INSERT INTO test_data VALUES (1, 'a')");
+      batch.add("INSERT INTO test_data VALUES (2, 'b')");
 
-      assertThatThrownBy(() -> batch.addInsert("INSERT INTO test_data VALUES (3, 'c')"))
+      assertThatThrownBy(() -> batch.add("INSERT INTO test_data VALUES (3, 'c')"))
           .isInstanceOf(IllegalStateException.class)
           .hasMessageContaining("已满");
     }
 
     @Test
-    @DisplayName("addUpdate 受上限约束")
+    @DisplayName("UPDATE 语句计入上限")
     void updateCountsTowardLimit() {
       WriteBatch batch = new WriteBatch(conn, 1);
       assertThatThrownBy(
               () -> {
-                batch.addInsert("INSERT INTO test_data VALUES (1, 'a')");
-                batch.addUpdate("UPDATE test_data SET value='b' WHERE id=1");
+                batch.add("INSERT INTO test_data VALUES (1, 'a')");
+                batch.add("UPDATE test_data SET value='b' WHERE id=1");
               })
           .isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    @DisplayName("addDelete 受上限约束")
+    @DisplayName("DELETE 语句计入上限")
     void deleteCountsTowardLimit() {
       WriteBatch batch = new WriteBatch(conn, 1);
       assertThatThrownBy(
               () -> {
-                batch.addInsert("INSERT INTO test_data VALUES (1, 'a')");
-                batch.addDelete("DELETE FROM test_data WHERE id=1");
+                batch.add("INSERT INTO test_data VALUES (1, 'a')");
+                batch.add("DELETE FROM test_data WHERE id=1");
               })
           .isInstanceOf(IllegalStateException.class);
     }

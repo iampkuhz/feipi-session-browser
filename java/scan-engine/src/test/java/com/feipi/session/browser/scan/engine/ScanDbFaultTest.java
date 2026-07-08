@@ -91,7 +91,7 @@ class ScanDbFaultTest {
         // 模拟 flush 失败
         com.feipi.session.browser.index.sqlite.WriteBatch batch =
             new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 5000);
-        batch.addInsert("INSERT INTO test_rollback VALUES (1, 'test')");
+        batch.add("INSERT INTO test_rollback VALUES (1, 'test')");
 
         // 正常 flush 应成功
         batch.flush();
@@ -106,7 +106,7 @@ class ScanDbFaultTest {
         // 模拟失败 SQL
         com.feipi.session.browser.index.sqlite.WriteBatch batch2 =
             new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 5000);
-        batch2.addInsert("INVALID SQL THAT WILL FAIL");
+        batch2.add("INVALID SQL THAT WILL FAIL");
         try {
           batch2.flush();
         } catch (SQLException e) {
@@ -132,13 +132,13 @@ class ScanDbFaultTest {
         com.feipi.session.browser.index.sqlite.WriteBatch batch =
             new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 3);
 
-        batch.addInsert("INSERT 1");
-        batch.addInsert("INSERT 2");
-        batch.addInsert("INSERT 3");
+        batch.add("INSERT 1");
+        batch.add("INSERT 2");
+        batch.add("INSERT 3");
 
         // 第 4 条应抛异常
         try {
-          batch.addInsert("INSERT 4");
+          batch.add("INSERT 4");
           assertThat(false).as("应抛出 IllegalStateException").isTrue();
         } catch (IllegalStateException e) {
           assertThat(e.getMessage()).contains("已满");

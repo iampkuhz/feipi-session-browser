@@ -2270,9 +2270,7 @@ method com.feipi.session.browser.index.sqlite.SignalDefinition public boolean su
 method com.feipi.session.browser.index.sqlite.UpgradeResult public boolean hadMigrations()
 method com.feipi.session.browser.index.sqlite.UpgradeResult public boolean hasBackup()
 method com.feipi.session.browser.index.sqlite.WriteBatch public int pendingCount()
-method com.feipi.session.browser.index.sqlite.WriteBatch public void addDelete(String sql)
-method com.feipi.session.browser.index.sqlite.WriteBatch public void addInsert(String sql)
-method com.feipi.session.browser.index.sqlite.WriteBatch public void addUpdate(String sql)
+method com.feipi.session.browser.index.sqlite.WriteBatch public void add(String sql)
 method com.feipi.session.browser.index.sqlite.WriteBatch public void execute(WriteOperation op) throws SQLException
 method com.feipi.session.browser.index.sqlite.WriteBatch public void flush() throws SQLException
 method com.feipi.session.browser.index.sqlite.WriteBatch.WriteOperation public void execute(Connection conn) throws SQLException

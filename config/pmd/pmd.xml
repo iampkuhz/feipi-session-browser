@@ -57,6 +57,51 @@ ancestor::ClassDeclaration[pmd-java:modifiers() = "private"]
         </properties>
     </rule>
 
+    <rule name="FeipiDuplicateDelegatingMethods"
+          language="java"
+          message="Duplicate public delegating methods detected. Collapse method-name variants into one reusable method."
+          class="net.sourceforge.pmd.lang.rule.xpath.XPathRule"
+          priority="3">
+        <description>
+            Detects sibling public methods that only forward all parameters to the
+            same delegate method. This catches addInsert/addUpdate/addDelete-style
+            API splits that CPD can miss when wrappers are too small for token
+            thresholds.
+        </description>
+        <properties>
+            <property name="xpath">
+                <value><![CDATA[
+//ClassBody/MethodDeclaration[
+  @Visibility = 'public'
+  and not(pmd-java:modifiers() = 'static')
+  and Block[@Size = 1]
+  and Block/*[self::ExpressionStatement or self::ReturnStatement]/MethodCall[
+    string(ArgumentList/@Size) = string(ancestor::MethodDeclaration[1]/@Arity)
+    and (every $arg in ArgumentList/* satisfies $arg/self::VariableAccess)
+  ]
+  and (
+    let $target := string(Block/*[self::ExpressionStatement or self::ReturnStatement]/MethodCall/@MethodName),
+        $arity := string(@Arity),
+        $name := string(@Name)
+    return exists(../MethodDeclaration[
+      @Visibility = 'public'
+      and not(pmd-java:modifiers() = 'static')
+      and string(@Name) != $name
+      and string(@Arity) = $arity
+      and Block[@Size = 1]
+      and Block/*[self::ExpressionStatement or self::ReturnStatement]/MethodCall[
+        @MethodName = $target
+        and string(ArgumentList/@Size) = string(ancestor::MethodDeclaration[1]/@Arity)
+        and (every $arg in ArgumentList/* satisfies $arg/self::VariableAccess)
+      ]
+    ])
+  )
+]
+]]></value>
+            </property>
+        </properties>
+    </rule>
+
     <rule name="FeipiMutableStaticState"
           language="java"
           message="Mutable static state detected. Use instance state or static final constants."

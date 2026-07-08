@@ -322,7 +322,7 @@ class ScanPerformanceBaselineTest {
             new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 5000);
 
         for (int i = 0; i < 1000; i++) {
-          batch.addInsert("INSERT INTO perf_test VALUES (" + i + ", 'value-" + i + "')");
+          batch.add("INSERT INTO perf_test VALUES (" + i + ", 'value-" + i + "')");
         }
 
         long startMs = System.currentTimeMillis();

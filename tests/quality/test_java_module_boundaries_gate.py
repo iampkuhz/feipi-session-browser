@@ -34,6 +34,21 @@ def test_reuse_policy_config_triggers_java_build() -> None:
     assert classification.allowed_by_default is True
 
 
+def test_pmd_reuse_rules_include_duplicate_delegating_method_scan() -> None:
+    """PMD 规则集必须保留 addInsert 类重复委托函数扫描。"""
+    pmd_rules = Path('config/pmd/pmd.xml').read_text(encoding='utf-8')
+
+    assert 'FeipiDuplicateDelegatingMethods' in pmd_rules
+
+
+def test_pmd_config_triggers_java_build() -> None:
+    """PMD 规则集变更必须触发 java-build target。"""
+    classification = classify_file('config/pmd/pmd.xml')
+
+    assert classification.quality_target == 'java-build'
+    assert classification.allowed_by_default is True
+
+
 def test_java_module_build_file_is_known_java_build_path() -> None:
     """子模块 build.gradle.kts 不应落入 unknown fail-closed 分支。"""
     classification = classify_file('java/data/build.gradle.kts')

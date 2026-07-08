@@ -834,7 +834,7 @@ public final class FullScanEngine {
     sb.append(row.fileMtime()).append(", ");
     appendSqlValue(sb, row.filePath());
     sb.append(")");
-    batch.addInsert(sb.toString());
+    batch.add(sb.toString());
   }
 
   /** 将制品行写入批量插入语句，使用预定义列清单避免重复拼接。 */
@@ -850,7 +850,7 @@ public final class FullScanEngine {
     sb.append(row.createdAt()).append(", ");
     sb.append(row.updatedAt());
     sb.append(")");
-    batch.addInsert(sb.toString());
+    batch.add(sb.toString());
   }
 
   /** 将字符串值追加为 SQL 字面量（单引号转义）。 */

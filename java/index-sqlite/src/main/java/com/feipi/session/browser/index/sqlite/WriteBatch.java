@@ -9,11 +9,10 @@ import java.util.List;
 /**
  * 批量写入辅助。
  *
- * <p>累积 INSERT/UPDATE/DELETE 语句，{@link #flush} 在单个事务中一次性执行。 也可通过 {@link #execute} 提交任意 JDBC lambda
- * 操作。
+ * <p>累积写语句，{@link #flush} 在单个事务中一次性执行。 也可通过 {@link #execute} 提交任意 JDBC lambda 操作。
  *
- * <p>批量大小有上限（{@link #DEFAULT_MAX_ENTRIES} = 5000），防止单次事务过大导致 WAL 膨胀。 达到上限时 {@link #addInsert} 等方法抛出
- * {@link IllegalStateException}，调用方应先 flush 再继续。
+ * <p>批量大小有上限（{@link #DEFAULT_MAX_ENTRIES} = 5000），防止单次事务过大导致 WAL 膨胀。 达到上限时 {@link #add} 抛出 {@link
+ * IllegalStateException}，调用方应先 flush 再继续。
  *
  * <p>仅由 {@link WriteQueue} 的 writer 线程使用，不需要线程安全。
  */
@@ -38,36 +37,14 @@ public final class WriteBatch {
   }
 
   /**
-   * 添加 INSERT 语句。
+   * 添加单条写 SQL。
    *
-   * @param sql INSERT SQL
+   * <p>INSERT/UPDATE/DELETE 在批处理层的容量校验和执行路径完全一致，不再按 SQL 动词拆分重复入口。
+   *
+   * @param sql 写 SQL
    * @throws IllegalStateException 超过批量上限
    */
-  public void addInsert(String sql) {
-    addStatement(sql);
-  }
-
-  /**
-   * 添加 UPDATE 语句。
-   *
-   * @param sql UPDATE SQL
-   * @throws IllegalStateException 超过批量上限
-   */
-  public void addUpdate(String sql) {
-    addStatement(sql);
-  }
-
-  /**
-   * 添加 DELETE 语句。
-   *
-   * @param sql DELETE SQL
-   * @throws IllegalStateException 超过批量上限
-   */
-  public void addDelete(String sql) {
-    addStatement(sql);
-  }
-
-  private void addStatement(String sql) {
+  public void add(String sql) {
     checkCapacity();
     statements.add(sql);
   }
