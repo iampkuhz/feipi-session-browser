@@ -3,7 +3,6 @@ plugins {
 }
 
 dependencies {
-    implementation(project(":java:query-api"))
     implementation(project(":java:index-sqlite"))
     implementation(project(":java:core-domain"))
     implementation(libs.slf4j.api)
@@ -11,7 +10,7 @@ dependencies {
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testImplementation(libs.sqlite.jdbc)
-    testImplementation(project(":java:test-support"))
+    testImplementation(project(":java:tests:support"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

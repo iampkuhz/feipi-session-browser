@@ -887,7 +887,7 @@ class TestSessionSamplesGateCommand:
 
         cmd = run_quality_gate.gate_command('sessionSamples', tmp_path, 'scan-script-smoke')
 
-        assert cmd == [str(gradlew), ':java:contract-tests:sampleIntegrationTest', '--no-daemon']
+        assert cmd == [str(gradlew), ':java:tests:contracts:sampleIntegrationTest', '--no-daemon']
 
     @pytest.mark.contract_case('SESSION-SAMPLES-001')
     def test_session_sample_docs_trigger_scan_target(self):

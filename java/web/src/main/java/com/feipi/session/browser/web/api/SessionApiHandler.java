@@ -1,10 +1,10 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
-import com.feipi.session.browser.index.sqlite.PayloadLookup;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionData;
@@ -533,6 +533,7 @@ public final class SessionApiHandler {
     void execute() throws SQLException, SessionDataException;
   }
 
+  /** 执行已定位 round 的 API 端点逻辑。 */
   @FunctionalInterface
   private interface RoundEndpointAction {
 

@@ -2,15 +2,15 @@ package com.feipi.session.browser.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
+import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
+import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
+import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
 import com.feipi.session.browser.index.sqlite.DashboardRow;
 import com.feipi.session.browser.index.sqlite.IndexConnection;
 import com.feipi.session.browser.index.sqlite.IndexSchema;
 import com.feipi.session.browser.index.sqlite.PragmaConfig;
 import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
 import com.feipi.session.browser.index.sqlite.SchemaVersion;
-import com.feipi.session.browser.index.sqlite.SessionDetailRepository;
-import com.feipi.session.browser.index.sqlite.SessionQueryRepository;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;

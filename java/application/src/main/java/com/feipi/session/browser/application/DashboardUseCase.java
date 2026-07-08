@@ -1,10 +1,10 @@
 package com.feipi.session.browser.application;
 
+import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
 import com.feipi.session.browser.index.sqlite.ActivityTrendRow;
 import com.feipi.session.browser.index.sqlite.AgentBreakdownRow;
 import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
 import com.feipi.session.browser.index.sqlite.AggregateMetricsRow;
-import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
 import com.feipi.session.browser.index.sqlite.DashboardRow;
 import com.feipi.session.browser.index.sqlite.KpiSupplementRow;
 import com.feipi.session.browser.index.sqlite.TokenBreakdownRow;

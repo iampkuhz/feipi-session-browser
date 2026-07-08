@@ -303,9 +303,7 @@ SCAN_SCRIPT_SMOKE_PATTERNS: list[str] = [
     'scripts/session-browser.sh',
     'java/app-cli/**',
     'java/scan-engine/**',
-    'java/source-claude/**',
-    'java/source-codex/**',
-    'java/source-qoder/**',
+    'java/sources/**',
     'java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**',
     'java/normalization-engine/**',
     'java/artifact-normalized/**',
@@ -390,7 +388,7 @@ def _self_test() -> None:
         == 'java-src'
     )
     assert (
-        classify_file('java/architecture-tests/src/test/java/com/feipi/BarTest.java').quality_target
+        classify_file('java/tests/architecture/src/test/java/com/feipi/BarTest.java').quality_target
         == 'java-src'
     )
     assert (

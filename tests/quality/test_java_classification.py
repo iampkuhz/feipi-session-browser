@@ -53,7 +53,7 @@ class TestJavaBasicClassification:
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_src_test_classification(self):
-        c = classify_file('java/architecture-tests/src/test/java/com/feipi/BarTest.java')
+        c = classify_file('java/tests/architecture/src/test/java/com/feipi/BarTest.java')
         assert c.category == 'java-src'
         assert c.quality_target == 'java-src'
 

@@ -44,24 +44,24 @@ class TestScanScriptSmokeTrigger:
             f'java/scan-engine/** should trigger scan-script-smoke, got: {targets}'
         )
 
-    def test_java_source_claude_triggers_scan_script_smoke(self):
-        """java/source-claude/** should trigger scan-script-smoke."""
+    def test_java_sources_claude_triggers_scan_script_smoke(self):
+        """java/sources/** Claude package should trigger scan-script-smoke."""
         targets = required_quality_targets(
-            ['java/source-claude/src/main/java/com/feipi/claude/ClaudeSourceAdapter.java']
+            ['java/sources/src/main/java/com/feipi/session/browser/source/claude/ClaudeSourceAdapter.java']
         )
         assert 'scan-script-smoke' in targets
 
-    def test_java_source_codex_triggers_scan_script_smoke(self):
-        """java/source-codex/** should trigger scan-script-smoke."""
+    def test_java_sources_codex_triggers_scan_script_smoke(self):
+        """java/sources/** Codex package should trigger scan-script-smoke."""
         targets = required_quality_targets(
-            ['java/source-codex/src/main/java/com/feipi/codex/CodexSourceAdapter.java']
+            ['java/sources/src/main/java/com/feipi/session/browser/source/codex/CodexSourceAdapter.java']
         )
         assert 'scan-script-smoke' in targets
 
-    def test_java_source_qoder_triggers_scan_script_smoke(self):
-        """java/source-qoder/** should trigger scan-script-smoke."""
+    def test_java_sources_qoder_triggers_scan_script_smoke(self):
+        """java/sources/** Qoder package should trigger scan-script-smoke."""
         targets = required_quality_targets(
-            ['java/source-qoder/src/main/java/com/feipi/qoder/QoderSourceAdapter.java']
+            ['java/sources/src/main/java/com/feipi/session/browser/source/qoder/QoderSourceAdapter.java']
         )
         assert 'scan-script-smoke' in targets
 
@@ -95,7 +95,7 @@ class TestScanScriptSmokeTrigger:
             [
                 'scripts/session-browser.sh',
                 'java/scan-engine/src/main/java/com/feipi/scan/FullScanEngine.java',
-                'java/source-claude/src/main/java/com/feipi/claude/ClaudeSourceAdapter.java',
+                'java/sources/src/main/java/com/feipi/session/browser/source/claude/ClaudeSourceAdapter.java',
             ]
         )
         count = sum(1 for t in targets if t == 'scan-script-smoke')
@@ -156,9 +156,7 @@ class TestScanScriptSmokePatterns:
         expected = [
             'java/app-cli/**',
             'java/scan-engine/**',
-            'java/source-claude/**',
-            'java/source-codex/**',
-            'java/source-qoder/**',
+            'java/sources/**',
             'java/index-sqlite/**',
         ]
         for pattern in expected:

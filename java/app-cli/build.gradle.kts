@@ -19,12 +19,8 @@ application {
 
 dependencies {
     implementation(project(":java:core-domain"))
-    implementation(project(":java:data"))
     implementation(project(":java:source-spi"))
-    implementation(project(":java:source-json"))
-    implementation(project(":java:source-claude"))
-    implementation(project(":java:source-codex"))
-    implementation(project(":java:source-qoder"))
+    implementation(project(":java:sources"))
     implementation(project(":java:normalization-engine"))
     implementation(project(":java:artifact-normalized"))
     implementation(project(":java:scan-engine"))
@@ -39,7 +35,7 @@ dependencies {
         exclude(group = "org.slf4j", module = "slf4j-api")
     }
 
-    testImplementation(project(":java:test-support"))
+    testImplementation(project(":java:tests:support"))
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testImplementation(libs.javalin.testtools)

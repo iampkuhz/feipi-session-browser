@@ -1,12 +1,12 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
@@ -235,6 +235,7 @@ final class RoundIndexProjection {
     return List.copyOf(signalSet);
   }
 
+  /** 创建 round index DTO 的内部工厂。 */
   @FunctionalInterface
   private interface RoundDtoFactory {
     RoundIndexDto create(CallRound round, long sessionTokens, NormalizedSessionArtifact artifact);

@@ -1,7 +1,7 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.index.sqlite.AnomalyDetector;
-import com.feipi.session.browser.index.sqlite.DiagnosticRegistry;
+import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
+import com.feipi.session.browser.application.diagnostics.DiagnosticRegistry;
 import com.feipi.session.browser.index.sqlite.PercentileCalculator;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.AnomalyFilter;

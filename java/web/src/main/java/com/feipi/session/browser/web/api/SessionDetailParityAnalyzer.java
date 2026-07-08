@@ -2,9 +2,9 @@ package com.feipi.session.browser.web.api;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.sqlite.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import java.io.BufferedReader;
@@ -1074,6 +1074,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示单个 rollout 文件解析出的会话统计。 */
   private static final class RolloutStats {
     final String path;
     final String scope;
@@ -1119,6 +1120,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示 rollout 中的一次工具调用事件。 */
   private static final class ToolEvent {
     final String id;
     final String name;
@@ -1139,6 +1141,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示按工具名称聚合后的统计。 */
   private static final class ToolStat {
     final String name;
     long calls;
@@ -1156,6 +1159,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示 token 使用量增量。 */
   private static final class UsageDelta {
     final long fresh;
     final long cacheRead;
@@ -1172,6 +1176,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示从原始数据抽取出的轮次摘要。 */
   private static final class RawRoundSummary {
     final long index;
     final String summary;
@@ -1186,6 +1191,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示生成诊断 issue 所需的种子信息。 */
   private static final class IssueSeed {
     final String issue;
     final String evidence;
@@ -1202,6 +1208,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示 token 分段展示条目。 */
   private static final class Segment {
     final String label;
     final long tokens;
@@ -1214,6 +1221,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示整次运行的 issue 汇总。 */
   private static final class RunIssueSummary {
     final long totalTools;
     final long failedTools;
@@ -1238,6 +1246,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示 metrics 构建阶段的输入集合。 */
   private static final class MetricsInput {
     final SessionRow row;
     final long mainCalls;
@@ -1271,6 +1280,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示 diagnostics 构建阶段的输入集合。 */
   private static final class DiagnosticsInput {
     final SessionRow row;
     final String sourcePath;
@@ -1295,6 +1305,7 @@ final class SessionDetailParityAnalyzer {
     }
   }
 
+  /** 表示 agent 表格行构建输入。 */
   private static final class AgentRowInput {
     final String scope;
     final String agent;

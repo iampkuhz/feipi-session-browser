@@ -1,11 +1,11 @@
 package com.feipi.session.browser.application;
 
+import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
+import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.index.sqlite.AnomalyDetector;
 import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.sqlite.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionDetailAssembler;
-import com.feipi.session.browser.index.sqlite.SessionDetailRepository;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;

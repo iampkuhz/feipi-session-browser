@@ -5,7 +5,7 @@ plugins {
 dependencies {
     implementation(project(":java:core-domain"))
     implementation(project(":java:source-spi"))
-    implementation(project(":java:source-json"))
+    implementation(project(":java:sources"))
     implementation(project(":java:normalization-engine"))
     implementation(project(":java:artifact-normalized"))
     implementation(project(":java:index-sqlite"))
@@ -13,7 +13,7 @@ dependencies {
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
-    testImplementation(project(":java:test-support"))
+    testImplementation(project(":java:tests:support"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

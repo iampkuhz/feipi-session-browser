@@ -2,7 +2,7 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
-import com.feipi.session.browser.index.sqlite.SessionDetail;
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;

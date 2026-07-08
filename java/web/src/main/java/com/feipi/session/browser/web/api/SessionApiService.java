@@ -1,5 +1,9 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
+import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -7,11 +11,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.sqlite.PayloadLookup;
 import com.feipi.session.browser.index.sqlite.SessionArtifactRow;
-import com.feipi.session.browser.index.sqlite.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionDetailAssembler;
-import com.feipi.session.browser.index.sqlite.SessionDetailRepository;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;

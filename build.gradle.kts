@@ -645,9 +645,9 @@ fun reuseCpdArgs(profile: ReuseCpdProfile, sourceDirs: List<File>, reportFile: F
 
 gradle.projectsEvaluated {
     val productionModules = leafSubprojects.filter { sub ->
-        sub.path != ":java:test-support"
-            && sub.path != ":java:architecture-tests"
-            && sub.path != ":java:contract-tests"
+        sub.path != ":java:tests:support"
+            && sub.path != ":java:tests:architecture"
+            && sub.path != ":java:tests:contracts"
             && sub.file("src/main/java").isDirectory
     }
     val productionSourceDirs = productionModules.map { it.file("src/main/java") }

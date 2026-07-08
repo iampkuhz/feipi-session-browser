@@ -1,10 +1,10 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
+import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
+import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
+import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
 import com.feipi.session.browser.index.sqlite.IndexConnection;
 import com.feipi.session.browser.index.sqlite.SchemaVersion;
-import com.feipi.session.browser.index.sqlite.SessionDetailRepository;
-import com.feipi.session.browser.index.sqlite.SessionQueryRepository;
 
 /**
  * 查询 composition root。

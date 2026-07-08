@@ -1,6 +1,6 @@
 package com.feipi.session.browser.cli;
 
-import com.feipi.session.browser.data.batch.service.NormalizedBatchRunner;
+import com.feipi.session.browser.cli.batch.service.NormalizedBatchRunner;
 import java.nio.file.Path;
 import java.util.concurrent.Callable;
 import picocli.CommandLine.Command;

@@ -7,11 +7,10 @@ dependencies {
     implementation(libs.slf4j.api)
     implementation(libs.bundles.jackson)
     implementation(project(":java:core-domain"))
-    implementation(project(":java:query-api"))
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
-    testImplementation(project(":java:test-support"))
+    testImplementation(project(":java:tests:support"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

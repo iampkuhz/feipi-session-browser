@@ -1,6 +1,6 @@
 package com.feipi.session.browser.web.model;
 
-import com.feipi.session.browser.index.sqlite.SessionDetail;
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.DetectedAnomaly;

@@ -175,11 +175,12 @@ public final class WebCompositionRoot {
   /** 注册 JSON API 路由。 */
   private static void registerApiRoutes(
       io.javalin.config.JavalinConfig javalinConfig, QueryCompositionRoot queryRoot) {
-    com.feipi.session.browser.index.sqlite.SessionQueryRepository sessionQueryRepo =
-        new com.feipi.session.browser.index.sqlite.SessionQueryRepository(
+    com.feipi.session.browser.application.query.repository.SessionQueryRepository sessionQueryRepo =
+        new com.feipi.session.browser.application.query.repository.SessionQueryRepository(
             queryRoot.indexConnection());
-    com.feipi.session.browser.index.sqlite.SessionDetailRepository detailRepo =
-        new com.feipi.session.browser.index.sqlite.SessionDetailRepository(sessionQueryRepo);
+    com.feipi.session.browser.application.sessiondetail.SessionDetailRepository detailRepo =
+        new com.feipi.session.browser.application.sessiondetail.SessionDetailRepository(
+            sessionQueryRepo);
     DashboardApiHandler dashboardApiHandler = new DashboardApiHandler(queryRoot);
     javalinConfig.routes.get("/api/dashboard/summary", dashboardApiHandler::handleSummary);
     javalinConfig.routes.get(

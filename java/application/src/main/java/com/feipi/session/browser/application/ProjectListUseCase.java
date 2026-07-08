@@ -1,6 +1,6 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.index.sqlite.AggregateQueryRepository;
+import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
 import com.feipi.session.browser.index.sqlite.ProjectListSummaryRow;
 import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
 import com.feipi.session.browser.query.api.PageResult;

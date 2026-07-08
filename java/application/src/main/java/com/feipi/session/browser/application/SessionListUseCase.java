@@ -1,10 +1,10 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.index.sqlite.AnomalyDetector;
+import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
+import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
 import com.feipi.session.browser.index.sqlite.ProjectOptionRow;
 import com.feipi.session.browser.index.sqlite.SessionListAggregate;
 import com.feipi.session.browser.index.sqlite.SessionListSummaryRow;
-import com.feipi.session.browser.index.sqlite.SessionQueryRepository;
 import com.feipi.session.browser.index.sqlite.SessionRow;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;

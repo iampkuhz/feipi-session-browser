@@ -15,7 +15,7 @@ from pathlib import Path
 #: 需要扫描的模块及其 src/main/java 根目录（相对于仓库根）。
 SCAN_MODULES: list[str] = [
     "java/core-domain/src/main/java",
-    "java/query-api/src/main/java",
+    "java/application/src/main/java/com/feipi/session/browser/query/api",
     "java/source-spi/src/main/java",
 ]
 

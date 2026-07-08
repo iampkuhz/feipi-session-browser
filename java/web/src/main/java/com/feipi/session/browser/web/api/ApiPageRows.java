@@ -35,6 +35,7 @@ final class ApiPageRows {
         state);
   }
 
+  /** 创建 rows API 响应对象的工厂。 */
   @FunctionalInterface
   interface RowsResponseFactory<F, R> {
     /** 创建实际 API rows response 对象。 */

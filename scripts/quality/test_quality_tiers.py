@@ -139,7 +139,7 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
         self.assertTrue(len(baseline) > 1, 'java-src should have multiple baseline gates')
 
         # 仅 Java source 文件 changed。
-        changed = ['java/query-api/src/main/java/com/feipi/Example.java']
+        changed = ['java/application/src/main/java/com/feipi/session/browser/query/api/Example.java']
         applicable = applicable_gates_for_target(target, changed)
 
         not_triggered = set(baseline) - set(applicable)
@@ -184,7 +184,7 @@ class TestNotTriggeredVsSkipped(unittest.TestCase):
         """
         target = 'java-src'
         baseline = required_gates_for_target(target)
-        changed = ['java/query-api/src/main/java/com/feipi/Foo.java']
+        changed = ['java/application/src/main/java/com/feipi/session/browser/query/api/Foo.java']
         applicable = applicable_gates_for_target(target, changed)
         not_triggered = [g for g in baseline if g not in applicable]
 
@@ -288,7 +288,7 @@ class TestQuickTierDryRun(unittest.TestCase):
     # 验证quick tier dry 运行 Java change。
     def test_quick_tier_dry_run_with_java_change(self) -> None:
         result = _run_quick_tier(
-            changed_files=['java/query-api/src/main/java/com/feipi/Foo.java'],
+            changed_files=['java/application/src/main/java/com/feipi/session/browser/query/api/Foo.java'],
             excluded_targets={'session-detail'},
             dry_run=True,
         )

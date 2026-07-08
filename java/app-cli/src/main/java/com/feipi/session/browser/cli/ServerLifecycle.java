@@ -18,6 +18,8 @@ import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
 import com.feipi.session.browser.web.WebServer;
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URI;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -44,6 +46,15 @@ import org.slf4j.LoggerFactory;
 public final class ServerLifecycle {
 
   private static final Logger LOG = LoggerFactory.getLogger(ServerLifecycle.class);
+
+  /** Web 服务器就绪探测的最大等待时间（毫秒）。 */
+  private static final long READINESS_TIMEOUT_MS = 10_000L;
+
+  /** Web 服务器就绪探测间隔（毫秒）。 */
+  private static final long READINESS_POLL_MS = 100L;
+
+  /** 单次 health endpoint 探测超时（毫秒）。 */
+  private static final int READINESS_HTTP_TIMEOUT_MS = 1_000;
 
   private final Path indexDir;
   private final String host;
@@ -142,13 +153,14 @@ public final class ServerLifecycle {
       webServer = webRoot.createServer();
       installShutdownHook(queryRoot, sourceEntries, artifactDir);
       webServer.start();
+      int actualPort = webServer.actualPort();
+      waitForHealth(actualPort);
 
       // 阶段 5：启动后台扫描调度器
       if (!noScan && !sourceEntries.isEmpty()) {
         startBackgroundScanner(sourceEntries, artifactDir, queryRoot);
       }
 
-      int actualPort = webServer.actualPort();
       LOG.info("serve 已就绪: {}:{}", host, actualPort);
 
       // 写入 PID 文件供 stop 命令使用
@@ -361,6 +373,60 @@ public final class ServerLifecycle {
 
     return new BackgroundScanner(
         TierConfig.DEFAULT_HOT, TierConfig.DEFAULT_WARM, scanLock, hotAction, warmAction);
+  }
+
+  /**
+   * 等待 health endpoint 真正可用。
+   *
+   * <p>Javalin start 返回后端口可能已绑定但 handler 尚未完成首个请求准备；在高并发构建机上这会导致 CLI smoke 立刻访问时偶发 read
+   * timeout。这里用短轮询把 {@link #start()} 的语义收敛为“返回时服务可响应健康检查”。
+   *
+   * @param actualPort 实际监听端口
+   * @throws IOException health endpoint 在超时前不可用
+   */
+  private void waitForHealth(int actualPort) throws IOException {
+    long deadline = System.currentTimeMillis() + READINESS_TIMEOUT_MS;
+    IOException lastFailure = null;
+    while (System.currentTimeMillis() < deadline) {
+      try {
+        if (probeHealth(actualPort)) {
+          return;
+        }
+      } catch (IOException e) {
+        lastFailure = e;
+      }
+      try {
+        Thread.sleep(READINESS_POLL_MS);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+        throw new IOException("等待 health endpoint 就绪时被中断", e);
+      }
+    }
+    IOException failure = new IOException("health endpoint 未在超时前就绪: " + host + ":" + actualPort);
+    if (lastFailure != null) {
+      failure.addSuppressed(lastFailure);
+    }
+    throw failure;
+  }
+
+  /**
+   * 发起单次 health endpoint 探测。
+   *
+   * @param actualPort 实际监听端口
+   * @return 响应码为 200 时返回 true
+   * @throws IOException 网络连接或读取失败
+   */
+  private boolean probeHealth(int actualPort) throws IOException {
+    String probeHost = "0.0.0.0".equals(host) || "::".equals(host) ? "127.0.0.1" : host;
+    URI uri = URI.create("http://" + probeHost + ":" + actualPort + "/healthz");
+    HttpURLConnection conn = (HttpURLConnection) uri.toURL().openConnection();
+    conn.setConnectTimeout(READINESS_HTTP_TIMEOUT_MS);
+    conn.setReadTimeout(READINESS_HTTP_TIMEOUT_MS);
+    try {
+      return conn.getResponseCode() == 200;
+    } finally {
+      conn.disconnect();
+    }
   }
 
   /**

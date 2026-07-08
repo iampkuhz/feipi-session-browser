@@ -1737,7 +1737,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        return [str(gradlew), ':java:contract-tests:sampleIntegrationTest', '--no-daemon']
+        return [str(gradlew), ':java:tests:contracts:sampleIntegrationTest', '--no-daemon']
     if gate == 'repoStructure':
         return [python, 'scripts/quality/validate_repo_structure.py']
     if gate == 'harnessStructure':
@@ -1765,20 +1765,16 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         modules = [
             'core-domain',
             'source-spi',
-            'source-json',
-            'source-claude',
-            'source-codex',
-            'source-qoder',
+            'sources',
             'artifact-normalized',
             'normalization-engine',
             'index-sqlite',
             'scan-engine',
-            'query-api',
             'application',
             'web',
             'app-cli',
-            'contract-tests',
-            'architecture-tests',
+            'tests:contracts',
+            'tests:architecture',
         ]
         test_checks = ' '.join(
             f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon > /tmp/javaCheck-{m}.log 2>&1; '

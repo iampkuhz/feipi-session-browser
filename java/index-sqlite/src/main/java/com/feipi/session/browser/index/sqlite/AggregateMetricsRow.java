@@ -85,7 +85,7 @@ public record AggregateMetricsRow(
    *
    * <p>分母为零或结果为零时返回 {@code null}，与 Python {@code safe_div} + falsy 检查一致。
    */
-  static Double safeDivRound(long numerator, long denominator, int scale) {
+  public static Double safeDivRound(long numerator, long denominator, int scale) {
     if (denominator <= 0) {
       return null;
     }
