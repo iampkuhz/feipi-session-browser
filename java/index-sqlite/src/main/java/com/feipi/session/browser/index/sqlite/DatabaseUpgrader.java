@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
@@ -79,10 +80,7 @@ public final class DatabaseUpgrader {
     this.schema = Objects.requireNonNull(schema, "schema 不得为 null");
     this.appVersion = (appVersion != null && !appVersion.isBlank()) ? appVersion : null;
     this.backupDir = Objects.requireNonNull(backupDir, "backupDir 不得为 null");
-    if (backupRetention < 1) {
-      throw new IllegalArgumentException("backupRetention 必须 >= 1，实际值: " + backupRetention);
-    }
-    this.backupRetention = backupRetention;
+    this.backupRetention = ParamChecks.atLeast(backupRetention, 1, "backupRetention");
   }
 
   /**

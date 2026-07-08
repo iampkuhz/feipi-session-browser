@@ -1658,6 +1658,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return [python, 'scripts/quality/check_language_policy.py']
     if gate == 'codexAgentPolicy':
         return [python, 'scripts/quality/check_codex_agent_policy.py']
+    if gate == 'agentRuntimeManifest':
+        return [python, 'scripts/quality/check_agent_runtime_manifest.py']
+    if gate == 'agentHookParity':
+        return [python, 'scripts/quality/check_agent_hook_parity.py']
     if gate == 'hookSelfTest':
         return [python, '-m', 'scripts.claude_hooks.main', '--self-test']
     if gate == 'templateContract':
@@ -1763,6 +1767,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         # exit code 0 → 通过；非零但含 binary results 错误 → 测试实际通过（仅 binary 存储损坏）。
         gw = str(gradlew)
         modules = [
+            'common',
             'core-domain',
             'source-spi',
             'sources',

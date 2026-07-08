@@ -13,6 +13,7 @@ includeBuild("build-logic")
 
 include(
     "app-cli",
+    "java:common",
     "java:app-cli",
     "java:core-domain",
     "java:source-spi",

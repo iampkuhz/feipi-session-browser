@@ -68,10 +68,12 @@ check_file .claude/hooks/subagent-stop.sh
 check_file .claude/hooks/config-change.sh
 check_file .claude/hooks/lib/common.sh
 check_file .codex/hooks/pre_tool_guard.sh
+check_file .codex/hooks/pre_write_guard.sh
 check_file .codex/hooks/post_bash_guard.sh
 check_file .codex/hooks/post_tool_guard.sh
 check_file .codex/hooks/stop_check.sh
 check_file .qoder/hooks/pre_tool_guard.sh
+check_file .qoder/hooks/pre_write_guard.sh
 check_file .qoder/hooks/post_bash_guard.sh
 check_file .qoder/hooks/post_tool_guard.sh
 check_file .qoder/hooks/stop_check.sh
@@ -105,6 +107,8 @@ if [[ -n "$PYTHON" ]]; then
   "$PYTHON" -m compileall -q src || fail=1
   "$PYTHON" scripts/quality/check_language_policy.py || fail=1
   "$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_runtime_manifest.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_hook_parity.py || fail=1
 fi
 
 # CSS ownership 校验。

@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * Schema 版本号，独立于 scan logic version。
  *
@@ -17,9 +19,7 @@ public record SchemaVersion(int version) implements Comparable<SchemaVersion> {
    * @throws IllegalArgumentException 版本号小于 1
    */
   public SchemaVersion {
-    if (version < 1) {
-      throw new IllegalArgumentException("schema version 必须 >= 1，实际值: " + version);
-    }
+    ParamChecks.atLeast(version, 1, "schema version");
   }
 
   @Override

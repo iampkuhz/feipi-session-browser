@@ -200,9 +200,13 @@ class TestIdentityScopedStopQualityGate:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
         """其他 session changed-files 不得影响当前 Stop。"""
+        monkeypatch.delenv('FEIPI_AGENT_ID', raising=False)
+        monkeypatch.delenv('FEIPI_SESSION_ID', raising=False)
+        monkeypatch.delenv('FEIPI_AGENT_CLIENT', raising=False)
         identity = _sqg.runtime_paths.identity_from_values(
             agent_client='claude',
             session_id='reader-session',
+            agent_id='',
         )
         monkeypatch.setattr(_sqg, 'REPO_ROOT', tmp_path)
         monkeypatch.setattr(_sqg, 'IDENTITY', identity)
@@ -258,9 +262,13 @@ class TestIdentityScopedStopQualityGate:
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
         """质量 artifact 查询必须使用当前 session 的 quality 目录。"""
+        monkeypatch.delenv('FEIPI_AGENT_ID', raising=False)
+        monkeypatch.delenv('FEIPI_SESSION_ID', raising=False)
+        monkeypatch.delenv('FEIPI_AGENT_CLIENT', raising=False)
         identity = _sqg.runtime_paths.identity_from_values(
             agent_client='claude',
             session_id='reader-session',
+            agent_id='',
         )
         quality_dir = _sqg.runtime_paths.quality_dir(tmp_path, identity)
         monkeypatch.setattr(_sqg, 'IDENTITY', identity)

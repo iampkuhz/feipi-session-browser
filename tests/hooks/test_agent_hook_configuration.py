@@ -34,11 +34,14 @@ def test_claude_project_hook_matrix_is_complete():
 
 
 def test_codex_project_hook_matrix_is_complete():
-    """Codex repo 配置必须覆盖 Bash pre、write post 和 Stop。"""
+    """Codex repo 配置必须覆盖 Bash pre、write pre/post 和 Stop。"""
     commands = _commands_for_event(REPO_ROOT / '.codex' / 'hooks.json')
 
     assert commands == {
         ('PreToolUse', 'Bash'): ['.codex/hooks/pre_tool_guard.sh'],
+        ('PreToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): [
+            '.codex/hooks/pre_write_guard.sh'
+        ],
         ('PostToolUse', 'Bash'): ['.codex/hooks/post_bash_guard.sh'],
         ('PostToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): ['.codex/hooks/post_tool_guard.sh'],
         ('Stop', ''): ['.codex/hooks/stop_check.sh'],
@@ -46,15 +49,17 @@ def test_codex_project_hook_matrix_is_complete():
 
 
 def test_qoder_hook_wrappers_delegate_to_shared_entrypoints():
-    """Qoder 当前没有独立 JSON 配置，repo 只维护三类 wrapper。"""
+    """Qoder 当前没有独立 JSON 配置，repo 只维护四类 wrapper。"""
     qoder_hooks = REPO_ROOT / '.qoder' / 'hooks'
 
     pre = (qoder_hooks / 'pre_tool_guard.sh').read_text(encoding='utf-8')
+    pre_write = (qoder_hooks / 'pre_write_guard.sh').read_text(encoding='utf-8')
     post_bash = (qoder_hooks / 'post_bash_guard.sh').read_text(encoding='utf-8')
     post = (qoder_hooks / 'post_tool_guard.sh').read_text(encoding='utf-8')
     stop = (qoder_hooks / 'stop_check.sh').read_text(encoding='utf-8')
 
     assert '.codex/hooks/pre_tool_guard.sh' in pre
+    assert '.codex/hooks/pre_write_guard.sh' in pre_write
     assert '.codex/hooks/post_bash_guard.sh' in post_bash
     assert '.codex/hooks/post_tool_guard.sh' in post
     assert 'scripts/harness/agent_stop_check.py' in stop

@@ -7,16 +7,22 @@
       "allowedProjectDeps": [],
       "transitionProjectDeps": []
     },
+    ":java:common": {
+      "sourceRoot": "java/common/src/main/java",
+      "packageRoots": ["com.feipi.session.browser.common"],
+      "allowedProjectDeps": [],
+      "transitionProjectDeps": []
+    },
     ":java:core-domain": {
       "sourceRoot": "java/core-domain/src/main/java",
       "packageRoots": ["com.feipi.session.browser.domain"],
-      "allowedProjectDeps": [],
+      "allowedProjectDeps": [":java:common"],
       "transitionProjectDeps": []
     },
     ":java:source-spi": {
       "sourceRoot": "java/source-spi/src/main/java",
       "packageRoots": ["com.feipi.session.browser.source.spi"],
-      "allowedProjectDeps": [":java:core-domain"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain"],
       "transitionProjectDeps": []
     },
     ":java:sources": {
@@ -39,7 +45,7 @@
     ":java:artifact-normalized": {
       "sourceRoot": "java/artifact-normalized/src/main/java",
       "packageRoots": ["com.feipi.session.browser.artifact.normalized"],
-      "allowedProjectDeps": [":java:core-domain"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain"],
       "transitionProjectDeps": []
     },
     ":java:scan-engine": {
@@ -51,19 +57,19 @@
     ":java:index-sqlite": {
       "sourceRoot": "java/index-sqlite/src/main/java",
       "packageRoots": ["com.feipi.session.browser.index.sqlite"],
-      "allowedProjectDeps": [":java:core-domain"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain"],
       "transitionProjectDeps": []
     },
     ":java:application": {
       "sourceRoot": "java/application/src/main/java",
       "packageRoots": ["com.feipi.session.browser.application", "com.feipi.session.browser.query.api"],
-      "allowedProjectDeps": [":java:core-domain", ":java:index-sqlite"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-sqlite"],
       "transitionProjectDeps": []
     },
     ":java:web": {
       "sourceRoot": "java/web/src/main/java",
       "packageRoots": ["com.feipi.session.browser.web"],
-      "allowedProjectDeps": [":java:core-domain", ":java:application", ":java:index-sqlite"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:application", ":java:index-sqlite"],
       "transitionProjectDeps": []
     },
     ":java:app-cli": {

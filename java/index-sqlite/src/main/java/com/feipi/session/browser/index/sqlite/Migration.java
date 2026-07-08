@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
@@ -28,12 +29,8 @@ public record Migration(SchemaVersion version, String description, String sqlRes
    * @throws IllegalArgumentException 描述或资源路径为空
    */
   public Migration {
-    if (description == null || description.isBlank()) {
-      throw new IllegalArgumentException("migration description 不能为空");
-    }
-    if (sqlResource == null || sqlResource.isBlank()) {
-      throw new IllegalArgumentException("sqlResource 不能为空");
-    }
+    ParamChecks.nonBlank(description, "migration description");
+    ParamChecks.nonBlank(sqlResource, "sqlResource");
   }
 
   /**

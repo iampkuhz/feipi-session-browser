@@ -3,6 +3,7 @@ package com.feipi.session.browser.index.sqlite;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -138,13 +139,9 @@ public final class NormalizedArtifactLoader {
   /** 解析单个调用。 */
   private static NormalizedCall parseCall(Map<String, Object> cm) {
     String callId = asString(cm, "callId", "", "call_id");
-    if (callId.isEmpty()) {
-      throw new IllegalArgumentException("callId 不得为空");
-    }
+    ParamChecks.nonEmpty(callId, "callId");
     int callIndex = asInt(cm, "callIndex", 1, "call_index");
-    if (callIndex < 1) {
-      throw new IllegalArgumentException("callIndex 必须 >= 1; got " + callIndex);
-    }
+    ParamChecks.atLeast(callIndex, 1, "callIndex");
     String callKey = asString(cm, "callKey", "C" + callIndex, "call_key");
     String scopeValue = asString(cm, "scope", "main");
     CallScope scope = parseCallScope(scopeValue);

@@ -1,5 +1,7 @@
 package com.feipi.session.browser.query.api;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.common.validation.TokenChecks;
 import java.util.List;
 import java.util.Objects;
 
@@ -46,9 +48,7 @@ public record CallRound(
    * @throws NullPointerException 当集合字段为 null 时
    */
   public CallRound {
-    if (roundIndex < 1) {
-      throw new IllegalArgumentException("roundIndex 必须 >= 1; got " + roundIndex);
-    }
+    ParamChecks.atLeast(roundIndex, 1, "roundIndex");
     Objects.requireNonNull(calls, "calls 不得为 null");
     Objects.requireNonNull(toolCallIds, "toolCallIds 不得为 null");
     Objects.requireNonNull(failedToolCallIds, "failedToolCallIds 不得为 null");
@@ -56,16 +56,8 @@ public record CallRound(
     toolCallIds = List.copyOf(toolCallIds);
     failedToolCallIds = List.copyOf(failedToolCallIds);
     parentCallId = parentCallId == null ? "" : parentCallId;
-    requireNonNegative(freshInputTokens, "freshInputTokens");
-    requireNonNegative(cacheReadTokens, "cacheReadTokens");
-    requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
-    requireNonNegative(outputTokens, "outputTokens");
-    requireNonNegative(totalTokens, "totalTokens");
-    long expectedTotal = freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
-    if (totalTokens != expectedTotal) {
-      throw new IllegalArgumentException(
-          "totalTokens must equal component sum " + expectedTotal + "; got " + totalTokens);
-    }
+    TokenChecks.requireTokenSegments(
+        freshInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, totalTokens);
   }
 
   /**
@@ -116,12 +108,6 @@ public record CallRound(
    */
   public static CallRound of(int roundIndex, List<String> calls, List<String> toolCallIds) {
     return new CallRound(roundIndex, calls, toolCallIds, null);
-  }
-
-  private static void requireNonNegative(long value, String name) {
-    if (value < 0) {
-      throw new IllegalArgumentException(name + " must be non-negative; got " + value);
-    }
   }
 
   /** 本轮次的调用数量。 */

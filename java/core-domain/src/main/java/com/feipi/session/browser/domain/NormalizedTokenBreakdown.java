@@ -1,5 +1,7 @@
 package com.feipi.session.browser.domain;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.TokenChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.TokenPrecision;
@@ -55,29 +57,13 @@ public record NormalizedTokenBreakdown(
    * @throws IllegalArgumentException 当任何 token 计数为负数时
    */
   public NormalizedTokenBreakdown {
-    if (freshInputTokens < 0) {
-      throw new IllegalArgumentException(
-          "freshInputTokens must be non-negative; got " + freshInputTokens);
-    }
-    if (cacheReadTokens < 0) {
-      throw new IllegalArgumentException(
-          "cacheReadTokens must be non-negative; got " + cacheReadTokens);
-    }
-    if (cacheWriteTokens < 0) {
-      throw new IllegalArgumentException(
-          "cacheWriteTokens must be non-negative; got " + cacheWriteTokens);
-    }
-    if (outputTokens < 0) {
-      throw new IllegalArgumentException("outputTokens must be non-negative; got " + outputTokens);
-    }
-    if (totalTokens < 0) {
-      throw new IllegalArgumentException("totalTokens must be non-negative; got " + totalTokens);
-    }
+    TokenChecks.requireNonNegativeBreakdown(
+        freshInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, totalTokens);
     Objects.requireNonNull(precision, "precision 不得为 null");
     Objects.requireNonNull(totalSemantics, "totalSemantics 不得为 null");
     Objects.requireNonNull(sourceKind, "sourceKind 不得为 null");
-    rawFields = rawFields == null ? Map.of() : Map.copyOf(rawFields);
-    notes = notes == null ? List.of() : List.copyOf(notes);
+    rawFields = ImmutableCopies.mapOrEmpty(rawFields);
+    notes = ImmutableCopies.listOrEmpty(notes);
   }
 
   /**

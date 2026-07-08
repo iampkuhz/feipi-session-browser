@@ -742,7 +742,7 @@ class TestQualityGateRuntime:
 
         assert [detail.name for detail in details] == gates
         assert seen == gates
-        assert timeout_by_gate == {'javaCheck': 600, 'noJavaTestSkips': 600}
+        assert timeout_by_gate == {'javaCheck': 1200, 'noJavaTestSkips': 1200}
         assert json.loads(env_by_gate['noJavaTestSkips']['QUALITY_CHANGED_FILES']) == [
             'java/core-domain/src/main/java/com/feipi/session/browser/core/SessionIdentity.java'
         ]

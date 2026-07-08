@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * Agent 效率指标行。
  *
@@ -37,8 +39,6 @@ public record AgentEfficiencyRow(
    * @throws IllegalArgumentException 当 sessionCount 为负数时
    */
   public AgentEfficiencyRow {
-    if (sessionCount < 0) {
-      throw new IllegalArgumentException("sessionCount 必须非负; got " + sessionCount);
-    }
+    ParamChecks.nonNegative(sessionCount, "sessionCount");
   }
 }

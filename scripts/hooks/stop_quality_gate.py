@@ -16,6 +16,7 @@ from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
 
 IDENTITY = runtime_paths.identity_from_values()
 CHANGED_FILES = runtime_paths.agent_log_dir(REPO_ROOT, IDENTITY) / 'changed-files.jsonl'
+DEFAULT_CHANGED_FILES = CHANGED_FILES
 QUALITY_DIR = (
     runtime_paths.quality_dir(REPO_ROOT, IDENTITY)
     if IDENTITY.has_session
@@ -58,7 +59,10 @@ def read_changed_files() -> list[dict]:
     """返回：
         解析出的 JSON record 列表；忽略 malformed 行和缺失文件。
     """
-    if IDENTITY.has_session:
+    using_override = CHANGED_FILES != DEFAULT_CHANGED_FILES
+    if using_override:
+        changed_paths = [CHANGED_FILES]
+    elif IDENTITY.has_session:
         log_dirs = runtime_paths.session_log_dirs(
             REPO_ROOT,
             IDENTITY,
@@ -79,9 +83,17 @@ def read_changed_files() -> list[dict]:
                 record = json.loads(line)
             except json.JSONDecodeError:
                 continue
-            if IDENTITY.raw_session_id and record.get('sessionId') != IDENTITY.raw_session_id:
+            if (
+                not using_override
+                and IDENTITY.raw_session_id
+                and record.get('sessionId') != IDENTITY.raw_session_id
+            ):
                 continue
-            if IDENTITY.raw_agent_id and record.get('agentId') != IDENTITY.raw_agent_id:
+            if (
+                not using_override
+                and IDENTITY.raw_agent_id
+                and record.get('agentId') != IDENTITY.raw_agent_id
+            ):
                 continue
             entries.append(record)
     return entries

@@ -1,8 +1,8 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -129,13 +129,9 @@ public record NormalizedSessionArtifact(
     Objects.requireNonNull(session, "session 不得为 null");
 
     // sourceFiles 防御性拷贝
-    List<NormalizedSourceFile> sourceFilesCopy =
-        sourceFiles == null ? Collections.emptyList() : List.copyOf(sourceFiles);
-    if (sourceFilesCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "sourceFiles size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    sourceFiles = sourceFilesCopy;
+    sourceFiles =
+        ImmutableCopies.boundedListOrEmpty(
+            sourceFiles, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceFiles");
 
     // 调用列表防御性拷贝 + callId 唯一性验证
     Objects.requireNonNull(calls, "calls 不得为 null");
@@ -154,39 +150,23 @@ public record NormalizedSessionArtifact(
     calls = callsCopy;
 
     // toolExecutions 防御性拷贝
-    List<NormalizedToolExecution> toolsCopy =
-        toolExecutions == null ? Collections.emptyList() : List.copyOf(toolExecutions);
-    if (toolsCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "toolExecutions size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    toolExecutions = toolsCopy;
+    toolExecutions =
+        ImmutableCopies.boundedListOrEmpty(
+            toolExecutions, NormalizedConstants.MAX_COLLECTION_SIZE, "toolExecutions");
 
     // 诊断信息防御性拷贝
-    List<NormalizedDiagnostic> diagCopy =
-        diagnostics == null ? Collections.emptyList() : List.copyOf(diagnostics);
-    if (diagCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "diagnostics size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    diagnostics = diagCopy;
+    diagnostics =
+        ImmutableCopies.boundedListOrEmpty(
+            diagnostics, NormalizedConstants.MAX_COLLECTION_SIZE, "diagnostics");
 
     // sourceUnitCatalog 防御性拷贝，大小受限
-    Map<String, SourceUnitCatalogEntry> catalogCopy =
-        sourceUnitCatalog == null ? Map.of() : Map.copyOf(sourceUnitCatalog);
-    if (catalogCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "sourceUnitCatalog size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    sourceUnitCatalog = catalogCopy;
+    sourceUnitCatalog =
+        ImmutableCopies.boundedMapOrEmpty(
+            sourceUnitCatalog, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceUnitCatalog");
 
     // sourceUnitSequences 防御性拷贝，大小受限
-    Map<String, List<String>> sequencesCopy =
-        sourceUnitSequences == null ? Map.of() : Map.copyOf(sourceUnitSequences);
-    if (sequencesCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "sourceUnitSequences size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    sourceUnitSequences = sequencesCopy;
+    sourceUnitSequences =
+        ImmutableCopies.boundedMapOrEmpty(
+            sourceUnitSequences, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceUnitSequences");
   }
 }

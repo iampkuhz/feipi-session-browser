@@ -1,5 +1,6 @@
 package com.feipi.session.browser.artifact.normalized;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.nio.file.Path;
 import java.util.Objects;
 
@@ -34,9 +35,7 @@ public record WriteResult(
     Objects.requireNonNull(dataPath, "dataPath 不得为 null");
     Objects.requireNonNull(metaPath, "metaPath 不得为 null");
     Objects.requireNonNull(contentHash, "contentHash 不得为 null");
-    if (contentSize < 0) {
-      throw new IllegalArgumentException("contentSize 不得为负数; got " + contentSize);
-    }
+    ParamChecks.nonNegative(contentSize, "contentSize");
     Objects.requireNonNull(status, "status 不得为 null");
   }
 }

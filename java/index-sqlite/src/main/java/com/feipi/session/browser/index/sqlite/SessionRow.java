@@ -1,6 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
-import java.util.Objects;
+import com.feipi.session.browser.common.validation.ParamChecks;
 
 /**
  * sessions 表的类型化行数据。
@@ -98,39 +98,27 @@ public record SessionRow(
     filePath = defaultEmpty(filePath);
 
     // 主键和 CHECK 约束字段非空
-    Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
-    if (sessionKey.isEmpty()) {
-      throw new IllegalArgumentException("sessionKey 不得为空字符串");
-    }
-    Objects.requireNonNull(agent, "agent 不得为 null");
-    if (agent.isEmpty()) {
-      throw new IllegalArgumentException("agent 不得为空字符串");
-    }
-    Objects.requireNonNull(sessionId, "sessionId 不得为 null");
-    if (sessionId.isEmpty()) {
-      throw new IllegalArgumentException("sessionId 不得为空字符串");
-    }
-    Objects.requireNonNull(endedAt, "endedAt 不得为 null");
-    if (endedAt.isEmpty()) {
-      throw new IllegalArgumentException("endedAt 不得为空字符串");
-    }
+    ParamChecks.nonEmpty(sessionKey, "sessionKey");
+    ParamChecks.nonEmpty(agent, "agent");
+    ParamChecks.nonEmpty(sessionId, "sessionId");
+    ParamChecks.nonEmpty(endedAt, "endedAt");
 
     // 数值非负
-    RowValidators.requireNonNegative(durationSeconds, "durationSeconds");
-    RowValidators.requireNonNegative(modelExecutionSeconds, "modelExecutionSeconds");
-    RowValidators.requireNonNegative(toolExecutionSeconds, "toolExecutionSeconds");
-    RowValidators.requireNonNegative(userMessageCount, "userMessageCount");
-    RowValidators.requireNonNegative(assistantMessageCount, "assistantMessageCount");
-    RowValidators.requireNonNegative(toolCallCount, "toolCallCount");
-    RowValidators.requireNonNegative(outputTokens, "outputTokens");
-    RowValidators.requireNonNegative(freshInputTokens, "freshInputTokens");
-    RowValidators.requireNonNegative(cacheReadTokens, "cacheReadTokens");
-    RowValidators.requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
-    RowValidators.requireNonNegative(totalTokens, "totalTokens");
-    RowValidators.requireNonNegative(failedToolCount, "failedToolCount");
-    RowValidators.requireNonNegative(subagentInstanceCount, "subagentInstanceCount");
-    RowValidators.requireNonNegative(indexedAt, "indexedAt");
-    RowValidators.requireNonNegative(fileMtime, "fileMtime");
+    ParamChecks.nonNegative(durationSeconds, "durationSeconds");
+    ParamChecks.nonNegative(modelExecutionSeconds, "modelExecutionSeconds");
+    ParamChecks.nonNegative(toolExecutionSeconds, "toolExecutionSeconds");
+    ParamChecks.nonNegative(userMessageCount, "userMessageCount");
+    ParamChecks.nonNegative(assistantMessageCount, "assistantMessageCount");
+    ParamChecks.nonNegative(toolCallCount, "toolCallCount");
+    ParamChecks.nonNegative(outputTokens, "outputTokens");
+    ParamChecks.nonNegative(freshInputTokens, "freshInputTokens");
+    ParamChecks.nonNegative(cacheReadTokens, "cacheReadTokens");
+    ParamChecks.nonNegative(cacheWriteTokens, "cacheWriteTokens");
+    ParamChecks.nonNegative(totalTokens, "totalTokens");
+    ParamChecks.nonNegative(failedToolCount, "failedToolCount");
+    ParamChecks.nonNegative(subagentInstanceCount, "subagentInstanceCount");
+    ParamChecks.nonNegative(indexedAt, "indexedAt");
+    ParamChecks.nonNegative(fileMtime, "fileMtime");
   }
 
   private static String defaultEmpty(String value) {

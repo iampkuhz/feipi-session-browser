@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * Token 分类统计。
  *
@@ -26,23 +28,11 @@ public record TokenBreakdownRow(
    * @throws IllegalArgumentException 当任何字段为负数时
    */
   public TokenBreakdownRow {
-    if (totalFreshInput < 0) {
-      throw new IllegalArgumentException("totalFreshInput 必须非负; got " + totalFreshInput);
-    }
-    if (totalOutput < 0) {
-      throw new IllegalArgumentException("totalOutput 必须非负; got " + totalOutput);
-    }
-    if (totalCacheRead < 0) {
-      throw new IllegalArgumentException("totalCacheRead 必须非负; got " + totalCacheRead);
-    }
-    if (totalCacheWrite < 0) {
-      throw new IllegalArgumentException("totalCacheWrite 必须非负; got " + totalCacheWrite);
-    }
-    if (totalToolCalls < 0) {
-      throw new IllegalArgumentException("totalToolCalls 必须非负; got " + totalToolCalls);
-    }
-    if (totalFailedTools < 0) {
-      throw new IllegalArgumentException("totalFailedTools 必须非负; got " + totalFailedTools);
-    }
+    ParamChecks.nonNegative(totalFreshInput, "totalFreshInput");
+    ParamChecks.nonNegative(totalOutput, "totalOutput");
+    ParamChecks.nonNegative(totalCacheRead, "totalCacheRead");
+    ParamChecks.nonNegative(totalCacheWrite, "totalCacheWrite");
+    ParamChecks.nonNegative(totalToolCalls, "totalToolCalls");
+    ParamChecks.nonNegative(totalFailedTools, "totalFailedTools");
   }
 }

@@ -61,6 +61,7 @@ def test_codex_hooks_json_uses_current_repo_relative_commands():
 
     assert commands == [
         '.codex/hooks/pre_tool_guard.sh',
+        '.codex/hooks/pre_write_guard.sh',
         '.codex/hooks/post_bash_guard.sh',
         '.codex/hooks/post_tool_guard.sh',
         '.codex/hooks/stop_check.sh',

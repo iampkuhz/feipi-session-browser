@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * 聚合衍生指标行。
  *
@@ -40,12 +42,8 @@ public record AggregateMetricsRow(
    * <p>比率字段由 {@link #compute} 工厂方法计算并验证，此处仅校验总量字段。
    */
   public AggregateMetricsRow {
-    if (inputSideTotal < 0) {
-      throw new IllegalArgumentException("inputSideTotal 必须非负; got " + inputSideTotal);
-    }
-    if (totalRounds < 0) {
-      throw new IllegalArgumentException("totalRounds 必须非负; got " + totalRounds);
-    }
+    ParamChecks.nonNegative(inputSideTotal, "inputSideTotal");
+    ParamChecks.nonNegative(totalRounds, "totalRounds");
   }
 
   /**

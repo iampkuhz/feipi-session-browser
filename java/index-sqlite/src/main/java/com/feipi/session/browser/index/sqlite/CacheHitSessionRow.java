@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * 高缓存命中率会话行。
  *
@@ -31,9 +33,6 @@ public record CacheHitSessionRow(
    */
   public CacheHitSessionRow {
     projectName = projectName == null ? "" : projectName;
-    if (cacheHitPercent < 0.0 || cacheHitPercent > 100.0) {
-      throw new IllegalArgumentException(
-          "cacheHitPercent 必须在 [0, 100] 范围内; got " + cacheHitPercent);
-    }
+    ParamChecks.inRange(cacheHitPercent, 0.0, 100.0, "cacheHitPercent");
   }
 }

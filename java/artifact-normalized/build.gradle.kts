@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(project(":java:core-domain"))
+    implementation(project(":java:common"))
     implementation(libs.bundles.jackson)
 
     testImplementation(libs.junit.jupiter)

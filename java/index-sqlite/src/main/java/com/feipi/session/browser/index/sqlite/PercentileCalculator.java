@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumMap;
@@ -183,9 +184,7 @@ public final class PercentileCalculator {
      * @throws IllegalArgumentException 当 count 为负数时
      */
     public PercentileResult {
-      if (count < 0) {
-        throw new IllegalArgumentException("count 必须非负; got " + count);
-      }
+      ParamChecks.nonNegative(count, "count");
     }
   }
 
@@ -206,15 +205,9 @@ public final class PercentileCalculator {
      * @throws IllegalArgumentException 当阈值或样本数为负数时
      */
     public Thresholds {
-      if (warning < 0) {
-        throw new IllegalArgumentException("warning 必须非负; got " + warning);
-      }
-      if (critical < 0) {
-        throw new IllegalArgumentException("critical 必须非负; got " + critical);
-      }
-      if (sampleCount < 0) {
-        throw new IllegalArgumentException("sampleCount 必须非负; got " + sampleCount);
-      }
+      ParamChecks.nonNegative(warning, "warning");
+      ParamChecks.nonNegative(critical, "critical");
+      ParamChecks.nonNegative(sampleCount, "sampleCount");
     }
   }
 }

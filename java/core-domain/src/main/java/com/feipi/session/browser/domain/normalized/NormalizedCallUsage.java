@@ -1,5 +1,6 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.TokenChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 
@@ -35,27 +36,7 @@ public record NormalizedCallUsage(
    * @throws IllegalArgumentException 当任何计数为负数或 {@code total} 不等于分量之和时
    */
   public NormalizedCallUsage {
-    if (fresh < 0) {
-      throw new IllegalArgumentException("usage.fresh must be non-negative; got " + fresh);
-    }
-    if (cacheRead < 0) {
-      throw new IllegalArgumentException("usage.cacheRead must be non-negative; got " + cacheRead);
-    }
-    if (cacheWrite < 0) {
-      throw new IllegalArgumentException(
-          "usage.cacheWrite must be non-negative; got " + cacheWrite);
-    }
-    if (output < 0) {
-      throw new IllegalArgumentException("usage.output must be non-negative; got " + output);
-    }
-    if (total < 0) {
-      throw new IllegalArgumentException("usage.total must be non-negative; got " + total);
-    }
-    long expectedTotal = fresh + cacheRead + cacheWrite + output;
-    if (total != expectedTotal) {
-      throw new IllegalArgumentException(
-          "usage.total must equal component sum " + expectedTotal + "; got " + total);
-    }
+    TokenChecks.requireUsageSegments(fresh, cacheRead, cacheWrite, output, total, "usage");
   }
 
   /**

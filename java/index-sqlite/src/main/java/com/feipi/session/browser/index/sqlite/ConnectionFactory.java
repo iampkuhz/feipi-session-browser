@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.SQLException;
@@ -24,14 +25,8 @@ public final class ConnectionFactory {
    * @param pragmaConfig PRAGMA 配置
    */
   public ConnectionFactory(String jdbcUrl, PragmaConfig pragmaConfig) {
-    if (jdbcUrl == null || jdbcUrl.isBlank()) {
-      throw new IllegalArgumentException("jdbcUrl 不能为空");
-    }
-    if (pragmaConfig == null) {
-      throw new IllegalArgumentException("pragmaConfig 不能为 null");
-    }
-    this.jdbcUrl = jdbcUrl;
-    this.pragmaConfig = pragmaConfig;
+    this.jdbcUrl = ParamChecks.nonBlank(jdbcUrl, "jdbcUrl");
+    this.pragmaConfig = ParamChecks.required(pragmaConfig, "pragmaConfig");
   }
 
   /**

@@ -1,5 +1,6 @@
 package com.feipi.session.browser.query.api;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.util.List;
 import java.util.Objects;
 
@@ -26,9 +27,7 @@ public record PageResult<T>(List<T> items, long totalCount, String nextCursor) {
   public PageResult {
     Objects.requireNonNull(items, "items 不得为 null");
     Objects.requireNonNull(nextCursor, "nextCursor 不得为 null");
-    if (totalCount < -1) {
-      throw new IllegalArgumentException("totalCount 必须 >= -1; got " + totalCount);
-    }
+    ParamChecks.atLeast(totalCount, -1, "totalCount");
     items = List.copyOf(items);
   }
 

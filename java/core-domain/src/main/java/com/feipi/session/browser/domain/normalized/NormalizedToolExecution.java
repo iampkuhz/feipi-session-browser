@@ -1,9 +1,10 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.CallScope;
-import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -53,16 +54,11 @@ public record NormalizedToolExecution(
    * @throws IllegalArgumentException 当 toolCallId 为空或 durationMs 为负数时
    */
   public NormalizedToolExecution {
-    Objects.requireNonNull(toolCallId, "toolCallId 不得为 null");
-    if (toolCallId.isEmpty()) {
-      throw new IllegalArgumentException("toolCallId 不得为空");
-    }
+    ParamChecks.nonEmpty(toolCallId, "toolCallId");
     Objects.requireNonNull(name, "name 不得为 null");
     Objects.requireNonNull(scope, "scope 不得为 null");
     Objects.requireNonNull(declaredByCallId, "declaredByCallId 不得为 null");
-    if (durationMs < 0) {
-      throw new IllegalArgumentException("tool.durationMs must be non-negative; got " + durationMs);
-    }
+    ParamChecks.nonNegative(durationMs, "tool.durationMs");
 
     // Optional 字段规范化
     resultConsumedByCallId =
@@ -72,15 +68,8 @@ public record NormalizedToolExecution(
     subagentId = subagentId == null ? Optional.empty() : subagentId;
 
     // 集合防御性拷贝
-    List<String> filesCopy =
-        filesTouched == null ? Collections.emptyList() : List.copyOf(filesTouched);
-    if (filesCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "filesTouched size "
-              + filesCopy.size()
-              + " exceeds limit "
-              + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    filesTouched = filesCopy;
+    filesTouched =
+        ImmutableCopies.boundedListOrEmpty(
+            filesTouched, NormalizedConstants.MAX_COLLECTION_SIZE, "filesTouched");
   }
 }

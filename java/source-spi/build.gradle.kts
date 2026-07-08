@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(project(":java:core-domain"))
+    implementation(project(":java:common"))
 
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)

@@ -2189,6 +2189,29 @@ method com.feipi.session.browser.cli.ServerLifecycle public void awaitShutdown()
 method com.feipi.session.browser.cli.ServerLifecycle public void shutdown()
 method com.feipi.session.browser.cli.batch.service.NormalizedBatchRunner public int run( InputStream input, PrintStream output, Path outputDir, SourceAdapterResolver resolver) throws Exception
 method com.feipi.session.browser.cli.batch.service.SourceAdapterResolver public SourceAdapter forSourceId(String sourceId)
+method com.feipi.session.browser.common.validation.ImmutableCopies public static <K, V> Map<K, V> boundedMapOrEmpty( Map<? extends K, ? extends V> values, int maxSize, String fieldName)
+method com.feipi.session.browser.common.validation.ImmutableCopies public static <K, V> Map<K, V> mapOrEmpty(Map<? extends K, ? extends V> values)
+method com.feipi.session.browser.common.validation.ImmutableCopies public static <T> List<T> boundedListOrEmpty( Collection<? extends T> values, int maxSize, String fieldName)
+method com.feipi.session.browser.common.validation.ImmutableCopies public static <T> List<T> listOrEmpty(Collection<? extends T> values)
+method com.feipi.session.browser.common.validation.ImmutableCopies public static <T> Set<T> boundedSetOrEmpty( Collection<? extends T> values, int maxSize, String fieldName)
+method com.feipi.session.browser.common.validation.ImmutableCopies public static <T> Set<T> setOrEmpty(Collection<? extends T> values)
+method com.feipi.session.browser.common.validation.ParamChecks public static <T> T nonNull(T value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static <T> T required(T value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static String nonBlank(String value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static String nonEmpty(String value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static double inRange( double value, double minInclusive, double maxInclusive, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static double nonNegative(double value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static int atLeast(int value, int minInclusive, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static int inRange(int value, int minInclusive, int maxInclusive, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static int nonNegative(int value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static int positive(int value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static long atLeast(long value, long minInclusive, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static long nonNegative(long value, String fieldName)
+method com.feipi.session.browser.common.validation.ParamChecks public static long positive(long value, String fieldName)
+method com.feipi.session.browser.common.validation.TokenChecks public static long componentTotal(long first, long second, long third, long fourth)
+method com.feipi.session.browser.common.validation.TokenChecks public static void requireNonNegativeBreakdown( long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens)
+method com.feipi.session.browser.common.validation.TokenChecks public static void requireTokenSegments( long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens)
+method com.feipi.session.browser.common.validation.TokenChecks public static void requireUsageSegments( long fresh, long cacheRead, long cacheWrite, long output, long total, String prefix)
 method com.feipi.session.browser.domain.NormalizedTokenBreakdown public long componentTotal()
 method com.feipi.session.browser.domain.NormalizedTokenBreakdown public static NormalizedTokenBreakdown empty()
 method com.feipi.session.browser.domain.enums.CallScope public static CallScope fromValue(String value)
@@ -2805,6 +2828,9 @@ type com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol public
 type com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord public record [app-cli] record SourceRootRequestRecord(String requestId, String sourceId, String rootPath)
 type com.feipi.session.browser.cli.batch.service.NormalizedBatchRunner public class [app-cli] final class NormalizedBatchRunner
 type com.feipi.session.browser.cli.batch.service.SourceAdapterResolver public interface [app-cli] interface SourceAdapterResolver
+type com.feipi.session.browser.common.validation.ImmutableCopies public class [common] final class ImmutableCopies
+type com.feipi.session.browser.common.validation.ParamChecks public class [common] final class ParamChecks
+type com.feipi.session.browser.common.validation.TokenChecks public class [common] final class TokenChecks
 type com.feipi.session.browser.domain.DomainMarker public class [core-domain] final class DomainMarker
 type com.feipi.session.browser.domain.NormalizedTokenBreakdown public record [core-domain] record NormalizedTokenBreakdown( long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens, long totalTokens, TokenPrecision precision, TokenTotalSemantics totalSemantics, TokenSourceKind sourceKind, Map<String, Object> rawFields, List<String> notes)
 type com.feipi.session.browser.domain.annotation.CoreField public @interface [core-domain] CoreField

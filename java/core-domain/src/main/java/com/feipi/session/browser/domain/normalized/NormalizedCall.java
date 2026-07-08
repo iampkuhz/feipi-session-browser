@@ -1,9 +1,10 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.CallScope;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -114,13 +115,8 @@ public record NormalizedCall(
    * @throws IllegalArgumentException 当 callIndex 小于 1 或 callKey 不匹配时
    */
   public NormalizedCall {
-    Objects.requireNonNull(callId, "callId 不得为 null");
-    if (callId.isEmpty()) {
-      throw new IllegalArgumentException("callId 不得为空");
-    }
-    if (callIndex < 1) {
-      throw new IllegalArgumentException("callIndex must be >= 1; got " + callIndex);
-    }
+    ParamChecks.nonEmpty(callId, "callId");
+    ParamChecks.atLeast(callIndex, 1, "callIndex");
     Objects.requireNonNull(callKey, "callKey 不得为 null");
     String expectedKey = "C" + callIndex;
     if (!expectedKey.equals(callKey)) {
@@ -142,35 +138,19 @@ public record NormalizedCall(
     parentToolName = parentToolName == null ? Optional.empty() : parentToolName;
 
     // 集合防御性拷贝
-    List<SourceUnitRefRange> refRangesCopy =
-        sourceUnitRefRanges == null ? Collections.emptyList() : List.copyOf(sourceUnitRefRanges);
-    if (refRangesCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "sourceUnitRefRanges size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    sourceUnitRefRanges = refRangesCopy;
-
-    List<Map<String, Object>> sourceUnitsCopy =
-        sourceUnits == null ? Collections.emptyList() : List.copyOf(sourceUnits);
-    if (sourceUnitsCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "sourceUnits size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    sourceUnits = sourceUnitsCopy;
-
-    Map<String, Object> attributionCopy =
-        attributionCandidates == null ? Map.of() : Map.copyOf(attributionCandidates);
-    if (attributionCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "attributionCandidates size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    attributionCandidates = attributionCopy;
-
-    Map<String, Object> usageSourceCopy = usageSource == null ? Map.of() : Map.copyOf(usageSource);
-    if (usageSourceCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "usageSource size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    usageSource = usageSourceCopy;
+    sourceUnitRefRanges =
+        ImmutableCopies.boundedListOrEmpty(
+            sourceUnitRefRanges, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceUnitRefRanges");
+    sourceUnits =
+        ImmutableCopies.boundedListOrEmpty(
+            sourceUnits, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceUnits");
+    attributionCandidates =
+        ImmutableCopies.boundedMapOrEmpty(
+            attributionCandidates,
+            NormalizedConstants.MAX_COLLECTION_SIZE,
+            "attributionCandidates");
+    usageSource =
+        ImmutableCopies.boundedMapOrEmpty(
+            usageSource, NormalizedConstants.MAX_COLLECTION_SIZE, "usageSource");
   }
 }

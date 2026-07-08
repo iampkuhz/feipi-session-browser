@@ -3,6 +3,8 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":java:common"))
+
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")

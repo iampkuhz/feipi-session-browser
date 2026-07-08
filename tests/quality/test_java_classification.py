@@ -231,7 +231,7 @@ class TestParallelMeta:
         meta = target_parallel_meta('java-src')
         assert meta['parallel_safe'] is True
         assert 'gradle-daemon' in meta['exclusive_resources']
-        assert meta['timeout'] == 600
+        assert meta['timeout'] == 1200
 
     @pytest.mark.contract_case('J1-040-007')
     def test_java_build_parallel_meta(self):

@@ -1,8 +1,9 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -84,18 +85,9 @@ public record SourceUnitCatalogEntry(
     Objects.requireNonNull(byteRange, "byteRange 不得为 null");
     Objects.requireNonNull(contentHash, "contentHash 不得为 null");
 
-    if (eventOrder < 0) {
-      throw new IllegalArgumentException(
-          "source_unit.eventOrder must be non-negative; got " + eventOrder);
-    }
-    if (partIndex < 0) {
-      throw new IllegalArgumentException(
-          "source_unit.partIndex must be non-negative; got " + partIndex);
-    }
-    if (priority < 0) {
-      throw new IllegalArgumentException(
-          "source_unit.priority must be non-negative; got " + priority);
-    }
+    ParamChecks.nonNegative(eventOrder, "source_unit.eventOrder");
+    ParamChecks.nonNegative(partIndex, "source_unit.partIndex");
+    ParamChecks.nonNegative(priority, "source_unit.priority");
 
     // Optional 字段规范化
     timestamp = timestamp == null ? Optional.empty() : timestamp;
@@ -106,15 +98,8 @@ public record SourceUnitCatalogEntry(
     sourceCandidate = sourceCandidate == null ? Optional.empty() : sourceCandidate;
 
     // 诊断信息防御性拷贝
-    List<Map<String, Object>> diagCopy =
-        diagnostics == null ? Collections.emptyList() : List.copyOf(diagnostics);
-    if (diagCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "diagnostics size "
-              + diagCopy.size()
-              + " exceeds limit "
-              + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    diagnostics = diagCopy;
+    diagnostics =
+        ImmutableCopies.boundedListOrEmpty(
+            diagnostics, NormalizedConstants.MAX_COLLECTION_SIZE, "diagnostics");
   }
 }

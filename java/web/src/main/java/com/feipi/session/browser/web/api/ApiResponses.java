@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -370,11 +371,7 @@ public final class ApiResponses {
    * @return 原始字段值
    */
   static String required(String value, String fieldName) {
-    Objects.requireNonNull(value, fieldName + " must not be null");
-    if (value.isBlank()) {
-      throw new IllegalArgumentException(fieldName + " must not be blank");
-    }
-    return value;
+    return ParamChecks.nonBlank(value, fieldName);
   }
 
   /**

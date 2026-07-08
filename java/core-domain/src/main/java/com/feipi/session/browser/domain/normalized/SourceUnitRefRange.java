@@ -1,8 +1,9 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Collections;
 import java.util.List;
 import java.util.Optional;
 
@@ -39,24 +40,14 @@ public record SourceUnitRefRange(
    * @throws IllegalArgumentException 当索引为负数或 {@code end} 小于 {@code start} 时
    */
   public SourceUnitRefRange {
-    if (start < 0) {
-      throw new IllegalArgumentException(
-          "source_unit_ref_range.start must be non-negative; got " + start);
-    }
-    if (end < 0) {
-      throw new IllegalArgumentException(
-          "source_unit_ref_range.end must be non-negative; got " + end);
-    }
+    ParamChecks.nonNegative(start, "source_unit_ref_range.start");
+    ParamChecks.nonNegative(end, "source_unit_ref_range.end");
     if (end < start) {
       throw new IllegalArgumentException(
           "source_unit_ref_range.end must be >= start; start=" + start + ", end=" + end);
     }
-    List<String> copy = refs == null ? Collections.emptyList() : List.copyOf(refs);
-    if (copy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "refs size " + copy.size() + " exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    refs = copy;
+    refs =
+        ImmutableCopies.boundedListOrEmpty(refs, NormalizedConstants.MAX_COLLECTION_SIZE, "refs");
     sequence = sequence == null ? Optional.empty() : sequence;
     role = role == null ? Optional.empty() : role;
   }

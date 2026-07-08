@@ -1,5 +1,8 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.common.validation.TokenChecks;
+
 /**
  * 会话列表过滤后的完整聚合行。
  *
@@ -26,18 +29,10 @@ public record SessionListSummaryRow(
 
   /** 验证所有聚合数值非负，且 total 与四段 token 一致。 */
   public SessionListSummaryRow {
-    RowValidators.requireNonNegative(sessionCount, "sessionCount");
-    RowValidators.requireNonNegative(projectCount, "projectCount");
-    RowValidators.requireNonNegative(freshInputTokens, "freshInputTokens");
-    RowValidators.requireNonNegative(cacheReadTokens, "cacheReadTokens");
-    RowValidators.requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
-    RowValidators.requireNonNegative(outputTokens, "outputTokens");
-    RowValidators.requireNonNegative(totalTokens, "totalTokens");
-    RowValidators.requireNonNegative(failedToolCount, "failedToolCount");
-    long segmentTotal = freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
-    if (totalTokens != segmentTotal) {
-      throw new IllegalArgumentException(
-          "totalTokens 必须等于 token 四段合计; total=" + totalTokens + ", segments=" + segmentTotal);
-    }
+    ParamChecks.nonNegative(sessionCount, "sessionCount");
+    ParamChecks.nonNegative(projectCount, "projectCount");
+    TokenChecks.requireTokenSegments(
+        freshInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, totalTokens);
+    ParamChecks.nonNegative(failedToolCount, "failedToolCount");
   }
 }

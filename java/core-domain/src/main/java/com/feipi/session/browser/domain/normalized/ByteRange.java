@@ -1,5 +1,6 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 
@@ -27,12 +28,8 @@ public record ByteRange(@CoreField long start, @CoreField long end) {
    * @throws IllegalArgumentException 当偏移为负数或 {@code end} 小于 {@code start} 时
    */
   public ByteRange {
-    if (start < 0) {
-      throw new IllegalArgumentException("byte_range.start must be non-negative; got " + start);
-    }
-    if (end < 0) {
-      throw new IllegalArgumentException("byte_range.end must be non-negative; got " + end);
-    }
+    ParamChecks.nonNegative(start, "byte_range.start");
+    ParamChecks.nonNegative(end, "byte_range.end");
     if (end < start) {
       throw new IllegalArgumentException(
           "byte_range.end must be >= start; start=" + start + ", end=" + end);

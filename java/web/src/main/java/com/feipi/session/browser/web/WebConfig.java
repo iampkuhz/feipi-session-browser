@@ -1,5 +1,7 @@
 package com.feipi.session.browser.web;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * Web 服务器不可变配置。
  *
@@ -25,12 +27,8 @@ public record WebConfig(String host, int port, String staticPath) {
    * @throws IllegalArgumentException host 为空或端口超出范围
    */
   public WebConfig {
-    if (host == null || host.isBlank()) {
-      throw new IllegalArgumentException("host 不得为空");
-    }
-    if (port < 0 || port > 65535) {
-      throw new IllegalArgumentException("端口超出有效范围: " + port);
-    }
+    ParamChecks.nonBlank(host, "host");
+    ParamChecks.inRange(port, 0, 65535, "端口");
   }
 
   /**

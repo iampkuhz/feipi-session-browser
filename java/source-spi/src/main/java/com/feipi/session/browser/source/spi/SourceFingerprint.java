@@ -1,5 +1,6 @@
 package com.feipi.session.browser.source.spi;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import java.util.Objects;
@@ -42,17 +43,10 @@ public record SourceFingerprint(
    * @throws IllegalArgumentException 当 locator 为空或数值字段为负时
    */
   public SourceFingerprint {
-    Objects.requireNonNull(locator, "locator 不得为 null");
-    if (locator.isEmpty()) {
-      throw new IllegalArgumentException("locator 不得为空");
-    }
+    ParamChecks.nonEmpty(locator, "locator");
     Objects.requireNonNull(sourceId, "sourceId 不得为 null");
-    if (sizeBytes < 0) {
-      throw new IllegalArgumentException("sizeBytes 不得为负: " + sizeBytes);
-    }
-    if (lastModifiedMs < 0) {
-      throw new IllegalArgumentException("lastModifiedMs 不得为负: " + lastModifiedMs);
-    }
+    ParamChecks.nonNegative(sizeBytes, "sizeBytes");
+    ParamChecks.nonNegative(lastModifiedMs, "lastModifiedMs");
     contentHash = contentHash == null ? Optional.empty() : contentHash;
     contentHash.ifPresent(
         hash -> {

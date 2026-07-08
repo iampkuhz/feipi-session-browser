@@ -1,7 +1,7 @@
 package com.feipi.session.browser.domain.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -14,11 +14,8 @@ public record NormalizedArtifactSource(List<NormalizedSourceFile> files) {
 
   /** 校验并复制源文件列表。 */
   public NormalizedArtifactSource {
-    List<NormalizedSourceFile> copy = files == null ? Collections.emptyList() : List.copyOf(files);
-    if (copy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
-      throw new IllegalArgumentException(
-          "source files size exceeds limit " + NormalizedConstants.MAX_COLLECTION_SIZE);
-    }
-    files = copy;
+    files =
+        ImmutableCopies.boundedListOrEmpty(
+            files, NormalizedConstants.MAX_COLLECTION_SIZE, "source files");
   }
 }

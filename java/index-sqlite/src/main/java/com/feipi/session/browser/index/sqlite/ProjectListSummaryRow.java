@@ -1,5 +1,8 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.common.validation.TokenChecks;
+
 /**
  * 表示 ProjectListSummaryRow 数据。
  *
@@ -26,22 +29,11 @@ public record ProjectListSummaryRow(
 
   /** 校验计数非负和 token 总和不变量。 */
   public ProjectListSummaryRow {
-    RowValidators.requireNonNegative(projectCount, "projectCount");
-    RowValidators.requireNonNegative(sessionCount, "sessionCount");
-    RowValidators.requireNonNegative(freshInputTokens, "freshInputTokens");
-    RowValidators.requireNonNegative(cacheReadTokens, "cacheReadTokens");
-    RowValidators.requireNonNegative(cacheWriteTokens, "cacheWriteTokens");
-    RowValidators.requireNonNegative(outputTokens, "outputTokens");
-    RowValidators.requireNonNegative(totalTokens, "totalTokens");
-    RowValidators.requireNonNegative(toolCallCount, "toolCallCount");
-    RowValidators.requireNonNegative(failedToolCount, "failedToolCount");
-    long componentTotal = freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
-    if (totalTokens != componentTotal) {
-      throw new IllegalArgumentException(
-          "totalTokens must equal token component sum; totalTokens="
-              + totalTokens
-              + ", components="
-              + componentTotal);
-    }
+    ParamChecks.nonNegative(projectCount, "projectCount");
+    ParamChecks.nonNegative(sessionCount, "sessionCount");
+    TokenChecks.requireTokenSegments(
+        freshInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, totalTokens);
+    ParamChecks.nonNegative(toolCallCount, "toolCallCount");
+    ParamChecks.nonNegative(failedToolCount, "failedToolCount");
   }
 }

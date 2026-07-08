@@ -1,0 +1,73 @@
+version: 1
+generated_by: repository-maintained-agent-runtime-manifest
+policy_files:
+  - AGENTS.md
+  - CLAUDE.md
+  - .codex/model-instructions.md
+  - .codex/config.toml
+protected_roots:
+  - .claude/
+  - .codex/
+  - .qoder/
+  - .agents/
+  - skills/
+  - harness/
+  - scripts/
+  - openspec/
+  - AGENTS.md
+  - CLAUDE.md
+platforms:
+  claude:
+    config_files:
+      - .claude/settings.json
+    hooks:
+      session_start: [.claude/hooks/session-start.sh]
+      subagent_start: [.claude/hooks/subagent-start.sh]
+      pre_bash: [.claude/hooks/pre-bash.sh]
+      pre_write: [.claude/hooks/pre-write.sh]
+      post_bash: [.claude/hooks/post-bash.sh]
+      post_write: [.claude/hooks/post-write.sh]
+      tool_failure: [.claude/hooks/tool-failure.sh]
+      stop: [.claude/hooks/stop.sh]
+      subagent_stop: [.claude/hooks/subagent-stop.sh]
+      config_change: [.claude/hooks/config-change.sh]
+    agents_dir: .claude/agents
+    skills_dir: .claude/skills
+  codex:
+    config_files:
+      - .codex/config.toml
+      - .codex/hooks.json
+    hooks:
+      pre_bash: [.codex/hooks/pre_tool_guard.sh]
+      pre_write: [.codex/hooks/pre_write_guard.sh]
+      post_bash: [.codex/hooks/post_bash_guard.sh]
+      post_write: [.codex/hooks/post_tool_guard.sh]
+      stop: [.codex/hooks/stop_check.sh]
+    agents_dir: .codex/agents
+    skills_dir: .agents/skills
+  qoder:
+    config_files: []
+    qoder_hook_binding_note: qoder runtime must bind .qoder/hooks/pre_write_guard.sh to Write/Edit/MultiEdit before write operations when supported
+    hooks:
+      pre_bash: [.qoder/hooks/pre_tool_guard.sh]
+      pre_write: [.qoder/hooks/pre_write_guard.sh]
+      post_bash: [.qoder/hooks/post_bash_guard.sh]
+      post_write: [.qoder/hooks/post_tool_guard.sh]
+      stop: [.qoder/hooks/stop_check.sh]
+    agents_dir: null
+    skills_dir: .agents/skills
+shared_skills:
+  source_root: skills/authoring
+  exposed_roots:
+    - .agents/skills
+  required:
+    - feipi-openspec-orchestrate-change
+permission_policy:
+  committed_settings_must_not_contain_local_absolute_paths: true
+  bypass_permissions_allowed_only_with_pre_write_guard: true
+  local_settings_example: .claude/settings.local.example.json
+required_gates:
+  - scripts/quality/check_agent_runtime_manifest.py
+  - scripts/quality/check_agent_hook_parity.py
+  - scripts/quality/run_required_quality_gates.py
+  - scripts/harness/doctor.sh

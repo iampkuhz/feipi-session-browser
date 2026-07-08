@@ -26,6 +26,7 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'noTestSkips',
         'languagePolicy',
         'codexAgentPolicy',
+        'agentHookParity',
         'hookSelfTest',
         'pytest',
         'doctor',
@@ -42,6 +43,8 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'noTestSkips',
         'languagePolicy',
         'codexAgentPolicy',
+        'agentRuntimeManifest',
+        'agentHookParity',
         'doctor',
         'repoStructure',
         'harnessStructure',
@@ -102,7 +105,7 @@ TARGET_META: dict[str, dict[str, object]] = {
     'acceptance-contracts': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'session-detail': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'index': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
-    'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 600},
+    'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 1200},
     'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 300},
     'scan-script-smoke': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
 }
@@ -287,6 +290,13 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             '.codex/agents/**',
             'scripts/quality/check_codex_agent_policy.py',
         ],
+        'agentHookParity': [
+            'harness/agent-runtime.manifest.yaml',
+            '.codex/hooks.json',
+            '.codex/hooks/**/*.sh',
+            '.qoder/hooks/**/*.sh',
+            'scripts/quality/check_agent_hook_parity.py',
+        ],
     },
     'harness': {
         'bashSyntax': [
@@ -345,6 +355,17 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             'harness/**',
             'openspec/changes/**',
             'scripts/quality/check_language_policy.py',
+        ],
+        'agentRuntimeManifest': [
+            'harness/agent-runtime.manifest.yaml',
+            'scripts/quality/check_agent_runtime_manifest.py',
+        ],
+        'agentHookParity': [
+            'harness/agent-runtime.manifest.yaml',
+            '.codex/hooks.json',
+            '.codex/hooks/pre_write_guard.sh',
+            '.qoder/hooks/pre_write_guard.sh',
+            'scripts/quality/check_agent_hook_parity.py',
         ],
         'codexAgentPolicy': [
             '.codex/agents/**',

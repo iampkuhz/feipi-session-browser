@@ -1,8 +1,9 @@
 package com.feipi.session.browser.source.spi;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
 
@@ -44,17 +45,9 @@ public record Candidate(
    */
   public Candidate {
     Objects.requireNonNull(fingerprint, "fingerprint 不得为 null");
-    Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
-    if (sessionKey.isEmpty()) {
-      throw new IllegalArgumentException("sessionKey 不得为空");
-    }
+    ParamChecks.nonEmpty(sessionKey, "sessionKey");
     Objects.requireNonNull(projectKey, "projectKey 不得为 null");
-    Map<String, String> metadataCopy =
-        metadata == null ? Collections.emptyMap() : Map.copyOf(metadata);
-    if (metadataCopy.size() > MAX_METADATA_SIZE) {
-      throw new IllegalArgumentException("metadata size exceeds limit " + MAX_METADATA_SIZE);
-    }
-    metadata = metadataCopy;
+    metadata = ImmutableCopies.boundedMapOrEmpty(metadata, MAX_METADATA_SIZE, "metadata");
   }
 
   /**

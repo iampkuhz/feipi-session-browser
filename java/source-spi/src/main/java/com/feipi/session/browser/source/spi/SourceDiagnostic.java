@@ -1,5 +1,6 @@
 package com.feipi.session.browser.source.spi;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import java.util.Objects;
@@ -54,18 +55,10 @@ public record SourceDiagnostic(
   public SourceDiagnostic {
     Objects.requireNonNull(severity, "severity 不得为 null");
     Objects.requireNonNull(issueType, "issueType 不得为 null");
-    Objects.requireNonNull(message, "message 不得为 null");
-    if (message.isEmpty()) {
-      throw new IllegalArgumentException("message 不得为空");
-    }
-    if (lineNo < 1) {
-      throw new IllegalArgumentException("lineNo 必须为正整数: " + lineNo);
-    }
+    ParamChecks.nonEmpty(message, "message");
+    ParamChecks.positive(lineNo, "lineNo");
     preview = preview == null ? Optional.empty() : preview;
-    Objects.requireNonNull(code, "code 不得为 null");
-    if (code.isEmpty()) {
-      throw new IllegalArgumentException("code 不得为空");
-    }
+    ParamChecks.nonEmpty(code, "code");
     Objects.requireNonNull(locator, "locator 不得为 null");
     column = column == null ? OptionalInt.empty() : column;
     byteRangeStart = byteRangeStart == null ? OptionalInt.empty() : byteRangeStart;

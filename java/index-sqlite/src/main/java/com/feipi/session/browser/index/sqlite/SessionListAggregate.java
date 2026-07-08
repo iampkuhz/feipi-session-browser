@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * 过滤后会话列表的聚合总量。
  *
@@ -18,14 +20,8 @@ public record SessionListAggregate(long sessionCount, long projectCount, long to
    * @throws IllegalArgumentException 当任何字段为负数时
    */
   public SessionListAggregate {
-    if (sessionCount < 0) {
-      throw new IllegalArgumentException("sessionCount 必须非负; got " + sessionCount);
-    }
-    if (projectCount < 0) {
-      throw new IllegalArgumentException("projectCount 必须非负; got " + projectCount);
-    }
-    if (totalTokens < 0) {
-      throw new IllegalArgumentException("totalTokens 必须非负; got " + totalTokens);
-    }
+    ParamChecks.nonNegative(sessionCount, "sessionCount");
+    ParamChecks.nonNegative(projectCount, "projectCount");
+    ParamChecks.nonNegative(totalTokens, "totalTokens");
   }
 }

@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -38,21 +39,15 @@ public record PragmaConfig(
    * @throws IllegalArgumentException 参数为空或不在允许范围
    */
   public PragmaConfig {
-    if (journalMode == null || journalMode.isBlank()) {
-      throw new IllegalArgumentException("journalMode 不能为空");
-    }
+    ParamChecks.nonBlank(journalMode, "journalMode");
     if (!VALID_JOURNAL_MODES.contains(journalMode.toLowerCase())) {
       throw new IllegalArgumentException("不支持的 journalMode: " + journalMode);
     }
-    if (synchronous == null || synchronous.isBlank()) {
-      throw new IllegalArgumentException("synchronous 不能为空");
-    }
+    ParamChecks.nonBlank(synchronous, "synchronous");
     if (!VALID_SYNCHRONOUS.contains(synchronous.toLowerCase())) {
       throw new IllegalArgumentException("不支持的 synchronous: " + synchronous);
     }
-    if (busyTimeoutMs < 0) {
-      throw new IllegalArgumentException("busyTimeoutMs 不能为负: " + busyTimeoutMs);
-    }
+    ParamChecks.nonNegative(busyTimeoutMs, "busyTimeoutMs");
   }
 
   /**

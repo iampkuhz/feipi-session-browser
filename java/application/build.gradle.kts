@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":java:common"))
     implementation(project(":java:index-sqlite"))
     implementation(project(":java:core-domain"))
     implementation(libs.slf4j.api)

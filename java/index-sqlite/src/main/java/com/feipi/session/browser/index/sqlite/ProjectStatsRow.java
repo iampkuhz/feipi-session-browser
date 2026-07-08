@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
+
 /**
  * 项目聚合统计行。
  *
@@ -54,14 +56,8 @@ public record ProjectStatsRow(
     firstSeen = firstSeen == null ? "" : firstSeen;
     lastSeen = lastSeen == null ? "" : lastSeen;
 
-    if (totalSessions < 0) {
-      throw new IllegalArgumentException("totalSessions 必须非负; got " + totalSessions);
-    }
-    if (totalToolCalls < 0) {
-      throw new IllegalArgumentException("totalToolCalls 必须非负; got " + totalToolCalls);
-    }
-    if (totalTokens < 0) {
-      throw new IllegalArgumentException("totalTokens 必须非负; got " + totalTokens);
-    }
+    ParamChecks.nonNegative(totalSessions, "totalSessions");
+    ParamChecks.nonNegative(totalToolCalls, "totalToolCalls");
+    ParamChecks.nonNegative(totalTokens, "totalTokens");
   }
 }

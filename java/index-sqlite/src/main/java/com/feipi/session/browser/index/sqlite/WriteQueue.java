@@ -1,5 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
@@ -51,15 +52,9 @@ public final class WriteQueue {
    * @param batchLimit 单批次最大语句数
    */
   public WriteQueue(Connection writerConnection, int queueCapacity, int batchLimit) {
-    if (writerConnection == null) {
-      throw new IllegalArgumentException("writerConnection 不能为 null");
-    }
-    if (queueCapacity <= 0) {
-      throw new IllegalArgumentException("queueCapacity 必须 > 0");
-    }
-    if (batchLimit <= 0) {
-      throw new IllegalArgumentException("batchLimit 必须 > 0");
-    }
+    ParamChecks.required(writerConnection, "writerConnection");
+    ParamChecks.positive(queueCapacity, "queueCapacity");
+    ParamChecks.positive(batchLimit, "batchLimit");
     this.writerConnection = writerConnection;
     this.batchLimit = batchLimit;
     this.queue = new ArrayBlockingQueue<>(queueCapacity);

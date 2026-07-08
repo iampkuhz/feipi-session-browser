@@ -1,5 +1,7 @@
 package com.feipi.session.browser.artifact.normalized;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import java.util.Map;
@@ -44,10 +46,8 @@ public record ArtifactMeta(
     Objects.requireNonNull(schemaVersion, "schemaVersion 不得为 null");
     Objects.requireNonNull(generator, "generator 不得为 null");
     Objects.requireNonNull(contentHash, "contentHash 不得为 null");
-    if (contentSize < 0) {
-      throw new IllegalArgumentException("contentSize 不得为负数; got " + contentSize);
-    }
+    ParamChecks.nonNegative(contentSize, "contentSize");
     Objects.requireNonNull(generatedAt, "generatedAt 不得为 null");
-    sourceFingerprints = sourceFingerprints == null ? Map.of() : Map.copyOf(sourceFingerprints);
+    sourceFingerprints = ImmutableCopies.mapOrEmpty(sourceFingerprints);
   }
 }

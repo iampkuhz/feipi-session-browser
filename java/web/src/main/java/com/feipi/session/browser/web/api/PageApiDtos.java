@@ -1,5 +1,8 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.common.validation.ImmutableCopies;
+import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.common.validation.TokenChecks;
 import java.util.List;
 import java.util.Objects;
 import java.util.regex.Pattern;
@@ -23,22 +26,17 @@ public final class PageApiDtos {
 
     /** 校验字段和业务不变量。 */
     public TokenSegments {
-      requireNonNegative(fresh, "fresh");
-      requireNonNegative(cacheRead, "cacheRead");
-      requireNonNegative(cacheWrite, "cacheWrite");
-      requireNonNegative(output, "output");
-      requireNonNegative(total, "total");
-      long segmentTotal = fresh + cacheRead + cacheWrite + output;
-      if (total != segmentTotal) {
-        throw new IllegalArgumentException(
-            "total must equal token segment sum; total=" + total + ", segments=" + segmentTotal);
-      }
+      TokenChecks.requireUsageSegments(fresh, cacheRead, cacheWrite, output, total, "");
     }
 
     /** 根据原始 component 值构建 token 分段。 */
     public static TokenSegments of(long fresh, long cacheRead, long cacheWrite, long output) {
       return new TokenSegments(
-          fresh, cacheRead, cacheWrite, output, fresh + cacheRead + cacheWrite + output);
+          fresh,
+          cacheRead,
+          cacheWrite,
+          output,
+          TokenChecks.componentTotal(fresh, cacheRead, cacheWrite, output));
     }
   }
 
@@ -62,16 +60,10 @@ public final class PageApiDtos {
 
     /** 校验字段和业务不变量。 */
     public PaginationDto {
-      if (page < 1) {
-        throw new IllegalArgumentException("page must be >= 1; got " + page);
-      }
-      if (pageSize < 1) {
-        throw new IllegalArgumentException("pageSize must be >= 1; got " + pageSize);
-      }
-      requireNonNegative(totalItems, "totalItems");
-      if (totalPages < 0) {
-        throw new IllegalArgumentException("totalPages must be >= 0; got " + totalPages);
-      }
+      ParamChecks.atLeast(page, 1, "page");
+      ParamChecks.atLeast(pageSize, 1, "pageSize");
+      ParamChecks.nonNegative(totalItems, "totalItems");
+      ParamChecks.nonNegative(totalPages, "totalPages");
     }
 
     /** 创建对应对象。 */
@@ -93,15 +85,9 @@ public final class PageApiDtos {
 
     /** 校验字段和业务不变量。 */
     public ApiLink {
-      Objects.requireNonNull(rel, "rel must not be null");
-      Objects.requireNonNull(href, "href must not be null");
+      ParamChecks.nonBlank(rel, "rel");
+      ParamChecks.nonBlank(href, "href");
       method = method == null || method.isBlank() ? "GET" : method;
-      if (rel.isBlank()) {
-        throw new IllegalArgumentException("rel must not be blank");
-      }
-      if (href.isBlank()) {
-        throw new IllegalArgumentException("href must not be blank");
-      }
     }
 
     /** 创建对应对象。 */
@@ -124,14 +110,11 @@ public final class PageApiDtos {
 
     /** 校验字段和业务不变量。 */
     public PageStateDto {
-      Objects.requireNonNull(kind, "kind must not be null");
+      ParamChecks.nonBlank(kind, "kind");
       reason = reason == null ? "" : reason;
       title = title == null ? "" : title;
       message = message == null ? "" : message;
-      actions = actions == null ? List.of() : List.copyOf(actions);
-      if (kind.isBlank()) {
-        throw new IllegalArgumentException("kind must not be blank");
-      }
+      actions = ImmutableCopies.listOrEmpty(actions);
     }
 
     /** 就绪状态。 */
@@ -229,18 +212,13 @@ public final class PageApiDtos {
 
     /** 校验字段和业务不变量。 */
     public PageStateModel {
-      Objects.requireNonNull(kind, "kind must not be null");
+      ParamChecks.nonBlank(kind, "kind");
       Objects.requireNonNull(title, "title must not be null");
       Objects.requireNonNull(message, "message must not be null");
       role = role == null || role.isBlank() ? "region" : role;
       ariaLive = ariaLive == null || ariaLive.isBlank() ? "polite" : ariaLive;
-      actions = actions == null ? List.of() : List.copyOf(actions);
-      if (kind.isBlank()) {
-        throw new IllegalArgumentException("kind must not be blank");
-      }
-      if (statusCode < 100 || statusCode > 599) {
-        throw new IllegalArgumentException("statusCode must be an HTTP status code");
-      }
+      actions = ImmutableCopies.listOrEmpty(actions);
+      ParamChecks.inRange(statusCode, 100, 599, "statusCode");
     }
 
     /** 构建对应 DTO 数据。 */
@@ -345,16 +323,10 @@ public final class PageApiDtos {
       Objects.requireNonNull(kind, "kind must not be null");
       reason = reason == null ? "" : reason;
       Objects.requireNonNull(primaryAction, "primaryAction must not be null");
-      secondaryActions = secondaryActions == null ? List.of() : List.copyOf(secondaryActions);
+      secondaryActions = ImmutableCopies.listOrEmpty(secondaryActions);
       if (!"empty".equals(kind) && !"no_results".equals(kind)) {
         throw new IllegalArgumentException("kind must be empty or no_results");
       }
-    }
-  }
-
-  private static void requireNonNegative(long value, String fieldName) {
-    if (value < 0) {
-      throw new IllegalArgumentException(fieldName + " must be non-negative; got " + value);
     }
   }
 }

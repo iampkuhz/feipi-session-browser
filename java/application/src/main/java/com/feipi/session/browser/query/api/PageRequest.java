@@ -1,5 +1,6 @@
 package com.feipi.session.browser.query.api;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import java.util.Objects;
 
 /**
@@ -50,9 +51,7 @@ public final class PageRequest {
    * @throws IllegalArgumentException 当参数超出合法范围时
    */
   public static PageRequest ofOffset(int offset, int limit) {
-    if (offset < 0) {
-      throw new IllegalArgumentException("offset 必须非负; got " + offset);
-    }
+    ParamChecks.nonNegative(offset, "offset");
     validateLimit(limit);
     return new PageRequest(offset, limit, "");
   }
@@ -84,9 +83,7 @@ public final class PageRequest {
   }
 
   private static void validateLimit(int limit) {
-    if (limit < 1 || limit > MAX_LIMIT) {
-      throw new IllegalArgumentException("limit 必须在 [1, " + MAX_LIMIT + "] 范围内; got " + limit);
-    }
+    ParamChecks.inRange(limit, 1, MAX_LIMIT, "limit");
   }
 
   /**

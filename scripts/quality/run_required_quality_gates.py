@@ -126,6 +126,20 @@ def get_changed_files(explicit_json: str | None = None) -> list[str]:
     explicit = changed_file_utils.parse_changed_files_json(explicit_json)
     if explicit:
         return explicit
+    if explicit_json is not None:
+        session_id = (
+            IDENTITY.raw_session_id
+            if IDENTITY.has_session
+            else changed_file_utils.read_session_id(SESSION_ID_FILE)
+        )
+        return changed_file_utils.collect_changed_files(
+            session_id,
+            include_git=True,
+            repo_root=REPO_ROOT,
+            changed_files_path=CHANGED_FILES,
+            base_commit_file=BASE_COMMIT_FILE,
+            agent_id=IDENTITY.raw_agent_id or None,
+        )
     if IDENTITY.has_session:
         log_dirs = runtime_paths.session_log_dirs(
             REPO_ROOT,

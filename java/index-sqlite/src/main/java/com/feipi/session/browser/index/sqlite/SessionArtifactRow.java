@@ -1,6 +1,6 @@
 package com.feipi.session.browser.index.sqlite;
 
-import java.util.Objects;
+import com.feipi.session.browser.common.validation.ParamChecks;
 
 /**
  * session_artifacts 表的类型化行数据。
@@ -43,20 +43,14 @@ public record SessionArtifactRow(
    * @throws IllegalArgumentException 当主键字段为空字符串或数值字段为负数时
    */
   public SessionArtifactRow {
-    Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
-    if (sessionKey.isEmpty()) {
-      throw new IllegalArgumentException("sessionKey 不得为空字符串");
-    }
-    Objects.requireNonNull(artifactType, "artifactType 不得为 null");
-    if (artifactType.isEmpty()) {
-      throw new IllegalArgumentException("artifactType 不得为空字符串");
-    }
+    ParamChecks.nonEmpty(sessionKey, "sessionKey");
+    ParamChecks.nonEmpty(artifactType, "artifactType");
     path = path == null ? "" : path;
     schemaVersion = schemaVersion == null ? "" : schemaVersion;
     sourcePath = sourcePath == null ? "" : sourcePath;
-    RowValidators.requireNonNegative(sourceMtime, "sourceMtime");
-    RowValidators.requireNonNegative(sizeBytes, "sizeBytes");
-    RowValidators.requireNonNegative(createdAt, "createdAt");
-    RowValidators.requireNonNegative(updatedAt, "updatedAt");
+    ParamChecks.nonNegative(sourceMtime, "sourceMtime");
+    ParamChecks.nonNegative(sizeBytes, "sizeBytes");
+    ParamChecks.nonNegative(createdAt, "createdAt");
+    ParamChecks.nonNegative(updatedAt, "updatedAt");
   }
 }

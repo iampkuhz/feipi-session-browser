@@ -9,6 +9,15 @@
             "command": ".codex/hooks/pre_tool_guard.sh"
           }
         ]
+      },
+      {
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".codex/hooks/pre_write_guard.sh"
+          }
+        ]
       }
     ],
     "PostToolUse": [
