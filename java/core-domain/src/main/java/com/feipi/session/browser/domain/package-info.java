@@ -18,7 +18,7 @@
  *
  * <ul>
  *   <li>{@link com.feipi.session.browser.domain.NormalizedTokenBreakdown} — 写入方: {@code
- *       normalization-engine}; 消费方: {@code artifact-normalized}、{@code tests:contracts}
+ *       normalization-engine}; 消费方: {@code scan-engine}、{@code tests:contracts}
  * </ul>
  */
 package com.feipi.session.browser.domain;

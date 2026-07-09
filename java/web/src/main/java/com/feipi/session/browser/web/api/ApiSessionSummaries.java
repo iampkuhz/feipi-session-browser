@@ -1,6 +1,6 @@
 package com.feipi.session.browser.web.api;
 
-import com.feipi.session.browser.index.sqlite.SessionListSummaryRow;
+import com.feipi.session.browser.index.api.query.SessionListSummary;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsSummaryResponse;
@@ -13,7 +13,7 @@ final class ApiSessionSummaries {
 
   /** 构建 Session summary API 响应。 */
   static SessionsSummaryResponse response(
-      Map<String, String> params, SessionListSummaryRow summary, PageStateDto state) {
+      Map<String, String> params, SessionListSummary summary, PageStateDto state) {
     return new SessionsSummaryResponse(
         ApiResponses.SCHEMA_VERSION,
         ApiQueryParams.sessionsFilterEcho(params),

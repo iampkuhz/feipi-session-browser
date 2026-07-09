@@ -6,16 +6,17 @@ import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.ProjectListUseCase;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
-import com.feipi.session.browser.index.sqlite.DashboardRow;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
-import com.feipi.session.browser.index.sqlite.TopProjectRow;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
+import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
+import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.api.query.ProjectStats;
+import com.feipi.session.browser.index.api.query.SessionRecord;
+import com.feipi.session.browser.index.store.sqlite.row.TopProjectRow;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.FailureStatus;
 import com.feipi.session.browser.query.api.PageResult;
@@ -131,7 +132,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("list + count + aggregate 三查询一致性")
     void listCountAggregateConsistency() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       SessionListFilter[] filters = {
         SessionListFilter.defaults(),
@@ -142,7 +143,7 @@ class QueryParityGateTest {
       };
 
       for (SessionListFilter filter : filters) {
-        PageResult<SessionRow> list = repo.listSessions(filter);
+        PageResult<SessionRecord> list = repo.listSessions(filter);
         long count = repo.countSessions(filter);
         var agg = repo.listAggregate(filter);
 
@@ -158,8 +159,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("全量 list 返回 5 行，默认 ended_at DESC 排序")
     void fullListDefaultSort() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
-      PageResult<SessionRow> result = repo.listSessions(SessionListFilter.defaults());
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
+      PageResult<SessionRecord> result = repo.listSessions(SessionListFilter.defaults());
 
       assertThat(result.totalCount()).isEqualTo(5);
       assertThat(result.items()).hasSize(5);
@@ -171,9 +172,9 @@ class QueryParityGateTest {
     @Test
     @DisplayName("agent 过滤：claude_code 返回 3 行")
     void agentFilterClaudeCode() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       var filter = SessionListFilter.defaults().withAgent(AgentFilter.of("claude_code"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.totalCount()).isEqualTo(3);
       assertThat(result.items()).allMatch(r -> r.agent().equals("claude_code"));
@@ -182,11 +183,11 @@ class QueryParityGateTest {
     @Test
     @DisplayName("project 过滤：pk2 返回 2 行")
     void projectFilterPk2() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       var filter =
           SessionListFilter.defaults()
               .withProject(com.feipi.session.browser.query.api.ProjectFilter.of("pk2"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.totalCount()).isEqualTo(2);
       assertThat(result.items()).allMatch(r -> r.projectKey().equals("pk2"));
@@ -195,9 +196,9 @@ class QueryParityGateTest {
     @Test
     @DisplayName("失败状态过滤：FAILED_ONLY 返回 2 行")
     void failedOnlyFilter() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       var filter = SessionListFilter.defaults().withFailureStatus(FailureStatus.FAILED_ONLY);
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.totalCount()).isEqualTo(2);
       assertThat(result.items()).allMatch(r -> r.failedToolCount() > 0);
@@ -206,7 +207,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("全量聚合：5 会话、3 项目、800k tokens")
     void fullAggregateParity() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       var agg = repo.listAggregate(SessionListFilter.defaults());
 
       assertThat(agg.sessionCount()).isEqualTo(5);
@@ -222,8 +223,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("全局 dashboard stats 与 fixture 预期一致")
     void globalDashboardStatsParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      DashboardRow stats = repo.dashboardStats(AgentFilter.NONE);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      DashboardStats stats = repo.dashboardStats(AgentFilter.NONE);
 
       // 预期值手工计算：
       // 会话总数 = 5
@@ -261,8 +262,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("agent 过滤 dashboard：仅 claude_code")
     void agentFilteredDashboard() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      DashboardRow stats = repo.dashboardStats(AgentFilter.of("claude_code"));
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      DashboardStats stats = repo.dashboardStats(AgentFilter.of("claude_code"));
 
       assertThat(stats.totalSessions()).isEqualTo(3);
       assertThat(stats.claudeSessions()).isEqualTo(3);
@@ -280,8 +281,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("项目列表返回 3 个项目")
     void projectListCount() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      PageResult<ProjectStatsRow> result = repo.listProjects(ProjectListFilter.defaults());
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      PageResult<ProjectStats> result = repo.listProjects(ProjectListFilter.defaults());
 
       assertThat(result.totalCount()).isEqualTo(3);
     }
@@ -289,8 +290,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("pk1 项目统计与预期一致")
     void pk1ProjectStatsParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      ProjectStatsRow stats = repo.projectStats("pk1");
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      ProjectStats stats = repo.projectStats("pk1");
 
       // pk1 有 s1 和 s2 两个 claude_code 会话
       assertThat(stats.projectKey()).isEqualTo("pk1");
@@ -305,8 +306,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("不存在的项目返回零值统计")
     void missingProjectZeroStats() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      ProjectStatsRow stats = repo.projectStats("nonexistent");
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      ProjectStats stats = repo.projectStats("nonexistent");
 
       assertThat(stats.totalSessions()).isZero();
       assertThat(stats.totalTokens()).isZero();
@@ -321,7 +322,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("模型分布：3 个模型，claude-3-opus 最多")
     void modelDistributionParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       Map<String, Long> dist = repo.modelDistribution();
 
       assertThat(dist).hasSize(3);
@@ -333,7 +334,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("Agent 分布：claude_code=3, codex=1, qoder=1")
     void agentDistributionParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       Map<String, Long> dist = repo.agentDistribution();
 
       assertThat(dist).hasSize(3);
@@ -347,7 +348,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("Token 分类统计与 fixture 一致")
     void tokenBreakdownParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       var breakdown = repo.tokenBreakdown();
 
       assertThat(breakdown.totalFreshInput()).isEqualTo(205000);
@@ -361,7 +362,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("Top-2 项目按 token 排序")
     void topProjectsByTokens() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       var top = repo.topProjectsByTokens(2);
 
       assertThat(top).hasSize(2);
@@ -380,7 +381,7 @@ class QueryParityGateTest {
     @Test
     @DisplayName("SessionListUseCase list + anomaly 计数一致")
     void sessionListUseCaseParity() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       SessionListUseCase uc = new SessionListUseCase(repo, null, 1);
       var result = uc.listWithAnomalies(SessionListFilter.defaults());
 
@@ -396,9 +397,9 @@ class QueryParityGateTest {
     @Test
     @DisplayName("DashboardUseCase stats 与 repository 一致")
     void dashboardUseCaseParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       DashboardUseCase uc = new DashboardUseCase(repo, null, 1);
-      DashboardRow stats = uc.stats(AgentFilter.NONE);
+      DashboardStats stats = uc.stats(AgentFilter.NONE);
 
       assertThat(stats.totalSessions()).isEqualTo(5);
       assertThat(stats.totalTokens()).isEqualTo(800000);
@@ -407,9 +408,9 @@ class QueryParityGateTest {
     @Test
     @DisplayName("ProjectListUseCase list 返回 3 项目")
     void projectListUseCaseParity() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       ProjectListUseCase uc = new ProjectListUseCase(repo, null, 1);
-      PageResult<ProjectStatsRow> result = uc.list(ProjectListFilter.defaults());
+      PageResult<ProjectStats> result = uc.list(ProjectListFilter.defaults());
 
       assertThat(result.totalCount()).isEqualTo(3);
     }
@@ -417,9 +418,9 @@ class QueryParityGateTest {
     @Test
     @DisplayName("SessionDetailUseCase 无制品返回行级详情")
     void sessionDetailUseCaseParity() throws Exception {
-      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
-      SessionDetailRepository repo = new SessionDetailRepository(sqRepo);
-      SessionDetailUseCase uc = new SessionDetailUseCase(repo, 1);
+      SqliteSessionQueryRepository sqRepo = new SqliteSessionQueryRepository(ic);
+      SqliteSessionDetailRepository repo = new SqliteSessionDetailRepository(sqRepo);
+      SessionDetailUseCase uc = new SessionDetailUseCase(repo, NormalizedArtifactLoader::load, 1);
 
       var detail = uc.getDetail("cc:s1", PayloadVisibility.STANDARD);
       assertThat(detail).isPresent();
@@ -435,8 +436,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("dashboard agent 分布总和 = total_sessions")
     void agentDistributionSumEqualsTotalSessions() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      DashboardRow stats = repo.dashboardStats(AgentFilter.NONE);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      DashboardStats stats = repo.dashboardStats(AgentFilter.NONE);
       Map<String, Long> dist = repo.agentDistribution();
 
       long sum = dist.values().stream().mapToLong(Long::longValue).sum();
@@ -446,8 +447,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("token breakdown 各项总和 = dashboard 对应字段")
     void tokenBreakdownMatchesDashboard() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      DashboardRow stats = repo.dashboardStats(AgentFilter.NONE);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      DashboardStats stats = repo.dashboardStats(AgentFilter.NONE);
       var breakdown = repo.tokenBreakdown();
 
       assertThat(breakdown.totalFreshInput()).isEqualTo(stats.totalFreshInputTokens());
@@ -461,8 +462,8 @@ class QueryParityGateTest {
     @Test
     @DisplayName("项目 token 总和 = dashboard total_tokens")
     void projectTokenSumMatchesDashboard() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
-      DashboardRow stats = repo.dashboardStats(AgentFilter.NONE);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
+      DashboardStats stats = repo.dashboardStats(AgentFilter.NONE);
       var topProjects = repo.topProjectsByTokens(100);
 
       long projectSum = topProjects.stream().mapToLong(TopProjectRow::totalTokens).sum();

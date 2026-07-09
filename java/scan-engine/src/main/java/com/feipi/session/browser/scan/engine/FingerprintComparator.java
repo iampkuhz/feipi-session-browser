@@ -1,5 +1,6 @@
 package com.feipi.session.browser.scan.engine;
 
+import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 

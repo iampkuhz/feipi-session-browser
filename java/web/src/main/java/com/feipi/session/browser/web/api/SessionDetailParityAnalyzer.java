@@ -4,8 +4,7 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -66,9 +65,14 @@ final class SessionDetailParityAnalyzer {
 
   /** 构建 Session Detail parity 结果。 */
   static Result analyze(SessionDetail detail) {
+    return analyze(detail, null);
+  }
+
+  /** 构建 Session Detail parity 结果。 */
+  static Result analyze(SessionDetail detail, NormalizedSessionArtifact artifact) {
     Objects.requireNonNull(detail, "detail must not be null");
-    SessionRow row = detail.sessionRow();
-    String sourcePath = resolveSessionFilePath(detail, row);
+    SessionRecord row = detail.sessionRow();
+    String sourcePath = resolveSessionFilePath(detail, row, artifact);
     RolloutStats parent = RolloutStats.empty(sourcePath);
     if (!sourcePath.isBlank()) {
       parent = parseRollout(Path.of(sourcePath), SCOPE_MAIN, SCOPE_MAIN, false);
@@ -138,22 +142,17 @@ final class SessionDetailParityAnalyzer {
     return new Result(meta, metrics, diagnostics, rounds);
   }
 
-  private static String resolveSessionFilePath(SessionDetail detail, SessionRow row) {
+  private static String resolveSessionFilePath(
+      SessionDetail detail, SessionRecord row, NormalizedSessionArtifact artifact) {
     if (!row.filePath().isBlank() && Files.isRegularFile(Path.of(row.filePath()))) {
       return row.filePath();
     }
-    if (!detail.artifactPath().isBlank()) {
-      try {
-        NormalizedSessionArtifact artifact =
-            NormalizedArtifactLoader.load(Path.of(detail.artifactPath()));
-        for (var sourceFile : artifact.sourceFiles()) {
-          Path path = sourceFile.path();
-          if (path != null && Files.isRegularFile(path)) {
-            return path.toString();
-          }
+    if (artifact != null && !detail.artifactPath().isBlank()) {
+      for (var sourceFile : artifact.sourceFiles()) {
+        Path path = sourceFile.path();
+        if (path != null && Files.isRegularFile(path)) {
+          return path.toString();
         }
-      } catch (IOException | RuntimeException ignored) {
-        return "";
       }
     }
     return "";
@@ -485,7 +484,7 @@ final class SessionDetailParityAnalyzer {
     return List.copyOf(all);
   }
 
-  private static Map<String, Object> metaMap(SessionRow row, String sourcePath) {
+  private static Map<String, Object> metaMap(SessionRecord row, String sourcePath) {
     Map<String, Object> map = new LinkedHashMap<>();
     map.put("sessionFilePath", sourcePath);
     map.put("agentLabel", agentLabel(row.agent()));
@@ -495,7 +494,7 @@ final class SessionDetailParityAnalyzer {
   }
 
   private static Map<String, Object> metricsMap(MetricsInput input) {
-    SessionRow row = input.row;
+    SessionRecord row = input.row;
     RunIssueSummary issueSummary = input.issueSummary;
     long totalTools = issueSummary.totalTools;
     long failedTools = issueSummary.failedTools;
@@ -569,7 +568,7 @@ final class SessionDetailParityAnalyzer {
   }
 
   private static List<Map<String, Object>> agentRows(
-      SessionRow row, String sourcePath, RolloutStats parent, List<RolloutStats> children) {
+      SessionRecord row, String sourcePath, RolloutStats parent, List<RolloutStats> children) {
     long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
     long mainCalls = row.assistantMessageCount() + subagentCalls;
     long parentSubagentTools =
@@ -665,7 +664,7 @@ final class SessionDetailParityAnalyzer {
   }
 
   private static List<Map<String, Object>> contextSegments(
-      SessionRow row, RolloutStats parent, List<RolloutStats> children) {
+      SessionRecord row, RolloutStats parent, List<RolloutStats> children) {
     long toolResultTokens = totalToolResultTokens(parent, children);
     long subagentContextTokens = children.stream().mapToLong(child -> child.inputSideTokens).sum();
     List<Segment> segments =
@@ -1248,7 +1247,7 @@ final class SessionDetailParityAnalyzer {
 
   /** 表示 metrics 构建阶段的输入集合。 */
   private static final class MetricsInput {
-    final SessionRow row;
+    final SessionRecord row;
     final long mainCalls;
     final long subagentCalls;
     final long workload;
@@ -1259,7 +1258,7 @@ final class SessionDetailParityAnalyzer {
     final RunIssueSummary issueSummary;
 
     MetricsInput(
-        SessionRow row,
+        SessionRecord row,
         long mainCalls,
         long subagentCalls,
         long workload,
@@ -1282,7 +1281,7 @@ final class SessionDetailParityAnalyzer {
 
   /** 表示 diagnostics 构建阶段的输入集合。 */
   private static final class DiagnosticsInput {
-    final SessionRow row;
+    final SessionRecord row;
     final String sourcePath;
     final RolloutStats parent;
     final List<RolloutStats> children;
@@ -1290,7 +1289,7 @@ final class SessionDetailParityAnalyzer {
     final RunIssueSummary issueSummary;
 
     DiagnosticsInput(
-        SessionRow row,
+        SessionRecord row,
         String sourcePath,
         RolloutStats parent,
         List<RolloutStats> children,

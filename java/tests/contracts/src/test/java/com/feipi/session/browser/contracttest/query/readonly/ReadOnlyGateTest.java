@@ -5,12 +5,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.ProjectListUseCase;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.ReadTransaction;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.ProjectListFilter;
@@ -164,12 +164,12 @@ class ReadOnlyGateTest {
   class QueryMethodIntegrity {
 
     @Test
-    @DisplayName("SessionQueryRepository 全部查询不修改数据")
+    @DisplayName("SqliteSessionQueryRepository 全部查询不修改数据")
     void sessionQueryRepositoryReadOnly() throws Exception {
       long rowCountBefore = getRowCount();
       long checksumBefore = getDataChecksum();
 
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       repo.getSession("cc:s1");
       repo.listSessions(SessionListFilter.defaults());
       repo.countSessions(SessionListFilter.defaults());
@@ -182,12 +182,12 @@ class ReadOnlyGateTest {
     }
 
     @Test
-    @DisplayName("AggregateQueryRepository 全部查询不修改数据")
+    @DisplayName("SqliteAggregateQueryRepository 全部查询不修改数据")
     void aggregateQueryRepositoryReadOnly() throws Exception {
       long rowCountBefore = getRowCount();
       long checksumBefore = getDataChecksum();
 
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       repo.dashboardStats(AgentFilter.NONE);
       repo.projectStats("pk1");
       repo.listProjects(ProjectListFilter.defaults());
@@ -216,8 +216,8 @@ class ReadOnlyGateTest {
       long rowCountBefore = getRowCount();
       long checksumBefore = getDataChecksum();
 
-      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
-      AggregateQueryRepository aggRepo = new AggregateQueryRepository(ic);
+      SqliteSessionQueryRepository sqRepo = new SqliteSessionQueryRepository(ic);
+      SqliteAggregateQueryRepository aggRepo = new SqliteAggregateQueryRepository(ic);
 
       SessionListUseCase sessionUc = new SessionListUseCase(sqRepo, null, 1);
       DashboardUseCase dashboardUc = new DashboardUseCase(aggRepo, null, 1);
@@ -259,7 +259,7 @@ class ReadOnlyGateTest {
                     PragmaConfig.DEFAULTS.apply(conn);
                     IndexConnection localIc =
                         IndexConnection.create(conn, PragmaConfig.DEFAULTS, jdbcUrl);
-                    SessionQueryRepository localRepo = new SessionQueryRepository(localIc);
+                    SqliteSessionQueryRepository localRepo = new SqliteSessionQueryRepository(localIc);
 
                     for (int j = 0; j < 10; j++) {
                       localRepo.getSession("cc:s1");
@@ -294,7 +294,7 @@ class ReadOnlyGateTest {
     void cacheOperationsDoNotModifyDatabase() throws Exception {
       long rowCountBefore = getRowCount();
 
-      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository sqRepo = new SqliteSessionQueryRepository(ic);
       com.feipi.session.browser.application.QueryCache cache =
           new com.feipi.session.browser.application.QueryCache(10);
       SessionListUseCase uc = new SessionListUseCase(sqRepo, cache, 1);

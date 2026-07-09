@@ -5,8 +5,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.cli.PathResolver;
 import com.feipi.session.browser.cli.RuntimePaths;
-import com.feipi.session.browser.index.sqlite.DatabaseUpgrader;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -182,7 +182,7 @@ class PortabilityGateTest {
     @Test
     @DisplayName("升级前自动创建备份，崩溃后可从备份恢复")
     void backupCreatedBeforeUpgradeRecoverable() throws Exception {
-      Path dbPath = tempDir.resolve("index.sqlite");
+      Path dbPath = tempDir.resolve(RuntimePaths.DB_FILE_NAME);
       Path backupDir = tempDir.resolve("backups");
 
       // 创建有效数据库
@@ -212,7 +212,7 @@ class PortabilityGateTest {
     @Test
     @DisplayName("重复升级幂等，备份保留数量稳定受限")
     void repeatedUpgradeIdempotent() throws Exception {
-      Path dbPath = tempDir.resolve("index.sqlite");
+      Path dbPath = tempDir.resolve(RuntimePaths.DB_FILE_NAME);
       Path backupDir = tempDir.resolve("backups");
 
       createValidDatabase(dbPath);

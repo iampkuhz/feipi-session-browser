@@ -1,7 +1,7 @@
 package com.feipi.session.browser.web.model;
 
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -19,7 +19,7 @@ public final class SessionDetailViewModels {
   /** 构建 Session Detail 页面与导出页共享的基础模板上下文。 */
   public static Map<String, Object> baseContext(
       SessionDetail detail, String agent, String sessionId, PayloadVisibility visibility) {
-    SessionRow row = detail.sessionRow();
+    SessionRecord row = detail.sessionRow();
     Map<String, Object> context = new LinkedHashMap<>();
     context.put("session", row);
     context.put("current_agent", agent);
@@ -73,7 +73,7 @@ public final class SessionDetailViewModels {
   }
 
   /** 构建 session 基础指标 map。 */
-  public static Map<String, Object> baseMetrics(SessionRow row) {
+  public static Map<String, Object> baseMetrics(SessionRecord row) {
     Map<String, Object> metrics = new LinkedHashMap<>();
     metrics.put("total_tokens", row.totalTokens());
     metrics.put("output_tokens", row.outputTokens());

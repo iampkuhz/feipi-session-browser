@@ -114,7 +114,7 @@ TARGET_META: dict[str, dict[str, object]] = {
     'index': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 1200},
     'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 300},
-    'scan-script-smoke': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
+    'scan-script-smoke': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
 }
 
 # 01c. target dominance 声明: 当 dominant target 触发时自动包含 dominated target

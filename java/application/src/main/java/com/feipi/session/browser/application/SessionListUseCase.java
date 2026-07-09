@@ -1,22 +1,21 @@
 package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.index.sqlite.ProjectOptionRow;
-import com.feipi.session.browser.index.sqlite.SessionListAggregate;
-import com.feipi.session.browser.index.sqlite.SessionListSummaryRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionQueryPort;
+import com.feipi.session.browser.index.api.query.ProjectOption;
+import com.feipi.session.browser.index.api.query.SessionListAggregate;
+import com.feipi.session.browser.index.api.query.SessionListSummary;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.query.api.SessionListFilter;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
 
 /**
  * 会话列表查询 use case。
  *
- * <p>组合 {@link SessionQueryRepository} 的 list/count/aggregate 操作，附加异常检测结果。 支持可选缓存加速重复查询。
+ * <p>组合 {@link SessionQueryPort} 的 list/count/aggregate 操作，附加异常检测结果。 支持可选缓存加速重复查询。
  *
  * <p>校验放置：过滤参数由 {@link SessionListFilter} 在入口验证，本 use case 信任已验证的 typed filter。
  */
@@ -24,7 +23,7 @@ public final class SessionListUseCase {
 
   private static final String FILTER_NULL_MESSAGE = "filter 不得为 null";
 
-  private final SessionQueryRepository repository;
+  private final SessionQueryPort repository;
   private final QueryCache cache;
   private final int schemaVersion;
 
@@ -36,7 +35,9 @@ public final class SessionListUseCase {
    * @param schemaVersion 当前 schema 版本号
    */
   public SessionListUseCase(
-      SessionQueryRepository repository, QueryCache cache, int schemaVersion) {
+      SessionQueryPort repository,
+      QueryCache cache,
+      int schemaVersion) {
     this.repository = Objects.requireNonNull(repository, "repository 不得为 null");
     this.cache = cache;
     this.schemaVersion = schemaVersion;
@@ -47,12 +48,11 @@ public final class SessionListUseCase {
    *
    * @param filter 会话列表过滤器
    * @return 分页结果，包含异常摘要
-   * @throws SQLException 查询失败
    */
-  public AnnotatedPageResult listWithAnomalies(SessionListFilter filter) throws SQLException {
+  public AnnotatedPageResult listWithAnomalies(SessionListFilter filter) {
     Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
 
-    PageResult<SessionRow> page;
+    PageResult<SessionRecord> page;
     if (cache != null) {
       int paramsHash = filterHash("list", filter);
       page =
@@ -60,13 +60,7 @@ public final class SessionListUseCase {
               "sessionList",
               paramsHash,
               schemaVersion,
-              () -> {
-                try {
-                  return repository.listSessions(filter);
-                } catch (SQLException e) {
-                  throw new RuntimeException(e);
-                }
-              });
+              () -> repository.listSessions(filter));
     } else {
       page = repository.listSessions(filter);
     }
@@ -80,9 +74,8 @@ public final class SessionListUseCase {
    *
    * @param filter 会话列表过滤器
    * @return 匹配会话数
-   * @throws SQLException 查询失败
    */
-  public long count(SessionListFilter filter) throws SQLException {
+  public long count(SessionListFilter filter) {
     Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.countSessions(filter);
   }
@@ -92,9 +85,8 @@ public final class SessionListUseCase {
    *
    * @param filter 会话列表过滤器
    * @return 聚合结果
-   * @throws SQLException 查询失败
    */
-  public SessionListAggregate aggregate(SessionListFilter filter) throws SQLException {
+  public SessionListAggregate aggregate(SessionListFilter filter) {
     Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listAggregate(filter);
   }
@@ -104,9 +96,8 @@ public final class SessionListUseCase {
    *
    * @param filter 会话列表过滤器
    * @return 完整聚合结果，包含 token 四段和 failed tool
-   * @throws SQLException 查询失败
    */
-  public SessionListSummaryRow summary(SessionListFilter filter) throws SQLException {
+  public SessionListSummary summary(SessionListFilter filter) {
     Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listSummary(filter);
   }
@@ -116,9 +107,8 @@ public final class SessionListUseCase {
    *
    * @param filter 会话列表过滤器
    * @return model 候选值
-   * @throws SQLException 查询失败
    */
-  public List<String> modelOptions(SessionListFilter filter) throws SQLException {
+  public List<String> modelOptions(SessionListFilter filter) {
     Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listModelOptions(filter);
   }
@@ -128,9 +118,8 @@ public final class SessionListUseCase {
    *
    * @param filter 会话列表过滤器
    * @return project 候选值
-   * @throws SQLException 查询失败
    */
-  public List<ProjectOptionRow> projectOptions(SessionListFilter filter) throws SQLException {
+  public List<ProjectOption> projectOptions(SessionListFilter filter) {
     Objects.requireNonNull(filter, FILTER_NULL_MESSAGE);
     return repository.listProjectOptions(filter);
   }
@@ -155,7 +144,7 @@ public final class SessionListUseCase {
    * @param anomalies 每个会话的异常摘要，顺序与 page.items() 一致
    */
   public record AnnotatedPageResult(
-      PageResult<SessionRow> page, List<SessionAnomalySummary> anomalies) {
+      PageResult<SessionRecord> page, List<SessionAnomalySummary> anomalies) {
 
     /**
      * 紧凑构造器，验证不变量。

@@ -3,7 +3,7 @@ package com.feipi.session.browser.web.api;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
@@ -18,7 +18,6 @@ import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionMetric
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionPayloadsResponse;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.SessionRoundsResponse;
 import io.javalin.http.Context;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,14 +34,15 @@ public final class SessionDetailApiHandler {
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/meta 的 GET 请求。 */
-  public void handleMeta(Context ctx) throws SQLException {
+  public void handleMeta(Context ctx) {
     LoadedDetail loaded = load(ctx);
     if (loaded == null) {
       return;
     }
     SessionDetail detail = loaded.annotated().detail();
-    SessionRow row = detail.sessionRow();
-    SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
+    SessionRecord row = detail.sessionRow();
+    SessionDetailParityAnalyzer.Result parity =
+        SessionDetailParityAnalyzer.analyze(detail, loaded.annotated().artifact());
     ctx.json(
         new SessionMetaResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -65,14 +65,15 @@ public final class SessionDetailApiHandler {
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/metrics 的 GET 请求。 */
-  public void handleMetrics(Context ctx) throws SQLException {
+  public void handleMetrics(Context ctx) {
     LoadedDetail loaded = load(ctx);
     if (loaded == null) {
       return;
     }
     SessionDetail detail = loaded.annotated().detail();
-    SessionRow row = detail.sessionRow();
-    SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
+    SessionRecord row = detail.sessionRow();
+    SessionDetailParityAnalyzer.Result parity =
+        SessionDetailParityAnalyzer.analyze(detail, loaded.annotated().artifact());
     Map<String, Object> parityMetrics = parity.metrics;
     ctx.json(
         new SessionMetricsResponse(
@@ -98,14 +99,15 @@ public final class SessionDetailApiHandler {
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/diagnostics 的 GET 请求。 */
-  public void handleDiagnostics(Context ctx) throws SQLException {
+  public void handleDiagnostics(Context ctx) {
     LoadedDetail loaded = load(ctx);
     if (loaded == null) {
       return;
     }
     SessionAnomalySummary anomalies = loaded.annotated().anomalies();
     SessionDetailParityAnalyzer.Result parity =
-        SessionDetailParityAnalyzer.analyze(loaded.annotated().detail());
+        SessionDetailParityAnalyzer.analyze(
+            loaded.annotated().detail(), loaded.annotated().artifact());
     List<AnomalyDto> rows =
         anomalies.anomalies().stream().map(SessionDetailApiHandler::anomaly).toList();
     ctx.json(
@@ -123,16 +125,17 @@ public final class SessionDetailApiHandler {
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/rounds 的 GET 请求。 */
-  public void handleRounds(Context ctx) throws SQLException {
+  public void handleRounds(Context ctx) {
     LoadedDetail loaded = load(ctx);
     if (loaded == null) {
       return;
     }
     SessionDetail detail = loaded.annotated().detail();
-    SessionDetailParityAnalyzer.Result parity = SessionDetailParityAnalyzer.analyze(detail);
+    SessionDetailParityAnalyzer.Result parity =
+        SessionDetailParityAnalyzer.analyze(detail, loaded.annotated().artifact());
     String traceStatus = ApiQueryParams.normalizeAll(ctx.queryParam("trace_status"));
     List<RoundIndexDto> rows =
-        RoundIndexProjection.pageDtos(detail, parity).stream()
+        RoundIndexProjection.pageDtos(detail, loaded.annotated().artifact(), parity).stream()
             .filter(round -> statusMatches(traceStatus, round))
             .toList();
     ctx.json(
@@ -145,7 +148,7 @@ public final class SessionDetailApiHandler {
   }
 
   /** 处理 /api/sessions/{agent}/{sessionId}/payloads 的 GET 请求。 */
-  public void handlePayloads(Context ctx) throws SQLException {
+  public void handlePayloads(Context ctx) {
     LoadedDetail loaded = load(ctx);
     if (loaded == null) {
       return;
@@ -168,14 +171,14 @@ public final class SessionDetailApiHandler {
             payloadState(rows.size(), payloadStatus)));
   }
 
-  private LoadedDetail load(Context ctx) throws SQLException {
+  private LoadedDetail load(Context ctx) {
     String agent =
         ApiQueryParams.canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
     String sessionId = ApiResponses.decodePathParam(ctx.pathParam("sessionId"));
     var visibility = ApiQueryParams.payloadVisibility(ctx);
     String sessionKey = agent + ":" + sessionId;
-    Optional<SessionDetailUseCase.AnnotatedDetail> detail =
-        ApiSessionDetails.loadAnnotatedDetail(ctx, queryRoot, sessionKey, visibility);
+    Optional<SessionDetailUseCase.AnnotatedDetailContext> detail =
+        ApiSessionDetails.loadAnnotatedDetailContext(ctx, queryRoot, sessionKey, visibility);
     return detail
         .map(
             annotated ->
@@ -258,5 +261,5 @@ public final class SessionDetailApiHandler {
    * @param annotated 带注解的 session 数据。
    */
   private record LoadedDetail(
-      SessionDetailFilterEcho echo, SessionDetailUseCase.AnnotatedDetail annotated) {}
+      SessionDetailFilterEcho echo, SessionDetailUseCase.AnnotatedDetailContext annotated) {}
 }

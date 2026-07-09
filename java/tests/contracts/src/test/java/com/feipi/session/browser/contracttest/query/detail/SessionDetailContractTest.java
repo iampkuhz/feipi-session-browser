@@ -2,11 +2,11 @@ package com.feipi.session.browser.contracttest.query.detail;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
 import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
-import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -15,10 +15,10 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.nio.file.Path;
@@ -43,7 +43,7 @@ class SessionDetailContractTest {
 
   @TempDir Path tempDir;
   private IndexConnection ic;
-  private SessionDetailRepository repository;
+  private SqliteSessionDetailRepository repository;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -54,8 +54,8 @@ class SessionDetailContractTest {
     ic = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(ic.writerConnection());
     insertFixtures();
-    SessionQueryRepository sessionQueryRepo = new SessionQueryRepository(ic);
-    repository = new SessionDetailRepository(sessionQueryRepo);
+    SqliteSessionQueryRepository sessionQueryRepo = new SqliteSessionQueryRepository(ic);
+    repository = new SqliteSessionDetailRepository(sessionQueryRepo);
   }
 
   private void insertFixtures() throws Exception {
@@ -93,7 +93,7 @@ class SessionDetailContractTest {
     @Test
     @DisplayName("DB 行 + 制品装配为完整详情")
     void fullAssembly() throws Exception {
-      Optional<SessionRow> row = repository.findSessionRow("cc:s1");
+      Optional<SessionRecord> row = repository.findSessionRow("cc:s1");
       assertThat(row).isPresent();
 
       NormalizedSessionArtifact artifact = makeTestArtifact();
@@ -111,7 +111,7 @@ class SessionDetailContractTest {
     @Test
     @DisplayName("制品元数据正确传递到详情")
     void artifactMetadata() throws Exception {
-      Optional<SessionRow> row = repository.findSessionRow("cc:s1");
+      Optional<SessionRecord> row = repository.findSessionRow("cc:s1");
       NormalizedSessionArtifact artifact = makeTestArtifact();
       SessionDetail detail =
           SessionDetailAssembler.assemble(
@@ -125,7 +125,7 @@ class SessionDetailContractTest {
     @Test
     @DisplayName("无制品会话生成行级详情")
     void rowOnlyDetail() throws Exception {
-      Optional<SessionRow> row = repository.findSessionRow("cc:s1");
+      Optional<SessionRecord> row = repository.findSessionRow("cc:s1");
       SessionDetail detail = SessionDetail.rowOnly(row.get(), PayloadVisibility.STANDARD);
       assertThat(detail.rounds()).isEmpty();
       assertThat(detail.payloadSources()).isEmpty();

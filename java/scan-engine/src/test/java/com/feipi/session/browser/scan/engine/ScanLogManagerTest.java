@@ -2,7 +2,8 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.IndexSchema;
+import com.feipi.session.browser.index.api.write.IndexWriterPort;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.sql.Connection;
 import java.sql.ResultSet;
@@ -13,7 +14,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
-/** {@link ScanLogManager} 事务语义测试。 */
+/** {@link IndexWriterPort} scan log 事务语义测试。 */
 class ScanLogManagerTest {
 
   private Connection conn;
@@ -31,7 +32,8 @@ class ScanLogManagerTest {
 
   @Test
   void startScanInsertsRunningEntry() throws SQLException {
-    long id = ScanLogManager.startScan(conn, 1000.0);
+    IndexWriterPort writer = SqliteTestHelper.createIndexWriter(conn);
+    long id = writer.startScan(1000.0);
 
     assertThat(id).isGreaterThan(0);
 
@@ -47,9 +49,10 @@ class ScanLogManagerTest {
 
   @Test
   void completeScanUpdatesStatusAndCounts() throws SQLException {
-    long id = ScanLogManager.startScan(conn, 1000.0);
+    IndexWriterPort writer = SqliteTestHelper.createIndexWriter(conn);
+    long id = writer.startScan(1000.0);
 
-    ScanLogManager.completeScan(conn, id, 2000.0, Map.of("claude_code", 5, "codex", 3, "qoder", 1));
+    writer.completeScan(id, 2000.0, Map.of("claude_code", 5, "codex", 3, "qoder", 1));
 
     try (Statement stmt = conn.createStatement();
         ResultSet rs =
@@ -67,9 +70,10 @@ class ScanLogManagerTest {
 
   @Test
   void failScanUpdatesStatusToFailure() throws SQLException {
-    long id = ScanLogManager.startScan(conn, 1000.0);
+    IndexWriterPort writer = SqliteTestHelper.createIndexWriter(conn);
+    long id = writer.startScan(1000.0);
 
-    ScanLogManager.failScan(conn, id, 2000.0, Map.of());
+    writer.failScan(id, 2000.0, Map.of());
 
     try (Statement stmt = conn.createStatement();
         ResultSet rs = stmt.executeQuery("SELECT status FROM scan_log WHERE id = " + id)) {
@@ -80,9 +84,10 @@ class ScanLogManagerTest {
 
   @Test
   void missingSourceCountsDefaultToZero() throws SQLException {
-    long id = ScanLogManager.startScan(conn, 1000.0);
+    IndexWriterPort writer = SqliteTestHelper.createIndexWriter(conn);
+    long id = writer.startScan(1000.0);
 
-    ScanLogManager.completeScan(conn, id, 2000.0, Map.of("claude_code", 10));
+    writer.completeScan(id, 2000.0, Map.of("claude_code", 10));
 
     try (Statement stmt = conn.createStatement();
         ResultSet rs =

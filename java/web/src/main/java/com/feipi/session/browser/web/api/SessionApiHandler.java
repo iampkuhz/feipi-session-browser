@@ -5,6 +5,7 @@ import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.web.api.ApiResponses.AttributionData;
@@ -21,7 +22,6 @@ import com.feipi.session.browser.web.api.SessionApiService.SessionApiContext;
 import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -426,14 +426,13 @@ public final class SessionApiHandler {
   }
 
   /** 加载会话上下文，统一处理异常。 */
-  private Optional<SessionApiContext> loadContext(String agent, String sessionId)
-      throws SQLException {
+  private Optional<SessionApiContext> loadContext(String agent, String sessionId) {
     String sessionKey = agent + ":" + sessionId;
     return apiService.getContext(sessionKey, PayloadVisibility.STANDARD);
   }
 
-  private Optional<SessionApiContext> loadContextOrSend(Context ctx, String agent, String sessionId)
-      throws SQLException {
+  private Optional<SessionApiContext> loadContextOrSend(
+      Context ctx, String agent, String sessionId) {
     Optional<SessionApiContext> loaded = loadContext(agent, sessionId);
     if (loaded.isEmpty()) {
       ApiSessionDetails.sendError(
@@ -487,7 +486,7 @@ public final class SessionApiHandler {
       LOG.error("{} API 制品加载失败: {}:{}", endpointName, agent, sessionId, e);
       ApiSessionDetails.sendError(
           ctx, HttpStatus.INTERNAL_SERVER_ERROR, "artifact_error", "归一化制品加载失败");
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("{} API 查询失败: {}:{}", endpointName, agent, sessionId, e);
       ApiSessionDetails.sendError(ctx, HttpStatus.INTERNAL_SERVER_ERROR, "internal_error", "查询失败");
     }
@@ -527,10 +526,9 @@ public final class SessionApiHandler {
     /**
      * 执行端点逻辑。
      *
-     * @throws SQLException 数据库查询失败
      * @throws SessionDataException 制品加载失败
      */
-    void execute() throws SQLException, SessionDataException;
+    void execute() throws SessionDataException;
   }
 
   /** 执行已定位 round 的 API 端点逻辑。 */
@@ -540,11 +538,10 @@ public final class SessionApiHandler {
     /**
      * 执行已加载 round 的端点逻辑。
      *
-     * @throws SQLException 数据库查询失败
      * @throws SessionDataException 制品加载失败
      */
     void execute(SessionApiContext sessionCtx, CallRound round, List<NormalizedCall> roundCalls)
-        throws SQLException, SessionDataException;
+        throws SessionDataException;
   }
 
   /**

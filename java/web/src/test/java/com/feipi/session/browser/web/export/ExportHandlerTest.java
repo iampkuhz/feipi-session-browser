@@ -3,10 +3,10 @@ package com.feipi.session.browser.web.export;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
 import io.javalin.testtools.JavalinTest;
@@ -56,7 +56,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("HTML 导出返回正确 content type 和 disposition")
     void htmlExportContentType() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -74,7 +74,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("MHTML 导出返回 multipart content type")
     void mhtmlExportContentType() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -92,7 +92,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("MHTML 导出内容包含 MIME 信封")
     void mhtmlContainsMimeEnvelope() throws Exception {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -109,7 +109,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("缺少 agent 参数返回 400")
     void missingAgentReturns400() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -123,7 +123,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("缺少 session_id 参数返回 400")
     void missingSessionIdReturns400() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -137,7 +137,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("不支持的格式返回 400")
     void unsupportedFormatReturns400() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -151,7 +151,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("HTML 导出不包含本地绝对路径")
     void htmlExportNoAbsolutePaths() throws Exception {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -167,7 +167,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("导出响应包含安全头")
     void exportResponseIncludesSecurityHeaders() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -188,7 +188,7 @@ class ExportHandlerTest {
     @Test
     @DisplayName("不存在的会话返回 404")
     void sessionNotFoundReturns404() {
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -204,7 +204,7 @@ class ExportHandlerTest {
     void existingSessionReturns200() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -224,7 +224,7 @@ class ExportHandlerTest {
     void exportContainsSessionInfo() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -245,7 +245,7 @@ class ExportHandlerTest {
     void exportContainsMetrics() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -266,7 +266,7 @@ class ExportHandlerTest {
     void exportContainsRoundsSection() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -285,7 +285,7 @@ class ExportHandlerTest {
     void exportContainsNoNavigationLinks() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -306,7 +306,7 @@ class ExportHandlerTest {
     void exportContainsNoLazyLoad() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -325,7 +325,7 @@ class ExportHandlerTest {
     void exportNoAbsolutePaths() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -343,7 +343,7 @@ class ExportHandlerTest {
     void exportSecurityHeaders() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -361,7 +361,7 @@ class ExportHandlerTest {
     void exportIsStandaloneHtml() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -384,7 +384,7 @@ class ExportHandlerTest {
     void exportContainsVisibilityStatus() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(
@@ -401,7 +401,7 @@ class ExportHandlerTest {
     void exportContainsTimestamp() throws Exception {
       insertTestSession();
 
-      QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+      QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
       WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
       JavalinTest.test(

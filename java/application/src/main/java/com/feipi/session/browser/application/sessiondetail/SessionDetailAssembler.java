@@ -4,7 +4,7 @@ import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
@@ -18,7 +18,7 @@ import java.util.Objects;
 /**
  * 会话详情装配器。
  *
- * <p>将 {@link SessionRow} 和 {@link NormalizedSessionArtifact} 组合为 {@link SessionDetail}。 装配逻辑包括：
+ * <p>将 {@link SessionRecord} 和 {@link NormalizedSessionArtifact} 组合为 {@link SessionDetail}。 装配逻辑包括：
  *
  * <ul>
  *   <li>将归一化调用按轮次分组（主会话调用顺序分配，子 agent 调用关联到父调用轮次）。
@@ -26,7 +26,7 @@ import java.util.Objects;
  *   <li>构建包含制品 hash 和 index 版本的缓存键。
  * </ul>
  *
- * <p>校验放置：本类信任已验证的 {@link SessionRow} 和 {@link NormalizedSessionArtifact}， 不重复 domain 层校验。
+ * <p>校验放置：本类信任已验证的 {@link SessionRecord} 和 {@link NormalizedSessionArtifact}， 不重复 domain 层校验。
  */
 public final class SessionDetailAssembler {
 
@@ -44,7 +44,7 @@ public final class SessionDetailAssembler {
    * @return 装配完成的会话详情
    */
   public static SessionDetail assemble(
-      SessionRow sessionRow,
+      SessionRecord sessionRow,
       NormalizedSessionArtifact artifact,
       PayloadVisibility visibility,
       String artifactPath,

@@ -6,17 +6,13 @@ import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
-import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
-import java.io.IOException;
-import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -26,31 +22,32 @@ final class RoundIndexProjection {
 
   private RoundIndexProjection() {}
 
-  static Optional<NormalizedSessionArtifact> loadArtifact(SessionDetail detail) {
-    if (detail == null || !detail.hasArtifact()) {
-      return Optional.empty();
-    }
-    try {
-      return Optional.of(NormalizedArtifactLoader.load(Path.of(detail.artifactPath())));
-    } catch (IOException | RuntimeException ignored) {
-      return Optional.empty();
-    }
+  static List<RoundIndexDto> pageDtos(
+      SessionDetail detail, SessionDetailParityAnalyzer.Result parity) {
+    return pageDtos(detail, null, parity);
   }
 
   static List<RoundIndexDto> pageDtos(
-      SessionDetail detail, SessionDetailParityAnalyzer.Result parity) {
+      SessionDetail detail,
+      NormalizedSessionArtifact artifact,
+      SessionDetailParityAnalyzer.Result parity) {
     return dtos(
         detail,
-        (round, sessionTokens, artifact) ->
-            toPageDto(round, sessionTokens, artifact, parity.round(round.roundIndex())));
+        artifact,
+        (round, sessionTokens, loadedArtifact) ->
+            toPageDto(round, sessionTokens, loadedArtifact, parity.round(round.roundIndex())));
   }
 
   static List<RoundIndexDto> exportDtos(SessionDetail detail) {
-    return dtos(detail, RoundIndexProjection::toExportDto);
+    return exportDtos(detail, null);
   }
 
-  private static List<RoundIndexDto> dtos(SessionDetail detail, RoundDtoFactory factory) {
-    NormalizedSessionArtifact artifact = loadArtifact(detail).orElse(null);
+  static List<RoundIndexDto> exportDtos(SessionDetail detail, NormalizedSessionArtifact artifact) {
+    return dtos(detail, artifact, RoundIndexProjection::toExportDto);
+  }
+
+  private static List<RoundIndexDto> dtos(
+      SessionDetail detail, NormalizedSessionArtifact artifact, RoundDtoFactory factory) {
     long sessionTokens = detail.sessionRow().totalTokens();
     List<RoundIndexDto> rows = new ArrayList<>();
     for (CallRound round : detail.rounds()) {

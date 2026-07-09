@@ -1,11 +1,17 @@
 package com.feipi.session.browser.cli;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.ConnectionFactory;
-import com.feipi.session.browser.index.sqlite.DatabaseUpgrader;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.application.QueryCache;
+import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
+import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
 import com.feipi.session.browser.scan.engine.BackgroundScanner;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.ScanConfig;
@@ -105,7 +111,7 @@ public final class ServerLifecycle {
    * @throws Exception 启动过程中任何阶段失败
    */
   public int start() throws Exception {
-    Path dbPath = indexDir.resolve("index.sqlite");
+    Path dbPath = indexDir.resolve(RuntimePaths.DB_FILE_NAME);
     Path artifactDir = indexDir.resolve("artifacts/normalized-sessions");
     Files.createDirectories(indexDir);
     Files.createDirectories(artifactDir);
@@ -137,7 +143,7 @@ public final class ServerLifecycle {
 
       // 阶段 2：创建 query composition root
       indexConnection = IndexConnection.withDefaults(jdbcConnection, jdbcUrl);
-      QueryCompositionRoot queryRoot = new QueryCompositionRoot(indexConnection, schemaVersion);
+      QueryCompositionRoot queryRoot = createQueryCompositionRoot(indexConnection, schemaVersion);
 
       // 阶段 3：可选启动扫描
       if (!noScan && !sourceEntries.isEmpty()) {
@@ -212,6 +218,24 @@ public final class ServerLifecycle {
   }
 
   // ===== 私有方法 =====
+
+  /** 使用具体 SQLite 适配器装配 application 查询用例。 */
+  private static QueryCompositionRoot createQueryCompositionRoot(
+      IndexConnection indexConnection, SchemaVersion schemaVersion) {
+    SqliteSessionQueryRepository sessionRepository =
+        new SqliteSessionQueryRepository(indexConnection);
+    SqliteAggregateQueryRepository aggregateRepository =
+        new SqliteAggregateQueryRepository(indexConnection);
+    SqliteSessionDetailRepository detailRepository =
+        new SqliteSessionDetailRepository(sessionRepository);
+    return new QueryCompositionRoot(
+        sessionRepository,
+        aggregateRepository,
+        detailRepository,
+        NormalizedArtifactLoader::load,
+        schemaVersion.version(),
+        QueryCache.withDefaultSize());
+  }
 
   /** 执行关闭序列：scanner → server → DB → 清理 PID 文件。 */
   private void doShutdown() {
@@ -308,7 +332,7 @@ public final class ServerLifecycle {
     boolean ok =
         BackgroundScanner.runStartupScan(
             () -> {
-              engine.scan(conn, config);
+              engine.scan(new SqliteIndexWriter(conn), config);
               queryRoot.invalidateCache();
             },
             scanLock);
@@ -350,7 +374,7 @@ public final class ServerLifecycle {
     Runnable hotAction =
         () -> {
           try {
-            engine.scan(conn, config);
+            engine.scan(new SqliteIndexWriter(conn), config);
             queryRoot.invalidateCache();
           } catch (CancellationException e) {
             LOG.info("hot 层级扫描已取消");
@@ -362,7 +386,8 @@ public final class ServerLifecycle {
     Runnable warmAction =
         () -> {
           try {
-            engine.scan(conn, config, (double) TierConfig.DEFAULT_WARM_WINDOW);
+            engine.scan(
+                new SqliteIndexWriter(conn), config, (double) TierConfig.DEFAULT_WARM_WINDOW);
             queryRoot.invalidateCache();
           } catch (CancellationException e) {
             LOG.info("warm 层级扫描已取消");

@@ -1,11 +1,11 @@
 package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.ActivityTrendRow;
-import com.feipi.session.browser.index.sqlite.AgentBreakdownRow;
-import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
-import com.feipi.session.browser.index.sqlite.DashboardRow;
-import com.feipi.session.browser.index.sqlite.TrendDayRow;
+import com.feipi.session.browser.index.api.query.ActivityTrend;
+import com.feipi.session.browser.index.api.query.AgentBreakdown;
+import com.feipi.session.browser.index.api.query.AgentEfficiency;
+import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.TrendFilter;
 import com.feipi.session.browser.web.api.DashboardApiResponses.AgentContributionDto;
@@ -29,7 +29,6 @@ import com.feipi.session.browser.web.api.PageApiDtos.PageStateDto;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.model.WebDisplayValues;
 import io.javalin.http.Context;
-import java.sql.SQLException;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -56,9 +55,9 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/summary 的 GET 请求。 */
-  public void handleSummary(Context ctx) throws SQLException {
+  public void handleSummary(Context ctx) {
     DashboardRequest request = request(ctx);
-    DashboardRow stats = queryRoot.dashboard().stats(request.agentFilter());
+    DashboardStats stats = queryRoot.dashboard().stats(request.agentFilter());
     long inputSide =
         stats.totalFreshInputTokens()
             + stats.totalCacheReadTokens()
@@ -90,9 +89,9 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/trends/sessions 的 GET 请求。 */
-  public void handleSessionsTrend(Context ctx) throws SQLException {
+  public void handleSessionsTrend(Context ctx) {
     DashboardRequest request = request(ctx);
-    List<TrendDayRow> rows = queryRoot.dashboard().trendData(request.trendFilter());
+    List<TrendDay> rows = queryRoot.dashboard().trendData(request.trendFilter());
     List<SessionTrendPoint> points =
         rows.stream().map(DashboardApiHandler::sessionTrendPoint).toList();
     long rangeTotal = points.stream().mapToLong(SessionTrendPoint::totalCount).sum();
@@ -106,14 +105,14 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/trends/tokens 的 GET 请求。 */
-  public void handleTokenTrend(Context ctx) throws SQLException {
+  public void handleTokenTrend(Context ctx) {
     DashboardRequest request = request(ctx);
-    List<TrendDayRow> rows = queryRoot.dashboard().trendData(request.trendFilter());
+    List<TrendDay> rows = queryRoot.dashboard().trendData(request.trendFilter());
     List<TokenTrendPoint> points = rows.stream().map(DashboardApiHandler::tokenTrendPoint).toList();
-    long fresh = rows.stream().mapToLong(TrendDayRow::freshInputTokens).sum();
-    long cacheRead = rows.stream().mapToLong(TrendDayRow::cacheReadTokens).sum();
-    long cacheWrite = rows.stream().mapToLong(TrendDayRow::cacheWriteTokens).sum();
-    long output = rows.stream().mapToLong(TrendDayRow::outputTokens).sum();
+    long fresh = rows.stream().mapToLong(TrendDay::freshInputTokens).sum();
+    long cacheRead = rows.stream().mapToLong(TrendDay::cacheReadTokens).sum();
+    long cacheWrite = rows.stream().mapToLong(TrendDay::cacheWriteTokens).sum();
+    long output = rows.stream().mapToLong(TrendDay::outputTokens).sum();
     ctx.json(
         new DashboardTokenTrendResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -124,9 +123,9 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/trends/prompts 的 GET 请求。 */
-  public void handlePromptTrend(Context ctx) throws SQLException {
+  public void handlePromptTrend(Context ctx) {
     DashboardRequest request = request(ctx);
-    List<ActivityTrendRow> rows = queryRoot.dashboard().activityTrend(request.trendFilter());
+    List<ActivityTrend> rows = queryRoot.dashboard().activityTrend(request.trendFilter());
     List<PromptTrendPoint> points =
         rows.stream().map(DashboardApiHandler::promptTrendPoint).toList();
     long rangeTotal = points.stream().mapToLong(PromptTrendPoint::totalPrompts).sum();
@@ -140,9 +139,9 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/trends/cache-health 的 GET 请求。 */
-  public void handleCacheHealth(Context ctx) throws SQLException {
+  public void handleCacheHealth(Context ctx) {
     DashboardRequest request = request(ctx);
-    List<TrendDayRow> rows = queryRoot.dashboard().trendData(request.trendFilter());
+    List<TrendDay> rows = queryRoot.dashboard().trendData(request.trendFilter());
     List<CacheHealthPoint> points =
         rows.stream().map(DashboardApiHandler::cacheHealthPoint).toList();
     List<Double> ratios =
@@ -163,18 +162,18 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/agents/contribution 的 GET 请求。 */
-  public void handleAgentContribution(Context ctx) throws SQLException {
+  public void handleAgentContribution(Context ctx) {
     DashboardRequest request = request(ctx);
-    List<AgentBreakdownRow> breakdown = queryRoot.dashboard().agentBreakdown();
+    List<AgentBreakdown> breakdown = queryRoot.dashboard().agentBreakdown();
     TokenSegments totals =
         TokenSegments.of(
-            breakdown.stream().mapToLong(AgentBreakdownRow::freshInputTokens).sum(),
-            breakdown.stream().mapToLong(AgentBreakdownRow::cacheReadTokens).sum(),
-            breakdown.stream().mapToLong(AgentBreakdownRow::cacheWriteTokens).sum(),
-            breakdown.stream().mapToLong(AgentBreakdownRow::outputTokens).sum());
-    long totalSessions = breakdown.stream().mapToLong(AgentBreakdownRow::sessionCount).sum();
-    long totalPrompts = breakdown.stream().mapToLong(AgentBreakdownRow::totalUserMessages).sum();
-    Map<String, AgentBreakdownRow> breakdownByAgent = new LinkedHashMap<>();
+            breakdown.stream().mapToLong(AgentBreakdown::freshInputTokens).sum(),
+            breakdown.stream().mapToLong(AgentBreakdown::cacheReadTokens).sum(),
+            breakdown.stream().mapToLong(AgentBreakdown::cacheWriteTokens).sum(),
+            breakdown.stream().mapToLong(AgentBreakdown::outputTokens).sum());
+    long totalSessions = breakdown.stream().mapToLong(AgentBreakdown::sessionCount).sum();
+    long totalPrompts = breakdown.stream().mapToLong(AgentBreakdown::totalUserMessages).sum();
+    Map<String, AgentBreakdown> breakdownByAgent = new LinkedHashMap<>();
     breakdown.forEach(row -> breakdownByAgent.put(row.agent(), row));
     List<AgentContributionDto> rows =
         List.of("claude_code", "qoder", "codex").stream()
@@ -199,20 +198,20 @@ public final class DashboardApiHandler {
   }
 
   /** 处理 /api/dashboard/agents/efficiency 的 GET 请求。 */
-  public void handleAgentEfficiency(Context ctx) throws SQLException {
+  public void handleAgentEfficiency(Context ctx) {
     DashboardRequest request = request(ctx);
     ctx.json(efficiencyResponse(request, AgentFilter.NONE));
   }
 
   /** 处理 /api/dashboard/agents/{agent}/deep-dive 的 GET 请求。 */
-  public void handleAgentDeepDive(Context ctx) throws SQLException {
+  public void handleAgentDeepDive(Context ctx) {
     String scope = normalizeAgentScope(ctx.pathParam("agent"));
     DashboardRequest request = request(ctx, scope);
     ctx.json(efficiencyResponse(request, request.agentFilter()));
   }
 
   private AgentsEfficiencyResponse efficiencyResponse(
-      DashboardRequest request, AgentFilter agentFilter) throws SQLException {
+      DashboardRequest request, AgentFilter agentFilter) {
     List<AgentEfficiencyDto> rows =
         queryRoot.dashboard().agentEfficiency().stream()
             .filter(row -> agentFilter.isUnfiltered() || agentFilter.agent().equals(row.agent()))
@@ -244,7 +243,7 @@ public final class DashboardApiHandler {
         new DashboardFilterEcho(agentScope, grain, days), agentFilter, trendFilter);
   }
 
-  private static SessionTrendPoint sessionTrendPoint(TrendDayRow row) {
+  private static SessionTrendPoint sessionTrendPoint(TrendDay row) {
     return new SessionTrendPoint(
         row.date(),
         row.totalCount(),
@@ -255,7 +254,7 @@ public final class DashboardApiHandler {
         row.failedTools());
   }
 
-  private static TokenTrendPoint tokenTrendPoint(TrendDayRow row) {
+  private static TokenTrendPoint tokenTrendPoint(TrendDay row) {
     return new TokenTrendPoint(
         row.date(),
         TokenSegments.of(
@@ -268,7 +267,7 @@ public final class DashboardApiHandler {
         row.qoderTokens());
   }
 
-  private static PromptTrendPoint promptTrendPoint(ActivityTrendRow row) {
+  private static PromptTrendPoint promptTrendPoint(ActivityTrend row) {
     return new PromptTrendPoint(
         row.date(),
         row.totalPrompts(),
@@ -279,7 +278,7 @@ public final class DashboardApiHandler {
         row.toolCalls());
   }
 
-  private static CacheHealthPoint cacheHealthPoint(TrendDayRow row) {
+  private static CacheHealthPoint cacheHealthPoint(TrendDay row) {
     return new CacheHealthPoint(
         row.date(),
         CacheInputDto.of(row.freshInputTokens(), row.cacheReadTokens(), row.cacheWriteTokens()),
@@ -290,7 +289,7 @@ public final class DashboardApiHandler {
 
   private static AgentContributionDto contributionRow(
       String agent,
-      AgentBreakdownRow row,
+      AgentBreakdown row,
       long totalSessions,
       long totalTokens,
       long totalPrompts) {
@@ -326,7 +325,7 @@ public final class DashboardApiHandler {
         WebDisplayValues.share(row.totalUserMessages(), totalPrompts));
   }
 
-  private static AgentEfficiencyDto efficiencyRow(AgentEfficiencyRow row) {
+  private static AgentEfficiencyDto efficiencyRow(AgentEfficiency row) {
     return new AgentEfficiencyDto(
         row.agent(),
         row.model(),

@@ -3,7 +3,7 @@ package com.feipi.session.browser.web.page;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -17,7 +17,7 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -170,7 +170,7 @@ public final class SessionDetailPage {
       renderNotFound(ctx, e.agent(), e.sessionId());
     } catch (CorruptArtifactException e) {
       renderCorruptArtifact(ctx, e.agent(), e.sessionId());
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("Session detail 查询失败: {}", request.sessionKey(), e);
       renderError(ctx, "查询会话详情失败", request.decodedAgent());
     } catch (IOException e) {
@@ -198,7 +198,7 @@ public final class SessionDetailPage {
       String sessionId,
       PayloadVisibility visibility) {
 
-    SessionRow row = detail.sessionRow();
+    SessionRecord row = detail.sessionRow();
     List<CallRound> rounds = detail.rounds();
     List<PayloadSource> payloadSources = detail.payloadSources();
 
@@ -309,7 +309,7 @@ public final class SessionDetailPage {
     ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
   }
 
-  private static String displayTitle(SessionRow row) {
+  private static String displayTitle(SessionRecord row) {
     if (!row.title().isBlank()) {
       return row.title();
     }
@@ -504,7 +504,7 @@ public final class SessionDetailPage {
    * @return 指标 map
    */
   private static Map<String, Object> buildSessionMetrics(
-      SessionRow row, List<CallRound> rounds, SessionAnomalySummary anomalies) {
+      SessionRecord row, List<CallRound> rounds, SessionAnomalySummary anomalies) {
     Map<String, Object> metrics = new LinkedHashMap<>(SessionDetailViewModels.baseMetrics(row));
     double activeSeconds = row.modelExecutionSeconds() + row.toolExecutionSeconds();
     double waitingSeconds = Math.max(row.durationSeconds() - activeSeconds, 0.0);
@@ -607,7 +607,7 @@ public final class SessionDetailPage {
     return "minor";
   }
 
-  private static long sessionInputSide(SessionRow row) {
+  private static long sessionInputSide(SessionRecord row) {
     return row.freshInputTokens() + row.cacheReadTokens() + row.cacheWriteTokens();
   }
 
@@ -623,7 +623,7 @@ public final class SessionDetailPage {
     return DisplayFormatters.percentLabel(round.cacheReadTokens(), roundInputSide(round));
   }
 
-  private static List<Map<String, Object>> buildContextSegments(SessionRow row) {
+  private static List<Map<String, Object>> buildContextSegments(SessionRecord row) {
     long denominator = Math.max(1, sessionInputSide(row));
     List<Map<String, Object>> segments = new ArrayList<>();
     segments.add(

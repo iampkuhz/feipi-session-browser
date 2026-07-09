@@ -2,12 +2,12 @@ package com.feipi.session.browser.contracttest.sqlite;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.ConnectionFactory;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.WriteBatch;
-import com.feipi.session.browser.index.sqlite.WriteQueue;
+import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteBatch;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteQueue;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;

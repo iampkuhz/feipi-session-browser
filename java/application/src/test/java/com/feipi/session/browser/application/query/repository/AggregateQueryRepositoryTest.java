@@ -3,18 +3,19 @@ package com.feipi.session.browser.application.query.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.sqlite.ActivityTrendRow;
-import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
-import com.feipi.session.browser.index.sqlite.AggregateMetricsRow;
-import com.feipi.session.browser.index.sqlite.DashboardRow;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
-import com.feipi.session.browser.index.sqlite.TokenBreakdownRow;
-import com.feipi.session.browser.index.sqlite.TopProjectRow;
-import com.feipi.session.browser.index.sqlite.TopSessionRow;
-import com.feipi.session.browser.index.sqlite.TrendDayRow;
+import com.feipi.session.browser.index.api.query.ActivityTrend;
+import com.feipi.session.browser.index.api.query.AgentEfficiency;
+import com.feipi.session.browser.index.api.query.AggregateMetrics;
+import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.api.query.ProjectStats;
+import com.feipi.session.browser.index.api.query.TokenBreakdown;
+import com.feipi.session.browser.index.store.sqlite.row.TopProjectRow;
+import com.feipi.session.browser.index.store.sqlite.row.TopSessionRow;
+import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
@@ -36,17 +37,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@link AggregateQueryRepository} 测试。
+ * {@link SqliteAggregateQueryRepository} 测试。
  *
  * <p>覆盖项目统计、Dashboard 聚合、趋势分析、分布查询、Top-N 排行、衍生指标和空数据库边界。
  */
-@DisplayName("AggregateQueryRepository 测试")
-class AggregateQueryRepositoryTest {
+@DisplayName("SqliteAggregateQueryRepository 测试")
+class SqliteAggregateQueryRepositoryTest {
 
   @TempDir Path tempDir;
 
   private IndexConnection indexConnection;
-  private AggregateQueryRepository repo;
+  private SqliteAggregateQueryRepository repo;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -57,7 +58,7 @@ class AggregateQueryRepositoryTest {
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     insertTestData();
-    repo = new AggregateQueryRepository(indexConnection);
+    repo = new SqliteAggregateQueryRepository(indexConnection);
   }
 
   private void insertTestData() throws Exception {
@@ -221,12 +222,12 @@ class AggregateQueryRepositoryTest {
 
   @Nested
   @DisplayName("projectStats：单项目聚合")
-  class ProjectStats {
+  class ProjectStatsTests {
 
     @Test
     @DisplayName("存在的项目返回完整统计")
     void existingProjectReturnsStats() throws Exception {
-      ProjectStatsRow row = repo.projectStats("proj-alpha");
+      ProjectStats row = repo.projectStats("proj-alpha");
       assertThat(row.projectKey()).isEqualTo("proj-alpha");
       assertThat(row.projectName()).isEqualTo("Alpha 项目");
       assertThat(row.totalSessions()).isEqualTo(2);
@@ -240,7 +241,7 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("不存在的项目返回空统计")
     void missingProjectReturnsEmpty() throws Exception {
-      ProjectStatsRow row = repo.projectStats("nonexistent");
+      ProjectStats row = repo.projectStats("nonexistent");
       assertThat(row.totalSessions()).isEqualTo(0);
       assertThat(row.totalTokens()).isEqualTo(0);
     }
@@ -310,7 +311,7 @@ class AggregateQueryRepositoryTest {
           2,
           0);
 
-      ProjectStatsRow row =
+      ProjectStats row =
           repo.projectStats("/Users/zhehan/Documents/tools/llm/feipi-session-browser-java");
       assertThat(row.projectName()).isEqualTo("feipi-session-browser-java");
       assertThat(row.totalSessions()).isEqualTo(2);
@@ -435,7 +436,7 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("默认排序按最近活跃时间降序")
     void defaultSortByLastActive() throws Exception {
-      PageResult<ProjectStatsRow> result = repo.listProjects(ProjectListFilter.defaults());
+      PageResult<ProjectStats> result = repo.listProjects(ProjectListFilter.defaults());
       assertThat(result.size()).isEqualTo(2);
       assertThat(result.totalCount()).isEqualTo(2);
       // proj-beta 末事件时间更晚，降序排首位
@@ -449,7 +450,7 @@ class AggregateQueryRepositoryTest {
       ProjectListFilter filter =
           ProjectListFilter.defaults()
               .withSort(Sort.ofProject(ProjectSortField.TOTAL_TOKENS, SortOrder.ASC));
-      PageResult<ProjectStatsRow> result = repo.listProjects(filter);
+      PageResult<ProjectStats> result = repo.listProjects(filter);
       // proj-beta token 总量更小，升序排首位
       assertThat(result.items().get(0).projectKey()).isEqualTo("proj-beta");
     }
@@ -458,7 +459,7 @@ class AggregateQueryRepositoryTest {
     @DisplayName("分页 limit=1")
     void paginationLimit() throws Exception {
       ProjectListFilter filter = ProjectListFilter.defaults().withPage(PageRequest.ofOffset(0, 1));
-      PageResult<ProjectStatsRow> result = repo.listProjects(filter);
+      PageResult<ProjectStats> result = repo.listProjects(filter);
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.totalCount()).isEqualTo(2);
     }
@@ -470,7 +471,7 @@ class AggregateQueryRepositoryTest {
           ProjectListFilter.defaults()
               .withTitle(TitleFilter.of("Alpha"))
               .withPage(PageRequest.ofOffset(0, 10));
-      PageResult<ProjectStatsRow> result = repo.listProjects(filter);
+      PageResult<ProjectStats> result = repo.listProjects(filter);
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).projectKey()).isEqualTo("proj-alpha");
     }
@@ -480,12 +481,12 @@ class AggregateQueryRepositoryTest {
 
   @Nested
   @DisplayName("dashboardStats：全局聚合")
-  class DashboardStats {
+  class DashboardStatsTests {
 
     @Test
     @DisplayName("无过滤返回全部统计")
     void unfilteredDashboard() throws Exception {
-      DashboardRow row = repo.dashboardStats(AgentFilter.NONE);
+      DashboardStats row = repo.dashboardStats(AgentFilter.NONE);
       assertThat(row.totalSessions()).isEqualTo(3);
       assertThat(row.claudeSessions()).isEqualTo(2);
       assertThat(row.codexSessions()).isEqualTo(1);
@@ -499,7 +500,7 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("agent 过滤")
     void agentFilteredDashboard() throws Exception {
-      DashboardRow row = repo.dashboardStats(AgentFilter.of("claude_code"));
+      DashboardStats row = repo.dashboardStats(AgentFilter.of("claude_code"));
       assertThat(row.totalSessions()).isEqualTo(2);
       assertThat(row.claudeSessions()).isEqualTo(2);
       assertThat(row.codexSessions()).isEqualTo(0);
@@ -511,12 +512,12 @@ class AggregateQueryRepositoryTest {
 
   @Nested
   @DisplayName("tokenBreakdown：Token 分类统计")
-  class TokenBreakdown {
+  class TokenBreakdownTests {
 
     @Test
     @DisplayName("全表 SUM 聚合正确")
     void fullTableSum() throws Exception {
-      TokenBreakdownRow row = repo.tokenBreakdown();
+      TokenBreakdown row = repo.tokenBreakdown();
       // 非缓存输入合计：50000 + 40000 + 100000 = 190000
       assertThat(row.totalFreshInput()).isEqualTo(190000);
       // 输出合计：100000 + 80000 + 200000 = 380000
@@ -559,7 +560,7 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("工具分布返回 top-N 会话")
     void toolDistribution() throws Exception {
-      Map<String, AggregateQueryRepository.ToolDistributionEntry> dist = repo.toolDistribution(10);
+      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist = repo.toolDistribution(10);
       assertThat(dist).hasSize(3);
       // sess-003 工具最多（80 次），排在首位
       var first = dist.values().iterator().next();
@@ -569,7 +570,7 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("工具分布 limit=1 只返回一条")
     void toolDistributionLimited() throws Exception {
-      Map<String, AggregateQueryRepository.ToolDistributionEntry> dist = repo.toolDistribution(1);
+      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist = repo.toolDistribution(1);
       assertThat(dist).hasSize(1);
     }
   }
@@ -630,12 +631,12 @@ class AggregateQueryRepositoryTest {
 
   @Nested
   @DisplayName("aggregateMetrics：聚合衍生指标")
-  class AggregateMetrics {
+  class AggregateMetricsTests {
 
     @Test
     @DisplayName("计算衍生比率")
     void computesDerivedRatios() throws Exception {
-      AggregateMetricsRow row = repo.aggregateMetrics();
+      AggregateMetrics row = repo.aggregateMetrics();
       // 输入侧总量 = 190000 + 100000 + 70000 = 360000
       assertThat(row.inputSideTotal()).isEqualTo(360000);
       // 总轮次 = 20 + 10 + 30 = 60
@@ -657,15 +658,15 @@ class AggregateQueryRepositoryTest {
 
   @Nested
   @DisplayName("agentEfficiency：Agent 效率")
-  class AgentEfficiency {
+  class AgentEfficiencyTests {
 
     @Test
     @DisplayName("按 agent + model 分组")
     void groupsByAgentAndModel() throws Exception {
-      List<AgentEfficiencyRow> rows = repo.agentEfficiency();
+      List<AgentEfficiency> rows = repo.agentEfficiency();
       // claude-3-opus: 2 会话, gpt-4: 1 会话
       assertThat(rows).hasSize(2);
-      AgentEfficiencyRow first = rows.get(0);
+      AgentEfficiency first = rows.get(0);
       assertThat(first.sessionCount()).isEqualTo(2);
       assertThat(first.model()).isEqualTo("claude-3-opus");
     }
@@ -673,10 +674,10 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("P95 时长正确计算")
     void p95Duration() throws Exception {
-      List<AgentEfficiencyRow> rows = repo.agentEfficiency();
+      List<AgentEfficiency> rows = repo.agentEfficiency();
       // claude-3-opus 有 2 个会话: 3600.0 和 5400.0
       // P95 最近秩：index = int(0.95 * 1) = 0，排序后首值 = 3600.0
-      AgentEfficiencyRow claude =
+      AgentEfficiency claude =
           rows.stream().filter(r -> r.model().equals("claude-3-opus")).findFirst().orElseThrow();
       assertThat(claude.p95Duration()).isEqualTo(3600.0);
       // 平均时长 = (3600 + 5400) / 2 = 4500.0
@@ -686,8 +687,8 @@ class AggregateQueryRepositoryTest {
     @Test
     @DisplayName("缓存复用率计算")
     void cacheReuseRatio() throws Exception {
-      List<AgentEfficiencyRow> rows = repo.agentEfficiency();
-      AgentEfficiencyRow claude =
+      List<AgentEfficiency> rows = repo.agentEfficiency();
+      AgentEfficiency claude =
           rows.stream().filter(r -> r.model().equals("claude-3-opus")).findFirst().orElseThrow();
       // claude 缓存读取合计 = 30000 + 50000 = 80000
       // claude 输入侧合计 = (50000+30000+20000) + (100000+50000+40000) = 290000
@@ -701,16 +702,16 @@ class AggregateQueryRepositoryTest {
 
   @Nested
   @DisplayName("trendData：每日趋势")
-  class TrendData {
+  class TrendDataTests {
 
     @Test
     @DisplayName("大时间窗口包含所有测试数据")
     void largeWindowIncludesAll() throws Exception {
       TrendFilter filter = TrendFilter.ofDays(3650);
-      List<TrendDayRow> rows = repo.trendData(filter);
+      List<TrendDay> rows = repo.trendData(filter);
       assertThat(rows).isNotEmpty();
       // 所有日期行 total_count 之和等于 3
-      long totalCount = rows.stream().mapToLong(TrendDayRow::totalCount).sum();
+      long totalCount = rows.stream().mapToLong(TrendDay::totalCount).sum();
       assertThat(totalCount).isEqualTo(3);
     }
 
@@ -718,27 +719,27 @@ class AggregateQueryRepositoryTest {
     @DisplayName("agent 过滤趋势数据")
     void agentFilter() throws Exception {
       TrendFilter filter = TrendFilter.defaults().withDays(3650).withAgent(AgentFilter.of("codex"));
-      List<TrendDayRow> rows = repo.trendData(filter);
-      long totalCount = rows.stream().mapToLong(TrendDayRow::totalCount).sum();
+      List<TrendDay> rows = repo.trendData(filter);
+      long totalCount = rows.stream().mapToLong(TrendDay::totalCount).sum();
       assertThat(totalCount).isEqualTo(1);
     }
   }
 
   @Nested
   @DisplayName("activityTrend：活动趋势")
-  class ActivityTrend {
+  class ActivityTrendTests {
 
     @Test
     @DisplayName("大时间窗口包含所有活动数据")
     void largeWindowIncludesAll() throws Exception {
       TrendFilter filter = TrendFilter.ofDays(3650);
-      List<ActivityTrendRow> rows = repo.activityTrend(filter);
+      List<ActivityTrend> rows = repo.activityTrend(filter);
       assertThat(rows).isNotEmpty();
       // 总 prompt 数 = 10 + 5 + 15 = 30
-      long totalPrompts = rows.stream().mapToLong(ActivityTrendRow::totalPrompts).sum();
+      long totalPrompts = rows.stream().mapToLong(ActivityTrend::totalPrompts).sum();
       assertThat(totalPrompts).isEqualTo(30);
       // 总助手轮次 = 20 + 10 + 30 = 60
-      long totalTurns = rows.stream().mapToLong(ActivityTrendRow::assistantTurns).sum();
+      long totalTurns = rows.stream().mapToLong(ActivityTrend::assistantTurns).sum();
       assertThat(totalTurns).isEqualTo(60);
     }
   }
@@ -759,10 +760,10 @@ class AggregateQueryRepositoryTest {
       try (IndexConnection emptyIc =
           IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
         IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
-        AggregateQueryRepository emptyRepo = new AggregateQueryRepository(emptyIc);
+        SqliteAggregateQueryRepository emptyRepo = new SqliteAggregateQueryRepository(emptyIc);
 
         // 项目统计
-        ProjectStatsRow emptyProject = emptyRepo.projectStats("any");
+        ProjectStats emptyProject = emptyRepo.projectStats("any");
         assertThat(emptyProject.totalSessions()).isEqualTo(0);
 
         // 项目计数
@@ -772,12 +773,12 @@ class AggregateQueryRepositoryTest {
         assertThat(emptyRepo.listProjects(ProjectListFilter.defaults()).isEmpty()).isTrue();
 
         // Dashboard 全局统计
-        DashboardRow dash = emptyRepo.dashboardStats(AgentFilter.NONE);
+        DashboardStats dash = emptyRepo.dashboardStats(AgentFilter.NONE);
         assertThat(dash.totalSessions()).isEqualTo(0);
         assertThat(dash.totalTokens()).isEqualTo(0);
 
         // Token 分类统计
-        TokenBreakdownRow tokens = emptyRepo.tokenBreakdown();
+        TokenBreakdown tokens = emptyRepo.tokenBreakdown();
         assertThat(tokens.totalFreshInput()).isEqualTo(0);
 
         // 分布查询
@@ -792,7 +793,7 @@ class AggregateQueryRepositoryTest {
         assertThat(emptyRepo.topHighCacheReadSessions(10)).isEmpty();
 
         // 衍生指标
-        AggregateMetricsRow metrics = emptyRepo.aggregateMetrics();
+        AggregateMetrics metrics = emptyRepo.aggregateMetrics();
         assertThat(metrics.inputSideTotal()).isEqualTo(0);
         assertThat(metrics.cacheReuseRatio()).isNull();
         assertThat(metrics.toolsPerRound()).isNull();

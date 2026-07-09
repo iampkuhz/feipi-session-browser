@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
 import com.feipi.session.browser.application.diagnostics.DiagnosticRegistry;
-import com.feipi.session.browser.index.sqlite.PercentileCalculator;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator;
+import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 /**
  * 诊断、异常和百分位数契约测试。
  *
- * <p>验证跨模块的类型契约和边界语义，确保 application/query-api 类型定义与 index-sqlite 实现之间的一致性。
+ * <p>验证跨模块的类型契约和边界语义，确保 application/query-api 类型定义与 index-store-sqlite 实现之间的一致性。
  */
 @DisplayName("诊断契约测试")
 class DiagnosticsContractTest {

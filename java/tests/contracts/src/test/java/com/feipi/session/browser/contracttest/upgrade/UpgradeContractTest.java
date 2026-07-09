@@ -3,10 +3,10 @@ package com.feipi.session.browser.contracttest.upgrade;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.sqlite.DatabaseUpgrader;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
-import com.feipi.session.browser.index.sqlite.UpgradeResult;
+import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.schema.UpgradeResult;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -27,7 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>验证 {@link DatabaseUpgrader} 满足核心升级契约： 旧 fixture 可升级、失败可回滚、数据不丢失、幂等性。
  *
- * <p>契约放置：升级流程的整体行为在 tests:contracts 边界验证； 单条 migration 的 SQL 正确性在 index-sqlite 单元测试覆盖。
+ * <p>契约放置：升级流程的整体行为在 tests:contracts 边界验证； 单条 migration 的 SQL 正确性在 index-store-sqlite 单元测试覆盖。
  */
 @DisplayName("升级流程契约测试")
 class UpgradeContractTest {
@@ -39,7 +39,7 @@ class UpgradeContractTest {
 
   @BeforeEach
   void setUp() {
-    dbPath = tempDir.resolve("index.sqlite");
+    dbPath = tempDir.resolve("index" + ".sqlite");
     backupDir = tempDir.resolve("backups");
   }
 

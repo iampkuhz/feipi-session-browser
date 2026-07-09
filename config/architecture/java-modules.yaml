@@ -28,6 +28,7 @@
     ":java:sources": {
       "sourceRoot": "java/sources/src/main/java",
       "packageRoots": [
+        "com.feipi.session.browser.source.common",
         "com.feipi.session.browser.source.json",
         "com.feipi.session.browser.source.claude",
         "com.feipi.session.browser.source.codex",
@@ -42,46 +43,46 @@
       "allowedProjectDeps": [":java:core-domain", ":java:source-spi"],
       "transitionProjectDeps": []
     },
-    ":java:artifact-normalized": {
-      "sourceRoot": "java/artifact-normalized/src/main/java",
-      "packageRoots": ["com.feipi.session.browser.artifact.normalized"],
+    ":java:index-api": {
+      "sourceRoot": "java/index-api/src/main/java",
+      "packageRoots": ["com.feipi.session.browser.index.api", "com.feipi.session.browser.query.api"],
       "allowedProjectDeps": [":java:common", ":java:core-domain"],
       "transitionProjectDeps": []
     },
     ":java:scan-engine": {
       "sourceRoot": "java/scan-engine/src/main/java",
-      "packageRoots": ["com.feipi.session.browser.scan.engine"],
-      "allowedProjectDeps": [":java:core-domain", ":java:source-spi", ":java:sources", ":java:normalization-engine", ":java:artifact-normalized", ":java:index-sqlite"],
+      "packageRoots": ["com.feipi.session.browser.scan.engine", "com.feipi.session.browser.scan.artifact"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:source-spi", ":java:normalization-engine", ":java:index-api"],
       "transitionProjectDeps": []
     },
-    ":java:index-sqlite": {
-      "sourceRoot": "java/index-sqlite/src/main/java",
-      "packageRoots": ["com.feipi.session.browser.index.sqlite"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain"],
+    ":java:index-store-sqlite": {
+      "sourceRoot": "java/index-store-sqlite/src/main/java",
+      "packageRoots": ["com.feipi.session.browser.index.store.sqlite"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-api"],
       "transitionProjectDeps": []
     },
     ":java:application": {
       "sourceRoot": "java/application/src/main/java",
-      "packageRoots": ["com.feipi.session.browser.application", "com.feipi.session.browser.query.api"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-sqlite"],
+      "packageRoots": ["com.feipi.session.browser.application"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-api"],
       "transitionProjectDeps": []
     },
     ":java:web": {
       "sourceRoot": "java/web/src/main/java",
       "packageRoots": ["com.feipi.session.browser.web"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:application", ":java:index-sqlite"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:application"],
       "transitionProjectDeps": []
     },
     ":java:app-cli": {
       "sourceRoot": "java/app-cli/src/main/java",
       "packageRoots": ["com.feipi.session.browser.cli"],
-      "allowedProjectDeps": [":java:core-domain", ":java:source-spi", ":java:sources", ":java:normalization-engine", ":java:artifact-normalized", ":java:scan-engine", ":java:index-sqlite", ":java:application", ":java:web"],
+      "allowedProjectDeps": [":java:core-domain", ":java:source-spi", ":java:sources", ":java:normalization-engine", ":java:scan-engine", ":java:index-api", ":java:index-store-sqlite", ":java:application", ":java:web"],
       "transitionProjectDeps": []
     },
     ":java:tests:support": {
       "sourceRoot": "java/tests/support/src/main/java",
       "packageRoots": ["com.feipi.session.browser.testsupport"],
-      "allowedProjectDeps": [":java:source-spi"],
+      "allowedProjectDeps": [":java:source-spi", ":java:index-api", ":java:index-store-sqlite"],
       "transitionProjectDeps": []
     },
     ":java:tests:architecture": {

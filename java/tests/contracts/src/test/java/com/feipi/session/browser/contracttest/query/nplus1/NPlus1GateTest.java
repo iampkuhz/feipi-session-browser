@@ -3,11 +3,11 @@ package com.feipi.session.browser.contracttest.query.nplus1;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.SessionListFilter;
 import java.nio.file.Path;
@@ -128,7 +128,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("listSessions + anomalies 不产生逐会话查询")
     void listWithAnomaliesNoPerSessionQuery() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       SessionListUseCase uc = new SessionListUseCase(repo, null, 1);
 
       // 执行 listWithAnomalies
@@ -157,7 +157,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("countSessions 与 listSessions.totalCount 使用相同 WHERE 子句")
     void countAndListShareWhereClauses() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       // 多种过滤条件下 count 与 list 一致
       SessionListFilter[] filters = {
@@ -184,7 +184,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("dashboardStats 是单次聚合，不逐 agent 查询")
     void dashboardStatsSingleAggregate() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       // dashboardStats 应返回所有 agent 的聚合结果
       var stats = repo.dashboardStats(AgentFilter.NONE);
@@ -205,7 +205,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("tokenBreakdown 是单次全表聚合")
     void tokenBreakdownSingleAggregate() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var breakdown = repo.tokenBreakdown();
 
@@ -235,7 +235,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("agentEfficiency 不产生 per-group 查询")
     void agentEfficiencyNoPerGroupQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var efficiency = repo.agentEfficiency();
 
@@ -261,7 +261,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("listProjects 不产生逐项目查询")
     void listProjectsNoPerProjectQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var result =
           repo.listProjects(com.feipi.session.browser.query.api.ProjectListFilter.defaults());
@@ -283,7 +283,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("projectStats 独立查询但无逐行子查询")
     void projectStatsNoSubQueries() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       // 查询多个项目的统计
       var stats1 = repo.projectStats("pk1");
@@ -307,7 +307,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("topProjectsByTokens 使用 LIMIT 单次查询")
     void topProjectsSingleQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var top = repo.topProjectsByTokens(5);
 
@@ -325,7 +325,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("topSlowestSessions 使用 LIMIT 单次查询")
     void topSlowestSessionsSingleQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var top = repo.topSlowestSessions(5);
 
@@ -347,7 +347,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("modelDistribution 单次 GROUP BY 查询")
     void modelDistributionSingleQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var dist = repo.modelDistribution();
 
@@ -365,7 +365,7 @@ class NPlus1GateTest {
     @Test
     @DisplayName("agentDistribution 单次 GROUP BY 查询")
     void agentDistributionSingleQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var dist = repo.agentDistribution();
 

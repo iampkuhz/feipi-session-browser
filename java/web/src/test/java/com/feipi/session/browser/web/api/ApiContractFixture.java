@@ -2,7 +2,7 @@ package com.feipi.session.browser.web.api;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.PreparedStatement;

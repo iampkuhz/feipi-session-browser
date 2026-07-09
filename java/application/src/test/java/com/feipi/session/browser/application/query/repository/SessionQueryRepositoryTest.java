@@ -3,11 +3,12 @@ package com.feipi.session.browser.application.query.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SessionListAggregate;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.api.query.SessionListAggregate;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.FailureStatus;
 import com.feipi.session.browser.query.api.ModelFilter;
@@ -30,12 +31,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@link SessionQueryRepository} 测试。
+ * {@link SqliteSessionQueryRepository} 测试。
  *
  * <p>覆盖会话查询四个方法的正确性、过滤组合、排序、分页、空值和 Unicode 边界。
  */
-@DisplayName("SessionQueryRepository 测试")
-class SessionQueryRepositoryTest {
+@DisplayName("SqliteSessionQueryRepository 测试")
+class SqliteSessionQueryRepositoryTest {
 
   @TempDir Path tempDir;
 
@@ -192,11 +193,11 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("存在的 key 返回完整行")
     void existingKeyReturnsRow() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
-      Optional<SessionRow> result = repo.getSession("claude_code:sess-001");
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
+      Optional<SessionRecord> result = repo.getSession("claude_code:sess-001");
 
       assertThat(result).isPresent();
-      SessionRow row = result.get();
+      SessionRecord row = result.get();
       assertThat(row.sessionKey()).isEqualTo("claude_code:sess-001");
       assertThat(row.agent()).isEqualTo("claude_code");
       assertThat(row.sessionId()).isEqualTo("sess-001");
@@ -215,9 +216,9 @@ class SessionQueryRepositoryTest {
           "qoder",
           "f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea",
           "model");
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
 
-      Optional<SessionRow> result = repo.getSession("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+      Optional<SessionRecord> result = repo.getSession("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
 
       assertThat(result).isPresent();
       assertThat(result.get().sessionKey())
@@ -230,9 +231,9 @@ class SessionQueryRepositoryTest {
     void exactKeyPreferredOverRouteFallback() throws Exception {
       insertSession("codex:canonical-id", "codex", "canonical-id", "canonical");
       insertSession("codex:legacy-scope:canonical-id", "codex", "canonical-id", "legacy");
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
 
-      Optional<SessionRow> result = repo.getSession("codex:canonical-id");
+      Optional<SessionRecord> result = repo.getSession("codex:canonical-id");
 
       assertThat(result).isPresent();
       assertThat(result.get().sessionKey()).isEqualTo("codex:canonical-id");
@@ -242,15 +243,15 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("不存在的 key 返回 empty")
     void missingKeyReturnsEmpty() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
-      Optional<SessionRow> result = repo.getSession("nonexistent:key");
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
+      Optional<SessionRecord> result = repo.getSession("nonexistent:key");
       assertThat(result).isEmpty();
     }
 
     @Test
     @DisplayName("null key 抛 NullPointerException")
     void nullKeyThrows() {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       assertThatThrownBy(() -> repo.getSession(null)).isInstanceOf(NullPointerException.class);
     }
   }
@@ -334,8 +335,8 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("默认过滤器返回全部会话，按 ended_at DESC 排序")
     void defaultFilterReturnsAll() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
-      PageResult<SessionRow> result = repo.listSessions(SessionListFilter.defaults());
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
+      PageResult<SessionRecord> result = repo.listSessions(SessionListFilter.defaults());
 
       assertThat(result.size()).isEqualTo(3);
       assertThat(result.totalCount()).isEqualTo(3);
@@ -348,9 +349,9 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("agent 过滤器只匹配指定 agent")
     void agentFilter() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withAgent(AgentFilter.of("codex"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.totalCount()).isEqualTo(1);
@@ -360,10 +361,10 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("项目过滤器只匹配指定项目")
     void projectFilter() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withProject(ProjectFilter.of("proj-alpha"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(2);
       assertThat(result.items()).allMatch(r -> r.projectKey().equals("proj-alpha"));
@@ -392,23 +393,23 @@ class SessionQueryRepositoryTest {
           2000,
           2);
 
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withProject(ProjectFilter.of(canonical));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.totalCount()).isEqualTo(2);
       assertThat(result.items())
-          .extracting(SessionRow::agent)
+          .extracting(SessionRecord::agent)
           .containsExactlyInAnyOrder("codex", "qoder");
     }
 
     @Test
     @DisplayName("模型过滤器只匹配指定模型")
     void modelFilter() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withModel(ModelFilter.of("gpt-4"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).model()).isEqualTo("gpt-4");
@@ -417,9 +418,9 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("标题搜索匹配 title 字段")
     void titleFilterMatchesTitle() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withTitle(TitleFilter.of("登录"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).sessionKey()).isEqualTo("claude_code:sess-001");
@@ -428,9 +429,9 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("标题搜索匹配 session_id 字段")
     void titleFilterMatchesSessionId() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withTitle(TitleFilter.of("sess-002"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).sessionKey()).isEqualTo("codex:sess-002");
@@ -439,9 +440,9 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("Unicode 搜索正常工作")
     void unicodeSearchWorks() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withTitle(TitleFilter.of("日本語"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).sessionKey()).isEqualTo("claude_code:sess-003");
@@ -450,10 +451,10 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("失败状态 FAILED_ONLY 只匹配有失败的会话")
     void failureStatusFailedOnly() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withFailureStatus(FailureStatus.FAILED_ONLY);
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).sessionKey()).isEqualTo("claude_code:sess-001");
@@ -463,10 +464,10 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("失败状态 SUCCESS_ONLY 只匹配无失败的会话")
     void failureStatusSuccessOnly() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withFailureStatus(FailureStatus.SUCCESS_ONLY);
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(2);
       assertThat(result.items()).allMatch(r -> r.failedToolCount() == 0);
@@ -475,12 +476,12 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("组合过滤器：agent + project")
     void combinedAgentAndProject() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults()
               .withAgent(AgentFilter.of("claude_code"))
               .withProject(ProjectFilter.of("proj-alpha"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(2);
     }
@@ -488,14 +489,14 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("组合过滤器：agent + project + failure + title")
     void combinedAllFilters() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults()
               .withAgent(AgentFilter.of("claude_code"))
               .withProject(ProjectFilter.of("proj-alpha"))
               .withFailureStatus(FailureStatus.SUCCESS_ONLY)
               .withTitle(TitleFilter.of("Unicode"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
       assertThat(result.items().get(0).sessionKey()).isEqualTo("claude_code:sess-003");
@@ -504,11 +505,11 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("排序：按 total_tokens ASC")
     void sortByTotalTokensAsc() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults()
               .withSort(Sort.ofSession(SessionSortField.TOTAL_TOKENS, SortOrder.ASC));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.items().get(0).totalTokens()).isEqualTo(150000);
       assertThat(result.items().get(2).totalTokens()).isEqualTo(390000);
@@ -517,9 +518,9 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("分页：limit=2 只返回两行")
     void paginationLimit() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withPage(PageRequest.ofOffset(0, 2));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(2);
       assertThat(result.totalCount()).isEqualTo(3);
@@ -528,9 +529,9 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("分页：offset=2 跳过前两行")
     void paginationOffset() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withPage(PageRequest.ofOffset(2, 50));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.size()).isEqualTo(1);
     }
@@ -538,10 +539,10 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("分页：offset 超出范围返回空列表")
     void paginationBeyondRange() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withPage(PageRequest.ofOffset(100, 50));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.isEmpty()).isTrue();
       assertThat(result.totalCount()).isEqualTo(3);
@@ -550,10 +551,10 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("无匹配过滤器返回空列表但总数为 0")
     void noMatchReturnsEmpty() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withAgent(AgentFilter.of("unknown_agent"));
-      PageResult<SessionRow> result = repo.listSessions(filter);
+      PageResult<SessionRecord> result = repo.listSessions(filter);
 
       assertThat(result.isEmpty()).isTrue();
       assertThat(result.totalCount()).isEqualTo(0);
@@ -562,7 +563,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("null filter 抛 NullPointerException")
     void nullFilterThrows() {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       assertThatThrownBy(() -> repo.listSessions(null)).isInstanceOf(NullPointerException.class);
     }
   }
@@ -574,7 +575,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("默认过滤器返回全部会话数")
     void defaultCount() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       long count = repo.countSessions(SessionListFilter.defaults());
       assertThat(count).isEqualTo(3);
     }
@@ -582,7 +583,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("agent 过滤器计数")
     void agentFilterCount() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withAgent(AgentFilter.of("codex"));
       assertThat(repo.countSessions(filter)).isEqualTo(1);
     }
@@ -590,7 +591,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("项目过滤器计数")
     void projectFilterCount() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withProject(ProjectFilter.of("proj-alpha"));
       assertThat(repo.countSessions(filter)).isEqualTo(2);
@@ -599,7 +600,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("标题搜索计数：Unicode 关键字")
     void titleSearchCount() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter = SessionListFilter.defaults().withTitle(TitleFilter.of("日本語"));
       assertThat(repo.countSessions(filter)).isEqualTo(1);
     }
@@ -607,7 +608,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("失败状态计数")
     void failureStatusCount() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter failedFilter =
           SessionListFilter.defaults().withFailureStatus(FailureStatus.FAILED_ONLY);
       SessionListFilter successFilter =
@@ -619,7 +620,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("无匹配返回 0")
     void noMatchReturnsZero() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withAgent(AgentFilter.of("nonexistent"));
       assertThat(repo.countSessions(filter)).isEqualTo(0);
@@ -628,14 +629,14 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("组合过滤器计数与 listSessions 一致")
     void combinedCountMatchesList() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults()
               .withAgent(AgentFilter.of("claude_code"))
               .withFailureStatus(FailureStatus.SUCCESS_ONLY);
 
       long count = repo.countSessions(filter);
-      PageResult<SessionRow> list = repo.listSessions(filter);
+      PageResult<SessionRecord> list = repo.listSessions(filter);
       assertThat(count).isEqualTo(list.totalCount());
     }
   }
@@ -647,7 +648,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("默认过滤器返回全部聚合")
     void defaultAggregate() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListAggregate agg = repo.listAggregate(SessionListFilter.defaults());
 
       assertThat(agg.sessionCount()).isEqualTo(3);
@@ -659,7 +660,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("项目过滤器聚合")
     void projectFilterAggregate() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withProject(ProjectFilter.of("proj-alpha"));
       SessionListAggregate agg = repo.listAggregate(filter);
@@ -693,7 +694,7 @@ class SessionQueryRepositoryTest {
           2000,
           2);
 
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withProject(ProjectFilter.of(canonical));
       SessionListAggregate agg = repo.listAggregate(filter);
@@ -706,7 +707,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("无匹配返回全零")
     void noMatchReturnsZeros() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withAgent(AgentFilter.of("nonexistent"));
       SessionListAggregate agg = repo.listAggregate(filter);
@@ -719,7 +720,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("失败状态聚合：只计算有失败的会话")
     void failureStatusAggregate() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(indexConnection);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
       SessionListFilter filter =
           SessionListFilter.defaults().withFailureStatus(FailureStatus.FAILED_ONLY);
       SessionListAggregate agg = repo.listAggregate(filter);
@@ -744,7 +745,7 @@ class SessionQueryRepositoryTest {
       try (IndexConnection emptyIc =
           IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl)) {
         IndexSchema.withDefaults().ensureSchema(emptyIc.writerConnection());
-        SessionQueryRepository repo = new SessionQueryRepository(emptyIc);
+        SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(emptyIc);
 
         assertThat(repo.getSession("any:key")).isEmpty();
         assertThat(repo.listSessions(SessionListFilter.defaults()).isEmpty()).isTrue();

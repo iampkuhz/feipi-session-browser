@@ -40,8 +40,10 @@ final class DomainModelImmutabilityTest {
           .orShould()
           .beEnums()
           .orShould()
+          .beInterfaces()
+          .orShould()
           .haveModifier(JavaModifier.FINAL)
-          .as("@DomainModel types must be record, enum, or final class")
+          .as("@DomainModel types must be record, enum, interface, or final class")
           .allowEmptyShould(true);
 
   /**

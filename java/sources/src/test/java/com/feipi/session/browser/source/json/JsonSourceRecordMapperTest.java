@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;

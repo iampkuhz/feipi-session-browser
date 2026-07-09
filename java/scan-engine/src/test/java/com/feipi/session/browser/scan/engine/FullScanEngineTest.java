@@ -70,7 +70,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.successCount()).isZero();
@@ -91,7 +91,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.issues()).isEmpty();
@@ -109,7 +109,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.issues()).hasSize(1);
@@ -130,7 +130,7 @@ class FullScanEngineTest {
             1);
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.perSourceCount()).isEmpty();
@@ -161,7 +161,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isEqualTo(1);
     assertThat(summary.errorCount()).isEqualTo(1);
@@ -195,7 +195,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isEqualTo(1);
     assertThat(summary.skippedCount()).isEqualTo(1);
@@ -217,7 +217,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     // 核心不变量：perSourceCount 值的总和 ≤ successCount
     // perSourceCount 只记录成功处理数，不应超过 totalCandidates 或 successCount
@@ -242,7 +242,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     // 所有候选都失败，perSourceCount 应为空
     assertThat(summary.totalCandidates()).isEqualTo(2);
@@ -264,7 +264,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     // 所有候选被跳过，perSourceCount 应为空
     assertThat(summary.totalCandidates()).isEqualTo(1);
@@ -287,7 +287,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    engine.scan(conn, config);
+    engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     // 验证 scan_log 的 per-source 计数只记录成功数，fatal 候选不计入
     try (Statement stmt = conn.createStatement();
@@ -315,7 +315,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.isFullySuccessful()).isTrue();
@@ -358,7 +358,7 @@ class FullScanEngineTest {
             tempDir.resolve("artifacts"));
 
     FullScanEngine engine = new FullScanEngine();
-    ScanSummary summary = engine.scan(conn, config);
+    ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.successCount()).isEqualTo(1);
     try (Statement stmt = conn.createStatement();

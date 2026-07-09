@@ -153,7 +153,7 @@ class RuntimePathsTest {
     void dbPathUnderDataDir() {
       RuntimePaths paths =
           new RuntimePaths(tempDir, tempDir.resolve("logs"), tempDir.resolve("cache"));
-      assertThat(paths.dbPath()).isEqualTo(tempDir.resolve("index.sqlite"));
+      assertThat(paths.dbPath()).isEqualTo(tempDir.resolve(RuntimePaths.DB_FILE_NAME));
     }
 
     @Test

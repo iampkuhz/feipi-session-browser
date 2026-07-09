@@ -2,12 +2,12 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.ConnectionFactory;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.MigrationRunner;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.WriteQueue;
+import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteQueue;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -293,7 +293,7 @@ class ScanConcurrencySafetyTest {
       // 创建并关闭多个 ReadTransaction
       for (int i = 0; i < 20; i++) {
         Connection readConn = factory.create();
-        try (var rt = new com.feipi.session.browser.index.sqlite.ReadTransaction(readConn)) {
+        try (var rt = new com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction(readConn)) {
           try (Statement stmt = rt.connection().createStatement();
               ResultSet rs = stmt.executeQuery("SELECT 1")) {
             assertThat(rs.next()).isTrue();
@@ -353,7 +353,7 @@ class ScanConcurrencySafetyTest {
 
         // 串行执行多次 scan
         for (int i = 0; i < 3; i++) {
-          ScanSummary summary = engine.scan(conn, config);
+          ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
           assertThat(summary.errorCount()).isZero();
         }
       } finally {

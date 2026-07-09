@@ -2,8 +2,8 @@ package com.feipi.session.browser.web.page;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.index.sqlite.SessionListAggregate;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionListAggregate;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.query.api.SessionListFilter;
@@ -13,7 +13,7 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -68,7 +68,7 @@ public final class SessionsPage {
 
       // 查询分页会话列表（附带异常检测）
       SessionListUseCase.AnnotatedPageResult result = useCase.listWithAnomalies(filter);
-      PageResult<SessionRow> page = result.page();
+      PageResult<SessionRecord> page = result.page();
       List<SessionAnomalySummary> anomalies = result.anomalies();
 
       // 计算分页模型
@@ -101,7 +101,7 @@ public final class SessionsPage {
       String html = templates.render("sessions.html", context);
       ctx.html(html);
 
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("Sessions 页面查询失败", e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.html(renderError(ctx, "查询会话列表失败"));

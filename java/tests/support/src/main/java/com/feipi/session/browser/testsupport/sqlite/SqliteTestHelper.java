@@ -1,5 +1,7 @@
 package com.feipi.session.browser.testsupport.sqlite;
 
+import com.feipi.session.browser.index.api.write.IndexWriterPort;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -10,7 +12,7 @@ import java.sql.Statement;
 /**
  * SQLite 测试辅助工具。
  *
- * <p>提供临时数据库创建、配置 PRAGMA 和清理的便捷方法， 供 {@code index-sqlite} 和 {@code tests:contracts} 模块使用。
+ * <p>提供临时数据库创建、配置 PRAGMA 和清理的便捷方法， 供 {@code index-store-sqlite} 和 {@code tests:contracts} 模块使用。
  */
 public final class SqliteTestHelper {
 
@@ -61,6 +63,16 @@ public final class SqliteTestHelper {
       stmt.execute("PRAGMA busy_timeout=30000");
       stmt.execute("PRAGMA foreign_keys=ON");
     }
+  }
+
+  /**
+   * 为需要 SQLite scan port 的测试创建具体索引写入器。
+   *
+   * @param conn 已配置的 SQLite 连接
+   * @return SQLite 支撑的索引写入端口
+   */
+  public static IndexWriterPort createIndexWriter(Connection conn) {
+    return new SqliteIndexWriter(conn);
   }
 
   /**

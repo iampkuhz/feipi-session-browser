@@ -2,15 +2,16 @@ package com.feipi.session.browser.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
-import com.feipi.session.browser.index.sqlite.DashboardRow;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
+import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.api.query.ProjectStats;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
@@ -85,6 +86,15 @@ class UseCaseIntegrationTest {
     }
   }
 
+
+  private QueryCompositionRoot queryRoot(int schemaVersion, QueryCache cache) {
+    SqliteSessionQueryRepository sessionRepo = new SqliteSessionQueryRepository(ic);
+    SqliteAggregateQueryRepository aggregateRepo = new SqliteAggregateQueryRepository(ic);
+    SqliteSessionDetailRepository detailRepo = new SqliteSessionDetailRepository(sessionRepo);
+    return new QueryCompositionRoot(
+        sessionRepo, aggregateRepo, detailRepo, NormalizedArtifactLoader::load, schemaVersion, cache);
+  }
+
   @Nested
   @DisplayName("SessionListUseCase")
   class SessionListUseCaseTests {
@@ -92,7 +102,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("listWithAnomalies 返回分页结果和异常摘要")
     void listWithAnomaliesReturnsPageAndAnomalies() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       QueryCache cache = new QueryCache(10);
       SessionListUseCase uc = new SessionListUseCase(repo, cache, 1);
 
@@ -104,7 +114,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("缓存命中时不重复查询")
     void cacheHitSkipsQuery() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       QueryCache cache = new QueryCache(10);
       SessionListUseCase uc = new SessionListUseCase(repo, cache, 1);
 
@@ -117,7 +127,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("count 与 list 总数一致")
     void countMatchesListTotal() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       SessionListUseCase uc = new SessionListUseCase(repo, null, 1);
 
       long count = uc.count(SessionListFilter.defaults());
@@ -133,20 +143,20 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("list 返回分页项目列表")
     void listReturnsPage() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       ProjectListUseCase uc = new ProjectListUseCase(repo, null, 1);
 
-      PageResult<ProjectStatsRow> result = uc.list(ProjectListFilter.defaults());
+      PageResult<ProjectStats> result = uc.list(ProjectListFilter.defaults());
       assertThat(result.size()).isEqualTo(2);
     }
 
     @Test
     @DisplayName("stats 返回单个项目统计")
     void statsReturnsProjectStats() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       ProjectListUseCase uc = new ProjectListUseCase(repo, null, 1);
 
-      ProjectStatsRow stats = uc.stats("pk1");
+      ProjectStats stats = uc.stats("pk1");
       assertThat(stats.projectKey()).isEqualTo("pk1");
       assertThat(stats.totalSessions()).isEqualTo(2);
     }
@@ -159,10 +169,10 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("stats 返回全局聚合")
     void statsReturnsGlobalAggregate() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       DashboardUseCase uc = new DashboardUseCase(repo, null, 1);
 
-      DashboardRow row = uc.stats(AgentFilter.NONE);
+      DashboardStats row = uc.stats(AgentFilter.NONE);
       assertThat(row.totalSessions()).isEqualTo(3);
       assertThat(row.projectCount()).isEqualTo(2);
     }
@@ -170,7 +180,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("缓存加速重复查询")
     void cacheAcceleratesRepeatQuery() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       QueryCache cache = new QueryCache(10);
       DashboardUseCase uc = new DashboardUseCase(repo, cache, 1);
 
@@ -187,9 +197,9 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("无制品会话返回行级详情")
     void rowOnlyDetailForNoArtifact() throws Exception {
-      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
-      SessionDetailRepository repo = new SessionDetailRepository(sqRepo);
-      SessionDetailUseCase uc = new SessionDetailUseCase(repo, 1);
+      SqliteSessionQueryRepository sqRepo = new SqliteSessionQueryRepository(ic);
+      SqliteSessionDetailRepository repo = new SqliteSessionDetailRepository(sqRepo);
+      SessionDetailUseCase uc = new SessionDetailUseCase(repo, NormalizedArtifactLoader::load, 1);
 
       var detail =
           uc.getDetail("cc:s1", com.feipi.session.browser.query.api.PayloadVisibility.STANDARD);
@@ -201,9 +211,9 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("不存在的会话返回 empty")
     void missingSessionReturnsEmpty() throws Exception {
-      SessionQueryRepository sqRepo = new SessionQueryRepository(ic);
-      SessionDetailRepository repo = new SessionDetailRepository(sqRepo);
-      SessionDetailUseCase uc = new SessionDetailUseCase(repo, 1);
+      SqliteSessionQueryRepository sqRepo = new SqliteSessionQueryRepository(ic);
+      SqliteSessionDetailRepository repo = new SqliteSessionDetailRepository(sqRepo);
+      SessionDetailUseCase uc = new SessionDetailUseCase(repo, NormalizedArtifactLoader::load, 1);
 
       var detail =
           uc.getDetail(
@@ -219,7 +229,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("detectWithFilter 过滤指定类型")
     void detectWithFilterByType() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       DiagnosticsUseCase uc = new DiagnosticsUseCase();
 
       var filter = com.feipi.session.browser.query.api.SessionListFilter.defaults();
@@ -237,7 +247,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("root 装配所有 use case")
     void rootAssemblesAllUseCases() {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = queryRoot(1, null);
       assertThat(root.sessionList()).isNotNull();
       assertThat(root.projectList()).isNotNull();
       assertThat(root.dashboard()).isNotNull();
@@ -250,7 +260,7 @@ class UseCaseIntegrationTest {
     @DisplayName("带缓存的 root 可失效")
     void rootWithCacheInvalidates() throws Exception {
       QueryCache cache = new QueryCache(10);
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1), cache);
+      QueryCompositionRoot root = queryRoot(1, cache);
 
       root.dashboard().stats(AgentFilter.NONE);
       assertThat(cache.size()).isEqualTo(1);
@@ -262,7 +272,7 @@ class UseCaseIntegrationTest {
     @Test
     @DisplayName("schemaVersion 正确传递")
     void schemaVersionPropagated() {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(5));
+      QueryCompositionRoot root = queryRoot(5, null);
       assertThat(root.schemaVersion()).isEqualTo(5);
     }
   }

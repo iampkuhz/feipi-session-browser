@@ -2,13 +2,13 @@ package com.feipi.session.browser.contracttest.faultinjection;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.ConnectionFactory;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.ReadTransaction;
-import com.feipi.session.browser.index.sqlite.WriteBatch;
-import com.feipi.session.browser.index.sqlite.WriteQueue;
-import com.feipi.session.browser.index.sqlite.WriteTransaction;
+import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteBatch;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteQueue;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteTransaction;
 import com.feipi.session.browser.scan.engine.ScanCancelToken;
 import com.feipi.session.browser.scan.engine.ScanLock;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;

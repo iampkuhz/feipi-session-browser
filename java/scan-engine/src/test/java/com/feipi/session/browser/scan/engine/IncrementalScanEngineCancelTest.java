@@ -3,8 +3,8 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.MigrationRunner;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -67,7 +67,7 @@ class IncrementalScanEngineCancelTest {
     ScanCancelToken token = new ScanCancelToken();
     token.cancel(); // 预先取消
 
-    assertThatThrownBy(() -> engine.scan(conn, config, null, token))
+    assertThatThrownBy(() -> engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, token))
         .isInstanceOf(CancellationException.class);
 
     // scan_log 应标记为 failure
@@ -111,7 +111,7 @@ class IncrementalScanEngineCancelTest {
     cancelThread.start();
 
     try {
-      engine.scan(conn, config, null, token);
+      engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, token);
       // 如果扫描在取消前就完成了（候选项太少），也是合法的
     } catch (CancellationException e) {
       // 预期的取消异常
@@ -134,7 +134,7 @@ class IncrementalScanEngineCancelTest {
     IncrementalScanEngine engine = new IncrementalScanEngine();
 
     // 传 null cancelToken 应正常工作
-    IncrementalScanSummary summary = engine.scan(conn, config, null, null);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, null);
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.errorCount()).isZero();
     verifyScanLogStatus("success");
@@ -153,7 +153,7 @@ class IncrementalScanEngineCancelTest {
     IncrementalScanEngine engine = new IncrementalScanEngine();
 
     // 旧 API 不受影响
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
     assertThat(summary.totalCandidates()).isZero();
     verifyScanLogStatus("success");
   }

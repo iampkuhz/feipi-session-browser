@@ -4,10 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.QueryCache;
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.contracttest.support.ContractTestComposition;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.SessionListFilter;
 import java.nio.file.Path;
@@ -77,7 +78,7 @@ class ApplicationContractTest {
     @Test
     @DisplayName("所有 use case 正确装配")
     void allUseCasesAssembled() {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1));
       assertThat(root.sessionList()).isNotNull();
       assertThat(root.projectList()).isNotNull();
       assertThat(root.dashboard()).isNotNull();
@@ -88,7 +89,7 @@ class ApplicationContractTest {
     @Test
     @DisplayName("无缓存 root 的 invalidateCache 为空操作")
     void noCacheRootInvalidationIsNoOp() {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1));
       root.invalidateCache(); // 不应抛出
       assertThat(root.cache()).isNull();
     }
@@ -102,7 +103,7 @@ class ApplicationContractTest {
     @DisplayName("scan 后缓存失效")
     void cacheInvalidatedAfterScan() throws Exception {
       QueryCache cache = new QueryCache(10);
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1), cache);
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
 
       // 首次查询，填充缓存
       root.sessionList().listWithAnomalies(SessionListFilter.defaults());
@@ -117,12 +118,12 @@ class ApplicationContractTest {
     @DisplayName("schema 版本变化导致缓存失效")
     void schemaVersionChangeInvalidatesCache() throws Exception {
       QueryCache cache = new QueryCache(10);
-      QueryCompositionRoot root1 = new QueryCompositionRoot(ic, new SchemaVersion(1), cache);
+      QueryCompositionRoot root1 = ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
       root1.dashboard().stats(AgentFilter.NONE);
       assertThat(cache.size()).isEqualTo(1);
 
       // 使用不同 schema 版本的 root 查询相同数据
-      QueryCompositionRoot root2 = new QueryCompositionRoot(ic, new SchemaVersion(2), cache);
+      QueryCompositionRoot root2 = ContractTestComposition.queryRoot(ic, new SchemaVersion(2), cache);
       root2.dashboard().stats(AgentFilter.NONE);
       // 两个不同 schema 版本各自缓存
       assertThat(cache.size()).isEqualTo(2);
@@ -136,7 +137,7 @@ class ApplicationContractTest {
     @Test
     @DisplayName("session list 返回正确数量和异常摘要")
     void sessionListReturnsCorrectCount() throws Exception {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1));
       var result = root.sessionList().listWithAnomalies(SessionListFilter.defaults());
       assertThat(result.page().size()).isEqualTo(1);
       assertThat(result.anomalies()).hasSize(1);
@@ -145,7 +146,7 @@ class ApplicationContractTest {
     @Test
     @DisplayName("project list 返回正确项目数")
     void projectListReturnsCorrectCount() throws Exception {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1));
       var result =
           root.projectList().list(com.feipi.session.browser.query.api.ProjectListFilter.defaults());
       assertThat(result.size()).isEqualTo(1);
@@ -154,7 +155,7 @@ class ApplicationContractTest {
     @Test
     @DisplayName("dashboard stats 返回正确聚合")
     void dashboardStatsReturnsCorrectAggregate() throws Exception {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1));
       var stats = root.dashboard().stats(AgentFilter.NONE);
       assertThat(stats.totalSessions()).isEqualTo(1);
     }
@@ -162,7 +163,7 @@ class ApplicationContractTest {
     @Test
     @DisplayName("session detail 无制品返回行级详情")
     void sessionDetailRowOnly() throws Exception {
-      QueryCompositionRoot root = new QueryCompositionRoot(ic, new SchemaVersion(1));
+      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1));
       var detail =
           root.sessionDetail()
               .getDetail("cc:s1", com.feipi.session.browser.query.api.PayloadVisibility.STANDARD);

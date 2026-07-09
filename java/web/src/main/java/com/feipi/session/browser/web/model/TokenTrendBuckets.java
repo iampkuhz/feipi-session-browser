@@ -1,6 +1,6 @@
 package com.feipi.session.browser.web.model;
 
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -13,9 +13,9 @@ public final class TokenTrendBuckets {
   private TokenTrendBuckets() {}
 
   /** 按指定粒度聚合 session token 趋势点。 */
-  public static List<Point> fromSessions(List<SessionRow> sessions, String grain) {
+  public static List<Point> fromSessions(List<SessionRecord> sessions, String grain) {
     Map<String, long[]> buckets = new LinkedHashMap<>();
-    for (SessionRow session : sessions) {
+    for (SessionRecord session : sessions) {
       LocalDate date = WebDisplayValues.parseDate(session.startedAt());
       if (date == null) {
         continue;

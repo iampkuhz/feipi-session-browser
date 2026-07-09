@@ -1,23 +1,22 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.index.sqlite.ProjectListSummaryRow;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
+import com.feipi.session.browser.index.api.query.ProjectQueryPort;
+import com.feipi.session.browser.index.api.query.ProjectListSummary;
+import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
-import java.sql.SQLException;
 import java.util.Objects;
 
 /**
  * 项目列表查询 use case。
  *
- * <p>组合 {@link AggregateQueryRepository} 的项目相关查询：list/count/stats。 支持可选缓存加速重复查询。
+ * <p>组合 {@link ProjectQueryPort} 的项目相关查询：list/count/stats。 支持可选缓存加速重复查询。
  *
  * <p>校验放置：过滤参数由 {@link ProjectListFilter} 在入口验证，本 use case 信任已验证的 typed filter。
  */
 public final class ProjectListUseCase {
 
-  private final AggregateQueryRepository repository;
+  private final ProjectQueryPort repository;
   private final QueryCache cache;
   private final int schemaVersion;
 
@@ -29,7 +28,9 @@ public final class ProjectListUseCase {
    * @param schemaVersion 当前 schema 版本号
    */
   public ProjectListUseCase(
-      AggregateQueryRepository repository, QueryCache cache, int schemaVersion) {
+      ProjectQueryPort repository,
+      QueryCache cache,
+      int schemaVersion) {
     this.repository = Objects.requireNonNull(repository, "repository 不得为 null");
     this.cache = cache;
     this.schemaVersion = schemaVersion;
@@ -40,9 +41,8 @@ public final class ProjectListUseCase {
    *
    * @param filter 项目列表过滤器
    * @return 分页项目统计结果
-   * @throws SQLException 查询失败
    */
-  public PageResult<ProjectStatsRow> list(ProjectListFilter filter) throws SQLException {
+  public PageResult<ProjectStats> list(ProjectListFilter filter) {
     Objects.requireNonNull(filter, "filter 不得为 null");
 
     if (cache != null) {
@@ -51,13 +51,7 @@ public final class ProjectListUseCase {
           "projectList",
           paramsHash,
           schemaVersion,
-          () -> {
-            try {
-              return repository.listProjects(filter);
-            } catch (SQLException e) {
-              throw new RuntimeException(e);
-            }
-          });
+          () -> repository.listProjects(filter));
     }
     return repository.listProjects(filter);
   }
@@ -67,9 +61,8 @@ public final class ProjectListUseCase {
    *
    * @param filter 项目列表过滤器
    * @return 去重项目数
-   * @throws SQLException 查询失败
    */
-  public long count(ProjectListFilter filter) throws SQLException {
+  public long count(ProjectListFilter filter) {
     Objects.requireNonNull(filter, "filter 不得为 null");
     return repository.countProjects(filter);
   }
@@ -79,9 +72,8 @@ public final class ProjectListUseCase {
    *
    * @param filter 项目列表过滤器
    * @return 当前过滤条件下的项目列表摘要
-   * @throws SQLException 查询失败
    */
-  public ProjectListSummaryRow summary(ProjectListFilter filter) throws SQLException {
+  public ProjectListSummary summary(ProjectListFilter filter) {
     Objects.requireNonNull(filter, "filter 不得为 null");
     return repository.projectListSummary(filter);
   }
@@ -91,9 +83,8 @@ public final class ProjectListUseCase {
    *
    * @param projectKey 项目键
    * @return 项目统计行
-   * @throws SQLException 查询失败
    */
-  public ProjectStatsRow stats(String projectKey) throws SQLException {
+  public ProjectStats stats(String projectKey) {
     Objects.requireNonNull(projectKey, "projectKey 不得为 null");
     return repository.projectStats(projectKey);
   }

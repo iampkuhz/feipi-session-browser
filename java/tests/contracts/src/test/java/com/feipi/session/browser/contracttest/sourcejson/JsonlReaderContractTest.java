@@ -3,9 +3,9 @@ package com.feipi.session.browser.contracttest.sourcejson;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.source.json.JsonlReader;
-import com.feipi.session.browser.source.json.JsonlReaderConfig;
-import com.feipi.session.browser.source.json.JsonlReaderResult;
+import com.feipi.session.browser.source.common.JsonlReader;
+import com.feipi.session.browser.source.common.JsonlReaderConfig;
+import com.feipi.session.browser.source.common.JsonlReaderResult;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;

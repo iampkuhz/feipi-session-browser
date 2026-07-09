@@ -1,7 +1,7 @@
 package com.feipi.session.browser.application.diagnostics;
 
-import com.feipi.session.browser.index.sqlite.PercentileCalculator;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.query.api.PercentileCalculator;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
@@ -37,7 +37,7 @@ public final class AnomalyDetector {
    * @param row 会话行数据
    * @return 检测到的异常集合
    */
-  public static SessionAnomalySummary detect(SessionRow row) {
+  public static SessionAnomalySummary detect(SessionRecord row) {
     Objects.requireNonNull(row, "row 不得为 null");
     List<DetectedAnomaly> anomalies = new ArrayList<>();
 
@@ -54,10 +54,10 @@ public final class AnomalyDetector {
    * @param rows 会话行数据列表
    * @return 每个会话的异常检测结果列表，保持输入顺序
    */
-  public static List<SessionAnomalySummary> detectAll(List<SessionRow> rows) {
+  public static List<SessionAnomalySummary> detectAll(List<SessionRecord> rows) {
     Objects.requireNonNull(rows, "rows 不得为 null");
     List<SessionAnomalySummary> results = new ArrayList<>(rows.size());
-    for (SessionRow row : rows) {
+    for (SessionRecord row : rows) {
       results.add(detect(row));
     }
     return Collections.unmodifiableList(results);
@@ -68,7 +68,7 @@ public final class AnomalyDetector {
    *
    * <p>仅在 failed > 0 且 toolCallCount > 0 时检测。失败率 >= 0.25 为 critical，>= 0.15 为 warning。
    */
-  private static void detectFailedRun(SessionRow row, List<DetectedAnomaly> anomalies) {
+  private static void detectFailedRun(SessionRecord row, List<DetectedAnomaly> anomalies) {
     long failed = row.failedToolCount();
     long tools = row.toolCallCount();
 
@@ -93,7 +93,7 @@ public final class AnomalyDetector {
    *
    * <p>活跃时长 = modelExecutionSeconds + toolExecutionSeconds。 >= 2h 为 critical，>= 1h 为 warning。
    */
-  private static void detectLongDuration(SessionRow row, List<DetectedAnomaly> anomalies) {
+  private static void detectLongDuration(SessionRecord row, List<DetectedAnomaly> anomalies) {
     double modelExec = row.modelExecutionSeconds();
     double toolExec = row.toolExecutionSeconds();
     double activeTime = modelExec + toolExec;
@@ -133,7 +133,7 @@ public final class AnomalyDetector {
    *
    * <p>cacheWriteTokens >= 500K 为 warning，>= 200K 为 info。 注意：缓存写入是可见性信号，不是失败指标，因此最高只到 warning。
    */
-  private static void detectCacheWriteSpike(SessionRow row, List<DetectedAnomaly> anomalies) {
+  private static void detectCacheWriteSpike(SessionRecord row, List<DetectedAnomaly> anomalies) {
     long cacheWrite = row.cacheWriteTokens();
     long warnThreshold = PercentileCalculator.CACHE_WRITE_WARNING_TOKENS;
     long critThreshold = PercentileCalculator.CACHE_WRITE_CRITICAL_TOKENS;

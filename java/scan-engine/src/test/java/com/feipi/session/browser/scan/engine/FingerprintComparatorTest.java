@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;

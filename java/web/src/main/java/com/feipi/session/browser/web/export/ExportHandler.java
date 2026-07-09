@@ -14,7 +14,7 @@ import io.javalin.http.Header;
 import io.javalin.http.HttpStatus;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
@@ -169,7 +169,7 @@ public final class ExportHandler {
       ctx.header(Header.CONTENT_DISPOSITION, "attachment; filename=\"" + fileName + "\"");
       ctx.result(bytes);
 
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("导出查询失败: {}", request.sessionKey(), e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.json(Map.of("error", "export_query_failed", "message", "导出查询失败"));

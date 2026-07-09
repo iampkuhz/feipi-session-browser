@@ -3,9 +3,9 @@ package com.feipi.session.browser.web.page;
 import com.feipi.session.browser.application.ProjectListUseCase;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
-import com.feipi.session.browser.index.sqlite.SessionListAggregate;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.ProjectStats;
+import com.feipi.session.browser.index.api.query.SessionListAggregate;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.ProjectFilter;
 import com.feipi.session.browser.query.api.ProjectListFilter;
@@ -21,7 +21,7 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -95,7 +95,7 @@ public final class ProjectsPage {
       String html = templates.render("projects.html", context);
       ctx.html(html);
 
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("Projects 列表查询失败", e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.html(
@@ -115,7 +115,7 @@ public final class ProjectsPage {
 
     try {
       ProjectListUseCase projectUseCase = queryRoot.projectList();
-      ProjectStatsRow project = projectUseCase.stats(decodedKey);
+      ProjectStats project = projectUseCase.stats(decodedKey);
 
       // 项目不存在时返回 404
       if (project.totalSessions() == 0
@@ -133,7 +133,7 @@ public final class ProjectsPage {
       SessionListUseCase.AnnotatedPageResult result =
           sessionUseCase.listWithAnomalies(sessionFilter);
       SessionListAggregate aggregate = sessionUseCase.aggregate(sessionFilter);
-      List<SessionRow> allProjectSessions =
+      List<SessionRecord> allProjectSessions =
           sessionUseCase
               .listWithAnomalies(buildAllProjectSessionsFilter(decodedKey, project))
               .page()
@@ -162,7 +162,7 @@ public final class ProjectsPage {
       String html = templates.render("project.html", context);
       ctx.html(html);
 
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("Project 详情查询失败: {}", decodedKey, e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.html(
@@ -171,16 +171,16 @@ public final class ProjectsPage {
   }
 
   private static Map<String, Object> buildProjectsSummary(
-      List<ProjectStatsRow> projects, long totalCount) {
+      List<ProjectStats> projects, long totalCount) {
     return Map.of(
         "totalProjects",
         totalCount,
         "totalSessions",
-        projects.stream().mapToLong(ProjectStatsRow::totalSessions).sum(),
+        projects.stream().mapToLong(ProjectStats::totalSessions).sum(),
         "totalTokens",
-        projects.stream().mapToLong(ProjectStatsRow::totalTokens).sum(),
+        projects.stream().mapToLong(ProjectStats::totalTokens).sum(),
         "totalFailedTools",
-        projects.stream().mapToLong(ProjectStatsRow::totalFailedTools).sum());
+        projects.stream().mapToLong(ProjectStats::totalFailedTools).sum());
   }
 
   /**
@@ -218,7 +218,7 @@ public final class ProjectsPage {
   }
 
   private static SessionListFilter buildAllProjectSessionsFilter(
-      String projectKey, ProjectStatsRow project) {
+      String projectKey, ProjectStats project) {
     int limit = (int) Math.max(1, Math.min(Integer.MAX_VALUE, project.totalSessions()));
     return SessionListFilter.defaults()
         .withProject(ProjectFilter.of(projectKey))
@@ -235,7 +235,7 @@ public final class ProjectsPage {
   }
 
   private static Map<String, Object> buildProjectDetail(
-      ProjectStatsRow project, List<SessionRow> sessions, String grain) {
+      ProjectStats project, List<SessionRecord> sessions, String grain) {
     Map<String, Object> detail = new LinkedHashMap<>();
     detail.put(
         "active_period",
@@ -252,12 +252,12 @@ public final class ProjectsPage {
     return detail;
   }
 
-  private static Map<String, Object> buildSessionsKpi(List<SessionRow> sessions) {
+  private static Map<String, Object> buildSessionsKpi(List<SessionRecord> sessions) {
     LocalDate today = LocalDate.now();
     LocalDate sevenDayStart = today.minusDays(6);
     List<LocalDate> startedDates =
         sessions.stream()
-            .map(SessionRow::startedAt)
+            .map(SessionRecord::startedAt)
             .map(WebDisplayValues::parseDate)
             .filter(Objects::nonNull)
             .toList();
@@ -268,7 +268,7 @@ public final class ProjectsPage {
             .count();
     List<Double> durations =
         sessions.stream()
-            .mapToDouble(SessionRow::durationSeconds)
+            .mapToDouble(SessionRecord::durationSeconds)
             .filter(v -> v > 0)
             .boxed()
             .toList();
@@ -290,7 +290,7 @@ public final class ProjectsPage {
         formatSeconds(median(processTimes)));
   }
 
-  private static Map<String, Object> buildAgentsKpi(List<SessionRow> sessions) {
+  private static Map<String, Object> buildAgentsKpi(List<SessionRecord> sessions) {
     long claude = sessions.stream().filter(s -> "claude_code".equals(s.agent())).count();
     long qoder = sessions.stream().filter(s -> "qoder".equals(s.agent())).count();
     long codex = sessions.stream().filter(s -> "codex".equals(s.agent())).count();
@@ -305,7 +305,7 @@ public final class ProjectsPage {
         codex);
   }
 
-  private static Map<String, Object> buildTokensKpi(ProjectStatsRow project) {
+  private static Map<String, Object> buildTokensKpi(ProjectStats project) {
     return orderedMap(
         "total",
         project.totalTokens(),
@@ -320,14 +320,14 @@ public final class ProjectsPage {
   }
 
   private static Map<String, Object> buildCacheKpi(
-      ProjectStatsRow project, List<SessionRow> sessions) {
+      ProjectStats project, List<SessionRecord> sessions) {
     long inputSide =
         project.totalFreshInputTokens()
             + project.totalCacheReadTokens()
             + project.totalCacheWriteTokens();
     long eligible = 0;
     long lowRead = 0;
-    for (SessionRow session : sessions) {
+    for (SessionRecord session : sessions) {
       long sessionInput =
           session.freshInputTokens() + session.cacheReadTokens() + session.cacheWriteTokens();
       if (sessionInput <= 0) {
@@ -348,7 +348,7 @@ public final class ProjectsPage {
   }
 
   private static Map<String, Object> buildFailureKpi(
-      ProjectStatsRow project, List<SessionRow> sessions) {
+      ProjectStats project, List<SessionRecord> sessions) {
     long affected = sessions.stream().filter(s -> s.failedToolCount() > 0).count();
     long repeated = sessions.stream().filter(s -> s.failedToolCount() > 1).count();
     return orderedMap(
@@ -363,7 +363,7 @@ public final class ProjectsPage {
   }
 
   private static List<Map<String, Object>> buildAgentMix(
-      ProjectStatsRow project, List<SessionRow> sessions) {
+      ProjectStats project, List<SessionRecord> sessions) {
     List<Map<String, Object>> rows = new ArrayList<>();
     long totalTokens = Math.max(0, project.totalTokens());
     addAgentMix(
@@ -386,11 +386,11 @@ public final class ProjectsPage {
       String scope,
       long totalSessions,
       long totalTokens,
-      List<SessionRow> sessions) {
+      List<SessionRecord> sessions) {
     long sessionCount = 0;
     long tokens = 0;
     long failed = 0;
-    for (SessionRow session : sessions) {
+    for (SessionRecord session : sessions) {
       if (!key.equals(session.agent())) {
         continue;
       }
@@ -418,7 +418,7 @@ public final class ProjectsPage {
             totalTokens > 0 ? tokens * 100.0 / totalTokens : 0.0));
   }
 
-  private static Map<String, Object> buildTokenTrend(List<SessionRow> sessions, String grain) {
+  private static Map<String, Object> buildTokenTrend(List<SessionRecord> sessions, String grain) {
     List<Map<String, Object>> points = new ArrayList<>();
     long maxTotal = 0;
     for (TokenTrendBuckets.Point point : TokenTrendBuckets.fromSessions(sessions, grain)) {

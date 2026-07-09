@@ -2,10 +2,10 @@ package com.feipi.session.browser.contracttest.schema;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.Migration;
-import com.feipi.session.browser.index.sqlite.MigrationRunner;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.Migration;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.sql.Connection;
 import java.sql.ResultSet;

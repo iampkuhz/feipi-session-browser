@@ -2,9 +2,9 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
-import com.feipi.session.browser.index.sqlite.SessionListSummaryRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.ProjectStats;
+import com.feipi.session.browser.index.api.query.SessionListSummary;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectFilter;
@@ -27,7 +27,6 @@ import com.feipi.session.browser.web.model.WebDisplayValues;
 import com.feipi.session.browser.web.page.QueryParams;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
@@ -44,9 +43,9 @@ public final class ProjectDetailApiHandler {
   }
 
   /** 处理 /api/projects/{projectKey}/summary 的 GET 请求。 */
-  public void handleSummary(Context ctx) throws SQLException {
+  public void handleSummary(Context ctx) {
     String projectKey = projectKey(ctx);
-    ProjectStatsRow project = findProjectOr404(ctx, projectKey);
+    ProjectStats project = findProjectOr404(ctx, projectKey);
     if (project == null) {
       return;
     }
@@ -70,13 +69,13 @@ public final class ProjectDetailApiHandler {
   }
 
   /** 处理 /api/projects/{projectKey}/token-trend 的 GET 请求。 */
-  public void handleTokenTrend(Context ctx) throws SQLException {
+  public void handleTokenTrend(Context ctx) {
     String projectKey = projectKey(ctx);
-    ProjectStatsRow project = findProjectOr404(ctx, projectKey);
+    ProjectStats project = findProjectOr404(ctx, projectKey);
     if (project == null) {
       return;
     }
-    List<SessionRow> sessions = allProjectSessions(projectKey, project);
+    List<SessionRecord> sessions = allProjectSessions(projectKey, project);
     List<ProjectTokenTrendPoint> points = tokenTrendPoints(sessions, grain(ctx));
     ctx.json(
         new ProjectTokenTrendResponse(
@@ -90,13 +89,13 @@ public final class ProjectDetailApiHandler {
   }
 
   /** 处理 /api/projects/{projectKey}/agent-mix 的 GET 请求。 */
-  public void handleAgentMix(Context ctx) throws SQLException {
+  public void handleAgentMix(Context ctx) {
     String projectKey = projectKey(ctx);
-    ProjectStatsRow project = findProjectOr404(ctx, projectKey);
+    ProjectStats project = findProjectOr404(ctx, projectKey);
     if (project == null) {
       return;
     }
-    List<SessionRow> sessions = allProjectSessions(projectKey, project);
+    List<SessionRecord> sessions = allProjectSessions(projectKey, project);
     ctx.json(
         new ProjectAgentMixResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -108,9 +107,9 @@ public final class ProjectDetailApiHandler {
   }
 
   /** 处理 /api/projects/{projectKey}/tool-hotspots 的 GET 请求。 */
-  public void handleToolHotspots(Context ctx) throws SQLException {
+  public void handleToolHotspots(Context ctx) {
     String projectKey = projectKey(ctx);
-    ProjectStatsRow project = findProjectOr404(ctx, projectKey);
+    ProjectStats project = findProjectOr404(ctx, projectKey);
     if (project == null) {
       return;
     }
@@ -132,15 +131,15 @@ public final class ProjectDetailApiHandler {
   }
 
   /** 处理 /api/projects/{projectKey}/sessions/summary 的 GET 请求。 */
-  public void handleSessionsSummary(Context ctx) throws SQLException {
+  public void handleSessionsSummary(Context ctx) {
     String projectKey = projectKey(ctx);
-    ProjectStatsRow project = findProjectOr404(ctx, projectKey);
+    ProjectStats project = findProjectOr404(ctx, projectKey);
     if (project == null) {
       return;
     }
     Map<String, String> params = sessionParams(ctx, projectKey);
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
-    SessionListSummaryRow summary = queryRoot.sessionList().summary(filter);
+    SessionListSummary summary = queryRoot.sessionList().summary(filter);
     ctx.json(
         ApiSessionSummaries.response(
             params,
@@ -149,9 +148,9 @@ public final class ProjectDetailApiHandler {
   }
 
   /** 处理 /api/projects/{projectKey}/sessions/rows 的 GET 请求。 */
-  public void handleSessionsRows(Context ctx) throws SQLException {
+  public void handleSessionsRows(Context ctx) {
     String projectKey = projectKey(ctx);
-    ProjectStatsRow project = findProjectOr404(ctx, projectKey);
+    ProjectStats project = findProjectOr404(ctx, projectKey);
     if (project == null) {
       return;
     }
@@ -159,7 +158,7 @@ public final class ProjectDetailApiHandler {
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListUseCase.AnnotatedPageResult result =
         queryRoot.sessionList().listWithAnomalies(filter);
-    PageResult<SessionRow> page = result.page();
+    PageResult<SessionRecord> page = result.page();
     int currentPage = QueryParams.parsePage(params);
     int pageSize = QueryParams.parsePageSize(params);
     ctx.json(
@@ -171,8 +170,8 @@ public final class ProjectDetailApiHandler {
             sessionsState(page.totalCount(), hasSessionFilter(params), projectKey)));
   }
 
-  private ProjectStatsRow findProjectOr404(Context ctx, String projectKey) throws SQLException {
-    ProjectStatsRow project = queryRoot.projectList().stats(projectKey);
+  private ProjectStats findProjectOr404(Context ctx, String projectKey) {
+    ProjectStats project = queryRoot.projectList().stats(projectKey);
     if (project.totalSessions() == 0 && project.projectName().isEmpty()) {
       ctx.status(HttpStatus.NOT_FOUND);
       ctx.json(new ApiResponses.ApiErrorResponse("not_found", "project not found"));
@@ -181,8 +180,7 @@ public final class ProjectDetailApiHandler {
     return project;
   }
 
-  private List<SessionRow> allProjectSessions(String projectKey, ProjectStatsRow project)
-      throws SQLException {
+  private List<SessionRecord> allProjectSessions(String projectKey, ProjectStats project) {
     int limit = (int) Math.max(1, Math.min(PageRequest.MAX_LIMIT, project.totalSessions()));
     SessionListFilter filter =
         SessionListFilter.defaults()
@@ -193,7 +191,7 @@ public final class ProjectDetailApiHandler {
   }
 
   private static List<ProjectTokenTrendPoint> tokenTrendPoints(
-      List<SessionRow> sessions, String grain) {
+      List<SessionRecord> sessions, String grain) {
     List<ProjectTokenTrendPoint> points = new ArrayList<>();
     for (TokenTrendBuckets.Point point : TokenTrendBuckets.fromSessions(sessions, grain)) {
       points.add(
@@ -206,7 +204,7 @@ public final class ProjectDetailApiHandler {
   }
 
   private static List<ProjectAgentMixRow> agentMixRows(
-      ProjectStatsRow project, List<SessionRow> sessions) {
+      ProjectStats project, List<SessionRecord> sessions) {
     List<ProjectAgentMixRow> rows = new ArrayList<>();
     for (String agent : List.of("claude_code", "qoder", "codex")) {
       long sessionCount = 0;
@@ -215,7 +213,7 @@ public final class ProjectDetailApiHandler {
       long cacheWrite = 0;
       long output = 0;
       long failed = 0;
-      for (SessionRow session : sessions) {
+      for (SessionRecord session : sessions) {
         if (!agent.equals(session.agent())) {
           continue;
         }
@@ -242,7 +240,7 @@ public final class ProjectDetailApiHandler {
     return rows;
   }
 
-  private static TokenSegments projectTokens(ProjectStatsRow project) {
+  private static TokenSegments projectTokens(ProjectStats project) {
     return TokenSegments.of(
         project.totalFreshInputTokens(),
         project.totalCacheReadTokens(),

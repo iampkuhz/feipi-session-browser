@@ -1,15 +1,12 @@
 package com.feipi.session.browser.scan.engine;
 
-import com.feipi.session.browser.artifact.normalized.NormalizedArtifactWriter;
-import com.feipi.session.browser.artifact.normalized.WriteResult;
+import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
+import com.feipi.session.browser.scan.artifact.WriteResult;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
-import com.feipi.session.browser.index.sqlite.ArtifactRowMapper;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.SessionArtifactRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
-import com.feipi.session.browser.index.sqlite.WriteBatch;
+import com.feipi.session.browser.index.api.write.IndexWriterPort;
+import com.feipi.session.browser.index.api.write.MissingTranscriptSession;
 import com.feipi.session.browser.normalization.NormalizationEngine;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
@@ -22,8 +19,6 @@ import com.feipi.session.browser.source.spi.SourceRoot;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.sql.Connection;
-import java.sql.SQLException;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
@@ -42,10 +37,10 @@ import org.slf4j.LoggerFactory;
  * <p>处理管线：
  *
  * <ol>
- *   <li>确保 SQLite schema 已就绪（{@link IndexSchema#ensureSchema}）。
+ *   <li>确保 index schema 已就绪。
  *   <li>写入 {@code scan_log} 行（{@code status = 'running'}）。
- *   <li>遍历每个源条目：安全检查 → 发现候选项 → 逐候选解析 → 归一化 → 写入制品 → 构建 index SQL。
- *   <li>通过 {@link WriteBatch} 批量提交 index 行。
+ *   <li>遍历每个源条目：安全检查 → 发现候选项 → 逐候选解析 → 归一化 → 写入制品 → 提交 index 写入端口。
+ *   <li>通过 {@link IndexWriterPort} 批量提交 index 行。
  *   <li>更新 {@code scan_log} 行（{@code success} 或 {@code failure}）。
  *   <li>返回 {@link ScanSummary}。
  * </ol>
@@ -55,38 +50,18 @@ import org.slf4j.LoggerFactory;
  * <ul>
  *   <li>{@link NormalizationEngine} — 纯函数归一化
  *   <li>{@link NormalizedArtifactWriter} — 失败安全制品写入
- *   <li>{@link ArtifactRowMapper} — 制品到 index 行的唯一映射
- *   <li>{@link WriteBatch} — 批量 index 写入
+ *   <li>{@link IndexWriterPort} — index 写入与 scan log 抽象端口
  * </ul>
  *
- * <p>校验放置：根目录安全检查在 {@link SourceAdapter#checkRoot} 边界执行一次； 归一化制品信任 domain 不变量已验证， {@link
- * ArtifactRowMapper} 只做 DB 约束所需的非空校验。
+ * <p>校验放置：根目录安全检查在 {@link SourceAdapter#checkRoot} 边界执行一次； 归一化制品信任 domain 不变量已验证，
+ * index 约束由写入端口实现负责。
  */
 public final class FullScanEngine {
 
   private static final Logger log = LoggerFactory.getLogger(FullScanEngine.class);
 
-  /** 每 N 个候选项 flush 一次 WriteBatch，防止单事务过大。 */
+  /** 每 N 个候选项 flush 一次 index writer，防止单事务过大。 */
   private static final int FLUSH_INTERVAL = 100;
-
-  /** sessions 表 INSERT 列清单，用于 {@link #addSessionInsert} 预构建 SQL。 */
-  private static final String SESSION_INSERT_PREFIX =
-      "INSERT OR REPLACE INTO sessions ("
-          + "session_key, agent, session_id, title, project_key, project_name, "
-          + "cwd, started_at, ended_at, duration_seconds, model_execution_seconds, "
-          + "tool_execution_seconds, model, git_branch, source, "
-          + "user_message_count, assistant_message_count, tool_call_count, "
-          + "output_tokens, fresh_input_tokens, cache_read_tokens, cache_write_tokens, "
-          + "total_tokens, failed_tool_count, subagent_instance_count, "
-          + "indexed_at, file_mtime, file_path"
-          + ") VALUES (";
-
-  /** session_artifacts 表 INSERT 列清单，用于 {@link #addArtifactInsert} 预构建 SQL。 */
-  private static final String ARTIFACT_INSERT_PREFIX =
-      "INSERT OR REPLACE INTO session_artifacts ("
-          + "session_key, artifact_type, path, schema_version, source_path, "
-          + "source_mtime, size_bytes, created_at, updated_at"
-          + ") VALUES (";
 
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;
@@ -118,29 +93,29 @@ public final class FullScanEngine {
   /**
    * 执行全量扫描（无进度回调）。
    *
-   * @param writeConn SQLite 写连接，由调用方创建和管理生命周期
+   * @param indexWriter index 写入端口，由调用方创建和管理生命周期
    * @param config 扫描配置
    * @return 扫描汇总结果
    * @throws NullPointerException 当参数为 null 时
    */
-  public ScanSummary scan(Connection writeConn, ScanConfig config) {
-    return scan(writeConn, config, null);
+  public ScanSummary scan(IndexWriterPort indexWriter, ScanConfig config) {
+    return scan(indexWriter, config, null);
   }
 
   /**
    * 执行全量扫描，支持进度回调。
    *
-   * <p>在单个写连接上串行完成全部操作：schema 确保 → scan_log 开始 → 逐源处理 → index 写入 → scan_log 完成。 原始 source
+   * <p>通过写入端口串行完成全部操作：schema 确保 → scan_log 开始 → 逐源处理 → index 写入 → scan_log 完成。 原始 source
    * 文件只读，不做任何修改。
    *
-   * @param writeConn SQLite 写连接，由调用方创建和管理生命周期
+   * @param indexWriter index 写入端口，由调用方创建和管理生命周期
    * @param config 扫描配置
    * @param progress 可选的进度回调，null 表示不报告进度
    * @return 扫描汇总结果
-   * @throws NullPointerException 当 writeConn 或 config 为 null 时
+   * @throws NullPointerException 当 indexWriter 或 config 为 null 时
    */
-  public ScanSummary scan(Connection writeConn, ScanConfig config, ScanProgress progress) {
-    Objects.requireNonNull(writeConn, "writeConn 不得为 null");
+  public ScanSummary scan(IndexWriterPort indexWriter, ScanConfig config, ScanProgress progress) {
+    Objects.requireNonNull(indexWriter, "indexWriter 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
     long startMs = System.currentTimeMillis();
@@ -156,28 +131,27 @@ public final class FullScanEngine {
 
     // 1. 确保 schema
     try {
-      IndexSchema schema = IndexSchema.withDefaults();
-      schema.ensureSchema(writeConn);
-    } catch (SQLException e) {
+      indexWriter.ensureSchema();
+    } catch (RuntimeException e) {
       log.error("schema 初始化失败", e);
-      return buildErrorSummary(startMs, "Schema initialization failed: " + e.getMessage());
+      return buildErrorSummary(startMs, "Schema initialization failed: " + exceptionMessage(e));
     }
 
     // 1b. 清理旧 index 数据（full scan 每次重建完整索引，避免旧逻辑残留）
     try {
-      ScanIndexMaintenance.clearExistingIndex(writeConn, log);
-    } catch (SQLException e) {
+      indexWriter.clearExistingIndex();
+    } catch (RuntimeException e) {
       log.error("清理旧 index 失败", e);
-      return buildErrorSummary(startMs, "Clear existing index failed: " + e.getMessage());
+      return buildErrorSummary(startMs, "Clear existing index failed: " + exceptionMessage(e));
     }
 
     // 2. 开始 scan_log
     long scanLogId;
     try {
-      scanLogId = ScanLogManager.startScan(writeConn, startEpoch);
-    } catch (SQLException e) {
+      scanLogId = indexWriter.startScan(startEpoch);
+    } catch (RuntimeException e) {
       log.error("scan_log 开始记录失败", e);
-      return buildErrorSummary(startMs, "scan_log start failed: " + e.getMessage());
+      return buildErrorSummary(startMs, "scan_log start failed: " + exceptionMessage(e));
     }
 
     // 3. 处理各源
@@ -188,7 +162,6 @@ public final class FullScanEngine {
     int[] counters = new int[3]; // 计数器数组：候选总数、成功数、错误与跳过数
     int skippedCount = 0;
 
-    WriteBatch batch = new WriteBatch(writeConn, WriteBatch.DEFAULT_MAX_ENTRIES);
     boolean scanFailed = false;
 
     for (ScanConfig.SourceEntry entry : config.sourceEntries()) {
@@ -243,11 +216,16 @@ public final class FullScanEngine {
 
         // 零值指纹 → transcript/rollout 缺失 → 创建最小 index entry
         if (isTranscriptMissing(candidate)) {
-          result = processTranscriptMissingCandidate(candidate, entry.adapter(), batch);
+          result = processTranscriptMissingCandidate(candidate, entry.adapter(), indexWriter);
         } else {
           result =
               processCandidate(
-                  candidate, entry.adapter(), config, batch, normalizationEngine, artifactWriter);
+                  candidate,
+                  entry.adapter(),
+                  config,
+                  indexWriter,
+                  normalizationEngine,
+                  artifactWriter);
         }
 
         switch (result.outcome) {
@@ -273,13 +251,13 @@ public final class FullScanEngine {
         }
 
         // 定期 flush
-        if (processedInBatch >= FLUSH_INTERVAL && batch.pendingCount() > 0) {
+        if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
           try {
-            batch.flush();
-          } catch (SQLException e) {
-            log.error("WriteBatch flush 失败", e);
+            indexWriter.flushPendingWrites();
+          } catch (RuntimeException e) {
+            log.error("index writer flush 失败", e);
             issues.add(
-                new ScanIssue("", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, e.getMessage()));
+                new ScanIssue("", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
             scanFailed = true;
           }
           processedInBatch = 0;
@@ -292,11 +270,11 @@ public final class FullScanEngine {
     }
 
     // 4. 最终 flush
-    if (!scanFailed && batch.pendingCount() > 0) {
+    if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
       try {
-        batch.flush();
-      } catch (SQLException e) {
-        log.error("WriteBatch 最终 flush 失败", e);
+        indexWriter.flushPendingWrites();
+      } catch (RuntimeException e) {
+        log.error("index writer 最终 flush 失败", e);
         scanFailed = true;
       }
     }
@@ -306,11 +284,11 @@ public final class FullScanEngine {
     double endEpoch = endMs / 1000.0;
     try {
       if (scanFailed) {
-        ScanLogManager.failScan(writeConn, scanLogId, endEpoch, perSourceCountByValue);
+        indexWriter.failScan(scanLogId, endEpoch, perSourceCountByValue);
       } else {
-        ScanLogManager.completeScan(writeConn, scanLogId, endEpoch, perSourceCountByValue);
+        indexWriter.completeScan(scanLogId, endEpoch, perSourceCountByValue);
       }
-    } catch (SQLException e) {
+    } catch (RuntimeException e) {
       log.error("scan_log 完成记录失败", e);
     }
 
@@ -329,12 +307,12 @@ public final class FullScanEngine {
   /**
    * 处理单个候选项：解析 → 归一化 → 写入制品 → 构建 index SQL。
    *
-   * <p>成功时将 INSERT SQL 添加到 WriteBatch。失败时记录问题但不中断整体扫描。
+   * <p>成功时将写入请求添加到 index 写入端口。失败时记录问题但不中断整体扫描。
    *
    * @param candidate 待处理候选项
    * @param adapter 源适配器
    * @param config 扫描配置
-   * @param batch 写入批次
+   * @param indexWriter index 写入端口
    * @param normEngine 归一化引擎
    * @param artWriter 制品写入器
    * @return 候选项处理结果
@@ -343,7 +321,7 @@ public final class FullScanEngine {
       Candidate candidate,
       SourceAdapter adapter,
       ScanConfig config,
-      WriteBatch batch,
+      IndexWriterPort indexWriter,
       NormalizationEngine normEngine,
       NormalizedArtifactWriter artWriter) {
 
@@ -433,24 +411,21 @@ public final class FullScanEngine {
             CandidateOutcome.ERROR, ScanIssue.ScanPhase.ARTIFACT_WRITE, e.getMessage());
       }
 
-      // 4. 映射到 index 行并构建 SQL
+      // 4. 提交 index 写入端口
       double fileMtime = candidate.fingerprint().lastModifiedMs() / 1000.0;
       String filePathStr = filePath.toAbsolutePath().toString();
-      SessionRow sessionRow = ArtifactRowMapper.toSessionRow(artifact, fileMtime, filePathStr);
-
-      SessionArtifactRow artifactRow =
-          ArtifactRowMapper.toArtifactRow(
-              sessionRow.sessionKey(),
-              writeResult.dataPath().toString(),
-              artifact.schemaVersion(),
-              filePathStr,
-              fileMtime,
-              writeResult.contentSize(),
-              System.currentTimeMillis() / 1000.0);
-
-      // 5. 构建 INSERT SQL 并添加到 batch
-      addSessionInsert(batch, sessionRow);
-      addArtifactInsert(batch, artifactRow);
+      try {
+        indexWriter.writeNormalizedArtifact(
+            artifact,
+            writeResult.dataPath(),
+            filePathStr,
+            fileMtime,
+            writeResult.contentSize(),
+            Instant.ofEpochMilli(System.currentTimeMillis()));
+      } catch (RuntimeException e) {
+        return new CandidateResult(
+            CandidateOutcome.ERROR, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e));
+      }
 
       return new CandidateResult(CandidateOutcome.SUCCESS, null, null);
 
@@ -460,7 +435,7 @@ public final class FullScanEngine {
     }
   }
 
-  private static String exceptionMessage(Exception e) {
+  private static String exceptionMessage(Throwable e) {
     String message = e.getMessage();
     if (message != null && !message.isBlank()) {
       return message;
@@ -700,7 +675,7 @@ public final class FullScanEngine {
    * 所有计数器字段填 0，不写 artifact。
    */
   static CandidateResult processTranscriptMissingCandidate(
-      Candidate candidate, SourceAdapter adapter, WriteBatch batch) {
+      Candidate candidate, SourceAdapter adapter, IndexWriterPort indexWriter) {
     try {
       String sessionKey = candidate.sessionKey().replace('/', ':');
       String agentValue = adapter.sourceId().getValue();
@@ -732,7 +707,7 @@ public final class FullScanEngine {
         try {
           double tsMs = Double.parseDouble(tsStr);
           if (tsMs > 0) {
-            endedAt = java.time.Instant.ofEpochMilli((long) tsMs).toString();
+            endedAt = Instant.ofEpochMilli((long) tsMs).toString();
           }
         } catch (NumberFormatException ignored) {
           // 忽略无效 timestamp
@@ -740,14 +715,12 @@ public final class FullScanEngine {
       }
       // 回退：使用当前时间
       if (endedAt.isEmpty()) {
-        endedAt = java.time.Instant.now().toString();
+        endedAt = Instant.now().toString();
       }
 
-      double indexedAt = System.currentTimeMillis() / 1000.0;
-
-      // 构建最小 session row：所有计数器填 0，不写 artifact
-      SessionRow minimalRow =
-          new SessionRow(
+      // 构建最小 session 写入请求：所有计数器填 0，不写 artifact
+      indexWriter.writeMissingTranscriptSession(
+          new MissingTranscriptSession(
               sessionKey,
               agentValue,
               sessionId,
@@ -756,32 +729,13 @@ public final class FullScanEngine {
               projectName,
               meta.getOrDefault("cwd", ""),
               endedAt,
-              endedAt,
-              0,
-              0,
-              0,
               meta.getOrDefault("model", ""),
-              "",
               meta.getOrDefault("source", agentValue),
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              0,
-              indexedAt,
-              0,
-              "");
-
-      addSessionInsert(batch, minimalRow);
+              Instant.ofEpochMilli(System.currentTimeMillis())));
       return new CandidateResult(CandidateOutcome.SUCCESS, null, null);
     } catch (Exception e) {
       return new CandidateResult(
-          CandidateOutcome.ERROR, ScanIssue.ScanPhase.INDEX_WRITE, e.getMessage());
+          CandidateOutcome.ERROR, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e));
     }
   }
 
@@ -800,65 +754,6 @@ public final class FullScanEngine {
     String fileName = filePath.getFileName().toString();
     int dotIndex = fileName.lastIndexOf('.');
     return dotIndex > 0 ? fileName.substring(0, dotIndex) : fileName;
-  }
-
-  /** 将会话行写入批量插入语句，使用预定义列清单避免重复拼接。 */
-  private static void addSessionInsert(WriteBatch batch, SessionRow row) {
-    StringBuilder sb = new StringBuilder(SESSION_INSERT_PREFIX);
-    appendSqlValue(sb, row.sessionKey()).append(", ");
-    appendSqlValue(sb, row.agent()).append(", ");
-    appendSqlValue(sb, row.sessionId()).append(", ");
-    appendSqlValue(sb, row.title()).append(", ");
-    appendSqlValue(sb, row.projectKey()).append(", ");
-    appendSqlValue(sb, row.projectName()).append(", ");
-    appendSqlValue(sb, row.cwd()).append(", ");
-    appendSqlValue(sb, row.startedAt()).append(", ");
-    appendSqlValue(sb, row.endedAt()).append(", ");
-    sb.append(row.durationSeconds()).append(", ");
-    sb.append(row.modelExecutionSeconds()).append(", ");
-    sb.append(row.toolExecutionSeconds()).append(", ");
-    appendSqlValue(sb, row.model()).append(", ");
-    appendSqlValue(sb, row.gitBranch()).append(", ");
-    appendSqlValue(sb, row.source()).append(", ");
-    sb.append(row.userMessageCount()).append(", ");
-    sb.append(row.assistantMessageCount()).append(", ");
-    sb.append(row.toolCallCount()).append(", ");
-    sb.append(row.outputTokens()).append(", ");
-    sb.append(row.freshInputTokens()).append(", ");
-    sb.append(row.cacheReadTokens()).append(", ");
-    sb.append(row.cacheWriteTokens()).append(", ");
-    sb.append(row.totalTokens()).append(", ");
-    sb.append(row.failedToolCount()).append(", ");
-    sb.append(row.subagentInstanceCount()).append(", ");
-    sb.append(row.indexedAt()).append(", ");
-    sb.append(row.fileMtime()).append(", ");
-    appendSqlValue(sb, row.filePath());
-    sb.append(")");
-    batch.add(sb.toString());
-  }
-
-  /** 将制品行写入批量插入语句，使用预定义列清单避免重复拼接。 */
-  private static void addArtifactInsert(WriteBatch batch, SessionArtifactRow row) {
-    StringBuilder sb = new StringBuilder(ARTIFACT_INSERT_PREFIX);
-    appendSqlValue(sb, row.sessionKey()).append(", ");
-    appendSqlValue(sb, row.artifactType()).append(", ");
-    appendSqlValue(sb, row.path()).append(", ");
-    appendSqlValue(sb, row.schemaVersion()).append(", ");
-    appendSqlValue(sb, row.sourcePath()).append(", ");
-    sb.append(row.sourceMtime()).append(", ");
-    sb.append(row.sizeBytes()).append(", ");
-    sb.append(row.createdAt()).append(", ");
-    sb.append(row.updatedAt());
-    sb.append(")");
-    batch.add(sb.toString());
-  }
-
-  /** 将字符串值追加为 SQL 字面量（单引号转义）。 */
-  private static StringBuilder appendSqlValue(StringBuilder sb, String value) {
-    sb.append("'");
-    sb.append(value.replace("'", "''"));
-    sb.append("'");
-    return sb;
   }
 
   /** 构建错误汇总。 */

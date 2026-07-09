@@ -281,9 +281,9 @@ class PythonRuntimeZeroGateTest {
     }
 
     @Test
-    @DisplayName("index-sqlite 模块不通过 ProcessBuilder 调用 Python")
+    @DisplayName("index-store-sqlite 模块不通过 ProcessBuilder 调用 Python")
     void indexSqliteNoPythonProcessBuilder() throws IOException {
-      Path src = findProjectRoot().resolve("java/index-sqlite/src/main/java");
+      Path src = findProjectRoot().resolve("java/index-store-sqlite/src/main/java");
       if (!Files.exists(src)) {
         return;
       }

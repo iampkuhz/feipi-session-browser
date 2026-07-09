@@ -6,7 +6,6 @@ import io.javalin.http.Context;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
-import java.sql.SQLException;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -43,7 +42,7 @@ public final class SessionDetailRequest {
 
   /** 加载带 anomaly 注解的 session detail。 */
   public Optional<SessionDetailUseCase.AnnotatedDetail> load(SessionDetailUseCase useCase)
-      throws SQLException, IOException {
+      throws IOException {
     Objects.requireNonNull(useCase, "useCase 不得为 null");
     return useCase.getDetailWithAnomalies(sessionKey, visibility);
   }

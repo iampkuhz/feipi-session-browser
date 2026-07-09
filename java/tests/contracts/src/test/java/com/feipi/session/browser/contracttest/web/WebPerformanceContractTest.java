@@ -3,10 +3,11 @@ package com.feipi.session.browser.contracttest.web;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.contracttest.support.ContractTestComposition;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
 import io.javalin.testtools.JavalinTest;
@@ -51,7 +52,7 @@ class WebPerformanceContractTest {
   }
 
   private WebCompositionRoot createWebRoot() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = ContractTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     return new WebCompositionRoot(root, WebConfig.defaults());
   }
 

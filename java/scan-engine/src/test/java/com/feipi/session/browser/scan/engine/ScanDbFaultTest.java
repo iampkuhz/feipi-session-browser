@@ -2,8 +2,8 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.MigrationRunner;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -62,7 +62,7 @@ class ScanDbFaultTest {
                 tempDir.resolve("artifacts"));
 
         FullScanEngine engine = new FullScanEngine();
-        ScanSummary summary = engine.scan(readOnlyConn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(readOnlyConn), config);
 
         // schema 失败应返回错误汇总
         assertThat(summary.errorCount()).isGreaterThanOrEqualTo(0);
@@ -89,8 +89,8 @@ class ScanDbFaultTest {
         }
 
         // 模拟 flush 失败
-        com.feipi.session.browser.index.sqlite.WriteBatch batch =
-            new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 5000);
+        com.feipi.session.browser.index.store.sqlite.tx.WriteBatch batch =
+            new com.feipi.session.browser.index.store.sqlite.tx.WriteBatch(conn, 5000);
         batch.add("INSERT INTO test_rollback VALUES (1, 'test')");
 
         // 正常 flush 应成功
@@ -104,8 +104,8 @@ class ScanDbFaultTest {
         }
 
         // 模拟失败 SQL
-        com.feipi.session.browser.index.sqlite.WriteBatch batch2 =
-            new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 5000);
+        com.feipi.session.browser.index.store.sqlite.tx.WriteBatch batch2 =
+            new com.feipi.session.browser.index.store.sqlite.tx.WriteBatch(conn, 5000);
         batch2.add("INVALID SQL THAT WILL FAIL");
         try {
           batch2.flush();
@@ -129,8 +129,8 @@ class ScanDbFaultTest {
     void writeBatchCapacityOverflow() throws Exception {
       Connection conn = SqliteTestHelper.createInMemoryConnection();
       try {
-        com.feipi.session.browser.index.sqlite.WriteBatch batch =
-            new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 3);
+        com.feipi.session.browser.index.store.sqlite.tx.WriteBatch batch =
+            new com.feipi.session.browser.index.store.sqlite.tx.WriteBatch(conn, 3);
 
         batch.add("INSERT 1");
         batch.add("INSERT 2");
@@ -171,7 +171,7 @@ class ScanDbFaultTest {
                 tempDir.resolve("artifacts"));
 
         FullScanEngine engine = new FullScanEngine();
-        engine.scan(conn, config);
+        engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         try (Statement stmt = conn.createStatement();
             ResultSet rs =
@@ -202,7 +202,7 @@ class ScanDbFaultTest {
                 tempDir.resolve("artifacts"));
 
         FullScanEngine engine = new FullScanEngine();
-        ScanSummary summary = engine.scan(conn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         assertThat(summary.errorCount()).isEqualTo(1);
 
@@ -242,7 +242,7 @@ class ScanDbFaultTest {
                 invalidArtifactDir);
 
         FullScanEngine engine = new FullScanEngine();
-        ScanSummary summary = engine.scan(conn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         // 应返回错误汇总
         assertThat(summary.totalCandidates()).isZero();

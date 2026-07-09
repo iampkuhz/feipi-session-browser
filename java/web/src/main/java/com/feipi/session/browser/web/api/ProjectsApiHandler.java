@@ -1,8 +1,8 @@
 package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.ProjectListSummaryRow;
-import com.feipi.session.browser.index.sqlite.ProjectStatsRow;
+import com.feipi.session.browser.index.api.query.ProjectListSummary;
+import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
 import com.feipi.session.browser.web.api.PageApiDtos.ActiveFilterDto;
@@ -17,7 +17,6 @@ import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsRowsRespon
 import com.feipi.session.browser.web.api.ProjectsApiResponses.ProjectsSummaryResponse;
 import com.feipi.session.browser.web.page.QueryParams;
 import io.javalin.http.Context;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -33,10 +32,10 @@ public final class ProjectsApiHandler {
   }
 
   /** 处理 /api/projects/summary 的 GET 请求。 */
-  public void handleSummary(Context ctx) throws SQLException {
+  public void handleSummary(Context ctx) {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     ProjectListFilter filter = QueryParams.parseProjectListFilter(params);
-    ProjectListSummaryRow summary = queryRoot.projectList().summary(filter);
+    ProjectListSummary summary = queryRoot.projectList().summary(filter);
     ctx.json(
         new ProjectsSummaryResponse(
             ApiResponses.SCHEMA_VERSION,
@@ -54,10 +53,10 @@ public final class ProjectsApiHandler {
   }
 
   /** 处理 /api/projects/rows 的 GET 请求。 */
-  public void handleRows(Context ctx) throws SQLException {
+  public void handleRows(Context ctx) {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     ProjectListFilter filter = QueryParams.parseProjectListFilter(params);
-    PageResult<ProjectStatsRow> page = queryRoot.projectList().list(filter);
+    PageResult<ProjectStats> page = queryRoot.projectList().list(filter);
     List<ProjectRowDto> rows = page.items().stream().map(ProjectsApiHandler::rowDto).toList();
     ctx.json(
         ApiPageRows.response(
@@ -85,7 +84,7 @@ public final class ProjectsApiHandler {
                 : PageStateDto.ready()));
   }
 
-  private static ProjectRowDto rowDto(ProjectStatsRow row) {
+  private static ProjectRowDto rowDto(ProjectStats row) {
     return new ProjectRowDto(
         row.projectKey(),
         row.projectName(),

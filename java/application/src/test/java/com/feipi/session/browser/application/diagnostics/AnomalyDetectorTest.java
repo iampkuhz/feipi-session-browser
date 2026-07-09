@@ -3,7 +3,7 @@ package com.feipi.session.browser.application.diagnostics;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;

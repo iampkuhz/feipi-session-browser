@@ -2,8 +2,8 @@ package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
 import com.feipi.session.browser.application.diagnostics.DiagnosticRegistry;
-import com.feipi.session.browser.index.sqlite.PercentileCalculator;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.query.api.PercentileCalculator;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.AnomalyFilter;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
@@ -25,7 +25,7 @@ import java.util.Objects;
  *
  * <ul>
  *   <li>异常定义和阈值由注册表和百分位计算器维护。
- *   <li>本 use case 信任已验证的 {@link SessionRow} 数据。
+ *   <li>本 use case 信任已验证的 {@link SessionRecord} 数据。
  * </ul>
  */
 public final class DiagnosticsUseCase {
@@ -40,7 +40,7 @@ public final class DiagnosticsUseCase {
    * @param filter 异常过滤器，null 时不过滤
    * @return 过滤后的异常摘要列表，顺序与输入一致
    */
-  public List<SessionAnomalySummary> detectWithFilter(List<SessionRow> rows, AnomalyFilter filter) {
+  public List<SessionAnomalySummary> detectWithFilter(List<SessionRecord> rows, AnomalyFilter filter) {
     Objects.requireNonNull(rows, "rows 不得为 null");
 
     List<SessionAnomalySummary> all = AnomalyDetector.detectAll(rows);

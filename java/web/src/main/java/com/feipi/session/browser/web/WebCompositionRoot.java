@@ -1,6 +1,7 @@
 package com.feipi.session.browser.web;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.web.api.ApiResponses.ApiErrorResponse;
 import com.feipi.session.browser.web.api.DashboardApiHandler;
 import com.feipi.session.browser.web.api.ExportApiHandler;
@@ -175,12 +176,6 @@ public final class WebCompositionRoot {
   /** 注册 JSON API 路由。 */
   private static void registerApiRoutes(
       io.javalin.config.JavalinConfig javalinConfig, QueryCompositionRoot queryRoot) {
-    com.feipi.session.browser.application.query.repository.SessionQueryRepository sessionQueryRepo =
-        new com.feipi.session.browser.application.query.repository.SessionQueryRepository(
-            queryRoot.indexConnection());
-    com.feipi.session.browser.application.sessiondetail.SessionDetailRepository detailRepo =
-        new com.feipi.session.browser.application.sessiondetail.SessionDetailRepository(
-            sessionQueryRepo);
     DashboardApiHandler dashboardApiHandler = new DashboardApiHandler(queryRoot);
     javalinConfig.routes.get("/api/dashboard/summary", dashboardApiHandler::handleSummary);
     javalinConfig.routes.get(
@@ -254,7 +249,7 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get(
         "/api/sessions/{agent}/{sessionId}/payloads", sessionDetailApiHandler::handlePayloads);
 
-    SessionApiService apiService = new SessionApiService(detailRepo);
+    SessionApiService apiService = new SessionApiService(queryRoot.sessionDetail());
     SessionApiHandler apiHandler = new SessionApiHandler(apiService);
     SessionApiRouter apiRouter = new SessionApiRouter(apiHandler);
 
@@ -291,7 +286,7 @@ public final class WebCompositionRoot {
         });
 
     javalinConfig.routes.exception(
-        java.sql.SQLException.class,
+        IndexQueryException.class,
         (e, ctx) -> {
           LOG.error("数据库查询失败", e);
           ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);

@@ -1,10 +1,10 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.application.sessiondetail.NormalizedArtifactReader;
+import com.feipi.session.browser.index.api.query.AggregateQueryPort;
+import com.feipi.session.browser.index.api.query.SessionDetailPort;
+import com.feipi.session.browser.index.api.query.SessionQueryPort;
+import java.util.Objects;
 
 /**
  * 查询 composition root。
@@ -22,47 +22,68 @@ public final class QueryCompositionRoot {
   private final DiagnosticsUseCase diagnostics;
   private final QueryCache cache;
   private final int schemaVersion;
-  private final IndexConnection indexConnection;
 
   /**
    * 创建 composition root。
    *
-   * @param indexConnection 已初始化的 index 连接
+   * @param sessionRepository 会话查询端口
+   * @param aggregateRepository 聚合查询端口
+   * @param detailRepository 会话详情查询端口
+   * @param artifactReader 归一化制品读取器
    * @param schemaVersion 当前 schema 版本号
    * @param cache 可选缓存，null 时不缓存
    */
   public QueryCompositionRoot(
-      IndexConnection indexConnection, SchemaVersion schemaVersion, QueryCache cache) {
-    if (indexConnection == null) {
-      throw new IllegalArgumentException("indexConnection 不得为 null");
-    }
-    if (schemaVersion == null) {
-      throw new IllegalArgumentException("schemaVersion 不得为 null");
-    }
-
-    this.schemaVersion = schemaVersion.version();
+      SessionQueryPort sessionRepository,
+      AggregateQueryPort aggregateRepository,
+      SessionDetailPort detailRepository,
+      NormalizedArtifactReader artifactReader,
+      int schemaVersion,
+      QueryCache cache) {
+    this.schemaVersion = schemaVersion;
     this.cache = cache;
-    this.indexConnection = indexConnection;
 
-    SessionQueryRepository sessionRepo = new SessionQueryRepository(indexConnection);
-    AggregateQueryRepository aggregateRepo = new AggregateQueryRepository(indexConnection);
-    SessionDetailRepository detailRepo = new SessionDetailRepository(sessionRepo);
-
-    this.sessionList = new SessionListUseCase(sessionRepo, cache, this.schemaVersion);
-    this.projectList = new ProjectListUseCase(aggregateRepo, cache, this.schemaVersion);
-    this.dashboard = new DashboardUseCase(aggregateRepo, cache, this.schemaVersion);
-    this.sessionDetail = new SessionDetailUseCase(detailRepo, this.schemaVersion);
+    this.sessionList =
+        new SessionListUseCase(
+            Objects.requireNonNull(sessionRepository, "sessionRepository 不得为 null"),
+            cache,
+            schemaVersion);
+    this.projectList =
+        new ProjectListUseCase(
+            Objects.requireNonNull(aggregateRepository, "aggregateRepository 不得为 null"),
+            cache,
+            schemaVersion);
+    this.dashboard = new DashboardUseCase(aggregateRepository, cache, schemaVersion);
+    this.sessionDetail =
+        new SessionDetailUseCase(
+            Objects.requireNonNull(detailRepository, "detailRepository 不得为 null"),
+            Objects.requireNonNull(artifactReader, "artifactReader 不得为 null"),
+            schemaVersion);
     this.diagnostics = new DiagnosticsUseCase();
   }
 
   /**
    * 创建无缓存的 composition root。
    *
-   * @param indexConnection 已初始化的 index 连接
+   * @param sessionRepository 会话查询端口
+   * @param aggregateRepository 聚合查询端口
+   * @param detailRepository 会话详情查询端口
+   * @param artifactReader 归一化制品读取器
    * @param schemaVersion 当前 schema 版本号
    */
-  public QueryCompositionRoot(IndexConnection indexConnection, SchemaVersion schemaVersion) {
-    this(indexConnection, schemaVersion, null);
+  public QueryCompositionRoot(
+      SessionQueryPort sessionRepository,
+      AggregateQueryPort aggregateRepository,
+      SessionDetailPort detailRepository,
+      NormalizedArtifactReader artifactReader,
+      int schemaVersion) {
+    this(
+        sessionRepository,
+        aggregateRepository,
+        detailRepository,
+        artifactReader,
+        schemaVersion,
+        null);
   }
 
   /** 获取会话列表 use case。 */
@@ -117,16 +138,5 @@ public final class QueryCompositionRoot {
    */
   public int schemaVersion() {
     return schemaVersion;
-  }
-
-  /**
-   * 获取底层 index 连接。
-   *
-   * <p>供 Web 层创建共享连接的仓库实例（如 {@code SessionDetailRepository}）。
-   *
-   * @return index 连接实例
-   */
-  public IndexConnection indexConnection() {
-    return indexConnection;
   }
 }

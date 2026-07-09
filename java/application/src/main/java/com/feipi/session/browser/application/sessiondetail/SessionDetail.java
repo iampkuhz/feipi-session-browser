@@ -1,6 +1,6 @@
 package com.feipi.session.browser.application.sessiondetail;
 
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
@@ -10,7 +10,7 @@ import java.util.Objects;
 /**
  * 会话详情聚合模型。
  *
- * <p>组合 {@link SessionRow} 基础行数据和归一化制品元信息，提供详情页所需的全部查询层数据。 不包含 HTTP 上下文或 Web view model， 由上层
+ * <p>组合 {@link SessionRecord} 基础行数据和归一化制品元信息，提供详情页所需的全部查询层数据。 不包含 HTTP 上下文或 Web view model， 由上层
  * presenter 消费。
  *
  * <p>不变量：
@@ -31,7 +31,7 @@ import java.util.Objects;
  * @param cacheKey 缓存键，包含制品 hash 和 index 版本信息
  */
 public record SessionDetail(
-    SessionRow sessionRow,
+    SessionRecord sessionRow,
     List<CallRound> rounds,
     List<PayloadSource> payloadSources,
     PayloadVisibility visibility,
@@ -64,7 +64,7 @@ public record SessionDetail(
    * @param visibility 可见性策略
    * @return 仅包含行数据的详情实例
    */
-  public static SessionDetail rowOnly(SessionRow sessionRow, PayloadVisibility visibility) {
+  public static SessionDetail rowOnly(SessionRecord sessionRow, PayloadVisibility visibility) {
     return new SessionDetail(sessionRow, List.of(), List.of(), visibility, "", "", "");
   }
 

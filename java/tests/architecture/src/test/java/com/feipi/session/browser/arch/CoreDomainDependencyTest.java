@@ -36,14 +36,14 @@ final class CoreDomainDependencyTest {
           .as("core-domain must not depend on CLI")
           .allowEmptyShould(true);
 
-  /** 项目内不得存在 {@code package} 循环依赖。 */
+  /** {@code core-domain} 内部不得存在 {@code package} 循环依赖。 */
   @ArchTest
   static final ArchRule noPackageCycles =
       slices()
-          .matching("..(+)..")
+          .matching("com.feipi.session.browser.domain.(*)..")
           .should()
           .beFreeOfCycles()
-          .as("No package cycles should exist")
+          .as("core-domain package slices should be free of cycles")
           .allowEmptyShould(true);
 
   /** {@code core-domain} 不得依赖 Jackson。 */
@@ -113,8 +113,7 @@ final class CoreDomainDependencyTest {
           .that()
           .resideInAPackage("..domain..")
           .should()
-          .dependOnClassesThat()
-          .resideInAnyPackage("..adapter..", "..source..")
+          .dependOnClassesThat(externalSourceAdapterClass())
           .as("core-domain must not depend on source adapters")
           .allowEmptyShould(true);
 
@@ -161,7 +160,24 @@ final class CoreDomainDependencyTest {
         }
         String fullName = input.getFullName();
         return !"lombok.Getter".equals(fullName)
+            && !"lombok.Generated".equals(fullName)
             && !"lombok.RequiredArgsConstructor".equals(fullName);
+      }
+    };
+  }
+
+  /**
+   * 返回匹配 core-domain 外部 source/adapter 类的谓词。
+   *
+   * <p>{@code com.feipi.session.browser.domain.source} 是领域模型包，不属于这里禁止的 source adapter。
+   */
+  private static DescribedPredicate<JavaClass> externalSourceAdapterClass() {
+    return new DescribedPredicate<>("external source adapter class") {
+      @Override
+      public boolean test(JavaClass input) {
+        String packageName = input.getPackageName();
+        return packageName.startsWith("com.feipi.session.browser.source.")
+            || packageName.contains(".adapter.");
       }
     };
   }

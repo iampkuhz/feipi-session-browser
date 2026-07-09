@@ -3,12 +3,12 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":java:common"))
     implementation(project(":java:core-domain"))
     implementation(project(":java:source-spi"))
-    implementation(project(":java:sources"))
     implementation(project(":java:normalization-engine"))
-    implementation(project(":java:artifact-normalized"))
-    implementation(project(":java:index-sqlite"))
+    implementation(project(":java:index-api"))
+    implementation(libs.bundles.jackson)
     implementation(libs.slf4j.api)
 
     testImplementation(libs.junit.jupiter)

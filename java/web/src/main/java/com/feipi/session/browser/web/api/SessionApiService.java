@@ -1,23 +1,18 @@
 package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
+import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
-import com.feipi.session.browser.application.sessiondetail.SessionDetailRepository;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
-import com.feipi.session.browser.index.sqlite.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.sqlite.SessionArtifactRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.io.IOException;
-import java.nio.file.Path;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -36,7 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 public final class SessionApiService {
 
-  private final SessionDetailRepository detailRepository;
+  private final SessionDetailUseCase detailUseCase;
   private final ConcurrentHashMap<String, SessionApiContext> contextCache =
       new ConcurrentHashMap<>();
 
@@ -46,10 +41,10 @@ public final class SessionApiService {
   /**
    * 创建会话 API 服务。
    *
-   * @param detailRepository 会话详情仓库
+   * @param detailUseCase 会话详情 use case
    */
-  public SessionApiService(SessionDetailRepository detailRepository) {
-    this.detailRepository = Objects.requireNonNull(detailRepository, "detailRepository 不得为 null");
+  public SessionApiService(SessionDetailUseCase detailUseCase) {
+    this.detailUseCase = Objects.requireNonNull(detailUseCase, "detailUseCase 不得为 null");
   }
 
   /**
@@ -60,11 +55,9 @@ public final class SessionApiService {
    * @param sessionKey 会话主键
    * @param visibility payload 可见性策略
    * @return API 上下文，会话不存在时返回 empty
-   * @throws SQLException 数据库查询失败
    * @throws SessionDataException 制品加载失败
    */
-  public Optional<SessionApiContext> getContext(String sessionKey, PayloadVisibility visibility)
-      throws SQLException {
+  public Optional<SessionApiContext> getContext(String sessionKey, PayloadVisibility visibility) {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
@@ -80,46 +73,23 @@ public final class SessionApiService {
   }
 
   /** 加载会话数据并构建 API 上下文。 */
-  private Optional<SessionApiContext> loadContext(String sessionKey, PayloadVisibility visibility)
-      throws SQLException {
-    Optional<SessionRow> rowOpt = detailRepository.findSessionRow(sessionKey);
-    if (rowOpt.isEmpty()) {
-      return Optional.empty();
-    }
-
-    SessionRow row = rowOpt.get();
-    Optional<SessionArtifactRow> artifactRowOpt =
-        detailRepository.findNormalizedArtifact(sessionKey);
-
-    if (artifactRowOpt.isEmpty()) {
-      // 无制品：返回仅行数据的上下文，使用空 payload lookup
-      SessionDetail detail = SessionDetail.rowOnly(row, visibility);
-      PayloadLookup emptyLookup = emptyPayloadLookup(visibility);
-      return Optional.of(new SessionApiContext(detail, null, emptyLookup));
-    }
-
-    // 加载归一化制品
-    Path artifactPath = Path.of(artifactRowOpt.get().path());
-    NormalizedSessionArtifact artifact;
+  private Optional<SessionApiContext> loadContext(String sessionKey, PayloadVisibility visibility) {
+    SessionDetailUseCase.DetailContext context;
     try {
-      artifact = NormalizedArtifactLoader.load(artifactPath);
+      Optional<SessionDetailUseCase.DetailContext> loaded =
+          detailUseCase.getDetailContext(sessionKey, visibility);
+      if (loaded.isEmpty()) {
+        return Optional.empty();
+      }
+      context = loaded.get();
     } catch (IOException e) {
       throw new SessionDataException("归一化制品加载失败: " + sessionKey, e);
     }
 
-    SessionDetail detail = buildDetail(row, artifact, visibility, artifactRowOpt.get().path());
-    PayloadLookup payloadLookup = PayloadLookup.fromArtifact(artifact, visibility);
-
-    return Optional.of(new SessionApiContext(detail, artifact, payloadLookup));
-  }
-
-  /** 装配会话详情。 */
-  private static SessionDetail buildDetail(
-      SessionRow row,
-      NormalizedSessionArtifact artifact,
-      PayloadVisibility visibility,
-      String artifactPath) {
-    return SessionDetailAssembler.assemble(row, artifact, visibility, artifactPath, 0);
+    NormalizedSessionArtifact artifact = context.artifact();
+    PayloadLookup payloadLookup =
+        artifact == null ? emptyPayloadLookup(visibility) : PayloadLookup.fromArtifact(artifact, visibility);
+    return Optional.of(new SessionApiContext(context.detail(), artifact, payloadLookup));
   }
 
   /** 创建空 payload lookup，用于无制品场景。 */
@@ -188,7 +158,7 @@ public final class SessionApiService {
     }
 
     /** 获取会话行数据。 */
-    public SessionRow sessionRow() {
+    public SessionRecord sessionRow() {
       return detail.sessionRow();
     }
 

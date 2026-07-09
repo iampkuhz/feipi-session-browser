@@ -2,12 +2,12 @@ package com.feipi.session.browser.web.page;
 
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.ActivityTrendRow;
-import com.feipi.session.browser.index.sqlite.AgentBreakdownRow;
-import com.feipi.session.browser.index.sqlite.AgentEfficiencyRow;
-import com.feipi.session.browser.index.sqlite.DashboardRow;
-import com.feipi.session.browser.index.sqlite.KpiSupplementRow;
-import com.feipi.session.browser.index.sqlite.TrendDayRow;
+import com.feipi.session.browser.index.api.query.ActivityTrend;
+import com.feipi.session.browser.index.api.query.AgentBreakdown;
+import com.feipi.session.browser.index.api.query.AgentEfficiency;
+import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.index.api.query.KpiSupplement;
+import com.feipi.session.browser.index.api.query.TrendDay;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.TrendFilter;
 import com.feipi.session.browser.web.model.WebDisplayValues;
@@ -15,7 +15,7 @@ import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import java.sql.SQLException;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -82,8 +82,8 @@ public final class DashboardPage {
 
       // 全局统计
       AgentFilter agentFilter = buildAgentFilter(agentScope);
-      DashboardRow stats = useCase.stats(agentFilter);
-      KpiSupplementRow kpiSupplement = useCase.kpiSupplement(agentFilter);
+      DashboardStats stats = useCase.stats(agentFilter);
+      KpiSupplement kpiSupplement = useCase.kpiSupplement(agentFilter);
 
       // 趋势数据
       int days = GRAIN_DAYS.getOrDefault(grain, 30);
@@ -91,12 +91,12 @@ public final class DashboardPage {
       if (!agentFilter.isUnfiltered()) {
         trendFilter = trendFilter.withAgent(agentFilter);
       }
-      List<TrendDayRow> trendRows = useCase.trendData(trendFilter);
+      List<TrendDay> trendRows = useCase.trendData(trendFilter);
       // cache health 使用未过滤的全局时间轴（与 Python 主分支对齐）
-      List<TrendDayRow> unfilteredTrendRows = useCase.trendData(TrendFilter.ofDays(days));
-      List<ActivityTrendRow> activityRows = useCase.activityTrend(trendFilter);
-      List<AgentEfficiencyRow> efficiencyRows = useCase.agentEfficiency();
-      List<AgentBreakdownRow> agentBreakdown = useCase.agentBreakdown();
+      List<TrendDay> unfilteredTrendRows = useCase.trendData(TrendFilter.ofDays(days));
+      List<ActivityTrend> activityRows = useCase.activityTrend(trendFilter);
+      List<AgentEfficiency> efficiencyRows = useCase.agentEfficiency();
+      List<AgentBreakdown> agentBreakdown = useCase.agentBreakdown();
 
       // 组装模板上下文
       Map<String, Object> context = new HashMap<>();
@@ -126,7 +126,7 @@ public final class DashboardPage {
       String html = templates.render("dashboard.html", context);
       ctx.html(html);
 
-    } catch (SQLException e) {
+    } catch (IndexQueryException e) {
       LOG.error("Dashboard 查询失败", e);
       ctx.status(HttpStatus.INTERNAL_SERVER_ERROR);
       ctx.html(
@@ -161,10 +161,10 @@ public final class DashboardPage {
   }
 
   private static List<Map<String, Object>> buildKpis(
-      DashboardRow stats,
-      KpiSupplementRow supplement,
-      List<TrendDayRow> trendRows,
-      List<ActivityTrendRow> activityRows) {
+      DashboardStats stats,
+      KpiSupplement supplement,
+      List<TrendDay> trendRows,
+      List<ActivityTrend> activityRows) {
     long inputSide =
         stats.totalFreshInputTokens()
             + stats.totalCacheReadTokens()
@@ -201,12 +201,12 @@ public final class DashboardPage {
       Double latest = null;
       Double prev = null;
       for (int i = trendRows.size() - 1; i >= 0 && latest == null; i--) {
-        TrendDayRow r = trendRows.get(i);
+        TrendDay r = trendRows.get(i);
         long is = r.freshInputTokens() + r.cacheReadTokens() + r.cacheWriteTokens();
         if (is > 0) {
           latest = (double) r.cacheReadTokens() / is;
           for (int j = i - 1; j >= 0; j--) {
-            TrendDayRow p = trendRows.get(j);
+            TrendDay p = trendRows.get(j);
             long pis = p.freshInputTokens() + p.cacheReadTokens() + p.cacheWriteTokens();
             if (pis > 0) {
               prev = (double) p.cacheReadTokens() / pis;
@@ -490,9 +490,9 @@ public final class DashboardPage {
     return "0";
   }
 
-  private static List<Map<String, Object>> buildTrend(List<TrendDayRow> rows) {
+  private static List<Map<String, Object>> buildTrend(List<TrendDay> rows) {
     List<Map<String, Object>> result = new ArrayList<>();
-    for (TrendDayRow row : rows) {
+    for (TrendDay row : rows) {
       Map<String, Object> map = new LinkedHashMap<>();
       map.put("date", row.date());
       map.put("claude_count", row.claudeCount());
@@ -514,9 +514,9 @@ public final class DashboardPage {
     return result;
   }
 
-  private static List<Map<String, Object>> buildPromptActivity(List<ActivityTrendRow> rows) {
+  private static List<Map<String, Object>> buildPromptActivity(List<ActivityTrend> rows) {
     List<Map<String, Object>> result = new ArrayList<>();
-    for (ActivityTrendRow row : rows) {
+    for (ActivityTrend row : rows) {
       Map<String, Object> map = new LinkedHashMap<>();
       map.put("date", row.date());
       map.put("claude_prompts", row.claudePrompts());
@@ -530,12 +530,12 @@ public final class DashboardPage {
     return result;
   }
 
-  private static Map<String, Object> buildCacheHealth(List<TrendDayRow> rows, String agentScope) {
+  private static Map<String, Object> buildCacheHealth(List<TrendDay> rows, String agentScope) {
     List<Map<String, Object>> series = new ArrayList<>();
     String scopedPrefix = scopeToCachePrefix(agentScope);
     Double latestRatio = null;
     Double lowestRatio = null;
-    for (TrendDayRow row : rows) {
+    for (TrendDay row : rows) {
       Map<String, Object> map = new LinkedHashMap<>();
       map.put("date", row.date());
       // Average = 所有 agent 输入侧 token 之和（与 Python 行为一致）
@@ -569,7 +569,7 @@ public final class DashboardPage {
   }
 
   /** 返回指定 prefix 对应的 cache read ratio，输入侧为 0 时返回 null。 */
-  private static Double cacheRatioForPrefix(TrendDayRow row, String prefix) {
+  private static Double cacheRatioForPrefix(TrendDay row, String prefix) {
     long fresh;
     long read;
     long write;
@@ -600,13 +600,13 @@ public final class DashboardPage {
   }
 
   private static Map<String, Object> buildDashboardSummary(
-      List<TrendDayRow> trendRows,
-      List<ActivityTrendRow> activityRows,
+      List<TrendDay> trendRows,
+      List<ActivityTrend> activityRows,
       Map<String, Object> cacheHealth) {
     Map<String, Object> summary = new LinkedHashMap<>();
-    long totalSessions = trendRows.stream().mapToLong(TrendDayRow::totalCount).sum();
-    long totalTokens = trendRows.stream().mapToLong(TrendDayRow::totalTokens).sum();
-    long totalPrompts = activityRows.stream().mapToLong(ActivityTrendRow::totalPrompts).sum();
+    long totalSessions = trendRows.stream().mapToLong(TrendDay::totalCount).sum();
+    long totalTokens = trendRows.stream().mapToLong(TrendDay::totalTokens).sum();
+    long totalPrompts = activityRows.stream().mapToLong(ActivityTrend::totalPrompts).sum();
     summary.put(
         "latest_sessions",
         trendRows.isEmpty() ? "—" : trendRows.get(trendRows.size() - 1).totalCount());
@@ -638,22 +638,22 @@ public final class DashboardPage {
   }
 
   private static Map<String, Object> buildAllAgentsBranch(
-      DashboardRow stats,
-      List<TrendDayRow> trendRows,
-      List<ActivityTrendRow> activityRows,
-      List<AgentEfficiencyRow> efficiencyRows,
-      List<AgentBreakdownRow> agentBreakdown) {
+      DashboardStats stats,
+      List<TrendDay> trendRows,
+      List<ActivityTrend> activityRows,
+      List<AgentEfficiency> efficiencyRows,
+      List<AgentBreakdown> agentBreakdown) {
 
     // 说明: Contribution bars 与 All Agents 表均使用全量 indexed sessions。
-    Map<String, AgentBreakdownRow> breakdownMap = new LinkedHashMap<>();
-    for (AgentBreakdownRow row : agentBreakdown) {
+    Map<String, AgentBreakdown> breakdownMap = new LinkedHashMap<>();
+    for (AgentBreakdown row : agentBreakdown) {
       breakdownMap.put(row.agent(), row);
     }
     long totalSessionsAll =
-        agentBreakdown.stream().mapToLong(AgentBreakdownRow::sessionCount).sum();
-    long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalTokens).sum();
+        agentBreakdown.stream().mapToLong(AgentBreakdown::sessionCount).sum();
+    long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdown::totalTokens).sum();
     long totalPromptsAll =
-        agentBreakdown.stream().mapToLong(AgentBreakdownRow::totalUserMessages).sum();
+        agentBreakdown.stream().mapToLong(AgentBreakdown::totalUserMessages).sum();
     AgentContributionTotals totals =
         new AgentContributionTotals(totalSessionsAll, totalTokensAll, totalPromptsAll);
 
@@ -688,7 +688,7 @@ public final class DashboardPage {
 
   /** 构建单个 agent 的贡献行，包含 contribution bar 数据（range）和 All Agents 表数据（全量）。 */
   private static Map<String, Object> buildAgentContributionRow(
-      String dbAgent, String display, AgentBreakdownRow breakdown, AgentContributionTotals totals) {
+      String dbAgent, String display, AgentBreakdown breakdown, AgentContributionTotals totals) {
     long rangeSessions = contributionSessions(breakdown);
     long rangeTokens = contributionTokens(breakdown);
     long rangePrompts = contributionPrompts(breakdown);
@@ -847,7 +847,7 @@ public final class DashboardPage {
   }
 
   private static Map<String, Object> buildSingleAgentBranch(
-      String agentScope, List<AgentEfficiencyRow> efficiencyRows) {
+      String agentScope, List<AgentEfficiency> efficiencyRows) {
     if ("all".equals(agentScope)) {
       return Map.of();
     }
@@ -863,9 +863,9 @@ public final class DashboardPage {
   }
 
   private static List<Map<String, Object>> buildEfficiencyRows(
-      List<AgentEfficiencyRow> rows, String agentFilter) {
+      List<AgentEfficiency> rows, String agentFilter) {
     List<Map<String, Object>> result = new ArrayList<>();
-    for (AgentEfficiencyRow row : rows) {
+    for (AgentEfficiency row : rows) {
       if (agentFilter != null && !agentFilter.equals(row.agent())) {
         continue;
       }
@@ -901,15 +901,15 @@ public final class DashboardPage {
     return result;
   }
 
-  private static long contributionSessions(AgentBreakdownRow row) {
+  private static long contributionSessions(AgentBreakdown row) {
     return row == null ? 0 : row.sessionCount();
   }
 
-  private static long contributionTokens(AgentBreakdownRow row) {
+  private static long contributionTokens(AgentBreakdown row) {
     return row == null ? 0 : row.totalTokens();
   }
 
-  private static long contributionPrompts(AgentBreakdownRow row) {
+  private static long contributionPrompts(AgentBreakdown row) {
     return row == null ? 0 : row.totalUserMessages();
   }
 

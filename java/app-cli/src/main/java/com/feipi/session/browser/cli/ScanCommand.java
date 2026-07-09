@@ -1,7 +1,9 @@
 package com.feipi.session.browser.cli;
 
-import com.feipi.session.browser.index.sqlite.ConnectionFactory;
-import com.feipi.session.browser.index.sqlite.DatabaseUpgrader;
+import com.feipi.session.browser.index.api.write.IndexWriterPort;
+import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
+import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanSummary;
@@ -170,9 +172,9 @@ final class ScanCommand implements Callable<Integer> {
 
     try (Connection conn = ConnectionFactory.withDefaults(jdbcUrl).create()) {
       if (incremental && !full) {
-        return runIncremental(conn, config, agentLabel);
+        return runIncremental(new SqliteIndexWriter(conn), config, agentLabel);
       } else {
-        return runFull(conn, config, agentLabel);
+        return runFull(new SqliteIndexWriter(conn), config, agentLabel);
       }
     } catch (SQLException e) {
       if (isDatabaseLocked(e)) {
@@ -187,13 +189,13 @@ final class ScanCommand implements Callable<Integer> {
   }
 
   /** 运行增量扫描。 */
-  private int runIncremental(Connection conn, ScanConfig config, String agentLabel) {
+  private int runIncremental(IndexWriterPort indexWriter, ScanConfig config, String agentLabel) {
     System.out.println("Starting incremental scan" + agentLabel + "...");
     long startMs = System.currentTimeMillis();
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
     ScanProgress progress = new ConsoleScanProgress();
-    IncrementalScanSummary summary = engine.scan(conn, config, null, null, progress);
+    IncrementalScanSummary summary = engine.scan(indexWriter, config, null, null, progress);
 
     double elapsed = (System.currentTimeMillis() - startMs) / 1000.0;
     printIncrementalSummary(summary);
@@ -202,13 +204,13 @@ final class ScanCommand implements Callable<Integer> {
   }
 
   /** 运行全量扫描。 */
-  private int runFull(Connection conn, ScanConfig config, String agentLabel) {
+  private int runFull(IndexWriterPort indexWriter, ScanConfig config, String agentLabel) {
     System.out.println("Starting full scan" + agentLabel + "...");
     long startMs = System.currentTimeMillis();
 
     FullScanEngine engine = new FullScanEngine();
     ScanProgress progress = new ConsoleScanProgress();
-    ScanSummary summary = engine.scan(conn, config, progress);
+    ScanSummary summary = engine.scan(indexWriter, config, progress);
 
     double elapsed = (System.currentTimeMillis() - startMs) / 1000.0;
     printFullSummary(summary);

@@ -4,10 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import io.javalin.testtools.JavalinTest;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -57,7 +57,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("构造器不得接受 null config")
   void nullConfigThrows() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     assertThatThrownBy(() -> new WebCompositionRoot(root, null))
         .isInstanceOf(NullPointerException.class)
         .hasMessageContaining("config");
@@ -66,7 +66,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("createServer 返回可用的 WebServer")
   void createServerReturnsUsableServer() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
     WebServer server = webRoot.createServer();
 
@@ -77,7 +77,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("健康检查路由通过 composition root 可达")
   void healthRouteReachableThroughRoot() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -92,7 +92,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("未知页面路由返回 404 和 HTML 状态页")
   void unknownRouteReturns404() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -129,7 +129,7 @@ class WebCompositionRootTest {
                 + " 1, 1, 0, 10, 20, 30, 40, 100, 0, 0,"
                 + " '2026-07-04T10:02:00Z', 1, '/tmp/raw-route.json')");
 
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -150,7 +150,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("queryRoot 返回构造时传入的实例")
   void queryRootReturnsSameInstance() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     assertThat(webRoot.queryRoot()).isSameAs(root);
@@ -159,7 +159,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("app 返回非 null 的 Javalin 实例")
   void appReturnsNonNull() {
-    QueryCompositionRoot root = new QueryCompositionRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     assertThat(webRoot.app()).isNotNull();

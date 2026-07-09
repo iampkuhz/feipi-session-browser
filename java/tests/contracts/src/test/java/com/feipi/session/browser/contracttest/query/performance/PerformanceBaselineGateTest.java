@@ -4,11 +4,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.application.query.repository.AggregateQueryRepository;
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.SessionListFilter;
@@ -176,7 +176,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("500 行 list 分页查询在预算内")
     void listPaginationWithinBudget() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       // 预热
       repo.listSessions(SessionListFilter.defaults());
@@ -197,7 +197,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("分页偏移不影响性能")
     void paginationOffsetDoesNotDegrade() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       // 首页
       long start1 = System.nanoTime();
@@ -218,7 +218,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("过滤后分页仍在预算内")
     void filteredPaginationWithinBudget() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       long start = System.nanoTime();
       var result =
@@ -240,7 +240,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("500 行 count 查询在预算内")
     void countQueryWithinBudget() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       // 预热
       repo.countSessions(SessionListFilter.defaults());
@@ -258,7 +258,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("500 行 listAggregate 在预算内")
     void listAggregateWithinBudget() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       long start = System.nanoTime();
       var agg = repo.listAggregate(SessionListFilter.defaults());
@@ -278,7 +278,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("Dashboard 全局统计在预算内")
     void dashboardStatsWithinBudget() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       // 预热
       repo.dashboardStats(AgentFilter.NONE);
@@ -296,7 +296,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("全部 Dashboard 查询在预算内")
     void allDashboardQueriesWithinBudget() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
       DashboardUseCase uc = new DashboardUseCase(repo, null, 1);
 
       long totalStart = System.nanoTime();
@@ -322,7 +322,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("趋势数据查询在预算内")
     void trendDataWithinBudget() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       long start = System.nanoTime();
       // 使用足够大的时间窗口覆盖 fixture 数据（2024-01）
@@ -336,7 +336,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("活动趋势查询在预算内")
     void activityTrendWithinBudget() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       long start = System.nanoTime();
       var trend = repo.activityTrend(TrendFilter.ofDays(3650));
@@ -354,7 +354,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("按主键查找在预算内")
     void lookupByKeyWithinBudget() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       // 预热
       repo.getSession("perf:s0001");
@@ -370,7 +370,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("不存在的键查找在预算内")
     void missingKeyLookupWithinBudget() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       long start = System.nanoTime();
       var result = repo.getSession("nonexistent:key");
@@ -388,7 +388,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("缓存命中比未命中快")
     void cacheHitFasterThanMiss() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
       com.feipi.session.browser.application.QueryCache cache =
           new com.feipi.session.browser.application.QueryCache(10);
       SessionListUseCase uc = new SessionListUseCase(repo, cache, 1);
@@ -417,7 +417,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("大分页不导致内存溢出")
     void largePaginationNoOom() throws Exception {
-      SessionQueryRepository repo = new SessionQueryRepository(ic);
+      SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
       // 请求 limit=500（最大允许值），应安全返回全部数据
       var result =
@@ -430,7 +430,7 @@ class PerformanceBaselineGateTest {
     @Test
     @DisplayName("Top-N limit 限制结果集大小")
     void topNLimitBounded() throws Exception {
-      AggregateQueryRepository repo = new AggregateQueryRepository(ic);
+      SqliteAggregateQueryRepository repo = new SqliteAggregateQueryRepository(ic);
 
       var top = repo.topProjectsByTokens(3);
       assertThat(top).hasSizeLessThanOrEqualTo(3);

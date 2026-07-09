@@ -3,12 +3,13 @@ package com.feipi.session.browser.application.sessiondetail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.application.query.repository.SessionQueryRepository;
-import com.feipi.session.browser.index.sqlite.IndexConnection;
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.PragmaConfig;
-import com.feipi.session.browser.index.sqlite.SessionArtifactRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.api.query.SessionArtifactRecord;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -21,17 +22,17 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * {@link SessionDetailRepository} 和 {@link SessionDetailRequest} 测试。
+ * {@link SqliteSessionDetailRepository} 和 {@link SessionDetailRequest} 测试。
  *
  * <p>覆盖会话详情查询、制品元数据查询和请求类型校验。
  */
-@DisplayName("SessionDetailRepository 测试")
-class SessionDetailRepositoryTest {
+@DisplayName("SqliteSessionDetailRepository 测试")
+class SqliteSessionDetailRepositoryTest {
 
   @TempDir Path tempDir;
 
   private IndexConnection indexConnection;
-  private SessionDetailRepository repository;
+  private SqliteSessionDetailRepository repository;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -42,8 +43,8 @@ class SessionDetailRepositoryTest {
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     insertTestData();
-    SessionQueryRepository sessionQueryRepo = new SessionQueryRepository(indexConnection);
-    repository = new SessionDetailRepository(sessionQueryRepo);
+    SqliteSessionQueryRepository sessionQueryRepo = new SqliteSessionQueryRepository(indexConnection);
+    repository = new SqliteSessionDetailRepository(sessionQueryRepo);
   }
 
   private void insertTestData() throws Exception {
@@ -119,12 +120,12 @@ class SessionDetailRepositoryTest {
 
   @Nested
   @DisplayName("findSessionRow 查询")
-  class FindSessionRow {
+  class FindSessionRecord {
 
     @Test
     @DisplayName("存在的会话返回行数据")
     void existingSession() throws Exception {
-      Optional<SessionRow> result = repository.findSessionRow("cc:s1");
+      Optional<SessionRecord> result = repository.findSessionRow("cc:s1");
       assertThat(result).isPresent();
       assertThat(result.get().sessionKey()).isEqualTo("cc:s1");
       assertThat(result.get().agent()).isEqualTo("claude_code");
@@ -136,7 +137,7 @@ class SessionDetailRepositoryTest {
     void canonicalRouteKeyFindsProjectScopedSession() throws Exception {
       insertProjectScopedQoderSession();
 
-      Optional<SessionRow> result =
+      Optional<SessionRecord> result =
           repository.findSessionRow("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
 
       assertThat(result).isPresent();
@@ -148,7 +149,7 @@ class SessionDetailRepositoryTest {
     @Test
     @DisplayName("不存在的会话返回 empty")
     void missingSession() throws Exception {
-      Optional<SessionRow> result = repository.findSessionRow("cc:notexist");
+      Optional<SessionRecord> result = repository.findSessionRow("cc:notexist");
       assertThat(result).isEmpty();
     }
   }
@@ -160,7 +161,7 @@ class SessionDetailRepositoryTest {
     @Test
     @DisplayName("有归一化制品的会话返回制品行")
     void existingArtifact() throws Exception {
-      Optional<SessionArtifactRow> result = repository.findNormalizedArtifact("cc:s1");
+      Optional<SessionArtifactRecord> result = repository.findNormalizedArtifact("cc:s1");
       assertThat(result).isPresent();
       assertThat(result.get().artifactType()).isEqualTo("normalized");
       assertThat(result.get().path()).isEqualTo("/artifacts/cc_s1.json");
@@ -171,7 +172,7 @@ class SessionDetailRepositoryTest {
     void canonicalRouteKeyFindsProjectScopedArtifact() throws Exception {
       insertProjectScopedQoderSession();
 
-      Optional<SessionArtifactRow> result =
+      Optional<SessionArtifactRecord> result =
           repository.findNormalizedArtifact("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
 
       assertThat(result).isPresent();
@@ -183,7 +184,7 @@ class SessionDetailRepositoryTest {
     @Test
     @DisplayName("无归一化制品的会话返回 empty")
     void missingArtifact() throws Exception {
-      Optional<SessionArtifactRow> result = repository.findNormalizedArtifact("cc:notexist");
+      Optional<SessionArtifactRecord> result = repository.findNormalizedArtifact("cc:notexist");
       assertThat(result).isEmpty();
     }
 
@@ -205,7 +206,7 @@ class SessionDetailRepositoryTest {
           .execute(
               "DELETE FROM session_artifacts WHERE session_key = 'cc:s1' AND artifact_type = 'normalized'");
 
-      Optional<SessionArtifactRow> result = repository.findNormalizedArtifact("cc:s1");
+      Optional<SessionArtifactRecord> result = repository.findNormalizedArtifact("cc:s1");
 
       assertThat(result).isPresent();
       assertThat(result.get().artifactType()).isEqualTo("normalized_session_json");

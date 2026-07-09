@@ -2,6 +2,7 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -42,8 +43,8 @@ class IncrementalScanEngineTest {
     conn = SqliteTestHelper.createInMemoryConnection();
     conn.setAutoCommit(false);
     // 确保 schema
-    new com.feipi.session.browser.index.sqlite.IndexSchema(
-            com.feipi.session.browser.index.sqlite.MigrationRunner.withAllMigrations())
+    new com.feipi.session.browser.index.store.sqlite.schema.IndexSchema(
+            com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner.withAllMigrations())
         .ensureSchema(conn);
   }
 
@@ -63,7 +64,7 @@ class IncrementalScanEngineTest {
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.successCount()).isZero();
@@ -91,7 +92,7 @@ class IncrementalScanEngineTest {
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isEqualTo(2);
     assertThat(summary.newCount()).isEqualTo(2);
@@ -231,7 +232,7 @@ class IncrementalScanEngineTest {
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
     // 设置很大的 maxAgeSeconds（比如 1 秒），这样 2020 年的会话会被过滤
-    IncrementalScanSummary summary = engine.scan(conn, config, 1.0);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config, 1.0);
 
     // 候选项被状态机分类后，如果 stored 存在且 ended_at < cutoff → 跳过
     assertThat(summary.totalCandidates()).isEqualTo(1);
@@ -257,7 +258,7 @@ class IncrementalScanEngineTest {
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     // scan logic version 变化应触发 rebuild
     assertThat(summary.rebuildTriggered()).isTrue();
@@ -281,7 +282,7 @@ class IncrementalScanEngineTest {
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    engine.scan(conn, config);
+    engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     // 验证 scan logic version 已更新
     int version = loadScanLogicVersion();
@@ -299,7 +300,7 @@ class IncrementalScanEngineTest {
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    engine.scan(conn, config);
+    engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     verifyScanLogMode("incremental");
   }
@@ -420,7 +421,7 @@ class IncrementalScanEngineTest {
             List.of(new ScanConfig.SourceEntry(adapter, root)), tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.unchangedCount()).isEqualTo(1); // session-1
     assertThat(summary.changedCount()).isEqualTo(1); // session-2
@@ -440,7 +441,7 @@ class IncrementalScanEngineTest {
             tempDir.resolve("artifacts"));
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
-    IncrementalScanSummary summary = engine.scan(conn, config);
+    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.issues()).isEmpty();

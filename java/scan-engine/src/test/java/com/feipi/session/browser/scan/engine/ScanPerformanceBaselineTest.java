@@ -2,8 +2,8 @@ package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.sqlite.IndexSchema;
-import com.feipi.session.browser.index.sqlite.MigrationRunner;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -60,7 +60,7 @@ class ScanPerformanceBaselineTest {
                 tempDir.resolve("artifacts"));
 
         FullScanEngine engine = new FullScanEngine();
-        ScanSummary summary = engine.scan(conn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         assertThat(summary.totalCandidates()).isZero();
         assertThat(summary.scanDurationMs()).isLessThan(5000);
@@ -85,7 +85,7 @@ class ScanPerformanceBaselineTest {
                 tempDir.resolve("artifacts"));
 
         IncrementalScanEngine engine = new IncrementalScanEngine();
-        IncrementalScanSummary summary = engine.scan(conn, config);
+        IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         assertThat(summary.totalCandidates()).isZero();
         assertThat(summary.scanDurationMs()).isLessThan(5000);
@@ -115,7 +115,7 @@ class ScanPerformanceBaselineTest {
                 tempDir.resolve("artifacts"));
 
         FullScanEngine engine = new FullScanEngine();
-        ScanSummary summary = engine.scan(conn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         assertThat(summary.totalCandidates()).isEqualTo(1);
         assertThat(summary.scanDurationMs()).isLessThan(5000);
@@ -150,7 +150,7 @@ class ScanPerformanceBaselineTest {
 
         FullScanEngine engine = new FullScanEngine();
         long startMs = System.currentTimeMillis();
-        ScanSummary summary = engine.scan(conn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
         long elapsed = System.currentTimeMillis() - startMs;
 
         assertThat(summary.totalCandidates()).isEqualTo(100);
@@ -184,7 +184,7 @@ class ScanPerformanceBaselineTest {
 
         IncrementalScanEngine engine = new IncrementalScanEngine();
         long startMs = System.currentTimeMillis();
-        IncrementalScanSummary summary = engine.scan(conn, config);
+        IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
         long elapsed = System.currentTimeMillis() - startMs;
 
         assertThat(summary.totalCandidates()).isEqualTo(100);
@@ -226,14 +226,14 @@ class ScanPerformanceBaselineTest {
         IncrementalScanEngine engine = new IncrementalScanEngine();
 
         // 首次 scan（全部 NEW）
-        IncrementalScanSummary firstSummary = engine.scan(conn, config);
+        IncrementalScanSummary firstSummary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
         assertThat(firstSummary.newCount()).isEqualTo(50);
 
         // 第二次 scan（全部 UNCHANGED，因为 FatalAdapter 返回相同指纹）
         // 注意：FatalAdapter 的 parse 返回 Fatal，所以 candidates 会进入 ERROR 状态
         // 这里只验证 scan 在预算内完成
         long startMs = System.currentTimeMillis();
-        IncrementalScanSummary secondSummary = engine.scan(conn, config);
+        IncrementalScanSummary secondSummary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
         long elapsed = System.currentTimeMillis() - startMs;
 
         assertThat(elapsed).isLessThan(NO_CHANGE_INCREMENTAL_BUDGET_MS);
@@ -259,7 +259,7 @@ class ScanPerformanceBaselineTest {
                 tempDir.resolve("artifacts"));
 
         IncrementalScanEngine engine = new IncrementalScanEngine();
-        IncrementalScanSummary summary = engine.scan(conn, config);
+        IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         assertThat(summary.totalCandidates()).isZero();
         assertThat(summary.scanDurationMs()).isLessThan(NO_CHANGE_INCREMENTAL_BUDGET_MS);
@@ -293,7 +293,7 @@ class ScanPerformanceBaselineTest {
                 tempDir.resolve("artifacts"));
 
         FullScanEngine engine = new FullScanEngine();
-        ScanSummary summary = engine.scan(conn, config);
+        ScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config);
 
         assertThat(summary.totalCandidates()).isEqualTo(500);
         // 500 候选项应在 60 秒内完成
@@ -318,8 +318,8 @@ class ScanPerformanceBaselineTest {
           stmt.execute("CREATE TABLE perf_test (id INTEGER PRIMARY KEY, value TEXT)");
         }
 
-        com.feipi.session.browser.index.sqlite.WriteBatch batch =
-            new com.feipi.session.browser.index.sqlite.WriteBatch(conn, 5000);
+        com.feipi.session.browser.index.store.sqlite.tx.WriteBatch batch =
+            new com.feipi.session.browser.index.store.sqlite.tx.WriteBatch(conn, 5000);
 
         for (int i = 0; i < 1000; i++) {
           batch.add("INSERT INTO perf_test VALUES (" + i + ", 'value-" + i + "')");

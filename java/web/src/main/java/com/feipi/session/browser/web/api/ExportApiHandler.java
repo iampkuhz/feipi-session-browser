@@ -3,7 +3,7 @@ package com.feipi.session.browser.web.api;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionDetailUseCase;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.web.api.ExportApiResponses.ExportDataBundleResponse;
 import com.feipi.session.browser.web.api.ExportApiResponses.ExportFormatDto;
@@ -14,7 +14,6 @@ import com.feipi.session.browser.web.api.SessionDetailApiResponses.PayloadIndexD
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -32,7 +31,7 @@ public final class ExportApiHandler {
   }
 
   /** 处理 /api/export/session/{agent}/{sessionId}/manifest 的 GET 请求。 */
-  public void handleManifest(Context ctx) throws SQLException {
+  public void handleManifest(Context ctx) {
     String requestedFormat = normalizeFormat(ctx.queryParam("format"));
     if ("unsupported".equals(requestedFormat)) {
       ctx.status(HttpStatus.BAD_REQUEST);
@@ -79,14 +78,14 @@ public final class ExportApiHandler {
   }
 
   /** 处理 /api/export/session/{agent}/{sessionId}/data-bundle 的 GET 请求。 */
-  public void handleDataBundle(Context ctx) throws SQLException {
+  public void handleDataBundle(Context ctx) {
     LoadedExport loaded = load(ctx);
     if (loaded == null) {
       return;
     }
     SessionDetail detail = loaded.annotated().detail();
-    SessionRow row = detail.sessionRow();
-    List<RoundIndexDto> rounds = RoundIndexProjection.exportDtos(detail);
+    SessionRecord row = detail.sessionRow();
+    List<RoundIndexDto> rounds = RoundIndexProjection.exportDtos(detail, loaded.annotated().artifact());
     List<PayloadIndexDto> payloads =
         detail.payloadSources().stream()
             .map(
@@ -114,14 +113,14 @@ public final class ExportApiHandler {
             PageStateDto.ready()));
   }
 
-  private LoadedExport load(Context ctx) throws SQLException {
+  private LoadedExport load(Context ctx) {
     String agent =
         ApiQueryParams.canonicalAgent(ApiResponses.decodePathParam(ctx.pathParam("agent")));
     String sessionId = ApiResponses.decodePathParam(ctx.pathParam("sessionId"));
     PayloadVisibility visibility = ApiQueryParams.payloadVisibility(ctx);
     String sessionKey = agent + ":" + sessionId;
-    Optional<SessionDetailUseCase.AnnotatedDetail> detail =
-        ApiSessionDetails.loadAnnotatedDetail(ctx, queryRoot, sessionKey, visibility);
+    Optional<SessionDetailUseCase.AnnotatedDetailContext> detail =
+        ApiSessionDetails.loadAnnotatedDetailContext(ctx, queryRoot, sessionKey, visibility);
     return detail
         .map(annotated -> new LoadedExport(agent, sessionId, visibility.getValue(), annotated))
         .orElse(null);
@@ -198,5 +197,5 @@ public final class ExportApiHandler {
       String agent,
       String sessionId,
       String visibilityValue,
-      SessionDetailUseCase.AnnotatedDetail annotated) {}
+      SessionDetailUseCase.AnnotatedDetailContext annotated) {}
 }

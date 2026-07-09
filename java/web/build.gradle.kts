@@ -6,7 +6,6 @@ dependencies {
     implementation(project(":java:common"))
     implementation(project(":java:application"))
     implementation(project(":java:core-domain"))
-    implementation(project(":java:index-sqlite"))
     implementation(libs.slf4j.api)
     implementation(libs.bundles.web)
     implementation(libs.bundles.jackson)
@@ -17,7 +16,7 @@ dependencies {
     testImplementation(libs.javalin.testtools)
     testImplementation(libs.sqlite.jdbc)
     testImplementation(project(":java:tests:support"))
-    testImplementation(project(":java:index-sqlite"))
+    testImplementation(project(path = ":java:index-store-sqlite"))
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

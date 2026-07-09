@@ -1530,7 +1530,7 @@ def run_cmd(
         if status == PASS and _is_playwright_command(cmd):
             skipped = _playwright_skip_count(full_output)
             skipped_kind = 'Playwright'
-        elif status == PASS and _is_pytest_command(cmd):
+        elif status == PASS and (_is_pytest_command(cmd) or name == 'scanScriptSmoke'):
             skipped = _pytest_skip_count(full_output)
             skipped_kind = 'pytest'
         if skipped:
@@ -1785,13 +1785,14 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             'core-domain',
             'source-spi',
             'sources',
-            'artifact-normalized',
             'normalization-engine',
-            'index-sqlite',
+            'index-api',
+            'index-store-sqlite',
             'scan-engine',
             'application',
             'web',
             'app-cli',
+            'tests:support',
             'tests:contracts',
             'tests:architecture',
         ]
@@ -1870,8 +1871,26 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         test_path = repo_root / 'tests' / 'script_commands' / 'test_session_browser_scan_smoke.py'
         if not test_path.exists():
             return []
-# 打印简明 human-facing runner progress到stderr。
-        return [dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)]
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
+            return []
+        install_log = '/tmp/scanScriptSmoke-installDist.log'
+        pytest_cmd = shlex.join(
+            [dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)]
+        )
+        script = (
+            f'{shlex.quote(str(gradlew))} :java:app-cli:installDist --no-daemon '
+            f'> {install_log} 2>&1; '
+            f'rc=$?; '
+            f'if [ $rc -ne 0 ]; then '
+            f'echo "FAIL: :java:app-cli:installDist (exit=$rc)"; '
+            f'tail -40 {install_log}; '
+            f'exit $rc; '
+            f'fi; '
+            f'{pytest_cmd}'
+        )
+        # 先构建 Java CLI launcher，再运行 smoke pytest，避免依赖陈旧本地产物。
+        return ['bash', '-c', script]
     return []
 
 

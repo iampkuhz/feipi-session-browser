@@ -2,9 +2,9 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionListUseCase;
-import com.feipi.session.browser.index.sqlite.ProjectOptionRow;
-import com.feipi.session.browser.index.sqlite.SessionListSummaryRow;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.api.query.ProjectOption;
+import com.feipi.session.browser.index.api.query.SessionListSummary;
+import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.SessionListFilter;
 import com.feipi.session.browser.web.api.PageApiDtos.ActiveFilterDto;
@@ -18,7 +18,6 @@ import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsOptionsRes
 import com.feipi.session.browser.web.api.SessionsApiResponses.SessionsRowsResponse;
 import com.feipi.session.browser.web.page.QueryParams;
 import io.javalin.http.Context;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -37,17 +36,17 @@ public final class SessionsApiHandler {
   }
 
   /** 处理 /api/sessions/summary 的 GET 请求。 */
-  public void handleSummary(Context ctx) throws SQLException {
+  public void handleSummary(Context ctx) {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
-    SessionListSummaryRow summary = queryRoot.sessionList().summary(filter);
+    SessionListSummary summary = queryRoot.sessionList().summary(filter);
     ctx.json(
         ApiSessionSummaries.response(
             params, summary, summaryState(summary.sessionCount(), hasUserFilter(params))));
   }
 
   /** 处理 /api/sessions/options 的 GET 请求。 */
-  public void handleOptions(Context ctx) throws SQLException {
+  public void handleOptions(Context ctx) {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListUseCase useCase = queryRoot.sessionList();
@@ -68,12 +67,12 @@ public final class SessionsApiHandler {
   }
 
   /** 处理 /api/sessions/rows 的 GET 请求。 */
-  public void handleRows(Context ctx) throws SQLException {
+  public void handleRows(Context ctx) {
     Map<String, String> params = ApiQueryParams.flat(ctx);
     SessionListFilter filter = QueryParams.parseSessionListFilter(params);
     SessionListUseCase.AnnotatedPageResult result =
         queryRoot.sessionList().listWithAnomalies(filter);
-    PageResult<SessionRow> page = result.page();
+    PageResult<SessionRecord> page = result.page();
     String search = params.getOrDefault("q", "");
     List<SessionRowDto> rows = page.items().stream().map(row -> rowDto(row, search)).toList();
     ctx.json(
@@ -116,11 +115,11 @@ public final class SessionsApiHandler {
                 : PageStateDto.ready()));
   }
 
-  static SessionRowDto rowDto(SessionRow row) {
+  static SessionRowDto rowDto(SessionRecord row) {
     return rowDto(row, "");
   }
 
-  static SessionRowDto rowDto(SessionRow row, String search) {
+  static SessionRowDto rowDto(SessionRecord row, String search) {
     return new SessionRowDto(
         row.sessionKey(),
         row.sessionId(),
@@ -188,7 +187,7 @@ public final class SessionsApiHandler {
         new SelectOptionDto("no-failures", "No failures"));
   }
 
-  private static SelectOptionDto projectOption(ProjectOptionRow row) {
+  private static SelectOptionDto projectOption(ProjectOption row) {
     String label = row.projectName().isBlank() ? row.projectKey() : row.projectName();
     return new SelectOptionDto(row.projectKey(), label);
   }
@@ -218,7 +217,7 @@ public final class SessionsApiHandler {
     return query.isEmpty() ? basePath : basePath + "?" + query;
   }
 
-  private static List<String> matchReasons(SessionRow row, String search) {
+  private static List<String> matchReasons(SessionRecord row, String search) {
     String q = search == null ? "" : search.trim().toLowerCase(Locale.ROOT);
     if (q.isEmpty()) {
       return List.of();

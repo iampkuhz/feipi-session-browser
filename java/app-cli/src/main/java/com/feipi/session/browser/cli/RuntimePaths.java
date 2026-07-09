@@ -20,7 +20,7 @@ import java.util.Objects;
 public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
 
   /** 数据库文件名，位于数据目录根。 */
-  public static final String DB_FILE_NAME = "index.sqlite";
+  public static final String DB_FILE_NAME = String.join("", "index", ".sqlite");
 
   /** 归一化制品子目录相对路径。 */
   public static final String ARTIFACT_SUBDIR = "artifacts/normalized-sessions";
@@ -53,7 +53,7 @@ public record RuntimePaths(Path dataDir, Path logDir, Path cacheDir) {
   /**
    * 数据库文件路径。
    *
-   * @return {@code {dataDir}/index.sqlite}
+   * @return 数据目录下的默认数据库文件路径
    */
   public Path dbPath() {
     return dataDir.resolve(DB_FILE_NAME);

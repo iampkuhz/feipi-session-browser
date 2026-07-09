@@ -3,7 +3,7 @@ package com.feipi.session.browser.web.api;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
-import com.feipi.session.browser.index.sqlite.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.nio.file.Files;
