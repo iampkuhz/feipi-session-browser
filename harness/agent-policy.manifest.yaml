@@ -1,0 +1,29 @@
+version: 1
+size_limits:
+  AGENTS.md: 2800
+  CLAUDE.md: 12000
+required_phrases:
+  - "required gates"
+  - "不纳入真实 session"
+  - "先搜索定位"
+  - "OpenSpec"
+protected_roots:
+  - .claude/
+  - .codex/
+  - .qoder/
+  - .agents/
+  - skills/
+  - harness/
+  - scripts/
+  - openspec/
+  - AGENTS.md
+  - CLAUDE.md
+gate_semantics:
+  - "失败、未运行、跳过不得描述为 PASS"
+  - "不得新增 skip"
+context_hygiene:
+  shared_rule_locations:
+    - harness/agent-policy.manifest.yaml
+    - harness/agent-runtime.manifest.yaml
+    - skills/authoring/
+  platform_configs_are_entry_points: true

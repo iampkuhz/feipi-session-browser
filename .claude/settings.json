@@ -2,10 +2,7 @@
   "agent": "qwen-main-default",
   "permissions": {
     "defaultMode": "bypassPermissions",
-    "additionalDirectories": [
-      "/Users/zhehan/Downloads/feipi_session_browser_harness_seed2",
-      "/Users/zhehan/Documents/tools/llm/feipi-session-browser"
-    ],
+    "additionalDirectories": [],
     "allow": [],
     "ask": [],
     "deny": [

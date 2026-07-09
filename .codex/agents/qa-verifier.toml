@@ -11,6 +11,8 @@ Handoff 至少应包含 `Goal` 和 `Acceptance criteria`；缺失时返回 `BLOC
 必须检查：无关文件变更、真实 session data、缓存、密钥、token、本地个人配置、required quality gate 被跳过、OpenSpec/harness/code/tests 明显不一致。
 
 输出固定为：`Status: PASS|FAIL|BLOCKED`、`Checked files`、`Validation commands`、`Gate results`、`Findings`、`Risks`。发现项按严重度排序。
+
+质量门失败诊断优先使用 skills/authoring/feipi-quality-gate-diagnosis/SKILL.md。
 """
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"

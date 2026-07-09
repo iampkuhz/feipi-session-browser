@@ -59,3 +59,5 @@ color: red
 - Gate results:
 - Findings:
 - Risks:
+
+质量门失败诊断优先使用 `skills/authoring/feipi-quality-gate-diagnosis/SKILL.md`。

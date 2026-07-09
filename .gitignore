@@ -74,3 +74,5 @@ gradle/verification-metadata.xml
 
 **/build/**
 /config/reuse-analysis/
+/.qoder/task-packs/
+/.qoder/agents/

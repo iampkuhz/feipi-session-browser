@@ -1662,6 +1662,20 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return [python, 'scripts/quality/check_agent_runtime_manifest.py']
     if gate == 'agentHookParity':
         return [python, 'scripts/quality/check_agent_hook_parity.py']
+    if gate == 'agentPolicySize':
+        return [python, 'scripts/quality/check_agent_policy_size.py']
+    if gate == 'agentRulesSync':
+        return [python, 'scripts/quality/check_agent_rules_sync.py']
+    if gate == 'skillRegistry':
+        return [python, 'scripts/quality/check_skill_registry.py']
+    if gate == 'agentEntryParity':
+        return [python, 'scripts/quality/check_agent_entry_parity.py']
+    if gate == 'noRealSessionFixtures':
+        return [python, 'scripts/quality/check_no_real_session_fixtures.py']
+    if gate == 'secretLikeContent':
+        return [python, 'scripts/quality/check_secret_like_content.py']
+    if gate == 'runtimeReport':
+        return [python, 'scripts/quality/check_agent_runtime_report.py']
     if gate == 'hookSelfTest':
         return [python, '-m', 'scripts.claude_hooks.main', '--self-test']
     if gate == 'templateContract':

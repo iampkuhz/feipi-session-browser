@@ -1,0 +1,95 @@
+---
+name: feipi-quality-gate-diagnosis
+disable-model-invocation: true
+description: 用于 required quality gate、doctor、stop check 失败后的诊断和最小修复；功能开发前置设计不要使用。
+---
+
+# 质量门诊断
+
+本 skill 为 required quality gate、doctor、stop check 失败后的诊断和最小修复提供固定执行流程。核心原则：先定位触发 target，再看失败输出，再做最小修复；不得把 skipped/未运行当 PASS。
+
+## 何时使用
+
+- Required baseline gate 失败（`check_agent_runtime_manifest.py`、`check_skill_registry.py` 等）。
+- Doctor 脚本（`scripts/harness/doctor.sh`）失败。
+- Stop check（`agent_stop_check.py`、`stop_check.sh`）失败。
+- Java gates（编译、测试、PMD）失败。
+- UI gates（静态检查、JS action handler 检查）失败。
+- Agent runtime gates（entry parity、hook parity、policy sync）失败。
+- 任何 required quality gate 返回非零 exit code。
+
+## 不要何时使用
+
+- 功能开发前置设计 → 使用对应功能 skill（如 `feipi-java-feature-dev`、`feipi-session-detail-ui-dev`）。
+- OpenSpec 编排 → 使用 `feipi-openspec-orchestrate-change`。
+- 纯 session 数据查看或分析 → 不要使用本 skill。
+- 功能实现过程中的中间调试 → 直接修复代码，不需要走完整诊断流程。
+- 非 gate 失败的普通 bug 修复。
+
+## 输入最小化
+
+只读取以下必要片段：
+
+1. 失败 gate 的命令和完整 exit code。
+2. 失败 gate 的脚本源码 — 只读触发失败的脚本，不读无关实现。
+3. 失败输出中具体的错误信息和触发 target。
+4. 与失败直接相关的文件片段。
+
+不要全仓库扫描。不要预读无关 gate 脚本或实现文件。不要读取真实 session 数据。
+
+## 执行步骤
+
+1. **记录失败命令和完整 exit code**：复制触发失败的完整命令，记录 exit code（不是 0 的值）。不要截断或概括输出。
+2. **定位 gate 名称和 target**：从失败输出中提取 gate 名称（如 `[skillRegistry]`、`[agentRuntimeManifest]`）和具体 target（文件路径、skill 名称、agent 名称等）。
+3. **读取 gate 脚本，不读无关实现**：只读触发失败的 gate 脚本源码，理解它的检查逻辑和断言条件。不要读取与当前失败无关的其他 gate 脚本或产品代码。
+4. **找到失败文件和具体断言**：从 gate 输出中定位具体失败的文件路径和断言信息（如 "缺少必需文件"、"symlink 目标不存在"、"required skill 目录不存在"）。
+5. **判断失败类别**：将失败归类为以下五类之一：
+   - **环境缺失**：Python 不可用、依赖未安装、脚本文件不存在。
+   - **Fixture 缺失**：测试 fixture、mock 数据、示例文件不存在。
+   - **代码失败**：产品代码不满足 gate 断言（如缺少 SKILL.md、registry 条目不匹配）。
+   - **配置漂移**：配置文件与实际状态不一致（如 manifest 引用不存在的 skill、registry 缺少新增条目）。
+   - **Gate 本身 bug**：gate 脚本逻辑错误导致误报。
+6. **环境缺失 → BLOCKED**：如果是环境缺失（如 Python 不可用、必要工具未安装），报告 `BLOCKED`，说明缺少什么，不伪造 PASS。不要尝试安装依赖或修改环境。
+7. **Fixture 缺失 → 补最小 fixture**：如果是 fixture 缺失，补最小必要的 fixture 文件或 mock 数据，使其满足 gate 断言。不要补多余的 fixture。
+8. **代码失败 → 最小修复**：如果是代码失败，做最小修复使其满足 gate 断言。不要重构、不要扩大修改范围、不要修改与当前 gate 失败无关的代码。
+9. **Gate bug → 补 gate 自测**：如果是 gate 本身逻辑错误，修复 gate 脚本并补充对应的自测用例，确保修复后不误报也不漏报。
+10. **重跑失败 gate，再跑 required baseline**：修复后先重跑触发失败的 gate，确认 PASS；再运行 required baseline 的全部 gate，确认没有引入回归。
+11. **输出 PASS/FAIL/BLOCKED**：输出最终状态，不允许把 skipped、未运行、环境受限描述为 PASS。如果有任何 gate 未运行，必须写明原因。
+
+## 文件边界
+
+- Gate 脚本：`scripts/quality/*.py`、`scripts/harness/doctor.sh`。
+- Registry 配置：`harness/skill-registry.yaml`。
+- Manifest 配置：`harness/agent-runtime.manifest.yaml`。
+- Agent 入口：`.claude/agents/*.md`、`.codex/agents/*.toml`。
+- Skill 源目录：`skills/authoring/<skill-name>/`。
+- Skill 入口：`.agents/skills/<skill-name>`、`.claude/skills/<skill-name>`、`.codex/skills/<skill-name>`。
+
+不要跨边界修改产品代码（Java、Python 产品逻辑）。不要修改与 gate 失败无关的配置文件。不要修改 hooks 脚本逻辑（除非 gate bug 定位到 hook）。
+
+## 验证门禁
+
+以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
+
+- 触发失败的 gate — 必须重跑并 PASS。
+- `python scripts/quality/check_skill_registry.py` — registry 完整性。
+- `python scripts/quality/check_agent_runtime_manifest.py` — manifest 完整性。
+- `bash scripts/harness/doctor.sh` — 全量环境体检。
+
+选择策略：
+
+- 单个 gate 失败 → 修复后重跑该 gate + `doctor.sh`。
+- Registry/manifest 相关 → 追加 `check_skill_registry.py` 和 `check_agent_runtime_manifest.py`。
+- 收口前 → 运行全部 required baseline gate。
+
+## 输出格式
+
+使用 `templates/report.md` 模板。变更摘要必须包含：
+
+- 失败 gate 名称和 exit code。
+- 失败类别（环境缺失/fixture 缺失/代码失败/配置漂移/gate bug）。
+- 最小修复内容。
+- 重跑结果（PASS/FAIL/BLOCKED）。
+- Required baseline 运行结果。
+- 未运行的 gate 及原因。
+- 后续风险或 TODO。

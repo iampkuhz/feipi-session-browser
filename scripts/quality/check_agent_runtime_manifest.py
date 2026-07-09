@@ -261,6 +261,13 @@ def main() -> int:
 
     shared_skills = data.get("shared_skills", {})
     if isinstance(shared_skills, dict):
+        registry_path = shared_skills.get("registry", "")
+        if isinstance(registry_path, str) and registry_path:
+            if not _check_file_exists(registry_path):
+                errors.append(
+                    f"shared_skills.registry 文件不存在: {registry_path}"
+                )
+
         source_root = shared_skills.get("source_root", "")
         if isinstance(source_root, str) and source_root:
             if not (ROOT / source_root).is_dir():

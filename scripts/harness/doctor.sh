@@ -109,6 +109,15 @@ if [[ -n "$PYTHON" ]]; then
   "$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
   "$PYTHON" scripts/quality/check_agent_runtime_manifest.py || fail=1
   "$PYTHON" scripts/quality/check_agent_hook_parity.py || fail=1
+  "$PYTHON" scripts/quality/check_no_committed_local_paths.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_permission_policy.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_policy_size.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_rules_sync.py || fail=1
+  "$PYTHON" scripts/quality/check_skill_registry.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_entry_parity.py || fail=1
+  "$PYTHON" scripts/quality/check_no_real_session_fixtures.py || fail=1
+  "$PYTHON" scripts/quality/check_secret_like_content.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_runtime_report.py || fail=1
 fi
 
 # CSS ownership 校验。

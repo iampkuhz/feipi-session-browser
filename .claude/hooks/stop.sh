@@ -9,4 +9,5 @@ cd "$ROOT" || exit 1
 export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export FEIPI_AGENT_CLIENT="claude"
 
-exec python3 "$ROOT/scripts/harness/agent_stop_check.py" --agent claude
+python3 "$ROOT/scripts/harness/agent_stop_check.py" --agent claude || exit $?
+python3 "$ROOT/scripts/quality/check_agent_runtime_report.py" || exit $?

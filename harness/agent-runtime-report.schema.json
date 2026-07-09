@@ -1,0 +1,98 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "Agent Runtime Report",
+  "description": "Structured report produced after each agent environment change.",
+  "type": "object",
+  "required": [
+    "change_id",
+    "created_at",
+    "agent_platform",
+    "subagents",
+    "changed_files",
+    "gates",
+    "skipped_count",
+    "blocked_items",
+    "risks",
+    "notes"
+  ],
+  "properties": {
+    "change_id": {
+      "type": "string"
+    },
+    "created_at": {
+      "type": "string"
+    },
+    "agent_platform": {
+      "type": "string"
+    },
+    "subagents": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "changed_files": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "gates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "name",
+          "command",
+          "status",
+          "skipped_count",
+          "evidence"
+        ],
+        "properties": {
+          "name": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "BLOCKED",
+              "NOT_RUN"
+            ]
+          },
+          "skipped_count": {
+            "type": "integer"
+          },
+          "evidence": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "skipped_count": {
+      "type": "integer"
+    },
+    "blocked_items": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "risks": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    }
+  }
+}

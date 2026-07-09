@@ -1,0 +1,74 @@
+version: 1
+source_root: skills/authoring
+entry_roots:
+  - .agents/skills
+  - .claude/skills
+  - .codex/skills
+skills:
+  feipi-openspec-orchestrate-change:
+    status: active
+    source: skills/authoring/feipi-openspec-orchestrate-change
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-openspec-orchestrate-change
+      - .claude/skills/feipi-openspec-orchestrate-change
+      - .codex/skills/feipi-openspec-orchestrate-change
+  feipi-java-feature-dev:
+    status: active
+    source: skills/authoring/feipi-java-feature-dev
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-java-feature-dev
+      - .claude/skills/feipi-java-feature-dev
+      - .codex/skills/feipi-java-feature-dev
+  feipi-session-ingestion-dev:
+    status: active
+    source: skills/authoring/feipi-session-ingestion-dev
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-session-ingestion-dev
+      - .claude/skills/feipi-session-ingestion-dev
+      - .codex/skills/feipi-session-ingestion-dev
+  feipi-session-detail-ui-dev:
+    status: active
+    source: skills/authoring/feipi-session-detail-ui-dev
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-session-detail-ui-dev
+      - .claude/skills/feipi-session-detail-ui-dev
+      - .codex/skills/feipi-session-detail-ui-dev
+  feipi-mhtml-export-dev:
+    status: active
+    source: skills/authoring/feipi-mhtml-export-dev
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-mhtml-export-dev
+      - .claude/skills/feipi-mhtml-export-dev
+      - .codex/skills/feipi-mhtml-export-dev
+  feipi-quality-gate-diagnosis:
+    status: active
+    source: skills/authoring/feipi-quality-gate-diagnosis
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-quality-gate-diagnosis
+      - .claude/skills/feipi-quality-gate-diagnosis
+      - .codex/skills/feipi-quality-gate-diagnosis
+  feipi-privacy-redaction-dev:
+    status: active
+    source: skills/authoring/feipi-privacy-redaction-dev
+    required_files:
+      - SKILL.md
+    exposed_in:
+      - .agents/skills/feipi-privacy-redaction-dev
+      - .claude/skills/feipi-privacy-redaction-dev
+      - .codex/skills/feipi-privacy-redaction-dev
+rules:
+  platform_entries_must_not_copy_skill_body: true
+  source_skill_requires_skill_md: true
+  exposed_entry_must_exist: true

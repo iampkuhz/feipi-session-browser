@@ -15,3 +15,5 @@
 要求每个 `subagent` 返回固定状态 `PASS`、`FAIL` 或 `BLOCKED`，并给出改动文件、关键结论、验证命令和风险；不得贴长日志。
 
 面向用户默认使用简体中文。代码标识符、命令、路径、API 和工具名保持英文。
+
+required gates 失败、跳过（skipped）不得描述为 PASS。

@@ -57,11 +57,18 @@ platforms:
     agents_dir: null
     skills_dir: .agents/skills
 shared_skills:
+  registry: harness/skill-registry.yaml
   source_root: skills/authoring
   exposed_roots:
     - .agents/skills
   required:
     - feipi-openspec-orchestrate-change
+    - feipi-java-feature-dev
+    - feipi-session-ingestion-dev
+    - feipi-session-detail-ui-dev
+    - feipi-mhtml-export-dev
+    - feipi-quality-gate-diagnosis
+    - feipi-privacy-redaction-dev
 permission_policy:
   committed_settings_must_not_contain_local_absolute_paths: true
   bypass_permissions_allowed_only_with_pre_write_guard: true
@@ -69,5 +76,14 @@ permission_policy:
 required_gates:
   - scripts/quality/check_agent_runtime_manifest.py
   - scripts/quality/check_agent_hook_parity.py
+  - scripts/quality/check_no_committed_local_paths.py
+  - scripts/quality/check_agent_permission_policy.py
+  - scripts/quality/check_agent_policy_size.py
+  - scripts/quality/check_agent_rules_sync.py
+  - scripts/quality/check_skill_registry.py
+  - scripts/quality/check_agent_entry_parity.py
+  - scripts/quality/check_no_real_session_fixtures.py
+  - scripts/quality/check_secret_like_content.py
   - scripts/quality/run_required_quality_gates.py
+  - scripts/quality/check_agent_runtime_report.py
   - scripts/harness/doctor.sh
