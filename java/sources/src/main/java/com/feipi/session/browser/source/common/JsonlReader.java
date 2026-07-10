@@ -356,7 +356,13 @@ public final class JsonlReader {
    * @param squareDepth 处理完本行后的方括号绝对深度
    * @param mismatch 是否检测到括号类型不匹配或深度负数
    */
-  private record BracketScanResult(int curlyDepth, int squareDepth, boolean mismatch) {}
+  private record BracketScanResult(
+      /* 处理完本行后的花括号绝对深度 */
+      int curlyDepth,
+      /* 处理完本行后的方括号绝对深度 */
+      int squareDepth,
+      /* 是否检测到括号类型不匹配或深度负数 */
+      boolean mismatch) {}
 
   /**
    * 扫描文本中的括号，分别追踪花括号和方括号深度。

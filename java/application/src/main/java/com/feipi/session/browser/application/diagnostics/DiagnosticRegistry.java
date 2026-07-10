@@ -3,6 +3,8 @@ package com.feipi.session.browser.application.diagnostics;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.RoundSignalKey;
 import com.feipi.session.browser.query.api.SessionAnomalyKey;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.EnumSet;
@@ -147,7 +149,13 @@ public final class DiagnosticRegistry {
    * @param key 异常键
    * @param severityLevels 支持的严重度级别集合
    */
-  public record AnomalyDefinition(SessionAnomalyKey key, Set<AnomalySeverity> severityLevels) {
+  public record AnomalyDefinition(
+      /* 会话异常标识键。 */
+      @NotNull SessionAnomalyKey key,
+
+      /* 支持的严重度级别集合。 */
+      @NotNull Set<AnomalySeverity> severityLevels) {
+
     /**
      * 紧凑构造器，验证定义不变量。
      *
@@ -155,8 +163,7 @@ public final class DiagnosticRegistry {
      * @throws IllegalArgumentException 当严重度集合为空时
      */
     public AnomalyDefinition {
-      Objects.requireNonNull(key, "key 不得为 null");
-      Objects.requireNonNull(severityLevels, "severityLevels 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(AnomalyDefinition.class, key, severityLevels);
       if (severityLevels.isEmpty()) {
         throw new IllegalArgumentException("severityLevels 不得为空");
       }
@@ -180,7 +187,13 @@ public final class DiagnosticRegistry {
    * @param key 信号键
    * @param severityLevels 支持的严重度级别集合
    */
-  public record SignalDefinition(RoundSignalKey key, Set<AnomalySeverity> severityLevels) {
+  public record SignalDefinition(
+      /* 轮次信号标识键。 */
+      @NotNull RoundSignalKey key,
+
+      /* 支持的严重度级别集合。 */
+      @NotNull Set<AnomalySeverity> severityLevels) {
+
     /**
      * 紧凑构造器，验证定义不变量。
      *
@@ -188,8 +201,7 @@ public final class DiagnosticRegistry {
      * @throws IllegalArgumentException 当严重度集合为空时
      */
     public SignalDefinition {
-      Objects.requireNonNull(key, "key 不得为 null");
-      Objects.requireNonNull(severityLevels, "severityLevels 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(SignalDefinition.class, key, severityLevels);
       if (severityLevels.isEmpty()) {
         throw new IllegalArgumentException("severityLevels 不得为空");
       }

@@ -288,11 +288,7 @@ public final class DashboardApiHandler {
   }
 
   private static AgentContributionDto contributionRow(
-      String agent,
-      AgentBreakdown row,
-      long totalSessions,
-      long totalTokens,
-      long totalPrompts) {
+      String agent, AgentBreakdown row, long totalSessions, long totalTokens, long totalPrompts) {
     if (row == null) {
       return new AgentContributionDto(
           agent,

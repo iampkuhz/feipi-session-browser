@@ -67,7 +67,8 @@ class IncrementalScanEngineCancelTest {
     ScanCancelToken token = new ScanCancelToken();
     token.cancel(); // 预先取消
 
-    assertThatThrownBy(() -> engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, token))
+    assertThatThrownBy(
+            () -> engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, token))
         .isInstanceOf(CancellationException.class);
 
     // scan_log 应标记为 failure
@@ -134,7 +135,8 @@ class IncrementalScanEngineCancelTest {
     IncrementalScanEngine engine = new IncrementalScanEngine();
 
     // 传 null cancelToken 应正常工作
-    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, null);
+    IncrementalScanSummary summary =
+        engine.scan(SqliteTestHelper.createIndexWriter(conn), config, null, null);
     assertThat(summary.totalCandidates()).isZero();
     assertThat(summary.errorCount()).isZero();
     verifyScanLogStatus("success");

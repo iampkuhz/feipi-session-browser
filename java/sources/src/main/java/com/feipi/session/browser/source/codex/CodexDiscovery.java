@@ -2,10 +2,13 @@ package com.feipi.session.browser.source.codex;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.feipi.session.browser.source.codex.db.ThreadsDbReader;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
 import com.feipi.session.browser.source.common.JsonlObjectReader;
-import com.feipi.session.browser.source.codex.db.ThreadsDbReader;
 import com.feipi.session.browser.source.spi.SourcePathOps;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -429,9 +432,20 @@ public final class CodexDiscovery {
    * @param hasFile rollout 文件是否实际存在
    */
   public record CodexSessionDiscovery(
-      String sessionId,
+      /* 会话唯一标识 */
+      @NotBlank String sessionId,
+      /* threads.db 中的线程信息，不存在时为 null */
       Map<String, String> threadInfo,
+      /* session_index.jsonl 中的条目，不存在时为 null */
       Map<String, String> indexEntry,
-      Path rolloutPath,
-      boolean hasFile) {}
+      /* rollout 文件路径（可能不存在） */
+      @NotNull Path rolloutPath,
+      /* rollout 文件是否实际存在 */
+      boolean hasFile) {
+    /** 校验 Codex 会话发现结果参数。 */
+    public CodexSessionDiscovery {
+      ValidationSupport.validateCanonicalConstructor(
+          CodexSessionDiscovery.class, sessionId, threadInfo, indexEntry, rolloutPath, hasFile);
+    }
+  }
 }

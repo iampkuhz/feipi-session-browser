@@ -15,6 +15,7 @@ include(
     "app-cli",
     "java:common",
     "java:app-cli",
+    "java:validation",
     "java:core-domain",
     "java:source-spi",
     "java:sources",

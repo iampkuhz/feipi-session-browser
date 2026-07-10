@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(project(":java:core-domain"))
+    api(project(":java:validation"))
     implementation(project(":java:source-spi"))
 
     testImplementation(libs.junit.jupiter)

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.source.spi.SourceId;
+import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -37,19 +38,19 @@ class IncrementalScanSummaryTest {
             () ->
                 new IncrementalScanSummary(
                     -1, 0, 0, 0, 0, 0, Map.of(), List.of(), 0, 0, 0, 0, false))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(ConstraintViolationException.class);
 
     assertThatThrownBy(
             () ->
                 new IncrementalScanSummary(
                     0, -1, 0, 0, 0, 0, Map.of(), List.of(), 0, 0, 0, 0, false))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(ConstraintViolationException.class);
 
     assertThatThrownBy(
             () ->
                 new IncrementalScanSummary(
                     0, 0, 0, 0, 0, 0, Map.of(), List.of(), -1, 0, 0, 0, false))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test

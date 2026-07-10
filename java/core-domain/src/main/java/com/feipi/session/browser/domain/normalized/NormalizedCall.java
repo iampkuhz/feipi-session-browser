@@ -1,13 +1,18 @@
 package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.common.validation.ImmutableCopies;
-import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -33,7 +38,7 @@ import java.util.Optional;
  * @param parentToolCallId 触发子 agent 调用的工具调用边
  * @param turnId 关联的 provider 轮次标识符
  * @param model provider 报告的模型名称
- * @param timestamp provider 时间戳
+ * @param timestamp 适配层上报的时间戳文本
  * @param usage 归因到该调用的 token 用量
  * @param request 请求侧边标识符
  * @param response 响应侧边标识符
@@ -46,23 +51,58 @@ import java.util.Optional;
  */
 @DomainModel
 public record NormalizedCall(
-    @CoreField String callId,
-    @CoreField int callIndex,
-    @CoreField String callKey,
-    @CoreField CallScope scope,
+    /* 稳定的适配器提供或生成的调用标识符。 */
+    @NotBlank @CoreField String callId,
+
+    /* 归一化遍历顺序中从 1 开始的调用位置。 */
+    @Positive @CoreField int callIndex,
+
+    /* 显示键，格式为 {@code C{callIndex}}。 */
+    @NotBlank @CoreField String callKey,
+
+    /* 主会话或子 agent 作用域标签。 */
+    @NotNull @CoreField CallScope scope,
+
+    /* 子 agent 调用的父 LLM 调用，否则为空。 */
     Optional<String> parentCallId,
+
+    /* 触发子 agent 调用的工具调用边。 */
     Optional<String> parentToolCallId,
+
+    /* 关联的 provider 轮次标识符。 */
     Optional<String> turnId,
-    @CoreField String model,
+
+    /* provider 报告的模型名称。 */
+    @NotNull @CoreField String model,
+
+    /* 适配层上报的时间戳文本。 */
     Optional<String> timestamp,
-    @CoreField NormalizedCallUsage usage,
-    @CoreField NormalizedCallRequest request,
-    @CoreField NormalizedCallResponse response,
-    List<SourceUnitRefRange> sourceUnitRefRanges,
-    List<Map<String, Object>> sourceUnits,
-    Map<String, Object> attributionCandidates,
-    Map<String, Object> usageSource,
+
+    /* 归因到该调用的 token 用量。 */
+    @NotNull @CoreField NormalizedCallUsage usage,
+
+    /* 请求侧边标识符。 */
+    @NotNull @CoreField NormalizedCallRequest request,
+
+    /* 响应侧边标识符。 */
+    @NotNull @CoreField NormalizedCallResponse response,
+
+    /* 对目录序列的引用列表。 */
+    @NotNull List<SourceUnitRefRange> sourceUnitRefRanges,
+
+    /* 内联源单元列表，兼容性保留。 */
+    @NotNull List<Map<String, Object>> sourceUnits,
+
+    /* 适配器归因元数据。 */
+    @NotNull Map<String, Object> attributionCandidates,
+
+    /* 估算用量元数据。 */
+    @NotNull Map<String, Object> usageSource,
+
+    /* 子 agent 标识，主会话为空。 */
     Optional<String> subagentId,
+
+    /* 触发子 agent 的父工具名，主会话为空。 */
     Optional<String> parentToolName) {
 
   /**
@@ -112,22 +152,15 @@ public record NormalizedCall(
    * 紧凑构造器，验证调用不变量并执行防御性拷贝。
    *
    * @throws NullPointerException 当必填字段为 null 时
-   * @throws IllegalArgumentException 当 callIndex 小于 1 或 callKey 不匹配时
+   * @throws IllegalArgumentException 当 callKey 不匹配 callIndex 时
    */
   public NormalizedCall {
-    ParamChecks.nonEmpty(callId, "callId");
-    ParamChecks.atLeast(callIndex, 1, "callIndex");
-    Objects.requireNonNull(callKey, "callKey 不得为 null");
+    // callKey 与 callIndex 跨字段规则
     String expectedKey = "C" + callIndex;
     if (!expectedKey.equals(callKey)) {
       throw new IllegalArgumentException(
           "callKey must match callIndex; expected '" + expectedKey + "', got '" + callKey + "'");
     }
-    Objects.requireNonNull(scope, "scope 不得为 null");
-    Objects.requireNonNull(model, "model 不得为 null");
-    Objects.requireNonNull(usage, "usage 不得为 null");
-    Objects.requireNonNull(request, "request 不得为 null");
-    Objects.requireNonNull(response, "response 不得为 null");
 
     // Optional 字段规范化
     parentCallId = parentCallId == null ? Optional.empty() : parentCallId;
@@ -152,5 +185,61 @@ public record NormalizedCall(
     usageSource =
         ImmutableCopies.boundedMapOrEmpty(
             usageSource, NormalizedConstants.MAX_COLLECTION_SIZE, "usageSource");
+
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          NormalizedCall.class,
+          callId,
+          callIndex,
+          callKey,
+          scope,
+          parentCallId,
+          parentToolCallId,
+          turnId,
+          model,
+          timestamp,
+          usage,
+          request,
+          response,
+          sourceUnitRefRanges,
+          sourceUnits,
+          attributionCandidates,
+          usageSource,
+          subagentId,
+          parentToolName);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+    }
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotBlank.class) {
+        if (v.getInvalidValue() == null) {
+          throw new NullPointerException(field + " 不得为 null");
+        }
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
+      if (type == Positive.class || type == PositiveOrZero.class) {
+        throw new IllegalArgumentException(field + " 数值不合法: " + v.getInvalidValue());
+      }
+    }
+    throw e;
   }
 }

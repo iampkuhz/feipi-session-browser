@@ -1,6 +1,8 @@
 package com.feipi.session.browser.index.store.sqlite.util;
 
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.Finite;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.Collections;
 import java.util.EnumMap;
 import java.util.List;
@@ -16,7 +18,8 @@ import java.util.Objects;
 public final class PercentileCalculator {
 
   /** 最小有效样本数，低于此值使用回退阈值。 */
-  public static final int MIN_ROWS = com.feipi.session.browser.query.api.PercentileCalculator.MIN_ROWS;
+  public static final int MIN_ROWS =
+      com.feipi.session.browser.query.api.PercentileCalculator.MIN_ROWS;
 
   /** 时长回退阈值（秒）。 */
   public static final double DURATION_WARNING_SECONDS =
@@ -60,7 +63,7 @@ public final class PercentileCalculator {
   }
 
   /**
-   * 计算 P90、P95 和样本数。
+   * 计算 P90、P95 和样本数量。
    *
    * @param values 数值 observations
    * @return 包含 p90、p95 和 count 的 SQLite facade 结果
@@ -95,7 +98,8 @@ public final class PercentileCalculator {
    */
   public static Map<MetricKey, Thresholds> computeSessionThresholds(
       List<Double> durationValues, List<Double> toolCallValues, List<Double> cacheWriteValues) {
-    Map<com.feipi.session.browser.query.api.PercentileCalculator.MetricKey,
+    Map<
+            com.feipi.session.browser.query.api.PercentileCalculator.MetricKey,
             com.feipi.session.browser.query.api.PercentileCalculator.Thresholds>
         computed =
             com.feipi.session.browser.query.api.PercentileCalculator.computeSessionThresholds(
@@ -113,7 +117,7 @@ public final class PercentileCalculator {
 
   /** 指标键枚举。 */
   public enum MetricKey {
-    /** 活跃时长（秒）。 */
+    /** 活跃持续时长秒数。 */
     DURATION_SECONDS,
     /** 工具调用数。 */
     TOOL_CALL_COUNT,
@@ -141,14 +145,14 @@ public final class PercentileCalculator {
    * @param p95 P95 值，空列表时为 null
    * @param count 样本数
    */
-  public record PercentileResult(Double p90, Double p95, int count) {
-    /**
-     * 紧凑构造器，验证样本数非负。
-     *
-     * @throws IllegalArgumentException 当 count 为负数时
-     */
+  public record PercentileResult(
+      /* P90 值，空列表时为 null。 */ Double p90,
+      /* P95 值，空列表时为 null。 */ Double p95,
+      /* 样本数量。 */ @PositiveOrZero int count) {
+
+    /** 紧凑构造器，校验 record component 约束。 */
     public PercentileResult {
-      ParamChecks.nonNegative(count, "count");
+      ValidationSupport.validateCanonicalConstructor(PercentileResult.class, p90, p95, count);
     }
   }
 
@@ -162,16 +166,16 @@ public final class PercentileCalculator {
    * @param sampleCount 用于计算的样本数
    */
   public record Thresholds(
-      double warning, double critical, Double p90, Double p95, int sampleCount) {
-    /**
-     * 紧凑构造器，验证阈值和样本数。
-     *
-     * @throws IllegalArgumentException 当阈值或样本数为负数时
-     */
+      /* 警告阈值。 */ @Finite @PositiveOrZero double warning,
+      /* 严重阈值。 */ @Finite @PositiveOrZero double critical,
+      /* P90 值，可能为 null。 */ Double p90,
+      /* P95 值，可能为 null。 */ Double p95,
+      /* 用于计算的样本数量。 */ @PositiveOrZero int sampleCount) {
+
+    /** 紧凑构造器，校验 record component 约束。 */
     public Thresholds {
-      ParamChecks.nonNegative(warning, "warning");
-      ParamChecks.nonNegative(critical, "critical");
-      ParamChecks.nonNegative(sampleCount, "sampleCount");
+      ValidationSupport.validateCanonicalConstructor(
+          Thresholds.class, warning, critical, p90, p95, sampleCount);
     }
 
     private static Thresholds fromApi(

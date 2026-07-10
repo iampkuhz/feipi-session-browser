@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.page;
 
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.QueryCompositionRoot;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.index.api.query.ActivityTrend;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
@@ -15,7 +16,6 @@ import com.feipi.session.browser.web.template.DisplayFormatters;
 import com.feipi.session.browser.web.template.PebbleEnvironment;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
-import com.feipi.session.browser.index.api.IndexQueryException;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
@@ -449,13 +449,21 @@ public final class DashboardPage {
    * @param secondary 二级指标列表
    */
   private record KpiCard(
+      /* 卡片标题文本 */
       String label,
+      /* 主指标展示值 */
       Object value,
+      /* 指标说明文本 */
       String description,
+      /* 图标名称标识 */
       String icon,
+      /* 图标颜色标识 */
       String iconColor,
+      /* 趋势徽标文本 */
       String badge,
+      /* 趋势徽标色调 */
       String badgeTone,
+      /* 二级指标列表 */
       List<Map<String, Object>> secondary) {}
 
   private static String formatDashboardInteger(Number value) {
@@ -600,9 +608,7 @@ public final class DashboardPage {
   }
 
   private static Map<String, Object> buildDashboardSummary(
-      List<TrendDay> trendRows,
-      List<ActivityTrend> activityRows,
-      Map<String, Object> cacheHealth) {
+      List<TrendDay> trendRows, List<ActivityTrend> activityRows, Map<String, Object> cacheHealth) {
     Map<String, Object> summary = new LinkedHashMap<>();
     long totalSessions = trendRows.stream().mapToLong(TrendDay::totalCount).sum();
     long totalTokens = trendRows.stream().mapToLong(TrendDay::totalTokens).sum();
@@ -649,8 +655,7 @@ public final class DashboardPage {
     for (AgentBreakdown row : agentBreakdown) {
       breakdownMap.put(row.agent(), row);
     }
-    long totalSessionsAll =
-        agentBreakdown.stream().mapToLong(AgentBreakdown::sessionCount).sum();
+    long totalSessionsAll = agentBreakdown.stream().mapToLong(AgentBreakdown::sessionCount).sum();
     long totalTokensAll = agentBreakdown.stream().mapToLong(AgentBreakdown::totalTokens).sum();
     long totalPromptsAll =
         agentBreakdown.stream().mapToLong(AgentBreakdown::totalUserMessages).sum();
@@ -684,7 +689,13 @@ public final class DashboardPage {
    * @param tokens token 总数
    * @param prompts prompt 总数
    */
-  private record AgentContributionTotals(long sessions, long tokens, long prompts) {}
+  private record AgentContributionTotals(
+      /* 会话总数量 */
+      long sessions,
+      /* 令牌总数量 */
+      long tokens,
+      /* 提示词总数量 */
+      long prompts) {}
 
   /** 构建单个 agent 的贡献行，包含 contribution bar 数据（range）和 All Agents 表数据（全量）。 */
   private static Map<String, Object> buildAgentContributionRow(

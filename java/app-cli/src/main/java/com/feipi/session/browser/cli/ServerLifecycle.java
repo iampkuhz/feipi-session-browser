@@ -1,17 +1,17 @@
 package com.feipi.session.browser.cli;
 
-import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.QueryCache;
+import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
-import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.scan.engine.BackgroundScanner;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.ScanConfig;

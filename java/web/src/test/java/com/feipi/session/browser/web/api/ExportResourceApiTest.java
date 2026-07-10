@@ -6,8 +6,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
@@ -180,7 +180,9 @@ class ExportResourceApiTest {
   }
 
   private WebCompositionRoot createWebRoot() {
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     return new WebCompositionRoot(root, WebConfig.defaults());
   }
 

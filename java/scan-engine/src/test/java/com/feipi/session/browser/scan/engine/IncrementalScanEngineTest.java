@@ -232,7 +232,8 @@ class IncrementalScanEngineTest {
 
     IncrementalScanEngine engine = new IncrementalScanEngine();
     // 设置很大的 maxAgeSeconds（比如 1 秒），这样 2020 年的会话会被过滤
-    IncrementalScanSummary summary = engine.scan(SqliteTestHelper.createIndexWriter(conn), config, 1.0);
+    IncrementalScanSummary summary =
+        engine.scan(SqliteTestHelper.createIndexWriter(conn), config, 1.0);
 
     // 候选项被状态机分类后，如果 stored 存在且 ended_at < cutoff → 跳过
     assertThat(summary.totalCandidates()).isEqualTo(1);

@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import io.javalin.testtools.JavalinTest;
 import java.nio.file.Path;
@@ -49,7 +49,9 @@ class SecurityHeadersTest {
   @Test
   @DisplayName("健康检查响应包含全部安全头")
   void healthResponseIncludesSecurityHeaders() {
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -70,7 +72,9 @@ class SecurityHeadersTest {
   @Test
   @DisplayName("404 响应也包含安全头")
   void notFoundResponseIncludesSecurityHeaders() {
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(

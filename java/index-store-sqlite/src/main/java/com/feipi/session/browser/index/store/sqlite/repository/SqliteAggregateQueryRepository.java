@@ -1,34 +1,34 @@
 package com.feipi.session.browser.index.store.sqlite.repository;
 
-import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
 import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.index.api.query.ActivityTrend;
-import com.feipi.session.browser.index.api.query.AggregateQueryPort;
-import com.feipi.session.browser.index.api.query.AggregateMetrics;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
+import com.feipi.session.browser.index.api.query.AggregateMetrics;
+import com.feipi.session.browser.index.api.query.AggregateQueryPort;
 import com.feipi.session.browser.index.api.query.DashboardStats;
 import com.feipi.session.browser.index.api.query.KpiSupplement;
 import com.feipi.session.browser.index.api.query.ProjectListSummary;
 import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
 import com.feipi.session.browser.index.api.query.TrendDay;
-import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils.WhereClauses;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.row.ActivityTrendRow;
 import com.feipi.session.browser.index.store.sqlite.row.AgentBreakdownRow;
 import com.feipi.session.browser.index.store.sqlite.row.AgentEfficiencyRow;
 import com.feipi.session.browser.index.store.sqlite.row.AggregateMetricsRow;
 import com.feipi.session.browser.index.store.sqlite.row.CacheHitSessionRow;
 import com.feipi.session.browser.index.store.sqlite.row.DashboardRow;
-import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.row.KpiSupplementRow;
 import com.feipi.session.browser.index.store.sqlite.row.ProjectListSummaryRow;
 import com.feipi.session.browser.index.store.sqlite.row.ProjectStatsRow;
-import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.index.store.sqlite.row.TokenBreakdownRow;
 import com.feipi.session.browser.index.store.sqlite.row.TopProjectRow;
 import com.feipi.session.browser.index.store.sqlite.row.TopSessionRow;
 import com.feipi.session.browser.index.store.sqlite.row.TrendDayRow;
+import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
+import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
+import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils.WhereClauses;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
@@ -504,8 +504,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    */
   @Override
   public List<ActivityTrend> activityTrend(TrendFilter filter) {
-    return execute(
-        "activity trend", () -> new ArrayList<ActivityTrend>(activityTrendSql(filter)));
+    return execute("activity trend", () -> new ArrayList<ActivityTrend>(activityTrendSql(filter)));
   }
 
   private List<ActivityTrendRow> activityTrendSql(TrendFilter filter) throws SQLException {
@@ -857,8 +856,7 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    */
   @Override
   public List<AgentEfficiency> agentEfficiency() {
-    return execute(
-        "agent efficiency", () -> new ArrayList<AgentEfficiency>(agentEfficiencySql()));
+    return execute("agent efficiency", () -> new ArrayList<AgentEfficiency>(agentEfficiencySql()));
   }
 
   private List<AgentEfficiencyRow> agentEfficiencySql() throws SQLException {

@@ -3,12 +3,12 @@ package com.feipi.session.browser.application.query.repository;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
 import com.feipi.session.browser.index.api.query.SessionListAggregate;
 import com.feipi.session.browser.index.api.query.SessionRecord;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.FailureStatus;
 import com.feipi.session.browser.query.api.ModelFilter;
@@ -36,7 +36,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>覆盖会话查询四个方法的正确性、过滤组合、排序、分页、空值和 Unicode 边界。
  */
 @DisplayName("SqliteSessionQueryRepository 测试")
-class SqliteSessionQueryRepositoryTest {
+class SessionQueryRepositoryTest {
 
   @TempDir Path tempDir;
 
@@ -218,7 +218,8 @@ class SqliteSessionQueryRepositoryTest {
           "model");
       SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(indexConnection);
 
-      Optional<SessionRecord> result = repo.getSession("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
+      Optional<SessionRecord> result =
+          repo.getSession("qoder:f2443c59-c6f5-4dc6-ae2d-4e6f1c7c41ea");
 
       assertThat(result).isPresent();
       assertThat(result.get().sessionKey())

@@ -15,8 +15,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Java 模块边界依赖守卫。
  *
- * <p>这些规则固定抽象模块和应用层只能依赖端口/API，不能重新引入 JDBC、SQLite
- * 适配器或内置 source provider 实现。
+ * <p>这些规则固定抽象模块和应用层只能依赖端口/API，不能重新引入 JDBC、SQLite 适配器或内置 source provider 实现。
  */
 @DisplayName("Java module boundary dependency rules")
 final class JavaModuleBoundaryDependencyTest {
@@ -38,7 +37,8 @@ final class JavaModuleBoundaryDependencyTest {
                 "com.feipi.session.browser.index.sqlite..",
                 "com.feipi.session.browser.index.store.sqlite..")
             .as("application and query-api must depend on index-api ports, not JDBC/SQLite store")
-            .because("application use cases must stay independent of concrete persistence adapters"));
+            .because(
+                "application use cases must stay independent of concrete persistence adapters"));
   }
 
   /** web 不得依赖 JDBC 或具体 SQLite store。 */
@@ -78,7 +78,8 @@ final class JavaModuleBoundaryDependencyTest {
                 "com.feipi.session.browser.source.qoder..",
                 "com.feipi.session.browser.source.json..")
             .as("scan-engine must use source-spi/index-api ports, not providers, JDBC, or stores")
-            .because("built-in providers and concrete persistence are composed outside scan-engine"));
+            .because(
+                "built-in providers and concrete persistence are composed outside scan-engine"));
   }
 
   /** source-spi 必须保持无实现依赖。 */
@@ -123,7 +124,8 @@ final class JavaModuleBoundaryDependencyTest {
                 "com.feipi.session.browser.web..",
                 "com.feipi.session.browser.application..")
             .as("index-api/query-api must stay abstract and independent of app/web/store layers")
-            .because("query and index ports are the abstraction boundary used by application and web"));
+            .because(
+                "query and index ports are the abstraction boundary used by application and web"));
   }
 
   private static void check(ArchRule rule) {

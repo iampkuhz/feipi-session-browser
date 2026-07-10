@@ -1,6 +1,8 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * 高缓存命中率会话行。
@@ -17,22 +19,37 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param cacheHitPercent 缓存命中百分比（0.0–100.0）
  */
 public record CacheHitSessionRow(
-    String sessionKey,
-    String title,
-    String agent,
-    String model,
-    long cacheReadTokens,
-    long freshInputTokens,
-    String projectName,
-    double cacheHitPercent) {
+    /* 会话主键。 */ @NotBlank String sessionKey,
+    /* 会话标题。 */ String title,
+    /* 代理类型标识。 */ @NotBlank String agent,
+    /* 模型名称。 */ String model,
+    /* 缓存读取 token 数。 */ @PositiveOrZero long cacheReadTokens,
+    /* 非缓存输入 token 数。 */ @PositiveOrZero long freshInputTokens,
+    /* 项目名称。 */ String projectName,
+    /* 缓存命中百分比（0.0–100.0）。 */ double cacheHitPercent) {
 
   /**
-   * 紧凑构造器，验证缓存命中百分比范围。
+   * 紧凑构造器，校验 record component 约束并应用默认值。
+   *
+   * <p>projectName 为 null 时回退为空字符串；cacheHitPercent 范围由后续校验保证。
    *
    * @throws IllegalArgumentException 当 cacheHitPercent 不在 [0, 100] 范围内时
    */
   public CacheHitSessionRow {
+    ValidationSupport.validateCanonicalConstructor(
+        CacheHitSessionRow.class,
+        sessionKey,
+        title,
+        agent,
+        model,
+        cacheReadTokens,
+        freshInputTokens,
+        projectName,
+        cacheHitPercent);
     projectName = projectName == null ? "" : projectName;
-    ParamChecks.inRange(cacheHitPercent, 0.0, 100.0, "cacheHitPercent");
+    if (cacheHitPercent < 0.0 || cacheHitPercent > 100.0) {
+      throw new IllegalArgumentException(
+          "cacheHitPercent 必须在 [0, 100] 范围内，实际值: " + cacheHitPercent);
+    }
   }
 }

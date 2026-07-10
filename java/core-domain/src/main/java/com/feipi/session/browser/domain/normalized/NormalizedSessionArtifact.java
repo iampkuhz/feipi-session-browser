@@ -3,10 +3,14 @@ package com.feipi.session.browser.domain.normalized;
 import com.feipi.session.browser.common.validation.ImmutableCopies;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -37,15 +41,32 @@ import java.util.Set;
  */
 @DomainModel
 public record NormalizedSessionArtifact(
-    @CoreField String schemaVersion,
-    @CoreField NormalizedAgent agent,
-    @CoreField List<NormalizedSourceFile> sourceFiles,
-    @CoreField NormalizedSessionMetadata session,
-    @CoreField List<NormalizedCall> calls,
-    @CoreField List<NormalizedToolExecution> toolExecutions,
-    List<NormalizedDiagnostic> diagnostics,
-    Map<String, SourceUnitCatalogEntry> sourceUnitCatalog,
-    Map<String, List<String>> sourceUnitSequences) {
+    /* 归一化制品 schema 版本号。 */
+    @NotBlank @CoreField String schemaVersion,
+
+    /* 产生制品的源适配器名称。 */
+    @NotNull @CoreField NormalizedAgent agent,
+
+    /* 对制品有贡献的物理源文件列表。 */
+    @NotNull @CoreField List<NormalizedSourceFile> sourceFiles,
+
+    /* 会话元数据，保持为公开 JSON 数据。 */
+    @NotNull @CoreField NormalizedSessionMetadata session,
+
+    /* 归一化 LLM 调用列表，按遍历顺序排列。 */
+    @NotNull @CoreField List<NormalizedCall> calls,
+
+    /* 调用声明和消费的工具调用边列表。 */
+    @NotNull @CoreField List<NormalizedToolExecution> toolExecutions,
+
+    /* 非致命解析器诊断信息列表。 */
+    @NotNull List<NormalizedDiagnostic> diagnostics,
+
+    /* 按源单元键索引的目录条目映射。 */
+    @NotNull Map<String, SourceUnitCatalogEntry> sourceUnitCatalog,
+
+    /* 命名的源单元键序列映射。 */
+    @NotNull Map<String, List<String>> sourceUnitSequences) {
 
   /**
    * 兼容旧调用点的构造器。
@@ -116,17 +137,14 @@ public record NormalizedSessionArtifact(
    * 紧凑构造器，验证顶层不变量并执行防御性拷贝。
    *
    * @throws NullPointerException 当必填字段为 null 时
-   * @throws IllegalArgumentException 当 schema 版本不匹配、agent 非法或 callId 重复时
+   * @throws IllegalArgumentException 当 schema 版本不匹配或 callId 重复时
    */
   public NormalizedSessionArtifact {
-    Objects.requireNonNull(schemaVersion, "schemaVersion 不得为 null");
+    // schema 版本跨字段规则
     if (!NormalizedConstants.SCHEMA_VERSION.equals(schemaVersion)) {
       throw new IllegalArgumentException(
           "schemaVersion must be " + NormalizedConstants.SCHEMA_VERSION + "; got " + schemaVersion);
     }
-    Objects.requireNonNull(agent, "agent 不得为 null");
-
-    Objects.requireNonNull(session, "session 不得为 null");
 
     // sourceFiles 防御性拷贝
     sourceFiles =
@@ -134,7 +152,6 @@ public record NormalizedSessionArtifact(
             sourceFiles, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceFiles");
 
     // 调用列表防御性拷贝 + callId 唯一性验证
-    Objects.requireNonNull(calls, "calls 不得为 null");
     List<NormalizedCall> callsCopy = List.copyOf(calls);
     if (callsCopy.size() > NormalizedConstants.MAX_COLLECTION_SIZE) {
       throw new IllegalArgumentException(
@@ -168,5 +185,41 @@ public record NormalizedSessionArtifact(
     sourceUnitSequences =
         ImmutableCopies.boundedMapOrEmpty(
             sourceUnitSequences, NormalizedConstants.MAX_COLLECTION_SIZE, "sourceUnitSequences");
+
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          NormalizedSessionArtifact.class,
+          schemaVersion,
+          agent,
+          sourceFiles,
+          session,
+          calls,
+          toolExecutions,
+          diagnostics,
+          sourceUnitCatalog,
+          sourceUnitSequences);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+      if (type == NotBlank.class) {
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
+    }
+    throw e;
   }
 }

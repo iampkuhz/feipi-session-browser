@@ -1,5 +1,7 @@
 package com.feipi.session.browser.source.claude;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -162,5 +164,16 @@ public final class ClaudeDiscovery {
    * @param hasFile transcript 文件是否实际存在
    */
   public record ClaudeSessionDiscovery(
-      ClaudeHistoryEntry entry, Path transcriptPath, boolean hasFile) {}
+      /* history.jsonl 中的去重条目 */
+      @NotNull ClaudeHistoryEntry entry,
+      /* transcript 文件路径（可能不存在） */
+      @NotNull Path transcriptPath,
+      /* transcript 文件是否实际存在 */
+      boolean hasFile) {
+    /** 校验 Claude 会话发现结果参数。 */
+    public ClaudeSessionDiscovery {
+      ValidationSupport.validateCanonicalConstructor(
+          ClaudeSessionDiscovery.class, entry, transcriptPath, hasFile);
+    }
+  }
 }

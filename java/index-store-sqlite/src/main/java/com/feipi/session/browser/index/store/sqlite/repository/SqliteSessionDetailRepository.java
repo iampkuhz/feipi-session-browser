@@ -1,13 +1,12 @@
 package com.feipi.session.browser.index.store.sqlite.repository;
 
 import com.feipi.session.browser.index.api.IndexQueryException;
-import com.feipi.session.browser.index.api.query.SessionDetailPort;
 import com.feipi.session.browser.index.api.query.SessionArtifactRecord;
+import com.feipi.session.browser.index.api.query.SessionDetailPort;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper;
-import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
-import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;

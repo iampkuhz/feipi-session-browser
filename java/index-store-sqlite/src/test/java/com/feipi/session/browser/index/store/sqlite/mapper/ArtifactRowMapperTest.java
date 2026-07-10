@@ -1,7 +1,5 @@
 package com.feipi.session.browser.index.store.sqlite.mapper;
 
-import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
-import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
@@ -14,6 +12,8 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
+import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
+import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;

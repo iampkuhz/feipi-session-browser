@@ -1,5 +1,10 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
+import com.feipi.session.browser.validation.Finite;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
+
 /**
  * Top-N 会话排行行。
  *
@@ -16,11 +21,26 @@ package com.feipi.session.browser.index.store.sqlite.row;
  * @param toolCallCount 工具调用总数
  */
 public record TopSessionRow(
-    String sessionKey,
-    String title,
-    String agent,
-    String model,
-    String projectName,
-    double durationSeconds,
-    long failedToolCount,
-    long toolCallCount) {}
+    /* 会话主键。 */ @NotBlank String sessionKey,
+    /* 会话标题。 */ String title,
+    /* 代理类型标识。 */ @NotBlank String agent,
+    /* 模型名称。 */ @NotBlank String model,
+    /* 项目名称。 */ String projectName,
+    /* 持续时长秒数。 */ @Finite @PositiveOrZero double durationSeconds,
+    /* 失败工具调用数。 */ @PositiveOrZero long failedToolCount,
+    /* 工具调用总数。 */ @PositiveOrZero long toolCallCount) {
+
+  /** 紧凑构造器，校验 record component 约束。 */
+  public TopSessionRow {
+    ValidationSupport.validateCanonicalConstructor(
+        TopSessionRow.class,
+        sessionKey,
+        title,
+        agent,
+        model,
+        projectName,
+        durationSeconds,
+        failedToolCount,
+        toolCallCount);
+  }
+}

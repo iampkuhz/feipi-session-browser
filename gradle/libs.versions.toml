@@ -34,6 +34,11 @@ javalin = "7.0.0"
 pebble = "3.2.2"
 commonmark = "0.24.0"
 
+# Validation
+jakarta-validation = "3.1.1"
+hibernate-validator = "9.1.2.Final"
+expressly = "6.0.0"
+
 # Compile-time code generation
 lombok = "1.18.46"
 
@@ -80,6 +85,12 @@ sqlite-jdbc = { module = "org.xerial:sqlite-jdbc", version.ref = "sqlite-jdbc" }
 pmd-cli = { module = "net.sourceforge.pmd:pmd-cli", version.ref = "pmd" }
 pmd-core = { module = "net.sourceforge.pmd:pmd-core", version.ref = "pmd" }
 pmd-java = { module = "net.sourceforge.pmd:pmd-java", version.ref = "pmd" }
+
+# Validation
+jakarta-validation-api = { module = "jakarta.validation:jakarta.validation-api", version.ref = "jakarta-validation" }
+hibernate-validator = { module = "org.hibernate.validator:hibernate-validator", version.ref = "hibernate-validator" }
+hibernate-validator-processor = { module = "org.hibernate.validator:hibernate-validator-annotation-processor", version.ref = "hibernate-validator" }
+expressly = { module = "org.glassfish.expressly:expressly", version.ref = "expressly" }
 
 # Compile-time code generation
 lombok = { module = "org.projectlombok:lombok", version.ref = "lombok" }

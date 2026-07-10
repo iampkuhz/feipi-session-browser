@@ -18,6 +18,7 @@ application {
 }
 
 dependencies {
+    implementation(project(":java:validation"))
     implementation(project(":java:core-domain"))
     implementation(project(":java:source-spi"))
     implementation(project(":java:sources"))

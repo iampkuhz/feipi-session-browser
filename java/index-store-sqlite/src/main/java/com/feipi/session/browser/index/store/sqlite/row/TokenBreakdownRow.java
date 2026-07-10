@@ -1,7 +1,8 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * Token 分类统计。
@@ -16,24 +17,23 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param totalFailedTools 失败工具调用总数
  */
 public record TokenBreakdownRow(
-    long totalFreshInput,
-    long totalOutput,
-    long totalCacheRead,
-    long totalCacheWrite,
-    long totalToolCalls,
-    long totalFailedTools) implements TokenBreakdown {
+    /* 非缓存输入 令牌总数量。 */ @PositiveOrZero long totalFreshInput,
+    /* 输出 令牌总数量。 */ @PositiveOrZero long totalOutput,
+    /* 缓存读取 令牌总数量。 */ @PositiveOrZero long totalCacheRead,
+    /* 缓存写入 令牌总数量。 */ @PositiveOrZero long totalCacheWrite,
+    /* 工具调用总数。 */ @PositiveOrZero long totalToolCalls,
+    /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools)
+    implements TokenBreakdown {
 
-  /**
-   * 紧凑构造器，验证非负不变量。
-   *
-   * @throws IllegalArgumentException 当任何字段为负数时
-   */
+  /** 紧凑构造器，校验 record component 约束。 */
   public TokenBreakdownRow {
-    ParamChecks.nonNegative(totalFreshInput, "totalFreshInput");
-    ParamChecks.nonNegative(totalOutput, "totalOutput");
-    ParamChecks.nonNegative(totalCacheRead, "totalCacheRead");
-    ParamChecks.nonNegative(totalCacheWrite, "totalCacheWrite");
-    ParamChecks.nonNegative(totalToolCalls, "totalToolCalls");
-    ParamChecks.nonNegative(totalFailedTools, "totalFailedTools");
+    ValidationSupport.validateCanonicalConstructor(
+        TokenBreakdownRow.class,
+        totalFreshInput,
+        totalOutput,
+        totalCacheRead,
+        totalCacheWrite,
+        totalToolCalls,
+        totalFailedTools);
   }
 }

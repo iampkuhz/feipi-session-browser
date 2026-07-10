@@ -1,6 +1,10 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.TrendDay;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
+
 /**
  * 每日趋势数据行。
  *
@@ -35,27 +39,59 @@ import com.feipi.session.browser.index.api.query.TrendDay;
  * @param codexCacheWrite codex 当日 cache write token
  */
 public record TrendDayRow(
-    String date,
-    long claudeCount,
-    long codexCount,
-    long qoderCount,
-    long claudeTokens,
-    long codexTokens,
-    long qoderTokens,
-    long freshInputTokens,
-    long cacheReadTokens,
-    long cacheWriteTokens,
-    long outputTokens,
-    long totalTokens,
-    long toolCalls,
-    long failedTools,
-    long totalCount,
-    long claudeFreshInput,
-    long claudeCacheRead,
-    long claudeCacheWrite,
-    long qoderFreshInput,
-    long qoderCacheRead,
-    long qoderCacheWrite,
-    long codexFreshInput,
-    long codexCacheRead,
-    long codexCacheWrite) implements TrendDay {}
+    /* 日期字符串（YYYY-MM-DD）。 */ @NotBlank String date,
+    /* claude_code 当日会话数量。 */ @PositiveOrZero long claudeCount,
+    /* codex 当日会话数量。 */ @PositiveOrZero long codexCount,
+    /* qoder 当日会话数量。 */ @PositiveOrZero long qoderCount,
+    /* claude_code 当日 令牌总数量。 */ @PositiveOrZero long claudeTokens,
+    /* codex 当日 令牌总数量。 */ @PositiveOrZero long codexTokens,
+    /* qoder 当日 令牌总数量。 */ @PositiveOrZero long qoderTokens,
+    /* 当日非缓存输入 令牌总数量。 */ @PositiveOrZero long freshInputTokens,
+    /* 当日缓存读取 令牌总数量。 */ @PositiveOrZero long cacheReadTokens,
+    /* 当日缓存写入 令牌总数量。 */ @PositiveOrZero long cacheWriteTokens,
+    /* 当日输出 令牌总数量。 */ @PositiveOrZero long outputTokens,
+    /* 当日 令牌总数量。 */ @PositiveOrZero long totalTokens,
+    /* 当日工具调用总数。 */ @PositiveOrZero long toolCalls,
+    /* 当日失败工具调用总数。 */ @PositiveOrZero long failedTools,
+    /* 当日会话总数。 */ @PositiveOrZero long totalCount,
+    /* Claude 当日新鲜输入令牌数量。 */ @PositiveOrZero long claudeFreshInput,
+    /* Claude 当日缓存读取令牌数量。 */ @PositiveOrZero long claudeCacheRead,
+    /* Claude 当日缓存写入令牌数量。 */ @PositiveOrZero long claudeCacheWrite,
+    /* Qoder 当日新鲜输入令牌数量。 */ @PositiveOrZero long qoderFreshInput,
+    /* Qoder 当日缓存读取令牌数量。 */ @PositiveOrZero long qoderCacheRead,
+    /* Qoder 当日缓存写入令牌数量。 */ @PositiveOrZero long qoderCacheWrite,
+    /* Codex 当日新鲜输入令牌数量。 */ @PositiveOrZero long codexFreshInput,
+    /* Codex 当日缓存读取令牌数量。 */ @PositiveOrZero long codexCacheRead,
+    /* Codex 当日缓存写入令牌数量。 */ @PositiveOrZero long codexCacheWrite)
+    implements TrendDay {
+
+  /** 紧凑构造器，校验 record component 约束。 */
+  public TrendDayRow {
+    ValidationSupport.validateCanonicalConstructor(
+        TrendDayRow.class,
+        date,
+        claudeCount,
+        codexCount,
+        qoderCount,
+        claudeTokens,
+        codexTokens,
+        qoderTokens,
+        freshInputTokens,
+        cacheReadTokens,
+        cacheWriteTokens,
+        outputTokens,
+        totalTokens,
+        toolCalls,
+        failedTools,
+        totalCount,
+        claudeFreshInput,
+        claudeCacheRead,
+        claudeCacheWrite,
+        qoderFreshInput,
+        qoderCacheRead,
+        qoderCacheWrite,
+        codexFreshInput,
+        codexCacheRead,
+        codexCacheWrite);
+  }
+}

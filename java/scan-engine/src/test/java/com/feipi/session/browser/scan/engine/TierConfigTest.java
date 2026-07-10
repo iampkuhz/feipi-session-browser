@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -22,14 +23,14 @@ class TierConfigTest {
   @Test
   void zeroWindowThrows() {
     assertThatThrownBy(() -> new TierConfig(0, 30))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ConstraintViolationException.class)
         .hasMessageContaining("windowSeconds");
   }
 
   @Test
   void negativeIntervalThrows() {
     assertThatThrownBy(() -> new TierConfig(300, -1))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ConstraintViolationException.class)
         .hasMessageContaining("intervalSeconds");
   }
 

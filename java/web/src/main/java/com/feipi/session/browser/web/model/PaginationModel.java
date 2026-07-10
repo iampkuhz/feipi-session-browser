@@ -20,13 +20,21 @@ import java.util.Map;
  * @param hasNext 是否存在下一页
  */
 public record PaginationModel(
+    /* 当前页码序号 */
     int page,
+    /* 每页显示条数 */
     int pageSize,
+    /* 总条目数量 */
     int totalItems,
+    /* 总分页数量 */
     int totalPages,
+    /* 当前页起始序号 */
     int pageStart,
+    /* 当前页结束序号 */
     int pageEnd,
+    /* 是否存在上一页 */
     boolean hasPrev,
+    /* 是否存在下一页 */
     boolean hasNext) {
 
   /**

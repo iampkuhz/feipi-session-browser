@@ -1,6 +1,10 @@
 package com.feipi.session.browser.domain.source;
 
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * 源中性 token 用量。
@@ -14,15 +18,29 @@ import com.feipi.session.browser.domain.annotation.DomainModel;
  */
 @DomainModel
 public record SourceRecordUsage(
-    long inputTokens, long cacheReadInputTokens, long cacheCreationInputTokens, long outputTokens) {
+    /* 新鲜输入 token 数，单位 token；未提供时为 0。 */
+    @PositiveOrZero long inputTokens,
 
-  /** 校验 token 用量分量。 */
+    /* 缓存读取输入 token 数，单位 token；未提供时为 0。 */
+    @PositiveOrZero long cacheReadInputTokens,
+
+    /* 缓存创建输入 token 数，单位 token；未提供时为 0。 */
+    @PositiveOrZero long cacheCreationInputTokens,
+
+    /* 输出 token 数，单位 token；未提供时为 0。 */
+    @PositiveOrZero long outputTokens) {
+
+  /** 紧凑构造器，校验约束。 */
   public SourceRecordUsage {
-    if (inputTokens < 0
-        || cacheReadInputTokens < 0
-        || cacheCreationInputTokens < 0
-        || outputTokens < 0) {
-      throw new IllegalArgumentException("token 用量不得为负数");
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          SourceRecordUsage.class,
+          inputTokens,
+          cacheReadInputTokens,
+          cacheCreationInputTokens,
+          outputTokens);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
     }
   }
 
@@ -42,5 +60,22 @@ public record SourceRecordUsage(
    */
   public long total() {
     return inputTokens + cacheReadInputTokens + cacheCreationInputTokens + outputTokens;
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == PositiveOrZero.class) {
+        throw new IllegalArgumentException(field + " 不得为负: " + v.getInvalidValue());
+      }
+    }
+    throw e;
   }
 }

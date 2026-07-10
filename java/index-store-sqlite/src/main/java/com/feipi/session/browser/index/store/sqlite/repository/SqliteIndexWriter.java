@@ -1,15 +1,15 @@
 package com.feipi.session.browser.index.store.sqlite.repository;
 
-import com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
-import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
-import com.feipi.session.browser.index.store.sqlite.tx.WriteBatch;
+import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.api.write.IndexWriteException;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.api.write.MissingTranscriptSession;
 import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
-import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper;
+import com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow;
+import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.tx.WriteBatch;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.PreparedStatement;

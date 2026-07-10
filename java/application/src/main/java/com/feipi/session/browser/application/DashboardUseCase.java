@@ -1,10 +1,10 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.index.api.query.DashboardQueryPort;
 import com.feipi.session.browser.index.api.query.ActivityTrend;
 import com.feipi.session.browser.index.api.query.AgentBreakdown;
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
 import com.feipi.session.browser.index.api.query.AggregateMetrics;
+import com.feipi.session.browser.index.api.query.DashboardQueryPort;
 import com.feipi.session.browser.index.api.query.DashboardStats;
 import com.feipi.session.browser.index.api.query.KpiSupplement;
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
@@ -35,10 +35,7 @@ public final class DashboardUseCase {
    * @param cache 可选缓存，null 时不缓存
    * @param schemaVersion 当前 schema 版本号
    */
-  public DashboardUseCase(
-      DashboardQueryPort repository,
-      QueryCache cache,
-      int schemaVersion) {
+  public DashboardUseCase(DashboardQueryPort repository, QueryCache cache, int schemaVersion) {
     this.repository = Objects.requireNonNull(repository, "repository 不得为 null");
     this.cache = cache;
     this.schemaVersion = schemaVersion;
@@ -70,11 +67,7 @@ public final class DashboardUseCase {
    */
   public List<AgentBreakdown> agentBreakdown() {
     if (cache != null) {
-      return cache.getOrLoad(
-          "agentBreakdown",
-          0,
-          schemaVersion,
-          () -> repository.agentBreakdown());
+      return cache.getOrLoad("agentBreakdown", 0, schemaVersion, () -> repository.agentBreakdown());
     }
     return repository.agentBreakdown();
   }
@@ -90,10 +83,7 @@ public final class DashboardUseCase {
     if (cache != null) {
       int paramsHash = Objects.hash("kpiSupplement", agentFilter);
       return cache.getOrLoad(
-          "kpiSupplement",
-          paramsHash,
-          schemaVersion,
-          () -> repository.kpiSupplement(agentFilter));
+          "kpiSupplement", paramsHash, schemaVersion, () -> repository.kpiSupplement(agentFilter));
     }
     return repository.kpiSupplement(agentFilter);
   }
@@ -109,10 +99,7 @@ public final class DashboardUseCase {
     if (cache != null) {
       int paramsHash = Objects.hash("trend", filter);
       return cache.getOrLoad(
-          "trendData",
-          paramsHash,
-          schemaVersion,
-          () -> repository.trendData(filter));
+          "trendData", paramsHash, schemaVersion, () -> repository.trendData(filter));
     }
     return repository.trendData(filter);
   }
@@ -128,10 +115,7 @@ public final class DashboardUseCase {
     if (cache != null) {
       int paramsHash = Objects.hash("activity", filter);
       return cache.getOrLoad(
-          "activityTrend",
-          paramsHash,
-          schemaVersion,
-          () -> repository.activityTrend(filter));
+          "activityTrend", paramsHash, schemaVersion, () -> repository.activityTrend(filter));
     }
     return repository.activityTrend(filter);
   }
@@ -143,11 +127,7 @@ public final class DashboardUseCase {
    */
   public TokenBreakdown tokenBreakdown() {
     if (cache != null) {
-      return cache.getOrLoad(
-          "tokenBreakdown",
-          0,
-          schemaVersion,
-          () -> repository.tokenBreakdown());
+      return cache.getOrLoad("tokenBreakdown", 0, schemaVersion, () -> repository.tokenBreakdown());
     }
     return repository.tokenBreakdown();
   }
@@ -159,11 +139,7 @@ public final class DashboardUseCase {
    */
   public Map<String, Long> modelDistribution() {
     if (cache != null) {
-      return cache.getOrLoad(
-          "modelDist",
-          0,
-          schemaVersion,
-          () -> repository.modelDistribution());
+      return cache.getOrLoad("modelDist", 0, schemaVersion, () -> repository.modelDistribution());
     }
     return repository.modelDistribution();
   }
@@ -175,11 +151,7 @@ public final class DashboardUseCase {
    */
   public Map<String, Long> agentDistribution() {
     if (cache != null) {
-      return cache.getOrLoad(
-          "agentDist",
-          0,
-          schemaVersion,
-          () -> repository.agentDistribution());
+      return cache.getOrLoad("agentDist", 0, schemaVersion, () -> repository.agentDistribution());
     }
     return repository.agentDistribution();
   }
@@ -191,11 +163,7 @@ public final class DashboardUseCase {
    */
   public AggregateMetrics aggregateMetrics() {
     if (cache != null) {
-      return cache.getOrLoad(
-          "aggMetrics",
-          0,
-          schemaVersion,
-          () -> repository.aggregateMetrics());
+      return cache.getOrLoad("aggMetrics", 0, schemaVersion, () -> repository.aggregateMetrics());
     }
     return repository.aggregateMetrics();
   }
@@ -207,11 +175,7 @@ public final class DashboardUseCase {
    */
   public List<AgentEfficiency> agentEfficiency() {
     if (cache != null) {
-      return cache.getOrLoad(
-          "agentEff",
-          0,
-          schemaVersion,
-          () -> repository.agentEfficiency());
+      return cache.getOrLoad("agentEff", 0, schemaVersion, () -> repository.agentEfficiency());
     }
     return repository.agentEfficiency();
   }

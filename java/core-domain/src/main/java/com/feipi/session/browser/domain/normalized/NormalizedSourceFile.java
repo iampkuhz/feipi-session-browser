@@ -2,8 +2,11 @@ package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotNull;
 import java.nio.file.Path;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -25,20 +28,48 @@ import java.util.Optional;
  */
 @DomainModel
 public record NormalizedSourceFile(
-    @CoreField SourceFileRole role,
-    @CoreField Path path,
+    /* 源角色，如 {@link SourceFileRole#TRANSCRIPT} 或 {@link SourceFileRole#COMPANION}。 */
+    @NotNull @CoreField SourceFileRole role,
+
+    /* 文件系统路径，用于溯源。 */
+    @NotNull @CoreField Path path,
+
+    /* 产生该源文件的可选子 agent 实例标识。 */
     Optional<String> subagentId,
+
+    /* 可选的父工具调用边标识。 */
     Optional<String> parentToolUseId) {
 
   /**
-   * 紧凑构造器，执行非空约束。
+   * 紧凑构造器，处理默认值并校验约束。
    *
    * @throws NullPointerException 当 {@code role} 或 {@code path} 为 null 时
    */
   public NormalizedSourceFile {
-    Objects.requireNonNull(role, "role 不得为 null");
-    Objects.requireNonNull(path, "path 不得为 null");
     subagentId = subagentId == null ? Optional.empty() : subagentId;
     parentToolUseId = parentToolUseId == null ? Optional.empty() : parentToolUseId;
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          NormalizedSourceFile.class, role, path, subagentId, parentToolUseId);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+    }
+    throw e;
   }
 }

@@ -2,16 +2,15 @@ package com.feipi.session.browser.application;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
 import com.feipi.session.browser.index.api.query.DashboardStats;
-import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.api.query.ProjectStats;
-import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
@@ -86,13 +85,17 @@ class UseCaseIntegrationTest {
     }
   }
 
-
   private QueryCompositionRoot queryRoot(int schemaVersion, QueryCache cache) {
     SqliteSessionQueryRepository sessionRepo = new SqliteSessionQueryRepository(ic);
     SqliteAggregateQueryRepository aggregateRepo = new SqliteAggregateQueryRepository(ic);
     SqliteSessionDetailRepository detailRepo = new SqliteSessionDetailRepository(sessionRepo);
     return new QueryCompositionRoot(
-        sessionRepo, aggregateRepo, detailRepo, NormalizedArtifactLoader::load, schemaVersion, cache);
+        sessionRepo,
+        aggregateRepo,
+        detailRepo,
+        NormalizedArtifactLoader::load,
+        schemaVersion,
+        cache);
   }
 
   @Nested

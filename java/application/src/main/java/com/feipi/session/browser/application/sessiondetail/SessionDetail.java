@@ -4,8 +4,9 @@ import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadVisibility;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * 会话详情聚合模型。
@@ -31,13 +32,26 @@ import java.util.Objects;
  * @param cacheKey 缓存键，包含制品 hash 和 index 版本信息
  */
 public record SessionDetail(
-    SessionRecord sessionRow,
-    List<CallRound> rounds,
-    List<PayloadSource> payloadSources,
-    PayloadVisibility visibility,
-    String artifactPath,
-    String artifactSchemaVersion,
-    String cacheKey) {
+    /* 数据库会话行数据。 */
+    @NotNull SessionRecord sessionRow,
+
+    /* 归一化调用轮次列表。 */
+    @NotNull List<CallRound> rounds,
+
+    /* 该会话可展开的 payload 来源列表。 */
+    @NotNull List<PayloadSource> payloadSources,
+
+    /* 当前 payload 可见性策略。 */
+    @NotNull PayloadVisibility visibility,
+
+    /* 归一化制品路径，未关联制品时为空字符串。 */
+    @NotNull String artifactPath,
+
+    /* 制品 schema 版本，未关联制品时为空字符串。 */
+    @NotNull String artifactSchemaVersion,
+
+    /* 缓存键，包含制品 hash 和 index 版本信息。 */
+    @NotNull String cacheKey) {
 
   /**
    * 紧凑构造器，验证详情不变量并执行防御性拷贝。
@@ -45,10 +59,15 @@ public record SessionDetail(
    * @throws NullPointerException 当必填字段为 null 时
    */
   public SessionDetail {
-    Objects.requireNonNull(sessionRow, "sessionRow 不得为 null");
-    Objects.requireNonNull(rounds, "rounds 不得为 null");
-    Objects.requireNonNull(payloadSources, "payloadSources 不得为 null");
-    Objects.requireNonNull(visibility, "visibility 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(
+        SessionDetail.class,
+        sessionRow,
+        rounds,
+        payloadSources,
+        visibility,
+        artifactPath,
+        artifactSchemaVersion,
+        cacheKey);
 
     rounds = List.copyOf(rounds);
     payloadSources = List.copyOf(payloadSources);

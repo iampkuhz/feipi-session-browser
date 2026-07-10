@@ -172,26 +172,47 @@ public final class SessionsApiResponses {
    * @param matchReasons 搜索命中的字段来源列表。
    */
   public record SessionRowDto(
+      /* 会话规范键 */
       String sessionKey,
+      /* 会话唯一标识 */
       String sessionId,
+      /* 会话标题文本 */
       String title,
+      /* 项目规范键 */
       String projectKey,
+      /* 项目展示名称 */
       String projectName,
+      /* 工作目录路径 */
       String cwd,
+      /* 代理类型标识 */
       String agent,
+      /* 模型名称文本 */
       String model,
+      /* Git 分支名称 */
       String gitBranch,
+      /* 令牌分段统计 */
       TokenSegments tokens,
+      /* 轮次数量 */
       long rounds,
+      /* 工具调用数量 */
       long tools,
+      /* 子代理数量 */
       long subagents,
+      /* 持续时间秒数 */
       double durationSeconds,
+      /* 处理时间秒数 */
       double processSeconds,
+      /* 失败工具数量 */
       long failedTools,
+      /* 创建时间文本 */
       String createdAt,
+      /* 更新时间文本 */
       String updatedAt,
+      /* 详情链接地址 */
       String detailUrl,
+      /* 项目链接地址 */
       String projectUrl,
+      /* 匹配原因列表 */
       List<String> matchReasons) {
 
     /** 校验字段和业务不变量。 */

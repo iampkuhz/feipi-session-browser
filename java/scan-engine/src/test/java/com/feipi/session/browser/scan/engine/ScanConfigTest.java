@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.Test;
 
 /** {@link ScanConfig} 不变量验证测试。 */
@@ -25,7 +26,7 @@ class ScanConfigTest {
             () ->
                 new ScanConfig(
                     java.util.List.of(entry), java.nio.file.Path.of("/tmp"), java.util.Set.of(), 0))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ConstraintViolationException.class)
         .hasMessageContaining("parseParallelism");
   }
 

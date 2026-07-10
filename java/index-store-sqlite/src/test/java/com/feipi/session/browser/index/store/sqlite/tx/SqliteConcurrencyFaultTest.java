@@ -1,12 +1,12 @@
 package com.feipi.session.browser.index.store.sqlite.tx;
 
-import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
-import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
+import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.nio.file.Files;
 import java.nio.file.Path;

@@ -1,7 +1,10 @@
 package com.feipi.session.browser.domain.source;
 
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Objects;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
 
 /**
  * 源中性工具调用声明。
@@ -13,17 +16,36 @@ import java.util.Objects;
  * @param name 工具名称，来源于 provider 事件中的工具名字段
  */
 @DomainModel
-public record SourceToolCall(String toolCallId, String name) {
+public record SourceToolCall(
+    /* 工具调用标识，来源于 provider 事件中的稳定 id。 */
+    @NotBlank String toolCallId,
 
-  /** 校验工具调用字段。 */
+    /* 工具名称，来源于 provider 事件中的工具名字段。 */
+    @NotBlank String name) {
+
+  /** 紧凑构造器，校验约束。 */
   public SourceToolCall {
-    Objects.requireNonNull(toolCallId, "toolCallId 不得为 null");
-    Objects.requireNonNull(name, "name 不得为 null");
-    if (toolCallId.isBlank()) {
-      throw new IllegalArgumentException("toolCallId 不得为空");
+    try {
+      ValidationSupport.validateCanonicalConstructor(SourceToolCall.class, toolCallId, name);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
     }
-    if (name.isBlank()) {
-      throw new IllegalArgumentException("name 不得为空");
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotBlank.class) {
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
     }
+    throw e;
   }
 }

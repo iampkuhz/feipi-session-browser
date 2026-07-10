@@ -7,15 +7,15 @@ import com.feipi.session.browser.index.api.query.ActivityTrend;
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
 import com.feipi.session.browser.index.api.query.AggregateMetrics;
 import com.feipi.session.browser.index.api.query.DashboardStats;
-import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
 import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.index.api.query.TokenBreakdown;
+import com.feipi.session.browser.index.api.query.TrendDay;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.row.TopProjectRow;
 import com.feipi.session.browser.index.store.sqlite.row.TopSessionRow;
-import com.feipi.session.browser.index.api.query.TrendDay;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
 import com.feipi.session.browser.query.api.PageResult;
@@ -42,7 +42,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>覆盖项目统计、Dashboard 聚合、趋势分析、分布查询、Top-N 排行、衍生指标和空数据库边界。
  */
 @DisplayName("SqliteAggregateQueryRepository 测试")
-class SqliteAggregateQueryRepositoryTest {
+class AggregateQueryRepositoryTest {
 
   @TempDir Path tempDir;
 
@@ -560,7 +560,8 @@ class SqliteAggregateQueryRepositoryTest {
     @Test
     @DisplayName("工具分布返回 top-N 会话")
     void toolDistribution() throws Exception {
-      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist = repo.toolDistribution(10);
+      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist =
+          repo.toolDistribution(10);
       assertThat(dist).hasSize(3);
       // sess-003 工具最多（80 次），排在首位
       var first = dist.values().iterator().next();
@@ -570,7 +571,8 @@ class SqliteAggregateQueryRepositoryTest {
     @Test
     @DisplayName("工具分布 limit=1 只返回一条")
     void toolDistributionLimited() throws Exception {
-      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist = repo.toolDistribution(1);
+      Map<String, SqliteAggregateQueryRepository.ToolDistributionEntry> dist =
+          repo.toolDistribution(1);
       assertThat(dist).hasSize(1);
     }
   }

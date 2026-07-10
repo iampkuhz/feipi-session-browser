@@ -1,9 +1,11 @@
 package com.feipi.session.browser.scan.engine;
 
 import com.feipi.session.browser.source.spi.SourceAdapter;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.nio.file.Path;
 import java.util.List;
-import java.util.Objects;
 import java.util.Set;
 
 /**
@@ -25,10 +27,17 @@ import java.util.Set;
  * @param parseParallelism 解析并行度上限，至少为 1
  */
 public record ScanConfig(
-    List<SourceEntry> sourceEntries,
-    Path artifactOutputDir,
+    /* 待扫描的源适配器与根目录配对列表。 */
+    @NotNull List<SourceEntry> sourceEntries,
+
+    /* 归一化制品输出目录。 */
+    @NotNull Path artifactOutputDir,
+
+    /* 可选的 agent 过滤集合，空表示不过滤。 */
     Set<String> agentFilter,
-    int parseParallelism) {
+
+    /* 解析并行度上限，至少为 1。 */
+    @Positive int parseParallelism) {
 
   /**
    * 源适配器与根目录配对。
@@ -36,7 +45,12 @@ public record ScanConfig(
    * @param adapter 源适配器实例
    * @param rootPath 源根目录路径
    */
-  public record SourceEntry(SourceAdapter adapter, Path rootPath) {
+  public record SourceEntry(
+      /* 源适配器实例。 */
+      @NotNull SourceAdapter adapter,
+
+      /* 源根目录路径。 */
+      @NotNull Path rootPath) {
 
     /**
      * 紧凑构造器，验证非 null。
@@ -44,8 +58,7 @@ public record ScanConfig(
      * @throws NullPointerException 当任一字段为 null 时
      */
     public SourceEntry {
-      Objects.requireNonNull(adapter, "adapter 不得为 null");
-      Objects.requireNonNull(rootPath, "rootPath 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(SourceEntry.class, adapter, rootPath);
     }
   }
 
@@ -55,16 +68,13 @@ public record ScanConfig(
    * @throws IllegalArgumentException 当 sourceEntries 为空或 parseParallelism 非法时
    */
   public ScanConfig {
-    Objects.requireNonNull(sourceEntries, "sourceEntries 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(
+        ScanConfig.class, sourceEntries, artifactOutputDir, agentFilter, parseParallelism);
     if (sourceEntries.isEmpty()) {
       throw new IllegalArgumentException("sourceEntries 不得为空");
     }
     sourceEntries = List.copyOf(sourceEntries);
-    Objects.requireNonNull(artifactOutputDir, "artifactOutputDir 不得为 null");
     agentFilter = agentFilter == null ? Set.of() : Set.copyOf(agentFilter);
-    if (parseParallelism < 1) {
-      throw new IllegalArgumentException("parseParallelism 必须 >= 1; got " + parseParallelism);
-    }
   }
 
   /**

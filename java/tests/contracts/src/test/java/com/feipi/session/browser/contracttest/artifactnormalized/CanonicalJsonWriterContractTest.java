@@ -2,10 +2,10 @@ package com.feipi.session.browser.contracttest.artifactnormalized;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
 import java.util.Collections;
 import java.util.Map;
 import org.junit.jupiter.api.Test;

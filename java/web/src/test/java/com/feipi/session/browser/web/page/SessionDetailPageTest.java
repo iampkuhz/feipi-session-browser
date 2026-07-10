@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
@@ -52,7 +52,9 @@ class SessionDetailPageTest {
   @Test
   @DisplayName("不存在的会话返回 404 和 Not Found 页面")
   void sessionNotFoundReturns404() {
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -70,7 +72,9 @@ class SessionDetailPageTest {
   void existingSessionReturns200() throws Exception {
     insertTestSession();
 
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -91,7 +95,9 @@ class SessionDetailPageTest {
   void sessionDetailSummaryStripOmitsPayloadPolicy() throws Exception {
     insertTestSession();
 
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -112,7 +118,9 @@ class SessionDetailPageTest {
   void sessionDetailDoesNotExposeHtmlExportLink() throws Exception {
     insertTestSession();
 
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -132,7 +140,9 @@ class SessionDetailPageTest {
   void sessionDetailIncludesLazyLoadJs() throws Exception {
     insertTestSession();
 
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -150,7 +160,9 @@ class SessionDetailPageTest {
   void sessionDetailIncludesTracePanel() throws Exception {
     insertTestSession();
 
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(
@@ -167,7 +179,9 @@ class SessionDetailPageTest {
   @Test
   @DisplayName("URL 编码的 agent 和 sessionId 正确解码")
   void urlEncodedParamsDecoded() {
-    QueryCompositionRoot root = com.feipi.session.browser.web.WebTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
+    QueryCompositionRoot root =
+        com.feipi.session.browser.web.WebTestComposition.queryRoot(
+            indexConnection, new SchemaVersion(1));
     WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
 
     JavalinTest.test(

@@ -4,10 +4,10 @@ import com.feipi.session.browser.application.QueryCache;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
-import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 
 /** web 测试专用组合辅助器，用于把具体 SQLite adapter 接入应用用例。 */
 public final class WebTestComposition {

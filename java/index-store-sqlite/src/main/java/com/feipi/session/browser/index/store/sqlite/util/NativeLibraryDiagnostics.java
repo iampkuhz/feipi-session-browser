@@ -1,5 +1,9 @@
 package com.feipi.session.browser.index.store.sqlite.util;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
@@ -153,7 +157,16 @@ public final class NativeLibraryDiagnostics {
    * @param supportedTarget 当前平台是否在四个目标平台中
    */
   public record PlatformDetectionResult(
-      String operatingSystem, String architecture, boolean supportedTarget) {}
+      /* 操作系统名称，例如 Mac、Linux、Windows。 */ @NotBlank String operatingSystem,
+      /* 归一化后的架构名称，例如 aarch64、x86_64。 */ @NotBlank String architecture,
+      /* 当前平台是否在四个目标平台中。 */ boolean supportedTarget) {
+
+    /** 紧凑构造器，校验 record component 约束。 */
+    public PlatformDetectionResult {
+      ValidationSupport.validateCanonicalConstructor(
+          PlatformDetectionResult.class, operatingSystem, architecture, supportedTarget);
+    }
+  }
 
   /**
    * Native library 加载验证结果。
@@ -162,7 +175,17 @@ public final class NativeLibraryDiagnostics {
    * @param platform 尝试加载的平台标识符
    * @param errorMessage 失败时的错误信息，成功时为 null
    */
-  public record NativeLoadResult(boolean loadSuccess, String platform, String errorMessage) {}
+  public record NativeLoadResult(
+      /* 加载是否成功。 */ boolean loadSuccess,
+      /* 尝试加载的平台标识符。 */ @NotBlank String platform,
+      /* 失败时的错误信息，成功时为 null。 */ String errorMessage) {
+
+    /** 紧凑构造器，校验 record component 约束。 */
+    public NativeLoadResult {
+      ValidationSupport.validateCanonicalConstructor(
+          NativeLoadResult.class, loadSuccess, platform, errorMessage);
+    }
+  }
 
   /**
    * 目标平台 native library 可用性结果。
@@ -170,7 +193,15 @@ public final class NativeLibraryDiagnostics {
    * @param missingPlatforms 缺失 native library 的目标平台列表
    * @param availableCount 可用的目标平台数量
    */
-  public record NativeAvailabilityResult(List<String> missingPlatforms, int availableCount) {
+  public record NativeAvailabilityResult(
+      /* 缺失 native library 的目标平台列表。 */ @NotNull List<String> missingPlatforms,
+      /* 可用的目标平台数量。 */ @PositiveOrZero int availableCount) {
+
+    /** 紧凑构造器，校验 record component 约束。 */
+    public NativeAvailabilityResult {
+      ValidationSupport.validateCanonicalConstructor(
+          NativeAvailabilityResult.class, missingPlatforms, availableCount);
+    }
 
     /** 所有目标平台 native library 均可用时返回 true。 */
     public boolean allPresent() {

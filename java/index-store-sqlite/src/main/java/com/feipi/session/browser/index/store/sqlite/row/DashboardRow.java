@@ -1,6 +1,9 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.DashboardStats;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
+
 /**
  * Dashboard 全局聚合行。
  *
@@ -22,17 +25,39 @@ import com.feipi.session.browser.index.api.query.DashboardStats;
  * @param totalAssistantMessages 助手消息总数
  */
 public record DashboardRow(
-    long totalSessions,
-    long claudeSessions,
-    long codexSessions,
-    long qoderSessions,
-    long projectCount,
-    long totalTokens,
-    long totalFreshInputTokens,
-    long totalCacheReadTokens,
-    long totalCacheWriteTokens,
-    long totalOutputTokens,
-    long totalToolCalls,
-    long totalFailedTools,
-    long totalUserMessages,
-    long totalAssistantMessages) implements DashboardStats {}
+    /* 会话总数。 */ @PositiveOrZero long totalSessions,
+    /* Claude 会话数量。 */ @PositiveOrZero long claudeSessions,
+    /* Codex 会话数量。 */ @PositiveOrZero long codexSessions,
+    /* Qoder 会话数量。 */ @PositiveOrZero long qoderSessions,
+    /* 去重项目数。 */ @PositiveOrZero long projectCount,
+    /* 令牌总数量。 */ @PositiveOrZero long totalTokens,
+    /* 非缓存输入 令牌总数量。 */ @PositiveOrZero long totalFreshInputTokens,
+    /* 缓存读取 令牌总数量。 */ @PositiveOrZero long totalCacheReadTokens,
+    /* 缓存写入 令牌总数量。 */ @PositiveOrZero long totalCacheWriteTokens,
+    /* 输出 令牌总数量。 */ @PositiveOrZero long totalOutputTokens,
+    /* 工具调用总数。 */ @PositiveOrZero long totalToolCalls,
+    /* 失败工具调用总数。 */ @PositiveOrZero long totalFailedTools,
+    /* 用户消息总数。 */ @PositiveOrZero long totalUserMessages,
+    /* 助手消息总数。 */ @PositiveOrZero long totalAssistantMessages)
+    implements DashboardStats {
+
+  /** 紧凑构造器，校验 record component 约束。 */
+  public DashboardRow {
+    ValidationSupport.validateCanonicalConstructor(
+        DashboardRow.class,
+        totalSessions,
+        claudeSessions,
+        codexSessions,
+        qoderSessions,
+        projectCount,
+        totalTokens,
+        totalFreshInputTokens,
+        totalCacheReadTokens,
+        totalCacheWriteTokens,
+        totalOutputTokens,
+        totalToolCalls,
+        totalFailedTools,
+        totalUserMessages,
+        totalAssistantMessages);
+  }
+}

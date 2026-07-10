@@ -8,6 +8,7 @@ import com.feipi.session.browser.application.diagnostics.DiagnosticRegistry.Sign
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.RoundSignalKey;
 import com.feipi.session.browser.query.api.SessionAnomalyKey;
+import jakarta.validation.ConstraintViolationException;
 import java.util.EnumSet;
 import java.util.Set;
 import org.junit.jupiter.api.DisplayName;
@@ -156,7 +157,7 @@ class DiagnosticRegistryTest {
     @DisplayName("null key 抛出异常")
     void nullKeyThrows() {
       assertThatThrownBy(() -> new AnomalyDefinition(null, EnumSet.of(AnomalySeverity.WARNING)))
-          .isInstanceOf(NullPointerException.class);
+          .isInstanceOf(ConstraintViolationException.class);
     }
   }
 

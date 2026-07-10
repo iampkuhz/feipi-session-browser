@@ -3,13 +3,13 @@ package com.feipi.session.browser.application.sessiondetail;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
-import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
-import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.api.query.SessionArtifactRecord;
 import com.feipi.session.browser.index.api.query.SessionRecord;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionDetailRepository;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.nio.file.Path;
 import java.sql.Connection;
@@ -27,7 +27,7 @@ import org.junit.jupiter.api.io.TempDir;
  * <p>覆盖会话详情查询、制品元数据查询和请求类型校验。
  */
 @DisplayName("SqliteSessionDetailRepository 测试")
-class SqliteSessionDetailRepositoryTest {
+class SessionDetailRepositoryTest {
 
   @TempDir Path tempDir;
 
@@ -43,7 +43,8 @@ class SqliteSessionDetailRepositoryTest {
     indexConnection = IndexConnection.create(writerConn, PragmaConfig.DEFAULTS, jdbcUrl);
     IndexSchema.withDefaults().ensureSchema(indexConnection.writerConnection());
     insertTestData();
-    SqliteSessionQueryRepository sessionQueryRepo = new SqliteSessionQueryRepository(indexConnection);
+    SqliteSessionQueryRepository sessionQueryRepo =
+        new SqliteSessionQueryRepository(indexConnection);
     repository = new SqliteSessionDetailRepository(sessionQueryRepo);
   }
 

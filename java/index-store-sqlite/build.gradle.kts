@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    api(project(":java:validation"))
     implementation(libs.sqlite.jdbc)
     implementation(libs.slf4j.api)
     implementation(libs.bundles.jackson)

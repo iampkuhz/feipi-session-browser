@@ -1,6 +1,7 @@
 package com.feipi.session.browser.scan.engine;
 
-import java.util.Objects;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * 扫描过程中遇到的单个问题。
@@ -12,7 +13,18 @@ import java.util.Objects;
  * @param phase 问题发生的阶段
  * @param message 问题描述
  */
-public record ScanIssue(String sessionKey, String sourceValue, ScanPhase phase, String message) {
+public record ScanIssue(
+    /* 相关会话键，空字符串表示非候选项级别的问题。 */
+    @NotNull String sessionKey,
+
+    /* 源适配器协议值。 */
+    @NotNull String sourceValue,
+
+    /* 问题发生的阶段。 */
+    @NotNull ScanPhase phase,
+
+    /* 问题描述。 */
+    @NotNull String message) {
 
   /**
    * 紧凑构造器，验证非 null。
@@ -20,10 +32,8 @@ public record ScanIssue(String sessionKey, String sourceValue, ScanPhase phase, 
    * @throws NullPointerException 当必填字段为 null 时
    */
   public ScanIssue {
-    Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
-    Objects.requireNonNull(sourceValue, "sourceValue 不得为 null");
-    Objects.requireNonNull(phase, "phase 不得为 null");
-    Objects.requireNonNull(message, "message 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(
+        ScanIssue.class, sessionKey, sourceValue, phase, message);
   }
 
   /**

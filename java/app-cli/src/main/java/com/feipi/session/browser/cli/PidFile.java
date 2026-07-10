@@ -1,5 +1,7 @@
 package com.feipi.session.browser.cli;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.StringReader;
@@ -9,7 +11,6 @@ import java.nio.file.Path;
 import java.time.Instant;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -53,11 +54,25 @@ final class PidFile {
    * @param indexDir 索引目录绝对路径
    * @param startedAt 启动时间戳（ISO-8601）
    */
-  record Metadata(long pid, int port, String host, Path indexDir, String startedAt) {
+  record Metadata(
+      /* 操作系统进程编号。 */
+      long pid,
+
+      /* 监听端口。 */
+      int port,
+
+      /* 监听地址。 */
+      @NotNull String host,
+
+      /* 索引目录绝对路径。 */
+      @NotNull Path indexDir,
+
+      /* 启动时间戳（ISO-8601）。 */
+      @NotNull String startedAt) {
 
     Metadata {
-      Objects.requireNonNull(host, "host 不得为 null");
-      Objects.requireNonNull(indexDir, "indexDir 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(
+          Metadata.class, pid, port, host, indexDir, startedAt);
     }
   }
 
@@ -152,7 +167,12 @@ final class PidFile {
    * @param meta PID 文件元数据，文件不存在时为 null
    * @param processAlive PID 对应进程是否存活
    */
-  record ProcessCheck(Metadata meta, boolean processAlive) {}
+  record ProcessCheck(
+      /* PID 文件元数据，文件不存在时为 null。 */
+      Metadata meta,
+
+      /* PID 对应进程是否存活。 */
+      boolean processAlive) {}
 
   /**
    * 解析 PID 文件内容。

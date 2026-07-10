@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import re
 import sys
 from dataclasses import dataclass
@@ -55,6 +56,23 @@ class JavadocBlock:
 
 
 @dataclass(frozen=True)
+class ComponentInfo:
+    """表示单个 record component 的完整信息。
+
+    属性：
+        name: component 名称。
+        line: component 声明起始行号。
+        raw_text: component 原始源码片段（含 Javadoc、注解、类型和名称）。
+        inline_javadoc: component 附近的 Javadoc 块；不存在时为 None。
+    """
+
+    name: str
+    line: int
+    raw_text: str
+    inline_javadoc: JavadocBlock | None = None
+
+
+@dataclass(frozen=True)
 class RecordDecl:
     """表示 Java record 声明。
 
@@ -62,13 +80,13 @@ class RecordDecl:
         name: record 类型名称。
         line: record 关键字所在行号。
         start: record 关键字字符偏移。
-        components: component 名称到声明行号的映射。
+        components: component 信息列表。
     """
 
     name: str
     line: int
     start: int
-    components: dict[str, int]
+    components: list[ComponentInfo]
 
 
 @dataclass(frozen=True)
@@ -127,6 +145,12 @@ def mask_source(text: str) -> tuple[str, list[JavadocBlock]]:
                 i += 1
             end = min(n, i + 2)
             if text.startswith('/**', start):
+                javadocs.append(
+                    JavadocBlock(start=start, end=end, line=_line(text, start), text=text[start:end])
+                )
+            elif text.startswith('/*', start) and not text.startswith('/**', start):
+                # Java 25 不允许 /** */ 出现在 record 参数列表中，
+                # 因此 record component 附近注释使用 /* */ 也被视为有效文档。
                 javadocs.append(
                     JavadocBlock(start=start, end=end, line=_line(text, start), text=text[start:end])
                 )
@@ -226,19 +250,20 @@ def _skip_type_params(masked: str, pos: int) -> int:
 
 
 # 执行源码解析辅助逻辑。
-def split_components(masked_components: str, base_offset: int, original: str) -> list[tuple[str, int]]:
+def split_components(raw_components: str, base_offset: int, original: str, file_javadocs: list[JavadocBlock]) -> list[ComponentInfo]:
     """参数：
-        masked_components: record header 中 component 原文对应的掩码文本。
+        raw_components: record header 中 component 区域的原始文本（未掩码）。
         base_offset: component 片段在原源码中的起始偏移。
         original: 完整源码文本。
+        file_javadocs: 文件内所有 Javadoc 块列表。
 
     返回：
-        component 片段和起始行号列表。
+        ComponentInfo 列表，每个包含 component 名称、行号、原始片段和附近 Javadoc。
     """
-    result: list[tuple[str, int]] = []
+    result: list[ComponentInfo] = []
     start = 0
     angle = paren = bracket = brace = 0
-    for index, ch in enumerate(masked_components):
+    for index, ch in enumerate(raw_components):
         if ch == '<':
             angle += 1
         elif ch == '>' and angle:
@@ -256,24 +281,56 @@ def split_components(masked_components: str, base_offset: int, original: str) ->
         elif ch == '}' and brace:
             brace -= 1
         elif ch == ',' and not (angle or paren or bracket or brace):
-            piece = masked_components[start:index].strip()
-            if piece:
-                result.append((piece, _line(original, base_offset + start)))
+            piece = raw_components[start:index]
+            piece_stripped = piece.strip()
+            if piece_stripped:
+                abs_start = base_offset + start
+                raw_text = original[abs_start : abs_start + len(piece)]
+                component_name = _component_name(raw_text)
+                inline_jd = _find_component_javadoc(raw_text, abs_start, file_javadocs)
+                if component_name:
+                    result.append(
+                        ComponentInfo(
+                            name=component_name,
+                            line=_line(original, abs_start),
+                            raw_text=raw_text,
+                            inline_javadoc=inline_jd,
+                        )
+                    )
             start = index + 1
-    piece = masked_components[start:].strip()
-    if piece:
-        result.append((piece, _line(original, base_offset + start)))
+    piece = raw_components[start:]
+    piece_stripped = piece.strip()
+    if piece_stripped:
+        abs_start = base_offset + start
+        raw_text = original[abs_start : abs_start + len(piece)]
+        component_name = _component_name(raw_text)
+        inline_jd = _find_component_javadoc(raw_text, abs_start, file_javadocs)
+        if component_name:
+            result.append(
+                ComponentInfo(
+                    name=component_name,
+                    line=_line(original, abs_start),
+                    raw_text=raw_text,
+                    inline_javadoc=inline_jd,
+                )
+            )
     return result
 
 
 # 执行源码解析辅助逻辑。
 def _component_name(component: str) -> str | None:
     """参数：
-        component: 单个 record component 声明片段。
+        component: 单个 record component 原始声明片段（可能含 Javadoc）。
 
     返回：
         component 名称；无法解析时返回 None。
     """
+    star = component.find('*/')
+    if star >= 0:
+        after = component[star + 2 :]
+        names = IDENT.findall(after)
+        if names:
+            return names[-1]
     names = IDENT.findall(component)
     if not names:
         return None
@@ -299,17 +356,14 @@ def extract_records(text: str) -> tuple[str, list[JavadocBlock], list[RecordDecl
         close = _find_matching(masked, pos, '(', ')')
         if close < 0:
             continue
-        components: dict[str, int] = {}
-        for component, line in split_components(masked[pos + 1 : close], pos + 1, text):
-            component_name = _component_name(component)
-            if component_name:
-                components[component_name] = line
+        raw_between = text[pos + 1 : close]
+        component_infos = split_components(raw_between, pos + 1, text, javadocs)
         records.append(
             RecordDecl(
                 name=name,
                 line=_line(text, match.start()),
                 start=match.start(),
-                components=components,
+                components=component_infos,
             )
         )
     return masked, javadocs, records
@@ -374,6 +428,112 @@ def _only_annotations_and_modifiers(segment: str) -> bool:
 
 
 # 执行源码解析辅助逻辑。
+def _find_component_javadoc(
+    raw_text: str,
+    abs_start: int,
+    file_javadocs: list[JavadocBlock],
+) -> JavadocBlock | None:
+    """参数：
+        raw_text: component 原始片段。
+        abs_start: 片段在文件中的绝对字符偏移。
+        file_javadocs: 文件内所有 Javadoc 块列表。
+
+    返回：
+        属于该 component 的最后一个 Javadoc 块；不存在时返回 None。
+    """
+    abs_end = abs_start + len(raw_text)
+    candidates = [
+        jd for jd in file_javadocs
+        if jd.start >= abs_start and jd.end <= abs_end
+    ]
+    for jd in reversed(candidates):
+        after = raw_text[jd.end - abs_start :]
+        if _only_ws_annotations_generics(after):
+            return jd
+    return None
+
+
+# 执行源码解析辅助逻辑。
+def _only_ws_annotations_generics(segment: str) -> bool:
+    """参数：
+        segment: Javadoc 结束后的 component 源码片段。
+
+    返回：
+        片段仅含空白、注解、泛型括号和数组括号时返回 true。
+    """
+    masked, _ = mask_source(segment)
+    pos = 0
+    n = len(masked)
+    while pos < n:
+        ch = masked[pos]
+        if ch.isspace():
+            pos += 1
+            continue
+        if ch == '@':
+            pos += 1
+            while pos < n and (masked[pos].isalnum() or masked[pos] in '_$.'):
+                pos += 1
+            while pos < n and masked[pos].isspace():
+                pos += 1
+            if pos < n and masked[pos] == '(':
+                close = _find_matching(masked, pos, '(', ')')
+                if close < 0:
+                    return False
+                pos = close + 1
+            continue
+        if ch in '<>[]':
+            pos += 1
+            continue
+        if ch.isalpha() or ch in '_$':
+            return True
+        return False
+    return True
+
+
+# 执行源码解析辅助逻辑。
+def _check_annotation_own_line(component_text: str) -> bool:
+    """参数：
+        component_text: component 原始源码片段。
+
+    返回：
+        存在注解与类型/名称在同一行时返回 true。
+    """
+    masked_piece, _ = mask_source(component_text)
+    for line in masked_piece.split('\n'):
+        stripped = line.strip()
+        at_pos = stripped.find('@')
+        if at_pos < 0:
+            continue
+        if stripped.startswith('**'):
+            continue
+        after_at = stripped[at_pos + 1 :]
+        name_match = QUALIFIED_IDENT.match(after_at)
+        if name_match is None:
+            continue
+        rest_pos = name_match.end()
+        while rest_pos < len(after_at):
+            ch = after_at[rest_pos]
+            if ch.isspace():
+                rest_pos += 1
+                continue
+            if ch == '(':
+                depth = 1
+                rest_pos += 1
+                while rest_pos < len(after_at) and depth > 0:
+                    if after_at[rest_pos] == '(':
+                        depth += 1
+                    elif after_at[rest_pos] == ')':
+                        depth -= 1
+                    rest_pos += 1
+                continue
+            break
+        rest = after_at[rest_pos:].strip()
+        if rest and IDENT.match(rest):
+            return True
+    return False
+
+
+# 执行源码解析辅助逻辑。
 def parse_param_docs(javadoc: JavadocBlock) -> dict[str, str]:
     """参数：
         javadoc: Javadoc 注释块。
@@ -429,28 +589,28 @@ def check_file(path: Path) -> list[Violation]:
                     f'record {record.name} 缺少类型 Javadoc，无法说明 components',
                 )
             )
-            continue
-        params = parse_param_docs(block)
-        for component, component_line in record.components.items():
-            desc = params.get(component)
-            if desc is None:
-                violations.append(
-                    Violation(
-                        str(path),
-                        component_line,
-                        'RECORD_COMPONENT_PARAM_MISSING',
-                        f'record {record.name} component {component} 缺少 @param 说明',
+        else:
+            params = parse_param_docs(block)
+            for comp in record.components:
+                desc = params.get(comp.name)
+                if desc is None:
+                    violations.append(
+                        Violation(
+                            str(path),
+                            comp.line,
+                            'RECORD_COMPONENT_PARAM_MISSING',
+                            f'record {record.name} component {comp.name} 缺少 @param 说明',
+                        )
                     )
-                )
-            elif not HAN.search(desc):
-                violations.append(
-                    Violation(
-                        str(path),
-                        component_line,
-                        'RECORD_COMPONENT_PARAM_NOT_CHINESE',
-                        f'record {record.name} component {component} 的 @param 说明必须包含中文',
+                elif not HAN.search(desc):
+                    violations.append(
+                        Violation(
+                            str(path),
+                            comp.line,
+                            'RECORD_COMPONENT_PARAM_NOT_CHINESE',
+                            f'record {record.name} component {comp.name} 的 @param 说明必须包含中文',
+                        )
                     )
-                )
     return violations
 
 
@@ -474,6 +634,64 @@ def discover(values: list[str]) -> list[Path]:
                 if not (set(p.parts) & EXCLUDED_PARTS) and _is_main_java_source(p)
             )
     return sorted(result, key=lambda item: item.as_posix())
+
+
+# 读取 required gate 传入的 changed-files 上下文。
+def _quality_changed_java_files(repo_root: Path) -> set[str]:
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        环境变量中需要检查的 main Java 文件相对路径集合。
+    """
+    raw = os.environ.get('QUALITY_CHANGED_FILES', '').strip()
+    if not raw:
+        return set()
+    try:
+        parsed = json.loads(raw)
+    except json.JSONDecodeError:
+        return set()
+    if not isinstance(parsed, list):
+        return set()
+    result: set[str] = set()
+    for item in parsed:
+        if not isinstance(item, str):
+            continue
+        path = Path(item)
+        if path.is_absolute():
+            try:
+                path = path.relative_to(repo_root)
+            except ValueError:
+                continue
+        if path.suffix != '.java' or not _is_main_java_source(path):
+            continue
+        if set(path.parts) & EXCLUDED_PARTS:
+            continue
+        result.add(path.as_posix())
+    return result
+
+
+# 根据 changed-files 上下文裁剪扫描文件。
+def _filter_changed_files(paths: list[Path], changed_files: set[str], repo_root: Path) -> list[Path]:
+    """参数：
+        paths: 已发现的 Java 文件列表。
+        changed_files: changed-files 上下文中的 main Java 相对路径。
+        repo_root: 仓库根目录。
+
+    返回：
+        仅保留 changed-files 命中的 Java 文件；无上下文时返回原列表。
+    """
+    if not changed_files:
+        return paths
+    filtered: list[Path] = []
+    for path in paths:
+        try:
+            rel = path.resolve().relative_to(repo_root).as_posix()
+        except ValueError:
+            rel = path.as_posix()
+        if rel in changed_files:
+            filtered.append(path)
+    return filtered
 
 
 # 执行源码解析辅助逻辑。
@@ -522,8 +740,10 @@ def main() -> int:
     args = parser.parse_args()
 
     paths = _load_files_from(Path(args.files_from)) if args.files_from else args.paths
+    repo_root = Path.cwd().resolve()
+    changed_files = _quality_changed_java_files(repo_root)
     violations: list[Violation] = []
-    for path in discover(paths):
+    for path in _filter_changed_files(discover(paths), changed_files, repo_root):
         violations.extend(check_file(path))
 
     for violation in violations:

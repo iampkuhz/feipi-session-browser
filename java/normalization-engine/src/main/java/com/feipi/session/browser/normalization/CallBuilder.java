@@ -9,6 +9,9 @@ import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceToolCall;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -337,14 +340,35 @@ public final class CallBuilder {
    * @param parentToolName 父工具名。
    */
   private record AssistantCallFrame(
-      int index,
-      SourceRecord record,
-      String callId,
-      CallScope scope,
-      Optional<String> parentCallId,
-      Optional<String> subagentId,
-      Optional<String> parentToolCallId,
-      Optional<String> parentToolName) {}
+      /* 顺序索引 */
+      @PositiveOrZero int index,
+      /* 原始记录对象 */
+      @NotNull SourceRecord record,
+      /* 调用标识符 */
+      @NotNull String callId,
+      /* 调用作用域 */
+      @NotNull CallScope scope,
+      /* 父调用标识符 */
+      @NotNull Optional<String> parentCallId,
+      /* 子代理实例标识符 */
+      @NotNull Optional<String> subagentId,
+      /* 父工具调用标识符 */
+      @NotNull Optional<String> parentToolCallId,
+      /* 父工具名 */
+      @NotNull Optional<String> parentToolName) {
+    public AssistantCallFrame {
+      ValidationSupport.validateCanonicalConstructor(
+          AssistantCallFrame.class,
+          index,
+          record,
+          callId,
+          scope,
+          parentCallId,
+          subagentId,
+          parentToolCallId,
+          parentToolName);
+    }
+  }
 
   /**
    * 表示 CallBuildContext 数据。
@@ -353,7 +377,10 @@ public final class CallBuilder {
    * @param toolResultConsumers tool result 消费者映射。
    */
   private record CallBuildContext(
-      List<AssistantCallFrame> frames, Map<String, String> toolResultConsumers) {
+      /* assistant 调用帧列表 */
+      @NotNull List<AssistantCallFrame> frames,
+      /* tool result 消费者映射 */
+      @NotNull Map<String, String> toolResultConsumers) {
 
     private static CallBuildContext create(
         List<? extends SourceRecord> records, List<SourceRecord> assistantMessages) {
@@ -361,6 +388,12 @@ public final class CallBuilder {
       Map<String, String> declarations = mapToolDeclarations(records, callIds(frames));
       frames = attachParentCallIds(frames, declarations);
       return new CallBuildContext(frames, mapToolResultConsumers(records, callIds(frames)));
+    }
+
+    public CallBuildContext {
+      ValidationSupport.validateCanonicalConstructor(
+          CallBuildContext.class, frames, toolResultConsumers);
+      toolResultConsumers = Map.copyOf(toolResultConsumers);
     }
 
     private static List<AssistantCallFrame> attachParentCallIds(
@@ -439,9 +472,12 @@ public final class CallBuilder {
    * @param toolDeclarations tool declaration 归属映射。
    */
   private record ExecutionContext(
-      List<AssistantCallFrame> frames,
-      Map<String, String> toolResultConsumers,
-      Map<String, String> toolDeclarations) {
+      /* assistant 调用帧列表 */
+      @NotNull List<AssistantCallFrame> frames,
+      /* tool result 消费者映射 */
+      @NotNull Map<String, String> toolResultConsumers,
+      /* tool declaration 归属映射 */
+      @NotNull Map<String, String> toolDeclarations) {
 
     private static ExecutionContext create(
         List<? extends SourceRecord> records,
@@ -457,6 +493,13 @@ public final class CallBuilder {
           frames,
           mapToolResultConsumers(records, consumerCallIds),
           mapToolDeclarations(records, consumerCallIds));
+    }
+
+    public ExecutionContext {
+      ValidationSupport.validateCanonicalConstructor(
+          ExecutionContext.class, frames, toolResultConsumers, toolDeclarations);
+      toolResultConsumers = Map.copyOf(toolResultConsumers);
+      toolDeclarations = Map.copyOf(toolDeclarations);
     }
 
     private static AssistantCallFrame executionFrame(

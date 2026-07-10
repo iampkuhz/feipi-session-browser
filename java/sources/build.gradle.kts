@@ -4,6 +4,7 @@ plugins {
 
 dependencies {
     api(project(":java:source-spi"))
+    api(project(":java:validation"))
     implementation(libs.bundles.jackson)
     implementation(libs.sqlite.jdbc)
 

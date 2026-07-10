@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    api(project(":java:validation"))
     implementation(project(":java:common"))
 
     testImplementation(libs.junit.jupiter)

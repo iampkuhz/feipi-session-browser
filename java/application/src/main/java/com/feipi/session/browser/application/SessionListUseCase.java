@@ -1,14 +1,16 @@
 package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
-import com.feipi.session.browser.index.api.query.SessionQueryPort;
 import com.feipi.session.browser.index.api.query.ProjectOption;
 import com.feipi.session.browser.index.api.query.SessionListAggregate;
 import com.feipi.session.browser.index.api.query.SessionListSummary;
+import com.feipi.session.browser.index.api.query.SessionQueryPort;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import com.feipi.session.browser.query.api.SessionListFilter;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Objects;
 
@@ -34,10 +36,7 @@ public final class SessionListUseCase {
    * @param cache 可选缓存，null 时不缓存
    * @param schemaVersion 当前 schema 版本号
    */
-  public SessionListUseCase(
-      SessionQueryPort repository,
-      QueryCache cache,
-      int schemaVersion) {
+  public SessionListUseCase(SessionQueryPort repository, QueryCache cache, int schemaVersion) {
     this.repository = Objects.requireNonNull(repository, "repository 不得为 null");
     this.cache = cache;
     this.schemaVersion = schemaVersion;
@@ -57,10 +56,7 @@ public final class SessionListUseCase {
       int paramsHash = filterHash("list", filter);
       page =
           cache.getOrLoad(
-              "sessionList",
-              paramsHash,
-              schemaVersion,
-              () -> repository.listSessions(filter));
+              "sessionList", paramsHash, schemaVersion, () -> repository.listSessions(filter));
     } else {
       page = repository.listSessions(filter);
     }
@@ -144,7 +140,11 @@ public final class SessionListUseCase {
    * @param anomalies 每个会话的异常摘要，顺序与 page.items() 一致
    */
   public record AnnotatedPageResult(
-      PageResult<SessionRecord> page, List<SessionAnomalySummary> anomalies) {
+      /* 原始分页结果。 */
+      @NotNull PageResult<SessionRecord> page,
+
+      /* 每个会话的异常摘要，顺序与 page.items() 一致。 */
+      @NotNull List<SessionAnomalySummary> anomalies) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -152,8 +152,7 @@ public final class SessionListUseCase {
      * @throws NullPointerException 当必填字段为 null 时
      */
     public AnnotatedPageResult {
-      Objects.requireNonNull(page, "page 不得为 null");
-      Objects.requireNonNull(anomalies, "anomalies 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(AnnotatedPageResult.class, page, anomalies);
       if (anomalies.size() != page.size()) {
         throw new IllegalArgumentException(
             "anomalies 大小必须与 page 一致; anomalies=" + anomalies.size() + ", page=" + page.size());

@@ -1,11 +1,13 @@
 package com.feipi.session.browser.source.spi;
 
 import com.feipi.session.browser.common.validation.ImmutableCopies;
-import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 候选会话发现项。
@@ -22,32 +24,42 @@ import java.util.Objects;
  *   <li>{@code metadata} 不可变，不含 null 值。
  * </ul>
  *
- * @param fingerprint 候选源文件的指纹
- * @param sessionKey 会话唯一标识键
- * @param projectKey 项目标识键（可为空字符串表示未分类）
- * @param metadata 发现阶段附加的元数据，不可变
+ * @param fingerprint 候选源文件的指纹，不得为 null
+ * @param sessionKey 会话唯一标识键，不得为空
+ * @param projectKey 项目标识键，可为空字符串表示未分类
+ * @param metadata 发现阶段附加的元数据，不可变，大小上限 100
  */
 @DomainModel
 public record Candidate(
-    @CoreField SourceFingerprint fingerprint,
-    @CoreField String sessionKey,
-    @CoreField String projectKey,
+    /* 候选源文件的指纹，不得为 null。 */
+    @NotNull @CoreField SourceFingerprint fingerprint,
+
+    /* 会话唯一标识键，不得为空。 */
+    @NotNull @NotBlank @CoreField String sessionKey,
+
+    /* 项目标识键，可为空字符串表示未分类。 */
+    @NotNull @CoreField String projectKey,
+
+    /* 发现阶段附加的元数据，不可变，大小上限 100。 */
     Map<String, String> metadata) {
 
   /** 候选项元数据大小上限。 */
   private static final int MAX_METADATA_SIZE = 100;
 
   /**
-   * 紧凑构造器，验证候选项不变量并执行防御性拷贝。
+   * 紧凑构造器，执行防御性拷贝并校验约束。
    *
-   * @throws NullPointerException 当必填字段为 null 时
+   * @throws NullPointerException 当必填对象字段为 null 时
    * @throws IllegalArgumentException 当会话键为空或元数据超限时
    */
   public Candidate {
-    Objects.requireNonNull(fingerprint, "fingerprint 不得为 null");
-    ParamChecks.nonEmpty(sessionKey, "sessionKey");
-    Objects.requireNonNull(projectKey, "projectKey 不得为 null");
     metadata = ImmutableCopies.boundedMapOrEmpty(metadata, MAX_METADATA_SIZE, "metadata");
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          Candidate.class, fingerprint, sessionKey, projectKey, metadata);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
   }
 
   /**
@@ -57,5 +69,28 @@ public record Candidate(
    */
   public SourceId sourceId() {
     return fingerprint.sourceId();
+  }
+
+  private static void translateValidation(ConstraintViolationException e) {
+    var violations = e.getConstraintViolations();
+    for (var v : violations) {
+      String path = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        String field = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+        throw new NullPointerException(field + " 不得为 null");
+      }
+    }
+    for (var v : violations) {
+      String path = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotBlank.class) {
+        String field = path.contains(".") ? path.substring(path.lastIndexOf('.') + 1) : path;
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
+    }
+    throw e;
   }
 }

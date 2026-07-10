@@ -1,16 +1,19 @@
 package com.feipi.session.browser.domain;
 
 import com.feipi.session.browser.common.validation.ImmutableCopies;
-import com.feipi.session.browser.common.validation.TokenChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.TokenPrecision;
 import com.feipi.session.browser.domain.enums.TokenSourceKind;
 import com.feipi.session.browser.domain.enums.TokenTotalSemantics;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 归一化后的 token 分类统计。
@@ -38,32 +41,60 @@ import java.util.Objects;
  */
 @DomainModel
 public record NormalizedTokenBreakdown(
-    @CoreField long freshInputTokens,
-    @CoreField long cacheReadTokens,
-    @CoreField long cacheWriteTokens,
-    @CoreField long outputTokens,
-    @CoreField long totalTokens,
-    @CoreField TokenPrecision precision,
-    @CoreField TokenTotalSemantics totalSemantics,
-    @CoreField TokenSourceKind sourceKind,
+    /* 非缓存的输入 token 数，非负。 */
+    @PositiveOrZero @CoreField long freshInputTokens,
+
+    /* 缓存命中的读取 token 数，非负。 */
+    @PositiveOrZero @CoreField long cacheReadTokens,
+
+    /* 缓存写入 token 数，非负。 */
+    @PositiveOrZero @CoreField long cacheWriteTokens,
+
+    /* 输出 token 数，非负。 */
+    @PositiveOrZero @CoreField long outputTokens,
+
+    /* 归一化后的 token 总计，非负。 */
+    @PositiveOrZero @CoreField long totalTokens,
+
+    /* 计量精度级别。 */
+    @NotNull @CoreField TokenPrecision precision,
+
+    /* 合计字段的计算语义。 */
+    @NotNull @CoreField TokenTotalSemantics totalSemantics,
+
+    /* token 数据的来源分类。 */
+    @NotNull @CoreField TokenSourceKind sourceKind,
+
+    /* 原始未解析的附加字段，不可变。 */
     Map<String, Object> rawFields,
+
+    /* 附加说明信息列表，不可变。 */
     List<String> notes) {
 
   /**
-   * 紧凑构造器，执行防御性拷贝、非空约束和非负不变量。
+   * 紧凑构造器，执行防御性拷贝并校验约束。
    *
-   * <p>{@code rawFields} 和 {@code notes} 使用不可变副本替换， 确保 record 的不可变性语义。 所有 token 计数必须非负。
-   *
-   * @throws IllegalArgumentException 当任何 token 计数为负数时
+   * <p>{@code rawFields} 和 {@code notes} 使用不可变副本替换， 确保 record 的不可变性语义。
    */
   public NormalizedTokenBreakdown {
-    TokenChecks.requireNonNegativeBreakdown(
-        freshInputTokens, cacheReadTokens, cacheWriteTokens, outputTokens, totalTokens);
-    Objects.requireNonNull(precision, "precision 不得为 null");
-    Objects.requireNonNull(totalSemantics, "totalSemantics 不得为 null");
-    Objects.requireNonNull(sourceKind, "sourceKind 不得为 null");
     rawFields = ImmutableCopies.mapOrEmpty(rawFields);
     notes = ImmutableCopies.listOrEmpty(notes);
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          NormalizedTokenBreakdown.class,
+          freshInputTokens,
+          cacheReadTokens,
+          cacheWriteTokens,
+          outputTokens,
+          totalTokens,
+          precision,
+          totalSemantics,
+          sourceKind,
+          rawFields,
+          notes);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
   }
 
   /**
@@ -92,5 +123,25 @@ public record NormalizedTokenBreakdown(
         TokenSourceKind.UNKNOWN,
         Collections.emptyMap(),
         Collections.emptyList());
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+      if (type == PositiveOrZero.class) {
+        throw new IllegalArgumentException(field + " 不得为负: " + v.getInvalidValue());
+      }
+    }
+    throw e;
   }
 }

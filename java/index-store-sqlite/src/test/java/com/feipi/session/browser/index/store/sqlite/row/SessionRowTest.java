@@ -3,6 +3,7 @@ package com.feipi.session.browser.index.store.sqlite.row;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -92,8 +93,7 @@ class SessionRowTest {
                       0,
                       0,
                       null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("sessionKey");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -130,8 +130,7 @@ class SessionRowTest {
                       0,
                       0,
                       null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("agent");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -168,8 +167,7 @@ class SessionRowTest {
                       0,
                       0,
                       null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("sessionId");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -206,8 +204,7 @@ class SessionRowTest {
                       0,
                       0,
                       null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("endedAt");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -244,8 +241,7 @@ class SessionRowTest {
                       0,
                       0,
                       null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("durationSeconds");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -282,8 +278,7 @@ class SessionRowTest {
                       0,
                       0,
                       null))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("outputTokens");
+          .isInstanceOf(ConstraintViolationException.class);
     }
   }
 

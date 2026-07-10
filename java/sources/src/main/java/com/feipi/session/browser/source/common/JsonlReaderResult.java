@@ -2,9 +2,11 @@ package com.feipi.session.browser.source.common;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.List;
-import java.util.Objects;
 
 /**
  * JSONL 读取器的解析结果。
@@ -27,9 +29,13 @@ import java.util.Objects;
  * @param stoppedByLimit 当达到 {@code maxRecords} 上限后停止解析时为 {@code true}
  */
 public record JsonlReaderResult(
-    List<JsonNode> events,
-    List<SourceDiagnostic> diagnostics,
-    JsonlStats stats,
+    /* 解析成功的 JSON 对象列表 */
+    @NotNull List<JsonNode> events,
+    /* 解析过程中收集的诊断信息 */
+    @NotNull List<SourceDiagnostic> diagnostics,
+    /* 解析统计信息 */
+    @NotNull @Valid JsonlStats stats,
+    /* 当达到上限后停止解析时为 true */
     boolean stoppedByLimit) {
 
   /**
@@ -38,9 +44,8 @@ public record JsonlReaderResult(
    * @throws NullPointerException 当必填字段为 null 时
    */
   public JsonlReaderResult {
-    Objects.requireNonNull(events, "events 不得为 null");
-    Objects.requireNonNull(diagnostics, "diagnostics 不得为 null");
-    Objects.requireNonNull(stats, "stats 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(
+        JsonlReaderResult.class, events, diagnostics, stats, stoppedByLimit);
     events = Collections.unmodifiableList(events);
     diagnostics = Collections.unmodifiableList(diagnostics);
   }

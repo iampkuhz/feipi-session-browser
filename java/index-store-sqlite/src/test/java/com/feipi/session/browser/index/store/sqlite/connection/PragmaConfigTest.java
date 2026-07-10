@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
+import jakarta.validation.ConstraintViolationException;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
@@ -66,7 +67,7 @@ class PragmaConfigTest {
     @DisplayName("空 journalMode 抛异常")
     void emptyJournalMode() {
       assertThatThrownBy(() -> new PragmaConfig("", "normal", 30000, true))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -80,7 +81,7 @@ class PragmaConfigTest {
     @DisplayName("空 synchronous 抛异常")
     void emptySynchronous() {
       assertThatThrownBy(() -> new PragmaConfig("wal", "", 30000, true))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -94,7 +95,7 @@ class PragmaConfigTest {
     @DisplayName("负 busyTimeout 抛异常")
     void negativeBusyTimeout() {
       assertThatThrownBy(() -> new PragmaConfig("wal", "normal", -1, true))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test

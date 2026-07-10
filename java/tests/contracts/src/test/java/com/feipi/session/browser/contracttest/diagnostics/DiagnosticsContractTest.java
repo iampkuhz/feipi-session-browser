@@ -4,8 +4,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
 import com.feipi.session.browser.application.diagnostics.DiagnosticRegistry;
-import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator;
 import com.feipi.session.browser.query.api.AnomalySeverity;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;

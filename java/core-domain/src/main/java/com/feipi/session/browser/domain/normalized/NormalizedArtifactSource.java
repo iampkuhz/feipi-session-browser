@@ -10,7 +10,9 @@ import java.util.List;
  * @param files 对 artifact 有贡献的源文件列表
  */
 @DomainModel
-public record NormalizedArtifactSource(List<NormalizedSourceFile> files) {
+public record NormalizedArtifactSource(
+    /* 对 artifact 有贡献的源文件列表。 */
+    List<NormalizedSourceFile> files) {
 
   /** 校验并复制源文件列表。 */
   public NormalizedArtifactSource {

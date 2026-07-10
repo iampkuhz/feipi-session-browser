@@ -3,6 +3,7 @@ package com.feipi.session.browser.index.store.sqlite.row;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import jakarta.validation.ConstraintViolationException;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -41,8 +42,7 @@ class SessionArtifactRowTest {
     void emptySessionKeyRejected() {
       assertThatThrownBy(
               () -> new SessionArtifactRow("", "normalized", "/path", null, null, 0, 0, 0, 0))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("sessionKey");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -52,8 +52,7 @@ class SessionArtifactRowTest {
               () ->
                   new SessionArtifactRow(
                       "claude_code:test-id", "", "/path", null, null, 0, 0, 0, 0))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("artifactType");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -63,8 +62,7 @@ class SessionArtifactRowTest {
               () ->
                   new SessionArtifactRow(
                       "claude_code:test-id", "normalized", "/path", null, null, 0, -1, 0, 0))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("sizeBytes");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
@@ -74,8 +72,7 @@ class SessionArtifactRowTest {
               () ->
                   new SessionArtifactRow(
                       "claude_code:test-id", "normalized", "/path", null, null, -1.0, 0, 0, 0))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("sourceMtime");
+          .isInstanceOf(ConstraintViolationException.class);
     }
   }
 

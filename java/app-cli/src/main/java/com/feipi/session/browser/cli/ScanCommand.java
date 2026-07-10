@@ -2,8 +2,8 @@ package com.feipi.session.browser.cli;
 
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
-import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteIndexWriter;
+import com.feipi.session.browser.index.store.sqlite.schema.DatabaseUpgrader;
 import com.feipi.session.browser.scan.engine.FullScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
 import com.feipi.session.browser.scan.engine.IncrementalScanSummary;

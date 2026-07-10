@@ -1,5 +1,8 @@
 package com.feipi.session.browser.source.common;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.Positive;
 import java.util.Objects;
 
 /**
@@ -11,7 +14,13 @@ import java.util.Objects;
  * @param maxBufferSize 单条记录累积缓冲区的最大字符数（char 单位，非 byte）。 当缓冲区累积的字符总数超过此值时，记录将被强制刷新并报告错误
  * @param maxPreviewLength 诊断预览文本的最大长度（字符数）
  */
-public record JsonlReaderConfig(int maxRecords, int maxBufferSize, int maxPreviewLength) {
+public record JsonlReaderConfig(
+    /* 单次解析操作允许的最大记录数 */
+    @Positive int maxRecords,
+    /* 单条记录累积缓冲区的最大字符数 */
+    @Positive int maxBufferSize,
+    /* 诊断预览文本的最大长度（字符数） */
+    @Positive int maxPreviewLength) {
 
   /** 默认配置实例。 */
   public static final JsonlReaderConfig DEFAULT =
@@ -26,14 +35,11 @@ public record JsonlReaderConfig(int maxRecords, int maxBufferSize, int maxPrevie
    * @throws IllegalArgumentException 当任何上限值为非正数时
    */
   public JsonlReaderConfig {
-    if (maxRecords <= 0) {
-      throw new IllegalArgumentException("maxRecords 必须为正整数: " + maxRecords);
-    }
-    if (maxBufferSize <= 0) {
-      throw new IllegalArgumentException("maxBufferSize 必须为正整数: " + maxBufferSize);
-    }
-    if (maxPreviewLength <= 0) {
-      throw new IllegalArgumentException("maxPreviewLength 必须为正整数: " + maxPreviewLength);
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          JsonlReaderConfig.class, maxRecords, maxBufferSize, maxPreviewLength);
+    } catch (ConstraintViolationException e) {
+      throw new IllegalArgumentException(e.getMessage(), e);
     }
   }
 

@@ -1,9 +1,9 @@
 package com.feipi.session.browser.application.diagnostics;
 
-import com.feipi.session.browser.query.api.PercentileCalculator;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.AnomalyType;
 import com.feipi.session.browser.query.api.DetectedAnomaly;
+import com.feipi.session.browser.query.api.PercentileCalculator;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
 import java.util.ArrayList;
 import java.util.Collections;

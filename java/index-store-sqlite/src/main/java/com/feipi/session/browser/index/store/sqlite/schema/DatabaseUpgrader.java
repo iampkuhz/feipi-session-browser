@@ -1,8 +1,8 @@
 package com.feipi.session.browser.index.store.sqlite.schema;
 
+import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
-import com.feipi.session.browser.common.validation.ParamChecks;
 import java.io.IOException;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;

@@ -1,9 +1,9 @@
 package com.feipi.session.browser.index.store.sqlite.connection;
 
-import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.testsupport.sqlite.SqliteTestHelper;
 import java.nio.file.Path;
 import java.sql.Connection;

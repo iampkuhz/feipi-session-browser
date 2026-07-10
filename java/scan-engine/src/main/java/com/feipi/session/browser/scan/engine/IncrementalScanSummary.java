@@ -1,6 +1,9 @@
 package com.feipi.session.browser.scan.engine;
 
 import com.feipi.session.browser.source.spi.SourceId;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import java.util.Map;
 
@@ -31,18 +34,43 @@ import java.util.Map;
  * @param rebuildTriggered scan logic version 变化是否触发了全量重建
  */
 public record IncrementalScanSummary(
-    int totalCandidates,
-    int successCount,
-    int skippedCount,
-    int errorCount,
-    long scanDurationMs,
-    long scanLogId,
-    Map<SourceId, Integer> perSourceCount,
-    List<ScanIssue> issues,
-    int unchangedCount,
-    int changedCount,
-    int newCount,
-    int retryableCount,
+    /* 发现的候选项总数。 */
+    @PositiveOrZero int totalCandidates,
+
+    /* 成功处理的候选项数。 */
+    @PositiveOrZero int successCount,
+
+    /* 因非指纹原因跳过的候选项数。 */
+    @PositiveOrZero int skippedCount,
+
+    /* 处理失败的候选项数。 */
+    @PositiveOrZero int errorCount,
+
+    /* 扫描总耗时（毫秒）。 */
+    @PositiveOrZero long scanDurationMs,
+
+    /* 扫描日志记录编号。 */
+    @PositiveOrZero long scanLogId,
+
+    /* 各源处理的候选项数。 */
+    @NotNull Map<SourceId, Integer> perSourceCount,
+
+    /* 扫描过程中遇到的问题列表。 */
+    @NotNull List<ScanIssue> issues,
+
+    /* 指纹匹配未处理的候选项数。 */
+    @PositiveOrZero int unchangedCount,
+
+    /* 指纹变化重新处理的候选项数。 */
+    @PositiveOrZero int changedCount,
+
+    /* 新发现的候选项数。 */
+    @PositiveOrZero int newCount,
+
+    /* 重试的候选项数。 */
+    @PositiveOrZero int retryableCount,
+
+    /* scan logic version 变化是否触发了全量重建。 */
     boolean rebuildTriggered) {
 
   /**
@@ -51,15 +79,21 @@ public record IncrementalScanSummary(
    * @throws IllegalArgumentException 当计数为负时
    */
   public IncrementalScanSummary {
-    ScanSummarySupport.requireNonNegative("totalCandidates", totalCandidates);
-    ScanSummarySupport.requireNonNegative("successCount", successCount);
-    ScanSummarySupport.requireNonNegative("skippedCount", skippedCount);
-    ScanSummarySupport.requireNonNegative("errorCount", errorCount);
-    ScanSummarySupport.requireNonNegative("scanDurationMs", scanDurationMs);
-    ScanSummarySupport.requireNonNegative("unchangedCount", unchangedCount);
-    ScanSummarySupport.requireNonNegative("changedCount", changedCount);
-    ScanSummarySupport.requireNonNegative("newCount", newCount);
-    ScanSummarySupport.requireNonNegative("retryableCount", retryableCount);
+    ValidationSupport.validateCanonicalConstructor(
+        IncrementalScanSummary.class,
+        totalCandidates,
+        successCount,
+        skippedCount,
+        errorCount,
+        scanDurationMs,
+        scanLogId,
+        perSourceCount,
+        issues,
+        unchangedCount,
+        changedCount,
+        newCount,
+        retryableCount,
+        rebuildTriggered);
     perSourceCount = ScanSummarySupport.copyPerSourceCount(perSourceCount);
     issues = ScanSummarySupport.copyIssues(issues);
   }

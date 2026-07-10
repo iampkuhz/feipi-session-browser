@@ -1,5 +1,8 @@
 package com.feipi.session.browser.scan.engine;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.Positive;
+
 /**
  * 分层扫描窗口配置。
  *
@@ -10,7 +13,12 @@ package com.feipi.session.browser.scan.engine;
  * @param windowSeconds 层级窗口大小（秒），只扫描此时间范围内的会话
  * @param intervalSeconds 层级扫描间隔（秒），两次扫描之间的最小等待时间
  */
-public record TierConfig(long windowSeconds, long intervalSeconds) {
+public record TierConfig(
+    /* 层级窗口大小（秒），只扫描此时间范围内的会话。 */
+    @Positive long windowSeconds,
+
+    /* 层级扫描间隔（秒），两次扫描之间的最小等待时间。 */
+    @Positive long intervalSeconds) {
 
   /** hot 层级默认窗口：30 分钟。 */
   public static final long DEFAULT_HOT_WINDOW = 30 * 60;
@@ -38,11 +46,7 @@ public record TierConfig(long windowSeconds, long intervalSeconds) {
    * @throws IllegalArgumentException 当窗口或间隔非正时
    */
   public TierConfig {
-    if (windowSeconds <= 0) {
-      throw new IllegalArgumentException("windowSeconds 必须 > 0: " + windowSeconds);
-    }
-    if (intervalSeconds <= 0) {
-      throw new IllegalArgumentException("intervalSeconds 必须 > 0: " + intervalSeconds);
-    }
+    ValidationSupport.validateCanonicalConstructor(
+        TierConfig.class, windowSeconds, intervalSeconds);
   }
 }

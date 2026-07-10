@@ -3,6 +3,11 @@ package com.feipi.session.browser.source.spi;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import java.util.Objects;
 
@@ -62,22 +67,31 @@ public sealed interface SourceResult
    *
    * <p>携带源中性解析记录、诊断信息、处理计数、指纹和定位器。
    *
-   * @param diagnostics 诊断信息列表
-   * @param candidateCount 成功处理的候选项数量
+   * @param diagnostics 诊断信息列表，不可变，不得为 null
+   * @param candidateCount 成功处理的候选项数量，非负
    * @param records 源中性已解析记录列表，可能为空但永远不为 null
    * @param fingerprint 源文件指纹，{@code null} 表示不适用
    * @param locator 源定位标识，{@code null} 表示不适用
    */
   record Success(
+      /* 诊断信息列表，不可变，不得为 null。 */
       List<SourceDiagnostic> diagnostics,
-      @CoreField int candidateCount,
+
+      /* 成功处理的候选项数量，非负。 */
+      @PositiveOrZero @CoreField int candidateCount,
+
+      /* 源中性已解析记录列表，可能为空但永远不为 null。 */
       List<SourceRecord> records,
+
+      /* 源文件指纹，null 表示不适用。 */
       SourceFingerprint fingerprint,
+
+      /* 源定位标识，null 表示不适用。 */
       String locator)
       implements SourceResult {
 
     /**
-     * 紧凑构造器，验证不变量。
+     * 紧凑构造器，执行防御性拷贝并校验约束。
      *
      * @throws IllegalArgumentException 当候选项数量为负或诊断超限时
      */
@@ -88,10 +102,13 @@ public sealed interface SourceResult
         throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
-      if (candidateCount < 0) {
-        throw new IllegalArgumentException("candidateCount 不得为负: " + candidateCount);
-      }
       records = records == null ? List.of() : List.copyOf(records);
+      try {
+        ValidationSupport.validateCanonicalConstructor(
+            Success.class, diagnostics, candidateCount, records, fingerprint, locator);
+      } catch (ConstraintViolationException e) {
+        translatePositiveOrZero(e, "candidateCount");
+      }
     }
 
     @Override
@@ -103,19 +120,36 @@ public sealed interface SourceResult
     public String message() {
       return "操作成功完成，处理 " + candidateCount + " 个候选项";
     }
+
+    private static void translatePositiveOrZero(ConstraintViolationException e, String field) {
+      for (var v : e.getConstraintViolations()) {
+        String path = v.getPropertyPath().toString();
+        if ((path.equals(field) || path.endsWith("." + field))
+            && v.getConstraintDescriptor().getAnnotation().annotationType()
+                == PositiveOrZero.class) {
+          throw new IllegalArgumentException(field + " 不得为负: " + v.getInvalidValue());
+        }
+      }
+      throw e;
+    }
   }
 
   /**
    * 操作未完成但可在后续重试中恢复的结果。
    *
-   * @param diagnostics 诊断信息列表
-   * @param reason 可重试原因的简要描述
+   * @param diagnostics 诊断信息列表，不可变，不得为 null
+   * @param reason 可重试原因的简要描述，不得为空
    */
-  record RetryableIncomplete(List<SourceDiagnostic> diagnostics, @CoreField String reason)
+  record RetryableIncomplete(
+      /* 诊断信息列表，不可变，不得为 null。 */
+      List<SourceDiagnostic> diagnostics,
+
+      /* 可重试原因的简要描述，不得为空。 */
+      @NotNull @NotBlank @CoreField String reason)
       implements SourceResult {
 
     /**
-     * 紧凑构造器，验证不变量。
+     * 紧凑构造器，执行防御性拷贝并校验约束。
      *
      * @throws NullPointerException 当 reason 为 null 时
      * @throws IllegalArgumentException 当 reason 为空或诊断超限时
@@ -127,9 +161,11 @@ public sealed interface SourceResult
         throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
-      Objects.requireNonNull(reason, "reason 不得为 null");
-      if (reason.isEmpty()) {
-        throw new IllegalArgumentException("reason 不得为空");
+      try {
+        ValidationSupport.validateCanonicalConstructor(
+            RetryableIncomplete.class, diagnostics, reason);
+      } catch (ConstraintViolationException e) {
+        translateNotBlankNotNull(e, "reason");
       }
     }
 
@@ -147,14 +183,19 @@ public sealed interface SourceResult
   /**
    * 操作被有意跳过的结果。
    *
-   * @param diagnostics 诊断信息列表
-   * @param reason 跳过原因的简要描述
+   * @param diagnostics 诊断信息列表，不可变，不得为 null
+   * @param reason 跳过原因的简要描述，不得为空
    */
-  record Skipped(List<SourceDiagnostic> diagnostics, @CoreField String reason)
+  record Skipped(
+      /* 诊断信息列表，不可变，不得为 null。 */
+      List<SourceDiagnostic> diagnostics,
+
+      /* 跳过原因的简要描述，不得为空。 */
+      @NotNull @NotBlank @CoreField String reason)
       implements SourceResult {
 
     /**
-     * 紧凑构造器，验证不变量。
+     * 紧凑构造器，执行防御性拷贝并校验约束。
      *
      * @throws NullPointerException 当 reason 为 null 时
      * @throws IllegalArgumentException 当 reason 为空或诊断超限时
@@ -166,9 +207,10 @@ public sealed interface SourceResult
         throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
-      Objects.requireNonNull(reason, "reason 不得为 null");
-      if (reason.isEmpty()) {
-        throw new IllegalArgumentException("reason 不得为空");
+      try {
+        ValidationSupport.validateCanonicalConstructor(Skipped.class, diagnostics, reason);
+      } catch (ConstraintViolationException e) {
+        translateNotBlankNotNull(e, "reason");
       }
     }
 
@@ -186,14 +228,19 @@ public sealed interface SourceResult
   /**
    * 操作因不可恢复错误终止的结果。
    *
-   * @param diagnostics 诊断信息列表
-   * @param errorDetail 错误详情
+   * @param diagnostics 诊断信息列表，不可变，不得为 null
+   * @param errorDetail 错误详情，不得为空
    */
-  record Fatal(List<SourceDiagnostic> diagnostics, @CoreField String errorDetail)
+  record Fatal(
+      /* 诊断信息列表，不可变，不得为 null。 */
+      List<SourceDiagnostic> diagnostics,
+
+      /* 错误详情，不得为空。 */
+      @NotNull @NotBlank @CoreField String errorDetail)
       implements SourceResult {
 
     /**
-     * 紧凑构造器，验证不变量。
+     * 紧凑构造器，执行防御性拷贝并校验约束。
      *
      * @throws NullPointerException 当 errorDetail 为 null 时
      * @throws IllegalArgumentException 当 errorDetail 为空或诊断超限时
@@ -205,9 +252,10 @@ public sealed interface SourceResult
         throw new IllegalArgumentException(DIAGNOSTICS_LIMIT_MESSAGE_PREFIX + MAX_DIAGNOSTICS);
       }
       diagnostics = copy;
-      Objects.requireNonNull(errorDetail, "errorDetail 不得为 null");
-      if (errorDetail.isEmpty()) {
-        throw new IllegalArgumentException("errorDetail 不得为空");
+      try {
+        ValidationSupport.validateCanonicalConstructor(Fatal.class, diagnostics, errorDetail);
+      } catch (ConstraintViolationException e) {
+        translateNotBlankNotNull(e, "errorDetail");
       }
     }
 
@@ -220,5 +268,36 @@ public sealed interface SourceResult
     public String message() {
       return "操作致命错误: " + errorDetail;
     }
+  }
+
+  /**
+   * 将 NotBlank/NotNull 约束违反转换为对应的异常类型。
+   *
+   * <p>NotNull 违反抛出 NullPointerException；NotBlank 违反抛出 IllegalArgumentException（消息包含字段名）。
+   */
+  static void translateNotBlankNotNull(ConstraintViolationException e, String field) {
+    for (var v : e.getConstraintViolations()) {
+      String path = v.getPropertyPath().toString();
+      if (!path.equals(field) && !path.endsWith("." + field)) {
+        continue;
+      }
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+    }
+    for (var v : e.getConstraintViolations()) {
+      String path = v.getPropertyPath().toString();
+      if (!path.equals(field) && !path.endsWith("." + field)) {
+        continue;
+      }
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotBlank.class) {
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
+    }
+    throw e;
   }
 }

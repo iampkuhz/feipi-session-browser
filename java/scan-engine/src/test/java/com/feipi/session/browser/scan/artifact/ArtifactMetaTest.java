@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
+import jakarta.validation.ConstraintViolationException;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 import org.junit.jupiter.api.DisplayName;
@@ -58,7 +59,7 @@ class ArtifactMetaTest {
   }
 
   @Test
-  @DisplayName("null schemaVersion 抛出 NullPointerException")
+  @DisplayName("null schemaVersion 抛出 ConstraintViolationException")
   void nullSchemaVersionThrowsNpe() {
     assertThatThrownBy(
             () ->
@@ -69,11 +70,11 @@ class ArtifactMetaTest {
                     0L,
                     "2024-01-01T00:00:00Z",
                     Map.of()))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
-  @DisplayName("null generator 抛出 NullPointerException")
+  @DisplayName("null generator 抛出 ConstraintViolationException")
   void nullGeneratorThrowsNpe() {
     assertThatThrownBy(
             () ->
@@ -84,11 +85,11 @@ class ArtifactMetaTest {
                     0L,
                     "2024-01-01T00:00:00Z",
                     Map.of()))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
-  @DisplayName("null contentHash 抛出 NullPointerException")
+  @DisplayName("null contentHash 抛出 ConstraintViolationException")
   void nullContentHashThrowsNpe() {
     assertThatThrownBy(
             () ->
@@ -99,11 +100,11 @@ class ArtifactMetaTest {
                     0L,
                     "2024-01-01T00:00:00Z",
                     Map.of()))
-        .isInstanceOf(NullPointerException.class);
+        .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test
-  @DisplayName("负数 contentSize 抛出 IllegalArgumentException")
+  @DisplayName("负数 contentSize 抛出 ConstraintViolationException")
   void negativeContentSizeThrowsIae() {
     assertThatThrownBy(
             () ->
@@ -114,7 +115,7 @@ class ArtifactMetaTest {
                     -1L,
                     "2024-01-01T00:00:00Z",
                     Map.of()))
-        .isInstanceOf(IllegalArgumentException.class);
+        .isInstanceOf(ConstraintViolationException.class);
   }
 
   @Test

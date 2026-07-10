@@ -48,5 +48,16 @@ public final class TokenTrendBuckets {
    * @param total 总 token 数
    */
   public record Point(
-      String label, long fresh, long cacheRead, long cacheWrite, long output, long total) {}
+      /* 分组展示标签 */
+      String label,
+      /* 新输入令牌数量 */
+      long fresh,
+      /* 缓存读取令牌数量 */
+      long cacheRead,
+      /* 缓存写入令牌数量 */
+      long cacheWrite,
+      /* 输出令牌数量 */
+      long output,
+      /* 令牌总数量 */
+      long total) {}
 }

@@ -1,12 +1,16 @@
 package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.common.validation.ImmutableCopies;
-import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -49,46 +53,70 @@ import java.util.Optional;
  */
 @DomainModel
 public record SourceUnitCatalogEntry(
-    @CoreField String unitKey,
-    @CoreField String originPath,
-    @CoreField String canonicalSourceLocator,
-    @CoreField String unitType,
-    @CoreField String candidate,
-    @CoreField SourceUnitDirection direction,
-    @CoreField int eventOrder,
-    @CoreField int partIndex,
-    @CoreField ByteRange byteRange,
-    @CoreField String contentHash,
+    /* 稳定的单元键，供调用和序列引用。 */
+    @NotBlank @CoreField String unitKey,
+
+    /* 产生该单元的源文件路径。 */
+    @NotBlank @CoreField String originPath,
+
+    /* 适配器特定的源跨度定位符。 */
+    @NotBlank @CoreField String canonicalSourceLocator,
+
+    /* 目录中存储的源单元类别。 */
+    @NotBlank @CoreField String unitType,
+
+    /* 归因候选桶，用于 UI 分组。 */
+    @NotNull @CoreField String candidate,
+
+    /* 会话的请求侧或响应侧。 */
+    @NotNull @CoreField SourceUnitDirection direction,
+
+    /* 源转录中的非负事件顺序。 */
+    @PositiveOrZero @CoreField int eventOrder,
+
+    /* 源事件内的非负索引。 */
+    @PositiveOrZero @CoreField int partIndex,
+
+    /* 源载荷内的字节偏移。 */
+    @NotNull @CoreField ByteRange byteRange,
+
+    /* 用于去重的稳定内容哈希。 */
+    @NotNull @CoreField String contentHash,
+
+    /* 可选的关联源时间戳。 */
     Optional<String> timestamp,
+
+    /* 可选的显示标签。 */
     Optional<String> label,
-    int priority,
+
+    /* 归因显示排名的非负优先级。 */
+    @PositiveOrZero int priority,
+
+    /* 可选的短预览文本。 */
     Optional<String> preview,
+
+    /* 可选的完整文本（安全持久化时）。 */
     Optional<String> text,
+
+    /* 可选的 provider 载荷片段。 */
     Object payload,
+
+    /* 可选的嵌套源标签。 */
     Optional<String> subSource,
+
+    /* 可选的归一化前原始候选标签。 */
     Optional<String> sourceCandidate,
+
+    /* 关联的适配器诊断信息列表，不可变。 */
     List<Map<String, Object>> diagnostics) {
 
   /**
-   * 紧凑构造器，验证不变量并执行防御性拷贝。
+   * 紧凑构造器，处理默认值并执行防御性拷贝。
    *
    * @throws NullPointerException 当必填字段为 null 时
    * @throws IllegalArgumentException 当排序字段为负数或集合超限时
    */
   public SourceUnitCatalogEntry {
-    Objects.requireNonNull(unitKey, "unitKey 不得为 null");
-    Objects.requireNonNull(originPath, "originPath 不得为 null");
-    Objects.requireNonNull(canonicalSourceLocator, "canonicalSourceLocator 不得为 null");
-    Objects.requireNonNull(unitType, "unitType 不得为 null");
-    Objects.requireNonNull(candidate, "candidate 不得为 null");
-    Objects.requireNonNull(direction, "direction 不得为 null");
-    Objects.requireNonNull(byteRange, "byteRange 不得为 null");
-    Objects.requireNonNull(contentHash, "contentHash 不得为 null");
-
-    ParamChecks.nonNegative(eventOrder, "source_unit.eventOrder");
-    ParamChecks.nonNegative(partIndex, "source_unit.partIndex");
-    ParamChecks.nonNegative(priority, "source_unit.priority");
-
     // Optional 字段规范化
     timestamp = timestamp == null ? Optional.empty() : timestamp;
     label = label == null ? Optional.empty() : label;
@@ -101,5 +129,62 @@ public record SourceUnitCatalogEntry(
     diagnostics =
         ImmutableCopies.boundedListOrEmpty(
             diagnostics, NormalizedConstants.MAX_COLLECTION_SIZE, "diagnostics");
+
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          SourceUnitCatalogEntry.class,
+          unitKey,
+          originPath,
+          canonicalSourceLocator,
+          unitType,
+          candidate,
+          direction,
+          eventOrder,
+          partIndex,
+          byteRange,
+          contentHash,
+          timestamp,
+          label,
+          priority,
+          preview,
+          text,
+          payload,
+          subSource,
+          sourceCandidate,
+          diagnostics);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+    }
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotBlank.class) {
+        if (v.getInvalidValue() == null) {
+          throw new NullPointerException(field + " 不得为 null");
+        }
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
+      if (type == PositiveOrZero.class) {
+        throw new IllegalArgumentException(field + " 不得为负: " + v.getInvalidValue());
+      }
+    }
+    throw e;
   }
 }

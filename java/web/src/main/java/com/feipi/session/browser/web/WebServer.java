@@ -107,9 +107,11 @@ public final class WebServer {
   }
 
   /**
-   * 表示 HealthResponse 数据。
+   * 健康检查响应数据。
    *
-   * @param status 状态值。
+   * @param status 健康状态值。
    */
-  record HealthResponse(String status) {}
+  record HealthResponse(
+      /* 健康状态值。 */
+      String status) {}
 }

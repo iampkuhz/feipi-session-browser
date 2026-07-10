@@ -2,11 +2,11 @@ package com.feipi.session.browser.contracttest.artifactnormalized;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
-import com.feipi.session.browser.scan.artifact.WriteResult;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
+import com.feipi.session.browser.scan.artifact.WriteResult;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;

@@ -1,7 +1,11 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.AgentEfficiency;
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.Finite;
+import com.feipi.session.browser.validation.Ratio;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * Agent 效率指标行。
@@ -23,23 +27,31 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param failedPerSession 每会话失败数，null 表示无数据
  */
 public record AgentEfficiencyRow(
-    String agent,
-    String model,
-    long sessionCount,
-    double avgDuration,
-    double p95Duration,
-    long avgTotalTokens,
-    double avgTools,
-    Double toolsPerRound,
-    Double cacheReuseRatio,
-    Double failedPerSession) implements AgentEfficiency {
+    /* 代理类型标识。 */ @NotBlank String agent,
+    /* 模型名称，已过滤空值和 null。 */ @NotBlank String model,
+    /* 会话数量。 */ @PositiveOrZero long sessionCount,
+    /* 平均时长（秒），保留一位小数。 */ @Finite @PositiveOrZero double avgDuration,
+    /* P95 时长（秒），nearest-rank 近似。 */ @Finite @PositiveOrZero double p95Duration,
+    /* 每会话平均令牌总量。 */ @PositiveOrZero long avgTotalTokens,
+    /* 平均每会话工具调用数，保留一位小数。 */ @Finite @PositiveOrZero double avgTools,
+    /* 每轮工具调用数，null 表示无数据。 */ @Finite @PositiveOrZero Double toolsPerRound,
+    /* 缓存复用比率，null 表示无数据。 */ @Ratio Double cacheReuseRatio,
+    /* 每会话失败数，null 表示无数据。 */ @Finite @PositiveOrZero Double failedPerSession)
+    implements AgentEfficiency {
 
-  /**
-   * 紧凑构造器，验证会话计数非负。
-   *
-   * @throws IllegalArgumentException 当 sessionCount 为负数时
-   */
+  /** 紧凑构造器，校验 record component 约束。 */
   public AgentEfficiencyRow {
-    ParamChecks.nonNegative(sessionCount, "sessionCount");
+    ValidationSupport.validateCanonicalConstructor(
+        AgentEfficiencyRow.class,
+        agent,
+        model,
+        sessionCount,
+        avgDuration,
+        p95Duration,
+        avgTotalTokens,
+        avgTools,
+        toolsPerRound,
+        cacheReuseRatio,
+        failedPerSession);
   }
 }

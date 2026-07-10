@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.page;
 
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.application.SessionListUseCase;
+import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.index.api.query.SessionListAggregate;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PageResult;
@@ -13,7 +14,6 @@ import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
-import com.feipi.session.browser.index.api.IndexQueryException;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;

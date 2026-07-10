@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.schema;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.nio.file.Path;
 import java.util.List;
 
@@ -14,13 +16,14 @@ import java.util.List;
  * @param appVersionRecorded 写入 index_metadata 的应用版本，版本不可用时为 null
  */
 public record UpgradeResult(
-    List<SchemaVersion> schemaVersionsApplied,
-    Path backupPath,
-    boolean versionChanged,
-    String appVersionRecorded) {
+    /* 本次实际应用的 schema migration 版本列表（空表示全部已应用）。 */ @NotNull
+        List<SchemaVersion> schemaVersionsApplied,
+    /* 升级前备份文件路径，无备份时（数据库不存在）为 null。 */ Path backupPath,
+    /* schema 版本是否发生变化。 */ boolean versionChanged,
+    /* 写入 index_metadata 的应用版本，版本不可用时为 null。 */ String appVersionRecorded) {
 
   /**
-   * 紧凑构造器，防御性拷贝列表。
+   * 紧凑构造器，校验 record component 约束并防御性拷贝列表。
    *
    * @param schemaVersionsApplied 已应用版本列表
    * @param backupPath 备份路径
@@ -28,6 +31,8 @@ public record UpgradeResult(
    * @param appVersionRecorded 记录的应用版本
    */
   public UpgradeResult {
+    ValidationSupport.validateCanonicalConstructor(
+        UpgradeResult.class, schemaVersionsApplied, backupPath, versionChanged, appVersionRecorded);
     schemaVersionsApplied = List.copyOf(schemaVersionsApplied);
   }
 

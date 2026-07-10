@@ -6,12 +6,14 @@
  * <h2>Schema 管理</h2>
  *
  * <ul>
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion} — schema 版本号，独立于 scan logic
- *       version。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.Migration} — 单条 migration 定义，SQL 从 classpath
- *       资源加载。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner} — 幂等 migration 执行器，原子事务。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.IndexSchema} — schema 入口，注册 migration 并验证表结构。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion} — schema 版本号，独立于
+ *       scan logic version。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.Migration} — 单条 migration 定义，SQL
+ *       从 classpath 资源加载。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner} — 幂等 migration
+ *       执行器，原子事务。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.schema.IndexSchema} — schema 入口，注册
+ *       migration 并验证表结构。
  * </ul>
  *
  * <h2>连接运行时</h2>
@@ -19,30 +21,35 @@
  * <ul>
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig} — PRAGMA
  *       配置：WAL、synchronous、busy_timeout、 foreign_keys。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory} — 连接工厂，创建并配置 JDBC 连接。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.util.NativeLibraryDiagnostics} — native library
- *       诊断：平台检测、加载验证、目标平台可用性检查和提取目录配置。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteQueue} — 有界队列 + 单 writer 线程，保证写入串行化。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.connection.ConnectionFactory} —
+ *       连接工厂，创建并配置 JDBC 连接。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.util.NativeLibraryDiagnostics} — native
+ *       library 诊断：平台检测、加载验证、目标平台可用性检查和提取目录配置。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteQueue} — 有界队列 + 单 writer
+ *       线程，保证写入串行化。
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteBatch} — 批量写入辅助，事务大小可配置。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteTransaction} — 显式写事务，支持 commit/rollback。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.WriteTransaction} — 显式写事务，支持
+ *       commit/rollback。
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction} — 短生命周期只读事务，避免 WAL
  *       checkpoint starvation。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.connection.IndexConnection} — 连接入口，组合 writer 连接和读连接工厂。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.connection.IndexConnection} — 连接入口，组合
+ *       writer 连接和读连接工厂。
  * </ul>
  *
  * <h2>写入模型</h2>
  *
- * <p>所有写操作通过 {@link com.feipi.session.browser.index.store.sqlite.tx.WriteQueue} 串行执行。 解析线程不得直接 commit，必须
- * submit 到 writer 队列。 批量事务大小由 {@link com.feipi.session.browser.index.store.sqlite.tx.WriteBatch}
- * 控制，防止单次事务过大。
+ * <p>所有写操作通过 {@link com.feipi.session.browser.index.store.sqlite.tx.WriteQueue} 串行执行。 解析线程不得直接
+ * commit，必须 submit 到 writer 队列。 批量事务大小由 {@link
+ * com.feipi.session.browser.index.store.sqlite.tx.WriteBatch} 控制，防止单次事务过大。
  *
  * <h2>行映射</h2>
  *
  * <ul>
  *   <li>{@link com.feipi.session.browser.index.store.sqlite.row.SessionRow} — sessions 表类型化行数据。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow} — session_artifacts
- *       表类型化行数据。
- *   <li>{@link com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper} — 归一化制品到 index row 的唯一映射器。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.row.SessionArtifactRow} —
+ *       session_artifacts 表类型化行数据。
+ *   <li>{@link com.feipi.session.browser.index.store.sqlite.mapper.ArtifactRowMapper} — 归一化制品到
+ *       index row 的唯一映射器。
  * </ul>
  *
  * <h2>校验放置</h2>

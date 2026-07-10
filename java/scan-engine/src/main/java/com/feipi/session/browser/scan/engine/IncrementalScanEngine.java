@@ -1,9 +1,9 @@
 package com.feipi.session.browser.scan.engine;
 
-import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.api.write.StoredSessionFingerprint;
 import com.feipi.session.browser.normalization.NormalizationEngine;
+import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;

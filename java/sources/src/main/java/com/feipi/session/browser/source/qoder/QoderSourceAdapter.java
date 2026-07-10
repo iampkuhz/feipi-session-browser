@@ -4,11 +4,11 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
-import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
+import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveredSession;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.QoderDiscoveryResult;
 import com.feipi.session.browser.source.qoder.QoderDiscovery.SourceKind;
@@ -23,6 +23,8 @@ import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -620,14 +622,14 @@ public final class QoderSourceAdapter implements SourceAdapter {
    * @param outputTokens output token 数量。
    */
   private record QoderCandidateMetadata(
-      String cwd,
-      String title,
-      String model,
-      String gitBranch,
-      long freshInputTokens,
-      long cacheReadTokens,
-      long cacheWriteTokens,
-      long outputTokens) {
+      @NotNull String cwd,
+      @NotNull String title,
+      @NotNull String model,
+      @NotNull String gitBranch,
+      @PositiveOrZero long freshInputTokens,
+      @PositiveOrZero long cacheReadTokens,
+      @PositiveOrZero long cacheWriteTokens,
+      @PositiveOrZero long outputTokens) {
     private static QoderCandidateMetadata empty() {
       return new QoderCandidateMetadata("", "", "", "", 0, 0, 0, 0);
     }
@@ -643,7 +645,8 @@ public final class QoderSourceAdapter implements SourceAdapter {
    * @param freshInputTokens fresh input token 数量。
    * @param outputTokens output token 数量。
    */
-  private record TokenEstimate(long freshInputTokens, long outputTokens) {
+  private record TokenEstimate(
+      @PositiveOrZero long freshInputTokens, @PositiveOrZero long outputTokens) {
     private static TokenEstimate empty() {
       return new TokenEstimate(0, 0);
     }
@@ -655,7 +658,7 @@ public final class QoderSourceAdapter implements SourceAdapter {
    * @param category 分类值。
    * @param text 文本内容。
    */
-  private record EventText(String category, String text) {
+  private record EventText(@NotNull String category, @NotNull String text) {
     private static EventText empty() {
       return new EventText("", "");
     }

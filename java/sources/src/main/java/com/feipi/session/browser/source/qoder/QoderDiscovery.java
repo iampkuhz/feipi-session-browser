@@ -1,6 +1,9 @@
 package com.feipi.session.browser.source.qoder;
 
 import com.feipi.session.browser.source.spi.SourcePathOps;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
@@ -71,16 +74,32 @@ public final class QoderDiscovery {
    * @param sourceKind 来源目录类型
    */
   public record QoderDiscoveredSession(
-      Path path, String projectKey, String sessionId, SourceKind sourceKind) {}
+      /* 会话文件完整路径 */
+      @NotNull Path path,
+      /* 与 Python 主分支对齐的项目键 */
+      @NotBlank String projectKey,
+      /* 会话 ID（文件名去掉 .jsonl） */
+      @NotBlank String sessionId,
+      /* 来源目录类型 */
+      @NotNull SourceKind sourceKind) {
+    /** 校验 Qoder 发现会话参数。 */
+    public QoderDiscoveredSession {
+      ValidationSupport.validateCanonicalConstructor(
+          QoderDiscoveredSession.class, path, projectKey, sessionId, sourceKind);
+    }
+  }
 
   /**
    * 结构化发现结果集合。
    *
    * @param sessions 所有发现的会话
    */
-  public record QoderDiscoveryResult(List<QoderDiscoveredSession> sessions) {
+  public record QoderDiscoveryResult(
+      /* 所有发现的会话 */
+      @NotNull List<QoderDiscoveredSession> sessions) {
     /** 复制发现结果，避免外部列表在构造后被继续修改。 */
     public QoderDiscoveryResult {
+      ValidationSupport.validateCanonicalConstructor(QoderDiscoveryResult.class, sessions);
       sessions = List.copyOf(sessions);
     }
   }

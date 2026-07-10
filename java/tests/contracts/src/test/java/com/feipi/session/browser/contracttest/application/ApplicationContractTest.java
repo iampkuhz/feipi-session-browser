@@ -6,8 +6,8 @@ import com.feipi.session.browser.application.QueryCache;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.contracttest.support.ContractTestComposition;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
-import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.SessionListFilter;
@@ -103,7 +103,8 @@ class ApplicationContractTest {
     @DisplayName("scan 后缓存失效")
     void cacheInvalidatedAfterScan() throws Exception {
       QueryCache cache = new QueryCache(10);
-      QueryCompositionRoot root = ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
+      QueryCompositionRoot root =
+          ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
 
       // 首次查询，填充缓存
       root.sessionList().listWithAnomalies(SessionListFilter.defaults());
@@ -118,12 +119,14 @@ class ApplicationContractTest {
     @DisplayName("schema 版本变化导致缓存失效")
     void schemaVersionChangeInvalidatesCache() throws Exception {
       QueryCache cache = new QueryCache(10);
-      QueryCompositionRoot root1 = ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
+      QueryCompositionRoot root1 =
+          ContractTestComposition.queryRoot(ic, new SchemaVersion(1), cache);
       root1.dashboard().stats(AgentFilter.NONE);
       assertThat(cache.size()).isEqualTo(1);
 
       // 使用不同 schema 版本的 root 查询相同数据
-      QueryCompositionRoot root2 = ContractTestComposition.queryRoot(ic, new SchemaVersion(2), cache);
+      QueryCompositionRoot root2 =
+          ContractTestComposition.queryRoot(ic, new SchemaVersion(2), cache);
       root2.dashboard().stats(AgentFilter.NONE);
       // 两个不同 schema 版本各自缓存
       assertThat(cache.size()).isEqualTo(2);

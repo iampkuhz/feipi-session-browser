@@ -13,16 +13,22 @@
       "allowedProjectDeps": [],
       "transitionProjectDeps": []
     },
+    ":java:validation": {
+      "sourceRoot": "java/validation/src/main/java",
+      "packageRoots": ["com.feipi.session.browser.validation"],
+      "allowedProjectDeps": [],
+      "transitionProjectDeps": []
+    },
     ":java:core-domain": {
       "sourceRoot": "java/core-domain/src/main/java",
       "packageRoots": ["com.feipi.session.browser.domain"],
-      "allowedProjectDeps": [":java:common"],
+      "allowedProjectDeps": [":java:common", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:source-spi": {
       "sourceRoot": "java/source-spi/src/main/java",
       "packageRoots": ["com.feipi.session.browser.source.spi"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:sources": {
@@ -34,13 +40,13 @@
         "com.feipi.session.browser.source.codex",
         "com.feipi.session.browser.source.qoder"
       ],
-      "allowedProjectDeps": [":java:source-spi"],
+      "allowedProjectDeps": [":java:source-spi", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:normalization-engine": {
       "sourceRoot": "java/normalization-engine/src/main/java",
       "packageRoots": ["com.feipi.session.browser.normalization"],
-      "allowedProjectDeps": [":java:core-domain", ":java:source-spi"],
+      "allowedProjectDeps": [":java:core-domain", ":java:source-spi", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:index-api": {
@@ -52,31 +58,31 @@
     ":java:scan-engine": {
       "sourceRoot": "java/scan-engine/src/main/java",
       "packageRoots": ["com.feipi.session.browser.scan.engine", "com.feipi.session.browser.scan.artifact"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:source-spi", ":java:normalization-engine", ":java:index-api"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:source-spi", ":java:normalization-engine", ":java:index-api", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:index-store-sqlite": {
       "sourceRoot": "java/index-store-sqlite/src/main/java",
       "packageRoots": ["com.feipi.session.browser.index.store.sqlite"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-api"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-api", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:application": {
       "sourceRoot": "java/application/src/main/java",
       "packageRoots": ["com.feipi.session.browser.application"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-api"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:index-api", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:web": {
       "sourceRoot": "java/web/src/main/java",
       "packageRoots": ["com.feipi.session.browser.web"],
-      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:application"],
+      "allowedProjectDeps": [":java:common", ":java:core-domain", ":java:application", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:app-cli": {
       "sourceRoot": "java/app-cli/src/main/java",
       "packageRoots": ["com.feipi.session.browser.cli"],
-      "allowedProjectDeps": [":java:core-domain", ":java:source-spi", ":java:sources", ":java:normalization-engine", ":java:scan-engine", ":java:index-api", ":java:index-store-sqlite", ":java:application", ":java:web"],
+      "allowedProjectDeps": [":java:core-domain", ":java:source-spi", ":java:sources", ":java:normalization-engine", ":java:scan-engine", ":java:index-api", ":java:index-store-sqlite", ":java:application", ":java:web", ":java:validation"],
       "transitionProjectDeps": []
     },
     ":java:tests:support": {

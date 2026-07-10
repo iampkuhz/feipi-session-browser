@@ -1,6 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * 过滤后会话列表的聚合总量。
@@ -12,16 +13,15 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param projectCount 符合过滤条件的去重项目数
  * @param totalTokens 符合过滤条件的 token 总量，无匹配行时为 0
  */
-public record SessionListAggregate(long sessionCount, long projectCount, long totalTokens) implements com.feipi.session.browser.index.api.query.SessionListAggregate {
+public record SessionListAggregate(
+    /* 符合过滤条件的会话总数。 */ @PositiveOrZero long sessionCount,
+    /* 符合过滤条件的去重项目数。 */ @PositiveOrZero long projectCount,
+    /* 符合过滤条件的 token 总量，无匹配行时为 0。 */ @PositiveOrZero long totalTokens)
+    implements com.feipi.session.browser.index.api.query.SessionListAggregate {
 
-  /**
-   * 紧凑构造器，验证非负不变量。
-   *
-   * @throws IllegalArgumentException 当任何字段为负数时
-   */
+  /** 紧凑构造器，校验 record component 约束。 */
   public SessionListAggregate {
-    ParamChecks.nonNegative(sessionCount, "sessionCount");
-    ParamChecks.nonNegative(projectCount, "projectCount");
-    ParamChecks.nonNegative(totalTokens, "totalTokens");
+    ValidationSupport.validateCanonicalConstructor(
+        SessionListAggregate.class, sessionCount, projectCount, totalTokens);
   }
 }

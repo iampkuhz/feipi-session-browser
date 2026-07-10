@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(project(":java:validation"))
     implementation(project(":java:common"))
     implementation(project(":java:application"))
     implementation(project(":java:core-domain"))

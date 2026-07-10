@@ -1,19 +1,19 @@
 package com.feipi.session.browser.index.store.sqlite.repository;
 
-import com.feipi.session.browser.index.store.sqlite.mapper.SqliteSessionResultSetMapper;
-import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
 import com.feipi.session.browser.index.api.IndexQueryException;
 import com.feipi.session.browser.index.api.query.ProjectOption;
-import com.feipi.session.browser.index.api.query.SessionQueryPort;
 import com.feipi.session.browser.index.api.query.SessionListSummary;
+import com.feipi.session.browser.index.api.query.SessionQueryPort;
 import com.feipi.session.browser.index.api.query.SessionRecord;
-import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils.WhereClauses;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.mapper.SqliteSessionResultSetMapper;
 import com.feipi.session.browser.index.store.sqlite.row.ProjectOptionRow;
-import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.index.store.sqlite.row.SessionListAggregate;
 import com.feipi.session.browser.index.store.sqlite.row.SessionListSummaryRow;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
+import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
+import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils.WhereClauses;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.FailureStatus;
 import com.feipi.session.browser.query.api.ModelFilter;
@@ -48,8 +48,7 @@ import java.util.Optional;
  *
  * <p>读事务短生命周期：每个方法在 try-with-resources 中使用 {@link ReadTransaction}， 查询完成即释放。
  */
-public final class SqliteSessionQueryRepository
-    implements SessionQueryPort {
+public final class SqliteSessionQueryRepository implements SessionQueryPort {
 
   private static final String CANONICAL_PROJECT_KEY_EXPR =
       """
@@ -327,8 +326,7 @@ public final class SqliteSessionQueryRepository
   @Override
   public List<ProjectOption> listProjectOptions(SessionListFilter filter) {
     return execute(
-        "list project options",
-        () -> new ArrayList<ProjectOption>(listProjectOptionsSql(filter)));
+        "list project options", () -> new ArrayList<ProjectOption>(listProjectOptionsSql(filter)));
   }
 
   private List<ProjectOptionRow> listProjectOptionsSql(SessionListFilter filter)
@@ -362,7 +360,7 @@ public final class SqliteSessionQueryRepository
   }
 
   /**
-   * 对应 Python {@code get_sessions_list_aggregate}。返回会话数、去重项目数和 token 总量。
+   * 对应 Python {@code get_sessions_list_aggregate}。返回会话数、去重项目数和 令牌总数量。
    *
    * @param filter 会话列表复合过滤器
    * @return 聚合结果

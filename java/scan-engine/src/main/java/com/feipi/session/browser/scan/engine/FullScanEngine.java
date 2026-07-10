@@ -1,13 +1,13 @@
 package com.feipi.session.browser.scan.engine;
 
-import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
-import com.feipi.session.browser.scan.artifact.WriteResult;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.api.write.IndexWriterPort;
 import com.feipi.session.browser.index.api.write.MissingTranscriptSession;
 import com.feipi.session.browser.normalization.NormalizationEngine;
+import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
+import com.feipi.session.browser.scan.artifact.WriteResult;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
@@ -53,8 +53,8 @@ import org.slf4j.LoggerFactory;
  *   <li>{@link IndexWriterPort} — index 写入与 scan log 抽象端口
  * </ul>
  *
- * <p>校验放置：根目录安全检查在 {@link SourceAdapter#checkRoot} 边界执行一次； 归一化制品信任 domain 不变量已验证，
- * index 约束由写入端口实现负责。
+ * <p>校验放置：根目录安全检查在 {@link SourceAdapter#checkRoot} 边界执行一次； 归一化制品信任 domain 不变量已验证， index
+ * 约束由写入端口实现负责。
  */
 public final class FullScanEngine {
 
@@ -257,7 +257,8 @@ public final class FullScanEngine {
           } catch (RuntimeException e) {
             log.error("index writer flush 失败", e);
             issues.add(
-                new ScanIssue("", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+                new ScanIssue(
+                    "", agentValue, ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
             scanFailed = true;
           }
           processedInBatch = 0;
@@ -644,7 +645,17 @@ public final class FullScanEngine {
    * @param outputTokens 当前统计口径下的 output token 数量。
    */
   private record TokenComponents(
-      long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
+      /* 当前统计口径下的 fresh input token 数量。 */
+      long freshInputTokens,
+
+      /* 当前统计口径下的 cache read token 数量。 */
+      long cacheReadTokens,
+
+      /* 当前统计口径下的 cache write token 数量。 */
+      long cacheWriteTokens,
+
+      /* 当前统计口径下的 output token 数量。 */
+      long outputTokens) {
     private long total() {
       return freshInputTokens + cacheReadTokens + cacheWriteTokens + outputTokens;
     }

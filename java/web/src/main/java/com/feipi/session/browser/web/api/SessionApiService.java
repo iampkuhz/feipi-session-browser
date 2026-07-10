@@ -1,7 +1,7 @@
 package com.feipi.session.browser.web.api;
 
-import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.application.SessionDetailUseCase;
+import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
@@ -88,7 +88,9 @@ public final class SessionApiService {
 
     NormalizedSessionArtifact artifact = context.artifact();
     PayloadLookup payloadLookup =
-        artifact == null ? emptyPayloadLookup(visibility) : PayloadLookup.fromArtifact(artifact, visibility);
+        artifact == null
+            ? emptyPayloadLookup(visibility)
+            : PayloadLookup.fromArtifact(artifact, visibility);
     return Optional.of(new SessionApiContext(context.detail(), artifact, payloadLookup));
   }
 

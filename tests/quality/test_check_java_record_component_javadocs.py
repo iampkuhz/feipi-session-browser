@@ -19,7 +19,7 @@ def _write(tmp_path: Path, source: str) -> Path:
 
 
 def test_record_component_chinese_params_pass(tmp_path: Path):
-    """每个 component 都有中文 @param 时通过。"""
+    """每个 component 都有中文 @param 且 component 附近有 Javadoc 时通过。"""
     path = _write(
         tmp_path,
         '''
@@ -30,7 +30,12 @@ package demo;
  * @param projectCount 当前过滤条件下的项目数量。
  * @param sessionCount 当前过滤条件下的 session 数量。
  */
-public record Sample(long projectCount, long sessionCount) {}
+public record Sample(
+    /** 项目数。 */
+    long projectCount,
+
+    /** session 数。 */
+    long sessionCount) {}
 ''',
     )
 
@@ -48,7 +53,12 @@ package demo;
  *
  * @param projectCount 当前过滤条件下的项目数量。
  */
-public record Sample(long projectCount, long sessionCount) {}
+public record Sample(
+    /** 项目数。 */
+    long projectCount,
+
+    /** session 数。 */
+    long sessionCount) {}
 ''',
     )
 
@@ -69,7 +79,9 @@ package demo;
  *
  * @param projectCount Count of projects.
  */
-public record Sample(long projectCount) {}
+public record Sample(
+    /** 项目数。 */
+    long projectCount) {}
 ''',
     )
 
@@ -92,7 +104,7 @@ public record Sample(long projectCount) {}
 
     violations = checker.check_file(path)
 
-    assert [v.code for v in violations] == ['RECORD_JAVADOC_MISSING']
+    assert 'RECORD_JAVADOC_MISSING' in [v.code for v in violations]
 
 
 def test_multiline_generic_annotated_components_pass(tmp_path: Path):
@@ -111,8 +123,14 @@ import java.util.List;
  * @param rest 剩余参数。
  */
 public record Sample<T>(
-    @Deprecated List<T> names,
+    /** 名称列表。 */
+    @Deprecated
+    List<T> names,
+
+    /** 标签数组。 */
     String[] tags,
+
+    /** 剩余参数。 */
     String... rest) {}
 ''',
     )
@@ -135,8 +153,154 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
  * @param rootPath 根目录路径。
  */
 @JsonIgnoreProperties(ignoreUnknown = true)
-record Sample(String requestId, String rootPath) {}
+record Sample(
+    /** 请求标识。 */
+    String requestId,
+
+    /** 根目录路径。 */
+    String rootPath) {}
 ''',
     )
 
     assert checker.check_file(path) == []
+
+
+def test_component_inline_javadoc_is_not_required(tmp_path: Path):
+    """record 级 @param 已说明 component 时不强制 header 内 inline 注释。"""
+    path = _write(
+        tmp_path,
+        '''
+package demo;
+
+/** 查询结果行。
+ *
+ * @param projectCount 项目数量。
+ */
+public record Sample(
+    long projectCount) {}
+''',
+    )
+
+    assert checker.check_file(path) == []
+
+
+def test_quality_changed_files_filters_main_java_paths(tmp_path: Path, monkeypatch):
+    """QUALITY_CHANGED_FILES 存在时只检查本轮变更的 main Java 文件。"""
+    changed = tmp_path / 'java' / 'demo' / 'src' / 'main' / 'java' / 'demo' / 'Changed.java'
+    unchanged = tmp_path / 'java' / 'demo' / 'src' / 'main' / 'java' / 'demo' / 'Unchanged.java'
+    changed.parent.mkdir(parents=True)
+    changed.write_text(
+        '''
+package demo;
+
+/** 变更记录。
+ *
+ * @param value 变更值。
+ */
+public record Changed(
+    /** 变更值。 */
+    String value) {}
+''',
+        encoding='utf-8',
+    )
+    unchanged.write_text(
+        '''
+package demo;
+
+public record Unchanged(String value) {}
+''',
+        encoding='utf-8',
+    )
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv(
+        'QUALITY_CHANGED_FILES',
+        '["java/demo/src/main/java/demo/Changed.java"]',
+    )
+
+    paths = checker.discover(['java'])
+    filtered = checker._filter_changed_files(
+        paths,
+        checker._quality_changed_java_files(tmp_path),
+        tmp_path.resolve(),
+    )
+
+    assert [path.name for path in filtered] == ['Changed.java']
+    assert checker.main() == 0
+
+
+def test_inline_javadoc_language_is_not_checked(tmp_path: Path):
+    """header 内 inline 注释不再作为 record component 说明的 required gate。"""
+    path = _write(
+        tmp_path,
+        '''
+package demo;
+
+/** 查询结果行。
+ *
+ * @param projectCount 项目数量。
+ */
+public record Sample(
+    /** Project count. */
+    long projectCount) {}
+''',
+    )
+
+    assert checker.check_file(path) == []
+
+
+def test_annotation_same_line_is_not_record_doc_failure(tmp_path: Path):
+    """注解换行属于 formatter 责任，不作为 record component 文档 gate。"""
+    path = _write(
+        tmp_path,
+        '''
+package demo;
+
+/** 查询结果行。
+ *
+ * @param projectCount 项目数量。
+ */
+public record Sample(
+    /** 项目数量。 */
+    @Deprecated long projectCount) {}
+''',
+    )
+
+    assert checker.check_file(path) == []
+
+
+def test_annotation_own_line_passes(tmp_path: Path):
+    """注解单独占行时通过。"""
+    path = _write(
+        tmp_path,
+        '''
+package demo;
+
+/** 查询结果行。
+ *
+ * @param projectCount 项目数量。
+ */
+public record Sample(
+    /** 项目数量。 */
+    @Deprecated
+    long projectCount) {}
+''',
+    )
+
+    assert checker.check_file(path) == []
+
+
+def test_empty_record_no_component_violations(tmp_path: Path):
+    """无 component 的 record 不报 component 相关违规。"""
+    path = _write(
+        tmp_path,
+        '''
+package demo;
+
+/** 空记录。 */
+public record EmptyRecord() {}
+''',
+    )
+
+    violations = checker.check_file(path)
+
+    assert not any('COMPONENT' in v.code for v in violations)

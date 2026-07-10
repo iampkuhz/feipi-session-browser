@@ -1,9 +1,12 @@
 package com.feipi.session.browser.source.spi;
 
-import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
-import java.util.Objects;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Positive;
 import java.util.Optional;
 import java.util.OptionalInt;
 
@@ -22,46 +25,111 @@ import java.util.OptionalInt;
  *   <li>{@code code} 不得为 null 或空，表示稳定的诊断类型标识。
  * </ul>
  *
- * @param severity 诊断严重级别
- * @param issueType 问题类型标识
- * @param message 人类可读的问题描述
+ * @param severity 诊断严重级别，不得为 null
+ * @param issueType 问题类型标识，不得为 null
+ * @param message 人类可读的问题描述，不得为空
  * @param lineNo 问题所在的源文件行号（从 1 开始）
  * @param preview 问题上下文预览文本，可选
- * @param code 稳定诊断代码，如 {@code "BAD_JSON"}、{@code "NON_OBJECT_SKIPPED"}
- * @param locator 问题所在的源文件标识（相对路径或逻辑定位）
+ * @param code 稳定诊断代码，如 {@code "BAD_JSON"}、{@code "NON_OBJECT_SKIPPED"}，不得为空
+ * @param locator 问题所在的源文件标识（相对路径或逻辑定位），不得为 null
  * @param column 问题所在的列号（从 1 开始），{@code empty} 表示未知
  * @param byteRangeStart 问题所在的字节范围起始（含），{@code empty} 表示未知
  * @param byteRangeEnd 问题所在的字节范围结束（不含），{@code empty} 表示未知
  */
 @DomainModel
 public record SourceDiagnostic(
-    @CoreField ParseSeverity severity,
-    @CoreField ParseIssueType issueType,
-    @CoreField String message,
-    @CoreField int lineNo,
+    /* 诊断严重级别，不得为 null。 */
+    @NotNull @CoreField ParseSeverity severity,
+
+    /* 问题类型标识，不得为 null。 */
+    @NotNull @CoreField ParseIssueType issueType,
+
+    /* 人类可读的问题描述，不得为空。 */
+    @NotNull @NotBlank @CoreField String message,
+
+    /* 问题所在的源文件行号（从 1 开始）。 */
+    @Positive @CoreField int lineNo,
+
+    /* 问题上下文预览文本，可选。 */
     Optional<String> preview,
-    @CoreField String code,
-    @CoreField String locator,
+
+    /* 稳定诊断代码，不得为空。 */
+    @NotNull @NotBlank @CoreField String code,
+
+    /* 问题所在的源文件标识（相对路径或逻辑定位），不得为 null。 */
+    @NotNull @CoreField String locator,
+
+    /* 问题所在的列号（从 1 开始），empty 表示未知。 */
     OptionalInt column,
+
+    /* 问题所在的字节范围起始（含），empty 表示未知。 */
     OptionalInt byteRangeStart,
+
+    /* 问题所在的字节范围结束（不含），empty 表示未知。 */
     OptionalInt byteRangeEnd) {
 
   /**
-   * 紧凑构造器，验证诊断不变量。
+   * 紧凑构造器，处理默认值并校验约束。
    *
-   * @throws NullPointerException 当必填字段为 null 时
-   * @throws IllegalArgumentException 当消息为空、行号非法或 code 为空时
+   * @throws NullPointerException 当必填对象字段为 null 时
+   * @throws IllegalArgumentException 当字符串为空或数值非法时
    */
   public SourceDiagnostic {
-    Objects.requireNonNull(severity, "severity 不得为 null");
-    Objects.requireNonNull(issueType, "issueType 不得为 null");
-    ParamChecks.nonEmpty(message, "message");
-    ParamChecks.positive(lineNo, "lineNo");
     preview = preview == null ? Optional.empty() : preview;
-    ParamChecks.nonEmpty(code, "code");
-    Objects.requireNonNull(locator, "locator 不得为 null");
     column = column == null ? OptionalInt.empty() : column;
     byteRangeStart = byteRangeStart == null ? OptionalInt.empty() : byteRangeStart;
     byteRangeEnd = byteRangeEnd == null ? OptionalInt.empty() : byteRangeEnd;
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          SourceDiagnostic.class,
+          severity,
+          issueType,
+          message,
+          lineNo,
+          preview,
+          code,
+          locator,
+          column,
+          byteRangeStart,
+          byteRangeEnd);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
+  }
+
+  private static void translateValidation(ConstraintViolationException e) {
+    var violations = e.getConstraintViolations();
+    String[] notNullFields = {"severity", "issueType", "message", "code", "locator"};
+    String[] blankFields = {"message", "code"};
+    String[] positiveFields = {"lineNo"};
+    for (String field : notNullFields) {
+      for (var v : violations) {
+        String path = v.getPropertyPath().toString();
+        if ((path.equals(field) || path.endsWith("." + field))
+            && v.getConstraintDescriptor().getAnnotation().annotationType() == NotNull.class) {
+          throw new NullPointerException(field + " 不得为 null");
+        }
+      }
+    }
+    for (String field : blankFields) {
+      for (var v : violations) {
+        String path = v.getPropertyPath().toString();
+        if ((path.equals(field) || path.endsWith("." + field))
+            && v.getConstraintDescriptor().getAnnotation().annotationType() == NotBlank.class) {
+          throw new IllegalArgumentException(field + " 不得为空");
+        }
+      }
+    }
+    for (String field : positiveFields) {
+      for (var v : violations) {
+        String path = v.getPropertyPath().toString();
+        if ((path.equals(field) || path.endsWith("." + field))
+            && v.getConstraintDescriptor().getAnnotation().annotationType()
+                == jakarta.validation.constraints.Positive.class) {
+          throw new IllegalArgumentException(field + " 必须为正整数");
+        }
+      }
+    }
+    throw e;
   }
 }

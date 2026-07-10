@@ -16,10 +16,19 @@ import java.util.Optional;
  */
 @DomainModel
 public record SourceRecordRelation(
+    /* 子 agent 线程或实例标识。 */
     Optional<String> subagentId,
+
+    /* 父线程标识。 */
     Optional<String> parentThreadId,
+
+    /* 触发子线程的父工具调用标识。 */
     Optional<String> parentToolCallId,
+
+    /* 触发子线程的父 LLM call 标识，缺失时由归一化层补齐。 */
     Optional<String> parentCallId,
+
+    /* 触发子线程的父工具名。 */
     Optional<String> parentToolName) {
 
   /** 规范化 Optional 字段。 */

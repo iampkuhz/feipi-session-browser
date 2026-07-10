@@ -1,13 +1,13 @@
 package com.feipi.session.browser.cli.batch.service;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
-import com.feipi.session.browser.scan.artifact.WriteResult;
 import com.feipi.session.browser.cli.batch.protocol.NormalizationResultRecord;
 import com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol;
 import com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.normalization.NormalizationEngine;
+import com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter;
+import com.feipi.session.browser.scan.artifact.WriteResult;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.SourceAdapter;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;

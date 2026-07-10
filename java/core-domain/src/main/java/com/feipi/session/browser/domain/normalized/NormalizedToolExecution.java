@@ -1,12 +1,16 @@
 package com.feipi.session.browser.domain.normalized;
 
 import com.feipi.session.browser.common.validation.ImmutableCopies;
-import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
 import com.feipi.session.browser.domain.enums.CallScope;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.ConstraintViolation;
+import jakarta.validation.ConstraintViolationException;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -36,30 +40,42 @@ import java.util.Optional;
  */
 @DomainModel
 public record NormalizedToolExecution(
-    @CoreField String toolCallId,
-    @CoreField String name,
-    @CoreField CallScope scope,
-    @CoreField String declaredByCallId,
+    /* 稳定的工具调用标识符。 */
+    @NotBlank @CoreField String toolCallId,
+
+    /* provider 报告的工具名称。 */
+    @NotBlank @CoreField String name,
+
+    /* 工具执行的作用域（main/subagent）。 */
+    @NotNull @CoreField CallScope scope,
+
+    /* 声明该工具调用的调用标识符。 */
+    @NotBlank @CoreField String declaredByCallId,
+
+    /* 消费该工具结果的后续调用标识符。 */
     Optional<String> resultConsumedByCallId,
+
+    /* 可选的非完成状态详情。 */
     Optional<String> status,
+
+    /* 可选的进程风格退出码。 */
     Optional<Integer> exitCode,
-    long durationMs,
+
+    /* 非负的执行时长（毫秒）。 */
+    @PositiveOrZero long durationMs,
+
+    /* 工具执行涉及的文件列表。 */
     List<String> filesTouched,
+
+    /* 可选的关联子 agent 实例标识。 */
     Optional<String> subagentId) {
 
   /**
-   * 紧凑构造器，验证不变量并执行防御性拷贝。
+   * 紧凑构造器，处理默认值并执行防御性拷贝。
    *
    * @throws NullPointerException 当必填字段为 null 时
-   * @throws IllegalArgumentException 当 toolCallId 为空或 durationMs 为负数时
    */
   public NormalizedToolExecution {
-    ParamChecks.nonEmpty(toolCallId, "toolCallId");
-    Objects.requireNonNull(name, "name 不得为 null");
-    Objects.requireNonNull(scope, "scope 不得为 null");
-    Objects.requireNonNull(declaredByCallId, "declaredByCallId 不得为 null");
-    ParamChecks.nonNegative(durationMs, "tool.durationMs");
-
     // Optional 字段规范化
     resultConsumedByCallId =
         resultConsumedByCallId == null ? Optional.empty() : resultConsumedByCallId;
@@ -71,5 +87,45 @@ public record NormalizedToolExecution(
     filesTouched =
         ImmutableCopies.boundedListOrEmpty(
             filesTouched, NormalizedConstants.MAX_COLLECTION_SIZE, "filesTouched");
+
+    try {
+      ValidationSupport.validateCanonicalConstructor(
+          NormalizedToolExecution.class,
+          toolCallId,
+          name,
+          scope,
+          declaredByCallId,
+          resultConsumedByCallId,
+          status,
+          exitCode,
+          durationMs,
+          filesTouched,
+          subagentId);
+    } catch (ConstraintViolationException e) {
+      translateValidation(e);
+    }
+  }
+
+  /**
+   * 将 Jakarta 校验违规翻译为向后兼容的异常类型。
+   *
+   * @param e 原始校验违规异常
+   */
+  private static void translateValidation(ConstraintViolationException e) {
+    for (ConstraintViolation<?> v : e.getConstraintViolations()) {
+      String field = v.getPropertyPath().toString();
+      Class<? extends java.lang.annotation.Annotation> type =
+          v.getConstraintDescriptor().getAnnotation().annotationType();
+      if (type == NotNull.class) {
+        throw new NullPointerException(field + " 不得为 null");
+      }
+      if (type == NotBlank.class) {
+        throw new IllegalArgumentException(field + " 不得为空");
+      }
+      if (type == PositiveOrZero.class) {
+        throw new IllegalArgumentException(field + " 不得为负: " + v.getInvalidValue());
+      }
+    }
+    throw e;
   }
 }

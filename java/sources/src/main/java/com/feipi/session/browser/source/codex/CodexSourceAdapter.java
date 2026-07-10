@@ -20,6 +20,10 @@ import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -1057,7 +1061,16 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @param record 原始记录对象。
    * @param previousTotals 上一条累计 token 值。
    */
-  private record CodexRecordMapping(SourceRecord record, TokenTotals previousTotals) {}
+  private record CodexRecordMapping(
+      /* 原始记录对象 */
+      @NotNull SourceRecord record,
+      /* 上一条累计 token 值 */
+      @NotNull TokenTotals previousTotals) {
+    public CodexRecordMapping {
+      ValidationSupport.validateCanonicalConstructor(
+          CodexRecordMapping.class, record, previousTotals);
+    }
+  }
 
   /**
    * 表示 spawn_agent 输出中的稳定归属字段。
@@ -1065,7 +1078,15 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @param agentId Codex 子线程标识。
    * @param nickname 子线程展示昵称。
    */
-  private record SpawnAgentResult(String agentId, String nickname) {}
+  private record SpawnAgentResult(
+      /* Codex 子线程标识 */
+      @NotBlank String agentId,
+      /* 子线程展示昵称 */
+      String nickname) {
+    public SpawnAgentResult {
+      ValidationSupport.validateCanonicalConstructor(SpawnAgentResult.class, agentId, nickname);
+    }
+  }
 
   /**
    * 表示 TokenTotals 数据。
@@ -1077,7 +1098,16 @@ public final class CodexSourceAdapter implements SourceAdapter {
    * @param rawTotal provider 原始 token 总数。
    */
   private record TokenTotals(
-      long freshInput, long cacheRead, long cacheWrite, long output, long rawTotal) {
+      /* 该字段在 API 响应中的业务值 */
+      @PositiveOrZero long freshInput,
+      /* 缓存读取令牌数量 */
+      @PositiveOrZero long cacheRead,
+      /* 缓存写入令牌数量 */
+      @PositiveOrZero long cacheWrite,
+      /* 该字段在 API 响应中的业务值 */
+      @PositiveOrZero long output,
+      /* provider 原始 token 总数 */
+      @PositiveOrZero long rawTotal) {
     private static TokenTotals zero() {
       return new TokenTotals(0, 0, 0, 0, 0);
     }

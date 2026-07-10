@@ -1,15 +1,16 @@
 package com.feipi.session.browser.application;
 
 import com.feipi.session.browser.application.diagnostics.AnomalyDetector;
-import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.application.sessiondetail.NormalizedArtifactReader;
+import com.feipi.session.browser.application.sessiondetail.SessionDetail;
 import com.feipi.session.browser.application.sessiondetail.SessionDetailAssembler;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.api.query.SessionDetailPort;
-import com.feipi.session.browser.index.api.query.SessionArtifactRecord;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SessionAnomalySummary;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Objects;
@@ -107,7 +108,8 @@ public final class SessionDetailUseCase {
    */
   public Optional<AnnotatedDetail> getDetailWithAnomalies(
       String sessionKey, PayloadVisibility visibility) throws IOException {
-    Optional<AnnotatedDetailContext> contextOpt = getDetailContextWithAnomalies(sessionKey, visibility);
+    Optional<AnnotatedDetailContext> contextOpt =
+        getDetailContextWithAnomalies(sessionKey, visibility);
     if (contextOpt.isEmpty()) {
       return Optional.empty();
     }
@@ -142,14 +144,20 @@ public final class SessionDetailUseCase {
    * @param detail 会话详情
    * @param artifact 已加载归一化制品；无制品时为 null
    */
-  public record DetailContext(SessionDetail detail, NormalizedSessionArtifact artifact) {
+  public record DetailContext(
+      /* 会话详情。 */
+      @NotNull SessionDetail detail,
+
+      /* 已加载归一化制品；无制品时为 null。 */
+      NormalizedSessionArtifact artifact) {
+
     /**
      * 紧凑构造器，验证详情不变量。
      *
      * @throws NullPointerException 当 detail 为 null 时
      */
     public DetailContext {
-      Objects.requireNonNull(detail, "detail 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(DetailContext.class, detail, artifact);
     }
   }
 
@@ -159,15 +167,20 @@ public final class SessionDetailUseCase {
    * @param detail 会话详情
    * @param anomalies 异常摘要
    */
-  public record AnnotatedDetail(SessionDetail detail, SessionAnomalySummary anomalies) {
+  public record AnnotatedDetail(
+      /* 会话详情。 */
+      @NotNull SessionDetail detail,
+
+      /* 异常摘要。 */
+      @NotNull SessionAnomalySummary anomalies) {
+
     /**
      * 紧凑构造器，验证不变量。
      *
      * @throws NullPointerException 当必填字段为 null 时
      */
     public AnnotatedDetail {
-      Objects.requireNonNull(detail, "detail 不得为 null");
-      Objects.requireNonNull(anomalies, "anomalies 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(AnnotatedDetail.class, detail, anomalies);
     }
   }
 
@@ -179,15 +192,23 @@ public final class SessionDetailUseCase {
    * @param artifact 已加载归一化制品；无制品时为 null
    */
   public record AnnotatedDetailContext(
-      SessionDetail detail, SessionAnomalySummary anomalies, NormalizedSessionArtifact artifact) {
+      /* 会话详情。 */
+      @NotNull SessionDetail detail,
+
+      /* 异常摘要。 */
+      @NotNull SessionAnomalySummary anomalies,
+
+      /* 已加载归一化制品；无制品时为 null。 */
+      NormalizedSessionArtifact artifact) {
+
     /**
      * 紧凑构造器，验证不变量。
      *
      * @throws NullPointerException 当必填字段为 null 时
      */
     public AnnotatedDetailContext {
-      Objects.requireNonNull(detail, "detail 不得为 null");
-      Objects.requireNonNull(anomalies, "anomalies 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(
+          AnnotatedDetailContext.class, detail, anomalies, artifact);
     }
   }
 }

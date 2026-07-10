@@ -1,11 +1,12 @@
 package com.feipi.session.browser.scan.artifact;
 
 import com.feipi.session.browser.common.validation.ImmutableCopies;
-import com.feipi.session.browser.common.validation.ParamChecks;
 import com.feipi.session.browser.domain.annotation.CoreField;
 import com.feipi.session.browser.domain.annotation.DomainModel;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.Map;
-import java.util.Objects;
 
 /**
  * 归一化制品元数据。
@@ -29,11 +30,22 @@ import java.util.Objects;
  */
 @DomainModel
 public record ArtifactMeta(
-    @CoreField String schemaVersion,
-    @CoreField String generator,
-    @CoreField String contentHash,
-    @CoreField long contentSize,
-    @CoreField String generatedAt,
+    /* 归一化 schema 版本号。 */
+    @NotBlank @CoreField String schemaVersion,
+
+    /* 生成器标识。 */
+    @NotBlank @CoreField String generator,
+
+    /* 数据文件内容的 SHA-256 十六进制摘要。 */
+    @NotBlank @CoreField String contentHash,
+
+    /* 数据文件内容的字节长度。 */
+    @PositiveOrZero @CoreField long contentSize,
+
+    /* 生成时间戳，ISO-8601 格式 UTC。 */
+    @NotBlank @CoreField String generatedAt,
+
+    /* 源路径到内容哈希的映射。 */
     @CoreField Map<String, String> sourceFingerprints) {
 
   /**
@@ -43,11 +55,14 @@ public record ArtifactMeta(
    * @throws IllegalArgumentException 当 {@code contentSize} 为负数时
    */
   public ArtifactMeta {
-    Objects.requireNonNull(schemaVersion, "schemaVersion 不得为 null");
-    Objects.requireNonNull(generator, "generator 不得为 null");
-    Objects.requireNonNull(contentHash, "contentHash 不得为 null");
-    ParamChecks.nonNegative(contentSize, "contentSize");
-    Objects.requireNonNull(generatedAt, "generatedAt 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(
+        ArtifactMeta.class,
+        schemaVersion,
+        generator,
+        contentHash,
+        contentSize,
+        generatedAt,
+        sourceFingerprints);
     sourceFingerprints = ImmutableCopies.mapOrEmpty(sourceFingerprints);
   }
 }

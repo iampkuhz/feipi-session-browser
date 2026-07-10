@@ -16,6 +16,8 @@ import com.feipi.session.browser.domain.source.SourceRecordUsage;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -496,7 +498,11 @@ public final class NormalizationEngine {
    * @param startedAt 开始时间戳。
    * @param endedAt 结束时间戳。
    */
-  private record TimestampRange(Optional<String> startedAt, Optional<String> endedAt) {}
+  private record TimestampRange(
+      /* 开始时间戳 */
+      Optional<String> startedAt,
+      /* 结束时间戳 */
+      Optional<String> endedAt) {}
 
   /**
    * 表示 token 组件汇总数据，用于保存输入、cache 与输出 token 数量。
@@ -507,7 +513,14 @@ public final class NormalizationEngine {
    * @param outputTokens 当前统计口径下的 output token 数量。
    */
   private record TokenComponents(
-      long freshInputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
+      /* 当前统计口径下的 fresh input token 数量 */
+      @PositiveOrZero long freshInputTokens,
+      /* 当前统计口径下的 cache read token 数量 */
+      @PositiveOrZero long cacheReadTokens,
+      /* 当前统计口径下的 cache write token 数量 */
+      @PositiveOrZero long cacheWriteTokens,
+      /* 当前统计口径下的 output token 数量 */
+      @PositiveOrZero long outputTokens) {
     private static TokenComponents empty() {
       return new TokenComponents(0, 0, 0, 0);
     }
@@ -602,21 +615,22 @@ public final class NormalizationEngine {
    * @param tokensConserved 聚合 token total 是否等于各调用分量之和
    */
   record ConservationCheckResult(
-      int declaredTools, int executedTools, int consumedResults, boolean tokensConserved) {
+      /* 跨所有调用声明的唯一工具调用数 */
+      @PositiveOrZero int declaredTools,
+      /* 工具执行记录中的唯一工具调用数 */
+      @PositiveOrZero int executedTools,
+      /* 跨所有调用消费的唯一工具结果数 */
+      @PositiveOrZero int consumedResults,
+      /* 聚合 token total 是否等于各调用分量之和 */
+      boolean tokensConserved) {
 
     ConservationCheckResult {
-      if (declaredTools < 0) {
-        throw new IllegalArgumentException(
-            "declaredTools must be non-negative; got " + declaredTools);
-      }
-      if (executedTools < 0) {
-        throw new IllegalArgumentException(
-            "executedTools must be non-negative; got " + executedTools);
-      }
-      if (consumedResults < 0) {
-        throw new IllegalArgumentException(
-            "consumedResults must be non-negative; got " + consumedResults);
-      }
+      ValidationSupport.validateCanonicalConstructor(
+          ConservationCheckResult.class,
+          declaredTools,
+          executedTools,
+          consumedResults,
+          tokensConserved);
     }
   }
 }

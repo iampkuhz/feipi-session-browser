@@ -94,7 +94,7 @@ final class CoreDomainDependencyTest {
           .as("core-domain must not depend on web frameworks")
           .allowEmptyShould(true);
 
-  /** {@code core-domain} 不得依赖 {@code Spring} 或 {@code Jakarta}。 */
+  /** {@code core-domain} 不得依赖 {@code Spring} 或 Web Jakarta API。 */
   @ArchTest
   static final ArchRule coreDomainMustNotDependOnSpring =
       noClasses()
@@ -102,8 +102,8 @@ final class CoreDomainDependencyTest {
           .resideInAPackage("..domain..")
           .should()
           .dependOnClassesThat()
-          .resideInAnyPackage("org.springframework..", "jakarta..")
-          .as("core-domain must not depend on Spring or Jakarta")
+          .resideInAnyPackage("org.springframework..", "jakarta.servlet..", "jakarta.ws.rs..")
+          .as("core-domain must not depend on Spring or Web Jakarta APIs")
           .allowEmptyShould(true);
 
   /** {@code core-domain} 不得依赖 source {@code adapter}（{@code domain} 自身除外）。 */

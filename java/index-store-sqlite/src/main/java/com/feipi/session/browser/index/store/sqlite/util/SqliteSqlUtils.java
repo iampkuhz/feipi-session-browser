@@ -1,5 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.util;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
@@ -62,16 +64,12 @@ public final class SqliteSqlUtils {
    * @param whereFragment WHERE 子句片段
    * @param params 绑定参数列表
    */
-  public record WhereClauses(String whereFragment, List<Object> params) {
+  public record WhereClauses(
+      /* WHERE 子句片段。 */ @NotNull String whereFragment, /* 绑定参数列表。 */ @NotNull List<Object> params) {
 
-    // 构造不变量：字段不得为 null
+    /** 紧凑构造器，校验 record component 约束。 */
     public WhereClauses {
-      if (whereFragment == null) {
-        throw new NullPointerException("whereFragment 不得为 null");
-      }
-      if (params == null) {
-        throw new NullPointerException("params 不得为 null");
-      }
+      ValidationSupport.validateCanonicalConstructor(WhereClauses.class, whereFragment, params);
     }
   }
 }

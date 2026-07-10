@@ -1,6 +1,8 @@
 package com.feipi.session.browser.index.store.sqlite.connection;
 
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -21,7 +23,10 @@ import java.util.List;
  * @param foreignKeys 是否启用外键约束
  */
 public record PragmaConfig(
-    String journalMode, String synchronous, int busyTimeoutMs, boolean foreignKeys) {
+    /* WAL 模式，默认 "wal"。 */ @NotBlank String journalMode,
+    /* 同步级别，WAL 模式下推荐 "normal"。 */ @NotBlank String synchronous,
+    /* 锁等待超时毫秒数。 */ @PositiveOrZero int busyTimeoutMs,
+    /* 是否启用外键约束。 */ boolean foreignKeys) {
 
   /** WAL 模式允许值。 */
   private static final List<String> VALID_JOURNAL_MODES =
@@ -34,20 +39,19 @@ public record PragmaConfig(
   public static final PragmaConfig DEFAULTS = new PragmaConfig("wal", "normal", 30_000, true);
 
   /**
-   * 构造并校验参数。
+   * 紧凑构造器，校验 record component 约束和枚举值范围。
    *
-   * @throws IllegalArgumentException 参数为空或不在允许范围
+   * @throws IllegalArgumentException 参数不在允许范围
    */
   public PragmaConfig {
-    ParamChecks.nonBlank(journalMode, "journalMode");
+    ValidationSupport.validateCanonicalConstructor(
+        PragmaConfig.class, journalMode, synchronous, busyTimeoutMs, foreignKeys);
     if (!VALID_JOURNAL_MODES.contains(journalMode.toLowerCase())) {
       throw new IllegalArgumentException("不支持的 journalMode: " + journalMode);
     }
-    ParamChecks.nonBlank(synchronous, "synchronous");
     if (!VALID_SYNCHRONOUS.contains(synchronous.toLowerCase())) {
       throw new IllegalArgumentException("不支持的 synchronous: " + synchronous);
     }
-    ParamChecks.nonNegative(busyTimeoutMs, "busyTimeoutMs");
   }
 
   /**

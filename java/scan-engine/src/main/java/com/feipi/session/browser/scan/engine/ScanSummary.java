@@ -1,6 +1,9 @@
 package com.feipi.session.browser.scan.engine;
 
 import com.feipi.session.browser.source.spi.SourceId;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.util.List;
 import java.util.Map;
 
@@ -19,14 +22,29 @@ import java.util.Map;
  * @param issues 扫描过程中遇到的问题列表
  */
 public record ScanSummary(
-    int totalCandidates,
-    int successCount,
-    int skippedCount,
-    int errorCount,
-    long scanDurationMs,
-    long scanLogId,
-    Map<SourceId, Integer> perSourceCount,
-    List<ScanIssue> issues) {
+    /* 发现的候选项总数。 */
+    @PositiveOrZero int totalCandidates,
+
+    /* 成功处理的候选项数。 */
+    @PositiveOrZero int successCount,
+
+    /* 被跳过的候选项数。 */
+    @PositiveOrZero int skippedCount,
+
+    /* 处理失败的候选项数。 */
+    @PositiveOrZero int errorCount,
+
+    /* 扫描总耗时（毫秒）。 */
+    @PositiveOrZero long scanDurationMs,
+
+    /* scan_log 表记录 ID，0 表示未写入 scan_log。 */
+    @PositiveOrZero long scanLogId,
+
+    /* 各源处理的候选项数。 */
+    @NotNull Map<SourceId, Integer> perSourceCount,
+
+    /* 扫描过程中遇到的问题列表。 */
+    @NotNull List<ScanIssue> issues) {
 
   /**
    * 紧凑构造器，验证不变量并执行防御性拷贝。
@@ -34,11 +52,16 @@ public record ScanSummary(
    * @throws IllegalArgumentException 当计数为负时
    */
   public ScanSummary {
-    ScanSummarySupport.requireNonNegative("totalCandidates", totalCandidates);
-    ScanSummarySupport.requireNonNegative("successCount", successCount);
-    ScanSummarySupport.requireNonNegative("skippedCount", skippedCount);
-    ScanSummarySupport.requireNonNegative("errorCount", errorCount);
-    ScanSummarySupport.requireNonNegative("scanDurationMs", scanDurationMs);
+    ValidationSupport.validateCanonicalConstructor(
+        ScanSummary.class,
+        totalCandidates,
+        successCount,
+        skippedCount,
+        errorCount,
+        scanDurationMs,
+        scanLogId,
+        perSourceCount,
+        issues);
     perSourceCount = ScanSummarySupport.copyPerSourceCount(perSourceCount);
     issues = ScanSummarySupport.copyIssues(issues);
   }

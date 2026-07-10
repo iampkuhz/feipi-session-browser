@@ -5,11 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.feipi.session.browser.application.DashboardUseCase;
 import com.feipi.session.browser.application.ProjectListUseCase;
 import com.feipi.session.browser.application.SessionListUseCase;
+import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
+import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteAggregateQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
-import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
-import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
 import com.feipi.session.browser.index.store.sqlite.tx.ReadTransaction;
 import com.feipi.session.browser.query.api.AgentFilter;
 import com.feipi.session.browser.query.api.PageRequest;
@@ -259,7 +259,8 @@ class ReadOnlyGateTest {
                     PragmaConfig.DEFAULTS.apply(conn);
                     IndexConnection localIc =
                         IndexConnection.create(conn, PragmaConfig.DEFAULTS, jdbcUrl);
-                    SqliteSessionQueryRepository localRepo = new SqliteSessionQueryRepository(localIc);
+                    SqliteSessionQueryRepository localRepo =
+                        new SqliteSessionQueryRepository(localIc);
 
                     for (int j = 0; j < 10; j++) {
                       localRepo.getSession("cc:s1");

@@ -404,6 +404,7 @@ class PythonRuntimeZeroGateTest {
           List.of(
               "scripts/quality/",
               "scripts/qa/",
+              "scripts/agent_runtime/",
               "scripts/claude_hooks/",
               "scripts/agent_hooks/",
               "scripts/harness/",

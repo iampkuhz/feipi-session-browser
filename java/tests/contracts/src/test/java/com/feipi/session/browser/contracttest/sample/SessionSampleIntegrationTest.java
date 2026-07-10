@@ -5,13 +5,13 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.normalization.NormalizationEngine;
+import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
 import com.feipi.session.browser.source.claude.ClaudeSourceAdapter;
 import com.feipi.session.browser.source.codex.CodexSourceAdapter;
 import com.feipi.session.browser.source.common.JsonlReader;

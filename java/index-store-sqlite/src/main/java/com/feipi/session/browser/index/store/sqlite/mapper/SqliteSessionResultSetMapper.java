@@ -1,7 +1,7 @@
 package com.feipi.session.browser.index.store.sqlite.mapper;
 
-import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
 import com.feipi.session.browser.index.store.sqlite.row.SessionRow;
+import com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 

@@ -6,6 +6,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator.MetricKey;
 import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator.PercentileResult;
 import com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator.Thresholds;
+import jakarta.validation.ConstraintViolationException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -208,24 +209,21 @@ class PercentileCalculatorTest {
     @DisplayName("负 warning 抛出异常")
     void negativeWarningThrows() {
       assertThatThrownBy(() -> new Thresholds(-1, 0, null, null, 0))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("warning 必须非负");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     @DisplayName("负 critical 抛出异常")
     void negativeCriticalThrows() {
       assertThatThrownBy(() -> new Thresholds(0, -1, null, null, 0))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("critical 必须非负");
+          .isInstanceOf(ConstraintViolationException.class);
     }
 
     @Test
     @DisplayName("负 sampleCount 抛出异常")
     void negativeSampleCountThrows() {
       assertThatThrownBy(() -> new Thresholds(0, 0, null, null, -1))
-          .isInstanceOf(IllegalArgumentException.class)
-          .hasMessageContaining("sampleCount 必须非负");
+          .isInstanceOf(ConstraintViolationException.class);
     }
   }
 }

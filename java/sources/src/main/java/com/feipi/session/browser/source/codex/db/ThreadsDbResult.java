@@ -1,9 +1,10 @@
 package com.feipi.session.browser.source.codex.db;
 
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotNull;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 
 /**
@@ -18,11 +19,14 @@ import java.util.Optional;
  * @param diagnostic 诊断信息。
  */
 public record ThreadsDbResult(
-    List<Map<String, String>> threads, Optional<SourceDiagnostic> diagnostic) {
+    /* Threads DB 线程列表 */
+    @NotNull List<Map<String, String>> threads,
+    /* 诊断信息 */
+    Optional<SourceDiagnostic> diagnostic) {
 
   /** 紧凑构造器，验证不变量并防御性拷贝。 */
   public ThreadsDbResult {
-    Objects.requireNonNull(threads, "threads 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(ThreadsDbResult.class, threads, diagnostic);
     threads = List.copyOf(threads);
     diagnostic = diagnostic == null ? Optional.empty() : diagnostic;
   }

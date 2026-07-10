@@ -1,8 +1,10 @@
 package com.feipi.session.browser.scan.artifact;
 
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.nio.file.Path;
-import java.util.Objects;
 
 /**
  * 制品写入操作的正式结果。
@@ -23,7 +25,20 @@ import java.util.Objects;
  * @param status 写入状态描述
  */
 public record WriteResult(
-    Path dataPath, Path metaPath, String contentHash, long contentSize, String status) {
+    /* 数据文件的绝对路径。 */
+    @NotNull Path dataPath,
+
+    /* meta 文件的绝对路径。 */
+    @NotNull Path metaPath,
+
+    /* 数据文件内容的 SHA-256 十六进制摘要。 */
+    @NotBlank String contentHash,
+
+    /* 数据文件内容的字节长度。 */
+    @PositiveOrZero long contentSize,
+
+    /* 写入状态描述。 */
+    @NotBlank String status) {
 
   /**
    * 紧凑构造器，验证非空约束。
@@ -32,10 +47,7 @@ public record WriteResult(
    * @throws IllegalArgumentException 当 {@code contentSize} 为负数时
    */
   public WriteResult {
-    Objects.requireNonNull(dataPath, "dataPath 不得为 null");
-    Objects.requireNonNull(metaPath, "metaPath 不得为 null");
-    Objects.requireNonNull(contentHash, "contentHash 不得为 null");
-    ParamChecks.nonNegative(contentSize, "contentSize");
-    Objects.requireNonNull(status, "status 不得为 null");
+    ValidationSupport.validateCanonicalConstructor(
+        WriteResult.class, dataPath, metaPath, contentHash, contentSize, status);
   }
 }

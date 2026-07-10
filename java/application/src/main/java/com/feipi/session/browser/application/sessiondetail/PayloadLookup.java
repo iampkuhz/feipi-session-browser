@@ -6,6 +6,9 @@ import com.feipi.session.browser.query.api.PayloadSource;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import com.feipi.session.browser.query.api.SensitiveFieldPolicy;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -116,7 +119,20 @@ public final class PayloadLookup {
    * @param truncated 内容是否被截断
    */
   public record PayloadEntry(
-      String payloadId, PayloadSourceKind kind, String callId, String content, boolean truncated) {
+      /* 全局唯一的 payload 标识符。 */
+      @NotBlank String payloadId,
+
+      /* payload 类型分类。 */
+      @NotNull PayloadSourceKind kind,
+
+      /* 关联的归一化调用 ID。 */
+      @NotBlank String callId,
+
+      /* payload 内容（可能已被 masking）。 */
+      String content,
+
+      /* 内容是否被截断。 */
+      boolean truncated) {
 
     /**
      * 紧凑构造器，验证条目不变量。
@@ -124,9 +140,8 @@ public final class PayloadLookup {
      * @throws NullPointerException 当必填字段为 null 时
      */
     public PayloadEntry {
-      Objects.requireNonNull(payloadId, "payloadId 不得为 null");
-      Objects.requireNonNull(kind, "kind 不得为 null");
-      Objects.requireNonNull(callId, "callId 不得为 null");
+      ValidationSupport.validateCanonicalConstructor(
+          PayloadEntry.class, payloadId, kind, callId, content, truncated);
       content = content == null ? "" : content;
     }
   }

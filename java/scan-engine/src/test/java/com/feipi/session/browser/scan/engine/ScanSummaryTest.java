@@ -3,6 +3,7 @@ package com.feipi.session.browser.scan.engine;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import jakarta.validation.ConstraintViolationException;
 import java.util.List;
 import java.util.Map;
 import org.junit.jupiter.api.Test;
@@ -13,7 +14,7 @@ class ScanSummaryTest {
   @Test
   void rejectsNegativeCounts() {
     assertThatThrownBy(() -> new ScanSummary(-1, 0, 0, 0, 100, 1, Map.of(), List.of()))
-        .isInstanceOf(IllegalArgumentException.class)
+        .isInstanceOf(ConstraintViolationException.class)
         .hasMessageContaining("totalCandidates");
   }
 

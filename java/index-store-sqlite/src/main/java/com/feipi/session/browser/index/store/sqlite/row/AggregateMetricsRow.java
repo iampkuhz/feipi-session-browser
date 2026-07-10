@@ -1,7 +1,10 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.AggregateMetrics;
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.Finite;
+import com.feipi.session.browser.validation.Ratio;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * 聚合衍生指标行。
@@ -29,22 +32,30 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param tokensPerRound 每轮 token 消耗，null 表示无数据
  */
 public record AggregateMetricsRow(
-    long inputSideTotal,
-    long totalRounds,
-    Double cacheReuseRatio,
-    Double cacheWriteRatio,
-    Double outputRatio,
-    Double toolsPerRound,
-    Double tokensPerRound) implements AggregateMetrics {
+    /* 输入侧 token 总量（fresh + cache_read + cache_write）。 */ @PositiveOrZero long inputSideTotal,
+    /* 助手消息总数。 */ @PositiveOrZero long totalRounds,
+    /* 缓存复用比率，null 表示无数据。 */ @Ratio Double cacheReuseRatio,
+    /* 缓存写入比率，null 表示无数据。 */ @Ratio Double cacheWriteRatio,
+    /* 输出比率，null 表示无数据。 */ @Finite @PositiveOrZero Double outputRatio,
+    /* 每轮工具调用数，null 表示无数据。 */ @Finite @PositiveOrZero Double toolsPerRound,
+    /* 每轮 token 消耗，null 表示无数据。 */ @Finite @PositiveOrZero Double tokensPerRound)
+    implements AggregateMetrics {
 
   /**
-   * 紧凑构造器，验证非负不变量。
+   * 紧凑构造器，校验 record component 约束。
    *
    * <p>比率字段由 {@link #compute} 工厂方法计算并验证，此处仅校验总量字段。
    */
   public AggregateMetricsRow {
-    ParamChecks.nonNegative(inputSideTotal, "inputSideTotal");
-    ParamChecks.nonNegative(totalRounds, "totalRounds");
+    ValidationSupport.validateCanonicalConstructor(
+        AggregateMetricsRow.class,
+        inputSideTotal,
+        totalRounds,
+        cacheReuseRatio,
+        cacheWriteRatio,
+        outputRatio,
+        toolsPerRound,
+        tokensPerRound);
   }
 
   /**

@@ -1,6 +1,10 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.ActivityTrend;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
+
 /**
  * 每日活动趋势行。
  *
@@ -15,10 +19,25 @@ import com.feipi.session.browser.index.api.query.ActivityTrend;
  * @param toolCalls 当日工具调用总数
  */
 public record ActivityTrendRow(
-    String date,
-    long claudePrompts,
-    long codexPrompts,
-    long qoderPrompts,
-    long totalPrompts,
-    long assistantTurns,
-    long toolCalls) implements ActivityTrend {}
+    /* 日期字符串（YYYY-MM-DD）。 */ @NotBlank String date,
+    /* claude_code 当日用户 prompt 数。 */ @PositiveOrZero long claudePrompts,
+    /* codex 当日用户 prompt 数。 */ @PositiveOrZero long codexPrompts,
+    /* qoder 当日用户 prompt 数。 */ @PositiveOrZero long qoderPrompts,
+    /* 当日用户 prompt 总数。 */ @PositiveOrZero long totalPrompts,
+    /* 当日助手消息总数。 */ @PositiveOrZero long assistantTurns,
+    /* 当日工具调用总数。 */ @PositiveOrZero long toolCalls)
+    implements ActivityTrend {
+
+  /** 紧凑构造器，校验 record component 约束。 */
+  public ActivityTrendRow {
+    ValidationSupport.validateCanonicalConstructor(
+        ActivityTrendRow.class,
+        date,
+        claudePrompts,
+        codexPrompts,
+        qoderPrompts,
+        totalPrompts,
+        assistantTurns,
+        toolCalls);
+  }
+}

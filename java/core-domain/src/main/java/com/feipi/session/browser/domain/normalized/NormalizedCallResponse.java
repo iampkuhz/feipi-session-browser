@@ -18,7 +18,9 @@ import java.util.List;
  * @param toolCallIds 该 LLM 响应声明的工具调用标识符列表，按归一化响应顺序排列
  */
 @DomainModel
-public record NormalizedCallResponse(List<String> toolCallIds) {
+public record NormalizedCallResponse(
+    /* 该 LLM 响应声明的工具调用标识符列表，按归一化响应顺序排列。 */
+    List<String> toolCallIds) {
 
   /**
    * 紧凑构造器，执行防御性拷贝和大小约束。

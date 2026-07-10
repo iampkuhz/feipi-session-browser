@@ -1,7 +1,7 @@
 package com.feipi.session.browser.application;
 
-import com.feipi.session.browser.index.api.query.ProjectQueryPort;
 import com.feipi.session.browser.index.api.query.ProjectListSummary;
+import com.feipi.session.browser.index.api.query.ProjectQueryPort;
 import com.feipi.session.browser.index.api.query.ProjectStats;
 import com.feipi.session.browser.query.api.PageResult;
 import com.feipi.session.browser.query.api.ProjectListFilter;
@@ -27,10 +27,7 @@ public final class ProjectListUseCase {
    * @param cache 可选缓存，null 时不缓存
    * @param schemaVersion 当前 schema 版本号
    */
-  public ProjectListUseCase(
-      ProjectQueryPort repository,
-      QueryCache cache,
-      int schemaVersion) {
+  public ProjectListUseCase(ProjectQueryPort repository, QueryCache cache, int schemaVersion) {
     this.repository = Objects.requireNonNull(repository, "repository 不得为 null");
     this.cache = cache;
     this.schemaVersion = schemaVersion;
@@ -48,10 +45,7 @@ public final class ProjectListUseCase {
     if (cache != null) {
       int paramsHash = filterHash("list", filter);
       return cache.getOrLoad(
-          "projectList",
-          paramsHash,
-          schemaVersion,
-          () -> repository.listProjects(filter));
+          "projectList", paramsHash, schemaVersion, () -> repository.listProjects(filter));
     }
     return repository.listProjects(filter);
   }

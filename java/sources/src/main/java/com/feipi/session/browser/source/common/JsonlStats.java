@@ -1,5 +1,8 @@
 package com.feipi.session.browser.source.common;
 
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.PositiveOrZero;
+
 /**
  * JSONL 解析统计信息。
  *
@@ -12,7 +15,21 @@ package com.feipi.session.browser.source.common;
  * @param eventsParsed 成功解析的 JSON 对象数
  * @param eventsSkipped 被跳过的条目数（坏 JSON + 非对象）
  */
-public record JsonlStats(int totalLines, int nonEmptyLines, int eventsParsed, int eventsSkipped) {
+public record JsonlStats(
+    /* 文件总行数（最后一个非空行的行号，空文件为 0） */
+    @PositiveOrZero int totalLines,
+    /* 非空行数（去除尾部空白后不为空的行） */
+    @PositiveOrZero int nonEmptyLines,
+    /* 成功解析的 JSON 对象数 */
+    @PositiveOrZero int eventsParsed,
+    /* 被跳过的条目数（坏 JSON + 非对象） */
+    @PositiveOrZero int eventsSkipped) {
+
+  /** 校验 JSONL 统计参数。 */
+  public JsonlStats {
+    ValidationSupport.validateCanonicalConstructor(
+        JsonlStats.class, totalLines, nonEmptyLines, eventsParsed, eventsSkipped);
+  }
 
   /**
    * 警告级别诊断数量（非对象跳过）。

@@ -4,12 +4,12 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.source.claude.ClaudeDiscovery.ClaudeSessionDiscovery;
 import com.feipi.session.browser.source.common.JsonCandidateMetadataReader;
-import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.common.JsonNodeReaders;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.common.SourceTitleTexts;
 import com.feipi.session.browser.source.common.ToolFailureClassifier;
+import com.feipi.session.browser.source.json.JsonCandidateParser;
 import com.feipi.session.browser.source.spi.BoundedStream;
 import com.feipi.session.browser.source.spi.Candidate;
 import com.feipi.session.browser.source.spi.ParseIssueType;
@@ -21,6 +21,10 @@ import com.feipi.session.browser.source.spi.SourceFingerprint;
 import com.feipi.session.browser.source.spi.SourceId;
 import com.feipi.session.browser.source.spi.SourcePathOps;
 import com.feipi.session.browser.source.spi.SourceResult;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.PositiveOrZero;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -506,7 +510,17 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param usageRows usage 行列表。
    * @param toolUses tool use 列表。
    */
-  private record AssistantRecord(List<JsonNode> usageRows, List<ToolUse> toolUses) {}
+  private record AssistantRecord(
+      /* 用量数据行列表 */
+      @NotNull List<JsonNode> usageRows,
+      /* 工具调用条目列表 */
+      @NotNull List<ToolUse> toolUses) {
+    public AssistantRecord {
+      ValidationSupport.validateCanonicalConstructor(AssistantRecord.class, usageRows, toolUses);
+      usageRows = List.copyOf(usageRows);
+      toolUses = List.copyOf(toolUses);
+    }
+  }
 
   /**
    * 表示 ToolUse 数据。
@@ -514,7 +528,15 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param id 标识符。
    * @param name 名称。
    */
-  private record ToolUse(String id, String name) {}
+  private record ToolUse(
+      /* 工具调用标识符 */
+      @NotBlank String id,
+      /* 工具调用名称 */
+      @NotBlank String name) {
+    public ToolUse {
+      ValidationSupport.validateCanonicalConstructor(ToolUse.class, id, name);
+    }
+  }
 
   /**
    * 表示 UsageTotals 数据。
@@ -525,7 +547,14 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param outputTokens output token 数量。
    */
   private record UsageTotals(
-      long inputTokens, long cacheReadTokens, long cacheWriteTokens, long outputTokens) {
+      /* 输入 token 数量 */
+      @PositiveOrZero long inputTokens,
+      /* 缓存读取令牌数量 */
+      @PositiveOrZero long cacheReadTokens,
+      /* 缓存写入令牌数量 */
+      @PositiveOrZero long cacheWriteTokens,
+      /* 输出令牌数量 */
+      @PositiveOrZero long outputTokens) {
     private static UsageTotals empty() {
       return new UsageTotals(0, 0, 0, 0);
     }
@@ -543,13 +572,20 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param outputTokens output token 数量。
    */
   private record ClaudeSubagentTotals(
-      long subagentInstanceCount,
-      long toolCallCount,
-      long failedToolCount,
-      long freshInputTokens,
-      long cacheReadTokens,
-      long cacheWriteTokens,
-      long outputTokens) {
+      /* subagent 实例数量 */
+      @PositiveOrZero long subagentInstanceCount,
+      /* 工具调用数量 */
+      @PositiveOrZero long toolCallCount,
+      /* 失败工具数量 */
+      @PositiveOrZero long failedToolCount,
+      /* 新鲜输入令牌数量 */
+      @PositiveOrZero long freshInputTokens,
+      /* 缓存读取令牌数量 */
+      @PositiveOrZero long cacheReadTokens,
+      /* 缓存写入令牌数量 */
+      @PositiveOrZero long cacheWriteTokens,
+      /* 输出令牌数量 */
+      @PositiveOrZero long outputTokens) {
     private static ClaudeSubagentTotals empty() {
       return new ClaudeSubagentTotals(0, 0, 0, 0, 0, 0, 0);
     }
@@ -787,7 +823,11 @@ public final class ClaudeSourceAdapter implements SourceAdapter {
    * @param model 模型名称。
    * @param gitBranch Git branch 名称。
    */
-  private record ClaudeCandidateMetadata(String cwd, String title, String model, String gitBranch) {
+  private record ClaudeCandidateMetadata(
+      @NotNull String cwd,
+      @NotNull String title,
+      @NotNull String model,
+      @NotNull String gitBranch) {
     private static ClaudeCandidateMetadata empty() {
       return new ClaudeCandidateMetadata("", "", "", "");
     }

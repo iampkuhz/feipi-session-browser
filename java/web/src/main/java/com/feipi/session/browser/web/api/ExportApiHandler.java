@@ -85,7 +85,8 @@ public final class ExportApiHandler {
     }
     SessionDetail detail = loaded.annotated().detail();
     SessionRecord row = detail.sessionRow();
-    List<RoundIndexDto> rounds = RoundIndexProjection.exportDtos(detail, loaded.annotated().artifact());
+    List<RoundIndexDto> rounds =
+        RoundIndexProjection.exportDtos(detail, loaded.annotated().artifact());
     List<PayloadIndexDto> payloads =
         detail.payloadSources().stream()
             .map(

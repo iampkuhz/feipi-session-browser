@@ -17,6 +17,7 @@ import com.feipi.session.browser.domain.normalized.SourceUnitDirection;
 import com.feipi.session.browser.source.spi.ParseIssueType;
 import com.feipi.session.browser.source.spi.ParseSeverity;
 import com.feipi.session.browser.source.spi.SourceDiagnostic;
+import jakarta.validation.ConstraintViolationException;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.Optional;
@@ -769,11 +770,11 @@ class NormalizationEngineTest {
     @DisplayName("守恒检查负数参数被拒绝")
     void conservationCheckRejectsNegativeValues() {
       assertThatThrownBy(() -> new NormalizationEngine.ConservationCheckResult(-1, 0, 0, true))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(ConstraintViolationException.class);
       assertThatThrownBy(() -> new NormalizationEngine.ConservationCheckResult(0, -1, 0, true))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(ConstraintViolationException.class);
       assertThatThrownBy(() -> new NormalizationEngine.ConservationCheckResult(0, 0, -1, true))
-          .isInstanceOf(IllegalArgumentException.class);
+          .isInstanceOf(ConstraintViolationException.class);
     }
   }
 }

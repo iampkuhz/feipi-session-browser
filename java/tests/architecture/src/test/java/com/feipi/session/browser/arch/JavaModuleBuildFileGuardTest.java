@@ -16,8 +16,7 @@ import org.junit.jupiter.api.Test;
 /**
  * Gradle 文本级模块边界守卫。
  *
- * <p>ArchUnit 能检查字节码依赖，但不能看到 {@code settings.gradle.kts} 和生产 Gradle
- * 依赖声明，因此这里对构建文件做最小文本检查。
+ * <p>ArchUnit 能检查字节码依赖，但不能看到 {@code settings.gradle.kts} 和生产 Gradle 依赖声明，因此这里对构建文件做最小文本检查。
  */
 @DisplayName("Java module Gradle boundary guards")
 final class JavaModuleBuildFileGuardTest {

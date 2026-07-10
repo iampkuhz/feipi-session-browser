@@ -1,7 +1,9 @@
 package com.feipi.session.browser.index.store.sqlite.row;
 
 import com.feipi.session.browser.index.api.query.SessionArtifactRecord;
-import com.feipi.session.browser.common.validation.ParamChecks;
+import com.feipi.session.browser.validation.ValidationSupport;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.PositiveOrZero;
 
 /**
  * session_artifacts 表的类型化行数据。
@@ -28,30 +30,36 @@ import com.feipi.session.browser.common.validation.ParamChecks;
  * @param updatedAt 更新时间戳（epoch 秒），非负
  */
 public record SessionArtifactRow(
-    String sessionKey,
-    String artifactType,
-    String path,
-    String schemaVersion,
-    String sourcePath,
-    double sourceMtime,
-    long sizeBytes,
-    double createdAt,
-    double updatedAt) implements SessionArtifactRecord {
+    /* 所属会话主键。 */ @NotBlank String sessionKey,
+    /* 制品类型标识（如 "normalized"、"detail"）。 */ @NotBlank String artifactType,
+    /* 制品存储路径。 */ String path,
+    /* 制品 schema 版本，缺失时为空字符串。 */ String schemaVersion,
+    /* 源文件路径，缺失时为空字符串。 */ String sourcePath,
+    /* 源文件修改时间（epoch 秒），非负。 */ @PositiveOrZero double sourceMtime,
+    /* 制品文件大小（字节），非负。 */ @PositiveOrZero long sizeBytes,
+    /* 创建时间戳（epoch 秒），非负。 */ @PositiveOrZero double createdAt,
+    /* 更新时间戳（epoch 秒），非负。 */ @PositiveOrZero double updatedAt)
+    implements SessionArtifactRecord {
 
   /**
-   * 紧凑构造器，验证 session_artifacts 表行不变量。
+   * 紧凑构造器，校验 record component 约束并应用默认值。
    *
    * @throws IllegalArgumentException 当主键字段为空字符串或数值字段为负数时
    */
   public SessionArtifactRow {
-    ParamChecks.nonEmpty(sessionKey, "sessionKey");
-    ParamChecks.nonEmpty(artifactType, "artifactType");
+    ValidationSupport.validateCanonicalConstructor(
+        SessionArtifactRow.class,
+        sessionKey,
+        artifactType,
+        path,
+        schemaVersion,
+        sourcePath,
+        sourceMtime,
+        sizeBytes,
+        createdAt,
+        updatedAt);
     path = path == null ? "" : path;
     schemaVersion = schemaVersion == null ? "" : schemaVersion;
     sourcePath = sourcePath == null ? "" : sourcePath;
-    ParamChecks.nonNegative(sourceMtime, "sourceMtime");
-    ParamChecks.nonNegative(sizeBytes, "sizeBytes");
-    ParamChecks.nonNegative(createdAt, "createdAt");
-    ParamChecks.nonNegative(updatedAt, "updatedAt");
   }
 }
