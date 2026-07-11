@@ -23,6 +23,9 @@ if TYPE_CHECKING:
 SB_ROOT = Path(__file__).resolve().parent.parent
 if str(SB_ROOT) not in sys.path:
     sys.path.insert(0, str(SB_ROOT))
+
+from scripts.harness.port_allocator import reserve_port  # noqa: E402
+from scripts.harness.primary_session import resolve_runtime_root  # noqa: E402
 FIXTURE_ROOT = SB_ROOT / 'tests' / 'fixtures' / 'session_hifi_fixture'
 LONG_FIXTURE_ROOT = SB_ROOT / 'tests' / 'fixtures' / 'session_hifi_long_fixture'
 DEFAULT_PORT = 19099
@@ -124,7 +127,10 @@ def _prepare_fixture_data() -> tuple[Path, Path, Path]:
     """返回：
         由temporary root 目录, index 目录, 和 data 目录.组成的 tuple。
     """
-    tmpdir = Path(tempfile.mkdtemp(prefix='playwright_fixture_'))
+    run_id = os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
+    tmp_root = resolve_runtime_root(SB_ROOT) / 'runs' / run_id / 'tmp' / 'playwright-fixture'
+    tmp_root.mkdir(parents=True, exist_ok=True)
+    tmpdir = Path(tempfile.mkdtemp(prefix='playwright_fixture_', dir=str(tmp_root)))
     index_dir = tmpdir / 'index'
     index_dir.mkdir()
     data_dir = tmpdir / 'claude_data'
@@ -204,11 +210,19 @@ def _stop_process(proc: subprocess.Popen[bytes]) -> None:
 
 # 解析命令行参数并运行脚本入口。
 def main() -> None:
-    port = _resolve_port()
+    if 'BASE_URL' in os.environ or 'SESSION_BROWSER_PLAYWRIGHT_PORT' in os.environ:
+        port = _resolve_port()
+        port_allocation = None
+    else:
+        port_allocation = reserve_port(SB_ROOT, 'playwright-fixture', hold_socket=True)
+        port = port_allocation.port
+        os.environ['BASE_URL'] = f'http://127.0.0.1:{port}'
     tmpdir, index_dir, data_dir = _prepare_fixture_data()
     sqlite_path = index_dir / 'index.sqlite'
     populate_error = populate_index(data_dir, index_dir)
     if populate_error:
+        if port_allocation is not None:
+            port_allocation.close()
         shutil.rmtree(tmpdir, ignore_errors=True)
         print(f'ERROR: {populate_error}')
         sys.exit(1)
@@ -216,6 +230,8 @@ def main() -> None:
     env = _build_server_env(index_dir, data_dir, port)
     launcher = _java_launcher()
     if launcher is None:
+        if port_allocation is not None:
+            port_allocation.close()
         shutil.rmtree(tmpdir, ignore_errors=True)
         print('ERROR: Java CLI not built; run ./gradlew :java:app-cli:installDist')
         sys.exit(1)
@@ -228,6 +244,9 @@ def main() -> None:
     print(f'    http://127.0.0.1:{port}/sessions/claude_code/long-session-001')
     print(f'  TMPDIR: {tmpdir}')
 
+    if port_allocation is not None and port_allocation.socket is not None:
+        port_allocation.socket.close()
+        port_allocation.socket = None
     proc = subprocess.Popen(
         [
             str(launcher),
@@ -246,6 +265,8 @@ def main() -> None:
     base_url = f'http://127.0.0.1:{port}'
     if not _wait_until_ready(base_url, proc):
         _stop_process(proc)
+        if port_allocation is not None:
+            port_allocation.close()
         shutil.rmtree(tmpdir, ignore_errors=True)
         print('ERROR: Server did not start within 15 seconds')
         sys.exit(1)
@@ -262,6 +283,8 @@ def main() -> None:
         del signum, frame
         print(f'\nShutting down server (PID {proc.pid})...')
         _stop_process(proc)
+        if port_allocation is not None:
+            port_allocation.close()
         shutil.rmtree(tmpdir, ignore_errors=True)
         print('Cleaned up.')
         sys.exit(0)
@@ -272,6 +295,8 @@ def main() -> None:
     # 维护退出清理 清理。
     def _atexit_cleanup() -> None:
         _stop_process(proc)
+        if port_allocation is not None:
+            port_allocation.close()
         shutil.rmtree(tmpdir, ignore_errors=True)
 
     atexit.register(_atexit_cleanup)

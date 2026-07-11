@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
+from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
@@ -26,6 +27,7 @@ target_parallel_meta = importlib.import_module(
 ).target_parallel_meta
 changed_file_utils = importlib.import_module('scripts.quality.changed_files')
 runtime_paths = importlib.import_module('scripts.claude_hooks.paths')
+resource_lock = importlib.import_module('scripts.harness.resource_lock')
 
 IDENTITY = runtime_paths.identity_from_values()
 AGENT_LOG_DIR = runtime_paths.agent_log_dir(REPO_ROOT, IDENTITY)
@@ -268,6 +270,23 @@ def compute_tier_required_targets(tier: str, changed_files: list[str]) -> list[s
     return required_quality_targets(changed_files)
 
 
+# 构建 lock owner。
+def _lock_owner(target: str) -> dict[str, Any]:
+    """参数：
+        target: 当前要执行的 quality target。
+
+    返回：
+        可写入 resource lock 的 owner metadata。
+    """
+    return resource_lock.owner_metadata(
+        run_id=IDENTITY.raw_run_id,
+        client=IDENTITY.client,
+        session_id=IDENTITY.raw_session_id,
+        worktree_id=IDENTITY.raw_worktree_id,
+        target=target,
+    )
+
+
 # 运行gate。
 def run_gate(
     target: str,
@@ -299,6 +318,9 @@ def run_gate(
         out_arg = str(out_dir)
     cmd.extend(['--out', out_arg])
     artifact_path = str(out_dir / change_id / f'quality-gate-summary.{target}.json')
+
+    if changed_files is not None:
+        cmd.extend(['--changed-files', json.dumps(changed_files, ensure_ascii=False)])
 
     try:
         env = os.environ.copy()
@@ -716,8 +738,27 @@ def main() -> int:
 
     blocked = False
     for target in sorted(all_required):
+        meta = target_parallel_meta(target)
+        resources = [str(item) for item in meta.get('exclusive_resources', []) if isinstance(item, str)]
+        lock_timeout = float(meta.get('lock_timeout', min(120, int(meta.get('timeout', 300)))))
         print(f'[{tier}-tier] running target: {target}', file=sys.stderr)
-        passed, artifact_path = run_gate(target, change_id, quality_dir)
+        try:
+            with resource_lock.ResourceLockSet(REPO_ROOT, resources, _lock_owner(target), timeout_seconds=lock_timeout) as locks:
+                for result in locks.results:
+                    print(
+                        f'[{tier}-tier] resource lock acquired target={target} '
+                        f'resource={result.resource} waited={result.waitedSeconds:.3f}s',
+                        file=sys.stderr,
+                    )
+                passed, artifact_path = run_gate(target, change_id, quality_dir, changed_files)
+        except resource_lock.ResourceLockTimeout as exc:
+            print(
+                f'[{tier}-tier] BLOCKED target={target} resource={exc.resource} '
+                f'waited={exc.waited_seconds:.3f}s owner={json.dumps(exc.owner, ensure_ascii=False, sort_keys=True)}',
+                file=sys.stderr,
+            )
+            blocked = True
+            continue
         status_str = 'PASS' if passed else 'FAIL/BLOCKED'
         print(
             f'[{tier}-tier] {status_str} target={target} artifact={artifact_path}',

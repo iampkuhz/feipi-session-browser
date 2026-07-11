@@ -8,6 +8,8 @@ data/
 
 # Hook/harness runtime logs (per-session subdirectories)
 tmp/agent_logs/
+tmp/agent-runtime/
+tmp/quality/
 
 # Legacy agent runtime logs
 .agent/
@@ -26,6 +28,7 @@ uv.lock
 
 # Personal config
 .claude/settings.local.json
+.qoder/settings.local.json
 .mcp.json
 .env
 

@@ -1,0 +1,140 @@
+schemaVersion: 1
+generated_by: repository-maintained-primary-session-contract
+primary_sessions:
+  writable_isolation: git-worktree-required
+  same_worktree_max_writers: 1
+  read_only_sessions_allowed: true
+  identity_layers:
+    primary_run: runId
+    client_session: sessionId
+    subagent: agentId-inherits-runId
+  rollout_modes:
+    managed-worktree: sessionctl-created only multi-primary writable mode
+    read-only-unbound: direct client launch without bound run; mutations blocked
+    legacy-single-writer: explicit compatibility mode; one checkout writer; warns and blocks beside managed writers
+    blocked: fail-closed for unsafe identity, hook, lease, registry, lock, stop, or cleanup states
+  default_policy:
+    sessionctl_start: managed-worktree
+    direct_launch: read-only-unbound
+    legacy_requires_explicit_env: FEIPI_PRIMARY_SESSION_MODE=legacy-single-writer
+run_record:
+  required_fields:
+    - schemaVersion
+    - runId
+    - client
+    - taskId
+    - sessionId
+    - worktreeId
+    - worktreeRoot
+    - branch
+    - baseCommit
+    - changeId
+    - mode
+    - status
+    - allowedPaths
+    - forbiddenPaths
+    - resourceAllocations
+    - writerLease
+    - hookActivation
+    - processes
+    - createdAt
+    - updatedAt
+  modes:
+    - read-only
+    - writable
+  statuses:
+    - created
+    - starting
+    - running
+    - validating
+    - blocked
+    - completed
+    - handed-off
+    - cleaning
+    - cleaned
+    - failed
+status_machine:
+  initial_status: created
+  terminal_statuses:
+    - completed
+    - cleaned
+    - failed
+  writable_ready_statuses:
+    - running
+    - validating
+    - completed
+    - handed-off
+  transitions:
+    created:
+      - starting
+      - running
+      - blocked
+      - failed
+    starting:
+      - running
+      - blocked
+      - failed
+    running:
+      - validating
+      - blocked
+      - completed
+      - handed-off
+      - failed
+    validating:
+      - running
+      - blocked
+      - completed
+      - failed
+    blocked:
+      - starting
+      - running
+      - failed
+      - handed-off
+    completed:
+      - cleaning
+      - handed-off
+    handed-off:
+      - starting
+      - running
+      - cleaning
+      - failed
+    cleaning:
+      - cleaned
+      - failed
+    cleaned: []
+    failed:
+      - cleaning
+runtime_root:
+  resolution_order:
+    - FEIPI_AGENT_RUNTIME_ROOT
+    - git-common-dir/feipi-agent-runtime
+  ordinary_checkout: use git common dir under the checkout .git directory
+  linked_worktree: use linked worktree git common dir so all worktrees share one registry
+  committed_config_absolute_paths_allowed: false
+registry_storage:
+  root: runtime_root
+  runs_dir: runs
+  writer_leases_dir: writer-leases
+  branch_leases_dir: branch-leases
+  locks_dir: locks
+  atomic_write: write-temp-then-replace
+  lock_scope: repository-runtime-root
+collision_policy:
+  same_worktree_second_writer: BLOCK
+  same_branch_active_writable_runs: BLOCK
+  write_scope_intersection_default: BLOCK
+  write_scope_override:
+    required_record: highRiskRecords
+    result: high-risk
+  missing_session_id:
+    allowed_statuses:
+      - created
+      - starting
+      - blocked
+    write_allowed: false
+  hook_activation_unconfirmed:
+    writable_ready_allowed: false
+subagents:
+  inherit_parent_run_id: true
+  require_independent_agent_id: true
+  create_primary_run: false

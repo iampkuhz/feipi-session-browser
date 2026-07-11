@@ -126,11 +126,11 @@ TARGET_META: dict[str, dict[str, object]] = {
     'hook-runtime': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
     'harness': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
     'acceptance-contracts': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
-    'session-detail': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
+    'session-detail': {'parallel_safe': True, 'exclusive_resources': ['fixture-server', 'playwright-browser'], 'timeout': 300},
     'index': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 120},
-    'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 1200},
-    'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon'], 'timeout': 300},
-    'scan-script-smoke': {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300},
+    'java-src': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon', 'java-build-tree'], 'timeout': 1200},
+    'java-build': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon', 'java-build-tree'], 'timeout': 300},
+    'scan-script-smoke': {'parallel_safe': True, 'exclusive_resources': ['gradle-daemon', 'java-build-tree'], 'timeout': 300},
 }
 
 # 01c. target dominance 声明: 当 dominant target 触发时自动包含 dominated target
@@ -220,6 +220,8 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             '.claude/settings.json',
             '.claude/settings.local.json',
             '.codex/hooks.json',
+            '.qoder/settings.json',
+            '.qoder/settings.local.example.json',
         ],
         'bashSyntax': [
             '.claude/hooks/**/*.sh',
@@ -334,6 +336,8 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'agentHookParity': [
             'harness/agent-runtime.manifest.yaml',
             '.codex/hooks.json',
+            '.qoder/settings.json',
+            '.qoder/settings.local.example.json',
             '.codex/hooks/**/*.sh',
             '.qoder/hooks/**/*.sh',
             'scripts/quality/check_agent_hook_parity.py',
@@ -412,6 +416,8 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
         'agentHookParity': [
             'harness/agent-runtime.manifest.yaml',
             '.codex/hooks.json',
+            '.qoder/settings.json',
+            '.qoder/settings.local.example.json',
             '.codex/hooks/pre_write_guard.sh',
             '.qoder/hooks/pre_write_guard.sh',
             'scripts/quality/check_agent_hook_parity.py',

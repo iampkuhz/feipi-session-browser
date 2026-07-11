@@ -1,12 +1,25 @@
 {
+  "schemaNote": "Repository Codex hook schema follows the command hook shape supported by this repo and verified against `codex --help` for hook trust behavior; commands resolve Git root at runtime and do not depend on current cwd being repo root.",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/session-start.sh\"'",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": ".codex/hooks/pre_tool_guard.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/pre_tool_guard.sh\"'",
+            "timeout": 60
           }
         ]
       },
@@ -15,7 +28,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".codex/hooks/pre_write_guard.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/pre_write_guard.sh\"'",
+            "timeout": 60
           }
         ]
       }
@@ -26,7 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".codex/hooks/post_bash_guard.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/post_bash_guard.sh\"'",
+            "timeout": 60
           }
         ]
       },
@@ -35,7 +50,19 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".codex/hooks/post_tool_guard.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/post_tool_guard.sh\"'",
+            "timeout": 60
+          }
+        ]
+      }
+    ],
+    "PostToolUseFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/tool_failure.sh\"'",
+            "timeout": 60
           }
         ]
       }
@@ -45,7 +72,30 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".codex/hooks/stop_check.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/stop_check.sh\"'",
+            "timeout": 1500
+          }
+        ]
+      }
+    ],
+    "StopFailure": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/stop_failure.sh\"'",
+            "timeout": 120
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.codex/hooks/session_end.sh\"'",
+            "timeout": 60
           }
         ]
       }

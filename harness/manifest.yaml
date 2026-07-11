@@ -6,17 +6,25 @@ project:
 
 runtime:
   hook_entry: .claude/hooks/
-  shared_stop_entry: scripts/harness/agent_stop_check.py
+  shared_stop_entry: scripts/harness/stop_entry.py
   python_package: scripts/claude_hooks
   log_dir: tmp/agent_logs/
+  primary_session_manifest: harness/primary-session.manifest.yaml
+  resource_lock_manager: scripts/harness/resource_lock.py
+  port_allocator: scripts/harness/port_allocator.py
+  runtime_root: FEIPI_AGENT_RUNTIME_ROOT or git-common-dir/feipi-agent-runtime
   agent_entrypoints:
     claude_stop: .claude/hooks/stop.sh
     codex_pre_tool: .codex/hooks/pre_tool_guard.sh
     codex_post_tool: .codex/hooks/post_tool_guard.sh
     codex_stop: .codex/hooks/stop_check.sh
+    qoder_session_start: .qoder/hooks/session-start.sh
     qoder_pre_tool: .qoder/hooks/pre_tool_guard.sh
     qoder_post_tool: .qoder/hooks/post_tool_guard.sh
     qoder_stop: .qoder/hooks/stop_check.sh
+    qoder_tool_failure: .qoder/hooks/tool_failure.sh
+    qoder_stop_failure: .qoder/hooks/stop_failure.sh
+    qoder_session_end: .qoder/hooks/session_end.sh
   skill_entrypoints:
     openspec_orchestrate_change: skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
     codex_repo_scope: .agents/skills/feipi-openspec-orchestrate-change
@@ -29,6 +37,7 @@ entrypoints:
   scan: "./scripts/session-browser.sh scan"
   serve: "./scripts/session-browser.sh serve"
   doctor: "bash scripts/harness/doctor.sh"
+  sessionctl: "python3 scripts/harness/sessionctl.py"
 
 quality:
   runner: scripts/quality/run_quality_gate.py
@@ -64,6 +73,7 @@ docs:
 
 local_only:
   - ".claude/settings.local.json"
+  - ".qoder/settings.local.json"
   - ".mcp.json"
   - ".env"
   - ".venv/"
@@ -71,3 +81,5 @@ local_only:
   - "data/"
   - "output/"
   - "tmp/agent_logs/"
+  - "tmp/agent-runtime/"
+  - "tmp/quality/"

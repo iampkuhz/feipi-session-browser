@@ -50,7 +50,7 @@ def test_cross_agent_hook_classification():
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-002')
-def test_codex_hooks_json_uses_current_repo_relative_commands():
+def test_codex_hooks_json_uses_git_root_resolving_commands():
     hooks = json.loads(Path('.codex/hooks.json').read_text(encoding='utf-8'))
     commands = [
         hook['command']
@@ -59,14 +59,22 @@ def test_codex_hooks_json_uses_current_repo_relative_commands():
         for hook in entry['hooks']
     ]
 
-    assert commands == [
+    expected_paths = [
+        '.codex/hooks/session-start.sh',
         '.codex/hooks/pre_tool_guard.sh',
         '.codex/hooks/pre_write_guard.sh',
         '.codex/hooks/post_bash_guard.sh',
         '.codex/hooks/post_tool_guard.sh',
+        '.codex/hooks/tool_failure.sh',
         '.codex/hooks/stop_check.sh',
+        '.codex/hooks/stop_failure.sh',
+        '.codex/hooks/session_end.sh',
     ]
-    assert all('/feipi-session-browser/' not in command for command in commands)
+    assert len(commands) == len(expected_paths)
+    for command, expected in zip(commands, expected_paths):
+        assert 'git rev-parse --show-toplevel' in command
+        assert expected in command
+        assert '/feipi-session-browser/' not in command
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-002')

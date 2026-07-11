@@ -254,6 +254,114 @@ def test_stop_session_without_agent_id_aggregates_subagents(monkeypatch, tmp_pat
     assert paths == ['README.md', 'java/Foo.java']
 
 
+def test_stop_attribution_gap_ignores_legacy_unmarked_missing_snapshot(tmp_path):
+    """修复前无法补齐的 legacy missing-snapshot 记录不得永久阻断 Stop。"""
+    identity = runtime_paths.identity_from_values(
+        agent_client='claude',
+        session_id='shared-session',
+    )
+    events_path = runtime_paths.agent_log_dir(tmp_path, identity) / 'hook-events.jsonl'
+    events_path.parent.mkdir(parents=True)
+    events = [
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'pre-bash',
+            'toolUseId': 'instrumented',
+            'status': 'LAZY_BIND',
+        },
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'post-bash',
+            'toolUseId': 'instrumented',
+            'status': 'BASH_SNAPSHOT_MISSING',
+        },
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'pre-bash',
+            'toolUseId': 'legacy-pass',
+            'status': 'PASS',
+        },
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'post-bash',
+            'toolUseId': 'legacy-pass',
+            'status': 'BASH_SNAPSHOT_MISSING',
+        },
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'post-bash',
+            'toolUseId': 'legacy-no-pre',
+            'status': 'BASH_SNAPSHOT_MISSING',
+        },
+    ]
+    events_path.write_text(
+        ''.join(json.dumps(event) + '\n' for event in events),
+        encoding='utf-8',
+    )
+
+    failures = agent_stop_check.identity_attribution_gap_failures(
+        identity,
+        repo_root=tmp_path,
+    )
+
+    assert failures == []
+
+
+def test_stop_attribution_gap_blocks_future_missing_snapshot(tmp_path):
+    """未来真实 missing snapshot 必须仍然 fail-closed。"""
+    identity = runtime_paths.identity_from_values(
+        agent_client='claude',
+        session_id='shared-session',
+    )
+    events_path = runtime_paths.agent_log_dir(tmp_path, identity) / 'hook-events.jsonl'
+    events_path.parent.mkdir(parents=True)
+    events = [
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'post-bash',
+            'toolUseId': 'future-post-marker',
+            'status': 'BASH_SNAPSHOT_MISSING',
+            'bashSnapshotRequired': True,
+            'bashMutationTracking': True,
+        },
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'pre-bash',
+            'toolUseId': 'future-pre-marker',
+            'status': 'PASS',
+            'bashMutationTracking': True,
+        },
+        {
+            'sessionId': 'shared-session',
+            'agentId': '',
+            'event': 'post-bash',
+            'toolUseId': 'future-pre-marker',
+            'status': 'BASH_SNAPSHOT_MISSING',
+        },
+    ]
+    events_path.write_text(
+        ''.join(json.dumps(event) + '\n' for event in events),
+        encoding='utf-8',
+    )
+
+    failures = agent_stop_check.identity_attribution_gap_failures(
+        identity,
+        repo_root=tmp_path,
+    )
+
+    assert failures == [
+        'BASH_SNAPSHOT_MISSING attribution gap for toolUseId=future-post-marker',
+        'BASH_SNAPSHOT_MISSING attribution gap for toolUseId=future-pre-marker',
+    ]
+
+
 def test_resolve_change_id_is_identity_scoped(monkeypatch, tmp_path):
     """同一 worktree 中不同 session 的 active_change 不得互相覆盖。"""
     monkeypatch.delenv('ACTIVE_CHANGE_ID', raising=False)

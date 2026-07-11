@@ -28,6 +28,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from scripts.harness.python_env import resolve_python  # noqa: E402
+from scripts.harness.port_allocator import reserve_port  # noqa: E402
+from scripts.harness.primary_session import resolve_runtime_root  # noqa: E402
 from scripts.quality.quality_artifact import (  # noqa: E402
     BLOCKED,
     FAIL,
@@ -56,6 +58,22 @@ MODULE_CHECK_TIMEOUT_SECONDS = 10
 COMMAND_OUTPUT_TAIL_CHARS = 4000
 FIXTURE_SERVER_READY_ATTEMPTS = 30
 FIXTURE_SERVER_READY_TIMEOUT_SECONDS = 15
+
+
+# 维护运行临时目录。
+def _run_tmp_dir(repo_root: Path, name: str) -> Path:
+    """参数：
+        repo_root: 仓库根目录。
+        name: run tmp 子目录名称。
+
+    返回：
+        run-scoped tmp 子目录路径。
+    """
+    run_id = os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
+    root = Path(os.environ.get('FEIPI_RUN_TMPDIR', '')).expanduser() if os.environ.get('FEIPI_RUN_TMPDIR') else resolve_runtime_root(repo_root) / 'runs' / run_id / 'tmp'
+    path = root / name
+    path.mkdir(parents=True, exist_ok=True)
+    return path
 
 
 # 维护relative existing 文件。
@@ -1353,7 +1371,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     if not fixture_root.exists():
         return None, None, None, f'fixture root missing: {fixture_root}'
 
-    tmpdir_path = Path(tempfile.mkdtemp(prefix='quality_gate_fixture_'))
+    tmpdir_path = Path(tempfile.mkdtemp(prefix='quality_gate_fixture_', dir=str(_run_tmp_dir(REPO_ROOT, 'fixtures'))))
     tmpdir = str(tmpdir_path)
     index_dir = tmpdir_path / 'index'
     index_dir.mkdir(parents=True)
@@ -1366,14 +1384,13 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
         shutil.rmtree(tmpdir_path, ignore_errors=True)
         return None, None, None, populate_error
 
-    # 查找a free port用于 temporary server。
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('127.0.0.1', 0))
-        s.listen(1)
-        port = s.getsockname()[1]
+    # 分配并记录 run-scoped fixture port，启动前释放保留 socket。
+    port_allocation = reserve_port(REPO_ROOT, 'fixture-server', hold_socket=True)
+    port = port_allocation.port
 
     launcher = _java_launcher()
     if not launcher:
+        port_allocation.close()
         shutil.rmtree(tmpdir_path, ignore_errors=True)
         return None, None, None, 'Java CLI not built; run ./gradlew :java:app-cli:installDist'
 
@@ -1385,6 +1402,9 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     log_handle = server_log.open('w', encoding='utf-8')
 
     try:
+        if port_allocation.socket is not None:
+            port_allocation.socket.close()
+            port_allocation.socket = None
         proc = subprocess.Popen(
             [
                 str(launcher),
@@ -1415,6 +1435,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
             pass
         if proc.poll() is not None:
             output = _tail_file(server_log)
+            port_allocation.close()
             shutil.rmtree(tmpdir, ignore_errors=True)
             return (
                 None,
@@ -1427,6 +1448,7 @@ def _start_fixture_server() -> tuple[subprocess.Popen | None, str | None, str | 
     proc.terminate()
     proc.wait()
     output = _tail_file(server_log)
+    port_allocation.close()
     shutil.rmtree(tmpdir, ignore_errors=True)
     return (
         None,
@@ -1446,6 +1468,13 @@ def _stop_fixture_server(proc: subprocess.Popen, tmpdir: str | None) -> None:
     """
     if tmpdir:
         shutil.rmtree(tmpdir, ignore_errors=True)
+    run_id = os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
+    ports_dir = resolve_runtime_root(REPO_ROOT) / 'ports'
+    for record in ports_dir.glob(f'{run_id}-fixture-server.json'):
+        try:
+            record.unlink()
+        except OSError:
+            pass
     if proc:
         try:
             proc.terminate()
@@ -1590,7 +1619,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
     python = _project_python(repo_root)
     dev_python = _project_python(repo_root, dev=True)
     if gate == 'settingsJson':
-        json_files = ['.claude/settings.json', '.codex/hooks.json']
+        json_files = ['.claude/settings.json', '.codex/hooks.json', '.qoder/settings.json', '.qoder/settings.local.example.json']
         existing = [f for f in json_files if (repo_root / f).exists()]
         code = "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]"
         return [python, '-c', code, *existing] if existing else []
@@ -1751,6 +1780,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
                 'tests/quality/test_python_env_contract.py',
                 'tests/quality/test_no_test_skips_gate.py',
                 'tests/quality/test_java_classification.py',
+                'tests/quality/test_check_java_record_component_javadocs.py',
                 'tests/quality/test_warning_gate_cli.py',
             ],
             'harness': [
@@ -1768,9 +1798,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return ['bash', 'scripts/harness/doctor.sh']
     if gate == 'sessionSamples':
         gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
+        runner = repo_root / 'scripts' / 'quality' / 'run_session_samples_gate.py'
+        if not gradlew.exists() or not runner.exists():
             return []
-        return [str(gradlew), ':java:tests:contracts:sampleIntegrationTest', '--no-daemon']
+        return [python, str(runner), '--repo-root', str(repo_root)]
     if gate == 'repoStructure':
         return [python, 'scripts/quality/validate_repo_structure.py']
     if gate == 'harnessStructure':
@@ -1849,10 +1880,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             cmd.extend(['--policy', str(policy)])
         return cmd
     if gate == 'javaRecordComponentJavadocs':
-        gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
+        checker = repo_root / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
+        if not checker.exists():
             return []
-        return [str(gradlew), 'verifyJavaRecordComponentJavadocs']
+        return [python, str(checker), 'java']
     if gate == 'noJavaTestSkips':
         checker = repo_root / 'scripts' / 'quality' / 'check_no_java_test_skips.py'
         if not checker.exists():
@@ -1885,7 +1916,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        install_log = '/tmp/scanScriptSmoke-installDist.log'
+        install_log = str(_run_tmp_dir(repo_root, 'logs') / 'scanScriptSmoke-installDist.log')
         pytest_cmd = shlex.join(
             [dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)]
         )

@@ -4,22 +4,22 @@ from __future__ import annotations
 
 import hashlib
 import json
+import fcntl
 import os
 import subprocess
 import time
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from .active_change import current_change_id
 from .classify import classify_file
-from .paths import ensure_runtime_dirs, rel_to_repo
+from .paths import RepoPaths, build_paths, ensure_runtime_dirs, rel_to_repo
+from scripts.agent_runtime import worktree as runtime_worktree
 from scripts.quality import changed_files as changed_file_utils
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from .hook_io import HookContext
-    from .paths import RepoPaths
 
 
 # 01. 时间与 JSONL 基础函数
@@ -34,15 +34,81 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
-# 追加jsonl。
+# 追加 JSONL 记录并避免重复事件。
 def append_jsonl(path: Path, record: dict[str, Any]) -> None:
     """参数：
-        path: 待检查的路径。
-        record: record 参数。
+        path: JSONL 文件路径。
+        record: 待追加的事件记录。
+
+    返回：
+        无返回值。
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with path.open('a', encoding='utf-8') as f:
-        f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + '\n')
+    lock_path = path.with_suffix(path.suffix + '.lock')
+    event_id = record.get('eventId')
+    with lock_path.open('a+', encoding='utf-8') as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        try:
+            if event_id and path.exists():
+                try:
+                    for line in path.read_text(encoding='utf-8').splitlines():
+                        if not line.strip():
+                            continue
+                        item = json.loads(line)
+                        if isinstance(item, dict) and item.get('eventId') == event_id:
+                            return
+                except Exception:
+                    pass
+            with path.open('a', encoding='utf-8') as f:
+                f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + '\n')
+        finally:
+            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+
+
+# 计算 hook 事件的稳定 id。
+def event_id_for(paths: RepoPaths, ctx: HookContext, event: str | None = None) -> str:
+    """参数：
+        paths: 当前仓库路径上下文。
+        ctx: 当前 hook 输入上下文。
+        event: 可选事件名称。
+
+    返回：
+        SHA-256 事件 id。
+    """
+    raw = '|'.join([
+        paths.identity.client,
+        ctx.session_id or paths.identity.raw_session_id,
+        paths.identity.raw_run_id,
+        ctx.turn_id or paths.identity.raw_turn_id,
+        ctx.tool_use_id,
+        event or ctx.event_name,
+    ])
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+# 构造运行期 evidence 通用字段。
+def runtime_fields(paths: RepoPaths, ctx: HookContext, event: str | None = None) -> dict[str, Any]:
+    """参数：
+        paths: 当前仓库路径上下文。
+        ctx: 当前 hook 输入上下文。
+        event: 可选事件名称。
+
+    返回：
+        运行期 evidence 字段映射。
+    """
+    identity = paths.identity
+    return {
+        'runId': identity.raw_run_id,
+        'taskId': identity.raw_task_id,
+        'worktreeId': identity.raw_worktree_id,
+        'worktreeRootHash': identity.worktree_root_hash,
+        'branch': identity.branch,
+        'baseCommit': identity.base_commit,
+        'turnId': ctx.turn_id or identity.raw_turn_id,
+        'changeId': identity.change_id or current_change_id(paths),
+        'eventId': event_id_for(paths, ctx, event),
+        'legacyWarnings': list(identity.legacy_warnings),
+    }
 
 
 # 维护文件 SHA-256。
@@ -91,6 +157,7 @@ def _bash_snapshot_key(ctx: HookContext, client: str = '') -> str | None:
     identity_parts = [
         client or ctx.agent_client,
         ctx.session_id,
+        ctx.run_id,
         ctx.agent_id,
         ctx.tool_use_id,
     ]
@@ -118,6 +185,27 @@ def _bash_snapshot_path(paths: RepoPaths, ctx: HookContext) -> Path | None:
     if not key:
         return None
     return paths.agent_log_dir / 'bash-snapshots' / f'{key}.json'
+
+
+INSTRUMENTATION_ONLY_PRE_BASH_STATUSES = {'LAZY_BIND', 'LAZY_BIND_BLOCKED'}
+
+
+# 判断前置 Bash 事件是否说明缺失 snapshot 不是 mutation attribution gap。
+def pre_bash_exempts_missing_snapshot(event: dict[str, Any] | None) -> bool:
+    """参数：
+        event: 匹配同一 toolUseId 的 pre-bash 事件。
+
+    返回：
+        当前 post-bash 缺少 snapshot 但不应 fail-closed 时返回 true。
+    """
+    if not event:
+        return False
+    status = event.get('status')
+    return (
+        status == 'BLOCK'
+        or event.get('bashMutationTracking') is False
+        or status in INSTRUMENTATION_ONLY_PRE_BASH_STATUSES
+    )
 
 
 # 查找同一 Bash 工具调用的前置 hook 记录。
@@ -152,6 +240,98 @@ def _matching_pre_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, An
     return None
 
 
+
+
+
+
+# 查找同一 Bash 工具调用已经记录过的后置 hook 记录。
+def _matching_post_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, Any] | None:
+    """参数：
+        paths: 仓库运行时路径集合。
+        ctx: 当前后置 Bash hook 上下文。
+
+    返回：
+        最近一条匹配同一 toolUseId 的 post-bash 事件；找不到则返回 None。
+    """
+    if not ctx.tool_use_id or not paths.hook_events.exists():
+        return None
+    try:
+        lines = paths.hook_events.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return None
+    for raw_line in reversed(lines):
+        if not raw_line.strip():
+            continue
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get('toolUseId') != ctx.tool_use_id:
+            continue
+        if event.get('event') != 'post-bash':
+            continue
+        return event
+    return None
+
+
+# 查找 assignment marker 指向的同仓库 worktree 路径。
+def _assigned_worktree_paths(paths: RepoPaths) -> RepoPaths | None:
+    """参数：
+        paths: 当前 hook 看到的仓库路径集合。
+
+    返回：
+        assignment marker 指向的同仓库 worktree 路径；缺失或不安全时返回 None。
+    """
+    if not paths.identity.has_session:
+        return None
+    marker = runtime_worktree.read_assignment_marker(paths.repo_root, paths.identity)
+    if not marker:
+        return None
+    raw_worktree = marker.get('worktreePath')
+    if not isinstance(raw_worktree, str) or not raw_worktree:
+        return None
+    assigned_root = Path(raw_worktree).expanduser().resolve()
+    if assigned_root == paths.repo_root.resolve() or not assigned_root.is_dir():
+        return None
+    try:
+        if runtime_worktree.git_common_dir(assigned_root) != runtime_worktree.git_common_dir(
+            paths.repo_root
+        ):
+            return None
+    except Exception:
+        return None
+    return build_paths(repo_root=assigned_root, identity=paths.identity)
+
+
+# 为 post Bash 选择实际 evidence 根目录。
+def _post_bash_evidence_paths(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
+    """参数：
+        paths: 当前 hook 默认仓库路径集合。
+        ctx: 当前 post Bash hook 上下文。
+
+    返回：
+        含有匹配 snapshot 或 pre-bash evidence 的路径集合。
+    """
+    snapshot_path = _bash_snapshot_path(paths, ctx)
+    if snapshot_path is not None and snapshot_path.exists():
+        return paths
+
+    assigned_paths = _assigned_worktree_paths(paths)
+    if assigned_paths is None:
+        return paths
+
+    assigned_snapshot = _bash_snapshot_path(assigned_paths, ctx)
+    if assigned_snapshot is not None and assigned_snapshot.exists():
+        return assigned_paths
+
+    if _matching_pre_bash_event(assigned_paths, ctx):
+        return assigned_paths
+
+    return paths
+
+
 # 维护Bash 锁 路径。
 def _bash_lock_path(paths: RepoPaths) -> Path:
     """参数：
@@ -162,6 +342,8 @@ def _bash_lock_path(paths: RepoPaths) -> Path:
     """
     # 工作区级锁：同一个工作区的所有 agent 共享 Git 脏差异，
     # 因此同一时刻只允许一个变更 Bash 命令拍摄前后快照。
+    if paths.identity.has_run:
+        return paths.repo_root / 'tmp' / 'agent_logs' / paths.identity.client / paths.identity.session_id / 'runs' / paths.identity.run_id / 'writer' / 'bash-mutation.lock'
     return paths.repo_root / 'tmp' / 'agent_logs' / 'bash-mutation.lock'
 
 
@@ -266,6 +448,9 @@ def acquire_bash_mutation_lock(paths: RepoPaths, ctx: HookContext) -> bool:
         'agentType': ctx.agent_type,
         'toolUseId': ctx.tool_use_id,
         'client': paths.identity.client,
+        'runId': paths.identity.raw_run_id,
+        'taskId': paths.identity.raw_task_id,
+        'worktreeId': paths.identity.raw_worktree_id,
         'pid': os.getpid(),
     }
     try:
@@ -403,6 +588,7 @@ def record_pre_bash_snapshot(paths: RepoPaths, ctx: HookContext) -> bool:
         'toolUseId': ctx.tool_use_id,
         'head': _git_head(paths),
         'dirty': _dirty_state(paths),
+        **runtime_fields(paths, ctx, 'pre-bash-snapshot'),
     }
     snapshot_path.write_text(
         json.dumps(payload, ensure_ascii=False, sort_keys=True),
@@ -420,15 +606,15 @@ def record_post_bash(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]]
     返回：
         结果列表。
     """
+    paths = _post_bash_evidence_paths(paths, ctx)
     ensure_runtime_dirs(paths)
     try:
         snapshot_path = _bash_snapshot_path(paths, ctx)
         if snapshot_path is None or not snapshot_path.exists():
+            if _matching_post_bash_event(paths, ctx):
+                return []
             pre_event = _matching_pre_bash_event(paths, ctx)
-            if pre_event and (
-                pre_event.get('status') == 'BLOCK'
-                or pre_event.get('bashMutationTracking') is False
-            ):
+            if pre_bash_exempts_missing_snapshot(pre_event):
                 record_hook_event(
                     paths,
                     ctx,
@@ -441,7 +627,17 @@ def record_post_bash(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]]
                     },
                 )
                 return []
-            record_hook_event(paths, ctx, status='BASH_SNAPSHOT_MISSING')
+            record_hook_event(
+                paths,
+                ctx,
+                status='BASH_SNAPSHOT_MISSING',
+                extra={
+                    'mutationSource': 'bash',
+                    'bashMutationTracking': True,
+                    'bashSnapshotRequired': True,
+                    'preStatus': pre_event.get('status') if pre_event else None,
+                },
+            )
             return []
 
         try:
@@ -510,6 +706,7 @@ def record_hook_event(
         'agentType': ctx.agent_type,
         'status': status,
         'parseError': ctx.parse_error,
+        **runtime_fields(paths, ctx, f'hook-event:{ctx.event_name}:{status}'),
     }
     if extra:
         record.update(extra)
@@ -530,7 +727,7 @@ def record_changed_file(paths: RepoPaths, ctx: HookContext, file_path: str) -> d
     rel = rel_to_repo(file_path, paths.repo_root)
     cls = classify_file(rel)
     absolute = paths.repo_root / cls.file
-    change_id = current_change_id(paths)
+    change_id = paths.identity.change_id or current_change_id(paths)
     record = {
         'schemaVersion': 1,
         'ts': utc_now(),
@@ -541,6 +738,7 @@ def record_changed_file(paths: RepoPaths, ctx: HookContext, file_path: str) -> d
         'sessionId': ctx.session_id,
         'agentId': ctx.agent_id,
         'agentType': ctx.agent_type,
+        **runtime_fields(paths, ctx, f'changed-file:{cls.file}'),
         'changeId': change_id,
         'file': cls.file,
         'category': cls.category,

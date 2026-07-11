@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Qoder PostToolUse(Bash)：复用 Codex 兼容的 Bash evidence 入口。
-set -uo pipefail
+set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -8,6 +7,7 @@ source "$ROOT/.codex/hooks/lib/common.sh"
 
 export FEIPI_HOOK_CWD="${FEIPI_HOOK_CWD:-$PWD}"
 EXEC_ROOT="$(hook_exec_root "$ROOT")"
-cd "$EXEC_ROOT" || exit 1
+cd "$EXEC_ROOT"
+export PYTHONPATH="${EXEC_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export FEIPI_AGENT_CLIENT="qoder"
-exec "$EXEC_ROOT/.codex/hooks/post_bash_guard.sh" "$@"
+exec python3 -m scripts.claude_hooks.main post-bash "$@"

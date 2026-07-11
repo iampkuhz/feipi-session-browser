@@ -21,6 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.quality import changed_files as changed_file_utils  # noqa: E402
 from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+from scripts.claude_hooks.evidence import pre_bash_exempts_missing_snapshot  # noqa: E402
 from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 from scripts.agent_runtime import worktree as runtime_worktree  # noqa: E402
 
@@ -300,6 +301,27 @@ def read_identity_hook_events(
     return events
 
 
+# 判断 BASH_SNAPSHOT_MISSING 是否代表仍需 Stop fail-closed 的真实缺口。
+def _bash_snapshot_missing_blocks(
+    event: dict[str, Any],
+    pre_event: dict[str, Any] | None,
+) -> bool:
+    """参数：
+        event: post-bash 的 hook 事件记录。
+        pre_event: 同一 toolUseId 对应的 pre-bash 事件记录。
+
+    返回：
+        Stop 必须阻断时返回 true。
+    """
+    if pre_bash_exempts_missing_snapshot(pre_event):
+        return False
+    if event.get('bashSnapshotRequired') is True or event.get('bashMutationTracking') is True:
+        return True
+    if pre_event and pre_event.get('bashMutationTracking') is True:
+        return True
+    return False
+
+
 # 维护 identity_attribution_gap_failures 函数行为。
 def identity_attribution_gap_failures(
     identity: runtime_paths.RuntimeIdentity,
@@ -329,10 +351,7 @@ def identity_attribution_gap_failures(
         if event.get('status') == 'BASH_SNAPSHOT_MISSING':
             tool_use = event.get('toolUseId') or 'unknown'
             pre_event = pre_events.get(tool_use)
-            if pre_event and (
-                pre_event.get('status') == 'BLOCK'
-                or pre_event.get('bashMutationTracking') is False
-            ):
+            if not _bash_snapshot_missing_blocks(event, pre_event):
                 continue
             failures.append(f'BASH_SNAPSHOT_MISSING attribution gap for toolUseId={tool_use}')
     return failures
@@ -994,4 +1013,6 @@ def main() -> int:
 
 
 if __name__ == '__main__':
-    raise SystemExit(main())
+    from scripts.harness.stop_entry import main as stop_entry_main
+
+    raise SystemExit(stop_entry_main())

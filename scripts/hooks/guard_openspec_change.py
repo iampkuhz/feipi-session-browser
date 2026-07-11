@@ -20,6 +20,7 @@ if str(REPO_ROOT) not in sys.path:
 from scripts.agent_runtime.policy import is_protected_path  # noqa: E402
 from scripts.claude_hooks.paths import build_paths, legacy_active_change_path  # noqa: E402
 from scripts.openspec.validate_active_change import validate_change_at_root  # noqa: E402
+from scripts.harness.primary_session import validate_run_write_authorization  # noqa: E402
 
 
 @dataclass(frozen=True)
@@ -123,6 +124,13 @@ def resolve_active_change(
     if cli_change_id and cli_change_id.strip():
         return Resolution(cli_change_id.strip(), '--change-id', explicit=True)
 
+    env_run = environ.get('FEIPI_RUN_ID', '').strip()
+    if env_run:
+        from scripts.harness.primary_session import load_run_record
+        record = load_run_record(base, env_run)
+        if record and record.get('changeId'):
+            return Resolution(str(record['changeId']), f'run record {env_run}', explicit=True)
+
     env_change = environ.get('ACTIVE_CHANGE_ID', '').strip()
     if env_change:
         return Resolution(env_change, 'ACTIVE_CHANGE_ID', explicit=True)
@@ -133,7 +141,7 @@ def resolve_active_change(
 
     legacy_change = _read_change_id_file(base / 'tmp' / 'active_change.json')
     if legacy_change:
-        return Resolution(legacy_change, 'tmp/active_change.json')
+        return Resolution(legacy_change, 'tmp/active_change.json', errors=('legacy active change fallback; not valid for bound writable runs',))
 
     changes = _non_archive_changes(base)
     if len(changes) == 1:
@@ -156,6 +164,9 @@ def guard_path(
     root: str | Path | None = None,
     change_id: str | None = None,
     env: dict[str, str] | None = None,
+    run_id: str | None = None,
+    session_id: str | None = None,
+    client: str | None = None,
 ) -> tuple[int, str]:
     """参数：
         path: 候选写入路径。
@@ -170,7 +181,28 @@ def guard_path(
     if path and not is_protected_path(path, base):
         return 0, f'OpenSpec guard PASS: unprotected path does not require change: {path}'
 
+    environ = env if env is not None else os.environ
+    selected_run = (run_id or environ.get('FEIPI_RUN_ID', '')).strip()
+    selected_session = (session_id or environ.get('FEIPI_SESSION_ID', '')).strip()
+    selected_client = (client or environ.get('FEIPI_AGENT_CLIENT', '') or environ.get('FEIPI_CLIENT', '')).strip()
     resolution = resolve_active_change(root=base, cli_change_id=change_id, env=env)
+    if selected_run:
+        from scripts.harness.primary_session import load_run_record
+        run_record = load_run_record(base, selected_run) or {}
+        authoritative_change = str(run_record.get('changeId') or resolution.change_id or '')
+        ok, auth_errors, record = validate_run_write_authorization(
+            base,
+            client=selected_client or str(run_record.get('client') or ''),
+            session_id=selected_session,
+            run_id=selected_run,
+            change_id=authoritative_change,
+            candidate_paths=[path] if path else [],
+        )
+        if change_id and resolution.change_id and authoritative_change != resolution.change_id:
+            ok = False
+            auth_errors.append('current change id does not match run record')
+        if not ok:
+            return 2, 'OpenSpec guard BLOCK: run-scoped authorization failed: ' + '; '.join(auth_errors)
     if not resolution.change_id:
         detail = '; '.join(resolution.errors) if resolution.errors else 'No active OpenSpec change selected.'
         return 2, f'OpenSpec guard BLOCK: {detail}'
@@ -268,6 +300,9 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description='Fail-closed OpenSpec active change guard')
     parser.add_argument('--change-id', help='explicit active change id')
     parser.add_argument('--path', help='candidate path to guard')
+    parser.add_argument('--run-id', help='bound primary run id')
+    parser.add_argument('--session-id', help='bound primary session id')
+    parser.add_argument('--client', help='agent client for run authorization')
     parser.add_argument('--self-test', action='store_true', help='run embedded self-test')
     parser.add_argument('--root', help=argparse.SUPPRESS)
     args = parser.parse_args(argv)
@@ -275,7 +310,7 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         return 0 if run_self_test() else 1
 
-    code, message = guard_path(args.path, root=args.root, change_id=args.change_id)
+    code, message = guard_path(args.path, root=args.root, change_id=args.change_id, run_id=args.run_id, session_id=args.session_id, client=args.client)
     stream = sys.stdout if code == 0 else sys.stderr
     print(message, file=stream)
     return code

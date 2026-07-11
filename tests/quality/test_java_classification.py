@@ -243,7 +243,7 @@ class TestParallelMeta:
         """java-src 和 java-build 共享 gradle-daemon 互斥资源。"""
         src_res = set(target_parallel_meta('java-src')['exclusive_resources'])
         build_res = set(target_parallel_meta('java-build')['exclusive_resources'])
-        assert src_res & build_res == {'gradle-daemon'}
+        assert src_res & build_res == {'gradle-daemon', 'java-build-tree'}
 
     @pytest.mark.contract_case('J1-040-007')
     def test_unknown_target_default_meta(self):

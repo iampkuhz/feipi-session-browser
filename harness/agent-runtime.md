@@ -38,6 +38,44 @@
 - required gate 失败时，Stop 门禁必须阻断。失败不得因为“不是当前 agent 的改动”“已有失败”“与本次改动无关”而被降级、跳过或描述为通过。
 - 如果 required gate 因外部环境缺失无法运行，状态必须保持 blocked/fail，并在输出中保留可复现命令和阻断原因。
 
+
+## 主 session 并行和 runtime capability
+
+`harness/agent-runtime.manifest.yaml` 是 hook/platform/config 的 machine-readable 真源；`harness/agent-runtime.md` 只解释真源含义，不手工维护另一份不一致矩阵。`scripts/quality/check_agent_runtime_manifest.py` 校验 manifest 引用的路径存在，`scripts/quality/check_agent_hook_parity.py` 校验 `.codex/hooks.json`、`.qoder/settings.json` 与 manifest 绑定一致。
+
+- primary session parallelism 指多个主 agent session（例如 Qoder task A + Codex task B）各自拥有 `client/session_id/runId/worktree/branch`，可以并行推进不同任务。
+- subagent multi-agent 只是主 session 内的委派；subagent 继承父 `runId`，不能创建新的 primary writer lease。
+- read-only direct launch 未经 `sessionctl` 绑定，只允许只读查询；写入受 hook 阻断，对应 runtime capability 为 `legacy-single-writer` 或 `read-only-ready`，不得描述成 writable。
+- writable launch 必须通过 `python3 scripts/harness/sessionctl.py create/start/bind-session`，bind 后写入 hook activation marker，确认 config hash、session id、worktree root、branch 和 base commit。
+- worktree/branch ownership 由 run record 和 writer lease 表达；同 worktree、同 branch 或写范围重叠的 active writer 会被 doctor 判为 `blocked`。
+- hook trust/activation 依赖 checked-in wrapper、Git-root stable command、activation marker、marker TTL 和当前 config hash；删除 marker 或改坏 config path 必须阻断。
+- OpenSpec per-run：`changeId` 存在于 run record 和 run-scoped `active_change.json` mirror，不能靠全局临时文件表达并发状态。
+- resource locks 统一放在 `FEIPI_AGENT_RUNTIME_ROOT/locks`，runtime 输出放在 run-scoped 目录，避免多个主 session 互相覆盖。
+- handoff/cleanup 只汇报状态、diff、质量证据和风险；默认 dry-run cleanup，不自动 commit、merge、push 或删除 worktree。
+
+Runtime doctor 输出 capability，而不是笼统 PASS：
+
+```text
+writable-ready       # writable run 已绑定 session、hook marker 未过期且 config hash 匹配
+read-only-ready      # read-only run 合法但没有 writer lease
+blocked              # run record、worktree、writer lease、activation marker 或配置不满足 contract
+legacy-single-writer # 没有 sessionctl run record 的直接启动/旧模式，只能按只读或单写遗留模式处理
+```
+
+本地目标 UX 示例（不启动真实客户端）：
+
+```text
+# Qoder task A
+python3 scripts/harness/sessionctl.py create --client qoder --task-id task-a --change-id support-parallel-primary-sessions --allowed-path docs/a
+python3 scripts/harness/sessionctl.py start --run-id <qoder-run> --print-command
+
+# Codex task B
+python3 scripts/harness/sessionctl.py create --client codex --task-id task-b --change-id support-parallel-primary-sessions --allowed-path docs/b
+python3 scripts/harness/sessionctl.py start --run-id <codex-run> --print-command
+```
+
+`--print-command` 只打印待人工执行的环境变量和命令模板；不要把未实际启动、未 bind-session、未产生 activation marker 的客户端描述为已验证成功。
+
 ## Agent hook 配置矩阵
 
 Claude Code 的 hook 真源是 `.claude/settings.json`：
@@ -64,7 +102,7 @@ Codex 的 hook 真源是 `.codex/hooks.json`：
 | `PostToolUse` | `Write|Edit|MultiEdit` | `.codex/hooks/post_tool_guard.sh` |
 | `Stop` | 无 | `.codex/hooks/stop_check.sh` |
 
-Qoder 当前没有仓库内独立 hook JSON 配置；仓库维护 `.qoder/hooks/pre_tool_guard.sh`、`.qoder/hooks/post_bash_guard.sh`、`.qoder/hooks/post_tool_guard.sh`、`.qoder/hooks/stop_check.sh` 四个 wrapper。pre/post wrapper 复用 Codex-compatible guards，Stop wrapper 调用 `scripts/harness/agent_stop_check.py --agent qoder`。
+Qoder 的 hook 真源是 `.qoder/settings.json`；所有 command 通过 `git rev-parse --show-toplevel` 定位仓库根后转发到 `.qoder/hooks/*.sh` wrapper，避免相对 cwd 脆弱路径。pre/post wrapper 复用 Codex-compatible guards，Stop wrapper 调用统一 stop runner。
 
 `.claude/agents/*.md` 与 `.codex/agents/*.toml` 不定义 per-agent hooks；项目级 hooks 是唯一执行面。
 

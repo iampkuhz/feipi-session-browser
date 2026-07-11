@@ -2,6 +2,7 @@
 """Verify Qoder is a first-class runtime entry with agents, hooks, skills, and manifest parity."""
 from __future__ import annotations
 
+import json
 import re
 import subprocess
 import sys
@@ -13,6 +14,8 @@ GATE_NAME = "qoderRuntimeParity"
 REQUIRED_FILES = [
     ".qoder/README.md",
     ".qoder/AGENTS.md",
+    ".qoder/settings.json",
+    ".qoder/settings.local.example.json",
     ".qoder/hook-bindings.md",
     ".qoder/agents/qoder-main-default.md",
     ".qoder/agents/runtime-isolation-diagnoser.md",
@@ -88,12 +91,86 @@ RUNTIME_SPECIALIST_PHRASES = {
 
 LIFECYCLE_TABLE_HEADER = "| Lifecycle | Matcher | Command | Required | Unsupported reason |\n|---|---|---|---:|---|"
 REQUIRED_HOOK_COMMANDS = [
+    ".qoder/hooks/session-start.sh",
     ".qoder/hooks/pre_tool_guard.sh",
     ".qoder/hooks/pre_write_guard.sh",
     ".qoder/hooks/post_bash_guard.sh",
     ".qoder/hooks/post_tool_guard.sh",
+    ".qoder/hooks/tool_failure.sh",
     ".qoder/hooks/stop_check.sh",
+    ".qoder/hooks/stop_failure.sh",
+    ".qoder/hooks/session_end.sh",
 ]
+
+QODER_REQUIRED_BINDINGS = {
+    ("SessionStart", ""): ".qoder/hooks/session-start.sh",
+    ("PreToolUse", "Bash"): ".qoder/hooks/pre_tool_guard.sh",
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/pre_write_guard.sh",
+    ("PostToolUse", "Bash"): ".qoder/hooks/post_bash_guard.sh",
+    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/post_tool_guard.sh",
+    ("PostToolUseFailure", ""): ".qoder/hooks/tool_failure.sh",
+    ("Stop", ""): ".qoder/hooks/stop_check.sh",
+    ("StopFailure", ""): ".qoder/hooks/stop_failure.sh",
+    ("SessionEnd", ""): ".qoder/hooks/session_end.sh",
+}
+
+# 维护 _commands_for 函数行为。
+def _commands_for(settings: dict, event: str, matcher: str) -> list[str]:
+    """参数：
+        settings: Qoder settings JSON 对象。
+        event: hook 事件名。
+        matcher: hook matcher；空字符串表示无 matcher。
+
+    返回：
+        匹配到的 command hook 列表。
+    """
+    entries = settings.get("hooks", {}).get(event, [])
+    if not isinstance(entries, list):
+        return []
+    commands: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if matcher and entry.get("matcher") != matcher:
+            continue
+        if not matcher and entry.get("matcher"):
+            continue
+        hooks = entry.get("hooks", [])
+        if not isinstance(hooks, list):
+            continue
+        for hook in hooks:
+            if isinstance(hook, dict) and hook.get("type") == "command" and isinstance(hook.get("command"), str):
+                commands.append(hook["command"])
+    return commands
+
+
+# 维护 _check_settings_json 函数行为。
+def _check_settings_json(errors: list[str]) -> None:
+    """参数：
+        errors: 收集到的错误列表。
+
+    返回：
+        无返回值；错误会追加到 errors。
+    """
+    try:
+        settings = json.loads(_read(".qoder/settings.json"))
+    except (json.JSONDecodeError, OSError) as exc:
+        errors.append(f".qoder/settings.json parse failed: {exc}")
+        return
+    for (event, matcher), expected in QODER_REQUIRED_BINDINGS.items():
+        commands = _commands_for(settings, event, matcher)
+        if not any(expected in command and "git rev-parse --show-toplevel" in command for command in commands):
+            suffix = f" matcher={matcher}" if matcher else ""
+            errors.append(f".qoder/settings.json missing Git-root stable {event}{suffix} binding to {expected}")
+    stop_commands = _commands_for(settings, "Stop", "")
+    for command in stop_commands:
+        if ".qoder/hooks/stop_check.sh" in command:
+            stop_hook = settings.get("hooks", {}).get("Stop", [])[0].get("hooks", [])[0]
+            if int(stop_hook.get("timeout") or 0) < 1230:
+                errors.append(".qoder/settings.json Stop timeout must exceed required gate timeout buffer")
+    text = _read(".qoder/settings.local.example.json")
+    if "<local-qoder-command>" not in text or "settings.local.json" not in text:
+        errors.append(".qoder/settings.local.example.json must be placeholder-only local guidance")
 
 
 # 维护 _read 函数行为。
@@ -266,6 +343,8 @@ def _check_manifest(errors: list[str]) -> None:
     block = qoder_block_match.group(1)
     for phrase in [
         "- .qoder/AGENTS.md",
+        "- .qoder/settings.json",
+        "- .qoder/settings.local.example.json",
         "- .qoder/hook-bindings.md",
         "agents_dir: .qoder/agents",
         "skills_dir: .qoder/skills",
@@ -315,6 +394,7 @@ def main() -> int:
     if not errors:
         _check_agents_md(errors)
         _check_hook_bindings(errors)
+        _check_settings_json(errors)
         _check_main_agent(errors)
         _check_specialists(errors)
         _check_manifest(errors)

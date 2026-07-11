@@ -31,8 +31,22 @@ class RuntimeIdentity:
     client: str
     session_id: str
     agent_id: str = ''
+    run_id: str = ''
+    task_id: str = ''
+    worktree_id: str = ''
+    turn_id: str = ''
+    stop_hook_active: bool = False
     raw_session_id: str = ''
     raw_agent_id: str = ''
+    raw_run_id: str = ''
+    raw_task_id: str = ''
+    raw_worktree_id: str = ''
+    raw_turn_id: str = ''
+    change_id: str = ''
+    branch: str = ''
+    base_commit: str = ''
+    worktree_root_hash: str = ''
+    legacy_warnings: tuple[str, ...] = ()
 
     # 判断是否存在session。
     @property
@@ -49,6 +63,14 @@ class RuntimeIdentity:
             满足条件时返回 true，否则返回 false。
         """
         return bool(self.raw_agent_id)
+
+    # 判断是否存在运行 id。
+    @property
+    def has_run(self) -> bool:
+        """返回：
+            存在运行 id 时返回 true，否则返回 false。
+        """
+        return bool(self.raw_run_id)
 
 
 @dataclass(frozen=True)
@@ -209,6 +231,16 @@ def identity_from_values(
     agent_client: str | None = None,
     session_id: str | None = None,
     agent_id: str | None = None,
+    run_id: str | None = None,
+    task_id: str | None = None,
+    worktree_id: str | None = None,
+    turn_id: str | None = None,
+    stop_hook_active: bool | None = None,
+    change_id: str = '',
+    branch: str = '',
+    base_commit: str = '',
+    worktree_root: str = '',
+    legacy_warnings: tuple[str, ...] = (),
 ) -> RuntimeIdentity:
     """参数：
         agent_client: agent client 参数。
@@ -222,12 +254,35 @@ def identity_from_values(
     raw_client = raw_client or 'unknown'
     raw_session = session_id if session_id is not None else os.environ.get('FEIPI_SESSION_ID', '')
     raw_agent = agent_id if agent_id is not None else os.environ.get('FEIPI_AGENT_ID', '')
+    raw_run = run_id if run_id is not None else os.environ.get('FEIPI_RUN_ID', '')
+    raw_task = task_id if task_id is not None else os.environ.get('FEIPI_TASK_ID', '')
+    raw_worktree = worktree_id if worktree_id is not None else os.environ.get('FEIPI_WORKTREE_ID', '')
+    raw_turn = turn_id if turn_id is not None else os.environ.get('FEIPI_TURN_ID', '')
+    active = bool(stop_hook_active) if stop_hook_active is not None else os.environ.get('FEIPI_STOP_HOOK_ACTIVE', '').lower() in {'1', 'true', 'yes', 'on'}
+    root_hash = hashlib.sha256(str(worktree_root or '').encode('utf-8')).hexdigest()[:16] if worktree_root else ''
+    effective_warnings = list(legacy_warnings)
+    if not raw_run:
+        effective_warnings.append('legacy identity without run_id; not multi-writer safe')
     return RuntimeIdentity(
         client=sanitize_path_segment(raw_client, fallback='unknown'),
         session_id=sanitize_path_segment(raw_session, fallback='unknown'),
         agent_id=sanitize_path_segment(raw_agent, fallback='') if raw_agent else '',
+        run_id=sanitize_path_segment(raw_run, fallback='') if raw_run else '',
+        task_id=sanitize_path_segment(raw_task, fallback='') if raw_task else '',
+        worktree_id=sanitize_path_segment(raw_worktree, fallback='') if raw_worktree else '',
+        turn_id=sanitize_path_segment(raw_turn, fallback='') if raw_turn else '',
+        stop_hook_active=active,
         raw_session_id=raw_session,
         raw_agent_id=raw_agent,
+        raw_run_id=raw_run,
+        raw_task_id=raw_task,
+        raw_worktree_id=raw_worktree,
+        raw_turn_id=raw_turn,
+        change_id=change_id,
+        branch=branch,
+        base_commit=base_commit,
+        worktree_root_hash=root_hash,
+        legacy_warnings=tuple(effective_warnings),
     )
 
 
@@ -270,10 +325,42 @@ def identity_from_hook_context(ctx: Any, agent_client: str | None = None) -> Run
         or os.environ.get('FEIPI_AGENT_CLIENT')
         or 'unknown'
     )
+    payload_session = getattr(ctx, 'session_id', None)
+    payload_run = getattr(ctx, 'run_id', None)
+    payload_task = getattr(ctx, 'task_id', None)
+    payload_worktree = getattr(ctx, 'worktree_id', None)
+    payload_turn = getattr(ctx, 'turn_id', None)
+    record: dict[str, Any] = {}
+    warnings: list[str] = []
+    try:
+        from scripts.harness.primary_session import resolve_bound_run_record
+        repo_hint = getattr(ctx, 'cwd', '') or None
+        root = find_repo_root(repo_hint)
+        lookup_session = payload_session or os.environ.get('FEIPI_SESSION_ID', '')
+        lookup_run = payload_run or os.environ.get('FEIPI_RUN_ID', '')
+        record = resolve_bound_run_record(root, client, lookup_session, lookup_run) or {}
+        if not record and payload_run and lookup_session:
+            record = resolve_bound_run_record(root, client, lookup_session, '') or {}
+    except Exception:
+        record = {}
+    run_id = payload_run or str(record.get('runId') or os.environ.get('FEIPI_RUN_ID', ''))
+    if record and payload_run and payload_run != record.get('runId'):
+        warnings.append('payload run_id conflicts with bound run record')
+    session_id = payload_session or str(record.get('sessionId') or os.environ.get('FEIPI_SESSION_ID', ''))
     return identity_from_values(
         agent_client=client,
-        session_id=getattr(ctx, 'session_id', None),
+        session_id=session_id,
         agent_id=getattr(ctx, 'agent_id', None),
+        run_id=run_id,
+        task_id=payload_task or str(record.get('taskId') or os.environ.get('FEIPI_TASK_ID', '')),
+        worktree_id=payload_worktree or str(record.get('worktreeId') or os.environ.get('FEIPI_WORKTREE_ID', '')),
+        turn_id=payload_turn or os.environ.get('FEIPI_TURN_ID', ''),
+        stop_hook_active=getattr(ctx, 'stop_hook_active', None),
+        change_id=str(record.get('changeId') or os.environ.get('ACTIVE_CHANGE_ID', '')),
+        branch=str(record.get('branch') or ''),
+        base_commit=str(record.get('baseCommit') or ''),
+        worktree_root=str(record.get('worktreeRoot') or ''),
+        legacy_warnings=tuple(warnings),
     )
 
 
@@ -300,7 +387,22 @@ def session_root_dir(repo_root: Path, identity: RuntimeIdentity) -> Path:
     return repo_root / 'tmp' / 'agent_logs' / identity.client / identity.session_id
 
 
-# 维护session main log 目录。
+# 返回运行级根目录。
+def run_root_dir(repo_root: Path, identity: RuntimeIdentity) -> Path:
+    """参数：
+        repo_root: 仓库根目录。
+        identity: 当前 hook 运行时 identity。
+
+    返回：
+        当前运行的根目录。
+    """
+    base = session_root_dir(repo_root, identity)
+    if identity.has_run:
+        return base / 'runs' / identity.run_id
+    return base
+
+
+# 返回主 session 日志目录。
 def session_main_log_dir(repo_root: Path, identity: RuntimeIdentity) -> Path:
     """参数：
         repo_root: 仓库根目录。
@@ -309,7 +411,7 @@ def session_main_log_dir(repo_root: Path, identity: RuntimeIdentity) -> Path:
     返回：
         解析后的 HookContext；失败时携带 parse_error。
     """
-    return session_root_dir(repo_root, identity) / 'main'
+    return run_root_dir(repo_root, identity) / 'main'
 
 
 # 维护agent log 目录。
@@ -323,7 +425,7 @@ def agent_log_dir(repo_root: Path, identity: RuntimeIdentity | None = None) -> P
     """
     identity = identity or identity_from_values()
     if identity.is_agent:
-        return session_root_dir(repo_root, identity) / 'agents' / identity.agent_id
+        return run_root_dir(repo_root, identity) / 'agents' / identity.agent_id
     return session_main_log_dir(repo_root, identity)
 
 
@@ -346,7 +448,7 @@ def session_log_dirs(
         return [agent_log_dir(repo_root, identity)]
     dirs = [session_main_log_dir(repo_root, identity)]
     if include_agents:
-        agents_root = session_root_dir(repo_root, identity) / 'agents'
+        agents_root = run_root_dir(repo_root, identity) / 'agents'
         if agents_root.exists():
             dirs.extend(sorted(p for p in agents_root.iterdir() if p.is_dir()))
     return dirs
@@ -363,6 +465,8 @@ def quality_dir(repo_root: Path, identity: RuntimeIdentity | None = None) -> Pat
     """
     identity = identity or identity_from_values()
     base = repo_root / 'tmp' / QUALITY_DIR_NAME / identity.client / identity.session_id
+    if identity.has_run:
+        base = base / 'runs' / identity.run_id
     if identity.is_agent:
         return base / 'agents' / identity.agent_id
     return base / 'main'

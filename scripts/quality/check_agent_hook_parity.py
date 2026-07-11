@@ -8,10 +8,33 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 CODEX_HOOKS_JSON = ROOT / ".codex" / "hooks.json"
+QODER_SETTINGS_JSON = ROOT / ".qoder" / "settings.json"
 GATE_NAME = "agentHookParity"
 
 REQUIRED_HOOK_KEYS = ["pre_bash", "pre_write", "post_bash", "post_write", "stop"]
+CODEX_REQUIRED_BINDINGS = {
+    ("SessionStart", ""): ".codex/hooks/session-start.sh",
+    ("PreToolUse", "Bash"): ".codex/hooks/pre_tool_guard.sh",
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".codex/hooks/pre_write_guard.sh",
+    ("PostToolUse", "Bash"): ".codex/hooks/post_bash_guard.sh",
+    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".codex/hooks/post_tool_guard.sh",
+    ("PostToolUseFailure", ""): ".codex/hooks/tool_failure.sh",
+    ("Stop", ""): ".codex/hooks/stop_check.sh",
+    ("StopFailure", ""): ".codex/hooks/stop_failure.sh",
+    ("SessionEnd", ""): ".codex/hooks/session_end.sh",
+}
 PLATFORMS = ["claude", "codex", "qoder"]
+QODER_REQUIRED_BINDINGS = {
+    ("SessionStart", ""): ".qoder/hooks/session-start.sh",
+    ("PreToolUse", "Bash"): ".qoder/hooks/pre_tool_guard.sh",
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/pre_write_guard.sh",
+    ("PostToolUse", "Bash"): ".qoder/hooks/post_bash_guard.sh",
+    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/post_tool_guard.sh",
+    ("PostToolUseFailure", ""): ".qoder/hooks/tool_failure.sh",
+    ("Stop", ""): ".qoder/hooks/stop_check.sh",
+    ("StopFailure", ""): ".qoder/hooks/stop_failure.sh",
+    ("SessionEnd", ""): ".qoder/hooks/session_end.sh",
+}
 
 
 # 输出 FAIL 并返回非 0。
@@ -173,6 +196,38 @@ def _load_manifest() -> dict | None:
         return None
 
 
+# 返回 Qoder settings 中指定事件和 matcher 的命令列表。
+def _commands_for(settings: dict, event: str, matcher: str) -> list[str]:
+    """参数：
+        settings: Qoder settings JSON 对象。
+        event: hook 事件名。
+        matcher: hook matcher；空字符串表示无 matcher。
+
+    返回：
+        匹配到的 command hook 列表。
+    """
+    entries = settings.get("hooks", {}).get(event, [])
+    if not isinstance(entries, list):
+        return []
+    commands: list[str] = []
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if matcher and entry.get("matcher") != matcher:
+            continue
+        if not matcher and entry.get("matcher"):
+            continue
+        hooks = entry.get("hooks", [])
+        if not isinstance(hooks, list):
+            continue
+        for hook in hooks:
+            if isinstance(hook, dict) and hook.get("type") == "command":
+                command = hook.get("command")
+                if isinstance(command, str):
+                    commands.append(command)
+    return commands
+
+
 # 执行 hook parity 检查。
 def main() -> int:
     """返回：
@@ -319,18 +374,55 @@ def main() -> int:
             hooks_data = None
 
         if hooks_data is not None:
-            pre_tool_use = hooks_data.get("hooks", {}).get("PreToolUse", [])
-            write_matcher_found = False
-            for entry in pre_tool_use:
-                matcher = entry.get("matcher", "")
-                if "Write" in matcher and "Edit" in matcher:
-                    write_matcher_found = True
-                    break
-            if not write_matcher_found:
-                errors.append(
-                    ".codex/hooks.json PreToolUse 缺少 "
-                    "Write|Edit|MultiEdit|NotebookEdit matcher"
-                )
+            for (event, matcher), expected in CODEX_REQUIRED_BINDINGS.items():
+                commands = _commands_for(hooks_data, event, matcher)
+                if not any(expected in command and "git rev-parse --show-toplevel" in command for command in commands):
+                    suffix = f" matcher={matcher}" if matcher else ""
+                    errors.append(f".codex/hooks.json {event}{suffix} 未绑定 Git-root stable command for {expected}")
+            stop_commands = _commands_for(hooks_data, "Stop", "")
+            for command in stop_commands:
+                if ".codex/hooks/stop_check.sh" in command:
+                    stop_hook = hooks_data.get("hooks", {}).get("Stop", [])[0].get("hooks", [])[0]
+                    if int(stop_hook.get("timeout") or 0) < 1230:
+                        errors.append(".codex/hooks.json Stop timeout must exceed 1200s target timeout plus cleanup buffer")
+
+    if errors:
+        for e in errors:
+            print(f"[{GATE_NAME}] FAIL: {e}")
+        return 1
+
+    # 7. Qoder settings.json 必须真实绑定事件/matcher 到对应 wrapper，且不依赖相对 cwd。
+    if not QODER_SETTINGS_JSON.is_file():
+        errors.append(f"文件不存在: {QODER_SETTINGS_JSON.relative_to(ROOT)}")
+    else:
+        try:
+            qoder_settings = json.loads(QODER_SETTINGS_JSON.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            errors.append(f".qoder/settings.json 解析失败: {e}")
+            qoder_settings = None
+        if qoder_settings is not None:
+            for (event, matcher), expected in QODER_REQUIRED_BINDINGS.items():
+                commands = _commands_for(qoder_settings, event, matcher)
+                if not any(expected in command and "git rev-parse --show-toplevel" in command for command in commands):
+                    suffix = f" matcher={matcher}" if matcher else ""
+                    errors.append(f".qoder/settings.json {event}{suffix} 未绑定 Git-root stable command for {expected}")
+            stop_commands = _commands_for(qoder_settings, "Stop", "")
+            for command in stop_commands:
+                if ".qoder/hooks/stop_check.sh" in command:
+                    stop_hook = qoder_settings.get("hooks", {}).get("Stop", [])[0].get("hooks", [])[0]
+                    if int(stop_hook.get("timeout") or 0) < 1230:
+                        errors.append(".qoder/settings.json Stop timeout must exceed 1200s target timeout plus cleanup buffer")
+
+    # 8. Local-only settings 治理必须在 .gitignore 和 manifest 中一致。
+    gitignore = (ROOT / ".gitignore").read_text(encoding="utf-8") if (ROOT / ".gitignore").is_file() else ""
+    local_only = data.get("permission_policy", {}) if isinstance(data.get("permission_policy"), dict) else {}
+    for local_path in [".claude/settings.local.json", ".qoder/settings.local.json"]:
+        if local_path not in gitignore:
+            errors.append(f".gitignore 缺少 local-only 配置: {local_path}")
+    if local_only.get("local_settings_example") != ".claude/settings.local.example.json":
+        errors.append("permission_policy.local_settings_example 不一致")
+    if local_only.get("qoder_local_settings_example") != ".qoder/settings.local.example.json":
+        errors.append("permission_policy.qoder_local_settings_example 不一致")
 
     if errors:
         for e in errors:

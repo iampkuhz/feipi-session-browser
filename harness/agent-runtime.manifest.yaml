@@ -5,6 +5,8 @@ policy_files:
   - CLAUDE.md
   - .codex/model-instructions.md
   - .codex/config.toml
+  - .qoder/AGENTS.md
+  - .qoder/settings.json
 protected_roots:
   - .claude/
   - .codex/
@@ -39,27 +41,55 @@ platforms:
     config_files:
       - .codex/config.toml
       - .codex/hooks.json
+    codex_hook_binding_note: Codex CLI help exposes --dangerously-bypass-hook-trust; local CLI help does not expose a machine-readable hook schema command, so repository validation fail-closes on the checked-in command hook convention, activation marker, and config hash.
     hooks:
+      session_start: [.codex/hooks/session-start.sh]
       pre_bash: [.codex/hooks/pre_tool_guard.sh]
       pre_write: [.codex/hooks/pre_write_guard.sh]
       post_bash: [.codex/hooks/post_bash_guard.sh]
       post_write: [.codex/hooks/post_tool_guard.sh]
+      tool_failure: [.codex/hooks/tool_failure.sh]
       stop: [.codex/hooks/stop_check.sh]
+      stop_failure: [.codex/hooks/stop_failure.sh]
+      session_end: [.codex/hooks/session_end.sh]
     agents_dir: .codex/agents
     skills_dir: .agents/skills
   qoder:
     config_files:
       - .qoder/AGENTS.md
+      - .qoder/settings.json
+      - .qoder/settings.local.example.json
       - .qoder/hook-bindings.md
-    qoder_hook_binding_note: qoder runtime must bind .qoder/hooks/pre_write_guard.sh to Write/Edit/MultiEdit before write operations when supported
+    qoder_hook_binding_note: qoder settings use the repository hook schema convention shared with .claude/settings.json and .codex/hooks.json; no local Qoder CLI/schema was available during validation, so unsupported native WorktreeCreate/WorktreeRemove remain documented with fallback.
     hooks:
+      session_start: [.qoder/hooks/session-start.sh]
       pre_bash: [.qoder/hooks/pre_tool_guard.sh]
       pre_write: [.qoder/hooks/pre_write_guard.sh]
       post_bash: [.qoder/hooks/post_bash_guard.sh]
       post_write: [.qoder/hooks/post_tool_guard.sh]
+      tool_failure: [.qoder/hooks/tool_failure.sh]
       stop: [.qoder/hooks/stop_check.sh]
+      stop_failure: [.qoder/hooks/stop_failure.sh]
+      session_end: [.qoder/hooks/session_end.sh]
+      worktree_create_unsupported_reason: Qoder native WorktreeCreate lifecycle is not present in repository-supported hook schema; launcher/sessionctl worktree binding is the fallback.
+      worktree_remove_unsupported_reason: Qoder native WorktreeRemove lifecycle is not present in repository-supported hook schema; sessionctl cleanup is the fallback.
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
+primary_session_rollout:
+  modes: [managed-worktree, read-only-unbound, legacy-single-writer, blocked]
+  safe_defaults:
+    sessionctl_start: managed-worktree
+    direct_launch: read-only-unbound
+    legacy_single_writer_requires: FEIPI_PRIMARY_SESSION_MODE=legacy-single-writer
+  multi_primary_writable_only: managed-worktree
+  legacy_data_read_compatibility:
+    tmp_agent_logs: readable-no-auto-migration
+    tmp_active_change_json: legacy-single-writer-only
+  rollback:
+    cleanup_default: dry-run
+    keep_worktree_and_branch: true
+    dirty_worktree_cleanup: BLOCK
+
 worktree_isolation:
   mode: per-main-session-git-worktree
   applies_to_clients: [claude, codex, qoder]
@@ -67,11 +97,32 @@ worktree_isolation:
   subagent_behavior: inherit-main-session-worktree
   default_parent: outside-repository-root
   assignment_marker: git-common-dir/feipi-agent-runtime/worktrees/client/session.json
+  sessionctl: scripts/harness/sessionctl.py
+  registry_root: FEIPI_AGENT_RUNTIME_ROOT or git-common-dir/feipi-agent-runtime
   enforcement_hooks:
     session_start: claude-eager-create
     pre_bash: all-clients-mutating-bash
     pre_write: all-clients-write-like-tools
     stop: all-clients-fail-closed-on-wrong-checkout-with-changes
+
+resource_isolation:
+  lock_root: FEIPI_AGENT_RUNTIME_ROOT/locks
+  lock_manager: scripts/harness/resource_lock.py
+  port_allocator: scripts/harness/port_allocator.py
+  ordered_multi_resource_acquire: true
+  stale_pid_reclaim: true
+  owner_metadata_fields: [runId, client, sessionId, worktreeId, target, pid, processStartTime, acquiredAt, hostMarker]
+  named_resources:
+    - gradle-daemon
+    - java-build-tree
+    - fixture-server
+    - playwright-browser
+    - runtime-report
+  run_scoped_outputs:
+    - FEIPI_AGENT_RUNTIME_ROOT/runs/<run-id>/tmp
+    - FEIPI_AGENT_RUNTIME_ROOT/runs/<run-id>/playwright
+    - tmp/quality/<client>/<session-id>/runs/<run-id>/main
+
 shared_skills:
   registry: harness/skill-registry.yaml
   source_root: skills/authoring
@@ -90,6 +141,7 @@ permission_policy:
   committed_settings_must_not_contain_local_absolute_paths: true
   bypass_permissions_allowed_only_with_pre_write_guard: true
   local_settings_example: .claude/settings.local.example.json
+  qoder_local_settings_example: .qoder/settings.local.example.json
 required_gates:
   - scripts/quality/check_agent_runtime_manifest.py
   - scripts/quality/check_agent_hook_parity.py
@@ -99,6 +151,7 @@ required_gates:
   - scripts/quality/check_agent_rules_sync.py
   - scripts/quality/check_agent_runtime_isolation.py
   - scripts/quality/check_agent_runtime_worktree.py
+  - scripts/quality/check_primary_session_manifest.py
   - scripts/quality/check_gate_bypass_resistance.py
   - scripts/quality/measure_gate_escape_rate.py
   - scripts/quality/check_protected_roots_sync.py

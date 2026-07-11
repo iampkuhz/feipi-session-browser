@@ -210,6 +210,9 @@ class TestIdentityScopedStopQualityGate:
         )
         monkeypatch.setattr(_sqg, 'REPO_ROOT', tmp_path)
         monkeypatch.setattr(_sqg, 'IDENTITY', identity)
+        default_changed = _sqg.runtime_paths.agent_log_dir(tmp_path, identity) / 'changed-files.jsonl'
+        monkeypatch.setattr(_sqg, 'CHANGED_FILES', default_changed)
+        monkeypatch.setattr(_sqg, 'DEFAULT_CHANGED_FILES', default_changed)
         reader_file = (
             tmp_path
             / 'tmp'

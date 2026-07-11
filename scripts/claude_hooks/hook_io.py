@@ -127,6 +127,54 @@ class HookContext:
         """
         return self._raw_string('session_id', 'sessionId')
 
+
+    # 返回当前运行 id。
+    @property
+    def run_id(self) -> str:
+        """返回：
+            当前 hook 输入中的运行 id。
+        """
+        return self._raw_string('run_id', 'runId')
+
+    # 返回当前任务 id。
+    @property
+    def task_id(self) -> str:
+        """返回：
+            当前 hook 输入中的任务 id。
+        """
+        return self._raw_string('task_id', 'taskId')
+
+    # 返回当前 worktree id。
+    @property
+    def worktree_id(self) -> str:
+        """返回：
+            当前 hook 输入中的 worktree id。
+        """
+        return self._raw_string('worktree_id', 'worktreeId')
+
+    # 返回当前 turn id。
+    @property
+    def turn_id(self) -> str:
+        """返回：
+            当前 hook 输入中的 turn id。
+        """
+        return self._raw_string('turn_id', 'turnId')
+
+    # 判断 Stop hook 是否已激活。
+    @property
+    def stop_hook_active(self) -> bool:
+        """返回：
+            Stop hook 激活时返回 true，否则返回 false。
+        """
+        value = self.raw.get('stop_hook_active')
+        if value is None:
+            value = self.raw.get('stopHookActive')
+        if isinstance(value, bool):
+            return value
+        if isinstance(value, str):
+            return value.strip().lower() in {'1', 'true', 'yes', 'on'}
+        return False
+
     # 返回 Claude hook 输入中的 transcript 路径。
     @property
     # 维护 transcript_path 函数行为。

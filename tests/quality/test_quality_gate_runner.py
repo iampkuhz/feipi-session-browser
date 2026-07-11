@@ -807,22 +807,24 @@ class TestJavaChineseCommentsGateCommand:
 
 
 class TestJavaRecordComponentJavadocsGateCommand:
-    """javaRecordComponentJavadocs gate 已迁移到 Java Gradle task。"""
+    """javaRecordComponentJavadocs gate 必须使用仓库内脚本。"""
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_uses_gradle_task(self, tmp_path: Path):
-        """gate 命令指向 Gradle verifyJavaRecordComponentJavadocs task。"""
-        gradlew = tmp_path / 'gradlew'
-        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+    def test_gate_command_uses_repo_checker(self, tmp_path: Path):
+        """gate 命令指向 record component Javadoc 检查脚本。"""
+        checker = tmp_path / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('# mock', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
 
-        assert cmd, 'gradlew 存在时命令不应为空'
-        assert any('verifyJavaRecordComponentJavadocs' in str(c) for c in cmd)
+        assert cmd, '仓库内脚本存在时命令不应为空'
+        assert any('check_java_record_component_javadocs.py' in str(c) for c in cmd)
+        assert 'java' in cmd
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_blocked_when_gradlew_absent(self, tmp_path: Path):
-        """gradlew 不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
+    def test_gate_blocked_when_checker_absent(self, tmp_path: Path):
+        """检查脚本不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
         cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
         assert cmd == []
 
@@ -878,14 +880,20 @@ class TestSessionSamplesGateCommand:
         assert 'sessionSamples' in gates
 
     @pytest.mark.contract_case('SESSION-SAMPLES-001')
-    def test_session_samples_uses_gradlew_task(self, tmp_path: Path):
-        """sessionSamples gate 必须通过独立 Gradle task 执行。"""
+    def test_session_samples_uses_repo_wrapper(self, tmp_path: Path):
+        """sessionSamples gate 必须通过仓库 wrapper 执行 Gradle task。"""
         gradlew = tmp_path / 'gradlew'
         gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+        runner = tmp_path / 'scripts' / 'quality' / 'run_session_samples_gate.py'
+        runner.parent.mkdir(parents=True)
+        runner.write_text('#!/usr/bin/env python3\n', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('sessionSamples', tmp_path, 'scan-script-smoke')
 
-        assert cmd == [str(gradlew), ':java:tests:contracts:sampleIntegrationTest', '--no-daemon']
+        assert cmd
+        assert any('run_session_samples_gate.py' in str(part) for part in cmd)
+        assert '--repo-root' in cmd
+        assert str(tmp_path) in cmd
 
     @pytest.mark.contract_case('SESSION-SAMPLES-001')
     def test_session_sample_docs_trigger_scan_target(self):

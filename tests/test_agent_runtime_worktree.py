@@ -124,6 +124,41 @@ def test_marker_is_shared_from_linked_worktree(tmp_path, monkeypatch):
     assert data['worktreePath'] == str(target)
 
 
+def test_stop_exec_root_uses_latest_assignment_without_payload(tmp_path):
+    repo = _git_repo(tmp_path)
+    assigned = tmp_path / 'assigned'
+    _run(['git', 'worktree', 'add', '--detach', str(assigned), 'HEAD'], repo)
+    (assigned / 'scripts' / 'harness').mkdir(parents=True)
+    (assigned / 'scripts' / 'harness' / 'stop_entry.py').write_text('# stop entry marker\n', encoding='utf-8')
+    identity = identity_from_values('codex', 'session-a', '')
+    marker = assignment_marker_path(repo, identity)
+    marker.parent.mkdir(parents=True, exist_ok=True)
+    marker.write_text(
+        json.dumps(
+            {
+                'schemaVersion': 1,
+                'client': 'codex',
+                'sessionId': 'session-a',
+                'worktreePath': str(assigned.resolve()),
+                'primaryRepoRoot': str(repo.resolve()),
+            }
+        ),
+        encoding='utf-8',
+    )
+    common_sh = Path(__file__).resolve().parents[1] / '.codex' / 'hooks' / 'lib' / 'common.sh'
+
+    proc = subprocess.run(
+        ['bash', '-c', f'source "{common_sh}"; hook_exec_root_from_payload "{repo}" "" codex'],
+        cwd=repo,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        check=True,
+    )
+
+    assert proc.stdout.strip() == str(assigned.resolve())
+
+
 def test_hook_context_cwd_falls_back_to_wrapper_env(monkeypatch):
     monkeypatch.setenv('FEIPI_HOOK_CWD', '/tmp/assigned-worktree')
     ctx = read_stdin_json('pre-bash', '{"tool_name":"Bash","tool_input":{"command":"git status"}}')
@@ -178,3 +213,32 @@ def test_shell_hook_exec_root_prefers_linked_worktree(tmp_path):
     resolved = subprocess.check_output(['bash', '-c', script], text=True).strip()
 
     assert resolved == str(worktree)
+
+
+def test_shell_hook_exec_root_from_payload_uses_assignment_when_cwd_is_base(tmp_path, monkeypatch):
+    """Stop wrapper 从 base checkout 启动时，也必须根据 stdin session 切到 assigned worktree。"""
+    repo = _git_repo(tmp_path)
+    helper_target = repo / 'scripts' / 'harness'
+    helper_target.mkdir(parents=True)
+    (helper_target / 'agent_stop_check.py').write_text('# synthetic stop runner\n', encoding='utf-8')
+    _run(['git', 'add', 'scripts/harness/agent_stop_check.py'], repo)
+    _run(['git', 'commit', '-m', 'add hook runner'], repo)
+    monkeypatch.setenv('FEIPI_AGENT_WORKTREE_ROOT', str(tmp_path / 'worktrees'))
+    identity = identity_from_values('codex', 'session-payload', '')
+    created = check_session_worktree(repo, identity, create=True)
+    target = Path(created.expected_root)
+    payload = tmp_path / 'stop-payload.json'
+    payload.write_text(
+        json.dumps({'session_id': 'session-payload', 'agent_client': 'codex'}),
+        encoding='utf-8',
+    )
+    common = Path(__file__).resolve().parents[1] / '.codex' / 'hooks' / 'lib' / 'common.sh'
+    script = (
+        f'source "{common}"; '
+        f'FEIPI_HOOK_CWD="{repo}"; '
+        f'hook_exec_root_from_payload "{repo}" "{payload}" "codex"'
+    )
+
+    resolved = subprocess.check_output(['bash', '-c', script], text=True).strip()
+
+    assert resolved == str(target)

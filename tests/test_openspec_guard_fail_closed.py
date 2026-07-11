@@ -114,6 +114,7 @@ def copy_runtime_guard_fixture(root: Path) -> None:
         'scripts/claude_hooks/policy/file_policy.py',
         '.codex/hooks/pre_write_guard.sh',
         '.qoder/hooks/pre_write_guard.sh',
+        '.codex/hooks/lib/common.sh',
     ]
     for rel in files:
         src = REPO / rel
@@ -122,6 +123,7 @@ def copy_runtime_guard_fixture(root: Path) -> None:
         shutil.copy2(src, dst)
     for rel in [
         'scripts/agent_runtime/__init__.py',
+        'scripts/harness/__init__.py',
         'scripts/claude_hooks/__init__.py',
         'scripts/claude_hooks/policy/__init__.py',
         'scripts/quality/__init__.py',
@@ -149,6 +151,23 @@ def copy_runtime_guard_fixture(root: Path) -> None:
         "def record_pre_bash_snapshot(*args, **kwargs): return True\n",
         encoding='utf-8',
     )
+    harness = root / 'scripts' / 'harness' / 'primary_session.py'
+    harness.parent.mkdir(parents=True, exist_ok=True)
+    harness.write_text(
+        "def validate_run_write_authorization(*args, **kwargs): return (True, [], {})\n"
+        "def validate_legacy_single_writer(*args, **kwargs): return []\n"
+        "def load_run_record(*args, **kwargs): return None\n",
+        encoding='utf-8',
+    )
+    worktree = root / 'scripts' / 'agent_runtime' / 'worktree.py'
+    worktree.parent.mkdir(parents=True, exist_ok=True)
+    worktree.write_text(
+        "class D:\n"
+        "    allowed=True; required=False; assigned=True; reason=''\n"
+        "    def as_dict(self): return {'allowed': True}\n"
+        "def check_session_worktree(*args, **kwargs): return D()\n",
+        encoding='utf-8',
+    )
     (root / 'scripts' / 'claude_hooks' / 'hook_io.py').write_text(
         "import json, sys\n"
         "class HookContext:\n"
@@ -167,6 +186,18 @@ def copy_runtime_guard_fixture(root: Path) -> None:
         "    def agent_id(self): return str(self.raw.get('agent_id') or self.raw.get('agentId') or '')\n"
         "    @property\n"
         "    def agent_client(self): return str(self.raw.get('agent_client') or self.raw.get('agentClient') or self.raw.get('client') or '')\n"
+        "    @property\n"
+        "    def run_id(self): return str(self.raw.get('run_id') or self.raw.get('runId') or '')\n"
+        "    @property\n"
+        "    def task_id(self): return str(self.raw.get('task_id') or self.raw.get('taskId') or '')\n"
+        "    @property\n"
+        "    def worktree_id(self): return str(self.raw.get('worktree_id') or self.raw.get('worktreeId') or '')\n"
+        "    @property\n"
+        "    def turn_id(self): return str(self.raw.get('turn_id') or self.raw.get('turnId') or '')\n"
+        "    @property\n"
+        "    def stop_hook_active(self): return False\n"
+        "    @property\n"
+        "    def cwd(self): return str(self.raw.get('cwd') or '')\n"
         "    @property\n"
         "    def candidate_paths(self):\n"
         "        out=[]\n"

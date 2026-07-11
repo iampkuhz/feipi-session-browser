@@ -1,5 +1,6 @@
 // @ts-check
 const { defineConfig } = require('@playwright/test');
+const path = require('path');
 
 function resolveWorkers() {
   const raw = process.env.SESSION_BROWSER_PLAYWRIGHT_WORKERS || process.env.PLAYWRIGHT_WORKERS || '';
@@ -8,6 +9,9 @@ function resolveWorkers() {
   return 8;
 }
 
+const runId = process.env.FEIPI_RUN_ID || process.env.FEIPI_SESSION_ID || `pid-${process.pid}`;
+const runtimeRoot = process.env.FEIPI_AGENT_RUNTIME_ROOT || path.join(process.cwd(), 'tmp', 'agent-runtime');
+const runOutputRoot = process.env.PLAYWRIGHT_OUTPUT_ROOT || path.join(runtimeRoot, 'runs', runId, 'playwright');
 const fixtureBaseURL = process.env.BASE_URL || 'http://127.0.0.1:19099';
 const reuseFixtureServer = process.env.SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER === '1';
 process.env.BASE_URL = fixtureBaseURL;
@@ -36,7 +40,7 @@ module.exports = defineConfig({
   workers: resolveWorkers(),
   reporter: [
     ['./tests/playwright/no-skip-reporter.js'],
-    ['html', { outputFolder: 'reports/playwright-report' }],
+    ['html', { outputFolder: path.join(runOutputRoot, 'report') }],
     ['list'],
   ],
   webServer: {
@@ -62,5 +66,5 @@ module.exports = defineConfig({
     },
   ],
 
-  outputDir: 'test-results/',
+  outputDir: path.join(runOutputRoot, 'test-results'),
 });

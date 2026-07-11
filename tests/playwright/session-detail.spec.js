@@ -32,7 +32,9 @@ const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
 
-const SCREENSHOT_DIR = path.join(__dirname, '..', 'test-results', 'screenshots');
+const runId = process.env.FEIPI_RUN_ID || process.env.FEIPI_SESSION_ID || `pid-${process.pid}`;
+const runtimeRoot = process.env.FEIPI_AGENT_RUNTIME_ROOT || path.join(__dirname, '..', 'tmp', 'agent-runtime');
+const SCREENSHOT_DIR = process.env.SESSION_BROWSER_SCREENSHOT_DIR || path.join(runtimeRoot, 'runs', runId, 'playwright', 'screenshots');
 
 /**
  * 解析会话详情 URL。优先级：PW_SESSION_URL 环境变量 > fixture server URL。

@@ -5,6 +5,7 @@ import argparse
 import asyncio
 import contextlib
 import json
+import os
 import sys
 import time
 from datetime import datetime, timezone
@@ -13,7 +14,9 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
 # 默认 输出 目录。
-DEFAULT_OUT = REPO_ROOT / 'test-results' / 'quality' / 'llm-attribution-visual'
+_RUN_ID = os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
+_RUNTIME_ROOT = Path(os.environ.get('FEIPI_AGENT_RUNTIME_ROOT', REPO_ROOT / 'tmp' / 'agent-runtime'))
+DEFAULT_OUT = _RUNTIME_ROOT / 'runs' / _RUN_ID / 'test-results' / 'quality' / 'llm-attribution-visual'
 
 OVERFLOW_MARGIN_PX = 2
 HTTP_ERROR_MIN = 400

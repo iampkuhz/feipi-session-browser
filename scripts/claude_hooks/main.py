@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sys
+import os
 import shlex
 import subprocess
 from pathlib import Path
@@ -26,6 +27,10 @@ from .self_test import run_self_test
 from scripts.quality import changed_files as changed_file_utils
 from scripts.agent_runtime.policy import is_protected_path
 from scripts.agent_runtime.worktree import check_session_worktree
+from scripts.harness.primary_session import (
+    validate_legacy_single_writer,
+    validate_run_write_authorization,
+)
 
 
 # 维护 _is_deterministic_validation_command 函数行为。
@@ -126,6 +131,114 @@ def _paths_for_context(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
     return build_paths(repo_root=hint, identity=paths.identity)
 
 
+
+# Codex/Qoder 首个安全 hook 可把启动器注入的运行标识绑定到真实会话。
+def _maybe_lazy_bind_session(paths: RepoPaths, ctx: HookContext) -> None:
+    """返回：
+        无返回值；无法证明激活时后续写授权保持故障关闭。
+    """
+    if paths.identity.client not in {'codex', 'qoder'}:
+        return
+    run_id = ctx.run_id or os.environ.get('FEIPI_RUN_ID', '')
+    session_id = ctx.session_id or os.environ.get('FEIPI_SESSION_ID', '')
+    cwd = ctx.cwd or os.environ.get('FEIPI_HOOK_CWD', '') or str(paths.repo_root)
+    if not run_id or not session_id:
+        return
+    try:
+        proc = subprocess.run(
+            [
+                sys.executable,
+                str(paths.repo_root / 'scripts' / 'harness' / 'sessionctl.py'),
+                '--repo-root',
+                str(paths.repo_root),
+                'bind-session',
+                '--run-id',
+                run_id,
+                '--session-id',
+                session_id,
+                '--client',
+                paths.identity.client,
+                '--cwd',
+                cwd,
+            ],
+            cwd=paths.repo_root,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=30,
+            check=False,
+        )
+    except Exception as exc:
+        record_hook_event(paths, ctx, status='LAZY_BIND_BLOCKED', extra={'event': 'hook-activation', 'reason': str(exc)})
+        return
+    if proc.returncode == 0:
+        record_hook_event(paths, ctx, status='LAZY_BIND', extra={'event': 'hook-activation', 'source': 'first-safe-hook'})
+    else:
+        reason = (proc.stderr or proc.stdout).strip() or 'sessionctl bind-session failed'
+        record_hook_event(paths, ctx, status='LAZY_BIND_BLOCKED', extra={'event': 'hook-activation', 'reason': reason})
+
+
+
+# 判断是否显式启用 legacy 单写兼容。
+def _legacy_single_writer_requested() -> bool:
+    """返回：
+        已启用时返回 true。
+    """
+    requested_mode = os.environ.get('FEIPI_PRIMARY_SESSION_MODE', '').strip().lower()
+    legacy_env = os.environ.get('FEIPI_LEGACY_SINGLE_WRITER', '').lower() in {'1', 'true', 'yes', 'on'}
+    return requested_mode == 'legacy-single-writer' or legacy_env
+
+# 校验运行级写入授权并按需阻断。
+def _run_mutation_block(paths: RepoPaths, ctx: HookContext, candidate_paths: list[str] | None = None) -> HookResult | None:
+    """参数：
+        paths: 当前仓库路径上下文。
+        ctx: 当前 hook 输入上下文。
+        candidate_paths: 候选写入路径列表。
+
+    返回：
+        需要阻断时返回 HookResult；允许继续时返回 None。
+    """
+    if not paths.identity.has_run:
+        if _legacy_single_writer_requested():
+            allowed, errors = validate_legacy_single_writer(paths.repo_root)
+            if allowed:
+                warning = 'legacy-single-writer mode is explicit compatibility only; it is not multi-primary writable'
+                record_hook_event(paths, ctx, status='LEGACY_SINGLE_WRITER', extra={'warning': warning})
+                return None
+            reason = '; '.join(errors)
+            record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
+            return HookResult(status='BLOCK', exit_code=2, message=reason)
+        legacy_assignment = check_session_worktree(paths.repo_root, paths.identity, create=False)
+        if legacy_assignment.assigned and legacy_assignment.allowed:
+            warning = 'legacy-single-writer inferred from existing single-session worktree assignment; not multi-primary writable'
+            record_hook_event(paths, ctx, status='LEGACY_SINGLE_WRITER', extra={'warning': warning})
+            return None
+        display_client = paths.identity.client.capitalize() if paths.identity.client == 'codex' else paths.identity.client
+        reason = (
+            f'unbound {display_client} session is read-only-unbound; mutating operation requires '
+            'a managed-worktree run with FEIPI_RUN_ID and confirmed hook activation'
+        )
+        record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason, 'mode': 'read-only-unbound'})
+        return HookResult(status='BLOCK', exit_code=2, message=reason)
+    allowed, errors, record = validate_run_write_authorization(
+        paths.repo_root,
+        client=paths.identity.client,
+        session_id=ctx.session_id or paths.identity.raw_session_id,
+        run_id=paths.identity.raw_run_id,
+        change_id=paths.identity.change_id,
+        candidate_paths=candidate_paths or [],
+    )
+    if allowed:
+        return None
+    reason = 'run-scoped writable ownership BLOCK: ' + '; '.join(errors)
+    record_hook_event(
+        paths,
+        ctx,
+        status='BLOCK',
+        extra={'reason': reason, 'runOwnership': {'runId': paths.identity.raw_run_id, 'errors': errors}},
+    )
+    return HookResult(status='BLOCK', exit_code=2, message=reason)
+
 # 变更类工具必须运行在 main session 分配的 worktree 中。
 def _worktree_mutation_block(paths: RepoPaths, ctx: HookContext) -> HookResult | None:
     """参数：
@@ -175,9 +288,13 @@ def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
             record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
             return HookResult(status='BLOCK', exit_code=2, message=reason)
         if mutation_tracking:
-            worktree_block = _worktree_mutation_block(paths, ctx)
-            if worktree_block is not None:
-                return worktree_block
+            run_block = _run_mutation_block(paths, ctx)
+            if run_block is not None:
+                return run_block
+            if paths.identity.has_run or not _legacy_single_writer_requested():
+                worktree_block = _worktree_mutation_block(paths, ctx)
+                if worktree_block is not None:
+                    return worktree_block
         if mutation_tracking and not acquire_bash_mutation_lock(paths, ctx):
             reason = '另一个 Bash mutation attribution 正在运行；请稍后重试该命令。'
             lock_info = read_bash_mutation_lock_info(paths) or {}
@@ -232,9 +349,13 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
         reason = payload_reason
         record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
         return HookResult(status='BLOCK', exit_code=2, message=reason)
-    worktree_block = _worktree_mutation_block(paths, ctx)
-    if worktree_block is not None:
-        return worktree_block
+    run_block = _run_mutation_block(paths, ctx, ctx.candidate_paths)
+    if run_block is not None:
+        return run_block
+    if paths.identity.has_run or not _legacy_single_writer_requested():
+        worktree_block = _worktree_mutation_block(paths, ctx)
+        if worktree_block is not None:
+            return worktree_block
     for path in ctx.candidate_paths:
         if is_protected_path(path, paths.repo_root):
             guard = subprocess.run(
@@ -243,6 +364,12 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
                     str(paths.repo_root / 'scripts' / 'hooks' / 'guard_openspec_change.py'),
                     '--path',
                     path,
+                    '--run-id',
+                    paths.identity.raw_run_id,
+                    '--session-id',
+                    ctx.session_id or paths.identity.raw_session_id,
+                    '--client',
+                    paths.identity.client,
                 ],
                 cwd=paths.repo_root,
                 text=True,
@@ -354,6 +481,7 @@ def main(argv: list[str] | None = None) -> int:
     identity = identity_from_hook_context(ctx)
     paths = build_paths(repo_root=ctx.cwd or None, identity=identity)
     ensure_runtime_dirs(paths)
+    _maybe_lazy_bind_session(paths, ctx)
 
     if event_name == 'pre-bash':
         return emit(handle_pre_bash(paths, ctx))

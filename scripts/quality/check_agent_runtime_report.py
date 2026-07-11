@@ -282,6 +282,58 @@ def validate_report_content(
     return errors
 
 
+
+# 显式校验 run-scoped runtime report；调用方必须传入所有运行上下文。
+def validate_runtime_report(
+    *,
+    run_id: str,
+    client: str,
+    session_id: str,
+    change_id: str,
+    worktree_root: Path,
+    changed_files: list[str],
+    report_path: Path,
+) -> list[str]:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    errors: list[str] = []
+    if not run_id:
+        errors.append("run_id is required for run-scoped runtime report")
+    if not client:
+        errors.append("client is required for run-scoped runtime report")
+    if not session_id:
+        errors.append("session_id is required for run-scoped runtime report")
+    if not change_id:
+        errors.append("change_id is required for run-scoped runtime report")
+    if not Path(worktree_root).exists():
+        errors.append(f"worktree_root does not exist: {worktree_root}")
+    try:
+        report = json.loads(Path(report_path).read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError) as exc:
+        return [f"report JSON 解析失败: {report_path} — {exc}"]
+
+    if str(report.get("run_id") or report.get("runId") or "") != run_id:
+        errors.append("report run_id does not match explicit run_id")
+    if str(report.get("client") or report.get("agent_platform") or "") != client:
+        errors.append("report client does not match explicit client")
+    if str(report.get("session_id") or report.get("sessionId") or "") != session_id:
+        errors.append("report session_id does not match explicit session_id")
+    if str(report.get("change_id") or report.get("changeId") or "") != change_id:
+        errors.append("report change_id does not match explicit change_id")
+
+    protected_in_run = [path for path in changed_files if is_protected(path)]
+    errors.extend(validate_report_content(report, protected_in_run))
+    report_changed = report.get("changed_files", [])
+    if not isinstance(report_changed, list):
+        report_changed = []
+    if set(report_changed) != set(changed_files):
+        errors.append("report changed_files must exactly match explicit run changed_files")
+    return errors
+
 # 执行 runtime report 一致性检查。
 def main() -> int:
     """参数：
@@ -292,8 +344,40 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(description="检查 agent runtime report 一致性。")
     parser.add_argument("--change-id", default=None, help="OpenSpec change 标识")
+    parser.add_argument("--run-id", default=None, help="显式 run id；启用 run-scoped 校验")
+    parser.add_argument("--client", default=None, help="显式 agent client")
+    parser.add_argument("--session-id", default=None, help="显式 session id")
+    parser.add_argument("--worktree-root", default=None, help="显式 worktree root")
+    parser.add_argument("--changed-files", default=None, help="JSON array；显式 run changed files")
+    parser.add_argument("--report-path", default=None, help="显式 run-scoped report path")
     args = parser.parse_args()
 
+    if args.run_id or args.report_path:
+        if not all([args.run_id, args.client, args.session_id, args.change_id, args.worktree_root, args.changed_files, args.report_path]):
+            return fail("run-scoped runtime report requires --run-id --client --session-id --change-id --worktree-root --changed-files --report-path")
+        try:
+            changed_files = json.loads(args.changed_files)
+        except json.JSONDecodeError as exc:
+            return fail(f"--changed-files JSON 解析失败: {exc}")
+        if not isinstance(changed_files, list) or not all(isinstance(item, str) for item in changed_files):
+            return fail("--changed-files 必须是 string array")
+        errors = validate_runtime_report(
+            run_id=args.run_id,
+            client=args.client,
+            session_id=args.session_id,
+            change_id=args.change_id,
+            worktree_root=Path(args.worktree_root),
+            changed_files=changed_files,
+            report_path=Path(args.report_path),
+        )
+        if errors:
+            for error in errors:
+                print(f"[{GATE_NAME}] FAIL: {error}")
+            return 1
+        print(f"[{GATE_NAME}] PASS — run-scoped report 有效: {args.report_path}")
+        return 0
+
+    print(f"[{GATE_NAME}] legacy warning: legacy runtime report mode; not multi-primary safe", file=sys.stderr)
     change_id = resolve_change_id(args.change_id)
     protected_roots = get_protected_roots()
 

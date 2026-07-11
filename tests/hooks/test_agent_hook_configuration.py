@@ -37,32 +37,75 @@ def test_codex_project_hook_matrix_is_complete():
     """Codex repo 配置必须覆盖 Bash pre、write pre/post 和 Stop。"""
     commands = _commands_for_event(REPO_ROOT / '.codex' / 'hooks.json')
 
-    assert commands == {
-        ('PreToolUse', 'Bash'): ['.codex/hooks/pre_tool_guard.sh'],
-        ('PreToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): [
-            '.codex/hooks/pre_write_guard.sh'
-        ],
-        ('PostToolUse', 'Bash'): ['.codex/hooks/post_bash_guard.sh'],
-        ('PostToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): ['.codex/hooks/post_tool_guard.sh'],
-        ('Stop', ''): ['.codex/hooks/stop_check.sh'],
+    expected = {
+        ('SessionStart', ''): '.codex/hooks/session-start.sh',
+        ('PreToolUse', 'Bash'): '.codex/hooks/pre_tool_guard.sh',
+        ('PreToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): '.codex/hooks/pre_write_guard.sh',
+        ('PostToolUse', 'Bash'): '.codex/hooks/post_bash_guard.sh',
+        ('PostToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): '.codex/hooks/post_tool_guard.sh',
+        ('PostToolUseFailure', ''): '.codex/hooks/tool_failure.sh',
+        ('Stop', ''): '.codex/hooks/stop_check.sh',
+        ('StopFailure', ''): '.codex/hooks/stop_failure.sh',
+        ('SessionEnd', ''): '.codex/hooks/session_end.sh',
     }
+    assert set(commands) == set(expected)
+    for key, rel_path in expected.items():
+        assert len(commands[key]) == 1
+        command = commands[key][0]
+        assert 'git rev-parse --show-toplevel' in command
+        assert rel_path in command
+        assert '/feipi-session-browser' not in command
+
+    stop_hook = json.loads((REPO_ROOT / '.codex' / 'hooks.json').read_text(encoding='utf-8'))['hooks']['Stop'][0]['hooks'][0]
+    assert stop_hook['timeout'] >= 1230
+
+
+def test_qoder_project_hook_matrix_is_complete():
+    """Qoder 项目配置必须真实绑定共享 wrapper，而不是只检查文件存在。"""
+    commands = _commands_for_event(REPO_ROOT / '.qoder' / 'settings.json')
+
+    expected = {
+        ('SessionStart', ''): '.qoder/hooks/session-start.sh',
+        ('PreToolUse', 'Bash'): '.qoder/hooks/pre_tool_guard.sh',
+        ('PreToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): '.qoder/hooks/pre_write_guard.sh',
+        ('PostToolUse', 'Bash'): '.qoder/hooks/post_bash_guard.sh',
+        ('PostToolUse', 'Write|Edit|MultiEdit|NotebookEdit'): '.qoder/hooks/post_tool_guard.sh',
+        ('PostToolUseFailure', ''): '.qoder/hooks/tool_failure.sh',
+        ('Stop', ''): '.qoder/hooks/stop_check.sh',
+        ('StopFailure', ''): '.qoder/hooks/stop_failure.sh',
+        ('SessionEnd', ''): '.qoder/hooks/session_end.sh',
+    }
+    assert set(commands) == set(expected)
+    for key, rel_path in expected.items():
+        assert len(commands[key]) == 1
+        command = commands[key][0]
+        assert 'git rev-parse --show-toplevel' in command
+        assert rel_path in command
+        assert '/feipi-session-browser' not in command
+
+    stop_hook = json.loads((REPO_ROOT / '.qoder' / 'settings.json').read_text(encoding='utf-8'))['hooks']['Stop'][0]['hooks'][0]
+    assert stop_hook['timeout'] >= 1230
 
 
 def test_qoder_hook_wrappers_delegate_to_shared_entrypoints():
-    """Qoder 当前没有独立 JSON 配置，repo 只维护四类 wrapper。"""
+    """Qoder wrapper 只设置 client 标识并 exec 共享 Python 入口。"""
     qoder_hooks = REPO_ROOT / '.qoder' / 'hooks'
+    for name, event in {
+        'pre_tool_guard.sh': 'pre-bash',
+        'pre_write_guard.sh': 'pre-write',
+        'post_bash_guard.sh': 'post-bash',
+        'post_tool_guard.sh': 'post-write',
+        'tool_failure.sh': 'tool-failure',
+        'stop_failure.sh': 'stop-failure',
+        'session_end.sh': 'session-end',
+    }.items():
+        text = (qoder_hooks / name).read_text(encoding='utf-8')
+        assert 'FEIPI_AGENT_CLIENT="qoder"' in text
+        assert f'scripts.claude_hooks.main {event}' in text
+        assert 'exec python3' in text
 
-    pre = (qoder_hooks / 'pre_tool_guard.sh').read_text(encoding='utf-8')
-    pre_write = (qoder_hooks / 'pre_write_guard.sh').read_text(encoding='utf-8')
-    post_bash = (qoder_hooks / 'post_bash_guard.sh').read_text(encoding='utf-8')
-    post = (qoder_hooks / 'post_tool_guard.sh').read_text(encoding='utf-8')
     stop = (qoder_hooks / 'stop_check.sh').read_text(encoding='utf-8')
-
-    assert '.codex/hooks/pre_tool_guard.sh' in pre
-    assert '.codex/hooks/pre_write_guard.sh' in pre_write
-    assert '.codex/hooks/post_bash_guard.sh' in post_bash
-    assert '.codex/hooks/post_tool_guard.sh' in post
-    assert 'scripts/harness/agent_stop_check.py' in stop
+    assert 'scripts/harness/stop_entry.py' in stop
     assert '--agent qoder' in stop
 
 
@@ -76,7 +119,10 @@ def test_all_stop_wrappers_use_shared_agent_stop_check():
 
     for rel_path, agent_arg in wrappers.items():
         text = (REPO_ROOT / rel_path).read_text(encoding='utf-8')
-        assert 'scripts/harness/agent_stop_check.py' in text, rel_path
+        assert (
+            'scripts/harness/agent_stop_check.py' in text
+            or 'scripts/harness/stop_entry.py' in text
+        ), rel_path
         assert agent_arg in text, rel_path
 
 
