@@ -231,29 +231,12 @@ tasks.named("check") {
 
 // ============================================================
 // verifyJavaRecordComponentJavadocs —— 校验 record component 中文 Javadoc。
+// 已迁移到 Java 实现 :java:tests:quality-gates:verifyJavaRecordComponentJavadocs。
 // ============================================================
-val verifyJavaRecordComponentJavadocs = tasks.register<Exec>("verifyJavaRecordComponentJavadocs") {
+val verifyJavaRecordComponentJavadocs = tasks.register("verifyJavaRecordComponentJavadocs") {
     group = "verification"
     description = "Verifies every Java record component has a Chinese @param Javadoc entry."
-
-    val checkerScript = file("scripts/quality/check_java_record_component_javadocs.py")
-    val reportFile = layout.buildDirectory.file("reports/java-record-component-javadocs/result.txt")
-
-    inputs.file(checkerScript).withPropertyName("checkerScript")
-    inputs.files(
-        fileTree("java").apply {
-            include("**/src/main/java/**/*.java")
-            exclude("**/build/**")
-        },
-    ).withPropertyName("javaMainSourceFiles")
-    outputs.file(reportFile).withPropertyName("resultFile")
-
-    commandLine("python3", checkerScript.absolutePath, "java")
-    doLast {
-        val result = reportFile.get().asFile
-        result.parentFile.mkdirs()
-        result.writeText("PASSED\n", Charsets.UTF_8)
-    }
+    dependsOn(":java:tests:quality-gates:verifyJavaRecordComponentJavadocs")
 }
 
 tasks.named("check") {

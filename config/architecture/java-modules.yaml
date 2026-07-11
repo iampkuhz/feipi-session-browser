@@ -102,6 +102,12 @@
       "packageRoots": [],
       "allowedProjectDeps": [],
       "transitionProjectDeps": []
+    },
+    ":java:tests:quality-gates": {
+      "sourceRoot": "java/tests/quality-gates/src/main/java",
+      "packageRoots": ["com.feipi.session.browser.quality.gates"],
+      "allowedProjectDeps": [],
+      "transitionProjectDeps": []
     }
   },
   "forbiddenImports": [

@@ -434,6 +434,25 @@ component com.feipi.session.browser.normalization.NormalizationEngine.Conservati
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult tokensConserved: boolean
+component com.feipi.session.browser.quality.gates.core.QualityViolation attributes: Map<String, String>
+component com.feipi.session.browser.quality.gates.core.QualityViolation code: String
+component com.feipi.session.browser.quality.gates.core.QualityViolation line: int
+component com.feipi.session.browser.quality.gates.core.QualityViolation message: String
+component com.feipi.session.browser.quality.gates.core.QualityViolation path: Path
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordComponentDeclaration line: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordComponentDeclaration name: String
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordComponentDeclaration startOffset: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordComponentDeclaration typeText: String
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration components: List<JavaRecordComponentDeclaration>
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration line: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration name: String
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration path: Path
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration startOffset: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration typeJavadoc: Optional<String>
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser.JavadocBlock end: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser.JavadocBlock line: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser.JavadocBlock start: int
+component com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser.JavadocBlock text: String
 component com.feipi.session.browser.query.api.CallRound cacheReadTokens: long
 component com.feipi.session.browser.query.api.CallRound cacheWriteTokens: long
 component com.feipi.session.browser.query.api.CallRound calls: List<String>
@@ -1679,6 +1698,7 @@ constructor com.feipi.session.browser.index.store.sqlite.util.PlatformDetectionR
 constructor com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils.WhereClauses public WhereClauses()
 constructor com.feipi.session.browser.index.store.sqlite.util.Thresholds public Thresholds()
 constructor com.feipi.session.browser.index.store.sqlite.util.WhereClauses public WhereClauses()
+constructor com.feipi.session.browser.quality.gates.core.QualityViolation public QualityViolation()
 constructor com.feipi.session.browser.query.api.AgentFilter public static final AgentFilter NONE = new AgentFilter("")
 constructor com.feipi.session.browser.query.api.AnomalyFilter public static final AnomalyFilter NONE = new AnomalyFilter(null)
 constructor com.feipi.session.browser.query.api.CallRound public CallRound( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId)
@@ -2073,6 +2093,9 @@ field com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator pub
 field com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator public MIN_ROWS: static final int
 field com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator public TOOL_CALL_CRITICAL_COUNT: static final long
 field com.feipi.session.browser.index.store.sqlite.util.PercentileCalculator public TOOL_CALL_WARNING_COUNT: static final long
+field com.feipi.session.browser.quality.gates.cli.QualityGateExitCodes public ERROR: static final int
+field com.feipi.session.browser.quality.gates.cli.QualityGateExitCodes public OK: static final int
+field com.feipi.session.browser.quality.gates.cli.QualityGateExitCodes public VIOLATIONS: static final int
 field com.feipi.session.browser.query.api.PageRequest public DEFAULT_LIMIT: static final int
 field com.feipi.session.browser.query.api.PageRequest public MAX_LIMIT: static final int
 field com.feipi.session.browser.query.api.PercentileCalculator public CACHE_WRITE_CRITICAL_TOKENS: static final long
@@ -2646,6 +2669,53 @@ method com.feipi.session.browser.normalization.EventClassifier.ClassifiedEvents 
 method com.feipi.session.browser.normalization.NormalizationEngine public NormalizedSessionArtifact normalize( NormalizedAgent agent, List<SourceRecord> records, List<SourceDiagnostic> diagnostics, List<NormalizedSourceFile> sourceFiles)
 method com.feipi.session.browser.normalization.TokenAccountant public static NormalizedCallUsage aggregate(List<NormalizedCallUsage> usages)
 method com.feipi.session.browser.normalization.TokenAccountant public static NormalizedCallUsage extractUsage(SourceRecord record)
+method com.feipi.session.browser.quality.gates.cli.ParityRunner public static void main(String[] args) throws Exception
+method com.feipi.session.browser.quality.gates.cli.QualityGateCli public static QualityGateRegistry createRegistry()
+method com.feipi.session.browser.quality.gates.cli.QualityGateCli public static int run(String[] args, PrintStream err, PrintStream out)
+method com.feipi.session.browser.quality.gates.cli.QualityGateCli public static void main(String[] args)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder environment(Map<String, String> environment)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder filesFrom(Path filesFrom)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder format(String format)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder inputPaths(List<Path> inputPaths)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder register(QualityGate gate)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder repoRoot(Path repoRoot)
+method com.feipi.session.browser.quality.gates.core.Builder public Builder reportFile(Path reportFile)
+method com.feipi.session.browser.quality.gates.core.Builder public QualityGateContext build()
+method com.feipi.session.browser.quality.gates.core.Builder public QualityGateRegistry build()
+method com.feipi.session.browser.quality.gates.core.QualityGate public List<QualityViolation> check(QualityGateContext context) throws Exception
+method com.feipi.session.browser.quality.gates.core.QualityGate public String id()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public List<Path> inputPaths()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public Map<String, String> environment()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public Optional<Path> filesFrom()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public Optional<Path> reportFile()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public Path repoRoot()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public String format()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext public static Builder builder()
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public Builder environment(Map<String, String> environment)
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public Builder filesFrom(Path filesFrom)
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public Builder format(String format)
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public Builder inputPaths(List<Path> inputPaths)
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public Builder repoRoot(Path repoRoot)
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public Builder reportFile(Path reportFile)
+method com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public QualityGateContext build()
+method com.feipi.session.browser.quality.gates.core.QualityGateRegistry public Optional<QualityGate> find(String id)
+method com.feipi.session.browser.quality.gates.core.QualityGateRegistry public java.util.Set<String> registeredIds()
+method com.feipi.session.browser.quality.gates.core.QualityGateRegistry public static Builder builder()
+method com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder public Builder register(QualityGate gate)
+method com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder public QualityGateRegistry build()
+method com.feipi.session.browser.quality.gates.core.ViolationReporter public static String formatJson(List<QualityViolation> violations)
+method com.feipi.session.browser.quality.gates.core.ViolationReporter public static String formatText(List<QualityViolation> violations)
+method com.feipi.session.browser.quality.gates.core.ViolationReporter public static void writeReport( List<QualityViolation> violations, Path reportFile, String format) throws IOException
+method com.feipi.session.browser.quality.gates.discovery.ChangedFilesFilter public static List<Path> filter(List<Path> files, String changedJson, Path repoRoot)
+method com.feipi.session.browser.quality.gates.discovery.ChangedFilesFilter public static String readFilesFrom(Path filesFrom)
+method com.feipi.session.browser.quality.gates.discovery.FileDiscovery public static List<Path> discover(List<Path> inputPaths) throws IOException
+method com.feipi.session.browser.quality.gates.discovery.FileDiscovery public static boolean isCandidate(Path path)
+method com.feipi.session.browser.quality.gates.discovery.FileDiscovery public static boolean isMainJavaSource(Path path)
+method com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser public List<JavaRecordDeclaration> parse(Path sourceFile) throws IOException
+method com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser public List<JavaRecordDeclaration> parseSource(Path sourceFile, String source)
+method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocChecker public static List<QualityViolation> checkFiles(List<Path> files, QualityGateContext context) throws Exception
+method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocGate public List<QualityViolation> check(QualityGateContext context) throws Exception
+method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocGate public String id()
 method com.feipi.session.browser.query.api.AgentFilter public String agent()
 method com.feipi.session.browser.query.api.AgentFilter public String toString()
 method com.feipi.session.browser.query.api.AgentFilter public boolean equals(Object obj)
@@ -3291,6 +3361,25 @@ type com.feipi.session.browser.normalization.EventClassifier.ClassifiedEvents pu
 type com.feipi.session.browser.normalization.NormalizationEngine public class [normalization-engine] final class NormalizationEngine
 type com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult public record [normalization-engine] record ConservationCheckResult( int declaredTools, int executedTools, int consumedResults, boolean tokensConserved)
 type com.feipi.session.browser.normalization.TokenAccountant public class [normalization-engine] final class TokenAccountant
+type com.feipi.session.browser.quality.gates.cli.ParityRunner public class [tests] final class ParityRunner
+type com.feipi.session.browser.quality.gates.cli.QualityGateCli public class [tests] final class QualityGateCli
+type com.feipi.session.browser.quality.gates.cli.QualityGateExitCodes public class [tests] final class QualityGateExitCodes
+type com.feipi.session.browser.quality.gates.core.Builder public class [tests] static final class Builder
+type com.feipi.session.browser.quality.gates.core.QualityGate public interface [tests] interface QualityGate
+type com.feipi.session.browser.quality.gates.core.QualityGateContext public class [tests] final class QualityGateContext
+type com.feipi.session.browser.quality.gates.core.QualityGateContext.Builder public class [tests] static final class Builder
+type com.feipi.session.browser.quality.gates.core.QualityGateRegistry public class [tests] final class QualityGateRegistry
+type com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder public class [tests] static final class Builder
+type com.feipi.session.browser.quality.gates.core.QualityViolation public record [tests] record QualityViolation( Path path, int line, String code, String message, Map<String, String> attributes)
+type com.feipi.session.browser.quality.gates.core.ViolationReporter public class [tests] final class ViolationReporter
+type com.feipi.session.browser.quality.gates.discovery.ChangedFilesFilter public class [tests] final class ChangedFilesFilter
+type com.feipi.session.browser.quality.gates.discovery.FileDiscovery public class [tests] final class FileDiscovery
+type com.feipi.session.browser.quality.gates.javaapi.JavaRecordComponentDeclaration public record [tests] record JavaRecordComponentDeclaration( String name, String typeText, int line, int startOffset)
+type com.feipi.session.browser.quality.gates.javaapi.JavaRecordDeclaration public record [tests] record JavaRecordDeclaration( Path path, String name, int line, int startOffset, Optional<String> typeJavadoc, List<JavaRecordComponentDeclaration> components)
+type com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser public class [tests] final class JavaRecordSourceParser
+type com.feipi.session.browser.quality.gates.javaapi.JavaRecordSourceParser.JavadocBlock public record [tests] record JavadocBlock(int start, int end, int line, String text)
+type com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocChecker public class [tests] final class RecordComponentJavadocChecker
+type com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocGate public class [tests] final class RecordComponentJavadocGate implements QualityGate
 type com.feipi.session.browser.query.api.AgentFilter public class [index-api] final class AgentFilter
 type com.feipi.session.browser.query.api.AnomalyFilter public class [index-api] final class AnomalyFilter
 type com.feipi.session.browser.query.api.AnomalySeverity public enum [index-api] enum AnomalySeverity

@@ -1751,7 +1751,6 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
                 'tests/quality/test_python_env_contract.py',
                 'tests/quality/test_no_test_skips_gate.py',
                 'tests/quality/test_java_classification.py',
-                'tests/quality/test_check_java_record_component_javadocs.py',
                 'tests/quality/test_warning_gate_cli.py',
             ],
             'harness': [
@@ -1850,10 +1849,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             cmd.extend(['--policy', str(policy)])
         return cmd
     if gate == 'javaRecordComponentJavadocs':
-        checker = repo_root / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
-        if not checker.exists():
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
             return []
-        return [python, str(checker), 'java']
+        return [str(gradlew), 'verifyJavaRecordComponentJavadocs']
     if gate == 'noJavaTestSkips':
         checker = repo_root / 'scripts' / 'quality' / 'check_no_java_test_skips.py'
         if not checker.exists():

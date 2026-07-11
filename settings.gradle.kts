@@ -26,6 +26,7 @@ include(
     "java:tests:support",
     "java:tests:architecture",
     "java:tests:contracts",
+    "java:tests:quality-gates",
     "java:application",
     "java:web",
 )

@@ -807,24 +807,22 @@ class TestJavaChineseCommentsGateCommand:
 
 
 class TestJavaRecordComponentJavadocsGateCommand:
-    """javaRecordComponentJavadocs gate 必须使用仓库内脚本。"""
+    """javaRecordComponentJavadocs gate 已迁移到 Java Gradle task。"""
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_uses_repo_checker(self, tmp_path: Path):
-        """gate 命令指向 record component Javadoc 检查脚本。"""
-        checker = tmp_path / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
-        checker.parent.mkdir(parents=True)
-        checker.write_text('# mock', encoding='utf-8')
+    def test_gate_command_uses_gradle_task(self, tmp_path: Path):
+        """gate 命令指向 Gradle verifyJavaRecordComponentJavadocs task。"""
+        gradlew = tmp_path / 'gradlew'
+        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
 
-        assert cmd, '仓库内脚本存在时命令不应为空'
-        assert any('check_java_record_component_javadocs.py' in str(c) for c in cmd)
-        assert 'java' in cmd
+        assert cmd, 'gradlew 存在时命令不应为空'
+        assert any('verifyJavaRecordComponentJavadocs' in str(c) for c in cmd)
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_blocked_when_checker_absent(self, tmp_path: Path):
-        """检查脚本不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
+    def test_gate_blocked_when_gradlew_absent(self, tmp_path: Path):
+        """gradlew 不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
         cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
         assert cmd == []
 
