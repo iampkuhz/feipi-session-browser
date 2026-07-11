@@ -64,14 +64,20 @@ def test_java_module_boundaries_gate_command_uses_repo_script() -> None:
     assert command[-1].endswith('scripts/quality/check_java_module_boundaries.py')
 
 
-def test_reuse_standard_cpd_gate_command_uses_gradle_task(tmp_path: Path) -> None:
-    """reuseStandardCpd gate 必须调用 Gradle 中的 PMD CPD 标准门禁。"""
-    gradlew = tmp_path / 'gradlew'
-    gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+def test_reuse_standard_cpd_gate_command_uses_incremental_wrapper(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """reuseStandardCpd gate 必须调用默认增量 wrapper，而不是直接全量 Gradle task。"""
+    monkeypatch.delenv('QUALITY_GATE_TIER', raising=False)
+    runner = tmp_path / 'scripts' / 'quality' / 'run_reuse_standard_cpd.py'
+    runner.parent.mkdir(parents=True)
+    runner.write_text('#!/usr/bin/env python3\n', encoding='utf-8')
 
     command = run_quality_gate.gate_command('reuseStandardCpd', tmp_path, 'java-src')
 
-    assert command == [str(gradlew), 'reuseStandardCpd']
+    assert command
+    assert command[1] == str(runner)
+    assert '--mode' not in command
 
 
 def test_run_quality_gate_can_resolve_active_change_id(tmp_path: Path) -> None:

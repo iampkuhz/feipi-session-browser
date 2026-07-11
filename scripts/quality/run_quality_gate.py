@@ -1865,10 +1865,13 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             return []
         return [str(gradlew), 'reuseAnalyzeIncremental']
     if gate == 'reuseStandardCpd':
-        gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
+        runner = repo_root / 'scripts' / 'quality' / 'run_reuse_standard_cpd.py'
+        if not runner.exists():
             return []
-        return [str(gradlew), 'reuseStandardCpd']
+        cmd = [python, str(runner)]
+        if os.environ.get('QUALITY_GATE_TIER') == 'full':
+            cmd.extend(['--mode', 'full'])
+        return cmd
     if gate == 'noJavaSuppressWarnings':
         checker = repo_root / 'scripts' / 'quality' / 'check_no_java_suppress_warnings.py'
         if not checker.exists():

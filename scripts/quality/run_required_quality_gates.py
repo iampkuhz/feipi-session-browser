@@ -349,12 +349,14 @@ def run_gate(
     change_id: str,
     quality_dir: Path | None = None,
     changed_files: list[str] | None = None,
+    full_baseline: bool = False,
 ) -> tuple[bool, str]:
     """参数：
         target: 当前要运行或解析的 quality gate target 名称。
         change_id: 当前 OpenSpec change id。
         quality_dir: quality dir 参数。
         changed_files: 待检查的文件列表。
+        full_baseline: 是否由 full tier 显式请求全量基线。
 
     返回：
         Computed 结果。
@@ -386,6 +388,12 @@ def run_gate(
     try:
         env = os.environ.copy()
         env.pop('QUALITY_CHANGED_FILES', None)
+        if full_baseline:
+            env['QUALITY_GATE_TIER'] = 'full'
+            env['QUALITY_REUSE_CPD_MODE'] = 'full'
+        else:
+            env.pop('QUALITY_GATE_TIER', None)
+            env.pop('QUALITY_REUSE_CPD_MODE', None)
         # 使用 target 元数据里的 timeout，避免 Java baseline 被固定 300 秒上限误杀。
         timeout = int(target_parallel_meta(target).get('timeout', 300))
         proc = subprocess.run(
@@ -811,7 +819,13 @@ def main() -> int:
                         file=sys.stderr,
                     )
                 gate_changed_files = None if tier == 'full' else changed_files
-                passed, artifact_path = run_gate(target, change_id, quality_dir, gate_changed_files)
+                passed, artifact_path = run_gate(
+                    target,
+                    change_id,
+                    quality_dir,
+                    gate_changed_files,
+                    full_baseline=tier == 'full',
+                )
         except resource_lock.ResourceLockTimeout as exc:
             print(
                 f'[{tier}-tier] BLOCKED target={target} resource={exc.resource} '

@@ -597,7 +597,41 @@ fun loadReuseCpdProfiles(policyFile: File): List<ReuseCpdProfile> {
     return profiles.ifEmpty { listOf(base) }
 }
 
-fun reuseCpdArgs(profile: ReuseCpdProfile, sourceDirs: List<File>, reportFile: File, root: File): List<String> =
+fun relativeReusePath(root: File, file: File): String =
+    root.toPath().toAbsolutePath().normalize()
+        .relativize(file.toPath().toAbsolutePath().normalize())
+        .toString()
+        .replace(File.separatorChar, '/')
+
+fun writeReuseCpdFileList(files: List<File>, fileList: File): File {
+    fileList.parentFile.mkdirs()
+    fileList.writeText(
+        files.joinToString("\n") { it.toPath().toAbsolutePath().normalize().toString() } +
+            if (files.isEmpty()) "" else "\n",
+        Charsets.UTF_8,
+    )
+    return fileList
+}
+
+fun readReuseCpdFileList(fileList: File, root: File): List<File> =
+    if (!fileList.isFile) {
+        emptyList()
+    } else {
+        fileList.readLines(Charsets.UTF_8).mapNotNull { raw ->
+            val value = raw.trim()
+            if (value.isBlank()) {
+                null
+            } else {
+                val candidate = File(value)
+                val resolved = if (candidate.isAbsolute) candidate else File(root, value)
+                resolved.toPath().toAbsolutePath().normalize().toFile()
+            }
+        }
+            .filter { it.isFile && it.extension == "java" }
+            .distinctBy { it.absolutePath }
+    }
+
+fun reuseCpdArgs(profile: ReuseCpdProfile, fileList: File, reportFile: File, root: File): List<String> =
     buildList {
         add("cpd")
         add("--language")
@@ -622,9 +656,39 @@ fun reuseCpdArgs(profile: ReuseCpdProfile, sourceDirs: List<File>, reportFile: F
         add(reportFile.absolutePath)
         add("--relativize-paths-with")
         add(root.absolutePath)
-        add("--dir")
-        add(sourceDirs.joinToString(",") { it.absolutePath })
+        add("--file-list")
+        add(fileList.absolutePath)
     }
+
+fun writeReuseCpdSummary(
+    summaryFile: File,
+    root: File,
+    status: String,
+    mode: String,
+    profiles: List<ReuseCpdProfile>,
+    inputFiles: List<File>,
+    reportDir: File,
+    failures: List<String>,
+) {
+    summaryFile.parentFile.mkdirs()
+    val summary = linkedMapOf<String, Any?>(
+        "engine" to "PMD_CPD_CLI",
+        "status" to status,
+        "mode" to mode,
+        "inputMechanism" to "pmd-cpd --file-list",
+        "profiles" to profiles.map { it.id },
+        "reports" to reportDir.absolutePath,
+        "cpdInputFiles" to inputFiles.map { relativeReusePath(root, it) },
+        "cpdInputCount" to inputFiles.size,
+        "fullScan" to (mode == "full"),
+        "dirScanUsed" to false,
+        "failures" to failures,
+    )
+    summaryFile.writeText(
+        groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(summary)) + "\n",
+        Charsets.UTF_8,
+    )
+}
 
 gradle.projectsEvaluated {
     val productionModules = leafSubprojects.filter { sub ->
@@ -641,36 +705,80 @@ gradle.projectsEvaluated {
 
         val policyFileRef = file(policyFilePath)
         val reportDir = reuseAnalysisReportDir.get().asFile
+        val configuredMode = ((findProperty("feipiReuseCpdMode") as? String) ?: "incremental").lowercase()
+        val configuredFileList = (findProperty("feipiReuseCpdFileList") as? String)?.takeIf { it.isNotBlank() }
         inputs.file(policyFileRef).withPropertyName("policyFile").optional(true)
-        inputs.files(productionSourceDirs.map { dir ->
-            fileTree(dir).matching { include("**/*.java") }
-        }).withPropertyName("sourceFiles").optional(true)
+        inputs.property("cpdMode", configuredMode)
+        if (configuredMode == "incremental") {
+            if (configuredFileList != null) {
+                inputs.file(file(configuredFileList)).withPropertyName("cpdFileList").optional(true)
+            }
+        } else {
+            inputs.files(productionSourceDirs.map { dir ->
+                fileTree(dir).matching { include("**/*.java") }
+            }).withPropertyName("sourceFiles").optional(true)
+        }
         outputs.dir(reportDir).withPropertyName("reportDir")
         notCompatibleWithConfigurationCache("PMD CPD CLI is launched as external processes")
 
         doLast {
+            val mode = ((findProperty("feipiReuseCpdMode") as? String) ?: "incremental").lowercase()
+            if (mode != "incremental" && mode != "full") {
+                throw org.gradle.api.GradleException("reuseStandardCpd: unsupported feipiReuseCpdMode=$mode")
+            }
             val sourceDirs = productionSourceDirs.filter { it.isDirectory }
             reportDir.mkdirs()
-            if (sourceDirs.isEmpty()) {
-                logger.lifecycle("reuseStandardCpd: no Java production source dirs")
-                return@doLast
-            }
             val profiles = loadReuseCpdProfiles(policyFileRef)
             val failures = mutableListOf<String>()
             val javaExecutable = File(System.getProperty("java.home"), "bin/java").absolutePath
             val pmdClasspath = pmdCpdRuntime.resolve().joinToString(File.pathSeparator) { it.absolutePath }
-            val sourceFiles = sourceDirs.flatMap { dir ->
+            val allSourceFiles = sourceDirs.flatMap { dir ->
                 dir.walkTopDown().filter { it.isFile && it.extension == "java" }.toList()
             }
+            val cpdInputFiles = if (mode == "incremental") {
+                val fileListProperty = (findProperty("feipiReuseCpdFileList") as? String)?.takeIf { it.isNotBlank() }
+                    ?: throw org.gradle.api.GradleException(
+                        "reuseStandardCpd: incremental mode requires -PfeipiReuseCpdFileList=<path>"
+                    )
+                readReuseCpdFileList(file(fileListProperty), rootDir)
+            } else {
+                allSourceFiles
+            }
+            val summaryFile = reportDir.resolve("standard-cpd-summary.json")
 
-            fun runCpd(profile: ReuseCpdProfile, inputs: List<File>, reportFile: File): Int {
+            if (cpdInputFiles.isEmpty()) {
+                writeReuseCpdSummary(
+                    summaryFile,
+                    rootDir,
+                    "PASS",
+                    mode,
+                    profiles,
+                    cpdInputFiles,
+                    reportDir,
+                    failures,
+                )
+                logger.lifecycle("reuseStandardCpd: no CPD input files (mode=$mode)")
+                return@doLast
+            }
+
+            val sharedFileList = if (mode == "incremental") {
+                val fileListProperty = (findProperty("feipiReuseCpdFileList") as? String)?.takeIf { it.isNotBlank() }
+                    ?: throw org.gradle.api.GradleException(
+                        "reuseStandardCpd: incremental mode requires -PfeipiReuseCpdFileList=<path>"
+                    )
+                file(fileListProperty)
+            } else {
+                writeReuseCpdFileList(cpdInputFiles, reportDir.resolve("reuse-cpd-full-file-list.txt"))
+            }
+
+            fun runCpd(profile: ReuseCpdProfile, fileList: File, reportFile: File): Int {
                 reportFile.parentFile.mkdirs()
                 val command = listOf(
                     javaExecutable,
                     "-cp",
                     pmdClasspath,
                     "net.sourceforge.pmd.cli.PmdCli",
-                ) + reuseCpdArgs(profile, inputs, reportFile, rootDir)
+                ) + reuseCpdArgs(profile, fileList, reportFile, rootDir)
                 val process = ProcessBuilder(command)
                     .directory(rootDir)
                     .inheritIO()
@@ -680,11 +788,16 @@ gradle.projectsEvaluated {
 
             profiles.forEach { profile ->
                 if (profile.scope == "same-file") {
-                    sourceFiles.forEach { sourceFile ->
-                        val relative = rootDir.toPath().relativize(sourceFile.toPath()).toString()
+                    cpdInputFiles.forEach { sourceFile ->
+                        val relative = relativeReusePath(rootDir, sourceFile)
                         val reportName = sanitizeReuseProfileId(relative) + ".xml"
                         val reportFile = reportDir.resolve("cpd-${profile.id}").resolve(reportName)
-                        val exitValue = runCpd(profile, listOf(sourceFile), reportFile)
+                        val singleFileList = writeReuseCpdFileList(
+                            listOf(sourceFile),
+                            reportDir.resolve("cpd-${profile.id}")
+                                .resolve(sanitizeReuseProfileId(relative) + ".file-list.txt"),
+                        )
+                        val exitValue = runCpd(profile, singleFileList, reportFile)
                         if (exitValue != 0) {
                             failures.add(
                                 "${profile.id}:${relative}(exit=$exitValue, report=${reportFile.absolutePath})"
@@ -693,28 +806,28 @@ gradle.projectsEvaluated {
                     }
                 } else {
                     val reportFile = reportDir.resolve("cpd-${profile.id}.xml")
-                    val exitValue = runCpd(profile, sourceDirs, reportFile)
+                    val exitValue = runCpd(profile, sharedFileList, reportFile)
                     if (exitValue != 0) {
                         failures.add("${profile.id}(exit=$exitValue, report=${reportFile.absolutePath})")
                     }
                 }
             }
-            val summaryFile = reportDir.resolve("standard-cpd-summary.json")
-            val profileJson = profiles.joinToString(", ") { "\"${it.id}\"" }
-            val reportsJson = reportDir.absolutePath.replace("\\", "\\\\").replace("\"", "\\\"")
-            summaryFile.writeText(
-                "{\n" +
-                    "  \"engine\": \"PMD_CPD_CLI\",\n" +
-                    "  \"status\": \"${if (failures.isEmpty()) "PASS" else "FAIL"}\",\n" +
-                    "  \"profiles\": [$profileJson],\n" +
-                    "  \"reports\": \"$reportsJson\"\n" +
-                    "}\n",
-                Charsets.UTF_8,
+            writeReuseCpdSummary(
+                summaryFile,
+                rootDir,
+                if (failures.isEmpty()) "PASS" else "FAIL",
+                mode,
+                profiles,
+                cpdInputFiles,
+                reportDir,
+                failures,
             )
             if (failures.isNotEmpty()) {
                 throw org.gradle.api.GradleException("PMD CPD duplicate violations: ${failures.joinToString(", ")}")
             }
-            logger.lifecycle("reuseStandardCpd: PMD CPD PASS (${profiles.size} profile(s))")
+            logger.lifecycle(
+                "reuseStandardCpd: PMD CPD PASS (${profiles.size} profile(s), mode=$mode, input=${cpdInputFiles.size})"
+            )
         }
     }
 

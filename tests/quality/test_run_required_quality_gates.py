@@ -432,6 +432,38 @@ class TestIncludeSessionDetail:
         assert captured_cmds, 'run_gate 必须调用 run_quality_gate.py'
         assert '--changed-files' not in captured_cmds[0]
 
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_full_run_gate_sets_explicit_full_cpd_env(self, monkeypatch: pytest.MonkeyPatch):
+        """Full tier must opt in to full CPD instead of relying on wrapper defaults."""
+        _setup_env([])
+        captured_env: dict[str, str] = {}
+
+        def fake_run(cmd: list[str], **kwargs: object) -> object:
+            del cmd
+            captured_env.update(kwargs.get('env') or {})
+            artifact = (
+                _runner.QUALITY_DIR
+                / 'full-baseline-check'
+                / 'quality-gate-summary.java-src.json'
+            )
+            artifact.parent.mkdir(parents=True, exist_ok=True)
+            artifact.write_text('{"status":"PASS"}\n', encoding='utf-8')
+            return _runner.subprocess.CompletedProcess([], 0, stdout='ok')
+
+        monkeypatch.setattr(_runner.subprocess, 'run', fake_run)
+
+        passed, _artifact_path = _runner.run_gate(
+            'java-src',
+            'full-baseline-check',
+            changed_files=None,
+            full_baseline=True,
+        )
+
+        assert passed is True
+        assert captured_env['QUALITY_GATE_TIER'] == 'full'
+        assert captured_env['QUALITY_REUSE_CPD_MODE'] == 'full'
+        assert 'QUALITY_CHANGED_FILES' not in captured_env
+
 
 class TestFullTier:
     @pytest.mark.contract_case('HOOK-HARNESS-012')
