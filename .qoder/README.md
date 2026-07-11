@@ -3,7 +3,7 @@
 `.qoder/` is the first-class Qoder runtime entry for this repository. It is maintained in parallel with `.claude/` and `.codex/` and provides:
 
 - policy entry: `.qoder/AGENTS.md`
-- hook binding contract: `.qoder/hook-bindings.md`
+- Session Runtime lifecycle: `docs/agent-runtime.md`
 - specialist descriptors: `.qoder/agents/*.md`
 - shared skill aliases: `.qoder/skills/*`
 - hook wrappers: `.qoder/hooks/*.sh`

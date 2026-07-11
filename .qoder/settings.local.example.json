@@ -1,7 +1,4 @@
 {
   "description": "Optional local-only Qoder overrides. Copy to .qoder/settings.local.json; do not commit the copy.",
-  "environment": {
-    "FEIPI_AGENT_RUNTIME_ROOT": "tmp/agent-runtime",
-    "FEIPI_SESSIONCTL_QODER_COMMAND": "<local-qoder-command>"
-  }
+  "environment": {}
 }

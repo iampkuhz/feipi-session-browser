@@ -45,8 +45,8 @@ class RuntimeIdentity:
     change_id: str = ''
     branch: str = ''
     base_commit: str = ''
-    worktree_root_hash: str = ''
-    legacy_warnings: tuple[str, ...] = ()
+    checkout_root_hash: str = ''
+    identity_warnings: tuple[str, ...] = ()
 
     # 判断是否存在session。
     @property
@@ -240,8 +240,8 @@ def identity_from_values(
     change_id: str = '',
     branch: str = '',
     base_commit: str = '',
-    worktree_root: str = '',
-    legacy_warnings: tuple[str, ...] = (),
+    checkout_root: str = '',
+    identity_warnings: tuple[str, ...] = (),
 ) -> RuntimeIdentity:
     """参数：
         agent_client: agent client 参数。
@@ -257,13 +257,17 @@ def identity_from_values(
     raw_agent = agent_id if agent_id is not None else os.environ.get('FEIPI_AGENT_ID', '')
     raw_run = run_id if run_id is not None else os.environ.get('FEIPI_RUN_ID', '')
     raw_task = task_id if task_id is not None else os.environ.get('FEIPI_TASK_ID', '')
-    raw_worktree = worktree_id if worktree_id is not None else os.environ.get('FEIPI_WORKTREE_ID', '')
+    raw_worktree = (
+        worktree_id if worktree_id is not None else os.environ.get('FEIPI_WORKTREE_ID', '')
+    )
     raw_turn = turn_id if turn_id is not None else os.environ.get('FEIPI_TURN_ID', '')
-    active = bool(stop_hook_active) if stop_hook_active is not None else os.environ.get('FEIPI_STOP_HOOK_ACTIVE', '').lower() in {'1', 'true', 'yes', 'on'}
-    root_hash = hashlib.sha256(str(worktree_root or '').encode('utf-8')).hexdigest()[:16] if worktree_root else ''
-    effective_warnings = list(legacy_warnings)
-    if not raw_run:
-        effective_warnings.append('legacy identity without run_id; not multi-writer safe')
+    active = (
+        bool(stop_hook_active)
+        if stop_hook_active is not None
+        else os.environ.get('FEIPI_STOP_HOOK_ACTIVE', '').lower() in {'1', 'true', 'yes', 'on'}
+    )
+    root_hash = hashlib.sha256(str(checkout_root or '').encode('utf-8')).hexdigest()[:16] if checkout_root else ''
+    effective_warnings = list(identity_warnings)
     return RuntimeIdentity(
         client=sanitize_path_segment(raw_client, fallback='unknown'),
         session_id=sanitize_path_segment(raw_session, fallback='unknown'),
@@ -282,8 +286,8 @@ def identity_from_values(
         change_id=change_id,
         branch=branch,
         base_commit=base_commit,
-        worktree_root_hash=root_hash,
-        legacy_warnings=tuple(effective_warnings),
+        checkout_root_hash=root_hash,
+        identity_warnings=tuple(effective_warnings),
     )
 
 
@@ -337,31 +341,32 @@ def identity_from_hook_context(ctx: Any, agent_client: str | None = None) -> Run
         from scripts.harness.primary_session import resolve_bound_run_record
         repo_hint = getattr(ctx, 'cwd', '') or None
         root = find_repo_root(repo_hint)
-        lookup_session = payload_session or os.environ.get('FEIPI_SESSION_ID', '')
-        lookup_run = payload_run or os.environ.get('FEIPI_RUN_ID', '')
-        record = resolve_bound_run_record(root, client, lookup_session, lookup_run) or {}
-        if not record and payload_run and lookup_session:
-            record = resolve_bound_run_record(root, client, lookup_session, '') or {}
+        lookup_session = payload_session or ''
+        # Registry 中与 client/session/current checkout 一致的记录优先；payload
+        # run id 只在一致时作为提示，不能劫持已经登记的 Session。
+        record = resolve_bound_run_record(root, client, lookup_session, '') or {}
+        if not record and payload_run:
+            record = resolve_bound_run_record(root, client, lookup_session, payload_run) or {}
     except Exception:
         record = {}
-    run_id = payload_run or str(record.get('runId') or os.environ.get('FEIPI_RUN_ID', ''))
+    run_id = str(record.get('runId') or payload_run or '')
     if record and payload_run and payload_run != record.get('runId'):
-        warnings.append('payload run_id conflicts with bound run record')
-    session_id = payload_session or str(record.get('sessionId') or os.environ.get('FEIPI_SESSION_ID', ''))
+        warnings.append('payload run_id hint ignored because Registry identity is authoritative')
+    session_id = payload_session or str(record.get('sessionId') or '')
     return identity_from_values(
         agent_client=client,
         session_id=session_id,
         agent_id=getattr(ctx, 'agent_id', None),
         run_id=run_id,
-        task_id=payload_task or str(record.get('taskId') or os.environ.get('FEIPI_TASK_ID', '')),
-        worktree_id=payload_worktree or str(record.get('worktreeId') or os.environ.get('FEIPI_WORKTREE_ID', '')),
-        turn_id=payload_turn or os.environ.get('FEIPI_TURN_ID', ''),
+        task_id=payload_task or str(record.get('taskId') or ''),
+        worktree_id=str(record.get('worktreeId') or payload_worktree or ''),
+        turn_id=payload_turn or '',
         stop_hook_active=getattr(ctx, 'stop_hook_active', None),
-        change_id=str(record.get('changeId') or os.environ.get('ACTIVE_CHANGE_ID', '')),
+        change_id=str(record.get('changeId') or ''),
         branch=str(record.get('branch') or ''),
         base_commit=str(record.get('baseCommit') or ''),
-        worktree_root=str(record.get('worktreeRoot') or ''),
-        legacy_warnings=tuple(warnings),
+        checkout_root=str(record.get('checkoutRoot') or ''),
+        identity_warnings=tuple(warnings),
     )
 
 

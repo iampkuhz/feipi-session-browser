@@ -27,6 +27,7 @@ platforms:
       - .claude/settings.json
     hooks:
       session_start: [.claude/hooks/session-start.sh]
+      cwd_changed: [.claude/hooks/cwd-changed.sh]
       subagent_start: [.claude/hooks/subagent-start.sh]
       pre_bash: [.claude/hooks/pre-bash.sh]
       pre_write: [.claude/hooks/pre-write.sh]
@@ -36,15 +37,17 @@ platforms:
       stop: [.claude/hooks/stop.sh]
       subagent_stop: [.claude/hooks/subagent-stop.sh]
       config_change: [.claude/hooks/config-change.sh]
+      session_end: [.claude/hooks/session-end.sh]
     agents_dir: .claude/agents
     skills_dir: .claude/skills
   codex:
     config_files:
       - .codex/config.toml
       - .codex/hooks.json
-    codex_hook_binding_note: Codex CLI help exposes --dangerously-bypass-hook-trust; local CLI help does not expose a machine-readable hook schema command, so repository validation fail-closes on the checked-in command hook convention, activation marker, and config hash.
+    codex_hook_binding_note: Repository fixtures cover SessionStart and catch-all PreToolUse bootstrap for Codex App/CLI; real end-to-end client lifecycle remains UNVERIFIED.
     hooks:
       session_start: [.codex/hooks/session-start.sh]
+      pre_tool_bootstrap: [.codex/hooks/pre_tool_bootstrap.sh]
       pre_bash: [.codex/hooks/pre_tool_guard.sh]
       pre_write: [.codex/hooks/pre_write_guard.sh]
       post_bash: [.codex/hooks/post_bash_guard.sh]
@@ -60,10 +63,12 @@ platforms:
       - .qoder/AGENTS.md
       - .qoder/settings.json
       - .qoder/settings.local.example.json
-      - .qoder/hook-bindings.md
-    qoder_hook_binding_note: qoder settings use the repository hook schema convention shared with .claude/settings.json and .codex/hooks.json; no local Qoder CLI/schema was available during validation, so unsupported native WorktreeCreate/WorktreeRemove remain documented with fallback.
+    qoder_hook_binding_note: Repository fixtures cover CLI SessionStart/CwdChanged and client UserPromptSubmit/PreToolUse fallback; real end-to-end client lifecycle remains UNVERIFIED.
     hooks:
       session_start: [.qoder/hooks/session-start.sh]
+      cwd_changed: [.qoder/hooks/cwd-changed.sh]
+      user_prompt_submit: [.qoder/hooks/user-prompt-submit.sh]
+      pre_tool_bootstrap: [.qoder/hooks/pre_tool_bootstrap.sh]
       pre_bash: [.qoder/hooks/pre_tool_guard.sh]
       pre_write: [.qoder/hooks/pre_write_guard.sh]
       post_bash: [.qoder/hooks/post_bash_guard.sh]
@@ -72,41 +77,43 @@ platforms:
       stop: [.qoder/hooks/stop_check.sh]
       stop_failure: [.qoder/hooks/stop_failure.sh]
       session_end: [.qoder/hooks/session_end.sh]
-      worktree_create_unsupported_reason: Qoder native WorktreeCreate lifecycle is not present in repository-supported hook schema; launcher/sessionctl worktree binding is the fallback.
-      worktree_remove_unsupported_reason: Qoder native WorktreeRemove lifecycle is not present in repository-supported hook schema; sessionctl cleanup is the fallback.
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
-primary_session_rollout:
-  modes: [managed-worktree, read-only-unbound, blocked]
-  safe_defaults:
-    sessionctl_start: managed-worktree
-    direct_launch: read-only-unbound
-  multi_primary_writable_only: managed-worktree
-  legacy_data_read_compatibility:
-    tmp_agent_logs: readable-no-auto-migration
-    tmp_active_change_json: recover-legacy-read-only-only
-  rollback:
-    cleanup_default: dry-run
-    keep_worktree_and_branch: true
-    dirty_worktree_cleanup: BLOCK
-
+platform_hook_adapter:
+  authority: scripts/claude_hooks/adapter.py
+  service: scripts/harness/sessionctl.py bootstrap
+  checkout_source: payload cwd resolved through Git facts
+  requires_feipi_run_id: false
+  creates_worktree: false
+  surfaces:
+    codex-app: {client: codex, validation: UNVERIFIED}
+    codex-cli: {client: codex, validation: UNVERIFIED}
+    claude-code-cli: {client: claude, validation: UNVERIFIED}
+    qoder-cli: {client: qoder, validation: UNVERIFIED}
+    qoder-client: {client: qoder, validation: UNVERIFIED}
 worktree_isolation:
-  mode: per-main-session-git-worktree
+  mode: adopt-client-selected-checkout
   applies_to_clients: [claude, codex, qoder]
-  identity_key: client/session_id
+  identity_key: repo-key plus canonical checkout realpath
+  checkout_kinds: [primary-checkout, linked-worktree]
+  checkout_creators: [codex, claude, qoder, external, unknown]
+  authorization_facts: [git-top-level, git-common-dir, worktree-list, checkout-realpath]
+  ignored_identity_hints: [path-prefix, directory-name, client-name, branch-name, detached-state]
   subagent_behavior: inherit-main-session-worktree
-  default_parent: outside-repository-root
-  assignment_marker: removed; run records are authoritative
-  sessionctl: scripts/harness/sessionctl.py
-  registry_root: FEIPI_AGENT_RUNTIME_ROOT or git-common-dir/feipi-agent-runtime
+  lifecycle_owner: client-or-external-provider
+  sessionctl: scripts/harness/sessionctl.py bootstrap
+  registry_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
   enforcement_hooks:
-    session_start: claude-eager-create
+    session_start: shared-idempotent-bootstrap
+    user_prompt_submit: qoder-client-idempotent-bootstrap-fallback
+    cwd_changed: claude-and-qoder-checkout-reconfirmation
+    pre_tool_bootstrap: codex-and-qoder-idempotent-bootstrap-fallback
     pre_bash: all-clients-mutating-bash
     pre_write: all-clients-write-like-tools
     stop: all-clients-fail-closed-on-wrong-checkout-with-changes
 
 resource_isolation:
-  lock_root: FEIPI_AGENT_RUNTIME_ROOT/locks
+  lock_root: runtime-root/locks
   lock_manager: scripts/harness/resource_lock.py
   port_allocator: scripts/harness/port_allocator.py
   ordered_multi_resource_acquire: true
@@ -165,147 +172,143 @@ required_gates:
   - scripts/quality/check_agent_runtime_report.py
   - scripts/harness/doctor.sh
 primary_sessions:
-  writable_isolation: git-worktree-required
+  writable_isolation: checkout-writer-lease
   same_worktree_max_writers: 1
   read_only_sessions_allowed: true
   identity_layers:
     primary_run: runId
     client_session: sessionId
     subagent: agentId-inherits-runId
-  rollout_modes:
-    managed-worktree: sessionctl-created only multi-primary writable mode
-    read-only-unbound: direct client launch without bound run; mutations blocked
-    blocked: fail-closed for unsafe identity, hook, lease, registry, lock, stop, or cleanup states
-  default_policy:
-    sessionctl_start: managed-worktree
-    direct_launch: read-only-unbound
 run_record:
   required_fields:
     - schemaVersion
     - runId
+    - repoKey
     - client
     - taskId
     - sessionId
     - worktreeId
-    - worktreeRoot
+    - checkoutRoot
+    - checkoutKind
+    - checkoutCreator
+    - gitCommonDir
     - branch
+    - detached
     - targetBranch
     - primaryRepoRoot
     - baseCommit
     - headCommit
+    - initialDirtySnapshot
+    - changeAttribution
     - changeId
-    - mode
     - status
     - allowedPaths
     - forbiddenPaths
-    - resourceAllocations
     - writerLease
     - hookActivation
-    - processes
     - createdAt
     - updatedAt
-  modes:
-    - read-only
-    - writable
   statuses:
-    - CREATED
-    - STARTING
-    - RUNNING
+    - BOOTSTRAPPED
+    - READ_ONLY_READY
+    - ISOLATED_WRITER
+    - LOCAL_WRITER
+    - READ_ONLY_CONFLICT
     - VALIDATING
     - VALIDATED
-    - COMMITTED
     - INTEGRATING
     - INTEGRATED
-    - CLEANED
-    - BLOCKED
     - HANDOFF_REQUIRED
-    - FAILED
+    - BLOCKED
 status_machine:
-  initial_status: CREATED
+  initial_status: BOOTSTRAPPED
   terminal_statuses:
     - INTEGRATED
-    - CLEANED
-    - FAILED
     - HANDOFF_REQUIRED
+    - BLOCKED
   writable_ready_statuses:
-    - RUNNING
-    - VALIDATING
-    - VALIDATED
-    - COMMITTED
+    - ISOLATED_WRITER
+    - LOCAL_WRITER
   transitions:
-    CREATED:
-      - STARTING
-      - RUNNING
-      - BLOCKED
-      - FAILED
-    STARTING:
-      - RUNNING
-      - BLOCKED
-      - FAILED
-    RUNNING:
+    BOOTSTRAPPED:
+      - READ_ONLY_READY
+      - ISOLATED_WRITER
+      - LOCAL_WRITER
+      - READ_ONLY_CONFLICT
       - VALIDATING
+      - HANDOFF_REQUIRED
       - BLOCKED
-      - FAILED
+    READ_ONLY_READY:
+      - ISOLATED_WRITER
+      - LOCAL_WRITER
+      - READ_ONLY_CONFLICT
+      - VALIDATING
+      - HANDOFF_REQUIRED
+      - BLOCKED
+    ISOLATED_WRITER:
+      - READ_ONLY_READY
+      - VALIDATING
+      - HANDOFF_REQUIRED
+      - BLOCKED
+    LOCAL_WRITER:
+      - READ_ONLY_READY
+      - VALIDATING
+      - HANDOFF_REQUIRED
+      - BLOCKED
+    READ_ONLY_CONFLICT:
+      - ISOLATED_WRITER
+      - LOCAL_WRITER
+      - VALIDATING
+      - HANDOFF_REQUIRED
+      - BLOCKED
     VALIDATING:
-      - RUNNING
       - VALIDATED
+      - ISOLATED_WRITER
+      - LOCAL_WRITER
+      - HANDOFF_REQUIRED
       - BLOCKED
-      - FAILED
     VALIDATED:
-      - COMMITTED
+      - VALIDATING
+      - ISOLATED_WRITER
+      - LOCAL_WRITER
+      - READ_ONLY_CONFLICT
       - INTEGRATING
+      - HANDOFF_REQUIRED
       - BLOCKED
-      - HANDOFF_REQUIRED
-      - FAILED
-    COMMITTED:
-      - INTEGRATING
-      - HANDOFF_REQUIRED
-      - FAILED
     INTEGRATING:
       - INTEGRATED
       - HANDOFF_REQUIRED
-      - FAILED
-    INTEGRATED:
-      - CLEANED
-    BLOCKED:
-      - STARTING
-      - RUNNING
-      - VALIDATING
-      - HANDOFF_REQUIRED
-      - FAILED
+      - BLOCKED
+    INTEGRATED: []
     HANDOFF_REQUIRED:
-      - STARTING
-      - RUNNING
-      - FAILED
-      - CLEANED
-    FAILED:
-      - CLEANED
-    CLEANED: []
+      - VALIDATING
+      - ISOLATED_WRITER
+      - LOCAL_WRITER
+      - READ_ONLY_CONFLICT
+      - INTEGRATING
+      - BLOCKED
+    BLOCKED: []
 runtime_root:
   resolution_order:
     - FEIPI_AGENT_RUNTIME_ROOT
-    - git-common-dir/feipi-agent-runtime
-  ordinary_checkout: use git common dir under the checkout .git directory
-  linked_worktree: use linked worktree git common dir so all worktrees share one registry
+    - TMPDIR-or-system-temp/feipi-agent-runtime/<repo-key>
+  repo_key: sha256 of canonical Git common-dir identity
+  ordinary_checkout: use the repository-scoped system temporary directory
+  linked_worktree: use the same repo-key as the primary checkout without writing Git metadata
+  directory_mode: "0700"
+  file_mode: "0600"
+  symlink_policy: reject managed symlinks
   committed_config_absolute_paths_allowed: false
 registry_storage:
   root: runtime_root
   runs_dir: runs
   writer_leases_dir: writer-leases
-  branch_leases_dir: branch-leases
   locks_dir: locks
   atomic_write: write-temp-then-replace
   lock_scope: repository-runtime-root
 collision_policy:
   same_worktree_second_writer: BLOCK
-  same_branch_active_writable_runs: BLOCK
-  write_scope_intersection_default: BLOCK
-  missing_session_id:
-    allowed_statuses:
-      - CREATED
-      - STARTING
-      - BLOCKED
-    write_allowed: false
+  stale_fencing_token: BLOCK
   hook_activation_unconfirmed:
     writable_ready_allowed: false
 subagents:

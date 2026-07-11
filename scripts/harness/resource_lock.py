@@ -7,6 +7,7 @@ import hashlib
 import json
 import os
 import socket
+import subprocess
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -77,6 +78,15 @@ def _pid_start_time(pid: int) -> str:
             return ""
     try:
         return str(Path(f"/proc/{pid}").stat().st_ctime_ns)
+    except Exception:
+        pass
+    try:
+        # macOS 没有 /proc；使用进程启动时间而不是可复用的 PID 作为身份补充。
+        return subprocess.check_output(
+            ["ps", "-o", "lstart=", "-p", str(pid)],
+            stderr=subprocess.DEVNULL,
+            text=True,
+        ).strip()
     except Exception:
         return ""
 

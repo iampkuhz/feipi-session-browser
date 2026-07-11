@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -10,7 +9,8 @@ ROOT = Path(__file__).resolve().parents[1]
 REQUIRED_QODER_FILES = [
     ".qoder/README.md",
     ".qoder/AGENTS.md",
-    ".qoder/hook-bindings.md",
+    ".qoder/settings.json",
+    ".qoder/settings.local.example.json",
     ".qoder/agents/qoder-main-default.md",
     ".qoder/agents/runtime-isolation-diagnoser.md",
     ".qoder/agents/quality-gate-diagnoser.md",
@@ -47,10 +47,15 @@ def test_qoder_manifest_has_config_agents_and_skills():
     qoder_block = manifest[qoder_start:qoder_end]
 
     assert "- .qoder/AGENTS.md" in qoder_block
-    assert "- .qoder/hook-bindings.md" in qoder_block
+    assert "- .qoder/settings.json" in qoder_block
+    assert "- .qoder/settings.local.example.json" in qoder_block
     assert "agents_dir: .qoder/agents" in qoder_block
     assert "skills_dir: .qoder/skills" in qoder_block
     for hook in [
+        ".qoder/hooks/session-start.sh",
+        ".qoder/hooks/cwd-changed.sh",
+        ".qoder/hooks/user-prompt-submit.sh",
+        ".qoder/hooks/pre_tool_bootstrap.sh",
         ".qoder/hooks/pre_tool_guard.sh",
         ".qoder/hooks/pre_write_guard.sh",
         ".qoder/hooks/post_bash_guard.sh",
@@ -71,40 +76,10 @@ def test_qoder_agents_reference_shared_skills():
     assert "scripts/claude_hooks/paths.py" in runtime_content
 
 
-def test_qoder_hook_bindings_declares_required_lifecycles():
-    content = _read(".qoder/hook-bindings.md")
-    assert "| Lifecycle | Matcher | Command | Required | Unsupported reason |" in content
-    for lifecycle in [
-        "PreToolUse",
-        "PostToolUse",
-        "Stop",
-        "Unsupported Lifecycles",
-        "Required Payload Fields",
-        "Fail-Closed Rules",
-    ]:
-        assert lifecycle in content
-    for payload_field in [
-        "session_id",
-        "sessionId",
-        "agent_id",
-        "agentId",
-        "tool_input",
-        "toolInput",
-        "file_path",
-        "path",
-        "notebook_path",
-        "command",
-    ]:
-        assert payload_field in content
-
-
 def test_check_qoder_runtime_parity_passes():
-    env = os.environ.copy()
-    env["ACTIVE_CHANGE_ID"] = "harden-agent-runtime-full-v3"
     result = subprocess.run(
         [sys.executable, "scripts/quality/check_qoder_runtime_parity.py"],
         cwd=ROOT,
-        env=env,
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,

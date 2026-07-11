@@ -31,6 +31,16 @@
         ]
       }
     ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/cwd-changed.sh"
+          }
+        ]
+      }
+    ],
     "SubagentStart": [
       {
         "hooks": [
@@ -52,7 +62,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch",
         "hooks": [
           {
             "type": "command",
@@ -72,7 +82,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch",
         "hooks": [
           {
             "type": "command",
@@ -117,6 +127,16 @@
           {
             "type": "command",
             "command": ".claude/hooks/config-change.sh"
+          }
+        ]
+      }
+    ],
+    "SessionEnd": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/session-end.sh"
           }
         ]
       }

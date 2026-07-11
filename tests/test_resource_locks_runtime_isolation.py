@@ -11,7 +11,7 @@ from scripts.quality import run_required_quality_gates
 
 def test_multi_resource_lock_uses_stable_order_and_finally_release(tmp_path: Path, monkeypatch):
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
-    owner = owner_metadata(run_id='run-a', client='codex', session_id='s-a', worktree_id='wt-a', target='java-src')
+    owner = owner_metadata(run_id='run-a', client='codex', session_id='s-a', worktree_id='checkout-a', target='java-src')
     locks = ResourceLockSet(tmp_path, ['playwright-browser', 'gradle-daemon', 'fixture-server'], owner, timeout_seconds=1)
     try:
         results = locks.acquire()
@@ -31,14 +31,14 @@ def test_resource_lock_timeout_reports_owner(tmp_path: Path, monkeypatch):
     first = NamedResourceLock(
         tmp_path,
         'gradle-daemon',
-        owner_metadata(run_id='run-a', client='codex', session_id='s-a', worktree_id='wt-a', target='java-build'),
+        owner_metadata(run_id='run-a', client='codex', session_id='s-a', worktree_id='checkout-a', target='java-build'),
     )
     assert first.try_acquire()
     try:
         second = NamedResourceLock(
             tmp_path,
             'gradle-daemon',
-            owner_metadata(run_id='run-b', client='qoder', session_id='s-b', worktree_id='wt-b', target='java-build'),
+            owner_metadata(run_id='run-b', client='qoder', session_id='s-b', worktree_id='checkout-b', target='java-build'),
         )
         try:
             second.acquire(timeout_seconds=0.01)
@@ -59,7 +59,7 @@ def test_stale_lock_reclaimed_when_pid_is_dead(tmp_path: Path, monkeypatch):
     lock = NamedResourceLock(
         tmp_path,
         'fixture-server',
-        owner_metadata(run_id='run-live', client='codex', session_id='s-live', worktree_id='wt-live', target='session-detail'),
+        owner_metadata(run_id='run-live', client='codex', session_id='s-live', worktree_id='checkout-live', target='session-detail'),
     )
     assert lock.try_acquire()
     try:
@@ -92,17 +92,25 @@ def test_required_runner_acquires_target_resources(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(run_required_quality_gates, 'effective_targets', lambda targets: targets)
     calls: list[list[str]] = []
 
-    def fake_run_gate(target, change_id, quality_dir=None, changed_files=None):
+    def fake_run_gate(
+        target,
+        change_id,
+        quality_dir=None,
+        changed_files=None,
+        *,
+        full_baseline=False,
+    ):
         active = sorted(path.stem for path in (tmp_path / 'runtime' / 'locks').glob('*.lock'))
         calls.append(active)
         assert changed_files == ['java/app-cli/src/main/java/App.java']
+        assert full_baseline is False
         return True, str(tmp_path / 'summary.json')
 
     monkeypatch.setattr(run_required_quality_gates, 'run_gate', fake_run_gate)
     monkeypatch.setattr(
         run_required_quality_gates.sys,
         'argv',
-        ['run_required_quality_gates.py', '--change-id', 'support-parallel-primary-sessions'],
+        ['run_required_quality_gates.py', '--change-id', 'adopt-client-checkout-runtime'],
     )
     assert run_required_quality_gates.main() == 0
     assert calls == [['gradle-daemon', 'java-build-tree']]

@@ -15,9 +15,9 @@ REQUIRED_HOOK_KEYS = ["pre_bash", "pre_write", "post_bash", "post_write", "stop"
 CODEX_REQUIRED_BINDINGS = {
     ("SessionStart", ""): ".codex/hooks/session-start.sh",
     ("PreToolUse", "Bash"): ".codex/hooks/pre_tool_guard.sh",
-    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".codex/hooks/pre_write_guard.sh",
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch"): ".codex/hooks/pre_write_guard.sh",
     ("PostToolUse", "Bash"): ".codex/hooks/post_bash_guard.sh",
-    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".codex/hooks/post_tool_guard.sh",
+    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch"): ".codex/hooks/post_tool_guard.sh",
     ("PostToolUseFailure", ""): ".codex/hooks/tool_failure.sh",
     ("Stop", ""): ".codex/hooks/stop_check.sh",
     ("StopFailure", ""): ".codex/hooks/stop_failure.sh",
@@ -27,9 +27,9 @@ PLATFORMS = ["claude", "codex", "qoder"]
 QODER_REQUIRED_BINDINGS = {
     ("SessionStart", ""): ".qoder/hooks/session-start.sh",
     ("PreToolUse", "Bash"): ".qoder/hooks/pre_tool_guard.sh",
-    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/pre_write_guard.sh",
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch"): ".qoder/hooks/pre_write_guard.sh",
     ("PostToolUse", "Bash"): ".qoder/hooks/post_bash_guard.sh",
-    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/post_tool_guard.sh",
+    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch"): ".qoder/hooks/post_tool_guard.sh",
     ("PostToolUseFailure", ""): ".qoder/hooks/tool_failure.sh",
     ("Stop", ""): ".qoder/hooks/stop_check.sh",
     ("StopFailure", ""): ".qoder/hooks/stop_failure.sh",
@@ -363,7 +363,7 @@ def main() -> int:
             print(f"[{GATE_NAME}] FAIL: {e}")
         return 1
 
-    # 6. Codex hooks.json 必须真的包含 Write|Edit|MultiEdit|NotebookEdit 的 PreToolUse。
+    # 6. Codex hooks.json 必须覆盖所有写类工具（含 apply_patch）。
     if not CODEX_HOOKS_JSON.is_file():
         errors.append(f"文件不存在: {CODEX_HOOKS_JSON.relative_to(ROOT)}")
     else:

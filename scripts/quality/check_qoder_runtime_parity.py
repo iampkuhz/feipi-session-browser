@@ -16,7 +16,6 @@ REQUIRED_FILES = [
     ".qoder/AGENTS.md",
     ".qoder/settings.json",
     ".qoder/settings.local.example.json",
-    ".qoder/hook-bindings.md",
     ".qoder/agents/qoder-main-default.md",
     ".qoder/agents/runtime-isolation-diagnoser.md",
     ".qoder/agents/quality-gate-diagnoser.md",
@@ -37,20 +36,6 @@ AGENTS_HEADINGS = [
     "## Validation Rules",
     "## Forbidden Actions",
     "## Final Report Rules",
-]
-
-HOOK_HEADINGS = [
-    "# Qoder Hook Bindings",
-    "## Required Lifecycle Bindings",
-    "## PreToolUse Bash",
-    "## PreToolUse Write/Edit/MultiEdit/NotebookEdit",
-    "## PostToolUse Bash",
-    "## PostToolUse Write/Edit/MultiEdit/NotebookEdit",
-    "## Stop",
-    "## Unsupported Lifecycles",
-    "## Required Payload Fields",
-    "## Fail-Closed Rules",
-    "## Local Verification",
 ]
 
 MAIN_HEADINGS = [
@@ -89,9 +74,11 @@ RUNTIME_SPECIALIST_PHRASES = {
     ]
 }
 
-LIFECYCLE_TABLE_HEADER = "| Lifecycle | Matcher | Command | Required | Unsupported reason |\n|---|---|---|---:|---|"
 REQUIRED_HOOK_COMMANDS = [
     ".qoder/hooks/session-start.sh",
+    ".qoder/hooks/cwd-changed.sh",
+    ".qoder/hooks/user-prompt-submit.sh",
+    ".qoder/hooks/pre_tool_bootstrap.sh",
     ".qoder/hooks/pre_tool_guard.sh",
     ".qoder/hooks/pre_write_guard.sh",
     ".qoder/hooks/post_bash_guard.sh",
@@ -104,14 +91,32 @@ REQUIRED_HOOK_COMMANDS = [
 
 QODER_REQUIRED_BINDINGS = {
     ("SessionStart", ""): ".qoder/hooks/session-start.sh",
+    ("CwdChanged", ""): ".qoder/hooks/cwd-changed.sh",
+    ("UserPromptSubmit", ""): ".qoder/hooks/user-prompt-submit.sh",
+    ("PreToolUse", ""): ".qoder/hooks/pre_tool_bootstrap.sh",
     ("PreToolUse", "Bash"): ".qoder/hooks/pre_tool_guard.sh",
-    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/pre_write_guard.sh",
+    ("PreToolUse", "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch"): ".qoder/hooks/pre_write_guard.sh",
     ("PostToolUse", "Bash"): ".qoder/hooks/post_bash_guard.sh",
-    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit"): ".qoder/hooks/post_tool_guard.sh",
+    ("PostToolUse", "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch"): ".qoder/hooks/post_tool_guard.sh",
     ("PostToolUseFailure", ""): ".qoder/hooks/tool_failure.sh",
     ("Stop", ""): ".qoder/hooks/stop_check.sh",
     ("StopFailure", ""): ".qoder/hooks/stop_failure.sh",
     ("SessionEnd", ""): ".qoder/hooks/session_end.sh",
+}
+
+QODER_WRAPPER_DELEGATES = {
+    ".qoder/hooks/session-start.sh": 'run_python_hook qoder session-start "$ROOT"',
+    ".qoder/hooks/cwd-changed.sh": 'run_python_hook qoder cwd-changed "$ROOT"',
+    ".qoder/hooks/user-prompt-submit.sh": 'run_python_hook qoder user-prompt-submit "$ROOT"',
+    ".qoder/hooks/pre_tool_bootstrap.sh": 'run_python_hook qoder pre-tool-bootstrap "$ROOT"',
+    ".qoder/hooks/pre_tool_guard.sh": 'run_python_hook qoder pre-bash "$ROOT"',
+    ".qoder/hooks/pre_write_guard.sh": 'run_python_hook qoder pre-write "$ROOT"',
+    ".qoder/hooks/post_bash_guard.sh": 'run_python_hook qoder post-bash "$ROOT"',
+    ".qoder/hooks/post_tool_guard.sh": 'run_python_hook qoder post-write "$ROOT"',
+    ".qoder/hooks/tool_failure.sh": 'run_python_hook qoder tool-failure "$ROOT"',
+    ".qoder/hooks/stop_check.sh": 'run_stop_hook qoder "$ROOT"',
+    ".qoder/hooks/stop_failure.sh": 'run_python_hook qoder stop-failure "$ROOT"',
+    ".qoder/hooks/session_end.sh": 'run_python_hook qoder session-end "$ROOT"',
 }
 
 # 维护 _commands_for 函数行为。
@@ -168,9 +173,15 @@ def _check_settings_json(errors: list[str]) -> None:
             stop_hook = settings.get("hooks", {}).get("Stop", [])[0].get("hooks", [])[0]
             if int(stop_hook.get("timeout") or 0) < 1230:
                 errors.append(".qoder/settings.json Stop timeout must exceed required gate timeout buffer")
-    text = _read(".qoder/settings.local.example.json")
-    if "<local-qoder-command>" not in text or "settings.local.json" not in text:
-        errors.append(".qoder/settings.local.example.json must be placeholder-only local guidance")
+    try:
+        local_example = json.loads(_read(".qoder/settings.local.example.json"))
+    except (json.JSONDecodeError, OSError) as exc:
+        errors.append(f".qoder/settings.local.example.json parse failed: {exc}")
+        return
+    if "settings.local.json" not in str(local_example.get("description") or ""):
+        errors.append(".qoder/settings.local.example.json must remain local-only guidance")
+    if local_example.get("environment") not in ({}, None):
+        errors.append(".qoder/settings.local.example.json must not inject Session runtime identity")
 
 
 # 维护 _read 函数行为。
@@ -266,25 +277,29 @@ def _check_agents_md(errors: list[str]) -> None:
             errors.append(f".qoder/AGENTS.md missing required phrase: {phrase}")
 
 
-# 维护 _check_hook_bindings 函数行为。
-def _check_hook_bindings(errors: list[str]) -> None:
+# 校验 Qoder 脚本只作为共享 hook runtime 的薄包装层。
+def _check_hook_wrappers(errors: list[str]) -> None:
     """参数：
         *args: 当前函数使用的输入参数。
 
     返回：
         当前函数计算或校验结果。
     """
-    text = _read(".qoder/hook-bindings.md")
-    if _headings(text) != HOOK_HEADINGS:
-        errors.append(".qoder/hook-bindings.md headings do not match required order")
-    if LIFECYCLE_TABLE_HEADER not in text:
-        errors.append(".qoder/hook-bindings.md missing lifecycle table header")
-    for cmd in REQUIRED_HOOK_COMMANDS:
-        if cmd not in text:
-            errors.append(f".qoder/hook-bindings.md missing hook command: {cmd}")
-    for field in ["session_id", "sessionId", "agent_id", "agentId", "tool_input", "toolInput", "file_path", "path", "notebook_path", "command"]:
-        if field not in text:
-            errors.append(f".qoder/hook-bindings.md missing payload field: {field}")
+    shared_source = 'source "$ROOT/scripts/harness/hook-common.sh"'
+    forbidden_logic = ("sessionctl.py", "scripts/claude_hooks/main.py", "git worktree", "rm -")
+    for rel_path, delegate in QODER_WRAPPER_DELEGATES.items():
+        path = ROOT / rel_path
+        if not path.is_file():
+            errors.append(f"missing Qoder hook wrapper: {rel_path}")
+            continue
+        text = path.read_text(encoding="utf-8")
+        if shared_source not in text:
+            errors.append(f"Qoder hook wrapper does not source shared runtime: {rel_path}")
+        if text.count(delegate) != 1:
+            errors.append(f"Qoder hook wrapper does not delegate exactly once via {delegate}: {rel_path}")
+        for phrase in forbidden_logic:
+            if phrase in text:
+                errors.append(f"Qoder hook wrapper contains duplicated runtime logic ({phrase}): {rel_path}")
 
 
 # 维护 _check_main_agent 函数行为。
@@ -345,7 +360,6 @@ def _check_manifest(errors: list[str]) -> None:
         "- .qoder/AGENTS.md",
         "- .qoder/settings.json",
         "- .qoder/settings.local.example.json",
-        "- .qoder/hook-bindings.md",
         "agents_dir: .qoder/agents",
         "skills_dir: .qoder/skills",
     ]:
@@ -393,8 +407,8 @@ def main() -> int:
     _check_required_files(errors)
     if not errors:
         _check_agents_md(errors)
-        _check_hook_bindings(errors)
         _check_settings_json(errors)
+        _check_hook_wrappers(errors)
         _check_main_agent(errors)
         _check_specialists(errors)
         _check_manifest(errors)

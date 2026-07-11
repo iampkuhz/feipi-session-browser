@@ -8,6 +8,7 @@ import shlex
 import subprocess
 from pathlib import Path
 
+from .adapter import HookAdapterError, build_bootstrap_request
 from .evidence import (
     acquire_bash_mutation_lock,
     read_bash_mutation_lock_info,
@@ -18,7 +19,7 @@ from .evidence import (
 )
 from .hook_io import HookContext, read_stdin_json
 from .paths import RepoPaths, build_paths, ensure_runtime_dirs, identity_from_hook_context
-from .policy.bash_policy import evaluate_command, is_read_only_command
+from .policy.bash_policy import evaluate_command
 from .policy.config_policy import record_config_change
 from .policy.file_policy import evaluate_write_path, pre_write_payload_block_reason
 from .policy.session_context import handle_session_start
@@ -27,43 +28,22 @@ from .self_test import run_self_test
 from scripts.quality import changed_files as changed_file_utils
 from scripts.agent_runtime.policy import is_protected_path
 from scripts.harness.primary_session import (
-    load_run_record,
+    ACTIVE_WRITER_STATUSES,
+    resolve_bound_run_record,
     validate_run_write_authorization,
 )
-
-
-# 维护 _is_deterministic_validation_command 函数行为。
-def _is_deterministic_validation_command(command: str) -> bool:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
-    normalized = ' '.join(command.strip().split())
-    while '=' in normalized.split(' ', 1)[0]:
-        parts = normalized.split(' ', 1)
-        if len(parts) == 1:
-            return False
-        normalized = parts[1]
-    deterministic_exact = {
-        'python scripts/quality/check_hook_payload_compat.py',
-        'python3 scripts/quality/check_hook_payload_compat.py',
-        'python -m pytest tests/test_hook_payload_compat.py',
-        'python3 -m pytest tests/test_hook_payload_compat.py',
-        'python scripts/quality/check_agent_runtime_worktree.py',
-        'python3 scripts/quality/check_agent_runtime_worktree.py',
-        'bash scripts/harness/doctor.sh',
-    }
-    if normalized in deterministic_exact:
-        return True
-    deterministic_prefixes = (
-        'python scripts/openspec/validate_active_change.py ',
-        'python3 scripts/openspec/validate_active_change.py ',
-        'python scripts/quality/run_required_quality_gates.py ',
-        'python3 scripts/quality/run_required_quality_gates.py ',
-    )
-    return any(normalized.startswith(prefix) for prefix in deterministic_prefixes)
+from scripts.harness.sessionctl import (
+    Registry,
+    SessionctlError,
+    WriterLeaseConflict,
+    WriterLeaseFenced,
+    acquire_writer_lease,
+    bootstrap_session,
+    classify_tool_call,
+    heartbeat_writer_lease,
+    mark_read_only_ready,
+    release_writer_lease,
+)
 
 
 # 解析 Bash 命令开头的简单 cd 路径。
@@ -122,71 +102,166 @@ def _paths_for_context(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
     """
     if paths.identity.has_run:
         try:
-            record = load_run_record(paths.repo_root, paths.identity.raw_run_id)
+            record = resolve_bound_run_record(
+                paths.repo_root,
+                paths.identity.client,
+                paths.identity.raw_session_id,
+                paths.identity.raw_run_id,
+            )
         except Exception:
             record = None
-        if record and record.get('worktreeRoot'):
+        if record and record.get('checkoutRoot'):
             hint = _context_repo_hint(ctx)
             if hint:
                 hinted_root = build_paths(repo_root=hint, identity=paths.identity)
-                if hinted_root.repo_root.resolve() != Path(str(record['worktreeRoot'])).resolve():
+                if hinted_root.repo_root.resolve() != Path(str(record['checkoutRoot'])).resolve():
                     return hinted_root
-            return build_paths(repo_root=str(record['worktreeRoot']), identity=paths.identity)
+            return build_paths(repo_root=str(record['checkoutRoot']), identity=paths.identity)
     hint = _context_repo_hint(ctx)
     if not hint:
         return paths
     return build_paths(repo_root=hint, identity=paths.identity)
+# 将任一平台的生命周期 payload 交给统一 bootstrap service。
+def _bootstrap_hook_session(
+    ctx: HookContext,
+    *,
+    wrapper_client: str = '',
+) -> dict | None:
+    """参数：
+        ctx: 当前 Hook 输入。
+        wrapper_client: wrapper 声明的客户端。
 
-
-
-# Codex/Qoder 首个安全 hook 可把启动器注入的运行标识绑定到真实会话。
-def _maybe_lazy_bind_session(paths: RepoPaths, ctx: HookContext) -> None:
-    """返回：
-        无返回值；无法证明激活时后续写授权保持故障关闭。
+    返回：
+        Registry run record；事件不触发 bootstrap 时返回 None。
     """
-    if paths.identity.client not in {'codex', 'qoder'}:
-        return
-    run_id = ctx.run_id or os.environ.get('FEIPI_RUN_ID', '')
-    session_id = ctx.session_id or os.environ.get('FEIPI_SESSION_ID', '')
-    cwd = ctx.cwd or os.environ.get('FEIPI_HOOK_CWD', '') or str(paths.repo_root)
-    if not run_id or not session_id:
-        return
+
+    request = build_bootstrap_request(ctx, wrapper_client=wrapper_client)
+    if request is None:
+        return None
+    return bootstrap_session(
+        client=request.client,
+        session_id=request.session_id,
+        cwd=Path(request.cwd),
+        hook_event=request.hook_event,
+        checkout_creator=request.checkout_creator,
+        payload_hints=request.payload_hints,
+        env_hints=os.environ,
+        parent_run_id=request.parent_run_id,
+    )
+
+
+# 从 Registry 权威解析当前 Session run。
+def _bound_record(paths: RepoPaths, ctx: HookContext) -> dict | None:
+    """参数：
+        paths: 当前仓库与 Runtime 路径。
+        ctx: 当前 Hook 输入。
+
+    返回：
+        已绑定的 run record；未绑定时返回 None。
+    """
+
+    return resolve_bound_run_record(
+        paths.repo_root,
+        paths.identity.client,
+        ctx.session_id or paths.identity.raw_session_id,
+        ctx.run_id or paths.identity.raw_run_id,
+    )
+
+
+# 将 writer lease 异常记录为可机读的阻断结果。
+def _lease_block_result(
+    paths: RepoPaths,
+    ctx: HookContext,
+    *,
+    operation: str,
+    error: Exception,
+) -> HookResult:
+    """参数：
+        paths: 当前仓库与 Runtime 路径。
+        ctx: 当前 Hook 输入。
+        operation: 失败的 lease 操作。
+        error: 原始异常。
+
+    返回：
+        退出码为 2 的 Hook 阻断结果。
+    """
+    reason = f'checkout writer lease {operation} BLOCK: {error}'
+    record_hook_event(
+        paths,
+        ctx,
+        status='BLOCK',
+        extra={
+            'reason': reason,
+            'writerLease': {
+                'operation': operation,
+                'errorType': type(error).__name__,
+                'runId': paths.identity.raw_run_id,
+            },
+        },
+    )
+    return HookResult(status='BLOCK', exit_code=2, message=reason)
+
+
+# 推进 reader 状态或对已持有的 lease 发送 heartbeat。
+def _observe_writer_lease(
+    paths: RepoPaths,
+    ctx: HookContext,
+    *,
+    fail_closed: bool,
+) -> HookResult | None:
+    """参数：
+        paths: 当前仓库与 Runtime 路径。
+        ctx: 当前 Hook 输入。
+        fail_closed: lease 异常时是否立即阻断。
+
+    返回：
+        需要阻断时返回 HookResult；否则返回 None。
+    """
+
+    record = _bound_record(paths, ctx)
+    if not record:
+        return None
     try:
-        proc = subprocess.run(
-            [
-                sys.executable,
-                str(paths.repo_root / 'scripts' / 'harness' / 'sessionctl.py'),
-                '--repo-root',
-                str(paths.repo_root),
-                'bind-session',
-                '--run-id',
-                run_id,
-                '--session-id',
-                session_id,
-                '--client',
-                paths.identity.client,
-                '--cwd',
-                cwd,
-            ],
-            cwd=paths.repo_root,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
-            timeout=30,
-            check=False,
+        registry = Registry(paths.repo_root)
+        if record.get('status') in ACTIVE_WRITER_STATUSES:
+            heartbeat_writer_lease(registry, record)
+        elif record.get('status') == 'BOOTSTRAPPED':
+            mark_read_only_ready(registry, record)
+    except (SessionctlError, OSError, ValueError) as exc:
+        if fail_closed:
+            return _lease_block_result(paths, ctx, operation='heartbeat', error=exc)
+        record_hook_event(
+            paths,
+            ctx,
+            status='LEASE_HEARTBEAT_BLOCKED',
+            extra={'reason': str(exc), 'errorType': type(exc).__name__},
         )
-    except Exception as exc:
-        record_hook_event(paths, ctx, status='LAZY_BIND_BLOCKED', extra={'event': 'hook-activation', 'reason': str(exc)})
-        return
-    if proc.returncode == 0:
-        record_hook_event(paths, ctx, status='LAZY_BIND', extra={'event': 'hook-activation', 'source': 'first-safe-hook'})
-    else:
-        reason = (proc.stderr or proc.stdout).strip() or 'sessionctl bind-session failed'
-        record_hook_event(paths, ctx, status='LAZY_BIND_BLOCKED', extra={'event': 'hook-activation', 'reason': reason})
+    return None
 
 
+# 在 SessionEnd 精确释放当前主 Session 的 writer lease。
+def _release_session_writer_lease(paths: RepoPaths, ctx: HookContext) -> HookResult | None:
+    """参数：
+        paths: 当前仓库与 Runtime 路径。
+        ctx: 当前 Hook 输入。
 
-# 判断是否显式启用 legacy 单写兼容。
+    返回：
+        释放失败时的 Hook 阻断结果；无 lease 或释放成功时返回 None。
+    """
+
+    record = _bound_record(paths, ctx)
+    if not record or not record.get('writerLease'):
+        return None
+    try:
+        release_writer_lease(
+            Registry(paths.repo_root),
+            record,
+            reason='SessionEnd',
+            inherited=bool(ctx.agent_id),
+        )
+    except (SessionctlError, OSError, ValueError) as exc:
+        return _lease_block_result(paths, ctx, operation='release', error=exc)
+    return None
 # 校验运行级写入授权并按需阻断。
 def _run_mutation_block(paths: RepoPaths, ctx: HookContext, candidate_paths: list[str] | None = None) -> HookResult | None:
     """参数：
@@ -198,13 +273,25 @@ def _run_mutation_block(paths: RepoPaths, ctx: HookContext, candidate_paths: lis
         需要阻断时返回 HookResult；允许继续时返回 None。
     """
     if not paths.identity.has_run:
-        display_client = paths.identity.client.capitalize() if paths.identity.client == 'codex' else paths.identity.client
         reason = (
-            f'unbound {display_client} session is read-only-unbound; mutating operation requires '
-            'a managed-worktree run with FEIPI_RUN_ID and confirmed hook activation'
+            f'unbound {paths.identity.client} session cannot mutate; automatic bootstrap '
+            'requires a valid session_id and cwd payload'
         )
-        record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason, 'mode': 'read-only-unbound'})
+        record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
         return HookResult(status='BLOCK', exit_code=2, message=reason)
+    record = _bound_record(paths, ctx)
+    if not record:
+        reason = 'Registry has no run bound to this Session and physical checkout'
+        return _lease_block_result(
+            paths,
+            ctx,
+            operation='acquire',
+            error=SessionctlError(reason),
+        )
+    try:
+        acquire_writer_lease(Registry(paths.repo_root), record)
+    except (WriterLeaseConflict, WriterLeaseFenced, SessionctlError, OSError, ValueError) as exc:
+        return _lease_block_result(paths, ctx, operation='acquire', error=exc)
     allowed, errors, record = validate_run_write_authorization(
         paths.repo_root,
         client=paths.identity.client,
@@ -243,9 +330,8 @@ def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
     mutation_tracking = False
     if decision.allowed:
         changed_file_utils.write_base_commit_if_missing(paths.repo_root, paths.base_commit)
-        mutation_tracking = not is_read_only_command(
-            ctx.command
-        ) and not _is_deterministic_validation_command(ctx.command)
+        call_kind = classify_tool_call('Bash', ctx.tool_input)
+        mutation_tracking = call_kind == 'mutation'
         if mutation_tracking and not ctx.session_id:
             reason = 'mutating Bash 缺少 session id；fail-closed，避免 mutation attribution 静默 PASS。'
             record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
@@ -273,6 +359,10 @@ def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
             return HookResult(status='BLOCK', exit_code=2, message=reason)
         if mutation_tracking:
             snapshot_written = record_pre_bash_snapshot(paths, ctx)
+        else:
+            lease_block = _observe_writer_lease(paths, ctx, fail_closed=False)
+            if lease_block is not None:
+                return lease_block
     record_hook_event(
         paths,
         ctx,
@@ -282,6 +372,7 @@ def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
             'warnings': decision.warnings,
             'bashSnapshot': snapshot_written,
             'bashMutationTracking': mutation_tracking,
+            'toolCallKind': classify_tool_call('Bash', ctx.tool_input),
             'worktree': {'authority': 'run-record'} if mutation_tracking else None,
         },
     )
@@ -306,9 +397,6 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
         reason = payload_reason
         record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
         return HookResult(status='BLOCK', exit_code=2, message=reason)
-    run_block = _run_mutation_block(paths, ctx, ctx.candidate_paths)
-    if run_block is not None:
-        return run_block
     for path in ctx.candidate_paths:
         if is_protected_path(path, paths.repo_root):
             guard = subprocess.run(
@@ -342,6 +430,9 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
                 paths, ctx, status='BLOCK', extra={'reason': decision.reason, 'file': path}
             )
             return HookResult(status='BLOCK', exit_code=2, message=decision.reason)
+    run_block = _run_mutation_block(paths, ctx, ctx.candidate_paths)
+    if run_block is not None:
+        return run_block
     record_hook_event(
         paths, ctx, status='PASS', extra={'candidatePathCount': len(ctx.candidate_paths)}
     )
@@ -358,6 +449,9 @@ def handle_post_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
     """
     paths = _paths_for_context(paths, ctx)
     records = record_post_write(paths, ctx)
+    lease_block = _observe_writer_lease(paths, ctx, fail_closed=True)
+    if lease_block is not None:
+        return lease_block
     for raw_path in ctx.candidate_paths:
         candidate = Path(raw_path)
         if not candidate.is_absolute():
@@ -391,6 +485,13 @@ def handle_post_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
     """
     paths = _paths_for_context(paths, ctx)
     records = record_post_bash(paths, ctx)
+    lease_block = _observe_writer_lease(
+        paths,
+        ctx,
+        fail_closed=classify_tool_call('Bash', ctx.tool_input) == 'mutation',
+    )
+    if lease_block is not None:
+        return lease_block
     return HookResult(status='PASS', details={'changedFileCount': len(records)})
 
 
@@ -402,25 +503,34 @@ def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult
     返回：
         当前函数计算或校验结果。
     """
-    if label.lower() in {'stop', 'session-stop'} and ctx.empty_input:
+    normalized_label = label.lower()
+    if normalized_label in {'stop', 'session-stop'} and ctx.empty_input:
         dirty = changed_file_utils.read_git_dirty_files(paths.repo_root)
         if dirty:
             reason = 'Stop hook stdin 为空且 git workspace 非 clean；fail-closed。'
             record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason, 'dirtyCount': len(dirty)})
             return HookResult(status='BLOCK', exit_code=2, message=reason)
-    if label in {'session-start', 'subagent-start'}:
-        handle_session_start(paths, ctx, label)
-        if label == 'session-start':
-            if not paths.identity.has_run:
-                if paths.identity.raw_session_id:
-                    marker = paths.repo_root / 'tmp' / 'agent_logs' / paths.identity.client / paths.identity.raw_session_id / 'read-only-unbound.json'
-                    marker.parent.mkdir(parents=True, exist_ok=True)
-                    marker.write_text(
-                        '{"schemaVersion":1,"client":"%s","sessionId":"%s","status":"read-only-unbound","reason":"FEIPI_RUN_ID missing; mutations require managed run"}\n'
-                        % (paths.identity.client, paths.identity.raw_session_id),
-                        encoding='utf-8',
-                    )
-                record_hook_event(paths, ctx, status='READ_ONLY_UNBOUND', extra={'mode': 'read-only-unbound'})
+    if normalized_label in {'session-end', 'sessionend'}:
+        release_block = _release_session_writer_lease(paths, ctx)
+        if release_block is not None:
+            return release_block
+    elif label in {
+        'session-start',
+        'subagent-start',
+        'user-prompt-submit',
+        'cwd-changed',
+        'pre-tool-bootstrap',
+    }:
+        if label in {'session-start', 'subagent-start'}:
+            handle_session_start(paths, ctx, label)
+        else:
+            record_hook_event(
+                paths,
+                ctx,
+                status='BOOTSTRAP_CONFIRMED',
+                extra={'source': label, 'runId': paths.identity.raw_run_id},
+            )
+        _observe_writer_lease(paths, ctx, fail_closed=False)
     elif label == 'config-change':
         record_config_change(paths, ctx)
         record_hook_event(paths, ctx, status='CONFIG')
@@ -451,10 +561,20 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     ctx = read_stdin_json(event_name)
-    identity = identity_from_hook_context(ctx)
+    wrapper_client = os.environ.get('FEIPI_AGENT_CLIENT', '')
+    try:
+        _bootstrap_hook_session(ctx, wrapper_client=wrapper_client)
+    except (HookAdapterError, SessionctlError, OSError, ValueError) as exc:
+        return emit(
+            HookResult(
+                status='BLOCK',
+                exit_code=2,
+                message=f'hook Session bootstrap BLOCK: {exc}',
+            )
+        )
+    identity = identity_from_hook_context(ctx, agent_client=wrapper_client or None)
     paths = build_paths(repo_root=ctx.cwd or None, identity=identity)
     ensure_runtime_dirs(paths)
-    _maybe_lazy_bind_session(paths, ctx)
 
     if event_name == 'pre-bash':
         return emit(handle_pre_bash(paths, ctx))

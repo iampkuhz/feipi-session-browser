@@ -9,6 +9,16 @@ from dataclasses import dataclass, field
 from typing import Any
 
 
+PAYLOAD_FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    'session_id': ('session_id', 'sessionId'),
+    'agent_id': ('agent_id', 'agentId'),
+    'agent_client': ('agent_client', 'agentClient', 'client'),
+    'cwd': ('cwd', 'workingDirectory', 'working_directory', 'workspaceRoot', 'workspace_root'),
+    'client_surface': ('client_surface', 'clientSurface', 'surface', 'platform'),
+    'parent_run_id': ('parent_run_id', 'parentRunId'),
+}
+
+
 # 01. Claude Hook 输入模型
 @dataclass
 class HookContext:
@@ -38,6 +48,17 @@ class HookContext:
             if isinstance(value, str) and value:
                 return value
         return ''
+
+    # 按共享 alias 表读取平台字段。
+    def _aliased_string(self, field_name: str) -> str:
+        """参数：
+            field_name: alias 表中的统一字段名。
+
+        返回：
+            payload 中首个非空 alias 值。
+        """
+
+        return self._raw_string(*PAYLOAD_FIELD_ALIASES[field_name])
 
     # 维护 _tool_string 函数行为。
     def _tool_string(self, *keys: str) -> str:
@@ -125,7 +146,7 @@ class HookContext:
         返回：
             当前函数计算或校验结果。
         """
-        return self._raw_string('session_id', 'sessionId')
+        return self._aliased_string('session_id')
 
 
     # 返回当前运行 id。
@@ -198,8 +219,7 @@ class HookContext:
             当前函数计算或校验结果。
         """
         return str(
-            self.raw.get('cwd')
-            or self.raw.get('workingDirectory')
+            self._aliased_string('cwd')
             or self.tool_input.get('cwd')
             or self.tool_input.get('workingDirectory')
             or os.environ.get('FEIPI_HOOK_CWD')
@@ -216,7 +236,7 @@ class HookContext:
         返回：
             当前函数计算或校验结果。
         """
-        return self._raw_string('agent_id', 'agentId')
+        return self._aliased_string('agent_id')
 
     # 返回 hook event 中的 agent type。
     @property
@@ -240,7 +260,25 @@ class HookContext:
         返回：
             当前函数计算或校验结果。
         """
-        return self._raw_string('agent_client', 'agentClient', 'client')
+        return self._aliased_string('agent_client')
+
+    # 返回 payload 显式声明的客户端 surface。
+    @property
+    def client_surface(self) -> str:
+        """返回：
+            客户端 surface；该值不用于推断路径。
+        """
+
+        return self._aliased_string('client_surface')
+
+    # 返回显式 subagent 父 run 标识。
+    @property
+    def parent_run_id(self) -> str:
+        """返回：
+            subagent 父 run 标识。
+        """
+
+        return self._aliased_string('parent_run_id')
 
     # 提取写入类 hook payload 中的候选路径并保序去重。
     @property

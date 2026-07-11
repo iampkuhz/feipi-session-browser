@@ -61,6 +61,7 @@ def test_codex_hooks_json_uses_git_root_resolving_commands():
 
     expected_paths = [
         '.codex/hooks/session-start.sh',
+        '.codex/hooks/pre_tool_bootstrap.sh',
         '.codex/hooks/pre_tool_guard.sh',
         '.codex/hooks/pre_write_guard.sh',
         '.codex/hooks/post_bash_guard.sh',

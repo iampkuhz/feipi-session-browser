@@ -1,87 +1,64 @@
-# Agent Runtime
+# Session Runtime 生命周期
 
-`feipi-session-browser` now has one hook/runtime authority.
+本仓库只采用客户端已经选择的 Git checkout。Codex App/CLI、Claude Code CLI、Qoder
+CLI 与 Qoder 客户端通过薄 Hook adapter 调用同一个 Session service；Runtime 不创建、切换或
+删除客户端拥有的 worktree。
 
-## Authoritative files
-
-| Responsibility | Authority |
-|---|---|
-| Machine policy | `harness/agent-runtime.manifest.yaml` |
-| User/maintenance docs | `docs/agent-runtime.md` |
-| Run record + authorization library | `scripts/harness/primary_session.py` |
-| Runtime CLI/finalize/recovery/cleanup | `scripts/harness/sessionctl.py` |
-| Thin launcher | `scripts/agent-session` |
-| Stop production entry | `scripts/harness/stop_entry.py` |
-| Stop helper functions | `scripts/harness/stop_helpers.py` |
-| Changed-file truth | assigned worktree Git `base...HEAD + dirty + untracked` |
-| Quality target/gate mapping | `scripts/quality/quality_targets.py` |
-| Shared shell hook helpers | `scripts/harness/hook-common.sh` |
-
-Platform directories only keep thin wrappers under `.claude/hooks/`, `.codex/hooks/`, and `.qoder/hooks/`. Wrappers set strict shell options, parse stdin once when Stop needs root resolution, set `FEIPI_AGENT_CLIENT`, and `exec` the shared Python entry.
-
-## Managed run model
-
-Writable work requires a `runId` record stored under `<git-common-dir>/feipi-agent-runtime/runs/`. A run record includes `client`, `taskId`, `sessionId`, `worktreeId`, `worktreeRoot`, `branch`, `targetBranch`, `primaryRepoRoot`, `baseCommit`, `headCommit`, `changeId`, `mode`, `status`, path scopes, writer lease, hook activation, and process metadata.
-
-Daily legacy write authorization is removed. `sessionctl recover-legacy` may read old marker/worktree data once and write a new run record; it does not continue the old runtime.
-
-## Commands
-
-```bash
-./scripts/agent-session create --client codex --task-id task-a --change-id converge-agent-hook-runtime --base-ref main_java --allowed-path scripts
-./scripts/agent-session start --run-id <run-id> --print-command
-./scripts/agent-session bind-session --run-id <run-id> --session-id <real-session> --client codex --cwd <worktree>
-./scripts/agent-session stop --run-id <run-id>
-./scripts/agent-session finalize --run-id <run-id>
-./scripts/agent-session recover-legacy --client codex --session <old-session> --target main_java --change-id <change> --worktree-root <old-worktree>
-./scripts/agent-session cleanup --run-id <run-id>              # dry-run by default
-./scripts/agent-session cleanup --run-id <run-id> --execute
-```
-
-`start` can also create a run in one command when `--run-id` is omitted and `--client --task-id --change-id` are supplied.
-
-## State machine
-
-Normal states:
+## 唯一流程
 
 ```text
-CREATED -> STARTING -> RUNNING -> VALIDATING -> VALIDATED -> COMMITTED -> INTEGRATING -> INTEGRATED -> CLEANED
+客户端启动并确定 checkout
+→ Hook bootstrap/adopt
+→ 首次 mutation 获取 checkout writer lease
+→ Stop validate
+→ finalize/integrate 或 handoff
+→ SessionEnd release
 ```
 
-Exception states: `BLOCKED`, `HANDOFF_REQUIRED`, `FAILED`.
+`scripts/harness/sessionctl.py` 是 Registry、bootstrap、writer lease、Stop、finalize、handoff
+与 cleanup 的唯一业务入口。`scripts/claude_hooks/adapter.py` 只规范化平台 payload；
+`.claude/hooks/`、`.codex/hooks/`、`.qoder/hooks/` 只转发 stdin、client/event 与退出码。
 
-Stop can only validate a run (`VALIDATED`). A target branch contains the changes only after `finalize` reaches `INTEGRATED`.
+## Checkout 与身份
 
-## Stop and changed files
+- checkout 事实只来自 Git top-level、common-dir、worktree inventory 与 canonical realpath。
+- `repoKey` 来自 Git common-dir；`worktreeId` 来自 `repoKey + checkoutRoot realpath`。
+- `primary-checkout` 与 `linked-worktree` 都可直接采用；branch 名、detached 状态、目录名和
+  客户端名称不参与写授权。
+- SessionStart 是常规 bootstrap；Codex/Qoder PreToolUse、Qoder UserPromptSubmit 是幂等兜底；
+  Claude/Qoder CwdChanged 只重确认当前 checkout。
 
-`stop_entry.py` resolves the assigned worktree from the run record and computes changed files from Git:
+## Registry 与 Writer Lease
+
+Registry 位于当前用户系统临时目录的 `feipi-agent-runtime/<repo-key>/`，目录权限为 `0700`，
+文件权限为 `0600`。bootstrap 只登记 `BOOTSTRAPPED` run，不提前占用 writer lease。
+
+只读 Session 可并行；第一次 Write/Edit/MultiEdit/apply_patch 或 mutating Bash 获取按
+`worktreeId` 隔离的 lease。主 checkout writer 为 `LOCAL_WRITER`，linked worktree writer 为
+`ISOLATED_WRITER`；同 checkout 的后续 writer 在 mutation 处进入 `READ_ONLY_CONFLICT`，但仍可
+读取。lease 使用 epoch、fencing token、heartbeat 和 checkout mutation lock；正常 SessionEnd
+精确释放，异常 lease 只能按 holder、epoch、进程身份和 Git 状态受控回收。
+
+subagent 继承主 Session 的 run/worktree/lease，不创建第二份 primary writer lease。启动前的
+dirty snapshot 只作为 baseline，无法区分归因时必须 handoff。
+
+## Stop、收口与清理
+
+Stop 的 changed-files 真相来自 `baseCommit...HEAD`、working tree diff 与 untracked files；Stop
+只验证并写 run-scoped evidence，不宣称已集成。finalize 只能执行安全集成，否则输出 handoff。
+
+cleanup/release 只处理指定 run 的 lease、Registry/evidence；客户端拥有的 checkout 始终保留。
+Runtime 不自动 push，不 force，不广域删除运行数据。
+
+常用只读诊断与收口命令：
 
 ```bash
-git diff --name-only <baseCommit>...HEAD
-git diff --name-only
-git ls-files --others --exclude-standard
+python3 scripts/harness/sessionctl.py status --run-id <run-id>
+python3 scripts/harness/sessionctl.py doctor --run-id <run-id>
+python3 scripts/harness/sessionctl.py handoff --run-id <run-id>
+python3 scripts/harness/sessionctl.py finalize --run-id <run-id>
+python3 scripts/harness/sessionctl.py cleanup --run-id <run-id>
 ```
 
-`changed-files.jsonl` remains audit evidence only. It cannot make a run read-only. Read-only PASS requires `HEAD == baseCommit`, clean worktree, no untracked files, and no attribution gap.
-
-Persistent Stop failures are circuit-broken by identical `HEAD + dirtyHash + failureFingerprint`: the second identical Stop reuses the failure without rerunning heavy gates; after the limit it writes a final `BLOCKED` summary so the client can stop looping.
-
-## Quality gates and artifacts
-
-Required tier uses `applicable_gates_for_target(target, changed_files)`. Full tier uses `required_gates_for_target(target)`. Artifacts record triggered gates, not-triggered gates, changed files, base/head/dirty hash, gate config version, environment fingerprint, and cache key. PASS cache reuse requires the same target, gate inputs, base, HEAD, dirty hash, gate version, and environment fingerprint.
-
-Java record component Javadoc validation is the Java Gradle task:
-
-```bash
-./gradlew :java:tests:quality-gates:verifyJavaRecordComponentJavadocs
-```
-
-## Finalize and handoff
-
-`finalize` takes an integration lock, requires a clean primary checkout, checks target/branch/base/head, requires fresh validated artifacts, and integrates by `ff-only`. If target advanced without conflicts, it rebases only the agent private branch, reruns Stop, then fast-forwards. Dirty primary, conflicts, or stale artifacts produce `HANDOFF_REQUIRED` and leave the target unchanged.
-
-Handoff summaries include committed `base...HEAD` files, commit list, ahead/behind, dirty/untracked files, required gate status, merge risk, and a single finalize command.
-
-## Cleanup
-
-Cleanup is dry-run by default. It blocks on active recorded process, dirty worktree, unintegrated commits, or current-process CWD. Branch deletion requires `INTEGRATED` plus explicit `--delete-branch`.
+机器可读真相是 `harness/agent-runtime.manifest.yaml`；完整 required quality gate 入口是
+`python3 scripts/quality/run_required_quality_gates.py`。

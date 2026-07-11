@@ -1,9 +1,10 @@
 import json
 import subprocess
 
+import pytest
+
 from scripts.claude_hooks.evidence import (
     acquire_bash_mutation_lock,
-    record_hook_event,
     release_bash_mutation_lock,
     record_post_bash,
     record_pre_bash_snapshot,
@@ -22,55 +23,6 @@ def _git(repo, *args):
         stderr=subprocess.PIPE,
         check=True,
     )
-
-
-def test_lazy_bind_event_does_not_mask_pre_bash_decision(tmp_path):
-    """LAZY_BIND instrumentation event must not dedupe the actual pre-bash decision event."""
-    repo = tmp_path / 'repo'
-    repo.mkdir()
-    paths = build_paths(repo, identity_from_values(agent_client='claude', session_id='session-a'))
-    pre_ctx = read_stdin_json(
-        'pre-bash',
-        json.dumps(
-            {
-                'session_id': 'session-a',
-                'tool_name': 'Bash',
-                'tool_use_id': 'tool-lazy',
-                'tool_input': {'command': 'git status --short'},
-            }
-        ),
-    )
-    post_ctx = read_stdin_json(
-        'post-bash',
-        json.dumps(
-            {
-                'session_id': 'session-a',
-                'tool_name': 'Bash',
-                'tool_use_id': 'tool-lazy',
-                'tool_input': {'command': 'git status --short'},
-            }
-        ),
-    )
-
-    record_hook_event(paths, pre_ctx, status='LAZY_BIND', extra={'source': 'first-safe-hook'})
-    record_hook_event(
-        paths,
-        pre_ctx,
-        status='PASS',
-        extra={'bashMutationTracking': False, 'bashSnapshot': False},
-    )
-    record_hook_event(
-        paths,
-        pre_ctx,
-        status='PASS',
-        extra={'bashMutationTracking': False, 'bashSnapshot': False},
-    )
-    records = record_post_bash(paths, post_ctx)
-
-    assert records == []
-    events = [json.loads(line) for line in paths.hook_events.read_text(encoding='utf-8').splitlines()]
-    assert [event['status'] for event in events] == ['LAZY_BIND', 'PASS', 'OBSERVED']
-    assert not any(event['status'] == 'BASH_SNAPSHOT_MISSING' for event in events)
 
 
 def test_missing_bash_snapshot_records_required_marker(tmp_path):
@@ -151,6 +103,7 @@ def test_bash_mutation_records_session_changed_file(tmp_path):
     assert changed_record['file'] == 'scripts/tool.py'
 
 
+@pytest.mark.contract_case('HOOK-HARNESS-019')
 def test_bash_snapshots_are_identity_scoped(tmp_path):
     """相同 tool_use_id 在不同 session 下必须写入不同 snapshot 目录。"""
     repo = tmp_path / 'repo'

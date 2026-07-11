@@ -12,7 +12,38 @@
         ]
       }
     ],
+    "CwdChanged": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/cwd-changed.sh\"'",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/user-prompt-submit.sh\"'",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/pre_tool_bootstrap.sh\"'",
+            "timeout": 30
+          }
+        ]
+      },
       {
         "matcher": "Bash",
         "hooks": [
@@ -24,7 +55,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch",
         "hooks": [
           {
             "type": "command",
@@ -46,7 +77,7 @@
         ]
       },
       {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit",
+        "matcher": "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch",
         "hooks": [
           {
             "type": "command",

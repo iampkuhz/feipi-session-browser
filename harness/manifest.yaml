@@ -12,13 +12,21 @@ runtime:
   runtime_manifest: harness/agent-runtime.manifest.yaml
   resource_lock_manager: scripts/harness/resource_lock.py
   port_allocator: scripts/harness/port_allocator.py
-  runtime_root: FEIPI_AGENT_RUNTIME_ROOT or git-common-dir/feipi-agent-runtime
+  runtime_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
   agent_entrypoints:
+    claude_session_start: .claude/hooks/session-start.sh
+    claude_cwd_changed: .claude/hooks/cwd-changed.sh
+    claude_session_end: .claude/hooks/session-end.sh
+    codex_session_start: .codex/hooks/session-start.sh
+    codex_pre_tool_bootstrap: .codex/hooks/pre_tool_bootstrap.sh
     claude_stop: .claude/hooks/stop.sh
     codex_pre_tool: .codex/hooks/pre_tool_guard.sh
     codex_post_tool: .codex/hooks/post_tool_guard.sh
     codex_stop: .codex/hooks/stop_check.sh
     qoder_session_start: .qoder/hooks/session-start.sh
+    qoder_cwd_changed: .qoder/hooks/cwd-changed.sh
+    qoder_user_prompt_submit: .qoder/hooks/user-prompt-submit.sh
+    qoder_pre_tool_bootstrap: .qoder/hooks/pre_tool_bootstrap.sh
     qoder_pre_tool: .qoder/hooks/pre_tool_guard.sh
     qoder_post_tool: .qoder/hooks/post_tool_guard.sh
     qoder_stop: .qoder/hooks/stop_check.sh
@@ -61,6 +69,7 @@ quality_gates:
     required: true
 
 docs:
+  - docs/agent-runtime.md
   - skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
   - harness/README.md
   - harness/agent-runtime.md
@@ -81,5 +90,4 @@ local_only:
   - "data/"
   - "output/"
   - "tmp/agent_logs/"
-  - "tmp/agent-runtime/"
   - "tmp/quality/"

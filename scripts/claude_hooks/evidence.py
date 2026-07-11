@@ -100,13 +100,13 @@ def runtime_fields(paths: RepoPaths, ctx: HookContext, event: str | None = None)
         'runId': identity.raw_run_id,
         'taskId': identity.raw_task_id,
         'worktreeId': identity.raw_worktree_id,
-        'worktreeRootHash': identity.worktree_root_hash,
+        'checkoutRootHash': identity.checkout_root_hash,
         'branch': identity.branch,
         'baseCommit': identity.base_commit,
         'turnId': ctx.turn_id or identity.raw_turn_id,
         'changeId': identity.change_id or current_change_id(paths),
         'eventId': event_id_for(paths, ctx, event),
-        'legacyWarnings': list(identity.legacy_warnings),
+        'identityWarnings': list(identity.identity_warnings),
     }
 
 
@@ -186,9 +186,6 @@ def _bash_snapshot_path(paths: RepoPaths, ctx: HookContext) -> Path | None:
     return paths.agent_log_dir / 'bash-snapshots' / f'{key}.json'
 
 
-INSTRUMENTATION_ONLY_PRE_BASH_STATUSES = {'LAZY_BIND', 'LAZY_BIND_BLOCKED'}
-
-
 # 判断前置 Bash 事件是否说明缺失 snapshot 不是 mutation attribution gap。
 def pre_bash_exempts_missing_snapshot(event: dict[str, Any] | None) -> bool:
     """参数：
@@ -199,12 +196,7 @@ def pre_bash_exempts_missing_snapshot(event: dict[str, Any] | None) -> bool:
     """
     if not event:
         return False
-    status = event.get('status')
-    return (
-        status == 'BLOCK'
-        or event.get('bashMutationTracking') is False
-        or status in INSTRUMENTATION_ONLY_PRE_BASH_STATUSES
-    )
+    return event.get('status') == 'BLOCK' or event.get('bashMutationTracking') is False
 
 
 # 查找同一 Bash 工具调用的前置 hook 记录。
@@ -238,11 +230,6 @@ def _matching_pre_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, An
         return event
     return None
 
-
-
-
-
-
 # 查找同一 Bash 工具调用已经记录过的后置 hook 记录。
 def _matching_post_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, Any] | None:
     """参数：
@@ -273,24 +260,6 @@ def _matching_post_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, A
             continue
         return event
     return None
-
-
-# 查找 assignment marker 指向的同仓库 worktree 路径。
-# 为 post Bash 选择实际 evidence 根目录。
-def _post_bash_evidence_paths(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
-    """参数：
-        paths: 当前 hook 默认仓库路径集合。
-        ctx: 当前 post Bash hook 上下文。
-
-    返回：
-        含有匹配 snapshot 或 pre-bash evidence 的路径集合。
-    """
-    snapshot_path = _bash_snapshot_path(paths, ctx)
-    if snapshot_path is not None and snapshot_path.exists():
-        return paths
-
-    return paths
-
 
 # 维护Bash 锁 路径。
 def _bash_lock_path(paths: RepoPaths) -> Path:
@@ -566,7 +535,6 @@ def record_post_bash(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]]
     返回：
         结果列表。
     """
-    paths = _post_bash_evidence_paths(paths, ctx)
     ensure_runtime_dirs(paths)
     try:
         snapshot_path = _bash_snapshot_path(paths, ctx)
