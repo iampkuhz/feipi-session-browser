@@ -120,6 +120,38 @@ def _bash_snapshot_path(paths: RepoPaths, ctx: HookContext) -> Path | None:
     return paths.agent_log_dir / 'bash-snapshots' / f'{key}.json'
 
 
+# 查找同一 Bash 工具调用的前置 hook 记录。
+def _matching_pre_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, Any] | None:
+    """参数：
+        paths: 仓库运行时路径集合。
+        ctx: 当前后置 Bash hook 上下文。
+
+    返回：
+        最近一条匹配同一 toolUseId 的前置 Bash 事件；找不到则返回 None。
+    """
+    if not ctx.tool_use_id or not paths.hook_events.exists():
+        return None
+    try:
+        lines = paths.hook_events.read_text(encoding='utf-8').splitlines()
+    except OSError:
+        return None
+    for raw_line in reversed(lines):
+        if not raw_line.strip():
+            continue
+        try:
+            event = json.loads(raw_line)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(event, dict):
+            continue
+        if event.get('toolUseId') != ctx.tool_use_id:
+            continue
+        if event.get('event') != 'pre-bash':
+            continue
+        return event
+    return None
+
+
 # 维护Bash 锁 路径。
 def _bash_lock_path(paths: RepoPaths) -> Path:
     """参数：
@@ -128,6 +160,8 @@ def _bash_lock_path(paths: RepoPaths) -> Path:
     返回：
         解析后的 HookContext；失败时携带 parse_error。
     """
+    # 工作区级锁：同一个工作区的所有 agent 共享 Git 脏差异，
+    # 因此同一时刻只允许一个变更 Bash 命令拍摄前后快照。
     return paths.repo_root / 'tmp' / 'agent_logs' / 'bash-mutation.lock'
 
 
@@ -143,7 +177,33 @@ def _bash_lock_owner(paths: RepoPaths, ctx: HookContext) -> str | None:
     return _bash_snapshot_key(ctx, paths.identity.client)
 
 
-# 移除stale Bash 锁。
+# 判断 Bash 锁 owner 进程是否已经退出。
+def _bash_lock_owner_process_dead(path: Path) -> bool:
+    """参数：
+        path: Bash 变更锁文件路径。
+
+    返回：
+        锁文件记录的 owner 进程明确不存在时返回 true。
+    """
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return False
+    if not isinstance(data, dict):
+        return False
+    pid = data.get('pid')
+    if not isinstance(pid, int) or pid <= 0:
+        return False
+    try:
+        os.kill(pid, 0)
+    except ProcessLookupError:
+        return True
+    except (PermissionError, OSError):
+        return False
+    return False
+
+
+# 移除过期或 owner 进程已退出的 Bash 锁。
 def _remove_stale_bash_lock(path: Path) -> None:
     """参数：
         path: 待检查的路径。
@@ -154,12 +214,33 @@ def _remove_stale_bash_lock(path: Path) -> None:
         return
     except OSError:
         return
-    if age <= BASH_MUTATION_LOCK_STALE_SECONDS:
+    if age <= BASH_MUTATION_LOCK_STALE_SECONDS and not _bash_lock_owner_process_dead(path):
         return
     try:
         path.unlink()
     except OSError:
         pass
+
+
+# 读取 Bash 变更锁详情。
+def read_bash_mutation_lock_info(paths: RepoPaths) -> dict[str, Any] | None:
+    """参数：
+        paths: 仓库路径集合。
+
+    返回：
+        变更锁详情字典，包含锁持有者、时间和年龄等信息；无法读取时返回 None。
+    """
+    lock_path = _bash_lock_path(paths)
+    try:
+        raw = json.loads(lock_path.read_text(encoding='utf-8'))
+        stat = lock_path.stat()
+    except (FileNotFoundError, json.JSONDecodeError, OSError):
+        return None
+    if not isinstance(raw, dict):
+        return None
+    raw = dict(raw)
+    raw['age_seconds'] = max(0.0, time.time() - stat.st_mtime)
+    return raw
 
 
 # 获取Bash mutation 锁。
@@ -343,6 +424,23 @@ def record_post_bash(paths: RepoPaths, ctx: HookContext) -> list[dict[str, Any]]
     try:
         snapshot_path = _bash_snapshot_path(paths, ctx)
         if snapshot_path is None or not snapshot_path.exists():
+            pre_event = _matching_pre_bash_event(paths, ctx)
+            if pre_event and (
+                pre_event.get('status') == 'BLOCK'
+                or pre_event.get('bashMutationTracking') is False
+            ):
+                record_hook_event(
+                    paths,
+                    ctx,
+                    status='OBSERVED',
+                    extra={
+                        'changedFileCount': 0,
+                        'mutationSource': 'bash',
+                        'bashMutationTracking': False,
+                        'preStatus': pre_event.get('status'),
+                    },
+                )
+                return []
             record_hook_event(paths, ctx, status='BASH_SNAPSHOT_MISSING')
             return []
 

@@ -21,6 +21,7 @@ SCAN_DIRS = [
     ".agents",
     "skills",
     "harness",
+    "harness/reports",
     "scripts",
 ]
 
@@ -53,6 +54,12 @@ _SAFE_VALUES = {
 # sk- 开头的长 token 模式（至少 10 个字符的后续内容）。
 _SK_TOKEN_RE = re.compile(r"sk-[A-Za-z0-9]{10,}")
 
+# Anthropic 专属 token 前缀（拆分避免 gate 自引用）。
+_ANTHROPIC_TOKEN_RE = re.compile(r"sk-" r"ant-" r"[A-Za-z0-9_\-]{6,}")
+
+# GitHub token 前缀（拆分避免 gate 自引用）。
+_GITHUB_TOKEN_RE = re.compile(r"(?:gh" r"p_|github" r"_pat_)[A-Za-z0-9_]{12,}")
+
 # Authorization: Bearer 后跟长串。
 _BEARER_RE = re.compile(r"Authorization:\s*Bearer\s+(\S+)", re.IGNORECASE)
 
@@ -62,6 +69,12 @@ _KEY_ASSIGN_RE = re.compile(
     r"\s*[=:]\s*['\"]?([A-Za-z0-9_\-]{20,})['\"]?",
     re.IGNORECASE,
 )
+
+# 敏感环境变量名和私钥块标记（拆分避免 gate 自引用）。
+_SENSITIVE_MARKERS = [
+    "AWS" + "_SECRET" + "_ACCESS_KEY",
+    "BEGIN " + "OPENSSH " + "PRIVATE KEY",
+]
 
 # 自身文件名跳过。
 _SKIP_BASENAMES = {
@@ -121,6 +134,32 @@ def _check_sk_token(line: str) -> str | None:
     return None
 
 
+# 检查单行是否包含 Anthropic token。
+def _check_anthropic_token(line: str) -> str | None:
+    """参数：
+        line: 待检查的文本行。
+
+    返回：
+        匹配到的 token 类型；无匹配返回 None。
+    """
+    if _ANTHROPIC_TOKEN_RE.search(line):
+        return "anthropic-token"
+    return None
+
+
+# 检查单行是否包含 GitHub token。
+def _check_github_token(line: str) -> str | None:
+    """参数：
+        line: 待检查的文本行。
+
+    返回：
+        匹配到的 token 类型；无匹配返回 None。
+    """
+    if _GITHUB_TOKEN_RE.search(line):
+        return "github-token"
+    return None
+
+
 # 检查单行是否包含 Authorization: Bearer 长串。
 def _check_bearer(line: str) -> str | None:
     """参数：
@@ -153,6 +192,20 @@ def _check_key_assignment(line: str) -> str | None:
         if _is_safe_value(value):
             return None
         return f"<key>={value[:8]}..."
+    return None
+
+
+# 检查单行是否包含敏感标记。
+def _check_sensitive_marker(line: str) -> str | None:
+    """参数：
+        line: 待检查的文本行。
+
+    返回：
+        匹配到的敏感标记类型；无匹配返回 None。
+    """
+    for marker in _SENSITIVE_MARKERS:
+        if marker in line:
+            return "sensitive-marker"
     return None
 
 
@@ -189,6 +242,14 @@ def _scan_file(filepath: Path) -> list[str]:
                 f"{sk_match[:20]}..."
             )
 
+        anthropic_match = _check_anthropic_token(line)
+        if anthropic_match:
+            errors.append(f"{rel}:{lineno}: 检测到 Anthropic token")
+
+        github_match = _check_github_token(line)
+        if github_match:
+            errors.append(f"{rel}:{lineno}: 检测到 GitHub token")
+
         # 检查 Bearer token
         bearer_match = _check_bearer(line)
         if bearer_match:
@@ -204,6 +265,10 @@ def _scan_file(filepath: Path) -> list[str]:
                 f"{rel}:{lineno}: 检测到密钥赋值长串: {key_match}"
             )
 
+        marker_match = _check_sensitive_marker(line)
+        if marker_match:
+            errors.append(f"{rel}:{lineno}: 检测到敏感环境变量或私钥标记")
+
     return errors
 
 
@@ -214,6 +279,7 @@ def main() -> int:
     """
     all_errors: list[str] = []
 
+    seen_files: set[Path] = set()
     for scan_dir in SCAN_DIRS:
         dir_path = ROOT / scan_dir
         if not dir_path.is_dir():
@@ -221,6 +287,9 @@ def main() -> int:
         for filepath in sorted(dir_path.rglob("*")):
             if not filepath.is_file():
                 continue
+            if filepath in seen_files:
+                continue
+            seen_files.add(filepath)
             # 跳过二进制文件
             if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3", ".class", ".jar"):
                 continue

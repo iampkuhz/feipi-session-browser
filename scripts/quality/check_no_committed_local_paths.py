@@ -16,11 +16,16 @@ SCAN_DIRS = [
     ".agents",
     "skills",
     "harness",
+    "harness/reports",
     "scripts",
+    "tests/fixtures",
 ]
 SCAN_FILES = [
     "AGENTS.md",
     "CLAUDE.md",
+]
+SCAN_GLOBS = [
+    "tests/test_*agent*runtime*.py",
 ]
 
 # 扫描时跳过自身文件（避免自引用误报）
@@ -51,26 +56,51 @@ PERSONAL_USERNAMES = ["".join(_PERSONAL_PARTS)]
 _USERS_PREFIX = "/Users" + "/"
 _HOME_PREFIX = "/home" + "/"
 
+# fixture 中允许使用的合成用户名。
+_SYNTHETIC_USERNAMES = {
+    "test",
+    "testuser",
+    "demo",
+    "user",
+    "developer",
+    "admin",
+    "example",
+    "your-username",
+    "username",
+    "dev",
+}
+
 
 # 输出 FAIL 并返回非 0。
 def fail(message: str) -> int:
     """参数：
-        message: 用户可读错误信息。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        进程退出码。
+        当前函数计算或校验结果。
     """
     print(f"[{GATE_NAME}] FAIL: {message}")
     return 1
 
 
+# 返回安全摘要，避免 gate 输出原始本地路径或 session 内容。
+def _safe_excerpt(line: str) -> str:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    return "<redacted>"
+
+
 # 检查行是否匹配 /home/ 白名单。
 def _is_whitelisted_home(line: str) -> bool:
     """参数：
-        line: 待检查的文本行。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        是否在白名单中。
+        当前函数计算或校验结果。
     """
     for pat in _HOME_WHITELIST:
         if pat.search(line):
@@ -82,13 +112,56 @@ def _is_whitelisted_home(line: str) -> bool:
     return False
 
 
+# 提取 home 路径中的用户名。
+def _extract_username(line: str, prefix: str, match_start: int) -> str | None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    after = line[match_start + len(prefix):]
+    m = re.match(r"([^/\"'\s\\]+)", after)
+    return m.group(1) if m else None
+
+
+# 检查用户名是否为合成 placeholder。
+def _is_synthetic_username(username: str) -> bool:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    return username.lower() in _SYNTHETIC_USERNAMES
+
+
+# 检查行是否包含非合成的本地 home 绝对路径。
+def _has_real_user_path(line: str, prefix: str) -> bool:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    idx = 0
+    while True:
+        pos = line.find(prefix, idx)
+        if pos == -1:
+            return False
+        username = _extract_username(line, prefix, pos)
+        if username and not _is_synthetic_username(username):
+            return True
+        idx = pos + len(prefix)
+
+
 # 扫描单个文件，返回发现的问题列表。
 def _scan_file(filepath: Path) -> list[str]:
     """参数：
-        filepath: 待扫描文件的绝对路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        问题字符串列表。
+        当前函数计算或校验结果。
     """
     errors: list[str] = []
     if filepath.name in _SKIP_BASENAMES:
@@ -102,17 +175,21 @@ def _scan_file(filepath: Path) -> list[str]:
 
     for lineno, line in enumerate(text.splitlines(), start=1):
         # 检查 /Users/ 路径
-        if _USERS_PREFIX in line:
+        if _USERS_PREFIX in line and _has_real_user_path(line, _USERS_PREFIX):
             errors.append(
                 f"{rel}:{lineno}: 包含绝对路径 {_USERS_PREFIX}: "
-                f"{line.strip()[:80]}"
+                f"{_safe_excerpt(line)}"
             )
 
         # 检查 /home/ 路径（排除白名单）
-        if _HOME_PREFIX in line and not _is_whitelisted_home(line):
+        if (
+            _HOME_PREFIX in line
+            and not _is_whitelisted_home(line)
+            and _has_real_user_path(line, _HOME_PREFIX)
+        ):
             errors.append(
                 f"{rel}:{lineno}: 包含可疑 {_HOME_PREFIX} 路径: "
-                f"{line.strip()[:80]}"
+                f"{_safe_excerpt(line)}"
             )
 
         # 检查 Windows 盘符路径（仅非 Python 源码文件检查，
@@ -121,7 +198,7 @@ def _scan_file(filepath: Path) -> list[str]:
             if _WIN_DRIVE_RE.search(line):
                 errors.append(
                     f"{rel}:{lineno}: 包含 Windows 绝对路径: "
-                    f"{line.strip()[:80]}"
+                    f"{_safe_excerpt(line)}"
                 )
 
         # 检查个人用户名（小写匹配）
@@ -130,38 +207,68 @@ def _scan_file(filepath: Path) -> list[str]:
             if username in line_lower:
                 errors.append(
                     f"{rel}:{lineno}: 包含个人用户名 '{username}': "
-                    f"{line.strip()[:80]}"
+                    f"{_safe_excerpt(line)}"
                 )
                 break
 
     return errors
 
 
-# 执行提交态本地路径扫描。
-def main() -> int:
-    """返回：
-        进程退出码。
-    """
-    all_errors: list[str] = []
+# 迭代门禁扫描文件。
+def _iter_scan_files() -> list[Path]:
+    """参数：
+        *args: 当前函数使用的输入参数。
 
-    # 扫描目录
+    返回：
+        当前函数计算或校验结果。
+    """
+    files: list[Path] = []
+    seen: set[Path] = set()
+
+    # 维护 add 函数行为。
+    def add(path: Path) -> None:
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
+        if path.is_file() and path not in seen:
+            seen.add(path)
+            files.append(path)
+
     for scan_dir in SCAN_DIRS:
         dir_path = ROOT / scan_dir
         if not dir_path.is_dir():
             continue
         for filepath in sorted(dir_path.rglob("*")):
-            if not filepath.is_file():
-                continue
-            # 跳过二进制文件和隐藏临时文件
-            if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3"):
-                continue
-            all_errors.extend(_scan_file(filepath))
+            add(filepath)
 
-    # 扫描根文件
     for filename in SCAN_FILES:
-        filepath = ROOT / filename
-        if filepath.is_file():
-            all_errors.extend(_scan_file(filepath))
+        add(ROOT / filename)
+
+    for pattern in SCAN_GLOBS:
+        for filepath in sorted(ROOT.glob(pattern)):
+            add(filepath)
+
+    return files
+
+
+# 执行提交态本地路径扫描。
+def main() -> int:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    all_errors: list[str] = []
+
+    for filepath in _iter_scan_files():
+        # 跳过二进制文件和隐藏临时文件
+        if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3"):
+            continue
+        all_errors.extend(_scan_file(filepath))
 
     if all_errors:
         for err in all_errors:

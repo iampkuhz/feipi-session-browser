@@ -311,17 +311,18 @@ run_dev_tool() {
     PATH="$VENV_DIR/bin:${PATH:-}" "$tool" "$@"
 }
 
-# 执行测试前确认 test profile 依赖已安装。
+# 执行 Java 产品 smoke；显式传参时保留 pytest 调试入口。
 run_tests() {
     cd "$PROJECT_DIR"
+    if [[ $# -eq 0 ]]; then
+        ./gradlew verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
+        return $?
+    fi
+
     "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" check-installed --profile test
     local -a pytest_args
     pytest_args=(-W error)
-    if [[ $# -gt 0 ]]; then
-        pytest_args+=("$@")
-    else
-        pytest_args+=(tests)
-    fi
+    pytest_args+=("$@")
     PYTHONPATH="${PYTHONPATH:-}" "$(python_bin)" -m pytest "${pytest_args[@]}"
 }
 
@@ -658,7 +659,8 @@ print_usage() {
   serve [serve options]            前台启动本地服务（Java launcher）
   scan [scan options]              扫描到本地测试索引（Java launcher）
   stop [--port 8848]               按端口停止本地服务进程（Java launcher）
-  test [pytest options]            执行单元测试
+  test                             执行 Java 产品 smoke（无 skipped）
+  test <pytest args>               执行指定 pytest 调试子集
 
 版本管理：
   version                          输出当前版本

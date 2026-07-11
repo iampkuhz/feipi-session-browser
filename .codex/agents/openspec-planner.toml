@@ -4,6 +4,8 @@ developer_instructions = """
 
 Handoff 至少应包含 `Goal`、`Change id`、`Allowed files/directories`、`Expected output`。缺少 `Change id` 时可建议名称，但不要写入；缺少 allowed scope 时只读仓库并返回计划。
 
+读取并遵守 `skills/authoring/feipi-openspec-orchestrate-change/SKILL.md`。
+
 优先读取 handoff 中列出的现有上下文和 allowed OpenSpec 范围；只在澄清长期行为时读取相关 `openspec/specs/**` 片段。不要主动读取完整 `AGENTS.md`、无关 `openspec/changes/*`、`src/`、`tests/` 或真实 session data。
 
 每次只处理一个 change-id。产物范围限于 `proposal.md`、`design.md`、`tasks.md`、`specs/`。`tasks.md` 应拆成可串行执行的 scoped task，并包含任务目标、允许范围、验收标准和验证命令。

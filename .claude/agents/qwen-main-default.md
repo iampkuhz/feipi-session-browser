@@ -1,7 +1,7 @@
 ---
 name: qwen-main-default
 description: 作为本仓库的 main agent 使用。控制上下文规模，按需使用允许列表中的 subagent，并在结束前完成验证与汇报。
-tools: Agent(implementer, qa-verifier, openspec-planner, repo-mapper, ui-architect), Read, Bash, Edit, Write, TaskCreate, TaskUpdate, TaskList, TaskGet
+tools: Agent(implementer, qa-verifier, openspec-planner, repo-mapper, ui-architect, java-backend-implementer, session-ingestion-specialist, ui-implementation-specialist, mhtml-export-specialist, quality-gate-diagnoser, privacy-reviewer), Read, Bash, Edit, Write, TaskCreate, TaskUpdate, TaskList, TaskGet
 model: inherit
 permissionMode: bypassPermissions
 maxTurns: 120
@@ -72,15 +72,17 @@ color: cyan
 | Field | Required | 含义 |
 |---|---:|---|
 | `Goal` | Yes | 当前 subtask 要达成的具体目标 |
+| `Task id` | Yes | 当前 subtask 的唯一标识；同一 `Change id` 下应唯一 |
+| `Task source` | Yes | task 来源，例如 OpenSpec task、用户任务文件、handoff note |
 | `Change id` | Optional | OpenSpec change 标识；不是 worker id |
-| `Task id` | Recommended | 当前 subtask 的唯一标识；同一 `Change id` 下应唯一 |
-| `Task source` | Recommended | task 来源，例如 OpenSpec task、用户任务文件、handoff note |
-| `Allowed files/directories` | Required for editing subagents | 允许 subagent 读取或修改的最小文件范围 |
-| `Forbidden files/directories` | Recommended | 禁止读取或修改的文件范围，尤其是 secrets、runtime data、无关 protected paths |
-| `Required context files` | Optional | subagent 必须读取的上下文文件，越少越好 |
+| `Allowed files/directories` | Yes | 允许 subagent 读取或修改的最小文件范围 |
+| `Forbidden files/directories` | Yes | 禁止读取或修改的文件范围，尤其是 secrets、runtime data、无关 protected paths |
+| `Required context files` | Yes | subagent 必须读取的上下文文件；确实不适用时写明原因 |
 | `Expected output` | Yes | subagent 应返回的产物或结果 |
-| `Validation command` | Optional | subagent 应运行或参考的验证命令 |
-| `Failure policy` | Recommended | 失败、歧义、越界时的处理方式 |
+| `Validation command` | Yes | subagent 应运行或参考的验证命令；确实不适用时写明原因 |
+| `Failure policy` | Yes | 失败、歧义、越界时的处理方式 |
+
+同一 agent 的不同实例必须分配唯一 `agent_id` 或等价 instance id，并随 handoff 传递到 evidence/validation 语境中。
 
 ## Delegation constraints
 
@@ -89,6 +91,9 @@ color: cyan
 - 不要求 subagent 自行探索整个仓库。
 - 不让多个会修改文件的 subagent 并行修改同一文件范围。
 - 默认串行委派实现型 subagent；只有文件范围完全不重叠时，才可考虑并行。
+- main agent 聚合 subagent evidence 时，只能聚合同一 `client/session_id` 且 agent_id/instance id 可追踪的 evidence。
+- subagent 输出必须包含 `Status`、`Changed files`、`Validation`、`Effect checks`、`Risks`；`Status` 只能是 `PASS`、`FAIL` 或 `BLOCKED`。
+- subagent 返回 `FAIL` 或 `BLOCKED` 时，main agent 不得静默跳过 validation，也不得把 failed、skipped、not-run、unavailable 的 required gate 描述为 `PASS`。
 - 如果 task 需要拆分，先使用 planning/slicing 类 subagent 拆成有序 subtask，再串行委派。
 - 如果无法明确文件边界，不要委派实现型 subagent。
 

@@ -6,6 +6,10 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 RUNTIME_MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 GATE_NAME = "agentRulesSync"
@@ -55,8 +59,7 @@ def _read_runtime_protected_roots() -> list[str]:
     """
     if not RUNTIME_MANIFEST.is_file():
         return []
-    text = RUNTIME_MANIFEST.read_text(encoding="utf-8")
-    return _parse_yaml_list(text, "protected_roots")
+    return runtime_policy.protected_roots(ROOT)
 
 
 # 从 policy manifest 中读取必需短语列表。

@@ -27,6 +27,14 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'languagePolicy',
         'codexAgentPolicy',
         'agentHookParity',
+        'agentRuntimeIsolation',
+        'agentRuntimeWorktree',
+        'gateBypassResistance',
+        'gateEscapeRate',
+        'protectedRootsSync',
+        'qoderRuntimeParity',
+        'hookPayloadCompat',
+        'subagentHandoffProtocol',
         'hookSelfTest',
         'pytest',
         'doctor',
@@ -45,6 +53,14 @@ QUALITY_TARGETS: dict[str, list[str]] = {
         'codexAgentPolicy',
         'agentRuntimeManifest',
         'agentHookParity',
+        'agentRuntimeIsolation',
+        'agentRuntimeWorktree',
+        'gateBypassResistance',
+        'gateEscapeRate',
+        'protectedRootsSync',
+        'qoderRuntimeParity',
+        'hookPayloadCompat',
+        'subagentHandoffProtocol',
         'agentPolicySize',
         'agentRulesSync',
         'skillRegistry',
@@ -122,6 +138,24 @@ TARGET_META: dict[str, dict[str, object]] = {
 TARGET_DOMINANCE: dict[str, dict[str, list[str]]] = {
     'java-src': {'includes': ['java-build']},
 }
+
+
+AGENT_RUNTIME_GATE_PATTERNS: list[str] = [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.agents/**',
+    '.claude/**',
+    '.codex/**',
+    '.qoder/**',
+    'skills/**',
+    'harness/**',
+    'scripts/claude_hooks/**/*.py',
+    'scripts/hooks/**/*.py',
+    'scripts/agent_hooks/**/*.py',
+    'scripts/harness/**/*.py',
+    'scripts/harness/**/*.sh',
+    'scripts/quality/**/*.py',
+]
 
 
 # 02. gate 到文件 pattern 映射（incremental trigger）
@@ -304,6 +338,14 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             '.qoder/hooks/**/*.sh',
             'scripts/quality/check_agent_hook_parity.py',
         ],
+        'agentRuntimeIsolation': AGENT_RUNTIME_GATE_PATTERNS,
+        'agentRuntimeWorktree': AGENT_RUNTIME_GATE_PATTERNS,
+        'gateBypassResistance': AGENT_RUNTIME_GATE_PATTERNS,
+        'gateEscapeRate': AGENT_RUNTIME_GATE_PATTERNS,
+        'protectedRootsSync': AGENT_RUNTIME_GATE_PATTERNS,
+        'qoderRuntimeParity': AGENT_RUNTIME_GATE_PATTERNS,
+        'hookPayloadCompat': AGENT_RUNTIME_GATE_PATTERNS,
+        'subagentHandoffProtocol': AGENT_RUNTIME_GATE_PATTERNS,
     },
     'harness': {
         'bashSyntax': [
@@ -374,6 +416,14 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             '.qoder/hooks/pre_write_guard.sh',
             'scripts/quality/check_agent_hook_parity.py',
         ],
+        'agentRuntimeIsolation': AGENT_RUNTIME_GATE_PATTERNS,
+        'agentRuntimeWorktree': AGENT_RUNTIME_GATE_PATTERNS,
+        'gateBypassResistance': AGENT_RUNTIME_GATE_PATTERNS,
+        'gateEscapeRate': AGENT_RUNTIME_GATE_PATTERNS,
+        'protectedRootsSync': AGENT_RUNTIME_GATE_PATTERNS,
+        'qoderRuntimeParity': AGENT_RUNTIME_GATE_PATTERNS,
+        'hookPayloadCompat': AGENT_RUNTIME_GATE_PATTERNS,
+        'subagentHandoffProtocol': AGENT_RUNTIME_GATE_PATTERNS,
         'codexAgentPolicy': [
             '.codex/agents/**',
             'scripts/quality/check_codex_agent_policy.py',

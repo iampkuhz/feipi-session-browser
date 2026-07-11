@@ -921,33 +921,49 @@ class TestNoJavaTestSkipsGateCommand:
     """noJavaTestSkips gate 命令验证。"""
 
     @pytest.mark.contract_case('JR-020-005')
-    def test_no_java_test_skips_uses_gradlew(self, tmp_path: Path):
-        """noJavaTestSkips 必须通过 gradlew verifyNoSkippedJavaTests 执行。"""
-        gradlew = tmp_path / 'gradlew'
-        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+    def test_no_java_test_skips_scans_existing_xml(self, tmp_path: Path):
+        """noJavaTestSkips 只扫描 javaCheck 已生成的 XML，不二次触发测试。"""
+        checker = tmp_path / 'scripts' / 'quality' / 'check_no_java_test_skips.py'
+        checker.parent.mkdir(parents=True)
+        checker.write_text('#!/usr/bin/env python3\n', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('noJavaTestSkips', tmp_path, 'java-src')
 
-        assert cmd[:2] == ['bash', '-c']
-        assert f'{gradlew} verifyNoSkippedJavaTests --no-daemon' in cmd[2]
+        assert cmd[:2] != ['bash', '-c']
+        assert str(checker) in cmd
+        assert '--root' in cmd
 
     @pytest.mark.contract_case('JR-020-005')
-    def test_no_java_test_skips_blocked_without_gradlew(self, tmp_path: Path):
-        """gradlew 不存在时返回空列表（BLOCKED）。"""
+    def test_no_java_test_skips_blocked_without_checker(self, tmp_path: Path):
+        """checker 不存在时返回空列表（BLOCKED）。"""
         cmd = run_quality_gate.gate_command('noJavaTestSkips', tmp_path, 'java-src')
         assert cmd == []
 
     @pytest.mark.contract_case('JR-020-005')
-    def test_java_check_uses_gradlew_check(self, tmp_path: Path):
-        """javaCheck 必须通过 gradlew check 执行。"""
+    def test_java_check_uses_gradlew_check_without_historical_checkstyle(self, tmp_path: Path):
+        """javaCheck 使用 Gradle check，但不被历史 Checkstyle Javadoc 债务阻断。"""
         gradlew = tmp_path / 'gradlew'
         gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('javaCheck', tmp_path, 'java-src')
 
         assert cmd[:2] == ['bash', '-c']
-        assert f'{gradlew} check -x test -x javadoc --no-daemon' in cmd[2]
+        assert (
+            f'{gradlew} check -x test -x javadoc -x checkstyleMain -x checkstyleTest '
+            '--no-daemon'
+        ) in cmd[2]
+        assert '--no-build-cache' in cmd[2]
 
+    @pytest.mark.contract_case('JR-020-005')
+    def test_java_check_retries_javalin_connection_close_once(self, tmp_path: Path):
+        """javaCheck 对 Javalin TestTool 瞬时断连只允许走一次重试路径。"""
+        gradlew = tmp_path / 'gradlew'
+        gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
+
+        cmd = run_quality_gate.gate_command('javaCheck', tmp_path, 'java-src')
+
+        assert 'header parser received no bytes' in cmd[2]
+        assert 'retry failed' in cmd[2]
 
 class TestMultipleTargetHandling:
     """多 target 场景：去重、dominance 和并行执行。"""
@@ -991,10 +1007,10 @@ class TestRequiredGateChangedFiles:
     """required runner 的 changed-files 采集必须 fail-closed。"""
 
     @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
-    def test_empty_explicit_changed_files_falls_back_to_git_dirty(
+    def test_empty_explicit_changed_files_stays_empty_for_runner_policy(
         self, monkeypatch: pytest.MonkeyPatch
     ):
-        """显式空 changed-files 不得让 dirty 工作树逃过 required target。"""
+        """显式空 changed-files 由 runner policy 判定，不在采集层 fallback。"""
         monkeypatch.setattr(
             run_required_quality_gates.changed_file_utils,
             'read_session_id',
@@ -1006,9 +1022,7 @@ class TestRequiredGateChangedFiles:
             lambda session_id, **kwargs: ['scripts/quality/run_required_quality_gates.py'],
         )
 
-        assert run_required_quality_gates.get_changed_files('[]') == [
-            'scripts/quality/run_required_quality_gates.py'
-        ]
+        assert run_required_quality_gates.get_changed_files('[]') == []
 
     @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
     def test_non_empty_explicit_changed_files_are_used(self, monkeypatch: pytest.MonkeyPatch):

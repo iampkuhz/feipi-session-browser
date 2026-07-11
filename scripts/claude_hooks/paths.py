@@ -1,4 +1,4 @@
-"""构建 repository and 运行time paths for Claude hook evidence。"""
+"""构建 Claude/Codex/Qoder 跨平台 runtime identity and evidence paths。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ MAX_SEGMENT_LENGTH = 80
 # 01. 数据结构
 @dataclass(frozen=True)
 class RuntimeIdentity:
-    """表示 RuntimeIdentity。
+    """表示 Claude/Codex/Qoder 跨平台 runtime identity。
 
     属性：
         client: agent client 适配器名称。
@@ -218,9 +218,10 @@ def identity_from_values(
     返回：
         解析后的 HookContext；失败时携带 parse_error。
     """
-    raw_client = agent_client or os.environ.get('FEIPI_AGENT_CLIENT') or 'unknown'
-    raw_session = session_id or os.environ.get('FEIPI_SESSION_ID') or ''
-    raw_agent = agent_id or os.environ.get('FEIPI_AGENT_ID') or ''
+    raw_client = agent_client if agent_client is not None else os.environ.get('FEIPI_AGENT_CLIENT')
+    raw_client = raw_client or 'unknown'
+    raw_session = session_id if session_id is not None else os.environ.get('FEIPI_SESSION_ID', '')
+    raw_agent = agent_id if agent_id is not None else os.environ.get('FEIPI_AGENT_ID', '')
     return RuntimeIdentity(
         client=sanitize_path_segment(raw_client, fallback='unknown'),
         session_id=sanitize_path_segment(raw_session, fallback='unknown'),
@@ -228,6 +229,30 @@ def identity_from_values(
         raw_session_id=raw_session,
         raw_agent_id=raw_agent,
     )
+
+
+# 判断缺失 session id 是否必须 fail-closed。
+def identity_requires_fail_closed(
+    identity: RuntimeIdentity,
+    *,
+    operation: str,
+    protected: bool,
+    mutating: bool,
+) -> bool:
+    """参数：
+        identity: 当前 hook 运行身份。
+        operation: 操作名称（当前未使用）。
+        protected: 是否为受保护写入操作。
+        mutating: 是否为变更操作。
+
+    返回：
+        缺失 session id 时是否必须故障关闭。
+
+    Claude/Codex/Qoder 对受保护写入和变更操作共享同一策略：没有 session id
+    时不能写入共享证据目录；只读操作允许继续。
+    """
+    del operation
+    return not identity.raw_session_id and (protected or mutating)
 
 
 # 维护identity hook context。
@@ -247,8 +272,8 @@ def identity_from_hook_context(ctx: Any, agent_client: str | None = None) -> Run
     )
     return identity_from_values(
         agent_client=client,
-        session_id=getattr(ctx, 'session_id', ''),
-        agent_id=getattr(ctx, 'agent_id', ''),
+        session_id=getattr(ctx, 'session_id', None),
+        agent_id=getattr(ctx, 'agent_id', None),
     )
 
 

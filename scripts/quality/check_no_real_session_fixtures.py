@@ -22,8 +22,13 @@ ROOT = Path(__file__).resolve().parents[2]
 GATE_NAME = "noRealSessionFixtures"
 
 SCAN_DIRS = [
-    "tests",
+    "tests/fixtures",
     "docs",
+    ".qoder",
+    "harness/reports",
+]
+SCAN_GLOBS = [
+    "tests/test_*agent*runtime*.py",
 ]
 
 # 个人 home 路径前缀（拆分避免自引用误报和 gate 自引用）。
@@ -77,6 +82,16 @@ _SYNTHETIC_DIR_MARKER = "synthetic"
 _REAL_SESSION_PATH_RES = [
     re.compile(r"(?:" + re.escape(_U) + r"[^/]+/)\.claude/projects/"),
     re.compile(r"(?:" + re.escape(_U) + r"[^/]+/)\.codex/sessions/"),
+    re.compile(r"(?:" + re.escape(_U) + r"[^/]+/)\.qoder/"),
+]
+
+# 原始 session JSON/JSONL 常见字段组合；允许 synthetic 目录中的合成结构样例。
+_RAW_SESSION_JSON_MARKERS = [
+    '"parentUuid"',
+    '"promptId"',
+    '"messageId"',
+    '"sessionId"',
+    '"toolUseResult"',
 ]
 
 # 允许包含真实数据的已知目录（文档样例、测试 fixture 等）。
@@ -105,22 +120,33 @@ _BUILD_DIR_PARTS = {
 # 输出 FAIL 并返回非 0。
 def fail(message: str) -> int:
     """参数：
-        message: 用户可读错误信息。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        进程退出码。
+        当前函数计算或校验结果。
     """
     print(f"[{GATE_NAME}] FAIL: {message}")
     return 1
 
 
+# 返回安全摘要，避免 gate 输出原始 session、prompt 或本地路径。
+def _safe_excerpt(line: str) -> str:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    return "<redacted>"
+
+
 # 检查文件是否在已知样例目录下。
 def _is_in_known_sample_dir(filepath: Path) -> bool:
     """参数：
-        filepath: 待检查的文件路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        文件是否在已知样例目录下。
+        当前函数计算或校验结果。
     """
     rel_str = str(filepath.relative_to(ROOT))
     return any(rel_str.startswith(d) for d in _KNOWN_SAMPLE_DIRS)
@@ -129,10 +155,10 @@ def _is_in_known_sample_dir(filepath: Path) -> bool:
 # 检查文件是否在已知 fixture 目录下。
 def _is_in_known_fixture_dir(filepath: Path) -> bool:
     """参数：
-        filepath: 待检查的文件路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        文件是否在已知 fixture 目录下。
+        当前函数计算或校验结果。
     """
     rel_str = str(filepath.relative_to(ROOT))
     return any(rel_str.startswith(d) for d in _KNOWN_FIXTURE_DIRS)
@@ -141,10 +167,10 @@ def _is_in_known_fixture_dir(filepath: Path) -> bool:
 # 检查行是否包含真实 session 路径标记（需要 home 路径上下文）。
 def _has_real_session_marker(line: str) -> str | None:
     """参数：
-        line: 待检查的文本行。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        匹配到的标记名称；无匹配返回 None。
+        当前函数计算或校验结果。
     """
     for pat in _REAL_SESSION_PATH_RES:
         if pat.search(line):
@@ -155,11 +181,10 @@ def _has_real_session_marker(line: str) -> str | None:
 # 提取 home 路径中的用户名。
 def _extract_users_username(line: str, match_start: int) -> str | None:
     """参数：
-        line: 文本行。
-        match_start: home 路径匹配位置。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        提取到的用户名；无法提取返回 None。
+        当前函数计算或校验结果。
     """
     after = line[match_start + len(_USERS_PREFIX):]
     m = re.match(r"([^/\"'\s\\]+)", after)
@@ -169,10 +194,10 @@ def _extract_users_username(line: str, match_start: int) -> str | None:
 # 检查用户名是否为合成 placeholder。
 def _is_synthetic_username(username: str) -> bool:
     """参数：
-        username: 待检查的用户名。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        是否为合成用户名。
+        当前函数计算或校验结果。
     """
     return username.lower() in _SYNTHETIC_USERNAMES
 
@@ -180,10 +205,10 @@ def _is_synthetic_username(username: str) -> bool:
 # 检查行是否包含真实 home 绝对路径。
 def _has_real_home_path(line: str) -> bool:
     """参数：
-        line: 待检查的文本行。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        是否包含真实 home 路径。
+        当前函数计算或校验结果。
     """
     if _USERS_PREFIX not in line:
         return False
@@ -213,10 +238,10 @@ def _has_real_home_path(line: str) -> bool:
 # 检查行是否包含个人用户名。
 def _has_personal_username(line: str) -> bool:
     """参数：
-        line: 待检查的文本行。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        是否包含个人用户名。
+        当前函数计算或校验结果。
     """
     return _PERSONAL_USER in line.lower()
 
@@ -224,10 +249,10 @@ def _has_personal_username(line: str) -> bool:
 # 检查文件路径是否在 synthetic 目录下。
 def _is_synthetic_dir(filepath: Path) -> bool:
     """参数：
-        filepath: 待检查的文件路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        文件是否在 synthetic fixture 目录下。
+        当前函数计算或校验结果。
     """
     parts = filepath.parts
     return _SYNTHETIC_DIR_MARKER in parts
@@ -236,10 +261,10 @@ def _is_synthetic_dir(filepath: Path) -> bool:
 # 检查文件是否为大 JSONL fixture 且不在允许目录下。
 def _is_large_jsonl_violation(filepath: Path) -> bool:
     """参数：
-        filepath: 待检查的文件路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        文件是否为大 JSONL 违规。
+        当前函数计算或校验结果。
     """
     if filepath.suffix != ".jsonl":
         return False
@@ -258,21 +283,35 @@ def _is_large_jsonl_violation(filepath: Path) -> bool:
 # 检查文件是否在构建产物目录下。
 def _is_build_artifact(filepath: Path) -> bool:
     """参数：
-        filepath: 待检查的文件路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        文件是否在构建产物目录下。
+        当前函数计算或校验结果。
     """
     return bool(set(filepath.parts) & _BUILD_DIR_PARTS)
+
+
+# 检查行是否像原始 session JSON/JSONL 内容。
+def _looks_like_raw_session_content(line: str) -> bool:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    if not line.lstrip().startswith(("{", "[")):
+        return False
+    marker_count = sum(1 for marker in _RAW_SESSION_JSON_MARKERS if marker in line)
+    return marker_count >= 2
 
 
 # 扫描单个文件，返回发现的问题列表。
 def _scan_file(filepath: Path) -> list[str]:
     """参数：
-        filepath: 待扫描文件的绝对路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        问题字符串列表。
+        当前函数计算或校验结果。
     """
     errors: list[str] = []
     if filepath.name in _SKIP_BASENAMES:
@@ -295,9 +334,9 @@ def _scan_file(filepath: Path) -> list[str]:
     if _is_large_jsonl_violation(filepath):
         errors.append(f"{rel}: 大 JSONL fixture 不在允许目录下")
 
-    # 已知 fixture 和样例目录中的文件不做内容检查
-    # （这些目录的数据由其他 gate 管理）
-    if _is_in_known_fixture_dir(filepath) or _is_in_known_sample_dir(filepath):
+    # 已知文档样例目录中的文件不做内容检查
+    # （仍已在上方完成路径结构检查）
+    if _is_in_known_sample_dir(filepath):
         return errors
 
     try:
@@ -311,44 +350,84 @@ def _scan_file(filepath: Path) -> list[str]:
         if marker and not _is_synthetic_dir(filepath):
             errors.append(
                 f"{rel}:{lineno}: 包含真实 session 路径标记: "
-                f"{line.strip()[:80]}"
+                f"{_safe_excerpt(line)}"
             )
 
         # 检查真实 home 路径（排除合成用户名）
         if _has_real_home_path(line):
             errors.append(
                 f"{rel}:{lineno}: 包含真实 home 绝对路径: "
-                f"{line.strip()[:80]}"
+                f"{_safe_excerpt(line)}"
             )
 
         # 检查个人用户名
         if _has_personal_username(line):
             errors.append(
                 f"{rel}:{lineno}: 包含个人用户名: "
-                f"{line.strip()[:80]}"
+                f"{_safe_excerpt(line)}"
+            )
+
+        if _looks_like_raw_session_content(line) and not _is_synthetic_dir(filepath):
+            errors.append(
+                f"{rel}:{lineno}: 包含疑似原始 session JSON/JSONL 内容: "
+                f"{_safe_excerpt(line)}"
             )
 
     return errors
 
 
-# 执行真实 session fixture 扫描。
-def main() -> int:
-    """返回：
-        进程退出码。
+# 迭代门禁扫描文件。
+def _iter_scan_files() -> list[Path]:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
-    all_errors: list[str] = []
+    files: list[Path] = []
+    seen: set[Path] = set()
+
+    # 维护 add 函数行为。
+    def add(path: Path) -> None:
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
+        if path.is_file() and path not in seen:
+            seen.add(path)
+            files.append(path)
 
     for scan_dir in SCAN_DIRS:
         dir_path = ROOT / scan_dir
         if not dir_path.is_dir():
             continue
         for filepath in sorted(dir_path.rglob("*")):
-            if not filepath.is_file():
-                continue
-            # 跳过二进制文件
-            if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3", ".class", ".jar"):
-                continue
-            all_errors.extend(_scan_file(filepath))
+            add(filepath)
+
+    for pattern in SCAN_GLOBS:
+        for filepath in sorted(ROOT.glob(pattern)):
+            add(filepath)
+
+    return files
+
+
+# 执行真实 session fixture 扫描。
+def main() -> int:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    all_errors: list[str] = []
+
+    for filepath in _iter_scan_files():
+        # 跳过二进制文件
+        if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3", ".class", ".jar"):
+            continue
+        all_errors.extend(_scan_file(filepath))
 
     if all_errors:
         for err in all_errors:

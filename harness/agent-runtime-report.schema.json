@@ -13,7 +13,11 @@
     "skipped_count",
     "blocked_items",
     "risks",
-    "notes"
+    "notes",
+    "expected_outcomes",
+    "effect_checks",
+    "gate_escape_rate",
+    "concurrency_matrix"
   ],
   "properties": {
     "change_id": {
@@ -92,6 +96,167 @@
       "type": "array",
       "items": {
         "type": "string"
+      }
+    },
+    "expected_outcomes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "required",
+          "status",
+          "evidence_command",
+          "evidence_file",
+          "notes"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "name": {
+            "type": "string"
+          },
+          "required": {
+            "type": "boolean"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "BLOCKED",
+              "NOT_RUN"
+            ]
+          },
+          "evidence_command": {
+            "type": "string"
+          },
+          "evidence_file": {
+            "type": "string"
+          },
+          "notes": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "effect_checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "command",
+          "expected",
+          "actual",
+          "status",
+          "artifact"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "expected": {
+            "type": "string"
+          },
+          "actual": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "BLOCKED",
+              "NOT_RUN"
+            ]
+          },
+          "artifact": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "gate_escape_rate": {
+      "type": "object",
+      "required": [
+        "threshold",
+        "total_required_cases",
+        "escaped_required_cases",
+        "escape_rate",
+        "cases"
+      ],
+      "properties": {
+        "threshold": {
+          "type": "number"
+        },
+        "total_required_cases": {
+          "type": "integer"
+        },
+        "escaped_required_cases": {
+          "type": "integer"
+        },
+        "escape_rate": {
+          "type": "number"
+        },
+        "cases": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
+        }
+      }
+    },
+    "concurrency_matrix": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "description",
+          "actors",
+          "expected",
+          "actual",
+          "status"
+        ],
+        "properties": {
+          "id": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string"
+          },
+          "actors": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "expected": {
+            "type": "string"
+          },
+          "actual": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "PASS",
+              "FAIL",
+              "BLOCKED",
+              "NOT_RUN"
+            ]
+          }
+        }
       }
     }
   }

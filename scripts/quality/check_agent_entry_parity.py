@@ -1,157 +1,266 @@
 #!/usr/bin/env python3
-"""检查 Claude/Codex agent 入口 parity：每个 agent 在两个平台都有对应入口且引用共享 skill。"""
+"""检查 Claude/Codex/Qoder agent entry parity。"""
 from __future__ import annotations
 
+import re
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 GATE_NAME = "agentEntryParity"
 
-# 需要检查的 agent 列表。所有前置任务已完成，全部 required=True。
-AGENT_PAIRS: list[dict[str, object]] = [
-    {
-        "name": "mhtml-export-specialist",
-        "skill": "skills/authoring/feipi-mhtml-export-dev/SKILL.md",
-        "claude": ".claude/agents/mhtml-export-specialist.md",
-        "codex": ".codex/agents/mhtml-export-specialist.toml",
-        "required": True,
-    },
-    {
-        "name": "java-backend-implementer",
-        "skill": "skills/authoring/feipi-java-feature-dev/SKILL.md",
-        "claude": ".claude/agents/java-backend-implementer.md",
-        "codex": ".codex/agents/java-backend-implementer.toml",
-        "required": True,
-    },
-    {
-        "name": "session-ingestion-specialist",
-        "skill": "skills/authoring/feipi-session-ingestion-dev/SKILL.md",
-        "claude": ".claude/agents/session-ingestion-specialist.md",
-        "codex": ".codex/agents/session-ingestion-specialist.toml",
-        "required": True,
-    },
-    {
-        "name": "ui-implementation-specialist",
-        "skill": "skills/authoring/feipi-session-detail-ui-dev/SKILL.md",
-        "claude": ".claude/agents/ui-implementation-specialist.md",
-        "codex": ".codex/agents/ui-implementation-specialist.toml",
-        "required": True,
-    },
-    {
-        "name": "quality-gate-diagnoser",
-        "skill": "skills/authoring/feipi-quality-gate-diagnosis/SKILL.md",
-        "claude": ".claude/agents/quality-gate-diagnoser.md",
-        "codex": ".codex/agents/quality-gate-diagnoser.toml",
-        "required": True,
-    },
-    {
-        "name": "privacy-reviewer",
-        "skill": "skills/authoring/feipi-privacy-redaction-dev/SKILL.md",
-        "claude": ".claude/agents/privacy-reviewer.md",
-        "codex": ".codex/agents/privacy-reviewer.toml",
-        "required": True,
-    },
-]
+
+@dataclass(frozen=True)
+class AgentEntry:
+    """一个跨平台 logical agent 的入口声明。"""
+
+    name: str
+    claude_path: str | None
+    codex_path: str | None
+    qoder_path: str | None
+    required_skill: str | None
+    claude_unsupported_reason: str | None = None
+    codex_unsupported_reason: str | None = None
+    qoder_unsupported_reason: str | None = None
 
 
-# 输出 FAIL 并返回非 0。
-def fail(message: str) -> int:
+REQUIRED_LOGICAL_AGENTS: tuple[AgentEntry, ...] = (
+    AgentEntry(
+        name="main-default",
+        claude_path=".claude/agents/qwen-main-default.md",
+        codex_path=None,
+        qoder_path=".qoder/agents/qoder-main-default.md",
+        required_skill=None,
+        codex_unsupported_reason="Codex main behavior is configured by .codex/model-instructions.md and .codex/config.toml, not an Agent(...) entry file.",
+    ),
+    AgentEntry(
+        name="java-backend-implementer",
+        claude_path=".claude/agents/java-backend-implementer.md",
+        codex_path=".codex/agents/java-backend-implementer.toml",
+        qoder_path=".qoder/agents/java-backend-implementer.md",
+        required_skill="skills/authoring/feipi-java-feature-dev/SKILL.md",
+    ),
+    AgentEntry(
+        name="session-ingestion-specialist",
+        claude_path=".claude/agents/session-ingestion-specialist.md",
+        codex_path=".codex/agents/session-ingestion-specialist.toml",
+        qoder_path=".qoder/agents/session-ingestion-specialist.md",
+        required_skill="skills/authoring/feipi-session-ingestion-dev/SKILL.md",
+    ),
+    AgentEntry(
+        name="ui-implementation-specialist",
+        claude_path=".claude/agents/ui-implementation-specialist.md",
+        codex_path=".codex/agents/ui-implementation-specialist.toml",
+        qoder_path=".qoder/agents/ui-implementation-specialist.md",
+        required_skill="skills/authoring/feipi-session-detail-ui-dev/SKILL.md",
+    ),
+    AgentEntry(
+        name="mhtml-export-specialist",
+        claude_path=".claude/agents/mhtml-export-specialist.md",
+        codex_path=".codex/agents/mhtml-export-specialist.toml",
+        qoder_path=".qoder/agents/mhtml-export-specialist.md",
+        required_skill="skills/authoring/feipi-mhtml-export-dev/SKILL.md",
+    ),
+    AgentEntry(
+        name="quality-gate-diagnoser",
+        claude_path=".claude/agents/quality-gate-diagnoser.md",
+        codex_path=".codex/agents/quality-gate-diagnoser.toml",
+        qoder_path=".qoder/agents/quality-gate-diagnoser.md",
+        required_skill="skills/authoring/feipi-quality-gate-diagnosis/SKILL.md",
+    ),
+    AgentEntry(
+        name="privacy-reviewer",
+        claude_path=".claude/agents/privacy-reviewer.md",
+        codex_path=".codex/agents/privacy-reviewer.toml",
+        qoder_path=".qoder/agents/privacy-reviewer.md",
+        required_skill="skills/authoring/feipi-privacy-redaction-dev/SKILL.md",
+    ),
+    AgentEntry(
+        name="runtime-isolation-diagnoser",
+        claude_path=None,
+        codex_path=None,
+        qoder_path=".qoder/agents/runtime-isolation-diagnoser.md",
+        required_skill=None,
+        claude_unsupported_reason="Claude runtime isolation diagnosis is currently handled by quality-gate-diagnoser with runtime gate handoff until a dedicated Claude entry is added.",
+        codex_unsupported_reason="Codex runtime isolation diagnosis is currently handled by quality-gate-diagnoser with runtime gate handoff until a dedicated Codex entry is added.",
+    ),
+    AgentEntry(
+        name="repo-mapper",
+        claude_path=".claude/agents/repo-mapper.md",
+        codex_path=".codex/agents/repo-mapper.toml",
+        qoder_path=None,
+        required_skill=None,
+        qoder_unsupported_reason="Qoder has no dedicated read-only repo mapper entry yet; use qoder-main-default with a read-only scoped mapping handoff until one is added.",
+    ),
+    AgentEntry(
+        name="openspec-planner",
+        claude_path=".claude/agents/openspec-planner.md",
+        codex_path=".codex/agents/openspec-planner.toml",
+        qoder_path=None,
+        required_skill="skills/authoring/feipi-openspec-orchestrate-change/SKILL.md",
+        qoder_unsupported_reason="Qoder has no dedicated OpenSpec planning entry yet; use qoder-main-default to invoke the OpenSpec skill workflow directly until one is added.",
+    ),
+)
+
+REQUIRED_CLAUDE_MAIN_SPECIALISTS = (
+    "java-backend-implementer",
+    "session-ingestion-specialist",
+    "ui-implementation-specialist",
+    "mhtml-export-specialist",
+    "quality-gate-diagnoser",
+    "privacy-reviewer",
+)
+
+DOMAIN_SPECIALISTS = {
+    entry.name
+    for entry in REQUIRED_LOGICAL_AGENTS
+    if entry.name not in {"main-default", "repo-mapper", "openspec-planner"}
+}
+GENERIC_DESCRIPTION_MARKERS = (
+    "执行任务",
+    "执行 scoped task",
+    "执行一个 scoped implementation task",
+)
+
+
+# 维护 _read 函数行为。
+def _read(rel_path: str) -> str:
     """参数：
-        message: 用户可读错误信息。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        进程退出码。
+        当前函数计算或校验结果。
     """
-    print(f"[{GATE_NAME}] FAIL: {message}")
-    return 1
+    return (ROOT / rel_path).read_text(encoding="utf-8", errors="replace")
 
 
-# 输出非阻断告警。
-def warn(message: str) -> None:
+# 维护 _path_or_reason 函数行为。
+def _path_or_reason(entry: AgentEntry, platform: str) -> tuple[str | None, str | None]:
     """参数：
-        message: 用户可读告警信息。
-    """
-    print(f"[{GATE_NAME}] WARN: {message}")
-
-
-# 检查文件是否引用了指定 skill 路径。
-def _check_skill_reference(file_path: Path, skill_rel_path: str) -> bool:
-    """参数：
-        file_path: 要检查的 agent 入口文件。
-        skill_rel_path: 期望引用的 skill 相对路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        文件是否引用了指定 skill。
+        当前函数计算或校验结果。
     """
-    if not file_path.is_file():
-        return False
-    try:
-        content = file_path.read_text(encoding="utf-8", errors="replace")
-        return skill_rel_path in content
-    except (OSError, UnicodeDecodeError):
-        return False
+    return (
+        getattr(entry, f"{platform}_path"),
+        getattr(entry, f"{platform}_unsupported_reason"),
+    )
 
 
-# 执行 agent parity 检查。
+# 维护 _check_declared_path_or_reason 函数行为。
+def _check_declared_path_or_reason(entry: AgentEntry, errors: list[str]) -> None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    for platform in ("claude", "codex", "qoder"):
+        rel_path, reason = _path_or_reason(entry, platform)
+        if bool(rel_path) == bool(reason):
+            errors.append(f"{entry.name} must declare exactly one {platform}_path or {platform}_unsupported_reason")
+        if rel_path and not (ROOT / rel_path).is_file():
+            errors.append(f"{entry.name} {platform}_path missing: {rel_path}")
+        if reason is not None and len(reason.strip()) < 20:
+            errors.append(f"{entry.name} {platform}_unsupported_reason is too short")
+
+
+# 维护 _check_skill_reference 函数行为。
+def _check_skill_reference(entry: AgentEntry, errors: list[str]) -> None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    if not entry.required_skill:
+        return
+    if not (ROOT / entry.required_skill).is_file():
+        errors.append(f"{entry.name} required_skill missing: {entry.required_skill}")
+        return
+    for platform in ("claude", "codex", "qoder"):
+        rel_path, _reason = _path_or_reason(entry, platform)
+        if not rel_path:
+            continue
+        text = _read(rel_path)
+        if entry.required_skill not in text:
+            errors.append(f"{entry.name} {platform} entry does not reference required_skill: {entry.required_skill}")
+
+
+# 维护 _check_claude_main_allowlist 函数行为。
+def _check_claude_main_allowlist(errors: list[str]) -> None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    text = _read(".claude/agents/qwen-main-default.md")
+    frontmatter = text.split("---", 2)[1] if text.startswith("---") else text
+    tools_match = re.search(r"(?m)^tools:\s*(.+)$", frontmatter)
+    if not tools_match:
+        errors.append("Claude main frontmatter missing tools allowlist")
+        return
+    tools_line = tools_match.group(1)
+    for specialist in REQUIRED_CLAUDE_MAIN_SPECIALISTS:
+        if specialist not in tools_line and specialist not in text:
+            errors.append(f"Claude main allowlist does not mention specialist: {specialist}")
+
+
+# 维护 _check_description_specificity 函数行为。
+def _check_description_specificity(entry: AgentEntry, errors: list[str]) -> None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    if entry.name not in DOMAIN_SPECIALISTS:
+        return
+    descriptions: dict[str, str] = {}
+    for platform in ("codex", "qoder"):
+        rel_path, _reason = _path_or_reason(entry, platform)
+        if not rel_path:
+            continue
+        text = _read(rel_path)
+        if platform == "codex":
+            match = re.search(r'(?m)^description\s*=\s*"([^"]+)"', text)
+            description = match.group(1).strip() if match else ""
+        else:
+            match = re.search(r"(?ms)^## When To Use\n(.*?)(?=\n## )", text)
+            description = match.group(1).strip() if match else ""
+        descriptions[platform] = re.sub(r"\s+", " ", description)
+        if len(descriptions[platform]) < 40:
+            errors.append(f"{entry.name} {platform} description/When To Use is too short or missing")
+        if any(marker == descriptions[platform] for marker in GENERIC_DESCRIPTION_MARKERS):
+            errors.append(f"{entry.name} {platform} description is generic")
+    if len(set(descriptions.values())) != len(descriptions):
+        errors.append(f"{entry.name} Codex/Qoder descriptions are not distinguishable")
+
+
+# 维护 main 函数行为。
 def main() -> int:
-    """返回：
-        进程退出码。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     errors: list[str] = []
-    warnings: list[str] = []
-
-    for agent in AGENT_PAIRS:
-        name = agent["name"]
-        skill_path = agent["skill"]
-        claude_path_str = agent["claude"]
-        codex_path_str = agent["codex"]
-        required = agent["required"]
-
-        claude_path = ROOT / claude_path_str
-        codex_path = ROOT / codex_path_str
-
-        # 1. 检查 Claude 入口存在。
-        if not claude_path.is_file():
-            msg = f"agent {name} 缺少 Claude 入口: {claude_path_str}"
-            if required:
-                errors.append(msg)
-            else:
-                warnings.append(msg)
-
-        # 2. 检查 Codex 入口存在。
-        if not codex_path.is_file():
-            msg = f"agent {name} 缺少 Codex 入口: {codex_path_str}"
-            if required:
-                errors.append(msg)
-            else:
-                warnings.append(msg)
-
-        # 3. 检查 Claude 入口引用 skill。
-        if claude_path.is_file() and not _check_skill_reference(claude_path, skill_path):
-            msg = f"agent {name} Claude 入口未引用 {skill_path}: {claude_path_str}"
-            if required:
-                errors.append(msg)
-            else:
-                warnings.append(msg)
-
-        # 4. 检查 Codex 入口引用 skill。
-        if codex_path.is_file() and not _check_skill_reference(codex_path, skill_path):
-            msg = f"agent {name} Codex 入口未引用 {skill_path}: {codex_path_str}"
-            if required:
-                errors.append(msg)
-            else:
-                warnings.append(msg)
-
-    for w in warnings:
-        warn(w)
+    for entry in REQUIRED_LOGICAL_AGENTS:
+        _check_declared_path_or_reason(entry, errors)
+        _check_skill_reference(entry, errors)
+        _check_description_specificity(entry, errors)
+    _check_claude_main_allowlist(errors)
 
     if errors:
-        for e in errors:
-            print(f"[{GATE_NAME}] FAIL: {e}")
+        for error in errors:
+            print(f"[{GATE_NAME}] FAIL: {error}")
         return 1
 
-    print(f"[{GATE_NAME}] PASS")
+    print(f"[{GATE_NAME}] PASS: checked {len(REQUIRED_LOGICAL_AGENTS)} logical agents across Claude/Codex/Qoder")
     return 0
 
 

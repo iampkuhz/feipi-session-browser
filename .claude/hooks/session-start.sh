@@ -6,8 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 
-cd "$ROOT" || exit $EXIT_WARN
-export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+export FEIPI_HOOK_CWD="${FEIPI_HOOK_CWD:-$PWD}"
+EXEC_ROOT="$(hook_exec_root "$ROOT")"
+cd "$EXEC_ROOT" || exit $EXIT_WARN
+export PYTHONPATH="${EXEC_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export FEIPI_AGENT_CLIENT="claude"
 
 # 从 stdin 提取 sessionId

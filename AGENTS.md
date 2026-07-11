@@ -7,7 +7,7 @@
 - 默认中文回复；代码标识符、命令、路径、API 保持英文。
 - 先搜索定位，再只读必要片段；不加载无关 skill 或长文档。
 - 修改最小化；不纳入真实 session、密钥、token、缓存、运行数据或个人配置。
-- subagent 长任务、并行探索、独立验证时主动委派；给最小 handoff 和 allowed/forbidden scope。
+- subagent 长任务、并行探索、独立验证时主动委派；给最小 handoff、唯一 `Task id`/`agent_id`，并行写范围不重叠。
 - 共用规则沉淀到 `skills/`、`harness/`；`.claude/`、`.codex/`、`.qoder/`、`.agents/` 只保留入口。
 
 ## 任务分流

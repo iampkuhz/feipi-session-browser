@@ -12,21 +12,26 @@ import subprocess
 import sys
 from pathlib import Path
 
+
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 GATE_NAME = "runtimeReport"
-MANIFEST_PATH = ROOT / "harness" / "agent-runtime.manifest.yaml"
 REPORT_DIR = ROOT / "harness" / "reports"
 ACTIVE_CHANGE_PATH = ROOT / "tmp" / "active_change.json"
 FALLBACK_CHANGE_ID = "harden-agent-runtime-and-skills"
+REQUIRED_OUTCOME_IDS = set("ABCDEFGHIJKL")
 
 
 # 输出 FAIL 并返回非 0。
 def fail(message: str) -> int:
     """参数：
-        message: 用户可读错误信息。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        进程退出码。
+        当前函数计算或校验结果。
     """
     print(f"[{GATE_NAME}] FAIL: {message}")
     return 1
@@ -35,10 +40,10 @@ def fail(message: str) -> int:
 # 解析 change-id，优先级: 显式参数 > tmp/active_change.json > fallback。
 def resolve_change_id(explicit: str | None = None) -> str:
     """参数：
-        explicit: 命令行显式指定的 change-id。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        解析后的 change-id。
+        当前函数计算或校验结果。
     """
     if explicit:
         return explicit
@@ -53,33 +58,26 @@ def resolve_change_id(explicit: str | None = None) -> str:
     return FALLBACK_CHANGE_ID
 
 
-# 从 manifest 读取 protected_roots。
+
+# 维护 get_protected_roots 函数行为。
 def get_protected_roots() -> list[str]:
-    """返回：
-        protected root 前缀列表。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
-    if not MANIFEST_PATH.is_file():
-        return []
-    text = MANIFEST_PATH.read_text(encoding="utf-8")
-    roots: list[str] = []
-    in_section = False
-    for line in text.splitlines():
-        stripped = line.strip()
-        if stripped.startswith("protected_roots:"):
-            in_section = True
-            continue
-        if in_section:
-            if stripped.startswith("- "):
-                roots.append(stripped[2:].strip())
-            elif stripped and not stripped.startswith("#"):
-                break
-    return roots
+    return runtime_policy.protected_roots(ROOT)
+
 
 
 # 获取当前 git diff 涉及的变更文件。
 def get_diff_changed_files() -> list[str]:
-    """返回：
-        变更文件路径列表。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     try:
         result = subprocess.run(
@@ -110,29 +108,26 @@ def get_diff_changed_files() -> list[str]:
     return []
 
 
-# 判断路径是否属于 protected root。
-def is_protected(path: str, roots: list[str]) -> bool:
+
+# 维护 is_protected 函数行为。
+def is_protected(path: str, roots: list[str] | None = None) -> bool:
     """参数：
-        path: 待检查路径。
-        roots: protected root 前缀列表。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        是否受保护。
+        当前函数计算或校验结果。
     """
-    for root in roots:
-        root_clean = root.strip("/")
-        if path.startswith(root_clean + "/") or path == root_clean:
-            return True
-    return False
+    return runtime_policy.is_protected_path(path, ROOT)
+
 
 
 # 查找 report 文件，优先 harness/reports/，再查 tmp/。
 def find_report(change_id: str) -> Path | None:
     """参数：
-        change_id: OpenSpec change 标识。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        report 路径；不存在时返回 None。
+        当前函数计算或校验结果。
     """
     candidate = REPORT_DIR / f"{change_id}.json"
     if candidate.is_file():
@@ -143,10 +138,157 @@ def find_report(change_id: str) -> Path | None:
     return None
 
 
+# 维护 _status 函数行为。
+def _status(item: object) -> str:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    if isinstance(item, dict):
+        return str(item.get("status", ""))
+    return ""
+
+
+# 维护 validate_report_content 函数行为。
+def validate_report_content(
+    report: dict,
+    protected_in_diff: list[str],
+) -> list[str]:
+    """参数：
+        report: 运行报告 JSON 对象。
+        protected_in_diff: 当前 diff 中的受保护路径。
+
+    返回：
+        runtime report validation 错误列表。
+    """
+    errors: list[str] = []
+
+    required_fields = [
+        "change_id",
+        "created_at",
+        "agent_platform",
+        "subagents",
+        "changed_files",
+        "expected_outcomes",
+        "effect_checks",
+        "gate_escape_rate",
+        "concurrency_matrix",
+        "gates",
+        "skipped_count",
+        "blocked_items",
+        "risks",
+        "notes",
+    ]
+    for field in required_fields:
+        if field not in report:
+            errors.append(f"report 缺少必填字段: {field}")
+
+    skipped = report.get("skipped_count", -1)
+    if skipped != 0:
+        errors.append(f"skipped_count 应为 0，实际为 {skipped}")
+
+    outcomes = report.get("expected_outcomes", [])
+    if not isinstance(outcomes, list):
+        errors.append("expected_outcomes 必须是数组")
+        outcomes = []
+    outcome_ids = {
+        str(item.get("id", ""))
+        for item in outcomes
+        if isinstance(item, dict) and item.get("id")
+    }
+    missing_outcomes = sorted(REQUIRED_OUTCOME_IDS - outcome_ids)
+    if missing_outcomes:
+        errors.append(f"expected_outcomes 缺少 A-L outcome: {missing_outcomes}")
+    for outcome in outcomes:
+        if not isinstance(outcome, dict):
+            errors.append("expected_outcomes 包含非对象条目")
+            continue
+        if outcome.get("required") is True and outcome.get("status") != "PASS":
+            errors.append(
+                f"required outcome {outcome.get('id', '?')} "
+                f"状态必须为 PASS，实际为 {outcome.get('status', '?')}"
+            )
+
+    effect_checks = report.get("effect_checks", [])
+    if not isinstance(effect_checks, list):
+        errors.append("effect_checks 必须是数组")
+        effect_checks = []
+    for check in effect_checks:
+        if _status(check) != "PASS":
+            cid = check.get("id", "?") if isinstance(check, dict) else "?"
+            errors.append(f"effect_check {cid} 状态必须为 PASS，实际为 {_status(check) or '?'}")
+
+    escape = report.get("gate_escape_rate", {})
+    if not isinstance(escape, dict):
+        errors.append("gate_escape_rate 必须是对象")
+        escape = {}
+    threshold = escape.get("threshold")
+    escape_rate = escape.get("escape_rate")
+    if threshold != 0 and threshold != 0.0:
+        errors.append(f"gate_escape_rate.threshold 必须为 0，实际为 {threshold}")
+    if not isinstance(escape_rate, (int, float)) or not isinstance(threshold, (int, float)):
+        errors.append("gate_escape_rate.escape_rate/threshold 必须是数字")
+    elif escape_rate > threshold:
+        errors.append(
+            f"gate_escape_rate.escape_rate({escape_rate}) 超过 threshold({threshold})"
+        )
+
+    concurrency = report.get("concurrency_matrix", [])
+    if not isinstance(concurrency, list):
+        errors.append("concurrency_matrix 必须是数组")
+        concurrency = []
+    for row in concurrency:
+        if _status(row) != "PASS":
+            rid = row.get("id", "?") if isinstance(row, dict) else "?"
+            errors.append(
+                f"concurrency_matrix {rid} 状态必须为 PASS，实际为 {_status(row) or '?'}"
+            )
+
+    gates = report.get("gates", [])
+    if not isinstance(gates, list):
+        errors.append("gates 必须是数组")
+        gates = []
+    blocked_items = report.get("blocked_items", [])
+    final_status = report.get("status")
+    for gate in gates:
+        if not isinstance(gate, dict):
+            errors.append("gates 包含非对象条目")
+            continue
+        if gate.get("status") == "NOT_RUN":
+            if not blocked_items:
+                errors.append(
+                    f"gate {gate.get('name', '?')} 状态为 NOT_RUN "
+                    f"但 blocked_items 为空，需要说明原因"
+                )
+            if final_status == "PASS":
+                errors.append(
+                    f"gate {gate.get('name', '?')} 状态为 NOT_RUN，final status 不能为 PASS"
+                )
+
+    report_changed = report.get("changed_files", [])
+    if not isinstance(report_changed, list):
+        errors.append("changed_files 必须是数组")
+        report_changed = []
+    missing_changed = [f for f in protected_in_diff if f not in report_changed]
+    if missing_changed:
+        errors.append(
+            f"changed_files 未包含当前 diff 的 protected path\n"
+            f"  missing: {missing_changed[:5]}\n"
+            f"  report changed_files: {report_changed[:5]}"
+        )
+
+    return errors
+
+
 # 执行 runtime report 一致性检查。
 def main() -> int:
-    """返回：
-        进程退出码。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     parser = argparse.ArgumentParser(description="检查 agent runtime report 一致性。")
     parser.add_argument("--change-id", default=None, help="OpenSpec change 标识")
@@ -160,7 +302,7 @@ def main() -> int:
         return 0
 
     diff_files = get_diff_changed_files()
-    protected_in_diff = [f for f in diff_files if is_protected(f, protected_roots)]
+    protected_in_diff = [f for f in diff_files if is_protected(f)]
 
     if not protected_in_diff:
         print(f"[{GATE_NAME}] PASS: diff 无 protected paths，跳过检查")
@@ -180,38 +322,18 @@ def main() -> int:
     except (json.JSONDecodeError, OSError) as e:
         return fail(f"report JSON 解析失败: {report_path} — {e}")
 
-    errors: list[str] = []
-
-    skipped = report.get("skipped_count", -1)
-    if skipped != 0:
-        errors.append(f"skipped_count 应为 0，实际为 {skipped}")
-
-    gates = report.get("gates", [])
-    blocked_items = report.get("blocked_items", [])
-    for gate in gates:
-        if gate.get("status") == "NOT_RUN" and not blocked_items:
-            errors.append(
-                f"gate {gate.get('name', '?')} 状态为 NOT_RUN "
-                f"但 blocked_items 为空，需要说明原因"
-            )
-
-    report_changed = report.get("changed_files", [])
-    has_protected = any(
-        is_protected(f, protected_roots) for f in report_changed
-    )
-    if not has_protected:
-        errors.append(
-            f"changed_files 未包含任何 protected path\n"
-            f"  report changed_files: {report_changed[:5]}\n"
-            f"  diff protected paths: {protected_in_diff[:5]}"
-        )
+    errors = validate_report_content(report, protected_in_diff)
 
     if errors:
         for e in errors:
             print(f"[{GATE_NAME}] FAIL: {e}")
         return 1
 
-    print(f"[{GATE_NAME}] PASS — report 有效: {report_path.relative_to(ROOT)}")
+    try:
+        display_path = report_path.relative_to(ROOT)
+    except ValueError:
+        display_path = report_path
+    print(f"[{GATE_NAME}] PASS — report 有效: {display_path}")
     return 0
 
 

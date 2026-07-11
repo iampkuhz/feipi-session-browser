@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import subprocess
 from pathlib import Path
@@ -14,6 +15,7 @@ AGENT_LOG_DIR = runtime_paths.agent_log_dir(REPO_ROOT)
 DEFAULT_CHANGED_FILES = AGENT_LOG_DIR / 'changed-files.jsonl'
 DEFAULT_SESSION_ID_FILE = AGENT_LOG_DIR / 'session-id.txt'
 DEFAULT_BASE_COMMIT_FILE = AGENT_LOG_DIR / 'base-commit.txt'
+DEFAULT_BASE_DIRTY_STATE_FILE = AGENT_LOG_DIR / 'base-dirty-state.json'
 
 GIT_STATUS_PATH_OFFSET = 3
 GIT_STATUS_MIN_LINE_LENGTH = GIT_STATUS_PATH_OFFSET + 1
@@ -172,6 +174,51 @@ def read_git_dirty_files(repo_root: Path = REPO_ROOT) -> list[str]:
     return parse_git_status_paths(proc.stdout or '')
 
 
+# 计算文件 sha256。
+def _file_sha256(path: Path) -> str | None:
+    """参数：
+        path: 待计算 hash 的文件路径。
+
+    返回：
+        文件 sha256；无法读取时返回 None。
+    """
+    try:
+        if not path.is_file():
+            return None
+        h = hashlib.sha256()
+        with path.open('rb') as fh:
+            for chunk in iter(lambda: fh.read(1024 * 1024), b''):
+                h.update(chunk)
+        return h.hexdigest()
+    except OSError:
+        return None
+
+
+# 读取Git dirty 文件状态。
+def read_git_dirty_state(repo_root: Path = REPO_ROOT) -> dict[str, dict[str, Any]]:
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        dirty path 到 exists/size/hash 元数据的映射，不包含文件内容。
+    """
+    state: dict[str, dict[str, Any]] = {}
+    for rel in read_git_dirty_files(repo_root):
+        absolute = repo_root / rel
+        try:
+            exists = absolute.exists()
+            size = absolute.stat().st_size if absolute.is_file() else None
+        except OSError:
+            exists = False
+            size = None
+        state[rel] = {
+            'exists': exists,
+            'size': size,
+            'sha256': _file_sha256(absolute),
+        }
+    return state
+
+
 # 读取base commit。
 def read_base_commit(base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE) -> str | None:
     """参数：
@@ -184,6 +231,70 @@ def read_base_commit(base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE) -> str |
         return None
     value = base_commit_file.read_text(encoding='utf-8').strip()
     return value or None
+
+
+# 维护base dirty state 文件路径。
+def base_dirty_state_file(
+    base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE,
+) -> Path:
+    """参数：
+        base_commit_file: base commit sentinel 文件路径。
+
+    返回：
+        与 base commit 同目录的 dirty-state sentinel 路径。
+    """
+    return base_commit_file.with_name(DEFAULT_BASE_DIRTY_STATE_FILE.name)
+
+
+# 读取base dirty state。
+def read_base_dirty_state(
+    base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE,
+) -> dict[str, dict[str, Any]] | None:
+    """参数：
+        base_commit_file: base commit sentinel 文件路径。
+
+    返回：
+        session 起点 dirty state；缺失或损坏时返回 None。
+    """
+    path = base_dirty_state_file(base_commit_file)
+    if not path.exists():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (json.JSONDecodeError, OSError):
+        return None
+    return data if isinstance(data, dict) else None
+
+
+# 写入缺失的起点脏状态。
+def write_base_dirty_state_if_missing(
+    repo_root: Path = REPO_ROOT,
+    base_commit_file: Path = DEFAULT_BASE_COMMIT_FILE,
+    *,
+    overwrite: bool = False,
+) -> dict[str, dict[str, Any]] | None:
+    """参数：
+        repo_root: 仓库根目录。
+        base_commit_file: base commit sentinel 文件路径。
+        overwrite: overwrite 参数。
+
+    返回：
+        写入或已有的 dirty state。
+    """
+    existing = read_base_dirty_state(base_commit_file)
+    if existing is not None and not overwrite:
+        return existing
+    state = read_git_dirty_state(repo_root)
+    path = base_dirty_state_file(base_commit_file)
+    try:
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_text(
+            json.dumps(state, ensure_ascii=False, sort_keys=True) + '\n',
+            encoding='utf-8',
+        )
+    except OSError:
+        return None
+    return state
 
 
 # 读取当前 head。
@@ -237,6 +348,7 @@ def write_base_commit_if_missing(
     try:
         base_commit_file.parent.mkdir(parents=True, exist_ok=True)
         base_commit_file.write_text(head + '\n', encoding='utf-8')
+        write_base_dirty_state_if_missing(repo_root, base_commit_file, overwrite=True)
     except OSError:
         return None
     return head

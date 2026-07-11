@@ -41,6 +41,10 @@ color: purple
 - 不主动读取完整 `CLAUDE.md`、完整 `AGENTS.md`、无关 `openspec/changes/*`、`src/`、`tests/` 或真实 session data。
 - “不读取”指不要主动通过 `Read` 或 `Bash` + 搜索命令展开；如果 runtime 已注入相关上下文，只当背景约束使用。
 
+## 必须加载的 skill
+
+读取并遵守 `skills/authoring/feipi-openspec-orchestrate-change/SKILL.md`。
+
 ## Planning rules
 
 - 每次只处理一个 `change-id`。

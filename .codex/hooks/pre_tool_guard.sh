@@ -6,8 +6,10 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/common.sh"
 ROOT="$(repo_root)"
 
-cd "$ROOT" || exit $EXIT_WARN
-export PYTHONPATH="${ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
+export FEIPI_HOOK_CWD="${FEIPI_HOOK_CWD:-$PWD}"
+EXEC_ROOT="$(hook_exec_root "$ROOT")"
+cd "$EXEC_ROOT" || exit $EXIT_WARN
+export PYTHONPATH="${EXEC_ROOT}${PYTHONPATH:+:${PYTHONPATH}}"
 export FEIPI_AGENT_CLIENT="${FEIPI_AGENT_CLIENT:-codex}"
 STDIN_TMP="$(mktemp)"
 trap 'rm -f "$STDIN_TMP"' EXIT
@@ -48,5 +50,9 @@ for pattern in "${BLOCK_PATTERNS[@]}"; do
 done
 
 python3 -m scripts.claude_hooks.main pre-bash < "$STDIN_TMP" >/dev/null
+status=$?
+if [[ $status -ne 0 ]]; then
+  exit $status
+fi
 
 exit $EXIT_OK

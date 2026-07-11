@@ -38,7 +38,7 @@ QUALITY_DIR = (
     else REPO_ROOT / 'tmp' / 'quality'
 )
 
-# session-detail 较重，普通 required target runner 默认排除；shared stop runner 显式纳入。
+# 历史 helper 默认排除 session-detail；main runner 会清空该默认值，除非调用方显式给 reason。
 EXCLUDED_TARGETS = {'session-detail'}
 
 # 01. 三档定义
@@ -69,6 +69,14 @@ QUICK_GATES: frozenset[str] = frozenset(
         'noJavaTestSkips',
         'noJavaSuppressWarnings',
         'languagePolicy',
+        'agentRuntimeIsolation',
+        'agentRuntimeWorktree',
+        'gateBypassResistance',
+        'gateEscapeRate',
+        'protectedRootsSync',
+        'qoderRuntimeParity',
+        'hookPayloadCompat',
+        'subagentHandoffProtocol',
         'doctor',
         'repoStructure',
         'harnessStructure',
@@ -88,10 +96,10 @@ FULL_EXTRA_COMMANDS: list[list[str]] = [
 # 解析change id。
 def resolve_change_id(explicit: str | None) -> str:
     """参数：
-        explicit: explicit 参数。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        resolve change id 字符串。
+        当前函数计算或校验结果。
     """
     if explicit:
         return explicit
@@ -118,28 +126,14 @@ def resolve_change_id(explicit: str | None) -> str:
 # 读取changed-files 文件。
 def get_changed_files(explicit_json: str | None = None) -> list[str]:
     """参数：
-        explicit_json: explicit JSON 参数。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        结果列表。
+        当前函数计算或校验结果。
     """
     explicit = changed_file_utils.parse_changed_files_json(explicit_json)
-    if explicit:
-        return explicit
     if explicit_json is not None:
-        session_id = (
-            IDENTITY.raw_session_id
-            if IDENTITY.has_session
-            else changed_file_utils.read_session_id(SESSION_ID_FILE)
-        )
-        return changed_file_utils.collect_changed_files(
-            session_id,
-            include_git=True,
-            repo_root=REPO_ROOT,
-            changed_files_path=CHANGED_FILES,
-            base_commit_file=BASE_COMMIT_FILE,
-            agent_id=IDENTITY.raw_agent_id or None,
-        )
+        return explicit
     if IDENTITY.has_session:
         log_dirs = runtime_paths.session_log_dirs(
             REPO_ROOT,
@@ -164,24 +158,110 @@ def get_changed_files(explicit_json: str | None = None) -> list[str]:
 # 维护compute 必需 targets。
 def compute_required_targets(changed_files: list[str], excluded: set[str]) -> list[str]:
     """参数：
-        changed_files: 待检查的文件列表。
-        excluded: excluded 参数。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        Computed 结果。
+        当前函数计算或校验结果。
     """
     all_targets = required_quality_targets(changed_files)
     return [t for t in all_targets if t not in excluded]
 
 
+# 读取 git dirty 路径。
+def _git_dirty_files() -> list[str]:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    dirty = changed_file_utils.read_git_dirty_files(REPO_ROOT)
+    return dirty
+
+
+# 验证显式空 changed-files 是否安全。
+def _explicit_empty_changed_files_allowed(
+    explicit_changed_files: bool,
+    changed_files: list[str],
+    reason: str | None,
+) -> bool:
+    """参数：
+        explicit_changed_files: 调用方是否显式传入 changed files。
+        changed_files: 调用方给出的 changed files。
+        reason: 允许空列表的说明。
+
+    返回：
+        显式空 changed-files 是否可以继续。
+    """
+    if not explicit_changed_files or changed_files:
+        return True
+    dirty = _git_dirty_files()
+    if not dirty:
+        return True
+    if reason and reason.strip():
+        print(
+            '[required-runner] explicit empty changed files allowed because '
+            f'{reason.strip()}; git dirty count={len(dirty)}',
+            file=sys.stderr,
+        )
+        return True
+    print(
+        '[required-runner] BLOCKED: explicit --changed-files [] while git workspace is dirty; '
+        'pass --allow-empty-changed-files-because <reason> to acknowledge.',
+        file=sys.stderr,
+    )
+    print(
+        '[required-runner] dirty files: '
+        f'{", ".join(dirty[:10])}{" ..." if len(dirty) > 10 else ""}',
+        file=sys.stderr,
+    )
+    return False
+
+
+# 维护 artifact status 检查。
+def _artifact_is_required_pass(artifact_path: str) -> tuple[bool, str]:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    path = Path(artifact_path)
+    if not path.exists():
+        return False, 'missing'
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except (OSError, json.JSONDecodeError) as exc:
+        return False, f'invalid: {exc}'
+    status = str(data.get('status', '')).upper()
+    if status == 'PASS':
+        required_gates = data.get('requiredGates')
+        if isinstance(required_gates, dict):
+            for gate_name, gate_status in required_gates.items():
+                normalized = str(gate_status).upper()
+                if normalized in {'SKIPPED', 'NOT_RUN'}:
+                    return False, f'{gate_name}={normalized}'
+        gate_details = data.get('gateDetails')
+        if isinstance(gate_details, list):
+            for detail in gate_details:
+                if not isinstance(detail, dict):
+                    continue
+                normalized = str(detail.get('status', '')).upper()
+                if normalized in {'SKIPPED', 'NOT_RUN'}:
+                    return False, f'{detail.get("name", "gate")}={normalized}'
+        return True, status
+    if status in {'SKIPPED', 'NOT_RUN'}:
+        return False, status
+    return False, status or 'missing-status'
+
+
 # 维护compute tier 必需 targets。
 def compute_tier_required_targets(tier: str, changed_files: list[str]) -> list[str]:
     """参数：
-        tier: tier 参数。
-        changed_files: changed 文件 供 quick/必需 tiers。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        结果列表。
+        当前函数计算或校验结果。
     """
     if tier == 'full':
         return list(QUALITY_TARGETS)
@@ -237,8 +317,13 @@ def run_gate(
         )
         if proc.returncode != 0:
             return False, artifact_path
-        # 验证artifact exists。
-        if not Path(artifact_path).exists():
+        artifact_ok, artifact_status = _artifact_is_required_pass(artifact_path)
+        if not artifact_ok:
+            print(
+                f'[required-runner] FAIL/BLOCKED target={target} '
+                f'artifact status={artifact_status}',
+                file=sys.stderr,
+            )
             return False, artifact_path
         return True, artifact_path
     except subprocess.TimeoutExpired:
@@ -337,10 +422,10 @@ def _run_quick_tier(
 # 构建全局preflight 命令。
 def _global_preflight_commands(repo_root: Path) -> list[tuple[str, list[str]]]:
     """参数：
-        repo_root: 仓库根目录。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        需要在 target 路由前执行的 gate 命令列表。
+        当前函数计算或校验结果。
     """
     rqg = importlib.import_module('scripts.quality.run_quality_gate')
     commands: list[tuple[str, list[str]]] = []
@@ -354,11 +439,10 @@ def _global_preflight_commands(repo_root: Path) -> list[tuple[str, list[str]]]:
 # 运行全局preflight gates。
 def _run_global_preflight(repo_root: Path, dry_run: bool) -> bool:
     """参数：
-        repo_root: 仓库根目录。
-        dry_run: 是否只打印命令。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        全部 preflight gate 是否通过。
+        当前函数计算或校验结果。
     """
     commands = _global_preflight_commands(repo_root)
     if not commands:
@@ -398,10 +482,10 @@ def _run_global_preflight(repo_root: Path, dry_run: bool) -> bool:
 # 运行full extra 命令。
 def _run_full_extra_commands(change_id: str) -> list[tuple[str, bool]]:
     """参数：
-        change_id: 当前 OpenSpec change id。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        结果列表。
+        当前函数计算或校验结果。
     """
     results: list[tuple[str, bool]] = []
     for cmd_parts in FULL_EXTRA_COMMANDS:
@@ -441,8 +525,11 @@ def _run_full_extra_commands(change_id: str) -> list[tuple[str, bool]]:
 
 # 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """返回：
-        Computed 结果。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     parser = argparse.ArgumentParser(
         description='Run quality gates with tier support (quick/required/full)'
@@ -460,7 +547,17 @@ def main() -> int:
     parser.add_argument(
         '--include-session-detail',
         action='store_true',
-        help='Include session-detail in runner targets (default: excluded)',
+        help='Include session-detail in runner targets (default behavior; kept for stop runner compatibility)',
+    )
+    parser.add_argument(
+        '--exclude-session-detail-with-reason',
+        default=None,
+        help='Explicitly exclude session-detail because another runner handles it; requires a non-empty reason.',
+    )
+    parser.add_argument(
+        '--allow-empty-changed-files-because',
+        default=None,
+        help='Allow explicit --changed-files [] while git is dirty with an audited reason.',
     )
     parser.add_argument(
         '--changed-files',
@@ -481,15 +578,28 @@ def main() -> int:
     tier_desc = TIER_META[tier]['description']
     tier_policy = TIER_META[tier]['failure_policy']
 
-    effective_excluded = set(EXCLUDED_TARGETS)
+    effective_excluded: set[str] = set()
+    exclusion_reasons: dict[str, str] = {}
+    if args.exclude_session_detail_with_reason is not None:
+        reason = args.exclude_session_detail_with_reason.strip()
+        if not reason:
+            print(
+                f'[{tier}-tier] BLOCKED: --exclude-session-detail-with-reason requires a reason',
+                file=sys.stderr,
+            )
+            return 1
+        effective_excluded.add('session-detail')
+        exclusion_reasons['session-detail'] = reason
     if tier == 'full':
         effective_excluded.clear()
+        exclusion_reasons.clear()
         print(
             f'[{tier}-tier] full baseline includes session-detail',
             file=sys.stderr,
         )
     elif args.include_session_detail:
         effective_excluded.discard('session-detail')
+        exclusion_reasons.pop('session-detail', None)
         print(
             f'[{tier}-tier] --include-session-detail: '
             'session-detail will be executed by this runner',
@@ -497,7 +607,8 @@ def main() -> int:
         )
     else:
         print(
-            f'[{tier}-tier] session-detail excluded (use --include-session-detail for stop gating)',
+            f'[{tier}-tier] session-detail included when triggered; '
+            'use --exclude-session-detail-with-reason <reason> only if handled elsewhere',
             file=sys.stderr,
         )
 
@@ -506,6 +617,14 @@ def main() -> int:
     if not quality_dir.is_absolute():
         quality_dir = REPO_ROOT / quality_dir
     changed_files = get_changed_files(args.changed_files)
+    explicit_changed_files = args.changed_files is not None
+
+    if not _explicit_empty_changed_files_allowed(
+        explicit_changed_files,
+        changed_files,
+        args.allow_empty_changed_files_because,
+    ):
+        return 1
 
     print(f'[{tier}-tier] change-id={change_id}', file=sys.stderr)
     print(f'[{tier}-tier] tier={tier}: {tier_desc}', file=sys.stderr)
@@ -525,7 +644,7 @@ def main() -> int:
     if tier == 'quick':
         if not changed_files:
             print(
-                f'[{tier}-tier] no changed files; quick gates not triggered',
+                f'[{tier}-tier] no changed files; quality targets not triggered',
                 file=sys.stderr,
             )
             return 0
@@ -567,6 +686,12 @@ def main() -> int:
         return 0
 
     if not all_required:
+        for t in sorted(effective_excluded & set(effective_required)):
+            reason_suffix = f' reason={exclusion_reasons[t]}' if t in exclusion_reasons else ''
+            print(
+                f'[{tier}-tier] excluded target handled elsewhere: {t}{reason_suffix}',
+                file=sys.stderr,
+            )
         print(
             f'[{tier}-tier] no required targets after exclusions; selected targets not triggered',
             file=sys.stderr,
@@ -577,8 +702,11 @@ def main() -> int:
         for t in sorted(all_required):
             print(f'[{tier}-tier] would run target: {t}', file=sys.stderr)
         for t in sorted(effective_excluded & set(effective_required)):
+            reason_suffix = (
+                f' reason={exclusion_reasons[t]}' if t in exclusion_reasons else ''
+            )
             print(
-                f'[{tier}-tier] excluded target handled elsewhere: {t}',
+                f'[{tier}-tier] excluded target handled elsewhere: {t}{reason_suffix}',
                 file=sys.stderr,
             )
         if tier == 'full':
@@ -607,7 +735,11 @@ def main() -> int:
 
     # 输出被排除的 target，这些由其他 runner 处理，不是测试跳过。
     for t in sorted(effective_excluded & set(effective_required)):
-        print(f'[{tier}-tier] excluded target handled elsewhere: {t}', file=sys.stderr)
+        reason_suffix = f' reason={exclusion_reasons[t]}' if t in exclusion_reasons else ''
+        print(
+            f'[{tier}-tier] excluded target handled elsewhere: {t}{reason_suffix}',
+            file=sys.stderr,
+        )
 
     return 1 if blocked else 0
 

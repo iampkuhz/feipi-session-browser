@@ -27,3 +27,31 @@ context_hygiene:
     - harness/agent-runtime.manifest.yaml
     - skills/authoring/
   platform_configs_are_entry_points: true
+subagent_instance_protocol:
+  required_handoff_fields:
+    - Goal
+    - Task id
+    - Task source
+    - Allowed files/directories
+    - Forbidden files/directories
+    - Required context files
+    - Expected output
+    - Validation command
+    - Failure policy
+  required_output_fields:
+    - Status
+    - Changed files
+    - Validation
+    - Effect checks
+    - Risks
+  status_values:
+    - PASS
+    - FAIL
+    - BLOCKED
+  identity_rules:
+    - 每个 subagent handoff 必须包含 Task id。
+    - 同一 agent 的不同实例必须使用唯一 agent_id 或等价 instance id。
+    - 并行修改型 subagent 必须拆成不重叠写范围。
+    - main agent 只能聚合同一 client/session_id 的 subagent evidence。
+    - subagent 返回 FAIL 或 BLOCKED 时，main agent 不得静默跳过 validation。
+  skipped_semantics: required validation 出现 skipped、not-run、unavailable 或 excluded 均不得描述为 PASS。

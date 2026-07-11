@@ -80,6 +80,7 @@ check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
 check_file harness/agent-runtime.md
 check_file scripts/harness/agent_stop_check.py
+check_file scripts/quality/check_agent_runtime_worktree.py
 check_dir tests
 check_dir scripts/claude_hooks
 
@@ -113,6 +114,14 @@ if [[ -n "$PYTHON" ]]; then
   "$PYTHON" scripts/quality/check_agent_permission_policy.py || fail=1
   "$PYTHON" scripts/quality/check_agent_policy_size.py || fail=1
   "$PYTHON" scripts/quality/check_agent_rules_sync.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_runtime_isolation.py || fail=1
+  "$PYTHON" scripts/quality/check_agent_runtime_worktree.py || fail=1
+  "$PYTHON" scripts/quality/check_gate_bypass_resistance.py || fail=1
+  "$PYTHON" scripts/quality/measure_gate_escape_rate.py --threshold 0 || fail=1
+  "$PYTHON" scripts/quality/check_protected_roots_sync.py || fail=1
+  "$PYTHON" scripts/quality/check_qoder_runtime_parity.py || fail=1
+  "$PYTHON" scripts/quality/check_hook_payload_compat.py || fail=1
+  "$PYTHON" scripts/quality/check_subagent_handoff_protocol.py || fail=1
   "$PYTHON" scripts/quality/check_skill_registry.py || fail=1
   "$PYTHON" scripts/quality/check_agent_entry_parity.py || fail=1
   "$PYTHON" scripts/quality/check_no_real_session_fixtures.py || fail=1

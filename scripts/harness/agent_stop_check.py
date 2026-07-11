@@ -21,6 +21,8 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.quality import changed_files as changed_file_utils  # noqa: E402
 from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
+from scripts.agent_runtime import worktree as runtime_worktree  # noqa: E402
 
 AGENT_LOG_BASE = REPO_ROOT / 'tmp' / 'agent_logs'
 LEGACY_SESSION_ID_FILE = AGENT_LOG_BASE / 'legacy' / 'session-id.txt'
@@ -28,17 +30,7 @@ LEGACY_CHANGED_FILES = AGENT_LOG_BASE / 'legacy' / 'changed-files.jsonl'
 CHANGED_FILES = LEGACY_CHANGED_FILES
 STOP_LOCK = AGENT_LOG_BASE / 'stop-check' / 'legacy.lock'
 STOP_LOCK_STALE_SECONDS = 2 * 60 * 60
-PROTECTED_ROOTS = [
-    'CLAUDE.md',
-    'AGENTS.md',
-    'openspec/',
-    '.claude/',
-    '.codex/',
-    '.qoder/',
-    'scripts/',
-    'harness/',
-    'src/',
-]
+PROTECTED_ROOTS = runtime_policy.protected_roots(REPO_ROOT)
 
 LOCAL_ONLY_PATHS = [
     '.claude/settings.local.json',
@@ -53,16 +45,22 @@ LOCAL_ONLY_PATHS = [
 
 # 返回当前 UTC timestamp。
 def utc_now() -> str:
-    """返回：
-        当前 UTC timestamp 字符串。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     return datetime.now(timezone.utc).isoformat()
 
 
 # 读取JSON stdin。
 def _read_json_stdin() -> dict[str, Any]:
-    """返回：
-        已解析的JSON 对象, 或 空 映射 当 输入 缺失 或 无效。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     try:
         text = sys.stdin.read()
@@ -77,13 +75,51 @@ def _read_json_stdin() -> dict[str, Any]:
     return data if isinstance(data, dict) else {}
 
 
+# 根据 stop payload 或 hook wrapper 环境切换到实际检出根目录。
+def _repo_root_from_stop_context(ctx: dict[str, Any]) -> Path:
+    """参数：
+        ctx: 停止 hook 载荷。
+
+    返回：
+        当前 stop 应检查的 git checkout 根目录。
+    """
+    raw = ctx.get('cwd') or ctx.get('workingDirectory') or ''
+    if isinstance(raw, str) and raw:
+        return runtime_paths.find_repo_root(raw)
+    if not (REPO_ROOT / 'harness' / 'agent-runtime.manifest.yaml').is_file():
+        return REPO_ROOT
+    env_cwd = os.environ.get('FEIPI_HOOK_CWD') or ''
+    if env_cwd:
+        return runtime_paths.find_repo_root(env_cwd)
+    return REPO_ROOT
+
+
+# 更新依赖仓库根目录的模块级路径。
+def _use_repo_root(repo_root: Path) -> None:
+    """参数：
+        repo_root: 实际 git checkout 根目录。
+    """
+    global REPO_ROOT, AGENT_LOG_BASE, LEGACY_SESSION_ID_FILE, LEGACY_CHANGED_FILES
+    global CHANGED_FILES, STOP_LOCK, PROTECTED_ROOTS
+    REPO_ROOT = repo_root.resolve()
+    AGENT_LOG_BASE = REPO_ROOT / 'tmp' / 'agent_logs'
+    LEGACY_SESSION_ID_FILE = AGENT_LOG_BASE / 'legacy' / 'session-id.txt'
+    LEGACY_CHANGED_FILES = AGENT_LOG_BASE / 'legacy' / 'changed-files.jsonl'
+    CHANGED_FILES = LEGACY_CHANGED_FILES
+    STOP_LOCK = AGENT_LOG_BASE / 'stop-check' / 'legacy.lock'
+    try:
+        PROTECTED_ROOTS = runtime_policy.protected_roots(REPO_ROOT)
+    except FileNotFoundError:
+        PROTECTED_ROOTS = []
+
+
 # 维护session id context。
 def _session_id_from_context(ctx: dict[str, Any]) -> str | None:
     """参数：
-        ctx: hook stdin 解析出的 context。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        session id 当 可用；否则 None。
+        当前函数计算或校验结果。
     """
     sid = ctx.get('session_id') or ctx.get('sessionId')
     if isinstance(sid, str) and sid:
@@ -96,8 +132,11 @@ def _session_id_from_context(ctx: dict[str, Any]) -> str | None:
 
 # 维护session id log state。
 def _session_id_from_log_state() -> str | None:
-    """返回：
-        日志状态文件中的 session id 字符串。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     if LEGACY_SESSION_ID_FILE.exists():
         value = LEGACY_SESSION_ID_FILE.read_text(encoding='utf-8').strip()
@@ -108,10 +147,10 @@ def _session_id_from_log_state() -> str | None:
 # 维护agent id context。
 def _agent_id_from_context(ctx: dict[str, Any]) -> str | None:
     """参数：
-        ctx: hook stdin 解析出的 context。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        agent id 当 可用；否则 None。
+        当前函数计算或校验结果。
     """
     aid = ctx.get('agent_id') or ctx.get('agentId')
     if isinstance(aid, str) and aid:
@@ -125,10 +164,10 @@ def _agent_id_from_context(ctx: dict[str, Any]) -> str | None:
 # 规范化注释文本。
 def _normalize(path: str) -> str:
     """参数：
-        path: 原始路径从hook 日志 或 git 输出。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        normalize 字符串。
+        当前函数计算或校验结果。
     """
     return changed_file_utils.normalize_path(path)
 
@@ -136,10 +175,10 @@ def _normalize(path: str) -> str:
 # 维护dedupe。
 def _dedupe(paths: list[str]) -> list[str]:
     """参数：
-        paths: 原始路径 字符串到normalize 和 deduplicate。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        Ordered 去重后的 规范化 路径。
+        当前函数计算或校验结果。
     """
     return changed_file_utils.dedupe_paths(paths)
 
@@ -147,11 +186,10 @@ def _dedupe(paths: list[str]) -> list[str]:
 # 读取recorded changed-files 文件。
 def read_recorded_changed_files(session_id: str | None, agent_id: str | None = None) -> list[str]:
     """参数：
-        session_id: 可选session id used到filter hook record。
-        agent_id: 可选agent id used到filter record到a specific agent。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        结果列表。
+        当前函数计算或校验结果。
     """
     return changed_file_utils.read_recorded_changed_files(
         session_id, CHANGED_FILES, agent_id=agent_id
@@ -161,63 +199,152 @@ def read_recorded_changed_files(session_id: str | None, agent_id: str | None = N
 # 解析Git 状态 路径。
 def parse_git_status_paths(output: str) -> list[str]:
     """参数：
-        output: 原始输出从``git 状态 --short``。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        规范化 changed 路径, including both sides of rename record。
+        当前函数计算或校验结果。
     """
     return changed_file_utils.parse_git_status_paths(output)
 
 
 # 读取Git dirty 文件。
 def read_git_dirty_files() -> list[str]:
-    """返回：
-        规范化 dirty 路径, 或 空 列表 当 git 状态 不可用。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     return changed_file_utils.read_git_dirty_files(REPO_ROOT)
 
 
 # 维护identity changed-files 文件 路径。
-def identity_changed_file_paths(identity: runtime_paths.RuntimeIdentity) -> list[Path]:
+def identity_changed_file_paths(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> list[Path]:
     """参数：
         identity: 当前 hook runtime 运行身份。
+        repo_root: 仓库根目录。
 
     返回：
         当前 session/agent 归属的 changed file 路径列表。
     """
+    if repo_root is None:
+        repo_root = REPO_ROOT
     include_agents = not identity.is_agent
     return [
         log_dir / 'changed-files.jsonl'
         for log_dir in runtime_paths.session_log_dirs(
-            REPO_ROOT, identity, include_agents=include_agents
+            repo_root, identity, include_agents=include_agents
         )
     ]
 
 
 # 读取当前 identity 作用域记录的 changed files。
-def read_identity_changed_files(identity: runtime_paths.RuntimeIdentity) -> list[str]:
+def read_identity_changed_files(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> list[str]:
     """参数：
         identity: 当前 hook 运行time identity。
+        repo_root: 仓库根目录。
 
     返回：
         结果列表。
     """
+    if repo_root is None:
+        repo_root = REPO_ROOT
     agent_filter = identity.raw_agent_id if identity.is_agent else None
     return changed_file_utils.read_recorded_changed_files_from_paths(
-        identity_changed_file_paths(identity),
+        identity_changed_file_paths(identity, repo_root=repo_root),
         identity.raw_session_id,
         agent_id=agent_filter,
     )
 
 
+# 维护 read_identity_hook_events 函数行为。
+def read_identity_hook_events(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> list[dict[str, Any]]:
+    """参数：
+        identity: 当前 hook 运行身份。
+        repo_root: 仓库根目录。
+
+    返回：
+        当前 identity scope 的 hook event 列表。
+    """
+    if repo_root is None:
+        repo_root = REPO_ROOT
+    events: list[dict[str, Any]] = []
+    for changed_path in identity_changed_file_paths(identity, repo_root=repo_root):
+        path = changed_path.with_name('hook-events.jsonl')
+        if not path.exists():
+            continue
+        for raw_line in path.read_text(encoding='utf-8').splitlines():
+            line = raw_line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if not isinstance(record, dict):
+                continue
+            if record.get('sessionId') != identity.raw_session_id:
+                continue
+            if identity.is_agent and (record.get('agentId') or '') != identity.raw_agent_id:
+                continue
+            events.append(record)
+    return events
+
+
+# 维护 identity_attribution_gap_failures 函数行为。
+def identity_attribution_gap_failures(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> list[str]:
+    """参数：
+        identity: 当前 hook 运行身份。
+        repo_root: 仓库根目录。
+
+    返回：
+        hook event 中 stop gate 必须显式暴露的 attribution gap 列表。
+    """
+    if repo_root is None:
+        repo_root = REPO_ROOT
+    failures: list[str] = []
+    events = read_identity_hook_events(identity, repo_root=repo_root)
+    pre_events: dict[str, dict[str, Any]] = {}
+    for event in events:
+        tool_use = event.get('toolUseId')
+        if (
+            isinstance(tool_use, str)
+            and tool_use
+            and event.get('event') == 'pre-bash'
+        ):
+            pre_events[tool_use] = event
+    for event in events:
+        if event.get('status') == 'BASH_SNAPSHOT_MISSING':
+            tool_use = event.get('toolUseId') or 'unknown'
+            pre_event = pre_events.get(tool_use)
+            if pre_event and (
+                pre_event.get('status') == 'BLOCK'
+                or pre_event.get('bashMutationTracking') is False
+            ):
+                continue
+            failures.append(f'BASH_SNAPSHOT_MISSING attribution gap for toolUseId={tool_use}')
+    return failures
+
+
 # 收集当前 session/agent 需要纳入 stop gate 的 changed files。
 def collect_changed_files(session_id: str | None, agent_id: str | None = None) -> list[str]:
     """参数：
-        session_id: 可选session id used到filter hook record。
-        agent_id: 可选agent id used到filter record到a specific agent。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        Deduplicated 路径从recorded hook 写入 和 当前 git 状态。
+        当前函数计算或校验结果。
     """
     return changed_file_utils.collect_changed_files(
         session_id,
@@ -228,40 +355,152 @@ def collect_changed_files(session_id: str | None, agent_id: str | None = None) -
     )
 
 
+@dataclass(frozen=True)
+class StopChangedFiles:
+    """停止门变更文件证据和故障诊断数据类。
+
+    ``__iter__`` 保留历史解包契约 ``changed_files, evidence_mode = ...``，
+    同时向停止门入口暴露证据故障信息。
+    """
+
+    changed_files: list[str]
+    evidence_mode: str
+    evidence_warnings_or_failures: list[str]
+    git_dirty_files: list[str]
+
+    # 兼容历史解包契约，返回变更文件列表和证据模式。
+    def __iter__(self):
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
+        yield self.changed_files
+        yield self.evidence_mode
+
+
+# 收集指定 identity 作用域下所有 agent 的基准提交哨兵文件路径。
+def _identity_base_commit_paths(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> list[Path]:
+    """参数：
+        identity: 当前 hook 运行身份。
+        repo_root: 仓库根目录。
+
+    返回：
+        基准提交哨兵文件路径列表。
+    """
+    if repo_root is None:
+        repo_root = REPO_ROOT
+    return [
+        path.with_name('base-commit.txt')
+        for path in identity_changed_file_paths(identity, repo_root)
+    ]
+
+
+# 判断当前 identity 的 dirty state 是否等于 session 起点状态。
+def _identity_dirty_state_matches_baseline(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> bool:
+    """参数：
+        identity: 当前 hook 运行身份。
+        repo_root: 仓库根目录。
+
+    返回：
+        当前 dirty state 与 session 起点 dirty-state sentinel 完全一致时返回 true。
+    """
+    if repo_root is None:
+        repo_root = REPO_ROOT
+    current = changed_file_utils.read_git_dirty_state(repo_root)
+    for base_commit in _identity_base_commit_paths(identity, repo_root):
+        baseline = changed_file_utils.read_base_dirty_state(base_commit)
+        if baseline is not None and baseline == current:
+            return True
+    return False
+
+
+# 收集 session identity 下因证据缺失导致的 fail-closed 故障列表。
+def _session_evidence_failures(
+    identity: runtime_paths.RuntimeIdentity,
+    changed_files: list[str],
+    git_dirty_files: list[str],
+    repo_root: Path | None = None,
+) -> list[str]:
+    """参数：
+        identity: 当前 hook 运行身份。
+        changed_files: 已收集的变更文件列表。
+        git_dirty_files: git 脏文件列表。
+        repo_root: 仓库根目录。
+
+    返回：
+        需要故障关闭的证据缺口列表。
+    """
+    if repo_root is None:
+        repo_root = REPO_ROOT
+    failures: list[str] = identity_attribution_gap_failures(identity, repo_root)
+    if not git_dirty_files:
+        return failures
+
+    if not changed_files:
+        if _identity_dirty_state_matches_baseline(identity, repo_root):
+            return failures
+        failures.append(
+            'attribution evidence missing: session has dirty git files but no changed-files evidence'
+        )
+        if changed_files_require_openspec(git_dirty_files) and not any(
+            path.exists() for path in _identity_base_commit_paths(identity, repo_root)
+        ):
+            failures.append('base commit missing for session attribution evidence')
+    return failures
+
+
 # 收集stop changed-files 文件。
 def collect_stop_changed_files(
     identity: runtime_paths.RuntimeIdentity | str | None,
     fallback_session_id: str | None,
     agent_id: str | None = None,
-) -> tuple[list[str], str]:
+    repo_root: Path | None = None,
+) -> StopChangedFiles:
     """参数：
         identity: 当前 hook 运行time identity。
         fallback_session_id: 兜底使用的 session id。
         agent_id: 用于筛选记录的 agent id。
+        repo_root: 仓库根目录。
 
     返回：
-        结果 tuple。
+        停止门变更文件集合，包含故障关闭诊断信息。
     """
+    if repo_root is None:
+        repo_root = REPO_ROOT
     if isinstance(identity, str):
-        return read_recorded_changed_files(identity, agent_id=agent_id), 'session'
+        changed = read_recorded_changed_files(identity, agent_id=agent_id)
+        return StopChangedFiles(changed, 'session', [], [])
     if identity is None:
-        return collect_changed_files(fallback_session_id, agent_id=agent_id), 'fail-closed'
+        changed = collect_changed_files(fallback_session_id, agent_id=agent_id)
+        return StopChangedFiles(changed, 'fail-closed', [], read_git_dirty_files())
     if identity.has_session:
         mode = 'identity-agent' if identity.is_agent else 'identity-session'
-        return read_identity_changed_files(identity), mode
+        changed = read_identity_changed_files(identity, repo_root=repo_root)
+        dirty = read_git_dirty_files()
+        failures = _session_evidence_failures(identity, changed, dirty, repo_root)
+        return StopChangedFiles(changed, mode, failures, dirty)
     changed = read_git_dirty_files()
     if changed:
-        return changed, 'fail-closed-git'
-    return collect_changed_files(fallback_session_id, agent_id=agent_id), 'fail-closed-legacy'
+        return StopChangedFiles(changed, 'fail-closed-git', [], changed)
+    changed = collect_changed_files(fallback_session_id, agent_id=agent_id)
+    return StopChangedFiles(changed, 'fail-closed-legacy', [], [])
 
 
 # 检查local 仅 状态。
 def check_local_only_status(changed_files: list[str] | None = None) -> list[str]:
     """参数：
-        changed_files: 待检查的文件列表。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        Git short-状态 行用于local-仅 路径, 或 空 列表 当 clean。
+        当前函数计算或校验结果。
     """
     if changed_files is not None:
         warnings: list[str] = []
@@ -290,18 +529,24 @@ def check_local_only_status(changed_files: list[str] | None = None) -> list[str]
 
 
 # 读取active change id。
-def _read_active_change_id(identity: runtime_paths.RuntimeIdentity) -> str | None:
+def _read_active_change_id(
+    identity: runtime_paths.RuntimeIdentity,
+    repo_root: Path | None = None,
+) -> str | None:
     """参数：
         identity: 当前 hook 运行time identity。
+        repo_root: 仓库根目录。
 
     返回：
         读取到的 active change id 字符串。
     """
-    paths = runtime_paths.build_paths(REPO_ROOT, identity=identity)
+    if repo_root is None:
+        repo_root = REPO_ROOT
+    paths = runtime_paths.build_paths(repo_root, identity=identity)
     if identity.has_session:
         candidates = paths.active_change_candidates
     else:
-        candidates = [runtime_paths.legacy_active_change_path(REPO_ROOT)]
+        candidates = [runtime_paths.legacy_active_change_path(repo_root)]
     for active_change in candidates:
         if active_change.exists():
             try:
@@ -317,10 +562,10 @@ def _read_active_change_id(identity: runtime_paths.RuntimeIdentity) -> str | Non
 # 解析change id。
 def resolve_change_id(identity: runtime_paths.RuntimeIdentity | None = None) -> str:
     """参数：
-        identity: 当前 hook 运行time identity。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        resolve change id 字符串。
+        当前函数计算或校验结果。
     """
     env = os.environ.get('ACTIVE_CHANGE_ID', '')
     if env:
@@ -335,29 +580,21 @@ def resolve_change_id(identity: runtime_paths.RuntimeIdentity | None = None) -> 
 # 维护changed-files 文件 校验 OpenSpec。
 def changed_files_require_openspec(changed_files: list[str]) -> bool:
     """参数：
-        changed_files: 待检查的文件列表。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        满足条件时返回 true，否则返回 false。
+        当前函数计算或校验结果。
     """
-    for path in changed_files:
-        normalized = _normalize(path)
-        for root in PROTECTED_ROOTS:
-            clean = root.rstrip('/')
-            if normalized == clean or normalized.startswith(f'{clean}/'):
-                return True
-    return False
+    return any(runtime_policy.is_protected_path(path, REPO_ROOT) for path in changed_files)
 
 
 # 运行step。
 def run_step(name: str, cmd: list[str], env_overrides: dict[str, str] | None = None) -> bool:
     """参数：
-        name: 人类可读的 step name用于stderr 诊断信息。
-        cmd: 待执行的命令。
-        env_overrides: 覆盖 subprocess 环境变量的映射。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        满足条件时返回 true，否则返回 false。
+        当前函数计算或校验结果。
     """
     print(f'[agent_stop_check] running {name}: {" ".join(cmd)}', file=sys.stderr)
     try:
@@ -376,8 +613,11 @@ def run_step(name: str, cmd: list[str], env_overrides: dict[str, str] | None = N
 
 # 维护任务 ledger warning。
 def task_ledger_warnings() -> list[str]:
-    """返回：
-        结果列表。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     ledger = REPO_ROOT / 'tmp' / 'task-ledger.md'
     if not ledger.exists():
@@ -391,10 +631,10 @@ def task_ledger_warnings() -> list[str]:
 # 维护必需 targets。
 def required_targets(changed_files: list[str]) -> list[str]:
     """参数：
-        changed_files: 待检查的文件列表。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        结果列表。
+        当前函数计算或校验结果。
     """
     classifier = importlib.import_module('scripts.claude_hooks.classify')
     return classifier.required_quality_targets(changed_files)
@@ -429,12 +669,16 @@ class StopSummary:
     failures: list[str]
     warnings: list[str]
     identity: runtime_paths.RuntimeIdentity | None = None
+    worktree: dict[str, Any] | None = None
 
 
 # 写入summary。
 def write_summary(summary: StopSummary) -> None:
     """参数：
-        summary: summary 参数。
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     if summary.identity and summary.identity.has_session:
         agent_log_dir = runtime_paths.agent_log_dir(REPO_ROOT, summary.identity)
@@ -456,6 +700,8 @@ def write_summary(summary: StopSummary) -> None:
         'blockingFailures': summary.failures,
         'warnings': summary.warnings,
     }
+    if summary.worktree is not None:
+        payload['worktree'] = summary.worktree
     stop_summary_path.write_text(
         json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
@@ -479,8 +725,11 @@ class StopCheckLock:
 
     # 维护acquire。
     def acquire(self) -> bool:
-        """返回：
-            满足条件时返回 true，否则返回 false。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         self._remove_stale_lock()
         payload = {
@@ -504,6 +753,12 @@ class StopCheckLock:
 
     # 维护释放。
     def release(self) -> None:
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
         if not self.acquired:
             return
         try:
@@ -515,6 +770,12 @@ class StopCheckLock:
 
     # 移除stale 锁。
     def _remove_stale_lock(self) -> None:
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
         try:
             age = time.time() - self.path.stat().st_mtime
         except FileNotFoundError:
@@ -531,8 +792,11 @@ class StopCheckLock:
 
 # 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """返回：
-        进程退出码。
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
     """
     parser = argparse.ArgumentParser(description='Run shared agent stop checks.')
     parser.add_argument('--agent', default='unknown', help='Agent entrypoint name')
@@ -540,6 +804,7 @@ def main() -> int:
     args = parser.parse_args()
 
     ctx = _read_json_stdin()
+    _use_repo_root(_repo_root_from_stop_context(ctx))
     scoped_session_id = _session_id_from_context(ctx)
     session_id = scoped_session_id or _session_id_from_log_state() or 'unknown'
     agent_id = args.agent_id or _agent_id_from_context(ctx)
@@ -555,29 +820,57 @@ def main() -> int:
         agent_log_dir = AGENT_LOG_BASE / 'legacy' / args.agent / session_id
     agent_log_dir.mkdir(parents=True, exist_ok=True)
 
-    changed_files, evidence_mode = collect_stop_changed_files(
-        identity, session_id if session_id != 'unknown' else None, agent_id=agent_id
-    )
+    try:
+        stop_evidence = collect_stop_changed_files(
+            identity,
+            session_id if session_id != 'unknown' else None,
+            agent_id=agent_id,
+            repo_root=REPO_ROOT,
+        )
+    except TypeError as exc:
+        if "repo_root" not in str(exc):
+            raise
+        legacy_changed, legacy_mode = collect_stop_changed_files(
+            identity,
+            session_id if session_id != 'unknown' else None,
+            agent_id=agent_id,
+        )
+        stop_evidence = StopChangedFiles(legacy_changed, legacy_mode, [], [])
+    changed_files = stop_evidence.changed_files
+    evidence_mode = stop_evidence.evidence_mode
     targets = required_targets(changed_files)
     warnings: list[str] = []
-    failures: list[str] = []
+    failures: list[str] = list(stop_evidence.evidence_warnings_or_failures)
+    worktree_decision = runtime_worktree.check_session_worktree(REPO_ROOT, identity, create=False)
+    worktree_payload = worktree_decision.as_dict() if worktree_decision.required else None
+    if not worktree_decision.allowed and (changed_files or stop_evidence.git_dirty_files):
+        failures.append(
+            worktree_decision.reason
+            or 'main agent session must stop from its assigned git worktree'
+        )
 
     if not changed_files:
+        status = 'BLOCKED' if failures else 'PASS'
         write_summary(
             StopSummary(
                 agent=args.agent,
                 session_id=session_id,
                 read_only=True,
-                status='PASS',
+                status=status,
                 evidence_mode=evidence_mode,
-                lock_status='skipped-read-only',
+                lock_status='blocked-evidence-gap' if failures else 'skipped-read-only',
                 changed_files=[],
                 targets=[],
-                failures=[],
+                failures=failures,
                 warnings=[],
                 identity=identity,
+                worktree=worktree_payload,
             )
         )
+        if failures:
+            for failure in failures:
+                print(f'[agent_stop_check] BLOCK {failure}', file=sys.stderr)
+            return 2
         print('[agent_stop_check] PASS read-only session', file=sys.stderr)
         return 0
 
@@ -612,6 +905,7 @@ def main() -> int:
                 failures=failures,
                 warnings=warnings,
                 identity=identity,
+                worktree=worktree_payload,
             )
         )
         print(
@@ -685,6 +979,7 @@ def main() -> int:
             failures=failures,
             warnings=warnings,
             identity=identity,
+            worktree=worktree_payload,
         )
     )
 

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from ..classify import classify_file
 from ..paths import rel_to_repo
+from scripts.agent_runtime.policy import is_protected_path
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -39,11 +40,10 @@ class FilePolicyDecision:
 # 维护评估 write 路径。
 def evaluate_write_path(path: str, repo_root: str | Path) -> FilePolicyDecision:
     """参数：
-        path: Candidate 文件路径 reported by 写入 tool。
-        repo_root: repo root used到normalize 路径。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        解析后的 HookContext；失败时携带 parse_error。
+        当前函数计算或校验结果。
     """
     rel = rel_to_repo(path, repo_root)
     cls = classify_file(rel)
@@ -72,8 +72,38 @@ def evaluate_write_path(path: str, repo_root: str | Path) -> FilePolicyDecision:
     )
 
 
+WRITE_TOOL_NAMES = {'Write', 'Edit', 'MultiEdit', 'NotebookEdit'}
+
+
+# 维护 pre_write_payload_block_reason 函数行为。
+def pre_write_payload_block_reason(ctx: Any, repo_root: str | Path) -> str:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
+    if getattr(ctx, 'parse_error', None):
+        return f'pre-write hook payload JSON 解析失败；fail-closed: {ctx.parse_error}'
+    tool_name = getattr(ctx, 'tool_name', '')
+    candidate_paths = list(getattr(ctx, 'candidate_paths', []))
+    if not candidate_paths and (tool_name in WRITE_TOOL_NAMES or not tool_name):
+        return '写入类 hook payload 缺少 candidate path；fail-closed。'
+    if not getattr(ctx, 'session_id', ''):
+        for path in candidate_paths:
+            if is_protected_path(path, repo_root):
+                return 'protected write 缺少 session id；fail-closed，避免写入共享 evidence。'
+    return ''
+
+
 # 运行脚本自测试场景。
 def _self_test() -> None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
     d = evaluate_write_path('src/session_browser/web/static/app.css', '.')
     assert d.allowed
     assert d.requires_quality_gate

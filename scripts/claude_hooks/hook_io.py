@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sys
 from dataclasses import dataclass, field
 from typing import Any
@@ -22,115 +23,197 @@ class HookContext:
     event_name: str
     raw: dict[str, Any] = field(default_factory=dict)
     parse_error: str | None = None
+    empty_input: bool = False
+
+    # 维护 _raw_string 函数行为。
+    def _raw_string(self, *keys: str) -> str:
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
+        for key in keys:
+            value = self.raw.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return ''
+
+    # 维护 _tool_string 函数行为。
+    def _tool_string(self, *keys: str) -> str:
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
+        """
+        tool_input = self.tool_input
+        for key in keys:
+            value = tool_input.get(key)
+            if isinstance(value, str) and value:
+                return value
+        return self._raw_string(*keys)
 
     # 返回 hook event name；缺失时使用 CLI event label。
     @property
+    # 维护 hook_event_name 函数行为。
     def hook_event_name(self) -> str:
-        """返回：
-            hook event name 字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         return str(self.raw.get('hook_event_name') or self.event_name)
 
     # 返回触发 hook 的 tool name。
     @property
+    # 维护 tool_name 函数行为。
     def tool_name(self) -> str:
-        """返回：
-            tool name 字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
-        return str(self.raw.get('tool_name') or self.raw.get('toolName') or '')
+        return self._raw_string('tool_name', 'toolName')
 
     # 返回触发 tool 的输入对象；缺失时返回空映射。
     @property
+    # 维护 tool_input 函数行为。
     def tool_input(self) -> dict[str, Any]:
-        """返回：
-            结果映射。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         value = self.raw.get('tool_input') or self.raw.get('toolInput') or {}
         return value if isinstance(value, dict) else {}
 
     # 返回用于关联 evidence 的 tool-use id。
     @property
+    # 维护 tool_use_id 函数行为。
     def tool_use_id(self) -> str:
-        """返回：
-            tool-use id 字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         return str(self.raw.get('tool_use_id') or self.raw.get('toolUseId') or '')
 
     # 返回 pre-bash hook 中的 Bash 命令。
     @property
+    # 维护 command 函数行为。
     def command(self) -> str:
-        """返回：
-            Bash 命令字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
-        return str(self.tool_input.get('command') or '')
+        return self._tool_string('command')
 
     # 返回用于 evidence 隔离的 session id。
     @property
+    # 维护 session_id 函数行为。
     def session_id(self) -> str:
-        """返回：
-            session id 字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
-        return str(self.raw.get('session_id') or self.raw.get('sessionId') or '')
+        return self._raw_string('session_id', 'sessionId')
 
     # 返回 Claude hook 输入中的 transcript 路径。
     @property
+    # 维护 transcript_path 函数行为。
     def transcript_path(self) -> str:
-        """返回：
-            transcript 路径字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         return str(self.raw.get('transcript_path') or self.raw.get('transcriptPath') or '')
 
     # 返回 hook event 的工作目录。
     @property
+    # 维护 cwd 函数行为。
     def cwd(self) -> str:
-        """返回：
-            工作目录字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
-        return str(self.raw.get('cwd') or self.tool_input.get('cwd') or '')
+        return str(
+            self.raw.get('cwd')
+            or self.raw.get('workingDirectory')
+            or self.tool_input.get('cwd')
+            or self.tool_input.get('workingDirectory')
+            or os.environ.get('FEIPI_HOOK_CWD')
+            or ''
+        )
 
     # 返回 hook event 中的 agent id。
     @property
+    # 维护 agent_id 函数行为。
     def agent_id(self) -> str:
-        """返回：
-            agent id 字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
-        return str(self.raw.get('agent_id') or self.raw.get('agentId') or '')
+        return self._raw_string('agent_id', 'agentId')
 
     # 返回 hook event 中的 agent type。
     @property
+    # 维护 agent_type 函数行为。
     def agent_type(self) -> str:
-        """返回：
-            agent type 字符串。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         return str(self.raw.get('agent_type') or self.raw.get('agentType') or '')
 
     # 返回 hook event 中的 agent client 名称。
     @property
+    # 维护 agent_client 函数行为。
     def agent_client(self) -> str:
-        """返回：
-            agent client 名称。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
-        return str(
-            self.raw.get('agent_client')
-            or self.raw.get('agentClient')
-            or self.raw.get('client')
-            or ''
-        )
+        return self._raw_string('agent_client', 'agentClient', 'client')
 
     # 提取写入类 hook payload 中的候选路径并保序去重。
     @property
+    # 维护 candidate_paths 函数行为。
     def candidate_paths(self) -> list[str]:
-        """返回：
-            写入类 tool payload 中出现的候选路径列表。
+        """参数：
+            *args: 当前函数使用的输入参数。
+    
+        返回：
+            当前函数计算或校验结果。
         """
         candidates: list[str] = []
         for key in ('file_path', 'path', 'notebook_path'):
             # 从单文件写入类 payload 中读取候选路径。
             value = self.tool_input.get(key)
+            if not isinstance(value, str) or not value:
+                value = self.raw.get(key)
             if isinstance(value, str) and value:
                 candidates.append(value)
 
-        edits = self.tool_input.get('edits')
+        edits = self.tool_input.get('edits') or self.raw.get('edits')
         if isinstance(edits, list):
             for item in edits:
                 if isinstance(item, dict):
@@ -152,11 +235,10 @@ class HookContext:
 # 读取stdin JSON。
 def read_stdin_json(event_name: str, stdin_text: str | None = None) -> HookContext:
     """参数：
-        event_name: hook event 标签。
-        stdin_text: 测试传入的 stdin 文本；为空时读取真实 stdin。
+        *args: 当前函数使用的输入参数。
 
     返回：
-        解析后的 HookContext；失败时携带 parse_error。
+        当前函数计算或校验结果。
     """
     if stdin_text is None:
         try:
@@ -167,7 +249,7 @@ def read_stdin_json(event_name: str, stdin_text: str | None = None) -> HookConte
             )
 
     if not stdin_text.strip():
-        return HookContext(event_name=event_name, raw={})
+        return HookContext(event_name=event_name, raw={}, empty_input=True)
 
     try:
         parsed = json.loads(stdin_text)
@@ -180,6 +262,12 @@ def read_stdin_json(event_name: str, stdin_text: str | None = None) -> HookConte
 
 # 运行脚本自测试场景。
 def _self_test() -> None:
+    """参数：
+        *args: 当前函数使用的输入参数。
+
+    返回：
+        当前函数计算或校验结果。
+    """
     ctx = read_stdin_json('pre-bash', '{"tool_name":"Bash","tool_input":{"command":"git status"}}')
     assert ctx.tool_name == 'Bash'
     assert ctx.command == 'git status'

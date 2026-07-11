@@ -11,6 +11,12 @@
 - 先根据用户任务定位最小必要文件，再读取相关内容。
 - 只有任务涉及非平凡开发、OpenSpec、harness、质量门、hooks 或仓库规则改造时，才读取 `AGENTS.md`。
 
+## Subagent 协议索引
+
+- 长规则以 `harness/agent-policy.manifest.yaml` 的 `subagent_instance_protocol` 为准。
+- Main handoff 必须包含 `Goal`、`Task id`、`Task source`、`Allowed files/directories`、`Forbidden files/directories`、`Required context files`、`Expected output`、`Validation command`、`Failure policy`，并为同一 agent 的不同实例提供唯一 `agent_id` 或等价 instance id。
+- Main 只能聚合同一 `client/session_id` 的 subagent evidence；并行修改型 subagent 写范围不得重叠；subagent `FAIL`/`BLOCKED` 不得让 main 静默跳过 validation。
+
 ## 红线
 
 - 不读取、输出或提交真实 session 大文件全文。

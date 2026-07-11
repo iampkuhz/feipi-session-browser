@@ -1,0 +1,117 @@
+import json
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+from scripts.claude_hooks.classify import required_quality_targets
+from scripts.quality.measure_gate_escape_rate import REQUIRED_CASE_IDS, build_report
+
+
+def _env():
+    env = os.environ.copy()
+    env['ACTIVE_CHANGE_ID'] = 'harden-agent-runtime-full-v3'
+    return env
+
+
+def test_dry_run_hook_runtime_target_for_agent_config_change():
+    proc = subprocess.run(
+        [
+            sys.executable,
+            'scripts/quality/run_required_quality_gates.py',
+            '--change-id',
+            'harden-agent-runtime-full-v3',
+            '--changed-files',
+            '[".claude/agents/qwen-main-default.md"]',
+            '--include-session-detail',
+            '--dry-run',
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=_env(),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    assert proc.returncode == 0, combined
+    assert 'would run target: hook-runtime' in combined
+
+
+def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
+    json_out = tmp_path / 'gate-escape-rate.json'
+    proc = subprocess.run(
+        [
+            sys.executable,
+            'scripts/quality/measure_gate_escape_rate.py',
+            '--threshold',
+            '0',
+            '--json-out',
+            str(json_out),
+        ],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=_env(),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    assert proc.returncode == 0, combined
+    assert '[gateEscapeRate] PASS escape_rate=0.0 escaped_required_cases=0' in proc.stdout
+
+    report = json.loads(json_out.read_text(encoding='utf-8'))
+    assert set(report) >= {'total_required_cases', 'escaped_required_cases', 'escape_rate', 'cases'}
+    assert report['escaped_required_cases'] == 0
+    assert report['escape_rate'] == 0.0
+    assert report['total_required_cases'] >= 10
+    case_ids = {case['id'] for case in report['cases']}
+    assert REQUIRED_CASE_IDS <= case_ids
+    for case in report['cases']:
+        assert set(case) >= {'id', 'description', 'expected_gate', 'observed', 'escaped', 'evidence'}
+        assert case['observed'] in {'PASS', 'BLOCK', 'FAIL', 'TARGET_TRIGGERED', 'TARGET_MISSING'}
+        assert case['escaped'] is False
+        assert case['evidence']
+
+
+def test_check_gate_bypass_resistance_reuses_measurement():
+    proc = subprocess.run(
+        [sys.executable, 'scripts/quality/check_gate_bypass_resistance.py', '--threshold', '0'],
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        env=_env(),
+        check=False,
+    )
+
+    combined = proc.stdout + proc.stderr
+    assert proc.returncode == 0, combined
+    assert '[gateEscapeRate] PASS escape_rate=0.0 escaped_required_cases=0' in proc.stdout
+
+
+def test_required_case_coverage_and_zero_escape_rate():
+    report = build_report()
+    assert report['total_required_cases'] >= 10
+    assert report['escaped_required_cases'] == 0
+    assert report['escape_rate'] == 0.0
+    assert REQUIRED_CASE_IDS <= {case['id'] for case in report['cases']}
+
+
+def test_synthetic_target_selection_is_fail_closed_or_targeted():
+    expectations = {
+        '.claude/agents/qwen-main-default.md': 'hook-runtime',
+        '.qoder/hooks/pre_write_guard.sh': 'hook-runtime',
+        'scripts/harness/agent_stop_check.py': {'harness', 'hook-runtime'},
+        'java/web/src/main/java/com/feipi/session/browser/X.java': 'java-src',
+        'java/web/src/main/resources/templates/session-detail.html': 'session-detail',
+    }
+    for path, expected in expectations.items():
+        targets = required_quality_targets([path])
+        if isinstance(expected, set):
+            assert expected & set(targets), (path, targets)
+        else:
+            assert expected in targets, (path, targets)
+
+    unknown_case = next(case for case in build_report()['cases'] if case['id'] == 'unknown-risky-path')
+    assert unknown_case['observed'] in {'BLOCK', 'TARGET_TRIGGERED'}
+    assert unknown_case['escaped'] is False

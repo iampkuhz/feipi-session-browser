@@ -611,6 +611,10 @@ def check_file(path: Path) -> list[Violation]:
                             f'record {record.name} component {comp.name} 的 @param 说明必须包含中文',
                         )
                     )
+                # component 附近 inline 注释由 formatter 和 javac 共同约束；
+                # 本 gate 只要求 record 级 @param 覆盖 component。
+                # 注解排版由 google-java-format（spotless）统一管理，
+                # 与 layout policy "以 formatter 结果为准" 保持一致，不再单独检查。
     return violations
 
 

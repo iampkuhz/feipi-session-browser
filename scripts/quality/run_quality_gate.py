@@ -1666,6 +1666,22 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         return [python, 'scripts/quality/check_agent_policy_size.py']
     if gate == 'agentRulesSync':
         return [python, 'scripts/quality/check_agent_rules_sync.py']
+    if gate == 'agentRuntimeIsolation':
+        return [python, 'scripts/quality/check_agent_runtime_isolation.py']
+    if gate == 'agentRuntimeWorktree':
+        return [python, 'scripts/quality/check_agent_runtime_worktree.py']
+    if gate == 'gateBypassResistance':
+        return [python, 'scripts/quality/check_gate_bypass_resistance.py']
+    if gate == 'gateEscapeRate':
+        return [python, 'scripts/quality/measure_gate_escape_rate.py', '--threshold', '0']
+    if gate == 'protectedRootsSync':
+        return [python, 'scripts/quality/check_protected_roots_sync.py']
+    if gate == 'qoderRuntimeParity':
+        return [python, 'scripts/quality/check_qoder_runtime_parity.py']
+    if gate == 'hookPayloadCompat':
+        return [python, 'scripts/quality/check_hook_payload_compat.py']
+    if gate == 'subagentHandoffProtocol':
+        return [python, 'scripts/quality/check_subagent_handoff_protocol.py']
     if gate == 'skillRegistry':
         return [python, 'scripts/quality/check_skill_registry.py']
     if gate == 'agentEntryParity':
@@ -1776,9 +1792,9 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        # Gradle 9.6.0 SerializableTestResultStore 竞态：binary 结果 文件偶发 EOFException / NoSuchFileException。
-        # 策略：逐模块 cleanTest + test --no-daemon，每个模块独立 JVM 进程。
-        # exit code 0 → 通过；非零但含 binary results 错误 → 测试实际通过（仅 binary 存储损坏）。
+        # Gradle 9.6.0 binary 测试结果偶发缓存打包竞态。
+        # 策略：逐模块 cleanTest + test --no-daemon --no-build-cache，每个模块独立 JVM 进程。
+        # 发现 binary results 竞态时只允许重试一次；重试仍失败必须 fail-closed。
         gw = str(gradlew)
         modules = [
             'common',
@@ -1797,12 +1813,20 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             'tests:architecture',
         ]
         test_checks = ' '.join(
-            f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon > /tmp/javaCheck-{m}.log 2>&1; '
+            f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon --no-build-cache --no-parallel > /tmp/javaCheck-{m}.log 2>&1; '
             f'rc=$?; '
             f'if [ $rc -eq 0 ]; then :; '
-            f'elif grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
+            f'elif grep -qE "NoSuchFileException|EOFException|daemon has been stopped|header parser received no bytes" '
             f'     /tmp/javaCheck-{m}.log 2>/dev/null; then '
-            f'  :; '
+            f'  echo "RETRY: :java:{m}:test after Gradle binary result race"; '
+            f'  find java -path "*/build/test-results/*/binary" -type d -exec rm -rf {{}} + 2>/dev/null; '
+            f'  {gw} :java:{m}:cleanTest :java:{m}:test --no-daemon --no-build-cache --no-parallel > /tmp/javaCheck-{m}.retry.log 2>&1; '
+            f'  retry_rc=$?; '
+            f'  if [ $retry_rc -ne 0 ]; then '
+            f'    echo "FAIL: :java:{m}:test retry failed (exit=$retry_rc)"; '
+            f'    tail -20 /tmp/javaCheck-{m}.retry.log; '
+            f'    exit $retry_rc; '
+            f'  fi; '
             f'else echo "FAIL: :java:{m}:test (exit=$rc)"; tail -5 /tmp/javaCheck-{m}.log; exit 1; fi; '
             for m in modules
         )
@@ -1810,7 +1834,8 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             f'find java -path "*/build/test-results/*/binary" -type d '
             f'-exec rm -rf {{}} + 2>/dev/null; '
             f'{test_checks}'
-            f'{gw} check -x test -x javadoc --no-daemon -q 2>/dev/null; '
+            f'{gw} check -x test -x javadoc -x checkstyleMain -x checkstyleTest '
+            f'--no-daemon --no-build-cache --no-parallel -q 2>/dev/null; '
             f'echo "javaCheck: all passed"'
         )
         return ['bash', '-c', script]
@@ -1830,23 +1855,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             return []
         return [python, str(checker), 'java']
     if gate == 'noJavaTestSkips':
-        gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
+        checker = repo_root / 'scripts' / 'quality' / 'check_no_java_test_skips.py'
+        if not checker.exists():
             return []
-        # 先清理 binary results，避免 Gradle 9.6.0 竞态导致 verifyNoSkippedJavaTests 假性失败。
-        gw = str(gradlew)
-        return [
-            'bash',
-            '-c',
-            f'find java -path "*/build/test-results/*/binary" -type d '
-            f'-exec rm -rf {{}} + 2>/dev/null; '
-            f'{gw} verifyNoSkippedJavaTests --no-daemon > /tmp/noJavaTestSkips.log 2>&1; '
-            f'rc=$?; '
-            f'if [ $rc -eq 0 ]; then exit 0; fi; '
-            f'if grep -qE "NoSuchFileException|EOFException|daemon has been stopped" '
-            f'   /tmp/noJavaTestSkips.log 2>/dev/null; then exit 0; fi; '
-            f'cat /tmp/noJavaTestSkips.log; exit $rc',
-        ]
+        return [python, str(checker), '--root', str(repo_root)]
     if gate == 'javaModuleBoundaries':
         checker = repo_root / 'scripts' / 'quality' / 'check_java_module_boundaries.py'
         if not checker.exists():

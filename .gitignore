@@ -75,4 +75,14 @@ gradle/verification-metadata.xml
 **/build/**
 /config/reuse-analysis/
 /.qoder/task-packs/
-/.qoder/agents/
+/.qoder/agents/*
+!/.qoder/agents/
+!/.qoder/agents/qoder-main-default.md
+!/.qoder/agents/runtime-isolation-diagnoser.md
+!/.qoder/agents/quality-gate-diagnoser.md
+!/.qoder/agents/java-backend-implementer.md
+!/.qoder/agents/session-ingestion-specialist.md
+!/.qoder/agents/ui-implementation-specialist.md
+!/.qoder/agents/mhtml-export-specialist.md
+!/.qoder/agents/privacy-reviewer.md
+/feipi_jakarta_validation_prompt_tasks/
