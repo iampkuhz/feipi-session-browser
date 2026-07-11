@@ -169,12 +169,13 @@ class RepoPaths:
         """返回：
             结果列表。
         """
+        repo_openspec = self.repo_root / 'openspec' / 'active_change.json'
         if not self.identity.has_session:
-            return [legacy_active_change_path(self.repo_root)]
+            return [repo_openspec, legacy_active_change_path(self.repo_root)]
         session_main = session_main_log_dir(self.repo_root, self.identity) / 'active_change.json'
         if self.identity.is_agent:
-            return [self.agent_log_dir / 'active_change.json', session_main]
-        return [session_main]
+            return [self.agent_log_dir / 'active_change.json', session_main, repo_openspec]
+        return [session_main, repo_openspec]
 
 
 # 查找repo 根目录。

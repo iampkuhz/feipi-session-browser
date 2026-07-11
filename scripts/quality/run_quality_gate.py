@@ -44,6 +44,7 @@ from scripts.quality.quality_artifact import (  # noqa: E402
 )
 from scripts.quality.quality_targets import (  # noqa: E402
     QUALITY_TARGETS,
+    applicable_gates_for_target,
     required_gates_for_target,
     target_parallel_meta,
     validate_target,
@@ -1633,7 +1634,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
                 '.claude/hooks/**/*.sh',
                 '.codex/hooks/**/*.sh',
                 '.qoder/hooks/**/*.sh',
-                'scripts/harness/doctor.sh',
+                'scripts/harness/*.sh',
             ],
         )
         return ['bash', '-n', *existing] if existing else []
@@ -1780,7 +1781,6 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
                 'tests/quality/test_python_env_contract.py',
                 'tests/quality/test_no_test_skips_gate.py',
                 'tests/quality/test_java_classification.py',
-                'tests/quality/test_check_java_record_component_javadocs.py',
                 'tests/quality/test_warning_gate_cli.py',
             ],
             'harness': [
@@ -1822,53 +1822,18 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         gradlew = repo_root / 'gradlew'
         if not gradlew.exists():
             return []
-        # Gradle 9.6.0 binary 测试结果偶发缓存打包竞态。
-        # 策略：逐模块 cleanTest + test --no-daemon --no-build-cache，每个模块独立 JVM 进程。
-        # 发现 binary results 竞态时只允许重试一次；重试仍失败必须 fail-closed。
-        gw = str(gradlew)
-        modules = [
-            'common',
-            'core-domain',
-            'source-spi',
-            'sources',
-            'normalization-engine',
-            'index-api',
-            'index-store-sqlite',
-            'scan-engine',
-            'application',
-            'web',
-            'app-cli',
-            'tests:support',
-            'tests:contracts',
-            'tests:architecture',
+        return [
+            str(gradlew),
+            'check',
+            '-x',
+            'checkstyleMain',
+            '-x',
+            'checkstyleTest',
+            '-x',
+            'javadoc',
+            '--parallel',
+            '--build-cache',
         ]
-        test_checks = ' '.join(
-            f'{gw} :java:{m}:cleanTest :java:{m}:test --no-daemon --no-build-cache --no-parallel > /tmp/javaCheck-{m}.log 2>&1; '
-            f'rc=$?; '
-            f'if [ $rc -eq 0 ]; then :; '
-            f'elif grep -qE "NoSuchFileException|EOFException|daemon has been stopped|header parser received no bytes" '
-            f'     /tmp/javaCheck-{m}.log 2>/dev/null; then '
-            f'  echo "RETRY: :java:{m}:test after Gradle binary result race"; '
-            f'  find java -path "*/build/test-results/*/binary" -type d -exec rm -rf {{}} + 2>/dev/null; '
-            f'  {gw} :java:{m}:cleanTest :java:{m}:test --no-daemon --no-build-cache --no-parallel > /tmp/javaCheck-{m}.retry.log 2>&1; '
-            f'  retry_rc=$?; '
-            f'  if [ $retry_rc -ne 0 ]; then '
-            f'    echo "FAIL: :java:{m}:test retry failed (exit=$retry_rc)"; '
-            f'    tail -20 /tmp/javaCheck-{m}.retry.log; '
-            f'    exit $retry_rc; '
-            f'  fi; '
-            f'else echo "FAIL: :java:{m}:test (exit=$rc)"; tail -5 /tmp/javaCheck-{m}.log; exit 1; fi; '
-            for m in modules
-        )
-        script = (
-            f'find java -path "*/build/test-results/*/binary" -type d '
-            f'-exec rm -rf {{}} + 2>/dev/null; '
-            f'{test_checks}'
-            f'{gw} check -x test -x javadoc -x checkstyleMain -x checkstyleTest '
-            f'--no-daemon --no-build-cache --no-parallel -q 2>/dev/null; '
-            f'echo "javaCheck: all passed"'
-        )
-        return ['bash', '-c', script]
     # 中文注释检查使用仓库内脚本和策略文件，禁止依赖 tmp 路径。
     if gate == 'javaChineseComments':
         checker = repo_root / 'scripts' / 'quality' / 'check_code_comment_language.py'
@@ -1880,10 +1845,10 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             cmd.extend(['--policy', str(policy)])
         return cmd
     if gate == 'javaRecordComponentJavadocs':
-        checker = repo_root / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
-        if not checker.exists():
+        gradlew = repo_root / 'gradlew'
+        if not gradlew.exists():
             return []
-        return [python, str(checker), 'java']
+        return [str(gradlew), ':java:tests:quality-gates:verifyJavaRecordComponentJavadocs']
     if gate == 'noJavaTestSkips':
         checker = repo_root / 'scripts' / 'quality' / 'check_no_java_test_skips.py'
         if not checker.exists():
@@ -1921,7 +1886,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
             [dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)]
         )
         script = (
-            f'{shlex.quote(str(gradlew))} :java:app-cli:installDist --no-daemon '
+            f'{shlex.quote(str(gradlew))} :java:app-cli:installDist '
             f'> {install_log} 2>&1; '
             f'rc=$?; '
             f'if [ $rc -ne 0 ]; then '
@@ -1946,6 +1911,27 @@ def _progress(message: str) -> None:
     print(f'[quality-gate] {message}', file=sys.stderr, flush=True)
 
 
+# 计算质量门禁环境指纹。
+def _environment_fingerprint(repo_root: Path) -> str:
+    """参数：
+        repo_root: 仓库根目录。
+
+    返回：
+        当前执行环境的短哈希。
+    """
+    raw = json.dumps(
+        {
+            'python': sys.version.split()[0],
+            'platform': sys.platform,
+            'javaHome': os.environ.get('JAVA_HOME', ''),
+            'gradleUserHomeSet': bool(os.environ.get('GRADLE_USER_HOME')),
+            'repo': str(repo_root),
+        },
+        sort_keys=True,
+    )
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
+
+
 # 运行target。
 def run_target(
     repo_root: Path, target: str, changed_files: list[str] | None = None
@@ -1953,16 +1939,21 @@ def run_target(
     """参数：
         repo_root: 执行命令时使用的 repo root。
         target: 已验证的 quality target 名称。
-        changed_files: 导出给 child gate 的可选 changed-files 上下文；不用于裁剪已选 gate。
+        changed_files: 导出给 child gate 的可选 changed-files 上下文；提供时按 gate trigger 裁剪。
 
     返回：
         按执行顺序排列的 gate details；fixture server 生命周期在函数内收口。
     """
     details: list[GateDetail] = []
-    gates = required_gates_for_target(target)
+    gates = (
+        required_gates_for_target(target)
+        if changed_files is None
+        else applicable_gates_for_target(target, changed_files)
+    )
+    not_triggered_gates = [gate for gate in required_gates_for_target(target) if gate not in gates]
     total_gates = len(gates)
     target_timeout = int(target_parallel_meta(target).get('timeout', DEFAULT_TIMEOUT_SECONDS))
-    _progress(f'target={target} start ({total_gates} gates)')
+    _progress(f'target={target} start ({total_gates} triggered gates; {len(not_triggered_gates)} not triggered)')
 
     # 检查是否需要运行依赖 fixture 的 gate。
     needs_fixture = any(g in _FIXTURE_GATES for g in gates)
@@ -2005,7 +1996,7 @@ def run_target(
             # 用于 fixture-dependent gate, inject BASE_URL 如果 fixture server is running。
             env_override: dict[str, str] = {}
             env_override['SESSION_BROWSER_PYTHON'] = _project_python(repo_root)
-            if changed_files is not None:
+            if changed_files is not None and gate != 'javaCheck':
                 env_override['QUALITY_CHANGED_FILES'] = json.dumps(
                     changed_files, ensure_ascii=False
                 )
@@ -2146,6 +2137,7 @@ def main() -> int:
         default=None,
         help="JSON array of changed file paths, or 'auto' to read from changed-files.jsonl",
     )
+    parser.add_argument('--cache-key', default='', help='Artifact freshness cache key from required runner')
     args = parser.parse_args()
 
     repo_root = Path.cwd()
@@ -2170,7 +2162,19 @@ def main() -> int:
         changed_files = json.loads(args.changed_files)
 
     details = run_target(repo_root, args.target, changed_files)
-    summary = build_summary(args.target, change_id, started_at, details, [], repo_root)
+    triggered = {detail.name for detail in details}
+    not_triggered = [gate for gate in required_gates_for_target(args.target) if gate not in triggered]
+    summary = build_summary(args.target, change_id, started_at, details, not_triggered, repo_root)
+    summary.artifacts.update(
+        {
+            'triggeredGates': sorted(triggered),
+            'notTriggeredGates': not_triggered,
+            'changedFiles': changed_files or [],
+            'gateConfigVersion': 'quality_targets:v1',
+            'environmentFingerprint': _environment_fingerprint(repo_root),
+            'cacheKey': args.cache_key,
+        }
+    )
     out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
     print(f'quality summary: {out}')
     print(f'status: {summary.status}')

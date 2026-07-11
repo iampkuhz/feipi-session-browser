@@ -170,12 +170,12 @@ def test_explicit_legacy_single_writer_warns_but_does_not_claim_multi_primary():
     env = os.environ.copy()
     env.pop("FEIPI_RUN_ID", None)
     env["FEIPI_AGENT_CLIENT"] = "codex"
-    env["FEIPI_PRIMARY_SESSION_MODE"] = "legacy-single-writer"
+    env["FEIPI_PRIMARY_SESSION_MODE"] = "read-only-ready"
     result = run([sys.executable, "-m", "scripts.claude_hooks.main", "pre-write"], cwd=ROOT, env=env, input_text=payload, check=False)
 
     assert result.returncode == 0
     events = ROOT / "tmp" / "agent_logs" / "codex" / "legacy-direct" / "main" / "hook-events.jsonl"
-    assert "legacy-single-writer mode is explicit compatibility only" in events.read_text(encoding="utf-8")
+    assert "read-only-ready mode is explicit compatibility only" in events.read_text(encoding="utf-8")
 
 
 def test_legacy_single_writer_blocks_when_managed_writer_exists(tmp_path, monkeypatch):
@@ -205,9 +205,9 @@ def test_legacy_single_writer_blocks_when_managed_writer_exists(tmp_path, monkey
     env["PYTHONPATH"] = str(ROOT)
     env["FEIPI_AGENT_RUNTIME_ROOT"] = str(runtime_root)
     env["FEIPI_AGENT_CLIENT"] = "codex"
-    env["FEIPI_PRIMARY_SESSION_MODE"] = "legacy-single-writer"
+    env["FEIPI_PRIMARY_SESSION_MODE"] = "read-only-ready"
     result = run([sys.executable, "-m", "scripts.claude_hooks.main", "pre-write"], cwd=repo, env=env, input_text=payload, check=False)
 
     assert created["primarySessionMode"] == "managed-worktree"
     assert result.returncode == 2
-    assert "legacy-single-writer blocked by active managed writable run" in result.stderr
+    assert "read-only-ready blocked by active managed writable run" in result.stderr

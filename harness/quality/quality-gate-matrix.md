@@ -7,7 +7,7 @@
 - target 列表真源：`scripts/quality/quality_targets.py`
 - 路径分类真源：`scripts/claude_hooks/classify.py`
 - 执行入口：`scripts/quality/run_quality_gate.py`
-- Stop 共享入口：`scripts/harness/agent_stop_check.py`
+- Stop 共享入口：`scripts/harness/stop_entry.py`
 - changed-files required/full runner：`scripts/quality/run_required_quality_gates.py`
 - 三档配置：`harness/quality/quality-tiers.yaml`
 

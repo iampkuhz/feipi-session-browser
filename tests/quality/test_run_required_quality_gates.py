@@ -465,14 +465,13 @@ class TestSharedStopEntrypoint:
         stop_sh = Path(__file__).resolve().parents[2] / '.claude' / 'hooks' / 'stop.sh'
         text = stop_sh.read_text()
 
-        assert 'scripts/harness/agent_stop_check.py' in text
+        assert 'run_stop_hook claude' in text
         assert 'run_required_quality_gates.py' not in text
-        assert 'stop_quality_gate.py' not in text
 
     @pytest.mark.contract_case('HOOK-HARNESS-012')
     def test_shared_stop_runner_includes_session_detail_flag(self):
         """Pass --include-session-detail from the shared stop runner."""
-        runner = Path(__file__).resolve().parents[2] / 'scripts' / 'harness' / 'agent_stop_check.py'
+        runner = Path(__file__).resolve().parents[2] / 'scripts' / 'harness' / 'stop_entry.py'
         text = runner.read_text()
         assert 'run_required_quality_gates.py' in text
         assert '--include-session-detail' in text

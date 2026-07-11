@@ -11,7 +11,6 @@ from scripts.claude_hooks.evidence import (
 from scripts.claude_hooks.hook_io import read_stdin_json
 from scripts.claude_hooks.paths import RepoPaths, build_paths, identity_from_values
 from scripts.claude_hooks.policy.session_context import handle_session_start
-from scripts.agent_runtime.worktree import write_assignment_marker
 
 
 def _git(repo, *args):
@@ -295,52 +294,3 @@ def test_session_start_and_subagent_start_use_separate_runtime_dirs(tmp_path):
     assert main_paths.base_commit.read_text(encoding='utf-8') == agent_paths.base_commit.read_text(
         encoding='utf-8'
     )
-
-
-
-def test_post_bash_recovers_snapshot_from_assigned_worktree(tmp_path):
-    """Codex post hook 从 base checkout 启动时，应回收 assigned worktree 的 snapshot。"""
-    repo = tmp_path / 'repo'
-    repo.mkdir()
-    _git(repo, 'init')
-    _git(repo, 'config', 'user.email', 'test@example.com')
-    _git(repo, 'config', 'user.name', 'Test User')
-    (repo / '.gitignore').write_text('tmp/\n', encoding='utf-8')
-    tracked = repo / 'README.md'
-    tracked.write_text('before\n', encoding='utf-8')
-    _git(repo, 'add', '.gitignore', 'README.md')
-    _git(repo, 'commit', '-m', 'init')
-    assigned = tmp_path / 'assigned-worktree'
-    _git(repo, 'worktree', 'add', '--detach', str(assigned), 'HEAD')
-
-    identity = identity_from_values(agent_client='codex', session_id='session-a')
-    write_assignment_marker(repo, identity, assigned)
-    base_paths = build_paths(repo, identity)
-    assigned_paths = build_paths(assigned, identity)
-    ctx = read_stdin_json(
-        'pre-bash',
-        json.dumps(
-            {
-                'agent_client': 'codex',
-                'session_id': 'session-a',
-                'tool_name': 'Bash',
-                'tool_use_id': 'tool-1',
-                'tool_input': {'command': 'printf after >> README.md'},
-            }
-        ),
-    )
-
-    assert record_pre_bash_snapshot(assigned_paths, ctx)
-    (assigned / 'README.md').write_text('after\n', encoding='utf-8')
-
-    records = record_post_bash(base_paths, ctx)
-
-    assert [record['file'] for record in records] == ['README.md']
-    assigned_events = [
-        json.loads(line)
-        for line in assigned_paths.hook_events.read_text(encoding='utf-8').splitlines()
-        if line.strip()
-    ]
-    assert assigned_events[-1]['status'] == 'RECORDED'
-    assert not base_paths.hook_events.exists()
-    assert assigned_paths.changed_files.exists()

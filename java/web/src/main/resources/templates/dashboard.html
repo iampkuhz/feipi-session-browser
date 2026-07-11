@@ -68,158 +68,48 @@
     </div>
 </div>
 
-<section class="kpi-grid" data-dashboard-kpis data-api-source="/api/dashboard/summary">
-    <article class="metric-card metric-card--kpi" aria-label="Projects">
-        <div class="metric-icon blue" aria-hidden="true">📁</div>
+<section class="kpi-grid" data-dashboard-kpis data-api-source="/api/dashboard/summary" data-loading-label="Loading…">
+    {% for kpi in kpis %}
+    <article class="metric-card metric-card--kpi" aria-label="{{ kpi.label }}">
+        <div class="metric-icon {{ kpi.icon_color }}" aria-hidden="true">{{ kpi.icon }}</div>
         <div class="metric-card__body">
             <div class="metric-card__primary-row">
-                <span class="metric-card__label">Projects</span>
+                <span class="metric-card__label">{{ kpi.label }}</span>
                 <span class="metric-card__value-group">
                     <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="Projects"
-                          data-tooltip-def="Loaded from /api/dashboard/summary"
+                          data-kpi-tooltip="{{ kpi.label }}"
+                          data-tooltip-def="{{ kpi.description }}"
                           tabindex="0"
-                          aria-label="Projects：Loaded from /api/dashboard/summary">Loading…</span>
+                          aria-label="{{ kpi.label }}：{{ kpi.description }}">{{ kpi.value }}</span>
+                    {% if kpi.badge is defined and kpi.badge is not empty %}
+                    <span class="metric-card__badge metric-card__badge--{{ kpi.badge_tone }} metric-card__tooltip-target"
+                          data-kpi-badge-tooltip="{{ kpi.label }}"
+                          data-tooltip-def="{{ kpi.badge_description }}"
+                          tabindex="0"
+                          aria-label="{{ kpi.label }} badge：{{ kpi.badge_description }}">{{ kpi.badge }}</span>
+                    {% endif %}
                 </span>
             </div>
+            {% if kpi.secondary is defined and kpi.secondary is not empty %}
             <div class="metric-card__secondary">
+                {% for sm in kpi.secondary %}
                 <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="API source"
-                     data-tooltip-def="Loaded from /api/dashboard/summary"
+                     data-secondary-tooltip="{{ sm.label }}"
+                     data-tooltip-def="{{ sm.description }}"
                      tabindex="0"
-                     aria-label="API source：Loaded from /api/dashboard/summary">
-                    <span class="metric-card__secondary-label">Source</span>
-                    <span class="metric-card__secondary-value">API</span>
+                     aria-label="{{ sm.label }}：{{ sm.description }}">
+                    <span class="metric-card__secondary-label">{{ sm.label }}</span>
+                    <span class="metric-card__secondary-value">{{ sm.value }}</span>
                 </div>
+                {% endfor %}
             </div>
+            {% endif %}
         </div>
     </article>
-    <article class="metric-card metric-card--kpi" aria-label="Sessions">
-        <div class="metric-icon green" aria-hidden="true">🗂️</div>
-        <div class="metric-card__body">
-            <div class="metric-card__primary-row">
-                <span class="metric-card__label">Sessions</span>
-                <span class="metric-card__value-group">
-                    <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="Sessions"
-                          data-tooltip-def="Loaded from /api/dashboard/summary"
-                          tabindex="0"
-                          aria-label="Sessions：Loaded from /api/dashboard/summary">Loading…</span>
-                </span>
-            </div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="API source"
-                     data-tooltip-def="Loaded from /api/dashboard/summary"
-                     tabindex="0"
-                     aria-label="API source：Loaded from /api/dashboard/summary">
-                    <span class="metric-card__secondary-label">Source</span>
-                    <span class="metric-card__secondary-value">API</span>
-                </div>
-            </div>
-        </div>
-    </article>
-    <article class="metric-card metric-card--kpi" aria-label="Total Tokens">
-        <div class="metric-icon purple" aria-hidden="true">🧮</div>
-        <div class="metric-card__body">
-            <div class="metric-card__primary-row">
-                <span class="metric-card__label">Total Tokens</span>
-                <span class="metric-card__value-group">
-                    <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="Total Tokens"
-                          data-tooltip-def="Loaded from /api/dashboard/summary"
-                          tabindex="0"
-                          aria-label="Total Tokens：Loaded from /api/dashboard/summary">Loading…</span>
-                </span>
-            </div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="API source"
-                     data-tooltip-def="Loaded from /api/dashboard/summary"
-                     tabindex="0"
-                     aria-label="API source：Loaded from /api/dashboard/summary">
-                    <span class="metric-card__secondary-label">Source</span>
-                    <span class="metric-card__secondary-value">API</span>
-                </div>
-            </div>
-        </div>
-    </article>
-    <article class="metric-card metric-card--kpi" aria-label="User Prompts">
-        <div class="metric-icon amber" aria-hidden="true">💬</div>
-        <div class="metric-card__body">
-            <div class="metric-card__primary-row">
-                <span class="metric-card__label">User Prompts</span>
-                <span class="metric-card__value-group">
-                    <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="User Prompts"
-                          data-tooltip-def="Loaded from /api/dashboard/summary"
-                          tabindex="0"
-                          aria-label="User Prompts：Loaded from /api/dashboard/summary">Loading…</span>
-                </span>
-            </div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="API source"
-                     data-tooltip-def="Loaded from /api/dashboard/summary"
-                     tabindex="0"
-                     aria-label="API source：Loaded from /api/dashboard/summary">
-                    <span class="metric-card__secondary-label">Source</span>
-                    <span class="metric-card__secondary-value">API</span>
-                </div>
-            </div>
-        </div>
-    </article>
-    <article class="metric-card metric-card--kpi" aria-label="Cache Read Ratio">
-        <div class="metric-icon teal" aria-hidden="true">♻️</div>
-        <div class="metric-card__body">
-            <div class="metric-card__primary-row">
-                <span class="metric-card__label">Cache Read Ratio</span>
-                <span class="metric-card__value-group">
-                    <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="Cache Read Ratio"
-                          data-tooltip-def="Loaded from /api/dashboard/summary"
-                          tabindex="0"
-                          aria-label="Cache Read Ratio：Loaded from /api/dashboard/summary">Loading…</span>
-                </span>
-            </div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="API source"
-                     data-tooltip-def="Loaded from /api/dashboard/summary"
-                     tabindex="0"
-                     aria-label="API source：Loaded from /api/dashboard/summary">
-                    <span class="metric-card__secondary-label">Source</span>
-                    <span class="metric-card__secondary-value">API</span>
-                </div>
-            </div>
-        </div>
-    </article>
-    <article class="metric-card metric-card--kpi" aria-label="Failed Tools">
-        <div class="metric-icon red" aria-hidden="true">⚠️</div>
-        <div class="metric-card__body">
-            <div class="metric-card__primary-row">
-                <span class="metric-card__label">Failed Tools</span>
-                <span class="metric-card__value-group">
-                    <span class="metric-card__value tabular metric-card__tooltip-target"
-                          data-kpi-tooltip="Failed Tools"
-                          data-tooltip-def="Loaded from /api/dashboard/summary"
-                          tabindex="0"
-                          aria-label="Failed Tools：Loaded from /api/dashboard/summary">Loading…</span>
-                </span>
-            </div>
-            <div class="metric-card__secondary">
-                <div class="metric-card__secondary-row metric-card__tooltip-target"
-                     data-secondary-tooltip="API source"
-                     data-tooltip-def="Loaded from /api/dashboard/summary"
-                     tabindex="0"
-                     aria-label="API source：Loaded from /api/dashboard/summary">
-                    <span class="metric-card__secondary-label">Source</span>
-                    <span class="metric-card__secondary-value">API</span>
-                </div>
-            </div>
-        </div>
-    </article>
+    {% endfor %}
 </section>
+
+{# ── Trend 总览区：趋势图表与缓存健康图同级展示 ── #}
 
 <section class="trend-section">
     <div class="trend-grid">
@@ -231,7 +121,7 @@
                     <span class="chart-stat" data-stat="range-total-sessions">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">Loaded from /api/dashboard/trends/sessions.</p>
+            <p class="chart-card__note">{{ chart_notes.sessions }}</p>
             <div class="chart-container" id="trend-chart" data-dashboard-chart="sessions"></div>
         </section>
 
@@ -243,7 +133,7 @@
                     <span class="chart-stat" data-stat="range-total-prompts">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">Loaded from /api/dashboard/trends/prompts.</p>
+            <p class="chart-card__note">{{ chart_notes.prompts }}</p>
             <div class="chart-container" id="prompt-activity-chart" data-dashboard-chart="prompts"></div>
         </section>
 
@@ -255,7 +145,7 @@
                     <span class="chart-stat" data-stat="range-total-tokens">Range total: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">Loaded from /api/dashboard/trends/tokens.</p>
+            <p class="chart-card__note">{{ chart_notes.tokens }}</p>
             <div class="chart-container" id="token-trend-chart" data-dashboard-chart="tokens"></div>
         </section>
 
@@ -267,11 +157,13 @@
                     <span class="chart-stat" data-stat="lowest-ratio">Lowest ratio: Loading…</span>
                 </div>
             </div>
-            <p class="chart-card__note">Loaded from /api/dashboard/trends/cache-health.</p>
+            <p class="chart-card__note">{{ chart_notes.cache_health }}</p>
             <div class="chart-container" id="cache-health-chart" data-dashboard-chart="cache-health"></div>
         </section>
     </div>
 </section>
+
+{# ── Scope 分支区：按 agent 选择全局或单 agent 分支 ── #}
 
 {% if not is_single_agent %}
 <section class="card section-card" aria-label="Agent Contribution Comparison">
@@ -390,7 +282,7 @@
     <div class="chart-card__head">
         <div><div class="chart-card__title-row"><h2>Model Mix</h2></div></div>
     </div>
-    <p class="chart-card__note">Loaded from /api/dashboard/agents/{agent}/deep-dive.</p>
+    <p class="chart-card__note">{{ chart_notes.model_mix }}</p>
     <div class="table-wrap">
         <table class="data-table" data-table-enhanced>
             <thead><tr><th>Model</th><th class="numeric">Sessions</th><th class="numeric">Avg Tokens</th><th class="numeric">Cache Read</th></tr></thead>
@@ -411,7 +303,7 @@
     <div class="chart-card__head">
         <div><div class="chart-card__title-row"><h2>Tool Distribution</h2></div></div>
     </div>
-    <p class="chart-card__note">Tool distribution requires indexed tool names; current API returns explicit unavailable state when absent.</p>
+    <p class="chart-card__note">{{ chart_notes.tool_dist }}</p>
     <div class="chart-container" id="tool-dist-chart" data-dashboard-chart="tool-dist">
         <p class="chart-empty">Tool distribution data unavailable. Current index stores aggregate tool-call counts but not tool names.</p>
     </div>

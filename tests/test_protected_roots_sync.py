@@ -37,7 +37,7 @@ def test_is_protected_path_matches_manifest_roots():
 
 
 def test_stop_check_uses_manifest_protected_roots():
-    text = (ROOT / 'scripts/harness/agent_stop_check.py').read_text(encoding='utf-8')
+    text = (ROOT / 'scripts/harness/stop_entry.py').read_text(encoding='utf-8')
     assert 'runtime_policy.protected_roots' in text
     assert 'runtime_policy.is_protected_path' in text
     assert sync_gate.check_stop_check_uses_helper(runtime_policy.protected_roots(ROOT)) == []

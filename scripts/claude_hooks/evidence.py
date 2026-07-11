@@ -15,7 +15,6 @@ from typing import TYPE_CHECKING, Any
 from .active_change import current_change_id
 from .classify import classify_file
 from .paths import RepoPaths, build_paths, ensure_runtime_dirs, rel_to_repo
-from scripts.agent_runtime import worktree as runtime_worktree
 from scripts.quality import changed_files as changed_file_utils
 
 if TYPE_CHECKING:
@@ -277,34 +276,6 @@ def _matching_post_bash_event(paths: RepoPaths, ctx: HookContext) -> dict[str, A
 
 
 # 查找 assignment marker 指向的同仓库 worktree 路径。
-def _assigned_worktree_paths(paths: RepoPaths) -> RepoPaths | None:
-    """参数：
-        paths: 当前 hook 看到的仓库路径集合。
-
-    返回：
-        assignment marker 指向的同仓库 worktree 路径；缺失或不安全时返回 None。
-    """
-    if not paths.identity.has_session:
-        return None
-    marker = runtime_worktree.read_assignment_marker(paths.repo_root, paths.identity)
-    if not marker:
-        return None
-    raw_worktree = marker.get('worktreePath')
-    if not isinstance(raw_worktree, str) or not raw_worktree:
-        return None
-    assigned_root = Path(raw_worktree).expanduser().resolve()
-    if assigned_root == paths.repo_root.resolve() or not assigned_root.is_dir():
-        return None
-    try:
-        if runtime_worktree.git_common_dir(assigned_root) != runtime_worktree.git_common_dir(
-            paths.repo_root
-        ):
-            return None
-    except Exception:
-        return None
-    return build_paths(repo_root=assigned_root, identity=paths.identity)
-
-
 # 为 post Bash 选择实际 evidence 根目录。
 def _post_bash_evidence_paths(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
     """参数：
@@ -317,17 +288,6 @@ def _post_bash_evidence_paths(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
     snapshot_path = _bash_snapshot_path(paths, ctx)
     if snapshot_path is not None and snapshot_path.exists():
         return paths
-
-    assigned_paths = _assigned_worktree_paths(paths)
-    if assigned_paths is None:
-        return paths
-
-    assigned_snapshot = _bash_snapshot_path(assigned_paths, ctx)
-    if assigned_snapshot is not None and assigned_snapshot.exists():
-        return assigned_paths
-
-    if _matching_pre_bash_event(assigned_paths, ctx):
-        return assigned_paths
 
     return paths
 

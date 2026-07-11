@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
-"""Deterministic checker for main-session git worktree isolation."""
+"""Deterministic checker for managed run-record worktree isolation."""
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
 import sys
@@ -13,38 +14,39 @@ ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
-from scripts.agent_runtime.worktree import assignment_marker_path, check_session_worktree, expected_worktree_path, read_assignment_marker  # noqa: E402
-from scripts.claude_hooks.paths import identity_from_values  # noqa: E402
-from scripts.claude_hooks.policy.bash_policy import is_read_only_command  # noqa: E402
+from scripts.harness.primary_session import resolve_runtime_root, validate_run_write_authorization  # noqa: E402
 
 GATE_NAME = 'agentRuntimeWorktree'
 
 
-
-# 运行测试用 git 命令。
-def _run(cmd, cwd):
+# 运行命令并捕获输出。
+def _run(cmd: list[str], cwd: Path, *, env: dict[str, str] | None = None, check: bool = True) -> subprocess.CompletedProcess[str]:
     """参数：
-        cmd: 命令参数列表。
-        cwd: 命令工作目录。
+        cmd: 命令和参数。
+        cwd: 工作目录。
+        env: 可选环境变量覆盖。
+        check: 是否要求 exit 0。
 
     返回：
-        命令成功时无返回；失败时抛出异常。
+        subprocess.CompletedProcess 对象。
     """
-    subprocess.run(cmd, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    merged = os.environ.copy()
+    if env:
+        merged.update(env)
+    return subprocess.run(cmd, cwd=cwd, env=merged, check=check, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
-
-# 创建临时 git 仓库。
-def _git_repo(tmp_root):
+# 创建合成 Git 仓库。
+def _git_repo(tmp_root: Path) -> Path:
     """参数：
-        tmp_root: 临时目录根路径。
+        tmp_root: 临时根目录。
 
     返回：
-        已初始化并提交初始文件的仓库路径。
+        初始化后的合成仓库路径。
     """
     repo = tmp_root / 'repo'
     repo.mkdir()
-    _run(['git', 'init'], repo)
+    _run(['git', 'init', '-b', 'main_java'], repo)
     _run(['git', 'config', 'user.email', 'agent-runtime@example.invalid'], repo)
     _run(['git', 'config', 'user.name', 'Agent Runtime Gate'], repo)
     (repo / 'README.md').write_text('# synthetic repo\n', encoding='utf-8')
@@ -53,73 +55,65 @@ def _git_repo(tmp_root):
     return repo
 
 
-
-# 记录断言错误。
-def _expect(condition, message, errors):
+# 调用 sessionctl。
+def _ctl(repo: Path, runtime_root: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
     """参数：
-        condition: 期望为真的条件。
-        message: 条件失败时记录的错误信息。
-        errors: 错误收集列表。
+        repo: 合成仓库路径。
+        runtime_root: runtime 根目录。
+        args: sessionctl 参数。
+        check: 是否要求 exit 0。
 
     返回：
-        无返回，失败时向 errors 追加信息。
+        subprocess.CompletedProcess 对象。
+    """
+    return _run([sys.executable, str(ROOT / 'scripts/harness/sessionctl.py'), '--repo-root', str(repo), *args], ROOT, env={'FEIPI_AGENT_RUNTIME_ROOT': str(runtime_root)}, check=check)
+
+
+# 记录断言失败。
+def _expect(condition: bool, message: str, errors: list[str]) -> None:
+    """参数：
+        condition: 断言条件。
+        message: 失败信息。
+        errors: 错误列表。
     """
     if not condition:
         errors.append(message)
 
 
-
-# 运行 worktree 隔离检查。
-def run_checks():
+# 执行 deterministic worktree 隔离检查。
+def run_checks() -> list[str]:
     """返回：
-        检查失败信息列表；空列表表示通过。
+        检查失败信息列表。
     """
-    errors = []
-    old_root = os.environ.get('FEIPI_AGENT_WORKTREE_ROOT')
-    try:
-        with tempfile.TemporaryDirectory(prefix='agent-runtime-worktree-') as tmp:
-            tmp_root = Path(tmp).resolve()
-            os.environ['FEIPI_AGENT_WORKTREE_ROOT'] = str(tmp_root / 'worktrees')
-            repo = _git_repo(tmp_root)
-            identities = [identity_from_values(client, 'same-session', '') for client in ('claude', 'codex', 'qoder')]
-            paths = [expected_worktree_path(repo, identity) for identity in identities]
-            _expect(len(set(paths)) == 3, 'same session id across clients did not produce 3 worktrees', errors)
-            _expect(all(not path.is_relative_to(repo) for path in paths), 'worktree path was inside repo root', errors)
-            _expect(is_read_only_command(f'cd {paths[0]} && git status --short'), 'simple cd read-only command was not recognized', errors)
-            _expect(not is_read_only_command("git status $(python3 -c 'print(1)')"), 'shell expansion was treated as read-only', errors)
-            session_a = expected_worktree_path(repo, identity_from_values('codex', 'session-a', ''))
-            session_b = expected_worktree_path(repo, identity_from_values('codex', 'session-b', ''))
-            _expect(session_a != session_b, 'same client sessions share one worktree path', errors)
-            claude = identity_from_values('claude', 'session-a', '')
-            decision = check_session_worktree(repo, claude, create=True)
-            _expect(decision.required and not decision.allowed and decision.assigned, 'main creation did not block shared checkout', errors)
-            _expect(Path(decision.expected_root).is_dir(), 'git worktree was not created', errors)
-            _expect(read_assignment_marker(repo, claude) is not None, 'assignment marker missing', errors)
-            retry = check_session_worktree(Path(decision.expected_root), claude, create=False)
-            _expect(retry.allowed and retry.assigned, 'assigned worktree did not allow retry', errors)
-            subagent = identity_from_values('claude', 'session-a', 'worker-1')
-            subagent_wrong = check_session_worktree(repo, subagent, create=True)
-            _expect(not subagent_wrong.allowed, 'subagent outside assigned worktree was not blocked', errors)
-            _expect(assignment_marker_path(repo, subagent) == assignment_marker_path(repo, claude), 'subagent did not share main assignment marker', errors)
-            qoder = identity_from_values('qoder', 'session-q', '')
-            legacy = check_session_worktree(repo, qoder, create=False)
-            _expect(legacy.allowed and not legacy.assigned, 'legacy no-assignment stop should not be blocked', errors)
-            qoder_created = check_session_worktree(repo, qoder, create=True)
-            qoder_stop = check_session_worktree(repo, qoder, create=False)
-            _expect(not qoder_created.allowed and not qoder_stop.allowed, 'Qoder assignment did not enforce wrong checkout', errors)
-            missing = check_session_worktree(repo, identity_from_values('codex', '', ''), create=True)
-            _expect(missing.allowed and not missing.required, 'missing session id unexpectedly allocated worktree', errors)
-    finally:
-        if old_root is None:
-            os.environ.pop('FEIPI_AGENT_WORKTREE_ROOT', None)
+    errors: list[str] = []
+    with tempfile.TemporaryDirectory(prefix='agent-runtime-worktree-') as tmp:
+        tmp_root = Path(tmp).resolve()
+        runtime_root = tmp_root / 'runtime'
+        old_runtime = os.environ.get('FEIPI_AGENT_RUNTIME_ROOT')
+        os.environ['FEIPI_AGENT_RUNTIME_ROOT'] = str(runtime_root)
+        repo = _git_repo(tmp_root)
+        first = json.loads(_ctl(repo, runtime_root, 'create', '--client', 'codex', '--task-id', 'task-a', '--change-id', 'runtime-check', '--base-ref', 'main_java', '--allowed-path', 'docs', '--worktree-parent', str(tmp_root / 'worktrees')).stdout)
+        second = json.loads(_ctl(repo, runtime_root, 'create', '--client', 'qoder', '--task-id', 'task-b', '--change-id', 'runtime-check', '--base-ref', 'main_java', '--allowed-path', 'scripts', '--worktree-parent', str(tmp_root / 'worktrees')).stdout)
+        _expect(first['worktreeRoot'] != second['worktreeRoot'], 'two managed runs share a worktree', errors)
+        _expect(first['branch'] and second['branch'] and first['branch'] != second['branch'], 'managed runs did not get unique named branches', errors)
+        _expect(_run(['git', '-C', first['worktreeRoot'], 'branch', '--show-current'], repo).stdout.strip() == first['branch'], 'first worktree is detached or branch mismatch', errors)
+        _ctl(repo, runtime_root, 'bind-session', '--run-id', first['runId'], '--session-id', 'session-a', '--client', 'codex', '--cwd', first['worktreeRoot'])
+        ok, reasons, _ = validate_run_write_authorization(Path(first['worktreeRoot']), client='codex', session_id='session-a', run_id=first['runId'], candidate_paths=['docs/a.md'])
+        _expect(ok, 'assigned worktree write was not authorized: ' + '; '.join(reasons), errors)
+        ok, reasons, _ = validate_run_write_authorization(repo, client='codex', session_id='session-a', run_id=first['runId'], candidate_paths=['docs/a.md'])
+        _expect(not ok and any('cwd realpath' in item for item in reasons), 'primary checkout write was not blocked for managed run', errors)
+        collision = _ctl(repo, runtime_root, 'create', '--client', 'claude', '--task-id', 'task-c', '--change-id', 'runtime-check', '--base-ref', 'main_java', '--allowed-path', 'docs/sub', '--worktree-root', first['worktreeRoot'], '--branch', 'agent/claude/collision', check=False)
+        _expect(collision.returncode != 0, 'same worktree second writer was not blocked', errors)
+        _expect(resolve_runtime_root(repo) == runtime_root.resolve(), 'runtime root resolution failed', errors)
+        if old_runtime is None:
+            os.environ.pop('FEIPI_AGENT_RUNTIME_ROOT', None)
         else:
-            os.environ['FEIPI_AGENT_WORKTREE_ROOT'] = old_root
+            os.environ['FEIPI_AGENT_RUNTIME_ROOT'] = old_runtime
     return errors
 
 
-
-# 解析命令行入口。
-def main():
+# CLI 入口。
+def main() -> int:
     """返回：
         进程退出码。
     """

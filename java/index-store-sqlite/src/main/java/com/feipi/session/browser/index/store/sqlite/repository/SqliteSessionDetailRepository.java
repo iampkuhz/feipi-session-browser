@@ -24,7 +24,7 @@ import java.util.Optional;
  * <p>校验放置：
  *
  * <ul>
- *   <li>sessionKey 格式由 {@link SessionDetailRequest} 在入口完成校验。
+ *   <li>sessionKey 格式由 {@code SessionDetailRequest} 在入口完成校验。
  *   <li>本类信任已验证的 typed request，只负责 SQL 拼接和参数绑定。
  * </ul>
  */
@@ -64,7 +64,6 @@ public final class SqliteSessionDetailRepository implements SessionDetailPort {
    *
    * @param sessionKey 会话主键，格式 {@code agent:session_id}
    * @return 匹配的行，不存在时返回 empty
-   * @throws SQLException 查询失败
    */
   @Override
   public Optional<SessionRecord> findSession(String sessionKey) {
@@ -78,7 +77,6 @@ public final class SqliteSessionDetailRepository implements SessionDetailPort {
    *
    * @param sessionKey 会话主键，格式 {@code agent:session_id}
    * @return 匹配的行，不存在时返回 empty
-   * @throws SQLException 查询失败
    */
   public Optional<SessionRecord> findSessionRow(String sessionKey) {
     return findSession(sessionKey);
@@ -91,7 +89,6 @@ public final class SqliteSessionDetailRepository implements SessionDetailPort {
    *
    * @param sessionKey 会话主键
    * @return 制品行列表，可能为空
-   * @throws SQLException 查询失败
    */
   @Override
   public List<SessionArtifactRecord> findArtifacts(String sessionKey) {
@@ -127,7 +124,6 @@ public final class SqliteSessionDetailRepository implements SessionDetailPort {
    *
    * @param sessionKey 会话主键
    * @return 归一化制品行，不存在时返回 empty
-   * @throws SQLException 查询失败
    */
   @Override
   public Optional<SessionArtifactRecord> findNormalizedArtifact(String sessionKey) {

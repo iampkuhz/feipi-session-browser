@@ -193,7 +193,7 @@ def test_a_two_primary_runs_parallel_in_distinct_git_worktrees_isolate_evidence_
     assert q_paths.hook_events != c_paths.hook_events
     assert q_paths.quality_dir != c_paths.quality_dir
     assert q_paths.stop_summary != c_paths.stop_summary
-    assert json.loads(ctl(repo, "status", "--run-id", str(qoder["runId"])).stdout)["status"] == "running"
+    assert json.loads(ctl(repo, "status", "--run-id", str(qoder["runId"])).stdout)["status"] == "RUNNING"
     assert json.loads((q_paths.active_change).read_text(encoding="utf-8"))["changeId"] == "change-a"
     assert json.loads((c_paths.active_change).read_text(encoding="utf-8"))["changeId"] == "change-a"
 
@@ -354,7 +354,7 @@ def test_g_resume_epoch_rebind_and_old_evidence_isolation(tmp_path: Path, monkey
     old_run = create_run(repo, tmp_path, client="codex", task="task-a", allowed="docs/a")
     bind(repo, old_run, "same-session")
     rebound = bind(repo, old_run, "same-session")
-    assert rebound["status"] == "running"
+    assert rebound["status"] == "RUNNING"
     wrong_ok, errors, _ = validate_run_write_authorization(Path(str(old_run["worktreeRoot"])).parent, client="codex", session_id="same-session", run_id=str(old_run["runId"]), candidate_paths=["docs/a/x.txt"])
     assert wrong_ok is False
     assert any("worktree" in item for item in errors)
@@ -384,7 +384,7 @@ def test_h_hook_activation_marker_parity_subdir_command_and_duplicate_event_dedu
     qoder = create_run(repo, tmp_path, client="qoder", task="task-b", allowed="docs/b")
     qoder_record_path = resolve_runtime_root(repo) / "runs" / f"{qoder['runId']}.json"
     qoder_record = json.loads(qoder_record_path.read_text(encoding="utf-8"))
-    qoder_record["status"] = "running"
+    qoder_record["status"] = "RUNNING"
     qoder_record_path.write_text(json.dumps(qoder_record, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     qoder_doctor = ctl(repo, "doctor", "--run-id", str(qoder["runId"]), check=False)
     assert qoder_doctor.returncode == 2
@@ -430,9 +430,9 @@ def test_i_cleanup_refuses_dirty_and_active_pid_then_cleans_completed_without_br
     branch = str(clean["branch"])
     bind(repo, clean, "clean-session")
     done = json.loads(ctl(repo, "stop", "--run-id", str(clean["runId"])).stdout)
-    assert done["status"] == "completed"
+    assert done["status"] == "VALIDATED"
     cleaned = json.loads(ctl(repo, "cleanup", "--run-id", str(clean["runId"]), "--execute").stdout)
-    assert cleaned["status"] == "cleaned"
+    assert cleaned["status"] == "CLEANED"
     assert git(repo, "show-ref", "--verify", f"refs/heads/{branch}")
 
 

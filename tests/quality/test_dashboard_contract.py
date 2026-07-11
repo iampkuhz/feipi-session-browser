@@ -407,7 +407,7 @@ class TestDashboardTemplateContract:
     def test_kpi_cards_use_row_tooltips_not_info_buttons(self):
         """KPI 卡片不得保留 info icon,主指标、badge 和二级指标必须有 tooltip."""
         tmpl = _read(_TEMPLATE_PATH)
-        start = tmpl.index('<section class="kpi-grid">')
+        start = tmpl.index('<section class="kpi-grid"')
         end = tmpl.index('{# ── Trend 总览区', start)
         body = tmpl[start:end]
         assert 'icon-button--info' not in body

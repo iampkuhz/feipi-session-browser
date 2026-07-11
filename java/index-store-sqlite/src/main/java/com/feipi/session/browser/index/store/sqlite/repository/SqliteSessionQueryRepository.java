@@ -106,7 +106,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param sessionKey 会话主键，格式 {@code agent:session_id}
    * @return 匹配的行，不存在时返回 empty
-   * @throws SQLException 查询失败
    */
   @Override
   public Optional<SessionRecord> getSession(String sessionKey) {
@@ -164,7 +163,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param filter 会话列表复合过滤器
    * @return 分页结果，包含会话行和总数
-   * @throws SQLException 查询失败
    */
   @Override
   public PageResult<SessionRecord> listSessions(SessionListFilter filter) {
@@ -216,7 +214,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param filter 会话列表复合过滤器
    * @return 匹配会话数
-   * @throws SQLException 查询失败
    */
   @Override
   public long countSessions(SessionListFilter filter) {
@@ -238,7 +235,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param filter 会话列表复合过滤器
    * @return 完整聚合结果
-   * @throws SQLException 查询失败
    */
   @Override
   public SessionListSummary listSummary(SessionListFilter filter) {
@@ -288,7 +284,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param filter 会话列表复合过滤器
    * @return 按大小写无关顺序排列的非空 model 列表
-   * @throws SQLException 查询失败
    */
   @Override
   public List<String> listModelOptions(SessionListFilter filter) {
@@ -321,7 +316,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param filter 会话列表复合过滤器
    * @return 按显示名称和 key 排列的项目候选项
-   * @throws SQLException 查询失败
    */
   @Override
   public List<ProjectOption> listProjectOptions(SessionListFilter filter) {
@@ -364,7 +358,6 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
    *
    * @param filter 会话列表复合过滤器
    * @return 聚合结果
-   * @throws SQLException 查询失败
    */
   @Override
   public com.feipi.session.browser.index.api.query.SessionListAggregate listAggregate(

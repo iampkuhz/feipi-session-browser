@@ -87,7 +87,7 @@ def _invoke_main(
 ) -> tuple[int, str]:
     monkeypatch.setenv('FEIPI_SESSION_ID', session_id)
     monkeypatch.setenv('ACTIVE_CHANGE_ID', 'harden-agent-runtime-full-v3')
-    monkeypatch.setattr(sys, 'argv', ['agent_stop_check.py', '--agent', agent])
+    monkeypatch.setattr(sys, 'argv', ['stop_entry.py', '--agent', agent])
     monkeypatch.setattr(sys, 'stdin', io.StringIO(''))
     code = stop_check.main()
     captured = capsys.readouterr()

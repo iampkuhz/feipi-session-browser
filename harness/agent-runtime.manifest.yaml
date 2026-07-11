@@ -1,3 +1,4 @@
+schemaVersion: 1
 version: 1
 generated_by: repository-maintained-agent-runtime-manifest
 policy_files:
@@ -76,15 +77,14 @@ platforms:
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
 primary_session_rollout:
-  modes: [managed-worktree, read-only-unbound, legacy-single-writer, blocked]
+  modes: [managed-worktree, read-only-unbound, blocked]
   safe_defaults:
     sessionctl_start: managed-worktree
     direct_launch: read-only-unbound
-    legacy_single_writer_requires: FEIPI_PRIMARY_SESSION_MODE=legacy-single-writer
   multi_primary_writable_only: managed-worktree
   legacy_data_read_compatibility:
     tmp_agent_logs: readable-no-auto-migration
-    tmp_active_change_json: legacy-single-writer-only
+    tmp_active_change_json: recover-legacy-read-only-only
   rollback:
     cleanup_default: dry-run
     keep_worktree_and_branch: true
@@ -96,7 +96,7 @@ worktree_isolation:
   identity_key: client/session_id
   subagent_behavior: inherit-main-session-worktree
   default_parent: outside-repository-root
-  assignment_marker: git-common-dir/feipi-agent-runtime/worktrees/client/session.json
+  assignment_marker: removed; run records are authoritative
   sessionctl: scripts/harness/sessionctl.py
   registry_root: FEIPI_AGENT_RUNTIME_ROOT or git-common-dir/feipi-agent-runtime
   enforcement_hooks:
@@ -151,7 +151,6 @@ required_gates:
   - scripts/quality/check_agent_rules_sync.py
   - scripts/quality/check_agent_runtime_isolation.py
   - scripts/quality/check_agent_runtime_worktree.py
-  - scripts/quality/check_primary_session_manifest.py
   - scripts/quality/check_gate_bypass_resistance.py
   - scripts/quality/measure_gate_escape_rate.py
   - scripts/quality/check_protected_roots_sync.py
@@ -165,3 +164,151 @@ required_gates:
   - scripts/quality/run_required_quality_gates.py
   - scripts/quality/check_agent_runtime_report.py
   - scripts/harness/doctor.sh
+primary_sessions:
+  writable_isolation: git-worktree-required
+  same_worktree_max_writers: 1
+  read_only_sessions_allowed: true
+  identity_layers:
+    primary_run: runId
+    client_session: sessionId
+    subagent: agentId-inherits-runId
+  rollout_modes:
+    managed-worktree: sessionctl-created only multi-primary writable mode
+    read-only-unbound: direct client launch without bound run; mutations blocked
+    blocked: fail-closed for unsafe identity, hook, lease, registry, lock, stop, or cleanup states
+  default_policy:
+    sessionctl_start: managed-worktree
+    direct_launch: read-only-unbound
+run_record:
+  required_fields:
+    - schemaVersion
+    - runId
+    - client
+    - taskId
+    - sessionId
+    - worktreeId
+    - worktreeRoot
+    - branch
+    - targetBranch
+    - primaryRepoRoot
+    - baseCommit
+    - headCommit
+    - changeId
+    - mode
+    - status
+    - allowedPaths
+    - forbiddenPaths
+    - resourceAllocations
+    - writerLease
+    - hookActivation
+    - processes
+    - createdAt
+    - updatedAt
+  modes:
+    - read-only
+    - writable
+  statuses:
+    - CREATED
+    - STARTING
+    - RUNNING
+    - VALIDATING
+    - VALIDATED
+    - COMMITTED
+    - INTEGRATING
+    - INTEGRATED
+    - CLEANED
+    - BLOCKED
+    - HANDOFF_REQUIRED
+    - FAILED
+status_machine:
+  initial_status: CREATED
+  terminal_statuses:
+    - INTEGRATED
+    - CLEANED
+    - FAILED
+    - HANDOFF_REQUIRED
+  writable_ready_statuses:
+    - RUNNING
+    - VALIDATING
+    - VALIDATED
+    - COMMITTED
+  transitions:
+    CREATED:
+      - STARTING
+      - RUNNING
+      - BLOCKED
+      - FAILED
+    STARTING:
+      - RUNNING
+      - BLOCKED
+      - FAILED
+    RUNNING:
+      - VALIDATING
+      - BLOCKED
+      - FAILED
+    VALIDATING:
+      - RUNNING
+      - VALIDATED
+      - BLOCKED
+      - FAILED
+    VALIDATED:
+      - COMMITTED
+      - INTEGRATING
+      - BLOCKED
+      - HANDOFF_REQUIRED
+      - FAILED
+    COMMITTED:
+      - INTEGRATING
+      - HANDOFF_REQUIRED
+      - FAILED
+    INTEGRATING:
+      - INTEGRATED
+      - HANDOFF_REQUIRED
+      - FAILED
+    INTEGRATED:
+      - CLEANED
+    BLOCKED:
+      - STARTING
+      - RUNNING
+      - VALIDATING
+      - HANDOFF_REQUIRED
+      - FAILED
+    HANDOFF_REQUIRED:
+      - STARTING
+      - RUNNING
+      - FAILED
+      - CLEANED
+    FAILED:
+      - CLEANED
+    CLEANED: []
+runtime_root:
+  resolution_order:
+    - FEIPI_AGENT_RUNTIME_ROOT
+    - git-common-dir/feipi-agent-runtime
+  ordinary_checkout: use git common dir under the checkout .git directory
+  linked_worktree: use linked worktree git common dir so all worktrees share one registry
+  committed_config_absolute_paths_allowed: false
+registry_storage:
+  root: runtime_root
+  runs_dir: runs
+  writer_leases_dir: writer-leases
+  branch_leases_dir: branch-leases
+  locks_dir: locks
+  atomic_write: write-temp-then-replace
+  lock_scope: repository-runtime-root
+collision_policy:
+  same_worktree_second_writer: BLOCK
+  same_branch_active_writable_runs: BLOCK
+  write_scope_intersection_default: BLOCK
+  missing_session_id:
+    allowed_statuses:
+      - CREATED
+      - STARTING
+      - BLOCKED
+    write_allowed: false
+  hook_activation_unconfirmed:
+    writable_ready_allowed: false
+subagents:
+  inherit_parent_run_id: true
+  require_independent_agent_id: true
+  create_primary_run: false

@@ -26,9 +26,8 @@ from .result import HookResult, emit
 from .self_test import run_self_test
 from scripts.quality import changed_files as changed_file_utils
 from scripts.agent_runtime.policy import is_protected_path
-from scripts.agent_runtime.worktree import check_session_worktree
 from scripts.harness.primary_session import (
-    validate_legacy_single_writer,
+    load_run_record,
     validate_run_write_authorization,
 )
 
@@ -54,10 +53,6 @@ def _is_deterministic_validation_command(command: str) -> bool:
         'python3 -m pytest tests/test_hook_payload_compat.py',
         'python scripts/quality/check_agent_runtime_worktree.py',
         'python3 scripts/quality/check_agent_runtime_worktree.py',
-        'python -m pytest tests/test_agent_runtime_worktree.py',
-        'python3 -m pytest tests/test_agent_runtime_worktree.py',
-        'python -m pytest -q tests/test_agent_runtime_worktree.py',
-        'python3 -m pytest -q tests/test_agent_runtime_worktree.py',
         'bash scripts/harness/doctor.sh',
     }
     if normalized in deterministic_exact:
@@ -125,6 +120,18 @@ def _paths_for_context(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
     返回：
         使用实际 cwd 或绝对目标路径解析后的 repository paths。
     """
+    if paths.identity.has_run:
+        try:
+            record = load_run_record(paths.repo_root, paths.identity.raw_run_id)
+        except Exception:
+            record = None
+        if record and record.get('worktreeRoot'):
+            hint = _context_repo_hint(ctx)
+            if hint:
+                hinted_root = build_paths(repo_root=hint, identity=paths.identity)
+                if hinted_root.repo_root.resolve() != Path(str(record['worktreeRoot'])).resolve():
+                    return hinted_root
+            return build_paths(repo_root=str(record['worktreeRoot']), identity=paths.identity)
     hint = _context_repo_hint(ctx)
     if not hint:
         return paths
@@ -180,14 +187,6 @@ def _maybe_lazy_bind_session(paths: RepoPaths, ctx: HookContext) -> None:
 
 
 # 判断是否显式启用 legacy 单写兼容。
-def _legacy_single_writer_requested() -> bool:
-    """返回：
-        已启用时返回 true。
-    """
-    requested_mode = os.environ.get('FEIPI_PRIMARY_SESSION_MODE', '').strip().lower()
-    legacy_env = os.environ.get('FEIPI_LEGACY_SINGLE_WRITER', '').lower() in {'1', 'true', 'yes', 'on'}
-    return requested_mode == 'legacy-single-writer' or legacy_env
-
 # 校验运行级写入授权并按需阻断。
 def _run_mutation_block(paths: RepoPaths, ctx: HookContext, candidate_paths: list[str] | None = None) -> HookResult | None:
     """参数：
@@ -199,20 +198,6 @@ def _run_mutation_block(paths: RepoPaths, ctx: HookContext, candidate_paths: lis
         需要阻断时返回 HookResult；允许继续时返回 None。
     """
     if not paths.identity.has_run:
-        if _legacy_single_writer_requested():
-            allowed, errors = validate_legacy_single_writer(paths.repo_root)
-            if allowed:
-                warning = 'legacy-single-writer mode is explicit compatibility only; it is not multi-primary writable'
-                record_hook_event(paths, ctx, status='LEGACY_SINGLE_WRITER', extra={'warning': warning})
-                return None
-            reason = '; '.join(errors)
-            record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason})
-            return HookResult(status='BLOCK', exit_code=2, message=reason)
-        legacy_assignment = check_session_worktree(paths.repo_root, paths.identity, create=False)
-        if legacy_assignment.assigned and legacy_assignment.allowed:
-            warning = 'legacy-single-writer inferred from existing single-session worktree assignment; not multi-primary writable'
-            record_hook_event(paths, ctx, status='LEGACY_SINGLE_WRITER', extra={'warning': warning})
-            return None
         display_client = paths.identity.client.capitalize() if paths.identity.client == 'codex' else paths.identity.client
         reason = (
             f'unbound {display_client} session is read-only-unbound; mutating operation requires '
@@ -238,28 +223,6 @@ def _run_mutation_block(paths: RepoPaths, ctx: HookContext, candidate_paths: lis
         extra={'reason': reason, 'runOwnership': {'runId': paths.identity.raw_run_id, 'errors': errors}},
     )
     return HookResult(status='BLOCK', exit_code=2, message=reason)
-
-# 变更类工具必须运行在 main session 分配的 worktree 中。
-def _worktree_mutation_block(paths: RepoPaths, ctx: HookContext) -> HookResult | None:
-    """参数：
-        paths: Repository 运行time 路径。
-        ctx: 当前 hook payload。
-
-    返回：
-        需要阻断时返回 HookResult；允许继续时返回 None。
-    """
-    decision = check_session_worktree(paths.repo_root, paths.identity, create=True)
-    if decision.allowed:
-        return None
-    reason = decision.reason or 'main agent session must use its assigned git worktree'
-    record_hook_event(
-        paths,
-        ctx,
-        status='BLOCK',
-        extra={'reason': reason, 'worktree': decision.as_dict()},
-    )
-    return HookResult(status='BLOCK', exit_code=2, message=reason)
-
 
 # 分发 PreToolUse Bash 事件。
 def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
@@ -291,10 +254,6 @@ def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
             run_block = _run_mutation_block(paths, ctx)
             if run_block is not None:
                 return run_block
-            if paths.identity.has_run or not _legacy_single_writer_requested():
-                worktree_block = _worktree_mutation_block(paths, ctx)
-                if worktree_block is not None:
-                    return worktree_block
         if mutation_tracking and not acquire_bash_mutation_lock(paths, ctx):
             reason = '另一个 Bash mutation attribution 正在运行；请稍后重试该命令。'
             lock_info = read_bash_mutation_lock_info(paths) or {}
@@ -323,9 +282,7 @@ def handle_pre_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
             'warnings': decision.warnings,
             'bashSnapshot': snapshot_written,
             'bashMutationTracking': mutation_tracking,
-            'worktree': check_session_worktree(paths.repo_root, paths.identity).as_dict()
-            if mutation_tracking
-            else None,
+            'worktree': {'authority': 'run-record'} if mutation_tracking else None,
         },
     )
     if not decision.allowed:
@@ -352,10 +309,6 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
     run_block = _run_mutation_block(paths, ctx, ctx.candidate_paths)
     if run_block is not None:
         return run_block
-    if paths.identity.has_run or not _legacy_single_writer_requested():
-        worktree_block = _worktree_mutation_block(paths, ctx)
-        if worktree_block is not None:
-            return worktree_block
     for path in ctx.candidate_paths:
         if is_protected_path(path, paths.repo_root):
             guard = subprocess.run(
@@ -405,6 +358,26 @@ def handle_post_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
     """
     paths = _paths_for_context(paths, ctx)
     records = record_post_write(paths, ctx)
+    for raw_path in ctx.candidate_paths:
+        candidate = Path(raw_path)
+        if not candidate.is_absolute():
+            candidate = paths.repo_root / candidate
+        if str(candidate).endswith(('/.claude/settings.local.json', '/.mcp.json')):
+            reason = f'personal local config was modified: {raw_path}'
+            record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason, 'file': raw_path})
+            return HookResult(status='BLOCK', exit_code=2, message=reason)
+        if candidate.suffix == '.sh' and candidate.exists():
+            proc = subprocess.run(['bash', '-n', str(candidate)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if proc.returncode != 0:
+                reason = f'shell syntax check failed: {raw_path}'
+                record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason, 'file': raw_path})
+                return HookResult(status='BLOCK', exit_code=2, message=reason)
+        if candidate.suffix == '.json' and candidate.exists():
+            proc = subprocess.run([sys.executable, '-m', 'json.tool', str(candidate)], text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, check=False)
+            if proc.returncode != 0:
+                reason = f'json syntax check failed: {raw_path}'
+                record_hook_event(paths, ctx, status='BLOCK', extra={'reason': reason, 'file': raw_path})
+                return HookResult(status='BLOCK', exit_code=2, message=reason)
     return HookResult(status='PASS', details={'changedFileCount': len(records)})
 
 
@@ -438,16 +411,16 @@ def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult
     if label in {'session-start', 'subagent-start'}:
         handle_session_start(paths, ctx, label)
         if label == 'session-start':
-            decision = check_session_worktree(paths.repo_root, paths.identity, create=True)
-            if decision.required:
-                record_hook_event(
-                    paths,
-                    ctx,
-                    status='WORKTREE_READY' if decision.assigned else 'WORKTREE_PENDING',
-                    extra={'worktree': decision.as_dict()},
-                )
-                if not decision.allowed and decision.reason:
-                    return HookResult(status='PASS', warnings=[decision.reason])
+            if not paths.identity.has_run:
+                if paths.identity.raw_session_id:
+                    marker = paths.repo_root / 'tmp' / 'agent_logs' / paths.identity.client / paths.identity.raw_session_id / 'read-only-unbound.json'
+                    marker.parent.mkdir(parents=True, exist_ok=True)
+                    marker.write_text(
+                        '{"schemaVersion":1,"client":"%s","sessionId":"%s","status":"read-only-unbound","reason":"FEIPI_RUN_ID missing; mutations require managed run"}\n'
+                        % (paths.identity.client, paths.identity.raw_session_id),
+                        encoding='utf-8',
+                    )
+                record_hook_event(paths, ctx, status='READ_ONLY_UNBOUND', extra={'mode': 'read-only-unbound'})
     elif label == 'config-change':
         record_config_change(paths, ctx)
         record_hook_event(paths, ctx, status='CONFIG')

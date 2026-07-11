@@ -101,7 +101,7 @@ def test_synthetic_target_selection_is_fail_closed_or_targeted():
     expectations = {
         '.claude/agents/qwen-main-default.md': 'hook-runtime',
         '.qoder/hooks/pre_write_guard.sh': 'hook-runtime',
-        'scripts/harness/agent_stop_check.py': {'harness', 'hook-runtime'},
+        'scripts/harness/stop_entry.py': {'harness', 'hook-runtime'},
         'java/web/src/main/java/com/feipi/session/browser/X.java': 'java-src',
         'java/web/src/main/resources/templates/session-detail.html': 'session-detail',
     }

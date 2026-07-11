@@ -40,10 +40,13 @@ def _record(repo: Path, run_id: str, session: str, change: str = 'support-parall
         'worktreeId': f'wt-{run_id}',
         'worktreeRoot': str(repo.resolve()),
         'branch': 'main',
+        'targetBranch': 'main',
+        'primaryRepoRoot': str(repo.resolve()),
         'baseCommit': subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip(),
+        'headCommit': subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip(),
         'changeId': change,
         'mode': 'writable',
-        'status': 'running',
+        'status': 'RUNNING',
         'allowedPaths': ['scripts', 'openspec'],
         'forbiddenPaths': ['.env', '.mcp.json'],
         'resourceAllocations': {'ports': [], 'paths': []},
@@ -114,7 +117,7 @@ def test_legacy_session_stop_collects_changed_files_without_run_context(tmp_path
     assert summary.exists()
     data = json.loads(summary.read_text(encoding='utf-8'))
     assert data['status'] == 'PASS'
-    assert data['evidenceMode'] == 'legacy-fail-closed'
+    assert data['evidenceMode'] == 'unbound-session-fail-closed'
     assert data['changedFiles'] == []
 
 

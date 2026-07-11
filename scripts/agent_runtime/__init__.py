@@ -18,13 +18,6 @@ from scripts.agent_runtime.identity import (
     session_main_log_dir,
     session_root_dir,
 )
-from scripts.agent_runtime.worktree import (
-    WorktreeDecision,
-    check_session_worktree,
-    expected_worktree_path,
-    worktree_parent_root,
-)
-
 __all__ = [
     'RuntimeIdentity',
     'identity_from_values',
@@ -33,10 +26,6 @@ __all__ = [
     'agent_log_dir',
     'quality_dir',
     'identity_requires_fail_closed',
-    'WorktreeDecision',
-    'check_session_worktree',
-    'expected_worktree_path',
-    'worktree_parent_root',
     'repo_root',
     'load_runtime_manifest',
     'protected_roots',

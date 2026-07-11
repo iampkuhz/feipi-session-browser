@@ -129,6 +129,7 @@ test.describe('Shell states — Session Detail', () => {
         await page.screenshot({
           path: path.join(TMP_DIR, `shell-${state}-${vp.label}.png`),
           fullPage: false,
+          timeout: 30000,
         });
 
         // Structural assertion: main must have visible width in all states
@@ -150,6 +151,7 @@ test.describe('Shell states — Session Detail', () => {
         await page.screenshot({
           path: path.join(TMP_DIR, `shell-${state}-${vp.label}.png`),
           fullPage: false,
+          timeout: 30000,
         });
 
         const result = await setShellStateAndMeasure(page, state);

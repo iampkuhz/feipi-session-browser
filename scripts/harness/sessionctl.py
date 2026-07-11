@@ -9,6 +9,7 @@ explicit local client command.
 from __future__ import annotations
 
 import argparse
+import contextlib
 import hashlib
 import fcntl
 import json
@@ -32,11 +33,12 @@ if str(ROOT) not in sys.path:
 from scripts.harness.primary_session import (  # noqa: E402
     ACTIVE_WRITER_STATUSES,
     PrimarySessionValidationError,
+    validate_status_transition,
     resolve_runtime_root,
     validate_run_collisions,
     validate_run_record,
 )
-from scripts.harness.resource_lock import process_is_alive  # noqa: E402
+from scripts.harness.resource_lock import _pid_start_time, process_is_alive  # noqa: E402
 
 REGISTRY_VERSION = 1
 DEFAULT_FORBIDDEN_PATHS = [".env", ".mcp.json", "data", "output", "tmp/agent_logs"]
@@ -326,7 +328,28 @@ def ensure_no_collisions(registry: Registry, candidate: dict[str, Any]) -> None:
             raise SessionctlError(f"{collision.kind}: {collision.message}")
 
 
-# 维护 make_record 函数行为。
+# 解析 运行记录的目标分支。
+def _target_branch_from_args(args: argparse.Namespace, repo: Path) -> str:
+    """参数：
+        args: 命令行参数对象。
+        repo: 仓库根目录。
+
+    返回：
+        运行记录使用的目标分支。
+    """
+    target = getattr(args, "target_branch", None)
+    if target:
+        return str(target)
+    base_ref = str(getattr(args, "base_ref", "") or "")
+    if base_ref.startswith("origin/"):
+        return base_ref.split("/", 1)[1]
+    if base_ref and base_ref not in {"HEAD", "@"}:
+        return base_ref
+    branch = current_branch(repo)
+    return branch or "main_java"
+
+
+# 创建运行记录 JSON 对象。
 def make_record(args: argparse.Namespace, repo: Path, run_id: str, worktree_id: str, branch: str, worktree_root: Path) -> dict[str, Any]:
     """参数：
         *args: 当前函数使用的输入参数。
@@ -336,6 +359,7 @@ def make_record(args: argparse.Namespace, repo: Path, run_id: str, worktree_id: 
     """
     base_commit = git(repo, "rev-parse", args.base_ref).stdout.strip()
     timestamp = now_utc()
+    target_branch = _target_branch_from_args(args, repo)
     return {
         "schemaVersion": 1,
         "runId": run_id,
@@ -345,11 +369,14 @@ def make_record(args: argparse.Namespace, repo: Path, run_id: str, worktree_id: 
         "worktreeId": worktree_id,
         "worktreeRoot": str(worktree_root.resolve()),
         "branch": branch,
+        "targetBranch": target_branch,
+        "primaryRepoRoot": str(repo.resolve()),
         "baseCommit": base_commit,
+        "headCommit": base_commit,
         "changeId": args.change_id,
         "mode": args.mode,
         "primarySessionMode": "managed-worktree",
-        "status": "created",
+        "status": "CREATED",
         "allowedPaths": args.allowed_path or [],
         "forbiddenPaths": args.forbidden_path or DEFAULT_FORBIDDEN_PATHS,
         "resourceAllocations": {"ports": [], "paths": [str(worktree_root.resolve())]},
@@ -417,6 +444,49 @@ def cmd_create(args: argparse.Namespace) -> int:
             raise
     print(json.dumps(record, indent=2, sort_keys=True))
     return 0
+
+
+# 创建受管工作树并保存运行记录。
+def create_run_record(args: argparse.Namespace, repo: Path, registry: Registry) -> dict[str, Any]:
+    """参数：
+        args: 命令行参数对象。
+        repo: 主检出仓库根目录。
+        registry: 运行时注册表。
+
+    返回：
+        已创建并保存的运行记录。
+    """
+    run_id = f"run-{uuid.uuid4().hex[:16]}"
+    worktree_id = f"wt-{uuid.uuid4().hex[:12]}"
+    branch = args.branch or f"agent/{args.client}/{slugify(args.task_id)}-{run_id[-8:]}"
+    parent = Path(args.worktree_parent).expanduser().resolve() if args.worktree_parent else default_worktree_parent(repo).resolve()
+    worktree_root = Path(args.worktree_root).expanduser().resolve() if args.worktree_root else parent / worktree_id
+    record = make_record(args, repo, run_id, worktree_id, branch, worktree_root)
+    if branch_exists(repo, branch):
+        raise SessionctlError(f"branch already exists: {branch}")
+    for wt in git_worktrees(repo):
+        if Path(wt.get("worktree", "")).resolve() == worktree_root:
+            raise SessionctlError(f"worktree path already owned by git: {worktree_root}")
+    ensure_no_collisions(registry, record)
+    parent.mkdir(parents=True, exist_ok=True)
+    try:
+        git(repo, "worktree", "add", "-b", branch, str(worktree_root), args.base_ref)
+        if current_branch(worktree_root) != branch:
+            raise SessionctlError("created worktree branch mismatch")
+        if head_commit(worktree_root) != record["baseCommit"]:
+            raise SessionctlError("created worktree base commit mismatch")
+        ensure_no_collisions(registry, record)
+        registry.save_run(record)
+    except Exception:
+        registry.remove_run_record(run_id)
+        if worktree_root.exists():
+            status = git(worktree_root, "status", "--porcelain", check=False)
+            if status.returncode == 0 and not status.stdout.strip():
+                git(repo, "worktree", "remove", str(worktree_root), check=False)
+        if branch_exists(repo, branch):
+            git(repo, "branch", "-D", branch, check=False)
+        raise
+    return record
 
 
 # 维护 cmd_list 函数行为。
@@ -531,7 +601,7 @@ def doctor_record(record: dict[str, Any]) -> list[str]:
         errors.append("worktree branch mismatch")
     if git(worktree, "merge-base", "--is-ancestor", record["baseCommit"], "HEAD", check=False).returncode != 0:
         errors.append("base commit is not an ancestor of worktree HEAD")
-    if record.get("mode") == "writable" and record.get("status") in {"running", "validating", "completed", "handed-off"}:
+    if record.get("mode") == "writable" and record.get("status") in {"RUNNING", "VALIDATING", "VALIDATED", "COMMITTED"}:
         if not _client_executable_available(str(record.get("client") or "")):
             errors.append("client executable unavailable for writable-ready run")
         activation = record.get("hookActivation", {}) if isinstance(record.get("hookActivation"), dict) else {}
@@ -572,7 +642,7 @@ def runtime_capability(record: dict[str, Any], errors: list[str]) -> str:
         return "blocked"
     if record.get("mode") == "read-only":
         return "read-only-ready"
-    if record.get("mode") == "writable" and record.get("status") in {"running", "validating", "completed", "handed-off"}:
+    if record.get("mode") == "writable" and record.get("status") in {"RUNNING", "VALIDATING", "VALIDATED", "COMMITTED"}:
         return "writable-ready"
     return "blocked"
 
@@ -591,7 +661,7 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         records = [registry.load_run(args.run_id)] if args.run_id else registry.all_runs()
         collisions = validate_run_collisions(records) if records else []
     if not records:
-        print(json.dumps({"capability": "legacy-single-writer", "checkedRuns": [], "status": "legacy-single-writer"}, indent=2, sort_keys=True))
+        print(json.dumps({"capability": "read-only-ready", "checkedRuns": [], "status": "read-only-ready"}, indent=2, sort_keys=True))
         return 0
     errors = [f"{c.kind}: {c.message}" for c in collisions]
     run_errors: dict[str, list[str]] = {}
@@ -709,11 +779,16 @@ def cmd_start(args: argparse.Namespace) -> int:
     repo = repo_root_from_arg(args.repo_root)
     registry = Registry(repo)
     with registry.locked():
-        record = registry.load_run(args.run_id)
-        if record["status"] not in {"created", "blocked", "handed-off"}:
+        if args.run_id:
+            record = registry.load_run(args.run_id)
+        else:
+            if not args.client or not args.task_id or not args.change_id:
+                raise SessionctlError("start requires --run-id or --client --task-id --change-id")
+            record = create_run_record(args, repo, registry)
+        if record["status"] not in {"CREATED", "BLOCKED", "HANDOFF_REQUIRED"}:
             raise SessionctlError(f"run is not startable from status {record['status']}")
         errors = doctor_record(record)
-        if errors:
+        if errors and args.run_id:
             raise SessionctlError("doctor blocked start: " + "; ".join(errors))
         command = args.client_command or os.environ.get(f"FEIPI_SESSIONCTL_{record['client'].upper()}_COMMAND", "")
         env = safe_command_env(record)
@@ -722,18 +797,38 @@ def cmd_start(args: argparse.Namespace) -> int:
             print(f"cd {shlex.quote(record['worktreeRoot'])} && {prefix} {command or '<client-command>'}")
             return 0
         if not command:
-            record["status"] = "blocked"
+            record["status"] = "BLOCKED"
             record["updatedAt"] = now_utc()
             record["startBlockedReason"] = "client command unavailable"
             registry.save_run(record)
             raise SessionctlError("client command unavailable; configure --client-command or FEIPI_SESSIONCTL_<CLIENT>_COMMAND")
-        record["status"] = "starting"
+        record["status"] = "STARTING"
         record["updatedAt"] = now_utc()
         registry.save_run(record)
     child_env = os.environ.copy()
     child_env.update(env)
-    subprocess.Popen(shlex.split(command), cwd=record["worktreeRoot"], env=child_env)  # noqa: S603 - explicit local command.
-    print(json.dumps({"status": "starting", "runId": record["runId"]}, indent=2, sort_keys=True))
+    client_log = registry.root / "runs" / str(record["runId"]) / "client-start.log"
+    client_log.parent.mkdir(parents=True, exist_ok=True)
+    with client_log.open("ab") as log_handle:
+        proc = subprocess.Popen(  # noqa: S603 - explicit local command.
+            shlex.split(command),
+            cwd=record["worktreeRoot"],
+            env=child_env,
+            stdout=log_handle,
+            stderr=subprocess.STDOUT,
+        )
+    with registry.locked():
+        latest = registry.load_run(str(record["runId"]))
+        latest["processes"] = list(latest.get("processes") or []) + [{
+            "pid": proc.pid,
+            "processStartTime": _pid_start_time(proc.pid),
+            "command": shlex.split(command)[0],
+            "log": str(client_log),
+            "startedAt": now_utc(),
+        }]
+        latest["updatedAt"] = now_utc()
+        registry.save_run(latest)
+    print(json.dumps({"status": "STARTING", "runId": record["runId"], "pid": proc.pid}, indent=2, sort_keys=True))
     return 0
 
 
@@ -764,7 +859,7 @@ def cmd_bind_session(args: argparse.Namespace) -> int:
         activation = write_activation_marker(repo, record, args.session_id, cwd)
         record["sessionId"] = args.session_id
         record["hookActivation"] = {"confirmed": True, "client": args.client, "sessionId": args.session_id, "cwd": str(cwd), "marker": activation}
-        record["status"] = "running"
+        record["status"] = "RUNNING"
         record["updatedAt"] = now_utc()
         registry.save_run(record)
         mirror = cwd / "tmp" / "agent_logs" / record["client"] / args.session_id / "runs" / record["runId"] / "main" / "active_change.json"
@@ -777,7 +872,7 @@ def cmd_bind_session(args: argparse.Namespace) -> int:
             "source": "sessionctl bind-session",
             "legacyWarning": "run-scoped active change mirror; global tmp/active_change.json is legacy-only",
         })
-    print(json.dumps({"status": "running", "runId": args.run_id, "sessionId": args.session_id}, indent=2, sort_keys=True))
+    print(json.dumps({"status": "RUNNING", "runId": args.run_id, "sessionId": args.session_id}, indent=2, sort_keys=True))
     return 0
 
 
@@ -793,6 +888,26 @@ def changed_files(worktree: Path) -> list[str]:
     return [line[3:] if len(line) > 3 else line for line in lines]
 
 
+# 读取最新 Stop summary 状态。
+def _load_latest_stop_status(worktree: Path, record: dict[str, Any]) -> str:
+    """参数：
+        worktree: 运行工作树根目录。
+        record: 运行记录。
+
+    返回：
+        Stop summary 中的状态；读取失败时返回空字符串。
+    """
+    session = str(record.get("sessionId") or "unknown")
+    client = str(record.get("client") or "unknown")
+    run_id = str(record.get("runId") or "")
+    summary = worktree / "tmp" / "agent_logs" / client / session / "runs" / run_id / "main" / "stop-check-summary.json"
+    try:
+        data = json.loads(summary.read_text(encoding="utf-8"))
+    except Exception:
+        return ""
+    return str(data.get("status") or "")
+
+
 # 维护 cmd_stop 函数行为。
 def cmd_stop(args: argparse.Namespace) -> int:
     """参数：
@@ -806,7 +921,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
     with registry.locked():
         record = registry.load_run(args.run_id)
         record["stopRequestedAt"] = now_utc()
-        record["status"] = "validating"
+        record["status"] = "VALIDATING"
         record["updatedAt"] = now_utc()
         registry.save_run(record)
 
@@ -829,12 +944,13 @@ def cmd_stop(args: argparse.Namespace) -> int:
 
     with registry.locked():
         latest = registry.load_run(args.run_id)
-        latest["status"] = "completed" if stop_exit == 0 else "blocked"
+        latest["status"] = "VALIDATED" if stop_exit == 0 and _load_latest_stop_status(Path(str(latest["worktreeRoot"])), latest) == "PASS" else "BLOCKED"
+        latest["headCommit"] = head_commit(Path(str(latest["worktreeRoot"])))
         latest["stopExitCode"] = stop_exit
         latest["updatedAt"] = now_utc()
         registry.save_run(latest)
 
-    status = "completed" if stop_exit == 0 else "blocked"
+    status = latest["status"]
     print(json.dumps({"status": status, "runId": args.run_id, "stopExitCode": stop_exit, "killedProcess": False}, indent=2, sort_keys=True))
     return 0 if stop_exit == 0 else 2
 
@@ -852,7 +968,9 @@ def cmd_handoff(args: argparse.Namespace) -> int:
     with registry.locked():
         record = registry.load_run(args.run_id)
     worktree = Path(record["worktreeRoot"])
-    run_changed = changed_files(worktree) if worktree.exists() else []
+    committed = _committed_changed_files(worktree, str(record.get("baseCommit") or "")) if worktree.exists() else []
+    dirty_state = _dirty_untracked(worktree) if worktree.exists() else {"dirty": [], "untracked": []}
+    run_changed = sorted(set(committed + dirty_state["dirty"] + dirty_state["untracked"]))
     blocking_failures = doctor_record(record)
     scope_overlaps = [
         f"{collision.kind}: {collision.message}"
@@ -868,9 +986,16 @@ def cmd_handoff(args: argparse.Namespace) -> int:
         "worktreeRoot": record["worktreeRoot"],
         "branch": record["branch"],
         "baseCommit": record["baseCommit"],
+        "headCommit": head_commit(worktree) if worktree.exists() else "",
+        "targetBranch": record.get("targetBranch", ""),
         "changeId": record["changeId"],
         "primarySessionMode": record.get("primarySessionMode", "managed-worktree"),
         "changedFiles": run_changed,
+        "baseToHeadFiles": committed,
+        "commits": git(worktree, "log", "--oneline", f"{record['baseCommit']}..HEAD", check=False).stdout.splitlines() if worktree.exists() else [],
+        "aheadBehind": _ahead_behind(worktree, str(record.get("targetBranch") or "HEAD"), "HEAD") if worktree.exists() else {},
+        "dirty": dirty_state["dirty"],
+        "untracked": dirty_state["untracked"],
         "requiredTargetSummary": record.get("requiredTargetSummary", {"allowedPaths": record.get("allowedPaths", []), "forbiddenPaths": record.get("forbiddenPaths", [])}),
         "qualityArtifacts": record.get("qualityArtifacts", []),
         "artifactPaths": {
@@ -881,13 +1006,13 @@ def cmd_handoff(args: argparse.Namespace) -> int:
         "blockingFailures": blocking_failures,
         "mergeRisk": {
             "writeScopeOverlap": scope_overlaps,
-            "dirtyWorktree": bool(run_changed),
+            "dirtyWorktree": bool(dirty_state["dirty"] or dirty_state["untracked"]),
         },
         "risks": record.get("risks", []) + scope_overlaps,
         "manualNextSteps": [
             "review changedFiles and blockingFailures",
             "run required gates before merge",
-            "commit/push/merge manually only after review",
+            f"./scripts/agent-session finalize --run-id {record['runId']}",
             "use sessionctl cleanup dry-run first; do not delete dirty worktrees",
         ],
     }
@@ -918,23 +1043,307 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
                 active_pids.append(pid)
         if active_pids:
             raise SessionctlError("cleanup refused: active process still attached to run: " + ", ".join(str(pid) for pid in active_pids))
+        if worktree.resolve() == Path.cwd().resolve():
+            raise SessionctlError("cleanup refused: worktree is current process cwd")
         if worktree.exists() and git(worktree, "status", "--porcelain").stdout.strip():
             raise SessionctlError("cleanup refused: dirty worktree")
+        if record.get("status") != "INTEGRATED" and worktree.exists():
+            ahead = git(worktree, "rev-list", "--count", f"{record['baseCommit']}..HEAD", check=False)
+            if ahead.returncode == 0 and int((ahead.stdout or "0").strip() or "0") > 0:
+                raise SessionctlError("cleanup refused: unintegrated commits remain")
+        if args.delete_branch and record.get("status") != "INTEGRATED":
+            raise SessionctlError("cleanup refused: branch deletion requires INTEGRATED status")
         actions = {"removeWorktree": str(worktree), "deleteBranch": bool(args.delete_branch), "dryRun": not args.execute}
         if not args.execute:
             print(json.dumps({"status": "dry-run", "runId": args.run_id, "actions": actions}, indent=2, sort_keys=True))
             return 0
-        record["status"] = "cleaning"
+        record["status"] = "CLEANED" if not args.execute else record["status"]
         record["updatedAt"] = now_utc()
         registry.save_run(record)
         if worktree.exists():
             git(repo, "worktree", "remove", str(worktree))
         if args.delete_branch and branch_exists(repo, record["branch"]):
             git(repo, "branch", "-d", record["branch"])
-        record["status"] = "cleaned"
+        record["status"] = "CLEANED"
         record["updatedAt"] = now_utc()
         registry.save_run(record)
-    print(json.dumps({"status": "cleaned", "runId": args.run_id, "actions": actions}, indent=2, sort_keys=True))
+    print(json.dumps({"status": "CLEANED", "runId": args.run_id, "actions": actions}, indent=2, sort_keys=True))
+    return 0
+
+
+# 判断仓库是否干净。
+def _repo_clean(repo: Path) -> bool:
+    """参数：
+        repo: 仓库根目录。
+
+    返回：
+        工作区没有脏文件或未追踪文件时返回 True。
+    """
+    return not git(repo, "status", "--porcelain").stdout.strip()
+
+
+# 读取基准到当前提交之间的已提交变更文件。
+def _committed_changed_files(worktree: Path, base: str) -> list[str]:
+    """参数：
+        worktree: 运行工作树根目录。
+        base: 基准提交。
+
+    返回：
+        已提交变更文件列表。
+    """
+    return [line for line in git(worktree, "diff", "--name-only", f"{base}...HEAD").stdout.splitlines() if line.strip()]
+
+
+# 读取脏文件和未追踪文件。
+def _dirty_untracked(worktree: Path) -> dict[str, list[str]]:
+    """参数：
+        worktree: 运行工作树根目录。
+
+    返回：
+        脏文件与未追踪文件列表映射。
+    """
+    dirty = [line for line in git(worktree, "diff", "--name-only").stdout.splitlines() if line.strip()]
+    untracked = [line for line in git(worktree, "ls-files", "--others", "--exclude-standard").stdout.splitlines() if line.strip()]
+    return {"dirty": dirty, "untracked": untracked}
+
+
+# 计算两个 Git 引用的前后差异。
+def _ahead_behind(repo: Path, left: str, right: str) -> dict[str, int]:
+    """参数：
+        repo: 仓库根目录。
+        left: 左侧 Git 引用。
+        right: 右侧 Git 引用。
+
+    返回：
+        前进与落后提交计数。
+    """
+    out = git(repo, "rev-list", "--left-right", "--count", f"{left}...{right}", check=False)
+    if out.returncode != 0:
+        return {"ahead": 0, "behind": 0}
+    parts = out.stdout.split()
+    if len(parts) != 2:
+        return {"ahead": 0, "behind": 0}
+    return {"ahead": int(parts[0]), "behind": int(parts[1])}
+
+
+# 写入交接摘要。
+def _write_handoff(registry: Registry, record: dict[str, Any], reason: str) -> Path:
+    """参数：
+        registry: 运行时注册表。
+        record: 运行记录。
+        reason: 交接原因。
+
+    返回：
+        交接摘要路径。
+    """
+    worktree = Path(str(record["worktreeRoot"]))
+    target = str(record.get("targetBranch") or "")
+    base = str(record.get("baseCommit") or "")
+    report = {
+        "schemaVersion": 1,
+        "status": "HANDOFF_REQUIRED",
+        "reason": reason,
+        "runId": record["runId"],
+        "targetBranch": target,
+        "branch": record["branch"],
+        "baseCommit": base,
+        "headCommit": head_commit(worktree) if worktree.exists() else "",
+        "baseToHeadFiles": _committed_changed_files(worktree, base) if worktree.exists() and base else [],
+        "commits": git(worktree, "log", "--oneline", f"{base}..HEAD", check=False).stdout.splitlines() if worktree.exists() and base else [],
+        "aheadBehind": _ahead_behind(worktree, target, "HEAD") if worktree.exists() and target else {},
+        **(_dirty_untracked(worktree) if worktree.exists() else {"dirty": [], "untracked": []}),
+        "requiredGateStatus": record.get("stopExitCode", "unknown"),
+        "mergeRisk": reason,
+        "finalizeCommand": f"./scripts/agent-session finalize --run-id {record['runId']}",
+    }
+    path = registry.root / "integration" / f"{record['runId']}.handoff.json"
+    write_json_atomic(path, report)
+    return path
+
+
+# 标记运行进入需要人工交接状态。
+def _mark_handoff(registry: Registry, record: dict[str, Any], reason: str) -> None:
+    """参数：
+        registry: 运行时注册表。
+        record: 运行记录。
+        reason: 交接原因。
+    """
+    path = _write_handoff(registry, record, reason)
+    record["status"] = "HANDOFF_REQUIRED"
+    record["handoffSummary"] = str(path)
+    record["updatedAt"] = now_utc()
+    registry.save_run(record)
+
+
+# 安全集成运行分支到目标分支。
+def cmd_finalize(args: argparse.Namespace) -> int:
+    """参数：
+        args: 命令行参数对象。
+
+    返回：
+        进程退出码。
+    """
+    repo = repo_root_from_arg(args.repo_root)
+    registry = Registry(repo)
+    lock_path = registry.root / "locks" / "integration.lock"
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
+    with lock_path.open("a+", encoding="utf-8") as lock:
+        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        with registry.locked():
+            record = registry.load_run(args.run_id)
+        worktree = Path(str(record["worktreeRoot"]))
+        target = str(record.get("targetBranch") or "")
+        if record.get("status") == "INTEGRATED":
+            print(json.dumps({"status": "INTEGRATED", "runId": args.run_id, "idempotent": True}, indent=2, sort_keys=True))
+            return 0
+        if not target:
+            with registry.locked():
+                _mark_handoff(registry, record, "missing target branch")
+            print("HANDOFF_REQUIRED missing target branch")
+            return 2
+        if not _repo_clean(repo):
+            with registry.locked():
+                _mark_handoff(registry, record, "primary checkout dirty")
+            print("HANDOFF_REQUIRED primary checkout dirty")
+            return 2
+        if not worktree.exists():
+            with registry.locked():
+                _mark_handoff(registry, record, "run worktree missing")
+            print("HANDOFF_REQUIRED run worktree missing")
+            return 2
+        if not _repo_clean(worktree):
+            if args.commit:
+                if not args.message:
+                    with registry.locked():
+                        _mark_handoff(registry, record, "--commit requires --message")
+                    print("HANDOFF_REQUIRED --commit requires --message")
+                    return 2
+                git(worktree, "add", "-A")
+                git(worktree, "commit", "-m", args.message)
+            else:
+                with registry.locked():
+                    _mark_handoff(registry, record, "run worktree has uncommitted changes")
+                print("HANDOFF_REQUIRED run worktree has uncommitted changes")
+                return 2
+        run_head = head_commit(worktree)
+        target_old = git(repo, "rev-parse", target).stdout.strip()
+        if record.get("status") not in {"VALIDATED", "COMMITTED"} and not args.allow_unvalidated:
+            with registry.locked():
+                _mark_handoff(registry, record, "required gates are not fresh PASS")
+            print("HANDOFF_REQUIRED required gates are not fresh PASS")
+            return 2
+        with registry.locked():
+            record = registry.load_run(args.run_id)
+            record["status"] = "INTEGRATING"
+            record["headCommit"] = run_head
+            record["updatedAt"] = now_utc()
+            registry.save_run(record)
+        strategy = "ff-only"
+        try:
+            if git(repo, "merge-base", "--is-ancestor", target, run_head, check=False).returncode != 0:
+                strategy = "rebase-then-ff"
+                rebase = git(worktree, "rebase", target, check=False)
+                if rebase.returncode != 0:
+                    git(worktree, "rebase", "--abort", check=False)
+                    with registry.locked():
+                        record = registry.load_run(args.run_id)
+                        _mark_handoff(registry, record, "target advanced with conflicts")
+                    print("HANDOFF_REQUIRED target advanced with conflicts")
+                    return 2
+                run_head = head_commit(worktree)
+                stop = cmd_stop(argparse.Namespace(repo_root=str(repo), run_id=args.run_id))
+                if stop != 0:
+                    with registry.locked():
+                        record = registry.load_run(args.run_id)
+                        _mark_handoff(registry, record, "revalidation failed after rebase")
+                    print("HANDOFF_REQUIRED revalidation failed after rebase")
+                    return 2
+            git(repo, "switch", target)
+            git(repo, "merge", "--ff-only", run_head)
+        except subprocess.CalledProcessError as exc:
+            with registry.locked():
+                record = registry.load_run(args.run_id)
+                _mark_handoff(registry, record, f"integration failed: {exc}")
+            print("HANDOFF_REQUIRED integration failed")
+            return 2
+        target_new = head_commit(repo)
+        summary = {
+            "schemaVersion": 1,
+            "status": "INTEGRATED",
+            "runId": args.run_id,
+            "oldTarget": target_old,
+            "base": record.get("baseCommit"),
+            "oldHead": run_head,
+            "newHead": target_new,
+            "strategy": strategy,
+            "artifacts": record.get("qualityArtifacts", []),
+            "integratedAt": now_utc(),
+        }
+        summary_path = registry.root / "integration" / f"{args.run_id}.json"
+        write_json_atomic(summary_path, summary)
+        with registry.locked():
+            record = registry.load_run(args.run_id)
+            record["status"] = "INTEGRATED"
+            record["headCommit"] = target_new
+            record["integrationSummary"] = str(summary_path)
+            record["updatedAt"] = now_utc()
+            registry.save_run(record)
+        print(json.dumps(summary, indent=2, sort_keys=True))
+        return 0
+
+
+# 只读导入旧 marker 并创建新运行记录。
+def cmd_recover_legacy(args: argparse.Namespace) -> int:
+    """参数：
+        args: 命令行参数对象。
+
+    返回：
+        进程退出码。
+    """
+    repo = repo_root_from_arg(args.repo_root)
+    registry = Registry(repo)
+    runtime_root = resolve_runtime_root(repo)
+    marker = runtime_root / "worktrees" / args.client / f"{args.session}.json"
+    data: dict[str, Any] = {}
+    if marker.exists():
+        data = load_json(marker, {})
+    raw_worktree = args.worktree_root or data.get("worktreePath") or data.get("worktreeRoot")
+    if not raw_worktree:
+        raise SessionctlError("recover-legacy requires --worktree-root when legacy marker is absent")
+    worktree = Path(str(raw_worktree)).expanduser().resolve()
+    if not worktree.exists():
+        raise SessionctlError(f"legacy worktree missing: {worktree}")
+    common_repo = git(repo, "rev-parse", "--git-common-dir").stdout.strip()
+    common_worktree = git(worktree, "rev-parse", "--git-common-dir").stdout.strip()
+    if Path(common_repo).resolve() != (worktree / common_worktree).resolve() and Path(common_repo).resolve() != Path(common_worktree).resolve():
+        raise SessionctlError("legacy worktree is not in same git-common-dir")
+    branch = current_branch(worktree)
+    if not branch:
+        branch = f"agent/recovery/{args.client}-{slugify(args.session)}-{uuid.uuid4().hex[:8]}"
+        git(worktree, "switch", "-c", branch)
+    ns = argparse.Namespace(
+        client=args.client,
+        task_id=args.task_id or f"recover-{args.session}",
+        change_id=args.change_id,
+        base_ref=args.target,
+        target_branch=args.target,
+        mode="writable",
+        allowed_path=args.allowed_path or [],
+        forbidden_path=args.forbidden_path or DEFAULT_FORBIDDEN_PATHS,
+    )
+    base_commit = git(repo, "rev-parse", args.target).stdout.strip()
+    run_id = f"run-{uuid.uuid4().hex[:16]}"
+    record = make_record(ns, repo, run_id, f"wt-recovery-{uuid.uuid4().hex[:8]}", branch, worktree)
+    record["sessionId"] = args.session
+    record["baseCommit"] = base_commit
+    record["headCommit"] = head_commit(worktree)
+    record["status"] = "RUNNING"
+    record["hookActivation"] = {"confirmed": True, "client": args.client, "sessionId": args.session, "source": "recover-legacy"}
+    record["auditEvents"] = [{"event": "MIGRATED", "source": str(marker), "at": now_utc()}]
+    with registry.locked():
+        ensure_no_collisions(registry, record)
+        registry.save_run(record)
+    print(json.dumps(record, indent=2, sort_keys=True))
     return 0
 
 
@@ -955,6 +1364,7 @@ def build_parser() -> argparse.ArgumentParser:
     create.add_argument("--task-id", required=True)
     create.add_argument("--change-id", required=True)
     create.add_argument("--base-ref", default="HEAD")
+    create.add_argument("--target-branch")
     create.add_argument("--mode", choices=["writable", "read-only"], default="writable")
     create.add_argument("--allowed-path", action="append", default=[])
     create.add_argument("--forbidden-path", action="append", default=[])
@@ -973,12 +1383,41 @@ def build_parser() -> argparse.ArgumentParser:
         p.add_argument("--run-id", required=True)
         p.set_defaults(func=func)
 
+    finalize = sub.add_parser("finalize")
+    finalize.add_argument("--run-id", required=True)
+    finalize.add_argument("--commit", action="store_true")
+    finalize.add_argument("--message")
+    finalize.add_argument("--allow-unvalidated", action="store_true")
+    finalize.set_defaults(func=cmd_finalize)
+
+    recover = sub.add_parser("recover-legacy")
+    recover.add_argument("--client", required=True, choices=["codex", "qoder", "claude"])
+    recover.add_argument("--session", required=True)
+    recover.add_argument("--target", required=True)
+    recover.add_argument("--change-id", required=True)
+    recover.add_argument("--task-id")
+    recover.add_argument("--worktree-root")
+    recover.add_argument("--allowed-path", action="append", default=[])
+    recover.add_argument("--forbidden-path", action="append", default=[])
+    recover.set_defaults(func=cmd_recover_legacy)
+
     doctor = sub.add_parser("doctor")
     doctor.add_argument("--run-id", required=False)
     doctor.set_defaults(func=cmd_doctor)
 
     start = sub.add_parser("start")
-    start.add_argument("--run-id", required=True)
+    start.add_argument("--run-id")
+    start.add_argument("--client", choices=["codex", "qoder", "claude"])
+    start.add_argument("--task-id")
+    start.add_argument("--change-id")
+    start.add_argument("--base-ref", default="HEAD")
+    start.add_argument("--target-branch")
+    start.add_argument("--mode", choices=["writable", "read-only"], default="writable")
+    start.add_argument("--allowed-path", action="append", default=[])
+    start.add_argument("--forbidden-path", action="append", default=[])
+    start.add_argument("--worktree-parent")
+    start.add_argument("--worktree-root")
+    start.add_argument("--branch")
     start.add_argument("--print-command", action="store_true")
     start.add_argument("--client-command")
     start.set_defaults(func=cmd_start)

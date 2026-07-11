@@ -145,7 +145,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param projectKey 项目键
    * @return 项目统计行
-   * @throws SQLException 查询失败
    */
   @Override
   public ProjectStats projectStats(String projectKey) {
@@ -179,7 +178,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param filter 项目列表过滤器
    * @return 去重项目数
-   * @throws SQLException 查询失败
    */
   @Override
   public long countProjects(ProjectListFilter filter) {
@@ -201,7 +199,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param filter 项目列表过滤器
    * @return 项目列表聚合摘要
-   * @throws SQLException 查询失败
    */
   @Override
   public ProjectListSummary projectListSummary(ProjectListFilter filter) {
@@ -256,7 +253,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param filter 项目列表过滤器
    * @return 分页项目统计结果
-   * @throws SQLException 查询失败
    */
   @Override
   public PageResult<ProjectStats> listProjects(ProjectListFilter filter) {
@@ -307,7 +303,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param agentFilter agent 过滤器
    * @return Dashboard 聚合行
-   * @throws SQLException 查询失败
    */
   @Override
   public DashboardStats dashboardStats(AgentFilter agentFilter) {
@@ -369,7 +364,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    * <p>对应 Python {@code list_agents}。按 agent 分组，返回会话数、token 细分、项目数、 失败数、最后活跃时间等。用于 All Agents 表格。
    *
    * @return 按 agent 分组的统计行列表
-   * @throws SQLException 查询失败
    */
   @Override
   public List<AgentBreakdown> agentBreakdown() {
@@ -428,7 +422,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param filter 趋势过滤器
    * @return 按日期升序排列的趋势行列表
-   * @throws SQLException 查询失败
    */
   @Override
   public List<TrendDay> trendData(TrendFilter filter) {
@@ -500,7 +493,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param filter 趋势过滤器
    * @return 按日期升序排列的活动趋势行列表
-   * @throws SQLException 查询失败
    */
   @Override
   public List<ActivityTrend> activityTrend(TrendFilter filter) {
@@ -547,7 +539,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    * <p>对应 Python {@code get_token_breakdown}。全表 SUM 聚合，空表返回全零。
    *
    * @return token 分类统计
-   * @throws SQLException 查询失败
    */
   @Override
   public TokenBreakdown tokenBreakdown() {
@@ -586,7 +577,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    * <p>对应 Python {@code get_model_distribution}。按计数降序排列。
    *
    * @return 模型名称到会话计数的有序映射
-   * @throws SQLException 查询失败
    */
   @Override
   public Map<String, Long> modelDistribution() {
@@ -614,7 +604,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    * <p>对应 Python {@code get_agent_distribution}。按计数降序排列。
    *
    * @return agent 标识到会话计数的有序映射
-   * @throws SQLException 查询失败
    */
   @Override
   public Map<String, Long> agentDistribution() {
@@ -643,7 +632,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param limit 最大返回行数
    * @return 会话键到工具分布条目的有序映射
-   * @throws SQLException 查询失败
    */
   public Map<String, ToolDistributionEntry> toolDistribution(int limit) throws SQLException {
     validateLimit(limit);
@@ -675,7 +663,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param limit 最大返回行数
    * @return 按 token 总量降序排列的项目行列表
-   * @throws SQLException 查询失败
    */
   public List<TopProjectRow> topProjectsByTokens(int limit) throws SQLException {
     validateLimit(limit);
@@ -694,7 +681,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param limit 最大返回行数
    * @return 按工具调用数降序排列的项目行列表
-   * @throws SQLException 查询失败
    */
   public List<TopProjectRow> topProjectsByTools(int limit) throws SQLException {
     validateLimit(limit);
@@ -713,7 +699,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param limit 最大返回行数
    * @return 按时长降序排列的会话行列表
-   * @throws SQLException 查询失败
    */
   public List<TopSessionRow> topSlowestSessions(int limit) throws SQLException {
     validateLimit(limit);
@@ -738,7 +723,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param limit 最大返回行数
    * @return 按失败工具数降序排列的会话行列表
-   * @throws SQLException 查询失败
    */
   public List<TopSessionRow> topFailedToolSessions(int limit) throws SQLException {
     validateLimit(limit);
@@ -764,7 +748,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param limit 最大返回行数
    * @return 按缓存命中率降序排列的会话行列表
-   * @throws SQLException 查询失败
    */
   public List<CacheHitSessionRow> topHighCacheReadSessions(int limit) throws SQLException {
     validateLimit(limit);
@@ -812,7 +795,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    * <p>对应 Python {@code compute_aggregate_metrics}。计算缓存复用率、输出率、每轮工具数和 token 消耗。
    *
    * @return 聚合衍生指标行
-   * @throws SQLException 查询失败
    */
   @Override
   public AggregateMetrics aggregateMetrics() {
@@ -852,7 +834,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    * 中使用窗口函数。
    *
    * @return 按会话数降序排列的效率行列表
-   * @throws SQLException 查询失败
    */
   @Override
   public List<AgentEfficiency> agentEfficiency() {
@@ -957,7 +938,6 @@ public final class SqliteAggregateQueryRepository implements AggregateQueryPort 
    *
    * @param agentFilter agent 过滤器
    * @return KPI 补充数据行
-   * @throws SQLException 查询失败
    */
   @Override
   public KpiSupplement kpiSupplement(AgentFilter agentFilter) {

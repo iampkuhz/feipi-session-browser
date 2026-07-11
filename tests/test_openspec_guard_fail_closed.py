@@ -114,7 +114,7 @@ def copy_runtime_guard_fixture(root: Path) -> None:
         'scripts/claude_hooks/policy/file_policy.py',
         '.codex/hooks/pre_write_guard.sh',
         '.qoder/hooks/pre_write_guard.sh',
-        '.codex/hooks/lib/common.sh',
+        'scripts/harness/hook-common.sh',
     ]
     for rel in files:
         src = REPO / rel

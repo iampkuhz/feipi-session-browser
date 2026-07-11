@@ -22,7 +22,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
 from scripts.claude_hooks.hook_io import HookContext  # noqa: E402
-from scripts.harness import agent_stop_check  # noqa: E402
+from scripts.harness import stop_helpers  # noqa: E402
 from scripts.harness.primary_session import (  # noqa: E402
     load_run_record,
     resolve_runtime_root,
@@ -132,20 +132,21 @@ def collect_run_changed_files(repo_root: Path, identity: runtime_paths.RuntimeId
     """
     warnings: list[str] = []
     if identity.has_run and identity.has_session:
-        changed = agent_stop_check.read_identity_changed_files(identity, repo_root=repo_root)
+        changed = []
         if record:
             base = str(record.get('baseCommit') or '')
             if base:
-                changed += _git_paths(repo_root, 'diff', '--name-only', base, '--')
-        changed += agent_stop_check.parse_git_status_paths('\n'.join(_git_paths(repo_root, 'status', '--short')))
-        return _dedupe(changed), 'run', warnings
-    dirty = agent_stop_check.read_git_dirty_files()
-    changed = agent_stop_check.collect_changed_files(
-        identity.raw_session_id if identity.has_session else None,
-        identity.raw_agent_id or None,
-    )
-    warnings.append('legacy-fail-closed mode is not multi-primary safe')
-    return _dedupe(changed + dirty), 'legacy-fail-closed', warnings
+                changed += _git_paths(repo_root, 'diff', '--name-only', f'{base}...HEAD')
+        changed += _git_paths(repo_root, 'diff', '--name-only')
+        changed += _git_paths(repo_root, 'ls-files', '--others', '--exclude-standard')
+        return _dedupe(changed), 'git-run-record', warnings
+    dirty = stop_helpers.read_git_dirty_files(repo_root)
+    if identity.has_session:
+        changed = stop_helpers.read_identity_changed_files(identity, repo_root=repo_root)
+        warnings.append('unbound session Stop uses read-only fail-closed evidence')
+        return _dedupe(changed + dirty), 'unbound-session-fail-closed', warnings
+    warnings.append('unbound Stop without run record; mutation completion cannot be proven')
+    return _dedupe(dirty), 'unbound-fail-closed', warnings
 
 
 @dataclass
@@ -266,8 +267,44 @@ def load_reentry(path: Path) -> dict[str, Any]:
     return data if isinstance(data, dict) else {'continuationCount': 0}
 
 
-# 维护 update_reentry 函数行为。
-def update_reentry(path: Path, failures: list[str]) -> tuple[int, list[str]]:
+# 计算停止流程重入指纹。
+def stop_signature(repo_root: Path, failures: list[str]) -> dict[str, str]:
+    """参数：
+        repo_root: 仓库根目录。
+        failures: 当前失败列表。
+
+    返回：
+        当前提交、脏状态哈希和失败指纹组成的映射。
+    """
+    head = _git_paths(repo_root, 'rev-parse', 'HEAD')
+    dirty_hash = stop_helpers.git_dirty_hash(repo_root)
+    return {
+        'head': head[0] if head else '',
+        'dirtyHash': dirty_hash,
+        'failureFingerprint': fingerprint(failures),
+    }
+
+
+# 判断是否命中相同重入失败。
+def matching_reentry_failure(path: Path, repo_root: Path) -> tuple[bool, dict[str, Any]]:
+    """参数：
+        path: 重入状态文件路径。
+        repo_root: 仓库根目录。
+
+    返回：
+        是否同一失败，以及已读取状态。
+    """
+    state = load_reentry(path)
+    sig = state.get('lastSignature')
+    if not isinstance(sig, dict):
+        return False, state
+    current_head = (_git_paths(repo_root, 'rev-parse', 'HEAD') or [''])[0]
+    current_dirty = stop_helpers.git_dirty_hash(repo_root)
+    return sig.get('head') == current_head and sig.get('dirtyHash') == current_dirty and bool(state.get('lastFailures')), state
+
+
+# 更新停止流程重入状态。
+def update_reentry(path: Path, repo_root: Path, failures: list[str]) -> tuple[int, list[str]]:
     """参数：
         *args: 当前函数使用的输入参数。
 
@@ -275,7 +312,8 @@ def update_reentry(path: Path, failures: list[str]) -> tuple[int, list[str]]:
         当前函数计算或校验结果。
     """
     state = load_reentry(path)
-    fp = fingerprint(failures)
+    sig = stop_signature(repo_root, failures)
+    fp = sig['failureFingerprint']
     count = int(state.get('continuationCount') or 0)
     extra: list[str] = []
     if failures:
@@ -285,10 +323,10 @@ def update_reentry(path: Path, failures: list[str]) -> tuple[int, list[str]]:
             count = 1
         if count > MAX_CONTINUATIONS:
             extra.append('continuation limit reached for identical Stop failure fingerprint')
-        state.update({'continuationCount': count, 'lastFailureFingerprint': fp, 'lastAttemptAt': utc_now()})
+        state.update({'continuationCount': count, 'lastFailureFingerprint': fp, 'lastFailures': failures, 'lastSignature': sig, 'lastAttemptAt': utc_now()})
     else:
         count = 0
-        state.update({'continuationCount': 0, 'lastFailureFingerprint': '', 'lastAttemptAt': utc_now()})
+        state.update({'continuationCount': 0, 'lastFailureFingerprint': '', 'lastFailures': [], 'lastSignature': {}, 'lastAttemptAt': utc_now()})
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
     return count, extra
@@ -336,16 +374,46 @@ def runtime_report_path(repo_root: Path, identity: runtime_paths.RuntimeIdentity
     return quality / change_id / 'runtime-report.json'
 
 
-# 维护 write_runtime_report 函数行为。
-def write_runtime_report(path: Path, *, identity: runtime_paths.RuntimeIdentity, change_id: str, changed_files: list[str], targets: list[str], gates_ok: bool, failures: list[str]) -> None:
+# 读取质量目标产物状态。
+def _target_artifact_status(report_path: Path, target: str) -> str:
     """参数：
-        *args: 当前函数使用的输入参数。
+        report_path: 运行报告路径。
+        target: 质量目标名称。
 
     返回：
-        当前函数计算或校验结果。
+        质量目标产物状态。
     """
-    gate_status = 'PASS' if gates_ok else 'NOT_RUN'
-    blocked = failures if failures else ([] if gates_ok else ['required quality gates did not pass'])
+    artifact = report_path.parent / f'quality-gate-summary.{target}.json'
+    try:
+        data = json.loads(artifact.read_text(encoding='utf-8'))
+    except Exception:
+        return 'NOT_RUN'
+    status = str(data.get('status') or '').upper()
+    return status if status in {'PASS', 'FAIL', 'BLOCKED'} else 'BLOCKED'
+
+
+# 写入不自证通过的运行报告。
+def write_runtime_report(path: Path, *, identity: runtime_paths.RuntimeIdentity, change_id: str, changed_files: list[str], targets: list[str], gates_ok: bool, failures: list[str]) -> None:
+    """参数：
+        path: 运行报告输出路径。
+        identity: 运行时身份对象。
+        change_id: OpenSpec 变更标识。
+        changed_files: 已变更文件列表。
+        targets: 本次触发的质量目标。
+        gates_ok: 必需门禁是否通过。
+        failures: 失败信息列表。
+    """
+    gates = [{'name': target, 'status': _target_artifact_status(path, target)} for target in targets]
+    if targets and gates_ok:
+        for gate in gates:
+            if gate['status'] == 'NOT_RUN':
+                gate['status'] = 'BLOCKED'
+    blocked = list(failures)
+    if targets and not gates_ok and 'run_required_quality_gates.py failed' not in blocked:
+        blocked.append('required quality gates did not pass')
+    if not targets and changed_files:
+        blocked.append('changed files did not map to required quality targets')
+    final_status = 'PASS' if not blocked and (not targets or all(g['status'] == 'PASS' for g in gates)) else 'BLOCKED'
     payload = {
         'schemaVersion': 1,
         'run_id': identity.raw_run_id,
@@ -356,16 +424,16 @@ def write_runtime_report(path: Path, *, identity: runtime_paths.RuntimeIdentity,
         'agent_platform': identity.client,
         'subagents': [],
         'changed_files': changed_files,
-        'expected_outcomes': [{'id': chr(code), 'required': True, 'status': 'PASS'} for code in range(ord('A'), ord('L') + 1)],
-        'effect_checks': [{'id': 'run-scoped-stop', 'status': 'PASS' if not failures else 'FAIL'}],
-        'gate_escape_rate': {'escape_rate': 0, 'threshold': 0},
-        'concurrency_matrix': [{'id': 'run-scoped-quality', 'status': 'PASS' if gates_ok else 'BLOCKED'}],
-        'gates': [{'name': target, 'status': gate_status} for target in targets],
+        'expected_outcomes': [{'id': chr(code), 'required': False, 'status': 'NOT_RUN', 'evidence': 'not a runtime-report self-certified outcome'} for code in range(ord('A'), ord('L') + 1)],
+        'effect_checks': [{'id': 'git-changed-file-truth', 'status': 'PASS' if not failures else 'FAIL'}],
+        'gate_escape_rate': {'status': 'NOT_RUN', 'threshold': 0, 'escape_rate': None},
+        'concurrency_matrix': [{'id': 'run-scoped-quality', 'status': 'PASS' if not failures else 'BLOCKED'}],
+        'gates': gates,
         'skipped_count': 0,
         'blocked_items': blocked,
         'risks': [],
         'notes': ['run-scoped runtime report generated by scripts/harness/stop_entry.py'],
-        'status': 'PASS' if gates_ok and not failures else 'BLOCKED',
+        'status': final_status,
     }
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
@@ -405,7 +473,7 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
         当前函数计算或校验结果。
     """
     repo_root = _repo_root(raw_ctx)
-    agent_stop_check._use_repo_root(repo_root)
+    stop_helpers._use_repo_root(repo_root)
     ctx = HookContext('Stop', raw_ctx)
     identity = runtime_paths.identity_from_hook_context(ctx, agent_client=agent)
     record = load_run_record(repo_root, identity.raw_run_id) if identity.has_run else None
@@ -423,8 +491,8 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
             failures.append('Stop cwd does not match run worktreeRoot')
     changed_files, evidence_mode, evidence_warnings = collect_run_changed_files(repo_root, identity, record)
     warnings.extend(evidence_warnings)
-    change_id = identity.change_id or (str(record.get('changeId')) if record else '') or agent_stop_check.resolve_change_id(identity)
-    targets = agent_stop_check.required_targets(changed_files)
+    change_id = identity.change_id or (str(record.get('changeId')) if record else '') or stop_helpers.resolve_change_id(identity)
+    targets = stop_helpers.required_targets(changed_files)
     read_only = not changed_files
     run_dir = runtime_paths.run_root_dir(repo_root, identity) if identity.has_session else repo_root / 'tmp' / 'agent_logs' / 'legacy' / agent / (identity.raw_session_id or 'unknown')
     reentry_path = run_dir / 'stop-reentry.json'
@@ -435,10 +503,28 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
     gates_ok = True
     runtime_ok = True
     lock_status = 'not-needed'
+    circuit_final = False
+    reused_failures: list[str] | None = None
+    same_failure, reentry_state = matching_reentry_failure(reentry_path, repo_root)
+    if same_failure:
+        previous = [str(item) for item in reentry_state.get('lastFailures', [])]
+        count = int(reentry_state.get('continuationCount') or 0) + 1
+        reentry_state['continuationCount'] = count
+        reentry_state['lastAttemptAt'] = utc_now()
+        reentry_path.parent.mkdir(parents=True, exist_ok=True)
+        reentry_path.write_text(json.dumps(reentry_state, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
+        if count > MAX_CONTINUATIONS:
+            circuit_final = True
+            previous = previous + ['continuation limit reached for identical HEAD + dirtyHash + failure fingerprint']
+        reused_failures = previous
     try:
         if ctx.stop_hook_active:
             warnings.append('stop_hook_active reentry observed; not blocking solely on reentry')
-        if not read_only:
+        if reused_failures is not None:
+            failures.extend(reused_failures)
+            gates_ok = False
+            warnings.append('reused persistent Stop failure; heavy gates were not rerun')
+        elif not read_only:
             stop_lock = FileLock(run_dir / 'stop-check.lock', {'kind': 'stop', 'runId': identity.raw_run_id, 'client': identity.client})
             locks.append(stop_lock)
             if not stop_lock.acquire():
@@ -446,7 +532,7 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
             # 目标级独占资源由 run_required_quality_gates.py 获取。
             # Stop 入口提前持有同名资源会让子 runner 自阻塞。
             lock_status = 'acquired' if not failures else 'blocked'
-            if agent_stop_check.changed_files_require_openspec(changed_files):
+            if stop_helpers.changed_files_require_openspec(changed_files):
                 if not change_id or change_id == 'unknown':
                     failures.append('active change is missing for protected changes')
                 else:
@@ -457,15 +543,10 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
                 quality_out = runtime_paths.quality_dir(repo_root, identity) if identity.has_session else repo_root / 'tmp' / 'quality'
                 out_arg = str(quality_out.relative_to(repo_root)) if quality_out.is_absolute() else str(quality_out)
                 env = os.environ.copy()
-                env.update({
-                    'FEIPI_AGENT_CLIENT': identity.client,
-                    'FEIPI_SESSION_ID': identity.raw_session_id,
-                    'FEIPI_AGENT_ID': identity.raw_agent_id,
-                    'FEIPI_RUN_ID': identity.raw_run_id,
-                    'FEIPI_TASK_ID': identity.raw_task_id,
-                    'FEIPI_WORKTREE_ID': identity.raw_worktree_id,
-                    'ACTIVE_CHANGE_ID': change_id,
-                })
+                for key in list(env):
+                    if key.startswith('FEIPI_') and key != 'FEIPI_AGENT_RUNTIME_ROOT':
+                        env.pop(key, None)
+                env['ACTIVE_CHANGE_ID'] = change_id
                 gates_ok = run_cmd('required-quality-gates', [sys.executable, 'scripts/quality/run_required_quality_gates.py', '--include-session-detail', '--change-id', change_id, '--out', out_arg, '--changed-files', json.dumps(changed_files, ensure_ascii=False)], repo_root, env)
                 if not gates_ok:
                     failures.append('run_required_quality_gates.py failed')
@@ -489,8 +570,11 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
     finally:
         for lock in reversed(locks):
             lock.release()
-        continuation_count, reentry_failures = update_reentry(reentry_path, failures)
-        failures.extend(reentry_failures)
+        if reused_failures is None:
+            continuation_count, reentry_failures = update_reentry(reentry_path, repo_root, failures)
+            failures.extend(reentry_failures)
+        else:
+            continuation_count = int(load_reentry(reentry_path).get('continuationCount') or 0)
         status = 'PASS' if not failures and runtime_ok else 'BLOCKED'
         summary = {
             'schemaVersion': 4,
@@ -519,7 +603,7 @@ def run_stop(agent: str, raw_ctx: dict[str, Any]) -> int:
     if failures:
         for failure in failures:
             print(f'[stop_entry] BLOCK {failure}', file=sys.stderr)
-        return 2
+        return 0 if circuit_final else 2
     print('[stop_entry] PASS', file=sys.stderr)
     return 0
 

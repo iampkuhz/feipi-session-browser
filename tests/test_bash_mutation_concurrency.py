@@ -251,7 +251,7 @@ def test_missing_snapshot_records_attribution_gap(
     monkeypatch.setattr(stop_check, 'AGENT_LOG_BASE', repo / 'tmp' / 'agent_logs')
     monkeypatch.setattr(stop_check, 'STOP_LOCK', repo / 'tmp' / 'agent_logs' / 'stop-check' / 'legacy.lock')
     monkeypatch.setenv('ACTIVE_CHANGE_ID', 'harden-agent-runtime-full-v3')
-    monkeypatch.setattr(sys, 'argv', ['agent_stop_check.py', '--agent', 'claude', '--agent-id', 'gap-agent'])
+    monkeypatch.setattr(sys, 'argv', ['stop_entry.py', '--agent', 'claude', '--agent-id', 'gap-agent'])
     monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps({'session_id': 'gap-session'})))
 
     code = stop_check.main()

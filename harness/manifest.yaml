@@ -9,7 +9,7 @@ runtime:
   shared_stop_entry: scripts/harness/stop_entry.py
   python_package: scripts/claude_hooks
   log_dir: tmp/agent_logs/
-  primary_session_manifest: harness/primary-session.manifest.yaml
+  runtime_manifest: harness/agent-runtime.manifest.yaml
   resource_lock_manager: scripts/harness/resource_lock.py
   port_allocator: scripts/harness/port_allocator.py
   runtime_root: FEIPI_AGENT_RUNTIME_ROOT or git-common-dir/feipi-agent-runtime

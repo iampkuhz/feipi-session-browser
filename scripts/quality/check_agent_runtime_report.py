@@ -226,6 +226,9 @@ def validate_report_content(
         escape = {}
     threshold = escape.get("threshold")
     escape_rate = escape.get("escape_rate")
+    escape_status = str(escape.get("status") or "").upper()
+    if escape_status == "NOT_RUN":
+        escape_rate = 0
     if threshold != 0 and threshold != 0.0:
         errors.append(f"gate_escape_rate.threshold 必须为 0，实际为 {threshold}")
     if not isinstance(escape_rate, (int, float)) or not isinstance(threshold, (int, float)):

@@ -88,7 +88,7 @@ def test_qoder_project_hook_matrix_is_complete():
 
 
 def test_qoder_hook_wrappers_delegate_to_shared_entrypoints():
-    """Qoder wrapper 只设置 client 标识并 exec 共享 Python 入口。"""
+    """Qoder wrapper 只设置 client 标识并委托共享 hook common。"""
     qoder_hooks = REPO_ROOT / '.qoder' / 'hooks'
     for name, event in {
         'pre_tool_guard.sh': 'pre-bash',
@@ -100,16 +100,15 @@ def test_qoder_hook_wrappers_delegate_to_shared_entrypoints():
         'session_end.sh': 'session-end',
     }.items():
         text = (qoder_hooks / name).read_text(encoding='utf-8')
-        assert 'FEIPI_AGENT_CLIENT="qoder"' in text
-        assert f'scripts.claude_hooks.main {event}' in text
-        assert 'exec python3' in text
+        assert 'scripts/harness/hook-common.sh' in text
+        assert f'run_python_hook qoder {event} "$ROOT"' in text
 
     stop = (qoder_hooks / 'stop_check.sh').read_text(encoding='utf-8')
     assert 'scripts/harness/stop_entry.py' in stop
     assert '--agent qoder' in stop
 
 
-def test_all_stop_wrappers_use_shared_agent_stop_check():
+def test_all_stop_wrappers_use_shared_stop_entry():
     """三类 agent 的 Stop wrapper 都必须委托 shared harness stop runner。"""
     wrappers = {
         '.claude/hooks/stop.sh': '--agent claude',
@@ -120,7 +119,7 @@ def test_all_stop_wrappers_use_shared_agent_stop_check():
     for rel_path, agent_arg in wrappers.items():
         text = (REPO_ROOT / rel_path).read_text(encoding='utf-8')
         assert (
-            'scripts/harness/agent_stop_check.py' in text
+            'scripts/harness/stop_entry.py' in text
             or 'scripts/harness/stop_entry.py' in text
         ), rel_path
         assert agent_arg in text, rel_path

@@ -229,6 +229,7 @@ GATE_PATTERNS: dict[str, dict[str, list[str]]] = {
             '.qoder/hooks/**/*.sh',
             'scripts/hooks/**/*.sh',
             'scripts/agent_hooks/**/*.sh',
+            'scripts/harness/**/*.sh',
         ],
         'scriptCommentLanguage': [
             '.claude/hooks/**/*.sh',

@@ -66,7 +66,7 @@ check_file .claude/hooks/post-write.sh
 check_file .claude/hooks/tool-failure.sh
 check_file .claude/hooks/subagent-stop.sh
 check_file .claude/hooks/config-change.sh
-check_file .claude/hooks/lib/common.sh
+check_file scripts/harness/hook-common.sh
 check_file .codex/hooks/pre_tool_guard.sh
 check_file .codex/hooks/pre_write_guard.sh
 check_file .codex/hooks/post_bash_guard.sh
@@ -79,7 +79,8 @@ check_file .qoder/hooks/post_tool_guard.sh
 check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
 check_file harness/agent-runtime.md
-check_file scripts/harness/agent_stop_check.py
+check_file scripts/harness/stop_entry.py
+check_file scripts/harness/stop_helpers.py
 check_file scripts/quality/check_agent_runtime_worktree.py
 check_dir tests
 check_dir scripts/claude_hooks

@@ -22,7 +22,7 @@ from scripts.claude_hooks.paths import (  # noqa: E402
     identity_from_values,
     quality_dir,
 )
-from scripts.harness.agent_stop_check import (  # noqa: E402
+from scripts.harness.stop_helpers import (  # noqa: E402
     _read_active_change_id,
     collect_stop_changed_files,
 )
@@ -195,6 +195,7 @@ def _check_quality_and_active_change_paths(tmp_root: Path, errors: list[str]) ->
     expected_candidates = [
         tmp_root / 'tmp/agent_logs/qoder/session-a/agents/worker-1/active_change.json',
         tmp_root / 'tmp/agent_logs/qoder/session-a/main/active_change.json',
+        tmp_root / 'openspec/active_change.json',
     ]
     _expect(
         paths.active_change_candidates == expected_candidates,
@@ -220,12 +221,12 @@ def _check_quality_and_active_change_paths(tmp_root: Path, errors: list[str]) ->
     legacy_identity = identity_from_values('qoder', '', '')
     _expect(
         build_paths(tmp_root, identity=session_identity).active_change_candidates
-        == [tmp_root / 'tmp/agent_logs/qoder/session-a/main/active_change.json'],
+        == [tmp_root / 'tmp/agent_logs/qoder/session-a/main/active_change.json', tmp_root / 'openspec/active_change.json'],
         'session identity unexpectedly uses legacy active change path',
         errors,
     )
     _expect(
-        build_paths(tmp_root, identity=legacy_identity).active_change_candidates == [legacy],
+        build_paths(tmp_root, identity=legacy_identity).active_change_candidates == [tmp_root / 'openspec/active_change.json', legacy],
         'legacy identity does not use tmp/active_change.json',
         errors,
     )

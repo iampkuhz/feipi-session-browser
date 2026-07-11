@@ -28,7 +28,7 @@
 
 ## Stop 门禁
 
-- 三类 agent 的 Stop 入口都应调用 `scripts/harness/agent_stop_check.py`。
+- 三类 agent 的 Stop 入口都应调用 `scripts/harness/stop_entry.py`。
 - Stop 门禁在 hook stdin 提供 `session_id` / `agent_id` 时，必须只按 `tmp/agent_logs/<client>/<session-id>/main/` 或 `tmp/agent_logs/<client>/<session-id>/agents/<agent-id>/` 下的当前 identity evidence 判断 read-only；不得因其他并发 agent 的 dirty worktree 触发当前只读 session 的门禁。
 - Stop hook 无法识别当前 session 时必须 fail-closed，继续读取 session base commit 以来的 git diff 和 untracked paths，避免未归因修改绕过 target 路由。
 - `changed-files.jsonl` 用于捕获 Write/Edit/MultiEdit/NotebookEdit 和 Bash mutation evidence；Bash evidence 由 PreToolUse 快照与 PostToolUse/Failure 对比产生。
@@ -45,7 +45,7 @@
 
 - primary session parallelism 指多个主 agent session（例如 Qoder task A + Codex task B）各自拥有 `client/session_id/runId/worktree/branch`，可以并行推进不同任务。
 - subagent multi-agent 只是主 session 内的委派；subagent 继承父 `runId`，不能创建新的 primary writer lease。
-- read-only direct launch 未经 `sessionctl` 绑定，只允许只读查询；写入受 hook 阻断，对应 runtime capability 为 `legacy-single-writer` 或 `read-only-ready`，不得描述成 writable。
+- read-only direct launch 未经 `sessionctl` 绑定，只允许只读查询；写入受 hook 阻断，对应 runtime capability 为 `read-only-ready` 或 `blocked`，不得描述成 writable。
 - writable launch 必须通过 `python3 scripts/harness/sessionctl.py create/start/bind-session`，bind 后写入 hook activation marker，确认 config hash、session id、worktree root、branch 和 base commit。
 - worktree/branch ownership 由 run record 和 writer lease 表达；同 worktree、同 branch 或写范围重叠的 active writer 会被 doctor 判为 `blocked`。
 - hook trust/activation 依赖 checked-in wrapper、Git-root stable command、activation marker、marker TTL 和当前 config hash；删除 marker 或改坏 config path 必须阻断。
@@ -59,7 +59,7 @@ Runtime doctor 输出 capability，而不是笼统 PASS：
 writable-ready       # writable run 已绑定 session、hook marker 未过期且 config hash 匹配
 read-only-ready      # read-only run 合法但没有 writer lease
 blocked              # run record、worktree、writer lease、activation marker 或配置不满足 contract
-legacy-single-writer # 没有 sessionctl run record 的直接启动/旧模式，只能按只读或单写遗留模式处理
+read-only-ready      # 没有 sessionctl run record 的直接启动只能只读；写入阻断
 ```
 
 本地目标 UX 示例（不启动真实客户端）：

@@ -257,6 +257,62 @@ def _artifact_is_required_pass(artifact_path: str) -> tuple[bool, str]:
     return False, status or 'missing-status'
 
 
+# 计算质量目标级产物缓存键。
+def _gate_cache_key(target: str, changed_files: list[str] | None) -> str:
+    """参数：
+        target: 质量目标名称。
+        changed_files: 已变更文件上下文。
+
+    返回：
+        当前质量目标输入组合的缓存键。
+    """
+    import hashlib
+
+    base = ''
+    head = ''
+    try:
+        base = subprocess.check_output(['git', '-C', str(REPO_ROOT), 'merge-base', 'HEAD', 'HEAD'], text=True).strip()
+        head = subprocess.check_output(['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+    except Exception:
+        pass
+    raw = json.dumps(
+        {
+            'target': target,
+            'changedFiles': changed_files or [],
+            'base': base,
+            'head': head,
+            'dirty': changed_file_utils.read_git_dirty_state(REPO_ROOT),
+            'gateVersion': 'quality_targets:v1',
+            'env': {
+                'python': sys.version.split()[0],
+                'javaHome': os.environ.get('JAVA_HOME', ''),
+            },
+        },
+        ensure_ascii=False,
+        sort_keys=True,
+    )
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+# 判断既有 artifact 是否可作为 PASS cache 复用。
+def _cached_pass(artifact_path: str, cache_key: str) -> bool:
+    """参数：
+        artifact_path: 质量汇总产物路径。
+        cache_key: 当前输入组合缓存键。
+
+    返回：
+        产物对应相同缓存键且状态为 PASS 时返回 True。
+    """
+    path = Path(artifact_path)
+    if not path.exists():
+        return False
+    try:
+        data = json.loads(path.read_text(encoding='utf-8'))
+    except Exception:
+        return False
+    return data.get('status') == 'PASS' and data.get('artifacts', {}).get('cacheKey') == cache_key
+
+
 # 维护compute tier 必需 targets。
 def compute_tier_required_targets(tier: str, changed_files: list[str]) -> list[str]:
     """参数：
@@ -318,9 +374,14 @@ def run_gate(
         out_arg = str(out_dir)
     cmd.extend(['--out', out_arg])
     artifact_path = str(out_dir / change_id / f'quality-gate-summary.{target}.json')
+    cache_key = _gate_cache_key(target, changed_files)
+    if _cached_pass(artifact_path, cache_key):
+        print(f'[required-runner] cache PASS target={target}', file=sys.stderr)
+        return True, artifact_path
 
     if changed_files is not None:
         cmd.extend(['--changed-files', json.dumps(changed_files, ensure_ascii=False)])
+    cmd.extend(['--cache-key', cache_key])
 
     try:
         env = os.environ.copy()
@@ -402,7 +463,7 @@ def _run_quick_tier(
     not_triggered_gates: set[str] = set(QUICK_GATES)
 
     for target in targets:
-        target_gates = qt.required_gates_for_target(target)
+        target_gates = qt.applicable_gates_for_target(target, changed_files)
         for gate in target_gates:
             if gate not in QUICK_GATES:
                 continue
@@ -585,8 +646,7 @@ def main() -> int:
         '--changed-files',
         default=None,
         help=(
-            'JSON array of changed file paths used only to select quality targets. '
-            'Target gates always run the full baseline.'
+            'JSON array of changed file paths used to select quality targets and applicable required gates.'
         ),
     )
     parser.add_argument(
@@ -750,7 +810,8 @@ def main() -> int:
                         f'resource={result.resource} waited={result.waitedSeconds:.3f}s',
                         file=sys.stderr,
                     )
-                passed, artifact_path = run_gate(target, change_id, quality_dir, changed_files)
+                gate_changed_files = None if tier == 'full' else changed_files
+                passed, artifact_path = run_gate(target, change_id, quality_dir, gate_changed_files)
         except resource_lock.ResourceLockTimeout as exc:
             print(
                 f'[{tier}-tier] BLOCKED target={target} resource={exc.resource} '

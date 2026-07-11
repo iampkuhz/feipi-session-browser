@@ -141,7 +141,7 @@ def test_sessionctl_doctor_reports_read_only_and_legacy_capabilities(tmp_path: P
     env = {"FEIPI_AGENT_RUNTIME_ROOT": str(runtime_root)}
 
     legacy = json.loads(ctl(repo, "doctor", env=env).stdout)
-    assert legacy["capability"] == "legacy-single-writer"
+    assert legacy["capability"] == "read-only-ready"
 
     readonly = json.loads(
         ctl(

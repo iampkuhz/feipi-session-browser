@@ -15,8 +15,6 @@ import java.util.List;
  *   <li>每个 component 在 Javadoc 中有同名 {@code @param}。
  *   <li>{@code @param} 描述包含中文。
  * </ul>
- *
- * <p>迁移自 {@code scripts/quality/check_java_record_component_javadocs.py}。
  */
 public final class RecordComponentJavadocGate implements QualityGate {
 

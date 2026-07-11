@@ -16,7 +16,7 @@ except Exception:  # pragma: no cover - validator reports this as an environment
 
 
 RUNTIME_DIR_NAME = "feipi-agent-runtime"
-MANIFEST_PATH = Path("harness/primary-session.manifest.yaml")
+MANIFEST_PATH = Path("harness/agent-runtime.manifest.yaml")
 
 REQUIRED_RUN_FIELDS = [
     "schemaVersion",
@@ -27,7 +27,10 @@ REQUIRED_RUN_FIELDS = [
     "worktreeId",
     "worktreeRoot",
     "branch",
+    "targetBranch",
+    "primaryRepoRoot",
     "baseCommit",
+    "headCommit",
     "changeId",
     "mode",
     "status",
@@ -43,31 +46,35 @@ REQUIRED_RUN_FIELDS = [
 
 RUN_MODES = {"read-only", "writable"}
 RUN_STATUSES = {
-    "created",
-    "starting",
-    "running",
-    "validating",
-    "blocked",
-    "completed",
-    "handed-off",
-    "cleaning",
-    "cleaned",
-    "failed",
+    "CREATED",
+    "STARTING",
+    "RUNNING",
+    "VALIDATING",
+    "VALIDATED",
+    "COMMITTED",
+    "INTEGRATING",
+    "INTEGRATED",
+    "CLEANED",
+    "BLOCKED",
+    "HANDOFF_REQUIRED",
+    "FAILED",
 }
-TERMINAL_STATUSES = {"completed", "cleaned", "failed"}
-ACTIVE_WRITER_STATUSES = RUN_STATUSES - TERMINAL_STATUSES - {"cleaning"}
-WRITABLE_READY_STATUSES = {"running", "validating", "completed", "handed-off"}
+TERMINAL_STATUSES = {"INTEGRATED", "CLEANED", "FAILED", "HANDOFF_REQUIRED"}
+ACTIVE_WRITER_STATUSES = RUN_STATUSES - TERMINAL_STATUSES - {"BLOCKED"}
+WRITABLE_READY_STATUSES = {"RUNNING", "VALIDATING", "VALIDATED", "COMMITTED"}
 ALLOWED_TRANSITIONS = {
-    "created": {"starting", "running", "blocked", "failed"},
-    "starting": {"running", "blocked", "failed"},
-    "running": {"validating", "blocked", "completed", "handed-off", "failed"},
-    "validating": {"running", "blocked", "completed", "failed"},
-    "blocked": {"starting", "running", "failed", "handed-off"},
-    "completed": {"cleaning", "handed-off"},
-    "handed-off": {"starting", "running", "cleaning", "failed"},
-    "cleaning": {"cleaned", "failed"},
-    "cleaned": set(),
-    "failed": {"cleaning"},
+    "CREATED": {"STARTING", "RUNNING", "BLOCKED", "FAILED"},
+    "STARTING": {"RUNNING", "BLOCKED", "FAILED"},
+    "RUNNING": {"VALIDATING", "BLOCKED", "FAILED"},
+    "VALIDATING": {"RUNNING", "VALIDATED", "BLOCKED", "FAILED"},
+    "VALIDATED": {"COMMITTED", "INTEGRATING", "BLOCKED", "HANDOFF_REQUIRED", "FAILED"},
+    "COMMITTED": {"INTEGRATING", "HANDOFF_REQUIRED", "FAILED"},
+    "INTEGRATING": {"INTEGRATED", "HANDOFF_REQUIRED", "FAILED"},
+    "INTEGRATED": {"CLEANED"},
+    "BLOCKED": {"STARTING", "RUNNING", "VALIDATING", "HANDOFF_REQUIRED", "FAILED"},
+    "HANDOFF_REQUIRED": {"STARTING", "RUNNING", "FAILED", "CLEANED"},
+    "FAILED": {"CLEANED"},
+    "CLEANED": set(),
 }
 
 
@@ -299,7 +306,7 @@ def validate_run_record(record: dict[str, Any]) -> None:
     _path_set(record["forbiddenPaths"])
 
     if record["mode"] == "writable":
-        if not str(record.get("sessionId", "")).strip() and record["status"] not in {"created", "starting", "blocked"}:
+        if not str(record.get("sessionId", "")).strip() and record["status"] not in {"CREATED", "STARTING", "BLOCKED"}:
             raise PrimarySessionValidationError("writable run without sessionId may only perform startup handshake")
         writer_lease = record.get("writerLease")
         if not isinstance(writer_lease, dict):
@@ -363,8 +370,8 @@ def validate_manifest(data: dict[str, Any]) -> None:
     返回：
         无返回值。
     """
-    if data.get("schemaVersion") != 1:
-        raise PrimarySessionValidationError("schemaVersion must be 1")
+    if data.get("schemaVersion", data.get("version")) != 1:
+        raise PrimarySessionValidationError("schemaVersion/version must be 1")
     primary = data.get("primary_sessions")
     if not isinstance(primary, dict):
         raise PrimarySessionValidationError("missing primary_sessions mapping")
@@ -412,11 +419,10 @@ def validate_manifest_file(path: Path) -> None:
     """
     validate_manifest(load_yaml(path))
 
-RUN_WRITE_OK_STATUSES = {"running", "validating", "handed-off"}
+RUN_WRITE_OK_STATUSES = {"RUNNING", "VALIDATING", "VALIDATED", "COMMITTED"}
 PRIMARY_SESSION_MODES = {
     "managed-worktree",
     "read-only-unbound",
-    "legacy-single-writer",
     "blocked",
 }
 
@@ -513,21 +519,6 @@ def active_writable_runs(repo_root: Path) -> list[dict[str, Any]]:
         if record.get("mode") == "writable" and record.get("status") in ACTIVE_WRITER_STATUSES:
             records.append(record)
     return records
-
-
-# 校验显式 legacy-single-writer 模式是否可写。
-def validate_legacy_single_writer(repo_root: Path) -> tuple[bool, list[str]]:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        是否允许 legacy 写入，以及阻断原因列表。
-    """
-    active = active_writable_runs(repo_root)
-    if active:
-        run_ids = ", ".join(str(item.get("runId")) for item in active)
-        return False, [f"legacy-single-writer blocked by active managed writable run(s): {run_ids}"]
-    return True, []
 
 
 # 读取当前 git 分支名称。

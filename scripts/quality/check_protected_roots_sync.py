@@ -137,17 +137,17 @@ def check_stop_check_uses_helper(roots: list[str]) -> list[str]:
     返回：
         当前函数计算或校验结果。
     """
-    text = _read('scripts/harness/agent_stop_check.py')
+    text = _read('scripts/harness/stop_helpers.py')
     errors: list[str] = []
-    if 'runtime_policy.protected_roots' not in text or 'runtime_policy.is_protected_path' not in text:
+    if 'runtime_policy.is_protected_path' not in text:
         literal = _literal_protected_roots_assignment(text)
         if literal is None:
-            errors.append('agent_stop_check.py 未使用 runtime policy helper 读取 protected roots')
+            errors.append('stop_helpers.py 未使用 runtime policy helper 读取 protected roots')
         elif literal != roots:
-            errors.append('agent_stop_check.py PROTECTED_ROOTS 与 manifest 不一致')
+            errors.append('stop_helpers.py PROTECTED_ROOTS 与 manifest 不一致')
     for sentinel in OMISSION_SENTINELS:
         if sentinel not in roots:
-            errors.append(f'agent_stop_check.py sync sentinel would miss: {sentinel}')
+            errors.append(f'stop_helpers.py sync sentinel would miss: {sentinel}')
     return errors
 
 

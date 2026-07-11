@@ -2705,7 +2705,7 @@ method com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder 
 method com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder public QualityGateRegistry build()
 method com.feipi.session.browser.quality.gates.core.ViolationReporter public static String formatJson(List<QualityViolation> violations)
 method com.feipi.session.browser.quality.gates.core.ViolationReporter public static String formatText(List<QualityViolation> violations)
-method com.feipi.session.browser.quality.gates.core.ViolationReporter public static void writeReport( List<QualityViolation> violations, Path reportFile, String format) throws IOException
+method com.feipi.session.browser.quality.gates.core.ViolationReporter public static void writeReport(List<QualityViolation> violations, Path reportFile, String format) throws IOException
 method com.feipi.session.browser.quality.gates.discovery.ChangedFilesFilter public static List<Path> filter(List<Path> files, String changedJson, Path repoRoot)
 method com.feipi.session.browser.quality.gates.discovery.ChangedFilesFilter public static String readFilesFrom(Path filesFrom)
 method com.feipi.session.browser.quality.gates.discovery.FileDiscovery public static List<Path> discover(List<Path> inputPaths) throws IOException

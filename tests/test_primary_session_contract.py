@@ -40,10 +40,13 @@ def _record(**overrides):
         "worktreeId": "worktree-a",
         "worktreeRoot": "/tmp/worktree-a",
         "branch": "agent/task-a",
+        "targetBranch": "main_java",
+        "primaryRepoRoot": "/tmp/primary",
         "baseCommit": "0" * 40,
-        "changeId": "support-parallel-primary-sessions",
+        "headCommit": "0" * 40,
+        "changeId": "converge-agent-hook-runtime",
         "mode": "writable",
-        "status": "running",
+        "status": "RUNNING",
         "allowedPaths": ["harness"],
         "forbiddenPaths": [".env", ".mcp.json"],
         "resourceAllocations": {"ports": [], "paths": []},
@@ -58,7 +61,7 @@ def _record(**overrides):
 
 
 def test_primary_session_manifest_is_machine_readable():
-    validate_manifest_file(Path("harness/primary-session.manifest.yaml"))
+    validate_manifest_file(Path("harness/agent-runtime.manifest.yaml"))
 
 
 def test_run_record_requires_all_contract_fields():
@@ -69,12 +72,12 @@ def test_run_record_requires_all_contract_fields():
 
 
 def test_bind_session_transition_from_created_to_running_is_allowed():
-    validate_status_transition("created", "running")
+    validate_status_transition("CREATED", "RUNNING")
 
 
 def test_illegal_status_transition_is_rejected():
     with pytest.raises(PrimarySessionValidationError, match="illegal status transition"):
-        validate_status_transition("created", "completed")
+        validate_status_transition("CREATED", "CLEANED")
 
 
 def test_same_worktree_second_writer_is_rejected():
@@ -149,5 +152,5 @@ def test_runtime_root_shared_by_linked_worktree(tmp_path, monkeypatch):
     repo = _git_repo(tmp_path)
     monkeypatch.delenv("FEIPI_AGENT_RUNTIME_ROOT", raising=False)
     worktree = tmp_path / "linked-worktree"
-    _run(["git", "worktree", "add", "--detach", str(worktree), "HEAD"], repo)
+    _run(["git", "worktree", "add", "-b", "linked-runtime-root-test", str(worktree), "HEAD"], repo)
     assert resolve_runtime_root(worktree) == resolve_runtime_root(repo)

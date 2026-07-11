@@ -16,7 +16,7 @@
 
 ## 当前执行链
 
-1. agent 入口调用 `scripts/harness/agent_stop_check.py`。
+1. agent 入口调用 `scripts/harness/stop_entry.py`。
 2. Stop 门禁有 session identity 时只读取该 identity 的 `changed-files.jsonl`；缺失 identity 时才用 `git status --short --untracked-files=all` fail-closed。
 3. `scripts/claude_hooks/classify.py` 将路径映射到 quality target。
 4. `scripts/quality/run_required_quality_gates.py` 运行需要的 target。

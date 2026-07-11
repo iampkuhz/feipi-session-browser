@@ -8,7 +8,7 @@ from types import SimpleNamespace
 from typing import NoReturn
 
 import pytest
-from scripts.quality import run_quality_gate, run_required_quality_gates, stop_check_targets
+from scripts.quality import run_quality_gate, run_required_quality_gates
 from scripts.quality.quality_artifact import (
     BLOCKED,
     FAIL,
@@ -293,12 +293,12 @@ class TestQualityGateRuntime:
             '.claude/hooks/stop.sh',
             '.claude/hooks/subagent-stop.sh',
             '.claude/hooks/config-change.sh',
-            '.claude/hooks/lib/common.sh',
+            'scripts/harness/hook-common.sh',
             '.codex/hooks/pre_tool_guard.sh',
             '.codex/hooks/post_bash_guard.sh',
             '.codex/hooks/post_tool_guard.sh',
             '.codex/hooks/stop_check.sh',
-            '.codex/hooks/lib/common.sh',
+            'scripts/harness/hook-common.sh',
             '.qoder/hooks/pre_tool_guard.sh',
             '.qoder/hooks/post_bash_guard.sh',
             '.qoder/hooks/post_tool_guard.sh',
@@ -703,15 +703,23 @@ class TestQualityGateRuntime:
         assert 'missing jinja2' in details[0].output
 
     @pytest.mark.contract_case('HARNESS-GATE-PRUNE-001')
-    def test_selected_target_runs_full_baseline_with_changed_files(
+    def test_selected_target_prunes_gates_with_changed_files(
         self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
     ):
-        """changed-files 只传给子 gate，不裁剪已选 target 的 required baseline。"""
-        gates = ['javaCheck', 'noJavaTestSkips']
+        """changed-files 传给子 gate，同时按 applicable gate 触发裁剪。"""
+        baseline_gates = ['javaCheck', 'javaRecordComponentJavadocs', 'noJavaTestSkips']
+        triggered_gates = ['javaCheck', 'javaRecordComponentJavadocs']
         seen: list[str] = []
         env_by_gate: dict[str, dict[str, str]] = {}
         timeout_by_gate: dict[str, int | None] = {}
-        monkeypatch.setattr(run_quality_gate, 'required_gates_for_target', lambda target: gates)
+        monkeypatch.setattr(
+            run_quality_gate, 'required_gates_for_target', lambda target: baseline_gates
+        )
+        monkeypatch.setattr(
+            run_quality_gate,
+            'applicable_gates_for_target',
+            lambda target, changed: triggered_gates,
+        )
         monkeypatch.setattr(
             run_quality_gate,
             'gate_command',
@@ -740,10 +748,10 @@ class TestQualityGateRuntime:
             ['java/core-domain/src/main/java/com/feipi/session/browser/core/SessionIdentity.java'],
         )
 
-        assert [detail.name for detail in details] == gates
-        assert seen == gates
-        assert timeout_by_gate == {'javaCheck': 1200, 'noJavaTestSkips': 1200}
-        assert json.loads(env_by_gate['noJavaTestSkips']['QUALITY_CHANGED_FILES']) == [
+        assert [detail.name for detail in details] == triggered_gates
+        assert seen == triggered_gates
+        assert timeout_by_gate == {'javaCheck': 1200, 'javaRecordComponentJavadocs': 1200}
+        assert json.loads(env_by_gate['javaRecordComponentJavadocs']['QUALITY_CHANGED_FILES']) == [
             'java/core-domain/src/main/java/com/feipi/session/browser/core/SessionIdentity.java'
         ]
 
@@ -807,24 +815,20 @@ class TestJavaChineseCommentsGateCommand:
 
 
 class TestJavaRecordComponentJavadocsGateCommand:
-    """javaRecordComponentJavadocs gate 必须使用仓库内脚本。"""
+    """javaRecordComponentJavadocs gate 必须使用 Java Gradle task。"""
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_uses_repo_checker(self, tmp_path: Path):
-        """gate 命令指向 record component Javadoc 检查脚本。"""
-        checker = tmp_path / 'scripts' / 'quality' / 'check_java_record_component_javadocs.py'
-        checker.parent.mkdir(parents=True)
-        checker.write_text('# mock', encoding='utf-8')
+    def test_gate_command_uses_java_gradle_task(self, tmp_path: Path):
+        gradlew = tmp_path / 'gradlew'
+        gradlew.write_text('#!/usr/bin/env sh\n', encoding='utf-8')
+        gradlew.chmod(0o755)
 
         cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
 
-        assert cmd, '仓库内脚本存在时命令不应为空'
-        assert any('check_java_record_component_javadocs.py' in str(c) for c in cmd)
-        assert 'java' in cmd
+        assert cmd == [str(gradlew), ':java:tests:quality-gates:verifyJavaRecordComponentJavadocs']
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_blocked_when_checker_absent(self, tmp_path: Path):
-        """检查脚本不存在时返回空列表，由 run_cmd 报告 BLOCKED。"""
+    def test_gate_blocked_when_gradle_absent(self, tmp_path: Path):
         cmd = run_quality_gate.gate_command('javaRecordComponentJavadocs', tmp_path, 'java-src')
         assert cmd == []
 
@@ -947,29 +951,40 @@ class TestNoJavaTestSkipsGateCommand:
 
     @pytest.mark.contract_case('JR-020-005')
     def test_java_check_uses_gradlew_check_without_historical_checkstyle(self, tmp_path: Path):
-        """javaCheck 使用 Gradle check，但不被历史 Checkstyle Javadoc 债务阻断。"""
+        """javaCheck 使用单次 Gradle check，并启用本地并行与 build cache。"""
         gradlew = tmp_path / 'gradlew'
         gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('javaCheck', tmp_path, 'java-src')
 
-        assert cmd[:2] == ['bash', '-c']
-        assert (
-            f'{gradlew} check -x test -x javadoc -x checkstyleMain -x checkstyleTest '
-            '--no-daemon'
-        ) in cmd[2]
-        assert '--no-build-cache' in cmd[2]
+        assert cmd == [
+            str(gradlew),
+            'check',
+            '-x',
+            'checkstyleMain',
+            '-x',
+            'checkstyleTest',
+            '-x',
+            'javadoc',
+            '--parallel',
+            '--build-cache',
+        ]
+        assert 'cleanTest' not in cmd
+        assert '--no-daemon' not in cmd
+        assert '--no-build-cache' not in cmd
+        assert '--no-parallel' not in cmd
 
     @pytest.mark.contract_case('JR-020-005')
-    def test_java_check_retries_javalin_connection_close_once(self, tmp_path: Path):
-        """javaCheck 对 Javalin TestTool 瞬时断连只允许走一次重试路径。"""
+    def test_java_check_has_no_historical_shell_retry_wrapper(self, tmp_path: Path):
+        """javaCheck 不再保留历史 Javalin shell retry wrapper。"""
         gradlew = tmp_path / 'gradlew'
         gradlew.write_text('#!/bin/sh\n', encoding='utf-8')
 
         cmd = run_quality_gate.gate_command('javaCheck', tmp_path, 'java-src')
 
-        assert 'header parser received no bytes' in cmd[2]
-        assert 'retry failed' in cmd[2]
+        joined = ' '.join(cmd)
+        assert 'header parser received no bytes' not in joined
+        assert 'retry failed' not in joined
 
 class TestMultipleTargetHandling:
     """多 target 场景：去重、dominance 和并行执行。"""
@@ -1032,7 +1047,7 @@ class TestRequiredGateChangedFiles:
 
     @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
     def test_non_empty_explicit_changed_files_are_used(self, monkeypatch: pytest.MonkeyPatch):
-        """非空显式 changed-files 输入仍作为 agent_stop_check 的精确证据。"""
+        """非空显式 changed-files 输入仍作为 stop_entry 的精确证据。"""
 
         def fail_if_called(*args: object, **kwargs: object) -> NoReturn:
             raise AssertionError('non-empty explicit changed-files should not fall back')
@@ -1087,53 +1102,6 @@ class TestRequiredGateChangedFiles:
         changed = run_quality_gate._read_changed_files(tmp_path)
 
         assert changed == ['scripts/quality/run_quality_gate.py']
-
-    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
-    def test_stop_target_artifact_must_match_active_change_id(
-        self, monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-    ):
-        """旧 change 的 PASS artifact 不得放行当前 change。"""
-        quality_dir = tmp_path / 'quality'
-        old_dir = quality_dir / 'old-change'
-        old_dir.mkdir(parents=True)
-        (old_dir / 'quality-gate-summary.hook-runtime.json').write_text(
-            json.dumps({'status': 'PASS'}),
-            encoding='utf-8',
-        )
-
-        monkeypatch.setattr(stop_check_targets, 'QUALITY_DIR', quality_dir)
-        monkeypatch.setattr(stop_check_targets, 'REPO_ROOT', tmp_path)
-
-        passed, message = stop_check_targets.check_target_artifact(
-            'hook-runtime',
-            'current-change',
-        )
-
-        assert not passed
-        assert '缺少 hook-runtime quality artifact' in message
-
-        current_dir = quality_dir / 'current-change'
-        current_dir.mkdir()
-        (current_dir / 'quality-gate-summary.hook-runtime.json').write_text(
-            json.dumps({'status': 'PASS'}),
-            encoding='utf-8',
-        )
-
-        passed, _message = stop_check_targets.check_target_artifact(
-            'hook-runtime',
-            'current-change',
-        )
-        assert passed
-
-    @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
-    def test_stop_targets_apply_dominance_for_java_snapshot(self):
-        """java-src 和 java-build 同时触发时 Stop artifact 检查不得要求重复 target。"""
-        assert stop_check_targets.required_targets_for_stop(
-            [
-                'java/web/src/main/java/com/feipi/session/browser/web/export/ExportHandler.java',
-                'config/api-snapshots/java-public-api.txt',
-            ]
-        ) == ['java-src']
 
     @pytest.mark.contract_case('HARNESS-GATE-ESCAPE-001')
     def test_changed_files_include_committed_paths_since_session_base(

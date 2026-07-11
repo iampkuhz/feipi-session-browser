@@ -25,7 +25,7 @@
 Batch 1 只迁移 record component Javadoc gate：
 
 ```text
-scripts/quality/check_java_record_component_javadocs.py
+the retired Python record-component Javadoc gate
 ```
 
 迁移后的 Java gate id：

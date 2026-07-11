@@ -197,7 +197,7 @@ def test_bind_session_rejects_wrong_cwd_and_allows_idempotent_resume(tmp_path):
             record["worktreeRoot"],
         ).stdout
     )
-    assert bound["status"] == "running"
+    assert bound["status"] == "RUNNING"
 
     rebound = json.loads(
         ctl(
@@ -244,6 +244,35 @@ def test_start_print_command_and_handoff_do_not_start_real_client(tmp_path):
     assert handoff["changeId"] == "support-parallel-primary-sessions"
 
 
+def test_start_keeps_child_stdout_out_of_machine_json(tmp_path):
+    repo = git_repo(tmp_path)
+    started = json.loads(
+        ctl(
+            repo,
+            "start",
+            "--client",
+            "codex",
+            "--task-id",
+            "stdout-canary",
+            "--change-id",
+            "support-parallel-primary-sessions",
+            "--base-ref",
+            "main_java",
+            "--allowed-path",
+            "docs",
+            "--worktree-parent",
+            str(tmp_path / "worktrees"),
+            "--client-command",
+            f"{sys.executable} -c 'print(\"child-json-noise\")'",
+        ).stdout
+    )
+
+    assert started["status"] == "STARTING"
+    status = json.loads(ctl(repo, "status", "--run-id", started["runId"]).stdout)
+    process = status["processes"][-1]
+    assert "client-start.log" in process["log"]
+
+
 def test_registry_concurrent_writes_keep_valid_json(tmp_path):
     repo = git_repo(tmp_path)
 
@@ -271,7 +300,7 @@ def test_handoff_includes_rollout_fields(tmp_path):
     assert "runRecord" in handoff["artifactPaths"]
     assert "blockingFailures" in handoff
     assert "writeScopeOverlap" in handoff["mergeRisk"]
-    assert any("commit/push/merge manually" in step for step in handoff["manualNextSteps"])
+    assert any("finalize --run-id" in step for step in handoff["manualNextSteps"])
 
 
 def test_cleanup_dry_run_documents_rollback_without_deleting_worktree_or_branch(tmp_path):
@@ -304,7 +333,7 @@ def test_stop_runs_unified_stop_and_writes_artifacts(tmp_path):
 
     stopped = json.loads(ctl(repo, "stop", "--run-id", record["runId"]).stdout)
 
-    assert stopped["status"] == "completed"
+    assert stopped["status"] == "VALIDATED"
     assert stopped["stopExitCode"] == 0
     run_root = (
         Path(record["worktreeRoot"])
@@ -337,4 +366,4 @@ def test_stop_runs_unified_stop_and_writes_artifacts(tmp_path):
             / f"{record['runId']}.json"
         ).read_text(encoding="utf-8")
     )
-    assert latest["status"] == "completed"
+    assert latest["status"] == "VALIDATED"
