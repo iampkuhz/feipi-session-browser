@@ -12,7 +12,8 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 
 - **`prompts/` 下的文件是输入，不是流程权威。** `prompts/` 下的提示词文件提供可复用的脚手架，它们不驱动流程。始终以本 skill 为入口。
 - **受保护文件编辑需要活跃的 OpenSpec 变更。** PreToolUse hook（`scripts/hooks/guard_openspec_change.py`）会在 `openspec/changes/` 下不存在活跃变更目录（排除 `archive`）时阻止对受保护文件的 Write/Edit/MultiEdit。
-- **不要自动提交。** 汇报结果后等待用户确认再提交。
+- **默认自动提交并本地集成。** 用户没有明确要求保留未提交状态时，验证完成后不再询问；按本轮精确文件清单运行 `scripts/harness/complete_change.py`，由它再次 Stop、commit、commit 后重新 Stop，再调用 `sessionctl finalize`。
+- **安全失败优先。** initial/primary dirty、文件归因不明、detached、门禁失败或冲突时保留临时分支并报告 `HANDOFF_REQUIRED`/`BLOCKED`；不得 stash、reset、force、自动 push 或创建远端 PR/MR。
 
 ## 阶段
 
@@ -83,14 +84,27 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 
 如果有门禁失败，修复问题并重新运行所有门禁直到全部通过。
 
-### 阶段 7：汇报（Report）
+### 阶段 7：提交、集成与汇报（Complete and Report）
+
+1. 从 `git diff --name-only HEAD` 与非 ignored untracked 文件生成本轮精确文件清单；不得包含 `openspec/changes/*`、runtime evidence、缓存、密钥或其他 Session 内容。
+2. 运行：
+   ```bash
+   python3 scripts/harness/complete_change.py \
+     --run-id "$FEIPI_RUN_ID" \
+     --message "<type(scope): summary>" \
+     --file <path> [--file <path> ...]
+   ```
+3. 命令会执行第一次 Stop；只有 required gates PASS 才精确 stage/commit。commit 后必须再次 Stop，receipt PASS 后才调用本地 `finalize`。
+4. 命令返回 `INTEGRATED` 后才可报告已合并；若当前客户端没有有效 run/linked worktree，或返回 `HANDOFF_REQUIRED`/`BLOCKED`，保留分支并如实报告，不得改用强制集成。
+5. 远端 push/PR/MR 是独立显式发布动作，不属于默认收口。
 
 输出总结：
 
 - 改了什么（创建、修改、删除的文件）。
 - 验证结果（每个门禁的通过/失败）。
+- commit 与本地 target integration 结果。
 - 剩余风险或后续事项。
-- **不要自动提交。** 提交前询问用户。
+- **不要再次询问是否提交/合并。** 正常安全路径直接完成；失败路径给出精确 handoff。
 
 ## Hook 强制层
 

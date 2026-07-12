@@ -36,6 +36,14 @@
 - Stop 门禁必须通过 `scripts/claude_hooks/classify.py` 计算 quality target，再通过 `scripts/quality/run_required_quality_gates.py` 执行。
 - changed files 只能用于判断本次必须执行哪些 quality target；一旦 target 被选中，target 内部必须执行完整 required gate baseline，不得再按 changed files 裁剪 gate。
 - required gate 失败时，Stop 门禁必须阻断。失败不得因为“不是当前 agent 的改动”“已有失败”“与本次改动无关”而被降级、跳过或描述为通过。
+
+## 自动提交与本地集成
+
+- 用户没有明确要求保留未提交状态时，named linked-worktree 的修改任务完成后必须运行 `scripts/harness/complete_change.py`，无需再次询问是否提交或合并。
+- 收口命令必须接收本轮精确文件清单；实际 Git diff、staged set 与声明范围不一致，或 initial baseline 已 dirty 时必须 fail-closed，不得顺带提交其他 Session/用户内容。
+- 流程固定为第一次 Stop PASS → 精确 stage/commit → commit 后第二次 Stop PASS → `sessionctl finalize`。commit 改变 HEAD/fingerprint 后不得复用第一次 receipt。
+- finalize 只做本地 rebase/revalidation/`ff-only` 集成并保持 `pushed: false`；默认不得 push、创建远端 PR/MR、force、stash、reset 或删除 provider-owned checkout。
+- primary dirty、detached、目标改写、验证失败/跳过或冲突时必须保留临时分支并返回 `HANDOFF_REQUIRED`/`BLOCKED`，不得描述为 PASS/INTEGRATED。
 - 如果 required gate 因外部环境缺失无法运行，状态必须保持 blocked/fail，并在输出中保留可复现命令和阻断原因。
 
 

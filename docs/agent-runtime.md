@@ -11,6 +11,8 @@ CLI 与 Qoder 客户端通过薄 Hook adapter 调用同一个 Session service；
 → Hook bootstrap/adopt
 → 首次 mutation 获取 checkout writer lease
 → Stop validate
+→ 精确 commit
+→ commit 后重新 Stop validate
 → finalize/integrate 或 handoff
 → SessionEnd release
 ```
@@ -47,6 +49,11 @@ dirty snapshot 只作为 baseline，无法区分归因时必须 handoff。
 Stop 的 changed-files 真相来自 `baseCommit...HEAD`、working tree diff 与 untracked files；Stop
 只验证并写 run-scoped evidence，不宣称已集成。finalize 只能执行安全集成，否则输出 handoff。
 
+用户没有明确要求保留未提交状态时，named linked-worktree 使用 `complete_change.py` 自动收口：
+第一次 Stop PASS 后只提交显式文件清单；commit 改变 HEAD/fingerprint 后重新 Stop；第二次 PASS
+才调用 finalize。initial/primary dirty、额外 diff、预存 staged、detached、冲突或任一门禁失败时保留
+临时分支并 handoff，不询问是否强制合并。
+
 cleanup/release 只处理指定 run 的 lease、Registry/evidence；客户端拥有的 checkout 始终保留。
 Runtime 不自动 push，不 force，不广域删除运行数据。
 
@@ -56,6 +63,7 @@ Runtime 不自动 push，不 force，不广域删除运行数据。
 python3 scripts/harness/sessionctl.py status --run-id <run-id>
 python3 scripts/harness/sessionctl.py doctor --run-id <run-id>
 python3 scripts/harness/sessionctl.py handoff --run-id <run-id>
+python3 scripts/harness/complete_change.py --run-id <run-id> --message '<message>' --file <path>
 python3 scripts/harness/sessionctl.py finalize --run-id <run-id>
 python3 scripts/harness/sessionctl.py cleanup --run-id <run-id>
 ```

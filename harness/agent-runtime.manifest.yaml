@@ -112,6 +112,16 @@ worktree_isolation:
     pre_write: all-clients-write-like-tools
     stop: all-clients-fail-closed-on-wrong-checkout-with-changes
 
+change_completion:
+  authority: scripts/harness/complete_change.py
+  eligible_checkout: named-linked-worktree-with-clean-initial-baseline
+  attributed_files: explicit-exact-set
+  sequence: [stop, exact-stage, commit, stop-after-commit, finalize]
+  target_integration: local-rebase-revalidate-ff-only
+  failure_statuses: [HANDOFF_REQUIRED, BLOCKED]
+  forbidden_actions: [stash, reset, force, auto-push, auto-pull-request, delete-provider-checkout]
+  remote_publish: false
+
 resource_isolation:
   lock_root: runtime-root/locks
   lock_manager: scripts/harness/resource_lock.py
