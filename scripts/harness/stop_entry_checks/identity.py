@@ -15,20 +15,31 @@ from scripts.harness.primary_session import (
 )
 
 
+# 从 hook context 提取仓库根目录。
 def _repo_root(ctx: dict[str, Any]) -> Path:
-    """从 hook context 提取仓库根目录。"""
+    """参数：
+        ctx: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     raw = ctx.get('cwd') or ctx.get('workingDirectory') or ''
     return runtime_paths.find_repo_root(raw or Path.cwd())
 
 
+# 校验 run/session identity 和 record。
 def validate_run_identity(
     agent: str,
     raw_ctx: dict[str, Any],
     repo_root: Path,
 ) -> tuple[HookContext, Any, Any, Any] | None:
-    """校验 run/session identity 和 record。
+    """参数：
+        agent: 当前函数使用的输入参数。
+        raw_ctx: 当前函数使用的输入参数。
+        repo_root: 当前函数使用的输入参数。
 
-    返回 (ctx, identity, record, checkout_facts) 四元组；校验失败时打印 BLOCK 并返回 None。
+    返回：
+        当前函数的计算结果。
     """
     ctx = HookContext('Stop', raw_ctx)
     identity = runtime_paths.identity_from_hook_context(ctx, agent_client=agent)

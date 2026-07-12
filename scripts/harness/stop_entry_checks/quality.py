@@ -29,6 +29,7 @@ from scripts.quality.run_quality_gate import gate_command as _gate_command
 from ._io import utc_now
 
 
+# 执行子进程并等待完成。
 def run_cmd(
     name: str,
     cmd: list[str],
@@ -36,7 +37,16 @@ def run_cmd(
     env: dict[str, str],
     timeout: int = 1800,
 ) -> bool:
-    """执行子进程并等待完成。"""
+    """参数：
+        name: 当前函数使用的输入参数。
+        cmd: 当前函数使用的输入参数。
+        repo_root: 当前函数使用的输入参数。
+        env: 当前函数使用的输入参数。
+        timeout: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     print(f'[stop_entry] running {name}: {" ".join(cmd)}', file=sys.stderr)
     try:
         proc = subprocess.Popen(
@@ -59,8 +69,15 @@ def run_cmd(
         return False
 
 
+# 读取质量目标产物状态。
 def _target_artifact_status(report_path: Path, target: str) -> str:
-    """读取质量目标产物状态。"""
+    """参数：
+        report_path: 当前函数使用的输入参数。
+        target: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     artifact = report_path.parent / f'quality-gate-summary.{target}.json'
     try:
         data = json.loads(artifact.read_text(encoding='utf-8'))
@@ -70,12 +87,20 @@ def _target_artifact_status(report_path: Path, target: str) -> str:
     return status if status in {'PASS', 'FAIL', 'BLOCKED'} else 'BLOCKED'
 
 
+# 执行活跃变更规格验证并返回失败列表。
 def run_openspec_validation(
     change_id: str,
     changed_files: list[str],
     repo_root: Path,
 ) -> list[str]:
-    """执行 OpenSpec active-change 验证。返回 failure 列表。"""
+    """参数：
+        change_id: 当前函数使用的输入参数。
+        changed_files: 当前函数使用的输入参数。
+        repo_root: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     failures: list[str] = []
     if not stop_helpers.changed_files_require_openspec(changed_files):
         return failures
@@ -94,10 +119,18 @@ def run_openspec_validation(
     return failures
 
 
+# 通过门禁触发规则判断检查是否需要运行。
 def _gate_is_applicable(
     gate: str, target: str, changed_files: list[str]
 ) -> bool:
-    """通过 GATE_PATTERNS 判断 gate 是否应被触发。"""
+    """参数：
+        gate: 当前函数使用的输入参数。
+        target: 当前函数使用的输入参数。
+        changed_files: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     gate_patterns = GATE_PATTERNS.get(target, {}).get(gate)
     if gate_patterns is None:
         # 无 trigger rule 的 gate 默认运行（增量兜底）
@@ -107,16 +140,21 @@ def _gate_is_applicable(
     )
 
 
+# 直接调用原子检查脚本，不再经过质量门禁管道。
 def run_quality_checks(
     change_id: str,
     changed_files: list[str],
     repo_root: Path,
     targets: list[str],
 ) -> tuple[bool, list[str], list[dict[str, str]]]:
-    """直接调用原子 check 脚本，不再经过 run_required_quality_gates.py 管道。
+    """参数：
+        change_id: 当前函数使用的输入参数。
+        changed_files: 当前函数使用的输入参数。
+        repo_root: 当前函数使用的输入参数。
+        targets: 当前函数使用的输入参数。
 
-    返回 (gates_ok, failures, gate_results)。
-    gate_results 格式: [{'name': 'javaCheck', 'status': 'PASS'}, ...]
+    返回：
+        当前函数的计算结果。
     """
     failures: list[str] = []
     gate_results: list[dict[str, str]] = []
@@ -177,6 +215,7 @@ def run_quality_checks(
     return gates_ok, failures, gate_results
 
 
+# 写入结构化运行报告。
 def write_runtime_report(
     path: Path,
     *,
@@ -189,8 +228,21 @@ def write_runtime_report(
     git_evidence: dict[str, Any],
     gate_results: list[dict[str, str]] | None = None,
 ) -> None:
-    """写入运行报告 JSON。"""
     # 使用直接调用结果，而非从 artifact 文件读取
+    """参数：
+        path: 当前函数使用的输入参数。
+        identity: 当前函数使用的输入参数。
+        change_id: 当前函数使用的输入参数。
+        changed_files: 当前函数使用的输入参数。
+        targets: 当前函数使用的输入参数。
+        gates_ok: 当前函数使用的输入参数。
+        failures: 当前函数使用的输入参数。
+        git_evidence: 当前函数使用的输入参数。
+        gate_results: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     if gate_results:
         gates = gate_results
     else:
@@ -264,6 +316,7 @@ def write_runtime_report(
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
+# 校验运行报告并返回错误列表。
 def validate_runtime_report(
     *,
     identity: Any,
@@ -272,7 +325,16 @@ def validate_runtime_report(
     changed_files: list[str],
     report_path: Path,
 ) -> list[str]:
-    """校验 runtime-report。返回 error 列表。"""
+    """参数：
+        identity: 当前函数使用的输入参数。
+        change_id: 当前函数使用的输入参数。
+        repo_root: 当前函数使用的输入参数。
+        changed_files: 当前函数使用的输入参数。
+        report_path: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     return check_agent_runtime_report.validate_runtime_report(
         run_id=identity.raw_run_id,
         client=identity.client,

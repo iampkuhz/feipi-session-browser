@@ -7,7 +7,13 @@ from pathlib import Path
 import pytest
 
 from scripts.harness.primary_session import resolve_checkout_identity, resolve_runtime_root
+from scripts.harness.sessionctl import Registry, acquire_writer_lease
 from scripts.harness.stop_entry import FileLock, collect_git_evidence, run_stop
+from scripts.harness.stop_entry_checks.reentry import (
+    matching_reentry_failure,
+    recovery_scope,
+    update_reentry,
+)
 from scripts.harness.stop_helpers import GitEvidenceError
 from scripts.quality.check_agent_runtime_report import validate_runtime_report
 
@@ -184,12 +190,13 @@ def test_repeated_failure_circuit_and_audit_are_isolated_by_run(tmp_path: Path, 
 
     assert run_stop('codex', payload) == 2
     assert run_stop('codex', payload) == 2
-    assert run_stop('codex', payload) == 2
+    assert run_stop('codex', payload) == 0
 
     summary = json.loads((repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json').read_text())
     assert summary['continuationCount'] > 2
     assert summary['circuitState'] == 'OPEN'
     assert summary['status'] == 'BLOCKED'
+    assert summary['runStatus'] == 'READ_ONLY_READY'
     assert any('continuation limit' in item for item in summary['blockingFailures'])
     runtime = resolve_runtime_root(repo)
     state_a = json.loads((runtime / 'runs/run-a/stop-reentry.json').read_text())
@@ -201,6 +208,66 @@ def test_repeated_failure_circuit_and_audit_are_isolated_by_run(tmp_path: Path, 
     audit = [json.loads(path.read_text()) for path in (runtime / 'audit').glob('*.json')]
     assert audit
     assert {item['runId'] for item in audit} == {'run-a'}
+    assert run_stop('codex', payload, adapter_mode='cli') == 2
+
+
+def test_retryable_stop_failure_preserves_active_writer(tmp_path: Path, monkeypatch):
+    from scripts.harness.stop_entry_checks import quality as stop_quality
+
+    repo = _repo(tmp_path, monkeypatch)
+    record = _record(repo, 'run-a', 'session-a')
+    _save(repo, record)
+    writable, lease = acquire_writer_lease(Registry(repo), record)
+    assert writable['status'] == 'LOCAL_WRITER'
+    assert lease['state'] == 'ACTIVE'
+    monkeypatch.setattr(
+        stop_quality.check_agent_runtime_report,
+        'validate_runtime_report',
+        lambda **_kwargs: ['forced retryable report failure'],
+    )
+
+    payload = {'cwd': str(repo), 'session_id': 'session-a', 'run_id': 'run-a'}
+    assert run_stop('codex', payload) == 2
+
+    latest = Registry(repo).load_run('run-a')
+    assert latest['status'] == 'LOCAL_WRITER'
+    assert latest['writerLease']['leaseId'] == lease['leaseId']
+    summary = json.loads(
+        (repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json').read_text()
+    )
+    assert summary['status'] == 'BLOCKED'
+    assert summary['runStatus'] == 'LOCAL_WRITER'
+
+
+def test_change_id_update_invalidates_reentry_failure(tmp_path: Path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    record = _record(repo, 'run-a', 'session-a', change='')
+    runtime = resolve_runtime_root(repo)
+    reentry = runtime / 'runs/run-a/stop-reentry.json'
+    audit = runtime / 'audit'
+    scope = recovery_scope(record)
+    failures = ['active change is missing for protected changes']
+
+    update_reentry(
+        reentry,
+        repo,
+        failures,
+        scope=scope,
+        audit_dir=audit,
+        change_id='unknown',
+    )
+    assert matching_reentry_failure(
+        reentry,
+        repo,
+        scope,
+        change_id='unknown',
+    )[0]
+    assert not matching_reentry_failure(
+        reentry,
+        repo,
+        scope,
+        change_id='fixed-change',
+    )[0]
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-006')
@@ -293,6 +360,7 @@ def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
             'run_id': 'run-a',
             'handoff_on_failure': True,
         },
+        adapter_mode='cli',
     ) == 2
     summary_path = repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json'
     summary = json.loads(summary_path.read_text(encoding='utf-8'))

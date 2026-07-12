@@ -27,8 +27,14 @@ class FileLock:
     fencing_token: str = ''
     reclaimed_owner: dict[str, Any] = field(default_factory=dict)
 
+    # 不跟随符号链接且不接受所有者变更地读取锁负载。
     def _read_payload(self) -> dict[str, Any]:
-        """不跟随符号链接且不接受所有者变更地读取锁负载。"""
+        """参数：
+            当前函数没有输入参数。
+
+        返回：
+            当前函数的计算结果。
+        """
         try:
             metadata = self.path.lstat()
         except FileNotFoundError:
@@ -57,8 +63,14 @@ class FileLock:
             return {}
         return data if isinstance(data, dict) else {}
 
+    # 尝试获取锁。
     def acquire(self) -> bool:
-        """尝试获取锁。"""
+        """参数：
+            当前函数没有输入参数。
+
+        返回：
+            当前函数的计算结果。
+        """
         self._remove_stale()
         ensure_private_directory(self.path.parent)
         payload = dict(self.owner)
@@ -89,8 +101,14 @@ class FileLock:
         self.acquired = True
         return True
 
+    # 释放锁（需 fencing token 匹配）。
     def release(self) -> bool:
-        """释放锁（需 fencing token 匹配）。"""
+        """参数：
+            当前函数没有输入参数。
+
+        返回：
+            当前函数的计算结果。
+        """
         if not self.acquired:
             return False
         released = False
@@ -110,8 +128,8 @@ class FileLock:
             self.fencing_token = ''
         return released
 
+    # 回收已死亡 owner 的锁。
     def _remove_stale(self) -> None:
-        """回收已死亡 owner 的锁。"""
         data = self._read_payload()
         if not isinstance(data, dict) or not data:
             return

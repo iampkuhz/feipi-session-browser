@@ -768,6 +768,89 @@ def _build_bootstrap_record(
     }
 
 
+# 在首次写入前采用 Claude CwdChanged 最终选定的同仓库 checkout。
+# 安全地将尚未写入的 Claude run 重绑到客户端最终 checkout。
+def _rebind_pre_mutation_claude_checkout(
+    registry: Registry,
+    record: dict[str, Any],
+    *,
+    client: str,
+    session_id: str,
+    hook_event: str,
+    checkout_creator: str,
+    facts: dict[str, Any],
+) -> dict[str, Any]:
+    """参数：
+        registry: 当前函数使用的输入参数。
+        record: 当前函数使用的输入参数。
+        client: 当前函数使用的输入参数。
+        session_id: 当前函数使用的输入参数。
+        hook_event: 当前函数使用的输入参数。
+        checkout_creator: 当前函数使用的输入参数。
+        facts: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
+    if client != "claude" or hook_event != "CwdChanged":
+        raise SessionctlError("Session is already bound to a different checkout")
+    if record.get("status") not in {"BOOTSTRAPPED", "READ_ONLY_READY"}:
+        raise SessionctlError("Session checkout cannot change after writer activation")
+    if record.get("writerLease"):
+        raise SessionctlError("Session checkout cannot change while writer lease exists")
+    if record.get("releasedWriterLease"):
+        raise SessionctlError("Session checkout cannot change after writer activation")
+    if record.get("subagentSessions"):
+        raise SessionctlError("Session checkout cannot change after subagent inheritance")
+    if record.get("gitCommonDir") != facts.get("gitCommonDir"):
+        raise SessionctlError("Session checkout change must stay in one Git common directory")
+
+    previous_root = str(record.get("checkoutRoot") or "")
+    previous_worktree_id = str(record.get("worktreeId") or "")
+    rebound = _build_bootstrap_record(
+        registry,
+        client=client,
+        session_id=session_id,
+        hook_event=hook_event,
+        cwd=Path(str(facts["checkoutRoot"])),
+        run_id=str(record["runId"]),
+        checkout_creator=checkout_creator,
+        facts=facts,
+    )
+    rebound["taskId"] = record["taskId"]
+    rebound["changeId"] = str(record.get("changeId") or "")
+    rebound["allowedPaths"] = list(record.get("allowedPaths") or ["."])
+    rebound["forbiddenPaths"] = list(
+        record.get("forbiddenPaths") or DEFAULT_FORBIDDEN_PATHS
+    )
+    rebound["status"] = str(record["status"])
+    rebound["createdAt"] = str(record["createdAt"])
+    previous_bootstrap = record.get("bootstrap")
+    if isinstance(previous_bootstrap, dict):
+        rebound["bootstrap"]["firstHookEvent"] = str(
+            previous_bootstrap.get("firstHookEvent") or hook_event
+        )
+        rebound["bootstrap"]["firstSeenAt"] = str(
+            previous_bootstrap.get("firstSeenAt") or record["createdAt"]
+        )
+    previous_events = record.get("auditEvents")
+    rebound["auditEvents"] = list(previous_events) if isinstance(previous_events, list) else []
+    event = {
+        "event": "SESSION_CHECKOUT_REBOUND",
+        "runId": rebound["runId"],
+        "sessionId": rebound["sessionId"],
+        "fromCheckoutRoot": previous_root,
+        "fromWorktreeId": previous_worktree_id,
+        "toCheckoutRoot": rebound["checkoutRoot"],
+        "toWorktreeId": rebound["worktreeId"],
+        "hookEvent": hook_event,
+        "at": now_utc(),
+    }
+    rebound["auditEvents"].append(event)
+    registry.write_audit(event)
+    return rebound
+
+
 # 判断既有运行记录是否与本次 bootstrap 身份完全一致。
 def _record_matches_bootstrap(
     record: Mapping[str, Any], *, client: str, session_id: str, facts: Mapping[str, Any]
@@ -1029,7 +1112,17 @@ def bootstrap_session(
         if exact:
             record = exact[0]
         elif same_session_elsewhere:
-            raise SessionctlError("Session is already bound to a different checkout")
+            if len(same_session_elsewhere) != 1:
+                raise SessionctlError("Registry contains duplicate client/session runs")
+            record = _rebind_pre_mutation_claude_checkout(
+                registry,
+                same_session_elsewhere[0],
+                client=client,
+                session_id=session_id,
+                hook_event=hook_event,
+                checkout_creator=checkout_creator,
+                facts=facts,
+            )
         else:
             record = _candidate_from_run_hint(
                 registry,
@@ -2286,6 +2379,7 @@ def record_stop_result(
     summary_status: str,
     validated_facts: Mapping[str, Any],
     handoff_on_failure: bool = False,
+    retryable_failure: bool = False,
 ) -> tuple[dict[str, Any], dict[str, Any]]:
     """参数：
         repo_root: 当前仓库根目录。
@@ -2294,6 +2388,7 @@ def record_stop_result(
         summary_status: Stop 摘要状态。
         validated_facts: 门禁验证时采集的 Git 事实。
         handoff_on_failure: 失败时是否转为交接状态。
+        retryable_failure: 失败时是否保留当前 run 的安全修复能力。
 
     返回：
         最新运行记录与最终采用的 Git 事实。
@@ -2325,7 +2420,18 @@ def record_stop_result(
             ):
                 evidence_error = "checkout HEAD changed after required gates"
         passed = pass_requested and not evidence_error
-        failure_status = "HANDOFF_REQUIRED" if handoff_on_failure else "BLOCKED"
+        if handoff_on_failure:
+            failure_status = "HANDOFF_REQUIRED"
+        elif retryable_failure:
+            failure_status = (
+                _writer_status(latest)
+                if latest.get("status") in ACTIVE_WRITER_STATUSES
+                and isinstance(latest.get("writerLease"), dict)
+                and latest.get("writerLease")
+                else "READ_ONLY_READY"
+            )
+        else:
+            failure_status = "BLOCKED"
         final_status = "VALIDATED" if passed else failure_status
         receipt_facts = facts if passed else current_facts
         head = str(receipt_facts.get("headCommit") or latest.get("headCommit") or "")
@@ -2343,6 +2449,7 @@ def record_stop_result(
                     "targetCommit": target_commit,
                     "checkoutFingerprint": fingerprint,
                     "evidenceError": evidence_error,
+                    "retryableFailure": retryable_failure,
                 },
                 sort_keys=True,
             ).encode("utf-8")
@@ -2380,6 +2487,8 @@ def record_stop_result(
             if passed
             else "STOP_HANDOFF_REQUIRED"
             if final_status == "HANDOFF_REQUIRED"
+            else "STOP_RETRYABLE_BLOCKED"
+            if retryable_failure
             else "STOP_BLOCKED"
         )
         _append_run_audit(
@@ -2437,6 +2546,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
         str(record["client"]),
         payload,
         handoff_on_failure=bool(getattr(args, "handoff_on_failure", False)),
+        adapter_mode="cli",
     )
 
     with registry.locked():
