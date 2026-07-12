@@ -98,7 +98,7 @@ final class SessionDetailParityAnalyzer {
 
     Map<Integer, RoundParity> rounds = buildRoundParity(detail.rounds(), parent, row.sessionId());
     long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
-    long mainCalls = detail.roundCount() + subagentCalls;
+    long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : detail.roundCount();
     long workload = mainCalls + subagentCalls;
     long rawToolCount =
         parent.tools.size() + children.stream().mapToLong(child -> child.tools.size()).sum();
@@ -163,6 +163,7 @@ final class SessionDetailParityAnalyzer {
       return List.of();
     }
     List<Path> result = new ArrayList<>();
+    // 1. Legacy: look for child rollouts in the same directory as the parent
     try (var stream = Files.list(parentPath.getParent())) {
       stream
           .filter(path -> !path.equals(parentPath))
@@ -175,7 +176,20 @@ final class SessionDetailParityAnalyzer {
                 }
               });
     } catch (IOException ignored) {
-      return List.of();
+      // fall through to subagent directory discovery
+    }
+    // 2. Claude Code subagent directory: {sessionDir}/{sessionId}/subagents/agent-*.jsonl
+    Path subagentDir = parentPath.getParent().resolve(parentSessionId).resolve("subagents");
+    if (Files.isDirectory(subagentDir)) {
+      try (var stream = Files.list(subagentDir)) {
+        stream
+            .filter(path -> path.getFileName().toString().startsWith("agent-"))
+            .filter(path -> path.getFileName().toString().endsWith(".jsonl"))
+            .sorted()
+            .forEach(result::add);
+      } catch (IOException ignored) {
+        // ignore
+      }
     }
     return List.copyOf(result);
   }
@@ -210,6 +224,25 @@ final class SessionDetailParityAnalyzer {
   private static RolloutStats parseRollout(
       Path path, String scope, String parentSessionId, boolean child) {
     RolloutStats stats = new RolloutStats(path.toString(), scope, parentSessionId);
+    // For Claude Code subagent files, extract agentId from filename and agentType from .meta.json
+    if (child && stats.sessionId.isBlank()) {
+      String filename = path.getFileName().toString();
+      if (filename.startsWith("agent-") && filename.endsWith(".jsonl")) {
+        stats.sessionId = filename.substring("agent-".length(), filename.length() - ".jsonl".length());
+      }
+      Path metaJson = path.resolveSibling(filename.replace(".jsonl", ".meta.json"));
+      if (Files.isRegularFile(metaJson)) {
+        try {
+          JsonNode meta = MAPPER.readTree(Files.readString(metaJson, StandardCharsets.UTF_8));
+          String agentType = text(meta, "agentType");
+          if (!agentType.isBlank()) {
+            stats.agentType = agentType;
+          }
+        } catch (IOException ignored) {
+          // ignore
+        }
+      }
+    }
     Map<String, Long> previousUsage = new HashMap<>();
     long previousTotal = -1;
     String pendingAssistant = "";
@@ -244,9 +277,48 @@ final class SessionDetailParityAnalyzer {
           continue;
         }
         if ("user".equals(type)) {
+          // For Claude Code subagent files, extract agentId from first line if not already set
+          if (child && stats.sessionId.isBlank()) {
+            String agentId = text(root, "agentId");
+            if (!agentId.isBlank()) {
+              stats.sessionId = agentId;
+            }
+          }
           String messageText = messageText(root.path("message").path(FIELD_CONTENT));
           if (isVisibleUserInput(messageText)) {
             pendingUser = messageText;
+          }
+          // Extract tool_result blocks from Claude Code native format
+          JsonNode content = root.path("message").path(FIELD_CONTENT);
+          if (content.isArray()) {
+            final int lineIndex = index;
+            for (JsonNode part : content) {
+              if ("tool_result".equals(text(part, FIELD_TYPE))) {
+                String callId = text(part, "tool_use_id");
+                if (!callId.isBlank()) {
+                  ToolEvent tool =
+                      stats.tools.computeIfAbsent(
+                          callId,
+                          id -> new ToolEvent(id, FIELD_TOOL, stats.scope, timestamp, lineIndex));
+                  JsonNode resultContent = part.path(FIELD_CONTENT);
+                  if (resultContent.isArray()) {
+                    StringBuilder sb = new StringBuilder();
+                    for (JsonNode rp : resultContent) {
+                      String t = text(rp, "text");
+                      if (!t.isBlank()) {
+                        if (sb.length() > 0) sb.append("\n");
+                        sb.append(t);
+                      }
+                    }
+                    tool.output = sb.toString();
+                  } else if (resultContent.isTextual()) {
+                    tool.output = resultContent.asText("");
+                  }
+                  tool.failed = isFailedOutput(tool.output);
+                  tool.resultTokens = estimateTokens(tool.output);
+                }
+              }
+            }
           }
           continue;
         }
@@ -256,8 +328,21 @@ final class SessionDetailParityAnalyzer {
           if (!messageText.isBlank()) {
             pendingAssistant = messageText;
           }
+          // Extract tool_use blocks from Claude Code native format
+          JsonNode content = message.path(FIELD_CONTENT);
+          if (content.isArray()) {
+            for (JsonNode part : content) {
+              if ("tool_use".equals(text(part, FIELD_TYPE))) {
+                String callId = text(part, "id");
+                if (!callId.isBlank()) {
+                  String name = firstNonBlank(text(part, "name"), FIELD_TOOL);
+                  stats.tools.put(callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
+                }
+              }
+            }
+          }
           UsageDelta usage = usageFromMessage(message.path("usage"));
-          if (usage.total > 0) {
+          if (usage.output > 0) {
             recordLlmRound(stats, usage, pendingUser, pendingAssistant, timestamp);
             pendingAssistant = "";
             pendingUser = "";
@@ -570,7 +655,7 @@ final class SessionDetailParityAnalyzer {
   private static List<Map<String, Object>> agentRows(
       SessionRecord row, String sourcePath, RolloutStats parent, List<RolloutStats> children) {
     long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
-    long mainCalls = row.assistantMessageCount() + subagentCalls;
+    long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : row.assistantMessageCount();
     long parentSubagentTools =
         parent.tools.values().stream().filter(tool -> !tool.subagentId.isBlank()).count();
     long mainTools = Math.max(parent.tools.size() - parentSubagentTools, 0);
@@ -819,12 +904,29 @@ final class SessionDetailParityAnalyzer {
     if (output == null || output.isBlank()) {
       return "";
     }
+    // Try JSON format first (Codex style)
     try {
       JsonNode node = MAPPER.readTree(output);
-      return text(node, "agent_id");
+      String agentId = text(node, "agent_id");
+      if (!agentId.isBlank()) {
+        return agentId;
+      }
     } catch (IOException ignored) {
-      return "";
+      // not JSON, fall through to plain text parsing
     }
+    // Claude Code plain text format: "agentId: <id> ..."
+    int idx = output.indexOf("agentId: ");
+    if (idx >= 0) {
+      String rest = output.substring(idx + "agentId: ".length()).strip();
+      int end = rest.indexOf(' ');
+      if (end < 0) end = rest.indexOf('\n');
+      if (end < 0) end = rest.length();
+      String candidate = rest.substring(0, end).strip();
+      if (!candidate.isBlank() && !candidate.contains("(")) {
+        return candidate;
+      }
+    }
+    return "";
   }
 
   private static boolean isFailedOutput(String output) {
