@@ -1,7 +1,13 @@
 """stop_entry_checks：按校验类型拆分的 Stop 子校验实现。"""
 
 from .file_lock import FileLock
-from .git_evidence import collect_git_evidence, filter_baseline_dirty
+from .git_evidence import (
+    GitEvidenceError,
+    collect_git_evidence,
+    filter_baseline_dirty,
+    git_dirty_hash,
+    git_lines,
+)
 from .quality import (
     run_openspec_validation,
     run_quality_checks,
@@ -16,12 +22,16 @@ from .reentry import (
     update_reentry,
     write_recovery_audit,
 )
-from .report import runtime_report_path, stop_summary_path, write_summary
+from .report import build_summary, runtime_report_path, stop_summary_path, write_summary
 
 __all__ = [
     'FileLock',
+    'GitEvidenceError',
+    'build_summary',
     'collect_git_evidence',
     'filter_baseline_dirty',
+    'git_dirty_hash',
+    'git_lines',
     'load_reentry',
     'matching_reentry_failure',
     'recovery_scope',

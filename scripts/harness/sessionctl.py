@@ -48,7 +48,7 @@ from scripts.harness.primary_session import (  # noqa: E402
     validate_run_record,
 )
 from scripts.harness.resource_lock import _pid_start_time, process_is_alive  # noqa: E402
-from scripts.harness.stop_helpers import GitEvidenceError, collect_git_evidence  # noqa: E402
+from scripts.harness.stop_entry_checks.git_evidence import GitEvidenceError, collect_git_evidence  # noqa: E402
 
 REGISTRY_VERSION = 2
 DEFAULT_FORBIDDEN_PATHS = [".env", ".mcp.json", "data", "output", "tmp/agent_logs"]

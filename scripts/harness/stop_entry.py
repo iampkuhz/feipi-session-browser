@@ -23,6 +23,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -30,12 +31,12 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
 from scripts.harness import stop_helpers  # noqa: E402
 from scripts.harness.primary_session import ensure_private_directory, resolve_runtime_root  # noqa: E402
 
 from scripts.harness.stop_entry_checks.file_lock import FileLock  # noqa: E402
 from scripts.harness.stop_entry_checks.git_evidence import (  # noqa: E402
+    GitEvidenceError,
     collect_git_evidence,
     filter_baseline_dirty,
 )
@@ -55,23 +56,45 @@ from scripts.harness.stop_entry_checks.reentry import (  # noqa: E402
     write_recovery_audit,
 )
 from scripts.harness.stop_entry_checks.report import (  # noqa: E402
+    build_summary,
     runtime_report_path,
     stop_summary_path,
     write_summary,
 )
-from scripts.harness.stop_entry_checks._io import utc_now  # noqa: E402
+
+
+# ── 共享状态 ──────────────────────────────────────────────────────
+
+
+@dataclass
+class StopContext:
+    """Stop 流程各阶段共享的可变状态。"""
+
+    failures: list[str] = field(default_factory=list)
+    warnings: list[str] = field(default_factory=list)
+    git_evidence: dict[str, Any] = field(default_factory=lambda: {'changedFiles': []})
+    changed_files: list[str] = field(default_factory=list)
+    baseline_dirty_files: set[str] = field(default_factory=set)
+    evidence_mode: str = 'git-run-record'
+    change_id: str = 'unknown'
+    targets: list[str] = field(default_factory=list)
+    read_only: bool = True
+    resource_lock_names: list[str] = field(default_factory=list)
+    gates_ok: bool = True
+    runtime_ok: bool = True
+    lock_status: str = 'blocked'
+    continuation_count: int = 0
+    outcome_record: dict[str, Any] = field(default_factory=dict)
+    gate_results: list[dict[str, str]] = field(default_factory=list)
 
 
 # ── 入口 ──────────────────────────────────────────────────────────
 
 
-# 读取 stdin 一次，解析为 JSON。
+# 读取一次标准输入并解析上下文字典。
 def read_stdin_once() -> tuple[str, dict[str, Any]]:
-    """参数：
-        当前函数没有输入参数。
-
-    返回：
-        当前函数的计算结果。
+    """返回：
+        原始输入和解析后的上下文字典。
     """
     raw = sys.stdin.read()
     if not raw.strip():
@@ -83,29 +106,312 @@ def read_stdin_once() -> tuple[str, dict[str, Any]]:
     return raw, data if isinstance(data, dict) else {}
 
 
-# 按权威运行记录返回变更文件及证据模式。
+# 仅在运行身份可信时收集变更文件。
 def collect_run_changed_files(
     repo_root: Path,
-    identity: runtime_paths.RuntimeIdentity,
+    identity: Any,
     record: dict[str, Any] | None,
 ) -> tuple[list[str], str, list[str]]:
     """参数：
-        repo_root: 当前函数使用的输入参数。
-        identity: 当前函数使用的输入参数。
-        record: 当前函数使用的输入参数。
+        repo_root: 仓库根目录。
+        identity: 当前运行身份。
+        record: 当前会话记录。
 
     返回：
-        当前函数的计算结果。
+        变更文件、证据模式和失败列表。
     """
     if identity.has_run and identity.has_session and record:
         return collect_git_evidence(repo_root, record)['changedFiles'], 'git-run-record', []
     return [], 'run-identity-required', ['Stop requires an authoritative run record']
 
 
+# ── 各阶段实现 ────────────────────────────────────────────────────
+
+
+# 收集变更证据并映射质量目标。
+def _phase_evidence(
+    ctx: StopContext,
+    repo_root: Path,
+    record: dict[str, Any],
+) -> None:
+    """参数：
+        ctx: 停止流程共享上下文。
+        repo_root: 仓库根目录。
+        record: 当前会话记录。
+
+    返回：
+        无返回值。
+    """
+    try:
+        ctx.git_evidence = collect_git_evidence(repo_root, record)
+    except GitEvidenceError as exc:
+        ctx.git_evidence = {'queryErrors': [str(exc)], 'changedFiles': []}
+        ctx.failures.append(f'Git evidence unavailable: {exc}')
+    ctx.changed_files = list(ctx.git_evidence.get('changedFiles') or [])
+    ctx.changed_files, ctx.baseline_dirty_files = filter_baseline_dirty(
+        ctx.changed_files, ctx.git_evidence,
+    )
+
+    ctx.targets = stop_helpers.required_targets(ctx.changed_files)
+    if ctx.changed_files and not ctx.targets:
+        ctx.failures.append('changed files did not map to required quality targets')
+    ctx.read_only = not ctx.changed_files
+    ctx.resource_lock_names = resource_names(ctx.targets)
+
+
+# 检测停止流程重入状态与熔断条件。
+def _phase_reentry(
+    ctx: StopContext,
+    reentry_path: Path,
+    repo_root: Path,
+    scope: dict[str, str],
+    change_id: str,
+    stop_hook_active: bool,
+) -> bool:
+    """参数：
+        ctx: 停止流程共享上下文。
+        reentry_path: 重入状态路径。
+        repo_root: 仓库根目录。
+        scope: 当前恢复状态身份范围。
+        change_id: 变更标识。
+        stop_hook_active: 停止钩子是否处于活动状态。
+
+    返回：
+        命中熔断条件时返回 true，否则返回 false。
+    """
+    same_failure, reentry_state, scope_ok = matching_reentry_failure(
+        reentry_path, repo_root, scope, change_id=change_id,
+    )
+    if not scope_ok:
+        ctx.failures.append('run-scoped Stop recovery identity mismatch')
+    if stop_hook_active:
+        ctx.warnings.append('stop_hook_active reentry observed; not blocking solely on reentry')
+    if same_failure and scope_ok:
+        previous = [str(item) for item in reentry_state.get('lastFailures', [])]
+        ctx.failures.extend(previous)
+        ctx.gates_ok = False
+        ctx.warnings.append('reused persistent Stop failure; heavy gates were not rerun')
+
+    circuit_broken = (
+        same_failure
+        and scope_ok
+        and isinstance(reentry_state, dict)
+        and str((reentry_state.get('circuitBreaker') or {}).get('state') or 'CLOSED') == 'OPEN'
+    )
+    if circuit_broken:
+        ctx.failures.append('continuation limit reached for identical Stop failure fingerprint')
+    return circuit_broken
+
+
+# 执行质量门禁并复核检出状态一致性。
+def _phase_quality(
+    ctx: StopContext,
+    circuit_broken: bool,
+    change_id: str,
+    repo_root: Path,
+    record: dict[str, Any],
+) -> None:
+    """参数：
+        ctx: 停止流程共享上下文。
+        circuit_broken: 是否已触发熔断。
+        change_id: 变更标识。
+        repo_root: 仓库根目录。
+        record: 当前会话记录。
+
+    返回：
+        无返回值。
+    """
+    if not circuit_broken and not ctx.failures and not ctx.read_only:
+        ctx.failures.extend(run_openspec_validation(change_id, ctx.changed_files, repo_root))
+        if not ctx.failures:
+            ctx.gates_ok, gate_failures, ctx.gate_results = run_quality_checks(
+                change_id, ctx.changed_files, repo_root, ctx.targets,
+            )
+            ctx.failures.extend(gate_failures)
+
+    if not circuit_broken and ctx.git_evidence.get('checkoutFingerprint'):
+        try:
+            post_gate_evidence = collect_git_evidence(repo_root, record)
+            if post_gate_evidence.get('checkoutFingerprint') != ctx.git_evidence.get(
+                'checkoutFingerprint'
+            ):
+                ctx.gates_ok = False
+                ctx.failures.append('checkout Git snapshot changed during Stop validation')
+        except GitEvidenceError as exc:
+            ctx.gates_ok = False
+            ctx.failures.append(f'post-gate Git evidence unavailable: {exc}')
+
+
+# 写入并校验当前运行报告。
+def _phase_report(
+    ctx: StopContext,
+    identity: Any,
+    change_id: str,
+    repo_root: Path,
+    report_path: Path,
+) -> None:
+    """参数：
+        ctx: 停止流程共享上下文。
+        identity: 当前运行身份。
+        change_id: 变更标识。
+        repo_root: 仓库根目录。
+        report_path: 运行报告路径。
+
+    返回：
+        无返回值。
+    """
+    write_runtime_report(
+        report_path,
+        identity=identity,
+        change_id=change_id,
+        changed_files=ctx.changed_files,
+        targets=ctx.targets,
+        gates_ok=ctx.gates_ok,
+        failures=ctx.failures,
+        git_evidence=ctx.git_evidence,
+        gate_results=ctx.gate_results,
+    )
+    if not ctx.failures:
+        errors = validate_runtime_report(
+            identity=identity,
+            change_id=change_id,
+            repo_root=repo_root,
+            changed_files=ctx.changed_files,
+            report_path=report_path,
+        )
+        if errors:
+            ctx.runtime_ok = False
+            ctx.failures.extend(f'runtime report: {error}' for error in errors)
+
+
+# 更新重入状态并写回会话登记结果。
+def _finalize_reentry_and_registry(
+    ctx: StopContext,
+    *,
+    repo_root: Path,
+    identity: Any,
+    scope: dict[str, str],
+    reentry_path: Path,
+    audit_dir: Path,
+    report_path: Path,
+    change_id: str,
+    handoff_on_failure: bool,
+    adapter_mode: str,
+) -> None:
+    """参数：
+        ctx: 停止流程共享上下文。
+        repo_root: 仓库根目录。
+        identity: 当前运行身份。
+        scope: 当前恢复状态身份范围。
+        reentry_path: 重入状态路径。
+        audit_dir: 恢复审计目录。
+        report_path: 运行报告路径。
+        change_id: 变更标识。
+        handoff_on_failure: 失败时是否移交。
+        adapter_mode: 调用适配模式。
+
+    返回：
+        无返回值。
+    """
+    ctx.failures[:] = list(dict.fromkeys(ctx.failures))
+    try:
+        ctx.continuation_count, reentry_failures = update_reentry(
+            reentry_path,
+            repo_root,
+            ctx.failures,
+            scope=scope,
+            audit_dir=audit_dir,
+            change_id=change_id,
+        )
+        ctx.failures.extend(reentry_failures)
+    except Exception as exc:
+        ctx.failures.append(f'Stop recovery update failed: {exc}')
+    ctx.failures[:] = list(dict.fromkeys(ctx.failures))
+
+    try:
+        from scripts.harness.sessionctl import record_stop_result  # noqa: PLC0415
+
+        requested_exit = 2 if ctx.failures else 0
+        ctx.outcome_record, _outcome_facts = record_stop_result(
+            repo_root,
+            identity.raw_run_id,
+            stop_exit=requested_exit,
+            summary_status='BLOCKED' if ctx.failures else 'PASS',
+            validated_facts=ctx.git_evidence,
+            handoff_on_failure=handoff_on_failure,
+            retryable_failure=(adapter_mode == 'hook' and not handoff_on_failure),
+        )
+        if requested_exit == 0 and ctx.outcome_record.get('status') != 'VALIDATED':
+            validation = ctx.outcome_record.get('stopValidation')
+            detail = (
+                str(validation.get('evidenceError') or '')
+                if isinstance(validation, dict)
+                else ''
+            )
+            ctx.failures.append(detail or 'Stop validation receipt did not match gated Git snapshot')
+            ctx.continuation_count, reentry_failures = update_reentry(
+                reentry_path,
+                repo_root,
+                ctx.failures,
+                scope=scope,
+                audit_dir=audit_dir,
+                change_id=change_id,
+            )
+            ctx.failures.extend(reentry_failures)
+            write_runtime_report(
+                report_path,
+                identity=identity,
+                change_id=change_id,
+                changed_files=ctx.changed_files,
+                targets=ctx.targets,
+                gates_ok=False,
+                failures=ctx.failures,
+                git_evidence=ctx.git_evidence,
+                gate_results=ctx.gate_results,
+            )
+    except Exception as exc:
+        ctx.failures.append(f'Stop Registry result update failed: {exc}')
+
+
+# 释放停止流程文件锁并写入审计事件。
+def _finalize_lock(
+    ctx: StopContext,
+    stop_lock: FileLock,
+    *,
+    scope: dict[str, str],
+    audit_dir: Path,
+    reentry_path: Path,
+) -> None:
+    """参数：
+        ctx: 停止流程共享上下文。
+        stop_lock: 待释放的停止流程文件锁。
+        scope: 当前恢复状态身份范围。
+        audit_dir: 恢复审计目录。
+        reentry_path: 重入状态路径。
+
+    返回：
+        无返回值。
+    """
+    released = stop_lock.release()
+    if not released:
+        ctx.lock_status = 'release-fenced'
+        ctx.warnings.append('run-scoped Stop lock release was fenced')
+    else:
+        try:
+            write_recovery_audit(
+                audit_dir,
+                event='STOP_LOCK_RELEASED',
+                scope=scope,
+                state=load_reentry(reentry_path),
+            )
+        except Exception as exc:
+            ctx.warnings.append(f'Stop lock release audit failed: {exc}')
+
+
 # ── 核心编排 ──────────────────────────────────────────────────────
 
 
-# 停止流程主入口，依次完成身份、锁、证据、重入、门禁、报告与闭环。
+# 编排身份、锁、证据、门禁与报告的停止流程。
 def run_stop(
     agent: str,
     raw_ctx: dict[str, Any],
@@ -114,13 +420,13 @@ def run_stop(
     adapter_mode: str = 'hook',
 ) -> int:
     """参数：
-        agent: 当前函数使用的输入参数。
-        raw_ctx: 当前函数使用的输入参数。
-        handoff_on_failure: 当前函数使用的输入参数。
-        adapter_mode: 当前函数使用的输入参数。
+        agent: 调用方代理名称。
+        raw_ctx: 原始钩子上下文。
+        handoff_on_failure: 失败时是否移交。
+        adapter_mode: 区分客户端钩子与人工命令行的熔断退出语义。
 
     返回：
-        当前函数的计算结果。
+        停止流程退出码。
     """
     if adapter_mode not in {'hook', 'cli'}:
         raise ValueError(f'unsupported Stop adapter mode: {adapter_mode}')
@@ -131,17 +437,13 @@ def run_stop(
     result = validate_run_identity(agent, raw_ctx, repo_root)
     if result is None:
         return 2
-    ctx, identity, record, checkout_facts = result
+    hook_ctx, identity, record, checkout_facts = result
 
-    failures: list[str] = []
-    warnings: list[str] = list(identity.identity_warnings)
-    git_evidence: dict[str, Any] = {'changedFiles': []}
-    changed_files: list[str] = []
-    baseline_dirty_files: set[str] = set()
-    evidence_mode = 'git-run-record'
-    change_id = identity.change_id or str(record.get('changeId') or '') or 'unknown'
-    targets: list[str] = []
-    read_only = True
+    # ── 初始化共享状态 ──────────────────────────────────────────────
+    ctx = StopContext(
+        warnings=list(identity.identity_warnings),
+        change_id=identity.change_id or str(record.get('changeId') or '') or 'unknown',
+    )
     runtime_root = resolve_runtime_root(repo_root)
     runs_root = ensure_private_directory(runtime_root / 'runs', root=runtime_root)
     run_dir = ensure_private_directory(runs_root / identity.run_id, root=runs_root)
@@ -149,15 +451,7 @@ def run_stop(
     scope = recovery_scope(record)
     reentry_path = run_dir / 'stop-reentry.json'
     summary_path = stop_summary_path(repo_root, identity, agent)
-    report_path = runtime_report_path(repo_root, identity, change_id)
-    resource_lock_names: list[str] = []
-    gates_ok = True
-    runtime_ok = True
-    lock_status = 'blocked'
-    continuation_count = 0
-    outcome_record: dict[str, Any] = {}
-    gate_results: list[dict[str, str]] = []
-    circuit_broken = False
+    report_path = runtime_report_path(repo_root, identity, ctx.change_id)
 
     # ── 2. file_lock：并发互斥 ─────────────────────────────────────
     stop_lock = FileLock(
@@ -175,8 +469,7 @@ def run_stop(
     if not stop_lock.acquire():
         print('[stop_entry] BLOCK stop check already running for this run', file=sys.stderr)
         return 2
-    lock_status = 'acquired'
-    reentry_state: dict[str, Any] = {}
+    ctx.lock_status = 'acquired'
 
     try:
         if stop_lock.reclaimed_owner:
@@ -187,243 +480,79 @@ def run_stop(
                 state={'continuationCount': 0, 'circuitBreaker': {'state': 'CLOSED'}},
             )
 
-        # ── 3. evidence：变更收集（git diff + 减去 baseline dirty）──
-        try:
-            git_evidence = collect_git_evidence(repo_root, record)
-        except stop_helpers.GitEvidenceError as exc:
-            git_evidence = {'queryErrors': [str(exc)], 'changedFiles': []}
-            failures.append(f'Git evidence unavailable: {exc}')
-        changed_files = list(git_evidence.get('changedFiles') or [])
-        changed_files, baseline_dirty_files = filter_baseline_dirty(changed_files, git_evidence)
+        # ── 3. evidence：变更收集 ──────────────────────────────────
+        _phase_evidence(ctx, repo_root, record)
 
-        # ── target 映射（变更文件 → 需要的质量目标）─────────────
-        targets = stop_helpers.required_targets(changed_files)
-        if changed_files and not targets:
-            failures.append('changed files did not map to required quality targets')
-        read_only = not changed_files
-        resource_lock_names = resource_names(targets)
-
-        # ── 4. reentry：重入检测（指纹对比 + circuit breaker 熔断）─
-        same_failure, reentry_state, scope_ok = matching_reentry_failure(
-            reentry_path, repo_root, scope, change_id=change_id,
+        # ── 4. reentry：重入检测 ──────────────────────────────────
+        circuit_broken = _phase_reentry(
+            ctx, reentry_path, repo_root, scope,
+            change_id=ctx.change_id,
+            stop_hook_active=hook_ctx.stop_hook_active,
         )
-        if not scope_ok:
-            failures.append('run-scoped Stop recovery identity mismatch')
-        if ctx.stop_hook_active:
-            warnings.append('stop_hook_active reentry observed; not blocking solely on reentry')
-        if same_failure and scope_ok:
-            previous = [str(item) for item in reentry_state.get('lastFailures', [])]
-            failures.extend(previous)
-            gates_ok = False
-            warnings.append('reused persistent Stop failure; heavy gates were not rerun')
-
-        # ── circuit breaker：连续相同失败超限则熔断，跳过后续门禁 ──
-        circuit_broken = (
-            same_failure
-            and scope_ok
-            and isinstance(reentry_state, dict)
-            and str((reentry_state.get('circuitBreaker') or {}).get('state') or 'CLOSED') == 'OPEN'
-        )
-        if circuit_broken:
-            failures.append('continuation limit reached for identical Stop failure fingerprint')
 
         # ── 5. quality：质量门禁 ──────────────────────────────────
-        #   5a. openspec 规格验证（受保护路径需要合法 change 规格）──
-        elif not failures and not read_only:
-            failures.extend(run_openspec_validation(change_id, changed_files, repo_root))
+        _phase_quality(ctx, circuit_broken, ctx.change_id, repo_root, record)
 
-            #   5b. 直接调用原子 check 脚本（无中间路由层）──────────
-            if not failures:
-                gates_ok, gate_failures, gate_results = run_quality_checks(
-                    change_id, changed_files, repo_root, targets,
-                )
-                failures.extend(gate_failures)
-
-        #   5c. checkout 一致性复核（门禁期间工作目录没有变）──────
-        if not circuit_broken and git_evidence.get('checkoutFingerprint'):
-            try:
-                post_gate_evidence = collect_git_evidence(repo_root, record)
-                if post_gate_evidence.get('checkoutFingerprint') != git_evidence.get(
-                    'checkoutFingerprint'
-                ):
-                    gates_ok = False
-                    failures.append('checkout Git snapshot changed during Stop validation')
-            except stop_helpers.GitEvidenceError as exc:
-                gates_ok = False
-                failures.append(f'post-gate Git evidence unavailable: {exc}')
-
-        # ── 6. report：写入运行报告和停止检查摘要 ────────────────
-        write_runtime_report(
-            report_path,
-            identity=identity,
-            change_id=change_id,
-            changed_files=changed_files,
-            targets=targets,
-            gates_ok=gates_ok,
-            failures=failures,
-            git_evidence=git_evidence,
-            gate_results=gate_results,
-        )
-        if not failures:
-            errors = validate_runtime_report(
-                identity=identity,
-                change_id=change_id,
-                repo_root=repo_root,
-                changed_files=changed_files,
-                report_path=report_path,
-            )
-            if errors:
-                runtime_ok = False
-                failures.extend(f'runtime report: {error}' for error in errors)
+        # ── 6. 报告：写入运行报告 ────────────────────────────────
+        _phase_report(ctx, identity, ctx.change_id, repo_root, report_path)
 
     except Exception as exc:
-        failures.append(f'stop exception: {type(exc).__name__}: {exc}')
+        ctx.failures.append(f'stop exception: {type(exc).__name__}: {exc}')
 
     finally:
-        # ── 7. finalize：写回 sessionctl + 释放文件锁 ─────────────
-        failures[:] = list(dict.fromkeys(failures))
-        try:
-            continuation_count, reentry_failures = update_reentry(
-                reentry_path,
-                repo_root,
-                failures,
-                scope=scope,
-                audit_dir=audit_dir,
-                change_id=change_id,
-            )
-            failures.extend(reentry_failures)
-        except Exception as exc:
-            failures.append(f'Stop recovery update failed: {exc}')
-        failures[:] = list(dict.fromkeys(failures))
-        try:
-            from scripts.harness.sessionctl import record_stop_result  # noqa: PLC0415
-
-            requested_exit = 2 if failures else 0
-            outcome_record, _outcome_facts = record_stop_result(
-                repo_root,
-                identity.raw_run_id,
-                stop_exit=requested_exit,
-                summary_status='BLOCKED' if failures else 'PASS',
-                validated_facts=git_evidence,
-                handoff_on_failure=handoff_on_failure,
-                retryable_failure=(adapter_mode == 'hook' and not handoff_on_failure),
-            )
-            if requested_exit == 0 and outcome_record.get('status') != 'VALIDATED':
-                validation = outcome_record.get('stopValidation')
-                detail = (
-                    str(validation.get('evidenceError') or '')
-                    if isinstance(validation, dict)
-                    else ''
-                )
-                failures.append(detail or 'Stop validation receipt did not match gated Git snapshot')
-                continuation_count, reentry_failures = update_reentry(
-                    reentry_path,
-                    repo_root,
-                    failures,
-                    scope=scope,
-                    audit_dir=audit_dir,
-                    change_id=change_id,
-                )
-                failures.extend(reentry_failures)
-                write_runtime_report(
-                    report_path,
-                    identity=identity,
-                    change_id=change_id,
-                    changed_files=changed_files,
-                    targets=targets,
-                    gates_ok=False,
-                    failures=failures,
-                    git_evidence=git_evidence,
-                    gate_results=gate_results,
-                )
-        except Exception as exc:
-            failures.append(f'Stop Registry result update failed: {exc}')
-
-        released = stop_lock.release()
-        if not released:
-            lock_status = 'release-fenced'
-            warnings.append('run-scoped Stop lock release was fenced')
-        else:
-            try:
-                write_recovery_audit(
-                    audit_dir,
-                    event='STOP_LOCK_RELEASED',
-                    scope=scope,
-                    state=load_reentry(reentry_path),
-                )
-            except Exception as exc:
-                warnings.append(f'Stop lock release audit failed: {exc}')
+        # ── 7. finalize：闭环 ─────────────────────────────────────
+        _finalize_reentry_and_registry(
+            ctx,
+            repo_root=repo_root,
+            identity=identity,
+            scope=scope,
+            reentry_path=reentry_path,
+            audit_dir=audit_dir,
+            report_path=report_path,
+            change_id=ctx.change_id,
+            handoff_on_failure=handoff_on_failure,
+            adapter_mode=adapter_mode,
+        )
+        _finalize_lock(
+            ctx, stop_lock,
+            scope=scope,
+            audit_dir=audit_dir,
+            reentry_path=reentry_path,
+        )
 
         recovery_state = load_reentry(reentry_path)
         circuit_state = str((recovery_state.get('circuitBreaker') or {}).get('state') or 'CLOSED')
-        run_status = str(outcome_record.get('status') or 'BLOCKED')
-        status = (
-            'PASS'
-            if not failures and runtime_ok and run_status == 'VALIDATED'
-            else 'BLOCKED'
+        run_status = str(ctx.outcome_record.get('status') or 'BLOCKED')
+
+        summary = build_summary(
+            identity=identity,
+            record=record,
+            checkout_facts=checkout_facts,
+            git_evidence=ctx.git_evidence,
+            change_id=ctx.change_id,
+            changed_files=ctx.changed_files,
+            targets=ctx.targets,
+            resource_lock_names=ctx.resource_lock_names,
+            read_only=ctx.read_only,
+            evidence_mode=ctx.evidence_mode,
+            failures=ctx.failures,
+            warnings=ctx.warnings,
+            continuation_count=ctx.continuation_count,
+            circuit_state=circuit_state,
+            run_status=run_status,
+            lock_status=ctx.lock_status,
+            summary_path=summary_path,
+            report_path=report_path,
+            reentry_path=reentry_path,
         )
-        summary = {
-            'schemaVersion': 5,
-            'ts': utc_now(),
-            'runId': identity.raw_run_id,
-            'client': identity.client,
-            'sessionId': identity.raw_session_id,
-            'taskId': identity.raw_task_id,
-            'worktreeId': identity.raw_worktree_id,
-            'branch': identity.branch or str(record.get('branch') or ''),
-            'observedBranch': str(checkout_facts.get('branch') or ''),
-            'detached': bool(checkout_facts.get('detached', record.get('detached', False))),
-            'checkoutKind': str(checkout_facts.get('checkoutKind') or record.get('checkoutKind') or ''),
-            'checkoutCreator': str(checkout_facts.get('checkoutCreator') or record.get('checkoutCreator') or 'unknown'),
-            'gitCommonDir': str(checkout_facts.get('gitCommonDir') or record.get('gitCommonDir') or ''),
-            'baseCommit': str(record.get('baseCommit') or ''),
-            'baseCommitExists': checkout_facts.get('baseCommitExists'),
-            'baseIsAncestorOfHead': checkout_facts.get('baseIsAncestorOfHead'),
-            'headCommit': git_evidence.get('headCommit', ''),
-            'commits': git_evidence.get('commits', []),
-            'committedFiles': git_evidence.get('committedFiles', []),
-            'uncommittedFiles': git_evidence.get('uncommittedFiles', []),
-            'untrackedFiles': git_evidence.get('untrackedFiles', []),
-            'ahead': git_evidence.get('ahead', 0),
-            'behind': git_evidence.get('behind', 0),
-            'aheadBehind': git_evidence.get('aheadBehind', {'ahead': 0, 'behind': 0}),
-            'mergeBase': git_evidence.get('mergeBase', ''),
-            'initialDirtySnapshot': git_evidence.get('initialDirtySnapshot', {}),
-            'initialDirtyBaseline': git_evidence.get('initialDirtyBaseline', {}),
-            'changeAttribution': git_evidence.get('changeAttribution', {}),
-            'checkoutStatus': git_evidence.get('checkoutStatus', {}),
-            'targetBranch': git_evidence.get('targetBranch', str(record.get('targetBranch') or '')),
-            'targetHead': git_evidence.get('targetHead', ''),
-            'targetState': git_evidence.get('targetState', 'UNKNOWN'),
-            'targetStatus': git_evidence.get('targetStatus', {}),
-            'primaryStatus': git_evidence.get('primaryStatus', {}),
-            'changeId': change_id,
-            'readOnly': read_only,
-            'status': status,
-            'runStatus': run_status,
-            'evidenceMode': evidence_mode,
-            'changedFiles': changed_files,
-            'requiredTargets': targets,
-            'resourceLocks': resource_lock_names,
-            'lockStatus': lock_status,
-            'blockingFailures': failures,
-            'warnings': warnings,
-            'continuationCount': continuation_count,
-            'circuitState': circuit_state,
-            'artifacts': {
-                'summary': str(summary_path),
-                'runtimeReport': str(report_path),
-                'reentry': str(reentry_path),
-            },
-        }
         write_summary(summary_path, summary)
 
-    if failures:
-        for failure in failures:
+    if ctx.failures:
+        for failure in ctx.failures:
             print(f'[stop_entry] BLOCK {failure}', file=sys.stderr)
         if adapter_mode == 'hook' and circuit_state == 'OPEN':
             print(
-                '[stop_entry] circuit open; ending repeated hook callback with failure evidence preserved',
+                '[stop_entry] circuit OPEN; stop hook continuation terminated',
                 file=sys.stderr,
             )
             return 0
@@ -437,11 +566,8 @@ def run_stop(
 
 # 解析命令行参数并执行停止流程。
 def main() -> int:
-    """参数：
-        当前函数没有输入参数。
-
-    返回：
-        当前函数的计算结果。
+    """返回：
+        停止流程退出码。
     """
     parser = argparse.ArgumentParser(description='Run unified Stop entry.')
     parser.add_argument('--agent', default='unknown')
