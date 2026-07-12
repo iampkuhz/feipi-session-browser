@@ -163,7 +163,7 @@ final class SessionDetailParityAnalyzer {
       return List.of();
     }
     List<Path> result = new ArrayList<>();
-    // 1. Legacy: look for child rollouts in the same directory as the parent
+    // 1. 兼容旧格式：在父 session 同目录查找子 rollout
     try (var stream = Files.list(parentPath.getParent())) {
       stream
           .filter(path -> !path.equals(parentPath))
@@ -176,9 +176,9 @@ final class SessionDetailParityAnalyzer {
                 }
               });
     } catch (IOException ignored) {
-      // fall through to subagent directory discovery
+      // 回退到 subagent 目录发现
     }
-    // 2. Claude Code subagent directory: {sessionDir}/{sessionId}/subagents/agent-*.jsonl
+    // 2. Claude Code subagent 目录（session 目录下的 subagents 子目录）
     Path subagentDir = parentPath.getParent().resolve(parentSessionId).resolve("subagents");
     if (Files.isDirectory(subagentDir)) {
       try (var stream = Files.list(subagentDir)) {
@@ -188,7 +188,7 @@ final class SessionDetailParityAnalyzer {
             .sorted()
             .forEach(result::add);
       } catch (IOException ignored) {
-        // ignore
+        // 忽略读取异常
       }
     }
     return List.copyOf(result);
@@ -224,7 +224,7 @@ final class SessionDetailParityAnalyzer {
   private static RolloutStats parseRollout(
       Path path, String scope, String parentSessionId, boolean child) {
     RolloutStats stats = new RolloutStats(path.toString(), scope, parentSessionId);
-    // For Claude Code subagent files, extract agentId from filename and agentType from .meta.json
+    // Claude Code subagent 文件：从文件名提取 agentId，从 .meta.json 读取 agentType
     if (child && stats.sessionId.isBlank()) {
       String filename = path.getFileName().toString();
       if (filename.startsWith("agent-") && filename.endsWith(".jsonl")) {
@@ -239,7 +239,7 @@ final class SessionDetailParityAnalyzer {
             stats.agentType = agentType;
           }
         } catch (IOException ignored) {
-          // ignore
+          // 忽略读取异常
         }
       }
     }
@@ -277,7 +277,7 @@ final class SessionDetailParityAnalyzer {
           continue;
         }
         if ("user".equals(type)) {
-          // For Claude Code subagent files, extract agentId from first line if not already set
+          // Claude Code subagent 文件：从首行提取 agentId（如果尚未设置）
           if (child && stats.sessionId.isBlank()) {
             String agentId = text(root, "agentId");
             if (!agentId.isBlank()) {
@@ -288,7 +288,7 @@ final class SessionDetailParityAnalyzer {
           if (isVisibleUserInput(messageText)) {
             pendingUser = messageText;
           }
-          // Extract tool_result blocks from Claude Code native format
+          // 从 Claude Code 原生格式提取 tool_result blocks
           JsonNode content = root.path("message").path(FIELD_CONTENT);
           if (content.isArray()) {
             final int lineIndex = index;
@@ -328,7 +328,7 @@ final class SessionDetailParityAnalyzer {
           if (!messageText.isBlank()) {
             pendingAssistant = messageText;
           }
-          // Extract tool_use blocks from Claude Code native format
+          // 从 Claude Code 原生格式提取 tool_use blocks
           JsonNode content = message.path(FIELD_CONTENT);
           if (content.isArray()) {
             for (JsonNode part : content) {
@@ -654,7 +654,6 @@ final class SessionDetailParityAnalyzer {
 
   private static List<Map<String, Object>> agentRows(
       SessionRecord row, String sourcePath, RolloutStats parent, List<RolloutStats> children) {
-    long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
     long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : row.assistantMessageCount();
     long parentSubagentTools =
         parent.tools.values().stream().filter(tool -> !tool.subagentId.isBlank()).count();
@@ -904,7 +903,7 @@ final class SessionDetailParityAnalyzer {
     if (output == null || output.isBlank()) {
       return "";
     }
-    // Try JSON format first (Codex style)
+    // 先尝试 JSON 格式（Codex 风格）
     try {
       JsonNode node = MAPPER.readTree(output);
       String agentId = text(node, "agent_id");
@@ -912,9 +911,9 @@ final class SessionDetailParityAnalyzer {
         return agentId;
       }
     } catch (IOException ignored) {
-      // not JSON, fall through to plain text parsing
+      // 非 JSON，回退到纯文本解析
     }
-    // Claude Code plain text format: "agentId: <id> ..."
+    // Claude Code 纯文本格式："agentId: <id> ..."
     int idx = output.indexOf("agentId: ");
     if (idx >= 0) {
       String rest = output.substring(idx + "agentId: ".length()).strip();
