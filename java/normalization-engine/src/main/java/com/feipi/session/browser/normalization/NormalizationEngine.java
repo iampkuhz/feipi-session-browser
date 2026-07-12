@@ -304,7 +304,7 @@ public final class NormalizationEngine {
       }
     }
 
-    // 计算 modelExecutionSeconds 和 toolExecutionSeconds
+    // 计算模型执行时长和工具执行时长
     //
     // toolExecSeconds 从 toolExecutions 聚合（当 durationMs 为 0 时回退为 0）。
     // activeSpan 从全部 call timestamps 的 min/max 差值得出，代表 LLM 活跃时段。
@@ -319,9 +319,7 @@ public final class NormalizationEngine {
     Optional<Instant> lastCallInstant = Optional.empty();
     for (NormalizedCall call : calls) {
       Optional<Instant> parsed =
-          call.timestamp()
-              .filter(ts -> !ts.isBlank())
-              .flatMap(NormalizationEngine::parseInstant);
+          call.timestamp().filter(ts -> !ts.isBlank()).flatMap(NormalizationEngine::parseInstant);
       if (parsed.isEmpty()) {
         continue;
       }

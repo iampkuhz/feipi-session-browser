@@ -429,8 +429,10 @@
     "executedTools" : 6,
     "failedToolCount" : 0,
     "model" : "gpt-5.5",
+    "modelExecutionSeconds" : 42.346,
     "started_at" : "2026-06-19T04:32:03.942Z",
     "toolCallCount" : 6,
+    "toolExecutionSeconds" : 0.0,
     "totalTokens" : 246579,
     "userMessageCount" : 3
   },

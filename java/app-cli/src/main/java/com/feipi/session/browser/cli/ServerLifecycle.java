@@ -14,6 +14,7 @@ import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.scan.engine.BackgroundScanner;
 import com.feipi.session.browser.scan.engine.IncrementalScanEngine;
+import com.feipi.session.browser.scan.engine.ScanCancelToken;
 import com.feipi.session.browser.scan.engine.ScanConfig;
 import com.feipi.session.browser.scan.engine.ScanLock;
 import com.feipi.session.browser.scan.engine.TierConfig;
@@ -35,6 +36,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -371,10 +373,10 @@ public final class ServerLifecycle {
       Connection conn, ScanConfig config, ScanLock scanLock, QueryCompositionRoot queryRoot) {
     IncrementalScanEngine engine = new IncrementalScanEngine();
 
-    Runnable hotAction =
-        () -> {
+    Consumer<ScanCancelToken> hotAction =
+        token -> {
           try {
-            engine.scan(new SqliteIndexWriter(conn), config);
+            engine.scan(new SqliteIndexWriter(conn), config, null, token);
             queryRoot.invalidateCache();
           } catch (CancellationException e) {
             LOG.info("hot 层级扫描已取消");
@@ -383,11 +385,14 @@ public final class ServerLifecycle {
           }
         };
 
-    Runnable warmAction =
-        () -> {
+    Consumer<ScanCancelToken> warmAction =
+        token -> {
           try {
             engine.scan(
-                new SqliteIndexWriter(conn), config, (double) TierConfig.DEFAULT_WARM_WINDOW);
+                new SqliteIndexWriter(conn),
+                config,
+                (double) TierConfig.DEFAULT_WARM_WINDOW,
+                token);
             queryRoot.invalidateCache();
           } catch (CancellationException e) {
             LOG.info("warm 层级扫描已取消");

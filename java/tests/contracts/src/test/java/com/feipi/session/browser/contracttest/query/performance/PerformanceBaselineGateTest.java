@@ -372,6 +372,9 @@ class PerformanceBaselineGateTest {
     void missingKeyLookupWithinBudget() throws Exception {
       SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
+      // 预热，避免把首次查询的 JDBC 初始化成本计入稳定态查找预算
+      repo.getSession("nonexistent:warmup");
+
       long start = System.nanoTime();
       var result = repo.getSession("nonexistent:key");
       long elapsed = (System.nanoTime() - start) / 1_000_000;

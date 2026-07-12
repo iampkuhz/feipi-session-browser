@@ -371,9 +371,11 @@
     "failedToolCount" : 0,
     "freshInputTokens" : 98466,
     "model" : "qwen3.7-plus",
+    "modelExecutionSeconds" : 52.93,
     "outputTokens" : 1932,
     "started_at" : "2026-06-13T07:26:41.911Z",
     "toolCallCount" : 5,
+    "toolExecutionSeconds" : 0.0,
     "totalTokens" : 212524,
     "userMessageCount" : 1
   },

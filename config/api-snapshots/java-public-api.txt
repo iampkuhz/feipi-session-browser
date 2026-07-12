@@ -1722,6 +1722,8 @@ constructor com.feipi.session.browser.scan.artifact.CanonicalJsonWriter public C
 constructor com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter public NormalizedArtifactWriter()
 constructor com.feipi.session.browser.scan.artifact.NormalizedArtifactWriter public NormalizedArtifactWriter(Clock clock)
 constructor com.feipi.session.browser.scan.artifact.WriteResult public WriteResult()
+constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Consumer<ScanCancelToken> hotAction, Consumer<ScanCancelToken> warmAction)
+constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Consumer<ScanCancelToken> hotAction, Consumer<ScanCancelToken> warmAction, Clock clock)
 constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Runnable hotAction, Runnable warmAction)
 constructor com.feipi.session.browser.scan.engine.BackgroundScanner public BackgroundScanner( TierConfig hotTier, TierConfig warmTier, ScanLock scanLock, Runnable hotAction, Runnable warmAction, Clock clock)
 constructor com.feipi.session.browser.scan.engine.FullScanEngine public FullScanEngine( NormalizationEngine normalizationEngine, NormalizedArtifactWriter artifactWriter)

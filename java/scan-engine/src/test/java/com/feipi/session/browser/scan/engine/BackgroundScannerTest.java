@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneId;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
@@ -122,6 +123,43 @@ class BackgroundScannerTest {
     assertThat(scanner.isRunning()).isTrue();
 
     scanner.shutdown(2, TimeUnit.SECONDS);
+    assertThat(scanner.isRunning()).isFalse();
+  }
+
+  @Test
+  void shutdownCancelsRunningTokenAwareActionBeforeTimeout() throws Exception {
+    CountDownLatch actionStarted = new CountDownLatch(1);
+    CountDownLatch actionExited = new CountDownLatch(1);
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(100_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(1800, 30),
+            new TierConfig(86400, 60),
+            scanLock,
+            token -> {
+              actionStarted.countDown();
+              try {
+                while (true) {
+                  token.throwIfCancelled();
+                  Thread.onSpinWait();
+                }
+              } finally {
+                actionExited.countDown();
+              }
+            },
+            token -> warmCount.incrementAndGet(),
+            clock);
+
+    scanner.start();
+    assertThat(actionStarted.await(2, TimeUnit.SECONDS)).isTrue();
+
+    scanner.shutdown(2, TimeUnit.SECONDS);
+
+    assertThat(actionExited.getCount()).isZero();
+    assertThat(warmCount.get()).isZero();
     assertThat(scanner.isRunning()).isFalse();
   }
 

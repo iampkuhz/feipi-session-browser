@@ -26,6 +26,11 @@ tasks.withType<JavaCompile>().configureEach {
     )
 }
 
+// --- 测试运行时允许 SQLite JDBC 加载本地库，避免新版 JDK 输出受限调用告警 ---
+tasks.withType<Test>().configureEach {
+    jvmArgs("--enable-native-access=ALL-UNNAMED")
+}
+
 // --- 公共仓库 ---
 repositories {
     maven("https://maven.aliyun.com/repository/central")

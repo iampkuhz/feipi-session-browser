@@ -8,6 +8,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Consumer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -31,8 +32,8 @@ public final class BackgroundScanner {
   private final TierConfig hotTier;
   private final TierConfig warmTier;
   private final ScanLock scanLock;
-  private final Runnable hotAction;
-  private final Runnable warmAction;
+  private final Consumer<ScanCancelToken> hotAction;
+  private final Consumer<ScanCancelToken> warmAction;
   private final Clock clock;
 
   private final ScheduledExecutorService scheduler;
@@ -57,6 +58,32 @@ public final class BackgroundScanner {
       ScanLock scanLock,
       Runnable hotAction,
       Runnable warmAction,
+      Clock clock) {
+    this(
+        hotTier,
+        warmTier,
+        scanLock,
+        ignoreCancelToken(hotAction, "hotAction 不得为 null"),
+        ignoreCancelToken(warmAction, "warmAction 不得为 null"),
+        clock);
+  }
+
+  /**
+   * 创建支持协作取消的后台扫描调度器。
+   *
+   * @param hotTier hot 层级配置
+   * @param warmTier warm 层级配置
+   * @param scanLock 跨进程扫描锁
+   * @param hotAction 接收当前取消令牌的 hot 层级扫描动作
+   * @param warmAction 接收当前取消令牌的 warm 层级扫描动作
+   * @param clock 时间源
+   */
+  public BackgroundScanner(
+      TierConfig hotTier,
+      TierConfig warmTier,
+      ScanLock scanLock,
+      Consumer<ScanCancelToken> hotAction,
+      Consumer<ScanCancelToken> warmAction,
       Clock clock) {
     this.hotTier = Objects.requireNonNull(hotTier, "hotTier 不得为 null");
     this.warmTier = Objects.requireNonNull(warmTier, "warmTier 不得为 null");
@@ -90,6 +117,24 @@ public final class BackgroundScanner {
       ScanLock scanLock,
       Runnable hotAction,
       Runnable warmAction) {
+    this(hotTier, warmTier, scanLock, hotAction, warmAction, Clock.systemUTC());
+  }
+
+  /**
+   * 使用默认系统时钟创建支持协作取消的后台扫描调度器。
+   *
+   * @param hotTier hot 层级配置
+   * @param warmTier warm 层级配置
+   * @param scanLock 跨进程扫描锁
+   * @param hotAction 接收当前取消令牌的 hot 层级扫描动作
+   * @param warmAction 接收当前取消令牌的 warm 层级扫描动作
+   */
+  public BackgroundScanner(
+      TierConfig hotTier,
+      TierConfig warmTier,
+      ScanLock scanLock,
+      Consumer<ScanCancelToken> hotAction,
+      Consumer<ScanCancelToken> warmAction) {
     this(hotTier, warmTier, scanLock, hotAction, warmAction, Clock.systemUTC());
   }
 
@@ -218,7 +263,7 @@ public final class BackgroundScanner {
     if (needsHot) {
       log.debug("执行 hot 层级扫描: window={}s", hotTier.windowSeconds());
       try {
-        hotAction.run();
+        hotAction.accept(token);
       } catch (CancellationException e) {
         log.info("hot 层级扫描已取消");
       } catch (Exception e) {
@@ -230,7 +275,7 @@ public final class BackgroundScanner {
     if (needsWarm && !token.isCancelled()) {
       log.debug("执行 warm 层级扫描: window={}s", warmTier.windowSeconds());
       try {
-        warmAction.run();
+        warmAction.accept(token);
       } catch (CancellationException e) {
         log.info("warm 层级扫描已取消");
       } catch (Exception e) {
@@ -249,6 +294,11 @@ public final class BackgroundScanner {
     if (needsWarm) {
       lastWarmScanMs = now;
     }
+  }
+
+  private static Consumer<ScanCancelToken> ignoreCancelToken(Runnable action, String message) {
+    Objects.requireNonNull(action, message);
+    return ignored -> action.run();
   }
 
   /**

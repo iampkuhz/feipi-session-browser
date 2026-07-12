@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.fail;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
@@ -257,7 +258,9 @@ class SessionSampleIntegrationTest {
     String expectedJson = JsoncStripper.strip(expectedJsonc);
 
     // 7. 结构对比
-    List<String> differences = StructuralJsonCompare.compare(expectedJson, javaOutput);
+    List<String> differences =
+        StructuralJsonCompare.compare(
+            normalizeSampleLocators(expectedJson), normalizeSampleLocators(javaOutput));
 
     if (!differences.isEmpty()) {
       String relativePath = PROJECT_ROOT.relativize(sampleDir).toString();
@@ -276,6 +279,25 @@ class SessionSampleIntegrationTest {
               + "。前 5 条差异: "
               + differences.subList(0, Math.min(5, differences.size())));
     }
+  }
+
+  /** 将样例诊断中的仓库绝对路径规范化为稳定的仓库相对路径。 */
+  private static String normalizeSampleLocators(String json) throws IOException {
+    JsonNode root = MAPPER.readTree(json);
+    for (JsonNode diagnostic : root.path("diagnostics")) {
+      JsonNode locatorNode = diagnostic.get("locator");
+      if (!(diagnostic instanceof ObjectNode objectNode)
+          || locatorNode == null
+          || !locatorNode.isTextual()) {
+        continue;
+      }
+      String locator = locatorNode.textValue();
+      int samplesIndex = locator.indexOf("docs/session-samples/");
+      if (samplesIndex >= 0) {
+        objectNode.put("locator", locator.substring(samplesIndex));
+      }
+    }
+    return MAPPER.writeValueAsString(root);
   }
 
   private static void assertFileExists(Path path, String label) {
