@@ -122,7 +122,8 @@ class CliContractTest {
           .contains("deps")
           .contains("quality")
           .contains("version")
-          .contains("release");
+          .contains("release")
+          .contains("diagnose");
     }
 
     @Test
