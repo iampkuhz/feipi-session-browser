@@ -19,6 +19,14 @@ Runtime MUST 采用 Agent 启动时客户端已经选择的当前 checkout，且
 - **Then** Runtime MUST 采用该 checkout
 - **And** Runtime MUST NOT 再创建、切换或要求固定父路径下的 worktree
 
+### Scenario: Claude/Codex 新 Worktree 起点
+
+- **Given** Claude 或 Codex 为新 Session 选择 linked worktree
+- **When** Runtime 首次 bootstrap 该 checkout
+- **Then** initial `HEAD` MUST 等于 primary checkout 当前 named branch 的精确 `HEAD`
+- **And** mismatch MUST 返回 `WORKTREE_BASE_MISMATCH` 并在 mutation 前 BLOCK
+- **And** Runtime MUST NOT rebase、reset、切换或删除 provider-owned checkout
+
 ### Scenario: Provider-owned Worktree 生命周期
 
 - **Given** 当前 linked worktree 由客户端或外部 provider 创建
@@ -235,6 +243,15 @@ Codex App、Codex CLI、Claude Code CLI、Qoder CLI 和 Qoder 客户端 adapter 
 - **And** SessionStart 缺失时首次 PreToolUse MUST 只做幂等兜底
 - **And** MUST NOT 要求 `FEIPI_RUN_ID` 或 `--add-dir` 主仓库/`.git`
 
+### Scenario: Codex Worktree Acquisition
+
+- **Given** Codex CLI 没有原生 managed-worktree 参数
+- **When** 用户请求隔离 worktree
+- **Then** repository pre-launch launcher MUST 从稳定 primary `HEAD` snapshot 创建 checkout
+- **And** CLI MUST 通过 `codex -C <checkout>` 采用它
+- **And** App 原生 Worktree MUST 由用户在 UI 选择 primary 当前 starting branch
+- **And** 仓库 MUST NOT 声称存在 `codex --worktree` 或可预选 App branch 的 TOML 配置
+
 ### Scenario: Claude Code CLI
 
 - **Given** `claude` 或 `claude --worktree` 已在进程启动前确定 cwd
@@ -242,6 +259,34 @@ Codex App、Codex CLI、Claude Code CLI、Qoder CLI 和 Qoder 客户端 adapter 
 - **Then** adapter MUST 采用当前 checkout
 - **And** `CwdChanged` MUST 只重确认身份而不得创建第二个 worktree
 - **And** `CLAUDE_ENV_FILE` 中的便利变量 MUST NOT 取代 Registry 权威
+- **And** repository setting `worktree.baseRef` MUST 为 `head`
+
+## Requirement: 新 Client Worktree 使用精确 Primary HEAD
+
+Claude Code CLI、Codex CLI 与 Codex App 的新 linked worktree MUST 使用启动前 primary checkout
+当前 named branch 的已提交精确 `HEAD`，不得 fallback 到 `origin/HEAD`、远端默认分支、tracking
+branch 或硬编码 `main`。
+
+### Scenario: Primary 领先远端默认分支
+
+- **Given** primary 位于本地 `main_java`，且 `origin/HEAD` 指向较旧 `origin/main`
+- **When** 客户端 acquisition 创建 linked worktree
+- **Then** initial `HEAD` MUST 等于本地 `main_java` 的 captured `HEAD`
+- **And** 未 push commit MUST 保留在新 checkout 中
+
+### Scenario: Detached 或 Snapshot Race
+
+- **Given** primary detached，或 capture 期间 branch/HEAD 改变
+- **When** acquisition 或新 run 校验起点
+- **Then** 流程 MUST fail closed 并要求重试
+- **And** MUST NOT 猜测默认 branch
+
+### Scenario: Resume 不重复校验当前 Primary
+
+- **Given** linked run 已以正确 base 登记，随后 checkout 或 primary 正常前进
+- **When** 同一 Session resume 或收到重复 payload
+- **Then** Runtime MUST 复用 Registry 中的 run、checkout 与 `baseCommit`
+- **And** MUST NOT 把后续 commit 误判为 initial-base mismatch
 
 ### Scenario: Qoder CLI
 

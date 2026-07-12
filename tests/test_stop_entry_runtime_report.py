@@ -22,6 +22,45 @@ def _run(cmd: list[str], cwd: Path) -> None:
     subprocess.run(cmd, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
 
 
+def test_stop_quality_keeps_atomic_gate_command_unchanged(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from scripts.harness.stop_entry_checks import quality as stop_quality
+
+    captured: list[tuple[list[str], dict[str, str]]] = []
+    monkeypatch.setattr(stop_quality, 'QUALITY_TARGETS', {'hook-runtime': ['settingsJson']})
+    monkeypatch.setattr(stop_quality, 'GATE_PATTERNS', {})
+    monkeypatch.setattr(stop_quality, 'target_parallel_meta', lambda _target: {})
+    monkeypatch.setattr(
+        stop_quality,
+        '_gate_command',
+        lambda _gate, _root, _target: ['python', '-c', 'print("ok")'],
+    )
+
+    def capture(
+        _name: str,
+        cmd: list[str],
+        _repo_root: Path,
+        env: dict[str, str],
+        timeout: int = 1800,
+    ) -> bool:
+        del timeout
+        captured.append((cmd, env))
+        return True
+
+    monkeypatch.setattr(stop_quality, 'run_cmd', capture)
+
+    passed, failures, results = stop_quality.run_quality_checks(
+        'change-a', ['.claude/settings.json'], tmp_path, ['hook-runtime']
+    )
+
+    assert passed is True
+    assert failures == []
+    assert results == [{'name': 'settingsJson', 'status': 'PASS'}]
+    assert captured[0][0] == ['python', '-c', 'print("ok")']
+    assert captured[0][1]['QUALITY_CHANGED_FILES'] == '[".claude/settings.json"]'
+
+
 def _repo(tmp_path: Path, monkeypatch) -> Path:
     repo = tmp_path / 'repo'
     repo.mkdir()

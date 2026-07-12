@@ -61,28 +61,74 @@ def _run(
 
 
 # 创建一个主 checkout 和一个 provider-owned linked checkout。
-def _git_repo(tmp_root: Path) -> tuple[Path, Path]:
+def _git_repo(tmp_root: Path) -> tuple[Path, Path, str]:
     """参数：
         tmp_root: 合成仓库根目录。
 
     返回：
-        主 checkout 与 linked checkout 路径。
+        主 checkout、linked checkout 路径与旧 default branch HEAD。
     """
 
     repo = tmp_root / "repo"
     linked = tmp_root / "provider checkout"
     repo.mkdir()
-    _run(["git", "init", "-b", "main_java"], repo)
+    _run(["git", "init", "-b", "main"], repo)
     _run(["git", "config", "user.email", "agent-runtime@example.invalid"], repo)
     _run(["git", "config", "user.name", "Agent Runtime Gate"], repo)
     (repo / "README.md").write_text("# synthetic repo\n", encoding="utf-8")
     _run(["git", "add", "README.md"], repo)
     _run(["git", "commit", "-m", "initial"], repo)
+    default_head = _run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
+    _run(["git", "update-ref", "refs/remotes/origin/main", default_head], repo)
+    _run(
+        ["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"],
+        repo,
+    )
+    _run(["git", "switch", "-c", "main_java"], repo)
+    (repo / "README.md").write_text("# current local branch\n", encoding="utf-8")
+    _run(["git", "commit", "-am", "current local branch"], repo)
     _run(
         ["git", "worktree", "add", "-b", "provider-linked", str(linked), "HEAD"],
         repo,
     )
-    return repo.resolve(), linked.resolve()
+    return repo.resolve(), linked.resolve(), default_head
+
+
+# 通过公开 launcher 创建并检查 Codex CLI/App checkout。
+def _launch_checkout(
+    repo: Path,
+    tmp_root: Path,
+    client: str,
+) -> tuple[Path, dict]:
+    """参数：
+        repo: 主工作区检出路径。
+        tmp_root: 合成测试临时目录。
+        client: Codex 客户端 surface。
+
+    返回：
+        launcher 创建的 checkout 与机器可读证据。
+    """
+
+    name = f"gate-{client}"
+    root = tmp_root / "codex worktrees"
+    result = _run(
+        [
+            sys.executable,
+            str(ROOT / "scripts/harness/launch_codex_worktree.py"),
+            "--client",
+            client,
+            "--name",
+            name,
+            "--repo-root",
+            str(repo),
+            "--worktree-root",
+            str(root),
+            "--no-launch",
+        ],
+        ROOT,
+        check=False,
+    )
+    return (root / name).resolve(), _payload(result, f"launch {client}")
 
 
 # 使用隔离 Runtime Registry 调用公开 sessionctl CLI。
@@ -230,11 +276,50 @@ def run_checks() -> list[str]:
     with tempfile.TemporaryDirectory(prefix="agent-runtime-worktree-") as tmp:
         tmp_root = Path(tmp).resolve()
         runtime_root = tmp_root / "runtime"
-        repo, linked = _git_repo(tmp_root)
+        repo, linked, default_head = _git_repo(tmp_root)
+        current_head = _run(["git", "rev-parse", "HEAD"], repo).stdout.strip()
+        settings = json.loads((ROOT / ".claude/settings.json").read_text(encoding="utf-8"))
+        _expect(
+            settings.get("worktree", {}).get("baseRef") == "head",
+            "Claude worktree.baseRef is not pinned to head",
+            errors,
+        )
+        cli_checkout, cli_launch = _launch_checkout(repo, tmp_root, "codex-cli")
+        app_checkout, app_launch = _launch_checkout(repo, tmp_root, "codex-app")
+        for label, checkout, evidence in (
+            ("codex-cli", cli_checkout, cli_launch),
+            ("codex-app", app_checkout, app_launch),
+        ):
+            _expect(
+                evidence.get("primarySnapshot", {}).get("head_commit") == current_head
+                and _run(["git", "rev-parse", "HEAD"], checkout).stdout.strip() == current_head
+                and current_head != default_head,
+                f"{label} launcher did not use the exact current primary HEAD",
+                errors,
+            )
+        mismatch = tmp_root / "wrong default checkout"
+        _run(
+            ["git", "worktree", "add", "-b", "codex/wrong-default", str(mismatch), default_head],
+            repo,
+        )
+        mismatch_result = _bootstrap(
+            repo,
+            runtime_root,
+            "codex",
+            "wrong-default-session",
+            mismatch,
+        )
+        _expect(
+            mismatch_result.returncode == 2
+            and "WORKTREE_BASE_MISMATCH" in mismatch_result.stderr,
+            "wrong Codex App/CLI worktree base did not fail closed",
+            errors,
+        )
         provider_worktrees = _worktree_roots(repo)
         _expect(
-            provider_worktrees == sorted([repo, linked]),
-            "synthetic provider did not establish exactly one primary and one linked checkout",
+            provider_worktrees
+            == sorted([repo, linked, cli_checkout, app_checkout, mismatch.resolve()]),
+            "synthetic providers did not establish the expected checkout inventory",
             errors,
         )
 

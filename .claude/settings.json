@@ -1,5 +1,8 @@
 {
   "agent": "qwen-main-default",
+  "worktree": {
+    "baseRef": "head"
+  },
   "permissions": {
     "defaultMode": "bypassPermissions",
     "additionalDirectories": [],

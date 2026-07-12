@@ -197,6 +197,15 @@ class Collision:
     second_run_id: str
 
 
+@dataclass(frozen=True)
+class PrimaryHeadSnapshot:
+    """一次稳定读取的 primary checkout 当前分支与提交。"""
+
+    primary_repo_root: str
+    branch: str
+    head_commit: str
+
+
 # 执行 git 命令并返回去除首尾空白的 stdout。
 def _git_output(repo_root: Path, *args: str) -> str:
     """参数：
@@ -402,6 +411,37 @@ def resolve_primary_repo_root(repo_root: Path) -> Path:
     if resolve_git_common_dir(primary_root) != resolve_git_common_dir(checkout_root):
         raise PrimarySessionValidationError("primary checkout and current checkout have different Git common-dir")
     return primary_root
+
+
+# 稳定读取 primary checkout 的 named branch 与精确 HEAD。
+def capture_primary_head_snapshot(repo_root: Path) -> PrimaryHeadSnapshot:
+    """参数：
+        repo_root: primary 或同仓库 linked checkout 内的路径。
+
+    返回：
+        两次读取一致的 primary branch/HEAD snapshot。
+
+    异常：
+        PrimarySessionValidationError: primary detached 或读取期间发生竞态时抛出。
+    """
+    primary_root = resolve_primary_repo_root(repo_root)
+    first_branch = _current_branch(primary_root)
+    first_head = _git_output(primary_root, "rev-parse", "HEAD")
+    second_branch = _current_branch(primary_root)
+    second_head = _git_output(primary_root, "rev-parse", "HEAD")
+    if not first_branch or not second_branch:
+        raise PrimarySessionValidationError(
+            "PRIMARY_HEAD_DETACHED: primary checkout must be on a named branch"
+        )
+    if (first_branch, first_head) != (second_branch, second_head):
+        raise PrimarySessionValidationError(
+            "PRIMARY_HEAD_RACE: primary branch or HEAD changed while capturing snapshot"
+        )
+    return PrimaryHeadSnapshot(
+        primary_repo_root=str(primary_root),
+        branch=first_branch,
+        head_commit=first_head,
+    )
 
 
 # 生成主 checkout 与 linked worktree 共用的仓库键。

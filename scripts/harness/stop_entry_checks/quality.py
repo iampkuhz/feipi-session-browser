@@ -1,8 +1,8 @@
 """质量门禁：OpenSpec 验证、直接调用原子 check 脚本、runtime-report 写入与校验。
 
 质量门禁不再通过 run_required_quality_gates.py → run_quality_gate.py 的管道链路，
-而是由 stop_entry 直接调用每个 check 脚本。每个 check 脚本通过 --changed-files
-参数自感知是否需要运行。
+而是由 stop_entry 直接调用每个 check 命令。changed-files 仅用于选择
+target 和 gate，不追加到原子命令，避免污染不支持该参数的命令。
 """
 
 from __future__ import annotations
@@ -167,8 +167,6 @@ def run_quality_checks(
     if changed_files:
         env['QUALITY_CHANGED_FILES'] = json.dumps(changed_files, ensure_ascii=False)
 
-    changed_files_json = json.dumps(changed_files, ensure_ascii=False) if changed_files else '[]'
-
     # ── 显式 check 清单：按 target 分组，每个 gate 直接调用 ──
     for target in targets:
         gates = QUALITY_TARGETS.get(target, [])
@@ -187,21 +185,16 @@ def run_quality_checks(
                 failures.append(f'{gate}: no executable command or dependency missing')
                 continue
 
-            # 构建 check 环境变量，注入 --changed-files
+            # 通过环境变量传递上下文；保持 gate 原始命令不变。
             check_env = env.copy()
             check_env['SESSION_BROWSER_PYTHON'] = env.get('SESSION_BROWSER_PYTHON', sys.executable)
-
-            # 直接调用 check 脚本，传入 --changed-files 供其自感知
-            cmd_with_trigger = list(cmd)
-            if gate not in {'javaCheck', 'scanScriptSmoke'}:
-                cmd_with_trigger.extend(['--changed-files', changed_files_json])
 
             label = ' '.join(cmd[:4]) if len(cmd) > 4 else ' '.join(cmd)
             print(f'[stop_entry] running {gate}: {label}', file=sys.stderr)
 
             ok = run_cmd(
                 gate,
-                cmd_with_trigger,
+                cmd,
                 repo_root,
                 check_env,
                 timeout=target_timeout,

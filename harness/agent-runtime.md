@@ -52,6 +52,8 @@
 Session/bootstrap、checkout adoption、writer lease、Stop/finalize/handoff 和 provider-owned
 worktree 的唯一生命周期说明见 `docs/agent-runtime.md`。机器契约由
 `harness/agent-runtime.manifest.yaml` 维护；本文件不复制生命周期、Hook 矩阵或命令清单。
+Claude 原生 worktree、Codex CLI/App pre-launch launcher 与 App starting branch 的准确入口也只在
+该文档维护；Runtime 只对新 linked run 做 exact primary `HEAD` fail-closed 校验。
 
 ## 契约用例门禁
 

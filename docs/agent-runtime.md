@@ -1,8 +1,9 @@
 # Session Runtime 生命周期
 
-本仓库只采用客户端已经选择的 Git checkout。Codex App/CLI、Claude Code CLI、Qoder
+本仓库采用客户端或 pre-launch launcher 已经选择的 Git checkout。Codex App/CLI、Claude Code
 CLI 与 Qoder 客户端通过薄 Hook adapter 调用同一个 Session service；Runtime 不创建、切换或
-删除客户端拥有的 worktree。
+删除客户端拥有的 worktree。Claude/Codex 新 linked run 还必须通过 exact primary `HEAD` 起点
+校验。
 
 ## 唯一流程
 
@@ -29,6 +30,28 @@ CLI 与 Qoder 客户端通过薄 Hook adapter 调用同一个 Session service；
   客户端名称不参与写授权。
 - SessionStart 是常规 bootstrap；Codex/Qoder PreToolUse、Qoder UserPromptSubmit 是幂等兜底；
   Claude/Qoder CwdChanged 只重确认当前 checkout。
+
+## Worktree 起点
+
+新 Claude/Codex linked worktree 的合法起点是 primary checkout 当前 named branch 的已提交精确
+`HEAD`。`origin/HEAD`、远端默认分支、tracking branch 与硬编码 `main` 都不能替代它；primary
+detached 或 snapshot 期间 branch/HEAD 改变时必须 BLOCK。primary 的 staged、unstaged 与
+untracked 内容不自动复制。
+
+- Claude Code CLI：repository `.claude/settings.json` 固定
+  `worktree.baseRef: "head"`，直接在 primary 当前分支运行 `claude --worktree`。
+- Codex CLI：当前 CLI 没有原生 managed-worktree 选项。使用：
+  `python3 scripts/harness/launch_codex_worktree.py --client codex-cli --name <task> -- <codex-args>`。
+  launcher 从一次稳定 snapshot 的精确 SHA 创建仓库外 worktree，再执行 `codex -C <path>`。
+- Codex App：原生 Worktree 任务必须在创建界面将 starting branch 选择为 primary 当前分支；仓库
+  无法预选该 UI 字段。也可使用
+  `python3 scripts/harness/launch_codex_worktree.py --client codex-app --name <task>` 创建精确 checkout
+  并在 App 中作为 workspace 打开。
+
+新 Claude/Codex linked run 在 bootstrap 时保存 `worktreeBase.expectedHead/actualHead`。不一致返回
+`WORKTREE_BASE_MISMATCH`，要求重新创建任务；hook 不 rebase、reset、切分支或删除 provider
+checkout。已登记 run 的 resume 使用 Registry 保存的 `baseCommit`，不会因 primary 后续前进而
+误阻断。真实客户端未执行的端到端状态仍为 `UNVERIFIED`。
 
 ## Registry 与 Writer Lease
 

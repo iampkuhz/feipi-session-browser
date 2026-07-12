@@ -33,7 +33,8 @@
 
 ## 提交与集成
 
-- 修改任务采用客户端临时 linked worktree；不擅自切换、创建或删除 provider checkout。
+- 修改任务使用 primary 当前 `HEAD` 的 linked worktree；Codex 用
+  `scripts/harness/launch_codex_worktree.py`；不改 provider checkout。
 - 完成后无需询问：按精确文件清单运行 `scripts/harness/complete_change.py`，经 Stop、commit、二次 Stop 和 `sessionctl finalize` 本地集成到启动时目标分支。
 - primary/initial dirty、归因不明、detached、门禁失败或冲突时必须保留分支并报 `HANDOFF_REQUIRED`/`BLOCKED`；不得 stash、reset、force、自动 push 或把失败描述为 PASS。
 

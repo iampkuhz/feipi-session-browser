@@ -35,6 +35,7 @@ from scripts.harness.primary_session import (  # noqa: E402
     ACTIVE_WRITER_STATUSES,
     CHECKOUT_CREATORS,
     PrimarySessionValidationError,
+    capture_primary_head_snapshot,
     ensure_private_directory,
     resolve_checkout_identity,
     resolve_checkout_root,
@@ -702,13 +703,16 @@ def _build_bootstrap_record(
     timestamp = now_utc()
     checkout_root = str(snapshot["checkoutRoot"])
     worktree_id = stable_worktree_id(registry.repo_key, checkout_root)
+    base_evidence = snapshot.get("worktreeBase")
     target_branch = str(snapshot["branch"])
     primary = Path(str(snapshot["primaryRepoRoot"]))
-    if snapshot["checkoutKind"] == "linked-worktree":
+    if isinstance(base_evidence, dict):
+        target_branch = str(base_evidence["expectedBranch"])
+    elif snapshot["checkoutKind"] == "linked-worktree":
         observed_target = git(primary, "branch", "--show-current", check=False)
         target_branch = observed_target.stdout.strip() if observed_target.returncode == 0 else ""
-    target_head = ""
-    if target_branch:
+    target_head = str(base_evidence.get("expectedHead") or "") if isinstance(base_evidence, dict) else ""
+    if target_branch and not target_head:
         observed_head = git(
             primary,
             "rev-parse",
@@ -734,6 +738,13 @@ def _build_bootstrap_record(
         "detached": snapshot["detached"],
         "targetBranch": target_branch,
         "targetHeadAtBootstrap": target_head,
+        "worktreeBase": base_evidence or {
+            "policy": "primary-head",
+            "expectedBranch": target_branch,
+            "expectedHead": target_head,
+            "actualHead": str(snapshot["headCommit"]),
+            "matched": not target_head or target_head == str(snapshot["headCommit"]),
+        },
         "primaryRepoRoot": snapshot["primaryRepoRoot"],
         "baseCommit": snapshot["headCommit"],
         "headCommit": snapshot["headCommit"],
@@ -766,6 +777,39 @@ def _build_bootstrap_record(
         "createdAt": timestamp,
         "updatedAt": timestamp,
     }
+
+
+# 对 Claude/Codex 新 linked-worktree run 强制 exact primary HEAD 起点。
+def _enforce_new_client_worktree_base(
+    facts: dict[str, Any],
+    *,
+    client: str,
+) -> None:
+    """参数：
+        facts: 当前 checkout 初始 Git facts。
+        client: 当前客户端。
+
+    异常：
+        SessionctlError: provider checkout 不是稳定 primary HEAD 起点时抛出。
+    """
+    if client not in {"claude", "codex"} or facts["checkoutKind"] != "linked-worktree":
+        return
+    snapshot = capture_primary_head_snapshot(Path(str(facts["checkoutRoot"])))
+    actual_head = str(facts["headCommit"])
+    evidence = {
+        "policy": "primary-head",
+        "expectedBranch": snapshot.branch,
+        "expectedHead": snapshot.head_commit,
+        "actualHead": actual_head,
+        "matched": actual_head == snapshot.head_commit,
+    }
+    facts["worktreeBase"] = evidence
+    if not evidence["matched"]:
+        detail = json.dumps(evidence, ensure_ascii=False, sort_keys=True)
+        raise SessionctlError(
+            "WORKTREE_BASE_MISMATCH: linked worktree must be recreated from the "
+            f"primary checkout current branch HEAD; {detail}"
+        )
 
 
 # 在首次写入前采用 Claude CwdChanged 最终选定的同仓库 checkout。
@@ -1112,6 +1156,7 @@ def bootstrap_session(
         if exact:
             record = exact[0]
         elif same_session_elsewhere:
+            _enforce_new_client_worktree_base(facts, client=client)
             if len(same_session_elsewhere) != 1:
                 raise SessionctlError("Registry contains duplicate client/session runs")
             record = _rebind_pre_mutation_claude_checkout(
@@ -1124,6 +1169,7 @@ def bootstrap_session(
                 facts=facts,
             )
         else:
+            _enforce_new_client_worktree_base(facts, client=client)
             record = _candidate_from_run_hint(
                 registry,
                 payload.get("runId", ""),

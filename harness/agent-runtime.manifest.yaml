@@ -101,6 +101,18 @@ worktree_isolation:
   ignored_identity_hints: [path-prefix, directory-name, client-name, branch-name, detached-state]
   subagent_behavior: inherit-main-session-worktree
   lifecycle_owner: client-or-external-provider
+  base_contract:
+    policy: exact-primary-named-branch-head
+    applies_to_new_linked_runs: [claude, codex]
+    forbidden_fallbacks: [origin-HEAD, remote-default-branch, tracking-branch, hardcoded-main]
+    mismatch_status: WORKTREE_BASE_MISMATCH
+    resume_behavior: reuse-registered-base
+    primary_detached: block
+    provider_checkout_mutation: forbidden
+  acquisition:
+    claude-code-cli: native-worktree-baseRef-head
+    codex-cli: repository-prelaunch-launcher-then-codex-cd
+    codex-app: user-selected-starting-branch-plus-bootstrap-validation
   sessionctl: scripts/harness/sessionctl.py bootstrap
   registry_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
   enforcement_hooks:
