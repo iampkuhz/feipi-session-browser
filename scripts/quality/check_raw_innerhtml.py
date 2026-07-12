@@ -7,9 +7,14 @@ import argparse
 import json
 import os
 import re
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
 BASELINE_PATH = REPO_ROOT / 'scripts' / 'quality' / 'innerhtml_baseline.json'
 
 # 匹配 innerHTML 赋值:element.innerHTML = ...
@@ -21,6 +26,12 @@ COMMENT_LINE_RE = re.compile(r'^\s*(?://|/\*|\*)')
 
 # 排除清空操作(.innerHTML = '' 或 .innerHTML = ""),视为安全
 CLEAR_ASSIGN_RE = re.compile(r"\.innerHTML\s*=\s*['\"]\s*['\"]")
+
+# 触发模式：当变更文件匹配时运行此检查
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/static/**/*.js',
+    'scripts/quality/check_raw_innerhtml.py',
+]
 
 
 # 查找JavaScript 文件。
@@ -196,12 +207,16 @@ def main() -> int:
         Computed 结果。
     """
     parser = argparse.ArgumentParser(description='raw-innerHTML 阻断 gate')
+    add_changed_files_arg(parser)
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         '--check', action='store_true', help='增量检查:对比 baseline,发现新增则 BLOCK'
     )
     mode.add_argument('--update-baseline', action='store_true', help='更新 baseline 文件')
     args = parser.parse_args()
+
+    changed_files = parse_changed_files(args.changed_files)
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     if args.update_baseline:
         return run_update_baseline(args)

@@ -314,30 +314,9 @@ SCAN_SCRIPT_SMOKE_PATTERNS: list[str] = [
 
 
 # 07. target dominance 声明: 当 java-src 触发时自动包含 java-build，避免重复 Gradle 基线
-DOMINANCE: dict[str, dict[str, list[str]]] = {
-    'java-src': {'includes': ['java-build']},
-}
-
-
-# 维护有效 targets。
-def effective_targets(targets: list[str]) -> list[str]:
-    """参数：
-        targets: 初始质量目标列表。
-
-    返回：
-        去重后的目标列表，保留原始顺序。
-
-    说明：
-        当一个 target 声明 includes 另一个 target 时，被包含的 target 不需要单独运行。
-        重复的 Gradle 基线检查。
-    """
-    expanded: list[str] = list(targets)
-    for t in targets:
-        if t in DOMINANCE:
-            for included in DOMINANCE[t]['includes']:
-                if included in expanded:
-                    expanded.remove(included)
-    return expanded
+# 统一使用 quality_targets.py 中的声明，此处保留向后兼容别名。
+from scripts.quality.quality_targets import TARGET_DOMINANCE as DOMINANCE  # noqa: E402
+from scripts.quality.quality_targets import effective_targets  # noqa: E402
 
 
 # 运行脚本自测试场景。

@@ -4,7 +4,25 @@
 from __future__ import annotations
 
 import re
+import sys
 from pathlib import Path
+
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
+
+# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/static/**/*.css',
+    'java/web/src/main/resources/static/js/**/*.js',
+    'java/web/src/main/resources/static/css/**/*.css',
+    'harness/**', 'openspec/**',
+    'tests/**/*.py',
+    'scripts/quality/repo_slimming_contract_check.py',
+    'tests/quality/test_repo_slimming_contract.py',
+]
 
 
 # 禁止的历史版本注释模式
@@ -368,6 +386,14 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    for i, arg in enumerate(sys.argv):
+        if arg == '--changed-files' and i + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[i + 1])
+            break
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     errors, warnings = check_repo_slimming(Path.cwd())
     for item in warnings:
         print(f'[WARN] {item}')

@@ -2,7 +2,21 @@
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
+
+# 触发模式：当变更文件匹配时运行此检查
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/templates/**',
+    'tests/ui/test_web_template_contract.py',
+    'scripts/quality/template_contract_check.py',
+]
 
 
 # 检查templates。
@@ -39,6 +53,13 @@ def main() -> int:
     """返回：
         Computed 结果。
     """
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     root = Path.cwd()
     failures = check_templates(root)
     if failures:

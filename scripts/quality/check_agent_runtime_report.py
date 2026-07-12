@@ -19,6 +19,16 @@ if str(ROOT) not in sys.path:
 
 from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 GATE_NAME = "runtimeReport"
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'harness/agent-runtime.manifest.yaml',
+    'harness/agent-runtime-report.schema.json',
+    'harness/reports/**',
+    'scripts/harness/write_agent_runtime_report.py',
+    'scripts/quality/check_agent_runtime_report.py',
+]
 REPORT_DIR = ROOT / "harness" / "reports"
 ACTIVE_CHANGE_PATH = ROOT / "tmp" / "active_change.json"
 FALLBACK_CHANGE_ID = "harden-agent-runtime-and-skills"
@@ -351,9 +361,12 @@ def main() -> int:
     parser.add_argument("--client", default=None, help="显式 agent client")
     parser.add_argument("--session-id", default=None, help="显式 session id")
     parser.add_argument("--worktree-root", default=None, help="显式 worktree root")
-    parser.add_argument("--changed-files", default=None, help="JSON array；显式 run changed files")
     parser.add_argument("--report-path", default=None, help="显式 run-scoped report path")
+    add_changed_files_arg(parser)
     args = parser.parse_args()
+
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     if args.run_id or args.report_path:
         if not all([args.run_id, args.client, args.session_id, args.change_id, args.worktree_root, args.changed_files, args.report_path]):

@@ -8,9 +8,20 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(_REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
+
 # ---------------------------------------------------------------------------
 # 配置
 # ---------------------------------------------------------------------------
+
+# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
+TRIGGER_PATTERNS = [
+    'java/**/src/main/java/**/*.java',
+]
 
 #: 需要扫描的模块及其 src/main/java 根目录（相对于仓库根）。
 SCAN_MODULES: list[str] = [
@@ -165,6 +176,14 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    for i, arg in enumerate(sys.argv):
+        if arg == '--changed-files' and i + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[i + 1])
+            break
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     repo_root = _find_repo_root()
     enums = scan_all(repo_root)
 

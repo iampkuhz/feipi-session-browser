@@ -5,10 +5,24 @@ from __future__ import annotations
 
 import argparse
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+# 触发模式：当变更文件匹配这些 pattern 时才运行检查。
+TRIGGER_PATTERNS = [
+    'tests/**/*.py',
+    'tests/**/*.js',
+    'tests/**/*.ts',
+    'playwright.config.js',
+    'scripts/quality/check_no_test_skips.py',
+]
 
 
 @dataclass(frozen=True)
@@ -218,7 +232,12 @@ def main(argv: list[str] | None = None) -> int:
         description='Fail when repository tests use pytest or Playwright skip APIs'
     )
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to scan')
+    add_changed_files_arg(parser)
     args = parser.parse_args(argv)
+
+    # 自感知跳过：变更文件不匹配触发模式时直接 SKIP。
+    changed_files = parse_changed_files(getattr(args, 'changed_files', None))
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     findings = scan_repo(Path(args.root).resolve())
     print_report(findings)

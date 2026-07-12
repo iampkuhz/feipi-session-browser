@@ -7,7 +7,20 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
 GATE_NAME = "secretLikeContent"
+
+# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
+TRIGGER_PATTERNS = [
+    'tests/**', 'docs/**', 'java/**',
+    'app-cli/**', 'src/**',
+    '.claude/**', '.codex/**', '.qoder/**', '.agents/**',
+    'skills/**', 'harness/**', 'scripts/**',
+    'scripts/quality/check_secret_like_content.py',
+]
 
 SCAN_DIRS = [
     "tests",
@@ -277,6 +290,14 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    for i, arg in enumerate(sys.argv):
+        if arg == '--changed-files' and i + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[i + 1])
+            break
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     all_errors: list[str] = []
 
     seen_files: set[Path] = set()

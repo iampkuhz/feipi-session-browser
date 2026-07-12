@@ -4,12 +4,22 @@
 from __future__ import annotations
 
 import argparse
+import sys
 from pathlib import Path
 
 import tomllib
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 AGENTS_DIR = REPO_ROOT / '.codex' / 'agents'
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    '.codex/agents/**',
+    'scripts/quality/check_codex_agent_policy.py',
+]
 
 READ_ONLY_AGENTS = {
     'migration-planner',
@@ -124,7 +134,11 @@ def main() -> int:
     """
     parser = argparse.ArgumentParser(description='检查 Codex custom agent 配置')
     parser.add_argument('--self-test', action='store_true')
+    add_changed_files_arg(parser)
     args = parser.parse_args()
+
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     if args.self_test:
         _self_test()

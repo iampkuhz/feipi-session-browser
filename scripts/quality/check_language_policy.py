@@ -8,9 +8,22 @@ import json
 import os
 import re
 import subprocess
+import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md', 'CLAUDE.md',
+    'skills/**', '.agents/skills/**', '.codex/**',
+    '.claude/agents/**', '.claude/skills/**', '.qoder/**',
+    'harness/**', 'openspec/changes/**',
+    'scripts/quality/check_language_policy.py',
+]
 
 POLICY_PATTERNS = [
     'AGENTS.md',
@@ -309,13 +322,12 @@ def main() -> int:
         进程退出码。
     """
     parser = argparse.ArgumentParser(description='检查仓库语言策略')
-    parser.add_argument(
-        '--changed-files',
-        default=None,
-        help='JSON 数组; 省略时读取 QUALITY_CHANGED_FILES 或 git status',
-    )
+    add_changed_files_arg(parser)
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
+
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     if args.self_test:
         _self_test()

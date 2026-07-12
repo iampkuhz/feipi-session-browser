@@ -501,12 +501,13 @@ class TestSharedStopEntrypoint:
         assert 'run_required_quality_gates.py' not in text
 
     @pytest.mark.contract_case('HOOK-HARNESS-012')
-    def test_shared_stop_runner_includes_session_detail_flag(self):
-        """Pass --include-session-detail from the shared stop runner."""
-        runner = Path(__file__).resolve().parents[2] / 'scripts' / 'harness' / 'stop_entry.py'
+    def test_shared_stop_runner_uses_direct_check_invocation(self):
+        """stop_entry 质量门禁直接调用原子 check，不再通过 run_required_quality_gates.py 管道。"""
+        runner = Path(__file__).resolve().parents[2] / 'scripts' / 'harness' / 'stop_entry_checks' / 'quality.py'
         text = runner.read_text()
-        assert 'run_required_quality_gates.py' in text
-        assert '--include-session-detail' in text
+        assert 'run_quality_checks' in text
+        assert 'QUALITY_TARGETS' in text
+        assert 'gate_command' in text
 
 
 class TestEffectiveTargetsIntegration:

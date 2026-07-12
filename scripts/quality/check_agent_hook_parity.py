@@ -3,13 +3,28 @@
 from __future__ import annotations
 
 import json
+import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 CODEX_HOOKS_JSON = ROOT / ".codex" / "hooks.json"
 QODER_SETTINGS_JSON = ROOT / ".qoder" / "settings.json"
 GATE_NAME = "agentHookParity"
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'harness/agent-runtime.manifest.yaml',
+    '.codex/hooks.json',
+    '.qoder/settings.json',
+    '.qoder/settings.local.example.json',
+    '.codex/hooks/**/*.sh',
+    '.qoder/hooks/**/*.sh',
+    'scripts/quality/check_agent_hook_parity.py',
+]
 
 REQUIRED_HOOK_KEYS = ["pre_bash", "pre_write", "post_bash", "post_write", "stop"]
 CODEX_REQUIRED_BINDINGS = {
@@ -233,6 +248,16 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
+
     if not MANIFEST.is_file():
         return fail(f"manifest 不存在: {MANIFEST.relative_to(ROOT)}")
 

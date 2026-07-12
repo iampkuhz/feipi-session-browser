@@ -10,8 +10,22 @@ import hashlib
 import json
 import os
 import re
+import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+# 触发模式：当变更文件匹配这些 pattern 时才运行检查。
+TRIGGER_PATTERNS = [
+    'java/**/src/main/java/**/*.java',
+    'java/**/src/test/java/**/*.java',
+    '**/*.java',
+]
 
 # ============================================================
 # 正则与内置术语表
@@ -794,7 +808,12 @@ def main() -> int:
         '--changed-files-env',
         help='从指定环境变量读取 JSON changed-files，并只扫描相交脚本',
     )
+    add_changed_files_arg(ap)
     a = ap.parse_args()
+
+    # 自感知跳过：变更文件不匹配触发模式时直接 SKIP。
+    changed_files = parse_changed_files(getattr(a, 'changed_files', None))
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     terms = set(TERMS)
     forbidden: tuple[str, ...] = ()

@@ -6,7 +6,14 @@ from __future__ import annotations
 import json
 import os
 import re
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
 
 INNERHTML_LINE_PREVIEW_LIMIT = 5
 SELECTOR_BLOCK_DEPTH = 3
@@ -36,6 +43,13 @@ JS_STYLE_ASSIGN_RE = re.compile(
     r'|paddingBottom|paddingLeft|margin|marginTop|marginRight|marginBottom|marginLeft'
     r'|overflow|overflowX|overflowY|zIndex)\s*='
 )
+
+# 触发模式：当变更文件匹配时运行此检查
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/static/css/**/*.css',
+    'tests/ui/test_web_static_contract.py',
+    'scripts/quality/static_contract_check.py',
+]
 
 
 # 检查无 important。
@@ -825,6 +839,13 @@ def main() -> int:
     """返回：
         Computed 结果。
     """
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     errors, warnings = check_static(Path.cwd())
     if os.environ.get('SESSION_BROWSER_STATIC_CONTRACT_SHOW_WARNINGS') == '1':
         for item in warnings:

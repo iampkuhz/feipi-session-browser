@@ -7,9 +7,21 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 CODEX_CONFIG = ROOT / ".codex" / "config.toml"
 GATE_NAME = "agentPolicySize"
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.codex/config.toml',
+    'harness/agent-policy.manifest.yaml',
+    'scripts/quality/check_agent_policy_size.py',
+]
 
 
 # 输出失败信息并返回非零退出码。
@@ -72,6 +84,16 @@ def main() -> int:
     """返回：
         通过返回 0，失败返回非零。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
+
     if not POLICY_MANIFEST.is_file():
         return fail(f"policy manifest 不存在: {POLICY_MANIFEST.relative_to(ROOT)}")
 

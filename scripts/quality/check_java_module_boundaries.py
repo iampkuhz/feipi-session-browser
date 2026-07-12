@@ -12,7 +12,20 @@ from pathlib import Path
 from typing import Any
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
 DEFAULT_CONFIG = REPO_ROOT / 'config' / 'architecture' / 'java-modules.yaml'
+
+# 触发模式：当变更文件匹配这些 pattern 时才运行检查。
+TRIGGER_PATTERNS = [
+    'config/architecture/java-modules.yaml',
+    'settings.gradle.kts',
+    'java/**/build.gradle.kts',
+    'java/**/src/main/java/**/*.java',
+    '**/*.java',
+]
 
 
 @dataclass(frozen=True)
@@ -323,7 +336,12 @@ def main() -> int:
     parser.add_argument('--config', default=str(DEFAULT_CONFIG))
     parser.add_argument('--report', action='store_true', help='只报告，不因 ERROR 返回非零')
     parser.add_argument('--fail-transition', action='store_true', help='将 transition dependency 也视为失败')
+    add_changed_files_arg(parser)
     args = parser.parse_args()
+
+    # 自感知跳过：变更文件不匹配触发模式时直接 SKIP。
+    changed_files = parse_changed_files(getattr(args, 'changed_files', None))
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     config = load_config(Path(args.config))
     findings: list[Finding] = []

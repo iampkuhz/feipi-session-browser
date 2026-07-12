@@ -14,6 +14,17 @@ POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 RUNTIME_MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 GATE_NAME = "agentRulesSync"
 
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md',
+    'CLAUDE.md',
+    '.codex/model-instructions.md',
+    'harness/agent-policy.manifest.yaml',
+    'harness/agent-runtime.manifest.yaml',
+    'scripts/quality/check_agent_rules_sync.py',
+]
+
 
 # 输出失败信息并返回非零退出码。
 def fail(msg: str) -> int:
@@ -78,6 +89,16 @@ def main() -> int:
     """返回：
         通过返回 0，失败返回非零。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
+
     errors: list[str] = []
 
     if not POLICY_MANIFEST.is_file():

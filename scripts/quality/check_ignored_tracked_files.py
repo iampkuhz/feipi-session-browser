@@ -10,7 +10,18 @@ from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 GIT_TIMEOUT_SECONDS = 30
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    '.gitignore',
+    'scripts/quality/check_ignored_tracked_files.py',
+    'scripts/quality/run_required_quality_gates.py',
+    'scripts/quality/run_quality_gate.py',
+]
 
 
 @dataclass(frozen=True)
@@ -210,7 +221,11 @@ def main(argv: list[str] | None = None) -> int:
         help='Check staged added/copied/modified/renamed paths (default)',
     )
     mode.add_argument('--all-tracked', action='store_true', help='Audit all tracked paths')
+    add_changed_files_arg(parser)
     args = parser.parse_args(argv)
+
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     root = Path(args.root).resolve()
     selected_mode = 'all-tracked' if args.all_tracked else 'staged'

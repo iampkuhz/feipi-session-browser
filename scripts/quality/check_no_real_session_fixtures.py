@@ -19,7 +19,18 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
 GATE_NAME = "noRealSessionFixtures"
+
+# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
+TRIGGER_PATTERNS = [
+    'tests/**', 'docs/**', 'java/**',
+    'app-cli/**', 'src/**',
+    'scripts/quality/check_no_real_session_fixtures.py',
+]
 
 SCAN_DIRS = [
     "tests/fixtures",
@@ -421,6 +432,14 @@ def main() -> int:
     返回：
         当前函数计算或校验结果。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    for i, arg in enumerate(sys.argv):
+        if arg == '--changed-files' and i + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[i + 1])
+            break
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     all_errors: list[str] = []
 
     for filepath in _iter_scan_files():

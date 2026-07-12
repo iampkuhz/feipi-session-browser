@@ -9,6 +9,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
 
 CSS_FILE = (
     REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
@@ -32,6 +36,11 @@ SESSION_HTML = (
     REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates' / 'session.html'
 )
 MIN_GRID_COLUMNS = 2
+
+# 触发模式：当变更文件匹配时运行此检查
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/static/**',
+]
 
 
 @dataclass
@@ -421,6 +430,13 @@ def run_checks(
 
 # 解析命令行参数并运行脚本入口。
 def main() -> None:
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     if '--self-test' in sys.argv:
         return _self_test()
 

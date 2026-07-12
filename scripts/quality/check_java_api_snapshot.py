@@ -8,6 +8,18 @@ import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+# 触发模式：当变更文件匹配这些 pattern 时才运行检查。
+TRIGGER_PATTERNS = [
+    'java/**/src/main/java/**/*.java',
+    'config/api-snapshots/**',
+]
+
 TYPE_KEYWORDS = {"class", "interface", "enum", "record"}
 MODIFIERS = {
     "public",
@@ -613,6 +625,7 @@ def parse_args(argv: list[str]) -> argparse.Namespace:
     parser.add_argument(
         "--snapshot", type=Path, default=Path("config/api-snapshots/java-public-api.txt")
     )
+    add_changed_files_arg(parser)
     return parser.parse_args(argv)
 
 
@@ -625,6 +638,11 @@ def main(argv: list[str]) -> int:
         进程退出码。
     """
     args = parse_args(argv)
+
+    # 自感知跳过：变更文件不匹配触发模式时直接 SKIP。
+    changed_files = parse_changed_files(getattr(args, 'changed_files', None))
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     current = generate_snapshot(args.java_root)
     if args.write:
         args.snapshot.parent.mkdir(parents=True, exist_ok=True)

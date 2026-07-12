@@ -16,6 +16,17 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.claude_hooks.classify import classify_file, required_quality_targets  # noqa: E402
 
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md', 'CLAUDE.md',
+    '.agents/**', '.claude/**', '.codex/**', '.qoder/**',
+    'skills/**', 'harness/**',
+    'scripts/claude_hooks/**/*.py', 'scripts/hooks/**/*.py',
+    'scripts/agent_hooks/**/*.py', 'scripts/harness/**/*.py',
+    'scripts/harness/**/*.sh', 'scripts/quality/**/*.py',
+]
+
 
 @dataclass(frozen=True)
 class GateEscapeCase:
@@ -244,7 +255,11 @@ def main() -> int:
     parser = argparse.ArgumentParser(description='Measure synthetic required-gate escape rate.')
     parser.add_argument('--threshold', type=float, default=0.0, help='Maximum allowed escape rate.')
     parser.add_argument('--json-out', default=None, help='Optional JSON report path.')
+    add_changed_files_arg(parser)
     args = parser.parse_args()
+
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     report = build_report()
     case_ids = {case['id'] for case in report['cases']}  # type: ignore[index]

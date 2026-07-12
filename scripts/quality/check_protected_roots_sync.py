@@ -14,6 +14,17 @@ if str(ROOT) not in sys.path:
 from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 
 GATE_NAME = 'protectedRootsSync'
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md', 'CLAUDE.md',
+    '.agents/**', '.claude/**', '.codex/**', '.qoder/**',
+    'skills/**', 'harness/**',
+    'scripts/claude_hooks/**/*.py', 'scripts/hooks/**/*.py',
+    'scripts/agent_hooks/**/*.py', 'scripts/harness/**/*.py',
+    'scripts/harness/**/*.sh', 'scripts/quality/**/*.py',
+]
 REQUIRED_ROOTS = [
     '.claude/',
     '.codex/',
@@ -232,6 +243,16 @@ def main() -> int:
     返回：
         当前函数计算或校验结果。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
+
     roots = manifest_roots(ROOT)
     errors: list[str] = []
     errors.extend(check_required_manifest_roots(roots))

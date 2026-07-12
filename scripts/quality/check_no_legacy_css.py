@@ -7,12 +7,28 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
 CSS_DIR = REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css'
 SRC_DIR = REPO_ROOT / 'src'
+
+# 触发模式：当变更文件匹配时运行此检查
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/static/css/**/*.css',
+]
 
 
 # 解析命令行参数并运行脚本入口。
 def main() -> None:
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     errors: list[str] = []
 
     # 检查 1: legacy-aliases.css 文件不存在

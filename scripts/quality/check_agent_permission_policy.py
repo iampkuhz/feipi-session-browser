@@ -7,10 +7,25 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 SETTINGS_JSON = ROOT / ".claude" / "settings.json"
 PRE_WRITE_HOOK = ROOT / ".claude" / "hooks" / "pre-write.sh"
 GATE_NAME = "agentPermissionPolicy"
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md',
+    'CLAUDE.md',
+    'skills/**',
+    '.claude/agents/**',
+    '.codex/agents/**',
+    '.codex/config.toml',
+    '.qoder/**',
+    'scripts/quality/check_agent_permission_policy.py',
+]
 
 
 # 输出 FAIL 并返回非 0。
@@ -177,6 +192,16 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
+
     errors: list[str] = []
 
     # settings.json 必须存在且可解析。

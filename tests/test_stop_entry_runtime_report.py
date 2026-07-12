@@ -171,12 +171,12 @@ def test_stop_without_authoritative_run_fails_without_legacy_state(tmp_path: Pat
 
 
 def test_repeated_failure_circuit_and_audit_are_isolated_by_run(tmp_path: Path, monkeypatch):
-    from scripts.harness import stop_entry
+    from scripts.harness.stop_entry_checks import quality as stop_quality
 
     repo = _repo(tmp_path, monkeypatch)
     _save(repo, _record(repo, 'run-a', 'session-a'), _record(repo, 'run-b', 'session-b'))
     monkeypatch.setattr(
-        stop_entry.check_agent_runtime_report,
+        stop_quality.check_agent_runtime_report,
         'validate_runtime_report',
         lambda **_kwargs: ['forced stable report failure'],
     )
@@ -233,36 +233,58 @@ def test_git_evidence_separates_committed_staged_working_and_untracked(tmp_path:
         collect_git_evidence(repo, invalid)
 
 
+def _mutate_and_pass(repo: Path) -> tuple[bool, list[str], list[dict[str, str]]]:
+    """模拟 check 执行期间文件被修改，但 check 本身通过。"""
+    (repo / 'README.md').write_text('during-gate\n', encoding='utf-8')
+    return True, [], [{'name': 'fake-gate', 'status': 'PASS'}]
+
+
 def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
     tmp_path: Path, monkeypatch
 ):
-    from scripts.harness import stop_entry
+    from scripts.harness.stop_entry_checks import quality as stop_quality
+    from scripts.harness.stop_entry_checks import git_evidence as stop_git_evidence
 
     repo = _repo(tmp_path, monkeypatch)
     record = _record(repo, 'run-a', 'session-a')
     _save(repo, record)
     (repo / 'README.md').write_text('before-gate\n', encoding='utf-8')
 
-    monkeypatch.setattr(stop_entry.stop_helpers, 'required_targets', lambda _files: ['fake-target'])
+    monkeypatch.setattr(stop_quality.stop_helpers, 'required_targets', lambda _files: ['harness'])
     monkeypatch.setattr(
-        stop_entry.stop_helpers,
+        stop_quality.stop_helpers,
         'changed_files_require_openspec',
         lambda _files: False,
     )
-    monkeypatch.setattr(stop_entry, '_target_artifact_status', lambda _path, _target: 'PASS')
     monkeypatch.setattr(
-        stop_entry.check_agent_runtime_report,
+        stop_quality.check_agent_runtime_report,
         'validate_runtime_report',
         lambda **_kwargs: [],
     )
+    # 模拟 check 执行期间文件被修改
+    monkeypatch.setattr(
+        stop_quality,
+        'run_quality_checks',
+        lambda _cid, _cf, _root, _targets: _mutate_and_pass(repo),
+    )
+    # 让 collect_git_evidence 返回带 fingerprint 的证据，以触发 post-gate 一致性复核
+    _real_collect = stop_git_evidence.collect_git_evidence
+    _call_count = [0]
 
-    def mutate_during_gate(name, _cmd, _repo_root, _env, timeout=1800):
-        del timeout
-        assert name == 'required-quality-gates'
-        (repo / 'README.md').write_text('during-gate\n', encoding='utf-8')
-        return True
+    def _fingerprinted_collect(repo_root, rec):
+        result = _real_collect(repo_root, rec)
+        _call_count[0] += 1
+        # 每次调用都根据当前文件内容计算不同 fingerprint
+        readme = (repo_root / 'README.md').read_text(encoding='utf-8')
+        result['checkoutFingerprint'] = f'fp-{_call_count[0]}-{readme}'
+        return result
 
-    monkeypatch.setattr(stop_entry, 'run_cmd', mutate_during_gate)
+    monkeypatch.setattr(stop_git_evidence, 'collect_git_evidence', _fingerprinted_collect)
+    # stop_entry.py 里也从 git_evidence 子模块导入了 collect_git_evidence
+    monkeypatch.setattr(
+        'scripts.harness.stop_entry.collect_git_evidence',
+        _fingerprinted_collect,
+    )
     assert run_stop(
         'codex',
         {

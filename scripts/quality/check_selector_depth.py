@@ -4,8 +4,15 @@
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass, field
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parent.parent.parent
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
 
 # ── 数据结构 ─────────────────────────────────────────────────────────────
 
@@ -75,6 +82,11 @@ CSS_DIR = (
 
 # CSS 组合符正则:空格,>,+,~
 COMBINATOR_RE = re.compile(r'\s+|(?<=[^\s])\s*(?:>|[+~])\s*|(?<=[^\s])(?:>|[+~])(?=[^\s])')
+
+# 触发模式：当变更文件匹配时运行此检查
+TRIGGER_PATTERNS = [
+    'java/web/src/main/resources/static/**/*.css',
+]
 
 
 # 提取CSS rules。
@@ -346,6 +358,13 @@ def main() -> int:
     """返回：
         Computed 结果。
     """
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     if not CSS_DIR.exists():
         print(f'[ERROR] CSS 目录不存在: {CSS_DIR}')
         return 2

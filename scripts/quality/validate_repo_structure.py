@@ -12,6 +12,18 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.quality._trigger import parse_changed_files, skip_if_not_triggered
+
+# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
+TRIGGER_PATTERNS = [
+    '.claude/**', '.codex/**', '.github/workflows/**',
+    '.pre-commit-config.yaml', 'skills/**', '.agents/skills/**', '.qoder/**',
+    'scripts/**/*.py', 'scripts/**/*.sh',
+    'AGENTS.md', 'CLAUDE.md', 'README.md',
+    'pyproject.toml', 'requirements*.txt', 'requirements*.lock', 'uv.lock',
+    'docs/**',
+]
+
 
 # 01. 必需路径
 REQUIRED_PATHS = [
@@ -107,6 +119,14 @@ def main() -> int:
     """返回：
         Zero 当 structure is 有效, 否则 one。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    for i, arg in enumerate(sys.argv):
+        if arg == '--changed-files' and i + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[i + 1])
+            break
+    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+
     root = Path.cwd()
     failures = validate(root)
     if failures:

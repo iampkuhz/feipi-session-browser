@@ -8,8 +8,19 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 REGISTRY = ROOT / "harness" / "skill-registry.yaml"
 GATE_NAME = "skillRegistry"
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'harness/skill-registry.yaml',
+    'skills/**',
+    '.agents/skills/**', '.claude/skills/**', '.codex/skills/**',
+    'scripts/quality/check_skill_registry.py',
+]
 
 KEBAB_CASE_RE = re.compile(r"^[a-z]+(-[a-z]+)*$")
 
@@ -220,6 +231,16 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
+
     # 1. registry 存在且可解析。
     if not REGISTRY.is_file():
         return fail(f"registry 不存在: {REGISTRY.relative_to(ROOT)}")

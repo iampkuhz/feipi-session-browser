@@ -46,7 +46,7 @@ required = [
     'scripts/harness/stop_entry.py',
     'scripts/harness/stop_helpers.py',
     'scripts/harness/hook-common.sh',
-    'scripts/harness/stop_entry.py',
+    'scripts/harness/stop_entry_checks/__init__.py',
     'scripts/harness/sessionctl.py',
 ]
 missing = [p for p in required if not (Path.cwd() / p).exists()]

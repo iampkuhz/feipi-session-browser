@@ -12,7 +12,20 @@ from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 GATE_NAME = "agentRuntimeWorktree"
+
+from scripts.quality._trigger import add_changed_files_arg, parse_changed_files, skip_if_not_triggered
+
+TRIGGER_PATTERNS = [
+    'AGENTS.md', 'CLAUDE.md',
+    '.agents/**', '.claude/**', '.codex/**', '.qoder/**',
+    'skills/**', 'harness/**',
+    'scripts/claude_hooks/**/*.py', 'scripts/hooks/**/*.py',
+    'scripts/agent_hooks/**/*.py', 'scripts/harness/**/*.py',
+    'scripts/harness/**/*.sh', 'scripts/quality/**/*.py',
+]
 
 
 # 在合成仓库中执行命令并捕获输出。
@@ -414,6 +427,15 @@ def main() -> int:
     """返回：
         所有断言通过时返回 0，否则返回 1。
     """
+    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
+    changed_files = None
+    if '--changed-files' in sys.argv:
+        idx = sys.argv.index('--changed-files')
+        if idx + 1 < len(sys.argv):
+            changed_files = parse_changed_files(sys.argv[idx + 1])
+        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    else:
+        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     try:
         errors = run_checks()
