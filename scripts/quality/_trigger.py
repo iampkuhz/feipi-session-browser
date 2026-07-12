@@ -16,10 +16,10 @@ import sys
 # 规范化仓库路径。
 def _normalize(path: str) -> str:
     """参数：
-        path: 当前函数使用的输入参数。
+        path: 待规范化的路径。
 
     返回：
-        当前函数的计算结果。
+        规范化后的仓库相对路径。
     """
     value = path.replace('\\', '/')
     while value.startswith('./'):
@@ -27,14 +27,14 @@ def _normalize(path: str) -> str:
     return value.strip('/')
 
 
-# 判断仓库相对路径是否匹配通配规则。
+# 判断仓库相对路径是否匹配通配模式。
 def glob_match(path: str, pattern: str) -> bool:
     """参数：
-        path: 当前函数使用的输入参数。
-        pattern: 当前函数使用的输入参数。
+        path: 待匹配的仓库相对路径。
+        pattern: 通配模式。
 
     返回：
-        当前函数的计算结果。
+        匹配时返回 true，否则返回 false。
     """
     p = _normalize(path)
     pat = _normalize(pattern)
@@ -47,17 +47,17 @@ def glob_match(path: str, pattern: str) -> bool:
     return bool(re.match(f'^{regex}$', p))
 
 
-# 判断变更文件中是否有路径命中触发规则。
+# 判断变更文件是否命中触发模式。
 def should_run(
     changed_files: list[str] | None,
     trigger_patterns: list[str],
 ) -> bool:
     """参数：
-        changed_files: 当前函数使用的输入参数。
-        trigger_patterns: 当前函数使用的输入参数。
+        changed_files: 变更文件列表；为空时表示全量运行。
+        trigger_patterns: 触发模式列表。
 
     返回：
-        当前函数的计算结果。
+        全量运行或至少一个文件匹配时返回 true，否则返回 false。
     """
     if not changed_files:
         return True
@@ -70,10 +70,10 @@ def should_run(
 # 解析变更文件参数值。
 def parse_changed_files(raw: str | None) -> list[str] | None:
     """参数：
-        raw: 当前函数使用的输入参数。
+        raw: 原始参数值。
 
     返回：
-        当前函数的计算结果。
+        解析后的文件列表；未提供内容时返回 None。
     """
     if raw is None:
         return None
@@ -86,10 +86,10 @@ def parse_changed_files(raw: str | None) -> list[str] | None:
 # 向命令行解析器添加变更文件参数。
 def add_changed_files_arg(parser: argparse.ArgumentParser) -> None:
     """参数：
-        parser: 当前函数使用的输入参数。
+        parser: 待扩展的命令行解析器。
 
     返回：
-        当前函数的计算结果。
+        无返回值。
     """
     parser.add_argument(
         '--changed-files',
@@ -98,18 +98,18 @@ def add_changed_files_arg(parser: argparse.ArgumentParser) -> None:
     )
 
 
-# 为检查脚本创建标准命令行解析器并解析参数。
+# 创建检查脚本的标准命令行解析器并解析参数。
 def parse_check_args(
     description: str = '',
     *,
     extra_args: list[tuple[str, dict]] | None = None,
 ) -> argparse.Namespace:
     """参数：
-        description: 当前函数使用的输入参数。
-        extra_args: 当前函数使用的输入参数。
+        description: 命令行解析器说明。
+        extra_args: 脚本特有的附加参数定义。
 
     返回：
-        当前函数的计算结果。
+        解析后的命令行参数命名空间。
     """
     parser = argparse.ArgumentParser(description=description)
     add_changed_files_arg(parser)
@@ -124,14 +124,17 @@ PASS_EXIT_CODE = 0
 FAIL_EXIT_CODE = 1
 
 
-# 变更文件未命中触发规则时输出未触发结果并退出。
+# 在变更文件不匹配触发模式时打印跳过原因并退出。
 def skip_if_not_triggered(changed_files: list[str] | None, trigger_patterns: list[str]) -> None:
     """参数：
-        changed_files: 当前函数使用的输入参数。
-        trigger_patterns: 当前函数使用的输入参数。
+        changed_files: 变更文件列表；为空时表示全量运行。
+        trigger_patterns: 触发模式列表。
 
     返回：
-        当前函数的计算结果。
+        无返回值。
+
+    异常：
+        SystemExit: 变更文件均不匹配时以跳过状态退出。
     """
     if not should_run(changed_files, trigger_patterns):
         print(

@@ -388,8 +388,9 @@ class PythonRuntimeZeroGateTest {
                 // 排除 .git、tmp、build 和本地虚拟环境目录。
                 .filter(
                     p -> {
-                      String rel = projectRoot.relativize(p).toString();
+                      String rel = projectRoot.relativize(p).toString().replace('\\', '/');
                       return !rel.startsWith(".git")
+                          && !rel.startsWith(".claude/worktrees/")
                           && !rel.startsWith(".venv")
                           && !rel.startsWith("tmp")
                           && !rel.contains("/build/")
@@ -420,7 +421,7 @@ class PythonRuntimeZeroGateTest {
               "src/session_browser/");
 
       for (Path pyFile : pythonFiles) {
-        String rel = projectRoot.relativize(pyFile).toString();
+        String rel = projectRoot.relativize(pyFile).toString().replace('\\', '/');
         boolean inAllowedDir = allowedPrefixes.stream().anyMatch(rel::startsWith);
         assertThat(inAllowedDir).as("Python 文件 %s 应仅存在于允许的开发工具目录中", rel).isTrue();
       }

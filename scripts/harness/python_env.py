@@ -22,6 +22,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 MIN_VERSION = (3, 12)
 MAX_VERSION = (3, 13)
 PYTHON_REQUIRES = '>=3.12,<3.13'
+UV_PYTHON_REQUIRES = '==3.12.*'
 _PYTHON_VERSION_LOCK = '.python-version'
 _RUNTIME_LOCK = 'requirements.lock'
 _DEV_LOCK = 'requirements-dev.lock'
@@ -211,8 +212,11 @@ def _python_contract_problems(repo_root: Path) -> list[str]:
     if pyproject_requires != PYTHON_REQUIRES:
         problems.append(f'pyproject requires-python 应为 {PYTHON_REQUIRES}: {pyproject_requires}')
     uv_requires = _uv_requires_python(repo_root / 'uv.lock')
-    if uv_requires and uv_requires != PYTHON_REQUIRES:
-        problems.append(f'uv.lock requires-python 应为 {PYTHON_REQUIRES}: {uv_requires}')
+    if uv_requires and uv_requires not in {PYTHON_REQUIRES, UV_PYTHON_REQUIRES}:
+        problems.append(
+            f'uv.lock requires-python 应为 {PYTHON_REQUIRES} '
+            f'或等价的 {UV_PYTHON_REQUIRES}: {uv_requires}'
+        )
     lock_path = repo_root / _PYTHON_VERSION_LOCK
     if not lock_path.is_file():
         problems.append(f'缺少 Python 版本契约: {_PYTHON_VERSION_LOCK}')

@@ -41,6 +41,9 @@ SCAN_GLOBS = [
 _SKIP_BASENAMES = {
     "check_no_committed_local_paths.py",
 }
+_SKIP_RELATIVE_DIRS = {
+    Path(".claude/worktrees"),
+}
 
 # /home/ 白名单模式：匹配这些模式的行不报告
 _HOME_WHITELIST = [
@@ -242,6 +245,12 @@ def _iter_scan_files() -> list[Path]:
         返回：
             当前函数计算或校验结果。
         """
+        try:
+            relative = path.relative_to(ROOT)
+        except ValueError:
+            return
+        if any(relative == prefix or prefix in relative.parents for prefix in _SKIP_RELATIVE_DIRS):
+            return
         if path.is_file() and path not in seen:
             seen.add(path)
             files.append(path)

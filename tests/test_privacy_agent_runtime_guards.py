@@ -86,6 +86,20 @@ def test_local_path_guard_rejects_committed_absolute_user_paths(tmp_path, monkey
     assert local_paths._scan_file(fixture)
 
 
+def test_privacy_guards_ignore_local_claude_worktrees(tmp_path, monkeypatch):
+    monkeypatch.setattr(local_paths, "ROOT", tmp_path)
+    monkeypatch.setattr(secrets, "ROOT", tmp_path)
+
+    local_worktree_file = _write(
+        tmp_path,
+        ".claude/worktrees/local-run/runtime.json",
+        str(Path.home()) + "/.claude/projects/private.jsonl\n",
+    )
+
+    assert local_worktree_file not in local_paths._iter_scan_files()
+    assert secrets._is_excluded_path(local_worktree_file)
+
+
 def test_qoder_docs_may_reference_tilde_qoder_but_not_raw_session_content(tmp_path, monkeypatch):
     monkeypatch.setattr(real_sessions, "ROOT", tmp_path)
 

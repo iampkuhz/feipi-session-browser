@@ -119,6 +119,16 @@ def test_lock_check_requires_python_312_contract(tmp_path: Path):
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_lock_check_accepts_uv_minor_lock_equivalent(tmp_path: Path):
+    _write_project(tmp_path)
+    (tmp_path / 'uv.lock').write_text(
+        'version = 1\nrequires-python = "==3.12.*"\n', encoding='utf-8'
+    )
+
+    assert python_env.check_locks(tmp_path) == []
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
 def test_quality_gate_project_python_uses_shared_resolver(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):

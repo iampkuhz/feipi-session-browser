@@ -25,6 +25,7 @@ case "${1:-}" in
     ;;
 esac
 
+# 记录一项通过的检查结果。
 pass_check() {
   local message="$1"
   pass_count=$((pass_count + 1))
@@ -33,6 +34,7 @@ pass_check() {
   fi
 }
 
+# 记录一项失败的检查结果。
 fail_check() {
   local message="$1"
   failure_count=$((failure_count + 1))
@@ -40,12 +42,14 @@ fail_check() {
   echo "[FAIL] $message" >&2
 }
 
+# 记录一项警告检查结果。
 warn_check() {
   local message="$1"
   warning_count=$((warning_count + 1))
   echo "[WARN] $message" >&2
 }
 
+# 执行检查命令并记录结果。
 run_check() {
   local label="$1"
   shift
@@ -168,29 +172,29 @@ done
 if [[ -n "$PYTHON" ]]; then
   run_check "Python source compiles" "$PYTHON" -m compileall -q src
   checks=(
-    check_language_policy.py
-    check_codex_agent_policy.py
-    check_agent_runtime_manifest.py
-    check_agent_hook_parity.py
-    check_no_committed_local_paths.py
-    check_agent_permission_policy.py
-    check_agent_policy_size.py
-    check_agent_rules_sync.py
-    check_agent_runtime_isolation.py
-    check_agent_runtime_worktree.py
-    check_gate_bypass_resistance.py
-    check_protected_roots_sync.py
-    check_qoder_runtime_parity.py
-    check_hook_payload_compat.py
-    check_subagent_handoff_protocol.py
-    check_skill_registry.py
-    check_agent_entry_parity.py
-    check_no_real_session_fixtures.py
-    check_secret_like_content.py
-    check_agent_runtime_report.py
+    scripts/quality/check_language_policy.py
+    scripts/quality/check_codex_agent_policy.py
+    scripts/quality/check_agent_runtime_manifest.py
+    scripts/quality/check_agent_hook_parity.py
+    scripts/quality/check_no_committed_local_paths.py
+    scripts/quality/check_agent_permission_policy.py
+    scripts/quality/check_agent_policy_size.py
+    scripts/quality/check_agent_rules_sync.py
+    scripts/quality/check_agent_runtime_isolation.py
+    scripts/quality/check_agent_runtime_worktree.py
+    scripts/quality/check_gate_bypass_resistance.py
+    scripts/quality/check_protected_roots_sync.py
+    scripts/quality/check_qoder_runtime_parity.py
+    scripts/quality/check_hook_payload_compat.py
+    scripts/quality/check_subagent_handoff_protocol.py
+    scripts/quality/check_skill_registry.py
+    scripts/quality/check_agent_entry_parity.py
+    scripts/quality/check_no_real_session_fixtures.py
+    scripts/quality/check_secret_like_content.py
+    scripts/quality/check_agent_runtime_report.py
   )
   for check in "${checks[@]}"; do
-    run_check "quality check: $check" "$PYTHON" "scripts/quality/$check"
+    run_check "quality check: ${check##*/}" "$PYTHON" "$check"
   done
   run_check "quality check: measure_gate_escape_rate.py" \
     "$PYTHON" scripts/quality/measure_gate_escape_rate.py --threshold 0

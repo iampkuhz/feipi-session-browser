@@ -175,13 +175,21 @@ class QualitySummary:
     reportHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
 
 
+# 生成优先保留错误行的有界诊断摘要。
 def concise_diagnostic(
     output: str,
     *,
     max_chars: int = DIAGNOSTIC_MAX_CHARS,
     max_lines: int = DIAGNOSTIC_MAX_LINES,
 ) -> str:
-    """返回优先保留错误行的有界诊断摘要。"""
+    """参数：
+        output: 原始诊断输出。
+        max_chars: 摘要最大字符数。
+        max_lines: 摘要最大行数。
+
+    返回：
+        有界诊断摘要。
+    """
     raw_lines = [line.strip() for line in output.splitlines() if line.strip()]
     if not raw_lines:
         return '(no gate output; inspect the artifact or rerun the command)'
@@ -215,8 +223,14 @@ def concise_diagnostic(
     return excerpt
 
 
+# 把序列化的门禁明细规范化为报告对象。
 def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
-    """把序列化 gate detail 规范化为报告对象。"""
+    """参数：
+        detail: 门禁明细对象或序列化字典。
+
+    返回：
+        规范化后的门禁明细对象。
+    """
     if isinstance(detail, GateDetail):
         return detail
     raw_command = detail.get('command') or []
@@ -232,7 +246,15 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
     )
 
 
+# 从诊断输出提取数量受限的受影响文件列表。
 def _affected_files(output: str, limit: int = 8) -> list[str]:
+    """参数：
+        output: 原始诊断输出。
+        limit: 最多返回的文件数量。
+
+    返回：
+        去重后的受影响文件列表。
+    """
     files: list[str] = []
     for match in _FILE_REFERENCE_RE.finditer(output):
         value = match.group(1)
@@ -243,10 +265,17 @@ def _affected_files(output: str, limit: int = 8) -> list[str]:
     return files
 
 
+# 将质量结果格式化为有界报告。
 def format_quality_report(
     summary: QualitySummary | dict[str, Any], artifact_path: str | Path
 ) -> str:
-    """把成功结果压缩为一行，把失败结果格式化为有界可操作报告。"""
+    """参数：
+        summary: 质量摘要对象或序列化字典。
+        artifact_path: 质量摘要产物路径。
+
+    返回：
+        成功时为单行结果，失败时为有界可操作报告。
+    """
     if isinstance(summary, dict):
         status = str(summary.get('status', BLOCKED)).upper()
         target = str(summary.get('target', 'unknown'))

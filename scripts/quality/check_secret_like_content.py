@@ -91,6 +91,24 @@ _SENSITIVE_MARKERS = [
 _SKIP_BASENAMES = {
     "check_secret_like_content.py",
 }
+_SKIP_RELATIVE_DIRS = {
+    Path(".claude/worktrees"),
+}
+
+
+# 判断路径是否属于不应扫描的本地非提交目录。
+def _is_excluded_path(path: Path) -> bool:
+    """参数：
+        path: 待判断的文件路径。
+
+    返回：
+        应排除时返回 true，否则返回 false。
+    """
+    try:
+        relative = path.relative_to(ROOT)
+    except ValueError:
+        return True
+    return any(relative == prefix or prefix in relative.parents for prefix in _SKIP_RELATIVE_DIRS)
 
 
 # 输出 FAIL 并返回非 0。
@@ -304,6 +322,8 @@ def main() -> int:
         if not dir_path.is_dir():
             continue
         for filepath in sorted(dir_path.rglob("*")):
+            if _is_excluded_path(filepath):
+                continue
             if not filepath.is_file():
                 continue
             if filepath in seen_files:

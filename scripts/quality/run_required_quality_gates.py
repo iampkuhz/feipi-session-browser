@@ -102,14 +102,27 @@ class GateRunResult:
 
     __slots__ = ('artifact_path', 'diagnostic', 'passed', 'target')
 
+    # 初始化单个质量目标的运行结果。
     def __init__(self, target: str, passed: bool, artifact_path: str, diagnostic: str = '') -> None:
+        """参数：
+            target: 质量目标名称。
+            passed: 质量目标是否通过。
+            artifact_path: 质量产物路径。
+            diagnostic: 失败诊断内容。
+
+        返回：
+            无返回值。
+        """
         self.target = target
         self.passed = passed
         self.artifact_path = artifact_path
         self.diagnostic = diagnostic
 
+    # 按兼容顺序迭代通过状态与产物路径。
     def __iter__(self):
-        """按历史 ``(passed, artifact_path)`` 顺序迭代。"""
+        """返回：
+            依次生成通过状态与产物路径的迭代器。
+        """
         yield self.passed
         yield self.artifact_path
 
@@ -465,8 +478,14 @@ def run_gate(
         return GateRunResult(target, False, artifact_path, f'child runner failed: {exc}')
 
 
+# 格式化失败目标并在产物缺失时保留降级诊断。
 def format_failed_target(result: GateRunResult) -> str:
-    """优先从 artifact 渲染失败，缺失时保留子进程降级诊断。"""
+    """参数：
+        result: 失败的质量目标运行结果。
+
+    返回：
+        优先从质量产物渲染的失败报告。
+    """
     artifact = Path(result.artifact_path)
     if artifact.exists():
         try:
