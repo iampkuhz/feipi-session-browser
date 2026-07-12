@@ -101,6 +101,8 @@ def test_run_record_requires_all_contract_fields():
     ("source", "target", "allowed"),
     [
         ("BOOTSTRAPPED", "ISOLATED_WRITER", True),
+        ("VALIDATING", "READ_ONLY_READY", True),
+        ("BLOCKED", "VALIDATING", False),
         ("READ_ONLY_READY", "BOOTSTRAPPED", False),
     ],
 )

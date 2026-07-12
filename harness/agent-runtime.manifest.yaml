@@ -262,6 +262,7 @@ status_machine:
       - HANDOFF_REQUIRED
       - BLOCKED
     VALIDATING:
+      - READ_ONLY_READY
       - VALIDATED
       - ISOLATED_WRITER
       - LOCAL_WRITER

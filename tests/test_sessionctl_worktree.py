@@ -79,7 +79,7 @@ def bootstrap(repo, session_id, hook_event="SessionStart", client="codex", *, en
 
 
 def install_fake_stop_pass(monkeypatch):
-    def fake_run_stop(client, payload, *, handoff_on_failure=False):
+    def fake_run_stop(client, payload, *, handoff_on_failure=False, adapter_mode='hook'):
         checkout = Path(payload["cwd"])
         registry = sessionctl.Registry(checkout)
         with registry.locked():
@@ -191,6 +191,124 @@ def test_bootstrap_without_hints_is_idempotent_and_adopts_real_checkout_facts(tm
     assert adopted["initialDirtySnapshot"]["dirty"] is True
     assert adopted["initialDirtySnapshot"]["untracked"] == ["untracked.txt"]
     assert adopted["worktreeId"] != started["worktreeId"]
+
+
+def test_claude_cwd_changed_rebinds_same_run_before_first_mutation(tmp_path):
+    repo = git_repo(tmp_path)
+    started = bootstrap(repo, "session-claude-worktree", client="claude")
+    linked = tmp_path / "claude-native-worktree"
+    run(["git", "worktree", "add", "--detach", str(linked), "HEAD"], cwd=repo)
+
+    rebound = bootstrap(
+        linked,
+        started["sessionId"],
+        "CwdChanged",
+        client="claude",
+        extra=("--checkout-creator", "claude"),
+    )
+
+    assert rebound["runId"] == started["runId"]
+    assert rebound["checkoutRoot"] == str(linked.resolve())
+    assert rebound["checkoutKind"] == "linked-worktree"
+    assert rebound["worktreeId"] != started["worktreeId"]
+    assert any(
+        event.get("event") == "SESSION_CHECKOUT_REBOUND"
+        for event in rebound["auditEvents"]
+    )
+    writable = acquire_for_session(linked, rebound["sessionId"], client="claude")
+    assert writable["status"] == "ISOLATED_WRITER"
+    assert validate_run_write_authorization(
+        linked,
+        client="claude",
+        session_id=rebound["sessionId"],
+        run_id=rebound["runId"],
+        candidate_paths=["README.md"],
+    )[0]
+    assert not validate_run_write_authorization(
+        linked,
+        client="claude",
+        session_id=rebound["sessionId"],
+        run_id=rebound["runId"],
+        candidate_paths=[str(repo / "README.md")],
+    )[0]
+
+
+def test_claude_cwd_changed_rejects_rebind_after_writer_activation(tmp_path):
+    repo = git_repo(tmp_path)
+    started = bootstrap(repo, "session-claude-writer", client="claude")
+    acquire_for_session(repo, started["sessionId"], client="claude")
+    linked = tmp_path / "late-claude-worktree"
+    run(["git", "worktree", "add", "--detach", str(linked), "HEAD"], cwd=repo)
+
+    result = ctl(
+        linked,
+        "bootstrap",
+        "--client",
+        "claude",
+        "--session-id",
+        started["sessionId"],
+        "--cwd",
+        str(linked),
+        "--hook-event",
+        "CwdChanged",
+        "--checkout-creator",
+        "claude",
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "cannot change after writer activation" in result.stderr
+    current = sessionctl.Registry(repo).load_run(started["runId"])
+    assert current["checkoutRoot"] == str(repo.resolve())
+
+
+def test_claude_cwd_changed_rejects_rebind_after_writer_lease_release(tmp_path):
+    repo = git_repo(tmp_path)
+    started = bootstrap(repo, "session-claude-released-writer", client="claude")
+    acquired = acquire_for_session(repo, started["sessionId"], client="claude")
+    lease = acquired["writerLease"]
+    released = json.loads(
+        ctl(
+            repo,
+            "release-writer-lease",
+            "--client",
+            "claude",
+            "--session-id",
+            started["sessionId"],
+            "--cwd",
+            str(repo),
+            "--epoch",
+            str(lease["epoch"]),
+            "--fencing-token",
+            lease["fencingToken"],
+        ).stdout
+    )
+    assert released["status"] == "READ_ONLY_READY"
+    assert released["writerLease"] == {}
+    assert released["releasedWriterLease"]["state"] == "RELEASED"
+
+    linked = tmp_path / "released-claude-worktree"
+    run(["git", "worktree", "add", "--detach", str(linked), "HEAD"], cwd=repo)
+    result = ctl(
+        linked,
+        "bootstrap",
+        "--client",
+        "claude",
+        "--session-id",
+        started["sessionId"],
+        "--cwd",
+        str(linked),
+        "--hook-event",
+        "CwdChanged",
+        "--checkout-creator",
+        "claude",
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert "cannot change after writer activation" in result.stderr
+    current = sessionctl.Registry(repo).load_run(started["runId"])
+    assert current["checkoutRoot"] == str(repo.resolve())
 
 
 def test_concurrent_bootstrap_reuses_one_registry_run(tmp_path):
@@ -1012,7 +1130,13 @@ def test_finalize_target_advance_revalidation_failure_handoffs_and_exits_two(
     run(["git", "commit", "-m", "target advance"], cwd=repo)
     target_head = run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
 
-    def fake_stop_failure(_client, payload, *, handoff_on_failure=False):
+    def fake_stop_failure(
+        _client,
+        payload,
+        *,
+        handoff_on_failure=False,
+        adapter_mode='hook',
+    ):
         checkout = Path(payload["cwd"])
         registry = sessionctl.Registry(checkout)
         with registry.locked():

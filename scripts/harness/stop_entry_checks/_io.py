@@ -14,13 +14,26 @@ from typing import Any
 from scripts.harness.primary_session import ensure_private_directory
 
 
+# 返回当前 UTC 时间的 ISO 格式字符串。
 def utc_now() -> str:
-    """返回当前 UTC 时间的 ISO 格式字符串。"""
+    """参数：
+        当前函数没有输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     return datetime.now(timezone.utc).isoformat()
 
 
+# 以原子替换方式写入仅当前用户可访问的 JSON 文档。
 def write_private_json(path: Path, data: dict[str, Any]) -> None:
-    """以原子替换方式写入仅当前用户可访问的 JSON 文档。"""
+    """参数：
+        path: 当前函数使用的输入参数。
+        data: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     ensure_private_directory(path.parent)
     try:
         existing = path.lstat()

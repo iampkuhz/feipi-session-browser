@@ -8,18 +8,29 @@ from typing import Any
 from scripts.harness import stop_helpers
 
 
+# 委托 stop_helpers 收集 Git 证据。
 def collect_git_evidence(repo_root: Path, record: dict[str, Any]) -> dict[str, Any]:
-    """委托 stop_helpers 收集 Git 证据。"""
+    """参数：
+        repo_root: 当前函数使用的输入参数。
+        record: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     return stop_helpers.collect_git_evidence(repo_root, record)
 
 
+# 排除 session 启动前已存在的 dirty 文件。
 def filter_baseline_dirty(
     changed_files: list[str],
     git_evidence: dict[str, Any],
 ) -> tuple[list[str], set[str]]:
-    """排除 session 启动前已存在的 dirty 文件。
+    """参数：
+        changed_files: 当前函数使用的输入参数。
+        git_evidence: 当前函数使用的输入参数。
 
-    返回 (过滤后的 changed_files, baseline_dirty_files 集合)。
+    返回：
+        当前函数的计算结果。
     """
     baseline_dirty: set[str] = set()
     initial_dirty = git_evidence.get('initialDirtySnapshot')

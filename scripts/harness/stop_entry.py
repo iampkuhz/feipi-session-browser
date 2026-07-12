@@ -65,8 +65,14 @@ from scripts.harness.stop_entry_checks._io import utc_now  # noqa: E402
 # ── 入口 ──────────────────────────────────────────────────────────
 
 
+# 读取 stdin 一次，解析为 JSON。
 def read_stdin_once() -> tuple[str, dict[str, Any]]:
-    """读取 stdin 一次，解析为 JSON。"""
+    """参数：
+        当前函数没有输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     raw = sys.stdin.read()
     if not raw.strip():
         return raw, {}
@@ -77,16 +83,47 @@ def read_stdin_once() -> tuple[str, dict[str, Any]]:
     return raw, data if isinstance(data, dict) else {}
 
 
+# 按权威运行记录返回变更文件及证据模式。
+def collect_run_changed_files(
+    repo_root: Path,
+    identity: runtime_paths.RuntimeIdentity,
+    record: dict[str, Any] | None,
+) -> tuple[list[str], str, list[str]]:
+    """参数：
+        repo_root: 当前函数使用的输入参数。
+        identity: 当前函数使用的输入参数。
+        record: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
+    if identity.has_run and identity.has_session and record:
+        return collect_git_evidence(repo_root, record)['changedFiles'], 'git-run-record', []
+    return [], 'run-identity-required', ['Stop requires an authoritative run record']
+
+
 # ── 核心编排 ──────────────────────────────────────────────────────
 
 
+# 停止流程主入口，依次完成身份、锁、证据、重入、门禁、报告与闭环。
 def run_stop(
     agent: str,
     raw_ctx: dict[str, Any],
     *,
     handoff_on_failure: bool = False,
+    adapter_mode: str = 'hook',
 ) -> int:
-    """Stop 流程主入口：身份 → 锁 → 证据 → 重入 → 门禁 → 报告 → 闭环。"""
+    """参数：
+        agent: 当前函数使用的输入参数。
+        raw_ctx: 当前函数使用的输入参数。
+        handoff_on_failure: 当前函数使用的输入参数。
+        adapter_mode: 当前函数使用的输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
+    if adapter_mode not in {'hook', 'cli'}:
+        raise ValueError(f'unsupported Stop adapter mode: {adapter_mode}')
     repo_root = _repo_root(raw_ctx)
     stop_helpers._use_repo_root(repo_root)
 
@@ -120,6 +157,7 @@ def run_stop(
     continuation_count = 0
     outcome_record: dict[str, Any] = {}
     gate_results: list[dict[str, str]] = []
+    circuit_broken = False
 
     # ── 2. file_lock：并发互斥 ─────────────────────────────────────
     stop_lock = FileLock(
@@ -167,7 +205,7 @@ def run_stop(
 
         # ── 4. reentry：重入检测（指纹对比 + circuit breaker 熔断）─
         same_failure, reentry_state, scope_ok = matching_reentry_failure(
-            reentry_path, repo_root, scope,
+            reentry_path, repo_root, scope, change_id=change_id,
         )
         if not scope_ok:
             failures.append('run-scoped Stop recovery identity mismatch')
@@ -214,7 +252,7 @@ def run_stop(
                 gates_ok = False
                 failures.append(f'post-gate Git evidence unavailable: {exc}')
 
-        # ── 6. report：写 runtime-report + stop-check-summary ─────
+        # ── 6. report：写入运行报告和停止检查摘要 ────────────────
         write_runtime_report(
             report_path,
             identity=identity,
@@ -246,7 +284,12 @@ def run_stop(
         failures[:] = list(dict.fromkeys(failures))
         try:
             continuation_count, reentry_failures = update_reentry(
-                reentry_path, repo_root, failures, scope=scope, audit_dir=audit_dir,
+                reentry_path,
+                repo_root,
+                failures,
+                scope=scope,
+                audit_dir=audit_dir,
+                change_id=change_id,
             )
             failures.extend(reentry_failures)
         except Exception as exc:
@@ -263,6 +306,7 @@ def run_stop(
                 summary_status='BLOCKED' if failures else 'PASS',
                 validated_facts=git_evidence,
                 handoff_on_failure=handoff_on_failure,
+                retryable_failure=(adapter_mode == 'hook' and not handoff_on_failure),
             )
             if requested_exit == 0 and outcome_record.get('status') != 'VALIDATED':
                 validation = outcome_record.get('stopValidation')
@@ -273,7 +317,12 @@ def run_stop(
                 )
                 failures.append(detail or 'Stop validation receipt did not match gated Git snapshot')
                 continuation_count, reentry_failures = update_reentry(
-                    reentry_path, repo_root, failures, scope=scope, audit_dir=audit_dir,
+                    reentry_path,
+                    repo_root,
+                    failures,
+                    scope=scope,
+                    audit_dir=audit_dir,
+                    change_id=change_id,
                 )
                 failures.extend(reentry_failures)
                 write_runtime_report(
@@ -372,6 +421,12 @@ def run_stop(
     if failures:
         for failure in failures:
             print(f'[stop_entry] BLOCK {failure}', file=sys.stderr)
+        if adapter_mode == 'hook' and circuit_state == 'OPEN':
+            print(
+                '[stop_entry] circuit open; ending repeated hook callback with failure evidence preserved',
+                file=sys.stderr,
+            )
+            return 0
         return 2
     print('[stop_entry] PASS', file=sys.stderr)
     return 0
@@ -380,8 +435,14 @@ def run_stop(
 # ── CLI ───────────────────────────────────────────────────────────
 
 
+# 解析命令行参数并执行停止流程。
 def main() -> int:
-    """解析命令行参数并执行 Stop 流程。"""
+    """参数：
+        当前函数没有输入参数。
+
+    返回：
+        当前函数的计算结果。
+    """
     parser = argparse.ArgumentParser(description='Run unified Stop entry.')
     parser.add_argument('--agent', default='unknown')
     parser.add_argument('--agent-id', default=None)
