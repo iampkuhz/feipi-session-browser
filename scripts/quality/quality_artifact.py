@@ -4,6 +4,8 @@ from __future__ import annotations
 
 import hashlib
 import json
+import re
+import shlex
 import subprocess
 from dataclasses import asdict, dataclass, field
 from datetime import datetime, timezone
@@ -18,12 +20,23 @@ FAIL = 'FAIL'
 BLOCKED = 'BLOCKED'
 SKIPPED = 'SKIPPED'
 ALLOWED_STATUSES = {PASS, FAIL, BLOCKED, SKIPPED}
+DIAGNOSTIC_MAX_CHARS = 1600
+DIAGNOSTIC_MAX_LINES = 16
+FAILED_GATE_REPORT_LIMIT = 8
+_DIAGNOSTIC_PRIORITY_RE = re.compile(
+    r'(?i)(fail|error|exception|traceback|blocked|timeout|timed out|warning|'
+    r'assert|missing|not found|denied|invalid|\bE\d{3,4}\b)'
+)
+_FILE_REFERENCE_RE = re.compile(
+    r'(?<![\w.-])((?:[\w.-]+/)+[\w.-]+\.(?:py|sh|java|kt|js|ts|tsx|json|ya?ml|md|css|html)'
+    r'(?::\d+(?::\d+)?)?)'
+)
 
 
 # 返回当前 UTC timestamp。
 def utc_now() -> str:
     """返回：
-        当前 UTC timestamp 字符串。
+    当前 UTC timestamp 字符串。
     """
     return datetime.now(timezone.utc).isoformat()
 
@@ -160,6 +173,137 @@ class QualitySummary:
     freshness: str = ''
     # 报告内容哈希：用于验证 artifact 完整性，防止篡改。
     reportHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
+
+
+def concise_diagnostic(
+    output: str,
+    *,
+    max_chars: int = DIAGNOSTIC_MAX_CHARS,
+    max_lines: int = DIAGNOSTIC_MAX_LINES,
+) -> str:
+    """返回优先保留错误行的有界诊断摘要。"""
+    raw_lines = [line.strip() for line in output.splitlines() if line.strip()]
+    if not raw_lines:
+        return '(no gate output; inspect the artifact or rerun the command)'
+
+    lines: list[str] = []
+    seen: set[str] = set()
+    for line in raw_lines:
+        if line in seen:
+            continue
+        seen.add(line)
+        lines.append(line)
+
+    priority = [index for index, line in enumerate(lines) if _DIAGNOSTIC_PRIORITY_RE.search(line)]
+    selected = priority[:max_lines]
+    if len(selected) < max_lines:
+        for index in range(max(0, len(lines) - max_lines), len(lines)):
+            if index not in selected:
+                selected.append(index)
+            if len(selected) >= max_lines:
+                break
+    selected.sort()
+
+    excerpt = '\n'.join(lines[index] for index in selected)
+    truncated = len(selected) < len(lines) or len(excerpt) > max_chars
+    if len(excerpt) > max_chars:
+        excerpt = excerpt[: max(0, max_chars - 1)].rstrip() + '…'
+    if truncated:
+        excerpt += (
+            '\n[diagnostic truncated; additional captured output is in the gate detail artifact]'
+        )
+    return excerpt
+
+
+def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
+    """把序列化 gate detail 规范化为报告对象。"""
+    if isinstance(detail, GateDetail):
+        return detail
+    raw_command = detail.get('command') or []
+    return GateDetail(
+        name=str(detail.get('name', 'unknown')),
+        status=str(detail.get('status', BLOCKED)),
+        command=[str(part) for part in raw_command] if isinstance(raw_command, list) else [],
+        exitCode=detail.get('exitCode') if isinstance(detail.get('exitCode'), int) else None,
+        durationMs=(
+            detail.get('durationMs') if isinstance(detail.get('durationMs'), int) else None
+        ),
+        output=str(detail.get('output', '') or ''),
+    )
+
+
+def _affected_files(output: str, limit: int = 8) -> list[str]:
+    files: list[str] = []
+    for match in _FILE_REFERENCE_RE.finditer(output):
+        value = match.group(1)
+        if value not in files:
+            files.append(value)
+        if len(files) >= limit:
+            break
+    return files
+
+
+def format_quality_report(
+    summary: QualitySummary | dict[str, Any], artifact_path: str | Path
+) -> str:
+    """把成功结果压缩为一行，把失败结果格式化为有界可操作报告。"""
+    if isinstance(summary, dict):
+        status = str(summary.get('status', BLOCKED)).upper()
+        target = str(summary.get('target', 'unknown'))
+        raw_required = summary.get('requiredGates') or {}
+        required = dict(raw_required) if isinstance(raw_required, dict) else {}
+        raw_details = summary.get('gateDetails') or []
+        details = (
+            [_coerce_detail(detail) for detail in raw_details if isinstance(detail, dict)]
+            if isinstance(raw_details, list)
+            else []
+        )
+        raw_blocking = summary.get('blockingFailures') or []
+        blocking = list(raw_blocking) if isinstance(raw_blocking, list) else []
+    else:
+        status = summary.status.upper()
+        target = summary.target
+        required = summary.requiredGates
+        details = [_coerce_detail(detail) for detail in summary.gateDetails]
+        blocking = summary.blockingFailures
+
+    passed = sum(str(value).upper() == PASS for value in required.values())
+    artifact = str(artifact_path)
+    headline = (
+        f'QUALITY_GATE_RESULT status={status} target={target} '
+        f'passed={passed}/{len(required)} artifact={artifact}'
+    )
+    if status == PASS:
+        return headline
+
+    failed_details = [detail for detail in details if detail.status.upper() != PASS]
+    if not failed_details:
+        reason = concise_diagnostic('\n'.join(str(item) for item in blocking))
+        return f'{headline}\nFAILED_GATES:\n- gate=unknown status={status}\n  error={reason}'
+
+    lines = [headline, 'FAILED_GATES:']
+    for detail in failed_details[:FAILED_GATE_REPORT_LIMIT]:
+        gate_status = detail.status.upper()
+        rendered_command = ''
+        lines.append(f'- gate={detail.name} status={gate_status} exit_code={detail.exitCode}')
+        if detail.command:
+            rendered_command = shlex.join(str(part) for part in detail.command)
+            lines.append(f'  command={rendered_command}')
+        files = _affected_files(detail.output)
+        if files:
+            lines.append(f'  affected_files={", ".join(files)}')
+        lines.append('  error_summary:')
+        lines.extend(f'    {line}' for line in concise_diagnostic(detail.output).splitlines())
+        if rendered_command:
+            lines.append(f'  fix_hint=Fix the error, then rerun: {rendered_command}')
+        elif gate_status == BLOCKED:
+            lines.append(
+                '  fix_hint=Provide the missing command, dependency, or environment, then rerun.'
+            )
+    omitted = len(failed_details) - FAILED_GATE_REPORT_LIMIT
+    if omitted > 0:
+        lines.append(f'... omitted_failed_gates={omitted}; inspect artifact for complete details')
+    return '\n'.join(lines)
 
 
 # 计算必需 gate 的 fail-closed 总体状态。

@@ -6,6 +6,69 @@ ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
 fail=0
+pass_count=0
+failure_count=0
+warning_count=0
+VERBOSE=0
+
+case "${1:-}" in
+  "") ;;
+  --verbose|-v) VERBOSE=1 ;;
+  --help|-h)
+    echo "Usage: bash scripts/harness/doctor.sh [--verbose]"
+    exit 0
+    ;;
+  *)
+    echo "[FAIL] unknown argument: $1" >&2
+    echo "Usage: bash scripts/harness/doctor.sh [--verbose]" >&2
+    exit 2
+    ;;
+esac
+
+pass_check() {
+  local message="$1"
+  pass_count=$((pass_count + 1))
+  if [[ $VERBOSE -eq 1 ]]; then
+    echo "[PASS] $message"
+  fi
+}
+
+fail_check() {
+  local message="$1"
+  failure_count=$((failure_count + 1))
+  fail=1
+  echo "[FAIL] $message" >&2
+}
+
+warn_check() {
+  local message="$1"
+  warning_count=$((warning_count + 1))
+  echo "[WARN] $message" >&2
+}
+
+run_check() {
+  local label="$1"
+  shift
+  local output
+  if output="$("$@" 2>&1)"; then
+    pass_check "$label"
+    if [[ $VERBOSE -eq 1 && -n "$output" ]]; then
+      printf '%s\n' "$output"
+    fi
+  else
+    local rc=$?
+    fail_check "$label (exit=$rc)"
+    if [[ -n "$output" ]]; then
+      local line_count
+      line_count="$(printf '%s\n' "$output" | wc -l | tr -d ' ')"
+      if [[ "$line_count" -gt 40 ]]; then
+        echo "[diagnostic truncated: showing last 40 of $line_count lines]" >&2
+      fi
+      printf '%s\n' "$output" | tail -n 40 | tail -c 8000 >&2
+      printf '\n' >&2
+    fi
+  fi
+}
 
 # 通过共享 resolver 解析项目 Python executable。
 python_bin() {
@@ -29,10 +92,9 @@ PYTHON="$(python_bin)" || PYTHON=""
 check_file() {
   local file="$1"
   if [[ -f "$file" ]]; then
-    echo "[PASS] file exists: $file"
+    pass_check "file exists: $file"
   else
-    echo "[FAIL] missing file: $file" >&2
-    fail=1
+    fail_check "missing file: $file"
   fi
 }
 
@@ -40,10 +102,9 @@ check_file() {
 check_dir() {
   local dir="$1"
   if [[ -d "$dir" ]]; then
-    echo "[PASS] dir exists: $dir"
+    pass_check "dir exists: $dir"
   else
-    echo "[FAIL] missing dir: $dir" >&2
-    fail=1
+    fail_check "missing dir: $dir"
   fi
 }
 
@@ -86,60 +147,79 @@ check_dir tests
 check_dir scripts/claude_hooks
 
 if [[ -n "$PYTHON" ]]; then
-  echo "[INFO] python: $PYTHON"
-  "$PYTHON" scripts/harness/python_env.py report || fail=1
-  "$PYTHON" scripts/harness/python_env.py check-installed --profile test || fail=1
+  pass_check "python interpreter: $PYTHON"
+  run_check "python environment report" "$PYTHON" scripts/harness/python_env.py report
+  run_check "test dependencies installed" \
+    "$PYTHON" scripts/harness/python_env.py check-installed --profile test
 else
-  fail=1
+  fail_check "no compatible Python interpreter"
 fi
 
 if [[ -f .claude/settings.json && -n "$PYTHON" ]]; then
-  "$PYTHON" -m json.tool .claude/settings.json >/dev/null || {
-    echo "[FAIL] invalid JSON: .claude/settings.json" >&2
-    fail=1
-  }
+  run_check "valid JSON: .claude/settings.json" \
+    "$PYTHON" -m json.tool .claude/settings.json
 fi
 
 for script in scripts/session-browser.sh .claude/hooks/*.sh .codex/hooks/*.sh .qoder/hooks/*.sh; do
   [[ -f "$script" ]] || continue
-  bash -n "$script" || fail=1
+  run_check "valid shell syntax: $script" bash -n "$script"
 done
 
 if [[ -n "$PYTHON" ]]; then
-  "$PYTHON" -m compileall -q src || fail=1
-  "$PYTHON" scripts/quality/check_language_policy.py || fail=1
-  "$PYTHON" scripts/quality/check_codex_agent_policy.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_runtime_manifest.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_hook_parity.py || fail=1
-  "$PYTHON" scripts/quality/check_no_committed_local_paths.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_permission_policy.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_policy_size.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_rules_sync.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_runtime_isolation.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_runtime_worktree.py || fail=1
-  "$PYTHON" scripts/quality/check_gate_bypass_resistance.py || fail=1
-  "$PYTHON" scripts/quality/measure_gate_escape_rate.py --threshold 0 || fail=1
-  "$PYTHON" scripts/quality/check_protected_roots_sync.py || fail=1
-  "$PYTHON" scripts/quality/check_qoder_runtime_parity.py || fail=1
-  "$PYTHON" scripts/quality/check_hook_payload_compat.py || fail=1
-  "$PYTHON" scripts/quality/check_subagent_handoff_protocol.py || fail=1
-  "$PYTHON" scripts/quality/check_skill_registry.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_entry_parity.py || fail=1
-  "$PYTHON" scripts/quality/check_no_real_session_fixtures.py || fail=1
-  "$PYTHON" scripts/quality/check_secret_like_content.py || fail=1
-  "$PYTHON" scripts/quality/check_agent_runtime_report.py || fail=1
+  run_check "Python source compiles" "$PYTHON" -m compileall -q src
+  checks=(
+    check_language_policy.py
+    check_codex_agent_policy.py
+    check_agent_runtime_manifest.py
+    check_agent_hook_parity.py
+    check_no_committed_local_paths.py
+    check_agent_permission_policy.py
+    check_agent_policy_size.py
+    check_agent_rules_sync.py
+    check_agent_runtime_isolation.py
+    check_agent_runtime_worktree.py
+    check_gate_bypass_resistance.py
+    check_protected_roots_sync.py
+    check_qoder_runtime_parity.py
+    check_hook_payload_compat.py
+    check_subagent_handoff_protocol.py
+    check_skill_registry.py
+    check_agent_entry_parity.py
+    check_no_real_session_fixtures.py
+    check_secret_like_content.py
+    check_agent_runtime_report.py
+  )
+  for check in "${checks[@]}"; do
+    run_check "quality check: $check" "$PYTHON" "scripts/quality/$check"
+  done
+  run_check "quality check: measure_gate_escape_rate.py" \
+    "$PYTHON" scripts/quality/measure_gate_escape_rate.py --threshold 0
 fi
 
 # CSS ownership 校验。
 if [[ -n "$PYTHON" ]]; then
-  css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || true
-  css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
-  if [[ "$css_total" -gt 0 ]]; then
-    echo "[FAIL] CSS ownership violations: $css_total" >&2
-    echo "$css_output" >&2
-    fail=1
+  css_output=""
+  css_rc=0
+  css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || css_rc=$?
+  if echo "$css_output" | grep -q 'Total:'; then
+    css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
+    if [[ "$css_total" -gt 0 ]]; then
+      fail_check "CSS ownership violations: $css_total"
+      echo "$css_output" >&2
+    else
+      pass_check "CSS ownership validation"
+      if [[ $VERBOSE -eq 1 && -n "$css_output" ]]; then
+        printf '%s\n' "$css_output"
+      fi
+    fi
+  elif [[ $css_rc -eq 0 ]]; then
+    pass_check "CSS ownership validation"
+    if [[ $VERBOSE -eq 1 && -n "$css_output" ]]; then
+      printf '%s\n' "$css_output"
+    fi
   else
-    echo "[PASS] CSS ownership validation"
+    fail_check "CSS ownership validation command failed (exit=$css_rc)"
+    [[ -z "$css_output" ]] || printf '%s\n' "$css_output" >&2
   fi
 fi
 
@@ -151,53 +231,50 @@ local_files=(.mcp.json .env)
 local_dirs=(data output)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
-    echo "[FAIL] personal file should not exist: $f" >&2
-    fail=1
+    fail_check "personal file should not exist: $f"
   else
-    echo "[PASS] personal file absent: $f"
+    pass_check "personal file absent: $f"
   fi
 done
 # `settings.local.json` 是应保留在本地的用户配置。
 # 这里只告警，不阻断 quality gate。
 if [[ -e ".claude/settings.local.json" ]]; then
-  echo "[WARN] personal config present: .claude/settings.local.json (gitignored, allowed)"
+  warn_check "personal config present: .claude/settings.local.json (gitignored, allowed)"
 fi
 for d in "${local_dirs[@]}"; do
   if [[ -d "$d" ]]; then
-    echo "[FAIL] ephemeral dir should not exist: $d" >&2
-    fail=1
+    fail_check "ephemeral dir should not exist: $d"
   else
-    echo "[PASS] ephemeral dir absent: $d"
+    pass_check "ephemeral dir absent: $d"
   fi
 done
 
 # OpenSpec runtime state 不应被 Git 追踪
-openspec_tracked=$(git ls-files openspec/active_change.json openspec/changes 2>/dev/null)
+openspec_tracked=$(git ls-files openspec/active_change.json openspec/changes 2>/dev/null || true)
 if [[ -n "$openspec_tracked" ]]; then
-  echo "[FAIL] OpenSpec runtime state 不应被 Git 追踪: $openspec_tracked" >&2
-  fail=1
+  fail_check "OpenSpec runtime state 不应被 Git 追踪: $openspec_tracked"
 else
-  echo "[PASS] OpenSpec runtime state 未被 Git 追踪"
+  pass_check "OpenSpec runtime state 未被 Git 追踪"
 fi
 
 # openspec/changes/ 应存在，不存在时自动创建
 if [[ ! -d "openspec/changes" ]]; then
   mkdir -p openspec/changes
-  echo "[WARN] openspec/changes/ 不存在，已自动创建"
+  warn_check "openspec/changes/ 不存在，已自动创建"
 else
-  echo "[PASS] openspec/changes/ 目录存在"
+  pass_check "openspec/changes/ 目录存在"
 fi
 
 # active_change.json 不存在是正常状态
 if [[ -f "openspec/active_change.json" ]]; then
-  echo "[PASS] openspec/active_change.json 存在（本地 runtime state）"
+  pass_check "openspec/active_change.json 存在（本地 runtime state）"
 else
-  echo "[PASS] openspec/active_change.json 不存在（正常状态）"
+  pass_check "openspec/active_change.json 不存在（正常状态）"
 fi
 
 if [[ $fail -ne 0 ]]; then
-  echo "[FAIL] doctor found issues" >&2
+  echo "DOCTOR_RESULT status=FAIL passed=$pass_count failed=$failure_count warnings=$warning_count" >&2
   exit 1
 fi
 
-echo "[PASS] doctor completed"
+echo "DOCTOR_RESULT status=PASS passed=$pass_count failed=0 warnings=$warning_count"

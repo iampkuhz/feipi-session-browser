@@ -2,6 +2,7 @@
 
 import json
 import stat
+import sys
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -90,6 +91,40 @@ class TestBuildSummary:
         summary = build_summary('session-detail', 'test', started, details)
         assert summary.status == FAIL
         assert len(summary.blockingFailures) >= 1
+
+    @pytest.mark.contract_case('HOOK-HARNESS-010')
+    def test_cli_failure_prints_actionable_report(
+        self,
+        monkeypatch: pytest.MonkeyPatch,
+        tmp_path: Path,
+        capsys: pytest.CaptureFixture[str],
+    ):
+        detail = GateDetail(
+            name='pythonFormat',
+            status=FAIL,
+            command=['bash', 'scripts/session-browser.sh', 'format-check'],
+            exitCode=1,
+            output='ERROR scripts/quality/example.py:42 formatting failed',
+        )
+        monkeypatch.chdir(tmp_path)
+        monkeypatch.setattr(run_quality_gate, 'run_target', lambda *args, **kwargs: [detail])
+        monkeypatch.setattr(
+            sys,
+            'argv',
+            [
+                'run_quality_gate.py',
+                '--target',
+                'python-standard',
+                '--change-id',
+                'report-test',
+            ],
+        )
+
+        assert run_quality_gate.main() == 1
+        output = capsys.readouterr().out
+        assert 'gate=pythonFormat status=FAIL' in output
+        assert 'scripts/quality/example.py:42' in output
+        assert 'fix_hint=' in output
 
 
 class TestWriteSummary:
@@ -181,7 +216,9 @@ class TestQualityTargets:
     def test_java_record_component_gate_triggers_for_main_java(self):
         gates = applicable_gates_for_target(
             'java-src',
-            ['java/index-sqlite/src/main/java/com/feipi/session/browser/index/sqlite/ProjectListSummaryRow.java'],
+            [
+                'java/index-sqlite/src/main/java/com/feipi/session/browser/index/sqlite/ProjectListSummaryRow.java'
+            ],
         )
         assert 'javaRecordComponentJavadocs' in gates
 
@@ -986,6 +1023,7 @@ class TestNoJavaTestSkipsGateCommand:
         assert 'header parser received no bytes' not in joined
         assert 'retry failed' not in joined
 
+
 class TestMultipleTargetHandling:
     """多 target 场景：去重、dominance 和并行执行。"""
 
@@ -1090,7 +1128,9 @@ class TestRequiredGateChangedFiles:
         reader_file.parent.mkdir(parents=True)
         writer_file.parent.mkdir(parents=True)
         reader_file.write_text(
-            json.dumps({'sessionId': 'reader-session', 'file': 'scripts/quality/run_quality_gate.py'})
+            json.dumps(
+                {'sessionId': 'reader-session', 'file': 'scripts/quality/run_quality_gate.py'}
+            )
             + '\n',
             encoding='utf-8',
         )

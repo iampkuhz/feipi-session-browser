@@ -11,7 +11,6 @@ import os
 import re
 import shlex
 import shutil
-import socket
 import sqlite3
 import subprocess
 import sys
@@ -27,9 +26,9 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.harness.python_env import resolve_python  # noqa: E402
 from scripts.harness.port_allocator import reserve_port  # noqa: E402
 from scripts.harness.primary_session import resolve_runtime_root  # noqa: E402
+from scripts.harness.python_env import resolve_python  # noqa: E402
 from scripts.quality.quality_artifact import (  # noqa: E402
     BLOCKED,
     FAIL,
@@ -37,6 +36,7 @@ from scripts.quality.quality_artifact import (  # noqa: E402
     GateDetail,
     QualitySummary,
     compute_overall,
+    format_quality_report,
     resolve_base_commit,
     resolve_dirty_hash,
     utc_now,
@@ -1903,13 +1903,15 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
 
 
 _FIXTURE_GATES = {'browserLayout', 'browserInteraction'}
+_VERBOSE_OUTPUT = False
 
 # 维护进度。
 def _progress(message: str) -> None:
     """参数：
         message: 不带前缀的进度行。
     """
-    print(f'[quality-gate] {message}', file=sys.stderr, flush=True)
+    if _VERBOSE_OUTPUT:
+        print(f'[quality-gate] {message}', file=sys.stderr, flush=True)
 
 
 # 计算质量门禁环境指纹。
@@ -1969,9 +1971,9 @@ def run_target(
         if not _fixture_session_available(default_base):
             fixture_proc, fixture_base_url, fixture_tmpdir, fixture_error = _start_fixture_server()
             if fixture_proc and fixture_base_url:
-                print(f'[fixture-server] started at {fixture_base_url}')
+                _progress(f'fixture server started at {fixture_base_url}')
             elif fixture_base_url is None:
-                print(f'[fixture-server] BLOCKED: could not start fixture server: {fixture_error}')
+                _progress(f'fixture server BLOCKED: could not start: {fixture_error}')
         else:
             fixture_base_url = default_base
 
@@ -2036,7 +2038,7 @@ def run_target(
     finally:
         if fixture_proc:
             _stop_fixture_server(fixture_proc, fixture_tmpdir)
-            print('[fixture-server] stopped')
+            _progress('fixture server stopped')
 
     status, failures = compute_overall({detail.name: detail.status for detail in details})
     if failures:
@@ -2123,6 +2125,8 @@ def main() -> int:
     """返回：
         进程退出码。
     """
+    global _VERBOSE_OUTPUT
+
     parser = argparse.ArgumentParser(description='Deterministic quality gate runner')
     parser.add_argument(
         '--target',
@@ -2139,7 +2143,11 @@ def main() -> int:
         help="JSON array of changed file paths, or 'auto' to read from changed-files.jsonl",
     )
     parser.add_argument('--cache-key', default='', help='Artifact freshness cache key from required runner')
+    parser.add_argument(
+        '--verbose', action='store_true', help='Print per-gate progress in addition to the final report'
+    )
     args = parser.parse_args()
+    _VERBOSE_OUTPUT = args.verbose
 
     repo_root = Path.cwd()
     change_id = resolve_change_id(args.change_id, repo_root)
@@ -2177,8 +2185,7 @@ def main() -> int:
         }
     )
     out = write_quality_summary(repo_root / out_dir, summary, target_specific=True)
-    print(f'quality summary: {out}')
-    print(f'status: {summary.status}')
+    print(format_quality_report(summary, out))
     return 0 if summary.status == PASS else 1
 
 

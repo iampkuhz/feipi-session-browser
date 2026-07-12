@@ -43,7 +43,11 @@ def _setup_env(
     _runner.REPO_ROOT = td
     # 隔离 IDENTITY：清除环境继承的 session，确保 get_changed_files 走文件路径
     _runner.IDENTITY = _runner.runtime_paths.RuntimeIdentity(
-        client='test', session_id='test', agent_id='', raw_session_id='', raw_agent_id='',
+        client='test',
+        session_id='test',
+        agent_id='',
+        raw_session_id='',
+        raw_agent_id='',
     )
 
     return td
@@ -305,10 +309,14 @@ class TestChangeIdResolution:
         monkeypatch.setattr(_runner, 'REPO_ROOT', tmp_dir)
         # 隔离 IDENTITY：清除环境继承的 session，确保走 legacy 路径
         monkeypatch.setattr(
-            _runner, 'IDENTITY',
+            _runner,
+            'IDENTITY',
             _runner.runtime_paths.RuntimeIdentity(
-                client='test', session_id='test', agent_id='',
-                raw_session_id='', raw_agent_id='',
+                client='test',
+                session_id='test',
+                agent_id='',
+                raw_session_id='',
+                raw_agent_id='',
             ),
         )
         old = os.environ.get('ACTIVE_CHANGE_ID')
@@ -426,9 +434,9 @@ class TestIncludeSessionDetail:
 
         monkeypatch.setattr(_runner.subprocess, 'run', fake_run)
 
-        passed, _artifact_path = _runner.run_gate('session-detail', 'full-baseline-check')
+        result = _runner.run_gate('session-detail', 'full-baseline-check')
 
-        assert passed is True
+        assert result.passed is True
         assert captured_cmds, 'run_gate 必须调用 run_quality_gate.py'
         assert '--changed-files' not in captured_cmds[0]
 
@@ -442,9 +450,7 @@ class TestIncludeSessionDetail:
             del cmd
             captured_env.update(kwargs.get('env') or {})
             artifact = (
-                _runner.QUALITY_DIR
-                / 'full-baseline-check'
-                / 'quality-gate-summary.java-src.json'
+                _runner.QUALITY_DIR / 'full-baseline-check' / 'quality-gate-summary.java-src.json'
             )
             artifact.parent.mkdir(parents=True, exist_ok=True)
             artifact.write_text('{"status":"PASS"}\n', encoding='utf-8')
@@ -490,6 +496,49 @@ class TestFullTier:
         assert 'session-detail' not in targets
 
 
+class TestConciseReports:
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_success_prints_one_aggregate_line(
+        self, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+    ):
+        """Do not repeat one PASS line per successful target."""
+        _setup_env([])
+        _write_hook_quality_changes(_runner.CHANGED_FILES)
+        monkeypatch.setattr(_runner, 'required_quality_targets', lambda files: ['hook-runtime'])
+        monkeypatch.setattr(
+            _runner,
+            'run_gate',
+            lambda target, change_id, *args, **kwargs: _runner.GateRunResult(
+                target,
+                True,
+                str(_runner.QUALITY_DIR / change_id / f'quality-gate-summary.{target}.json'),
+            ),
+        )
+        monkeypatch.setattr(sys, 'argv', ['run_required_quality_gates.py', '--change-id', 'report'])
+
+        assert _runner.main() == 0
+        output = capsys.readouterr().out.strip()
+        assert output.count('\n') == 0
+        assert 'REQUIRED_QUALITY_RESULT status=PASS' in output
+        assert 'target=hook-runtime' not in output
+
+    @pytest.mark.contract_case('HOOK-HARNESS-012')
+    def test_missing_artifact_failure_keeps_diagnostic(self, tmp_path: Path):
+        """Explain a child crash instead of returning only FAIL/BLOCKED."""
+        result = _runner.GateRunResult(
+            'python-standard',
+            False,
+            str(tmp_path / 'missing.json'),
+            'child runner timed out after 300s',
+        )
+
+        report = _runner.format_failed_target(result)
+
+        assert 'target=python-standard' in report
+        assert 'gate=runner status=FAIL' in report
+        assert 'timed out after 300s' in report
+
+
 class TestSharedStopEntrypoint:
     @pytest.mark.contract_case('HOOK-HARNESS-012')
     def test_claude_stop_is_thin_wrapper(self):
@@ -503,7 +552,13 @@ class TestSharedStopEntrypoint:
     @pytest.mark.contract_case('HOOK-HARNESS-012')
     def test_shared_stop_runner_uses_direct_check_invocation(self):
         """stop_entry 质量门禁直接调用原子 check，不再通过 run_required_quality_gates.py 管道。"""
-        runner = Path(__file__).resolve().parents[2] / 'scripts' / 'harness' / 'stop_entry_checks' / 'quality.py'
+        runner = (
+            Path(__file__).resolve().parents[2]
+            / 'scripts'
+            / 'harness'
+            / 'stop_entry_checks'
+            / 'quality.py'
+        )
         text = runner.read_text()
         assert 'run_quality_checks' in text
         assert 'QUALITY_TARGETS' in text

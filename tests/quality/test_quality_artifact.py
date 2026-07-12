@@ -7,7 +7,15 @@ import pytest
 from scripts.quality import run_quality_gate
 from scripts.quality.check_css_ownership import check_css_ownership
 from scripts.quality.check_session_detail_static import run_checks
-from scripts.quality.quality_artifact import compute_overall
+from scripts.quality.quality_artifact import (
+    DIAGNOSTIC_MAX_CHARS,
+    FAILED_GATE_REPORT_LIMIT,
+    GateDetail,
+    QualitySummary,
+    compute_overall,
+    concise_diagnostic,
+    format_quality_report,
+)
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-009')
@@ -27,6 +35,66 @@ def test_empty_required_is_blocked():
     status, failures = compute_overall({})
     assert status == 'BLOCKED'
     assert failures
+
+
+def _summary(status: str, details: list[GateDetail]) -> QualitySummary:
+    return QualitySummary(
+        schemaVersion=3,
+        status=status,
+        target='python-standard',
+        changeId='feedback-test',
+        startedAt='2026-01-01T00:00:00Z',
+        finishedAt='2026-01-01T00:00:01Z',
+        requiredGates={detail.name: detail.status for detail in details},
+        gateDetails=[detail.__dict__ for detail in details],
+    )
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-009')
+def test_pass_report_is_one_line_without_gate_details():
+    report = format_quality_report(
+        _summary('PASS', [GateDetail(name='pythonFormat', status='PASS')]),
+        'tmp/quality/feedback/quality-gate-summary.python-standard.json',
+    )
+
+    assert report.count('\n') == 0
+    assert 'status=PASS' in report
+    assert 'pythonFormat' not in report
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-009')
+def test_failure_report_is_actionable_and_bounded():
+    detail = GateDetail(
+        name='pythonFormat',
+        status='FAIL',
+        command=['bash', 'scripts/session-browser.sh', 'format-check'],
+        exitCode=1,
+        output=('checked file\n' * 300 + 'ERROR scripts/quality/example.py:42 formatting failed\n'),
+    )
+    report = format_quality_report(
+        _summary('FAIL', [detail]),
+        'tmp/quality/feedback/quality-gate-summary.python-standard.json',
+    )
+
+    assert 'gate=pythonFormat status=FAIL' in report
+    assert 'command=bash scripts/session-browser.sh format-check' in report
+    assert 'scripts/quality/example.py:42' in report
+    assert 'fix_hint=' in report
+    assert 'artifact=tmp/quality/feedback/' in report
+    assert len(concise_diagnostic(detail.output)) <= DIAGNOSTIC_MAX_CHARS + 100
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-009')
+def test_failure_report_limits_failed_gate_count():
+    details = [
+        GateDetail(name=f'gate-{index}', status='FAIL', output=f'ERROR failure {index}')
+        for index in range(20)
+    ]
+
+    report = format_quality_report(_summary('FAIL', details), 'tmp/quality/feedback/summary.json')
+
+    assert report.count('\n- gate=') == FAILED_GATE_REPORT_LIMIT
+    assert f'omitted_failed_gates={len(details) - FAILED_GATE_REPORT_LIMIT}' in report
 
 
 # -- Schema consistency tests ------------------------------------------------

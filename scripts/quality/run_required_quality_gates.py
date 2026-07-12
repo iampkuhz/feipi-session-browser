@@ -28,6 +28,7 @@ target_parallel_meta = importlib.import_module(
 changed_file_utils = importlib.import_module('scripts.quality.changed_files')
 runtime_paths = importlib.import_module('scripts.claude_hooks.paths')
 resource_lock = importlib.import_module('scripts.harness.resource_lock')
+quality_artifact = importlib.import_module('scripts.quality.quality_artifact')
 
 IDENTITY = runtime_paths.identity_from_values()
 AGENT_LOG_DIR = runtime_paths.agent_log_dir(REPO_ROOT, IDENTITY)
@@ -93,6 +94,24 @@ GLOBAL_PREFLIGHT_TIMEOUT_SECONDS = 60
 FULL_EXTRA_COMMANDS: list[list[str]] = [
     ['python3', 'scripts/quality/check_java_api_snapshot.py', '--verify'],
 ]
+CHILD_OUTPUT_MAX_CHARS = 2000
+
+
+class GateRunResult:
+    """保存单个 target 结果，并兼容历史二元组解包。"""
+
+    __slots__ = ('artifact_path', 'diagnostic', 'passed', 'target')
+
+    def __init__(self, target: str, passed: bool, artifact_path: str, diagnostic: str = '') -> None:
+        self.target = target
+        self.passed = passed
+        self.artifact_path = artifact_path
+        self.diagnostic = diagnostic
+
+    def __iter__(self):
+        """按历史 ``(passed, artifact_path)`` 顺序迭代。"""
+        yield self.passed
+        yield self.artifact_path
 
 
 # 解析change id。
@@ -271,8 +290,12 @@ def _gate_cache_key(target: str, changed_files: list[str] | None) -> str:
     base = ''
     head = ''
     try:
-        base = subprocess.check_output(['git', '-C', str(REPO_ROOT), 'merge-base', 'HEAD', 'HEAD'], text=True).strip()
-        head = subprocess.check_output(['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'], text=True).strip()
+        base = subprocess.check_output(
+            ['git', '-C', str(REPO_ROOT), 'merge-base', 'HEAD', 'HEAD'], text=True
+        ).strip()
+        head = subprocess.check_output(
+            ['git', '-C', str(REPO_ROOT), 'rev-parse', 'HEAD'], text=True
+        ).strip()
     except Exception:
         pass
     raw = json.dumps(
@@ -350,7 +373,7 @@ def run_gate(
     quality_dir: Path | None = None,
     changed_files: list[str] | None = None,
     full_baseline: bool = False,
-) -> tuple[bool, str]:
+) -> GateRunResult:
     """参数：
         target: 当前要运行或解析的 quality gate target 名称。
         change_id: 当前 OpenSpec change id。
@@ -379,13 +402,15 @@ def run_gate(
     cache_key = _gate_cache_key(target, changed_files)
     if _cached_pass(artifact_path, cache_key):
         print(f'[required-runner] cache PASS target={target}', file=sys.stderr)
-        return True, artifact_path
+        return GateRunResult(target, True, artifact_path)
 
     if changed_files is not None:
         cmd.extend(['--changed-files', json.dumps(changed_files, ensure_ascii=False)])
     cmd.extend(['--cache-key', cache_key])
 
     try:
+        # 缓存未命中后删除旧 artifact，避免用历史 PASS 解释本轮失败。
+        Path(artifact_path).unlink(missing_ok=True)
         env = os.environ.copy()
         env.pop('QUALITY_CHANGED_FILES', None)
         if full_baseline:
@@ -407,20 +432,57 @@ def run_gate(
             timeout=timeout,
         )
         if proc.returncode != 0:
-            return False, artifact_path
+            return GateRunResult(
+                target,
+                False,
+                artifact_path,
+                quality_artifact.concise_diagnostic(proc.stdout or ''),
+            )
         artifact_ok, artifact_status = _artifact_is_required_pass(artifact_path)
         if not artifact_ok:
             print(
-                f'[required-runner] FAIL/BLOCKED target={target} '
-                f'artifact status={artifact_status}',
+                f'[required-runner] FAIL/BLOCKED target={target} artifact status={artifact_status}',
                 file=sys.stderr,
             )
-            return False, artifact_path
-        return True, artifact_path
-    except subprocess.TimeoutExpired:
-        return False, artifact_path
-    except Exception:
-        return False, artifact_path
+            return GateRunResult(
+                target,
+                False,
+                artifact_path,
+                f'child runner artifact status is {artifact_status}',
+            )
+        return GateRunResult(target, True, artifact_path)
+    except subprocess.TimeoutExpired as exc:
+        output = exc.stdout or exc.stderr or ''
+        if isinstance(output, bytes):
+            output = output.decode(errors='replace')
+        diagnostic = f'child runner timed out after {exc.timeout}s'
+        if output:
+            diagnostic += '\n' + quality_artifact.concise_diagnostic(
+                str(output)[-CHILD_OUTPUT_MAX_CHARS:]
+            )
+        return GateRunResult(target, False, artifact_path, diagnostic)
+    except Exception as exc:
+        return GateRunResult(target, False, artifact_path, f'child runner failed: {exc}')
+
+
+def format_failed_target(result: GateRunResult) -> str:
+    """优先从 artifact 渲染失败，缺失时保留子进程降级诊断。"""
+    artifact = Path(result.artifact_path)
+    if artifact.exists():
+        try:
+            summary = json.loads(artifact.read_text(encoding='utf-8'))
+            return quality_artifact.format_quality_report(summary, result.artifact_path)
+        except (OSError, json.JSONDecodeError, TypeError, ValueError) as exc:
+            diagnostic = f'cannot read quality artifact: {exc}'
+    else:
+        diagnostic = result.diagnostic or 'quality artifact was not created'
+    return (
+        f'QUALITY_GATE_RESULT status=FAIL target={result.target} '
+        f'artifact={result.artifact_path}\n'
+        'FAILED_GATES:\n'
+        '- gate=runner status=FAIL\n'
+        f'  error_summary={quality_artifact.concise_diagnostic(diagnostic)}'
+    )
 
 
 # 运行quick gate。
@@ -792,9 +854,7 @@ def main() -> int:
         for t in sorted(all_required):
             print(f'[{tier}-tier] would run target: {t}', file=sys.stderr)
         for t in sorted(effective_excluded & set(effective_required)):
-            reason_suffix = (
-                f' reason={exclusion_reasons[t]}' if t in exclusion_reasons else ''
-            )
+            reason_suffix = f' reason={exclusion_reasons[t]}' if t in exclusion_reasons else ''
             print(
                 f'[{tier}-tier] excluded target handled elsewhere: {t}{reason_suffix}',
                 file=sys.stderr,
@@ -805,13 +865,18 @@ def main() -> int:
         return 0
 
     blocked = False
+    results: list[GateRunResult] = []
     for target in sorted(all_required):
         meta = target_parallel_meta(target)
-        resources = [str(item) for item in meta.get('exclusive_resources', []) if isinstance(item, str)]
+        resources = [
+            str(item) for item in meta.get('exclusive_resources', []) if isinstance(item, str)
+        ]
         lock_timeout = float(meta.get('lock_timeout', min(120, int(meta.get('timeout', 300)))))
         print(f'[{tier}-tier] running target: {target}', file=sys.stderr)
         try:
-            with resource_lock.ResourceLockSet(REPO_ROOT, resources, _lock_owner(target), timeout_seconds=lock_timeout) as locks:
+            with resource_lock.ResourceLockSet(
+                REPO_ROOT, resources, _lock_owner(target), timeout_seconds=lock_timeout
+            ) as locks:
                 for result in locks.results:
                     print(
                         f'[{tier}-tier] resource lock acquired target={target} '
@@ -819,21 +884,36 @@ def main() -> int:
                         file=sys.stderr,
                     )
                 gate_changed_files = None if tier == 'full' else changed_files
-                passed, artifact_path = run_gate(
+                raw_result = run_gate(
                     target,
                     change_id,
                     quality_dir,
                     gate_changed_files,
                     full_baseline=tier == 'full',
                 )
+                if isinstance(raw_result, GateRunResult):
+                    result = raw_result
+                else:
+                    passed, artifact_path = raw_result
+                    result = GateRunResult(target, passed, artifact_path)
         except resource_lock.ResourceLockTimeout as exc:
             print(
                 f'[{tier}-tier] BLOCKED target={target} resource={exc.resource} '
                 f'waited={exc.waited_seconds:.3f}s owner={json.dumps(exc.owner, ensure_ascii=False, sort_keys=True)}',
                 file=sys.stderr,
             )
+            result = GateRunResult(
+                target,
+                False,
+                str(quality_dir / change_id / f'quality-gate-summary.{target}.json'),
+                f'resource lock timeout: resource={exc.resource} waited={exc.waited_seconds:.3f}s',
+            )
+            results.append(result)
             blocked = True
             continue
+        results.append(result)
+        passed = result.passed
+        artifact_path = result.artifact_path
         status_str = 'PASS' if passed else 'FAIL/BLOCKED'
         print(
             f'[{tier}-tier] {status_str} target={target} artifact={artifact_path}',
@@ -856,6 +936,15 @@ def main() -> int:
             f'[{tier}-tier] excluded target handled elsewhere: {t}{reason_suffix}',
             file=sys.stderr,
         )
+
+    failed_results = [result for result in results if not result.passed]
+    final_status = 'FAIL' if blocked else 'PASS'
+    print(
+        f'REQUIRED_QUALITY_RESULT status={final_status} change_id={change_id} '
+        f'passed={len(results) - len(failed_results)}/{len(results)} artifact_dir={quality_dir / change_id}'
+    )
+    for result in failed_results:
+        print(format_failed_target(result))
 
     return 1 if blocked else 0
 
