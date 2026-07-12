@@ -228,7 +228,8 @@ final class SessionDetailParityAnalyzer {
     if (child && stats.sessionId.isBlank()) {
       String filename = path.getFileName().toString();
       if (filename.startsWith("agent-") && filename.endsWith(".jsonl")) {
-        stats.sessionId = filename.substring("agent-".length(), filename.length() - ".jsonl".length());
+        stats.sessionId =
+            filename.substring("agent-".length(), filename.length() - ".jsonl".length());
       }
       Path metaJson = path.resolveSibling(filename.replace(".jsonl", ".meta.json"));
       if (Files.isRegularFile(metaJson)) {
@@ -336,7 +337,8 @@ final class SessionDetailParityAnalyzer {
                 String callId = text(part, "id");
                 if (!callId.isBlank()) {
                   String name = firstNonBlank(text(part, "name"), FIELD_TOOL);
-                  stats.tools.put(callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
+                  stats.tools.put(
+                      callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
                 }
               }
             }
