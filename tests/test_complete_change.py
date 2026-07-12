@@ -79,7 +79,8 @@ def linked_run(tmp_path, *, dirty_before_bootstrap=False, detached=False):
 
 
 def install_fake_stop_pass(monkeypatch, calls):
-    def fake_run_stop(client, payload, *, handoff_on_failure=False):
+    def fake_run_stop(client, payload, *, handoff_on_failure=False, adapter_mode="hook"):
+        assert adapter_mode == "cli"
         calls.append(payload["runId"])
         checkout = Path(payload["cwd"])
         registry = sessionctl.Registry(checkout)
