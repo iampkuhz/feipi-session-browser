@@ -101,6 +101,8 @@ class ArtifactRowMapperTest {
       session.put("git_branch", "main");
       session.put("source", "cli");
       session.put("duration_seconds", 3600.0);
+      session.put("modelExecutionSeconds", 1800.0);
+      session.put("toolExecutionSeconds", 600.0);
 
       NormalizedSessionArtifact artifact = buildArtifact(session, List.of(), List.of());
       SessionRow row = ArtifactRowMapper.toSessionRow(artifact, 1700000000.0, "/path/to/file");
@@ -117,6 +119,8 @@ class ArtifactRowMapperTest {
       assertThat(row.gitBranch()).isEqualTo("main");
       assertThat(row.source()).isEqualTo("cli");
       assertThat(row.durationSeconds()).isEqualTo(3600.0);
+      assertThat(row.modelExecutionSeconds()).isEqualTo(1800.0);
+      assertThat(row.toolExecutionSeconds()).isEqualTo(600.0);
       assertThat(row.agent()).isEqualTo("claude_code");
       assertThat(row.fileMtime()).isEqualTo(1700000000.0);
       assertThat(row.filePath()).isEqualTo("/path/to/file");
@@ -387,6 +391,7 @@ class ArtifactRowMapperTest {
       SessionRow row = ArtifactRowMapper.toSessionRow(artifact, 0, null);
 
       assertThat(row.toolExecutionSeconds()).isEqualTo(4.0);
+      assertThat(row.modelExecutionSeconds()).isEqualTo(0.0);
     }
 
     @Test

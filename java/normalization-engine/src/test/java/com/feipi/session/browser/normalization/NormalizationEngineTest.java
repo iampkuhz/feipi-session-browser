@@ -312,6 +312,8 @@ class NormalizationEngineTest {
       assertThat(artifact.session()).containsEntry("agent", "claude_code");
       assertThat(artifact.session()).containsEntry("eventCount", 0);
       assertThat(artifact.session()).containsEntry("totalTokens", 0L);
+      assertThat(artifact.session()).containsEntry("modelExecutionSeconds", 0.0);
+      assertThat(artifact.session()).containsEntry("toolExecutionSeconds", 0.0);
     }
 
     @Test
@@ -379,6 +381,8 @@ class NormalizationEngineTest {
       assertThat(artifact.session()).containsEntry("declaredTools", 1);
       assertThat(artifact.session()).containsEntry("executedTools", 1);
       assertThat(artifact.session()).containsEntry("consumedResults", 1);
+      assertThat(artifact.session()).containsKey("modelExecutionSeconds");
+      assertThat(artifact.session()).containsKey("toolExecutionSeconds");
     }
   }
 
@@ -547,6 +551,9 @@ class NormalizationEngineTest {
               List.of());
 
       assertThat(artifact.session()).containsEntry("assistantMessageCount", 2L);
+      // activeSpan = 16:00:00 - 02:15:00 = 49500s，无工具执行时长，全部归入 modelExecutionSeconds
+      assertThat(artifact.session()).containsEntry("modelExecutionSeconds", 49500.0);
+      assertThat(artifact.session()).containsEntry("toolExecutionSeconds", 0.0);
     }
 
     @Test

@@ -304,6 +304,46 @@ public final class NormalizationEngine {
       }
     }
 
+    // 计算 modelExecutionSeconds 和 toolExecutionSeconds
+    //
+    // toolExecSeconds 从 toolExecutions 聚合（当 durationMs 为 0 时回退为 0）。
+    // activeSpan 从全部 call timestamps 的 min/max 差值得出，代表 LLM 活跃时段。
+    // modelExecSeconds = activeSpan - toolExecSeconds，代表活跃时段内非工具执行的部分。
+    double toolExecSeconds = 0;
+    for (NormalizedToolExecution exec : toolExecutions) {
+      toolExecSeconds += exec.durationMs() / 1000.0;
+    }
+
+    double modelExecSeconds = 0;
+    Optional<Instant> firstCallInstant = Optional.empty();
+    Optional<Instant> lastCallInstant = Optional.empty();
+    for (NormalizedCall call : calls) {
+      Optional<Instant> parsed =
+          call.timestamp()
+              .filter(ts -> !ts.isBlank())
+              .flatMap(NormalizationEngine::parseInstant);
+      if (parsed.isEmpty()) {
+        continue;
+      }
+      Instant instant = parsed.get();
+      if (firstCallInstant.isEmpty() || instant.isBefore(firstCallInstant.get())) {
+        firstCallInstant = Optional.of(instant);
+      }
+      if (lastCallInstant.isEmpty() || instant.isAfter(lastCallInstant.get())) {
+        lastCallInstant = Optional.of(instant);
+      }
+    }
+    if (firstCallInstant.isPresent() && lastCallInstant.isPresent()) {
+      double activeSpan =
+          Duration.between(firstCallInstant.get(), lastCallInstant.get()).toMillis() / 1000.0;
+      if (activeSpan >= 0) {
+        modelExecSeconds = Math.max(activeSpan - toolExecSeconds, 0);
+      }
+    }
+
+    session.put("modelExecutionSeconds", modelExecSeconds);
+    session.put("toolExecutionSeconds", toolExecSeconds);
+
     // 失败工具计数
     long failedCount = 0;
     for (NormalizedToolExecution exec : toolExecutions) {

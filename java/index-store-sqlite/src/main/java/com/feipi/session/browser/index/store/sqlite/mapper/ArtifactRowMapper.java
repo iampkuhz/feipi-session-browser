@@ -173,8 +173,7 @@ public final class ArtifactRowMapper {
     }
 
     // 聚合 toolExecutions 统计量；优先从 session map 读取 failedToolCount
-    long modelExecutionSeconds = 0;
-    long toolExecutionSeconds = 0;
+    long toolDurationMs = 0;
     long failedToolCount = 0;
     Object sessionFailedTools = session.get("failedToolCount");
     if (sessionFailedTools instanceof Number num) {
@@ -182,15 +181,26 @@ public final class ArtifactRowMapper {
     }
 
     for (NormalizedToolExecution exec : artifact.toolExecutions()) {
-      toolExecutionSeconds += exec.durationMs();
+      toolDurationMs += exec.durationMs();
       // 仅在 session map 未提供 failedToolCount 时回退到 status 检测
       if (sessionFailedTools == null && exec.status().isPresent()) {
         failedToolCount++;
       }
     }
 
-    // toolExecutionSeconds 从毫秒转换为秒
-    double toolExecSeconds = toolExecutionSeconds / 1000.0;
+    // toolExecutionSeconds 从毫秒转换为秒；session map 有值时优先使用
+    double toolExecSeconds = toolDurationMs / 1000.0;
+    Object sessionToolExec = session.get("toolExecutionSeconds");
+    if (toolExecSeconds == 0 && sessionToolExec instanceof Number num) {
+      toolExecSeconds = num.doubleValue();
+    }
+
+    // modelExecutionSeconds 从 session map 读取（归一化引擎计算）
+    double modelExecSeconds = 0;
+    Object sessionModelExec = session.get("modelExecutionSeconds");
+    if (sessionModelExec instanceof Number num) {
+      modelExecSeconds = num.doubleValue();
+    }
 
     long subagentInstanceCount = subagentIds.size();
     Object sessionSubagentInstances = session.get("subagentInstanceCount");
@@ -212,7 +222,7 @@ public final class ArtifactRowMapper {
         startedAt,
         endedAt,
         durationSeconds,
-        modelExecutionSeconds,
+        modelExecSeconds,
         toolExecSeconds,
         model,
         gitBranch,
