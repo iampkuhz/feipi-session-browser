@@ -152,8 +152,6 @@ def _python_supports_modules(executable: str, repo_root: Path, modules: tuple[st
         return False
 
     env = os.environ.copy()
-    src_path = str(repo_root / 'src')
-    env['PYTHONPATH'] = src_path + (os.pathsep + env['PYTHONPATH'] if env.get('PYTHONPATH') else '')
     code = (
         'import importlib, sys\n'
         'missing=[]\n'
@@ -1662,7 +1660,7 @@ def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa:
         if target == 'harness':
             paths = ['scripts/harness', 'scripts/quality']
         if target == 'index':
-            paths = ['src/session_browser/index', 'scripts/quality/check_index_integrity.py']
+            paths = ['scripts/quality/check_index_integrity.py']
         return [python, '-m', 'compileall', '-q', *paths]
     if gate == 'pythonFormat':
         return ['bash', 'scripts/session-browser.sh', 'format-check']

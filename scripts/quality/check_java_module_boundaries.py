@@ -81,8 +81,6 @@ def module_dir(module_path: str) -> Path:
     返回：
         模块根目录。
     """
-    if module_path == ':app-cli':
-        return REPO_ROOT / 'app-cli'
     if module_path.startswith(':'):
         return REPO_ROOT / module_path.strip(':').replace(':', '/')
     return REPO_ROOT / module_path.replace(':', '/')

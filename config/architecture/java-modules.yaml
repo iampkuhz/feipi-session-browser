@@ -1,12 +1,6 @@
 {
   "schemaVersion": 1,
   "modules": {
-    ":app-cli": {
-      "sourceRoot": null,
-      "packageRoots": [],
-      "allowedProjectDeps": [],
-      "transitionProjectDeps": []
-    },
     ":java:common": {
       "sourceRoot": "java/common/src/main/java",
       "packageRoots": ["com.feipi.session.browser.common"],

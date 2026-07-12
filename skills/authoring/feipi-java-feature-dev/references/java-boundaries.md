@@ -7,18 +7,19 @@
 - **sources** — 各数据源实现（Claude、Codex、Qoder 等）。
 - **artifact-normalized** — 标准化产物模型。
 - **normalization-engine** — 归一化引擎，将原始数据转换为标准产物。
-- **index-sqlite** — SQLite 索引层。
+- **index-api** — 索引与查询端口。
+- **index-store-sqlite** — SQLite 索引实现层。
 - **scan-engine** — 扫描引擎。
 - **application** — 应用层（query API、分页、DTO）。
 - **web** — Web 层（API controller、UI 模板）。
 - **common** — 公共工具。
-- **app-cli / java:app-cli** — CLI 入口。
+- **java:app-cli** — CLI composition root 与发行入口。
 
 依赖方向：CLI/API → application → 各 engine → core-domain。禁止反向依赖。
 
 ## 分层检查
 
-- API/CLI 层（`web`、`application`、`app-cli`）不直接访问底层存储（`index-sqlite`、`sources`）。
+- API 层（`web`、`application`）不直接访问底层实现（`index-store-sqlite`、`sources`）；具体实现只在 `java:app-cli` composition root 组装。
 - Service 层不写 UI 模板。
 - Repo 层不做渲染或格式化。
 - Domain 层不依赖任何上层模块。

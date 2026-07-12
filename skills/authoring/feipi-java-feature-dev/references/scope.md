@@ -1,7 +1,7 @@
 ## 负责范围
 
-- Java 产品模块的功能开发：`core-domain`、`source-spi`、`sources`、`artifact-normalized`、`normalization-engine`、`index-sqlite`、`scan-engine`、`application`、`web`、`common`。
-- CLI 入口：`app-cli`、`java:app-cli`。
+- Java 产品模块的功能开发：`common`、`validation`、`core-domain`、`source-spi`、`sources`、`normalization-engine`、`index-api`、`index-store-sqlite`、`scan-engine`、`application`、`web`。
+- CLI 入口：`java:app-cli`。
 - Gradle 构建配置：`build-logic/`、各模块 `build.gradle.kts`。
 - 测试代码：`java/<module>/src/test/`、`java:tests:support`、`java:tests:architecture`、`java:tests:contracts`。
 - API snapshot：`config/api-snapshots/`。
@@ -29,7 +29,7 @@
 - 误以为可以直接 `import` 任意模块的类。实际有 forbiddenImports 和 allowedProjectDeps 约束。
 - 误以为测试模块可以随意依赖生产模块。`java:tests:*` 有独立的依赖规则。
 - 误以为 API 签名改了只需重新编译。需要更新 `config/api-snapshots/` 下的 snapshot。
-- 误以为 `app-cli` 和 `java:app-cli` 是同一个模块。它们是不同的 Gradle 模块。
+- 误用历史根模块路径 `:app-cli`。CLI 任务统一使用 `:java:app-cli`。
 
 ## 触发门禁
 

@@ -1,10 +1,13 @@
 """测试 Python 环境和依赖锁契约."""
 
+import tomllib
 from pathlib import Path
 
 import pytest
 from scripts.harness import python_env
 from scripts.quality import run_quality_gate
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
 
 
 def _write_project(root: Path, *, dev_extra: str = '') -> None:
@@ -39,6 +42,18 @@ def _write_project(root: Path, *, dev_extra: str = '') -> None:
         'version = 1\nrequires-python = ">=3.12,<3.13"\n', encoding='utf-8'
     )
     (root / '.python-version').write_text('3.12.11\n', encoding='utf-8')
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_repository_pyproject_is_virtual_dev_tools_project():
+    """Python 产品退役后，uv 不得再构建或安装当前仓库。"""
+    config = tomllib.loads((REPO_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+
+    assert 'build-system' not in config
+    assert 'setuptools' not in config.get('tool', {})
+    assert config['project']['name'] == 'feipi-session-browser-dev-tools'
+    assert config['tool']['uv']['package'] is False
+    assert config['tool']['pytest']['ini_options']['pythonpath'] == ['.']
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')

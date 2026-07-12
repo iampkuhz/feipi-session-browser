@@ -26,8 +26,6 @@ SCAN_DIRS = [
     "tests",
     "docs",
     "java",
-    "app-cli",
-    "src",
     ".claude",
     ".codex",
     ".qoder",

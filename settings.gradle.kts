@@ -12,7 +12,6 @@ rootProject.name = "feipi-session-browser"
 includeBuild("build-logic")
 
 include(
-    "app-cli",
     "java:common",
     "java:app-cli",
     "java:validation",

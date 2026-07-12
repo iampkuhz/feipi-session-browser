@@ -81,7 +81,6 @@ check_file requirements-dev.txt
 check_file requirements.lock
 check_file requirements-dev.lock
 check_file harness/README.md
-check_dir src/session_browser
 check_dir tests
 check_dir openspec/specs
 check_dir openspec/changes
