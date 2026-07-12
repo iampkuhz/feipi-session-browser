@@ -125,7 +125,7 @@ abstract class CliSmokeTestTask : DefaultTask() {
             "Smoke test failed: --help output missing 'session-browser'"
         }
         // 验证公开子命令全部出现在 help 输出中
-        val publicCommands = listOf("scan", "serve", "stop", "status", "doctor", "test", "deps", "quality", "version", "release")
+        val publicCommands = listOf("scan", "serve", "stop", "status", "doctor", "test", "deps", "quality", "version", "release", "diagnose")
         for (cmd in publicCommands) {
             require(helpResult.first.contains(cmd)) {
                 "Smoke test failed: --help output missing public command '$cmd'"

@@ -25,7 +25,8 @@ import picocli.CommandLine.Option;
       QualityCommand.class,
       VersionCommand.class,
       ReleaseCommand.class,
-      NormalizedBatchCommand.class
+      NormalizedBatchCommand.class,
+      DiagnoseCommand.class
     },
     description = "本地 agent 会话浏览器，索引和分析 Claude Code、Codex、Qoder 等会话数据。")
 final class SessionBrowserCommand implements Runnable {

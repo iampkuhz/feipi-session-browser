@@ -59,6 +59,126 @@ component com.feipi.session.browser.cli.batch.protocol.NormalizationResultRecord
 component com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord requestId: String
 component com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord rootPath: String
 component com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord sourceId: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput divergence: DivergenceInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput normalization: NormalizationInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput projection: ProjectionInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput raw: RawInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput request: RequestInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput schemaVersion: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput source: SourceInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput timing: TimingInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutput warnings: List<String>
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput divergence: DivergenceInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput normalization: NormalizationInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput projection: ProjectionInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput raw: RawInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput request: RequestInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput schemaVersion: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput source: SourceInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput timing: TimingInfo
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput warnings: List<String>
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DivergenceInfo first: FirstDivergence
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DivergenceInfo status: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence evidence: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence expected: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence nextInspection: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence observed: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence stage: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence status: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo callCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo diagnosticCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo mainCallCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo schemaVersion: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo sourceFileCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo status: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo subagentCallCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo toolExecutionCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo totalTokens: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo detectedAgents: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo detectedSubagents: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo mainToolCallCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo status: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo subagentToolCallCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo totalCallCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo assistantMessages: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo eventTypeCounts: Map<String, Integer>
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo parseErrors: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo sourceErrors: List<String>
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo status: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo toolResultCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo toolUseCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo totalEvents: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo userMessages: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RequestInfo agent: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RequestInfo sessionId: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RequestInfo sourceDir: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo meta: Map<String, String>
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo metaStatus: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo status: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo subagentFileCount: int
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo subagentFiles: List<SubagentFileInfo>
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo subagentsDir: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo transcriptPath: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo transcriptSizeBytes: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SubagentFileInfo fileName: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SubagentFileInfo metaStatus: String
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SubagentFileInfo sizeBytes: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.TimingInfo normalizationMs: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.TimingInfo projectionMs: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.TimingInfo rawMs: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.TimingInfo sourceMs: long
+component com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.TimingInfo totalMs: long
+component com.feipi.session.browser.cli.diagnose.DivergenceInfo first: FirstDivergence
+component com.feipi.session.browser.cli.diagnose.DivergenceInfo status: String
+component com.feipi.session.browser.cli.diagnose.FirstDivergence evidence: String
+component com.feipi.session.browser.cli.diagnose.FirstDivergence expected: String
+component com.feipi.session.browser.cli.diagnose.FirstDivergence nextInspection: String
+component com.feipi.session.browser.cli.diagnose.FirstDivergence observed: String
+component com.feipi.session.browser.cli.diagnose.FirstDivergence stage: String
+component com.feipi.session.browser.cli.diagnose.FirstDivergence status: String
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo callCount: int
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo diagnosticCount: int
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo mainCallCount: int
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo schemaVersion: String
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo sourceFileCount: int
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo status: String
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo subagentCallCount: int
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo toolExecutionCount: int
+component com.feipi.session.browser.cli.diagnose.NormalizationInfo totalTokens: long
+component com.feipi.session.browser.cli.diagnose.ProjectionInfo detectedAgents: int
+component com.feipi.session.browser.cli.diagnose.ProjectionInfo detectedSubagents: int
+component com.feipi.session.browser.cli.diagnose.ProjectionInfo mainToolCallCount: int
+component com.feipi.session.browser.cli.diagnose.ProjectionInfo status: String
+component com.feipi.session.browser.cli.diagnose.ProjectionInfo subagentToolCallCount: int
+component com.feipi.session.browser.cli.diagnose.ProjectionInfo totalCallCount: int
+component com.feipi.session.browser.cli.diagnose.RawInfo assistantMessages: int
+component com.feipi.session.browser.cli.diagnose.RawInfo eventTypeCounts: Map<String, Integer>
+component com.feipi.session.browser.cli.diagnose.RawInfo parseErrors: int
+component com.feipi.session.browser.cli.diagnose.RawInfo sourceErrors: List<String>
+component com.feipi.session.browser.cli.diagnose.RawInfo status: String
+component com.feipi.session.browser.cli.diagnose.RawInfo toolResultCount: int
+component com.feipi.session.browser.cli.diagnose.RawInfo toolUseCount: int
+component com.feipi.session.browser.cli.diagnose.RawInfo totalEvents: int
+component com.feipi.session.browser.cli.diagnose.RawInfo userMessages: int
+component com.feipi.session.browser.cli.diagnose.RequestInfo agent: String
+component com.feipi.session.browser.cli.diagnose.RequestInfo sessionId: String
+component com.feipi.session.browser.cli.diagnose.RequestInfo sourceDir: String
+component com.feipi.session.browser.cli.diagnose.SourceInfo meta: Map<String, String>
+component com.feipi.session.browser.cli.diagnose.SourceInfo metaStatus: String
+component com.feipi.session.browser.cli.diagnose.SourceInfo status: String
+component com.feipi.session.browser.cli.diagnose.SourceInfo subagentFileCount: int
+component com.feipi.session.browser.cli.diagnose.SourceInfo subagentFiles: List<SubagentFileInfo>
+component com.feipi.session.browser.cli.diagnose.SourceInfo subagentsDir: String
+component com.feipi.session.browser.cli.diagnose.SourceInfo transcriptPath: String
+component com.feipi.session.browser.cli.diagnose.SourceInfo transcriptSizeBytes: long
+component com.feipi.session.browser.cli.diagnose.SubagentFileInfo fileName: String
+component com.feipi.session.browser.cli.diagnose.SubagentFileInfo metaStatus: String
+component com.feipi.session.browser.cli.diagnose.SubagentFileInfo sizeBytes: long
+component com.feipi.session.browser.cli.diagnose.TimingInfo normalizationMs: long
+component com.feipi.session.browser.cli.diagnose.TimingInfo projectionMs: long
+component com.feipi.session.browser.cli.diagnose.TimingInfo rawMs: long
+component com.feipi.session.browser.cli.diagnose.TimingInfo sourceMs: long
+component com.feipi.session.browser.cli.diagnose.TimingInfo totalMs: long
 component com.feipi.session.browser.domain.NormalizedTokenBreakdown cacheReadTokens: long
 component com.feipi.session.browser.domain.NormalizedTokenBreakdown cacheWriteTokens: long
 component com.feipi.session.browser.domain.NormalizedTokenBreakdown freshInputTokens: long
@@ -2072,6 +2192,7 @@ field com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol publi
 field com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol public STATUS_SUCCESS: static final String
 field com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol public TYPE_END: static final String
 field com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol public TYPE_REQUEST: static final String
+field com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel public SCHEMA_VERSION: static final String
 field com.feipi.session.browser.domain.enums.MigrationPhase public DEFAULT: static final MigrationPhase
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_COLLECTION_SIZE: static final int
 field com.feipi.session.browser.domain.normalized.NormalizedConstants public MAX_STRING_LENGTH: static final int
@@ -2271,6 +2392,9 @@ method com.feipi.session.browser.cli.ServerLifecycle public void awaitShutdown()
 method com.feipi.session.browser.cli.ServerLifecycle public void shutdown()
 method com.feipi.session.browser.cli.batch.service.NormalizedBatchRunner public int run( InputStream input, PrintStream output, Path outputDir, SourceAdapterResolver resolver) throws Exception
 method com.feipi.session.browser.cli.batch.service.SourceAdapterResolver public SourceAdapter forSourceId(String sourceId)
+method com.feipi.session.browser.cli.diagnose.DiagnosePipeline public static DiagnoseOutputModel.DiagnoseOutput run( String agent, String sessionId, Path sourceRoot)
+method com.feipi.session.browser.cli.diagnose.HumanRenderer public static String render(DiagnoseOutputModel.DiagnoseOutput output)
+method com.feipi.session.browser.cli.diagnose.JsonRenderer public static String render(DiagnoseOutputModel.DiagnoseOutput output)
 method com.feipi.session.browser.common.validation.ImmutableCopies public static <K, V> Map<K, V> boundedMapOrEmpty( Map<? extends K, ? extends V> values, int maxSize, String fieldName)
 method com.feipi.session.browser.common.validation.ImmutableCopies public static <K, V> Map<K, V> mapOrEmpty(Map<? extends K, ? extends V> values)
 method com.feipi.session.browser.common.validation.ImmutableCopies public static <T> List<T> boundedListOrEmpty( Collection<? extends T> values, int maxSize, String fieldName)
@@ -3232,6 +3356,30 @@ type com.feipi.session.browser.cli.batch.protocol.NormalizedBatchProtocol public
 type com.feipi.session.browser.cli.batch.protocol.SourceRootRequestRecord public record [app-cli] record SourceRootRequestRecord(String requestId, String sourceId, String rootPath)
 type com.feipi.session.browser.cli.batch.service.NormalizedBatchRunner public class [app-cli] final class NormalizedBatchRunner
 type com.feipi.session.browser.cli.batch.service.SourceAdapterResolver public interface [app-cli] interface SourceAdapterResolver
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutput public record [app-cli] record DiagnoseOutput( String schemaVersion, RequestInfo request, SourceInfo source, RawInfo raw, NormalizationInfo normalization, ProjectionInfo projection, DivergenceInfo divergence, TimingInfo timing, List<String> warnings)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel public class [app-cli] final class DiagnoseOutputModel
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DiagnoseOutput public record [app-cli] record DiagnoseOutput( String schemaVersion, RequestInfo request, SourceInfo source, RawInfo raw, NormalizationInfo normalization, ProjectionInfo projection, DivergenceInfo divergence, TimingInfo timing, List<String> warnings)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.DivergenceInfo public record [app-cli] record DivergenceInfo(String status, FirstDivergence first)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.FirstDivergence public record [app-cli] record FirstDivergence( String stage, String status, String expected, String observed, String evidence, String nextInspection)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.NormalizationInfo public record [app-cli] record NormalizationInfo( String status, String schemaVersion, int callCount, int mainCallCount, int subagentCallCount, int toolExecutionCount, int diagnosticCount, long totalTokens, int sourceFileCount)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.ProjectionInfo public record [app-cli] record ProjectionInfo( String status, int detectedAgents, int detectedSubagents, int mainToolCallCount, int subagentToolCallCount, int totalCallCount)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RawInfo public record [app-cli] record RawInfo( String status, int totalEvents, Map<String, Integer> eventTypeCounts, int assistantMessages, int userMessages, int toolUseCount, int toolResultCount, int parseErrors, List<String> sourceErrors)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.RequestInfo public record [app-cli] record RequestInfo(String agent, String sessionId, String sourceDir)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SourceInfo public record [app-cli] record SourceInfo( String status, String transcriptPath, long transcriptSizeBytes, String subagentsDir, int subagentFileCount, List<SubagentFileInfo> subagentFiles, String metaStatus, Map<String, String> meta)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.SubagentFileInfo public record [app-cli] record SubagentFileInfo(String fileName, long sizeBytes, String metaStatus)
+type com.feipi.session.browser.cli.diagnose.DiagnoseOutputModel.TimingInfo public record [app-cli] record TimingInfo( long totalMs, long sourceMs, long rawMs, long normalizationMs, long projectionMs)
+type com.feipi.session.browser.cli.diagnose.DiagnosePipeline public class [app-cli] final class DiagnosePipeline
+type com.feipi.session.browser.cli.diagnose.DivergenceInfo public record [app-cli] record DivergenceInfo(String status, FirstDivergence first)
+type com.feipi.session.browser.cli.diagnose.FirstDivergence public record [app-cli] record FirstDivergence( String stage, String status, String expected, String observed, String evidence, String nextInspection)
+type com.feipi.session.browser.cli.diagnose.HumanRenderer public class [app-cli] final class HumanRenderer
+type com.feipi.session.browser.cli.diagnose.JsonRenderer public class [app-cli] final class JsonRenderer
+type com.feipi.session.browser.cli.diagnose.NormalizationInfo public record [app-cli] record NormalizationInfo( String status, String schemaVersion, int callCount, int mainCallCount, int subagentCallCount, int toolExecutionCount, int diagnosticCount, long totalTokens, int sourceFileCount)
+type com.feipi.session.browser.cli.diagnose.ProjectionInfo public record [app-cli] record ProjectionInfo( String status, int detectedAgents, int detectedSubagents, int mainToolCallCount, int subagentToolCallCount, int totalCallCount)
+type com.feipi.session.browser.cli.diagnose.RawInfo public record [app-cli] record RawInfo( String status, int totalEvents, Map<String, Integer> eventTypeCounts, int assistantMessages, int userMessages, int toolUseCount, int toolResultCount, int parseErrors, List<String> sourceErrors)
+type com.feipi.session.browser.cli.diagnose.RequestInfo public record [app-cli] record RequestInfo(String agent, String sessionId, String sourceDir)
+type com.feipi.session.browser.cli.diagnose.SourceInfo public record [app-cli] record SourceInfo( String status, String transcriptPath, long transcriptSizeBytes, String subagentsDir, int subagentFileCount, List<SubagentFileInfo> subagentFiles, String metaStatus, Map<String, String> meta)
+type com.feipi.session.browser.cli.diagnose.SubagentFileInfo public record [app-cli] record SubagentFileInfo(String fileName, long sizeBytes, String metaStatus)
+type com.feipi.session.browser.cli.diagnose.TimingInfo public record [app-cli] record TimingInfo( long totalMs, long sourceMs, long rawMs, long normalizationMs, long projectionMs)
 type com.feipi.session.browser.common.validation.ImmutableCopies public class [common] final class ImmutableCopies
 type com.feipi.session.browser.common.validation.ParamChecks public class [common] final class ParamChecks
 type com.feipi.session.browser.common.validation.TokenChecks public class [common] final class TokenChecks
