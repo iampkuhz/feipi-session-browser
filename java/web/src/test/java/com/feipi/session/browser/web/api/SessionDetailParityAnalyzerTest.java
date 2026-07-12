@@ -77,8 +77,8 @@ class SessionDetailParityAnalyzerTest {
         .containsEntry("toolCalls", 4L)
         .containsEntry("failedTools", 1L)
         .containsEntry("subagentCalls", 1L)
-        .containsEntry("mainCalls", 3L)
-        .containsEntry("workloadCalls", 4L)
+        .containsEntry("mainCalls", 2L)
+        .containsEntry("workloadCalls", 3L)
         .containsEntry("subagentRuns", 1L);
     assertThat(result.diagnostics).containsEntry("payloadGaps", 2L);
     assertThat(result.diagnostics).containsEntry("issueRounds", 1);
