@@ -62,8 +62,8 @@ main agent 委派任务时，handoff payload 至少包含：
 如提供 `Validation command`，按原样运行。
 否则运行最小相关 deterministic check：
 - 重跑触发失败的 gate。
-- `python scripts/quality/check_skill_registry.py`
-- `python scripts/quality/check_agent_runtime_manifest.py`
+- `python scripts/checks/check_skill_registry.py`
+- `python scripts/checks/check_agent_runtime_manifest.py`
 - `bash scripts/harness/doctor.sh`
 
 验证失败时只允许在 allowed scope 内修复一次；仍失败则保留失败信息并返回 FAIL。

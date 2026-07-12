@@ -19,7 +19,7 @@
 ## 验证入口
 
 - UI 模板、CSS、前端 JS 变更优先触发 `session-detail` 或对应页面质量门。
-- Session Detail 相关变更至少检查 `python3 scripts/quality/run_quality_gate.py --target session-detail --change-id <change-id>`。
+- Session Detail 相关变更至少检查 `python3 scripts/gates/cli.py --target session-detail --change-id <change-id>`。
 - 页面行为若已有 Playwright 或 pytest 契约，必须优先运行对应自动化，不用主观截图判断替代。
 
 ## 边界

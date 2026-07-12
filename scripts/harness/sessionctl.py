@@ -1,10 +1,7 @@
 #!/usr/bin/env python3
-"""Registry, lease, Stop, and handoff CLI for an already selected checkout.
+"""本模块负责维护 Registry、writer lease、Stop 与 handoff 状态机。
 
-The client or external provider owns checkout creation and removal.  This
-module only adopts the current Git checkout and manages run-scoped runtime
-state; it never launches a client or creates, switches, or removes a worktree.
-"""
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
@@ -22,15 +19,17 @@ import subprocess
 import sys
 import time
 import uuid
+from collections.abc import Iterable, Mapping
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable, Mapping
+from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
 
+from scripts.agent_runtime.stop.evidence import GitEvidenceError, collect_git_evidence  # noqa: E402
 from scripts.harness.primary_session import (  # noqa: E402
     ACTIVE_WRITER_STATUSES,
     CHECKOUT_CREATORS,
@@ -41,15 +40,15 @@ from scripts.harness.primary_session import (  # noqa: E402
     resolve_checkout_root,
     resolve_primary_repo_root,
     resolve_repo_key,
+    resolve_runtime_root,
+    snapshot_path_states,
     stable_worktree_id,
     validate_checkout_record,
-    validate_status_transition,
-    resolve_runtime_root,
     validate_run_collisions,
     validate_run_record,
+    validate_status_transition,
 )
 from scripts.harness.resource_lock import _pid_start_time, process_is_alive  # noqa: E402
-from scripts.harness.stop_entry_checks.git_evidence import GitEvidenceError, collect_git_evidence  # noqa: E402
 
 REGISTRY_VERSION = 2
 DEFAULT_FORBIDDEN_PATHS = [".env", ".mcp.json", "data", "output", "tmp/agent_logs"]
@@ -60,15 +59,15 @@ LEASE_RELEASED = "RELEASED"
 
 
 class SessionctlError(RuntimeError):
-    """Raised for expected CLI failures."""
+    """可预期的 CLI 契约失败基类，消息可直接展示给调用者。"""
 
 
-class WriterLeaseConflict(SessionctlError):
-    """Raised when another Session owns the checkout writer lease."""
+class WriterLeaseConflict(SessionctlError):  # noqa: N818
+    """其他 Session 持有 checkout writer lease 时抛出。"""
 
 
-class WriterLeaseFenced(SessionctlError):
-    """Raised when a cached epoch/token no longer matches the checkout lease."""
+class WriterLeaseFenced(SessionctlError):  # noqa: N818
+    """缓存 epoch 或 token 与 checkout lease 不一致时抛出。"""
 
 
 # 识别工具调用的读写类别，并对未知命令采用保守判定。
@@ -152,42 +151,23 @@ def requires_writer_lease(tool_name: str, tool_input: Mapping[str, Any] | None =
     return classify_tool_call(tool_name, tool_input) == "mutation"
 
 
-# 维护 git 函数行为。
 def git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProcess[str]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `git` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     return subprocess.run(
         ["git", "-C", str(repo), *args],
         check=check,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
 
 
-# 维护 now_utc 函数行为。
 def now_utc() -> str:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `now_utc` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     return datetime.now(timezone.utc).isoformat(timespec="seconds").replace("+00:00", "Z")
 
 
-# 维护 write_json_atomic 函数行为。
 def write_json_atomic(path: Path, data: dict[str, Any]) -> None:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """持久化 `write_json_atomic` 对应的数据；写入边界与异常由调用方契约约束。"""
     ensure_private_directory(path.parent)
     try:
         existing = path.lstat()
@@ -221,14 +201,8 @@ def write_json_atomic(path: Path, data: dict[str, Any]) -> None:
             tmp.unlink()
 
 
-# 维护 load_json 函数行为。
 def load_json(path: Path, default: dict[str, Any]) -> dict[str, Any]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """读取 `load_json` 对应的受控数据；缺失或无效输入沿用调用方失败语义。"""
     try:
         metadata = path.lstat()
     except FileNotFoundError:
@@ -270,23 +244,18 @@ def _validate_identifier(value: str, label: str) -> str:
 
 
 class Registry:
-    """Shared primary-run registry guarded by a repository runtime lock."""
+    """提供受仓库 runtime lock 保护的共享 primary-run Registry。"""
 
-    # 维护 __init__ 函数行为。
     def __init__(self, repo_root: Path):
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
         self.repo_root = resolve_checkout_root(repo_root)
         self.primary_repo_root = resolve_primary_repo_root(self.repo_root)
         self.repo_key = resolve_repo_key(self.repo_root)
         self.root = resolve_runtime_root(self.repo_root)
         self.runs_dir = ensure_private_directory(self.root / "runs", root=self.root)
         self.locks_dir = ensure_private_directory(self.root / "locks", root=self.root)
-        self.writer_leases_dir = ensure_private_directory(self.root / "writer-leases", root=self.root)
+        self.writer_leases_dir = ensure_private_directory(
+            self.root / "writer-leases", root=self.root
+        )
         self.mutation_locks_dir = ensure_private_directory(
             self.locks_dir / "checkout-mutations", root=self.root
         )
@@ -336,7 +305,9 @@ class Registry:
             if not stat.S_ISREG(opened.st_mode):
                 raise SessionctlError(f"checkout mutation lock is not a regular file: {path}")
             if hasattr(os, "geteuid") and opened.st_uid != os.geteuid():
-                raise SessionctlError(f"checkout mutation lock is not owned by current user: {path}")
+                raise SessionctlError(
+                    f"checkout mutation lock is not owned by current user: {path}"
+                )
             os.fchmod(descriptor, 0o600)
             fcntl.flock(descriptor, fcntl.LOCK_EX)
             previous = self._read_lock_metadata(descriptor)
@@ -364,6 +335,7 @@ class Registry:
 
             # 将当前 checkout 变更锁元数据持久化到已加锁文件。
             def persist() -> None:
+                """持久化 `persist` 对应的数据；写入边界与异常由调用方契约约束。"""
                 payload = (json.dumps(metadata, indent=2, sort_keys=True) + "\n").encode("utf-8")
                 os.lseek(descriptor, 0, os.SEEK_SET)
                 os.ftruncate(descriptor, 0)
@@ -371,7 +343,9 @@ class Registry:
                 while remaining:
                     written = os.write(descriptor, remaining)
                     if written <= 0:
-                        raise SessionctlError("checkout mutation lock metadata write made no progress")
+                        raise SessionctlError(
+                            "checkout mutation lock metadata write made no progress"
+                        )
                     remaining = remaining[written:]
                 os.fsync(descriptor)
 
@@ -386,15 +360,9 @@ class Registry:
         finally:
             os.close(descriptor)
 
-    # 维护 locked 函数行为。
     @contextmanager
     def locked(self, *, client: str = "", session_id: str = "", run_id: str = "") -> Iterable[None]:
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
+        """执行 `locked` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
         flags = os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0)
         descriptor = os.open(self.lock_path, flags, 0o600)
         try:
@@ -402,7 +370,9 @@ class Registry:
             if not stat.S_ISREG(opened.st_mode):
                 raise SessionctlError(f"Registry lock is not a regular file: {self.lock_path}")
             if hasattr(os, "geteuid") and opened.st_uid != os.geteuid():
-                raise SessionctlError(f"Registry lock is not owned by current user: {self.lock_path}")
+                raise SessionctlError(
+                    f"Registry lock is not owned by current user: {self.lock_path}"
+                )
             os.fchmod(descriptor, 0o600)
             fcntl.flock(descriptor, fcntl.LOCK_EX)
             previous = self._read_lock_metadata(descriptor)
@@ -462,6 +432,7 @@ class Registry:
 
     # 将内存中的 Registry 锁元数据写入当前持有的锁文件。
     def _write_lock_metadata(self) -> None:
+        """执行 `_write_lock_metadata` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
         if self._lock_descriptor is None:
             raise SessionctlError("Registry lock metadata update requires held lock")
         payload = (json.dumps(self._lock_metadata, indent=2, sort_keys=True) + "\n").encode("utf-8")
@@ -476,11 +447,13 @@ class Registry:
         os.fsync(self._lock_descriptor)
 
     # 将已解析的 Session 和运行身份附加到当前 Registry 锁。
-    def update_lock_context(self, *, client: str = "", session_id: str = "", run_id: str = "") -> None:
+    def update_lock_context(
+        self, *, client: str = "", session_id: str = "", run_id: str = ""
+    ) -> None:
         """参数：
-            client: 客户端名称；空值表示不更新。
-            session_id: Session 标识符；空值表示不更新。
-            run_id: 运行标识符；空值表示不更新。
+        client: 客户端名称；空值表示不更新。
+        session_id: Session 标识符；空值表示不更新。
+        run_id: 运行标识符；空值表示不更新。
         """
         if self._lock_descriptor is None:
             raise SessionctlError("Registry lock context update requires held lock")
@@ -493,58 +466,29 @@ class Registry:
         self._lock_metadata["updatedAt"] = now_utc()
         self._write_lock_metadata()
 
-    # 维护 _run_path 函数行为。
     def _run_path(self, run_id: str) -> Path:
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
         return self.runs_dir / f"{_validate_identifier(run_id, 'run id')}.json"
 
-    # 维护 load_index 函数行为。
     def load_index(self) -> dict[str, Any]:
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
+        """读取 `load_index` 对应的受控数据；缺失或无效输入沿用调用方失败语义。"""
         return load_json(self.index_path, {"schemaVersion": REGISTRY_VERSION, "runs": []})
 
-    # 维护 save_index 函数行为。
     def save_index(self, run_ids: list[str]) -> None:
-        """参数：
-            *args: 当前函数使用的输入参数。
+        """持久化 `save_index` 对应的数据；写入边界与异常由调用方契约约束。"""
+        write_json_atomic(
+            self.index_path, {"schemaVersion": REGISTRY_VERSION, "runs": sorted(set(run_ids))}
+        )
 
-        返回：
-            当前函数计算或执行结果。
-        """
-        write_json_atomic(self.index_path, {"schemaVersion": REGISTRY_VERSION, "runs": sorted(set(run_ids))})
-
-    # 维护 load_run 函数行为。
     def load_run(self, run_id: str) -> dict[str, Any]:
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
+        """读取 `load_run` 对应的受控数据；缺失或无效输入沿用调用方失败语义。"""
         path = self._run_path(run_id)
         record = load_json(path, {})
         if not record:
             raise SessionctlError(f"unknown run_id: {run_id}")
         return record
 
-    # 维护 save_run 函数行为。
     def save_run(self, record: dict[str, Any]) -> None:
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
+        """持久化 `save_run` 对应的数据；写入边界与异常由调用方契约约束。"""
         validate_run_record(record)
         write_json_atomic(self._run_path(str(record["runId"])), record)
         index = self.load_index()
@@ -553,14 +497,8 @@ class Registry:
             run_ids.append(str(record["runId"]))
         self.save_index(run_ids)
 
-    # 维护 all_runs 函数行为。
     def all_runs(self) -> list[dict[str, Any]]:
-        """参数：
-            *args: 当前函数使用的输入参数。
-
-        返回：
-            当前函数计算或执行结果。
-        """
+        """执行 `all_runs` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
         index = self.load_index()
         records = []
         for run_id in index.get("runs", []):
@@ -602,27 +540,19 @@ class Registry:
             raise SessionctlError(f"run record is not owned by current user: {path}")
         path.unlink()
         index = self.load_index()
-        self.save_index(
-            [str(item) for item in index.get("runs", []) if str(item) != run_id]
-        )
+        self.save_index([str(item) for item in index.get("runs", []) if str(item) != run_id])
 
     # 在 Registry 旁持久化一条不可变审计事件。
     def write_audit(self, event: dict[str, Any]) -> None:
         """参数：
-            event: 待持久化的审计事件。
+        event: 待持久化的审计事件。
         """
         event_id = f"{int(time.time_ns())}-{uuid.uuid4().hex[:12]}"
         write_json_atomic(self.audit_dir / f"{event_id}.json", event)
 
 
-# 维护 repo_root_from_arg 函数行为。
 def repo_root_from_arg(value: str | None) -> Path:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `repo_root_from_arg` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     start = Path(value).resolve() if value else Path.cwd().resolve()
     try:
         out = git(start, "rev-parse", "--show-toplevel")
@@ -631,14 +561,8 @@ def repo_root_from_arg(value: str | None) -> Path:
     return Path(out.stdout.strip()).resolve()
 
 
-# 维护 head_commit 函数行为。
 def head_commit(repo: Path) -> str:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `head_commit` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     return git(repo, "rev-parse", "HEAD").stdout.strip()
 
 
@@ -656,10 +580,13 @@ def _checkout_snapshot(cwd: Path, *, checkout_creator: str = "unknown") -> dict[
         checkout_root,
         checkout_creator=checkout_creator,
     )
-    porcelain = git(checkout_root, "status", "--porcelain=v1", "--untracked-files=all").stdout.splitlines()
+    porcelain = git(
+        checkout_root, "status", "--porcelain=v1", "--untracked-files=all"
+    ).stdout.splitlines()
     tracked = [line[3:] for line in porcelain if len(line) >= 4 and not line.startswith("??")]
     untracked = [line[3:] for line in porcelain if line.startswith("??") and len(line) >= 4]
     captured_at = now_utc()
+    dirty_paths = [*tracked, *untracked]
     return {
         **identity,
         "initialDirtySnapshot": {
@@ -667,6 +594,7 @@ def _checkout_snapshot(cwd: Path, *, checkout_creator: str = "unknown") -> dict[
             "porcelain": porcelain,
             "tracked": tracked,
             "untracked": untracked,
+            "pathStates": snapshot_path_states(checkout_root, dirty_paths),
             "capturedAt": captured_at,
         },
     }
@@ -711,7 +639,9 @@ def _build_bootstrap_record(
     elif snapshot["checkoutKind"] == "linked-worktree":
         observed_target = git(primary, "branch", "--show-current", check=False)
         target_branch = observed_target.stdout.strip() if observed_target.returncode == 0 else ""
-    target_head = str(base_evidence.get("expectedHead") or "") if isinstance(base_evidence, dict) else ""
+    target_head = (
+        str(base_evidence.get("expectedHead") or "") if isinstance(base_evidence, dict) else ""
+    )
     if target_branch and not target_head:
         observed_head = git(
             primary,
@@ -738,7 +668,8 @@ def _build_bootstrap_record(
         "detached": snapshot["detached"],
         "targetBranch": target_branch,
         "targetHeadAtBootstrap": target_head,
-        "worktreeBase": base_evidence or {
+        "worktreeBase": base_evidence
+        or {
             "policy": "primary-head",
             "expectedBranch": target_branch,
             "expectedHead": target_head,
@@ -824,18 +755,7 @@ def _rebind_pre_mutation_claude_checkout(
     checkout_creator: str,
     facts: dict[str, Any],
 ) -> dict[str, Any]:
-    """参数：
-        registry: 当前函数使用的输入参数。
-        record: 当前函数使用的输入参数。
-        client: 当前函数使用的输入参数。
-        session_id: 当前函数使用的输入参数。
-        hook_event: 当前函数使用的输入参数。
-        checkout_creator: 当前函数使用的输入参数。
-        facts: 当前函数使用的输入参数。
-
-    返回：
-        当前函数的计算结果。
-    """
+    """安全地将尚未写入的 Claude run 重绑到客户端最终 checkout。"""
     if client != "claude" or hook_event != "CwdChanged":
         raise SessionctlError("Session is already bound to a different checkout")
     if record.get("status") not in {"BOOTSTRAPPED", "READ_ONLY_READY"}:
@@ -864,9 +784,7 @@ def _rebind_pre_mutation_claude_checkout(
     rebound["taskId"] = record["taskId"]
     rebound["changeId"] = str(record.get("changeId") or "")
     rebound["allowedPaths"] = list(record.get("allowedPaths") or ["."])
-    rebound["forbiddenPaths"] = list(
-        record.get("forbiddenPaths") or DEFAULT_FORBIDDEN_PATHS
-    )
+    rebound["forbiddenPaths"] = list(record.get("forbiddenPaths") or DEFAULT_FORBIDDEN_PATHS)
     rebound["status"] = str(record["status"])
     rebound["createdAt"] = str(record["createdAt"])
     previous_bootstrap = record.get("bootstrap")
@@ -912,13 +830,13 @@ def _record_matches_bootstrap(
         record.get("repoKey") == facts["repoKey"]
         and record.get("client") == client
         and record.get("sessionId") == session_id
-        and Path(str(record.get("checkoutRoot") or "")).resolve() == Path(str(facts["checkoutRoot"]))
+        and Path(str(record.get("checkoutRoot") or "")).resolve()
+        == Path(str(facts["checkoutRoot"]))
         and record.get("gitCommonDir") == facts["gitCommonDir"]
         and record.get("checkoutKind") == facts["checkoutKind"]
         and record.get("primaryRepoRoot") == facts["primaryRepoRoot"]
-        and record.get("worktreeId") == stable_worktree_id(
-            str(facts["repoKey"]), str(facts["checkoutRoot"])
-        )
+        and record.get("worktreeId")
+        == stable_worktree_id(str(facts["repoKey"]), str(facts["checkoutRoot"]))
     )
 
 
@@ -974,7 +892,11 @@ def _candidate_from_run_hint(
         candidate = registry.load_run(run_id)
     except SessionctlError:
         return None
-    return candidate if _record_matches_bootstrap(candidate, client=client, session_id=session_id, facts=facts) else None
+    return (
+        candidate
+        if _record_matches_bootstrap(candidate, client=client, session_id=session_id, facts=facts)
+        else None
+    )
 
 
 # 将不同客户端提供的身份提示归一为统一字段名。
@@ -1021,12 +943,12 @@ def _audit_identity_hints(
     env_hints: Mapping[str, str],
 ) -> None:
     """参数：
-        registry: 当前仓库的运行时 Registry。
-        record: 权威运行记录。
-        hook_event: 当前 hook 事件。
-        checkout_creator: checkout 创建方。
-        payload_hints: 客户端负载中的身份提示。
-        env_hints: 环境变量中的身份提示。
+    registry: 当前仓库的运行时 Registry。
+    record: 权威运行记录。
+    hook_event: 当前 hook 事件。
+    checkout_creator: checkout 创建方。
+    payload_hints: 客户端负载中的身份提示。
+    env_hints: 环境变量中的身份提示。
     """
     expected = {
         "runId": str(record["runId"]),
@@ -1151,7 +1073,9 @@ def bootstrap_session(
             if item.get("repoKey") == facts["repoKey"]
             and item.get("client") == client
             and item.get("sessionId") == session_id
-            and not _record_matches_bootstrap(item, client=client, session_id=session_id, facts=facts)
+            and not _record_matches_bootstrap(
+                item, client=client, session_id=session_id, facts=facts
+            )
         ]
         if exact:
             record = exact[0]
@@ -1197,7 +1121,9 @@ def bootstrap_session(
                     checkout_creator=checkout_creator,
                     facts=facts,
                 )
-        registry.update_lock_context(client=client, session_id=session_id, run_id=str(record["runId"]))
+        registry.update_lock_context(
+            client=client, session_id=session_id, run_id=str(record["runId"])
+        )
         bootstrap = record.setdefault("bootstrap", {})
         if not isinstance(bootstrap, dict):
             raise SessionctlError("run bootstrap metadata must be an object")
@@ -1259,9 +1185,9 @@ def _lease_record_view(lease: Mapping[str, Any]) -> dict[str, Any]:
 # 同时向运行记录和 Registry 审计目录追加事件。
 def _append_run_audit(registry: Registry, record: dict[str, Any], event: dict[str, Any]) -> None:
     """参数：
-        registry: 当前仓库的运行时 Registry。
-        record: 待更新的运行记录。
-        event: 待追加的审计事件。
+    registry: 当前仓库的运行时 Registry。
+    record: 待更新的运行记录。
+    event: 待追加的审计事件。
     """
     events = record.setdefault("auditEvents", [])
     if not isinstance(events, list):
@@ -1273,8 +1199,8 @@ def _append_run_audit(registry: Registry, record: dict[str, Any], event: dict[st
 # 校验状态迁移后更新运行记录状态。
 def _set_run_status(record: dict[str, Any], status: str) -> None:
     """参数：
-        record: 待更新的运行记录。
-        status: 目标生命周期状态。
+    record: 待更新的运行记录。
+    status: 目标生命周期状态。
     """
     previous = str(record.get("status") or "")
     if previous != status:
@@ -1298,9 +1224,9 @@ def _invalidate_stop_validation_for_mutation(
     registry: Registry, record: dict[str, Any], *, timestamp: str
 ) -> None:
     """参数：
-        registry: 当前仓库的运行时 Registry。
-        record: 待恢复写入状态的运行记录。
-        timestamp: 验证失效时间。
+    registry: 当前仓库的运行时 Registry。
+    record: 待恢复写入状态的运行记录。
+    timestamp: 验证失效时间。
     """
 
     if record.get("status") != "VALIDATED":
@@ -1431,11 +1357,11 @@ def _block_fenced_run(
     reason: str,
 ) -> None:
     """参数：
-        registry: 当前仓库的运行时 Registry。
-        record: 待阻断的运行记录。
-        lease: 触发围栏冲突的 checkout 租约。
-        operation: 失败的租约操作名称。
-        reason: 可审计的阻断原因。
+    registry: 当前仓库的运行时 Registry。
+    record: 待阻断的运行记录。
+    lease: 触发围栏冲突的 checkout 租约。
+    operation: 失败的租约操作名称。
+    reason: 可审计的阻断原因。
     """
     _set_run_status(record, "BLOCKED")
     record["leaseBlockReason"] = reason
@@ -1534,7 +1460,10 @@ def acquire_writer_lease(
                     raise WriterLeaseFenced(reason)
 
             if lease.get("state") == LEASE_ACTIVE:
-                if lease.get("holderRunId") == current["runId"] and lease.get("holderSessionId") == current["sessionId"]:
+                if (
+                    lease.get("holderRunId") == current["runId"]
+                    and lease.get("holderSessionId") == current["sessionId"]
+                ):
                     if not _lease_fence_matches(
                         lease,
                         run_id=str(current["runId"]),
@@ -1544,7 +1473,11 @@ def acquire_writer_lease(
                     ):
                         # 并发的首次获取可能从同一空记录开始；此时已持久化记录就是权威结果。
                         persisted = current.get("writerLease")
-                        if not supplied_epoch and not supplied_token and isinstance(persisted, dict):
+                        if (
+                            not supplied_epoch
+                            and not supplied_token
+                            and isinstance(persisted, dict)
+                        ):
                             current_epoch, current_token = _cached_fence(current)
                         if not _lease_fence_matches(
                             lease,
@@ -1562,9 +1495,7 @@ def acquire_writer_lease(
                     lease["heartbeatAt"] = timestamp
                     lease["updatedAt"] = timestamp
                     write_json_atomic(registry.writer_lease_path(worktree_id), lease)
-                    _invalidate_stop_validation_for_mutation(
-                        registry, current, timestamp=timestamp
-                    )
+                    _invalidate_stop_validation_for_mutation(registry, current, timestamp=timestamp)
                     current["writerLease"] = _lease_record_view(lease)
                     current["updatedAt"] = timestamp
                     registry.save_run(current)
@@ -1580,7 +1511,11 @@ def acquire_writer_lease(
                     current["validationStaleAt"] = timestamp
                     current["validationStaleReason"] = "mutation conflicted after Stop validation"
                     _set_run_status(current, "READ_ONLY_CONFLICT")
-                elif current["status"] not in {"BOOTSTRAPPED", "READ_ONLY_READY", "READ_ONLY_CONFLICT"}:
+                elif current["status"] not in {
+                    "BOOTSTRAPPED",
+                    "READ_ONLY_READY",
+                    "READ_ONLY_CONFLICT",
+                }:
                     raise SessionctlError(
                         f"run status cannot enter writer conflict: {current['status']}"
                     )
@@ -1613,7 +1548,10 @@ def acquire_writer_lease(
 
             if current["status"] == "BLOCKED":
                 raise WriterLeaseFenced(
-                    str(current.get("leaseBlockReason") or "blocked run cannot reacquire writer lease")
+                    str(
+                        current.get("leaseBlockReason")
+                        or "blocked run cannot reacquire writer lease"
+                    )
                 )
             if current["status"] not in {
                 "BOOTSTRAPPED",
@@ -1621,7 +1559,9 @@ def acquire_writer_lease(
                 "READ_ONLY_CONFLICT",
                 "VALIDATED",
             }:
-                raise SessionctlError(f"run status cannot acquire writer lease: {current['status']}")
+                raise SessionctlError(
+                    f"run status cannot acquire writer lease: {current['status']}"
+                )
 
             try:
                 previous_epoch = int(lease.get("epoch") or 0)
@@ -1796,12 +1736,16 @@ def release_writer_lease(
             )
             if not owns_active and not epoch and not token:
                 return current, lease
-            if epoch <= 0 or not token or not _lease_fence_matches(
-                lease,
-                run_id=str(current["runId"]),
-                session_id=str(current["sessionId"]),
-                epoch=epoch,
-                fencing_token=token,
+            if (
+                epoch <= 0
+                or not token
+                or not _lease_fence_matches(
+                    lease,
+                    run_id=str(current["runId"]),
+                    session_id=str(current["sessionId"]),
+                    epoch=epoch,
+                    fencing_token=token,
+                )
             ):
                 reason_text = "release epoch/fencing token does not match current checkout lease"
                 _block_fenced_run(
@@ -1895,7 +1839,10 @@ def reclaim_writer_lease(
                 )
             if expected_holder_run_id and lease.get("holderRunId") != expected_holder_run_id:
                 raise SessionctlError("reclaim target run does not match active lease")
-            if expected_holder_session_id and lease.get("holderSessionId") != expected_holder_session_id:
+            if (
+                expected_holder_session_id
+                and lease.get("holderSessionId") != expected_holder_session_id
+            ):
                 raise SessionctlError("reclaim target Session does not match active lease")
             if lease.get("holderRunId") == current["runId"]:
                 raise SessionctlError("lease owner must use release instead of reclaim")
@@ -1918,9 +1865,7 @@ def reclaim_writer_lease(
                 owner_pid = int(lease.get("pid") or 0)
             except (TypeError, ValueError):
                 owner_pid = 0
-            owner_alive = process_is_alive(
-                owner_pid, str(lease.get("processStartTime") or "")
-            )
+            owner_alive = process_is_alive(owner_pid, str(lease.get("processStartTime") or ""))
             if heartbeat_age < stale_after_seconds:
                 raise SessionctlError("reclaim refused: heartbeat is not stale")
             if owner_alive:
@@ -2129,9 +2074,7 @@ def _lease_cli_record(
         matches = [
             item
             for item in registry.all_runs()
-            if _record_matches_bootstrap(
-                item, client=client, session_id=session_id, facts=facts
-            )
+            if _record_matches_bootstrap(item, client=client, session_id=session_id, facts=facts)
         ]
         if len(matches) != 1:
             raise SessionctlError("lease operation requires exactly one current Session run")
@@ -2260,14 +2203,8 @@ def cmd_reclaim_writer_lease(args: argparse.Namespace) -> int:
     return 0
 
 
-# 维护 cmd_list 函数行为。
 def cmd_list(args: argparse.Namespace) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `cmd_list` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     repo = repo_root_from_arg(args.repo_root)
     registry = Registry(repo)
     with registry.locked():
@@ -2276,18 +2213,14 @@ def cmd_list(args: argparse.Namespace) -> int:
         print(json.dumps(records, indent=2, sort_keys=True))
     else:
         for record in records:
-            print(f"{record['runId']}\t{record['client']}\t{record['status']}\t{record['branch']}\t{record['checkoutRoot']}")
+            print(
+                f"{record['runId']}\t{record['client']}\t{record['status']}\t{record['branch']}\t{record['checkoutRoot']}"
+            )
     return 0
 
 
-# 维护 enrich_status 函数行为。
 def enrich_status(record: dict[str, Any]) -> dict[str, Any]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `enrich_status` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     worktree = Path(record["checkoutRoot"])
     enriched = dict(record)
     checks: dict[str, Any] = {"worktreeExists": worktree.exists()}
@@ -2304,14 +2237,8 @@ def enrich_status(record: dict[str, Any]) -> dict[str, Any]:
     return enriched
 
 
-# 维护 cmd_status 函数行为。
 def cmd_status(args: argparse.Namespace) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `cmd_status` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     repo = repo_root_from_arg(args.repo_root)
     registry = Registry(repo)
     with registry.locked():
@@ -2379,21 +2306,21 @@ def runtime_capability(record: dict[str, Any], errors: list[str]) -> str:
     return "blocked"
 
 
-# 维护 cmd_doctor 函数行为。
 def cmd_doctor(args: argparse.Namespace) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `cmd_doctor` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     repo = repo_root_from_arg(args.repo_root)
     registry = Registry(repo)
     with registry.locked():
         records = [registry.load_run(args.run_id)] if args.run_id else registry.all_runs()
         collisions = validate_run_collisions(records) if records else []
     if not records:
-        print(json.dumps({"capability": "read-only-ready", "checkedRuns": [], "status": "read-only-ready"}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {"capability": "read-only-ready", "checkedRuns": [], "status": "read-only-ready"},
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 0
     errors = [f"{c.kind}: {c.message}" for c in collisions]
     run_errors: dict[str, list[str]] = {}
@@ -2408,12 +2335,37 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         capabilities[run_id] = runtime_capability(record, record_errors)
         errors.extend(f"{run_id}: {msg}" for msg in record_errors)
     if errors:
-        print(json.dumps({"status": "blocked", "capability": "blocked", "capabilities": capabilities, "errors": errors}, indent=2, sort_keys=True))
+        print(
+            json.dumps(
+                {
+                    "status": "blocked",
+                    "capability": "blocked",
+                    "capabilities": capabilities,
+                    "errors": errors,
+                },
+                indent=2,
+                sort_keys=True,
+            )
+        )
         return 2
-    aggregate = "writable-ready" if any(value == "writable-ready" for value in capabilities.values()) else "read-only-ready"
-    print(json.dumps({"status": aggregate, "capability": aggregate, "capabilities": capabilities, "checkedRuns": [r["runId"] for r in records]}, indent=2, sort_keys=True))
+    aggregate = (
+        "writable-ready"
+        if any(value == "writable-ready" for value in capabilities.values())
+        else "read-only-ready"
+    )
+    print(
+        json.dumps(
+            {
+                "status": aggregate,
+                "capability": aggregate,
+                "capabilities": capabilities,
+                "checkedRuns": [r["runId"] for r in records],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
-
 
 
 # 仅在门禁通过的 Git 快照仍新鲜时持久化 Stop 结果。
@@ -2461,9 +2413,7 @@ def record_stop_result(
                 evidence_error = "Stop validation evidence has no checkout fingerprint"
             elif expected_fingerprint != current_fingerprint:
                 evidence_error = "checkout Git snapshot changed after required gates"
-            elif str(facts.get("headCommit") or "") != str(
-                current_facts.get("headCommit") or ""
-            ):
+            elif str(facts.get("headCommit") or "") != str(current_facts.get("headCommit") or ""):
                 evidence_error = "checkout HEAD changed after required gates"
         passed = pass_requested and not evidence_error
         if handoff_on_failure:
@@ -2481,10 +2431,10 @@ def record_stop_result(
         final_status = "VALIDATED" if passed else failure_status
         receipt_facts = facts if passed else current_facts
         head = str(receipt_facts.get("headCommit") or latest.get("headCommit") or "")
-        target_commit = str(
-            (facts if pass_requested else receipt_facts).get("targetHead") or ""
-        )
+        target_commit = str((facts if pass_requested else receipt_facts).get("targetHead") or "")
         fingerprint = expected_fingerprint if pass_requested else current_fingerprint
+        checkout_content_fingerprint = str(receipt_facts.get("checkoutContentFingerprint") or "")
+        primary_fingerprint = str(receipt_facts.get("primaryFingerprint") or "")
         result_key = hashlib.sha256(
             json.dumps(
                 {
@@ -2494,16 +2444,15 @@ def record_stop_result(
                     "headCommit": head,
                     "targetCommit": target_commit,
                     "checkoutFingerprint": fingerprint,
+                    "checkoutContentFingerprint": checkout_content_fingerprint,
+                    "primaryFingerprint": primary_fingerprint,
                     "evidenceError": evidence_error,
                     "retryableFailure": retryable_failure,
                 },
                 sort_keys=True,
             ).encode("utf-8")
         ).hexdigest()
-        if (
-            latest.get("stopResultKey") == result_key
-            and latest.get("status") == final_status
-        ):
+        if latest.get("stopResultKey") == result_key and latest.get("status") == final_status:
             stored_facts = latest.get("stopGitFacts")
             return latest, stored_facts if isinstance(stored_facts, dict) else receipt_facts
 
@@ -2521,6 +2470,8 @@ def record_stop_result(
             "headCommit": head,
             "targetCommit": target_commit,
             "checkoutFingerprint": fingerprint,
+            "checkoutContentFingerprint": checkout_content_fingerprint,
+            "primaryFingerprint": primary_fingerprint,
             "evidenceError": evidence_error,
         }
         latest["stopGitFacts"] = receipt_facts
@@ -2556,18 +2507,24 @@ def record_stop_result(
         return latest, receipt_facts
 
 
-# 维护 cmd_stop 函数行为。
 def cmd_stop(args: argparse.Namespace) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `cmd_stop` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     repo = repo_root_from_arg(args.repo_root)
     registry = Registry(repo)
     with registry.locked():
         record = registry.load_run(args.run_id)
+        if record.get("status") == "BLOCKED":
+            _append_run_audit(
+                registry,
+                record,
+                {
+                    "event": "BLOCKED_RUN_RETRY_REQUESTED",
+                    "runId": record["runId"],
+                    "sessionId": record["sessionId"],
+                    "worktreeId": record["worktreeId"],
+                    "at": now_utc(),
+                },
+            )
         record["stopRequestedAt"] = now_utc()
         _set_run_status(record, "VALIDATING")
         record["updatedAt"] = now_utc()
@@ -2621,28 +2578,20 @@ def cmd_stop(args: argparse.Namespace) -> int:
     return 0 if status == "VALIDATED" else 2
 
 
-# 维护 cmd_handoff 函数行为。
 def cmd_handoff(args: argparse.Namespace) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """执行 `cmd_handoff` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     repo = repo_root_from_arg(args.repo_root)
     registry = Registry(repo)
     with registry.locked():
         record = registry.load_run(args.run_id)
         other_records = [
-            item
-            for item in registry.all_runs()
-            if item.get("runId") != record.get("runId")
+            item for item in registry.all_runs() if item.get("runId") != record.get("runId")
         ]
     facts = _collect_git_facts(record)
     blocking_failures = doctor_record(record)
     scope_overlaps = [
         f"{collision.kind}: {collision.message}"
-        for collision in validate_run_collisions([record] + other_records)
+        for collision in validate_run_collisions([record, *other_records])
         if record["runId"] in {collision.first_run_id, collision.second_run_id}
     ]
     report = {
@@ -2675,7 +2624,13 @@ def cmd_handoff(args: argparse.Namespace) -> int:
         "targetStatus": facts["targetStatus"],
         "primaryStatus": facts["primaryStatus"],
         "gitFacts": facts,
-        "requiredTargetSummary": record.get("requiredTargetSummary", {"allowedPaths": record.get("allowedPaths", []), "forbiddenPaths": record.get("forbiddenPaths", [])}),
+        "requiredTargetSummary": record.get(
+            "requiredTargetSummary",
+            {
+                "allowedPaths": record.get("allowedPaths", []),
+                "forbiddenPaths": record.get("forbiddenPaths", []),
+            },
+        ),
         "qualityArtifacts": record.get("qualityArtifacts", []),
         "artifactPaths": {
             "runRecord": str(registry._run_path(str(record["runId"]))),
@@ -2728,23 +2683,11 @@ def _cleanup_evidence_paths(
     runtime = registry.root.resolve()
     return [
         (
-            checkout
-            / "tmp"
-            / "agent_logs"
-            / client
-            / session_id
-            / "runs"
-            / run_id,
+            checkout / "tmp" / "agent_logs" / client / session_id / "runs" / run_id,
             checkout,
         ),
         (
-            checkout
-            / "tmp"
-            / "quality"
-            / client
-            / session_id
-            / "runs"
-            / run_id,
+            checkout / "tmp" / "quality" / client / session_id / "runs" / run_id,
             checkout,
         ),
         (registry.runs_dir / run_id, runtime),
@@ -2840,7 +2783,9 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     removed_evidence: list[str] = []
     with registry.locked():
         latest = registry.load_run(args.run_id)
-        if latest.get("repoKey") != record.get("repoKey") or latest.get("worktreeId") != record.get("worktreeId"):
+        if latest.get("repoKey") != record.get("repoKey") or latest.get("worktreeId") != record.get(
+            "worktreeId"
+        ):
             raise SessionctlError("cleanup run identity changed before evidence removal")
         current_evidence = _cleanup_evidence_paths(registry, latest)
         for path, allowed_root in current_evidence:
@@ -2903,9 +2848,7 @@ def _collect_git_facts(record: Mapping[str, Any]) -> dict[str, Any]:
         已补充 checkout 展示字段与指纹的 Git 事实。
     """
 
-    facts = collect_git_evidence(
-        Path(str(record.get("checkoutRoot") or "")), dict(record)
-    )
+    facts = collect_git_evidence(Path(str(record.get("checkoutRoot") or "")), dict(record))
     checkout_status = facts["checkoutStatus"]
     facts["checkout"] = {
         "checkoutKind": facts["checkoutKind"],
@@ -2971,9 +2914,9 @@ def _write_handoff(registry: Registry, record: dict[str, Any], reason: str) -> P
 # 标记运行进入需要人工交接状态。
 def _mark_handoff(registry: Registry, record: dict[str, Any], reason: str) -> None:
     """参数：
-        registry: 运行时注册表。
-        record: 运行记录。
-        reason: 交接原因。
+    registry: 运行时注册表。
+    record: 运行记录。
+    reason: 交接原因。
     """
     path = _write_handoff(registry, record, reason)
     if record.get("status") != "HANDOFF_REQUIRED":
@@ -3069,7 +3012,26 @@ def _fresh_validation_error(
     if str(validation.get("headCommit") or "") != str(facts.get("headCommit") or ""):
         return "checkout HEAD changed after Stop validation"
     if str(validation.get("checkoutFingerprint") or "") != _checkout_fingerprint(facts):
-        return "checkout Git state changed after Stop validation"
+        validated_checkout = str(validation.get("checkoutContentFingerprint") or "")
+        current_checkout = str(facts.get("checkoutContentFingerprint") or "")
+        if not validated_checkout or validated_checkout != current_checkout:
+            return "checkout Git state changed after Stop validation"
+        validated_primary = str(validation.get("primaryFingerprint") or "")
+        current_primary = str(facts.get("primaryFingerprint") or "")
+        primary_status = facts.get("primaryStatus")
+        target_advanced_cleanly = bool(
+            not require_target_match
+            and isinstance(primary_status, Mapping)
+            and primary_status.get("clean") is True
+            and str(primary_status.get("headCommit") or "") == str(facts.get("targetHead") or "")
+            and str(validation.get("targetCommit") or "") != str(facts.get("targetHead") or "")
+        )
+        if (
+            not validated_primary
+            or validated_primary == current_primary
+            or not target_advanced_cleanly
+        ):
+            return "primary checkout changed after Stop validation"
     if require_target_match and str(validation.get("targetCommit") or "") != str(
         facts.get("targetHead") or ""
     ):
@@ -3168,9 +3130,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
                 args.run_id,
                 "detached HEAD requires a provider-owned branch or manual handoff",
             )
-        validation_error = _fresh_validation_error(
-            record, facts, require_target_match=False
-        )
+        validation_error = _fresh_validation_error(record, facts, require_target_match=False)
         if validation_error:
             return _finalize_handoff(registry, args.run_id, validation_error)
 
@@ -3218,9 +3178,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
                 return _finalize_handoff(
                     registry, args.run_id, f"Git evidence unavailable after revalidation: {exc}"
                 )
-            validation_error = _fresh_validation_error(
-                record, facts, require_target_match=True
-            )
+            validation_error = _fresh_validation_error(record, facts, require_target_match=True)
             if validation_error:
                 return _finalize_handoff(registry, args.run_id, validation_error)
 
@@ -3253,9 +3211,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
             or not before_merge["checkoutStatus"]["clean"]
             or before_merge["headCommit"] != run_head
         ):
-            return _finalize_handoff(
-                registry, args.run_id, "Git state changed before integration"
-            )
+            return _finalize_handoff(registry, args.run_id, "Git state changed before integration")
 
         same_checkout = checkout.resolve() == primary.resolve()
         if same_checkout:
@@ -3283,9 +3239,7 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         with registry.locked():
             record = registry.load_run(args.run_id)
         if record.get("writerLease"):
-            record, _ = release_writer_lease(
-                registry, record, reason="finalize-integrated"
-            )
+            record, _ = release_writer_lease(registry, record, reason="finalize-integrated")
         timestamp = now_utc()
         summary = {
             "schemaVersion": REGISTRY_VERSION,
@@ -3332,14 +3286,8 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         return 0
 
 
-# 维护 build_parser 函数行为。
 def build_parser() -> argparse.ArgumentParser:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """构造 `build_parser` 对应的确定性结果；不执行结果中描述的外部操作。"""
     parser = argparse.ArgumentParser(description="Manage Feipi adopted-checkout Session runtime")
     parser.add_argument("--repo-root", help="Git repository root; defaults to cwd")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -3370,8 +3318,8 @@ def build_parser() -> argparse.ArgumentParser:
     # 为租约子命令添加统一的 Session 与 checkout 身份参数。
     def add_lease_identity(command: argparse.ArgumentParser, *, parent: bool = True) -> None:
         """参数：
-            command: 待扩展的子命令解析器。
-            parent: 是否允许传入父运行标识符。
+        command: 待扩展的子命令解析器。
+        parent: 是否允许传入父运行标识符。
         """
         command.add_argument("--client", required=True, choices=["codex", "qoder", "claude"])
         command.add_argument("--session-id", required=True)
@@ -3441,19 +3389,18 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# 维护 main 函数行为。
 def main(argv: list[str] | None = None) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或执行结果。
-    """
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     parser = build_parser()
     args = parser.parse_args(argv)
     try:
         return args.func(args)
-    except (SessionctlError, subprocess.CalledProcessError, PrimarySessionValidationError, OSError) as exc:
+    except (
+        SessionctlError,
+        subprocess.CalledProcessError,
+        PrimarySessionValidationError,
+        OSError,
+    ) as exc:
         print(f"sessionctl: BLOCKED: {exc}", file=sys.stderr)
         return 2
 

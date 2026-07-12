@@ -33,7 +33,7 @@
 ## Validation
 
 - Run the handoff validation command exactly when provided.
-- Otherwise run export fixture tests and `python scripts/quality/check_session_detail_static.py` for template/resource changes.
+- Otherwise run export fixture tests and `python scripts/checks/check_session_detail_static.py` for template/resource changes.
 - Treat skipped, unavailable, or failed export interaction checks as non-PASS.
 
 ## Output Format

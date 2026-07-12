@@ -40,7 +40,7 @@
 
 ## 触发门禁
 
-- `python scripts/quality/check_session_detail_static.py`
-- `python scripts/quality/check_js_action_handlers.py`
+- `python scripts/checks/check_session_detail_static.py`
+- `python scripts/checks/check_js_action_handlers.py`
 - fixture-based 导出测试
-- `python scripts/quality/check_agent_entry_parity.py`
+- `python scripts/checks/check_agent_entry_parity.py`

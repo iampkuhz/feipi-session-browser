@@ -54,9 +54,9 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - Jinja 模板：`src/templates/` 下 session detail 相关模板。
 - CSS 文件：`src/static/css/` 下 session detail 相关样式。
 - JS 文件：`src/static/js/` 下 session detail 相关交互脚本。
-- UI 质量门：`scripts/quality/check_session_detail_*.py`、`scripts/quality/run_session_detail_*.py`。
-- CSS ownership 配置：`scripts/quality/check_css_ownership.py` 相关配置。
-- UI gate baseline：`scripts/quality/*_baseline.json`。
+- UI 质量门：`scripts/checks/check_session_detail_*.py`、`scripts/checks/run_session_detail_*.py`。
+- CSS ownership 配置：`scripts/checks/check_css_ownership.py` 相关配置。
+- UI gate baseline：`scripts/checks/*_baseline.json`。
 
 不要跨边界修改后端 parser 或 Java 产品代码。不要在模板中直接嵌入 inline style。
 
@@ -64,15 +64,15 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `python scripts/quality/check_session_detail_static.py` — session detail 静态检查。
-- `python scripts/quality/check_session_detail_shell_css.py` — shell CSS 一致性。
-- `python scripts/quality/run_session_detail_interaction_gate.py` — 交互 gate。
-- `python scripts/quality/run_session_detail_layout_gate.py` — 布局 gate。
-- `python scripts/quality/check_js_action_handlers.py` — JS action handler 检查。
-- `python scripts/quality/check_css_ownership.py` — CSS ownership 校验。
-- `python scripts/quality/check_no_legacy_css.py` — legacy CSS 检查。
-- `python scripts/quality/check_layout_inline_style.py` — inline style 检查。
-- `python scripts/quality/check_raw_innerhtml.py` — raw innerHTML 检查。
+- `python scripts/checks/check_session_detail_static.py` — session detail 静态检查。
+- `python scripts/checks/check_session_detail_shell_css.py` — shell CSS 一致性。
+- `python scripts/checks/run_session_detail_interaction_gate.py` — 交互 gate。
+- `python scripts/checks/run_session_detail_layout_gate.py` — 布局 gate。
+- `python scripts/checks/check_js_action_handlers.py` — JS action handler 检查。
+- `python scripts/checks/check_css_ownership.py` — CSS ownership 校验。
+- `python scripts/checks/check_no_legacy_css.py` — legacy CSS 检查。
+- `python scripts/checks/check_layout_inline_style.py` — inline style 检查。
+- `python scripts/checks/check_raw_innerhtml.py` — raw innerHTML 检查。
 
 选择策略：
 

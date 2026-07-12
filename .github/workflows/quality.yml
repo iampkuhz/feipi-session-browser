@@ -52,4 +52,4 @@ jobs:
           ./scripts/session-browser.sh dead-code
 
       - name: Required quality gates
-        run: python scripts/quality/run_required_quality_gates.py --include-session-detail --change-id ci-quality
+        run: python scripts/checks/run_required_quality_gates.py --include-session-detail --change-id ci-quality

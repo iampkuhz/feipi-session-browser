@@ -55,5 +55,5 @@ Session ingestion pipeline 和 token attribution 模型的专项开发：
 2. 读取 skill SKILL.md 确认约束和参考索引
 3. 定位最小必要文件（参考 references/architecture.md）
 4. 修改代码，保持 schema 向后兼容
-5. 运行 `./gradlew test` 和 `python scripts/quality/check_manifest.py`
+5. 运行 `./gradlew test` 和 `python scripts/checks/check_manifest.py`
 6. 使用 templates/report.md 格式输出变更报告

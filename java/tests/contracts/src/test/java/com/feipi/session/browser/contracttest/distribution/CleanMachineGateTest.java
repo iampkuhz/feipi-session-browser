@@ -122,8 +122,8 @@ class CleanMachineGateTest {
     void noPythonScriptsInRuntimeClasspath() {
       ClassLoader cl = getClass().getClassLoader();
       // 验证 Python quality 脚本不在 classpath 中
-      assertThat(cl.getResource("scripts/quality/check_code_comment_language.py")).isNull();
-      assertThat(cl.getResource("scripts/quality/run_required_quality_gates.py")).isNull();
+      assertThat(cl.getResource("scripts/checks/check_code_comment_language.py")).isNull();
+      assertThat(cl.getResource("scripts/gates/cli.py")).isNull();
     }
   }
 

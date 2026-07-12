@@ -1,64 +1,118 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
-from pathlib import Path
+import time
+from typing import TYPE_CHECKING
 
 import pytest
-
-from scripts.harness.primary_session import resolve_checkout_identity, resolve_runtime_root
-from scripts.harness.sessionctl import Registry, acquire_writer_lease
-from scripts.harness.stop_entry import FileLock, collect_git_evidence, run_stop
-from scripts.harness.stop_entry_checks.reentry import (
+from scripts.agent_runtime.stop.evidence import (
+    GitEvidenceError,
+    collect_git_evidence,
+    filter_baseline_dirty,
+)
+from scripts.agent_runtime.stop.pipeline import run_stop
+from scripts.agent_runtime.stop.recovery import (
+    FileLock,
     matching_reentry_failure,
     recovery_scope,
     update_reentry,
 )
-from scripts.harness.stop_helpers import GitEvidenceError
-from scripts.quality.check_agent_runtime_report import validate_runtime_report
+from scripts.checks.check_agent_runtime_report import validate_runtime_report
+from scripts.harness.primary_session import resolve_checkout_identity, resolve_runtime_root
+from scripts.harness.sessionctl import Registry, acquire_writer_lease
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def _run(cmd: list[str], cwd: Path) -> None:
-    subprocess.run(cmd, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
 
 
-def test_stop_quality_keeps_atomic_gate_command_unchanged(
+def test_stop_quality_calls_unified_gate_service(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    from scripts.harness.stop_entry_checks import quality as stop_quality
+    from types import SimpleNamespace
 
-    captured: list[tuple[list[str], dict[str, str]]] = []
-    monkeypatch.setattr(stop_quality, 'QUALITY_TARGETS', {'hook-runtime': ['settingsJson']})
-    monkeypatch.setattr(stop_quality, 'GATE_PATTERNS', {})
-    monkeypatch.setattr(stop_quality, 'target_parallel_meta', lambda _target: {})
-    monkeypatch.setattr(
-        stop_quality,
-        '_gate_command',
-        lambda _gate, _root, _target: ['python', '-c', 'print("ok")'],
+    from scripts.agent_runtime.stop import pipeline as stop_pipeline
+    from scripts.agent_runtime.stop.model import StopContext
+
+    captured: dict[str, object] = {}
+
+    def fake_service(**kwargs):
+        captured.update(kwargs)
+        return SimpleNamespace(
+            passed=True,
+            reused=False,
+            details=(SimpleNamespace(name='settingsJson', status='PASS'),),
+        )
+
+    monkeypatch.setattr(stop_pipeline, 'run_service', fake_service)
+    context = StopContext('codex', {})
+    context.repo_root = tmp_path
+    context.report_path = tmp_path / 'quality' / 'runtime-report.json'
+    context.changed_files = ['.claude/settings.json']
+    context.targets = ['hook-runtime']
+    context.change_id = 'change-a'
+    context.read_only = False
+
+    stop_pipeline._gate(context)
+
+    assert context.gates_ok is True
+    assert context.failures == []
+    assert context.gate_results == [{'name': 'settingsJson', 'status': 'EXECUTED'}]
+    assert captured['tier'] == 'required'
+    assert captured['changed_files'] == ['.claude/settings.json']
+
+
+def test_baseline_dirty_filter_uses_content_state() -> None:
+    baseline = {
+        'exists': True,
+        'size': 3,
+        'sha256': 'baseline-hash',
+    }
+    evidence = {
+        'initialDirtySnapshot': {
+            'tracked': ['same.txt', 'modified-again.txt'],
+            'untracked': [],
+            'pathStates': {
+                'same.txt': baseline,
+                'modified-again.txt': baseline,
+            },
+        },
+        'currentDirtyPathStates': {
+            'same.txt': baseline,
+            'modified-again.txt': {
+                'exists': True,
+                'size': 4,
+                'sha256': 'new-hash',
+            },
+        },
+    }
+
+    changed, baseline_paths = filter_baseline_dirty(
+        ['same.txt', 'modified-again.txt', 'new.txt'], evidence
     )
 
-    def capture(
-        _name: str,
-        cmd: list[str],
-        _repo_root: Path,
-        env: dict[str, str],
-        timeout: int = 1800,
-    ) -> bool:
-        del timeout
-        captured.append((cmd, env))
-        return True
+    assert changed == ['modified-again.txt', 'new.txt']
+    assert baseline_paths == {'same.txt', 'modified-again.txt'}
 
-    monkeypatch.setattr(stop_quality, 'run_cmd', capture)
 
-    passed, failures, results = stop_quality.run_quality_checks(
-        'change-a', ['.claude/settings.json'], tmp_path, ['hook-runtime']
+def test_legacy_baseline_dirty_without_hash_keeps_path_exclusion() -> None:
+    changed, baseline_paths = filter_baseline_dirty(
+        ['legacy.txt', 'new.txt'],
+        {
+            'initialDirtySnapshot': {
+                'tracked': ['legacy.txt'],
+                'untracked': [],
+            }
+        },
     )
 
-    assert passed is True
-    assert failures == []
-    assert results == [{'name': 'settingsJson', 'status': 'PASS'}]
-    assert captured[0][0] == ['python', '-c', 'print("ok")']
-    assert captured[0][1]['QUALITY_CHANGED_FILES'] == '[".claude/settings.json"]'
+    assert changed == ['new.txt']
+    assert baseline_paths == {'legacy.txt'}
 
 
 def _repo(tmp_path: Path, monkeypatch) -> Path:
@@ -72,17 +126,19 @@ def _repo(tmp_path: Path, monkeypatch) -> Path:
     _run(['git', 'commit', '-m', 'init'], repo)
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
     (repo / 'harness').mkdir()
-    (repo / 'harness' / 'agent-runtime.manifest.yaml').write_text('protected_roots:\n  - scripts/\n  - openspec/\n', encoding='utf-8')
+    (repo / 'harness' / 'agent-runtime.manifest.yaml').write_text(
+        'protected_roots:\n  - scripts/\n  - openspec/\n', encoding='utf-8'
+    )
     (repo / '.gitignore').write_text('tmp/\n', encoding='utf-8')
     _run(['git', 'add', 'harness/agent-runtime.manifest.yaml', '.gitignore'], repo)
     _run(['git', 'commit', '-m', 'manifest'], repo)
     return repo
 
 
-def _record(repo: Path, run_id: str, session: str, change: str = 'adopt-client-checkout-runtime') -> dict:
-    head = subprocess.check_output(
-        ['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True
-    ).strip()
+def _record(
+    repo: Path, run_id: str, session: str, change: str = 'adopt-client-checkout-runtime'
+) -> dict:
+    head = subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip()
     facts = resolve_checkout_identity(repo, checkout_creator='unknown', base_commit=head)
     return {
         'schemaVersion': 2,
@@ -129,7 +185,9 @@ def _save(repo: Path, *records: dict) -> None:
     root.mkdir(parents=True, exist_ok=True)
     for record in records:
         (root / f"{record['runId']}.json").write_text(json.dumps(record), encoding='utf-8')
-    (root / 'index.json').write_text(json.dumps({'schemaVersion': 2, 'runs': [r['runId'] for r in records]}), encoding='utf-8')
+    (root / 'index.json').write_text(
+        json.dumps({'schemaVersion': 2, 'runs': [r['runId'] for r in records]}), encoding='utf-8'
+    )
 
 
 def test_two_run_stop_summaries_do_not_overwrite(tmp_path: Path, monkeypatch):
@@ -162,11 +220,16 @@ def test_two_run_stop_summaries_do_not_overwrite(tmp_path: Path, monkeypatch):
     assert not (repo / 'tmp/agent_logs/codex/session-a/runs/run-a/stop-reentry.json').exists()
 
 
-def test_runtime_report_requires_explicit_run_context_and_changed_files_match(tmp_path: Path, monkeypatch):
+def test_runtime_report_requires_explicit_run_context_and_changed_files_match(
+    tmp_path: Path, monkeypatch
+):
     repo = _repo(tmp_path, monkeypatch)
     _save(repo, _record(repo, 'run-a', 'session-a'))
     assert run_stop('codex', {'cwd': str(repo), 'session_id': 'session-a', 'run_id': 'run-a'}) == 0
-    report = repo / 'tmp/quality/codex/session-a/runs/run-a/main/adopt-client-checkout-runtime/runtime-report.json'
+    report = (
+        repo
+        / 'tmp/quality/codex/session-a/runs/run-a/main/adopt-client-checkout-runtime/runtime-report.json'
+    )
 
     ok = validate_runtime_report(
         run_id='run-a',
@@ -198,16 +261,36 @@ def test_stop_hook_active_does_not_block_by_itself(tmp_path: Path, monkeypatch):
     repo = _repo(tmp_path, monkeypatch)
     _save(repo, _record(repo, 'run-a', 'session-a'))
 
-    assert run_stop('codex', {'cwd': str(repo), 'session_id': 'session-a', 'run_id': 'run-a', 'stop_hook_active': True}) == 0
+    assert (
+        run_stop(
+            'codex',
+            {
+                'cwd': str(repo),
+                'session_id': 'session-a',
+                'run_id': 'run-a',
+                'stop_hook_active': True,
+            },
+        )
+        == 0
+    )
 
-    summary = json.loads((repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json').read_text())
+    summary = json.loads(
+        (
+            repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json'
+        ).read_text()
+    )
     assert summary['status'] == 'PASS'
     assert any('stop_hook_active reentry observed' in item for item in summary['warnings'])
 
 
 def test_stop_without_authoritative_run_fails_without_legacy_state(tmp_path: Path, monkeypatch):
     repo = _repo(tmp_path, monkeypatch)
-    payload = {'cwd': str(repo), 'session_id': 'session-a', 'run_id': 'missing-run', 'stop_hook_active': True}
+    payload = {
+        'cwd': str(repo),
+        'session_id': 'session-a',
+        'run_id': 'missing-run',
+        'stop_hook_active': True,
+    }
 
     assert run_stop('codex', payload) == 2
     assert not (repo / 'tmp/agent_logs/legacy').exists()
@@ -215,27 +298,39 @@ def test_stop_without_authoritative_run_fails_without_legacy_state(tmp_path: Pat
     assert not (resolve_runtime_root(repo) / 'runs/missing-run').exists()
 
 
-def test_repeated_failure_circuit_and_audit_are_isolated_by_run(tmp_path: Path, monkeypatch):
-    from scripts.harness.stop_entry_checks import quality as stop_quality
+def test_repeated_failure_circuit_and_audit_are_isolated_by_run(
+    tmp_path: Path, monkeypatch, capsys
+):
+    from scripts.agent_runtime.stop import report as stop_report
 
     repo = _repo(tmp_path, monkeypatch)
     _save(repo, _record(repo, 'run-a', 'session-a'), _record(repo, 'run-b', 'session-b'))
     monkeypatch.setattr(
-        stop_quality.check_agent_runtime_report,
+        stop_report.check_agent_runtime_report,
         'validate_runtime_report',
         lambda **_kwargs: ['forced stable report failure'],
     )
-    payload = {'cwd': str(repo), 'session_id': 'session-a', 'run_id': 'run-a', 'stop_hook_active': True}
+    payload = {
+        'cwd': str(repo),
+        'session_id': 'session-a',
+        'run_id': 'run-a',
+        'stop_hook_active': True,
+    }
 
     assert run_stop('codex', payload) == 2
     assert run_stop('codex', payload) == 2
-    assert run_stop('codex', payload) == 0
+    assert run_stop('codex', payload) == 2
+    assert 'HANDOFF_BLOCKED circuit OPEN' in capsys.readouterr().err
 
-    summary = json.loads((repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json').read_text())
+    summary = json.loads(
+        (
+            repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json'
+        ).read_text()
+    )
     assert summary['continuationCount'] > 2
     assert summary['circuitState'] == 'OPEN'
     assert summary['status'] == 'BLOCKED'
-    assert summary['runStatus'] == 'READ_ONLY_READY'
+    assert summary['runStatus'] == 'BLOCKED'
     assert any('continuation limit' in item for item in summary['blockingFailures'])
     runtime = resolve_runtime_root(repo)
     state_a = json.loads((runtime / 'runs/run-a/stop-reentry.json').read_text())
@@ -244,6 +339,17 @@ def test_repeated_failure_circuit_and_audit_are_isolated_by_run(tmp_path: Path, 
     assert state_a['scope']['worktreeId'] == _record(repo, 'run-a', 'session-a')['worktreeId']
     assert state_a['circuitBreaker']['state'] == 'OPEN'
     assert not (runtime / 'runs/run-b/stop-reentry.json').exists()
+    registry_record = Registry(repo).load_run('run-a')
+    assert registry_record['status'] == 'BLOCKED'
+    assert registry_record['stopExitCode'] == 2
+    assert registry_record['stopValidation']['status'] == 'FAIL'
+    runtime_report = json.loads(
+        (
+            repo / 'tmp/quality/codex/session-a/runs/run-a/main/'
+            'adopt-client-checkout-runtime/runtime-report.json'
+        ).read_text()
+    )
+    assert runtime_report['status'] == 'BLOCKED'
     audit = [json.loads(path.read_text()) for path in (runtime / 'audit').glob('*.json')]
     assert audit
     assert {item['runId'] for item in audit} == {'run-a'}
@@ -251,7 +357,7 @@ def test_repeated_failure_circuit_and_audit_are_isolated_by_run(tmp_path: Path, 
 
 
 def test_retryable_stop_failure_preserves_active_writer(tmp_path: Path, monkeypatch):
-    from scripts.harness.stop_entry_checks import quality as stop_quality
+    from scripts.agent_runtime.stop import report as stop_report
 
     repo = _repo(tmp_path, monkeypatch)
     record = _record(repo, 'run-a', 'session-a')
@@ -260,7 +366,7 @@ def test_retryable_stop_failure_preserves_active_writer(tmp_path: Path, monkeypa
     assert writable['status'] == 'LOCAL_WRITER'
     assert lease['state'] == 'ACTIVE'
     monkeypatch.setattr(
-        stop_quality.check_agent_runtime_report,
+        stop_report.check_agent_runtime_report,
         'validate_runtime_report',
         lambda **_kwargs: ['forced retryable report failure'],
     )
@@ -272,7 +378,9 @@ def test_retryable_stop_failure_preserves_active_writer(tmp_path: Path, monkeypa
     assert latest['status'] == 'LOCAL_WRITER'
     assert latest['writerLease']['leaseId'] == lease['leaseId']
     summary = json.loads(
-        (repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json').read_text()
+        (
+            repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json'
+        ).read_text()
     )
     assert summary['status'] == 'BLOCKED'
     assert summary['runStatus'] == 'LOCAL_WRITER'
@@ -309,6 +417,27 @@ def test_change_id_update_invalidates_reentry_failure(tmp_path: Path, monkeypatc
     )[0]
 
 
+def test_dependency_installation_invalidates_reentry_failure(tmp_path: Path, monkeypatch):
+    repo = _repo(tmp_path, monkeypatch)
+    record = _record(repo, 'run-a', 'session-a', change='change-a')
+    reentry = resolve_runtime_root(repo) / 'runs/run-a/stop-reentry.json'
+    scope = recovery_scope(record)
+    update_reentry(
+        reentry,
+        repo,
+        ['browserLayout=BLOCKED'],
+        scope=scope,
+        audit_dir=resolve_runtime_root(repo) / 'audit',
+        change_id='change-a',
+    )
+    assert matching_reentry_failure(reentry, repo, scope, change_id='change-a')[0]
+
+    (repo / 'node_modules' / '.bin').mkdir(parents=True)
+    (repo / 'node_modules' / '.bin' / 'playwright').touch()
+
+    assert not matching_reentry_failure(reentry, repo, scope, change_id='change-a')[0]
+
+
 @pytest.mark.contract_case('HOOK-HARNESS-006')
 def test_git_evidence_separates_committed_staged_working_and_untracked(tmp_path: Path, monkeypatch):
     repo = _repo(tmp_path, monkeypatch)
@@ -339,68 +468,61 @@ def test_git_evidence_separates_committed_staged_working_and_untracked(tmp_path:
         collect_git_evidence(repo, invalid)
 
 
-def _mutate_and_pass(repo: Path) -> tuple[bool, list[str], list[dict[str, str]]]:
-    """模拟 check 执行期间文件被修改，但 check 本身通过。"""
-    (repo / 'README.md').write_text('during-gate\n', encoding='utf-8')
-    return True, [], [{'name': 'fake-gate', 'status': 'PASS'}]
-
-
 def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
     tmp_path: Path, monkeypatch
 ):
-    from scripts.harness.stop_entry_checks import quality as stop_quality
-    from scripts.harness.stop_entry_checks import git_evidence as stop_git_evidence
+    from types import SimpleNamespace
+
+    from scripts.agent_runtime.stop import evidence as stop_evidence
+    from scripts.agent_runtime.stop import pipeline as stop_pipeline
+    from scripts.agent_runtime.stop import report as stop_report
 
     repo = _repo(tmp_path, monkeypatch)
     record = _record(repo, 'run-a', 'session-a')
     _save(repo, record)
     (repo / 'README.md').write_text('before-gate\n', encoding='utf-8')
 
-    monkeypatch.setattr(stop_quality.stop_helpers, 'required_targets', lambda _files: ['harness'])
+    monkeypatch.setattr(stop_evidence, 'required_targets', lambda _files: ['harness'])
+    monkeypatch.setattr(stop_evidence, 'validate_openspec_evidence', lambda *_args: [])
     monkeypatch.setattr(
-        stop_quality.stop_helpers,
-        'changed_files_require_openspec',
-        lambda _files: False,
-    )
-    monkeypatch.setattr(
-        stop_quality.check_agent_runtime_report,
+        stop_report.check_agent_runtime_report,
         'validate_runtime_report',
         lambda **_kwargs: [],
     )
-    # 模拟 check 执行期间文件被修改
-    monkeypatch.setattr(
-        stop_quality,
-        'run_quality_checks',
-        lambda _cid, _cf, _root, _targets: _mutate_and_pass(repo),
-    )
-    # 让 collect_git_evidence 返回带 fingerprint 的证据，以触发 post-gate 一致性复核
-    _real_collect = stop_git_evidence.collect_git_evidence
-    _call_count = [0]
 
-    def _fingerprinted_collect(repo_root, rec):
-        result = _real_collect(repo_root, rec)
-        _call_count[0] += 1
-        # 每次调用都根据当前文件内容计算不同 fingerprint
+    def fake_service(**_kwargs):
+        (repo / 'README.md').write_text('during-gate\n', encoding='utf-8')
+        return SimpleNamespace(
+            passed=True,
+            reused=False,
+            details=(SimpleNamespace(name='fake-gate', status='PASS'),),
+        )
+
+    monkeypatch.setattr(stop_pipeline, 'run_service', fake_service)
+    real_collect = stop_evidence.collect_git_evidence
+    call_count = [0]
+
+    def fingerprinted_collect(repo_root, rec):
+        result = real_collect(repo_root, rec)
+        call_count[0] += 1
         readme = (repo_root / 'README.md').read_text(encoding='utf-8')
-        result['checkoutFingerprint'] = f'fp-{_call_count[0]}-{readme}'
+        result['checkoutFingerprint'] = f'fp-{call_count[0]}-{readme}'
         return result
 
-    monkeypatch.setattr(stop_git_evidence, 'collect_git_evidence', _fingerprinted_collect)
-    # stop_entry.py 里也从 git_evidence 子模块导入了 collect_git_evidence
-    monkeypatch.setattr(
-        'scripts.harness.stop_entry.collect_git_evidence',
-        _fingerprinted_collect,
+    monkeypatch.setattr(stop_evidence, 'collect_git_evidence', fingerprinted_collect)
+    assert (
+        run_stop(
+            'codex',
+            {
+                'cwd': str(repo),
+                'session_id': 'session-a',
+                'run_id': 'run-a',
+                'handoff_on_failure': True,
+            },
+            adapter_mode='cli',
+        )
+        == 2
     )
-    assert run_stop(
-        'codex',
-        {
-            'cwd': str(repo),
-            'session_id': 'session-a',
-            'run_id': 'run-a',
-            'handoff_on_failure': True,
-        },
-        adapter_mode='cli',
-    ) == 2
     summary_path = repo / 'tmp/agent_logs/codex/session-a/runs/run-a/main/stop-check-summary.json'
     summary = json.loads(summary_path.read_text(encoding='utf-8'))
     assert summary['status'] == 'BLOCKED'
@@ -420,14 +542,14 @@ def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
 def test_untracked_content_snapshot_rejects_unsafe_path_components(
     tmp_path: Path, raw_paths: bytes
 ):
-    from scripts.harness import stop_helpers
+    from scripts.agent_runtime.stop import evidence
 
     with pytest.raises(GitEvidenceError):
-        stop_helpers._hash_untracked_contents(tmp_path, raw_paths)
+        evidence._hash_untracked_contents(tmp_path, raw_paths)
 
 
 def test_untracked_content_snapshot_rejects_intermediate_symlink_escape(tmp_path: Path):
-    from scripts.harness import stop_helpers
+    from scripts.agent_runtime.stop import evidence
 
     repo = tmp_path / 'repo'
     outside = tmp_path / 'outside'
@@ -437,7 +559,7 @@ def test_untracked_content_snapshot_rejects_intermediate_symlink_escape(tmp_path
     (repo / 'escape').symlink_to(outside, target_is_directory=True)
 
     with pytest.raises(GitEvidenceError):
-        stop_helpers._hash_untracked_contents(repo, b'escape/secret.txt\0')
+        evidence._hash_untracked_contents(repo, b'escape/secret.txt\0')
 
 
 def test_file_lock_release_and_dead_owner_reclaim_are_exact(tmp_path: Path):
@@ -450,22 +572,35 @@ def test_file_lock_release_and_dead_owner_reclaim_are_exact(tmp_path: Path):
         assert lock.release()
     assert not path.exists()
 
-    path.write_text(json.dumps({
-        **owner,
-        'pid': 999_999_999,
-        'processStartTime': 'dead-process',
-        'fencingToken': 'old-token',
-    }), encoding='utf-8')
-    lock = FileLock(path, owner)
+    path.write_text(
+        json.dumps(
+            {
+                **owner,
+                'pid': 999_999_999,
+                'processStartTime': 'dead-process',
+                'fencingToken': 'old-token',
+            }
+        ),
+        encoding='utf-8',
+    )
+    old = time.time() - 10
+    os.utime(path, (old, old))
+    lock = FileLock(path, owner, grace_seconds=1)
     assert lock.acquire()
     assert lock.reclaimed_owner['runId'] == 'run-a'
     assert lock.release()
 
-    path.write_text(json.dumps({
-        **dict(owner, runId='run-b'),
-        'pid': 999_999_999,
-        'processStartTime': 'dead-process',
-        'fencingToken': 'other-token',
-    }), encoding='utf-8')
-    assert not FileLock(path, owner).acquire()
+    path.write_text(
+        json.dumps(
+            {
+                **dict(owner, runId='run-b'),
+                'pid': 999_999_999,
+                'processStartTime': 'dead-process',
+                'fencingToken': 'other-token',
+            }
+        ),
+        encoding='utf-8',
+    )
+    os.utime(path, (old, old))
+    assert not FileLock(path, owner, grace_seconds=1).acquire()
     assert path.exists()

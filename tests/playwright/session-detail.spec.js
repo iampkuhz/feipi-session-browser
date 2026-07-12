@@ -13,7 +13,7 @@
  * 9. 长会话（100 轮）性能和 DOM 节点预算
  *
  * 环境准备：
- *   1. 启动测试服务：python3 scripts/start_fixture_server.py
+ *   1. 启动测试服务：python3 tests/support/start_fixture_server.py
  *      或启动实际服务：./scripts/session-browser.sh serve
  *   2. 运行测试：PW_SESSION_URL=http://127.0.0.1:19099/sessions/claude_code/<session-id> npx playwright test
  *

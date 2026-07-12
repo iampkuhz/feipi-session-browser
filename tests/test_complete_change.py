@@ -4,6 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from scripts.agent_runtime.stop import evidence as stop_evidence
 from scripts.harness import complete_change, sessionctl, stop_entry
 from scripts.harness.primary_session import resolve_runtime_root
 
@@ -86,7 +87,7 @@ def install_fake_stop_pass(monkeypatch, calls):
         registry = sessionctl.Registry(checkout)
         with registry.locked():
             record = registry.load_run(payload["runId"])
-        facts = stop_entry.collect_git_evidence(checkout, record)
+        facts = stop_evidence.collect_git_evidence(checkout, record)
         summary = (
             checkout
             / "tmp"
@@ -214,6 +215,15 @@ def test_complete_change_does_not_commit_when_first_stop_fails(tmp_path, monkeyp
     assert invoke(linked, record, "change.txt") == 2
     assert run(["git", "rev-parse", "HEAD"], linked).stdout == before
     assert run(["git", "rev-parse", "HEAD"], primary).stdout == before
+
+
+def test_preconditions_accept_stale_detached_metadata_when_live_branch_is_named(tmp_path):
+    _primary, linked, record = linked_run(tmp_path)
+    (linked / "change.txt").write_text("change\n", encoding="utf-8")
+    record["branch"] = ""
+    record["detached"] = True
+
+    complete_change._validate_preconditions(linked, record, {"change.txt"})
 
 
 def test_complete_change_rejects_detached_and_forbidden_paths(tmp_path, monkeypatch, capsys):

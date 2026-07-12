@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""校验 agent 运行 log 的基本结构完整性。"""
+"""校验 agent 运行 log 的基本结构完整性。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 import argparse
 import re
@@ -176,6 +178,7 @@ def validate_log(log_path: Path) -> list[str]:
 
 # 解析命令行参数并运行脚本入口。
 def main():
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     parser = argparse.ArgumentParser(
         description="校验 agent run log 的基本结构完整性（必填段落和字段是否存在）。",
         epilog="示例: python3 validate_agent_run_log.py tmp/agent_state/migration/P01-T03.log.md",

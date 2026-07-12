@@ -2,10 +2,12 @@ from __future__ import annotations
 
 import json
 import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-from scripts.quality import check_agent_runtime_report as checker
+from scripts.checks import check_agent_runtime_report as checker
 
+if TYPE_CHECKING:
+    from pathlib import Path
 
 PROTECTED_FILE = "harness/agent-runtime-report.schema.json"
 
@@ -81,8 +83,12 @@ def _run_checker(tmp_path: Path, monkeypatch, report: dict) -> int:
     monkeypatch.setattr(checker, "find_report", lambda change_id: report_path)
     monkeypatch.setattr(checker, "get_protected_roots", lambda: ["harness/"])
     monkeypatch.setattr(checker, "get_diff_changed_files", lambda: [PROTECTED_FILE])
-    monkeypatch.setattr(checker, "is_protected", lambda path, roots=None: path.startswith("harness/"))
-    monkeypatch.setattr(sys, "argv", ["check_agent_runtime_report.py", "--change-id", "unit-test-change"])
+    monkeypatch.setattr(
+        checker, "is_protected", lambda path, roots=None: path.startswith("harness/")
+    )
+    monkeypatch.setattr(
+        sys, "argv", ["check_agent_runtime_report.py", "--change-id", "unit-test-change"]
+    )
     return checker.main()
 
 

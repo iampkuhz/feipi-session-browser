@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""生成 agent runtime report JSON，符合 harness/agent-runtime-report.schema.json。"""
+"""生成 agent runtime report JSON，符合 harness/agent-runtime-report.schema.json。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
+
 from __future__ import annotations
 
 import argparse
@@ -23,8 +26,7 @@ def parse_gate(raw: str) -> dict:
     eq_idx = raw.find("=")
     if eq_idx < 0:
         print(
-            f"[{GATE_NAME}] FAIL: --gate 格式错误(缺少 '='): {raw}，"
-            "期望格式: name=status:command",
+            f"[{GATE_NAME}] FAIL: --gate 格式错误(缺少 '='): {raw}，期望格式: name=status:command",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -33,8 +35,7 @@ def parse_gate(raw: str) -> dict:
     colon_idx = rest.find(":")
     if colon_idx < 0:
         print(
-            f"[{GATE_NAME}] FAIL: --gate 格式错误(缺少 ':'): {raw}，"
-            "期望格式: name=status:command",
+            f"[{GATE_NAME}] FAIL: --gate 格式错误(缺少 ':'): {raw}，期望格式: name=status:command",
             file=sys.stderr,
         )
         raise SystemExit(1)
@@ -59,7 +60,7 @@ def parse_gate(raw: str) -> dict:
 # 生成 report JSON 并写入指定路径。
 def main() -> int:
     """返回：
-        进程退出码。
+    进程退出码。
     """
     parser = argparse.ArgumentParser(
         description="生成 agent runtime report JSON。",
@@ -72,12 +73,8 @@ def main() -> int:
         ),
     )
     parser.add_argument("--change-id", required=True, help="OpenSpec change 标识")
-    parser.add_argument(
-        "--agent-platform", required=True, help="agent 平台(claude/codex/qoder)"
-    )
-    parser.add_argument(
-        "--changed-file", action="append", default=[], help="变更文件(可重复)"
-    )
+    parser.add_argument("--agent-platform", required=True, help="agent 平台(claude/codex/qoder)")
+    parser.add_argument("--changed-file", action="append", default=[], help="变更文件(可重复)")
     parser.add_argument(
         "--gate",
         action="append",
@@ -116,7 +113,9 @@ def main() -> int:
 
     output_path = Path(args.output)
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    output_path.write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+    output_path.write_text(
+        json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
 
     print(f"[{GATE_NAME}] PASS: report 已写入 {output_path}")
     return 0

@@ -1,31 +1,20 @@
-"""Shared agent runtime policy helpers backed by agent-runtime manifest."""
+"""本模块负责从 runtime manifest 读取共享 Agent 策略。
+
+不负责平台 Hook wrapper 配置；由 Hook 或 Stop runtime 调用。"""
+
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 from typing import Any
 
 
-# 维护 repo_root 函数行为。
 def repo_root() -> Path:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """执行 `repo_root` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     return Path(__file__).resolve().parents[2]
 
 
-# 维护 _strip_quotes 函数行为。
 def _strip_quotes(value: str) -> str:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     value = value.strip()
     if (value.startswith('"') and value.endswith('"')) or (
         value.startswith("'") and value.endswith("'")
@@ -34,14 +23,7 @@ def _strip_quotes(value: str) -> str:
     return value
 
 
-# 维护 _parse_scalar 函数行为。
 def _parse_scalar(raw: str) -> Any:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     raw = _strip_quotes(raw.strip())
     if raw in {'', 'null', '~'}:
         return None
@@ -60,14 +42,7 @@ def _parse_scalar(raw: str) -> Any:
         return raw
 
 
-# 维护 _parse_top_level_lists 函数行为。
 def _parse_top_level_lists(text: str) -> dict[str, list[str]]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     data: dict[str, list[str]] = {}
     current: str | None = None
     for line in text.splitlines():
@@ -92,14 +67,8 @@ def _parse_top_level_lists(text: str) -> dict[str, list[str]]:
     return data
 
 
-# 维护 load_runtime_manifest 函数行为。
 def load_runtime_manifest(root: Path | None = None) -> dict[str, Any]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """读取 `load_runtime_manifest` 对应的受控数据；缺失或无效输入沿用调用方失败语义。"""
     base = Path(root) if root is not None else repo_root()
     manifest_path = base / 'harness' / 'agent-runtime.manifest.yaml'
     if not manifest_path.is_file():
@@ -113,28 +82,15 @@ def load_runtime_manifest(root: Path | None = None) -> dict[str, Any]:
     }
 
 
-# 维护 _normalize_root 函数行为。
 def _normalize_root(value: str) -> str:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     root = normalize_repo_path(value)
     if value.endswith('/') and root and not root.endswith('/'):
         root += '/'
     return root
 
 
-# 维护 protected_roots 函数行为。
 def protected_roots(root: Path | None = None) -> list[str]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """执行 `protected_roots` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     roots = load_runtime_manifest(root).get('protected_roots', [])
     if not isinstance(roots, list):
         return []
@@ -148,14 +104,8 @@ def protected_roots(root: Path | None = None) -> list[str]:
     return result
 
 
-# 维护 normalize_repo_path 函数行为。
 def normalize_repo_path(path: str) -> str:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """解析 `normalize_repo_path` 对应的输入并返回规范化结果；不修改调用方数据。"""
     raw = str(path).strip().replace('\\', '/')
     if not raw:
         return ''
@@ -186,14 +136,7 @@ def normalize_repo_path(path: str) -> str:
     return normalized
 
 
-# 维护 _normalize_repo_path_for_root 函数行为。
 def _normalize_repo_path_for_root(path: str, root: Path | None = None) -> str:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     raw = str(path).strip().replace('\\', '/')
     if not raw:
         return ''
@@ -208,14 +151,8 @@ def _normalize_repo_path_for_root(path: str, root: Path | None = None) -> str:
     return normalize_repo_path(raw)
 
 
-# 维护 is_protected_path 函数行为。
 def is_protected_path(path: str, root: Path | None = None) -> bool:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """判断 `is_protected_path` 对应的约束是否成立；不修改输入状态。"""
     normalized = _normalize_repo_path_for_root(path, root)
     if not normalized or normalized.startswith('../') or normalized == '..':
         return False
@@ -226,14 +163,8 @@ def is_protected_path(path: str, root: Path | None = None) -> bool:
     return False
 
 
-# 维护 required_platforms 函数行为。
 def required_platforms(root: Path | None = None) -> list[str]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """执行 `required_platforms` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
     base = Path(root) if root is not None else repo_root()
     manifest_path = base / 'harness' / 'agent-runtime.manifest.yaml'
     text = manifest_path.read_text(encoding='utf-8')
@@ -252,14 +183,8 @@ def required_platforms(root: Path | None = None) -> list[str]:
     return platforms
 
 
-# 维护 main 函数行为。
 def main(argv: list[str] | None = None) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     parser = argparse.ArgumentParser(description='Agent runtime policy helper')
     parser.add_argument('--is-protected', metavar='PATH', help='check whether PATH is protected')
     parser.add_argument('--list-protected-roots', action='store_true')

@@ -16,7 +16,7 @@
 
 - Read the task source and scoped handoff before any gate or code snippets.
 - Reference `$HOME/Downloads/feipi_agent_env_full_qoder_tasks/shared/EXPECTED_OUTCOMES.md` only for the relevant outcome contract.
-- Reference `scripts/claude_hooks/paths.py` only when the allowed scope includes runtime path logic.
+- Reference `scripts/agent_runtime/paths.py` only when the allowed scope includes runtime path logic.
 
 ## Allowed Scope
 

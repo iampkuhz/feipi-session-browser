@@ -103,6 +103,6 @@ rules:
     when:
       event: before_stop_or_handoff
     require:
-      - run_required_quality_gates_or_report_blocked
+      - run_gate_service_or_report_blocked
       - no_skipped_in_required_or_full
       - write_validation_report

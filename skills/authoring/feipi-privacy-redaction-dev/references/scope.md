@@ -20,8 +20,8 @@
 ## 关键路径
 
 - `skills/authoring/feipi-privacy-redaction-dev/` — skill 源目录。
-- `scripts/quality/check_no_real_session_fixtures.py` — 真实 session fixture 门禁。
-- `scripts/quality/check_secret_like_content.py` — 类密钥内容门禁。
+- `scripts/checks/check_no_real_session_fixtures.py` — 真实 session fixture 门禁。
+- `scripts/checks/check_secret_like_content.py` — 类密钥内容门禁。
 - `tests/fixtures/synthetic/` — synthetic fixture 目录。
 - `harness/skill-registry.yaml` — skill registry。
 - `harness/agent-runtime.manifest.yaml` — runtime manifest。

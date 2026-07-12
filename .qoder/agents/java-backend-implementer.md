@@ -33,7 +33,7 @@
 ## Validation
 
 - Run the handoff validation command exactly when provided.
-- Otherwise run `./scripts/session-browser.sh test` and `python scripts/quality/check_java_module_boundaries.py` when Java code changes.
+- Otherwise run `./scripts/session-browser.sh test` and `python scripts/checks/check_java_module_boundaries.py` when Java code changes.
 - Treat failed, skipped, unavailable, or not-run required gates as non-PASS.
 
 ## Output Format

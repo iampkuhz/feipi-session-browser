@@ -1,4 +1,4 @@
-"""验证 check_timeline_expandability.py 静态分析脚本的测试。"""
+"""验证 Timeline 可扩展性测试支持模块。"""
 
 from __future__ import annotations
 
@@ -11,8 +11,8 @@ from pathlib import Path
 
 import pytest
 
-SCRIPT_DIR = Path(__file__).resolve().parents[2] / 'scripts'
-sys.path.insert(0, str(SCRIPT_DIR))
+SUPPORT_DIR = Path(__file__).resolve().parents[1] / 'support'
+sys.path.insert(0, str(SUPPORT_DIR))
 
 import check_timeline_expandability as chk  # noqa: E402
 
@@ -263,9 +263,7 @@ class TestToggleAriaSync:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         chk.check_toggle_aria_sync(BAD_TIMELINE_HTML_NO_TOGGLE)
-        # BAD_TIMELINE_HTML_NO_TOGGLE 缺少 inline onclick，
-        # 但实际 timeline.js 中的事件委托会替代它。因此检查应通过事件委托而非失败。
-        # 验证没有崩溃发生。
+        # Java timeline.js 的事件委托提供等价同步能力。
         assert chk._FAIL_COUNT == 0
 
 
@@ -363,15 +361,17 @@ class TestChildrenVisibilityCss:
 # 回归：事件委托替代 trace 行上的 inline onclick
 # ---------------------------------------------------------------------------
 
-# session.html 路径：tests/ 在仓库根目录，所以用 ../java/web/src/main/resources/templates/
-SESSION_HTML = (
+# Java web resources 是当前 UI 契约的唯一源码。
+WEB_RESOURCES = (
     Path(__file__).resolve().parents[2]
-    / 'src'
-    / 'session_browser'
+    / 'java'
     / 'web'
-    / 'templates'
-    / 'session.html'
+    / 'src'
+    / 'main'
+    / 'resources'
 )
+SESSION_HTML = WEB_RESOURCES / 'templates' / 'session.html'
+SESSION_TIMELINE_JS = WEB_RESOURCES / 'static' / 'js' / 'session_detail_timeline.js'
 
 
 class TestNoInlineOnclickOnTraceRows:
@@ -432,15 +432,7 @@ class TestEventDelegationPresent:
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
         # JS 在 session_detail_timeline.js 中，处理 data-action="toggle-round"
-        js_path = (
-            Path(__file__).resolve().parents[2]
-            / 'src'
-            / 'session_browser'
-            / 'web'
-            / 'static'
-            / 'js'
-            / 'session_detail_timeline.js'
-        )
+        js_path = SESSION_TIMELINE_JS
         if js_path.exists():
             js = js_path.read_text(encoding='utf-8')
             has_toggle = 'toggle-round' in js or 'toggleRound' in js
@@ -454,15 +446,7 @@ class TestEventDelegationPresent:
         chk._WARN_COUNT = 0
         # 使用 data-action="collapse-all"（没有单独的 expand-visible）
         # 检查 timeline JS 中的 collapse-all
-        js_path = (
-            Path(__file__).resolve().parents[2]
-            / 'src'
-            / 'session_browser'
-            / 'web'
-            / 'static'
-            / 'js'
-            / 'session_detail_timeline.js'
-        )
+        js_path = SESSION_TIMELINE_JS
         if js_path.exists():
             js = js_path.read_text(encoding='utf-8')
             has_collapse = 'collapse-all' in js or 'collapseAll' in js or 'collapse_all' in js
@@ -474,15 +458,7 @@ class TestEventDelegationPresent:
     def test_delegation_handles_collapse_all(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        js_path = (
-            Path(__file__).resolve().parents[2]
-            / 'src'
-            / 'session_browser'
-            / 'web'
-            / 'static'
-            / 'js'
-            / 'session_detail_timeline.js'
-        )
+        js_path = SESSION_TIMELINE_JS
         if js_path.exists():
             js = js_path.read_text(encoding='utf-8')
             has_collapse = 'collapse-all' in js or 'collapseAll' in js or 'collapse_all' in js
@@ -498,15 +474,7 @@ class TestAccordionBehavior:
     def test_collapse_others_function_exists(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        js_path = (
-            Path(__file__).resolve().parents[2]
-            / 'src'
-            / 'session_browser'
-            / 'web'
-            / 'static'
-            / 'js'
-            / 'session_detail_timeline.js'
-        )
+        js_path = SESSION_TIMELINE_JS
         if js_path.exists():
             js = js_path.read_text(encoding='utf-8')
             # toggleRound 处理手风琴行为
@@ -519,15 +487,7 @@ class TestAccordionBehavior:
     def test_toggle_round_detail_calls_collapse_others(self):
         chk._FAIL_COUNT = 0
         chk._WARN_COUNT = 0
-        js_path = (
-            Path(__file__).resolve().parents[2]
-            / 'src'
-            / 'session_browser'
-            / 'web'
-            / 'static'
-            / 'js'
-            / 'session_detail_timeline.js'
-        )
+        js_path = SESSION_TIMELINE_JS
         if js_path.exists():
             js = js_path.read_text(encoding='utf-8')
             # toggleRound 应折叠其他 round

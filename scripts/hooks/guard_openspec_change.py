@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""Fail-closed guard for protected writes that require a valid active OpenSpec change."""
+"""本模块负责执行 `guard_openspec_change` 对应的确定性仓库检查。
+
+不负责执行被保护写入；由平台 Hook runtime 调用。"""
 
 from __future__ import annotations
 
@@ -17,15 +19,15 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+from scripts.agent_runtime.paths import build_paths, legacy_active_change_path  # noqa: E402
 from scripts.agent_runtime.policy import is_protected_path  # noqa: E402
-from scripts.claude_hooks.paths import build_paths, legacy_active_change_path  # noqa: E402
-from scripts.openspec.validate_active_change import validate_change_at_root  # noqa: E402
 from scripts.harness.primary_session import validate_run_write_authorization  # noqa: E402
+from scripts.openspec.validate_active_change import validate_change_at_root  # noqa: E402
 
 
 @dataclass(frozen=True)
 class Resolution:
-    """Selected active change resolution result."""
+    """保存 active change 解析结果与选择来源，供 Hook guard 判定。"""
 
     change_id: str | None
     source: str
@@ -33,25 +35,11 @@ class Resolution:
     errors: tuple[str, ...] = ()
 
 
-# 维护 _repo_root 函数行为。
 def _repo_root(root: str | Path | None = None) -> Path:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     return Path(root).resolve() if root else REPO_ROOT
 
 
-# 维护 _read_change_id_file 函数行为。
 def _read_change_id_file(path: Path) -> str | None:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     if not path.is_file():
         return None
     try:
@@ -65,14 +53,7 @@ def _read_change_id_file(path: Path) -> str | None:
     return None
 
 
-# 维护 _runtime_active_change 函数行为。
 def _runtime_active_change(root: Path) -> tuple[str | None, str]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     try:
         paths = build_paths(repo_root=root)
     except Exception:
@@ -90,21 +71,13 @@ def _runtime_active_change(root: Path) -> tuple[str | None, str]:
     return None, 'runtime'
 
 
-# 维护 _non_archive_changes 函数行为。
 def _non_archive_changes(root: Path) -> list[str]:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     changes_dir = root / 'openspec' / 'changes'
     if not changes_dir.is_dir():
         return []
     return sorted(p.name for p in changes_dir.iterdir() if p.is_dir() and p.name != 'archive')
 
 
-# 维护 resolve_active_change 函数行为。
 def resolve_active_change(
     *,
     root: str | Path | None = None,
@@ -127,6 +100,7 @@ def resolve_active_change(
     env_run = environ.get('FEIPI_RUN_ID', '').strip()
     if env_run:
         from scripts.harness.primary_session import load_run_record
+
         record = load_run_record(base, env_run)
         if record and record.get('changeId'):
             return Resolution(str(record['changeId']), f'run record {env_run}', explicit=True)
@@ -141,7 +115,11 @@ def resolve_active_change(
 
     legacy_change = _read_change_id_file(base / 'tmp' / 'active_change.json')
     if legacy_change:
-        return Resolution(legacy_change, 'tmp/active_change.json', errors=('legacy active change fallback; not valid for bound writable runs',))
+        return Resolution(
+            legacy_change,
+            'tmp/active_change.json',
+            errors=('legacy active change fallback; not valid for bound writable runs',),
+        )
 
     changes = _non_archive_changes(base)
     if len(changes) == 1:
@@ -157,7 +135,6 @@ def resolve_active_change(
     return Resolution(None, 'auto-discovery', errors=('No active OpenSpec change selected.',))
 
 
-# 维护 guard_path 函数行为。
 def guard_path(
     path: str | None = None,
     *,
@@ -184,10 +161,13 @@ def guard_path(
     environ = env if env is not None else os.environ
     selected_run = (run_id or environ.get('FEIPI_RUN_ID', '')).strip()
     selected_session = (session_id or environ.get('FEIPI_SESSION_ID', '')).strip()
-    selected_client = (client or environ.get('FEIPI_AGENT_CLIENT', '') or environ.get('FEIPI_CLIENT', '')).strip()
+    selected_client = (
+        client or environ.get('FEIPI_AGENT_CLIENT', '') or environ.get('FEIPI_CLIENT', '')
+    ).strip()
     resolution = resolve_active_change(root=base, cli_change_id=change_id, env=env)
     if selected_run:
         from scripts.harness.primary_session import load_run_record
+
         run_record = load_run_record(base, selected_run) or {}
         authoritative_change = str(run_record.get('changeId') or resolution.change_id or '')
         ok, auth_errors, record = validate_run_write_authorization(
@@ -202,9 +182,15 @@ def guard_path(
             ok = False
             auth_errors.append('current change id does not match run record')
         if not ok:
-            return 2, 'OpenSpec guard BLOCK: run-scoped authorization failed: ' + '; '.join(auth_errors)
+            return 2, 'OpenSpec guard BLOCK: run-scoped authorization failed: ' + '; '.join(
+                auth_errors
+            )
     if not resolution.change_id:
-        detail = '; '.join(resolution.errors) if resolution.errors else 'No active OpenSpec change selected.'
+        detail = (
+            '; '.join(resolution.errors)
+            if resolution.errors
+            else 'No active OpenSpec change selected.'
+        )
         return 2, f'OpenSpec guard BLOCK: {detail}'
 
     errors = validate_change_at_root(resolution.change_id, base)
@@ -221,14 +207,7 @@ def guard_path(
     )
 
 
-# 维护 _write_valid_change 函数行为。
 def _write_valid_change(root: Path, change_id: str) -> None:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     change_dir = root / 'openspec' / 'changes' / change_id
     specs_dir = change_dir / 'specs' / 'agent-runtime'
     specs_dir.mkdir(parents=True, exist_ok=True)
@@ -237,27 +216,14 @@ def _write_valid_change(root: Path, change_id: str) -> None:
     (specs_dir / 'spec.md').write_text('# spec\n', encoding='utf-8')
 
 
-# 维护 _write_manifest 函数行为。
 def _write_manifest(root: Path) -> None:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
     manifest = root / 'harness' / 'agent-runtime.manifest.yaml'
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text('protected_roots:\n  - .claude/\n  - scripts/\n', encoding='utf-8')
 
 
-# 维护 run_self_test 函数行为。
 def run_self_test() -> bool:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """执行 `run_self_test` 对应的仓库检查流程；失败时保留可诊断的退出语义。"""
     tmp_root = Path(tempfile.mkdtemp(prefix='openspec_guard_selftest_'))
     try:
         _write_manifest(tmp_root)
@@ -274,7 +240,9 @@ def run_self_test() -> bool:
         if code != 0:
             print('  FAIL: valid selected change should pass')
             return False
-        code, _ = guard_path('.claude/agents/a.md', root=tmp_root, change_id='missing-change', env={})
+        code, _ = guard_path(
+            '.claude/agents/a.md', root=tmp_root, change_id='missing-change', env={}
+        )
         if code != 2:
             print('  FAIL: invalid selected change should block')
             return False
@@ -289,14 +257,8 @@ def run_self_test() -> bool:
         shutil.rmtree(tmp_root, ignore_errors=True)
 
 
-# 维护 main 函数行为。
 def main(argv: list[str] | None = None) -> int:
-    """参数：
-        *args: 当前函数使用的输入参数。
-
-    返回：
-        当前函数计算或校验结果。
-    """
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     parser = argparse.ArgumentParser(description='Fail-closed OpenSpec active change guard')
     parser.add_argument('--change-id', help='explicit active change id')
     parser.add_argument('--path', help='candidate path to guard')
@@ -310,7 +272,14 @@ def main(argv: list[str] | None = None) -> int:
     if args.self_test:
         return 0 if run_self_test() else 1
 
-    code, message = guard_path(args.path, root=args.root, change_id=args.change_id, run_id=args.run_id, session_id=args.session_id, client=args.client)
+    code, message = guard_path(
+        args.path,
+        root=args.root,
+        change_id=args.change_id,
+        run_id=args.run_id,
+        session_id=args.session_id,
+        client=args.client,
+    )
     stream = sys.stdout if code == 0 else sys.stderr
     print(message, file=stream)
     return code

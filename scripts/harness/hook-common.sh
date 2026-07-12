@@ -9,7 +9,7 @@ run_python_hook() {
   export FEIPI_AGENT_CLIENT="$client"
   cd "$root"
   export PYTHONPATH="${root}${PYTHONPATH:+:${PYTHONPATH}}"
-  exec python3 -m scripts.claude_hooks.main "$event"
+  exec python3 -m scripts.agent_runtime.hook_entry "$event"
 }
 
 # 标准输入不落盘、不解析，直接转发给共享 Stop 入口。

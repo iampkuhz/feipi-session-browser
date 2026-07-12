@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from scripts.quality.run_session_samples_gate import is_worktree_locator_drift
+from scripts.checks.run_session_samples_gate import is_worktree_locator_drift
 
 
 def _report(expected: str, actual: str, *, category: str = 'volatile_field') -> str:

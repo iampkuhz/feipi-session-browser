@@ -5,7 +5,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from scripts.harness import launch_codex_worktree, primary_session, sessionctl
 
 ROOT = Path(__file__).resolve().parents[1]

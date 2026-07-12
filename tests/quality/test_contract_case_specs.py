@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.quality.validate_acceptance_contracts import (
+from scripts.checks.validate_acceptance_contracts import (
     EXPECTED_FEATURE_TABLES,
     validate_acceptance_contracts,
 )

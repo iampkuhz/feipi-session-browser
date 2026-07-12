@@ -28,7 +28,7 @@
 - 改 agent/harness/scripts/skills/openspec：优先 `bash scripts/harness/doctor.sh`。
 - 改产品代码或测试：`./scripts/session-browser.sh test`。
 - 改 build 配置：触发 `java-build` target。
-- Stop/handoff 前运行 `scripts/quality/run_required_quality_gates.py`。
+- Stop/handoff 前唯一门禁命令是 `python3 scripts/gates/cli.py --tier required`。
 - 改 Java 源码时参考 `openspec/specs/java-code-conciseness/spec.md`。
 
 ## 提交与集成

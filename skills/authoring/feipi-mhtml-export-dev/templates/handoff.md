@@ -9,7 +9,7 @@
   - `java/web/src/main/resources/templates/` — 导出相关 Jinja 模板
   - `java/web/src/main/resources/static/` — 需要内联的 CSS/JS 资源
   - `tests/backend/test_mhtml_export.py` — 导出测试
-  - `scripts/quality/` — 导出相关检查脚本（如需）
+  - `scripts/checks/` — 导出相关检查脚本（如需）
 
 ## Forbidden scope
 
@@ -32,8 +32,8 @@
 ## Validation
 
 ```bash
-python scripts/quality/check_session_detail_static.py
-python scripts/quality/check_js_action_handlers.py
+python scripts/checks/check_session_detail_static.py
+python scripts/checks/check_js_action_handlers.py
 ```
 
 按需追加：

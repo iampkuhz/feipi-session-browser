@@ -17,9 +17,9 @@
 | Gate | Result |
 |---|---|
 | `./scripts/session-browser.sh test` | <PASS/FAIL> |
-| `python scripts/quality/check_java_module_boundaries.py` | <PASS/FAIL> |
-| `python scripts/quality/check_java_api_snapshot.py` | <PASS/FAIL/skipped> |
-| `python scripts/quality/run_required_quality_gates.py` | <PASS/FAIL/skipped> |
+| `python scripts/checks/check_java_module_boundaries.py` | <PASS/FAIL> |
+| `python scripts/checks/check_java_api_snapshot.py` | <PASS/FAIL/skipped> |
+| `python scripts/gates/cli.py` | <PASS/FAIL/skipped> |
 
 ## Risks
 

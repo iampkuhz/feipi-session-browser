@@ -73,12 +73,12 @@ def test_qoder_agents_reference_shared_skills():
 
     runtime_content = _read(".qoder/agents/runtime-isolation-diagnoser.md")
     assert "EXPECTED_OUTCOMES.md" in runtime_content
-    assert "scripts/claude_hooks/paths.py" in runtime_content
+    assert "scripts/agent_runtime/paths.py" in runtime_content
 
 
 def test_check_qoder_runtime_parity_passes():
     result = subprocess.run(
-        [sys.executable, "scripts/quality/check_qoder_runtime_parity.py"],
+        [sys.executable, "scripts/checks/check_qoder_runtime_parity.py"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,

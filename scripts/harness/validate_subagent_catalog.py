@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""验证 subagent catalog structure and 必需 fields。"""
+"""本模块负责执行 `validate_subagent_catalog` 对应的确定性仓库检查。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 import sys
 from pathlib import Path
@@ -65,14 +67,14 @@ def parse_simple_yaml(content: str) -> dict:
                 current_section = None
                 in_subagents = False
             else:
-                # 启动of nested structure。
+                # 开始解析嵌套结构。
                 result[key] = {}
                 current_section = key
                 in_subagents = key == 'subagents'
                 current_list_item = None
 
         elif current_section and indent > 0:
-            # 列出item under subagents。
+            # 读取 subagents 下的列表项。
             if in_subagents and lstripped.startswith('- '):
                 # 保存previous 列表 item 如果 any。
                 if current_list_item is not None:
@@ -82,12 +84,12 @@ def parse_simple_yaml(content: str) -> dict:
 
                 # 启动new 列表 item。
                 current_list_item = {}
-                item_content = lstripped[2:]  # Remove '- '
+                item_content = lstripped[2:]  # 移除列表项前缀。
                 if ':' in item_content:
                     key, _, value = item_content.partition(':')
                     current_list_item[key.strip()] = parse_value(value.strip())
 
-            # Continuation of 列表 item。
+            # 合并列表项的续行。
             elif current_list_item is not None and indent >= 4:
                 if ':' in lstripped:
                     key, _, value = lstripped.partition(':')
@@ -139,7 +141,7 @@ def parse_simple_yaml(content: str) -> dict:
 # 解析值。
 def parse_value(value: str):
     """参数：
-        value: value 参数。
+    value: value 参数。
     """
     if not value:
         return None
@@ -195,7 +197,7 @@ def validate_catalog(catalog_path: Path) -> list[str]:
     if not isinstance(catalog, dict):
         return ['Catalog root must be a mapping']
 
-    # 检查top-level structure。
+    # 检查顶层目录结构。
     if 'version' not in catalog:
         errors.append('Missing top-level "version" field')
     elif catalog['version'] != 1:
@@ -269,6 +271,7 @@ def validate_catalog(catalog_path: Path) -> list[str]:
 
 # 解析命令行参数并运行脚本入口。
 def main():
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     repo_root = Path(__file__).resolve().parent.parent.parent
     catalog_path = repo_root / 'harness' / 'subagents' / 'catalog.yaml'
 

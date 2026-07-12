@@ -1,4 +1,6 @@
-"""Primary session run contract model and validators."""
+"""本模块负责定义 primary session 运行契约并校验记录。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
@@ -110,14 +112,28 @@ ALLOWED_TRANSITIONS = {
         "HANDOFF_REQUIRED",
         "BLOCKED",
     },
-    "VALIDATED": {"VALIDATING", "ISOLATED_WRITER", "LOCAL_WRITER", "READ_ONLY_CONFLICT", "INTEGRATING", "HANDOFF_REQUIRED", "BLOCKED"},
+    "VALIDATED": {
+        "VALIDATING",
+        "ISOLATED_WRITER",
+        "LOCAL_WRITER",
+        "READ_ONLY_CONFLICT",
+        "INTEGRATING",
+        "HANDOFF_REQUIRED",
+        "BLOCKED",
+    },
     "INTEGRATING": {"INTEGRATED", "HANDOFF_REQUIRED", "BLOCKED"},
     "INTEGRATED": set(),
-    "HANDOFF_REQUIRED": {"VALIDATING", "ISOLATED_WRITER", "LOCAL_WRITER", "READ_ONLY_CONFLICT", "INTEGRATING", "BLOCKED"},
-    "BLOCKED": set(),
+    "HANDOFF_REQUIRED": {
+        "VALIDATING",
+        "ISOLATED_WRITER",
+        "LOCAL_WRITER",
+        "READ_ONLY_CONFLICT",
+        "INTEGRATING",
+        "BLOCKED",
+    },
+    # BLOCKED 会停止自动重入；仅显式 Stop 重试可开启一次新的验证审计。
+    "BLOCKED": {"VALIDATING"},
 }
-
-
 
 
 # 解析简化清单中的标量值。
@@ -166,7 +182,9 @@ def _load_simple_yaml(path: Path) -> dict[str, Any]:
             continue
         key, sep, value = line.partition(":")
         if not sep:
-            raise PrimarySessionValidationError(f"fallback YAML parser cannot parse line: {raw_line}")
+            raise PrimarySessionValidationError(
+                f"fallback YAML parser cannot parse line: {raw_line}"
+            )
         if not isinstance(parent, dict):
             raise PrimarySessionValidationError("fallback YAML parser expected mapping parent")
         if value.strip():
@@ -184,12 +202,12 @@ def _load_simple_yaml(path: Path) -> dict[str, Any]:
 
 
 class PrimarySessionValidationError(ValueError):
-    """Raised when a primary session manifest or run record is invalid."""
+    """primary session manifest 或运行记录无效时抛出。"""
 
 
 @dataclass(frozen=True)
 class Collision:
-    """A machine-readable run collision."""
+    """保存机器可读的运行冲突事实，供 CLI 输出诊断。"""
 
     kind: str
     message: str
@@ -233,10 +251,59 @@ def _absolute_path(path: Path) -> Path:
     return Path(os.path.abspath(os.path.expanduser(str(path))))
 
 
+def snapshot_path_states(
+    repo_root: Path,
+    paths: list[str] | tuple[str, ...] | set[str],
+) -> dict[str, dict[str, Any]]:
+    """为仓库相对路径生成不含原文的存在性、大小与内容哈希快照。
+
+    删除文件也保留明确状态；无法安全归一化或读取内容时关闭失败，避免把
+    无法证明相同的 baseline dirty 静默排除。
+    """
+    root = _absolute_path(repo_root)
+    states: dict[str, dict[str, Any]] = {}
+    for raw_path in sorted(set(paths)):
+        normalized = raw_path.replace('\\', '/').strip('/')
+        relative = Path(normalized)
+        if not normalized or relative.is_absolute() or '..' in relative.parts:
+            raise PrimarySessionValidationError(
+                f"dirty snapshot path is not repository-relative: {raw_path!r}"
+            )
+        candidate = root / relative
+        try:
+            metadata = candidate.lstat()
+        except FileNotFoundError:
+            states[normalized] = {"exists": False, "size": None, "sha256": None}
+            continue
+        if stat.S_ISLNK(metadata.st_mode):
+            payload = os.readlink(candidate).encode("utf-8", errors="surrogateescape")
+        elif stat.S_ISREG(metadata.st_mode):
+            digest = hashlib.sha256()
+            with candidate.open("rb") as handle:
+                for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            states[normalized] = {
+                "exists": True,
+                "size": metadata.st_size,
+                "sha256": digest.hexdigest(),
+            }
+            continue
+        else:
+            raise PrimarySessionValidationError(
+                f"dirty snapshot path is not a regular file or symlink: {raw_path!r}"
+            )
+        states[normalized] = {
+            "exists": True,
+            "size": len(payload),
+            "sha256": hashlib.sha256(payload).hexdigest(),
+        }
+    return states
+
+
 # 读取当前进程的有效用户标识。
 def _current_user_id() -> int | None:
     """返回：
-        当前用户标识；平台不支持时返回 None。
+    当前用户标识；平台不支持时返回 None。
     """
     getter = getattr(os, "geteuid", None) or getattr(os, "getuid", None)
     return getter() if getter is not None else None
@@ -302,27 +369,43 @@ def ensure_private_directory(path: Path, *, root: Path | None = None) -> Path:
     try:
         metadata = target.lstat()
     except FileNotFoundError as exc:
-        raise PrimarySessionValidationError(f"runtime directory could not be created: {target}") from exc
+        raise PrimarySessionValidationError(
+            f"runtime directory could not be created: {target}"
+        ) from exc
     if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISDIR(metadata.st_mode):
         raise PrimarySessionValidationError(f"runtime path is not a private directory: {target}")
     current_user = _current_user_id()
     if current_user is not None and metadata.st_uid != current_user:
-        raise PrimarySessionValidationError(f"runtime directory is not owned by current user: {target}")
+        raise PrimarySessionValidationError(
+            f"runtime directory is not owned by current user: {target}"
+        )
 
     flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0) | getattr(os, "O_NOFOLLOW", 0)
     try:
         descriptor = os.open(target, flags)
     except OSError as exc:
-        raise PrimarySessionValidationError(f"runtime directory cannot be opened safely: {target}") from exc
+        raise PrimarySessionValidationError(
+            f"runtime directory cannot be opened safely: {target}"
+        ) from exc
     try:
         opened = os.fstat(descriptor)
-        if not stat.S_ISDIR(opened.st_mode) or opened.st_ino != metadata.st_ino or opened.st_dev != metadata.st_dev:
-            raise PrimarySessionValidationError(f"runtime directory changed during validation: {target}")
+        if (
+            not stat.S_ISDIR(opened.st_mode)
+            or opened.st_ino != metadata.st_ino
+            or opened.st_dev != metadata.st_dev
+        ):
+            raise PrimarySessionValidationError(
+                f"runtime directory changed during validation: {target}"
+            )
         if current_user is not None and opened.st_uid != current_user:
-            raise PrimarySessionValidationError(f"runtime directory is not owned by current user: {target}")
+            raise PrimarySessionValidationError(
+                f"runtime directory is not owned by current user: {target}"
+            )
         os.fchmod(descriptor, 0o700)
         if stat.S_IMODE(os.fstat(descriptor).st_mode) != 0o700:
-            raise PrimarySessionValidationError(f"runtime directory permissions are not 0700: {target}")
+            raise PrimarySessionValidationError(
+                f"runtime directory permissions are not 0700: {target}"
+            )
     finally:
         os.close(descriptor)
     return target
@@ -343,7 +426,9 @@ def resolve_checkout_root(repo_root: Path) -> Path:
         raw = _git_output(_absolute_path(repo_root), "rev-parse", "--show-toplevel")
         return Path(raw).expanduser().resolve(strict=True)
     except Exception as exc:
-        raise PrimarySessionValidationError(f"cannot resolve Git checkout root: {repo_root}") from exc
+        raise PrimarySessionValidationError(
+            f"cannot resolve Git checkout root: {repo_root}"
+        ) from exc
 
 
 # 解析 checkout 共享且只读的 Git common-dir。
@@ -388,9 +473,13 @@ def _listed_worktree_roots(repo_root: Path) -> list[Path]:
             if field.startswith("worktree ")
         ]
     except Exception as exc:
-        raise PrimarySessionValidationError(f"cannot read Git worktree metadata: {repo_root}") from exc
+        raise PrimarySessionValidationError(
+            f"cannot read Git worktree metadata: {repo_root}"
+        ) from exc
     if not roots or checkout_root not in roots:
-        raise PrimarySessionValidationError(f"checkout is absent from Git worktree metadata: {checkout_root}")
+        raise PrimarySessionValidationError(
+            f"checkout is absent from Git worktree metadata: {checkout_root}"
+        )
     return roots
 
 
@@ -409,7 +498,9 @@ def resolve_primary_repo_root(repo_root: Path) -> Path:
     roots = _listed_worktree_roots(checkout_root)
     primary_root = roots[0]
     if resolve_git_common_dir(primary_root) != resolve_git_common_dir(checkout_root):
-        raise PrimarySessionValidationError("primary checkout and current checkout have different Git common-dir")
+        raise PrimarySessionValidationError(
+            "primary checkout and current checkout have different Git common-dir"
+        )
     return primary_root
 
 
@@ -466,7 +557,7 @@ def stable_worktree_id(repo_key: str, checkout_root: str | Path) -> str:
         稳定的 checkout 标识。
     """
     root = Path(checkout_root).expanduser().resolve(strict=True)
-    digest = hashlib.sha256(f"{repo_key}\0{root}".encode("utf-8")).hexdigest()
+    digest = hashlib.sha256(f"{repo_key}\0{root}".encode()).hexdigest()
     return f"checkout-{digest[:24]}"
 
 
@@ -493,20 +584,27 @@ def resolve_checkout_identity(
     head = _git_output(checkout_root, "rev-parse", "HEAD")
     creator = checkout_creator if checkout_creator in CHECKOUT_CREATORS else "unknown"
     base = str(base_commit or "").strip()
-    base_exists = bool(base) and subprocess.run(
-        ["git", "-C", str(checkout_root), "cat-file", "-e", f"{base}^{{commit}}"],
-        stdout=subprocess.DEVNULL,
-        stderr=subprocess.DEVNULL,
-        check=False,
-    ).returncode == 0
-    base_is_ancestor = None
-    if base_exists:
-        base_is_ancestor = subprocess.run(
-            ["git", "-C", str(checkout_root), "merge-base", "--is-ancestor", base, "HEAD"],
+    base_exists = (
+        bool(base)
+        and subprocess.run(
+            ["git", "-C", str(checkout_root), "cat-file", "-e", f"{base}^{{commit}}"],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
             check=False,
-        ).returncode == 0
+        ).returncode
+        == 0
+    )
+    base_is_ancestor = None
+    if base_exists:
+        base_is_ancestor = (
+            subprocess.run(
+                ["git", "-C", str(checkout_root), "merge-base", "--is-ancestor", base, "HEAD"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                check=False,
+            ).returncode
+            == 0
+        )
     return {
         "repoKey": repo_key,
         "checkoutRoot": str(checkout_root),
@@ -525,7 +623,9 @@ def resolve_checkout_identity(
 
 
 # 对比运行记录与当前 Git 事实，仅将祖先关系作为证据而非有效性依据。
-def validate_checkout_record(repo_root: Path, record: dict[str, Any]) -> tuple[dict[str, Any], list[str]]:
+def validate_checkout_record(
+    repo_root: Path, record: dict[str, Any]
+) -> tuple[dict[str, Any], list[str]]:
     """参数：
         repo_root: 当前仓库根目录。
         record: 待校验的运行记录。
@@ -542,7 +642,9 @@ def validate_checkout_record(repo_root: Path, record: dict[str, Any]) -> tuple[d
     recorded_root = Path(str(record.get("checkoutRoot") or "")).expanduser().resolve()
     if recorded_root != Path(facts["checkoutRoot"]):
         errors.append("cwd realpath does not match run checkout root")
-    if record.get("checkoutRoot") and Path(str(record["checkoutRoot"])).expanduser().resolve() != Path(facts["checkoutRoot"]):
+    if record.get("checkoutRoot") and Path(
+        str(record["checkoutRoot"])
+    ).expanduser().resolve() != Path(facts["checkoutRoot"]):
         errors.append("run checkoutRoot does not match current checkout")
     creator = str(record.get("checkoutCreator") or "unknown")
     if creator not in CHECKOUT_CREATORS:
@@ -667,7 +769,9 @@ def validate_status_transition(from_status: str, to_status: str) -> None:
     if to_status not in RUN_STATUSES:
         raise PrimarySessionValidationError(f"unknown target status: {to_status}")
     if to_status not in ALLOWED_TRANSITIONS[from_status]:
-        raise PrimarySessionValidationError(f"illegal status transition: {from_status} -> {to_status}")
+        raise PrimarySessionValidationError(
+            f"illegal status transition: {from_status} -> {to_status}"
+        )
 
 
 # 校验单条运行记录。
@@ -688,9 +792,7 @@ def validate_run_record(record: dict[str, Any]) -> None:
     if record["checkoutKind"] not in CHECKOUT_KINDS:
         raise PrimarySessionValidationError(f"invalid checkoutKind: {record['checkoutKind']}")
     if record["checkoutCreator"] not in CHECKOUT_CREATORS:
-        raise PrimarySessionValidationError(
-            f"invalid checkoutCreator: {record['checkoutCreator']}"
-        )
+        raise PrimarySessionValidationError(f"invalid checkoutCreator: {record['checkoutCreator']}")
     if not isinstance(record["detached"], bool):
         raise PrimarySessionValidationError("detached must be boolean")
     if not isinstance(record["initialDirtySnapshot"], dict):
@@ -748,9 +850,16 @@ def validate_run_record(record: dict[str, Any]) -> None:
             raise PrimarySessionValidationError("writerLease holderSessionId must match sessionId")
         hook_activation = record.get("hookActivation")
         if not isinstance(hook_activation, dict):
-            raise PrimarySessionValidationError("writer lease holder requires hookActivation mapping")
-        if record["status"] in WRITABLE_READY_STATUSES and hook_activation.get("confirmed") is not True:
-            raise PrimarySessionValidationError("hook activation must be confirmed before writable-ready status")
+            raise PrimarySessionValidationError(
+                "writer lease holder requires hookActivation mapping"
+            )
+        if (
+            record["status"] in WRITABLE_READY_STATUSES
+            and hook_activation.get("confirmed") is not True
+        ):
+            raise PrimarySessionValidationError(
+                "hook activation must be confirmed before writable-ready status"
+            )
 
 
 # 判断运行记录是否为活跃写入者。
@@ -783,8 +892,20 @@ def validate_run_collisions(records: list[dict[str, Any]]) -> list[Collision]:
             second_id = str(second["runId"])
             first_root = str(first.get("checkoutRoot") or "")
             second_root = str(second.get("checkoutRoot") or "")
-            if first_root and second_root and Path(first_root).expanduser().resolve() == Path(second_root).expanduser().resolve():
-                collisions.append(Collision("same-worktree-writer", "same worktree second writer is blocked", first_id, second_id))
+            if (
+                first_root
+                and second_root
+                and Path(first_root).expanduser().resolve()
+                == Path(second_root).expanduser().resolve()
+            ):
+                collisions.append(
+                    Collision(
+                        "same-worktree-writer",
+                        "same worktree second writer is blocked",
+                        first_id,
+                        second_id,
+                    )
+                )
     return collisions
 
 
@@ -808,7 +929,9 @@ def validate_manifest(data: dict[str, Any]) -> None:
     if primary.get("same_worktree_max_writers") != 1:
         raise PrimarySessionValidationError("primary_sessions.same_worktree_max_writers must be 1")
     if primary.get("read_only_sessions_allowed") is not True:
-        raise PrimarySessionValidationError("primary_sessions.read_only_sessions_allowed must be true")
+        raise PrimarySessionValidationError(
+            "primary_sessions.read_only_sessions_allowed must be true"
+        )
 
     run_record = data.get("run_record")
     if not isinstance(run_record, dict):
@@ -845,7 +968,10 @@ def validate_manifest_file(path: Path) -> None:
     """
     validate_manifest(load_yaml(path))
 
+
 RUN_WRITE_OK_STATUSES = {"ISOLATED_WRITER", "LOCAL_WRITER"}
+
+
 # 读取 JSON 文件，失败时返回空映射。
 def _load_json_file(path: Path) -> dict[str, Any]:
     """参数：
@@ -1149,7 +1275,12 @@ def validate_run_write_authorization(
     for raw_path in candidate_paths or []:
         path = Path(raw_path)
         try:
-            rel = str((path if path.is_absolute() else cwd / path).resolve().relative_to(worktree).as_posix())
+            rel = str(
+                (path if path.is_absolute() else cwd / path)
+                .resolve()
+                .relative_to(worktree)
+                .as_posix()
+            )
         except Exception:
             errors.append(f"target path is outside run worktree: {raw_path}")
             continue

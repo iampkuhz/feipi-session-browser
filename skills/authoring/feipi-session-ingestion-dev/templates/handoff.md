@@ -29,14 +29,14 @@
 
 ```bash
 ./scripts/session-browser.sh test
-python scripts/quality/check_java_module_boundaries.py
+python scripts/checks/check_java_module_boundaries.py
 ```
 
 按需追加：
 
 ```bash
-python scripts/quality/check_manifest.py
-python scripts/quality/run_required_quality_gates.py
+python scripts/checks/check_manifest.py
+python scripts/gates/cli.py
 ```
 
 ## Expected output

@@ -33,7 +33,7 @@
 ## Validation
 
 - Run the handoff validation command exactly when provided.
-- Otherwise run `python scripts/quality/check_no_real_session_fixtures.py` and `python scripts/quality/check_secret_like_content.py` for privacy-sensitive changes.
+- Otherwise run `python scripts/checks/check_no_real_session_fixtures.py` and `python scripts/checks/check_secret_like_content.py` for privacy-sensitive changes.
 - Treat skipped, unavailable, or failed privacy gates as non-PASS.
 
 ## Output Format

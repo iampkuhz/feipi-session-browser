@@ -370,7 +370,7 @@ class PythonRuntimeZeroGateTest {
   /**
    * 开发工具 Python 边界验证。
    *
-   * <p>验证剩余 Python 文件仅存在于开发质量工具目录（scripts/quality、scripts/qa 等）， 不在产品运行链中。
+   * <p>验证剩余 Python 文件仅存在于开发质量工具目录（scripts/checks、scripts/gates 等）， 不在产品运行链中。
    */
   @Nested
   @DisplayName("开发工具 Python 边界")
@@ -403,11 +403,10 @@ class PythonRuntimeZeroGateTest {
       // 每个 Python 文件必须在允许的开发工具目录中，或在待清理的遗留 src/ 目录中
       List<String> allowedPrefixes =
           List.of(
-              "scripts/quality/",
+              "scripts/checks/",
+              "scripts/gates/",
               "scripts/qa/",
               "scripts/agent_runtime/",
-              "scripts/claude_hooks/",
-              "scripts/agent_hooks/",
               "scripts/harness/",
               "scripts/openspec/",
               "scripts/hooks/",

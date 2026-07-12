@@ -160,9 +160,6 @@ Because the task pack constraints require architecture tests not be skipped, thi
 | `git status --short` | Exit 0; output only ` M docs/architecture/refactor-baseline.md`. |
 | `git diff --name-only -- settings.gradle.kts java app-cli build.gradle.kts gradle.properties gradle .qoder openspec \|\| true` | Exit 0; no output, confirming no production Java, build, `.qoder`, or `openspec` files were changed. |
 | `git diff --name-only` | Exit 0; output only `docs/architecture/refactor-baseline.md`. |
-| `scripts/quality/run_required_quality_gates.py` | Exit 126; shell reported `zsh:1: permission denied: scripts/quality/run_required_quality_gates.py`. File mode observed with `ls -l scripts/quality/run_required_quality_gates.py` is `-rw-r--r--@`, so direct execution is not currently permitted. |
-| `python3 scripts/quality/run_required_quality_gates.py` | Exit 0; preflight `ignoredTrackedFiles` PASS; runner reported no changed files and no quality targets triggered. |
-| `python3 scripts/quality/run_required_quality_gates.py --changed-files '["docs/architecture/refactor-baseline.md"]'` | Exit 0; preflight `ignoredTrackedFiles` PASS; changed-file count 1; no required targets for this documentation-only path. |
-| `ls -l scripts/quality/run_required_quality_gates.py` | Exit 0; output `-rw-r--r--@ 1 zhehan  staff  20622 Jul  8 23:04 scripts/quality/run_required_quality_gates.py`. |
+| 历史 Gate runner 观测 | 该双轨入口已下线；当前统一入口为 `python3 scripts/gates/cli.py`。 |
 
 The direct quality-gate script invocation is documented as a permission-mode issue; the Python interpreter fallback completed successfully. No forbidden source/build files were modified.

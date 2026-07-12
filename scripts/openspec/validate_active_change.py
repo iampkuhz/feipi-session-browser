@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""验证 that active OpenSpec change has all 必需 files。"""
+"""本模块负责执行 `validate_active_change` 对应的确定性仓库检查。
+
+不负责修改业务代码；由 OpenSpec 命令行或 required Gate 调用。"""
 
 import argparse
 import shutil
@@ -33,7 +35,7 @@ def validate_change(change_id: str) -> list[str]:
         errors.append(f'Missing directory: openspec/changes/{change_id}/specs/')
     else:
         spec_files = list(specs_dir.rglob('*.md'))
-        # Filter out README.md 或 other non-spec 文件 如果 needed。
+        # 过滤 README 等不属于规范正文的文件。
         if not spec_files:
             errors.append(f'No spec.md files found under openspec/changes/{change_id}/specs/')
 
@@ -43,7 +45,7 @@ def validate_change(change_id: str) -> list[str]:
 # 运行self test。
 def run_self_test() -> bool:
     """返回：
-        当all embedded validator scenarios pass; false 之后 printing 失败项.时返回 true。
+    当all embedded validator scenarios pass; false 之后 printing 失败项.时返回 true。
     """
     tmp_root = Path(tempfile.mkdtemp(prefix='openspec_selftest_'))
     change_dir = tmp_root / 'openspec' / 'changes' / 'test-change'
@@ -112,6 +114,7 @@ def validate_change_at_root(change_id: str, root: Path) -> list[str]:
 
 # 解析命令行参数并运行脚本入口。
 def main() -> None:
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     parser = argparse.ArgumentParser(description='Validate active OpenSpec change structure')
     parser.add_argument('--change-id', help='Change ID to validate')
     parser.add_argument('--self-test', action='store_true', help='Run self-test and exit')

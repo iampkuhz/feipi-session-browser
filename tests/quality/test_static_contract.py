@@ -1,4 +1,4 @@
-"""scripts/quality/static_contract_check.py 纯函数测试."""
+"""scripts/checks/static_contract_check.py 纯函数测试."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from pathlib import Path
 import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'scripts' / 'quality'))
+sys.path.insert(0, str(ROOT / 'scripts' / 'checks'))
 
 SC = importlib.import_module('static_contract_check')
 

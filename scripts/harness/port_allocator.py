@@ -1,4 +1,6 @@
-"""Run-scoped localhost port allocation records."""
+"""本模块负责分配 run 级本地端口并保存释放句柄。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
@@ -7,10 +9,12 @@ import os
 import socket
 import time
 from dataclasses import dataclass
-from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scripts.harness.primary_session import resolve_runtime_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 # 维护 utc now 函数行为。
@@ -26,13 +30,15 @@ def _utc_now() -> str:
 
 @dataclass
 class PortAllocation:
+    """保存 `PortAllocation` 的结构化契约数据；字段由所属运行阶段构造并由后续报告读取。"""
+
     name: str
     port: int
     path: Path
     socket: socket.socket | None = None
 
-    # 维护 close 函数行为。
     def close(self) -> None:
+        """释放 `close` 管理的运行时资源；重复调用保持幂等。"""
         if self.socket is not None:
             self.socket.close()
             self.socket = None
@@ -61,7 +67,9 @@ def _run_id() -> str:
     返回：
         当前 run id 或进程级 fallback id。
     """
-    return os.environ.get("FEIPI_RUN_ID") or os.environ.get("FEIPI_SESSION_ID") or f"pid-{os.getpid()}"
+    return (
+        os.environ.get("FEIPI_RUN_ID") or os.environ.get("FEIPI_SESSION_ID") or f"pid-{os.getpid()}"
+    )
 
 
 # 维护 reserve port 函数行为。
@@ -84,7 +92,15 @@ def reserve_port(repo_root: Path, name: str, *, hold_socket: bool = True) -> Por
         sock.close()
     run_id = _run_id()
     path = root / f"{run_id}-{name}.json"
-    data: dict[str, Any] = {"schemaVersion": 1, "runId": run_id, "name": name, "host": "127.0.0.1", "port": port, "pid": os.getpid(), "allocatedAt": _utc_now()}
+    data: dict[str, Any] = {
+        "schemaVersion": 1,
+        "runId": run_id,
+        "name": name,
+        "host": "127.0.0.1",
+        "port": port,
+        "pid": os.getpid(),
+        "allocatedAt": _utc_now(),
+    }
     path.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
     return PortAllocation(name=name, port=port, path=path, socket=sock if hold_socket else None)
 

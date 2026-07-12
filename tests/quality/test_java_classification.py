@@ -18,22 +18,19 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 import pytest
-from scripts.claude_hooks.classify import (
-    DOMINANCE,
-    classify_file,
+from scripts.gates.catalog import target_by_name
+from scripts.gates.planner import (
+    applicable_gates_for_target,
+    classify_path,
     effective_targets,
+    required_gates_for_target,
     required_quality_targets,
+    target_parallel_meta,
 )
-from scripts.quality.quality_artifact import (
+from scripts.gates.report import (
     PASS,
     GateDetail,
     is_artifact_fresh,
-)
-from scripts.quality.quality_targets import (
-    TARGET_DOMINANCE,
-    applicable_gates_for_target,
-    required_gates_for_target,
-    target_parallel_meta,
 )
 
 
@@ -43,7 +40,7 @@ class TestJavaBasicClassification:
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_src_main_classification(self):
-        c = classify_file(
+        c = classify_path(
             'java/core-domain/src/main/java/com/feipi/session/browser/domain/Foo.java'
         )
         assert c.category == 'java-src'
@@ -53,23 +50,23 @@ class TestJavaBasicClassification:
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_src_test_classification(self):
-        c = classify_file('java/tests/architecture/src/test/java/com/feipi/BarTest.java')
+        c = classify_path('java/tests/architecture/src/test/java/com/feipi/BarTest.java')
         assert c.category == 'java-src'
         assert c.quality_target == 'java-src'
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_build_classification(self):
         assert (
-            classify_file('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target
+            classify_path('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target
             == 'java-build'
         )
-        assert classify_file('gradle/libs.versions.toml').quality_target == 'java-build'
-        assert classify_file('settings.gradle.kts').quality_target == 'java-build'
+        assert classify_path('gradle/libs.versions.toml').quality_target == 'java-build'
+        assert classify_path('settings.gradle.kts').quality_target == 'java-build'
 
     @pytest.mark.contract_case('J1-040-001')
     def test_java_root_dsl_classification(self):
-        assert classify_file('build.gradle.kts').quality_target == 'java-build'
-        assert classify_file('gradle.properties').quality_target == 'java-build'
+        assert classify_path('build.gradle.kts').quality_target == 'java-build'
+        assert classify_path('gradle.properties').quality_target == 'java-build'
 
 
 # 02. 扩展模式测试
@@ -78,33 +75,33 @@ class TestJavaExpandedPatterns:
 
     @pytest.mark.contract_case('J1-040-002')
     def test_gradlew_classification(self):
-        c = classify_file('gradlew')
+        c = classify_path('gradlew')
         assert c.category == 'java-build'
         assert c.quality_target == 'java-build'
         assert c.requires_quality_gate is True
 
     @pytest.mark.contract_case('J1-040-002')
     def test_gradlew_bat_classification(self):
-        c = classify_file('gradlew.bat')
+        c = classify_path('gradlew.bat')
         assert c.category == 'java-build'
         assert c.quality_target == 'java-build'
         assert c.requires_quality_gate is True
 
     @pytest.mark.contract_case('J1-040-002')
     def test_lockfile_classification(self):
-        c = classify_file('settings-gradle.lockfile')
+        c = classify_path('settings-gradle.lockfile')
         assert c.category == 'java-build'
         assert c.quality_target == 'java-build'
         assert c.requires_quality_gate is True
 
     @pytest.mark.contract_case('J1-040-002')
     def test_gradle_wrapper_jar(self):
-        c = classify_file('gradle/wrapper/gradle-wrapper.jar')
+        c = classify_path('gradle/wrapper/gradle-wrapper.jar')
         assert c.quality_target == 'java-build'
 
     @pytest.mark.contract_case('J1-040-002')
     def test_gradle_verification_metadata(self):
-        c = classify_file('gradle/verification-metadata.xml')
+        c = classify_path('gradle/verification-metadata.xml')
         assert c.quality_target == 'java-build'
 
 
@@ -114,7 +111,7 @@ class TestJavaFailClosed:
 
     @pytest.mark.contract_case('J1-040-003')
     def test_unknown_java_file_fails_closed(self):
-        c = classify_file('some/random/file.java')
+        c = classify_path('some/random/file.java')
         assert c.category == 'java-src-unknown'
         assert c.quality_target == 'java-src'
         assert c.requires_quality_gate is True
@@ -122,7 +119,7 @@ class TestJavaFailClosed:
 
     @pytest.mark.contract_case('J1-040-003')
     def test_unknown_gradle_file_fails_closed(self):
-        c = classify_file('random.gradle.kts')
+        c = classify_path('random.gradle.kts')
         assert c.category == 'java-build-unknown'
         assert c.quality_target == 'java-build'
         assert c.requires_quality_gate is True
@@ -131,14 +128,14 @@ class TestJavaFailClosed:
     @pytest.mark.contract_case('J1-040-003')
     def test_first_match_known_java_not_unknown(self):
         """已知模式的 Java 文件应匹配 java-src，而非 java-src-unknown。"""
-        c = classify_file('java/core-domain/src/main/java/com/feipi/Foo.java')
+        c = classify_path('java/core-domain/src/main/java/com/feipi/Foo.java')
         assert c.category == 'java-src'
         assert c.allowed_by_default is True
 
     @pytest.mark.contract_case('J1-040-003')
     def test_first_match_known_build_not_unknown(self):
         """已知模式的构建文件应匹配 java-build，而非 java-build-unknown。"""
-        c = classify_file('build.gradle.kts')
+        c = classify_path('build.gradle.kts')
         assert c.category == 'java-root-dsl'
         assert c.allowed_by_default is True
 
@@ -149,13 +146,13 @@ class TestJavaWindowsPaths:
 
     @pytest.mark.contract_case('J1-040-004')
     def test_java_windows_path_normalization(self):
-        c = classify_file('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java')
+        c = classify_path('java\\core-domain\\src\\main\\java\\com\\feipi\\Foo.java')
         assert c.quality_target == 'java-src'
         assert c.file == 'java/core-domain/src/main/java/com/feipi/Foo.java'
 
     @pytest.mark.contract_case('J1-040-004')
     def test_gradlew_windows_path(self):
-        c = classify_file('.\\gradlew')
+        c = classify_path('.\\gradlew')
         assert c.quality_target == 'java-build'
 
 
@@ -209,12 +206,12 @@ class TestJavaDominance:
 
     @pytest.mark.contract_case('J1-040-006')
     def test_dominance_metadata_consistency(self):
-        """classify.py 和 quality_targets.py 的 dominance 声明必须一致。"""
-        assert DOMINANCE == TARGET_DOMINANCE
+        """dominance 必须来自唯一 typed target spec。"""
+        assert target_by_name('java-src').includes == ('java-build',)
 
     @pytest.mark.contract_case('J1-040-006')
     def test_quality_targets_effective_targets(self):
-        from scripts.quality.quality_targets import effective_targets as qt_eff
+        from scripts.gates.planner import effective_targets as qt_eff
 
         result = qt_eff(['java-src', 'java-build', 'harness'])
         assert 'java-build' not in result
@@ -259,7 +256,7 @@ class TestArtifactMetadata:
 
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_run_id(self):
-        from scripts.quality.run_quality_gate import build_summary
+        from scripts.gates.report import build_summary
 
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'])]
@@ -270,7 +267,7 @@ class TestArtifactMetadata:
 
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_base_commit(self):
-        from scripts.quality.run_quality_gate import build_summary
+        from scripts.gates.report import build_summary
 
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS, command=['./gradlew', 'check'])]
@@ -280,7 +277,7 @@ class TestArtifactMetadata:
 
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_generated_at(self):
-        from scripts.quality.run_quality_gate import build_summary
+        from scripts.gates.report import build_summary
 
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS)]
@@ -289,7 +286,7 @@ class TestArtifactMetadata:
 
     @pytest.mark.contract_case('J1-040-008')
     def test_summary_has_freshness(self):
-        from scripts.quality.run_quality_gate import build_summary
+        from scripts.gates.report import build_summary
 
         started = '2026-01-01T00:00:00Z'
         details = [GateDetail(name='javaCheck', status=PASS)]
@@ -303,7 +300,7 @@ class TestStaleArtifact:
 
     @pytest.mark.contract_case('J1-040-009')
     def test_missing_artifact_not_fresh(self):
-        assert is_artifact_fresh('/tmp/nonexistent_quality_artifact.json') is False
+        assert is_artifact_fresh('/tmp/nonexistent_gate_report.json') is False
 
     @pytest.mark.contract_case('J1-040-009')
     def test_fresh_artifact_is_fresh(self):
@@ -387,18 +384,18 @@ class TestJavaChineseCommentsGate:
 
     @pytest.mark.contract_case('JR-020-001')
     def test_gate_command_uses_repo_script(self, tmp_path: Path):
-        """gate 命令指向 scripts/quality/check_code_comment_language.py。"""
-        from scripts.quality import run_quality_gate
+        """gate 命令指向 scripts/checks/check_code_comment_language.py。"""
+        from scripts.gates import executor as gate_executor
 
         # 创建仓库脚本和策略文件的 mock 结构
-        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker = tmp_path / 'scripts' / 'checks' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
         policy = tmp_path / 'config' / 'technical-terms.json'
         policy.parent.mkdir(parents=True)
         policy.write_text('{}', encoding='utf-8')
 
-        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
 
         assert cmd, 'gate 命令不应为空'
         assert 'check_code_comment_language.py' in cmd[-1] or any(
@@ -408,16 +405,16 @@ class TestJavaChineseCommentsGate:
     @pytest.mark.contract_case('JR-020-001')
     def test_gate_command_includes_policy_file(self, tmp_path: Path):
         """gate 命令包含 --policy 参数指向 config/technical-terms.json。"""
-        from scripts.quality import run_quality_gate
+        from scripts.gates import executor as gate_executor
 
-        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker = tmp_path / 'scripts' / 'checks' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
         policy = tmp_path / 'config' / 'technical-terms.json'
         policy.parent.mkdir(parents=True)
         policy.write_text('{}', encoding='utf-8')
 
-        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
 
         assert '--policy' in cmd, f'命令应包含 --policy 参数: {cmd}'
         policy_idx = cmd.index('--policy')
@@ -428,13 +425,13 @@ class TestJavaChineseCommentsGate:
     @pytest.mark.contract_case('JR-020-001')
     def test_gate_command_does_not_reference_tmp(self, tmp_path: Path):
         """gate 命令不得引用 tmp/ 目录下的路径。"""
-        from scripts.quality import run_quality_gate
+        from scripts.gates import executor as gate_executor
 
-        checker = tmp_path / 'scripts' / 'quality' / 'check_code_comment_language.py'
+        checker = tmp_path / 'scripts' / 'checks' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
 
-        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
 
         for part in cmd:
             assert 'tmp' not in str(part) or 'tmp_path' in str(part), (
@@ -444,10 +441,10 @@ class TestJavaChineseCommentsGate:
     @pytest.mark.contract_case('JR-020-001')
     def test_gate_returns_empty_when_checker_missing(self, tmp_path: Path):
         """检查脚本不存在时返回空列表（BLOCKED）。"""
-        from scripts.quality import run_quality_gate
+        from scripts.gates import executor as gate_executor
 
         # tmp_path 下不创建检查脚本
-        cmd = run_quality_gate.gate_command('javaChineseComments', tmp_path, 'java-src')
+        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
         assert cmd == []
 
 
@@ -460,11 +457,11 @@ class TestReportHash:
         """write_quality_summary 写入的 artifact 必须包含 reportHash。"""
         import tempfile
 
-        from scripts.quality.quality_artifact import (
+        from scripts.gates.report import (
             GateDetail,
+            build_summary,
             write_quality_summary,
         )
-        from scripts.quality.run_quality_gate import build_summary
 
         with tempfile.TemporaryDirectory() as td:
             started = '2026-01-01T00:00:00Z'
@@ -480,11 +477,11 @@ class TestReportHash:
         """不同内容应产生不同 reportHash。"""
         import tempfile
 
-        from scripts.quality.quality_artifact import (
+        from scripts.gates.report import (
             GateDetail,
+            build_summary,
             write_quality_summary,
         )
-        from scripts.quality.run_quality_gate import build_summary
 
         with tempfile.TemporaryDirectory() as td:
             started = '2026-01-01T00:00:00Z'
@@ -501,36 +498,25 @@ class TestReportHash:
 
 # 14. runner effective_targets 集成测试
 class TestRunnerEffectiveTargets:
-    """run_required_quality_gates.py 正确应用 dominance 去重。"""
+    """Gate CLI 正确应用 dominance 去重。"""
 
     @pytest.mark.contract_case('JR-020-004')
     def test_runner_imports_effective_targets(self):
-        """runner 模块必须导入 effective_targets。"""
-        import importlib.util
+        """CLI 通过公共 planner 计划应用 dominance。"""
+        from scripts.gates.cli import create_plan
 
-        script = (
-            Path(__file__).resolve().parents[2]
-            / 'scripts'
-            / 'quality'
-            / 'run_required_quality_gates.py'
+        gate_plan = create_plan(
+            ['java/app-cli/src/main/java/App.java', 'build.gradle.kts'],
+            tier='required',
+            target=None,
+            explicit_changed_files=True,
         )
-        spec = importlib.util.spec_from_file_location('runner_check', script)
-        mod = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(mod)
-        assert hasattr(mod, 'effective_targets'), (
-            'runner 必须导入 effective_targets 以应用 dominance 去重'
-        )
+        assert 'java-src' in gate_plan.effective_targets
+        assert 'java-build' not in gate_plan.effective_targets
 
     @pytest.mark.contract_case('JR-020-004')
     def test_dominance_is_set_inclusion(self):
         """dominance 语义：java-src includes java-build，即 java-build 是 java-src 的子集。"""
-        from scripts.claude_hooks.classify import DOMINANCE
-
-        assert 'java-src' in DOMINANCE
-        assert 'includes' in DOMINANCE['java-src']
-        # java-build 必须声明在 includes 集合中
-        assert 'java-build' in DOMINANCE['java-src']['includes']
+        assert 'java-build' in target_by_name('java-src').includes
         # 反向不成立：java-build 不包含 java-src
-        assert 'java-build' not in DOMINANCE or 'java-src' not in DOMINANCE.get(
-            'java-build', {}
-        ).get('includes', [])
+        assert 'java-src' not in target_by_name('java-build').includes

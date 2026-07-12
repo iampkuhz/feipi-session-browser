@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts" / "quality"))
+sys.path.insert(0, str(ROOT / "scripts" / "checks"))
 
 import check_agent_entry_parity as parity  # noqa: E402
 
@@ -63,7 +63,7 @@ def test_agent_entries_reference_required_skills():
 
 def test_check_agent_entry_parity_script_passes():
     result = subprocess.run(
-        [sys.executable, "scripts/quality/check_agent_entry_parity.py"],
+        [sys.executable, "scripts/checks/check_agent_entry_parity.py"],
         cwd=ROOT,
         text=True,
         capture_output=True,

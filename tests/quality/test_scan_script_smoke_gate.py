@@ -13,14 +13,11 @@ from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
-from scripts.claude_hooks.classify import (  # noqa: E402
-    SCAN_SCRIPT_SMOKE_PATTERNS,
-    required_quality_targets,
-)
-from scripts.quality.quality_targets import (  # noqa: E402
-    QUALITY_TARGETS,
+from scripts.gates.catalog import CATALOG, TARGETS  # noqa: E402
+from scripts.gates.planner import (  # noqa: E402
     applicable_gates_for_target,
     required_gates_for_target,
+    required_quality_targets,
     validate_target,
 )
 
@@ -47,21 +44,27 @@ class TestScanScriptSmokeTrigger:
     def test_java_sources_claude_triggers_scan_script_smoke(self):
         """java/sources/** Claude package should trigger scan-script-smoke."""
         targets = required_quality_targets(
-            ['java/sources/src/main/java/com/feipi/session/browser/source/claude/ClaudeSourceAdapter.java']
+            [
+                'java/sources/src/main/java/com/feipi/session/browser/source/claude/ClaudeSourceAdapter.java'
+            ]
         )
         assert 'scan-script-smoke' in targets
 
     def test_java_sources_codex_triggers_scan_script_smoke(self):
         """java/sources/** Codex package should trigger scan-script-smoke."""
         targets = required_quality_targets(
-            ['java/sources/src/main/java/com/feipi/session/browser/source/codex/CodexSourceAdapter.java']
+            [
+                'java/sources/src/main/java/com/feipi/session/browser/source/codex/CodexSourceAdapter.java'
+            ]
         )
         assert 'scan-script-smoke' in targets
 
     def test_java_sources_qoder_triggers_scan_script_smoke(self):
         """java/sources/** Qoder package should trigger scan-script-smoke."""
         targets = required_quality_targets(
-            ['java/sources/src/main/java/com/feipi/session/browser/source/qoder/QoderSourceAdapter.java']
+            [
+                'java/sources/src/main/java/com/feipi/session/browser/source/qoder/QoderSourceAdapter.java'
+            ]
         )
         assert 'scan-script-smoke' in targets
 
@@ -80,8 +83,8 @@ class TestScanScriptSmokeTrigger:
         assert 'scan-script-smoke' in targets
 
     def test_scripts_quality_triggers_scan_script_smoke(self):
-        """scripts/quality/** should trigger scan-script-smoke."""
-        targets = required_quality_targets(['scripts/quality/run_quality_gate.py'])
+        """scripts/checks/** should trigger scan-script-smoke."""
+        targets = required_quality_targets(['scripts/checks/gate_executor.py'])
         assert 'scan-script-smoke' in targets
 
     def test_unrelated_file_does_not_trigger_scan_script_smoke(self):
@@ -106,8 +109,8 @@ class TestScanScriptSmokeTargetValidation:
     """Verify scan-script-smoke target is properly registered."""
 
     def test_target_exists_in_quality_targets(self):
-        """scan-script-smoke should be in QUALITY_TARGETS."""
-        assert 'scan-script-smoke' in QUALITY_TARGETS
+        """scan-script-smoke should be in typed target catalog."""
+        assert 'scan-script-smoke' in {target.name for target in TARGETS}
 
     def test_validate_target_accepts_scan_script_smoke(self):
         """validate_target should not raise for scan-script-smoke."""
@@ -130,7 +133,7 @@ class TestScanScriptSmokeGateCommand:
 
     def test_gate_command_returns_pytest_command(self):
         """gate_command should return pytest command for scanScriptSmoke."""
-        from scripts.quality.run_quality_gate import gate_command
+        from scripts.gates.executor import gate_command
 
         cmd = gate_command('scanScriptSmoke', REPO_ROOT, 'scan-script-smoke')
         assert cmd, 'gate_command should return non-empty command'
@@ -139,7 +142,7 @@ class TestScanScriptSmokeGateCommand:
 
     def test_gate_command_returns_empty_when_test_missing(self, tmp_path):
         """gate_command should return empty list when test file is missing."""
-        from scripts.quality.run_quality_gate import gate_command
+        from scripts.gates.executor import gate_command
 
         # Use a fake repo root where the test file doesn't exist
         cmd = gate_command('scanScriptSmoke', tmp_path, 'scan-script-smoke')
@@ -147,10 +150,10 @@ class TestScanScriptSmokeGateCommand:
 
 
 class TestScanScriptSmokePatterns:
-    """Verify SCAN_SCRIPT_SMOKE_PATTERNS contains expected paths."""
+    """Verify catalog scan patterns contain expected paths."""
 
     def test_patterns_include_session_browser_sh(self):
-        assert 'scripts/session-browser.sh' in SCAN_SCRIPT_SMOKE_PATTERNS
+        assert 'scripts/session-browser.sh' in CATALOG.scan_script_smoke_patterns
 
     def test_patterns_include_java_modules(self):
         expected = [
@@ -160,6 +163,6 @@ class TestScanScriptSmokePatterns:
             'java/index-sqlite/**',
         ]
         for pattern in expected:
-            assert pattern in SCAN_SCRIPT_SMOKE_PATTERNS, (
-                f'{pattern} should be in SCAN_SCRIPT_SMOKE_PATTERNS'
+            assert pattern in CATALOG.scan_script_smoke_patterns, (
+                f'{pattern} should be in catalog scan patterns'
             )

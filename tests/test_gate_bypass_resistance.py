@@ -2,10 +2,9 @@ import json
 import os
 import subprocess
 import sys
-from pathlib import Path
 
-from scripts.claude_hooks.classify import required_quality_targets
-from scripts.quality.measure_gate_escape_rate import REQUIRED_CASE_IDS, build_report
+from scripts.checks.measure_gate_escape_rate import REQUIRED_CASE_IDS, build_report
+from scripts.gates.planner import required_quality_targets
 
 
 def _env():
@@ -18,24 +17,23 @@ def test_dry_run_hook_runtime_target_for_agent_config_change():
     proc = subprocess.run(
         [
             sys.executable,
-            'scripts/quality/run_required_quality_gates.py',
+            'scripts/gates/cli.py',
             '--change-id',
             'harden-agent-runtime-full-v3',
             '--changed-files',
             '[".claude/agents/qwen-main-default.md"]',
-            '--include-session-detail',
             '--dry-run',
         ],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         env=_env(),
         check=False,
     )
 
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
-    assert 'would run target: hook-runtime' in combined
+    payload = json.loads(combined)
+    assert 'hook-runtime' in payload['effectiveTargets']
 
 
 def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
@@ -43,15 +41,14 @@ def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
     proc = subprocess.run(
         [
             sys.executable,
-            'scripts/quality/measure_gate_escape_rate.py',
+            'scripts/checks/measure_gate_escape_rate.py',
             '--threshold',
             '0',
             '--json-out',
             str(json_out),
         ],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         env=_env(),
         check=False,
     )
@@ -68,7 +65,14 @@ def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
     case_ids = {case['id'] for case in report['cases']}
     assert REQUIRED_CASE_IDS <= case_ids
     for case in report['cases']:
-        assert set(case) >= {'id', 'description', 'expected_gate', 'observed', 'escaped', 'evidence'}
+        assert set(case) >= {
+            'id',
+            'description',
+            'expected_gate',
+            'observed',
+            'escaped',
+            'evidence',
+        }
         assert case['observed'] in {'PASS', 'BLOCK', 'FAIL', 'TARGET_TRIGGERED', 'TARGET_MISSING'}
         assert case['escaped'] is False
         assert case['evidence']
@@ -76,10 +80,9 @@ def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
 
 def test_check_gate_bypass_resistance_reuses_measurement():
     proc = subprocess.run(
-        [sys.executable, 'scripts/quality/check_gate_bypass_resistance.py', '--threshold', '0'],
+        [sys.executable, 'scripts/checks/check_gate_bypass_resistance.py', '--threshold', '0'],
         text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         env=_env(),
         check=False,
     )
@@ -112,6 +115,8 @@ def test_synthetic_target_selection_is_fail_closed_or_targeted():
         else:
             assert expected in targets, (path, targets)
 
-    unknown_case = next(case for case in build_report()['cases'] if case['id'] == 'unknown-risky-path')
+    unknown_case = next(
+        case for case in build_report()['cases'] if case['id'] == 'unknown-risky-path'
+    )
     assert unknown_case['observed'] in {'BLOCK', 'TARGET_TRIGGERED'}
     assert unknown_case['escaped'] is False

@@ -1,76 +1,42 @@
+# Gate 诊断分类
+
+本页只提供失败分类，不保存 required Gate 清单。当前 target、Gate、tier、path trigger 与命令
+必须从 `scripts/gates/catalog.py` 和 `python3 scripts/gates/cli.py --dry-run` 派生；唯一维护流程见
+`scripts/gates/README.md`。
+
 ## Required baseline
 
-所有 required baseline gate 必须全部 PASS，任何一个失败或 skipped 都不能视为整体通过。
+Stop/handoff 前唯一入口：
 
-| Gate | 脚本路径 |
-|---|---|
-| Agent runtime manifest | `scripts/quality/check_agent_runtime_manifest.py` |
-| Agent hook parity | `scripts/quality/check_agent_hook_parity.py` |
-| 未提交本地路径检查 | `scripts/quality/check_no_committed_local_paths.py` |
-| Agent permission policy | `scripts/quality/check_agent_permission_policy.py` |
-| Agent policy size | `scripts/quality/check_agent_policy_size.py` |
-| Agent rules sync | `scripts/quality/check_agent_rules_sync.py` |
-| Skill registry | `scripts/quality/check_skill_registry.py` |
-| Agent entry parity | `scripts/quality/check_agent_entry_parity.py` |
-| 必要质量门合集 | `scripts/quality/run_required_quality_gates.py` |
-| Doctor | `scripts/harness/doctor.sh` |
+```bash
+python3 scripts/gates/cli.py --tier required
+```
+
+所有已触发 required Gate 必须完成并通过。失败、环境阻断、未运行或 skipped 都不能作为整体
+`PASS`。定位单 Gate 时使用结构化报告给出的精确 rerun 命令，修复后仍需重跑 required tier。
 
 ## Doctor
 
-Doctor 脚本（`scripts/harness/doctor.sh`）是综合体检脚本，覆盖：
+`bash scripts/harness/doctor.sh` 是 agent/harness/scripts/skills/OpenSpec 的综合体检入口。
+Doctor 负责组合结构、配置、语言、Hook/Runtime 与必要 contract 检查；它不是第二个 Gate catalog。
+失败时按输出中的首个具体检查定位，不手工拼接一份“required 列表”。
 
-- 必要文件存在性检查（AGENTS.md、CLAUDE.md、settings.json 等）。
-- Hook 入口脚本存在性（`.claude/hooks/`、`.codex/hooks/`、`.qoder/hooks/`）。
-- Harness 文件存在性（manifest.yaml、agent-runtime.md）。
-- Python 环境检查（resolver、依赖安装）。
-- 配置 JSON 格式校验。
-- Shell 脚本语法检查。
-- Python 源码编译检查。
-- 所有 required quality gate 运行。
-- 个人文件和临时目录检查。
-- OpenSpec runtime state Git 追踪检查。
+## Stop
 
-Doctor 失败时需要按输出逐项定位，不要试图一次性修复所有问题。
+平台 Stop wrapper 只委托 `scripts/harness/stop_entry.py`，再由
+`scripts/agent_runtime/stop/pipeline.py` 执行 identity、lock、evidence、reentry-recovery、gate、
+report、finalize。Gate 阶段只调用 `scripts.gates.cli.run_service`。
 
-## Stop check
+Stop 失败先判断身份/锁/证据/恢复/执行/报告哪一阶段阻断；不要绕过 Stop 直接把某个 leaf check
+成功当成整体 `PASS`。
 
-Stop check 在 agent 停止前运行，检查：
+## 领域分类
 
-- 是否有未提交的受保护路径变更。
-- 是否有真实 session 数据被修改。
-- 是否有 required gate 未运行。
-- 是否有 skip 被新增。
+- **Hook/Runtime**：平台入口、payload、身份、Registry、writer lease、evidence 或 Stop contract。
+- **Harness/OpenSpec**：目录结构、规则同步、active change 或变更生命周期 contract。
+- **Java/build**：编译、测试、Javadoc、静态分析、Gradle 配置或发行 task。
+- **UI/browser**：模板、CSS、交互、布局、fixture server 或 Playwright contract。
+- **数据/隐私**：index、session sample、敏感内容与脱敏 contract。
+- **环境**：解释器、依赖、浏览器、网络或外部命令不可用；必须保留 `BLOCKED`。
 
-Stop check 失败时 agent 不能停止，必须先诊断和修复。
-
-## Java gates
-
-Java gates 覆盖：
-
-- 编译：`./gradlew compileJava` — 所有模块必须编译通过。
-- 测试：`./gradlew test` — 所有测试必须通过。
-- PMD：`./gradlew pmdMain` — 静态分析必须无违规。
-
-Java gate 失败时先定位失败模块和具体错误，再做最小修复。不要全量重构。
-
-## UI gates
-
-UI gates 覆盖：
-
-- Session detail 静态检查：`scripts/quality/check_session_detail_static.py`。
-- JS action handler 检查：`scripts/quality/check_js_action_handlers.py`。
-
-UI gate 失败时定位失败的模板或 JS 文件，确认变更是否符合 UI 契约。
-
-## Agent runtime gates
-
-Agent runtime gates 覆盖：
-
-- Skill registry 完整性：`check_skill_registry.py` — 源目录、入口链接、必需文件、命名规范。
-- Agent runtime manifest 完整性：`check_agent_runtime_manifest.py` — 顶层字段、policy files、hooks、shared skills。
-- Agent entry parity：`check_agent_entry_parity.py` — Claude/Codex agent 入口对等性和 skill 引用。
-- Hook parity：`check_agent_hook_parity.py` — 三平台 hook 一致性。
-- Agent rules sync：`check_agent_rules_sync.py` — 规则文件同步状态。
-- Agent policy size：`check_agent_policy_size.py` — 策略文件大小限制。
-
-Agent runtime gate 失败时通常是配置漂移（registry/manifest 与实际状态不一致），修复时保持配置和实际状态一致。
+具体失败属于哪个 Gate、执行什么命令，只从本次 Gate plan 和结构化报告读取。

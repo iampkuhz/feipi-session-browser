@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""提供 create active change 脚本能力。"""
+"""提供 create active change 脚本能力。
+
+不负责修改业务代码；由 OpenSpec 命令行或 required Gate 调用。"""
 
 import argparse
 import json
@@ -13,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.claude_hooks import paths as runtime_paths  # noqa: E402
+from scripts.agent_runtime import paths as runtime_paths  # noqa: E402
 
 # 常量定义。
 
@@ -78,7 +80,7 @@ def _templates_dir(root: Path) -> Path:
     for c in candidates:
         if c.is_dir():
             return c
-    return candidates[0]  # return best guess even if missing
+    return candidates[0]  # 缺失时返回最接近的候选路径，交由调用方报告
 
 
 # 写入文件 missing。
@@ -98,7 +100,7 @@ def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
     return True
 
 
-# 复制template missing。
+# 模板缺失时复制默认结构前先报告失败。
 def copy_template_if_missing(
     change_dir: Path,
     dest_rel: str,
@@ -165,7 +167,9 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         agent_id=agent_id or os.environ.get('FEIPI_AGENT_ID') or '',
     )
     change_dir = root / 'openspec' / 'changes' / change_id
-    agent_dir = runtime_paths.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
+    agent_dir = (
+        runtime_paths.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
+    )
     active_change_file = agent_dir / 'active_change.json'
 
     created: list[str] = []
@@ -191,7 +195,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     # tmp/ 目录。
     if not agent_dir.exists():
         agent_dir.mkdir(parents=True, exist_ok=True)
-# 构建parser。
+    # 构建parser。
     else:
         existed.append(str(agent_dir.relative_to(root)) + '/')
 
@@ -237,7 +241,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
 # 构建parser。
 def build_parser() -> argparse.ArgumentParser:
     """返回：
-        解析后的 HookContext；失败时携带 parse_error。
+    解析后的 HookContext；失败时携带 parse_error。
     """
     parser = argparse.ArgumentParser(
         description='Create an active OpenSpec change and sentinel file.',
@@ -266,7 +270,7 @@ def build_parser() -> argparse.ArgumentParser:
 # 解析命令行参数并运行脚本入口。
 def main() -> int:
     """返回：
-        进程退出码。
+    进程退出码。
     """
     parser = build_parser()
     args = parser.parse_args()

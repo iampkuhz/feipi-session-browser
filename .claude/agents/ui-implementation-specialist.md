@@ -42,8 +42,8 @@ Session Detail UI 专项 subagent。只处理 session detail 页面、Jinja 模�
 - `src/templates/` — session detail 相关 Jinja 模板。
 - `src/static/css/` — session detail 相关 CSS 文件。
 - `src/static/js/` — session detail 相关 JS 文件。
-- `scripts/quality/check_session_detail_*.py` — UI gate（如需）。
-- `scripts/quality/*_baseline.json` — UI baseline（如需）。
+- `scripts/checks/check_session_detail_*.py` — UI gate（如需）。
+- `scripts/checks/*_baseline.json` — UI baseline（如需）。
 
 不改后端 parser、Java 产品代码、hooks、真实 session 数据。
 发现必须越界时返回 `BLOCKED`。

@@ -5,6 +5,9 @@ CLI 与 Qoder 客户端通过薄 Hook adapter 调用同一个 Session service；
 删除客户端拥有的 worktree。Claude/Codex 新 linked run 还必须通过 exact primary `HEAD` 起点
 校验。
 
+维护入口先读 `scripts/README.md`；事件、身份、writer lease 与 Stop 的模块阅读顺序见
+`scripts/agent_runtime/README.md`。本页只维护 Session/worktree 生命周期，不复制 Gate 清单。
+
 ## 唯一流程
 
 ```text
@@ -19,7 +22,7 @@ CLI 与 Qoder 客户端通过薄 Hook adapter 调用同一个 Session service；
 ```
 
 `scripts/harness/sessionctl.py` 是 Registry、bootstrap、writer lease、Stop、finalize、handoff
-与 cleanup 的唯一业务入口。`scripts/claude_hooks/adapter.py` 只规范化平台 payload；
+与 cleanup 的唯一业务入口。`scripts/agent_runtime/events/adapter.py` 只规范化平台 payload；
 `.claude/hooks/`、`.codex/hooks/`、`.qoder/hooks/` 只转发 stdin、client/event 与退出码。
 
 ## Checkout 与身份
@@ -65,12 +68,18 @@ Registry 位于当前用户系统临时目录的 `feipi-agent-runtime/<repo-key>
 精确释放，异常 lease 只能按 holder、epoch、进程身份和 Git 状态受控回收。
 
 subagent 继承主 Session 的 run/worktree/lease，不创建第二份 primary writer lease。启动前的
-dirty snapshot 只作为 baseline，无法区分归因时必须 handoff。
+dirty snapshot 记录路径的 `exists`、`size` 与 `sha256`，不保存文件内容。Stop 只排除当前状态
+与 baseline 完全一致的路径；同一路径再次修改后必须进入 changed-files。旧记录没有内容状态时
+保守沿用路径排除，不能把无法证明的修改静默归因当前 run。
 
 ## Stop、收口与清理
 
+`scripts/harness/stop_entry.py` 仅为公开 wrapper；`scripts/agent_runtime/stop/pipeline.py` 是 identity → lock → evidence → reentry-recovery → gate → report → finalize 的唯一 dispatcher。Gate 阶段只调用 `scripts.gates.cli.run_service`。
+
 Stop 的 changed-files 真相来自 `baseCommit...HEAD`、working tree diff 与 untracked files；Stop
 只验证并写 run-scoped evidence，不宣称已集成。finalize 只能执行安全集成，否则输出 handoff。
+相同失败触发 circuit `OPEN` 时，Hook/CLI 均以非零 `BLOCKED` 终止；Registry、runtime report、
+Stop summary 和 validation receipt 都不得写成 `PASS`。
 
 用户没有明确要求保留未提交状态时，named linked-worktree 使用 `complete_change.py` 自动收口：
 第一次 Stop PASS 后只提交显式文件清单；commit 改变 HEAD/fingerprint 后重新 Stop；第二次 PASS
@@ -91,5 +100,9 @@ python3 scripts/harness/sessionctl.py finalize --run-id <run-id>
 python3 scripts/harness/sessionctl.py cleanup --run-id <run-id>
 ```
 
-机器可读真相是 `harness/agent-runtime.manifest.yaml`；完整 required quality gate 入口是
-`python3 scripts/quality/run_required_quality_gates.py`。
+机器可读状态与 Hook surface 真相是 `harness/agent-runtime.manifest.yaml`；Gate catalog、
+状态与修改流程见 `scripts/gates/README.md`。Stop/handoff 前唯一 required Gate 命令是：
+
+```bash
+python3 scripts/gates/cli.py --tier required
+```

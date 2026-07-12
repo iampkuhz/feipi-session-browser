@@ -145,10 +145,14 @@ check_file .qoder/hooks/stop_check.sh
 check_file harness/manifest.yaml
 check_file harness/agent-runtime.md
 check_file scripts/harness/stop_entry.py
-check_file scripts/harness/stop_helpers.py
-check_file scripts/quality/check_agent_runtime_worktree.py
+check_file scripts/agent_runtime/stop/model.py
+check_file scripts/agent_runtime/stop/pipeline.py
+check_file scripts/agent_runtime/stop/evidence.py
+check_file scripts/agent_runtime/stop/recovery.py
+check_file scripts/agent_runtime/stop/report.py
+check_file scripts/checks/check_agent_runtime_worktree.py
 check_dir tests
-check_dir scripts/claude_hooks
+check_dir scripts/agent_runtime
 
 if [[ -n "$PYTHON" ]]; then
   pass_check "python interpreter: $PYTHON"
@@ -172,39 +176,39 @@ done
 if [[ -n "$PYTHON" ]]; then
   run_check "Python source compiles" "$PYTHON" -m compileall -q src
   checks=(
-    scripts/quality/check_language_policy.py
-    scripts/quality/check_codex_agent_policy.py
-    scripts/quality/check_agent_runtime_manifest.py
-    scripts/quality/check_agent_hook_parity.py
-    scripts/quality/check_no_committed_local_paths.py
-    scripts/quality/check_agent_permission_policy.py
-    scripts/quality/check_agent_policy_size.py
-    scripts/quality/check_agent_rules_sync.py
-    scripts/quality/check_agent_runtime_isolation.py
-    scripts/quality/check_agent_runtime_worktree.py
-    scripts/quality/check_gate_bypass_resistance.py
-    scripts/quality/check_protected_roots_sync.py
-    scripts/quality/check_qoder_runtime_parity.py
-    scripts/quality/check_hook_payload_compat.py
-    scripts/quality/check_subagent_handoff_protocol.py
-    scripts/quality/check_skill_registry.py
-    scripts/quality/check_agent_entry_parity.py
-    scripts/quality/check_no_real_session_fixtures.py
-    scripts/quality/check_secret_like_content.py
-    scripts/quality/check_agent_runtime_report.py
+    scripts/checks/check_language_policy.py
+    scripts/checks/check_codex_agent_policy.py
+    scripts/checks/check_agent_runtime_manifest.py
+    scripts/checks/check_agent_hook_parity.py
+    scripts/checks/check_no_committed_local_paths.py
+    scripts/checks/check_agent_permission_policy.py
+    scripts/checks/check_agent_policy_size.py
+    scripts/checks/check_agent_rules_sync.py
+    scripts/checks/check_agent_runtime_isolation.py
+    scripts/checks/check_agent_runtime_worktree.py
+    scripts/checks/check_gate_bypass_resistance.py
+    scripts/checks/check_protected_roots_sync.py
+    scripts/checks/check_qoder_runtime_parity.py
+    scripts/checks/check_hook_payload_compat.py
+    scripts/checks/check_subagent_handoff_protocol.py
+    scripts/checks/check_skill_registry.py
+    scripts/checks/check_agent_entry_parity.py
+    scripts/checks/check_no_real_session_fixtures.py
+    scripts/checks/check_secret_like_content.py
+    scripts/checks/check_agent_runtime_report.py
   )
   for check in "${checks[@]}"; do
     run_check "quality check: ${check##*/}" "$PYTHON" "$check"
   done
   run_check "quality check: measure_gate_escape_rate.py" \
-    "$PYTHON" scripts/quality/measure_gate_escape_rate.py --threshold 0
+    "$PYTHON" scripts/checks/measure_gate_escape_rate.py --threshold 0
 fi
 
 # CSS ownership 校验。
 if [[ -n "$PYTHON" ]]; then
   css_output=""
   css_rc=0
-  css_output="$("$PYTHON" scripts/validate_css_ownership.py 2>&1)" || css_rc=$?
+  css_output="$("$PYTHON" scripts/checks/check_css_ownership.py 2>&1)" || css_rc=$?
   if echo "$css_output" | grep -q 'Total:'; then
     css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
     if [[ "$css_total" -gt 0 ]]; then

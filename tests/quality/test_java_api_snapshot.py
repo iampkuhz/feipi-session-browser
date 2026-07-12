@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-SCRIPT = REPO_ROOT / "scripts" / "quality" / "check_java_api_snapshot.py"
+SCRIPT = REPO_ROOT / "scripts" / "checks" / "check_java_api_snapshot.py"
 
 spec = importlib.util.spec_from_file_location("check_java_api_snapshot", SCRIPT)
 api_snapshot = importlib.util.module_from_spec(spec)

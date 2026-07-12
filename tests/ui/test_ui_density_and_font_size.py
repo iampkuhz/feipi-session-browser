@@ -1,7 +1,7 @@
 """UI density 和 font-size 检查脚本的测试。
 
-这些测试使用合成 CSS 输入验证 check_ui_density_and_font_size.py
-中的静态分析逻辑，覆盖通过、失败和告警场景。
+这些测试使用合成 CSS 输入验证 tests/support 中的静态分析逻辑，
+覆盖通过、失败和告警场景。
 
 用法：
     cd <repo-root>
@@ -10,7 +10,13 @@
 
 from __future__ import annotations
 
+import sys
+from pathlib import Path
+
 import pytest
+
+SUPPORT_DIR = Path(__file__).resolve().parents[1] / 'support'
+sys.path.insert(0, str(SUPPORT_DIR))
 
 
 def _run(css: str):
@@ -18,7 +24,7 @@ def _run(css: str):
     import os
     import tempfile
 
-    from scripts.check_ui_density_and_font_size import run_checks
+    from check_ui_density_and_font_size import run_checks
 
     with tempfile.NamedTemporaryFile(mode='w', suffix='.css', delete=False) as f:
         f.write(css)
@@ -57,7 +63,7 @@ class TestTokenParsing:
             --text-metric-sm: 18px;
         }
         """
-        from scripts.check_ui_density_and_font_size import parse_css_tokens
+        from check_ui_density_and_font_size import parse_css_tokens
 
         tokens = parse_css_tokens(css)
         assert tokens['--text-base']['value_px'] == 14.0
@@ -66,7 +72,7 @@ class TestTokenParsing:
     @pytest.mark.contract_case('UI-VISUAL-011')
     def test_missing_tokens_reported_unresolved(self):
         css = ':root { --text-base: 14px; }'
-        from scripts.check_ui_density_and_font_size import parse_css_tokens
+        from check_ui_density_and_font_size import parse_css_tokens
 
         tokens = parse_css_tokens(css)
         assert tokens['--text-micro']['value_px'] is None
@@ -83,7 +89,7 @@ class TestParsePx:
 
     @pytest.mark.contract_case('UI-VISUAL-011')
     def test_valid_px(self):
-        from scripts.check_ui_density_and_font_size import parse_px
+        from check_ui_density_and_font_size import parse_px
 
         assert parse_px('14px') == 14.0
         assert parse_px('10px') == 10.0
@@ -91,7 +97,7 @@ class TestParsePx:
 
     @pytest.mark.contract_case('UI-VISUAL-011')
     def test_invalid_px(self):
-        from scripts.check_ui_density_and_font_size import parse_px
+        from check_ui_density_and_font_size import parse_px
 
         assert parse_px('1em') is None
         assert parse_px('14') is None
@@ -108,7 +114,7 @@ class TestTokenResolution:
 
     @pytest.mark.contract_case('UI-VISUAL-011')
     def test_direct_var(self):
-        from scripts.check_ui_density_and_font_size import resolve_token_ref
+        from check_ui_density_and_font_size import resolve_token_ref
 
         tokens = {'--text-base': {'value_px': 14.0}}
         px, desc = resolve_token_ref('var(--text-base)', tokens)
@@ -116,7 +122,7 @@ class TestTokenResolution:
 
     @pytest.mark.contract_case('UI-VISUAL-011')
     def test_fallback_chain(self):
-        from scripts.check_ui_density_and_font_size import resolve_token_ref
+        from check_ui_density_and_font_size import resolve_token_ref
 
         tokens = {'--text-xs': {'value_px': 11.0}}
         px, desc = resolve_token_ref('var(--density-font-size, var(--text-xs))', tokens)
@@ -124,7 +130,7 @@ class TestTokenResolution:
 
     @pytest.mark.contract_case('UI-VISUAL-011')
     def test_literal_px(self):
-        from scripts.check_ui_density_and_font_size import resolve_token_ref
+        from check_ui_density_and_font_size import resolve_token_ref
 
         px, desc = resolve_token_ref('16px', {})
         assert px == 16.0
@@ -399,7 +405,7 @@ class TestEdgeCases:
     def test_missing_css_file(self):
         from pathlib import Path
 
-        from scripts.check_ui_density_and_font_size import run_checks
+        from check_ui_density_and_font_size import run_checks
 
         all_pass, lines = run_checks(Path('/nonexistent/path/css/shell.css'))
         assert not all_pass

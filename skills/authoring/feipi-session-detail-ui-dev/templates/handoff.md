@@ -8,8 +8,8 @@
   - `src/templates/` 下 session detail 相关 Jinja 模板
   - `src/static/css/` 下 session detail 相关 CSS 文件
   - `src/static/js/` 下 session detail 相关 JS 文件
-  - `scripts/quality/check_session_detail_*.py`（如需）
-  - `scripts/quality/*_baseline.json`（如需）
+  - `scripts/checks/check_session_detail_*.py`（如需）
+  - `scripts/checks/*_baseline.json`（如需）
 
 ## Forbidden scope
 
@@ -29,20 +29,20 @@
 ## Validation
 
 ```bash
-python scripts/quality/check_session_detail_static.py
-python scripts/quality/check_css_ownership.py
+python scripts/checks/check_session_detail_static.py
+python scripts/checks/check_css_ownership.py
 ```
 
 按需追加：
 
 ```bash
-python scripts/quality/check_js_action_handlers.py
-python scripts/quality/check_no_legacy_css.py
-python scripts/quality/check_layout_inline_style.py
-python scripts/quality/check_session_detail_shell_css.py
-python scripts/quality/run_session_detail_interaction_gate.py
-python scripts/quality/run_session_detail_layout_gate.py
-python scripts/quality/check_raw_innerhtml.py
+python scripts/checks/check_js_action_handlers.py
+python scripts/checks/check_no_legacy_css.py
+python scripts/checks/check_layout_inline_style.py
+python scripts/checks/check_session_detail_shell_css.py
+python scripts/checks/run_session_detail_interaction_gate.py
+python scripts/checks/run_session_detail_layout_gate.py
+python scripts/checks/check_raw_innerhtml.py
 ```
 
 ## Expected output

@@ -64,12 +64,12 @@
 
 **范围**:
 - `build.gradle.kts` 中 3 处 `python3` ProcessBuilder 调用 (lines 254, 432, 486)
-- `scripts/quality/doctor.sh` 和 `scripts/harness/doctor.sh` 中的 Python 环境检查
+- `scripts/harness/doctor.sh` 中的 Python 环境检查
 - `scripts/session-browser.sh` 中的 `SESSION_BROWSER_VENV_DIR` 和 venv 逻辑
 - `pyproject.toml` 和 `.venv/` 相关配置
-- `scripts/quality/` (40 files) -- 质量门脚本迁移或退役
+- `scripts/checks/` (40 files) -- 质量门脚本迁移或退役
 - `scripts/harness/` (14 files) -- harness validator 迁移或退役
-- `scripts/claude_hooks/` + `scripts/agent_hooks/` (25 files) -- hook 基础设施
+- `scripts/agent_runtime/` 与共享 harness runtime -- hook 基础设施
 
 **退出标准**:
 - [ ] `build.gradle.kts` 不再通过 `ProcessBuilder` 调用 `python3`
@@ -89,7 +89,7 @@
 **范围**:
 - `src/session_browser/` 整个目录 (145 files)
 - `tests/` 中的 Python 测试迁移到 Java JUnit 或保留为契约验证
-- `scripts/qa/` (14 files) -- QA UI 检查脚本
+- `tests/support/` 中仍被契约测试复用的 UI 检查支持模块
 
 **退出标准**:
 - [ ] `src/session_browser/` 目录已删除或仅保留空 package
@@ -103,7 +103,7 @@
 
 ## 门控策略
 
-`scripts/quality/check_no_new_product_python.py` 脚本确保：
+`scripts/checks/check_no_new_product_python.py` 脚本确保：
 - `src/session_browser/` 中不会新增 `product_runtime` 或 `product_web` 文件
 - 已有的 145 个文件作为 allowlist 存在
 - `harness/`、`quality/` 中的 Python 维护不受限制

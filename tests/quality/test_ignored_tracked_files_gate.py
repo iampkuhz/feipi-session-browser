@@ -5,7 +5,7 @@ from __future__ import annotations
 import subprocess
 from typing import TYPE_CHECKING
 
-from scripts.quality import check_ignored_tracked_files
+from scripts.checks import check_ignored_tracked_files
 
 if TYPE_CHECKING:
     from pathlib import Path

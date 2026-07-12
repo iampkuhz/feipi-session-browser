@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""验证 context routes structure and 必需 fields。"""
+"""本模块负责执行 `validate_context_routes` 对应的确定性仓库检查。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 import sys
 from pathlib import Path
@@ -18,7 +20,7 @@ FORBIDDEN_FULL_LOAD_PATTERNS = {
 # 解析inline flow。
 def parse_inline_flow(value: str):
     """参数：
-        value: value 参数。
+    value: value 参数。
     """
     value = value.strip()
     if value.startswith('{') and value.endswith('}'):
@@ -108,7 +110,7 @@ def parse_simple_yaml(content: str) -> dict:
 # 解析标量。
 def _parse_scalar(value: str):
     """参数：
-        value: value 参数。
+    value: value 参数。
     """
     if value == '[]':
         return []
@@ -149,6 +151,7 @@ def _parse_list_of_mappings(lines, base_indent):
 
     # 维护flush 阻断。
     def _flush_block():
+        """执行 `_flush_block` 对应的公开仓库能力；遵守模块定义的边界与失败语义。"""
         nonlocal current_key, block_lines
         if current_key is not None and current_item is not None:
             if block_lines:
@@ -255,8 +258,8 @@ def _parse_block_value(lines, base_indent):
 # 解析阻断 列表。
 def _parse_block_list(lines, base_indent):
     """参数：
-        lines: 待检查的源码行列表。
-        base_indent: base indent 参数。
+    lines: 待检查的源码行列表。
+    base_indent: base indent 参数。
     """
     result = []
     for line in lines:
@@ -282,8 +285,8 @@ def _parse_block_list(lines, base_indent):
 # 解析阻断 映射。
 def _parse_block_mapping(lines, base_indent):
     """参数：
-        lines: 待检查的源码行列表。
-        base_indent: base indent 参数。
+    lines: 待检查的源码行列表。
+    base_indent: base indent 参数。
     """
     result = {}
     current_key = None
@@ -339,8 +342,8 @@ def _parse_block_mapping(lines, base_indent):
 # 解析映射。
 def _parse_mapping(lines, base_indent):
     """参数：
-        lines: 待检查的源码行列表。
-        base_indent: base indent 参数。
+    lines: 待检查的源码行列表。
+    base_indent: base indent 参数。
     """
     result = {}
     i = 0
@@ -481,10 +484,11 @@ def validate_context_routes(routes_path: Path) -> list:
 
 # 解析命令行参数并运行脚本入口。
 def main():
+    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     repo_root = Path(__file__).resolve().parent.parent.parent
     routes_path = repo_root / 'harness' / 'context' / 'routes.yaml'
 
-# 运行脚本主流程并返回进程退出码。
+    # 运行脚本主流程并返回进程退出码。
     errors = validate_context_routes(routes_path)
 
     if errors:

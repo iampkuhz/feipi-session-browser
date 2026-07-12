@@ -23,13 +23,14 @@
 
 ## 关键路径
 
-1. `scripts/quality/*.py` → 所有 quality gate 脚本。
-2. `scripts/harness/doctor.sh` → 环境体检脚本。
-3. `harness/skill-registry.yaml` → skill 注册表。
-4. `harness/agent-runtime.manifest.yaml` → agent runtime manifest。
-5. `scripts/quality/check_agent_entry_parity.py` → agent 入口 parity 检查。
-6. `skills/authoring/<skill-name>/SKILL.md` → 各 skill 源文件。
-7. `.claude/agents/*.md`、`.codex/agents/*.toml` → agent 入口文件。
+1. `scripts/gates/cli.py` → 唯一 Gate CLI；内部模块不得直跑。
+2. `scripts/checks/*.py` → 领域检查器，只按失败报告做精确 rerun。
+3. `scripts/harness/doctor.sh` → 环境体检脚本。
+4. `harness/skill-registry.yaml` → skill 注册表。
+5. `harness/agent-runtime.manifest.yaml` → agent runtime manifest。
+6. `scripts/checks/check_agent_entry_parity.py` → agent 入口 parity 检查。
+7. `skills/authoring/<skill-name>/SKILL.md` → 各 skill 源文件。
+8. `.claude/agents/*.md`、`.codex/agents/*.toml` → agent 入口文件。
 
 ## 常见误区
 
@@ -42,9 +43,10 @@
 
 ## 触发门禁
 
-- `python scripts/quality/check_skill_registry.py`
-- `python scripts/quality/check_agent_runtime_manifest.py`
-- `python scripts/quality/check_agent_entry_parity.py`
-- `python scripts/quality/check_agent_hook_parity.py`
-- `python scripts/quality/check_agent_rules_sync.py`
+- `python scripts/checks/check_skill_registry.py`
+- `python scripts/checks/check_agent_runtime_manifest.py`
+- `python scripts/checks/check_agent_entry_parity.py`
+- `python scripts/checks/check_agent_hook_parity.py`
+- `python scripts/checks/check_agent_rules_sync.py`
 - `bash scripts/harness/doctor.sh`
+- `python3 scripts/gates/cli.py --tier required`

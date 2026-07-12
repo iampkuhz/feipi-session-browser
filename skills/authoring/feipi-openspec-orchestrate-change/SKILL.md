@@ -44,7 +44,7 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 1. 读取 `CLAUDE.md`、`AGENTS.md` 获取仓库约束。
 2. 读取 `openspec/specs/` 中相关的当前行为真相。
 3. 检查与请求相关的源码、测试和配置文件。
-4. 运行 `python3 scripts/harness/validate_openspec_layout.py` 确认仓库结构正确。
+4. 运行 `python3 scripts/openspec/validate_layout.py` 确认仓库结构正确。
 
 ### 阶段 3：提案（Propose）
 
@@ -108,12 +108,17 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 
 ## Hook 强制层
 
-仓库通过 `.claude/settings.json` 中定义的 hooks 接入强制层；可复用门禁逻辑以 `harness/agent-runtime.md` 和 `scripts/harness/agent_stop_check.py` 为真源：
+仓库通过三平台 settings/hooks 接入强制层；公开入口和目录职责以 `scripts/README.md` 为导航，
+Runtime 机器契约以 `harness/agent-runtime.manifest.yaml` 为真源：
 
-- **PreToolUse（Write|Edit|MultiEdit）：** `scripts/hooks/guard_openspec_change.py` — 在 `openspec/changes/` 下没有活跃变更目录时阻止受保护文件编辑。
-- **PostToolUse（Write|Edit|MultiEdit）：** `.claude/hooks/post_tool_guard.sh` — 对编辑的 shell 和 JSON 文件做语法检查。
-- **PreToolUse（Bash）：** `.claude/hooks/pre_tool_guard.sh` — 阻止破坏性 shell 命令。
-- **Stop：** `.claude/hooks/stop.sh` — 薄入口，转发到 `scripts/harness/agent_stop_check.py`，执行 OpenSpec 与 required quality gates。
+- **PreToolUse：** manifest 登记的三平台薄 wrapper 委托共享 Runtime 做写授权、Bash 策略和
+  mutation 前证据；OpenSpec 路径策略由 `scripts/hooks/guard_openspec_change.py` 提供。
+- **PostToolUse/Failure/SessionEnd：** 仍由 manifest 登记的 wrapper 委托共享 Runtime 补齐
+  evidence、记录失败并精确释放 lease；本 skill 不复制平台 Hook 矩阵。
+- **Stop：** 平台薄 wrapper 转发到 `scripts/harness/stop_entry.py`，再由
+  `scripts/agent_runtime/stop/pipeline.py` 执行七阶段；Gate 阶段只调用统一 service。
+- **Required Gate：** Stop/handoff 前唯一人工命令为
+  `python3 scripts/gates/cli.py --tier required`；不得直接调用内部 Gate 模块。
 
 这些 hooks 是强制层。本 skill 编排流程，hooks 防止策略违规。
 

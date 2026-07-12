@@ -11,6 +11,7 @@ pydoclint
 pyright
 playwright
 pre-commit
+pyyaml
 ruff
 vulture
 xenon

@@ -1,0 +1,324 @@
+{
+  "schemaVersion": 1,
+  "qualityTargets": {
+    "python-standard": [
+      "pythonFormat",
+      "pythonLint",
+      "pythonType",
+      "pythonDocstring",
+      "pythonCoverage",
+      "pythonAudit",
+      "pythonComplexity",
+      "pythonDeadCode",
+      "pythonDeps"
+    ],
+    "hook-runtime": [
+      "ignoredTrackedFiles",
+      "settingsJson",
+      "bashSyntax",
+      "scriptCommentLanguage",
+      "pythonCompile",
+      "noTestSkips",
+      "languagePolicy",
+      "codexAgentPolicy",
+      "agentHookParity",
+      "agentRuntimeIsolation",
+      "agentRuntimeWorktree",
+      "gateBypassResistance",
+      "gateEscapeRate",
+      "protectedRootsSync",
+      "qoderRuntimeParity",
+      "hookPayloadCompat",
+      "subagentHandoffProtocol",
+      "hookSelfTest",
+      "pytest",
+      "doctor",
+      "repoStructure",
+      "repoSlimming",
+      "rawInnerhtml",
+      "layoutInlineStyle",
+      "acceptanceContracts"
+    ],
+    "harness": [
+      "bashSyntax",
+      "scriptCommentLanguage",
+      "pythonCompile",
+      "noTestSkips",
+      "languagePolicy",
+      "codexAgentPolicy",
+      "agentRuntimeManifest",
+      "agentHookParity",
+      "agentRuntimeIsolation",
+      "agentRuntimeWorktree",
+      "gateBypassResistance",
+      "gateEscapeRate",
+      "protectedRootsSync",
+      "qoderRuntimeParity",
+      "hookPayloadCompat",
+      "subagentHandoffProtocol",
+      "agentPolicySize",
+      "agentRulesSync",
+      "skillRegistry",
+      "agentEntryParity",
+      "noRealSessionFixtures",
+      "secretLikeContent",
+      "runtimeReport",
+      "doctor",
+      "repoStructure",
+      "harnessStructure",
+      "openspecLayout",
+      "pytest"
+    ],
+    "acceptance-contracts": [
+      "noTestSkips",
+      "acceptanceContracts",
+      "pytest"
+    ],
+    "session-detail": [
+      "pythonCompile",
+      "noTestSkips",
+      "scriptCommentLanguage",
+      "templateContract",
+      "staticCssContract",
+      "cssOwnership",
+      "rawInnerhtml",
+      "layoutInlineStyle",
+      "pytest",
+      "browserLayout",
+      "browserInteraction"
+    ],
+    "index": [
+      "indexIntegrity"
+    ],
+    "java-src": [
+      "javaCheck",
+      "javaModuleBoundaries",
+      "javaChineseComments",
+      "javaRecordComponentJavadocs",
+      "noJavaTestSkips",
+      "noJavaSuppressWarnings",
+      "reuseStandardCpd",
+      "reuseAnalyzeIncremental"
+    ],
+    "java-build": [
+      "javaCheck",
+      "javaModuleBoundaries",
+      "reuseStandardCpd",
+      "reuseAnalyzeIncremental"
+    ],
+    "scan-script-smoke": [
+      "scanScriptSmoke",
+      "sessionSamples"
+    ]
+  },
+  "uniqueGateCount": 60,
+  "scenarios": {
+    "read-only": {
+      "changedFiles": [],
+      "rawTargets": [],
+      "effectiveTargets": [],
+      "gatesByTarget": {},
+      "gateCount": 0
+    },
+    "java-source": {
+      "changedFiles": [
+        "java/app-cli/src/main/java/com/feipi/session/browser/cli/App.java"
+      ],
+      "rawTargets": [
+        "java-src",
+        "scan-script-smoke"
+      ],
+      "effectiveTargets": [
+        "java-src",
+        "scan-script-smoke"
+      ],
+      "gatesByTarget": {
+        "java-src": [
+          "javaCheck",
+          "javaModuleBoundaries",
+          "javaChineseComments",
+          "javaRecordComponentJavadocs",
+          "noJavaSuppressWarnings",
+          "reuseStandardCpd",
+          "reuseAnalyzeIncremental"
+        ],
+        "scan-script-smoke": [
+          "scanScriptSmoke"
+        ]
+      },
+      "gateCount": 8
+    },
+    "java-build": {
+      "changedFiles": [
+        "build.gradle.kts"
+      ],
+      "rawTargets": [
+        "java-build"
+      ],
+      "effectiveTargets": [
+        "java-build"
+      ],
+      "gatesByTarget": {
+        "java-build": [
+          "javaCheck",
+          "reuseStandardCpd",
+          "reuseAnalyzeIncremental"
+        ]
+      },
+      "gateCount": 3
+    },
+    "java-source-build": {
+      "changedFiles": [
+        "java/app-cli/src/main/java/com/feipi/session/browser/cli/App.java",
+        "build.gradle.kts"
+      ],
+      "rawTargets": [
+        "java-src",
+        "java-build",
+        "scan-script-smoke"
+      ],
+      "effectiveTargets": [
+        "java-src",
+        "scan-script-smoke"
+      ],
+      "gatesByTarget": {
+        "java-src": [
+          "javaCheck",
+          "javaModuleBoundaries",
+          "javaChineseComments",
+          "javaRecordComponentJavadocs",
+          "noJavaSuppressWarnings",
+          "reuseStandardCpd",
+          "reuseAnalyzeIncremental"
+        ],
+        "scan-script-smoke": [
+          "scanScriptSmoke"
+        ]
+      },
+      "gateCount": 8
+    },
+    "hook-runtime": {
+      "changedFiles": [
+        "scripts/harness/stop_entry.py",
+        ".codex/hooks/stop_check.sh"
+      ],
+      "rawTargets": [
+        "harness",
+        "hook-runtime"
+      ],
+      "effectiveTargets": [
+        "harness",
+        "hook-runtime"
+      ],
+      "gatesByTarget": {
+        "harness": [
+          "scriptCommentLanguage",
+          "pythonCompile",
+          "languagePolicy",
+          "agentRuntimeIsolation",
+          "agentRuntimeWorktree",
+          "gateBypassResistance",
+          "gateEscapeRate",
+          "protectedRootsSync",
+          "qoderRuntimeParity",
+          "hookPayloadCompat",
+          "subagentHandoffProtocol",
+          "secretLikeContent",
+          "repoStructure",
+          "harnessStructure",
+          "pytest"
+        ],
+        "hook-runtime": [
+          "bashSyntax",
+          "scriptCommentLanguage",
+          "languagePolicy",
+          "agentHookParity",
+          "agentRuntimeIsolation",
+          "agentRuntimeWorktree",
+          "gateBypassResistance",
+          "gateEscapeRate",
+          "protectedRootsSync",
+          "qoderRuntimeParity",
+          "hookPayloadCompat",
+          "subagentHandoffProtocol",
+          "doctor",
+          "repoStructure"
+        ]
+      },
+      "gateCount": 29
+    },
+    "python-policy": {
+      "changedFiles": [
+        "scripts/checks/check_code_comment_language.py"
+      ],
+      "rawTargets": [
+        "hook-runtime",
+        "scan-script-smoke"
+      ],
+      "effectiveTargets": [
+        "hook-runtime",
+        "scan-script-smoke"
+      ],
+      "gatesByTarget": {
+        "hook-runtime": [
+          "scriptCommentLanguage",
+          "pythonCompile",
+          "agentRuntimeIsolation",
+          "agentRuntimeWorktree",
+          "gateBypassResistance",
+          "gateEscapeRate",
+          "protectedRootsSync",
+          "qoderRuntimeParity",
+          "hookPayloadCompat",
+          "subagentHandoffProtocol",
+          "pytest",
+          "repoStructure"
+        ],
+        "scan-script-smoke": [
+          "scanScriptSmoke"
+        ]
+      },
+      "gateCount": 13
+    },
+    "session-detail": {
+      "changedFiles": [
+        "java/web/src/main/resources/static/css/session-detail.css"
+      ],
+      "rawTargets": [
+        "session-detail"
+      ],
+      "effectiveTargets": [
+        "session-detail"
+      ],
+      "gatesByTarget": {
+        "session-detail": [
+          "scriptCommentLanguage",
+          "staticCssContract",
+          "cssOwnership",
+          "pytest",
+          "browserLayout",
+          "browserInteraction"
+        ]
+      },
+      "gateCount": 6
+    },
+    "acceptance-contract": {
+      "changedFiles": [
+        "docs/acceptance-contracts/session-detail.md"
+      ],
+      "rawTargets": [
+        "acceptance-contracts"
+      ],
+      "effectiveTargets": [
+        "acceptance-contracts"
+      ],
+      "gatesByTarget": {
+        "acceptance-contracts": [
+          "acceptanceContracts",
+          "pytest"
+        ]
+      },
+      "gateCount": 2
+    }
+  }
+}

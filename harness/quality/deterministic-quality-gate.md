@@ -12,15 +12,19 @@
 - target/gate 被人工指定、路径映射选中、required baseline、full regression 或 release regression 要求运行后，测试框架报告的 skipped outcome 视为未验证完成；必须补齐 fixture/env、调整触发映射，或以 `FAIL`/`BLOCKED` 收口。
 - full regression 和 release regression 必须证明完整选中集合是 `0 skipped`；任何 skipped tests 都不能作为 PASS 证据。
 - Playwright gate 被选中时必须提供必要的 fixture URL，并且命令输出中出现 skipped tests 时不得 PASS。
-- `noTestSkips` gate 运行 `scripts/quality/check_no_test_skips.py`，用于阻止新增 pytest / Playwright skip API；该 gate 失败时不得降级为 warning。
+- skip API 的领域规则位于 `scripts/checks/`，生产 Gate 名称与触发 metadata 只在 catalog 注册；
+  该规则失败时不得降级为 warning。
 
 ## 当前执行链
 
-1. agent 入口调用 `scripts/harness/stop_entry.py`。
+1. agent 入口调用薄 wrapper `scripts/harness/stop_entry.py`，由 `scripts/agent_runtime/stop/pipeline.py` 依次执行 identity、lock、evidence、reentry-recovery、gate、report、finalize。
 2. Stop 门禁有 session identity 时只读取该 identity 的 `changed-files.jsonl`；缺失 identity 时才用 `git status --short --untracked-files=all` fail-closed。
-3. `scripts/claude_hooks/classify.py` 将路径映射到 quality target。
-4. `scripts/quality/run_required_quality_gates.py` 运行需要的 target。
-5. `scripts/quality/run_quality_gate.py` 写入 `tmp/quality/<change-id>/quality-gate-summary.<target>.json`。
+3. `scripts/gates/catalog.py` 声明唯一 path/target/Gate truth，planner/executor 冻结带 hash 的逻辑 Gate、command group 与资源 DAG。
+4. `scripts/gates/cli.py` 只执行冻结 plan；同环境 Gradle task 聚合，只有无冲突 `parallel_safe` group 有界并发。
+5. `scripts/gates/cli.py` 写入 `tmp/quality/<change-id>/quality-gate-summary.<target>.json`。
+
+模块边界、CLI 和唯一 Gate 修改流程见 `scripts/gates/README.md`；当前 Gate/target 集合必须从
+catalog 或 `python3 scripts/gates/cli.py --dry-run` 派生，本文不维护清单。
 
 ## Trigger vs Skip
 
@@ -48,9 +52,18 @@
 | `warnings` | 非阻断告警 |
 | `artifacts` | 结构化证据路径 |
 | `gateDetails` | 各 gate 命令、耗时和输出摘要 |
+| `planId` / `planFingerprint` | 无 timestamp/PID 的确定性 plan identity |
+| `checkoutFingerprint` | committed、staged、working 与 untracked 内容指纹 |
+| `gateStates` | `EXECUTED`、`REUSED`、`NOT_TRIGGERED`、`FAILED` 或 `BLOCKED` |
+| `commandGroups` | task/command 聚合、资源、依赖与技术原因 |
+| `processCounts` / `criticalPathMs` | top-level 进程计数与关键路径耗时 |
+
+PASS receipt 同时绑定 checkout 内容、changed-files/baseline attribution、catalog、plan、resolved
+command/task、关键环境和 Gate 输入。artifact 状态与内容 hash 必须复核；损坏、外来 schema、
+`FAIL`、`BLOCKED` 或普通控制台文字均不可复用。
 
 ## 失败处理
 
 - gate 失败先看结构化 summary 和详细日志，不猜测通过。
 - 若是环境阻断，状态保持 `BLOCKED`，输出可复现命令。
-- 若发现 target 选择遗漏，先修 `scripts/claude_hooks/classify.py` 或 `scripts/quality/quality_targets.py`。
+- 若发现 target 选择遗漏，先按 contract 证明预期，再修 `scripts/gates/catalog.py` 的唯一 registration；planner 不维护第二份映射。

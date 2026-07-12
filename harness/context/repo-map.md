@@ -8,9 +8,10 @@
 |---|---|
 | `java/` | Java 产品源码、测试和 Gradle 子项目 |
 | `tests/` | pytest、Playwright、fixture 和契约绑定 |
-| `scripts/quality/` | required quality gates 和结构化 summary |
-| `scripts/harness/` | 跨 Claude Code、Codex、Qoder 复用的 Stop 门禁和结构校验 |
-| `scripts/claude_hooks/` | Claude Code hook runtime 的 Python 实现 |
+| `scripts/checks/` | 领域检查器与 Gate 叶子命令；不维护 target 或 summary |
+| `scripts/gates/` | typed catalog、planner、executor、receipt 与结构化 report |
+| `scripts/harness/` | 跨 Claude Code、Codex、Qoder 复用的薄 Stop 入口和结构校验 |
+| `scripts/agent_runtime/` | Claude、Codex、Qoder 共用的 Hook runtime、身份与证据实现 |
 | `.claude/`、`.codex/`、`.qoder/` | 工具入口、hooks、agents、薄配置 |
 | `skills/` | 仓库共享 skill 真源 |
 | `harness/` | agent 规约的渐进式加载扩展 |

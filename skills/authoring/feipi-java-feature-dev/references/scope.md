@@ -34,6 +34,6 @@
 ## 触发门禁
 
 - `./scripts/session-browser.sh test`
-- `python scripts/quality/check_java_module_boundaries.py`
-- `python scripts/quality/check_java_api_snapshot.py`
-- `python scripts/quality/run_required_quality_gates.py`
+- `python scripts/checks/check_java_module_boundaries.py`
+- `python scripts/checks/check_java_api_snapshot.py`
+- `python scripts/gates/cli.py`

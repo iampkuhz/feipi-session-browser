@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""从 primary checkout 的稳定精确 HEAD 创建 worktree 并启动 Codex。"""
+"""本模块负责从 primary checkout 的稳定精确 HEAD 创建 worktree 并启动 Codex。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
@@ -11,11 +13,12 @@ import subprocess
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Sequence
 
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+
+from typing import TYPE_CHECKING  # noqa: E402
 
 from scripts.harness.primary_session import (  # noqa: E402
     PrimaryHeadSnapshot,
@@ -24,6 +27,9 @@ from scripts.harness.primary_session import (  # noqa: E402
     resolve_checkout_identity,
     resolve_git_common_dir,
 )
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
 
 NAME_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$")
 
@@ -34,8 +40,8 @@ class LauncherError(RuntimeError):
     # 保存稳定错误代码与面向用户的阻断原因。
     def __init__(self, code: str, message: str) -> None:
         """参数：
-            code: 机器可读错误代码。
-            message: 面向用户的阻断原因。
+        code: 机器可读错误代码。
+        message: 面向用户的阻断原因。
         """
         super().__init__(message)
         self.code = code
@@ -55,8 +61,7 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
     return subprocess.run(
         ["git", "-C", str(repo), *args],
         check=check,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
+        capture_output=True,
         text=True,
     )
 
@@ -200,15 +205,20 @@ def _create_worktree(
     """
 
     primary_root = Path(snapshot.primary_repo_root)
-    if _git(
-        primary_root,
-        "show-ref",
-        "--verify",
-        "--quiet",
-        f"refs/heads/{branch}",
-        check=False,
-    ).returncode == 0:
-        raise LauncherError("WORKTREE_BRANCH_EXISTS", f"refusing to reuse existing branch: {branch}")
+    if (
+        _git(
+            primary_root,
+            "show-ref",
+            "--verify",
+            "--quiet",
+            f"refs/heads/{branch}",
+            check=False,
+        ).returncode
+        == 0
+    ):
+        raise LauncherError(
+            "WORKTREE_BRANCH_EXISTS", f"refusing to reuse existing branch: {branch}"
+        )
 
     target.parent.mkdir(parents=True, exist_ok=True)
     if os.path.lexists(target):
@@ -227,7 +237,11 @@ def _create_worktree(
         check=False,
     )
     if created.returncode != 0:
-        detail = created.stderr.strip().splitlines()[-1] if created.stderr.strip() else "git worktree add failed"
+        detail = (
+            created.stderr.strip().splitlines()[-1]
+            if created.stderr.strip()
+            else "git worktree add failed"
+        )
         raise LauncherError("WORKTREE_CREATE_FAILED", detail)
 
     try:
@@ -240,7 +254,9 @@ def _create_worktree(
     except PrimarySessionValidationError as exc:
         raise LauncherError("WORKTREE_IDENTITY_INVALID", str(exc)) from exc
     if actual_common_dir != expected_common_dir:
-        raise LauncherError("WORKTREE_COMMON_DIR_MISMATCH", "created checkout has a foreign Git common-dir")
+        raise LauncherError(
+            "WORKTREE_COMMON_DIR_MISMATCH", "created checkout has a foreign Git common-dir"
+        )
     if identity["checkoutKind"] != "linked-worktree":
         raise LauncherError("WORKTREE_KIND_MISMATCH", "created checkout is not a linked worktree")
     if identity["headCommit"] != snapshot.head_commit:
@@ -249,7 +265,9 @@ def _create_worktree(
             "created checkout HEAD does not equal the captured primary HEAD",
         )
     if identity["branch"] != branch or identity["detached"]:
-        raise LauncherError("WORKTREE_BRANCH_MISMATCH", "created checkout is not on its task branch")
+        raise LauncherError(
+            "WORKTREE_BRANCH_MISMATCH", "created checkout is not on its task branch"
+        )
     return identity
 
 
@@ -272,7 +290,7 @@ def _launch_command(client: str, target: Path, client_args: Sequence[str]) -> li
 # 创建参数解析器。
 def build_parser() -> argparse.ArgumentParser:
     """返回：
-        launcher 命令行参数解析器。
+    launcher 命令行参数解析器。
     """
 
     parser = argparse.ArgumentParser(

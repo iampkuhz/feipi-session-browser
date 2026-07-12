@@ -47,8 +47,8 @@
    - 说明哪些是确定性判断，哪些是 LLM 推断。
 
 6. **提供精确验证命令**：
-   - `python3 scripts/quality/run_quality_gate.py --target session-detail`
-   - 或具体门禁：`python3 scripts/quality/check_session_detail_static.py`
+   - `python3 scripts/gates/cli.py --target session-detail`
+   - 或具体门禁：`python3 scripts/checks/check_session_detail_static.py`
 
 ## 输出格式
 
@@ -67,7 +67,7 @@
 2. [具体改动]
 
 验证命令：
-python3 scripts/quality/run_quality_gate.py --target session-detail
+python3 scripts/gates/cli.py --target session-detail
 
 确定性 vs 推断：[说明哪些是确定性的，哪些是 LLM 推断的]
 ```

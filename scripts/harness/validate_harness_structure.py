@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""验证 that 必需 harness contract files and entrypoints exist。"""
+"""本模块负责执行 `validate_harness_structure` 对应的确定性仓库检查。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 import sys
 from pathlib import Path
@@ -44,9 +46,12 @@ required = [
     'harness/quality/quality-gate-matrix.md',
     'scripts/harness',
     'scripts/harness/stop_entry.py',
-    'scripts/harness/stop_helpers.py',
+    'scripts/agent_runtime/stop/model.py',
+    'scripts/agent_runtime/stop/pipeline.py',
+    'scripts/agent_runtime/stop/evidence.py',
+    'scripts/agent_runtime/stop/recovery.py',
+    'scripts/agent_runtime/stop/report.py',
     'scripts/harness/hook-common.sh',
-    'scripts/harness/stop_entry_checks/__init__.py',
     'scripts/harness/sessionctl.py',
 ]
 missing = [p for p in required if not (Path.cwd() / p).exists()]

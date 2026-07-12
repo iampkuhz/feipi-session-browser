@@ -1,11 +1,11 @@
 """测试 Python 环境和依赖锁契约."""
 
-import tomllib
 from pathlib import Path
 
 import pytest
+import tomllib
+from scripts.gates import executor as gate_executor
 from scripts.harness import python_env
-from scripts.quality import run_quality_gate
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -132,14 +132,35 @@ def test_lock_check_accepts_uv_minor_lock_equivalent(tmp_path: Path):
 def test_quality_gate_project_python_uses_shared_resolver(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    run_quality_gate._project_python_cached.cache_clear()
+    gate_executor._project_python_cached.cache_clear()
     calls: list[Path] = []
 
     def fake_resolve(repo_root: Path) -> str:
         calls.append(repo_root)
         return '/tmp/shared-python'
 
-    monkeypatch.setattr(run_quality_gate, 'resolve_python', fake_resolve)
+    monkeypatch.setattr(gate_executor, 'resolve_python', fake_resolve)
 
-    assert run_quality_gate._project_python(tmp_path) == '/tmp/shared-python'
+    assert gate_executor._project_python(tmp_path) == '/tmp/shared-python'
     assert calls == [tmp_path]
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_quality_gate_dev_python_requires_pytest(monkeypatch: pytest.MonkeyPatch, tmp_path: Path):
+    """开发 Gate 不得选择缺少 pytest 的仓库虚拟环境。"""
+    gate_executor._project_python_cached.cache_clear()
+    monkeypatch.setattr(gate_executor, 'resolve_python', lambda _root: '/tmp/runtime-python')
+    monkeypatch.setattr(
+        gate_executor,
+        '_python_candidates',
+        lambda _root: ['/tmp/runtime-python', '/tmp/dev-python'],
+    )
+    monkeypatch.setattr(
+        gate_executor,
+        '_python_supports_modules',
+        lambda executable, _root, modules: (
+            executable == '/tmp/dev-python' and modules == ('pytest',)
+        ),
+    )
+
+    assert gate_executor._project_python(tmp_path, dev=True) == '/tmp/dev-python'

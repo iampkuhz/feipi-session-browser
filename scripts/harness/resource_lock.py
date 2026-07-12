@@ -1,29 +1,178 @@
-"""Named cross-process resource locks for primary-session runtime isolation."""
+"""本模块负责执行 `resource_lock` 对应的确定性仓库检查。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
 import argparse
+import errno
 import hashlib
 import json
 import os
 import socket
+import stat
 import subprocess
 import time
+import uuid
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterable
+from typing import TYPE_CHECKING, Any
 
-from scripts.harness.primary_session import resolve_runtime_root
+from scripts.harness.primary_session import ensure_private_directory, resolve_runtime_root
+
+if TYPE_CHECKING:
+    from collections.abc import Iterable
 
 DEFAULT_TIMEOUT_SECONDS = 120.0
 DEFAULT_STALE_SECONDS = 3600.0
 _POLL_SECONDS = 0.1
 
 
-class ResourceLockTimeout(TimeoutError):
-    """Raised when a named resource lock cannot be acquired before timeout."""
+@dataclass(frozen=True)
+class _LockSnapshot:
+    """保存一次不跟随符号链接的 lock 文件读取结果。"""
 
-    # 维护 __init__ 函数行为。
+    state: str
+    data: dict[str, Any] | None
+    device: int
+    inode: int
+    uid: int
+    mtime: float
+
+
+def _fsync_directory(path: Path) -> None:
+    """同步目录项；不支持目录 fsync 的平台保持保守但不破坏已发布锁。"""
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_DIRECTORY", 0))
+    except OSError:
+        return
+    try:
+        os.fsync(descriptor)
+    except OSError as exc:
+        if exc.errno not in {errno.EINVAL, errno.ENOTSUP}:
+            raise
+    finally:
+        os.close(descriptor)
+
+
+def _atomic_publish_lock(path: Path, payload: dict[str, Any]) -> tuple[bool, dict[str, Any]]:
+    """先完整写入并 fsync 临时文件，再用 hard-link 原子 no-clobber 发布。"""
+    temp = path.with_name(f".{path.name}.{os.getpid()}.{uuid.uuid4().hex}.tmp")
+    descriptor = os.open(
+        temp,
+        os.O_CREAT | os.O_EXCL | os.O_WRONLY | getattr(os, "O_NOFOLLOW", 0),
+        0o600,
+    )
+    published = False
+    try:
+        metadata = os.fstat(descriptor)
+        complete = {
+            **payload,
+            "schemaVersion": 2,
+            "ownerUid": metadata.st_uid,
+            "lockDevice": metadata.st_dev,
+            "lockInode": metadata.st_ino,
+        }
+        encoded = (json.dumps(complete, ensure_ascii=False, sort_keys=True) + "\n").encode("utf-8")
+        offset = 0
+        while offset < len(encoded):
+            offset += os.write(descriptor, encoded[offset:])
+        os.fchmod(descriptor, 0o600)
+        os.fsync(descriptor)
+        try:
+            os.link(temp, path, follow_symlinks=False)
+            published = True
+            _fsync_directory(path.parent)
+        except FileExistsError:
+            published = False
+        return published, complete
+    finally:
+        os.close(descriptor)
+        try:
+            temp.unlink()
+        except FileNotFoundError:
+            pass
+
+
+def _read_lock_snapshot(path: Path) -> _LockSnapshot | None:
+    """读取并复核 lock inode、UID 与 fencing metadata，区分损坏和旧格式。"""
+    try:
+        before = path.lstat()
+    except FileNotFoundError:
+        return None
+    if stat.S_ISLNK(before.st_mode) or not stat.S_ISREG(before.st_mode):
+        return _LockSnapshot(
+            "unsafe", None, before.st_dev, before.st_ino, before.st_uid, before.st_mtime
+        )
+    current_uid = getattr(os, "geteuid", os.getuid)()
+    if before.st_uid != current_uid:
+        return _LockSnapshot(
+            "foreign-uid", None, before.st_dev, before.st_ino, before.st_uid, before.st_mtime
+        )
+    try:
+        descriptor = os.open(path, os.O_RDONLY | getattr(os, "O_NOFOLLOW", 0))
+    except OSError:
+        return None
+    try:
+        opened = os.fstat(descriptor)
+        if opened.st_dev != before.st_dev or opened.st_ino != before.st_ino:
+            return None
+        raw = bytearray()
+        while len(raw) <= 64 * 1024:
+            chunk = os.read(descriptor, min(8192, 64 * 1024 + 1 - len(raw)))
+            if not chunk:
+                break
+            raw.extend(chunk)
+        finished = os.fstat(descriptor)
+    finally:
+        os.close(descriptor)
+    if finished.st_dev != before.st_dev or finished.st_ino != before.st_ino:
+        return None
+    if not raw:
+        state, data = "empty", None
+    elif len(raw) > 64 * 1024:
+        state, data = "corrupt", None
+    else:
+        try:
+            decoded = json.loads(raw.decode("utf-8"))
+        except (UnicodeDecodeError, json.JSONDecodeError):
+            state, data = "corrupt", None
+        else:
+            data = decoded if isinstance(decoded, dict) else None
+            state = "valid" if data is not None else "corrupt"
+    if data is not None:
+        required = {
+            "fencingToken",
+            "ownerUid",
+            "lockDevice",
+            "lockInode",
+            "pid",
+            "processStartTime",
+        }
+        if int(data.get("schemaVersion") or 0) < 2 or not required.issubset(data):
+            state = "legacy"
+        elif (
+            data.get("ownerUid") != before.st_uid
+            or data.get("lockDevice") != before.st_dev
+            or data.get("lockInode") != before.st_ino
+        ):
+            state = "fencing-mismatch"
+    return _LockSnapshot(state, data, before.st_dev, before.st_ino, before.st_uid, before.st_mtime)
+
+
+def _same_lock_epoch(path: Path, snapshot: _LockSnapshot, token: str = "") -> bool:
+    """复核路径仍指向同一 inode；提供 token 时同时复核 fencing epoch。"""
+    current = _read_lock_snapshot(path)
+    if current is None or current.device != snapshot.device or current.inode != snapshot.inode:
+        return False
+    if current.uid != snapshot.uid or current.state in {"unsafe", "foreign-uid"}:
+        return False
+    return not token or bool(current.data and current.data.get("fencingToken") == token)
+
+
+class ResourceLockTimeout(TimeoutError):  # noqa: N818
+    """命名资源锁在超时前无法取得时抛出。"""
+
     def __init__(self, resource: str, owner: dict[str, Any] | None, waited_seconds: float):
         """参数：
             resource: 被占用的资源名称。
@@ -171,6 +320,7 @@ def owner_metadata(
         "acquiredAt": _utc_now(),
         "heartbeatAt": _utc_now(),
         "hostMarker": _host_marker(),
+        "ownerUid": getattr(os, "geteuid", os.getuid)(),
     }
     if extra:
         data.update(extra)
@@ -179,23 +329,31 @@ def owner_metadata(
 
 @dataclass
 class LockAcquireResult:
+    """保存 `LockAcquireResult` 的结构化契约数据；字段由所属运行阶段构造并由后续报告读取。"""
+
     resource: str
     status: str
     path: str
-    waitedSeconds: float
+    waitedSeconds: float  # noqa: N815
     owner: dict[str, Any] | None = None
 
 
 @dataclass
 class NamedResourceLock:
+    """保存 `NamedResourceLock` 的结构化契约数据；字段由所属运行阶段构造并由后续报告读取。"""
+
     repo_root: Path
     resource: str
     owner: dict[str, Any]
     stale_seconds: float = DEFAULT_STALE_SECONDS
     acquired: bool = False
     path: Path = field(init=False)
+    fencing_token: str = ""
+    lock_device: int = 0
+    lock_inode: int = 0
+    reclaimed_owner: dict[str, Any] = field(default_factory=dict)
+    reclaim_audit: dict[str, Any] = field(default_factory=dict)
 
-    # 维护 __post_init__ 函数行为。
     def __post_init__(self) -> None:
         self.path = lock_root(self.repo_root) / f"{_safe_name(self.resource)}.lock"
 
@@ -207,11 +365,8 @@ class NamedResourceLock:
         返回：
             当前 lock owner metadata，无法读取时返回 None。
         """
-        try:
-            data = json.loads(self.path.read_text(encoding="utf-8"))
-        except (FileNotFoundError, json.JSONDecodeError, OSError):
-            return None
-        return data if isinstance(data, dict) else None
+        snapshot = _read_lock_snapshot(self.path)
+        return dict(snapshot.data) if snapshot and snapshot.data is not None else None
 
     # 维护 stale 判断。
     def _is_stale(self, data: dict[str, Any] | None) -> bool:
@@ -221,17 +376,22 @@ class NamedResourceLock:
         返回：
             lock 可安全回收时返回 true。
         """
-        if not data:
-            return True
-        pid = data.get("pid")
-        start_time = str(data.get("processStartTime") or "")
-        if isinstance(pid, int) and process_is_alive(pid, start_time):
+        snapshot = _read_lock_snapshot(self.path)
+        if snapshot is None or snapshot.state in {"unsafe", "foreign-uid"}:
             return False
-        try:
-            age = time.time() - self.path.stat().st_mtime
-        except OSError:
+        if time.time() - snapshot.mtime < max(0.0, self.stale_seconds):
+            return False
+        if snapshot.data:
+            pid = snapshot.data.get("pid")
+            start_time = str(snapshot.data.get("processStartTime") or "")
+            if isinstance(pid, int) and pid > 0 and process_is_alive(pid, start_time):
+                return False
+        if snapshot.state != "valid":
             return True
-        return age >= 0 or age > self.stale_seconds
+        data = snapshot.data
+        if not data:
+            return False
+        return True
 
     # 维护 stale lock 回收。
     def _remove_stale(self) -> bool:
@@ -241,11 +401,27 @@ class NamedResourceLock:
         返回：
             stale lock 已不存在或已删除时返回 true。
         """
-        data = self.read_owner()
+        snapshot = _read_lock_snapshot(self.path)
+        if snapshot is None:
+            return True
+        data = snapshot.data
         if not self._is_stale(data):
+            return False
+        if not _same_lock_epoch(self.path, snapshot):
             return False
         try:
             self.path.unlink()
+            self.reclaimed_owner = dict(data or {"lockState": snapshot.state})
+            self.reclaim_audit = {
+                "event": "RESOURCE_LOCK_RECLAIMED",
+                "resource": self.resource,
+                "previousState": snapshot.state,
+                "previousDevice": snapshot.device,
+                "previousInode": snapshot.inode,
+                "previousUid": snapshot.uid,
+                "reclaimedAt": _utc_now(),
+            }
+            _fsync_directory(self.path.parent)
             return True
         except FileNotFoundError:
             return True
@@ -260,8 +436,11 @@ class NamedResourceLock:
         返回：
             获取成功时返回 true。
         """
-        self.path.parent.mkdir(parents=True, exist_ok=True)
+        runtime_root = ensure_private_directory(resolve_runtime_root(self.repo_root))
+        ensure_private_directory(self.path.parent, root=runtime_root)
+        self._remove_stale()
         payload = dict(self.owner)
+        self.fencing_token = uuid.uuid4().hex
         payload.update(
             {
                 "resource": self.resource,
@@ -270,19 +449,22 @@ class NamedResourceLock:
                 "acquiredAt": _utc_now(),
                 "heartbeatAt": _utc_now(),
                 "hostMarker": _host_marker(),
+                "fencingToken": self.fencing_token,
+                "graceSeconds": max(0.0, self.stale_seconds),
+                "reclaimAudit": dict(self.reclaim_audit),
             }
         )
-        self._remove_stale()
         try:
-            fd = os.open(str(self.path), os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
+            published, complete = _atomic_publish_lock(self.path, payload)
+        except OSError:
             return False
-        with os.fdopen(fd, "w", encoding="utf-8") as handle:
-            handle.write(json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n")
+        if not published:
+            return False
+        self.lock_device = int(complete["lockDevice"])
+        self.lock_inode = int(complete["lockInode"])
         self.acquired = True
         return True
 
-    # 维护 acquire 函数行为。
     def acquire(self, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS) -> LockAcquireResult:
         """参数：
             timeout_seconds: 最大等待秒数。
@@ -302,7 +484,6 @@ class NamedResourceLock:
                 raise ResourceLockTimeout(self.resource, last_owner, waited)
             time.sleep(_POLL_SECONDS)
 
-    # 维护 heartbeat 函数行为。
     def heartbeat(self) -> None:
         """参数：
             当前函数不接收参数。
@@ -312,15 +493,19 @@ class NamedResourceLock:
         """
         if not self.acquired:
             return
-        data = self.read_owner() or {}
-        if data.get("pid") != os.getpid():
+        snapshot = _read_lock_snapshot(self.path)
+        if (
+            snapshot is None
+            or snapshot.device != self.lock_device
+            or snapshot.inode != self.lock_inode
+        ):
             return
-        data["heartbeatAt"] = _utc_now()
-        tmp = self.path.with_name(f".{self.path.name}.{os.getpid()}.tmp")
-        tmp.write_text(json.dumps(data, ensure_ascii=False, sort_keys=True) + "\n", encoding="utf-8")
-        os.replace(tmp, self.path)
+        data = snapshot.data or {}
+        if data.get("fencingToken") != self.fencing_token or data.get("pid") != os.getpid():
+            return
+        # mtime 是无需替换 inode 的 heartbeat；payload 保留首次 heartbeat 供审计。
+        os.utime(self.path, None, follow_symlinks=False)
 
-    # 维护 release 函数行为。
     def release(self) -> None:
         """参数：
             当前函数不接收参数。
@@ -331,20 +516,37 @@ class NamedResourceLock:
         if not self.acquired:
             return
         try:
-            data = self.read_owner() or {}
-            if data.get("pid") in (None, os.getpid()):
+            snapshot = _read_lock_snapshot(self.path)
+            if (
+                snapshot is not None
+                and snapshot.device == self.lock_device
+                and snapshot.inode == self.lock_inode
+                and snapshot.data
+                and snapshot.data.get("fencingToken") == self.fencing_token
+                and snapshot.data.get("pid") == os.getpid()
+            ):
                 self.path.unlink()
+                _fsync_directory(self.path.parent)
         except FileNotFoundError:
             pass
         finally:
             self.acquired = False
+            self.fencing_token = ""
+            self.lock_device = 0
+            self.lock_inode = 0
 
 
 class ResourceLockSet:
-    """Acquire multiple resources in stable sorted order and release in reverse order."""
+    """按稳定顺序获取多项资源，并按相反顺序释放，避免锁顺序死锁。"""
 
-    # 维护 __init__ 函数行为。
-    def __init__(self, repo_root: Path, resources: Iterable[str], owner: dict[str, Any], *, timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS):
+    def __init__(
+        self,
+        repo_root: Path,
+        resources: Iterable[str],
+        owner: dict[str, Any],
+        *,
+        timeout_seconds: float = DEFAULT_TIMEOUT_SECONDS,
+    ):
         """参数：
             repo_root: 仓库根目录。
             resources: 待获取的 named resources。
@@ -361,7 +563,6 @@ class ResourceLockSet:
         self.locks = [NamedResourceLock(repo_root, resource, owner) for resource in self.resources]
         self.results: list[LockAcquireResult] = []
 
-    # 维护 acquire 函数行为。
     def acquire(self) -> list[LockAcquireResult]:
         """参数：
             当前函数不接收参数。
@@ -379,7 +580,6 @@ class ResourceLockSet:
             self.release()
             raise
 
-    # 维护 release 函数行为。
     def release(self) -> None:
         """参数：
             当前函数不接收参数。
@@ -390,8 +590,7 @@ class ResourceLockSet:
         for lock in reversed(self.locks):
             lock.release()
 
-    # 维护 __enter__ 函数行为。
-    def __enter__(self) -> "ResourceLockSet":
+    def __enter__(self) -> ResourceLockSet:
         """参数：
             当前函数不接收参数。
 
@@ -401,7 +600,6 @@ class ResourceLockSet:
         self.acquire()
         return self
 
-    # 维护 __exit__ 函数行为。
     def __exit__(self, exc_type: object, exc: object, tb: object) -> None:
         """参数：
             exc_type: context manager 异常类型。
@@ -411,10 +609,10 @@ class ResourceLockSet:
         返回：
             无；确保 finally 风格释放。
         """
+        del exc_type, exc, tb
         self.release()
 
 
-# 维护 status 函数行为。
 def status(repo_root: Path) -> list[dict[str, Any]]:
     """参数：
         repo_root: 仓库根目录。
@@ -430,12 +628,13 @@ def status(repo_root: Path) -> list[dict[str, Any]]:
         except Exception:
             owner = {}
         pid = owner.get("pid") if isinstance(owner, dict) else None
-        alive = isinstance(pid, int) and process_is_alive(pid, str(owner.get("processStartTime") or ""))
+        alive = isinstance(pid, int) and process_is_alive(
+            pid, str(owner.get("processStartTime") or "")
+        )
         result.append({"resource": path.stem, "path": str(path), "alive": alive, "owner": owner})
     return result
 
 
-# 维护 doctor 函数行为。
 def doctor(repo_root: Path) -> list[str]:
     """参数：
         repo_root: 仓库根目录。
@@ -446,13 +645,21 @@ def doctor(repo_root: Path) -> list[str]:
     errors: list[str] = []
     for item in status(repo_root):
         owner = item.get("owner") if isinstance(item.get("owner"), dict) else {}
-        for field_name in ("runId", "client", "sessionId", "worktreeId", "target", "pid", "acquiredAt", "hostMarker"):
+        for field_name in (
+            "runId",
+            "client",
+            "sessionId",
+            "worktreeId",
+            "target",
+            "pid",
+            "acquiredAt",
+            "hostMarker",
+        ):
             if field_name not in owner:
                 errors.append(f"{item['resource']}: missing owner field {field_name}")
     return errors
 
 
-# 维护 main 函数行为。
 def main() -> int:
     """参数：
         无；读取命令行参数。

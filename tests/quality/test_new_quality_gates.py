@@ -5,29 +5,29 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from scripts.quality.check_css_ownership import (
+from scripts.checks.check_css_ownership import (
     check_cross_layer_duplicate,
     check_hardcoded_colors,
     check_layer_purity,
 )
 
 # ── check_layout_inline_style ────────────────────────────────────────────
-from scripts.quality.check_layout_inline_style import (
+from scripts.checks.check_layout_inline_style import (
     scan_html_inline_styles,
     scan_js_style_assignments,
 )
 
 # ── check_no_id_selector ─────────────────────────────────────────────────
-from scripts.quality.check_no_id_selector import (
+from scripts.checks.check_no_id_selector import (
     check_id_selectors,
     extract_id_names,
 )
 
 # ── check_raw_innerhtml ──────────────────────────────────────────────────
-from scripts.quality.check_raw_innerhtml import (
+from scripts.checks.check_raw_innerhtml import (
     scan_innerhtml_assignments,
 )
-from scripts.quality.check_selector_depth import (
+from scripts.checks.check_selector_depth import (
     calculate_selector_depth,
     check_selector_depth,
     extract_css_rules,

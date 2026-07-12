@@ -79,8 +79,16 @@ platforms:
       session_end: [.qoder/hooks/session_end.sh]
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
+stop_runtime:
+  public_entry: scripts/harness/stop_entry.py
+  authority: scripts/agent_runtime/stop/pipeline.py
+  model: scripts/agent_runtime/stop/model.py
+  phases: [identity, lock, evidence, reentry-recovery, gate, report, finalize]
+  gate_service: scripts.gates.cli.run_service
+  gate_report_statuses: [EXECUTED, REUSED, NOT_TRIGGERED, FAILED, BLOCKED]
+
 platform_hook_adapter:
-  authority: scripts/claude_hooks/adapter.py
+  authority: scripts/agent_runtime/events/adapter.py
   service: scripts/harness/sessionctl.py bootstrap
   checkout_source: payload cwd resolved through Git facts
   requires_feipi_run_id: false
@@ -172,26 +180,26 @@ permission_policy:
   local_settings_example: .claude/settings.local.example.json
   qoder_local_settings_example: .qoder/settings.local.example.json
 required_gates:
-  - scripts/quality/check_agent_runtime_manifest.py
-  - scripts/quality/check_agent_hook_parity.py
-  - scripts/quality/check_no_committed_local_paths.py
-  - scripts/quality/check_agent_permission_policy.py
-  - scripts/quality/check_agent_policy_size.py
-  - scripts/quality/check_agent_rules_sync.py
-  - scripts/quality/check_agent_runtime_isolation.py
-  - scripts/quality/check_agent_runtime_worktree.py
-  - scripts/quality/check_gate_bypass_resistance.py
-  - scripts/quality/measure_gate_escape_rate.py
-  - scripts/quality/check_protected_roots_sync.py
-  - scripts/quality/check_hook_payload_compat.py
-  - scripts/quality/check_subagent_handoff_protocol.py
-  - scripts/quality/check_skill_registry.py
-  - scripts/quality/check_agent_entry_parity.py
-  - scripts/quality/check_qoder_runtime_parity.py
-  - scripts/quality/check_no_real_session_fixtures.py
-  - scripts/quality/check_secret_like_content.py
-  - scripts/quality/run_required_quality_gates.py
-  - scripts/quality/check_agent_runtime_report.py
+  - scripts/checks/check_agent_runtime_manifest.py
+  - scripts/checks/check_agent_hook_parity.py
+  - scripts/checks/check_no_committed_local_paths.py
+  - scripts/checks/check_agent_permission_policy.py
+  - scripts/checks/check_agent_policy_size.py
+  - scripts/checks/check_agent_rules_sync.py
+  - scripts/checks/check_agent_runtime_isolation.py
+  - scripts/checks/check_agent_runtime_worktree.py
+  - scripts/checks/check_gate_bypass_resistance.py
+  - scripts/checks/measure_gate_escape_rate.py
+  - scripts/checks/check_protected_roots_sync.py
+  - scripts/checks/check_hook_payload_compat.py
+  - scripts/checks/check_subagent_handoff_protocol.py
+  - scripts/checks/check_skill_registry.py
+  - scripts/checks/check_agent_entry_parity.py
+  - scripts/checks/check_qoder_runtime_parity.py
+  - scripts/checks/check_no_real_session_fixtures.py
+  - scripts/checks/check_secret_like_content.py
+  - scripts/gates/cli.py
+  - scripts/checks/check_agent_runtime_report.py
   - scripts/harness/doctor.sh
 primary_sessions:
   writable_isolation: checkout-writer-lease
@@ -230,6 +238,15 @@ run_record:
     - hookActivation
     - createdAt
     - updatedAt
+  initial_dirty_snapshot:
+    path_states_field: pathStates
+    content_fields:
+      - exists
+      - size
+      - sha256
+    stores_file_content: false
+    unchanged_path_excluded_only_when_state_matches: true
+    legacy_missing_state_policy: exclude-path-fail-safe
   statuses:
     - BOOTSTRAPPED
     - READ_ONLY_READY
@@ -310,7 +327,8 @@ status_machine:
       - READ_ONLY_CONFLICT
       - INTEGRATING
       - BLOCKED
-    BLOCKED: []
+    BLOCKED:
+      - VALIDATING
 runtime_root:
   resolution_order:
     - FEIPI_AGENT_RUNTIME_ROOT

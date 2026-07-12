@@ -45,14 +45,14 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 5. **检查测试 fixture 是否 synthetic**：确认 `tests/` 下的 fixture 文件使用合成数据，不包含真实 session 内容。参考 `references/fixture-policy.md`。
 6. **禁止复制 `~/.claude`、`~/.codex`、`~/.qoder` 原始文件入仓**：检查变更中没有从用户 home 目录复制真实文件。
 7. **对必须展示的字段给最小化片段**：只展示字段名前缀或占位符（如 `sk-***`、`<REDACTED>`），不展示完整值。
-8. **增加 gate 或 fixture contract**：如果需要新增检查，创建 `scripts/quality/check_<domain>.py` 并接入 doctor。
+8. **增加 gate 或 fixture contract**：如果需要新增检查，创建 `scripts/checks/check_<domain>.py` 并接入 doctor。
 9. **运行隐私 gate**：执行 `check_no_real_session_fixtures.py` 和 `check_secret_like_content.py`，确认无敏感数据泄露。
 10. **输出风险和残留敏感字段**：在报告中列出仍可能存在的风险，如第三方 API 返回内容中的用户数据。
 
 ## 文件边界
 
 - Skill 源目录：`skills/authoring/feipi-privacy-redaction-dev/`。
-- 隐私 gate 脚本：`scripts/quality/check_no_real_session_fixtures.py`、`scripts/quality/check_secret_like_content.py`。
+- 隐私 gate 脚本：`scripts/checks/check_no_real_session_fixtures.py`、`scripts/checks/check_secret_like_content.py`。
 - 测试 fixture 目录：`tests/fixtures/synthetic/`。
 - 配置引用：`harness/skill-registry.yaml`、`harness/agent-runtime.manifest.yaml`。
 
@@ -60,10 +60,10 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 
 ## 验证门禁
 
-- `python scripts/quality/check_no_real_session_fixtures.py` — 检测真实 session fixture。
-- `python scripts/quality/check_secret_like_content.py` — 检测类密钥内容。
-- `python scripts/quality/check_skill_registry.py` — registry 完整性。
-- `python scripts/quality/check_agent_runtime_manifest.py` — manifest 完整性。
+- `python scripts/checks/check_no_real_session_fixtures.py` — 检测真实 session fixture。
+- `python scripts/checks/check_secret_like_content.py` — 检测类密钥内容。
+- `python scripts/checks/check_skill_registry.py` — registry 完整性。
+- `python scripts/checks/check_agent_runtime_manifest.py` — manifest 完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
 
 ## 输出格式

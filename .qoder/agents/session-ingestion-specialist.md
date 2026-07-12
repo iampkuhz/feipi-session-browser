@@ -33,7 +33,7 @@
 ## Validation
 
 - Run the handoff validation command exactly when provided.
-- Otherwise run `./scripts/session-browser.sh test` and `python scripts/quality/check_java_module_boundaries.py` for ingestion code changes.
+- Otherwise run `./scripts/session-browser.sh test` and `python scripts/checks/check_java_module_boundaries.py` for ingestion code changes.
 - Report `FAIL` if token semantics or schema compatibility checks cannot be verified.
 
 ## Output Format

@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from pathlib import Path
 
-from scripts.quality import run_reuse_standard_cpd as cpd
+from scripts.checks import run_reuse_standard_cpd as cpd
 
 
 def _write(path: Path, text: str = 'class X {}\n') -> Path:
@@ -57,7 +57,7 @@ def test_incremental_ignores_non_production_or_missing_files(tmp_path: Path) -> 
             'java/core/src/main/java/com/example/Prod.java',
             'java/core/src/test/java/com/example/ProdTest.java',
             'java/core/src/main/java/com/example/Missing.java',
-            'scripts/quality/run_quality_gate.py',
+            'scripts/checks/gate_executor.py',
         ],
     )
 
@@ -84,11 +84,13 @@ def test_no_changed_java_is_noop_not_full_scan(tmp_path: Path, monkeypatch) -> N
     """没有 changed production Java 时不调用 Gradle full CPD。"""
 
     def fail_run_gradle(command: list[str], repo_root: Path) -> int:
-        raise AssertionError(f'Gradle should not run for no-op incremental CPD: {command} {repo_root}')
+        raise AssertionError(
+            f'Gradle should not run for no-op incremental CPD: {command} {repo_root}'
+        )
 
     monkeypatch.setattr(cpd, 'run_gradle', fail_run_gradle)
 
-    rc = cpd.run_incremental(tmp_path, json.dumps(['scripts/quality/run_quality_gate.py']))
+    rc = cpd.run_incremental(tmp_path, json.dumps(['scripts/checks/gate_executor.py']))
 
     assert rc == 0
     summary = json.loads((tmp_path / cpd.SUMMARY_RELATIVE_PATH).read_text(encoding='utf-8'))
@@ -131,7 +133,12 @@ def test_full_gradle_command_is_explicit() -> None:
     """Full CPD is available only as an explicit mode in the wrapper command."""
     command = cpd.build_gradle_command(Path('/repo'), 'full', None)
 
-    assert command == ['/repo/gradlew', 'reuseStandardCpd', '-PfeipiReuseCpdMode=full', '--console=plain']
+    assert command == [
+        '/repo/gradlew',
+        'reuseStandardCpd',
+        '-PfeipiReuseCpdMode=full',
+        '--console=plain',
+    ]
 
 
 def test_gradle_cpd_argument_builder_uses_file_list_not_dir() -> None:

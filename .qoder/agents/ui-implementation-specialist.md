@@ -33,7 +33,7 @@
 ## Validation
 
 - Run the handoff validation command exactly when provided.
-- Otherwise run `python scripts/quality/check_session_detail_static.py` and `python scripts/quality/check_css_ownership.py` for UI changes.
+- Otherwise run `python scripts/checks/check_session_detail_static.py` and `python scripts/checks/check_css_ownership.py` for UI changes.
 - Add interaction, layout, inline-style, and JS handler gates when the touched area requires them.
 
 ## Output Format

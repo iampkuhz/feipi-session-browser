@@ -23,10 +23,10 @@
 1. `src/templates/` → Jinja 模板文件，session detail 页面结构。
 2. `src/static/css/` → CSS 样式文件，ownership 分区。
 3. `src/static/js/` → JS 交互脚本，action handler 绑定。
-4. `scripts/quality/check_session_detail_static.py` → 静态检查入口。
-5. `scripts/quality/check_css_ownership.py` → CSS ownership 校验。
-6. `scripts/quality/check_js_action_handlers.py` → JS handler 完整性检查。
-7. `scripts/quality/*_baseline.json` → UI gate baseline 数据。
+4. `scripts/checks/check_session_detail_static.py` → 静态检查入口。
+5. `scripts/checks/check_css_ownership.py` → CSS ownership 校验。
+6. `scripts/checks/check_js_action_handlers.py` → JS handler 完整性检查。
+7. `scripts/checks/*_baseline.json` → UI gate baseline 数据。
 
 ## 常见误区
 
@@ -39,12 +39,12 @@
 
 ## 触发门禁
 
-- `python scripts/quality/check_session_detail_static.py`
-- `python scripts/quality/check_session_detail_shell_css.py`
-- `python scripts/quality/run_session_detail_interaction_gate.py`
-- `python scripts/quality/run_session_detail_layout_gate.py`
-- `python scripts/quality/check_js_action_handlers.py`
-- `python scripts/quality/check_css_ownership.py`
-- `python scripts/quality/check_no_legacy_css.py`
-- `python scripts/quality/check_layout_inline_style.py`
-- `python scripts/quality/check_raw_innerhtml.py`
+- `python scripts/checks/check_session_detail_static.py`
+- `python scripts/checks/check_session_detail_shell_css.py`
+- `python scripts/checks/run_session_detail_interaction_gate.py`
+- `python scripts/checks/run_session_detail_layout_gate.py`
+- `python scripts/checks/check_js_action_handlers.py`
+- `python scripts/checks/check_css_ownership.py`
+- `python scripts/checks/check_no_legacy_css.py`
+- `python scripts/checks/check_layout_inline_style.py`
+- `python scripts/checks/check_raw_innerhtml.py`

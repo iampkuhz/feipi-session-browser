@@ -6,11 +6,10 @@ import sys
 from pathlib import Path
 
 import pytest
-
-from scripts.claude_hooks import main as hook_main
-from scripts.claude_hooks.adapter import UNVERIFIED, build_bootstrap_request
-from scripts.claude_hooks.hook_io import read_stdin_json
-from scripts.claude_hooks.policy.file_policy import pre_write_payload_block_reason
+from scripts.agent_runtime import hook_entry as hook_main
+from scripts.agent_runtime.context import read_stdin_json
+from scripts.agent_runtime.events.adapter import UNVERIFIED, build_bootstrap_request
+from scripts.agent_runtime.events.policy.file import pre_write_payload_block_reason
 from scripts.harness.sessionctl import Registry
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -264,7 +263,12 @@ def test_missing_path_for_write_blocks():
 def test_missing_session_for_protected_write_blocks():
     ctx = read_stdin_json(
         'pre-write',
-        _payload({'tool_name': 'Write', 'tool_input': {'file_path': 'scripts/claude_hooks/main.py'}}),
+        _payload(
+            {
+                'tool_name': 'Write',
+                'tool_input': {'file_path': 'scripts/agent_runtime/hook_entry.py'},
+            }
+        ),
     )
     reason = pre_write_payload_block_reason(ctx, REPO_ROOT)
     assert 'session id' in reason
@@ -279,7 +283,7 @@ def test_invalid_json_for_pre_write_blocks():
 
 def test_check_hook_payload_compat_passes():
     proc = subprocess.run(
-        [sys.executable, 'scripts/quality/check_hook_payload_compat.py'],
+        [sys.executable, 'scripts/checks/check_hook_payload_compat.py'],
         cwd=REPO_ROOT,
         text=True,
         capture_output=True,

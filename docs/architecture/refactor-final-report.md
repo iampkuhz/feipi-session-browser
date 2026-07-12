@@ -90,7 +90,7 @@ Test result XML inspection after the Gradle runs:
 
 Additional repository stop/handoff gate:
 
-- `python3 scripts/quality/run_required_quality_gates.py --changed-files '["docs/architecture/refactor-baseline.md","docs/architecture/refactor-final-report.md"]'`: exit 0; `ignoredTrackedFiles` preflight passed; no required targets were triggered for the two documentation report files.
+- `python3 scripts/gates/cli.py --changed-files '["docs/architecture/refactor-baseline.md","docs/architecture/refactor-final-report.md"]'`: exit 0; `ignoredTrackedFiles` preflight passed; no required targets were triggered for the two documentation report files.
 
 ## 6. Remaining blockers, violations, and follow-up
 

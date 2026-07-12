@@ -12,16 +12,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SESSIONCTL = ROOT / "scripts" / "harness" / "sessionctl.py"
 
-from scripts.claude_hooks.paths import identity_from_values
-from scripts.harness import sessionctl, stop_entry
-from scripts.harness.primary_session import (
+from scripts.agent_runtime.paths import identity_from_values  # noqa: E402
+from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
+from scripts.agent_runtime.stop.evidence import collect_run_changed_files  # noqa: E402
+from scripts.harness import sessionctl, stop_entry  # noqa: E402
+from scripts.harness.primary_session import (  # noqa: E402
     resolve_git_common_dir,
     resolve_repo_key,
     resolve_runtime_root,
     validate_run_write_authorization,
 )
-from scripts.harness.sessionctl import classify_tool_call
-from scripts.harness.stop_entry import collect_run_changed_files
+from scripts.harness.sessionctl import classify_tool_call  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -30,9 +31,11 @@ def isolated_runtime_root(tmp_path, monkeypatch):
 
 
 def run(cmd, cwd=None, check=True, env=None):
-    result = subprocess.run(cmd, cwd=cwd, text=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env)
+    result = subprocess.run(cmd, cwd=cwd, text=True, capture_output=True, env=env)
     if check and result.returncode != 0:
-        raise AssertionError(f"command failed: {cmd}\nstdout={result.stdout}\nstderr={result.stderr}")
+        raise AssertionError(
+            f"command failed: {cmd}\nstdout={result.stdout}\nstderr={result.stderr}"
+        )
     return result
 
 
@@ -84,7 +87,7 @@ def install_fake_stop_pass(monkeypatch):
         registry = sessionctl.Registry(checkout)
         with registry.locked():
             record = registry.load_run(payload["runId"])
-        facts = stop_entry.collect_git_evidence(checkout, record)
+        facts = stop_evidence.collect_git_evidence(checkout, record)
         summary = (
             checkout
             / "tmp"
@@ -113,9 +116,7 @@ def install_fake_stop_pass(monkeypatch):
 
 def stop_with_fake_pass(repo, record, monkeypatch, capsys):
     install_fake_stop_pass(monkeypatch)
-    result = sessionctl.cmd_stop(
-        argparse.Namespace(repo_root=str(repo), run_id=record["runId"])
-    )
+    result = sessionctl.cmd_stop(argparse.Namespace(repo_root=str(repo), run_id=record["runId"]))
     output = json.loads(capsys.readouterr().out)
     assert result == 0
     assert output["status"] == "VALIDATED"
@@ -190,7 +191,43 @@ def test_bootstrap_without_hints_is_idempotent_and_adopts_real_checkout_facts(tm
     assert adopted["detached"] is True
     assert adopted["initialDirtySnapshot"]["dirty"] is True
     assert adopted["initialDirtySnapshot"]["untracked"] == ["untracked.txt"]
+    assert adopted["initialDirtySnapshot"]["pathStates"]["untracked.txt"] == {
+        "exists": True,
+        "size": 6,
+        "sha256": "abe9c2071f1d073a4d40678af6637e240a01cc64637e0862ea1c441e0032910e",
+    }
+    assert "dirty\n" not in json.dumps(adopted["initialDirtySnapshot"])
     assert adopted["worktreeId"] != started["worktreeId"]
+
+
+def test_baseline_dirty_same_path_is_planned_after_content_changes(tmp_path):
+    repo = git_repo(tmp_path)
+    linked = tmp_path / "baseline-dirty-checkout"
+    run(["git", "worktree", "add", "--detach", str(linked), "HEAD"], cwd=repo)
+    dirty = linked / "scripts" / "gates" / "baseline_case.py"
+    dirty.parent.mkdir(parents=True)
+    dirty.write_text("value = 1\n", encoding="utf-8")
+    record = bootstrap(
+        linked,
+        "session-baseline-dirty",
+        client="codex",
+        extra=("--checkout-creator", "external"),
+    )
+
+    initial_facts = stop_evidence.collect_git_evidence(linked, record)
+    initial_changed, _ = stop_evidence.filter_baseline_dirty(
+        initial_facts["changedFiles"], initial_facts
+    )
+    assert initial_changed == []
+
+    dirty.write_text("value = 2\n", encoding="utf-8")
+    modified_facts = stop_evidence.collect_git_evidence(linked, record)
+    modified_changed, _ = stop_evidence.filter_baseline_dirty(
+        modified_facts["changedFiles"], modified_facts
+    )
+
+    assert modified_changed == ["scripts/gates/baseline_case.py"]
+    assert "hook-runtime" in stop_evidence.required_targets(modified_changed)
 
 
 def test_claude_cwd_changed_rebinds_same_run_before_first_mutation(tmp_path):
@@ -211,10 +248,7 @@ def test_claude_cwd_changed_rebinds_same_run_before_first_mutation(tmp_path):
     assert rebound["checkoutRoot"] == str(linked.resolve())
     assert rebound["checkoutKind"] == "linked-worktree"
     assert rebound["worktreeId"] != started["worktreeId"]
-    assert any(
-        event.get("event") == "SESSION_CHECKOUT_REBOUND"
-        for event in rebound["auditEvents"]
-    )
+    assert any(event.get("event") == "SESSION_CHECKOUT_REBOUND" for event in rebound["auditEvents"])
     writable = acquire_for_session(linked, rebound["sessionId"], client="claude")
     assert writable["status"] == "ISOLATED_WRITER"
     assert validate_run_write_authorization(
@@ -424,7 +458,10 @@ def test_checkout_writer_lease_real_concurrency_and_worktree_isolation(tmp_path)
         check=False,
     )
     assert linked_conflict.returncode == 2
-    assert bootstrap(linked_a, "session-linked-conflict", "PreToolUse")["status"] == "READ_ONLY_CONFLICT"
+    assert (
+        bootstrap(linked_a, "session-linked-conflict", "PreToolUse")["status"]
+        == "READ_ONLY_CONFLICT"
+    )
 
 
 @pytest.mark.contract_case("HOOK-HARNESS-017")
@@ -561,9 +598,9 @@ def test_writer_lease_fencing_reclaim_heartbeat_and_precise_release(tmp_path):
     )
     assert released["status"] == "READ_ONLY_READY"
     persisted = json.loads(
-        (resolve_runtime_root(repo) / "writer-leases" / f"{requester['worktreeId']}.json").read_text(
-            encoding="utf-8"
-        )
+        (
+            resolve_runtime_root(repo) / "writer-leases" / f"{requester['worktreeId']}.json"
+        ).read_text(encoding="utf-8")
     )
     assert persisted["state"] == "RELEASED"
     assert persisted["epoch"] == new_owner["writerLease"]["epoch"]
@@ -853,7 +890,9 @@ def test_cleanup_releases_exact_run_evidence_and_preserves_provider_checkout(tmp
     )
     dirty = linked / "provider-change.txt"
     dirty.write_text("provider owns this checkout\n", encoding="utf-8")
-    run_evidence = linked / "tmp" / "agent_logs" / "codex" / "session-cleanup" / "runs" / record["runId"]
+    run_evidence = (
+        linked / "tmp" / "agent_logs" / "codex" / "session-cleanup" / "runs" / record["runId"]
+    )
     run_evidence.mkdir(parents=True)
     (run_evidence / "event.json").write_text("{}\n", encoding="utf-8")
     sibling_evidence = run_evidence.parent / "other-run"
@@ -866,9 +905,7 @@ def test_cleanup_releases_exact_run_evidence_and_preserves_provider_checkout(tmp
     assert dry_run["actions"]["removeBranch"] is False
     assert linked.exists() and dirty.exists() and run_evidence.exists()
 
-    cleaned = json.loads(
-        ctl(linked, "cleanup", "--run-id", record["runId"], "--execute").stdout
-    )
+    cleaned = json.loads(ctl(linked, "cleanup", "--run-id", record["runId"], "--execute").stdout)
     assert cleaned["status"] == "cleanup-complete"
     assert linked.exists() and dirty.exists()
     assert str(linked.resolve()) in run(["git", "worktree", "list", "--porcelain"], cwd=repo).stdout
@@ -952,11 +989,9 @@ def test_stop_records_canonical_git_facts_and_never_claims_integration(
     assert facts["targetStatus"]["headCommit"] == facts["headCommit"]
     assert facts["primaryStatus"]["dirty"] is True
     latest = json.loads(
-        (
-            resolve_runtime_root(repo)
-            / "runs"
-            / f"{record['runId']}.json"
-        ).read_text(encoding="utf-8")
+        (resolve_runtime_root(repo) / "runs" / f"{record['runId']}.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert latest["status"] == "VALIDATED"
     assert latest["stopValidation"]["fresh"] is True
@@ -982,9 +1017,10 @@ def test_stop_validation_fingerprint_detects_same_path_content_change(
 
     assert current_facts["uncommittedFiles"] == ["README.md"]
     assert current_facts["checkoutFingerprint"] != original_fingerprint
-    assert sessionctl._fresh_validation_error(
-        validated, current_facts, require_target_match=False
-    ) == "checkout Git state changed after Stop validation"
+    assert (
+        sessionctl._fresh_validation_error(validated, current_facts, require_target_match=False)
+        == "checkout Git state changed after Stop validation"
+    )
 
 
 @pytest.mark.parametrize("checkout_creator", ["codex", "external"])
@@ -993,7 +1029,10 @@ def test_finalize_ff_only_preserves_provider_checkout_and_releases_exact_lease(
 ):
     repo = git_repo(tmp_path)
     linked = tmp_path / f"{checkout_creator} provider checkout"
-    run(["git", "worktree", "add", "-b", f"feature-{checkout_creator}", str(linked), "HEAD"], cwd=repo)
+    run(
+        ["git", "worktree", "add", "-b", f"feature-{checkout_creator}", str(linked), "HEAD"],
+        cwd=repo,
+    )
     record = bootstrap(
         linked,
         f"session-finalize-{checkout_creator}",
@@ -1017,17 +1056,14 @@ def test_finalize_ff_only_preserves_provider_checkout_and_releases_exact_lease(
     assert summary["pushed"] is False
     assert linked.exists()
     assert run(["git", "branch", "--show-current"], cwd=repo).stdout.strip() == "main_java"
-    assert run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip() == run(
-        ["git", "rev-parse", "HEAD"], cwd=linked
-    ).stdout.strip()
-    runtime = resolve_runtime_root(linked)
-    latest = json.loads(
-        (runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8")
+    assert (
+        run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
+        == run(["git", "rev-parse", "HEAD"], cwd=linked).stdout.strip()
     )
+    runtime = resolve_runtime_root(linked)
+    latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
     lease = json.loads(
-        (runtime / "writer-leases" / f"{record['worktreeId']}.json").read_text(
-            encoding="utf-8"
-        )
+        (runtime / "writer-leases" / f"{record['worktreeId']}.json").read_text(encoding="utf-8")
     )
     assert latest["status"] == "INTEGRATED"
     assert latest["writerLease"] == {}
@@ -1057,11 +1093,9 @@ def test_finalize_primary_checkout_is_already_on_target_and_preserves_status_on_
     assert summary["strategy"] == "already-on-target"
     assert summary["checkoutKind"] == "primary-checkout"
     latest = json.loads(
-        (
-            resolve_runtime_root(repo)
-            / "runs"
-            / f"{record['runId']}.json"
-        ).read_text(encoding="utf-8")
+        (resolve_runtime_root(repo) / "runs" / f"{record['runId']}.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert latest["status"] == "INTEGRATED"
     assert latest["writerLease"] == {}
@@ -1096,11 +1130,9 @@ def test_finalize_rebases_target_advance_revalidates_and_ff_only_integrates(
     assert (repo / "target.txt").read_text(encoding="utf-8") == "target advanced\n"
     assert linked.exists()
     latest = json.loads(
-        (
-            resolve_runtime_root(linked)
-            / "runs"
-            / f"{record['runId']}.json"
-        ).read_text(encoding="utf-8")
+        (resolve_runtime_root(linked) / "runs" / f"{record['runId']}.json").read_text(
+            encoding="utf-8"
+        )
     )
     assert latest["status"] == "INTEGRATED"
     assert sum(event["event"] == "STOP_VALIDATED" for event in latest["auditEvents"]) == 2
@@ -1141,7 +1173,7 @@ def test_finalize_target_advance_revalidation_failure_handoffs_and_exits_two(
         registry = sessionctl.Registry(checkout)
         with registry.locked():
             current = registry.load_run(payload["runId"])
-        facts = stop_entry.collect_git_evidence(checkout, current)
+        facts = stop_evidence.collect_git_evidence(checkout, current)
         sessionctl.record_stop_result(
             checkout,
             payload["runId"],
@@ -1160,15 +1192,11 @@ def test_finalize_target_advance_revalidation_failure_handoffs_and_exits_two(
     assert summary["reason"] == "revalidation failed after target advanced"
     assert run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip() == target_head
     runtime = resolve_runtime_root(linked)
-    latest = json.loads(
-        (runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8")
-    )
+    latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
     assert latest["status"] == "HANDOFF_REQUIRED"
     assert latest["stopValidation"]["status"] == "FAIL"
     assert latest["writerLease"] == {}
-    assert "STOP_HANDOFF_REQUIRED" in {
-        event["event"] for event in latest["auditEvents"]
-    }
+    assert "STOP_HANDOFF_REQUIRED" in {event["event"] for event in latest["auditEvents"]}
 
 
 @pytest.mark.parametrize(
@@ -1228,15 +1256,14 @@ def test_finalize_unsafe_git_states_require_handoff_without_deleting_checkout(
     assert expected_reason in summary["reason"]
     assert linked.exists()
     if unsafe_state == "primary-branch-mismatch":
-        assert run(["git", "branch", "--show-current"], cwd=repo).stdout.strip() == "other-primary-branch"
-    runtime = resolve_runtime_root(linked)
-    latest = json.loads(
-        (runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8")
-    )
-    lease = json.loads(
-        (runtime / "writer-leases" / f"{record['worktreeId']}.json").read_text(
-            encoding="utf-8"
+        assert (
+            run(["git", "branch", "--show-current"], cwd=repo).stdout.strip()
+            == "other-primary-branch"
         )
+    runtime = resolve_runtime_root(linked)
+    latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
+    lease = json.loads(
+        (runtime / "writer-leases" / f"{record['worktreeId']}.json").read_text(encoding="utf-8")
     )
     assert latest["status"] == "HANDOFF_REQUIRED"
     assert latest["writerLease"] == {}

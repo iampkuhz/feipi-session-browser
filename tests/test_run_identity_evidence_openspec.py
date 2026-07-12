@@ -2,19 +2,21 @@ from __future__ import annotations
 
 import json
 import subprocess
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
-
-from scripts.claude_hooks.evidence import record_hook_event
-from scripts.claude_hooks.hook_io import HookContext
-from scripts.claude_hooks.paths import build_paths, identity_from_values, quality_dir
+from scripts.agent_runtime.context import HookContext
+from scripts.agent_runtime.events.evidence import record_hook_event
+from scripts.agent_runtime.paths import build_paths, identity_from_values, quality_dir
 from scripts.harness.primary_session import (
     resolve_checkout_identity,
     resolve_runtime_root,
     validate_run_write_authorization,
 )
 from scripts.hooks.guard_openspec_change import guard_path
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 
 def git(repo: Path, *args: str) -> str:
@@ -124,10 +126,10 @@ def save_records(repo: Path, *records: dict) -> None:
             "checkoutRoot": record["checkoutRoot"],
             "state": "ACTIVE",
         }
-        (leases / f"{record['worktreeId']}.json").write_text(
-            json.dumps(lease), encoding="utf-8"
-        )
-    (root / "index.json").write_text(json.dumps({"schemaVersion": 2, "runs": [r["runId"] for r in records]}), encoding="utf-8")
+        (leases / f"{record['worktreeId']}.json").write_text(json.dumps(lease), encoding="utf-8")
+    (root / "index.json").write_text(
+        json.dumps({"schemaVersion": 2, "runs": [r["runId"] for r in records]}), encoding="utf-8"
+    )
 
 
 @pytest.mark.contract_case("HOOK-HARNESS-022")
@@ -136,16 +138,41 @@ def test_run_scoped_paths_separate_epochs_and_subagents(tmp_path: Path):
     second = identity_from_values("codex", "same-session", "", run_id="run-b", task_id="task-b")
     sub = identity_from_values("codex", "same-session", "worker-1", run_id="run-a")
 
-    assert build_paths(tmp_path, first).agent_log_dir == tmp_path / "tmp/agent_logs/codex/same-session/runs/run-a/main"
-    assert build_paths(tmp_path, second).agent_log_dir == tmp_path / "tmp/agent_logs/codex/same-session/runs/run-b/main"
-    assert build_paths(tmp_path, sub).agent_log_dir == tmp_path / "tmp/agent_logs/codex/same-session/runs/run-a/agents/worker-1"
-    assert quality_dir(tmp_path, first) == tmp_path / "tmp/quality/codex/same-session/runs/run-a/main"
+    assert (
+        build_paths(tmp_path, first).agent_log_dir
+        == tmp_path / "tmp/agent_logs/codex/same-session/runs/run-a/main"
+    )
+    assert (
+        build_paths(tmp_path, second).agent_log_dir
+        == tmp_path / "tmp/agent_logs/codex/same-session/runs/run-b/main"
+    )
+    assert (
+        build_paths(tmp_path, sub).agent_log_dir
+        == tmp_path / "tmp/agent_logs/codex/same-session/runs/run-a/agents/worker-1"
+    )
+    assert (
+        quality_dir(tmp_path, first) == tmp_path / "tmp/quality/codex/same-session/runs/run-a/main"
+    )
 
 
 def test_evidence_records_runtime_fields_and_duplicate_event_is_idempotent(tmp_path: Path):
-    identity = identity_from_values("qoder", "session-a", "", run_id="run-a", task_id="task-a", worktree_id="checkout-a", turn_id="turn-a", change_id="change-a", branch="main", base_commit="abc", checkout_root=str(tmp_path))
+    identity = identity_from_values(
+        "qoder",
+        "session-a",
+        "",
+        run_id="run-a",
+        task_id="task-a",
+        worktree_id="checkout-a",
+        turn_id="turn-a",
+        change_id="change-a",
+        branch="main",
+        base_commit="abc",
+        checkout_root=str(tmp_path),
+    )
     paths = build_paths(tmp_path, identity)
-    ctx = HookContext("pre-write", {"tool_use_id": "tool-1", "turn_id": "turn-a", "session_id": "session-a"})
+    ctx = HookContext(
+        "pre-write", {"tool_use_id": "tool-1", "turn_id": "turn-a", "session_id": "session-a"}
+    )
 
     record_hook_event(paths, ctx, status="PASS")
     record_hook_event(paths, ctx, status="PASS")
@@ -160,20 +187,57 @@ def test_evidence_records_runtime_fields_and_duplicate_event_is_idempotent(tmp_p
     assert event["eventId"]
 
 
-def test_run_authorization_blocks_change_session_scope_but_not_branch_name(tmp_path: Path, monkeypatch):
+def test_run_authorization_blocks_change_session_scope_but_not_branch_name(
+    tmp_path: Path, monkeypatch
+):
     repo = init_repo(tmp_path, monkeypatch)
     write_change(repo, "change-a")
     record = run_record(repo, "run-a")
     save_records(repo, record)
 
-    ok, errors, _ = validate_run_write_authorization(repo, client="codex", session_id="session-a", run_id="run-a", change_id="change-a", candidate_paths=["scripts/x.py"])
+    ok, errors, _ = validate_run_write_authorization(
+        repo,
+        client="codex",
+        session_id="session-a",
+        run_id="run-a",
+        change_id="change-a",
+        candidate_paths=["scripts/x.py"],
+    )
     assert ok, errors
 
-    assert not validate_run_write_authorization(repo, client="codex", session_id="other", run_id="run-a", change_id="change-a", candidate_paths=["scripts/x.py"])[0]
-    assert not validate_run_write_authorization(repo, client="codex", session_id="session-a", run_id="run-a", change_id="change-b", candidate_paths=["scripts/x.py"])[0]
-    assert not validate_run_write_authorization(repo, client="codex", session_id="session-a", run_id="run-a", change_id="change-a", candidate_paths=["docs/x.md"])[0]
+    assert not validate_run_write_authorization(
+        repo,
+        client="codex",
+        session_id="other",
+        run_id="run-a",
+        change_id="change-a",
+        candidate_paths=["scripts/x.py"],
+    )[0]
+    assert not validate_run_write_authorization(
+        repo,
+        client="codex",
+        session_id="session-a",
+        run_id="run-a",
+        change_id="change-b",
+        candidate_paths=["scripts/x.py"],
+    )[0]
+    assert not validate_run_write_authorization(
+        repo,
+        client="codex",
+        session_id="session-a",
+        run_id="run-a",
+        change_id="change-a",
+        candidate_paths=["docs/x.md"],
+    )[0]
     git(repo, "checkout", "-b", "other")
-    allowed, errors, _ = validate_run_write_authorization(repo, client="codex", session_id="session-a", run_id="run-a", change_id="change-a", candidate_paths=["scripts/x.py"])
+    allowed, errors, _ = validate_run_write_authorization(
+        repo,
+        client="codex",
+        session_id="session-a",
+        run_id="run-a",
+        change_id="change-a",
+        candidate_paths=["scripts/x.py"],
+    )
     assert allowed, errors
 
 
@@ -182,8 +246,17 @@ def test_openspec_guard_uses_bound_run_change(tmp_path: Path, monkeypatch):
     repo = init_repo(tmp_path, monkeypatch)
     write_change(repo, "change-a")
     save_records(repo, run_record(repo, "run-a", change="change-a"))
-    code, message = guard_path("scripts/x.py", root=repo, run_id="run-a", session_id="session-a", client="codex")
+    code, message = guard_path(
+        "scripts/x.py", root=repo, run_id="run-a", session_id="session-a", client="codex"
+    )
     assert code == 0, message
-    code, message = guard_path("scripts/x.py", root=repo, change_id="change-b", run_id="run-a", session_id="session-a", client="codex")
+    code, message = guard_path(
+        "scripts/x.py",
+        root=repo,
+        change_id="change-b",
+        run_id="run-a",
+        session_id="session-a",
+        client="codex",
+    )
     assert code == 2
     assert "run-scoped authorization failed" in message

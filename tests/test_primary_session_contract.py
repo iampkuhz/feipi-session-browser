@@ -4,7 +4,6 @@ import subprocess
 from pathlib import Path
 
 import pytest
-
 from scripts.harness.primary_session import (
     PrimarySessionValidationError,
     ensure_private_directory,
@@ -22,7 +21,7 @@ from scripts.harness.primary_session import (
 
 
 def _run(cmd, cwd):
-    subprocess.run(cmd, cwd=cwd, check=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    subprocess.run(cmd, cwd=cwd, check=True, capture_output=True, text=True)
 
 
 def _git_repo(tmp_path):
@@ -102,7 +101,7 @@ def test_run_record_requires_all_contract_fields():
     [
         ("BOOTSTRAPPED", "ISOLATED_WRITER", True),
         ("VALIDATING", "READ_ONLY_READY", True),
-        ("BLOCKED", "VALIDATING", False),
+        ("BLOCKED", "VALIDATING", True),
         ("READ_ONLY_READY", "BOOTSTRAPPED", False),
     ],
 )
@@ -162,7 +161,9 @@ def test_runtime_root_shared_by_linked_worktree(tmp_path, monkeypatch):
     assert resolve_checkout_root(nested) == worktree.resolve()
 
 
-def test_checkout_record_authorizes_detached_branch_independently_and_contains_paths(tmp_path, monkeypatch):
+def test_checkout_record_authorizes_detached_branch_independently_and_contains_paths(
+    tmp_path, monkeypatch
+):
     repo = _git_repo(tmp_path)
     worktree = tmp_path / "provider-worktree"
     _run(["git", "worktree", "add", "--detach", str(worktree), "HEAD"], repo)
@@ -208,19 +209,31 @@ def test_checkout_record_authorizes_detached_branch_independently_and_contains_p
     from scripts.harness.primary_session import validate_run_write_authorization
 
     ok, errors, _ = validate_run_write_authorization(
-        worktree, client="codex", session_id="session-a", run_id="run-a", candidate_paths=["src/new.py"]
+        worktree,
+        client="codex",
+        session_id="session-a",
+        run_id="run-a",
+        candidate_paths=["src/new.py"],
     )
     assert ok, errors
     assert not validate_run_write_authorization(
         worktree, client="codex", session_id="session-a", run_id="run-a", candidate_paths=[".env"]
     )[0]
     assert not validate_run_write_authorization(
-        worktree, client="codex", session_id="session-a", run_id="run-a", candidate_paths=[str(tmp_path / "escape.py")]
+        worktree,
+        client="codex",
+        session_id="session-a",
+        run_id="run-a",
+        candidate_paths=[str(tmp_path / "escape.py")],
     )[0]
 
     wrong = dict(record, repoKey="wrong", gitCommonDir=str(tmp_path), worktreeId="directory-name")
     _, mismatch = validate_checkout_record(worktree, wrong)
-    assert {"run repoKey does not match current checkout", "run gitCommonDir does not match current checkout", "run worktreeId does not match current checkout"} <= set(mismatch)
+    assert {
+        "run repoKey does not match current checkout",
+        "run gitCommonDir does not match current checkout",
+        "run worktreeId does not match current checkout",
+    } <= set(mismatch)
 
 
 def test_private_runtime_directories_are_0700_and_reject_symlinks(tmp_path, monkeypatch):

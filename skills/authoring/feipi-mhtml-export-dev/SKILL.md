@@ -58,7 +58,7 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 - 静态资源内联：`java/web/src/main/resources/static/` 下需要内联的 CSS/JS。
 - 导出测试：`tests/backend/test_mhtml_export.py` 或等效测试文件。
 - UI 导出按钮：session detail 模板中的导出触发元素。
-- 导出 gate：`scripts/quality/` 下导出相关检查脚本。
+- 导出 gate：`scripts/checks/` 下导出相关检查脚本。
 
 不要跨边界修改后端 parser 或 Java 产品代码。不要在导出文件中引入外部网络依赖。
 
@@ -66,10 +66,10 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `python scripts/quality/check_session_detail_static.py` — session detail 静态检查。
-- `python scripts/quality/check_js_action_handlers.py` — JS action handler 检查（导出后交互保真）。
+- `python scripts/checks/check_session_detail_static.py` — session detail 静态检查。
+- `python scripts/checks/check_js_action_handlers.py` — JS action handler 检查（导出后交互保真）。
 - fixture-based 导出测试 — 验证内联完整性和交互保真。
-- `python scripts/quality/check_agent_entry_parity.py` — agent parity gate。
+- `python scripts/checks/check_agent_entry_parity.py` — agent parity gate。
 
 选择策略：
 

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""在临时 linked worktree 中验证、提交并本地集成单次 Agent 变更。"""
+"""在临时 linked worktree 中验证、提交并本地集成单次 Agent 变更。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
@@ -135,9 +137,10 @@ def _validate_preconditions(repo: Path, record: Mapping[str, object], expected: 
         raise sessionctl.SessionctlError("selected checkout does not match run checkout")
     if record.get("checkoutKind") != "linked-worktree":
         raise sessionctl.SessionctlError("automatic completion requires a linked worktree")
-    if not branch or bool(record.get("detached")):
+    if not branch:
         raise sessionctl.SessionctlError("automatic completion requires a named branch")
-    if branch != str(record.get("branch") or "") or branch == target:
+    recorded_branch = str(record.get("branch") or "")
+    if (recorded_branch and branch != recorded_branch) or branch == target:
         raise sessionctl.SessionctlError("run branch is missing, changed, or equals target branch")
     if not isinstance(initial, Mapping) or bool(initial.get("dirty")):
         raise sessionctl.SessionctlError("initial dirty baseline cannot be safely attributed")

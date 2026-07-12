@@ -27,10 +27,10 @@
 | 15 | 旧 Python CLI | **Python** — `src/session_browser/cli.py` (67 行, 已标记退休) | **待删除** — 仅打印提示信息，无实际功能 | 低 | `python -m session_browser` 输出提示信息即可确认 |
 | 16 | Python 配置工具 | **Python** — `src/session_browser/config.py` (77 行) | **待删除** — 被 attribution 和 cli 引用 | 低 | 随 cli.py 和 attribution 一并移除 |
 | 17 | Shell 开发工具链（format/lint/type/quality） | **Shell + Python scripts** — `scripts/session-browser.sh` 中 format/lint/type/coverage/audit 等 | **暂保留** — 这些是仓库质量工具，非产品运行时 | 低 | `./scripts/session-browser.sh format-check` |
-| 18 | Shell 质量门禁脚本 | **Python** — `scripts/quality/*.py` (~40 文件) | **暂保留** — 仓库开发工具，不属于产品迁移范围 | 低 | `./scripts/session-browser.sh quality` |
+| 18 | Shell 质量门禁脚本 | **Python** — `scripts/checks/*.py` (~40 文件) | **暂保留** — 仓库开发工具，不属于产品迁移范围 | 低 | `./scripts/session-browser.sh quality` |
 | 19 | OpenSpec 脚本 | **Python** — `scripts/openspec/*.py` (4 文件) | **暂保留** — 仓库开发工具 | 低 | 脚本独立运行 |
 | 20 | Harness 脚本 | **Python** — `scripts/harness/*.py` (~10 文件) | **暂保留** — 仓库开发工具 | 低 | 脚本独立运行 |
-| 21 | Agent hooks | **Python** — `scripts/agent_hooks/*.py`, `scripts/claude_hooks/**/*.py` | **暂保留** — Claude Code hook 机制依赖 Python | 低 | hook 触发验证 |
+| 21 | Agent hooks | **Python** — `scripts/agent_runtime/**/*.py` 与共享 harness runtime | **暂保留** — 平台 Hook 机制依赖 Python | 低 | hook 触发验证 |
 | 22 | Python 测试 | **Python** — `tests/` (~83 测试文件) | **不确定** — 部分测试验证旧 Python web/domain，应随代码删除；部分测试验证 scripts/ 工具应保留 | 中 | 需逐个分类 tests/ 下测试归属 |
 
 ---
@@ -52,11 +52,11 @@
 
 | 类别 | 路径 | 文件数 | 说明 |
 |------|------|--------|------|
-| 质量门禁 | `scripts/quality/*.py` | ~40 | Ruff、Pyright、Coverage、pip-audit、Bandit 等封装 |
+| 质量门禁 | `scripts/checks/*.py` | ~40 | Ruff、Pyright、Coverage、pip-audit、Bandit 等封装 |
 | OpenSpec 工具 | `scripts/openspec/*.py` | 4 | Change 校验、schema 校验、布局校验 |
 | Harness 工具 | `scripts/harness/*.py` | ~10 | Agent 运行校验、context 路由校验 |
-| Agent hooks | `scripts/agent_hooks/*.py`, `scripts/claude_hooks/**/*.py` | ~10 | Claude Code 生命周期 hook |
-| QA 脚本 | `scripts/qa/**/*.py` | ~15 | UI 契约检查、DOM 验证 |
+| Agent hooks | `scripts/agent_runtime/**/*.py` 与 `scripts/harness/` 共享 runtime | 按清单统计 | 平台生命周期 Hook |
+| 测试支持 | `tests/support/*.py` | 按清单统计 | UI 契约分析与 Playwright fixture server |
 | 辅助脚本 | `scripts/*.py` | ~10 | fixture 生成、CSS 检查、UI 密度检查 |
 | Python 测试 | `tests/` | ~83 | 需分类：部分随 Python 产品删除，部分验证 scripts/ 工具保留 |
 
@@ -118,4 +118,4 @@
 | Attribution 引擎是否有外部调用者 | 需确认除 scan 流程外是否有其他入口调用 attribution |
 | `tests/` 测试文件归属 | 83 个测试文件中，哪些验证产品功能（应删除）、哪些验证工具脚本（应保留），需逐个分类 |
 | Attribution 迁移是否需要保留 Python 并行运行 | 取决于是否需要灰度过渡期 |
-| `scripts/generate_fixture_sessions.py` 等 fixture 生成脚本 | 是否在 Java 测试中已有等价 fixture 机制，需确认 |
+| fixture 生成 | 已由受跟踪的测试 fixture 与 Java 测试构造器接管，无独立生产脚本 |

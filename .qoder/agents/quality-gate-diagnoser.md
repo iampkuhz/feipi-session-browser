@@ -8,7 +8,7 @@
 
 ## When To Use
 
-- Use when `scripts/quality/*`, `scripts/harness/doctor.sh`, or stop checks fail.
+- Use when `scripts/checks/*`, `scripts/harness/doctor.sh`, or stop checks fail.
 - Use when manifest, skill registry, hook parity, or agent entry parity gates report drift.
 - Use only for quality gate diagnosis and minimal repair, not feature design.
 
@@ -33,7 +33,7 @@
 ## Validation
 
 - Rerun the original failed gate after the fix.
-- Run `python scripts/quality/check_skill_registry.py` and `python scripts/quality/check_agent_runtime_manifest.py` when registry or manifest is touched.
+- Run `python scripts/checks/check_skill_registry.py` and `python scripts/checks/check_agent_runtime_manifest.py` when registry or manifest is touched.
 - Report `FAIL` if any required validation still fails after the allowed repair attempt.
 
 ## Output Format

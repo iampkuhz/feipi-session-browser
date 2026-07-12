@@ -11,5 +11,5 @@ Arguments: `$ARGUMENTS`
 3. 如果涉及 UI、架构、数据模型或导出变更，创建 `design.md`。
 4. 创建 `tasks.md`，包含小型、可验证的任务。
 5. 在 `openspec/changes/<change-id>/specs/` 下创建差异规格。
-6. 运行 `python3 scripts/harness/validate_openspec_layout.py`。
+6. 运行 `python3 scripts/openspec/validate_layout.py`。
 7. 汇报创建的文件和验证结果。

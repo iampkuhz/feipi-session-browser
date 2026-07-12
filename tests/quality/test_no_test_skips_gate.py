@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import pytest
-from scripts.quality import check_no_test_skips
+from scripts.checks import check_no_test_skips
 from tests import conftest as test_conftest
 
 

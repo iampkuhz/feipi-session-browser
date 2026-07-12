@@ -244,13 +244,13 @@ expand_path() {
     esac
 }
 
-# 定位 Java launcher，用于 help/version cutover。
+# 定位 Java launcher，供帮助和版本命令统一切换。
 # 不执行 Gradle build；launcher 必须已预构建。
 java_launcher_path() {
     printf '%s\n' "$PROJECT_DIR/java/app-cli/build/install/app-cli/bin/app-cli"
 }
 
-# 通过 Java launcher 执行 help/version。
+# 通过 Java launcher 执行帮助或版本查询。
 # launcher 缺失时中文报错、非零退出、不 fallback 到 Python。
 run_java_help_version() {
     run_java_command "$@"
@@ -482,22 +482,17 @@ run_doc_checks() {
 run_coverage() {
     run_dev_tool pytest -W error \
         tests/harness \
-        tests/hooks \
+        tests/agent_runtime \
+        tests/gates \
         tests/quality/test_contract_case_specs.py \
-        tests/quality/test_generate_quality_report.py \
         tests/quality/test_java_api_snapshot.py \
         tests/quality/test_java_classification.py \
         tests/quality/test_new_quality_gates.py \
         tests/quality/test_no_test_skips_gate.py \
         tests/quality/test_python_env_contract.py \
-        tests/quality/test_quality_artifact.py \
-        tests/quality/test_quality_gate_runner.py \
         tests/quality/test_repo_slimming_contract.py \
-        tests/quality/test_run_required_quality_gates.py \
         tests/quality/test_static_contract.py \
-        tests/quality/test_warning_gate_cli.py \
-        scripts/quality/test_check_code_comment_language.py \
-        scripts/quality/test_quality_tiers.py \
+        tests/checks/test_code_comment_language_gate.py \
         --cov=scripts \
         --cov-branch \
         --cov-report=term-missing \
@@ -551,7 +546,7 @@ run_complexity() {
     fi
 }
 
-# 执行 Vulture dead-code 检查。
+# 执行 Python dead-code 检查。
 run_dead_code() {
     run_dev_tool vulture
 }

@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
-"""解析共享 Python interpreter，并检查依赖契约。"""
+"""解析共享 Python interpreter，并检查依赖契约。
+
+不负责产品业务处理；由 harness 命令行或受控收口流程调用。"""
 
 from __future__ import annotations
 
@@ -57,7 +59,7 @@ def _is_executable(path: str) -> bool:
     return shutil.which(path) is not None
 
 
-# 维护supports Python version。
+# 判断解释器版本是否满足项目 Python 约束。
 def _supports_python_version(executable: str) -> bool:
     """参数：
         executable: 待探测的 Python executable。
@@ -67,10 +69,7 @@ def _supports_python_version(executable: str) -> bool:
     """
     if not _is_executable(executable):
         return False
-    code = (
-        'import sys; '
-        'raise SystemExit(0 if (3, 12) <= sys.version_info[:2] < (3, 13) else 1)'
-    )
+    code = 'import sys; raise SystemExit(0 if (3, 12) <= sys.version_info[:2] < (3, 13) else 1)'
     try:
         result = subprocess.run(
             [executable, '-c', code],
@@ -164,7 +163,7 @@ def _version_in_range(version: tuple[int, int, int]) -> bool:
     return MIN_VERSION <= major_minor < MAX_VERSION
 
 
-# 读取 pyproject requires-python。
+# 读取 pyproject 中声明的 Python 版本约束。
 def _pyproject_requires_python(path: Path) -> str:
     """参数：
         path: pyproject.toml 路径。
@@ -250,7 +249,7 @@ def _strip_comment(line: str) -> str:
     return line
 
 
-# 维护requirement names。
+# 规范化依赖声明中的包名称。
 def requirement_names(path: Path, *, _seen: set[Path] | None = None) -> list[str]:
     """参数：
         path: Requirements 文件到解析。
@@ -285,7 +284,7 @@ def requirement_names(path: Path, *, _seen: set[Path] | None = None) -> list[str
     return names
 
 
-# 解析pyproject arrays。
+# 解析 pyproject 中的数组字段。
 def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
     """参数：
         path: 待检查的路径。
@@ -338,13 +337,7 @@ def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
 
 @dataclass(frozen=True)
 class LockEntry:
-    """表示 LockEntry。
-
-    属性：
-        name: 名称。
-        version: version 参数。
-        raw: stdin 解析出的 JSON 对象。
-    """
+    """保存 `LockEntry` 的结构化契约数据；字段由所属运行阶段构造并由后续报告读取。"""
 
     name: str
     version: str
@@ -440,7 +433,7 @@ def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
     return problems
 
 
-# 维护installed problems。
+# 汇总已安装依赖与契约不一致的问题。
 def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
     """参数：
         profile: profile 参数。

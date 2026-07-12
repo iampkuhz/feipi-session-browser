@@ -47,7 +47,7 @@ subagents:
       - paths:harness/**
       - paths:skills/**
       - paths:scripts/harness/**
-      - paths:scripts/quality/**
+      - paths:scripts/checks/**
       - paths:AGENTS.md
       - paths:CLAUDE.md
     read_scope:
@@ -56,12 +56,12 @@ subagents:
       - harness/**
       - skills/**
       - scripts/harness/**
-      - scripts/quality/**
+      - scripts/checks/**
     write_scope:
       - harness/**
       - skills/**
       - scripts/harness/**
-      - scripts/quality/**
+      - scripts/checks/**
       - openspec/changes/**
     forbidden_scope:
       - src/session_browser/** unless explicitly delegated
@@ -98,7 +98,7 @@ subagents:
       - scripts/harness/**
     validation_cmds:
       - ./gradlew :java:source-spi:test :java:contract-tests:test
-      - python3 scripts/quality/run_quality_gate.py --target java-src --change-id local
+      - python3 scripts/gates/cli.py --target java-src --change-id local
     timeout_minutes: 45
     retry_policy: rate-limit-only
 
@@ -127,7 +127,7 @@ subagents:
       - scripts/harness/**
     validation_cmds:
       - ./gradlew :java:normalization-engine:test :java:artifact-normalized:test :java:contract-tests:test
-      - python3 scripts/quality/run_quality_gate.py --target java-src --change-id local
+      - python3 scripts/gates/cli.py --target java-src --change-id local
     timeout_minutes: 45
     retry_policy: rate-limit-only
 
@@ -161,7 +161,7 @@ subagents:
       - scripts/harness/**
     validation_cmds:
       - ./gradlew :java:core-domain:test :java:application:test :java:architecture-tests:test
-      - python3 scripts/quality/run_quality_gate.py --target java-src --change-id local
+      - python3 scripts/gates/cli.py --target java-src --change-id local
     timeout_minutes: 45
     retry_policy: rate-limit-only
 
@@ -174,7 +174,7 @@ subagents:
       - after_implementation
       - required_gate_failure
     read_scope:
-      - scripts/quality/**
+      - scripts/checks/**
       - scripts/harness/**
       - build.gradle.kts
       - settings.gradle.kts
@@ -188,7 +188,7 @@ subagents:
       - secrets
       - java/*/src/**
     validation_cmds:
-      - scripts/quality/run_required_quality_gates.py
+      - scripts/gates/cli.py
     timeout_minutes: 60
     retry_policy: rate-limit-only
 

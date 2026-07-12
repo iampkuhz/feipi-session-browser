@@ -170,5 +170,5 @@
 - Jinja 关键组件在 StrictUndefined 下不得 undefined。
 - Browser smoke 覆盖 Dashboard All agents、Dashboard single agent、Sessions、Projects、Session Detail Trace、Session Detail Payload、Project Detail。
 - 交互 smoke 固定点击排序、搜索 focus、tokenbar hover、round toggle、request/response attribution、payload call selector。
-- UI 修改后按影响范围选择并运行本次变更触达的 pytest、`python3 scripts/quality/run_quality_gate.py --target session-detail`、页面级 QA 脚本。
+- UI 修改后按影响范围选择并运行本次变更触达的 pytest、`python3 scripts/gates/cli.py --target session-detail`、页面级 QA 脚本。
 - 验证失败必须保留失败命令和原因；未运行的命令不得描述为通过，失败的命令不得描述为通过。

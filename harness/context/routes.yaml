@@ -28,7 +28,7 @@ routes:
         - harness/**
         - skills/**
         - scripts/harness/**
-        - scripts/quality/**
+        - scripts/checks/**
         - AGENTS.md
         - CLAUDE.md
     load:

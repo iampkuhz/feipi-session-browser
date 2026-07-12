@@ -1,11 +1,11 @@
-"""测试 scripts/quality/repo_slimming_contract_check.py 的纯函数."""
+"""测试 scripts/checks/repo_slimming_contract_check.py 的纯函数."""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from scripts.quality.repo_slimming_contract_check import (
+from scripts.checks.repo_slimming_contract_check import (
     _css_has_only_comments_or_empty,
     _js_is_only_comments_or_empty,
     check_harness_current_state,

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CHECKER = ROOT / "scripts" / "quality" / "check_subagent_handoff_protocol.py"
+CHECKER = ROOT / "scripts" / "checks" / "check_subagent_handoff_protocol.py"
 
 
 def _read(relative: str) -> str:

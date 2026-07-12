@@ -1,6 +1,6 @@
 # Agent Runtime Contract
 
-本文件是 Claude Code、Codex、Qoder 在本仓库内复用的 agent 运行契约。`.claude/`、`.codex/`、`.qoder/`、`.agents/` 只保留工具自身需要的薄入口或链接；可复用的 skill、规则、质量目标、Stop 门禁和 handoff 约束必须放在 `skills/`、`harness/`、`scripts/harness/`、`scripts/quality/` 或 `scripts/claude_hooks/`。
+本文件是 Claude Code、Codex、Qoder 在本仓库内复用的 agent 运行契约。`.claude/`、`.codex/`、`.qoder/`、`.agents/` 只保留工具自身需要的薄入口或链接；可复用的 skill、规则、质量目标、Stop 门禁和 handoff 约束必须放在 `skills/`、`harness/`、`scripts/harness/`、`scripts/checks/` 或 `scripts/agent_runtime/`。
 
 ## Skill 入口
 
@@ -16,8 +16,9 @@
 - UI 页面、CSS、前端 JS 和视觉验证：`harness/context/ui-context.md`。
 - OpenSpec 变更生命周期：`harness/workflow/change-lifecycle.md`。
 - subagent 委派和 handoff：`harness/workflow/subagent-execution.md`。
-- required gate summary 语义：`harness/quality/deterministic-quality-gate.md`。
-- target 到 gate 的路线：`harness/quality/quality-gate-matrix.md`。
+- required Gate summary 语义：`harness/quality/deterministic-quality-gate.md`。
+- Gate 模块、公开 CLI 与唯一修改流程：`scripts/gates/README.md`。
+- catalog 派生阅读路线：`harness/quality/quality-gate-matrix.md`；该文档不保存静态矩阵。
 
 ## Subagent 策略
 
@@ -28,12 +29,13 @@
 
 ## Stop 门禁
 
-- 三类 agent 的 Stop 入口都应调用 `scripts/harness/stop_entry.py`。
+- 三类 agent 的 Stop 入口都应调用薄 wrapper `scripts/harness/stop_entry.py`，并唯一委托 `scripts/agent_runtime/stop/pipeline.py` 的 typed 七阶段管道。
+- Stop/handoff 前人工验证只运行 `python3 scripts/gates/cli.py --tier required`；不得直接运行 Gate 内部模块或拼接 check 列表。
 - Stop 门禁在 hook stdin 提供 `session_id` / `agent_id` 时，必须只按 `tmp/agent_logs/<client>/<session-id>/main/` 或 `tmp/agent_logs/<client>/<session-id>/agents/<agent-id>/` 下的当前 identity evidence 判断 read-only；不得因其他并发 agent 的 dirty worktree 触发当前只读 session 的门禁。
 - Stop hook 无法识别当前 session 时必须 fail-closed，继续读取 session base commit 以来的 git diff 和 untracked paths，避免未归因修改绕过 target 路由。
 - `changed-files.jsonl` 用于捕获 Write/Edit/MultiEdit/NotebookEdit 和 Bash mutation evidence；Bash evidence 由 PreToolUse 快照与 PostToolUse/Failure 对比产生。
 - 有 changed files 的 Stop 门禁必须先获取 shared stop-check lock；锁被占用时返回 blocked/retry，不得并发运行第二组修复或 required quality gates。
-- Stop 门禁必须通过 `scripts/claude_hooks/classify.py` 计算 quality target，再通过 `scripts/quality/run_required_quality_gates.py` 执行。
+- Stop 的 Gate 阶段只能调用 `scripts.gates.cli.run_service`；target 规划、执行、receipt 与 Gate 报告均由该 service 负责。
 - changed files 只能用于判断本次必须执行哪些 quality target；一旦 target 被选中，target 内部必须执行完整 required gate baseline，不得再按 changed files 裁剪 gate。
 - required gate 失败时，Stop 门禁必须阻断。失败不得因为“不是当前 agent 的改动”“已有失败”“与本次改动无关”而被降级、跳过或描述为通过。
 
@@ -57,15 +59,15 @@ Claude 原生 worktree、Codex CLI/App pre-launch launcher 与 App starting bran
 
 ## 契约用例门禁
 
-- `docs/acceptance-contracts/**` 或 `tests/**` 发生变化时，必须触发 `acceptance-contracts` quality target。
-- `acceptance-contracts` target 必须运行 `scripts/quality/validate_acceptance_contracts.py`。
+- 验收契约与测试的 path/target/Gate 映射只在 `scripts/gates/catalog.py` 注册，当前 plan 用
+  `python3 scripts/gates/cli.py --dry-run` 查看；本文件不复制映射。
+- 验收 contract checker 保持在 `scripts/checks/`，但只能由 catalog/executor 选择为生产 Gate。
 - 测试代码中的 `contract_case` ID 必须能在 `docs/acceptance-contracts/features/*.md` 找到；活跃自动化用例也必须有测试绑定。
 
 ## Java 质量生命周期
 
-- `java-src` target：`java/**/src/**/*.java` 变更触发，运行 `javaCheck`、`javaChineseComments`、`noJavaTestSkips`。
-- `java-build` target：`build-logic/**`、`gradle/**`、`build.gradle.kts`、`settings.gradle.kts`、`gradle.properties` 变更触发，运行 `javaCheck`。
-- `java-src` 包含 `java-build`（dominance）：避免两个 target 各自运行一次 Gradle baseline。
+- Java 源码/build 的 path rule、effective target、dominance 和 Gate 集合只由
+  `scripts/gates/catalog.py` 声明，并通过 `scripts/gates/cli.py --dry-run` 派生；这里不维护副本。
 - Java 注释必须通过中文近似校验，术语允许英文；术语表变更需单独列出理由。
 - Javadoc Day 0：production type、public method、public constructor 必须中文 Javadoc；核心字段和 record component 必须说明业务语义。
 - Java 测试 0 skipped、0 aborted、非预期 0 discovered 时失败。
@@ -76,5 +78,6 @@ Claude 原生 worktree、Codex CLI/App pre-launch launcher 与 App starting bran
 ## Agent 入口职责
 
 - `.claude/hooks/*.sh`、`.codex/hooks/*.sh`、`.qoder/hooks/*.sh` 只负责定位仓库根目录并转发到共享脚本。
+- 公开命令 allowlist、内部模块禁用边界和唯一生产链路见 `scripts/README.md`。
 - agent-specific subagent 定义只保留工具面、模型、权限和简短角色差异。
 - subagent handoff 字段、验证命令选择和质量目标映射不得在多个 agent 入口中复制维护；需要长期复用时应沉淀到本文件或 `AGENTS.md`。

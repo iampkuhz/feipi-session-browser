@@ -12,6 +12,7 @@ pydoclint==0.8.6
 pyright==1.1.410
 playwright==1.60.0
 pre-commit==4.6.0
+pyyaml==6.0.3
 ruff==0.15.18
 vulture==2.16
 xenon==0.9.3

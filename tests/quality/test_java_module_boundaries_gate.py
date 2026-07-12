@@ -2,9 +2,9 @@
 
 from pathlib import Path
 
-from scripts.claude_hooks.classify import classify_file
-from scripts.quality import run_quality_gate
-from scripts.quality.quality_targets import required_gates_for_target
+from scripts.gates import cli
+from scripts.gates import executor as gate_executor
+from scripts.gates.planner import classify_path, required_gates_for_target
 
 
 def test_java_targets_include_module_boundaries_and_pmd_reuse_gates() -> None:
@@ -20,7 +20,7 @@ def test_java_targets_include_module_boundaries_and_pmd_reuse_gates() -> None:
 
 def test_java_architecture_config_triggers_java_build() -> None:
     """模块边界配置变更必须触发 java-build target。"""
-    classification = classify_file('config/architecture/java-modules.yaml')
+    classification = classify_path('config/architecture/java-modules.yaml')
 
     assert classification.quality_target == 'java-build'
     assert classification.allowed_by_default is True
@@ -28,7 +28,7 @@ def test_java_architecture_config_triggers_java_build() -> None:
 
 def test_reuse_policy_config_triggers_java_build() -> None:
     """复用策略配置变更必须触发 java-build target。"""
-    classification = classify_file('config/reuse-policy/policy.json')
+    classification = classify_path('config/reuse-policy/policy.json')
 
     assert classification.quality_target == 'java-build'
     assert classification.allowed_by_default is True
@@ -43,7 +43,7 @@ def test_pmd_reuse_rules_include_duplicate_delegating_method_scan() -> None:
 
 def test_pmd_config_triggers_java_build() -> None:
     """PMD 规则集变更必须触发 java-build target。"""
-    classification = classify_file('config/pmd/pmd.xml')
+    classification = classify_path('config/pmd/pmd.xml')
 
     assert classification.quality_target == 'java-build'
     assert classification.allowed_by_default is True
@@ -51,7 +51,7 @@ def test_pmd_config_triggers_java_build() -> None:
 
 def test_java_module_build_file_is_known_java_build_path() -> None:
     """子模块 build.gradle.kts 不应落入 unknown fail-closed 分支。"""
-    classification = classify_file('java/data/build.gradle.kts')
+    classification = classify_path('java/data/build.gradle.kts')
 
     assert classification.category == 'java-build'
     assert classification.quality_target == 'java-build'
@@ -59,9 +59,9 @@ def test_java_module_build_file_is_known_java_build_path() -> None:
 
 def test_java_module_boundaries_gate_command_uses_repo_script() -> None:
     """quality gate runner 应调用仓库内模块边界脚本。"""
-    command = run_quality_gate.gate_command('javaModuleBoundaries', Path.cwd(), 'java-src')
+    command = gate_executor.gate_command('javaModuleBoundaries', Path.cwd(), 'java-src')
 
-    assert command[-1].endswith('scripts/quality/check_java_module_boundaries.py')
+    assert command[-1].endswith('scripts/checks/check_java_module_boundaries.py')
 
 
 def test_reuse_standard_cpd_gate_command_uses_incremental_wrapper(
@@ -69,24 +69,21 @@ def test_reuse_standard_cpd_gate_command_uses_incremental_wrapper(
 ) -> None:
     """reuseStandardCpd gate 必须调用默认增量 wrapper，而不是直接全量 Gradle task。"""
     monkeypatch.delenv('QUALITY_GATE_TIER', raising=False)
-    runner = tmp_path / 'scripts' / 'quality' / 'run_reuse_standard_cpd.py'
+    runner = tmp_path / 'scripts' / 'checks' / 'run_reuse_standard_cpd.py'
     runner.parent.mkdir(parents=True)
     runner.write_text('#!/usr/bin/env python3\n', encoding='utf-8')
 
-    command = run_quality_gate.gate_command('reuseStandardCpd', tmp_path, 'java-src')
+    command = gate_executor.gate_command('reuseStandardCpd', tmp_path, 'java-src')
 
     assert command
     assert command[1] == str(runner)
     assert '--mode' not in command
 
 
-def test_run_quality_gate_can_resolve_active_change_id(tmp_path: Path) -> None:
-    """run_quality_gate 支持未显式传 --change-id 时读取 tmp/active_change.json。"""
+def test_gate_cli_can_resolve_active_change_id(tmp_path: Path) -> None:
+    """Gate CLI 支持未显式传 --change-id 时读取 tmp/active_change.json。"""
     active_change = tmp_path / 'tmp' / 'active_change.json'
     active_change.parent.mkdir()
     active_change.write_text('{"change_id": "strengthen-java-reuse-analyzer"}', encoding='utf-8')
 
-    assert (
-        run_quality_gate.resolve_change_id(None, tmp_path)
-        == 'strengthen-java-reuse-analyzer'
-    )
+    assert cli.resolve_change_id(None, tmp_path) == 'strengthen-java-reuse-analyzer'

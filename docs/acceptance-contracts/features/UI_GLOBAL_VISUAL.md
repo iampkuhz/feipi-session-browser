@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | 全局视觉契约（Shell 布局、多视口矩阵、基础组件、滚动行为、密度/字体） |
 | 关联源码 | `java/web/src/main/resources/static/css/`（shell.css、states.css、全局 CSS）、`java/web/src/main/resources/static/js/` |
-| 关联测试 | `tests/pages/test_macbook_smoke.py`、`test_2560x1440_smoke.py`、`test_error_page.py`、`test_state_pages.py`、`test_scroll_shadow_behavior.py`、`tests/ui/test_ui_density_and_font_size.py`、`test_ui_primitives.py`、`test_hifi_dom_structure.py`、`test_card_sub_spacing.py` |
+| 关联测试 | `tests/pages/test_macbook_smoke.py`、`test_2560x1440_smoke.py`、`test_error_page.py`、`test_state_pages.py`、`test_scroll_shadow_behavior.py`、`tests/ui/test_ui_density_and_font_size.py`（复用 `tests/support/check_ui_density_and_font_size.py`）、`test_ui_primitives.py`、`test_hifi_dom_structure.py`、`test_card_sub_spacing.py` |
 | 主要风险 | 视口矩阵不全导致特定分辨率下布局崩坏；shell.css 级联冲突 |
 
 ## 契约用例

@@ -5,7 +5,7 @@
 运行：
 
 ```bash
-python3 scripts/harness/validate_openspec_layout.py
+python3 scripts/openspec/validate_layout.py
 python3 scripts/harness/validate_harness_structure.py
 ```
 

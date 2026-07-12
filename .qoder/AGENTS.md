@@ -36,7 +36,7 @@
 
 - Run the validation command specified by the task exactly when provided.
 - Treat failed, skipped, unavailable, excluded, or not-run required gates as non-PASS.
-- Before final reporting, verify changed Qoder runtime files against `scripts/quality/check_qoder_runtime_parity.py` when available.
+- Before final reporting, verify changed Qoder runtime files against `scripts/checks/check_qoder_runtime_parity.py` when available.
 
 ## Forbidden Actions
 

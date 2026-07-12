@@ -44,7 +44,7 @@ module.exports = defineConfig({
     ['list'],
   ],
   webServer: {
-    command: 'python scripts/start_fixture_server.py',
+    command: 'python tests/support/start_fixture_server.py',
     url: `${fixtureBaseURL}/dashboard`,
     reuseExistingServer: reuseFixtureServer,
     timeout: 30_000,
