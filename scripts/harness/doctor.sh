@@ -177,7 +177,6 @@ if [[ -n "$PYTHON" ]]; then
     agent.entry-parity
     repository.no-real-session-fixtures
     security.secret-like-content
-    agent.runtime-report
     web.css-ownership
   )
   for check in "${checks[@]}"; do

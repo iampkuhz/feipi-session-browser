@@ -11,6 +11,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
+from scripts.agent_runtime.session.completion import (  # noqa: E402
+    cmd_adopt_current,
+    cmd_begin_change,
+    cmd_completion_status,
+)
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     CHECKOUT_CREATORS,
     PrimarySessionValidationError,
@@ -54,6 +59,22 @@ def build_parser() -> argparse.ArgumentParser:
     set_change.add_argument('--change-id', required=True)
     set_change.add_argument('--task-id')
     set_change.set_defaults(func=cmd_set_change)
+    begin = sub.add_parser('begin-change')
+    begin.add_argument('--run-id', required=True)
+    begin.add_argument('--cwd', required=True)
+    begin.add_argument('--activation-source', required=True)
+    begin.add_argument('--start-enforced', action='store_true')
+    begin.set_defaults(func=cmd_begin_change)
+    adopt = sub.add_parser('adopt-current')
+    adopt.add_argument('--run-id', required=True)
+    adopt.add_argument('--cwd', required=True)
+    adopt.add_argument('--base', required=True)
+    adopt.add_argument('--file', action='append', required=True)
+    adopt.add_argument('--confirmation', required=True)
+    adopt.set_defaults(func=cmd_adopt_current)
+    completion = sub.add_parser('completion-status')
+    completion.add_argument('--run-id', required=True)
+    completion.set_defaults(func=cmd_completion_status)
 
     def add_lease_identity(command: argparse.ArgumentParser, *, parent: bool = True) -> None:
         """参数：

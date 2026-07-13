@@ -4,7 +4,7 @@ import json
 import os
 import subprocess
 import time
-from typing import TYPE_CHECKING
+from pathlib import Path
 
 import pytest
 from scripts.agent_runtime.session.contract import resolve_checkout_identity, resolve_runtime_root
@@ -23,9 +23,6 @@ from scripts.agent_runtime.stop.recovery import (
     update_reentry,
 )
 from scripts.checks.check_agent_runtime_report import validate_runtime_report
-
-if TYPE_CHECKING:
-    from pathlib import Path
 
 
 def _run(cmd: list[str], cwd: Path) -> None:
@@ -48,9 +45,17 @@ def test_stop_quality_calls_unified_gate_service(
             passed=True,
             reused=False,
             details=(SimpleNamespace(name='settingsJson', status='PASS'),),
+            receipt_paths=(),
+            artifact_path=None,
         )
 
     monkeypatch.setattr(stop_pipeline, 'run_service', fake_service)
+    _run(['git', 'init'], tmp_path)
+    _run(['git', 'config', 'user.email', 'stop@example.invalid'], tmp_path)
+    _run(['git', 'config', 'user.name', 'Stop Test'], tmp_path)
+    (tmp_path / 'README.md').write_text('x\n', encoding='utf-8')
+    _run(['git', 'add', 'README.md'], tmp_path)
+    _run(['git', 'commit', '-m', 'init'], tmp_path)
     context = StopContext('codex', {})
     context.repo_root = tmp_path
     context.report_path = tmp_path / 'quality' / 'runtime-report.json'
@@ -66,6 +71,18 @@ def test_stop_quality_calls_unified_gate_service(
     assert context.gate_results == [{'name': 'settingsJson', 'status': 'EXECUTED'}]
     assert captured['tier'] == 'required'
     assert captured['changed_files'] == ['.claude/settings.json']
+
+
+def test_runtime_report_is_stop_output_not_doctor_or_gate_input() -> None:
+    root = Path(__file__).resolve().parents[1]
+    doctor = (root / 'scripts/harness/doctor.sh').read_text(encoding='utf-8')
+    catalog = (root / 'config/gates.yaml').read_text(encoding='utf-8')
+
+    assert 'agent.runtime-report' not in doctor
+    assert '- name: runtimeReport\n' not in catalog
+    assert 'write_runtime_report(' in (root / 'scripts/agent_runtime/stop/pipeline.py').read_text(
+        encoding='utf-8'
+    )
 
 
 def test_baseline_dirty_filter_uses_content_state() -> None:
@@ -497,6 +514,8 @@ def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
             passed=True,
             reused=False,
             details=(SimpleNamespace(name='fake-gate', status='PASS'),),
+            receipt_paths=(),
+            artifact_path=None,
         )
 
     monkeypatch.setattr(stop_pipeline, 'run_service', fake_service)
@@ -519,6 +538,7 @@ def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
                 'session_id': 'session-a',
                 'run_id': 'run-a',
                 'handoff_on_failure': True,
+                'completionCandidate': True,
             },
             adapter_mode='cli',
         )

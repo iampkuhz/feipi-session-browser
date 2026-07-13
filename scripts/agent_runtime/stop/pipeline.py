@@ -125,6 +125,15 @@ def _collect_evidence(ctx: StopContext) -> None:
         ctx.git_evidence,
     )
     ctx.targets = evidence.required_targets(ctx.changed_files)
+    completion = ctx.record.get('completion')
+    completion_state = str(completion.get('state') or '') if isinstance(completion, dict) else ''
+    commit_sha = str(completion.get('commitSha') or '') if isinstance(completion, dict) else ''
+    if (
+        ctx.changed_files
+        and not bool(ctx.raw_context.get('completionCandidate'))
+        and (completion_state not in {'COMMITTED', 'INTEGRATED'} or not commit_sha)
+    ):
+        ctx.failures.append('COMMIT_REQUIRED: task-owned changes have no attested commitSha')
     if ctx.changed_files and not ctx.targets:
         ctx.failures.append('changed files did not map to required quality targets')
     ctx.read_only = not ctx.changed_files
@@ -181,6 +190,14 @@ def _gate(ctx: StopContext) -> None:
             base_url=os.environ.get('BASE_URL'),
         )
         ctx.gates_ok = ctx.gate_result.passed
+        ctx.git_evidence['candidateTree'] = evidence._git_value_required(  # noqa: SLF001
+            ctx.repo_root, 'write-tree'
+        )
+        ctx.git_evidence['gateReceiptPaths'] = [str(path) for path in ctx.gate_result.receipt_paths]
+        ctx.git_evidence['gateArtifactPath'] = (
+            str(ctx.gate_result.artifact_path) if ctx.gate_result.artifact_path else ''
+        )
+        ctx.git_evidence['gateReused'] = bool(ctx.gate_result.reused)
         ctx.gate_results = report.gate_result_records(ctx.gate_result, read_only=False)
         if not ctx.gates_ok:
             ctx.failures.extend(
@@ -263,7 +280,10 @@ def _finalize_registry(ctx: StopContext) -> None:
             validated_facts=ctx.git_evidence,
             handoff_on_failure=ctx.handoff_on_failure,
             retryable_failure=(
-                ctx.adapter_mode == 'hook'
+                (
+                    ctx.adapter_mode == 'hook'
+                    or any('COMMIT_REQUIRED' in item for item in ctx.failures)
+                )
                 and not ctx.handoff_on_failure
                 and ctx.circuit_state != 'OPEN'
             ),

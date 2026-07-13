@@ -60,7 +60,6 @@
       "agentEntryParity",
       "noRealSessionFixtures",
       "secretLikeContent",
-      "runtimeReport",
       "doctor",
       "repoStructure",
       "harnessStructure",
@@ -109,7 +108,7 @@
       "sessionSamples"
     ]
   },
-  "uniqueGateCount": 58,
+  "uniqueGateCount": 57,
   "scenarios": {
     "read-only": {
       "changedFiles": [],

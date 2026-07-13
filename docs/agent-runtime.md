@@ -31,6 +31,12 @@
   `origin/HEAD`、remote default、tracking branch 与硬编码 `main` 都不是替代来源。
 - bootstrap 只登记 run。第一次 mutating tool 获取按 `worktreeId` 隔离的 writer lease；同一
   checkout 最多一个 writer，只读 run 可并行。
+- `begin-change` 在 mutation 前保存 repo/worktree/client/session/run、base/target、初始 dirty
+  snapshot、allowed/forbidden paths 和 activation evidence。Launcher 在 Agent 前调用；
+  SessionStart 幂等调用；mutation guard 二次确认。Codex App host lifecycle 尚无真实证明，
+  必须显示 `START_NOT_ENFORCED`，不能进入强归因自动收口。
+- late dirty 默认拒绝；只有显式 `adopt-current` 携带 base、exact manifest 与用户确认时，
+  才能在同一 run 保存审计并恢复，不得复制到 recovery worktree。
 - subagent 继承父 run/worktree/lease，以独立 `agentId` 保存 evidence，不创建第二个 writer。
 - Registry 与 lock 位于系统临时 Runtime root，目录/文件保持私有权限；回收必须验证 holder、
   epoch、进程身份与 Git 状态。
@@ -41,9 +47,16 @@ Stop 从 Git range、working-tree diff、untracked files 与 run evidence 计算
 按 manifest 声明的七阶段执行。Gate 阶段只调用统一 service；运行期间出现 skipped、证据
 不可验证、身份/锁冲突或环境缺失时不得生成 PASS。
 
-默认安全收口由 `scripts/harness/complete_change.py` 完成：第一次 Stop PASS 后只提交显式文件，
-commit 改变 HEAD 后重新 Stop，第二次 PASS 才执行本地 finalize。initial/primary dirty、额外
-文件、detached、冲突或 Gate 失败时保留 branch/worktree 并 handoff；禁止 stash、reset、force、
+默认安全收口由 `scripts/harness/complete_change.py` 完成：cheap preflight → exact stage →
+pre-commit 稳定 → `candidateTree` → 一次 required Stop/Gate → worktree commit → commit
+attestation → integration。attestation 只检查 tree、parent、exact paths、clean、result ref 和
+内容型 receipt，commit 后重 Gate进程数为 0。
+
+完成状态唯一为 `WORKING / STAGED / VALIDATED_CANDIDATE / COMMITTED / INTEGRATED /
+BLOCKED_RETRYABLE / HANDOFF_REQUIRED`，并持久化 `oldHead`、`exactFilesHash`、
+`candidateTree`、`validationReceipt`、`commitSha`、`resultRef`、`targetHeadObserved`。
+detached checkout 可提交并创建 `refs/heads/codex/result/<run-id>`；primary dirty/前进只影响
+integration。能力故障在同一 run retry；冲突保留 commit/ref。禁止 stash、reset、force、
 auto-push 或删除 provider checkout。
 
 ## 维护入口
@@ -56,5 +69,6 @@ auto-push 或删除 provider checkout。
 
 常用只读诊断为 `python3 scripts/harness/sessionctl.py status|doctor --run-id <run-id>`；受控收口
 使用 `python3 scripts/harness/complete_change.py --run-id <run-id> --message <message> --file <path>`。
-真实客户端生命周期未执行时必须继续按 manifest 标记 `UNVERIFIED`，不得用 repository fixture
-parity 替代平台 E2E 证据。
+正常 Stop/SessionEnd 或 launcher 退出时如存在 task-owned changes 但没有 attested `commitSha`，
+必须返回 `COMMIT_REQUIRED`，不能返回 PASS。真实 Codex App lifecycle 未执行时必须标记
+`START_NOT_ENFORCED`，不得用 repository fixture parity 替代平台 E2E 证据。

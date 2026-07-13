@@ -1,6 +1,7 @@
 """Gate receipt 与结构化 report 的内容敏感、fail-closed contract。"""
 
 import json
+import subprocess
 from pathlib import Path
 
 import pytest
@@ -23,6 +24,28 @@ def test_receipt_cache_key_is_content_sensitive(tmp_path: Path) -> None:
     first = receipt.content_cache_key('harness', ['harness/a.yaml'], tmp_path)
     second = receipt.content_cache_key('harness', ['harness/b.yaml'], tmp_path)
     assert first != second
+
+
+def test_effective_candidate_fingerprint_survives_staged_to_committed_transition(
+    tmp_path: Path,
+) -> None:
+    subprocess.run(['git', 'init'], cwd=tmp_path, check=True, capture_output=True)
+    subprocess.run(
+        ['git', 'config', 'user.email', 'receipt@example.invalid'], cwd=tmp_path, check=True
+    )
+    subprocess.run(['git', 'config', 'user.name', 'Receipt Test'], cwd=tmp_path, check=True)
+    (tmp_path / 'README.md').write_text('base\n', encoding='utf-8')
+    subprocess.run(['git', 'add', 'README.md'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'commit', '-m', 'base'], cwd=tmp_path, check=True, capture_output=True)
+    (tmp_path / 'README.md').write_text('candidate\n', encoding='utf-8')
+    subprocess.run(['git', 'add', 'README.md'], cwd=tmp_path, check=True)
+
+    staged = receipt.checkout_content_fingerprint(tmp_path)
+    subprocess.run(
+        ['git', 'commit', '-m', 'candidate'], cwd=tmp_path, check=True, capture_output=True
+    )
+
+    assert receipt.checkout_content_fingerprint(tmp_path) == staged
 
 
 @pytest.mark.parametrize(

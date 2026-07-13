@@ -455,7 +455,10 @@ Gate service SHALL 输出简短控制台摘要和结构化报告，且状态和�
 #### Scenario: 受控提交和集成
 
 - **Given** 所有 required gates 真实 PASS 且本轮文件归因精确
-- **When** `complete_change` 执行 Stop、commit、二次 Stop 和 finalize
+- **When** `complete_change` 执行 cheap preflight、exact stage、pre-commit 稳定、candidateTree、一次 required Stop、commit、轻量 attestation 和 integration
 - **Then** 只有 `INTEGRATED` 结果 SHALL 被报告为已本地集成
-- **And** primary dirty、冲突、归因不明、receipt 失配或门禁失败 SHALL 保留 branch/worktree 并返回 `HANDOFF_REQUIRED` 或 `BLOCKED`
+- **And** commit 后 attestation SHALL 验证 tree/parent/paths/clean/result ref/receipt，重 Gate进程数为 0
+- **And** primary dirty 或冲突 SHALL 保留 commit/result ref 并返回 `COMMITTED_HANDOFF_REQUIRED`
+- **And** 能力失败 SHALL 在同一 run 返回 `BLOCKED_RETRYABLE`，不得创建 retry worktree
+- **And** 归因不明、receipt 失配或门禁失败 SHALL 如实返回非 PASS 状态
 - **And** 流程 SHALL NOT stash、reset、force 或自动 push

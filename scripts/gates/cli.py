@@ -160,16 +160,13 @@ def run_service(
             planned_target,
             changed_files,
             repo_root,
-            {
-                'baseUrl': base_url or '',
-                'planFingerprint': resolved_plan.fingerprint,
-                'commandFingerprint': executor._stable_hash(  # noqa: SLF001
-                    [list(group.command) for group in resolved_plan.groups]
-                ),
-                'attributionFingerprint': executor._stable_hash(  # noqa: SLF001
-                    {'changedFiles': changed_files, 'explicit': explicit_changed_files}
-                ),
-            },
+            {'BASE_URL': base_url or ''},
+            attribution={'explicitChangedFiles': explicit_changed_files},
+            plan_fingerprint=resolved_plan.fingerprint,
+            command_fingerprint=executor._stable_hash(  # noqa: SLF001
+                [list(group.command) for group in resolved_plan.groups]
+            ),
+            gate_inputs={'changedFiles': changed_files},
         )
         for planned_target in planned_targets
         if planned_target
@@ -308,7 +305,7 @@ def run_service(
                     command_fingerprint=executor._stable_hash(  # noqa: SLF001
                         [list(group.command) for group in resolved_plan.groups]
                     ),
-                    environment={'baseUrl': base_url or ''},
+                    environment={'BASE_URL': base_url or ''},
                     gate_inputs={'changedFiles': changed_files},
                 )
             )

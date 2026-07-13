@@ -1,5 +1,5 @@
 {
-  "schemaNote": "All hooks call the single Git-root-stable shared dispatcher; platform lifecycle E2E remains UNVERIFIED.",
+  "schemaNote": "All hooks call the shared dispatcher, but Codex App host lifecycle E2E is not proven; App Start must report START_NOT_ENFORCED and mutation remains fail-closed.",
   "hooks": {
     "SessionStart": [
       {

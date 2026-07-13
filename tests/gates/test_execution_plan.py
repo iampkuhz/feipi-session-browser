@@ -108,6 +108,23 @@ def test_resource_dag_serializes_conflicts_but_allows_disjoint_groups() -> None:
     assert groups[2].depends_on == ()
 
 
+def test_scan_smoke_prerequisite_precedes_consumer_without_resource_cycle() -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(plan(['scripts/checks/check_agent_runtime_isolation.py'])),
+        REPO_ROOT,
+    )
+    positions = {group.group_id: index for index, group in enumerate(execution.groups)}
+    scan = next(group for group in execution.groups if 'scanScriptSmoke' in group.gate_names)
+
+    assert scan.depends_on == ('group-gradle-000',)
+    assert positions['group-gradle-000'] < positions[scan.group_id]
+    assert all(
+        positions[dependency] < positions[group.group_id]
+        for group in execution.groups
+        for dependency in group.depends_on
+    )
+
+
 def test_browser_group_reuses_explicit_fixture_server(monkeypatch) -> None:
     monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: ['npx', 'playwright', 'test'])
     execution = executor.build_execution_plan(

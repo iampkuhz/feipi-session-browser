@@ -47,7 +47,7 @@ platforms:
     config_files:
       - .codex/config.toml
       - .codex/hooks.json
-    hook_binding_note: Repository fixtures cover the shared dispatcher contract; real end-to-end client lifecycle remains UNVERIFIED.
+    hook_binding_note: Repository fixtures cover dispatcher shape only; Codex App is START_NOT_ENFORCED until real host lifecycle evidence exists.
     hook_dispatch:
       entry: scripts/harness/hook_dispatch.py
       client: codex
@@ -103,8 +103,8 @@ platform_hook_adapter:
   requires_feipi_run_id: false
   creates_worktree: false
   surfaces:
-    codex-app: {client: codex, validation: UNVERIFIED}
-    codex-cli: {client: codex, validation: UNVERIFIED}
+    codex-app: {client: codex, validation: START_NOT_ENFORCED}
+    codex-cli: {client: codex, validation: START_ENFORCED_BY_LAUNCHER}
     claude-code-cli: {client: claude, validation: UNVERIFIED}
     qoder-cli: {client: qoder, validation: UNVERIFIED}
     qoder-client: {client: qoder, validation: UNVERIFIED}
@@ -133,7 +133,7 @@ worktree_isolation:
   sessionctl: scripts/harness/sessionctl.py bootstrap
   registry_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
   enforcement_hooks:
-    session_start: shared-idempotent-bootstrap
+    session_start: shared-idempotent-begin-change
     user_prompt_submit: qoder-client-idempotent-bootstrap-fallback
     cwd_changed: claude-and-qoder-checkout-reconfirmation
     pre_tool_bootstrap: codex-and-qoder-idempotent-bootstrap-fallback
@@ -143,11 +143,17 @@ worktree_isolation:
 
 change_completion:
   authority: scripts/harness/complete_change.py
-  eligible_checkout: named-linked-worktree-with-clean-initial-baseline
+  shared_state_service: scripts/agent_runtime/session/completion.py
+  eligible_checkout: attested-checkout-with-exact-attribution
   attributed_files: explicit-exact-set
-  sequence: [stop, exact-stage, commit, stop-after-commit, finalize]
-  target_integration: local-rebase-revalidate-ff-only
-  failure_statuses: [HANDOFF_REQUIRED, BLOCKED]
+  sequence: [cheap-preflight, exact-stage, pre-commit-stabilize, candidate-tree, required-stop-once, commit, commit-attestation, integration]
+  completion_states: [WORKING, STAGED, VALIDATED_CANDIDATE, COMMITTED, INTEGRATED, BLOCKED_RETRYABLE, HANDOFF_REQUIRED]
+  persisted_fields: [oldHead, exactFilesHash, candidateTree, validationReceipt, commitSha, resultRef, targetHeadObserved]
+  target_integration: local-ff-only-with-target-delta-receipt-reuse
+  failure_statuses: [BLOCKED_RETRYABLE, COMMITTED_HANDOFF_REQUIRED, HANDOFF_REQUIRED]
+  required_gate_count: 1
+  post_commit_heavy_process_count: 0
+  detached_result_ref: refs/heads/codex/result/<run-id>
   forbidden_actions: [stash, reset, force, auto-push, auto-pull-request, delete-provider-checkout]
   remote_publish: false
 

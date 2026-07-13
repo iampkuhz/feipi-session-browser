@@ -930,6 +930,11 @@ def build_execution_plan(
                 gradle_added = True
             continue
         capability = _capability(spec)
+        if capability == 'scan-smoke' and gradle_group is not None and not gradle_added:
+            # scan-smoke 显式依赖 installDist；只有 prerequisite Gradle、没有普通
+            # Gradle Gate 时也必须先插入 Gradle group，避免随后资源串行边形成环。
+            groups.append(gradle_group)
+            gradle_added = True
         if capability == 'cpd' and cpd_mode in {'no-java-input', 'blocked-policy'}:
             kind = 'cpd-noop' if cpd_mode == 'no-java-input' else 'cpd-blocked'
             command: list[str] = []

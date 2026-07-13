@@ -20,6 +20,11 @@ if str(ROOT) not in sys.path:
 
 from typing import TYPE_CHECKING  # noqa: E402
 
+from scripts.agent_runtime.session.completion import (  # noqa: E402
+    START_ENFORCED,
+    begin_change,
+    completion_requirement,
+)
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     PrimaryHeadSnapshot,
     PrimarySessionValidationError,
@@ -27,6 +32,9 @@ from scripts.agent_runtime.session.contract import (  # noqa: E402
     resolve_checkout_identity,
     resolve_git_common_dir,
 )
+from scripts.agent_runtime.session.lifecycle import bootstrap_session  # noqa: E402
+from scripts.agent_runtime.session.registry import Registry  # noqa: E402
+from scripts.agent_runtime.storage import utc_now  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -293,6 +301,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--client", required=True, choices=("codex-cli",))
     parser.add_argument("--name", required=True, help="unique worktree/task name")
     parser.add_argument(
+        "--session-id",
+        help="host activation id; defaults to launcher:<name> and is claimed by SessionStart",
+    )
+    parser.add_argument(
         "--repo-root",
         default=".",
         help="primary or linked checkout used to discover the authoritative primary checkout",
@@ -351,12 +363,36 @@ def run(args: argparse.Namespace) -> int:
     _require_same_snapshot(snapshot, after_create, phase="during worktree creation")
     _require_clean_primary(primary_root)
 
+    launcher_session = args.session_id or f"launcher:{args.name}"
+    record = bootstrap_session(
+        client="codex",
+        session_id=launcher_session,
+        cwd=target,
+        hook_event="LauncherPrepare",
+        checkout_creator="codex",
+    )
+    record = begin_change(
+        target,
+        str(record["runId"]),
+        activation_source="launcher:codex-cli:before-agent",
+        capability=START_ENFORCED,
+    )
+    registry = Registry(target)
+    with registry.locked():
+        record = registry.load_run(str(record["runId"]))
+        record["launcherPending"] = True
+        record["launcherPreparedAt"] = utc_now()
+        registry.save_run(record)
+
     command = _launch_command(target, client_args)
     evidence = {
         "status": "READY" if args.no_launch else "LAUNCHING",
         "client": args.client,
         "primarySnapshot": asdict(snapshot),
         "checkout": identity,
+        "runId": record["runId"],
+        "startCapability": record["changeBegin"]["capability"],
+        "beginBeforeAgent": True,
         "command": command,
     }
     print(json.dumps(evidence, ensure_ascii=False, sort_keys=True))
@@ -364,7 +400,15 @@ def run(args: argparse.Namespace) -> int:
     if args.no_launch:
         return 0
     try:
-        completed = subprocess.run(command, check=False)
+        env = dict(os.environ)
+        env.update(
+            {
+                "FEIPI_RUN_ID": str(record["runId"]),
+                "FEIPI_LAUNCH_RUN_ID": str(record["runId"]),
+                "FEIPI_START_ENFORCED": "1",
+            }
+        )
+        completed = subprocess.run(command, check=False, env=env)
     except OSError as exc:
         print(
             json.dumps(
@@ -387,7 +431,14 @@ def run(args: argparse.Namespace) -> int:
             ),
             file=sys.stderr,
         )
-    return completed.returncode
+        return completed.returncode
+    with registry.locked():
+        completed_record = registry.load_run(str(record["runId"]))
+    completion = completion_requirement(target, completed_record)
+    print(json.dumps(completion, ensure_ascii=False, sort_keys=True))
+    if completion["status"] == "COMMIT_REQUIRED":
+        return 2
+    return 0
 
 
 # CLI 入口：将所有可预期安全失败转换成机器可读 BLOCKED。

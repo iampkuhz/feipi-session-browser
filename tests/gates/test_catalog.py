@@ -9,8 +9,8 @@ from scripts.gates.planner import gates_for_tier, validate_catalog
 
 def test_catalog_schema_is_complete_unique_and_acyclic() -> None:
     validate_catalog()
-    assert len(GATES) == 59
-    assert len({gate.name for gate in GATES}) == 59
+    assert len(GATES) == 58
+    assert len({gate.name for gate in GATES}) == 58
     for gate in GATES:
         assert gate.targets
         assert gate.executor_type

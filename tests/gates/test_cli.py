@@ -41,7 +41,6 @@ def test_service_writes_artifact_and_receipt(tmp_path: Path, monkeypatch) -> Non
             GateDetail(name='harnessStructure', status=PASS),
         ),
     )
-    monkeypatch.setattr(cli.receipt, 'content_cache_key', lambda *_args: 'cache')
     result = cli.run_service(
         repo_root=tmp_path,
         changed_files=['harness/manifest.yaml'],
@@ -63,7 +62,6 @@ def test_service_reuses_content_sensitive_pass_receipt(tmp_path: Path, monkeypat
         return (GateDetail(name='harnessStructure', status=PASS),)
 
     monkeypatch.setattr(executor, 'execute_plan', fake_execute)
-    monkeypatch.setattr(cli.receipt, 'content_cache_key', lambda *_args, **_kwargs: 'stable')
     kwargs = {
         'repo_root': tmp_path,
         'changed_files': ['harness/manifest.yaml'],

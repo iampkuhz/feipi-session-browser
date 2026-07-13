@@ -36,6 +36,9 @@ class GateReceipt:
     command_fingerprint: str
     environment_fingerprint: str
     gate_input_fingerprint: str
+    attribution: dict[str, Any]
+    environment_bindings: dict[str, str]
+    gate_inputs: dict[str, Any]
 
 
 # 读取短小 Git identity；Git 不可用时返回空字符串。
@@ -60,7 +63,7 @@ def _sha256_bytes(value: bytes) -> str:
 
 
 def _file_manifest(repo_root: Path) -> list[dict[str, str]]:
-    """读取 tracked/untracked 当前内容，返回稳定内容 manifest。"""
+    """读取 worktree/untracked 当前内容、类型与 mode，返回稳定 manifest。"""
     try:
         proc = subprocess.run(
             ['git', 'ls-files', '-co', '--exclude-standard', '-z'],
@@ -90,15 +93,17 @@ def _file_manifest(repo_root: Path) -> list[dict[str, str]]:
         except OSError as exc:
             content = f'<unreadable:{exc.errno}>'.encode()
             kind = 'unreadable'
-        result.append({'path': path, 'kind': kind, 'sha256': _sha256_bytes(content)})
+        try:
+            mode = f'{absolute.lstat().st_mode & 0o7777:04o}'
+        except OSError:
+            mode = '0000'
+        result.append({'path': path, 'kind': kind, 'mode': mode, 'sha256': _sha256_bytes(content)})
     return result
 
 
 def checkout_content_fingerprint(repo_root: Path) -> str:
-    """绑定提交树、暂存区索引、工作树与未跟踪文件的完整内容。"""
+    """绑定 effective candidate，不把 HEAD/commit identity 混入内容 cache key。"""
     payload = {
-        'head': _git_value(repo_root, 'rev-parse', 'HEAD'),
-        'headTree': _git_value(repo_root, 'rev-parse', 'HEAD^{tree}'),
         'indexTree': _git_value(repo_root, 'write-tree'),
         'files': _file_manifest(repo_root),
     }
@@ -110,6 +115,33 @@ def _stable_fingerprint(value: object) -> str:
     """计算结构化输入的稳定 SHA-256。"""
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return _sha256_bytes(raw.encode('utf-8'))
+
+
+def _cache_key_from_fingerprints(
+    *,
+    target: str,
+    changed_files: list[str] | tuple[str, ...],
+    checkout_fingerprint: str,
+    attribution_fingerprint: str,
+    plan_fingerprint: str,
+    command_fingerprint: str,
+    environment_fingerprint: str,
+    gate_input_fingerprint: str,
+) -> str:
+    """只用 receipt 可审计字段构造 cache key，便于 commit 后重新证明。"""
+    return _stable_fingerprint(
+        {
+            'target': target,
+            'changedFiles': list(changed_files),
+            'checkoutFingerprint': checkout_fingerprint,
+            'attributionFingerprint': attribution_fingerprint,
+            'catalogVersion': CATALOG_VERSION,
+            'planFingerprint': plan_fingerprint,
+            'commandFingerprint': command_fingerprint,
+            'environmentFingerprint': environment_fingerprint,
+            'gateInputFingerprint': gate_input_fingerprint,
+        }
+    )
 
 
 def relevant_environment_fingerprint(environment: dict[str, str] | None = None) -> str:
@@ -143,27 +175,18 @@ def content_cache_key(
     gate_inputs: dict[str, Any] | None = None,
 ) -> str:
     """按 target、内容状态、catalog 与关键环境生成 SHA-256 cache key。"""
-    raw = json.dumps(
-        {
-            'target': target,
-            'changedFiles': list(changed_files),
-            'checkoutFingerprint': checkout_content_fingerprint(repo_root),
-            'attributionFingerprint': _stable_fingerprint(
-                {
-                    'changedFiles': list(changed_files),
-                    **(attribution or {}),
-                }
-            ),
-            'catalogVersion': CATALOG_VERSION,
-            'planFingerprint': plan_fingerprint,
-            'commandFingerprint': command_fingerprint,
-            'environmentFingerprint': relevant_environment_fingerprint(environment),
-            'gateInputFingerprint': _stable_fingerprint(gate_inputs or {}),
-        },
-        ensure_ascii=False,
-        sort_keys=True,
+    return _cache_key_from_fingerprints(
+        target=target,
+        changed_files=changed_files,
+        checkout_fingerprint=checkout_content_fingerprint(repo_root),
+        attribution_fingerprint=_stable_fingerprint(
+            {'changedFiles': list(changed_files), **(attribution or {})}
+        ),
+        plan_fingerprint=plan_fingerprint,
+        command_fingerprint=command_fingerprint,
+        environment_fingerprint=relevant_environment_fingerprint(environment),
+        gate_input_fingerprint=_stable_fingerprint(gate_inputs or {}),
     )
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
 # 返回 target receipt 的稳定路径。
@@ -192,6 +215,27 @@ def write_pass_receipt(
     artifact = Path(artifact_path)
     artifact_sha256 = _sha256_bytes(artifact.read_bytes()) if artifact.is_file() else ''
     root = repo_root or Path.cwd()
+    normalized_attribution = dict(attribution or {})
+    normalized_environment = dict(environment or {})
+    normalized_gate_inputs = dict(gate_inputs or {})
+    checkout_fingerprint = checkout_content_fingerprint(root)
+    attribution_fingerprint = _stable_fingerprint(
+        {'changedFiles': list(changed_files), **normalized_attribution}
+    )
+    environment_fingerprint = relevant_environment_fingerprint(normalized_environment)
+    gate_input_fingerprint = _stable_fingerprint(normalized_gate_inputs)
+    expected_cache_key = _cache_key_from_fingerprints(
+        target=target,
+        changed_files=changed_files,
+        checkout_fingerprint=checkout_fingerprint,
+        attribution_fingerprint=attribution_fingerprint,
+        plan_fingerprint=plan_fingerprint,
+        command_fingerprint=command_fingerprint,
+        environment_fingerprint=environment_fingerprint,
+        gate_input_fingerprint=gate_input_fingerprint,
+    )
+    if cache_key != expected_cache_key:
+        raise ValueError('receipt cache key does not match its bound inputs')
     receipt = GateReceipt(
         schema_version=2,
         target=target,
@@ -203,17 +247,15 @@ def write_pass_receipt(
         created_at=datetime.now(UTC).isoformat(),
         artifact_path=artifact_path,
         artifact_sha256=artifact_sha256,
-        checkout_fingerprint=checkout_content_fingerprint(root),
-        attribution_fingerprint=_stable_fingerprint(
-            {
-                'changedFiles': list(changed_files),
-                **(attribution or {}),
-            }
-        ),
+        checkout_fingerprint=checkout_fingerprint,
+        attribution_fingerprint=attribution_fingerprint,
         plan_fingerprint=plan_fingerprint,
         command_fingerprint=command_fingerprint,
-        environment_fingerprint=relevant_environment_fingerprint(environment),
-        gate_input_fingerprint=_stable_fingerprint(gate_inputs or {}),
+        environment_fingerprint=environment_fingerprint,
+        gate_input_fingerprint=gate_input_fingerprint,
+        attribution=normalized_attribution,
+        environment_bindings=normalized_environment,
+        gate_inputs=normalized_gate_inputs,
     )
     path = receipt_path(base_dir, change_id, target)
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -276,6 +318,83 @@ def reuse_decision(path: Path, cache_key: str) -> tuple[bool, str]:
         if valid
         else (False, 'required-gate-status-invalid')
     )
+
+
+def attest_pass_receipt(
+    path: Path,
+    repo_root: Path,
+    *,
+    changed_files: list[str] | tuple[str, ...],
+) -> tuple[bool, str]:
+    """在 commit 后重新计算 receipt、artifact 和全部输入绑定，禁止空壳 PASS。"""
+    data = read_receipt(path)
+    if data is None:
+        return False, 'missing-or-corrupt-receipt'
+    required_strings = (
+        'target',
+        'cache_key',
+        'checkout_fingerprint',
+        'attribution_fingerprint',
+        'plan_fingerprint',
+        'command_fingerprint',
+        'environment_fingerprint',
+        'gate_input_fingerprint',
+    )
+    if any(not str(data.get(name) or '') for name in required_strings):
+        return False, 'missing-bound-fingerprint'
+    expected_files = list(changed_files)
+    if list(data.get('changed_files') or []) != expected_files:
+        return False, 'changed-files-mismatch'
+    attribution = data.get('attribution')
+    environment = data.get('environment_bindings')
+    gate_inputs = data.get('gate_inputs')
+    if not isinstance(attribution, dict) or not isinstance(environment, dict):
+        return False, 'missing-bound-inputs'
+    if not isinstance(gate_inputs, dict) or gate_inputs.get('changedFiles') != expected_files:
+        return False, 'gate-inputs-mismatch'
+    checkout_fingerprint = checkout_content_fingerprint(repo_root)
+    attribution_fingerprint = _stable_fingerprint({'changedFiles': expected_files, **attribution})
+    environment_fingerprint = relevant_environment_fingerprint(environment)
+    gate_input_fingerprint = _stable_fingerprint(gate_inputs)
+    recomputed = _cache_key_from_fingerprints(
+        target=str(data['target']),
+        changed_files=expected_files,
+        checkout_fingerprint=checkout_fingerprint,
+        attribution_fingerprint=attribution_fingerprint,
+        plan_fingerprint=str(data['plan_fingerprint']),
+        command_fingerprint=str(data['command_fingerprint']),
+        environment_fingerprint=environment_fingerprint,
+        gate_input_fingerprint=gate_input_fingerprint,
+    )
+    if data.get('checkout_fingerprint') != checkout_fingerprint:
+        return False, 'checkout-content-mismatch'
+    if data.get('attribution_fingerprint') != attribution_fingerprint:
+        return False, 'attribution-mismatch'
+    if data.get('environment_fingerprint') != environment_fingerprint:
+        return False, 'environment-mismatch'
+    if data.get('gate_input_fingerprint') != gate_input_fingerprint:
+        return False, 'gate-input-fingerprint-mismatch'
+    valid, reason = reuse_decision(path, recomputed)
+    if not valid:
+        return False, reason
+    artifact = read_receipt(Path(str(data.get('artifact_path') or '')))
+    if artifact is None:
+        return False, 'artifact-missing-or-corrupt'
+    command_groups = artifact.get('commandGroups')
+    if not isinstance(command_groups, list):
+        return False, 'artifact-command-groups-missing'
+    artifact_command_fingerprint = _stable_fingerprint(
+        [group.get('command') for group in command_groups if isinstance(group, dict)]
+    )
+    if artifact.get('checkoutFingerprint') != checkout_fingerprint:
+        return False, 'artifact-checkout-mismatch'
+    if artifact.get('catalogVersion') != CATALOG_VERSION:
+        return False, 'artifact-catalog-mismatch'
+    if artifact.get('planFingerprint') != data.get('plan_fingerprint'):
+        return False, 'artifact-plan-mismatch'
+    if artifact_command_fingerprint != data.get('command_fingerprint'):
+        return False, 'artifact-command-mismatch'
+    return True, 'all-bound-fingerprints-attested'
 
 
 def is_reusable_pass(path: Path, cache_key: str) -> bool:

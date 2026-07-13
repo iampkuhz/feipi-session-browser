@@ -57,6 +57,14 @@ from scripts.agent_runtime.registry import (
     resolve_bound_run_record,
     validate_run_write_authorization,
 )
+from scripts.agent_runtime.session.completion import (
+    START_ENFORCED,
+    START_NOT_ENFORCED,
+    activate_first_mutation,
+    begin_change,
+    completion_requirement,
+    require_mutation_baseline,
+)
 from scripts.gates.planner import classify_path
 
 
@@ -154,7 +162,7 @@ def _bootstrap_hook_session(
     request = build_bootstrap_request(ctx, wrapper_client=wrapper_client)
     if request is None:
         return None
-    return bootstrap_session(
+    record = bootstrap_session(
         client=request.client,
         session_id=request.session_id,
         cwd=Path(request.cwd),
@@ -164,6 +172,17 @@ def _bootstrap_hook_session(
         env_hints=os.environ,
         parent_run_id=request.parent_run_id,
     )
+    if request.hook_event == 'SessionStart' and not request.parent_run_id:
+        capability = (
+            START_NOT_ENFORCED if request.adapter.surface == 'codex-app' else START_ENFORCED
+        )
+        record = begin_change(
+            Path(request.cwd),
+            str(record['runId']),
+            activation_source=f'hook:{request.adapter.surface}:SessionStart',
+            capability=capability,
+        )
+    return record
 
 
 # 从 Registry 权威解析当前 Session run。
@@ -308,8 +327,16 @@ def _run_mutation_block(
             operation='acquire',
             error=SessionctlError(reason),
         )
+    registry = Registry(paths.repo_root)
     try:
-        acquire_writer_lease(Registry(paths.repo_root), record)
+        with registry.locked():
+            record = registry.load_run(str(record['runId']))
+            require_mutation_baseline(paths.repo_root, record)
+            activate_first_mutation(registry, record)
+    except (SessionctlError, OSError, ValueError) as exc:
+        return _lease_block_result(paths, ctx, operation='begin-change', error=exc)
+    try:
+        acquire_writer_lease(registry, record)
     except (
         WriterLeaseConflictError,
         WriterLeaseFencedError,
@@ -636,6 +663,13 @@ def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult
             )
             return HookResult(status='BLOCK', exit_code=2, message=reason)
     if normalized_label in {'session-end', 'sessionend'}:
+        record = _bound_record(paths, ctx)
+        if record:
+            required = completion_requirement(paths.repo_root, record)
+            if required['status'] == 'COMMIT_REQUIRED':
+                reason = f"COMMIT_REQUIRED: {required['recoveryCommand']}"
+                record_hook_event(paths, ctx, status='BLOCK', extra=required)
+                return HookResult(status='BLOCK', exit_code=2, message=reason)
         release_block = _release_session_writer_lease(paths, ctx)
         if release_block is not None:
             return release_block

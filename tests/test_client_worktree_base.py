@@ -50,8 +50,10 @@ def test_claude_repository_setting_uses_current_head() -> None:
 def test_codex_cli_launcher_uses_primary_head_not_origin_default(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     repo, old_head, current_head = synthetic_repo(tmp_path)
+    monkeypatch.setenv("FEIPI_AGENT_RUNTIME_ROOT", str(tmp_path / "runtime"))
     worktree_root = tmp_path / "external-worktrees"
     client = "codex-cli"
 
@@ -76,6 +78,9 @@ def test_codex_cli_launcher_uses_primary_head_not_origin_default(
     evidence = json.loads(capsys.readouterr().out)
     checkout = worktree_root / client
     assert evidence["status"] == "READY"
+    assert evidence["beginBeforeAgent"] is True
+    assert evidence["startCapability"] == "START_ENFORCED"
+    assert evidence["runId"].startswith("run-")
     assert evidence["primarySnapshot"]["branch"] == "main_java"
     assert evidence["primarySnapshot"]["head_commit"] == current_head
     assert evidence["command"][:2] == ["codex", "-C"]
@@ -83,6 +88,11 @@ def test_codex_cli_launcher_uses_primary_head_not_origin_default(
     assert git(checkout, "rev-parse", "HEAD") != old_head
     assert git(checkout, "branch", "--show-current") == f"codex/worktree-{client}"
     assert evidence["command"][-2:] == ["--model", "gpt-test"]
+    registry = sessionctl.Registry(checkout)
+    with registry.locked():
+        record = registry.load_run(evidence["runId"])
+    assert record["launcherPending"] is True
+    assert record["changeBegin"]["activationEvidence"] == "launcher:codex-cli:before-agent"
 
 
 @pytest.mark.parametrize("override", ("-C", "-C/tmp/other", "--cd", "--cd=/tmp/other"))

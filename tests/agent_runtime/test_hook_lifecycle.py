@@ -27,8 +27,10 @@ from scripts.agent_runtime.events.policy.bash import (
 )
 from scripts.agent_runtime.events.policy.file import evaluate_write_path
 from scripts.agent_runtime.events.policy.session import handle_session_start
-from scripts.agent_runtime.hook_entry import _controlled_primary_command
+from scripts.agent_runtime.hook_entry import _bootstrap_hook_session, _controlled_primary_command
 from scripts.agent_runtime.paths import RepoPaths, build_paths, identity_from_values
+from scripts.agent_runtime.session.completion import require_mutation_baseline
+from scripts.agent_runtime.session.errors import SessionctlError
 from scripts.gates.planner import classify_path, required_quality_targets
 from scripts.harness.hook_dispatch import dispatch
 
@@ -436,8 +438,14 @@ def test_bash_snapshots_are_identity_scoped(tmp_path: Path) -> None:
 def test_bash_mutation_lock_owner_is_identity_scoped(tmp_path: Path) -> None:
     repo = tmp_path / 'repo'
     repo.mkdir()
-    paths_a = build_paths(repo, identity_from_values(agent_client='claude', session_id='session-a'))
-    paths_b = build_paths(repo, identity_from_values(agent_client='claude', session_id='session-b'))
+    paths_a = build_paths(
+        repo,
+        identity_from_values(agent_client='claude', session_id='session-a', run_id=''),
+    )
+    paths_b = build_paths(
+        repo,
+        identity_from_values(agent_client='claude', session_id='session-b', run_id=''),
+    )
     ctx_a = read_stdin_json(
         'pre-bash',
         '{"session_id":"session-a","tool_name":"Bash","tool_use_id":"same-tool",'
@@ -614,3 +622,30 @@ def test_stop_dispatch_preserves_payload_output_and_exit_code(
     captured = capsys.readouterr()
     assert captured.out == 'stop-stdout\n'
     assert captured.err == 'stop-stderr\n'
+
+
+def test_codex_app_reports_start_not_enforced_and_cannot_mutate(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    repo = tmp_path / 'codex-app-repo'
+    _init_repo(repo)
+    monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
+    ctx = read_stdin_json(
+        'session-start',
+        json.dumps(
+            {
+                'session_id': 'codex-app-session',
+                'cwd': str(repo),
+                'client_surface': 'codex-app',
+                'hook_event_name': 'SessionStart',
+            }
+        ),
+    )
+
+    record = _bootstrap_hook_session(ctx, wrapper_client='codex')
+
+    assert record is not None
+    assert record['changeBegin']['status'] == 'START_NOT_ENFORCED'
+    assert record['changeBegin']['capability'] == 'START_NOT_ENFORCED'
+    with pytest.raises(SessionctlError, match='START_NOT_ENFORCED'):
+        require_mutation_baseline(repo, record)

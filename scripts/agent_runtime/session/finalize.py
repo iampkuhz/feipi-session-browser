@@ -2,26 +2,29 @@
 
 from __future__ import annotations
 
-import argparse
-import contextlib
 import fcntl
-import io
 import os
 from collections.abc import Mapping
 from pathlib import Path
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from scripts.agent_runtime.git_state import run as git
 from scripts.agent_runtime.stop.evidence import GitEvidenceError
 from scripts.agent_runtime.storage import utc_now as now_utc
 from scripts.agent_runtime.storage import write_json_atomic
+from scripts.gates.catalog import CATALOG_VERSION
+from scripts.gates.planner import plan as build_gate_plan
+from scripts.gates.receipt import read_receipt
 
 from .common import _append_run_audit, _set_run_status, emit_json
 from .contract import ensure_private_directory
 from .handoff import build_handoff_report
 from .lease import heartbeat_writer_lease, release_writer_lease
-from .lifecycle import _checkout_fingerprint, _collect_git_facts, cmd_stop, repo_root_from_arg
+from .lifecycle import _checkout_fingerprint, _collect_git_facts, repo_root_from_arg
 from .registry import REGISTRY_VERSION, Registry
+
+if TYPE_CHECKING:
+    import argparse
 
 
 def _write_handoff(registry: Registry, record: dict[str, Any], reason: str) -> Path:
@@ -40,6 +43,10 @@ def _mark_handoff(registry: Registry, record: dict[str, Any], reason: str) -> No
     if record.get('status') != 'HANDOFF_REQUIRED':
         _set_run_status(record, 'HANDOFF_REQUIRED')
     record['handoffSummary'] = str(path)
+    completion = record.get('completion')
+    if isinstance(completion, dict) and completion.get('commitSha'):
+        completion['state'] = 'HANDOFF_REQUIRED'
+        completion['reason'] = reason
     timestamp = now_utc()
     record['updatedAt'] = timestamp
     _append_run_audit(
@@ -63,7 +70,19 @@ def _finalize_handoff(registry: Registry, run_id: str, reason: str) -> int:
         _mark_handoff(registry, record, reason)
     if record.get('writerLease'):
         release_writer_lease(registry, record, reason='finalize-handoff')
-    emit_json({'status': 'HANDOFF_REQUIRED', 'runId': run_id, 'reason': reason})
+    completion = record.get('completion')
+    commit_sha = str(completion.get('commitSha') or '') if isinstance(completion, Mapping) else ''
+    emit_json(
+        {
+            'status': 'COMMITTED_HANDOFF_REQUIRED' if commit_sha else 'HANDOFF_REQUIRED',
+            'runId': run_id,
+            'commitSha': commit_sha,
+            'resultRef': str(completion.get('resultRef') or '')
+            if isinstance(completion, Mapping)
+            else '',
+            'reason': reason,
+        }
+    )
     return 2
 
 
@@ -81,6 +100,38 @@ def _git_is_ancestor(repo: Path, ancestor: str, descendant: str) -> bool:
 def _fresh_validation_error(
     record: Mapping[str, Any], facts: Mapping[str, Any], *, require_target_match: bool
 ) -> str:
+    completion = record.get('completion')
+    if isinstance(completion, Mapping) and completion.get('commitSha'):
+        attestation = completion.get('commitAttestation')
+        integration_attestation = completion.get('integrationAttestation')
+        validation = completion.get('validationReceipt')
+        checkout = Path(str(record.get('checkoutRoot') or ''))
+        commit_sha = str(completion.get('commitSha') or '')
+        candidate_tree = str(completion.get('candidateTree') or '')
+        if (
+            isinstance(integration_attestation, Mapping)
+            and integration_attestation.get('status') == 'PASS'
+            and str(facts.get('headCommit') or '')
+            == str(completion.get('integrationCandidateSha') or '')
+            and git(checkout, 'rev-parse', 'HEAD^{tree}').stdout.strip()
+            == str(integration_attestation.get('commitTree') or '')
+            and int(completion.get('postCommitHeavyProcessCount') or 0) == 0
+        ):
+            return ''
+        if (
+            isinstance(attestation, Mapping)
+            and attestation.get('status') == 'PASS'
+            and isinstance(validation, Mapping)
+            and validation.get('status') == 'PASS'
+            and str(facts.get('headCommit') or '') == commit_sha
+            and git(checkout, 'rev-parse', 'HEAD^{tree}').stdout.strip() == candidate_tree
+            and int(completion.get('postCommitHeavyProcessCount') or 0) == 0
+        ):
+            if require_target_match and str(validation.get('targetCommit') or '') != str(
+                facts.get('targetHead') or ''
+            ):
+                return 'target branch changed after candidate validation'
+            return ''
     if record.get('status') != 'VALIDATED' or record.get('stopExitCode') != 0:
         return 'required gates are not fresh PASS'
     validation = record.get('stopValidation')
@@ -118,16 +169,58 @@ def _fresh_validation_error(
     return ''
 
 
-def _revalidate_for_finalize(registry: Registry, record: Mapping[str, Any]) -> bool:
-    with contextlib.redirect_stdout(io.StringIO()):
-        result = cmd_stop(
-            argparse.Namespace(
-                repo_root=str(registry.primary_repo_root),
-                run_id=str(record['runId']),
-                handoff_on_failure=True,
+def _target_delta_reuse_error(
+    record: Mapping[str, Any], target_delta: set[str]
+) -> tuple[str, list[dict[str, str]]]:
+    """只允许 catalog 证明为无 target 的 disjoint delta 复用既有强 receipt。"""
+    completion = record.get('completion')
+    if not isinstance(completion, Mapping) or not completion.get('commitSha'):
+        return 'target advanced without an attested completion commit', []
+    exact_files = set(completion.get('exactFiles') or [])
+    if target_delta & exact_files:
+        return 'target advanced and overlapped exact candidate files', []
+    sensitive = {
+        path
+        for path in target_delta
+        if path == 'config/gates.yaml'
+        or path.startswith('scripts/gates/')
+        or path in {'pyproject.toml', 'uv.lock', 'package.json', 'package-lock.json'}
+        or path.endswith('.gradle.kts')
+    }
+    if sensitive:
+        return 'target advanced and changed catalog/command/environment inputs', []
+    delta_plan = build_gate_plan(sorted(target_delta), tier='required')
+    if delta_plan.effective_targets:
+        return 'target advanced and selected affected required Gate targets', []
+    validation = completion.get('validationReceipt')
+    paths = validation.get('gateReceiptPaths') if isinstance(validation, Mapping) else None
+    if not isinstance(paths, list) or not paths:
+        return 'target advance reuse requires non-empty PASS receipts', []
+    fingerprints: list[dict[str, str]] = []
+    for raw in paths:
+        receipt = read_receipt(Path(str(raw)))
+        if not receipt or receipt.get('status') != 'PASS':
+            return 'target advance receipt is missing or not PASS', []
+        if receipt.get('catalog_version') != CATALOG_VERSION:
+            return 'target advance changed the Gate catalog identity', []
+        required = {
+            key: str(receipt.get(key) or '')
+            for key in (
+                'cache_key',
+                'plan_fingerprint',
+                'command_fingerprint',
+                'environment_fingerprint',
+                'gate_input_fingerprint',
             )
-        )
-    return result == 0
+        }
+        if not all(required.values()):
+            return 'target advance receipt lacks bound Gate inputs', []
+        fingerprints.append(required)
+    return '', fingerprints
+
+
+def _tree_entry(repo: Path, commit: str, path: str) -> str:
+    return git(repo, 'ls-tree', '-z', commit, '--', path).stdout
 
 
 def cmd_finalize(args: argparse.Namespace) -> int:
@@ -160,7 +253,9 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         except GitEvidenceError as exc:
             return _finalize_handoff(registry, args.run_id, f'Git evidence unavailable: {exc}')
         initial_dirty = record.get('initialDirtySnapshot')
-        if not isinstance(initial_dirty, Mapping) or initial_dirty.get('dirty'):
+        begin = record.get('changeBegin')
+        adopted = isinstance(begin, Mapping) and begin.get('adopted') is True
+        if not isinstance(initial_dirty, Mapping) or (initial_dirty.get('dirty') and not adopted):
             return _finalize_handoff(
                 registry, args.run_id, 'initial dirty baseline cannot be safely attributed'
             )
@@ -175,12 +270,6 @@ def cmd_finalize(args: argparse.Namespace) -> int:
         if not facts['checkoutStatus']['clean']:
             return _finalize_handoff(
                 registry, args.run_id, 'run checkout has uncommitted or untracked files'
-            )
-        if facts['checkoutStatus']['detached']:
-            return _finalize_handoff(
-                registry,
-                args.run_id,
-                'detached HEAD requires a provider-owned branch or manual handoff',
             )
         validation_error = _fresh_validation_error(record, facts, require_target_match=False)
         if validation_error:
@@ -205,7 +294,24 @@ def cmd_finalize(args: argparse.Namespace) -> int:
                     return _finalize_handoff(
                         registry, args.run_id, 'target and result ancestry cannot be safely rebased'
                     )
-                strategy = 'rebase-then-ff'
+                target_delta = set(
+                    git(
+                        checkout,
+                        'diff',
+                        '--name-only',
+                        '--no-renames',
+                        validated_target,
+                        target_old,
+                    ).stdout.splitlines()
+                )
+                reuse_error, receipt_fingerprints = _target_delta_reuse_error(record, target_delta)
+                if reuse_error:
+                    return _finalize_handoff(
+                        registry,
+                        args.run_id,
+                        reuse_error,
+                    )
+                strategy = 'target-delta-reuse-then-ff'
                 target_ref = f'refs/heads/{target}'
                 rebase = git(checkout, 'rebase', target_ref, check=False)
                 if rebase.returncode != 0:
@@ -213,12 +319,92 @@ def cmd_finalize(args: argparse.Namespace) -> int:
                     return _finalize_handoff(
                         registry, args.run_id, 'target advanced with conflicts'
                     )
+                rebased_head = git(checkout, 'rev-parse', 'HEAD').stdout.strip()
+                completion = record.get('completion')
+                if isinstance(completion, dict):
+                    old_commit = str(completion.get('commitSha') or '')
+                    result_ref = str(completion.get('resultRef') or '')
+                    exact_files = set(completion.get('exactFiles') or [])
+                    committed_paths = set(
+                        git(
+                            checkout,
+                            'diff-tree',
+                            '--no-commit-id',
+                            '--name-only',
+                            '--no-renames',
+                            '-r',
+                            rebased_head,
+                        ).stdout.splitlines()
+                    )
+                    entries_match = all(
+                        _tree_entry(checkout, old_commit, path)
+                        == _tree_entry(checkout, rebased_head, path)
+                        for path in exact_files
+                    )
+                    if (
+                        committed_paths != exact_files
+                        or not entries_match
+                        or git(checkout, 'rev-parse', f'{rebased_head}^').stdout.strip()
+                        != target_old
+                        or not result_ref
+                        or git(checkout, 'rev-parse', result_ref).stdout.strip() != old_commit
+                    ):
+                        return _finalize_handoff(
+                            registry,
+                            args.run_id,
+                            'rebased integration candidate failed lightweight attestation',
+                        )
+                    integration_ref = f'refs/heads/codex/integration/{args.run_id}'
+                    existing_integration_ref = git(
+                        checkout, 'rev-parse', '--verify', integration_ref, check=False
+                    ).stdout.strip()
+                    if existing_integration_ref and existing_integration_ref != rebased_head:
+                        return _finalize_handoff(
+                            registry,
+                            args.run_id,
+                            'integration ref already points to another commit',
+                        )
+                    if not existing_integration_ref:
+                        update = git(
+                            checkout,
+                            'update-ref',
+                            integration_ref,
+                            rebased_head,
+                            '0' * 40,
+                            check=False,
+                        )
+                        if update.returncode != 0:
+                            return _finalize_handoff(
+                                registry, args.run_id, 'integration result ref creation failed'
+                            )
+                    integration_tree = git(checkout, 'rev-parse', 'HEAD^{tree}').stdout.strip()
+                    completion['integrationCandidateSha'] = rebased_head
+                    completion['integrationRef'] = integration_ref
+                    completion['validationReuse'] = {
+                        'status': 'REUSED',
+                        'reason': 'target-delta-has-no-effective-target-and-bound-inputs-unchanged',
+                        'targetDelta': sorted(target_delta),
+                        'receiptFingerprints': receipt_fingerprints,
+                        'heavyGateRuns': 0,
+                    }
+                    completion['integrationAttestation'] = {
+                        'status': 'PASS',
+                        'originalCommitSha': old_commit,
+                        'originalResultRef': result_ref,
+                        'integrationCommitSha': rebased_head,
+                        'integrationRef': integration_ref,
+                        'commitTree': integration_tree,
+                        'parent': target_old,
+                        'committedPaths': sorted(committed_paths),
+                        'exactEntriesPreserved': entries_match,
+                        'heavyProcessCount': 0,
+                        'targetDeltaReuse': True,
+                    }
+                    record['headCommit'] = rebased_head
+                    with registry.locked():
+                        registry.save_run(record)
             else:
-                strategy = 'revalidate-then-ff'
-            if not _revalidate_for_finalize(registry, record):
-                return _finalize_handoff(
-                    registry, args.run_id, 'revalidation failed after target advanced'
-                )
+                strategy = 'target-already-in-result-history'
             with registry.locked():
                 record = registry.load_run(args.run_id)
             try:
@@ -227,9 +413,6 @@ def cmd_finalize(args: argparse.Namespace) -> int:
                 return _finalize_handoff(
                     registry, args.run_id, f'Git evidence unavailable after revalidation: {exc}'
                 )
-            validation_error = _fresh_validation_error(record, facts, require_target_match=True)
-            if validation_error:
-                return _finalize_handoff(registry, args.run_id, validation_error)
         run_head = str(facts['headCommit'])
         target_old = str(facts['targetHead'])
         if not _git_is_ancestor(checkout, target_old, run_head):
@@ -305,6 +488,11 @@ def cmd_finalize(args: argparse.Namespace) -> int:
             record = registry.load_run(args.run_id)
             _set_run_status(record, 'INTEGRATED')
             record['headCommit'] = target_new
+            completion = record.get('completion')
+            if isinstance(completion, dict):
+                completion['state'] = 'INTEGRATED'
+                completion['integratedCommitSha'] = target_new
+                completion['targetHeadObserved'] = target_new
             record['integrationSummary'] = str(summary_path)
             record['updatedAt'] = timestamp
             _append_run_audit(

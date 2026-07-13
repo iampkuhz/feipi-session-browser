@@ -362,6 +362,50 @@ def _candidate_from_run_hint(
     )
 
 
+def _claim_launcher_run(
+    registry: Registry,
+    run_id: str,
+    *,
+    client: str,
+    session_id: str,
+    facts: Mapping[str, Any],
+) -> dict[str, Any] | None:
+    """把 launcher 的 pending identity 原子交给真实 SessionStart payload。"""
+    if not run_id:
+        return None
+    try:
+        candidate = registry.load_run(run_id)
+    except SessionctlError:
+        return None
+    completion = candidate.get('completion')
+    if (
+        candidate.get('launcherPending') is not True
+        or candidate.get('client') != client
+        or candidate.get('repoKey') != facts.get('repoKey')
+        or Path(str(candidate.get('checkoutRoot') or '')).resolve()
+        != Path(str(facts.get('checkoutRoot') or '')).resolve()
+        or candidate.get('writerLease')
+        or (isinstance(completion, Mapping) and completion.get('firstMutationAt'))
+    ):
+        return None
+    previous_session = str(candidate.get('sessionId') or '')
+    candidate['sessionId'] = session_id
+    candidate['launcherPending'] = False
+    begin = candidate.get('changeBegin')
+    if isinstance(begin, dict):
+        begin['sessionId'] = session_id
+        begin['claimedAt'] = now_utc()
+    event = {
+        'event': 'LAUNCHER_RUN_CLAIMED',
+        'runId': run_id,
+        'previousSessionId': previous_session,
+        'sessionId': session_id,
+        'at': now_utc(),
+    }
+    _append_run_audit(registry, candidate, event)
+    return candidate
+
+
 def _normalize_identity_hints(hints: Mapping[str, Any] | None) -> dict[str, str]:
     source = hints or {}
 
@@ -523,18 +567,28 @@ def bootstrap_session(
             )
         else:
             _enforce_new_client_worktree_base(facts, client=client)
-            record = _candidate_from_run_hint(
-                registry,
-                payload.get('runId', ''),
-                client=client,
-                session_id=session_id,
-                facts=facts,
-            ) or _candidate_from_run_hint(
-                registry,
-                environment.get('runId', ''),
-                client=client,
-                session_id=session_id,
-                facts=facts,
+            record = (
+                _candidate_from_run_hint(
+                    registry,
+                    payload.get('runId', ''),
+                    client=client,
+                    session_id=session_id,
+                    facts=facts,
+                )
+                or _candidate_from_run_hint(
+                    registry,
+                    environment.get('runId', ''),
+                    client=client,
+                    session_id=session_id,
+                    facts=facts,
+                )
+                or _claim_launcher_run(
+                    registry,
+                    payload.get('runId', '') or environment.get('runId', ''),
+                    client=client,
+                    session_id=session_id,
+                    facts=facts,
+                )
             )
             if record is None:
                 run_id = f'run-{uuid.uuid4().hex[:20]}'
@@ -869,6 +923,10 @@ def record_stop_result(
             'checkoutContentFingerprint': checkout_content_fingerprint,
             'primaryFingerprint': primary_fingerprint,
             'evidenceError': evidence_error,
+            'candidateTree': str(receipt_facts.get('candidateTree') or ''),
+            'gateReceiptPaths': list(receipt_facts.get('gateReceiptPaths') or []),
+            'gateArtifactPath': str(receipt_facts.get('gateArtifactPath') or ''),
+            'gateReused': bool(receipt_facts.get('gateReused')),
         }
         latest['stopGitFacts'] = receipt_facts
         latest['stopResultKey'] = result_key
@@ -939,6 +997,7 @@ def cmd_stop(args: argparse.Namespace) -> int:
         'worktreeId': record['worktreeId'],
         'agent_client': record['client'],
         'client': record['client'],
+        'completionCandidate': bool(getattr(args, 'candidate_mode', False)),
     }
     stop_exit = run_stop(
         str(record['client']),

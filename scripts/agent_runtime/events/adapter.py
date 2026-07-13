@@ -179,7 +179,9 @@ _ADAPTER_BY_ALIAS = {
     for alias in (adapter.surface, *adapter.aliases)
 }
 _DEFAULT_BY_CLIENT = {
-    "codex": _ADAPTER_BY_ALIAS[_token("codex-cli")],
+    # 无 surface 的 Codex payload 无法证明来自受控 CLI launcher；按 App 能力缺口
+    # fail closed，禁止把仓库 fixture 冒充真实 host lifecycle 证明。
+    "codex": _ADAPTER_BY_ALIAS[_token("codex-app")],
     "claude": _ADAPTER_BY_ALIAS[_token("claude-code-cli")],
     "qoder": _ADAPTER_BY_ALIAS[_token("qoder-cli")],
 }

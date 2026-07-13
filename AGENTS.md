@@ -1,42 +1,41 @@
 # Feipi Session Browser — Agent 工程规则
 
-本文件为短规则索引；普通定位、单文件小改不扩展。
+短规则索引；普通定位、单文件小改不扩展。
 
 ## 首要护栏
 
 - 默认中文回复；代码标识符、命令、路径、API 保持英文。
-- 先搜索定位，再只读必要片段；不加载无关 skill 或长文档。
-- 修改最小化；不纳入真实 session、密钥、token、缓存、运行数据或个人配置。
-- subagent 长任务、并行探索、独立验证时主动委派；给最小 handoff、唯一 `Task id`/`agent_id`，并行写范围不重叠。
-- 共用规则沉淀到 `skills/`、`harness/`；`.claude/`、`.codex/`、`.qoder/`、`.agents/` 只保留入口。
+- 先搜索定位再只读必要片段；最小修改；不加载无关 skill/长文档。
+- 不纳入真实 session、密钥、token、缓存、运行数据或个人配置。
+- 长任务/并行探索/独立验证主动委派；最小 handoff、唯一 `Task id`/`agent_id`，写范围不重叠。
+- 共用规则进 `skills/`、`harness/`；各客户端目录只保留入口。
 
 ## 任务分流
 
-- 非平凡变更（产品行为、agent/harness/质量门/hooks、目录职责、跨模块改造）先走 `openspec/changes/<id>/`。
-- `openspec/specs/` 是长期真相；不要绕过 OpenSpec 大改受保护路径。
+- 非平凡产品/agent/harness/gate/hook/跨模块变更先走 OpenSpec `openspec/changes/<id>/`；`openspec/specs/` 是长期真相。
 
 ## 受保护路径
 
 - `.claude/`、`.codex/`、`.qoder/`、`.agents/`、`skills/`、`harness/`、`scripts/`、`openspec/`、`src/session_browser/`、`tests/`、`AGENTS.md`、`CLAUDE.md`。
-- 修改必须目标明确、范围最小、检查 diff；不提交 `.gitignore` 忽略文件；`openspec/changes/*` 不得 `git add -f`。
+- 目标明确、范围最小、检查 diff；不提交 ignored 文件；`openspec/changes/*` 不得 `git add -f`。
 
 ## 验证原则
 
-- required gates 全部通过才能描述完成；失败、未运行、跳过不得描述为 PASS。
-- 不得新增 `pytest.skip`、`pytest.mark.skip`、`pytest.mark.skipif`、`test.skip()`、`test.describe.skip`、`test.fixme`。
-- not triggered ≠ skipped；运行期间 skipped 不得算 PASS，必须补齐或报 FAIL/BLOCKED。
+- required gates 全过才能完成；失败/未运行/skipped 不得称 PASS；not triggered ≠ skipped。
+- 不得新增 Python/Playwright skip、skipif、fixme API。
 - 改 agent/harness/scripts/skills/openspec：优先 `bash scripts/harness/doctor.sh`。
 - 改产品代码或测试：`./scripts/session-browser.sh test`。
 - 改 build 配置：触发 `java-build` target。
-- Stop/handoff 前唯一门禁命令是 `python3 scripts/gates/cli.py --tier required`。
+- Stop/handoff 前唯一门禁：`python3 scripts/gates/cli.py --tier required`。
 - 改 Java 源码时参考 `openspec/specs/java-code-conciseness/spec.md`。
 
 ## 提交与集成
 
-- 修改任务使用 primary 当前 `HEAD` 的 linked worktree；Codex 用
-  `scripts/harness/launch_codex_worktree.py`；不改 provider checkout。
-- 完成后无需询问：按精确文件清单运行 `scripts/harness/complete_change.py`，经 Stop、commit、二次 Stop 和 `sessionctl finalize` 本地集成到启动时目标分支。
-- primary/initial dirty、归因不明、detached、门禁失败或冲突时必须保留分支并报 `HANDOFF_REQUIRED`/`BLOCKED`；不得 stash、reset、force、自动 push 或把失败描述为 PASS。
+- 使用 primary `HEAD` 的 linked worktree；Codex 用 `scripts/harness/launch_codex_worktree.py`；不改 provider checkout。
+- mutation 前须有 `begin-change`；baseline 缺失/`START_NOT_ENFORCED` 时阻断。late dirty 仅可用带 base、exact manifest、用户确认的 `adopt-current`。
+- 无需询问：精确文件运行 `complete_change.py`，顺序为 preflight→stage/pre-commit→一次 required Stop→commit→轻量 attestation→integration。
+- 归因/禁区冲突报 `HANDOFF_REQUIRED`；能力问题报 `BLOCKED_RETRYABLE` 并同 run 重试；primary dirty/前进/conflict 保留 commit/ref，报 `COMMITTED_HANDOFF_REQUIRED`。
+- 禁止 stash、reset、force、自动 push，失败不得称 PASS。
 
 ## 上下文治理
 

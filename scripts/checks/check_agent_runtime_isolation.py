@@ -31,8 +31,22 @@ from scripts.agent_runtime.stop.evidence import (  # noqa: E402
 GATE_NAME = 'agentRuntimeIsolation'
 
 
+def _synthetic_identity(client: str, session: str, agent: str = ''):
+    """构造不继承当前 Gate run 环境的合成身份，保证隔离检查可复现。"""
+    return identity_from_values(
+        client,
+        session,
+        agent,
+        run_id='',
+        task_id='',
+        worktree_id='',
+        turn_id='',
+        stop_hook_active=False,
+    )
+
+
 def _write_changed_file(repo_root: Path, client: str, session: str, agent: str, file: str) -> Path:
-    identity = identity_from_values(client, session, agent)
+    identity = _synthetic_identity(client, session, agent)
     path = agent_log_dir(repo_root, identity) / 'changed-files.jsonl'
     path.parent.mkdir(parents=True, exist_ok=True)
     record = {
@@ -93,7 +107,7 @@ def _check_stop_collection_isolation(tmp_root: Path, errors: list[str]) -> None:
     _write_changed_file(tmp_root, 'qoder', 'session-a', '', 'scripts/checks/check_a.py')
     _write_changed_file(tmp_root, 'qoder', 'session-b', '', 'scripts/checks/check_b.py')
 
-    identity = identity_from_values('qoder', 'session-a', '')
+    identity = _synthetic_identity('qoder', 'session-a')
     session_result = collect_stop_changed_files(identity, 'session-a', repo_root=tmp_root)
     _expect(
         session_result.evidence_mode == 'identity-session',
@@ -111,7 +125,7 @@ def _check_stop_collection_isolation(tmp_root: Path, errors: list[str]) -> None:
     _write_changed_file(tmp_root, 'claude', 'session-a', 'worker-2', 'AGENTS.md')
     _write_changed_file(tmp_root, 'claude', 'session-b', 'worker-3', 'CLAUDE.md')
 
-    main_identity = identity_from_values('claude', 'session-a', '')
+    main_identity = _synthetic_identity('claude', 'session-a')
     main_result = collect_stop_changed_files(main_identity, 'session-a', repo_root=tmp_root)
     _expect(
         main_result.changed_files
@@ -125,7 +139,7 @@ def _check_stop_collection_isolation(tmp_root: Path, errors: list[str]) -> None:
         errors,
     )
 
-    agent_identity = identity_from_values('claude', 'session-a', 'worker-1')
+    agent_identity = _synthetic_identity('claude', 'session-a', 'worker-1')
     agent_result = collect_stop_changed_files(
         agent_identity,
         'session-a',
@@ -145,10 +159,10 @@ def _check_stop_collection_isolation(tmp_root: Path, errors: list[str]) -> None:
 
 
 def _check_quality_and_active_change_paths(tmp_root: Path, errors: list[str]) -> None:
-    claude_main = quality_dir(tmp_root, identity_from_values('claude', 'same-session', ''))
-    qoder_main = quality_dir(tmp_root, identity_from_values('qoder', 'same-session', ''))
-    qoder_other_session = quality_dir(tmp_root, identity_from_values('qoder', 'other-session', ''))
-    qoder_agent = quality_dir(tmp_root, identity_from_values('qoder', 'same-session', 'worker-1'))
+    claude_main = quality_dir(tmp_root, _synthetic_identity('claude', 'same-session'))
+    qoder_main = quality_dir(tmp_root, _synthetic_identity('qoder', 'same-session'))
+    qoder_other_session = quality_dir(tmp_root, _synthetic_identity('qoder', 'other-session'))
+    qoder_agent = quality_dir(tmp_root, _synthetic_identity('qoder', 'same-session', 'worker-1'))
 
     _expect(
         len({claude_main, qoder_main, qoder_other_session, qoder_agent}) == 4,
@@ -161,7 +175,7 @@ def _check_quality_and_active_change_paths(tmp_root: Path, errors: list[str]) ->
         errors,
     )
 
-    agent_identity = identity_from_values('qoder', 'session-a', 'worker-1')
+    agent_identity = _synthetic_identity('qoder', 'session-a', 'worker-1')
     paths = build_paths(tmp_root, identity=agent_identity)
     expected_candidates = [
         tmp_root / 'tmp/agent_logs/qoder/session-a/agents/worker-1/active_change.json',
@@ -188,8 +202,8 @@ def _check_quality_and_active_change_paths(tmp_root: Path, errors: list[str]) ->
 
     legacy = tmp_root / 'tmp/active_change.json'
     _write_active_change(legacy, 'legacy-change')
-    session_identity = identity_from_values('qoder', 'session-a', '')
-    legacy_identity = identity_from_values('qoder', '', '')
+    session_identity = _synthetic_identity('qoder', 'session-a')
+    legacy_identity = _synthetic_identity('qoder', '')
     _expect(
         build_paths(tmp_root, identity=session_identity).active_change_candidates
         == [

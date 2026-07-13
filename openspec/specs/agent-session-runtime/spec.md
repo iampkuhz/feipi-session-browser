@@ -149,6 +149,33 @@ Runtime MUST 允许 run 在 OpenSpec change 创建或选择之前存在，并提
 - **Then** Runtime MUST 通过当前 Session 找到并更新同一 run
 - **And** 用户 MUST NOT 被要求手工提供 runId
 
+## Requirement: Change Start 本地强制与显式接管
+
+所有 mutation MUST 与同一 run 的 `begin-change` baseline 配对；本地 launcher、支持的
+SessionStart 和 mutation guard MUST 执行共享 service，不得依赖 LLM 记忆命令。
+
+### Scenario: Launcher 先于 Agent 激活
+
+- **Given** CLI launcher 已选择 checkout
+- **When** launcher 准备启动 Agent 进程
+- **Then** MUST 先幂等记录 repo/worktree/client/session/run、base/target、dirty snapshot、scope 与 activation evidence
+- **And** 首次 mutation guard MUST 在 baseline 缺失时关闭失败
+
+### Scenario: Codex App 能力未证明
+
+- **Given** 仓库无法证明 Codex App host 在首次 mutation 前执行 SessionStart
+- **When** adapter 报告 Start 能力
+- **Then** MUST 显示 `START_NOT_ENFORCED`
+- **And** MUST NOT 用 repository hook fixture 声称 App 自动保证 Start
+
+### Scenario: Late dirty 显式接管
+
+- **Given** checkout 在 begin 前已有内容
+- **When** 调用 `adopt-current`
+- **Then** MUST 要求 base、exact manifest 与用户确认并写审计
+- **And** 缺少任一证据 MUST 返回 `ADOPT_REQUIRED`
+- **And** Runtime MUST NOT 创建 recovery/retry worktree
+
 ## Requirement: Checkout 级延迟 Writer Lease
 
 bootstrap MUST NOT 立即独占 checkout；Runtime MUST 在第一次真实 mutation 前按物理 checkout
@@ -351,10 +378,17 @@ primary 状态为事实，不得依赖 worktree 路径、目录名或创建者�
 
 ### Scenario: Stop 只完成验证
 
-- **Given** required validation 已真实通过
-- **When** Stop 成功结束
-- **Then** run 最多 MUST 更新为 `VALIDATED`
+- **Given** Complete 已 exact stage 最终 candidate 且 required validation 已真实通过
+- **When** candidate Stop 成功结束
+- **Then** completion state 最多 MUST 更新为 `VALIDATED_CANDIDATE`
 - **And** Stop 成功 MUST NOT 被记录为 `INTEGRATED`
+
+### Scenario: Normal Stop 强制 commit
+
+- **Given** 存在 task-owned changes 但没有 attested `commitSha`
+- **When** normal Stop、SessionEnd 或 launcher post-exit 检查完成状态
+- **Then** MUST 返回 `COMMIT_REQUIRED`
+- **And** MUST NOT 返回 PASS
 
 ### Scenario: 验证期间 Checkout 发生变化
 
@@ -374,21 +408,29 @@ primary 状态为事实，不得依赖 worktree 路径、目录名或创建者�
 
 - **Given** target 在 run 期间前进
 - **When** 结果可安全 rebase 且没有冲突
-- **Then** Runtime MAY rebase、重新验证并 ff-only 集成
-- **And** 未重新验证 MUST NOT 集成
+- **Then** Runtime MUST 比较 target delta 与 exact files、catalog、commands、environment 和 Gate inputs
+- **And** 输入不变时 MAY 复用 candidate validation；输入变化时最多执行 affected gates
+- **And** MUST NOT 默认再次执行完整 required/full Gate
 
 ### Scenario: Detached HEAD Finalize
 
 - **Given** run 工作在 detached HEAD
 - **When** finalize 需要保存结果
-- **Then** MUST 先形成可追踪 commit/临时 branch 或输出平台 handoff
+- **Then** MUST 形成 commit 并创建 `refs/heads/codex/result/<run-id>`
 - **And** detached 状态 MUST NOT 依据路径被误判为非法 checkout
+
+### Scenario: Commit 与 integration 解耦
+
+- **Given** source identity、归因、exact scope、pre-commit 和 required Gate 均有效
+- **When** primary dirty、target 前进或 checkout detached
+- **Then** Runtime MUST 先形成本地 commit 与 durable result ref
+- **And** primary 状态只影响 integration，不得阻断本地 commit
 
 ### Scenario: 必须 Handoff 的状态
 
 - **Given** primary dirty、存在冲突、验证过期、base 非祖先或 initial dirty 无法区分
 - **When** finalize 判断安全性
-- **Then** MUST 返回 `HANDOFF_REQUIRED` 并输出完整 Git evidence
+- **Then** 已有 commit 时 MUST 返回 `COMMITTED_HANDOFF_REQUIRED`，否则返回 `HANDOFF_REQUIRED`
 - **And** MUST NOT 覆盖、强制集成或删除 provider worktree
 
 ### Scenario: Run-scoped 恢复
@@ -399,6 +441,12 @@ primary 状态为事实，不得依赖 worktree 路径、目录名或创建者�
 - **And** Registry 路径或身份变化 MUST NOT 使其退回共享或旧状态
 
 ## Requirement: 精简且不降级的回归契约
+
+Complete MUST 使用唯一权威状态 `WORKING`、`STAGED`、`VALIDATED_CANDIDATE`、`COMMITTED`、
+`INTEGRATED`、`BLOCKED_RETRYABLE`、`HANDOFF_REQUIRED`，并持久化 `oldHead`、
+`exactFilesHash`、`candidateTree`、`validationReceipt`、`commitSha`、`resultRef` 和
+`targetHeadObserved`。环境、server、网络、timeout 与 pre-commit capability failure MUST 在同一
+run 进入 `BLOCKED_RETRYABLE`。
 
 永久测试 MUST 合并重复平台与旧实现测试，同时保留 Session 身份、writer 隔离和 Git 收口的
 核心黑盒保障；临时迁移/canary/performance 代码 MUST 在最终提交前删除。

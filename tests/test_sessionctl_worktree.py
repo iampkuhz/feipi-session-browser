@@ -15,12 +15,21 @@ SESSIONCTL = ROOT / "scripts" / "harness" / "sessionctl.py"
 from scripts.agent_runtime.paths import identity_from_values  # noqa: E402
 from scripts.agent_runtime.session import finalize as session_finalize  # noqa: E402
 from scripts.agent_runtime.session import lifecycle as sessionctl  # noqa: E402
+from scripts.agent_runtime.session.completion import (  # noqa: E402
+    ADOPT_CONFIRMATION,
+    adopt_current,
+    begin_change,
+    completion_requirement,
+    require_mutation_baseline,
+    update_completion,
+)
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     resolve_git_common_dir,
     resolve_repo_key,
     resolve_runtime_root,
     validate_run_write_authorization,
 )
+from scripts.agent_runtime.session.errors import SessionctlError  # noqa: E402
 from scripts.agent_runtime.session.lifecycle import classify_tool_call  # noqa: E402
 from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
 from scripts.agent_runtime.stop import pipeline as stop_pipeline  # noqa: E402
@@ -1106,7 +1115,7 @@ def test_finalize_primary_checkout_is_already_on_target_and_preserves_status_on_
     assert repo.exists()
 
 
-def test_finalize_rebases_target_advance_revalidates_and_ff_only_integrates(
+def test_finalize_legacy_target_advance_without_commit_attestation_handoffs(
     tmp_path, monkeypatch, capsys
 ):
     repo = git_repo(tmp_path)
@@ -1128,9 +1137,10 @@ def test_finalize_rebases_target_advance_revalidates_and_ff_only_integrates(
 
     result, summary = finalize_in_process(linked, record, capsys)
 
-    assert result == 0
-    assert summary["strategy"] == "rebase-then-ff"
-    assert (repo / "feature.txt").read_text(encoding="utf-8") == "feature\n"
+    assert result == 2
+    assert summary["status"] == "HANDOFF_REQUIRED"
+    assert summary["reason"] == "target advanced without an attested completion commit"
+    assert not (repo / "feature.txt").exists()
     assert (repo / "target.txt").read_text(encoding="utf-8") == "target advanced\n"
     assert linked.exists()
     latest = json.loads(
@@ -1138,11 +1148,11 @@ def test_finalize_rebases_target_advance_revalidates_and_ff_only_integrates(
             encoding="utf-8"
         )
     )
-    assert latest["status"] == "INTEGRATED"
-    assert sum(event["event"] == "STOP_VALIDATED" for event in latest["auditEvents"]) == 2
+    assert latest["status"] == "HANDOFF_REQUIRED"
+    assert sum(event["event"] == "STOP_VALIDATED" for event in latest["auditEvents"]) == 1
 
 
-def test_finalize_target_advance_revalidation_failure_handoffs_and_exits_two(
+def test_finalize_legacy_target_advance_never_invokes_a_second_full_stop(
     tmp_path, monkeypatch, capsys
 ):
     repo = git_repo(tmp_path)
@@ -1166,48 +1176,31 @@ def test_finalize_target_advance_revalidation_failure_handoffs_and_exits_two(
     run(["git", "commit", "-m", "target advance"], cwd=repo)
     target_head = run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
 
-    def fake_stop_failure(
-        _client,
-        payload,
-        *,
-        handoff_on_failure=False,
-        adapter_mode='hook',
-    ):
-        checkout = Path(payload["cwd"])
-        registry = sessionctl.Registry(checkout)
-        with registry.locked():
-            current = registry.load_run(payload["runId"])
-        facts = stop_evidence.collect_git_evidence(checkout, current)
-        sessionctl.record_stop_result(
-            checkout,
-            payload["runId"],
-            stop_exit=2,
-            summary_status="BLOCKED",
-            validated_facts=facts,
-            handoff_on_failure=handoff_on_failure,
-        )
-        return 2
-
-    monkeypatch.setattr(stop_pipeline, "run_stop", fake_stop_failure)
+    monkeypatch.setattr(
+        stop_pipeline,
+        "run_stop",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(
+            AssertionError('finalize must not invoke a second full Stop')
+        ),
+    )
     result, summary = finalize_in_process(linked, record, capsys)
 
     assert result == 2
     assert summary["status"] == "HANDOFF_REQUIRED"
-    assert summary["reason"] == "revalidation failed after target advanced"
+    assert summary["reason"] == "target advanced without an attested completion commit"
     assert run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip() == target_head
     runtime = resolve_runtime_root(linked)
     latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
     assert latest["status"] == "HANDOFF_REQUIRED"
-    assert latest["stopValidation"]["status"] == "FAIL"
+    assert latest["stopValidation"]["status"] == "PASS"
     assert latest["writerLease"] == {}
-    assert "STOP_HANDOFF_REQUIRED" in {event["event"] for event in latest["auditEvents"]}
+    assert sum(event["event"] == "STOP_VALIDATED" for event in latest["auditEvents"]) == 1
 
 
 @pytest.mark.parametrize(
     "unsafe_state, expected_reason",
     [
         ("dirty-and-untracked", "uncommitted or untracked"),
-        ("detached", "detached HEAD"),
         ("primary-dirty", "primary checkout dirty"),
         ("primary-branch-mismatch", "not on the recorded target branch"),
         ("initial-dirty", "initial dirty baseline"),
@@ -1304,8 +1297,105 @@ def test_finalize_rebase_conflict_aborts_and_handoffs_without_moving_target(
 
     assert result == 2
     assert summary["status"] == "HANDOFF_REQUIRED"
-    assert summary["reason"] == "target advanced with conflicts"
+    assert summary["reason"] == "target advanced without an attested completion commit"
     assert run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip() == target_head
     assert run(["git", "rev-parse", "HEAD"], cwd=linked).stdout.strip() == feature_head
     assert run(["git", "status", "--porcelain"], cwd=linked).stdout == ""
     assert linked.exists()
+
+
+def test_begin_change_is_idempotent_and_records_full_baseline(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-begin-idempotent')
+
+    first = begin_change(repo, record['runId'], activation_source='test:SessionStart')
+    second = begin_change(repo, record['runId'], activation_source='test:duplicate')
+
+    assert first['changeBegin'] == second['changeBegin']
+    assert second['changeBegin']['status'] == 'ATTESTED'
+    assert second['changeBegin']['baseCommit'] == record['baseCommit']
+    assert second['changeBegin']['targetHead'] == record['targetHeadAtBootstrap']
+    assert second['changeBegin']['allowedPaths'] == ['.']
+    assert second['completion']['state'] == 'WORKING'
+    assert sum(event['event'] == 'CHANGE_BEGIN_ATTESTED' for event in second['auditEvents']) == 1
+
+
+def test_late_begin_rejects_dirty_and_explicit_adopt_is_audited(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-late-adopt')
+    (repo / 'owned.txt').write_text('owned\n', encoding='utf-8')
+
+    with pytest.raises(SessionctlError, match='ADOPT_REQUIRED'):
+        begin_change(repo, record['runId'], activation_source='test:late')
+
+    adopted = adopt_current(
+        repo,
+        record['runId'],
+        base_commit=record['baseCommit'],
+        exact_files=['owned.txt'],
+        confirmation=ADOPT_CONFIRMATION,
+    )
+    assert adopted['changeBegin']['adopted'] is True
+    assert adopted['changeBegin']['adoptedFiles'] == ['owned.txt']
+    assert adopted['changeAttribution']['preexistingChangesAttributedToRun'] is True
+    assert any(event['event'] == 'CURRENT_CHECKOUT_ADOPTED' for event in adopted['auditEvents'])
+
+
+def test_mutation_guard_blocks_when_begin_baseline_is_missing(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-no-begin')
+
+    with pytest.raises(SessionctlError, match='START_NOT_ENFORCED'):
+        require_mutation_baseline(repo, record)
+
+
+def test_normal_completion_with_task_changes_requires_attested_commit(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-commit-required')
+    begin_change(repo, record['runId'], activation_source='test:before-mutation')
+    (repo / 'owned.txt').write_text('owned\n', encoding='utf-8')
+
+    required = completion_requirement(repo, record)
+
+    assert required['status'] == 'COMMIT_REQUIRED'
+    assert required['changedFiles'] == ['owned.txt']
+    assert 'complete_change.py' in required['recoveryCommand']
+
+
+def test_normal_completion_rejects_clean_but_unattested_manual_commit(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-manual-commit-required')
+    begin_change(repo, record['runId'], activation_source='test:before-mutation')
+    (repo / 'owned.txt').write_text('owned\n', encoding='utf-8')
+    run(['git', 'add', 'owned.txt'], cwd=repo)
+    run(['git', 'commit', '-m', 'manual'], cwd=repo)
+
+    required = completion_requirement(repo, record)
+
+    assert required['status'] == 'COMMIT_REQUIRED'
+    assert required['changedFiles'] == ['owned.txt']
+
+
+def test_completion_state_updates_are_idempotent_and_preserve_commit_evidence(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-completion-state')
+    begin_change(repo, record['runId'], activation_source='test:before-mutation')
+
+    first = update_completion(
+        repo,
+        record['runId'],
+        'COMMITTED',
+        commitSha='a' * 40,
+        resultRef=f"refs/heads/codex/result/{record['runId']}",
+    )
+    second = update_completion(
+        repo,
+        record['runId'],
+        'COMMITTED',
+        commitSha='a' * 40,
+        resultRef=f"refs/heads/codex/result/{record['runId']}",
+    )
+
+    assert first['completion'] == second['completion']
+    assert second['completion']['state'] == 'COMMITTED'
+    assert sum(event['event'] == 'COMPLETION_COMMITTED' for event in second['auditEvents']) == 1

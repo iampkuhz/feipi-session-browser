@@ -5,8 +5,8 @@
 - 产品与本地开发：`./scripts/session-browser.sh <command>`
 - Harness 体检：`bash scripts/harness/doctor.sh`
 - 三平台 Hook：settings/config 直接调用 `scripts/harness/hook_dispatch.py`
-- Session CLI：`python3 scripts/harness/sessionctl.py <subcommand>`
-- 受控收口：`python3 scripts/harness/complete_change.py ...`
+- Session CLI：`python3 scripts/harness/sessionctl.py begin-change|adopt-current|completion-status|...`
+- 受控收口：`python3 scripts/harness/complete_change.py ...`（一次 required Gate，commit 后仅轻量 attestation）
 - Gate：`python3 scripts/gates/cli.py --tier quick|required|full`
 - 共享 checks：`python3 -m scripts.checks <check-id>`
 - OpenSpec validators：`python3 scripts/openspec/validate_{layout,schema}.py`
@@ -14,6 +14,7 @@
 目录职责：`agent_runtime/` 实现共享 Runtime，`gates/` 负责 catalog/plan/execute/receipt，
 `checks/` 提供无 trigger 的领域规则，`harness/` 只提供公开适配入口，`hooks/` 提供仓库策略。
 Runtime 生命周期见 `docs/agent-runtime.md`；Gate 修改流程见 `scripts/gates/README.md`。
+Runtime report 由 Stop 在 Gate 后原子生成并校验，不是 doctor 或本次 Gate 的前置输入。
 
 不得直接把内部 Runtime/Gate 模块、测试、临时路径或历史脚本当公开入口。非平凡受保护改动先
 复用 OpenSpec change；Stop/handoff 前唯一 required 命令是
