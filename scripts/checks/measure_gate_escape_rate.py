@@ -5,43 +5,21 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import argument_parser, repository_root
+
+REPO_ROOT = repository_root()
 
 from typing import TYPE_CHECKING  # noqa: E402
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
 from scripts.gates.planner import classify_path, required_quality_targets  # noqa: E402
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
-
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.agents/**',
-    '.claude/**',
-    '.codex/**',
-    '.qoder/**',
-    'skills/**',
-    'harness/**',
-    'scripts/agent_runtime/**/*.py',
-    'scripts/hooks/**/*.py',
-    'scripts/harness/**/*.py',
-    'scripts/harness/**/*.sh',
-    'scripts/checks/**/*.py',
-]
 
 
 @dataclass(frozen=True)
@@ -225,14 +203,10 @@ def write_json(path: Path, report: dict[str, object]) -> None:
 
 def main() -> int:
     """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
-    parser = argparse.ArgumentParser(description='Measure synthetic required-gate escape rate.')
+    parser = argument_parser(description='Measure synthetic required-gate escape rate.')
     parser.add_argument('--threshold', type=float, default=0.0, help='Maximum allowed escape rate.')
     parser.add_argument('--json-out', default=None, help='Optional JSON report path.')
-    add_changed_files_arg(parser)
     args = parser.parse_args()
-
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     report = build_report()
     case_ids = {case['id'] for case in report['cases']}  # type: ignore[index]
@@ -248,10 +222,6 @@ def main() -> int:
     escape_rate = float(report['escape_rate'])
     total = int(report['total_required_cases'])
     if escape_rate <= args.threshold:
-        print(
-            f'[gateEscapeRate] PASS escape_rate={escape_rate:.1f} '
-            f'escaped_required_cases={escaped_cases} total_required_cases={total}'
-        )
         return 0
 
     print(
@@ -260,7 +230,3 @@ def main() -> int:
         file=sys.stderr,
     )
     return 1
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

@@ -11,8 +11,6 @@ import hashlib
 import importlib
 import json
 import os
-import stat
-import subprocess
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -21,7 +19,13 @@ from scripts.agent_runtime import paths as runtime_paths
 from scripts.agent_runtime import policy as runtime_policy
 from scripts.agent_runtime.events import evidence as changed_file_utils
 from scripts.agent_runtime.events.evidence import pre_bash_exempts_missing_snapshot
-from scripts.harness.primary_session import (
+from scripts.agent_runtime.git_state import GitStateError as GitEvidenceError
+from scripts.agent_runtime.git_state import checkout_content_snapshot
+from scripts.agent_runtime.git_state import dirty_files as read_git_dirty_files
+from scripts.agent_runtime.git_state import optional_value_or_empty as _git_optional_value
+from scripts.agent_runtime.git_state import required_lines as _git_lines_required
+from scripts.agent_runtime.git_state import required_value as _git_value_required
+from scripts.agent_runtime.session.contract import (
     PrimarySessionValidationError,
     snapshot_path_states,
 )
@@ -33,336 +37,31 @@ REPO_ROOT = Path(__file__).resolve().parents[3]
 # ── 异常 ──────────────────────────────────────────────────────────
 
 
-class GitEvidenceError(RuntimeError):
-    """无法可靠收集必需 Git 事实时抛出，禁止用猜测继续。"""
-
-
 # ── 底层 Git 查询 ─────────────────────────────────────────────────
 
 
 # 执行可选版本库查询并返回非空行。
-def git_lines(repo_root: Path, *args: str) -> list[str]:
-    """参数：
-        repo_root: 仓库根目录。
-        *args: 版本库命令参数。
-
-    返回：
-        查询成功时返回非空行列表，失败时返回空列表。
-    """
-    try:
-        proc = subprocess.run(
-            ['git', '-C', str(repo_root), *args],
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.DEVNULL,
-            timeout=30,
-            check=False,
-        )
-    except Exception:
-        return []
-    if proc.returncode != 0:
-        return []
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
 # 执行必需版本库查询并在事实无法证明时关闭失败。
-def _git_lines_required(repo_root: Path, *args: str) -> list[str]:
-    """参数：
-        repo_root: 仓库根目录。
-        *args: 版本库命令参数。
-
-    返回：
-        查询结果的非空行列表。
-
-    异常：
-        GitEvidenceError: 查询无法执行或返回失败状态。
-    """
-    try:
-        proc = subprocess.run(
-            ['git', '-C', str(repo_root), *args],
-            text=True,
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-    except Exception as exc:
-        raise GitEvidenceError(f'Git query could not start: {" ".join(args)}: {exc}') from exc
-    if proc.returncode != 0:
-        detail = proc.stderr.strip() or f'exit {proc.returncode}'
-        raise GitEvidenceError(f'Git query failed: {" ".join(args)}: {detail}')
-    return [line.strip() for line in proc.stdout.splitlines() if line.strip()]
 
 
 # 执行必需版本库查询并要求恰好返回一个值。
-def _git_value_required(repo_root: Path, *args: str) -> str:
-    """参数：
-        repo_root: 仓库根目录。
-        *args: 版本库命令参数。
-
-    返回：
-        查询返回的唯一值。
-
-    异常：
-        GitEvidenceError: 查询失败或结果数量不为一。
-    """
-    values = _git_lines_required(repo_root, *args)
-    if len(values) != 1:
-        raise GitEvidenceError(f'Git query did not return one value: {" ".join(args)}')
-    return values[0]
 
 
 # 执行内容敏感的版本库查询并保留原始字节。
-def _git_bytes_required(repo_root: Path, *args: str) -> bytes:
-    """参数：
-        repo_root: 仓库根目录。
-        *args: 版本库命令参数。
-
-    返回：
-        未经文本规范化的查询输出字节。
-
-    异常：
-        GitEvidenceError: 查询无法执行或返回失败状态。
-    """
-    try:
-        proc = subprocess.run(
-            ['git', '-C', str(repo_root), *args],
-            capture_output=True,
-            timeout=30,
-            check=False,
-        )
-    except Exception as exc:
-        raise GitEvidenceError(f'Git query could not start: {" ".join(args)}: {exc}') from exc
-    if proc.returncode != 0:
-        detail = proc.stderr.decode(errors='replace').strip() or f'exit {proc.returncode}'
-        raise GitEvidenceError(f'Git query failed: {" ".join(args)}: {detail}')
-    return proc.stdout
 
 
 # 执行可选版本库查询并取第一个输出值。
-def _git_optional_value(repo_root: Path, *args: str) -> str:
-    """参数：
-        repo_root: 仓库根目录。
-        *args: 版本库命令参数。
-
-    返回：
-        第一个输出值；没有结果时返回空字符串。
-    """
-    values = git_lines(repo_root, *args)
-    return values[0] if values else ''
 
 
 # ── checkout 内容快照 ──────────────────────────────────────────────
 
 
 # 对未跟踪路径的名称、类型、模式和内容计算哈希。
-def _hash_untracked_contents(repo_root: Path, raw_paths: bytes) -> tuple[str, int]:
-    """参数：
-        repo_root: 仓库根目录。
-        raw_paths: 以空字节分隔的未跟踪路径。
-
-    返回：
-        内容哈希和已处理路径数量。
-
-    异常：
-        GitEvidenceError: 路径或文件在采集期间不安全或发生变化。
-    """
-    digest = hashlib.sha256()
-    digest.update(b'feipi-untracked-snapshot-v1\0')
-    count = 0
-    if not raw_paths:
-        return digest.hexdigest(), count
-    if not raw_paths.endswith(b'\0'):
-        raise GitEvidenceError('Git returned an unterminated untracked path list')
-    entries = raw_paths.split(b'\0')[:-1]
-    repo_real = repo_root.resolve(strict=True)
-    for raw_path in entries:
-        components = raw_path.split(b'/')
-        if (
-            not raw_path
-            or raw_path.startswith(b'/')
-            or any(component in {b'', b'.', b'..'} for component in components)
-        ):
-            raise GitEvidenceError(
-                f'unsafe untracked path in Git evidence: {os.fsdecode(raw_path)!r}'
-            )
-        names = [os.fsdecode(component) for component in components]
-        relative_text = os.fsdecode(raw_path)
-        candidate = repo_real.joinpath(*names)
-        try:
-            candidate.parent.resolve(strict=True).relative_to(repo_real)
-        except (OSError, ValueError) as exc:
-            raise GitEvidenceError(f'untracked path escapes checkout: {relative_text!r}') from exc
-
-        directory_descriptors: list[int] = []
-        directory_names: list[str] = []
-        try:
-            root_descriptor = os.open(
-                repo_real,
-                os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0),
-            )
-            directory_descriptors.append(root_descriptor)
-            root_metadata = os.fstat(root_descriptor)
-            for name in names[:-1]:
-                descriptor = os.open(
-                    name,
-                    os.O_RDONLY | getattr(os, 'O_DIRECTORY', 0) | getattr(os, 'O_NOFOLLOW', 0),
-                    dir_fd=directory_descriptors[-1],
-                )
-                directory_names.append(name)
-                directory_descriptors.append(descriptor)
-            final_name = names[-1]
-            metadata = os.stat(
-                final_name,
-                dir_fd=directory_descriptors[-1],
-                follow_symlinks=False,
-            )
-            count += 1
-            digest.update(len(raw_path).to_bytes(8, 'big'))
-            digest.update(raw_path)
-            digest.update(stat.S_IFMT(metadata.st_mode).to_bytes(8, 'big'))
-            digest.update(stat.S_IMODE(metadata.st_mode).to_bytes(8, 'big'))
-            if stat.S_ISLNK(metadata.st_mode):
-                target = os.fsencode(os.readlink(final_name, dir_fd=directory_descriptors[-1]))
-                digest.update(len(target).to_bytes(8, 'big'))
-                digest.update(target)
-            elif stat.S_ISREG(metadata.st_mode):
-                digest.update(metadata.st_size.to_bytes(8, 'big'))
-                descriptor = os.open(
-                    final_name,
-                    os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0),
-                    dir_fd=directory_descriptors[-1],
-                )
-                try:
-                    opened = os.fstat(descriptor)
-                    if opened.st_dev != metadata.st_dev or opened.st_ino != metadata.st_ino:
-                        raise GitEvidenceError(
-                            f'untracked file changed while collecting evidence: {relative_text!r}'
-                        )
-                    while True:
-                        chunk = os.read(descriptor, 1024 * 1024)
-                        if not chunk:
-                            break
-                        digest.update(chunk)
-                    finished = os.fstat(descriptor)
-                    if (
-                        finished.st_size != opened.st_size
-                        or finished.st_mtime_ns != opened.st_mtime_ns
-                        or finished.st_ctime_ns != opened.st_ctime_ns
-                    ):
-                        raise GitEvidenceError(
-                            f'untracked file changed while collecting evidence: {relative_text!r}'
-                        )
-                finally:
-                    os.close(descriptor)
-            else:
-                raise GitEvidenceError(
-                    f'unsupported untracked file type in Git evidence: {relative_text!r}'
-                )
-
-            final_metadata = os.stat(
-                final_name,
-                dir_fd=directory_descriptors[-1],
-                follow_symlinks=False,
-            )
-            if (
-                final_metadata.st_dev != metadata.st_dev
-                or final_metadata.st_ino != metadata.st_ino
-                or final_metadata.st_mode != metadata.st_mode
-                or final_metadata.st_size != metadata.st_size
-                or final_metadata.st_mtime_ns != metadata.st_mtime_ns
-                or final_metadata.st_ctime_ns != metadata.st_ctime_ns
-            ):
-                raise GitEvidenceError(
-                    f'untracked file changed while collecting evidence: {relative_text!r}'
-                )
-            for index, name in enumerate(directory_names):
-                attached = os.stat(
-                    name,
-                    dir_fd=directory_descriptors[index],
-                    follow_symlinks=False,
-                )
-                opened = os.fstat(directory_descriptors[index + 1])
-                if (
-                    not stat.S_ISDIR(attached.st_mode)
-                    or attached.st_dev != opened.st_dev
-                    or attached.st_ino != opened.st_ino
-                ):
-                    raise GitEvidenceError(
-                        f'untracked parent changed while collecting evidence: {relative_text!r}'
-                    )
-            current_root = repo_real.stat()
-            if (
-                current_root.st_dev != root_metadata.st_dev
-                or current_root.st_ino != root_metadata.st_ino
-            ):
-                raise GitEvidenceError('checkout root changed while collecting Git evidence')
-            candidate.parent.resolve(strict=True).relative_to(repo_real)
-        except GitEvidenceError:
-            raise
-        except (OSError, ValueError) as exc:
-            raise GitEvidenceError(
-                f'untracked file changed while collecting evidence: {relative_text!r}: {exc}'
-            ) from exc
-        finally:
-            for descriptor in reversed(directory_descriptors):
-                os.close(descriptor)
-    return digest.hexdigest(), count
 
 
 # 采集覆盖提交、索引、工作区与未跟踪文件的内容快照。
-def checkout_content_snapshot(repo_root: Path) -> dict[str, Any]:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        各内容组成部分及其整体指纹。
-    """
-    head = _git_value_required(repo_root, 'rev-parse', 'HEAD')
-    status = _git_bytes_required(
-        repo_root,
-        'status',
-        '--porcelain=v1',
-        '-z',
-        '--untracked-files=all',
-    )
-    staged = _git_bytes_required(
-        repo_root,
-        'diff',
-        '--cached',
-        '--no-ext-diff',
-        '--no-textconv',
-        '--binary',
-        '--full-index',
-        '--',
-    )
-    working = _git_bytes_required(
-        repo_root,
-        'diff',
-        '--no-ext-diff',
-        '--no-textconv',
-        '--binary',
-        '--full-index',
-        '--',
-    )
-    untracked_paths = _git_bytes_required(
-        repo_root,
-        'ls-files',
-        '--others',
-        '--exclude-standard',
-        '-z',
-    )
-    untracked_sha, untracked_count = _hash_untracked_contents(repo_root, untracked_paths)
-    components = {
-        'schemaVersion': 1,
-        'headCommit': head,
-        'statusSha256': hashlib.sha256(status).hexdigest(),
-        'stagedDiffSha256': hashlib.sha256(staged).hexdigest(),
-        'workingDiffSha256': hashlib.sha256(working).hexdigest(),
-        'untrackedContentSha256': untracked_sha,
-        'untrackedCount': untracked_count,
-    }
-    encoded = json.dumps(components, sort_keys=True, separators=(',', ':')).encode('utf-8')
-    return {**components, 'fingerprint': hashlib.sha256(encoded).hexdigest()}
 
 
 # ── 目标分支状态 ──────────────────────────────────────────────────
@@ -370,16 +69,7 @@ def checkout_content_snapshot(repo_root: Path) -> dict[str, Any]:
 
 # 根据基线、当前提交与目标分支差异判定集成位置状态。
 def _target_status(*, base: str, head: str, target_head: str, ahead: int, behind: int) -> str:
-    """参数：
-        base: 基线提交。
-        head: 当前提交。
-        target_head: 目标分支提交。
-        ahead: 结果领先目标分支的提交数。
-        behind: 结果落后目标分支的提交数。
-
-    返回：
-        集成位置状态。
-    """
+    """内部证据原语；无法证明事实时沿调用链关闭失败。"""
     if not target_head:
         return 'MISSING'
     if target_head == head:
@@ -400,13 +90,7 @@ def _target_status(*, base: str, head: str, target_head: str, ahead: int, behind
 
 # 为单个登记运行采集停止与收尾阶段共享的版本库事实。
 def collect_git_evidence(repo_root: Path, record: dict[str, Any]) -> dict[str, Any]:
-    """参数：
-        repo_root: 仓库根目录。
-        record: 当前会话记录。
-
-    返回：
-        内容快照、变更归属和集成位置等版本库事实。
-    """
+    """稳定采集 checkout、primary、target 与 initial-dirty 内容事实。"""
     base = str(record.get('baseCommit') or '')
     if not base:
         raise GitEvidenceError('run record has no baseCommit')
@@ -598,16 +282,6 @@ def collect_git_evidence(repo_root: Path, record: dict[str, Any]) -> dict[str, A
 
 
 # 计算工作区未提交状态哈希。
-def git_dirty_hash(repo_root: Path) -> str:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        工作区未提交状态哈希。
-    """
-    state = changed_file_utils.read_git_dirty_state(repo_root)
-    raw = json.dumps(state, ensure_ascii=False, sort_keys=True)
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
 # ── dirty 文件过滤 ────────────────────────────────────────────────
@@ -618,13 +292,7 @@ def filter_baseline_dirty(
     changed_files: list[str],
     git_evidence: dict[str, Any],
 ) -> tuple[list[str], set[str]]:
-    """参数：
-        changed_files: 当前变更文件列表。
-        git_evidence: 包含初始未提交快照的版本库证据。
-
-    返回：
-        过滤后的变更文件和基线未提交文件集合。
-    """
+    """仅排除内容状态仍与启动快照完全一致的 baseline dirty 路径。"""
     baseline_dirty: set[str] = set()
     initial_dirty = git_evidence.get('initialDirtySnapshot')
     if isinstance(initial_dirty, dict):
@@ -659,48 +327,17 @@ LOCAL_ONLY_PATHS = [
 ]
 
 
-# 切换 helper 使用的仓库根。
-def _use_repo_root(repo_root: Path) -> None:
-    """参数：
-    repo_root: 新的仓库根目录。
-    """
-    global REPO_ROOT
-    REPO_ROOT = repo_root.resolve()
-
-
 # 规范化仓库相对路径。
-def _normalize(path: str) -> str:
-    """参数：
-        path: 原始路径。
-
-    返回：
-        标准化后的仓库相对路径。
-    """
-    return changed_file_utils.normalize_path(path)
 
 
 # 读取当前 Git dirty 文件。
-def read_git_dirty_files(repo_root: Path | None = None) -> list[str]:
-    """参数：
-        repo_root: 可选仓库根目录。
-
-    返回：
-        dirty 文件路径列表。
-    """
-    return changed_file_utils.read_git_dirty_files(repo_root or REPO_ROOT)
 
 
 # 解析 identity 对应 changed-files 审计路径。
 def identity_changed_file_paths(
     identity: runtime_paths.RuntimeIdentity, repo_root: Path | None = None
 ) -> list[Path]:
-    """参数：
-        identity: 运行时身份对象。
-        repo_root: 可选仓库根目录。
-
-    返回：
-        identity 对应的 changed-files JSONL 路径列表。
-    """
+    """执行对应 Runtime 契约；不绕过身份、归因或 fail-closed 约束。"""
     repo_root = repo_root or REPO_ROOT
     include_agents = not identity.is_agent
     return [
@@ -715,13 +352,7 @@ def identity_changed_file_paths(
 def read_identity_changed_files(
     identity: runtime_paths.RuntimeIdentity, repo_root: Path | None = None
 ) -> list[str]:
-    """参数：
-        identity: 运行时身份对象。
-        repo_root: 可选仓库根目录。
-
-    返回：
-        审计记录中的 changed-files 列表。
-    """
+    """读取对应 Runtime 证据；缺失或损坏数据不伪造成功。"""
     repo_root = repo_root or REPO_ROOT
     agent_filter = identity.raw_agent_id if identity.is_agent else None
     return changed_file_utils.read_recorded_changed_files_from_paths(
@@ -735,13 +366,7 @@ def read_identity_changed_files(
 def read_identity_hook_events(
     identity: runtime_paths.RuntimeIdentity, repo_root: Path | None = None
 ) -> list[dict[str, Any]]:
-    """参数：
-        identity: 运行时身份对象。
-        repo_root: 可选仓库根目录。
-
-    返回：
-        过滤到当前 identity 的 hook event 记录。
-    """
+    """读取对应 Runtime 证据；缺失或损坏数据不伪造成功。"""
     repo_root = repo_root or REPO_ROOT
     events: list[dict[str, Any]] = []
     for changed_path in identity_changed_file_paths(identity, repo_root=repo_root):
@@ -767,13 +392,7 @@ def read_identity_hook_events(
 
 # 判断 Bash snapshot 缺失是否应阻断。
 def _bash_snapshot_missing_blocks(event: dict[str, Any], pre_event: dict[str, Any] | None) -> bool:
-    """参数：
-        event: 当前 hook event。
-        pre_event: 同一工具调用标识的前置 Bash 事件。
-
-    返回：
-        缺失 snapshot 是否属于阻断性 attribution gap。
-    """
+    """内部证据原语；无法证明事实时沿调用链关闭失败。"""
     if pre_bash_exempts_missing_snapshot(pre_event):
         return False
     if event.get('bashSnapshotRequired') is True or event.get('bashMutationTracking') is True:
@@ -787,13 +406,7 @@ def _bash_snapshot_missing_blocks(event: dict[str, Any], pre_event: dict[str, An
 def identity_attribution_gap_failures(
     identity: runtime_paths.RuntimeIdentity, repo_root: Path | None = None
 ) -> list[str]:
-    """参数：
-        identity: 运行时身份对象。
-        repo_root: 可选仓库根目录。
-
-    返回：
-        attribution gap 失败说明列表。
-    """
+    """把 Bash snapshot 与 primary 指纹缺口归约为可审计阻断原因。"""
     repo_root = repo_root or REPO_ROOT
     failures: list[str] = []
     events = read_identity_hook_events(identity, repo_root=repo_root)
@@ -826,40 +439,17 @@ class StopChangedFiles:
     git_dirty_files: list[str]
 
     # 兼容旧 tuple 解包调用。
-    def __iter__(self):
-        """返回：
-        依次产出 changed_files 和 evidence_mode。
-        """
-        yield self.changed_files
-        yield self.evidence_mode
 
 
 # 收集 Stop 阶段 changed-files 证据。
 def collect_stop_changed_files(
-    identity: runtime_paths.RuntimeIdentity | str | None,
+    identity: runtime_paths.RuntimeIdentity | None,
     fallback_session_id: str | None,
     agent_id: str | None = None,
     repo_root: Path | None = None,
 ) -> StopChangedFiles:
-    """参数：
-        identity: 已解析运行时身份或旧会话标识。
-        fallback_session_id: identity 缺失时的 session id。
-        agent_id: 可选 agent id。
-        repo_root: 可选仓库根目录。
-
-    返回：
-        Stop 已变更文件及证据模式。
-    """
+    """按权威 identity 收集 Stop 变更；身份缺失时只允许 fail-closed Git 回退。"""
     repo_root = repo_root or REPO_ROOT
-    if isinstance(identity, str):
-        return StopChangedFiles(
-            changed_file_utils.collect_changed_files(
-                identity, include_git=False, repo_root=repo_root, agent_id=agent_id
-            ),
-            'session',
-            [],
-            [],
-        )
     if identity is not None and identity.has_session:
         changed = read_identity_changed_files(identity, repo_root=repo_root)
         dirty = read_git_dirty_files(repo_root)
@@ -880,13 +470,7 @@ def collect_stop_changed_files(
 def _read_active_change_id(
     identity: runtime_paths.RuntimeIdentity, repo_root: Path | None = None
 ) -> str | None:
-    """参数：
-        identity: 运行时身份对象。
-        repo_root: 可选仓库根目录。
-
-    返回：
-        active change id；无法解析时返回 None。
-    """
+    """内部证据原语；无法证明事实时沿调用链关闭失败。"""
     repo_root = repo_root or REPO_ROOT
     paths = runtime_paths.build_paths(repo_root, identity=identity)
     candidates = paths.active_change_candidates
@@ -905,13 +489,7 @@ def _read_active_change_id(
 
 # 解析当前 change id。
 def resolve_change_id(identity: runtime_paths.RuntimeIdentity | None = None) -> str:
-    """参数：
-        identity: 可选运行时身份对象。
-
-    返回：
-        ACTIVE_CHANGE_ID、active_change 文件或 unknown。
-    """
-    import os
+    """执行对应 Runtime 契约；不绕过身份、归因或 fail-closed 约束。"""
 
     env = os.environ.get('ACTIVE_CHANGE_ID', '')
     if env:
@@ -925,44 +503,13 @@ def resolve_change_id(identity: runtime_paths.RuntimeIdentity | None = None) -> 
 
 # 判断变更是否需要 OpenSpec。
 def changed_files_require_openspec(changed_files: list[str]) -> bool:
-    """参数：
-        changed_files: 已变更文件列表。
-
-    返回：
-        任一 protected path 命中时返回 True。
-    """
+    """执行对应 Runtime 契约；不绕过身份、归因或 fail-closed 约束。"""
     return any(runtime_policy.is_protected_path(path, REPO_ROOT) for path in changed_files)
-
-
-# 检查 local-only 路径。
-def check_local_only_status(changed_files: list[str] | None = None) -> list[str]:
-    """参数：
-        changed_files: 可选 changed-files 列表。
-
-    返回：
-        local-only 路径警告列表。
-    """
-    if changed_files is not None:
-        warnings: list[str] = []
-        for changed in changed_files:
-            normalized = _normalize(changed)
-            if any(
-                normalized == local or normalized.startswith(f'{local.rstrip("/")}/')
-                for local in LOCAL_ONLY_PATHS
-            ):
-                warnings.append(f'{normalized} 是 local-only 路径')
-        return warnings
-    return []
 
 
 # 计算 changed-files 对应 required targets。
 def required_targets(changed_files: list[str]) -> list[str]:
-    """参数：
-        changed_files: 已变更文件列表。
-
-    返回：
-        需要执行的质量目标。
-    """
+    """执行对应 Runtime 契约；不绕过身份、归因或 fail-closed 约束。"""
     planner = importlib.import_module('scripts.gates.planner')
     return planner.required_quality_targets(changed_files)
 

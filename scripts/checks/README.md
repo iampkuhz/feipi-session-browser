@@ -5,11 +5,11 @@
 
 ## 职责
 
-- `check_*.py`：对一个可命名的仓库不变量做确定性检查，成功返回 `0`，失败输出可定位原因并返回非零。
+- `check_*.py`：领域函数或小对象，只实现一个可命名的仓库不变量，不提供独立 CLI。
 - `run_*.py`、`validate_*.py`、报告或测量脚本：封装一个领域验证动作或 artifact contract，
   仍不得选择 quality target 或维护 required Gate 集合。
-- `_trigger.py`：只提供叶子检查的 changed-files applicability 辅助；生产 target/Gate 选择仍由
-  `scripts/gates/catalog.py` 与冻结 planner 完成。
+- `_framework.py`：唯一 `CheckResult`/`Diagnostic`/`ScanContext` 与领域调用协议。
+- `_registry.py`：唯一公开 check ID registry；`__main__.py` 统一参数、状态、诊断和退出码。
 - baseline 文件只保存规则自身所需的审计基线，不能保存另一份 Gate/target matrix。
 
 ## 不得承担
@@ -27,14 +27,17 @@
 
 ## 调用与诊断
 
-正常执行只走：
+正常执行与直接诊断都只走共享 CLI：
 
-```text
-scripts/gates/cli.py -> catalog/planner -> executor -> scripts/checks/<leaf>
+```bash
+python3 -m scripts.checks agent.hook-parity
+python3 -m scripts.checks repository.dead-command-reference
+python3 -m scripts.checks web.css-ownership
 ```
 
-定位单个失败时，可以执行 Gate 报告给出的精确 rerun 命令；这种直接运行仅是诊断，不是另一套
-required baseline。Stop/handoff 仍必须运行：
+Gate catalog/planner 是 trigger 与 applicability 唯一权威；领域 check 不解析 changed-files 来跳过。
+`ScanContext` 在同次组合检查中复用文件发现与文本读取。定位失败时使用 Gate 报告中的共享 CLI
+rerun command；Stop/handoff 仍必须运行：
 
 ```bash
 python3 scripts/gates/cli.py --tier required

@@ -35,12 +35,13 @@ routes:
       - AGENTS.md
       - harness/README.md
       - harness/manifest.yaml
-      - harness/agent-runtime.md
+      - harness/agent-runtime.manifest.yaml
+      - docs/agent-runtime.md
     load_after:
       - relevant validator scripts only
       - relevant harness workflow docs only
     do_not_load:
-      - docs/**
+      - docs/** except explicitly listed docs/agent-runtime.md
       - historical_reports/**
       - real_session_data/**
 
@@ -48,10 +49,7 @@ routes:
     match:
       path_any:
         - java/source-spi/**
-        - java/source-json/**
-        - java/source-claude/**
-        - java/source-codex/**
-        - java/source-qoder/**
+        - java/sources/**
         - java/scan-engine/**
     load:
       - java/source-spi targeted interfaces only
@@ -68,16 +66,12 @@ routes:
     match:
       path_any:
         - java/normalization-engine/**
-        - java/artifact-normalized/**
     load:
       - java/normalization-engine targeted files only
-      - java/artifact-normalized targeted files only
       - related golden fixtures
       - related contract tests
     do_not_load:
-      - java/source-claude/**
-      - java/source-codex/**
-      - java/source-qoder/**
+      - java/sources/**
       - docs/**
 
   - id: java-domain-core
@@ -85,17 +79,15 @@ routes:
       path_any:
         - java/core-domain/**
         - java/application/**
-        - java/query-api/**
-        - java/index-sqlite/**
+        - java/index-api/**
+        - java/index-store-sqlite/**
     load:
       - java/core-domain targeted files only
       - java/application targeted files only
-      - java/query-api targeted files only
+      - java/index-api targeted files only
       - openspec specs only if Java source change
     do_not_load:
-      - java/source-claude/**
-      - java/source-codex/**
-      - java/source-qoder/**
+      - java/sources/**
       - docs/**
 
   - id: java-cli-web
@@ -103,28 +95,27 @@ routes:
       path_any:
         - java/app-cli/**
         - java/web/**
-        - java/architecture-tests/**
+        - java/tests/architecture/**
     load:
       - README.md
       - related Java CLI/web files only
       - related tests only
     do_not_load:
       - java/core-domain/**
-      - java/source-claude/**
+      - java/sources/**
       - docs/**
       - historical_reports/**
 
   - id: java-contract-tests
     match:
       path_any:
-        - java/contract-tests/**
-        - java/test-support/**
+        - java/tests/contracts/**
+        - java/tests/support/**
     load:
       - related contract test files only
       - related SPI interfaces only
       - relevant golden fixtures only
     do_not_load:
-      - java/source-claude/**
-      - java/source-codex/**
+      - java/sources/**
       - docs/**
       - historical_reports/**

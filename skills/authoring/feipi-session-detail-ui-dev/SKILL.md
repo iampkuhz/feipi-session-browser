@@ -45,8 +45,8 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 4. 先用 fixture 页面复现，不读取真实 session：使用已有 fixture 或 mock 数据验证 UI 变更效果。
 5. 修改模板时优先使用已有 macro 和 class：不重新发明已有组件，复用现有 macro。
 6. 不新增 legacy alias CSS，不新增无 owner 的全局样式：每个 CSS 规则必须有明确 ownership。
-7. 修改 JS 时同步 action handler gate：确保 `check_js_action_handlers.py` 能覆盖新增或修改的 handler。
-8. 跑静态 UI gate 和必要 Playwright gate：至少运行 `check_session_detail_static.py`，涉及布局时追加 layout gate。
+7. 修改 JS 时同步 action handler gate：确保 `web.js-action-handlers` 能覆盖新增或修改的 handler。
+8. 跑静态 UI gate 和必要 Playwright gate：至少运行 `web.session-detail-static`，涉及布局时追加 layout gate。
 9. 输出截图/布局风险和未覆盖交互：报告视觉风险和交互覆盖盲区。
 
 ## 文件边界
@@ -54,8 +54,8 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - Jinja 模板：`src/templates/` 下 session detail 相关模板。
 - CSS 文件：`src/static/css/` 下 session detail 相关样式。
 - JS 文件：`src/static/js/` 下 session detail 相关交互脚本。
-- UI 质量门：`scripts/checks/check_session_detail_*.py`、`scripts/checks/run_session_detail_*.py`。
-- CSS ownership 配置：`scripts/checks/check_css_ownership.py` 相关配置。
+- UI 质量门：`scripts/checks/check_session_detail_*.py`、`tests/playwright/session-detail*.spec.js`。
+- CSS ownership 配置：`shared check `web.css-ownership`` 相关配置。
 - UI gate baseline：`scripts/checks/*_baseline.json`。
 
 不要跨边界修改后端 parser 或 Java 产品代码。不要在模板中直接嵌入 inline style。
@@ -64,22 +64,21 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `python scripts/checks/check_session_detail_static.py` — session detail 静态检查。
-- `python scripts/checks/check_session_detail_shell_css.py` — shell CSS 一致性。
-- `python scripts/checks/run_session_detail_interaction_gate.py` — 交互 gate。
-- `python scripts/checks/run_session_detail_layout_gate.py` — 布局 gate。
-- `python scripts/checks/check_js_action_handlers.py` — JS action handler 检查。
-- `python scripts/checks/check_css_ownership.py` — CSS ownership 校验。
-- `python scripts/checks/check_no_legacy_css.py` — legacy CSS 检查。
-- `python scripts/checks/check_layout_inline_style.py` — inline style 检查。
-- `python scripts/checks/check_raw_innerhtml.py` — raw innerHTML 检查。
+- `python3 -m scripts.checks web.session-detail-static` — session detail 静态检查与 shell CSS 一致性。
+- `npx playwright test --config=playwright.config.js session-detail.spec.js session-detail-migrated-gates.spec.js` — 交互 gate。
+- `npx playwright test --config=playwright.config.js session-detail-layout.spec.js` — 布局 gate。
+- `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查。
+- `python3 -m scripts.checks web.css-ownership` — CSS ownership 校验。
+- `python3 -m scripts.checks repository.repo-slimming` — legacy CSS 检查。
+- `python3 -m scripts.checks web.layout-inline-style` — inline style 检查。
+- `python3 -m scripts.checks web.raw-innerhtml` — raw innerHTML 检查。
 
 选择策略：
 
-- 只改模板 → 至少运行 `check_session_detail_static.py` + `check_css_ownership.py`。
-- 改 CSS → 追加 `check_session_detail_shell_css.py` + `check_no_legacy_css.py`。
-- 改 JS → 追加 `check_js_action_handlers.py` + `run_session_detail_interaction_gate.py`。
-- 改布局或 shell → 追加 `run_session_detail_layout_gate.py` + `check_layout_inline_style.py`。
+- 只改模板 → 至少运行 `web.session-detail-static` + `web.css-ownership`。
+- 改 CSS → 追加 `web.session-detail-static` + `repository.repo-slimming`。
+- 改 JS → 追加 `web.js-action-handlers` + Node Playwright 交互 gate。
+- 改布局或 shell → 追加 Node Playwright 布局 gate + `web.layout-inline-style`。
 - 收口前 → 运行全部 UI gate。
 
 ## 输出格式

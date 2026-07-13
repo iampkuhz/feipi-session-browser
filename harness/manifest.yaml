@@ -5,48 +5,54 @@ project:
   description: Local session browser for Claude Code, Codex, and Qoder session data.
 
 runtime:
+  hook_dispatcher: scripts/harness/hook_dispatch.py
   hook_entry: scripts/agent_runtime/hook_entry.py
   shared_stop_entry: scripts/harness/stop_entry.py
   stop_pipeline: scripts/agent_runtime/stop/pipeline.py
   python_package: scripts.agent_runtime
   log_dir: tmp/agent_logs/
   runtime_manifest: harness/agent-runtime.manifest.yaml
-  resource_lock_manager: scripts/harness/resource_lock.py
-  port_allocator: scripts/harness/port_allocator.py
+  resource_lock_manager: scripts/agent_runtime/locks.py
+  port_allocator: scripts/agent_runtime/ports.py
   runtime_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
-  agent_entrypoints:
-    claude_session_start: .claude/hooks/session-start.sh
-    claude_cwd_changed: .claude/hooks/cwd-changed.sh
-    claude_session_end: .claude/hooks/session-end.sh
-    codex_session_start: .codex/hooks/session-start.sh
-    codex_pre_tool_bootstrap: .codex/hooks/pre_tool_bootstrap.sh
-    claude_stop: .claude/hooks/stop.sh
-    codex_pre_tool: .codex/hooks/pre_tool_guard.sh
-    codex_post_tool: .codex/hooks/post_tool_guard.sh
-    codex_stop: .codex/hooks/stop_check.sh
-    qoder_session_start: .qoder/hooks/session-start.sh
-    qoder_cwd_changed: .qoder/hooks/cwd-changed.sh
-    qoder_user_prompt_submit: .qoder/hooks/user-prompt-submit.sh
-    qoder_pre_tool_bootstrap: .qoder/hooks/pre_tool_bootstrap.sh
-    qoder_pre_tool: .qoder/hooks/pre_tool_guard.sh
-    qoder_post_tool: .qoder/hooks/post_tool_guard.sh
-    qoder_stop: .qoder/hooks/stop_check.sh
-    qoder_tool_failure: .qoder/hooks/tool_failure.sh
-    qoder_stop_failure: .qoder/hooks/stop_failure.sh
-    qoder_session_end: .qoder/hooks/session_end.sh
+  platform_configs:
+    claude: .claude/settings.json
+    codex: .codex/hooks.json
+    qoder: .qoder/settings.json
   skill_entrypoints:
     openspec_orchestrate_change: skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
     codex_repo_scope: .agents/skills/feipi-openspec-orchestrate-change
     codex_convention: .codex/skills/feipi-openspec-orchestrate-change
     claude: .claude/skills/feipi-openspec-orchestrate-change
 
-entrypoints:
+public_executables:
   deps: "./scripts/session-browser.sh deps"
   test: "./scripts/session-browser.sh test"
   scan: "./scripts/session-browser.sh scan"
   serve: "./scripts/session-browser.sh serve"
   doctor: "bash scripts/harness/doctor.sh"
   sessionctl: "python3 scripts/harness/sessionctl.py"
+  codex_cli_worktree: "python3 scripts/harness/launch_codex_worktree.py --client codex-cli"
+  complete_change: "python3 scripts/harness/complete_change.py"
+  stop_entry: "python3 scripts/harness/stop_entry.py"
+  hook_dispatcher: "python3 scripts/harness/hook_dispatch.py"
+  quality_gate: "python3 scripts/gates/cli.py"
+  dead_command_reference: "python3 -m scripts.checks repository.dead-command-reference"
+  openspec_layout: "python3 scripts/openspec/validate_layout.py"
+  openspec_schema: "python3 scripts/openspec/validate_schema.py"
+  openspec_active_change: "python3 scripts/openspec/validate_active_change.py"
+  harness_structure: "python3 scripts/harness/validate_harness_structure.py"
+  subagent_catalog: "python3 scripts/harness/validate_subagent_catalog.py"
+  release_candidate: "bash scripts/release/create-release-candidate.sh"
+  release_checksums: "bash scripts/release/generate-checksums.sh"
+  release_rollback_drill: "bash scripts/release/drill-upgrade-rollback.sh"
+
+# 诊断 leaf 必须使用精确文件路径；此处只声明命名约定，不复制 catalog 清单。
+diagnostic_executables:
+  - scripts/checks/check_*.py
+  - scripts/checks/run_*.py
+  - scripts/checks/validate_*.py
+  - scripts/checks/measure_*.py
 
 quality:
   runner: scripts/gates/cli.py
@@ -73,13 +79,10 @@ docs:
   - docs/agent-runtime.md
   - skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
   - harness/README.md
-  - harness/agent-runtime.md
-  - harness/context/repo-map.md
-  - harness/context/ui-context.md
-  - harness/workflow/change-lifecycle.md
-  - harness/workflow/subagent-execution.md
-  - harness/quality/deterministic-quality-gate.md
-  - harness/quality/quality-gate-matrix.md
+  - scripts/README.md
+  - scripts/agent_runtime/README.md
+  - scripts/gates/README.md
+  - scripts/checks/README.md
 
 local_only:
   - ".claude/settings.local.json"

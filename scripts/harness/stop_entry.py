@@ -20,7 +20,7 @@ from scripts.agent_runtime.stop.pipeline import run_stop  # noqa: E402
 
 # 明确公开面仅包含委托入口，防止业务重新回流到 harness。
 # 业务测试应直接导入 scripts.agent_runtime.stop 对应责任模块。
-# 平台 wrapper 只需继续执行 main。
+# 共享 dispatcher 只需继续执行 main。
 __all__ = ['main', 'read_stdin_once', 'run_stop']
 
 

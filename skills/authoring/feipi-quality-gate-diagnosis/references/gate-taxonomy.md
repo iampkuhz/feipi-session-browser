@@ -23,7 +23,7 @@ Doctor 负责组合结构、配置、语言、Hook/Runtime 与必要 contract �
 
 ## Stop
 
-平台 Stop wrapper 只委托 `scripts/harness/stop_entry.py`，再由
+共享 dispatcher 只委托 `scripts/harness/stop_entry.py`，再由
 `scripts/agent_runtime/stop/pipeline.py` 执行 identity、lock、evidence、reentry-recovery、gate、
 report、finalize。Gate 阶段只调用 `scripts.gates.cli.run_service`。
 

@@ -17,8 +17,8 @@
 | Gate | Result |
 |---|---|
 | <触发失败的 gate> | <PASS/FAIL> |
-| `check_skill_registry.py` | <PASS/FAIL/skipped> |
-| `check_agent_runtime_manifest.py` | <PASS/FAIL/skipped> |
+| `agent.skill-registry` | <PASS/FAIL/skipped> |
+| `agent.runtime-manifest` | <PASS/FAIL/skipped> |
 | `doctor.sh` | <PASS/FAIL/skipped> |
 
 ## Risks

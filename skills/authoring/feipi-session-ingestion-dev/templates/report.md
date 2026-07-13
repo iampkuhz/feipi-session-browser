@@ -31,9 +31,9 @@
 
 | 门禁 | 状态 | 输出 |
 |------|------|------|
-| `./gradlew test` | ✅ / ❌ | |
+| `./scripts/session-browser.sh test` | ✅ / ❌ | |
 | `./gradlew check` | ✅ / ❌ | |
-| `check_manifest.py` | ✅ / ❌ | |
+| `python3 scripts/gates/cli.py --tier required` | ✅ / ❌ | |
 
 ## 风险
 

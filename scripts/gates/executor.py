@@ -18,7 +18,9 @@ from dataclasses import asdict, replace
 from functools import lru_cache
 from pathlib import Path
 
+from scripts.agent_runtime import locks as resource_lock
 from scripts.agent_runtime import paths as runtime_paths
+from scripts.agent_runtime.session.contract import resolve_runtime_root
 from scripts.gates.catalog import CATALOG_VERSION, gate_by_name
 from scripts.gates.model import (
     ChangedFilesInput,
@@ -39,8 +41,6 @@ from scripts.gates.report import (
     PASS,
     GateDetail,
 )
-from scripts.harness import resource_lock
-from scripts.harness.primary_session import resolve_runtime_root
 from scripts.harness.python_env import resolve_python
 
 PLAYWRIGHT_COMMAND_MIN_PARTS = 3
@@ -332,9 +332,7 @@ def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str])
     """
     clean = _strip_ansi(output)
 
-    is_css_ownership = gate_name == 'cssOwnership' or any(
-        Path(part).name == 'check_css_ownership.py' for part in cmd
-    )
+    is_css_ownership = any(Path(part).name == 'check_css_ownership.py' for part in cmd)
     if is_css_ownership:
         lines: list[str] = []
         for line in clean.splitlines():
@@ -441,9 +439,9 @@ def _warning_after_trigger_reason(
 
 
 # 审计network 阻断 reason。
-def _audit_network_block_reason(output: str, *, gate_name: str) -> str | None:
+def _audit_network_block_reason(output: str, *, network_failure: str) -> str | None:
     """审计network 阻断 reason。"""
-    if gate_name != 'pythonAudit':
+    if network_failure != 'blocked':
         return None
     clean = _strip_ansi(output)
     network_markers = (
@@ -470,6 +468,7 @@ def run_cmd(
     required: bool = True,
     env_overrides: dict[str, str] | None = None,
     timeout_seconds: int | None = None,
+    network_failure: str = 'fail',
 ) -> GateDetail:
     """参数：
         name: 条目名称。
@@ -536,7 +535,9 @@ def run_cmd(
             output = output[-COMMAND_OUTPUT_TAIL_CHARS:]
         status = PASS if proc.returncode == 0 else FAIL
         audit_block_reason = (
-            _audit_network_block_reason(full_output, gate_name=name) if status == FAIL else None
+            _audit_network_block_reason(full_output, network_failure=network_failure)
+            if status == FAIL
+            else None
         )
         if audit_block_reason:
             status = BLOCKED
@@ -551,7 +552,7 @@ def run_cmd(
         if status == PASS and _is_playwright_command(cmd):
             skipped = _playwright_skip_count(full_output)
             skipped_kind = 'Playwright'
-        elif status == PASS and (_is_pytest_command(cmd) or name == 'scanScriptSmoke'):
+        elif status == PASS and _is_pytest_command(cmd):
             skipped = _pytest_skip_count(full_output)
             skipped_kind = 'pytest'
         if skipped:
@@ -592,36 +593,105 @@ def run_cmd(
         return GateDetail(name=name, status=BLOCKED, command=cmd, output=f'命令启动失败: {exc}')
 
 
-# 维护gate 命令。
+# 展开 catalog argv 中的运行时占位符。
+def _expand_argument(argument: str, repo_root: Path) -> str:
+    """把 catalog 允许的少量环境占位符解析为稳定 argv。"""
+    values = {
+        'python': _project_python(repo_root),
+        'dev_python': _project_python(repo_root, dev=True),
+        'repo_root': str(repo_root),
+        'playwright_workers': str(_playwright_workers()),
+    }
+    return argument.format_map(values)
+
+
+def _declared_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
+    """通用渲染 catalog command；不按普通 Gate 名称分派。"""
+    declared = spec.command
+    if declared is None:
+        return []
+    argv = next(
+        (row.argv for row in declared.target_argv if row.target == target),
+        declared.argv,
+    )
+    if not argv or any(not (repo_root / path).exists() for path in declared.required_paths):
+        return []
+    command = [_expand_argument(part, repo_root) for part in argv]
+    if declared.existing_only:
+        command = [
+            part for part in command if not part.startswith('tests/') or (repo_root / part).exists()
+        ]
+    existing = [path for path in declared.existing_args if (repo_root / path).exists()]
+    if declared.existing_args and not existing:
+        return []
+    command.extend(existing)
+    globbed = _relative_existing_files(repo_root, list(declared.glob_args))
+    if declared.glob_args and not globbed:
+        return []
+    command.extend(globbed)
+    for optional in declared.optional_args:
+        if (repo_root / optional.path).exists():
+            command.extend(_expand_argument(part, repo_root) for part in optional.argv)
+    return command
+
+
+def _cpd_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
+    """按 CPD 能力声明补充 full 模式参数。"""
+    command = _declared_command(spec, repo_root, target)
+    if command and os.environ.get('QUALITY_GATE_TIER') == 'full' and spec.command:
+        command.extend(spec.command.full_args)
+    return command
+
+
+def _scan_smoke_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
+    """兼容独立调用：用 catalog prerequisite 与 pytest 声明构造 smoke 命令。"""
+    pytest_command = _declared_command(spec, repo_root, target)
+    if not pytest_command or not spec.command:
+        return []
+    install_log = str(_run_tmp_dir(repo_root, 'logs') / 'scanScriptSmoke-installDist.log')
+    install = [str(repo_root / 'gradlew'), *spec.command.prerequisite_tasks]
+    script = (
+        f'{shlex.join(install)} > {shlex.quote(install_log)} 2>&1; '
+        'rc=$?; '
+        'if [ $rc -ne 0 ]; then '
+        f'echo "FAIL: {shlex.join(spec.command.prerequisite_tasks)} (exit=$rc)"; '
+        f'tail -40 {shlex.quote(install_log)}; '
+        'exit $rc; '
+        'fi; '
+        f'{shlex.join(pytest_command)}'
+    )
+    return ['bash', '-c', script]
+
+
+_COMMAND_ADAPTERS = {
+    'command': _declared_command,
+    'playwright': _declared_command,
+    'cpd': _cpd_command,
+    'scan-smoke': _scan_smoke_command,
+}
+
+
+def _capability(spec: GateSpec) -> str:
+    """返回 catalog 声明的执行能力类型。"""
+    return spec.command.capability if spec.command else 'gradle'
+
+
 def command_for_gate(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
-    """维护gate 命令。"""
+    """从 typed declaration 构造单 Gate 命令。"""
     if spec.gradle_tasks:
         gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
-            return []
-        command = [str(gradlew), *spec.gradle_tasks]
-        if spec.name == 'javaCheck':
-            command.extend(
-                [
-                    '-x',
-                    'checkstyleMain',
-                    '-x',
-                    'checkstyleTest',
-                    '-x',
-                    'javadoc',
-                    '--parallel',
-                    '--build-cache',
-                ]
-            )
-        return command
-    if not spec.command_key:
+        return [str(gradlew), *spec.gradle_tasks, *spec.gradle_args] if gradlew.exists() else []
+    if spec.command is None:
         return []
-    return _command_adapter(spec.command_key, repo_root, target)
+    try:
+        adapter = _COMMAND_ADAPTERS[spec.command.capability]
+    except KeyError as exc:
+        raise ValueError(f'unsupported command capability: {spec.command.capability}') from exc
+    return adapter(spec, repo_root, target)
 
 
-# 按名称读取 typed catalog，并委托命令 adapter。
 def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
-    """按名称读取 typed catalog，并委托命令 adapter。"""
+    """按名称读取 typed catalog，并委托能力 adapter。"""
     return command_for_gate(gate_by_name(gate), repo_root, target)
 
 
@@ -637,285 +707,6 @@ def changed_files_environment(
     raise ValueError(f'unsupported changed-files input: {spec.changed_files_input}')
 
 
-# 把 catalog commandKey 转换为可执行的原子命令。
-def _command_adapter(gate: str, repo_root: Path, target: str) -> list[str]:  # noqa: PLR0911, PLR0912
-    """参数：
-        gate: gate 参数。
-        repo_root: repo root used到test 可选 文件 availability。
-        target: 当前要运行或解析的 quality gate target 名称。
-
-    返回：
-        结果列表。
-
-    说明：
-        explicit gate-到-命令 matrix is kept flat so 现有 test assertions 和 operational。
-    """
-    python = _project_python(repo_root)
-    dev_python = _project_python(repo_root, dev=True)
-    if gate == 'settingsJson':
-        json_files = [
-            '.claude/settings.json',
-            '.codex/hooks.json',
-            '.qoder/settings.json',
-            '.qoder/settings.local.example.json',
-        ]
-        existing = [f for f in json_files if (repo_root / f).exists()]
-        code = "import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]"
-        return [python, '-c', code, *existing] if existing else []
-    if gate == 'ignoredTrackedFiles':
-        checker = repo_root / 'scripts' / 'checks' / 'check_ignored_tracked_files.py'
-        return (
-            [python, str(checker), '--root', str(repo_root), '--staged'] if checker.exists() else []
-        )
-    if gate == 'bashSyntax':
-        existing = _relative_existing_files(
-            repo_root,
-            [
-                '.claude/hooks/**/*.sh',
-                '.codex/hooks/**/*.sh',
-                '.qoder/hooks/**/*.sh',
-                'scripts/harness/*.sh',
-            ],
-        )
-        return ['bash', '-n', *existing] if existing else []
-    if gate == 'scriptCommentLanguage':
-        checker = repo_root / 'scripts' / 'checks' / 'check_code_comment_language.py'
-        policy = repo_root / 'config' / 'technical-terms.json'
-        if not checker.exists():
-            return []
-        cmd = [
-            python,
-            str(checker),
-            '--script-comments',
-            'scripts',
-            '.claude/hooks',
-            '.codex/hooks',
-            '.qoder/hooks',
-            'java/web/src/main/resources/static',
-            'java/web/src/main/resources/templates',
-        ]
-        if policy.exists():
-            cmd.extend(['--policy', str(policy)])
-        return cmd
-    if gate == 'pythonCompile':
-        paths = ['scripts/agent_runtime', 'scripts/checks']
-        if target == 'harness':
-            paths = ['scripts/harness', 'scripts/checks']
-        if target == 'index':
-            paths = ['scripts/checks/check_index_integrity.py']
-        return [python, '-m', 'compileall', '-q', *paths]
-    if gate == 'pythonFormat':
-        return ['bash', 'scripts/session-browser.sh', 'format-check']
-    if gate == 'pythonLint':
-        return ['bash', 'scripts/session-browser.sh', 'lint']
-    if gate == 'pythonType':
-        return ['bash', 'scripts/session-browser.sh', 'type']
-    if gate == 'pythonDocstring':
-        return ['bash', 'scripts/session-browser.sh', 'doc']
-    if gate == 'pythonCoverage':
-        return ['bash', 'scripts/session-browser.sh', 'coverage']
-    if gate == 'pythonAudit':
-        return ['bash', 'scripts/session-browser.sh', 'audit']
-    if gate == 'pythonComplexity':
-        return ['bash', 'scripts/session-browser.sh', 'complexity']
-    if gate == 'pythonDeadCode':
-        return ['bash', 'scripts/session-browser.sh', 'dead-code']
-    if gate == 'pythonDeps':
-        return ['bash', 'scripts/session-browser.sh', 'deps-check']
-    if gate == 'noTestSkips':
-        return [python, 'scripts/checks/check_no_test_skips.py']
-    if gate == 'languagePolicy':
-        return [python, 'scripts/checks/check_language_policy.py']
-    if gate == 'codexAgentPolicy':
-        return [python, 'scripts/checks/check_codex_agent_policy.py']
-    if gate == 'agentRuntimeManifest':
-        return [python, 'scripts/checks/check_agent_runtime_manifest.py']
-    if gate == 'agentHookParity':
-        return [python, 'scripts/checks/check_agent_hook_parity.py']
-    if gate == 'agentPolicySize':
-        return [python, 'scripts/checks/check_agent_policy_size.py']
-    if gate == 'agentRulesSync':
-        return [python, 'scripts/checks/check_agent_rules_sync.py']
-    if gate == 'agentRuntimeIsolation':
-        return [python, 'scripts/checks/check_agent_runtime_isolation.py']
-    if gate == 'agentRuntimeWorktree':
-        return [python, 'scripts/checks/check_agent_runtime_worktree.py']
-    if gate == 'gateBypassResistance':
-        return [python, 'scripts/checks/check_gate_bypass_resistance.py']
-    if gate == 'gateEscapeRate':
-        return [python, 'scripts/checks/measure_gate_escape_rate.py', '--threshold', '0']
-    if gate == 'protectedRootsSync':
-        return [python, 'scripts/checks/check_protected_roots_sync.py']
-    if gate == 'qoderRuntimeParity':
-        return [python, 'scripts/checks/check_qoder_runtime_parity.py']
-    if gate == 'hookPayloadCompat':
-        return [python, 'scripts/checks/check_hook_payload_compat.py']
-    if gate == 'subagentHandoffProtocol':
-        return [python, 'scripts/checks/check_subagent_handoff_protocol.py']
-    if gate == 'skillRegistry':
-        return [python, 'scripts/checks/check_skill_registry.py']
-    if gate == 'agentEntryParity':
-        return [python, 'scripts/checks/check_agent_entry_parity.py']
-    if gate == 'noRealSessionFixtures':
-        return [python, 'scripts/checks/check_no_real_session_fixtures.py']
-    if gate == 'secretLikeContent':
-        return [python, 'scripts/checks/check_secret_like_content.py']
-    if gate == 'runtimeReport':
-        return [python, 'scripts/checks/check_agent_runtime_report.py']
-    if gate == 'hookSelfTest':
-        return [python, '-m', 'scripts.agent_runtime.hook_entry', '--self-test']
-    if gate == 'templateContract':
-        return [python, 'scripts/checks/template_contract_check.py']
-    if gate == 'staticCssContract':
-        return [python, 'scripts/checks/static_contract_check.py']
-    if gate == 'cssOwnership':
-        return [python, 'scripts/checks/check_css_ownership.py']
-    if gate == 'browserLayout':
-        if (
-            (repo_root / 'tests' / 'playwright').exists()
-            and (repo_root / 'playwright.config.js').exists()
-            and (repo_root / 'node_modules').exists()
-        ):
-            return [
-                'npx',
-                'playwright',
-                'test',
-                'ui-contract.spec.ts',
-                'main-pages-visual.spec.ts',
-                'session-detail-layout',
-                'shell-states',
-                'dashboard-chart-coordinates',
-                f'--workers={_playwright_workers()}',
-            ]
-        return []
-    if gate == 'browserInteraction':
-        if (
-            (repo_root / 'tests' / 'playwright').exists()
-            and (repo_root / 'playwright.config.js').exists()
-            and (repo_root / 'node_modules').exists()
-        ):
-            return [
-                'npx',
-                'playwright',
-                'test',
-                'session-detail.spec.js',
-                'sessions-list.spec.js',
-                '--grep-invert',
-                '100 轮',
-                f'--workers={_playwright_workers()}',
-            ]
-        return []
-    if gate == 'pytest':
-        test_candidates = {
-            'session-detail': [
-                'tests/ui/test_web_template_contract.py',
-                'tests/ui/test_web_static_contract.py',
-            ],
-            'hook-runtime': [
-                'tests/agent_runtime',
-                'tests/harness',
-                'tests/gates',
-                'tests/quality/test_scan_script_smoke_gate.py',
-                'tests/quality/test_python_env_contract.py',
-                'tests/quality/test_no_test_skips_gate.py',
-                'tests/quality/test_java_classification.py',
-            ],
-            'harness': [
-                'tests/harness',
-                'tests/gates',
-            ],
-            'acceptance-contracts': [
-                'tests/quality/test_contract_case_specs.py',
-            ],
-            'index': ['tests/index/'],
-        }
-        items = [x for x in test_candidates.get(target, ['tests']) if (repo_root / x).exists()]
-        return [dev_python, '-m', 'pytest', '-q', '-W', 'error', *items] if items else []
-    if gate == 'doctor':
-        return ['bash', 'scripts/harness/doctor.sh']
-    if gate == 'sessionSamples':
-        gradlew = repo_root / 'gradlew'
-        runner = repo_root / 'scripts' / 'checks' / 'run_session_samples_gate.py'
-        if not gradlew.exists() or not runner.exists():
-            return []
-        return [python, str(runner), '--repo-root', str(repo_root)]
-    if gate == 'repoStructure':
-        return [python, 'scripts/checks/validate_repo_structure.py']
-    if gate == 'harnessStructure':
-        return [python, 'scripts/harness/validate_harness_structure.py']
-    if gate == 'openspecLayout':
-        return [python, 'scripts/openspec/validate_layout.py']
-    if gate == 'repoSlimming':
-        return [python, 'scripts/checks/repo_slimming_contract_check.py']
-    if gate == 'indexIntegrity':
-        return [python, 'scripts/checks/check_index_integrity.py']
-    if gate == 'rawInnerhtml':
-        return [python, 'scripts/checks/check_raw_innerhtml.py', '--check']
-    if gate == 'layoutInlineStyle':
-        return [python, 'scripts/checks/check_layout_inline_style.py', '--check']
-    if gate == 'acceptanceContracts':
-        return [python, 'scripts/checks/validate_acceptance_contracts.py']
-    # 中文注释检查使用仓库内脚本和策略文件，禁止依赖 tmp 路径。
-    if gate == 'javaApiSnapshot':
-        return [_project_python(repo_root), 'scripts/checks/check_java_api_snapshot.py', '--check']
-    if gate == 'javaChineseComments':
-        checker = repo_root / 'scripts' / 'checks' / 'check_code_comment_language.py'
-        policy = repo_root / 'config' / 'technical-terms.json'
-        if not checker.exists():
-            return []
-        cmd = [python, str(checker)]
-        if policy.exists():
-            cmd.extend(['--policy', str(policy)])
-        return cmd
-    if gate == 'noJavaTestSkips':
-        checker = repo_root / 'scripts' / 'checks' / 'check_no_java_test_skips.py'
-        if not checker.exists():
-            return []
-        return [python, str(checker), '--root', str(repo_root)]
-    if gate == 'javaModuleBoundaries':
-        checker = repo_root / 'scripts' / 'checks' / 'check_java_module_boundaries.py'
-        if not checker.exists():
-            return []
-        return [python, str(checker)]
-    if gate == 'reuseStandardCpd':
-        runner = repo_root / 'scripts' / 'checks' / 'run_reuse_standard_cpd.py'
-        if not runner.exists():
-            return []
-        cmd = [python, str(runner)]
-        if os.environ.get('QUALITY_GATE_TIER') == 'full':
-            cmd.extend(['--mode', 'full'])
-        return cmd
-    if gate == 'noJavaSuppressWarnings':
-        checker = repo_root / 'scripts' / 'checks' / 'check_no_java_suppress_warnings.py'
-        if not checker.exists():
-            return []
-        return [python, str(checker)]
-    if gate == 'scanScriptSmoke':
-        test_path = repo_root / 'tests' / 'script_commands' / 'test_session_browser_scan_smoke.py'
-        if not test_path.exists():
-            return []
-        gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
-            return []
-        install_log = str(_run_tmp_dir(repo_root, 'logs') / 'scanScriptSmoke-installDist.log')
-        pytest_cmd = shlex.join([dev_python, '-m', 'pytest', '-q', '-W', 'error', str(test_path)])
-        script = (
-            f'{shlex.quote(str(gradlew))} :java:app-cli:installDist '
-            f'> {install_log} 2>&1; '
-            f'rc=$?; '
-            f'if [ $rc -ne 0 ]; then '
-            f'echo "FAIL: :java:app-cli:installDist (exit=$rc)"; '
-            f'tail -40 {install_log}; '
-            f'exit $rc; '
-            f'fi; '
-            f'{pytest_cmd}'
-        )
-        # 先构建 Java CLI launcher，再运行 smoke pytest，避免依赖陈旧本地产物。
-        return ['bash', '-c', script]
-    return []
-
-
-_BROWSER_GATES = {'browserLayout', 'browserInteraction'}
 _VERBOSE_OUTPUT = False
 
 
@@ -979,26 +770,17 @@ def run_target(
             continue
         env = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
         env.update(changed_files_environment(spec, changed_files))
-        if gate_name in _BROWSER_GATES:
-            if not base_url:
-                details.append(
-                    GateDetail(
-                        name=gate_name,
-                        status=BLOCKED,
-                        command=command,
-                        output='BASE_URL is required for browser Gate; executor does not construct fixtures.',
-                    )
+        if _capability(spec) == 'playwright':
+            env['FEIPI_AGENT_RUNTIME_ROOT'] = str(resolve_runtime_root(repo_root))
+            if base_url:
+                env.update(
+                    {
+                        'BASE_URL': base_url,
+                        'PW_SESSION_URL': f'{base_url}/sessions/claude_code/hifi-viz-session-001',
+                        'PW_LONG_SESSION_URL': f'{base_url}/sessions/claude_code/long-session-001',
+                        'SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER': '1',
+                    }
                 )
-                continue
-            env.update(
-                {
-                    'BASE_URL': base_url,
-                    'PW_SESSION_URL': f'{base_url}/sessions/claude_code/hifi-viz-session-001',
-                    'PW_LONG_SESSION_URL': f'{base_url}/sessions/claude_code/long-session-001',
-                    'SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER': '1',
-                    'FEIPI_AGENT_RUNTIME_ROOT': str(resolve_runtime_root(repo_root)),
-                }
-            )
         details.append(
             run_cmd(
                 gate_name,
@@ -1006,6 +788,7 @@ def run_target(
                 repo_root,
                 env_overrides=env,
                 timeout_seconds=min(target_timeout, spec.timeout_seconds),
+                network_failure=spec.network_failure,
             )
         )
     return details
@@ -1015,22 +798,6 @@ def _stable_hash(value: object) -> str:
     """计算 JSON 数据的稳定 SHA-256。"""
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
-
-
-def _direct_scan_smoke_command(repo_root: Path) -> list[str]:
-    """返回 installDist 已由 Gradle group 完成后的 smoke pytest 命令。"""
-    test_path = repo_root / 'tests/script_commands/test_session_browser_scan_smoke.py'
-    if not test_path.exists():
-        return []
-    return [
-        _project_python(repo_root, dev=True),
-        '-m',
-        'pytest',
-        '-q',
-        '-W',
-        'error',
-        str(test_path),
-    ]
 
 
 def _cpd_gradle_parts(repo_root: Path, changed_files: tuple[str, ...]) -> tuple[list[str], str]:
@@ -1085,15 +852,17 @@ def build_execution_plan(
     gradle_entries = [
         (spec, target)
         for spec, target in entries
-        if spec.gradle_tasks or spec.name == 'reuseStandardCpd'
+        if spec.gradle_tasks or _capability(spec) == 'cpd'
     ]
-    scan_requested = any(spec.name == 'scanScriptSmoke' for spec, _ in entries)
+    scan_entries = [entry for entry in entries if _capability(entry[0]) == 'scan-smoke']
+    scan_requested = bool(scan_entries)
     gradle_tasks: list[str] = []
     gradle_properties: list[str] = []
+    gradle_args: list[str] = []
     gradle_gate_names: list[str] = []
     cpd_mode = ''
     for spec, _target in gradle_entries:
-        if spec.name == 'reuseStandardCpd':
+        if _capability(spec) == 'cpd':
             parts, cpd_mode = _cpd_gradle_parts(repo_root, gate_plan.changed_files)
             if parts:
                 gradle_tasks.append(parts[0])
@@ -1101,9 +870,11 @@ def build_execution_plan(
                 gradle_gate_names.append(spec.name)
             continue
         gradle_tasks.extend(spec.gradle_tasks)
+        gradle_args.extend(spec.gradle_args)
         gradle_gate_names.append(spec.name)
-    if scan_requested:
-        gradle_tasks.append(':java:app-cli:installDist')
+    for spec, _target in scan_entries:
+        if spec.command:
+            gradle_tasks.extend(spec.command.prerequisite_tasks)
     gradle_tasks = list(dict.fromkeys(gradle_tasks))
     gradle_properties = list(dict.fromkeys(gradle_properties))
 
@@ -1116,26 +887,17 @@ def build_execution_plan(
         resources = tuple(
             dict.fromkeys(
                 resource
-                for spec, _target in gradle_entries
+                for spec, _target in (*gradle_entries, *scan_entries)
                 for resource in spec.exclusive_resources
             )
         )
-        if scan_requested:
-            resources = tuple(dict.fromkeys((*resources, 'gradle-daemon', 'java-build-tree')))
-        command = [str(repo_root / 'gradlew'), *gradle_tasks, *gradle_properties, '--console=plain']
-        if any(spec.name == 'javaCheck' for spec, _ in gradle_entries):
-            command.extend(
-                [
-                    '-x',
-                    'checkstyleMain',
-                    '-x',
-                    'checkstyleTest',
-                    '-x',
-                    'javadoc',
-                    '--parallel',
-                    '--build-cache',
-                ]
-            )
+        command = [
+            str(repo_root / 'gradlew'),
+            *gradle_tasks,
+            *gradle_properties,
+            '--console=plain',
+            *gradle_args,
+        ]
         env: dict[str, str] = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
         if any(
             spec.changed_files_input is ChangedFilesInput.ENVIRONMENT for spec, _ in gradle_entries
@@ -1167,15 +929,13 @@ def build_execution_plan(
                 groups.append(gradle_group)
                 gradle_added = True
             continue
-        if spec.name == 'reuseStandardCpd' and cpd_mode in {'no-java-input', 'blocked-policy'}:
+        capability = _capability(spec)
+        if capability == 'cpd' and cpd_mode in {'no-java-input', 'blocked-policy'}:
             kind = 'cpd-noop' if cpd_mode == 'no-java-input' else 'cpd-blocked'
             command: list[str] = []
-        elif spec.name == 'scanScriptSmoke':
+        elif capability == 'scan-smoke':
             kind = 'command'
-            command = _direct_scan_smoke_command(repo_root)
-        elif spec.name in _BROWSER_GATES and not base_url:
-            kind = 'browser-blocked'
-            command = command_for_gate(spec, repo_root, target)
+            command = _declared_command(spec, repo_root, target)
         else:
             kind = 'command'
             command = command_for_gate(spec, repo_root, target)
@@ -1183,19 +943,18 @@ def build_execution_plan(
         command_index += 1
         env = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
         env.update(changed_files_environment(spec, gate_plan.changed_files))
-        if spec.name in _BROWSER_GATES and base_url:
-            env.update(
-                {
-                    'BASE_URL': base_url,
-                    'PW_SESSION_URL': f'{base_url}/sessions/claude_code/hifi-viz-session-001',
-                    'PW_LONG_SESSION_URL': f'{base_url}/sessions/claude_code/long-session-001',
-                    'SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER': '1',
-                    'FEIPI_AGENT_RUNTIME_ROOT': str(resolve_runtime_root(repo_root)),
-                }
-            )
-        dependencies = (
-            (gradle_group_id,) if spec.name == 'scanScriptSmoke' and gradle_group_id else ()
-        )
+        if capability == 'playwright':
+            env['FEIPI_AGENT_RUNTIME_ROOT'] = str(resolve_runtime_root(repo_root))
+            if base_url:
+                env.update(
+                    {
+                        'BASE_URL': base_url,
+                        'PW_SESSION_URL': f'{base_url}/sessions/claude_code/hifi-viz-session-001',
+                        'PW_LONG_SESSION_URL': f'{base_url}/sessions/claude_code/long-session-001',
+                        'SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER': '1',
+                    }
+                )
+        dependencies = (gradle_group_id,) if capability == 'scan-smoke' and gradle_group_id else ()
         groups.append(
             CommandGroup(
                 group_id=group_id,
@@ -1242,7 +1001,7 @@ def build_execution_plan(
 
 def _prepare_cpd(repo_root: Path, execution_plan: ExecutionPlan) -> None:
     """在 Gradle group 启动前写入其 plan 已绑定的精确 CPD file list。"""
-    if not any(gate.name == 'reuseStandardCpd' for gate in execution_plan.gates):
+    if not any(_capability(gate_by_name(gate.name)) == 'cpd' for gate in execution_plan.gates):
         return
     from scripts.checks import run_reuse_standard_cpd as cpd
 
@@ -1310,13 +1069,6 @@ def _execute_group(
                     status=BLOCKED,
                     output='CPD policy changed; explicit full mode is required.',
                 )
-            elif group.kind == 'browser-blocked':
-                detail = GateDetail(
-                    name=group.group_id,
-                    status=BLOCKED,
-                    command=list(group.command),
-                    output='BASE_URL is required for browser Gate; executor does not construct fixtures.',
-                )
             elif not group.command:
                 detail = GateDetail(
                     name=group.group_id, status=BLOCKED, output='Gate command unavailable.'
@@ -1328,9 +1080,17 @@ def _execute_group(
                     repo_root,
                     env_overrides=dict(group.environment),
                     timeout_seconds=group.timeout_seconds,
+                    network_failure=(
+                        'blocked'
+                        if any(
+                            gate_by_name(name).network_failure == 'blocked'
+                            for name in group.gate_names
+                        )
+                        else 'fail'
+                    ),
                 )
             return group.group_id, detail, waited_ms
-    except resource_lock.ResourceLockTimeout as exc:
+    except resource_lock.ResourceLockTimeoutError as exc:
         waited_ms = int((time.monotonic() - started_wait) * 1000)
         detail = GateDetail(
             name=group.group_id,
@@ -1381,17 +1141,10 @@ def _selected_task_outcomes(
 
 
 def execute_plan(
-    gate_plan: GatePlan | ExecutionPlan,
+    execution_plan: ExecutionPlan,
     repo_root: Path,
-    *,
-    base_url: str | None = None,
 ) -> tuple[GateDetail, ...]:
     """只执行冻结 execution plan；结果始终按 plan 顺序返回。"""
-    execution_plan = (
-        gate_plan
-        if isinstance(gate_plan, ExecutionPlan)
-        else build_execution_plan(gate_plan, repo_root, base_url=base_url)
-    )
     _prepare_cpd(repo_root, execution_plan)
     identity = runtime_paths.identity_from_values()
     pending = {group.group_id: group for group in execution_plan.groups}
@@ -1439,7 +1192,9 @@ def execute_plan(
         spec = gate_by_name(gate.name)
         selected_outcomes: dict[str, str] = {}
         if group.kind == 'gradle':
-            selected_tasks = spec.gradle_tasks or (spec.name,)
+            selected_tasks = spec.gradle_tasks or (
+                spec.command.gradle_outcome_tasks if spec.command else ()
+            )
             task_outcome = _gradle_gate_outcome(outcome.taskOutcomes, selected_tasks)
             selected_outcomes = _selected_task_outcomes(outcome.taskOutcomes, selected_tasks)
             if task_outcome == 'SKIPPED':

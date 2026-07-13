@@ -10,7 +10,7 @@ from scripts.agent_runtime import hook_entry as hook_main
 from scripts.agent_runtime.context import read_stdin_json
 from scripts.agent_runtime.events.adapter import UNVERIFIED, build_bootstrap_request
 from scripts.agent_runtime.events.policy.file import pre_write_payload_block_reason
-from scripts.harness.sessionctl import Registry
+from scripts.agent_runtime.session.registry import Registry
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
@@ -283,11 +283,11 @@ def test_invalid_json_for_pre_write_blocks():
 
 def test_check_hook_payload_compat_passes():
     proc = subprocess.run(
-        [sys.executable, 'scripts/checks/check_hook_payload_compat.py'],
+        [sys.executable, '-m', 'scripts.checks', 'agent.hook-payload'],
         cwd=REPO_ROOT,
         text=True,
         capture_output=True,
         check=False,
     )
     assert proc.returncode == 0, proc.stderr or proc.stdout
-    assert '[hookPayloadCompat] PASS' in proc.stdout
+    assert '[agent.hook-payload] PASS' in proc.stdout

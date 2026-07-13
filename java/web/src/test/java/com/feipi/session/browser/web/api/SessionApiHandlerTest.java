@@ -231,6 +231,36 @@ class SessionApiHandlerTest {
   class AttributionApi {
 
     @Test
+    @DisplayName("request 和 response 返回稳定的模型、token 与工具计数摘要")
+    // 对应 DATA-PRESENTER-009 归因摘要契约。
+    void returnsStableUsageSummaryShape() throws Exception {
+      ApiContractFixture.insertThreeSessionFixture(indexConnection);
+      ApiContractFixture.insertNormalizedArtifactForAlpha(indexConnection, tempDir);
+      WebCompositionRoot webRoot = createWebRoot();
+
+      JavalinTest.test(
+          webRoot.app(),
+          (testApp, client) -> {
+            for (String kind : new String[] {"request", "response"}) {
+              var response =
+                  client.get("/api/sessions/claude_code/s-alpha-001/attribution/1/1/" + kind);
+              assertThat(response.code()).isEqualTo(200);
+              String body = response.body().string();
+              assertThat(body)
+                  .contains("\"kind\":\"llm." + kind + "_attribution\"")
+                  .contains("\"model\":\"claude-sonnet-4.5\"")
+                  .contains("\"totalTokens\":2000")
+                  .contains("\"freshInputTokens\":1000")
+                  .contains("\"outputTokens\":500")
+                  .contains("\"cacheReadTokens\":400")
+                  .contains("\"cacheWriteTokens\":100")
+                  .contains("\"requestToolResultCount\":0")
+                  .contains("\"responseToolCallCount\":1");
+            }
+          });
+    }
+
+    @Test
     @DisplayName("不存在的会话返回 404")
     void sessionNotFoundReturns404() {
       WebCompositionRoot webRoot = createWebRoot();

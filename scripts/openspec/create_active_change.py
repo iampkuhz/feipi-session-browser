@@ -8,7 +8,7 @@ import json
 import os
 import re
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -159,7 +159,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         root = Path.cwd()
 
     title = title or change_id
-    now = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+    now = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
     identity = runtime_paths.identity_from_values(
         agent_client=agent_client,

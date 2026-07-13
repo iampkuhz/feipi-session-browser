@@ -63,15 +63,15 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
-- `python scripts/checks/check_java_module_boundaries.py` — 模块边界、package 归属、forbidden import。
-- `python scripts/checks/check_java_api_snapshot.py` — API snapshot 一致性。
+- `./gradlew check` — 模块边界、package 归属、forbidden import。
+- `python3 -m scripts.checks java.api-snapshot --check` — API snapshot 一致性。
 - `python scripts/gates/cli.py` — 全量 required quality gates。
 
 选择策略：
 
-- 只改 Java 源码 → 至少运行 `test` + `check_java_module_boundaries.py`。
-- 改 API 签名 → 追加 `check_java_api_snapshot.py`。
-- 改构建配置或模块依赖 → 追加 `check_java_module_boundaries.py --fail-transition`。
+- 只改 Java 源码 → 至少运行 `test` + `Gradle check`。
+- 改 API 签名 → 追加 `java.api-snapshot`。
+- 改构建配置或模块依赖 → 必须运行 `./gradlew check`。
 - 收口前 → 运行 `python scripts/gates/cli.py`。
 
 ## 输出格式

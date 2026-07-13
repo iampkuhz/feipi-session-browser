@@ -51,6 +51,14 @@ def test_required_plan_filters_full_only_gate() -> None:
     assert 'javaApiSnapshot' in {gate.name for gate in full.logical_gates}
 
 
+def test_declarative_catalog_change_triggers_gate_service_contracts() -> None:
+    gate_plan = plan(['config/gates.yaml'])
+
+    assert gate_plan.raw_targets == ('hook-runtime',)
+    names = {gate.name for gate in gate_plan.logical_gates}
+    assert {'ignoredTrackedFiles', 'pythonCompile', 'pytest'} <= names
+
+
 def test_java_source_dominates_build_without_duplicate_logical_gates() -> None:
     gate_plan = plan(
         [

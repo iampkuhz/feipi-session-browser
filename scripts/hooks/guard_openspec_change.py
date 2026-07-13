@@ -21,7 +21,7 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.agent_runtime.paths import build_paths, legacy_active_change_path  # noqa: E402
 from scripts.agent_runtime.policy import is_protected_path  # noqa: E402
-from scripts.harness.primary_session import validate_run_write_authorization  # noqa: E402
+from scripts.agent_runtime.session.contract import validate_run_write_authorization  # noqa: E402
 from scripts.openspec.validate_active_change import validate_change_at_root  # noqa: E402
 
 
@@ -99,7 +99,7 @@ def resolve_active_change(
 
     env_run = environ.get('FEIPI_RUN_ID', '').strip()
     if env_run:
-        from scripts.harness.primary_session import load_run_record
+        from scripts.agent_runtime.session.contract import load_run_record
 
         record = load_run_record(base, env_run)
         if record and record.get('changeId'):
@@ -166,7 +166,7 @@ def guard_path(
     ).strip()
     resolution = resolve_active_change(root=base, cli_change_id=change_id, env=env)
     if selected_run:
-        from scripts.harness.primary_session import load_run_record
+        from scripts.agent_runtime.session.contract import load_run_record
 
         run_record = load_run_record(base, selected_run) or {}
         authoritative_change = str(run_record.get('changeId') or resolution.change_id or '')

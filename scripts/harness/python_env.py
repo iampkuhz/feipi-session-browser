@@ -17,7 +17,6 @@ try:
     import tomllib
 except ModuleNotFoundError:
     tomllib = None  # type: ignore[assignment]
-from dataclasses import dataclass
 from pathlib import Path
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -26,13 +25,9 @@ MAX_VERSION = (3, 13)
 PYTHON_REQUIRES = '>=3.12,<3.13'
 UV_PYTHON_REQUIRES = '==3.12.*'
 _PYTHON_VERSION_LOCK = '.python-version'
-_RUNTIME_LOCK = 'requirements.lock'
-_DEV_LOCK = 'requirements-dev.lock'
+_UV_LOCK = 'uv.lock'
 _TEST_PACKAGES = {'pytest', 'pytest-xdist'}
 _NORMALIZE_RE = re.compile(r'[-_.]+')
-_REQ_NAME_RE = re.compile(
-    r'^\s*([A-Za-z0-9][A-Za-z0-9_.-]*)(?:\s*(?:\[.*?\])?\s*(?:[<>=!~]=|===|@|;|$))'
-)
 
 
 # 规范化name。
@@ -227,63 +222,6 @@ def _python_contract_problems(repo_root: Path) -> list[str]:
     return problems
 
 
-# 维护去除 注释。
-def _strip_comment(line: str) -> str:
-    """参数：
-        line: 原始requirements-文件 行。
-
-    返回：
-        strip comment 字符串。
-    """
-    in_quote = False
-    quote = ''
-    for idx, char in enumerate(line):
-        if char in {"'", '"'}:
-            if in_quote and char == quote:
-                in_quote = False
-            elif not in_quote:
-                in_quote = True
-                quote = char
-        elif char == '#' and not in_quote:
-            return line[:idx]
-    return line
-
-
-# 规范化依赖声明中的包名称。
-def requirement_names(path: Path, *, _seen: set[Path] | None = None) -> list[str]:
-    """参数：
-        path: Requirements 文件到解析。
-        _seen: Internal recursion guard用于included requirement 文件。
-
-    返回：
-        规范化 dependency names discovered in 文件 tree。
-    """
-    if _seen is None:
-        _seen = set()
-    path = path.resolve()
-    if path in _seen:
-        return []
-    _seen.add(path)
-
-    names: list[str] = []
-    if not path.is_file():
-        return names
-    for raw in path.read_text(encoding='utf-8').splitlines():
-        line = _strip_comment(raw).strip()
-        if not line:
-            continue
-        if line.startswith('-r ') or line.startswith('--requirement '):
-            include = line.split(maxsplit=1)[1]
-            names.extend(requirement_names(path.parent / include, _seen=_seen))
-            continue
-        if line.startswith('-'):
-            continue
-        match = _REQ_NAME_RE.match(line)
-        if match:
-            names.append(normalize_name(match.group(1)))
-    return names
-
-
 # 解析 pyproject 中的数组字段。
 def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
     """参数：
@@ -335,101 +273,13 @@ def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
     return deps, dev
 
 
-@dataclass(frozen=True)
-class LockEntry:
-    """保存 `LockEntry` 的结构化契约数据；字段由所属运行阶段构造并由后续报告读取。"""
-
-    name: str
-    version: str
-    raw: str
-
-
-# 维护锁 entries。
-def lock_entries(path: Path) -> list[LockEntry]:
-    """参数：
-        path: Lock 文件到解析。
-
-    返回：
-        已解析的lock entries, including unpinned 行用于validation 错误。
-    """
-    entries: list[LockEntry] = []
-    if not path.is_file():
-        return entries
-    for raw in path.read_text(encoding='utf-8').splitlines():
-        line = _strip_comment(raw).strip()
-        if not line or line.startswith('-'):
-            continue
-        if '==' not in line:
-            entries.append(LockEntry(normalize_name(line), '', raw))
-            continue
-        name, version = line.split('==', 1)
-        entries.append(LockEntry(normalize_name(name.strip()), version.strip(), raw))
-    return entries
-
-
-# 比较sets。
-def _compare_sets(label: str, expected: list[str], actual: list[str]) -> list[str]:
-    """参数：
-        label: 输出中显示的人类可读标签。
-        expected: expected 参数。
-        actual: actual 参数。
-
-    返回：
-        Drift messages用于缺失 或 extra dependencies。
-    """
-    problems: list[str] = []
-    expected_set = set(expected)
-    actual_set = set(actual)
-    missing = sorted(expected_set - actual_set)
-    extra = sorted(actual_set - expected_set)
-    if missing:
-        problems.append(f'{label} 缺少: {", ".join(missing)}')
-    if extra:
-        problems.append(f'{label} 多出: {", ".join(extra)}')
-    return problems
-
-
 # 检查locks。
 def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        结果列表。
-    """
+    """检查 Python 版本文件与唯一 uv lock 是否齐全、口径一致。"""
     problems: list[str] = []
     problems.extend(_python_contract_problems(repo_root))
-    req_runtime = requirement_names(repo_root / 'requirements.txt')
-    req_dev = requirement_names(repo_root / 'requirements-dev.txt')
-    py_runtime, py_dev = pyproject_names(repo_root / 'pyproject.toml')
-
-    problems.extend(
-        _compare_sets('pyproject dependencies 与 requirements.txt', req_runtime, py_runtime)
-    )
-    problems.extend(
-        _compare_sets('pyproject dev 与 requirements-dev.txt', req_dev, py_runtime + py_dev)
-    )
-
-    lock_paths = [repo_root / _RUNTIME_LOCK, repo_root / _DEV_LOCK]
-    for path in lock_paths:
-        if not path.is_file():
-            problems.append(f'缺少锁文件: {path.name}')
-
-    runtime_entries = lock_entries(repo_root / _RUNTIME_LOCK)
-    dev_entries = lock_entries(repo_root / _DEV_LOCK)
-    problems.extend(
-        _compare_sets(f'{_RUNTIME_LOCK}', req_runtime, [e.name for e in runtime_entries])
-    )
-    problems.extend(_compare_sets(f'{_DEV_LOCK}', req_dev, [e.name for e in dev_entries]))
-
-    for lock_name, entries in ((_RUNTIME_LOCK, runtime_entries), (_DEV_LOCK, dev_entries)):
-        seen: set[str] = set()
-        for entry in entries:
-            if entry.name in seen:
-                problems.append(f'{lock_name} 重复依赖: {entry.name}')
-            seen.add(entry.name)
-            if not entry.version:
-                problems.append(f'{lock_name} 未固定版本: {entry.raw}')
+    if not (repo_root / _UV_LOCK).is_file():
+        problems.append(f'缺少锁文件: {_UV_LOCK}')
     return problems
 
 
@@ -442,12 +292,13 @@ def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
     返回：
         结果列表。
     """
+    runtime, dev = pyproject_names(repo_root / 'pyproject.toml')
     if profile == 'runtime':
-        names = set(requirement_names(repo_root / 'requirements.txt'))
+        names = set(runtime)
     elif profile == 'test':
-        names = set(requirement_names(repo_root / 'requirements.txt')) | _TEST_PACKAGES
+        names = set(runtime) | _TEST_PACKAGES
     elif profile == 'dev':
-        names = set(requirement_names(repo_root / 'requirements-dev.txt'))
+        names = set(runtime) | set(dev)
     else:
         raise ValueError(f'unknown profile: {profile}')
 
@@ -473,14 +324,14 @@ def print_report(repo_root: Path = REPO_ROOT) -> int:
     print(f'[INFO] python requires: {PYTHON_REQUIRES}')
     print(f'[INFO] python lock: {_PYTHON_VERSION_LOCK}')
     print(f'[INFO] python candidates: {", ".join(python_candidates(repo_root))}')
-    print('[INFO] requirements: requirements.txt, requirements-dev.txt')
-    print(f'[INFO] locks: {_RUNTIME_LOCK}, {_DEV_LOCK}')
+    print('[INFO] dependencies: pyproject.toml')
+    print(f'[INFO] lock: {_UV_LOCK}')
     problems = check_locks(repo_root)
     if problems:
         for problem in problems:
             print(f'[FAIL] {problem}', file=sys.stderr)
         return 1
-    print('[PASS] dependency declarations match lock files')
+    print('[PASS] Python dependency truth is pyproject.toml + uv.lock')
     return 0
 
 
@@ -514,7 +365,7 @@ def main(argv: list[str] | None = None) -> int:
     print(
         '[PASS] '
         + (
-            'dependency locks consistent'
+            'Python dependency contract present'
             if args.cmd == 'check-locks'
             else f'{args.profile} dependencies installed'
         )

@@ -73,15 +73,14 @@ description: 用于本仓库 session ingestion / token attribution 专项开发�
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
-- `python scripts/checks/check_java_module_boundaries.py` — 模块边界检查。
-- `python scripts/checks/check_manifest.py` — manifest 一致性校验。
-- `python scripts/gates/cli.py` — 全量 required quality gates。
+- `./gradlew check` — 模块边界检查。
+- `python3 scripts/gates/cli.py --tier required` — 收口前 required quality gates。
 
 选择策略：
 
-- 只改 parser 或数据模型 → 至少运行 `test` + `check_java_module_boundaries.py`。
-- 改 schema 契约 → 追加 `check_manifest.py`。
-- 收口前 → 运行 `python scripts/gates/cli.py`。
+- 只改 parser 或数据模型 → 至少运行 `test` + `Gradle check`。
+- 改 schema 契约 → 运行 `test` + `Gradle check`，由 Java 测试验证真实 schema 语义。
+- 收口前 → 运行 `python3 scripts/gates/cli.py --tier required`。
 
 ## 输出格式
 

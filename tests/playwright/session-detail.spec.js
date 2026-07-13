@@ -13,9 +13,8 @@
  * 9. 长会话（100 轮）性能和 DOM 节点预算
  *
  * 环境准备：
- *   1. 启动测试服务：python3 tests/support/start_fixture_server.py
- *      或启动实际服务：./scripts/session-browser.sh serve
- *   2. 运行测试：PW_SESSION_URL=http://127.0.0.1:19099/sessions/claude_code/<session-id> npx playwright test
+ *   1. 根 playwright.config.js 自动启动真实 Java fixture server。
+ *   2. 运行测试：npx playwright test --config=playwright.config.js session-detail.spec.js
  *
  * 更新截图基线：
  *   npx playwright test --update-snapshots
@@ -111,7 +110,7 @@ test.describe('会话详情 — Phase 1', () => {
     sessionUrl = resolveSessionUrl();
   });
 
-  test('[UI-SD-001] 页面加载包含摘要和 trace 面板 — 无控制台错误', async ({ page }) => {
+  test('[UI-SD-001][UI-SD-016] 页面加载包含摘要和 trace 面板 — 无控制台错误', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     const consoleErrors = [];
@@ -257,7 +256,7 @@ test.describe('会话详情 — Phase 1', () => {
     }
   });
 
-  test('[UI-SD-005] 展开全部 / 折叠全部功能正常', async ({ page }) => {
+  test('[UI-SD-005][UI-SD-022][UI-INTERACTION-007] 展开全部 / 折叠全部功能正常', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await gotoSessionDetail(page, sessionUrl);
@@ -302,7 +301,7 @@ test.describe('会话详情 — Phase 1', () => {
     expect(visibleCountAfterExpand).toBeGreaterThanOrEqual(0);
   });
 
-  test('[UI-SD-006] 轮次切换会按需加载并切换详情', async ({ page }) => {
+  test('[UI-SD-006][UI-SD-024] 轮次切换会按需加载并切换详情', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await gotoSessionDetail(page, sessionUrl);
@@ -457,7 +456,7 @@ test.describe('会话详情 — Phase 1', () => {
       .toBe(true);
   }
 
-  test('[UI-SD-008] payload 弹窗正常打开和关闭', async ({ page }) => {
+  test('[UI-SD-008][UI-INTERACTION-006] payload 弹窗正常打开和关闭', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     const setup = await preparePayloadModal(page);
@@ -548,7 +547,7 @@ test.describe('会话详情 — Phase 1', () => {
     expect(tooltipText, 'tooltip should keep structural labels only; numeric correctness is API-tested').toContain('Token Breakdown');
   });
 
-  test('[UI-SD-034] API trace rows 保留表格单元格结构', async ({ page }) => {
+  test('[UI-SD-017][UI-SD-034] API trace rows 保留表格单元格结构', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -778,7 +777,7 @@ test.describe('会话详情 — Phase 1', () => {
 
   // ── Tab 切换测试（SD-19） ─────────────────────────────────────────
 
-  test('[UI-SD-010] 只渲染 trace 顶层视图', async ({ page }) => {
+  test('[UI-SD-010][UI-SD-023] 只渲染 trace 顶层视图', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await gotoSessionDetail(page, sessionUrl);

@@ -4,7 +4,6 @@
 
 from __future__ import annotations
 
-import json
 from typing import TYPE_CHECKING
 
 from scripts.agent_runtime.paths import ensure_runtime_dirs
@@ -12,8 +11,6 @@ from scripts.agent_runtime.paths import ensure_runtime_dirs
 from ..evidence import append_jsonl, utc_now
 
 if TYPE_CHECKING:
-    from pathlib import Path
-
     from scripts.agent_runtime.context import HookContext
     from scripts.agent_runtime.paths import RepoPaths
 
@@ -38,16 +35,3 @@ def record_config_change(paths: RepoPaths, ctx: HookContext) -> None:
 
 
 # 验证settings JSON。
-def validate_settings_json(repo_root: Path) -> tuple[bool, str]:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        由success flag 和 user-facing diagnostic message. 无效 JSON 返回组成的 tuple。 ``false`` instead of raising so callers can 报告 controlled 失败项。
-    """
-    path = repo_root / '.claude/settings.json'
-    try:
-        json.loads(path.read_text(encoding='utf-8'))
-        return True, 'settings.json JSON 格式有效。'
-    except Exception as exc:
-        return False, f'settings.json JSON 格式错误: {exc}'

@@ -48,5 +48,5 @@
 | Term | Definition |
 |------|-----------|
 | **shared_skills gate** | 所有 agent 共享的技能层。本 skill 通过此 gate 暴露给 agent。 |
-| **quality_gates** | 变更必须通过的检查列表。本 skill 要求 `gradle test` 和 `check_manifest.py`。 |
+| **quality_gates** | 变更必须通过的检查列表。本 skill 要求 Java 测试和 `Gradle check`。 |
 | **OpenSpec change** | 规格变更流程。所有 spec 变更必须走 OpenSpec。 |

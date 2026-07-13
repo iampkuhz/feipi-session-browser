@@ -23,33 +23,11 @@ jobs:
         with:
           python-version: "3.12"
 
+      - name: Verify dependency lock
+        run: uv lock --check
+
       - name: Install dependencies
-        run: uv sync --extra dev
+        run: uv sync --frozen --extra dev
 
-      - name: Format check
-        run: ./scripts/session-browser.sh format-check
-
-      - name: Ruff lint
-        run: ./scripts/session-browser.sh lint
-
-      - name: Pyright
-        run: ./scripts/session-browser.sh type
-
-      - name: Docstring checks
-        run: ./scripts/session-browser.sh doc
-
-      - name: Tests with coverage
-        run: ./scripts/session-browser.sh coverage
-
-      - name: Security and dependency checks
-        run: |
-          ./scripts/session-browser.sh audit
-          ./scripts/session-browser.sh deps-check
-
-      - name: Complexity and dead code checks
-        run: |
-          ./scripts/session-browser.sh complexity
-          ./scripts/session-browser.sh dead-code
-
-      - name: Required quality gates
-        run: python scripts/checks/run_required_quality_gates.py --include-session-detail --change-id ci-quality
+      - name: Full quality gates
+        run: python3 scripts/gates/cli.py --tier full

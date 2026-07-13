@@ -13,16 +13,18 @@ ROOT = Path(__file__).resolve().parents[1]
 SESSIONCTL = ROOT / "scripts" / "harness" / "sessionctl.py"
 
 from scripts.agent_runtime.paths import identity_from_values  # noqa: E402
-from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
-from scripts.agent_runtime.stop.evidence import collect_run_changed_files  # noqa: E402
-from scripts.harness import sessionctl, stop_entry  # noqa: E402
-from scripts.harness.primary_session import (  # noqa: E402
+from scripts.agent_runtime.session import finalize as session_finalize  # noqa: E402
+from scripts.agent_runtime.session import lifecycle as sessionctl  # noqa: E402
+from scripts.agent_runtime.session.contract import (  # noqa: E402
     resolve_git_common_dir,
     resolve_repo_key,
     resolve_runtime_root,
     validate_run_write_authorization,
 )
-from scripts.harness.sessionctl import classify_tool_call  # noqa: E402
+from scripts.agent_runtime.session.lifecycle import classify_tool_call  # noqa: E402
+from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
+from scripts.agent_runtime.stop import pipeline as stop_pipeline  # noqa: E402
+from scripts.agent_runtime.stop.evidence import collect_run_changed_files  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -111,7 +113,7 @@ def install_fake_stop_pass(monkeypatch):
         )
         return 0
 
-    monkeypatch.setattr(stop_entry, "run_stop", fake_run_stop)
+    monkeypatch.setattr(stop_pipeline, "run_stop", fake_run_stop)
 
 
 def stop_with_fake_pass(repo, record, monkeypatch, capsys):
@@ -124,7 +126,7 @@ def stop_with_fake_pass(repo, record, monkeypatch, capsys):
 
 
 def finalize_in_process(repo, record, capsys):
-    result = sessionctl.cmd_finalize(
+    result = session_finalize.cmd_finalize(
         argparse.Namespace(repo_root=str(repo), run_id=record["runId"])
     )
     output = json.loads(capsys.readouterr().out)
@@ -1018,7 +1020,9 @@ def test_stop_validation_fingerprint_detects_same_path_content_change(
     assert current_facts["uncommittedFiles"] == ["README.md"]
     assert current_facts["checkoutFingerprint"] != original_fingerprint
     assert (
-        sessionctl._fresh_validation_error(validated, current_facts, require_target_match=False)
+        session_finalize._fresh_validation_error(
+            validated, current_facts, require_target_match=False
+        )
         == "checkout Git state changed after Stop validation"
     )
 
@@ -1184,7 +1188,7 @@ def test_finalize_target_advance_revalidation_failure_handoffs_and_exits_two(
         )
         return 2
 
-    monkeypatch.setattr(stop_entry, "run_stop", fake_stop_failure)
+    monkeypatch.setattr(stop_pipeline, "run_stop", fake_stop_failure)
     result, summary = finalize_in_process(linked, record, capsys)
 
     assert result == 2

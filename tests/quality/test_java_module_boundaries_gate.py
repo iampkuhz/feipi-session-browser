@@ -57,11 +57,12 @@ def test_java_module_build_file_is_known_java_build_path() -> None:
     assert classification.quality_target == 'java-build'
 
 
-def test_java_module_boundaries_gate_command_uses_repo_script() -> None:
-    """quality gate runner 应调用仓库内模块边界脚本。"""
+def test_java_module_boundaries_gate_uses_java_architecture_suite() -> None:
+    """模块边界只由 Gradle Java architecture suite 实现。"""
     command = gate_executor.gate_command('javaModuleBoundaries', Path.cwd(), 'java-src')
 
-    assert command[-1].endswith('scripts/checks/check_java_module_boundaries.py')
+    assert command[-1] == 'check'
+    assert not any('scripts/checks/' in part for part in command)
 
 
 def test_reuse_standard_cpd_gate_command_uses_incremental_wrapper(

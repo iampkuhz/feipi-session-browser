@@ -111,11 +111,11 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 仓库通过三平台 settings/hooks 接入强制层；公开入口和目录职责以 `scripts/README.md` 为导航，
 Runtime 机器契约以 `harness/agent-runtime.manifest.yaml` 为真源：
 
-- **PreToolUse：** manifest 登记的三平台薄 wrapper 委托共享 Runtime 做写授权、Bash 策略和
+- **PreToolUse：** manifest 登记的三平台配置把 `client/event` 传给唯一共享 dispatcher，由它委托 Runtime 做写授权、Bash 策略和
   mutation 前证据；OpenSpec 路径策略由 `scripts/hooks/guard_openspec_change.py` 提供。
-- **PostToolUse/Failure/SessionEnd：** 仍由 manifest 登记的 wrapper 委托共享 Runtime 补齐
+- **PostToolUse/Failure/SessionEnd：** 仍由 manifest 登记的配置通过共享 dispatcher 委托 Runtime 补齐
   evidence、记录失败并精确释放 lease；本 skill 不复制平台 Hook 矩阵。
-- **Stop：** 平台薄 wrapper 转发到 `scripts/harness/stop_entry.py`，再由
+- **Stop：** 共享 dispatcher 转发到 `scripts/harness/stop_entry.py`，再由
   `scripts/agent_runtime/stop/pipeline.py` 执行七阶段；Gate 阶段只调用统一 service。
 - **Required Gate：** Stop/handoff 前唯一人工命令为
   `python3 scripts/gates/cli.py --tier required`；不得直接调用内部 Gate 模块。

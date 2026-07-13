@@ -12,14 +12,14 @@ from typing import Any
 from scripts.agent_runtime import paths as runtime_paths
 from scripts.agent_runtime.context import HookContext
 from scripts.agent_runtime.identity import identity_from_hook_context
-from scripts.gates.cli import run_service
-from scripts.harness.primary_session import (
+from scripts.agent_runtime.session.contract import (
     ensure_private_directory,
     load_run_record,
     resolve_runtime_root,
     validate_checkout_record,
     validate_run_record,
 )
+from scripts.gates.cli import run_service
 
 from . import evidence, report
 from .model import StopContext, StopPhase, StopTerminalState
@@ -199,9 +199,7 @@ def _gate(ctx: StopContext) -> None:
             ctx.failures.append(f'post-gate Git evidence unavailable: {exc}')
 
 
-def _write_report(ctx: StopContext) -> None:
-    """阶段六：直接消费 GateServiceResult 写入并校验 runtime report。"""
-    ctx.phase = StopPhase.REPORT
+def _persist_runtime_report(ctx: StopContext, *, gates_ok: bool | None = None) -> None:
     assert ctx.repo_root and ctx.report_path
     report.write_runtime_report(
         ctx.report_path,
@@ -209,12 +207,19 @@ def _write_report(ctx: StopContext) -> None:
         change_id=ctx.change_id,
         changed_files=ctx.changed_files,
         targets=ctx.targets,
-        gates_ok=ctx.gates_ok,
+        gates_ok=ctx.gates_ok if gates_ok is None else gates_ok,
         failures=ctx.failures,
         git_evidence=ctx.git_evidence,
         service_result=ctx.gate_result,
         read_only=ctx.read_only,
     )
+
+
+def _write_report(ctx: StopContext) -> None:
+    """阶段六：直接消费 GateServiceResult 写入并校验 runtime report。"""
+    ctx.phase = StopPhase.REPORT
+    assert ctx.repo_root and ctx.report_path
+    _persist_runtime_report(ctx)
     if not ctx.failures:
         errors = report.validate_runtime_report(
             identity=ctx.identity,
@@ -247,7 +252,7 @@ def _finalize_registry(ctx: StopContext) -> None:
     except Exception as exc:
         ctx.failures.append(f'Stop recovery update failed: {exc}')
     try:
-        from scripts.harness.sessionctl import record_stop_result
+        from scripts.agent_runtime.session.lifecycle import record_stop_result
 
         requested_exit = 2 if ctx.failures else 0
         ctx.outcome_record, _ = record_stop_result(
@@ -280,18 +285,7 @@ def _finalize_registry(ctx: StopContext) -> None:
                 change_id=ctx.change_id,
             )
             ctx.failures.extend(extra)
-            report.write_runtime_report(
-                ctx.report_path,
-                identity=ctx.identity,
-                change_id=ctx.change_id,
-                changed_files=ctx.changed_files,
-                targets=ctx.targets,
-                gates_ok=False,
-                failures=ctx.failures,
-                git_evidence=ctx.git_evidence,
-                service_result=ctx.gate_result,
-                read_only=ctx.read_only,
-            )
+            _persist_runtime_report(ctx, gates_ok=False)
     except Exception as exc:
         ctx.failures.append(f'Stop Registry result update failed: {exc}')
 

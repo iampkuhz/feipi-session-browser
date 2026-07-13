@@ -23,7 +23,7 @@
    - 读取 `blockingFailures` 获取失败代码和信息。
 
 2. **读取具体门禁结果 JSON**。
-   - `staticCssContract`：读取 `check_session_detail_static.py` 的输出。
+   - `staticCssContract`：读取 `web.session-detail-static` 的输出。
    - `browserLayout`：读取 `session-detail-layout-result.json` 获取计算指标。
 
 3. **将失败代码映射到根因**：
@@ -48,7 +48,7 @@
 
 6. **提供精确验证命令**：
    - `python3 scripts/gates/cli.py --target session-detail`
-   - 或具体门禁：`python3 scripts/checks/check_session_detail_static.py`
+   - 或具体门禁：`python3 -m scripts.checks web.session-detail-static`
 
 ## 输出格式
 

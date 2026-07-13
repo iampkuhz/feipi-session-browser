@@ -133,6 +133,7 @@ class WebPerformanceContractTest {
 
     @Test
     @DisplayName("空列表显示 empty state")
+    // 对应 UI-SESSIONS-017 空列表契约。
     void emptyListShowsEmptyState() {
       WebCompositionRoot webRoot = createWebRoot();
       JavalinTest.test(

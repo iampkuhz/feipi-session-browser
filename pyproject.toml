@@ -8,18 +8,13 @@ dependencies = ["pyyaml"]
 
 [project.optional-dependencies]
 dev = [
-  "beautifulsoup4",
   "bandit",
   "coverage",
   "deptry",
-  "interrogate",
   "pip-audit",
   "pytest",
   "pytest-cov",
   "pytest-xdist",
-  "pydoclint",
-  "pyright",
-  "playwright",
   "pre-commit",
   "ruff",
   "vulture",
@@ -35,7 +30,6 @@ testpaths = ["tests"]
 addopts = "-n auto"
 markers = [
     "contract_case: Mark test with acceptance contract case ID(s)",
-    "playwright: Mark pytest tests that exercise browser DOM via Playwright",
 ]
 
 [tool.coverage.run]
@@ -57,7 +51,7 @@ exclude_lines = [
 ]
 
 [tool.ruff]
-target-version = "py310"
+target-version = "py312"
 line-length = 100
 src = ["scripts", "tests"]
 extend-exclude = [
@@ -67,12 +61,10 @@ extend-exclude = [
   ".venv",
   ".pytest_cache",
   "__pycache__",
-  "tests/pages",
   "tests/performance",
   "tests/playwright",
   "tests/rendering",
   "tests/session_detail",
-  "tests/sessions_list",
   "tests/ui",
 ]
 
@@ -88,105 +80,33 @@ select = [
   "F",
   "I",
   "N",
-  "D",
   "UP",
   "B",
   "A",
   "C4",
-  "SIM",
   "RET",
-  "PTH",
   "TCH",
   "RUF",
-  "ANN",
-  "PL",
+  "PLC",
+  "PLE",
+  "PLW",
 ]
 ignore = [
-  "ANN",
-  "D",
-  "D203",
-  "D213",
   "E501",
   "PLC0415",
-  "PLR",
   "PLW0603",
   "PLW1510",
   "PLW2901",
-  "PTH",
   "RET504",
   "RUF001",
   "RUF002",
   "RUF003",
   "RUF059",
   "RUF100",
-  "SIM",
   "B007",
   "E741",
   "F541",
 ]
-
-[tool.ruff.lint.pydocstyle]
-convention = "google"
-
-[tool.ruff.lint.per-file-ignores]
-"tests/**/*.py" = [
-  "D100",
-  "D101",
-  "D102",
-  "D103",
-  "ANN201",
-]
-
-[tool.pyright]
-include = ["scripts", "tests/harness", "tests/hooks", "tests/misc", "tests/quality"]
-exclude = [
-  "tmp",
-  "data",
-  "output",
-  ".venv",
-  "**/__pycache__",
-]
-venvPath = "."
-venv = ".venv"
-pythonVersion = "3.12"
-typeCheckingMode = "standard"
-reportMissingImports = "none"
-reportMissingTypeStubs = false
-reportArgumentType = "none"
-reportAttributeAccessIssue = "none"
-reportCallIssue = "none"
-reportGeneralTypeIssues = "none"
-reportInvalidTypeForm = "none"
-reportOperatorIssue = "none"
-reportOptionalSubscript = "none"
-reportOptionalMemberAccess = "none"
-reportReturnType = "none"
-reportUnknownMemberType = "none"
-reportUnknownArgumentType = "none"
-reportUnknownVariableType = "none"
-reportPrivateUsage = "none"
-
-[tool.interrogate]
-paths = ["scripts"]
-ignore-init-method = false
-ignore-init-module = true
-ignore-magic = true
-ignore-module = false
-ignore-nested-functions = false
-ignore-private = false
-ignore-property-decorators = false
-fail-under = 90
-verbose = 1
-quiet = false
-color = true
-
-[tool.pydoclint]
-style = "google"
-arg-type-hints-in-docstring = false
-check-return-types = false
-check-yield-types = false
-skip-checking-short-docstrings = false
-exclude = "\\.venv|tmp|data|output|__pycache__"
 
 [tool.bandit]
 targets = ["scripts"]
@@ -204,11 +124,8 @@ extend_exclude = [
   "dist",
 ]
 
-[tool.deptry.per_rule_ignores]
-DEP004 = ["bs4", "playwright"]
-
 [tool.vulture]
-paths = ["scripts", "tests/harness", "tests/hooks", "tests/misc", "tests/quality"]
+paths = ["scripts", "tests/harness", "tests/misc", "tests/quality"]
 exclude = [
   "tmp",
   "data",

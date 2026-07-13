@@ -176,13 +176,6 @@ tasks.named("check") {
 // ============================================================
 tasks.withType<Tar>().configureEach {
     compression = Compression.GZIP
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
-}
-
-tasks.withType<Zip>().configureEach {
-    isPreserveFileTimestamps = false
-    isReproducibleFileOrder = true
 }
 
 distributions {

@@ -18,10 +18,10 @@
 
 | Gate | Result |
 |---|---|
-| `check_session_detail_static.py` | <PASS/FAIL> |
-| `check_js_action_handlers.py` | <PASS/FAIL/skipped> |
+| `web.session-detail-static` | <PASS/FAIL> |
+| `web.js-action-handlers` | <PASS/FAIL/skipped> |
 | fixture-based 导出测试 | <PASS/FAIL/skipped> |
-| `check_agent_entry_parity.py` | <PASS/FAIL> |
+| `agent.entry-parity` | <PASS/FAIL> |
 
 ## Risks
 

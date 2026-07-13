@@ -16,7 +16,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.harness import sessionctl  # noqa: E402
+from scripts.agent_runtime.git_state import run as git  # noqa: E402
+from scripts.agent_runtime.session.errors import SessionctlError  # noqa: E402
+from scripts.agent_runtime.session.finalize import cmd_finalize  # noqa: E402
+from scripts.agent_runtime.session.lifecycle import cmd_stop, repo_root_from_arg  # noqa: E402
+from scripts.agent_runtime.session.registry import Registry  # noqa: E402
 
 
 # 运行 Git 命令并返回文本结果。
@@ -30,7 +34,7 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
         Git 子进程结果。
     """
 
-    return sessionctl.git(repo, *args, check=check)
+    return git(repo, *args, check=check)
 
 
 # 将 NUL 分隔的 Git 路径输出转换为集合。
@@ -90,13 +94,13 @@ def _normalize_files(values: Sequence[str]) -> set[str]:
     for value in values:
         path = PurePosixPath(value)
         if not value or value.startswith("/") or path.is_absolute() or ".." in path.parts:
-            raise sessionctl.SessionctlError(f"invalid repository-relative file: {value!r}")
+            raise SessionctlError(f"invalid repository-relative file: {value!r}")
         normalized = path.as_posix()
         if normalized in {"", "."}:
-            raise sessionctl.SessionctlError(f"invalid repository-relative file: {value!r}")
+            raise SessionctlError(f"invalid repository-relative file: {value!r}")
         result.add(normalized)
     if not result:
-        raise sessionctl.SessionctlError("at least one --file is required")
+        raise SessionctlError("at least one --file is required")
     return result
 
 
@@ -134,32 +138,32 @@ def _validate_preconditions(repo: Path, record: Mapping[str, object], expected: 
     branch = _git(repo, "branch", "--show-current").stdout.strip()
     initial = record.get("initialDirtySnapshot")
     if repo.resolve() != checkout:
-        raise sessionctl.SessionctlError("selected checkout does not match run checkout")
+        raise SessionctlError("selected checkout does not match run checkout")
     if record.get("checkoutKind") != "linked-worktree":
-        raise sessionctl.SessionctlError("automatic completion requires a linked worktree")
+        raise SessionctlError("automatic completion requires a linked worktree")
     if not branch:
-        raise sessionctl.SessionctlError("automatic completion requires a named branch")
+        raise SessionctlError("automatic completion requires a named branch")
     recorded_branch = str(record.get("branch") or "")
     if (recorded_branch and branch != recorded_branch) or branch == target:
-        raise sessionctl.SessionctlError("run branch is missing, changed, or equals target branch")
+        raise SessionctlError("run branch is missing, changed, or equals target branch")
     if not isinstance(initial, Mapping) or bool(initial.get("dirty")):
-        raise sessionctl.SessionctlError("initial dirty baseline cannot be safely attributed")
+        raise SessionctlError("initial dirty baseline cannot be safely attributed")
     if not primary.exists():
-        raise sessionctl.SessionctlError("primary checkout missing")
+        raise SessionctlError("primary checkout missing")
     if _git(primary, "branch", "--show-current").stdout.strip() != target:
-        raise sessionctl.SessionctlError("primary checkout is not on the recorded target branch")
+        raise SessionctlError("primary checkout is not on the recorded target branch")
     if _git(primary, "status", "--porcelain").stdout:
-        raise sessionctl.SessionctlError("primary checkout dirty")
+        raise SessionctlError("primary checkout dirty")
     if _staged_paths(repo):
-        raise sessionctl.SessionctlError("pre-existing staged changes cannot be safely attributed")
+        raise SessionctlError("pre-existing staged changes cannot be safely attributed")
     forbidden = record.get("forbiddenPaths")
     forbidden_values = forbidden if isinstance(forbidden, list) else []
     blocked = sorted(path for path in expected if _is_forbidden(path, forbidden_values))
     if blocked:
-        raise sessionctl.SessionctlError(f"forbidden files cannot be committed: {blocked}")
+        raise SessionctlError(f"forbidden files cannot be committed: {blocked}")
     actual = _changed_paths(repo)
     if actual != expected:
-        raise sessionctl.SessionctlError(
+        raise SessionctlError(
             f"explicit file scope does not match Git changes: expected={sorted(expected)}, "
             f"actual={sorted(actual)}"
         )
@@ -175,7 +179,7 @@ def _run_stop(repo: Path, run_id: str) -> int:
         Stop 命令退出码。
     """
 
-    return sessionctl.cmd_stop(
+    return cmd_stop(
         argparse.Namespace(
             repo_root=str(repo),
             run_id=run_id,
@@ -193,9 +197,9 @@ def complete_change(args: argparse.Namespace) -> int:
         完成并集成时返回零；阻断或需要 handoff 时返回非零。
     """
 
-    repo = sessionctl.repo_root_from_arg(args.repo_root)
+    repo = repo_root_from_arg(args.repo_root)
     expected = _normalize_files(args.file)
-    registry = sessionctl.Registry(repo)
+    registry = Registry(repo)
     with registry.locked():
         record = registry.load_run(args.run_id)
     _validate_preconditions(repo, record, expected)
@@ -209,24 +213,22 @@ def complete_change(args: argparse.Namespace) -> int:
     _git(repo, "add", "-A", "--", ":/")
     staged = _staged_paths(repo)
     if staged != expected:
-        raise sessionctl.SessionctlError(
+        raise SessionctlError(
             f"staged file scope mismatch: expected={sorted(expected)}, staged={sorted(staged)}"
         )
     if _git(repo, "diff", "--quiet", "--", check=False).returncode != 0:
-        raise sessionctl.SessionctlError("unstaged changes remain after exact staging")
+        raise SessionctlError("unstaged changes remain after exact staging")
     if _git(repo, "ls-files", "--others", "--exclude-standard", "--").stdout:
-        raise sessionctl.SessionctlError("untracked files remain after exact staging")
+        raise SessionctlError("untracked files remain after exact staging")
 
     commit = _git(repo, "commit", "-m", args.message, check=False)
     if commit.returncode != 0:
-        raise sessionctl.SessionctlError(commit.stderr.strip() or "git commit failed")
+        raise SessionctlError(commit.stderr.strip() or "git commit failed")
     if _git(repo, "status", "--porcelain").stdout:
-        raise sessionctl.SessionctlError(
-            "checkout changed during commit; preserving branch for handoff"
-        )
+        raise SessionctlError("checkout changed during commit; preserving branch for handoff")
     if _run_stop(repo, args.run_id) != 0:
         return 2
-    return sessionctl.cmd_finalize(argparse.Namespace(repo_root=str(repo), run_id=args.run_id))
+    return cmd_finalize(argparse.Namespace(repo_root=str(repo), run_id=args.run_id))
 
 
 # 构造命令行解析器。
@@ -257,7 +259,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     try:
         return complete_change(args)
-    except (sessionctl.SessionctlError, subprocess.CalledProcessError, OSError) as exc:
+    except (SessionctlError, subprocess.CalledProcessError, OSError) as exc:
         print(json.dumps({"status": "HANDOFF_REQUIRED", "reason": str(exc)}), file=sys.stderr)
         return 2
 

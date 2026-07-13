@@ -5,32 +5,14 @@
 
 from __future__ import annotations
 
-import argparse
 import re
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
+from scripts.checks._framework import argument_parser
+
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(_REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(_REPO_ROOT))
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
-TRIGGER_PATTERNS = [
-    'docs/acceptance-contracts/**/*.md',
-    'tests/**/*.py',
-    'tests/**/*.js',
-    'tests/**/*.ts',
-    'scripts/checks/validate_acceptance_contracts.py',
-    'tests/quality/test_contract_case_specs.py',
-    'pyproject.toml',
-]
 
 EXPECTED_FEATURE_TABLES = {
     'DATA_INDEX.md',
@@ -245,14 +227,9 @@ def main() -> int:
     """返回：
     进程退出码。
     """
-    parser = argparse.ArgumentParser(description='Validate acceptance contract tables.')
+    parser = argument_parser(description='Validate acceptance contract tables.')
     parser.add_argument('--repo-root', default='.', help='Repository root')
-    add_changed_files_arg(parser)
     args = parser.parse_args()
-
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = parse_changed_files(args.changed_files)
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     repo_root = Path(args.repo_root).resolve()
     result = validate_acceptance_contracts(repo_root)
@@ -266,7 +243,3 @@ def main() -> int:
         return 1
     print('校验通过')
     return 0
-
-
-if __name__ == '__main__':
-    sys.exit(main())

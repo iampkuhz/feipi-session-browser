@@ -6,38 +6,19 @@
 from __future__ import annotations
 
 import ast
-import re
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from scripts.agent_runtime import policy as runtime_policy
+from scripts.checks._framework import repository_root
 
-from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
+ROOT = repository_root()
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 GATE_NAME = 'protectedRootsSync'
 
-from scripts.checks._trigger import (  # noqa: E402
-    parse_changed_files,
-    skip_if_not_triggered,
-)
 
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.agents/**',
-    '.claude/**',
-    '.codex/**',
-    '.qoder/**',
-    'skills/**',
-    'harness/**',
-    'scripts/agent_runtime/**/*.py',
-    'scripts/hooks/**/*.py',
-    'scripts/harness/**/*.py',
-    'scripts/harness/**/*.sh',
-    'scripts/checks/**/*.py',
-]
 REQUIRED_ROOTS = [
     '.claude/',
     '.codex/',
@@ -133,24 +114,10 @@ def check_stop_check_uses_helper(roots: list[str]) -> list[str]:
     return errors
 
 
-def _extract_shell_array(text: str, name: str) -> list[str] | None:
-    match = re.search(rf'{re.escape(name)}=\((.*?)\)', text, flags=re.S)
-    if not match:
-        return None
-    return re.findall(r'["\']([^"\']+)["\']', match.group(1))
-
-
-def check_shell_hooks_use_helper(roots: list[str]) -> list[str]:
-    """检查 `check_shell_hooks_use_helper` 对应的仓库契约；发现不一致时返回结构化失败信息。"""
-    errors: list[str] = []
-    for rel in ['.codex/hooks/pre_write_guard.sh', '.qoder/hooks/pre_write_guard.sh']:
-        text = _read(rel)
-        array_values = _extract_shell_array(text, 'PROTECTED_ROOTS')
-        if array_values is not None and _normalize_roots(array_values) != roots:
-            errors.append(f'{rel} PROTECTED_ROOTS hardcoded array 与 manifest 不一致')
-        if array_values is not None and 'scripts.agent_runtime.policy' not in text:
-            errors.append(f'{rel} 维护 hardcoded protected roots 且未调用 runtime policy helper')
-    return errors
+def check_dispatcher_has_no_policy_copy() -> list[str]:
+    """确保唯一 dispatcher 只做适配，不复制 protected-root 策略。"""
+    text = _read('scripts/harness/hook_dispatch.py')
+    return ['hook_dispatch.py 不得复制 PROTECTED_ROOTS 策略'] if 'PROTECTED_ROOTS' in text else []
 
 
 def check_report_gate_uses_helper() -> list[str]:
@@ -177,29 +144,16 @@ def check_agents_doc_covers_manifest(roots: list[str]) -> list[str]:
 
 def main() -> int:
     """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-    else:
-        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     roots = manifest_roots(ROOT)
     errors: list[str] = []
     errors.extend(check_required_manifest_roots(roots))
     errors.extend(check_agents_doc_covers_manifest(roots))
     errors.extend(check_stop_check_uses_helper(roots))
-    errors.extend(check_shell_hooks_use_helper(roots))
+    errors.extend(check_dispatcher_has_no_policy_copy())
     errors.extend(check_report_gate_uses_helper())
     errors.extend(check_rules_sync_uses_helper())
     if errors:
         return fail(errors)
     print(f'[{GATE_NAME}] PASS')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

@@ -58,14 +58,6 @@ class RepoPaths:
         """
         return self.agent_log_dir / 'hook-events.jsonl'
 
-    # 维护命令 event。
-    @property
-    def command_events(self) -> Path:
-        """返回：
-        解析后的 HookContext；失败时携带 parse_error。
-        """
-        return self.agent_log_dir / 'command-events.jsonl'
-
     # 维护任务 evidence 目录。
     @property
     def task_evidence_dir(self) -> Path:
@@ -81,14 +73,6 @@ class RepoPaths:
         解析后的 HookContext；失败时携带 parse_error。
         """
         return quality_dir(self.repo_root, self.identity)
-
-    # 维护stop summary。
-    @property
-    def stop_summary(self) -> Path:
-        """返回：
-        解析后的 HookContext；失败时携带 parse_error。
-        """
-        return self.agent_log_dir / 'stop-check-summary.json'
 
     # 维护active change。
     @property

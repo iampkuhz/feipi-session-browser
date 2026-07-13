@@ -3,7 +3,6 @@
  *
  * Verifies that all major pages render correctly at MacBook viewport sizes.
  * This spec requires a running session-browser server and Playwright browser binaries.
- * If Playwright environment is unavailable, use tests/pages/test_macbook_smoke.py instead.
  */
 import { test, expect } from '@playwright/test';
 

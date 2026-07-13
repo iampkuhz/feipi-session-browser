@@ -2,7 +2,7 @@ default_stages: [pre-commit]
 
 repos:
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.15.18
+    rev: v0.15.21
     hooks:
       - id: ruff-format
         types_or: [python, pyi]
@@ -12,16 +12,12 @@ repos:
 
   - repo: local
     hooks:
-      - id: pyright
-        name: pyright
-        entry: bash -c './scripts/session-browser.sh type'
-        language: system
-        types_or: [python, pyi]
-        pass_filenames: false
-
-      - id: python-docstrings
-        name: python docstrings
-        entry: bash -c './scripts/session-browser.sh doc'
+      - id: python-comment-language
+        name: python comment language
+        entry: >-
+          python3 -m scripts.checks source.comment-language
+          --script-comments scripts
+          --policy config/technical-terms.json
         language: system
         types_or: [python, pyi]
         pass_filenames: false
@@ -30,7 +26,7 @@ repos:
         name: python security
         entry: bash -c './scripts/session-browser.sh audit'
         language: system
-        files: ^(pyproject\.toml|requirements(-dev)?(\.lock|\.txt)?)$
+        files: ^(pyproject\.toml|uv\.lock)$
         pass_filenames: false
 
       - id: python-complexity
@@ -51,5 +47,5 @@ repos:
         name: python dependencies
         entry: bash -c './scripts/session-browser.sh deps-check'
         language: system
-        files: ^(pyproject\.toml|requirements(-dev)?(\.lock|\.txt)?)$
+        files: ^(pyproject\.toml|uv\.lock)$
         pass_filenames: false

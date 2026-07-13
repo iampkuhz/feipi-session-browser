@@ -11,7 +11,7 @@ import json
 import os
 import sys
 from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -270,7 +270,7 @@ def default_change_id() -> str:
     """返回：
     default change id 字符串。
     """
-    return 'adhoc-' + datetime.now(timezone.utc).strftime('%Y%m%d')
+    return 'adhoc-' + datetime.now(UTC).strftime('%Y%m%d')
 
 
 # 读取JSON。

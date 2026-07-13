@@ -20,8 +20,8 @@
 ## 关键路径
 
 - `skills/authoring/feipi-privacy-redaction-dev/` — skill 源目录。
-- `scripts/checks/check_no_real_session_fixtures.py` — 真实 session fixture 门禁。
-- `scripts/checks/check_secret_like_content.py` — 类密钥内容门禁。
+- `shared check `repository.no-real-session-fixtures`` — 真实 session fixture 门禁。
+- `shared check `security.secret-like-content`` — 类密钥内容门禁。
 - `tests/fixtures/synthetic/` — synthetic fixture 目录。
 - `harness/skill-registry.yaml` — skill registry。
 - `harness/agent-runtime.manifest.yaml` — runtime manifest。
@@ -35,7 +35,7 @@
 
 ## 触发门禁
 
-- `check_no_real_session_fixtures.py` — 扫描测试 fixture、`docs/`、Qoder 配置和 harness report，检测真实 session 标记。
-- `check_secret_like_content.py` — 扫描 `tests/`、`docs/`、`java/`、agent 平台入口和共享 skill，检测 `sk-` token、`Authorization: Bearer`、`api_key` 赋值。
-- `check_skill_registry.py` — 确认 skill registry 条目完整。
-- `check_agent_runtime_manifest.py` — 确认 manifest 中 required skill 完整。
+- `repository.no-real-session-fixtures` — 扫描测试 fixture、`docs/`、Qoder 配置和 harness report，检测真实 session 标记。
+- `security.secret-like-content` — 扫描 `tests/`、`docs/`、`java/`、agent 平台入口和共享 skill，检测 `sk-` token、`Authorization: Bearer`、`api_key` 赋值。
+- `agent.skill-registry` — 确认 skill registry 条目完整。
+- `agent.runtime-manifest` — 确认 manifest 中 required skill 完整。

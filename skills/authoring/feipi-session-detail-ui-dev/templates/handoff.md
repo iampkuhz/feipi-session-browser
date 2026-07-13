@@ -29,20 +29,20 @@
 ## Validation
 
 ```bash
-python scripts/checks/check_session_detail_static.py
-python scripts/checks/check_css_ownership.py
+python3 -m scripts.checks web.session-detail-static
+python3 -m scripts.checks web.css-ownership
 ```
 
 按需追加：
 
 ```bash
-python scripts/checks/check_js_action_handlers.py
-python scripts/checks/check_no_legacy_css.py
-python scripts/checks/check_layout_inline_style.py
-python scripts/checks/check_session_detail_shell_css.py
-python scripts/checks/run_session_detail_interaction_gate.py
-python scripts/checks/run_session_detail_layout_gate.py
-python scripts/checks/check_raw_innerhtml.py
+python3 -m scripts.checks web.js-action-handlers
+python3 -m scripts.checks repository.repo-slimming
+python3 -m scripts.checks web.layout-inline-style
+python3 -m scripts.checks web.session-detail-static
+npx playwright test --config=playwright.config.js session-detail.spec.js session-detail-migrated-gates.spec.js
+npx playwright test --config=playwright.config.js session-detail-layout.spec.js
+python3 -m scripts.checks web.raw-innerhtml
 ```
 
 ## Expected output

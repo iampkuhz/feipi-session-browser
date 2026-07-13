@@ -4,8 +4,7 @@
   "private": true,
   "description": "Playwright E2E tests for feipi session browser",
   "devDependencies": {
-    "playwright": "^1.52.0",
-    "@playwright/test": "^1.52.0"
+    "@playwright/test": "^1.61.1"
   },
   "scripts": {
     "test": "playwright test",

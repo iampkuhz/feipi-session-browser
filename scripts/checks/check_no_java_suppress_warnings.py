@@ -5,25 +5,16 @@
 
 from __future__ import annotations
 
-import argparse
 import re
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import argument_parser, repository_root
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
+if TYPE_CHECKING:
+    from pathlib import Path
 
-# 触发模式：当变更文件匹配这些 pattern 时才运行检查。
-TRIGGER_PATTERNS = [
-    'java/**/src/main/java/**/*.java',
-]
+REPO_ROOT = repository_root()
+
 
 # 只扫描主源码，测试源码不在此门禁范围（PMD 也不扫描测试源码）。
 SCAN_GLOB = 'java/**/src/main/java/**/*.java'
@@ -77,19 +68,11 @@ def main() -> int:
     """返回：
     进程退出码。
     """
-    parser = argparse.ArgumentParser(
-        description='检查 Java 主源码中 @SuppressWarnings("PMD.") 的使用'
-    )
-    add_changed_files_arg(parser)
-    args = parser.parse_args()
-
-    # 自感知跳过：变更文件不匹配触发模式时直接 SKIP。
-    changed_files = parse_changed_files(getattr(args, 'changed_files', None))
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
+    parser = argument_parser(description='检查 Java 主源码中 @SuppressWarnings("PMD.") 的使用')
+    parser.parse_args()
 
     violations = scan_java_sources()
     if not violations:
-        print(f'PASS: no @SuppressWarnings("PMD.") found in main sources')
         return 0
 
     print(f'FAIL: found {len(violations)} @SuppressWarnings("PMD.") usage(s):')
@@ -99,7 +82,3 @@ def main() -> int:
     print('仓库规约：不使用 @SuppressWarnings 压制自定义 PMD 规则。')
     print('请修复源码以消除 PMD 违规，而非压制规则。')
     return 1
-
-
-if __name__ == '__main__':
-    sys.exit(main())

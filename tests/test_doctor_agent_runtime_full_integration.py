@@ -12,14 +12,17 @@ from scripts.gates.planner import (
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
-NEW_GATE_SCRIPTS = [
-    'scripts/checks/check_agent_runtime_isolation.py',
-    'scripts/checks/check_gate_bypass_resistance.py',
-    'scripts/checks/measure_gate_escape_rate.py',
-    'scripts/checks/check_protected_roots_sync.py',
-    'scripts/checks/check_qoder_runtime_parity.py',
-    'scripts/checks/check_hook_payload_compat.py',
-    'scripts/checks/check_subagent_handoff_protocol.py',
+NEW_SHARED_CHECKS = [
+    'agent.runtime-isolation',
+    'repository.gate-bypass',
+    'repository.gate-escape-rate',
+    'agent.protected-roots',
+    'agent.qoder-parity',
+    'agent.hook-payload',
+    'agent.subagent-handoff',
+]
+RUNTIME_REQUIRED_SHARED_CHECKS = [
+    check_id for check_id in NEW_SHARED_CHECKS if check_id != 'repository.gate-escape-rate'
 ]
 
 NEW_GATE_IDS = [
@@ -39,15 +42,15 @@ def _read(path: str) -> str:
 
 def test_doctor_mentions_new_agent_runtime_gates():
     doctor = _read('scripts/harness/doctor.sh')
-    for script in NEW_GATE_SCRIPTS:
-        assert script in doctor
+    for check_id in RUNTIME_REQUIRED_SHARED_CHECKS:
+        assert check_id in doctor
+    assert 'scripts/checks/check_' not in doctor
 
 
 def test_manifest_required_gates_include_new_gates():
     manifest = _read('harness/agent-runtime.manifest.yaml')
-    for script in NEW_GATE_SCRIPTS:
-        assert f'- {script}' in manifest
-        assert (REPO_ROOT / script).is_file()
+    for check_id in RUNTIME_REQUIRED_SHARED_CHECKS:
+        assert f'- {check_id}' in manifest
 
 
 def test_quality_targets_route_agent_config_to_runtime_gates():
@@ -68,10 +71,11 @@ def test_quality_targets_route_agent_config_to_runtime_gates():
 
 
 def test_gate_service_can_resolve_new_gate_commands():
-    for gate, script in zip(NEW_GATE_IDS, NEW_GATE_SCRIPTS, strict=True):
+    for gate, check_id in zip(NEW_GATE_IDS, NEW_SHARED_CHECKS, strict=True):
         cmd = gate_command(gate, REPO_ROOT, 'harness')
         assert cmd
-        assert script in cmd
+        assert cmd[1:3] == ['-m', 'scripts.checks']
+        assert check_id in cmd
     assert '--threshold' in gate_command('gateEscapeRate', REPO_ROOT, 'harness')
     assert '0' in gate_command('gateEscapeRate', REPO_ROOT, 'harness')
 

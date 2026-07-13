@@ -10,33 +10,25 @@
 - 文档中使用占位符 ~/.claude、~/.codex、~/.qoder。
 - synthetic fixture 明确标注 synthetic。
 - tests/fixtures/ 下使用合成用户名（如 test、demo）的 fixture。
-- docs/session-samples/ 下的文档样例。
 
 不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
 
 from __future__ import annotations
 
+import json
 import re
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from scripts.checks._framework import repository_root
 
-from scripts.checks._trigger import parse_changed_files, skip_if_not_triggered  # noqa: E402
+if TYPE_CHECKING:
+    from pathlib import Path
+
+ROOT = repository_root()
+
 
 GATE_NAME = "noRealSessionFixtures"
 
-# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
-TRIGGER_PATTERNS = [
-    'tests/**',
-    'docs/**',
-    'java/**',
-    'app-cli/**',
-    'src/**',
-    'scripts/checks/check_no_real_session_fixtures.py',
-]
 
 SCAN_DIRS = [
     "tests/fixtures",
@@ -111,18 +103,6 @@ _RAW_SESSION_JSON_MARKERS = [
     '"toolUseResult"',
 ]
 
-# 允许包含真实数据的已知目录（文档样例、测试 fixture 等）。
-# 这些目录中的文件不做大 JSONL 检查，但仍检查个人 home 路径。
-_KNOWN_SAMPLE_DIRS = [
-    "docs/session-samples",
-]
-
-# 允许包含合成数据的已知 fixture 目录。
-# 这些目录中的文件不做内容检查，只做路径结构检查。
-_KNOWN_FIXTURE_DIRS = [
-    "tests/fixtures",
-]
-
 # 跳过构建产物目录（这些目录不应被扫描）。
 _BUILD_DIR_PARTS = {
     "build",
@@ -144,18 +124,6 @@ def fail(message: str) -> int:
 # 返回安全摘要，避免 gate 输出原始 session、prompt 或本地路径。
 def _safe_excerpt(line: str) -> str:
     return "<redacted>"
-
-
-# 检查文件是否在已知样例目录下。
-def _is_in_known_sample_dir(filepath: Path) -> bool:
-    rel_str = str(filepath.relative_to(ROOT))
-    return any(rel_str.startswith(d) for d in _KNOWN_SAMPLE_DIRS)
-
-
-# 检查文件是否在已知 fixture 目录下。
-def _is_in_known_fixture_dir(filepath: Path) -> bool:
-    rel_str = str(filepath.relative_to(ROOT))
-    return any(rel_str.startswith(d) for d in _KNOWN_FIXTURE_DIRS)
 
 
 # 检查行是否包含真实 session 路径标记（需要 home 路径上下文）。
@@ -216,15 +184,23 @@ def _is_synthetic_dir(filepath: Path) -> bool:
     return _SYNTHETIC_DIR_MARKER in parts
 
 
-# 检查文件是否为大 JSONL fixture 且不在允许目录下。
-def _is_large_jsonl_violation(filepath: Path) -> bool:
+def _is_explicit_synthetic_jsonl(filepath: Path, text: str | None = None) -> bool:
+    """仅当 JSONL 每条记录都显式声明 synthetic=true 时返回 true。"""
     if filepath.suffix != ".jsonl":
         return False
-    if _is_synthetic_dir(filepath):
+    try:
+        source = text if text is not None else filepath.read_text(encoding="utf-8")
+        records = [json.loads(line) for line in source.splitlines() if line]
+    except (OSError, UnicodeDecodeError, ValueError):
         return False
-    if _is_in_known_fixture_dir(filepath):
+    return bool(records) and all(record.get("synthetic") is True for record in records)
+
+
+# 检查文件是否为大 JSONL fixture 且不在允许目录下。
+def _is_large_jsonl_violation(filepath: Path, explicit_synthetic: bool) -> bool:
+    if filepath.suffix != ".jsonl":
         return False
-    if _is_in_known_sample_dir(filepath):
+    if _is_synthetic_dir(filepath) or explicit_synthetic:
         return False
     try:
         return filepath.stat().st_size > 10000
@@ -264,19 +240,16 @@ def _scan_file(filepath: Path) -> list[str]:
         if pat.search(rel_str) and not _is_synthetic_dir(filepath):
             errors.append(f"{rel}: 文件路径包含真实 session 标记")
 
-    # 检查大 JSONL 不在允许目录
-    if _is_large_jsonl_violation(filepath):
-        errors.append(f"{rel}: 大 JSONL fixture 不在允许目录下")
-
-    # 已知文档样例目录中的文件不做内容检查
-    # （仍已在上方完成路径结构检查）
-    if _is_in_known_sample_dir(filepath):
-        return errors
-
     try:
         text = filepath.read_text(encoding="utf-8")
     except (OSError, UnicodeDecodeError):
+        if _is_large_jsonl_violation(filepath, False):
+            errors.append(f"{rel}: 大 JSONL fixture 不在允许目录下")
         return errors
+
+    explicit_synthetic = _is_explicit_synthetic_jsonl(filepath, text)
+    if _is_large_jsonl_violation(filepath, explicit_synthetic):
+        errors.append(f"{rel}: 大 JSONL fixture 不在允许目录下")
 
     for lineno, line in enumerate(text.splitlines(), start=1):
         # 检查真实 session 标记（需要 home 路径上下文）
@@ -292,7 +265,11 @@ def _scan_file(filepath: Path) -> list[str]:
         if _has_personal_username(line):
             errors.append(f"{rel}:{lineno}: 包含个人用户名: {_safe_excerpt(line)}")
 
-        if _looks_like_raw_session_content(line) and not _is_synthetic_dir(filepath):
+        if (
+            _looks_like_raw_session_content(line)
+            and not _is_synthetic_dir(filepath)
+            and not explicit_synthetic
+        ):
             errors.append(
                 f"{rel}:{lineno}: 包含疑似原始 session JSON/JSONL 内容: {_safe_excerpt(line)}"
             )
@@ -326,15 +303,10 @@ def _iter_scan_files() -> list[Path]:
 
 
 # 执行真实 session fixture 扫描。
+
+
 def main() -> int:
     """执行真实 session fixture 扫描。"""
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    for i, arg in enumerate(sys.argv):
-        if arg == '--changed-files' and i + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[i + 1])
-            break
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     all_errors: list[str] = []
 
@@ -352,7 +324,3 @@ def main() -> int:
 
     print(f"[{GATE_NAME}] PASS")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

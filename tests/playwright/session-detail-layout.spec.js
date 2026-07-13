@@ -11,7 +11,7 @@ const fs = require('fs');
 const path = require('path');
 
 test.describe('会话详情 Phase 1 外壳布局', () => {
-  test('[UI-SD-013] 1440px 视口下外壳布局正确', async ({ page }) => {
+  test('[UI-SD-013][UI-SD-018] 1440px 视口下外壳布局正确', async ({ page }) => {
     // 使用质量门禁指定的 1440x1100 视口
     await page.setViewportSize({ width: 1440, height: 1100 });
 
@@ -109,6 +109,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
       detailWidth: result.detail ? result.detail.width : 0,
       heroWidth: result.hero ? result.hero.width : 0,
       titleBeforeKpis: result.titleBeforeKpis,
+      titleHeight: result.title ? result.title.height : 0,
       bodyClasses: result.bodyClasses,
       shellClasses: result.shellClasses,
       mainGridColumn: result.mainGridColumn,
@@ -131,5 +132,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     expect(result.hero.width, `.hero 宽度不足。结果：${resultStr}`).toBeGreaterThan(900);
 
     expect(result.titleBeforeKpis, `标题必须出现在 KPI 上方。结果：${resultStr}`).toBe(true);
+
+    expect(result.title.height, `标题高度不得超过 180px。结果：${resultStr}`).toBeLessThanOrEqual(180);
   });
 });

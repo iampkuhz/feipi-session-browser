@@ -36,6 +36,39 @@ class ReceiptPolicy(StrEnum):
 
 
 @dataclass(frozen=True, slots=True)
+class TargetCommand:
+    """保存同一能力在某个 target 下的 argv。"""
+
+    target: str
+    argv: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class OptionalCommandArgs:
+    """保存仅在仓库路径存在时追加的 argv。"""
+
+    path: str
+    argv: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class CommandSpec:
+    """保存 catalog 声明的命令模板与少量能力型动态参数。"""
+
+    capability: str
+    argv: tuple[str, ...]
+    target_argv: tuple[TargetCommand, ...] = ()
+    required_paths: tuple[str, ...] = ()
+    existing_args: tuple[str, ...] = ()
+    glob_args: tuple[str, ...] = ()
+    optional_args: tuple[OptionalCommandArgs, ...] = ()
+    full_args: tuple[str, ...] = ()
+    prerequisite_tasks: tuple[str, ...] = ()
+    gradle_outcome_tasks: tuple[str, ...] = ()
+    existing_only: bool = False
+
+
+@dataclass(frozen=True, slots=True)
 class GateTargetRule:
     """保存一个 Gate 在某个 target 内的稳定顺序与增量 pattern。"""
 
@@ -51,8 +84,9 @@ class GateSpec:
     name: str
     target_rules: tuple[GateTargetRule, ...]
     executor_type: ExecutorType
-    command_key: str | None
+    command: CommandSpec | None
     gradle_tasks: tuple[str, ...]
+    gradle_args: tuple[str, ...]
     timeout_seconds: int
     parallel_safe: bool
     exclusive_resources: tuple[str, ...]
@@ -62,6 +96,7 @@ class GateSpec:
     tiers: tuple[str, ...]
     receipt_policy: ReceiptPolicy
     description: str
+    network_failure: str = 'fail'
 
     # 返回 Gate 所属 target，顺序与 catalog 注册顺序一致。
     @property

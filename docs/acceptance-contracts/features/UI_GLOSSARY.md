@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | 术语表页面（术语筛选卡、术语列表） |
 | 关联源码 | `src/session_browser/web/templates/glossary.html` |
-| 关联测试 | `tests/pages/test_glossary_page.py`、`tests/playwright/ui-contract.spec.ts` |
+| 关联测试 | `tests/playwright/ui-contract.spec.ts`、`tests/playwright/ui-contract.spec.ts` |
 | 主要风险 | 术语表无 E2E 交互测试（筛选/搜索）；仅有 pytest 模板静态检查 |
 
 ## 契约用例

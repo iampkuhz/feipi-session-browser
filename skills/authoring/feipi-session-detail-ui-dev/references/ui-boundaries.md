@@ -9,12 +9,12 @@
 - 复用已有 macro，不重新发明组件。
 - 修改 macro 前必须搜索所有调用点，确认不会影响其他页面。
 - 模板中不直接嵌入 `<style>` 或 inline style。
-- 模板中不直接使用 raw `innerHTML`，必须通过 `check_raw_innerhtml.py` 校验。
+- 模板中不直接使用 raw `innerHTML`，必须通过 `web.raw-innerhtml` 校验。
 
 ## CSS ownership
 
 - CSS 文件按功能区域划分 ownership，每个规则必须有明确的 owner。
-- 使用 `check_css_ownership.py` 校验 ownership 合规性。
+- 使用 `web.css-ownership` 校验 ownership 合规性。
 - 新增 CSS 规则必须放到对应 owner 的文件中，不新增无 owner 的全局样式。
 - CSS 类名使用项目已有的命名约定，不新发明一套命名体系。
 - 不使用全局 id selector（`#some-id`），优先使用 class selector。
@@ -22,7 +22,7 @@
 ## JS action handler
 
 - JS 交互事件通过 action handler 模式管理。
-- 使用 `check_js_action_handlers.py` 校验 handler 完整性。
+- 使用 `web.js-action-handlers` 校验 handler 完整性。
 - 删除模板中的按钮时必须同步删除对应的 JS handler。
 - 新增 JS handler 时必须确保有对应的模板元素触发它。
 - 不在 JS 中直接操作 DOM 样式，通过 CSS class 切换实现。
@@ -30,14 +30,14 @@
 ## Session Detail Shell
 
 - Session detail shell 是页面的外层容器，控制整体布局结构。
-- Shell 变更影响所有子组件的布局，必须运行 `run_session_detail_layout_gate.py`。
-- Shell CSS 由 `check_session_detail_shell_css.py` 守护，不允许随意修改 shell 类名。
+- Shell 变更影响所有子组件的布局，必须运行 `npx playwright test --config=playwright.config.js session-detail-layout.spec.js`。
+- Shell CSS 由 `web.session-detail-static` 守护，不允许随意修改 shell 类名。
 - Layout 变更必须更新 layout baseline（`layout_inline_style_baseline.json`）。
 
 ## 禁止 legacy CSS
 
 - 不新增 legacy alias CSS 类。
-- 使用 `check_no_legacy_css.py` 检查是否有 legacy CSS 引入。
+- 使用 `repository.repo-slimming` 检查是否有 legacy CSS 引入。
 - 已有的 legacy CSS 不在本 skill 范围内清理，除非任务明确要求。
 - 新增样式必须使用当前命名约定，不使用已废弃的前缀或别名。
 
@@ -52,8 +52,8 @@
 
 1. **单独文本框式散乱 CSS**：每个样式规则散落在不同文件中，没有统一 ownership，导致样式冲突和覆盖。
 2. **新增全局 id selector**：使用 `#some-id` 选择器绕过 class 体系，破坏 CSS ownership 模型。
-3. **使用 inline style 绕过 gate**：在模板中直接写 `style="..."` 绕过 CSS ownership 检查，被 `check_layout_inline_style.py` 拦截。
-4. **删除按钮但不删 JS handler**：模板中移除了按钮元素，但对应的 JS 事件绑定仍然存在，导致 `check_js_action_handlers.py` 报错或运行时错误。
+3. **使用 inline style 绕过 gate**：在模板中直接写 `style="..."` 绕过 CSS ownership 检查，被 `web.layout-inline-style` 拦截。
+4. **删除按钮但不删 JS handler**：模板中移除了按钮元素，但对应的 JS 事件绑定仍然存在，导致 `web.js-action-handlers` 报错或运行时错误。
 5. **修改 macro 不检查所有调用点**：只修改了 macro 定义，没有搜索和验证所有使用该 macro 的页面，导致其他页面渲染异常。
 6. **为了截图通过隐藏内容**：使用 `display: none` 或 `visibility: hidden` 隐藏有问题的元素来通过视觉回归测试，掩盖了真实的 UI 问题。
 7. **使用真实 session 做 fixture**：将真实用户的 session 数据复制到仓库中做 UI 测试，违反隐私原则。

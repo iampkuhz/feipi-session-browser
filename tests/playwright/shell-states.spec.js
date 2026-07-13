@@ -67,7 +67,7 @@ test.describe('Shell states — Session Detail', () => {
   }
 
   // ── Shell state matrix: normal ────────────────────────────────
-  test('[UI-SD-014] normal state — sidebar + main + inspector visible', async ({ page }) => {
+  test('[UI-SD-014][UI-VISUAL-002] normal state — sidebar + main + inspector visible', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 1100 });
     await gotoSessionDetail(page);
     const result = await setShellStateAndMeasure(page, 'normal');
@@ -78,7 +78,7 @@ test.describe('Shell states — Session Detail', () => {
   });
 
   // ── Shell state matrix: hide-left ─────────────────────────────
-  test('[UI-SD-014] hide-left state — sidebar collapsed, main visible (no-inspector page)', async ({ page }) => {
+  test('[UI-SD-014][UI-INTERACTION-001] hide-left state — sidebar collapsed, main visible (no-inspector page)', async ({ page }) => {
     // Previously fixme: body.hide-left caused .main width → 0px; fixed by
     // adding explicit .no-inspector body state variants in shell.css.
     // Note: session detail pages use no-inspector class, so there is no inspector element.

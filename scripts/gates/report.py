@@ -10,7 +10,7 @@ import re
 import shlex
 import subprocess
 from dataclasses import asdict, dataclass, field
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -40,7 +40,7 @@ def utc_now() -> str:
     """返回：
     当前 UTC timestamp 字符串。
     """
-    return datetime.now(timezone.utc).isoformat()
+    return datetime.now(UTC).isoformat()
 
 
 # 读取当前 HEAD 的短 commit hash。
@@ -107,7 +107,7 @@ def is_artifact_fresh(artifact_path: str, max_age_seconds: int = 3600) -> bool:
     if not p.exists():
         return False
     # 用文件 mtime 计算 artifact 年龄，避免读取损坏 JSON 时影响新鲜度判断。
-    age = datetime.now(timezone.utc).timestamp() - p.stat().st_mtime
+    age = datetime.now(UTC).timestamp() - p.stat().st_mtime
     return age <= max_age_seconds
 
 

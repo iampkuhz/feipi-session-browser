@@ -1,9 +1,9 @@
 """三平台 Hook 的唯一 Python CLI 与事件分发入口。
 
-平台 shell wrapper 只转发 payload 到本模块；本模块编排 adapter、Registry、
+共享 dispatcher 只转发 payload 到本模块；本模块编排 adapter、Registry、
 策略与 evidence，但不执行 Stop pipeline 或 Gate executor。
 
-不负责平台 Hook wrapper 配置；由 Hook 或 Stop runtime 调用。"""
+不负责平台 Hook 配置；由共享 dispatcher 或 Stop runtime 调用。"""
 
 from __future__ import annotations
 
@@ -46,8 +46,8 @@ from scripts.agent_runtime.registry import (
     ACTIVE_WRITER_STATUSES,
     Registry,
     SessionctlError,
-    WriterLeaseConflict,
-    WriterLeaseFenced,
+    WriterLeaseConflictError,
+    WriterLeaseFencedError,
     acquire_writer_lease,
     bootstrap_session,
     classify_tool_call,
@@ -145,7 +145,7 @@ def _bootstrap_hook_session(
 ) -> dict | None:
     """参数：
         ctx: 当前 Hook 输入。
-        wrapper_client: wrapper 声明的客户端。
+        wrapper_client: dispatcher 声明的客户端。
 
     返回：
         Registry run record；事件不触发 bootstrap 时返回 None。
@@ -310,7 +310,13 @@ def _run_mutation_block(
         )
     try:
         acquire_writer_lease(Registry(paths.repo_root), record)
-    except (WriterLeaseConflict, WriterLeaseFenced, SessionctlError, OSError, ValueError) as exc:
+    except (
+        WriterLeaseConflictError,
+        WriterLeaseFencedError,
+        SessionctlError,
+        OSError,
+        ValueError,
+    ) as exc:
         return _lease_block_result(paths, ctx, operation='acquire', error=exc)
     allowed, errors, record = validate_run_write_authorization(
         paths.repo_root,

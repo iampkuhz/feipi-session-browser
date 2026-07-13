@@ -5,9 +5,11 @@ from __future__ import annotations
 import json
 import os
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
+import yaml
 from scripts.agent_runtime.context import read_stdin_json
 from scripts.agent_runtime.events.evidence import (
     acquire_bash_mutation_lock,
@@ -28,6 +30,7 @@ from scripts.agent_runtime.events.policy.session import handle_session_start
 from scripts.agent_runtime.hook_entry import _controlled_primary_command
 from scripts.agent_runtime.paths import RepoPaths, build_paths, identity_from_values
 from scripts.gates.planner import classify_path, required_quality_targets
+from scripts.harness.hook_dispatch import dispatch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -180,8 +183,6 @@ def test_file_policy_matrix(
             'session-detail',
         ),
         ('pyproject.toml', 'python-tooling-config', 'hook-runtime'),
-        ('requirements-dev.txt', 'python-tooling-config', 'hook-runtime'),
-        ('requirements-dev.lock', 'python-tooling-config', 'hook-runtime'),
         ('uv.lock', 'python-tooling-config', 'hook-runtime'),
         ('.pre-commit-config.yaml', 'python-tooling-config', 'hook-runtime'),
         ('.github/workflows/quality.yml', 'python-tooling-config', 'hook-runtime'),
@@ -488,144 +489,53 @@ def test_main_and_subagent_session_start_use_separate_runtime_dirs(tmp_path: Pat
     assert main_paths.base_commit.read_text() == agent_paths.base_commit.read_text()
 
 
-def _commands_for_event(path: Path) -> dict[tuple[str, str], list[str]]:
+def _commands_for_event(path: Path) -> dict[tuple[str, str], dict]:
     data = json.loads(path.read_text(encoding='utf-8'))
     return {
-        (event, entry.get('matcher') or ''): [hook['command'] for hook in entry['hooks']]
+        (event, entry.get('matcher') or ''): entry['hooks'][0]
         for event, entries in data['hooks'].items()
         for entry in entries
     }
 
 
-PLATFORM_HOOK_CONFIGS = (
-    (
-        'claude',
-        '.claude/settings.json',
-        {
-            ('SessionStart', ''): '.claude/hooks/session-start.sh',
-            ('CwdChanged', ''): '.claude/hooks/cwd-changed.sh',
-            ('SubagentStart', ''): '.claude/hooks/subagent-start.sh',
-            ('PreToolUse', 'Bash'): '.claude/hooks/pre-bash.sh',
-            (
-                'PreToolUse',
-                'Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch',
-            ): '.claude/hooks/pre-write.sh',
-            ('PostToolUse', 'Bash'): '.claude/hooks/post-bash.sh',
-            (
-                'PostToolUse',
-                'Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch',
-            ): '.claude/hooks/post-write.sh',
-            ('PostToolUseFailure', ''): '.claude/hooks/tool-failure.sh',
-            ('Stop', ''): '.claude/hooks/stop.sh',
-            ('SubagentStop', ''): '.claude/hooks/subagent-stop.sh',
-            ('ConfigChange', ''): '.claude/hooks/config-change.sh',
-            ('SessionEnd', ''): '.claude/hooks/session-end.sh',
-        },
-        False,
-    ),
-    (
-        'codex',
-        '.codex/hooks.json',
-        {
-            ('SessionStart', ''): '.codex/hooks/session-start.sh',
-            ('PreToolUse', ''): '.codex/hooks/pre_tool_bootstrap.sh',
-            ('PreToolUse', 'Bash'): '.codex/hooks/pre_tool_guard.sh',
-            (
-                'PreToolUse',
-                'Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch',
-            ): '.codex/hooks/pre_write_guard.sh',
-            ('PostToolUse', 'Bash'): '.codex/hooks/post_bash_guard.sh',
-            (
-                'PostToolUse',
-                'Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch',
-            ): '.codex/hooks/post_tool_guard.sh',
-            ('PostToolUseFailure', ''): '.codex/hooks/tool_failure.sh',
-            ('Stop', ''): '.codex/hooks/stop_check.sh',
-            ('StopFailure', ''): '.codex/hooks/stop_failure.sh',
-            ('SessionEnd', ''): '.codex/hooks/session_end.sh',
-        },
-        True,
-    ),
-    (
-        'qoder',
-        '.qoder/settings.json',
-        {
-            ('SessionStart', ''): '.qoder/hooks/session-start.sh',
-            ('CwdChanged', ''): '.qoder/hooks/cwd-changed.sh',
-            ('UserPromptSubmit', ''): '.qoder/hooks/user-prompt-submit.sh',
-            ('PreToolUse', ''): '.qoder/hooks/pre_tool_bootstrap.sh',
-            ('PreToolUse', 'Bash'): '.qoder/hooks/pre_tool_guard.sh',
-            (
-                'PreToolUse',
-                'Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch',
-            ): '.qoder/hooks/pre_write_guard.sh',
-            ('PostToolUse', 'Bash'): '.qoder/hooks/post_bash_guard.sh',
-            (
-                'PostToolUse',
-                'Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch',
-            ): '.qoder/hooks/post_tool_guard.sh',
-            ('PostToolUseFailure', ''): '.qoder/hooks/tool_failure.sh',
-            ('Stop', ''): '.qoder/hooks/stop_check.sh',
-            ('StopFailure', ''): '.qoder/hooks/stop_failure.sh',
-            ('SessionEnd', ''): '.qoder/hooks/session_end.sh',
-        },
-        True,
-    ),
-)
-
-
 @pytest.mark.parametrize(
-    ('client', 'config_path', 'expected', 'resolves_git_root'),
-    PLATFORM_HOOK_CONFIGS,
-    ids=[case[0] for case in PLATFORM_HOOK_CONFIGS],
+    ('client', 'config_path'),
+    (
+        ('claude', '.claude/settings.json'),
+        ('codex', '.codex/hooks.json'),
+        ('qoder', '.qoder/settings.json'),
+    ),
 )
 @pytest.mark.contract_case('HOOK-HARNESS-023')
-def test_platform_hook_configuration_matrix(
+def test_platform_hook_configuration_uses_manifest_dispatcher(
     client: str,
     config_path: str,
-    expected: dict[tuple[str, str], str],
-    resolves_git_root: bool,
 ) -> None:
-    path = REPO_ROOT / config_path
-    commands = _commands_for_event(path)
+    manifest = yaml.safe_load(
+        (REPO_ROOT / 'harness/agent-runtime.manifest.yaml').read_text(encoding='utf-8')
+    )
+    dispatch = manifest['platforms'][client]['hook_dispatch']
+    commands = _commands_for_event(REPO_ROOT / config_path)
+    expected = {(item['event'], item.get('matcher') or ''): item for item in dispatch['bindings']}
     assert set(commands) == set(expected)
-    for key, wrapper in expected.items():
-        assert len(commands[key]) == 1
-        command = commands[key][0]
-        if resolves_git_root:
-            assert 'git rev-parse --show-toplevel' in command
-            assert wrapper in command
-            assert '/feipi-session-browser' not in command
-        else:
-            assert command == wrapper
-    if resolves_git_root:
-        stop_hook = json.loads(path.read_text())['hooks']['Stop'][0]['hooks'][0]
-        assert stop_hook['timeout'] >= 1230, client
+    for key, binding in expected.items():
+        hook = commands[key]
+        command = hook['command']
+        assert 'git rev-parse --show-toplevel' in command
+        assert 'scripts/harness/hook_dispatch.py' in command
+        assert f'--client {client}' in command
+        assert f'--event {binding["dispatch_event"]}' in command
+        assert '/hooks/' not in command
+        assert hook['timeout'] == binding['timeout']
+        if binding['dispatch_event'] == 'stop':
+            assert hook['timeout'] >= 1230
 
 
-@pytest.mark.parametrize(
-    ('client', 'wrapper', 'payload'),
-    (
-        ('claude', '.claude/hooks/pre-write.sh', {'tool_name': 'Write', 'tool_input': {}}),
-        (
-            'codex',
-            '.codex/hooks/pre_write_guard.sh',
-            {'client': 'codex', 'toolName': 'Write', 'toolInput': {}},
-        ),
-        (
-            'qoder',
-            '.qoder/hooks/pre_write_guard.sh',
-            {'client': 'qoder', 'toolName': 'Write', 'toolInput': {}},
-        ),
-    ),
-    ids=('claude', 'codex', 'qoder'),
-)
+@pytest.mark.parametrize('client', ('claude', 'codex', 'qoder'))
 @pytest.mark.contract_case('HOOK-HARNESS-023')
-def test_platform_pre_write_entrypoints_fail_closed(
+def test_platform_pre_write_dispatcher_is_fail_closed(
     tmp_path: Path,
     client: str,
-    wrapper: str,
-    payload: dict[str, object],
 ) -> None:
     env = os.environ.copy()
     for name in ('FEIPI_AGENT_CLIENT', 'FEIPI_RUN_ID', 'FEIPI_SESSION_ID'):
@@ -633,9 +543,16 @@ def test_platform_pre_write_entrypoints_fail_closed(
     env['PYTHONPATH'] = str(REPO_ROOT)
     env['FEIPI_AGENT_RUNTIME_ROOT'] = str(tmp_path / 'runtime')
     proc = subprocess.run(
-        ['bash', wrapper],
+        [
+            sys.executable,
+            'scripts/harness/hook_dispatch.py',
+            '--client',
+            client,
+            '--event',
+            'pre-write',
+        ],
         cwd=REPO_ROOT,
-        input=json.dumps(payload),
+        input=json.dumps({'tool_name': 'Write', 'tool_input': {}}),
         text=True,
         capture_output=True,
         env=env,
@@ -643,3 +560,57 @@ def test_platform_pre_write_entrypoints_fail_closed(
     )
     assert proc.returncode == 2, (client, proc.stdout, proc.stderr)
     assert 'BLOCK' in proc.stderr
+
+
+def test_same_payload_has_same_fail_closed_result_for_all_platforms(tmp_path: Path) -> None:
+    payload = json.dumps({'tool_name': 'Write', 'tool_input': {}})
+    observed = []
+    for client in ('claude', 'codex', 'qoder'):
+        env = os.environ.copy()
+        env['FEIPI_AGENT_RUNTIME_ROOT'] = str(tmp_path / client)
+        proc = subprocess.run(
+            [
+                sys.executable,
+                'scripts/harness/hook_dispatch.py',
+                '--client',
+                client,
+                '--event',
+                'pre-write',
+            ],
+            cwd=REPO_ROOT,
+            input=payload,
+            text=True,
+            capture_output=True,
+            env=env,
+            check=False,
+        )
+        observed.append((proc.returncode, 'BLOCK' in proc.stderr))
+    assert observed == [(2, True)] * 3
+
+
+@pytest.mark.parametrize('client', ('claude', 'codex', 'qoder'))
+def test_stop_dispatch_preserves_payload_output_and_exit_code(
+    client: str,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    from scripts.harness import stop_entry
+
+    seen: dict[str, object] = {}
+
+    def fake_stop_main(argv: list[str]) -> int:
+        seen['argv'] = argv
+        seen['payload'] = sys.stdin.read()
+        print('stop-stdout')
+        print('stop-stderr', file=sys.stderr)
+        return 7
+
+    monkeypatch.setattr(stop_entry, 'main', fake_stop_main)
+    assert dispatch(client, 'stop', '{"payload":"unchanged"}') == 7
+    assert seen == {
+        'argv': ['--agent', client],
+        'payload': '{"payload":"unchanged"}',
+    }
+    captured = capsys.readouterr()
+    assert captured.out == 'stop-stdout\n'
+    assert captured.err == 'stop-stderr\n'

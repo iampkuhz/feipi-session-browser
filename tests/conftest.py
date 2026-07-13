@@ -1,7 +1,6 @@
 """Session Browser 测试共享 pytest fixtures。"""
 
 import os
-import socket
 import sys
 
 import pytest
@@ -72,28 +71,3 @@ def pytest_sessionfinish(session, exitstatus):
     else:
         print('\n'.join(lines), file=sys.stderr)
     session.exitstatus = pytest.ExitCode.TESTS_FAILED
-
-
-# ─── 共享辅助函数 ─────────────────────────────────────────────
-
-
-def _find_free_port() -> int:
-    """在 localhost 上查找一个可用的 TCP 端口。"""
-    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-        s.bind(('127.0.0.1', 0))
-        s.listen(1)
-        return s.getsockname()[1]
-
-
-@pytest.fixture
-def page():
-    """Minimal Playwright page fixture for tests that need browser DOM access."""
-    from playwright.sync_api import sync_playwright
-
-    with sync_playwright() as pw:
-        browser = pw.chromium.launch()
-        page = browser.new_page()
-        try:
-            yield page
-        finally:
-            browser.close()

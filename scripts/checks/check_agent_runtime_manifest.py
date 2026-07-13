@@ -5,25 +5,15 @@
 
 from __future__ import annotations
 
-import os
-import sys
-from pathlib import Path
+import yaml
+from scripts.agent_runtime.events.adapter import RUNTIME_EVENTS
+from scripts.checks._framework import repository_root
+from scripts.checks._registry import CHECKS
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT = repository_root()
 MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 GATE_NAME = "agentRuntimeManifest"
 
-from scripts.checks._trigger import (  # noqa: E402
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    'harness/agent-runtime.manifest.yaml',
-    'scripts/checks/check_agent_runtime_manifest.py',
-]
 
 REQUIRED_TOP_FIELDS = [
     "version",
@@ -32,6 +22,7 @@ REQUIRED_TOP_FIELDS = [
     "protected_roots",
     "platforms",
     "shared_skills",
+    "domain_agents",
     "required_gates",
 ]
 
@@ -56,138 +47,6 @@ def warn(message: str) -> None:
     print(f"[{GATE_NAME}] WARN: {message}")
 
 
-# 解析 manifest 使用的 JSON 兼容 YAML 子集。
-def _parse_simple_yaml(text: str) -> dict:
-    """参数：
-        text: 待解析的 manifest 文本。
-
-    返回：
-        解析后的字典。
-    """
-    lines = text.splitlines()
-    return _parse_block(lines, 0, 0)[0]
-
-
-# 返回行的缩进空格数。
-def _indent_level(line: str) -> int:
-    """参数：
-        line: 待检查的文本行。
-
-    返回：
-        缩进空格数。
-    """
-    return len(line) - len(line.lstrip(" "))
-
-
-# 解析单个 YAML 标量或行内列表值。
-def _parse_value(raw: str):
-    """参数：
-        raw: 原始 YAML 值文本。
-
-    返回：
-        解析后的值对象。
-    """
-    raw = raw.strip()
-    if raw == "" or raw == "~" or raw == "null":
-        return None
-    if raw == "true":
-        return True
-    if raw == "false":
-        return False
-    if raw.startswith("[") and raw.endswith("]"):
-        inner = raw[1:-1].strip()
-        if not inner:
-            return []
-        return [_parse_value(item) for item in inner.split(",")]
-    if raw.startswith('"') and raw.endswith('"'):
-        return raw[1:-1]
-    if raw.startswith("'") and raw.endswith("'"):
-        return raw[1:-1]
-    try:
-        return int(raw)
-    except ValueError:
-        pass
-    try:
-        return float(raw)
-    except ValueError:
-        pass
-    return raw
-
-
-# 递归解析 YAML block。
-def _parse_block(lines: list[str], start: int, base_indent: int) -> tuple:
-    """参数：
-        lines: manifest 文本行列表。
-        start: 起始行索引。
-        base_indent: 当前块缩进。
-
-    返回：
-        二元组，包含解析结果和下一行索引。
-    """
-    if start >= len(lines):
-        return {}, start
-
-    result: dict | list = {}
-    is_list = False
-    i = start
-
-    while i < len(lines):
-        line = lines[i]
-        stripped = line.strip()
-
-        if not stripped or stripped.startswith("#"):
-            i += 1
-            continue
-
-        indent = _indent_level(line)
-        if indent < base_indent:
-            break
-
-        if indent > base_indent and not is_list:
-            break
-
-        if stripped.startswith("- "):
-            is_list = True
-            if not isinstance(result, list):
-                result = []
-            val_part = stripped[2:].strip()
-            if ":" in val_part and not val_part.startswith("["):
-                key_part, _, val_part2 = val_part.partition(":")
-                key_part = key_part.strip()
-                val_part2 = val_part2.strip()
-                item_dict = {}
-                if val_part2:
-                    item_dict[key_part] = _parse_value(val_part2)
-                else:
-                    child, i = _parse_block(lines, i + 1, indent + 2)
-                    item_dict[key_part] = child
-                    result.append(item_dict)
-                    continue
-                result.append(item_dict)
-                i += 1
-                continue
-            result.append(_parse_value(val_part))
-            i += 1
-            continue
-
-        if ":" in stripped:
-            if isinstance(result, list):
-                break
-            key, _, val = stripped.partition(":")
-            key = key.strip().replace("-", "_")
-            val = val.strip()
-            if val:
-                result[key] = _parse_value(val)
-                i += 1
-            else:
-                child, i = _parse_block(lines, i + 1, indent + 2)
-                result[key] = child
-        else:
-            i += 1
-
-    return result, i
-
-
 # 加载并解析 manifest。
 def _load_manifest() -> dict | None:
     """返回：
@@ -195,10 +54,10 @@ def _load_manifest() -> dict | None:
     """
     if not MANIFEST.is_file():
         return None
-    text = MANIFEST.read_text(encoding="utf-8")
     try:
-        return _parse_simple_yaml(text)
-    except Exception:
+        data = yaml.safe_load(MANIFEST.read_text(encoding="utf-8"))
+        return data if isinstance(data, dict) else None
+    except (OSError, yaml.YAMLError):
         return None
 
 
@@ -215,19 +74,12 @@ def _check_file_exists(rel_path: str) -> bool:
 
 
 # 执行 manifest 完整性检查。
+
+
 def main() -> int:
     """返回：
     进程退出码。
     """
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-    else:
-        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     if not MANIFEST.is_file():
         return fail(f"manifest 不存在: {MANIFEST.relative_to(ROOT)}")
@@ -265,22 +117,23 @@ def main() -> int:
                 for cf in cfg_files:
                     if isinstance(cf, str) and not _check_file_exists(cf):
                         errors.append(f"platforms.{plat_name}.config_files 中文件不存在: {cf}")
-            hooks = plat_cfg.get("hooks", {})
-            if isinstance(hooks, dict):
-                for hook_name, hook_files_list in hooks.items():
-                    if not isinstance(hook_files_list, list):
-                        continue
-                    if not hook_files_list and hook_name == "pre_write":
-                        continue
-                    for hf in hook_files_list:
-                        if isinstance(hf, str) and not _check_file_exists(hf):
-                            errors.append(
-                                f"platforms.{plat_name}.hooks.{hook_name} 中文件不存在: {hf}"
-                            )
-                        elif isinstance(hf, str) and not os.path.isfile(ROOT / hf):
-                            errors.append(
-                                f"platforms.{plat_name}.hooks.{hook_name} 不是普通文件: {hf}"
-                            )
+            dispatch = plat_cfg.get("hook_dispatch", {})
+            if not isinstance(dispatch, dict):
+                errors.append(f"platforms.{plat_name}.hook_dispatch 缺失")
+                continue
+            entry = dispatch.get("entry")
+            if not isinstance(entry, str) or not _check_file_exists(entry):
+                errors.append(f"platforms.{plat_name}.hook_dispatch.entry 不存在: {entry}")
+            if dispatch.get("client") != plat_name:
+                errors.append(f"platforms.{plat_name}.hook_dispatch.client 不一致")
+            bindings = dispatch.get("bindings", [])
+            if not isinstance(bindings, list) or not bindings:
+                errors.append(f"platforms.{plat_name}.hook_dispatch.bindings 为空")
+                continue
+            for binding in bindings:
+                event = binding.get("dispatch_event") if isinstance(binding, dict) else None
+                if event not in RUNTIME_EVENTS:
+                    errors.append(f"platforms.{plat_name} 包含未知 dispatch_event: {event}")
 
     shared_skills = data.get("shared_skills", {})
     if isinstance(shared_skills, dict):
@@ -316,9 +169,9 @@ def main() -> int:
 
     required_gates = data.get("required_gates", [])
     if isinstance(required_gates, list):
-        for gate_path in required_gates:
-            if isinstance(gate_path, str) and not _check_file_exists(gate_path):
-                errors.append(f"required_gates 中脚本不存在: {gate_path}")
+        for check_id in required_gates:
+            if not isinstance(check_id, str) or check_id not in CHECKS:
+                errors.append(f"required_gates 中包含未注册 check ID: {check_id}")
 
     for w in warnings:
         warn(w)
@@ -330,7 +183,3 @@ def main() -> int:
 
     print(f"[{GATE_NAME}] PASS")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

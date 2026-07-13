@@ -8,33 +8,21 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import subprocess
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from scripts.checks._framework import argument_parser, repository_root
+
+ROOT = repository_root()
 
 from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 
 GATE_NAME = "runtimeReport"
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
+from scripts.checks._framework import add_changed_files_arg  # noqa: E402
 
-TRIGGER_PATTERNS = [
-    'harness/agent-runtime.manifest.yaml',
-    'harness/agent-runtime-report.schema.json',
-    'harness/reports/**',
-    'scripts/harness/write_agent_runtime_report.py',
-    'scripts/checks/check_agent_runtime_report.py',
-]
 REPORT_DIR = ROOT / "harness" / "reports"
 ACTIVE_CHANGE_PATH = ROOT / "tmp" / "active_change.json"
 FALLBACK_CHANGE_ID = "harden-agent-runtime-and-skills"
@@ -301,7 +289,7 @@ def validate_runtime_report(
 # 执行 runtime report 一致性检查。
 def main() -> int:
     """执行 runtime report 一致性检查。"""
-    parser = argparse.ArgumentParser(description="检查 agent runtime report 一致性。")
+    parser = argument_parser(description="检查 agent runtime report 一致性。")
     parser.add_argument("--change-id", default=None, help="OpenSpec change 标识")
     parser.add_argument("--run-id", default=None, help="显式 run id；启用 run-scoped 校验")
     parser.add_argument("--client", default=None, help="显式 agent client")
@@ -310,9 +298,6 @@ def main() -> int:
     parser.add_argument("--report-path", default=None, help="显式 run-scoped report path")
     add_changed_files_arg(parser)
     args = parser.parse_args()
-
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     if args.run_id or args.report_path:
         if not all(
@@ -350,7 +335,6 @@ def main() -> int:
             for error in errors:
                 print(f"[{GATE_NAME}] FAIL: {error}")
             return 1
-        print(f"[{GATE_NAME}] PASS — run-scoped report 有效: {args.report_path}")
         return 0
 
     print(
@@ -361,14 +345,12 @@ def main() -> int:
     protected_roots = get_protected_roots()
 
     if not protected_roots:
-        print(f"[{GATE_NAME}] PASS: 无 protected_roots 配置，跳过检查")
         return 0
 
     diff_files = get_diff_changed_files()
     protected_in_diff = [f for f in diff_files if is_protected(f)]
 
     if not protected_in_diff:
-        print(f"[{GATE_NAME}] PASS: diff 无 protected paths，跳过检查")
         return 0
 
     report_path = find_report(change_id)
@@ -392,13 +374,4 @@ def main() -> int:
             print(f"[{GATE_NAME}] FAIL: {e}")
         return 1
 
-    try:
-        display_path = report_path.relative_to(ROOT)
-    except ValueError:
-        display_path = report_path
-    print(f"[{GATE_NAME}] PASS — report 有效: {display_path}")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -34,6 +34,6 @@
 ## 触发门禁
 
 - `./scripts/session-browser.sh test`
-- `python scripts/checks/check_java_module_boundaries.py`
-- `python scripts/checks/check_java_api_snapshot.py`
+- `./gradlew check`
+- `python3 -m scripts.checks java.api-snapshot --check`
 - `python scripts/gates/cli.py`

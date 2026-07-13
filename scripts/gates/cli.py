@@ -235,7 +235,7 @@ def run_service(
             report.PASS, gate_plan, cached_details, artifact, cached_paths, True
         )
 
-    details = executor.execute_plan(resolved_plan, repo_root, base_url=base_url)
+    details = executor.execute_plan(resolved_plan, repo_root)
     receipt_miss_reason = (
         'receipt-reuse-disabled'
         if not reuse_receipts

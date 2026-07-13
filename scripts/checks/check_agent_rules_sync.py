@@ -5,32 +5,15 @@
 
 from __future__ import annotations
 
-import sys
-from pathlib import Path
+from scripts.checks._framework import repository_root
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+ROOT = repository_root()
 
 from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
 
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 RUNTIME_MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 GATE_NAME = "agentRulesSync"
-
-from scripts.checks._trigger import (  # noqa: E402
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.codex/model-instructions.md',
-    'harness/agent-policy.manifest.yaml',
-    'harness/agent-runtime.manifest.yaml',
-    'scripts/checks/check_agent_rules_sync.py',
-]
 
 
 # 输出失败信息并返回非零退出码。
@@ -92,19 +75,12 @@ def _read_required_phrases() -> list[str]:
 
 
 # 执行跨平台规则同步检查并返回退出码。
+
+
 def main() -> int:
     """返回：
     通过返回 0，失败返回非零。
     """
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-    else:
-        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     errors: list[str] = []
 
@@ -162,7 +138,3 @@ def main() -> int:
 
     print(f"[{GATE_NAME}] PASS")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -7,6 +7,9 @@ import time
 from typing import TYPE_CHECKING
 
 import pytest
+from scripts.agent_runtime.session.contract import resolve_checkout_identity, resolve_runtime_root
+from scripts.agent_runtime.session.lease import acquire_writer_lease
+from scripts.agent_runtime.session.registry import Registry
 from scripts.agent_runtime.stop.evidence import (
     GitEvidenceError,
     collect_git_evidence,
@@ -20,8 +23,6 @@ from scripts.agent_runtime.stop.recovery import (
     update_reentry,
 )
 from scripts.checks.check_agent_runtime_report import validate_runtime_report
-from scripts.harness.primary_session import resolve_checkout_identity, resolve_runtime_root
-from scripts.harness.sessionctl import Registry, acquire_writer_lease
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -542,14 +543,14 @@ def test_stop_blocks_when_same_changed_path_mutates_during_required_gates(
 def test_untracked_content_snapshot_rejects_unsafe_path_components(
     tmp_path: Path, raw_paths: bytes
 ):
-    from scripts.agent_runtime.stop import evidence
+    from scripts.agent_runtime import git_state
 
     with pytest.raises(GitEvidenceError):
-        evidence._hash_untracked_contents(tmp_path, raw_paths)
+        git_state.hash_untracked_contents(tmp_path, raw_paths)
 
 
 def test_untracked_content_snapshot_rejects_intermediate_symlink_escape(tmp_path: Path):
-    from scripts.agent_runtime.stop import evidence
+    from scripts.agent_runtime import git_state
 
     repo = tmp_path / 'repo'
     outside = tmp_path / 'outside'
@@ -559,7 +560,7 @@ def test_untracked_content_snapshot_rejects_intermediate_symlink_escape(tmp_path
     (repo / 'escape').symlink_to(outside, target_is_directory=True)
 
     with pytest.raises(GitEvidenceError):
-        evidence._hash_untracked_contents(repo, b'escape/secret.txt\0')
+        git_state.hash_untracked_contents(repo, b'escape/secret.txt\0')
 
 
 def test_file_lock_release_and_dead_owner_reclaim_are_exact(tmp_path: Path):

@@ -449,6 +449,12 @@ class TestUnswitchedCommandsRegression:
         """deps --dev --dry-run 命令仍路由到 Python 开发依赖检查。"""
         with tempfile.TemporaryDirectory() as tmp_dir:
             trap_dir = _create_python_trap(tmp_dir)
+            uv_path = os.path.join(trap_dir, 'uv')
+            with open(uv_path, 'w') as f:
+                f.write('#!/bin/sh\nexit 0\n')
+            os.chmod(
+                uv_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+            )
             marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
             env = os.environ.copy()
             env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')

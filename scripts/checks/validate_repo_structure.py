@@ -6,42 +6,18 @@
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
+from scripts.checks._framework import repository_root
+
 # 直接运行时确保 repo root 位于 sys.path。
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
-
-from scripts.checks._trigger import parse_changed_files, skip_if_not_triggered  # noqa: E402
-
-# 声明本脚本的触发模式：只有匹配的文件变更时才运行本检查。
-TRIGGER_PATTERNS = [
-    '.claude/**',
-    '.codex/**',
-    '.github/workflows/**',
-    '.pre-commit-config.yaml',
-    'skills/**',
-    '.agents/skills/**',
-    '.qoder/**',
-    'scripts/**/*.py',
-    'scripts/**/*.sh',
-    'AGENTS.md',
-    'CLAUDE.md',
-    'README.md',
-    'pyproject.toml',
-    'requirements*.txt',
-    'requirements*.lock',
-    'uv.lock',
-    'docs/**',
-]
+REPO_ROOT = repository_root()
 
 
 # 01. 必需路径
 REQUIRED_PATHS = [
     '.claude/settings.json',
-    '.claude/hooks/stop.sh',
+    'scripts/harness/hook_dispatch.py',
     'scripts/agent_runtime/hook_entry.py',
     'scripts/agent_runtime/context.py',
     'scripts/gates/catalog.py',
@@ -64,23 +40,14 @@ REQUIRED_PATHS = [
     '.codex/skills/feipi-openspec-orchestrate-change',
     '.claude/skills/feipi-openspec-orchestrate-change',
     'harness/README.md',
-    'harness/agent-runtime.md',
-    'harness/context/repo-map.md',
-    'harness/context/ui-context.md',
-    'harness/workflow/change-lifecycle.md',
-    'harness/workflow/subagent-execution.md',
-    'harness/quality/deterministic-quality-gate.md',
-    'harness/quality/quality-gate-matrix.md',
+    'docs/agent-runtime.md',
     'docs/acceptance-contracts/README.md',
-    '.codex/hooks/stop_check.sh',
-    '.qoder/hooks/stop_check.sh',
-    'tmp/.gitkeep',
 ]
 
 
 # 02. 不得被 git tracked 的运行态路径
 GENERATED_PREFIXES = [
-    'tmp/agent_logs/',
+    'tmp/',
     '.agent/',
     'data/',
     'output/',
@@ -101,7 +68,11 @@ def git_tracked_files(root: Path) -> list[str]:
         out = subprocess.check_output(
             ['git', 'ls-files'], cwd=root, text=True, stderr=subprocess.DEVNULL
         )
-        return [line.strip() for line in out.splitlines() if line.strip()]
+        return [
+            line.strip()
+            for line in out.splitlines()
+            if line.strip() and (root / line.strip()).exists()
+        ]
     except Exception:
         return []
 
@@ -125,8 +96,7 @@ def validate(root: Path) -> list[str]:
         is_generated = any(
             item == prefix.rstrip('/') or item.startswith(prefix) for prefix in GENERATED_PREFIXES
         )
-        if is_generated and item != 'tmp/.gitkeep':
-            # tmp/.gitkeep 是 tmp 下唯一允许 tracked 的文件。
+        if is_generated:
             failures.append(f'运行态/生成物不应进入 git tracked: {item}')
         if item.endswith(('.sqlite', '.sqlite3', '.db')):
             failures.append(f'数据库文件不应进入 git tracked: {item}')
@@ -135,17 +105,12 @@ def validate(root: Path) -> list[str]:
 
 
 # 解析命令行参数并运行脚本入口。
+
+
 def main() -> int:
     """返回：
     Zero 当 structure is 有效, 否则 one。
     """
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    for i, arg in enumerate(sys.argv):
-        if arg == '--changed-files' and i + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[i + 1])
-            break
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     root = Path.cwd()
     failures = validate(root)
@@ -155,7 +120,3 @@ def main() -> int:
         return 1
     print('validate_repo_structure PASS')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

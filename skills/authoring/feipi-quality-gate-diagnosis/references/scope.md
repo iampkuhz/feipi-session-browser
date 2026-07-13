@@ -28,7 +28,7 @@
 3. `scripts/harness/doctor.sh` → 环境体检脚本。
 4. `harness/skill-registry.yaml` → skill 注册表。
 5. `harness/agent-runtime.manifest.yaml` → agent runtime manifest。
-6. `scripts/checks/check_agent_entry_parity.py` → agent 入口 parity 检查。
+6. `shared check `agent.entry-parity`` → agent 入口 parity 检查。
 7. `skills/authoring/<skill-name>/SKILL.md` → 各 skill 源文件。
 8. `.claude/agents/*.md`、`.codex/agents/*.toml` → agent 入口文件。
 
@@ -43,10 +43,10 @@
 
 ## 触发门禁
 
-- `python scripts/checks/check_skill_registry.py`
-- `python scripts/checks/check_agent_runtime_manifest.py`
-- `python scripts/checks/check_agent_entry_parity.py`
-- `python scripts/checks/check_agent_hook_parity.py`
-- `python scripts/checks/check_agent_rules_sync.py`
+- `python3 -m scripts.checks agent.skill-registry`
+- `python3 -m scripts.checks agent.runtime-manifest`
+- `python3 -m scripts.checks agent.entry-parity`
+- `python3 -m scripts.checks agent.hook-parity`
+- `python3 -m scripts.checks agent.rules-sync`
 - `bash scripts/harness/doctor.sh`
 - `python3 scripts/gates/cli.py --tier required`

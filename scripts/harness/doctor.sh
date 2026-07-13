@@ -116,41 +116,20 @@ check_file AGENTS.md
 check_file CLAUDE.md
 check_file README.md
 check_file pyproject.toml
-check_file requirements-dev.txt
-check_file requirements-dev.lock
+check_file uv.lock
 check_file scripts/session-browser.sh
 check_file .claude/settings.json
-# Hook 入口脚本：每类 hook 都有独立 shell 脚本。
-check_file .claude/hooks/stop.sh
-check_file .claude/hooks/session-start.sh
-check_file .claude/hooks/subagent-start.sh
-check_file .claude/hooks/pre-bash.sh
-check_file .claude/hooks/post-bash.sh
-check_file .claude/hooks/pre-write.sh
-check_file .claude/hooks/post-write.sh
-check_file .claude/hooks/tool-failure.sh
-check_file .claude/hooks/subagent-stop.sh
-check_file .claude/hooks/config-change.sh
-check_file scripts/harness/hook-common.sh
-check_file .codex/hooks/pre_tool_guard.sh
-check_file .codex/hooks/pre_write_guard.sh
-check_file .codex/hooks/post_bash_guard.sh
-check_file .codex/hooks/post_tool_guard.sh
-check_file .codex/hooks/stop_check.sh
-check_file .qoder/hooks/pre_tool_guard.sh
-check_file .qoder/hooks/pre_write_guard.sh
-check_file .qoder/hooks/post_bash_guard.sh
-check_file .qoder/hooks/post_tool_guard.sh
-check_file .qoder/hooks/stop_check.sh
+check_file .codex/hooks.json
+check_file .qoder/settings.json
+check_file scripts/harness/hook_dispatch.py
 check_file harness/manifest.yaml
-check_file harness/agent-runtime.md
+check_file docs/agent-runtime.md
 check_file scripts/harness/stop_entry.py
 check_file scripts/agent_runtime/stop/model.py
 check_file scripts/agent_runtime/stop/pipeline.py
 check_file scripts/agent_runtime/stop/evidence.py
 check_file scripts/agent_runtime/stop/recovery.py
 check_file scripts/agent_runtime/stop/report.py
-check_file scripts/checks/check_agent_runtime_worktree.py
 check_dir tests
 check_dir scripts/agent_runtime
 
@@ -163,72 +142,47 @@ else
   fail_check "no compatible Python interpreter"
 fi
 
+if command -v uv >/dev/null 2>&1; then
+  run_check "uv lock is current" uv lock --check
+else
+  fail_check "uv is required for the Python dependency lock"
+fi
+
 if [[ -f .claude/settings.json && -n "$PYTHON" ]]; then
   run_check "valid JSON: .claude/settings.json" \
     "$PYTHON" -m json.tool .claude/settings.json
 fi
 
-for script in scripts/session-browser.sh .claude/hooks/*.sh .codex/hooks/*.sh .qoder/hooks/*.sh; do
-  [[ -f "$script" ]] || continue
-  run_check "valid shell syntax: $script" bash -n "$script"
-done
+run_check "valid shell syntax: scripts/session-browser.sh" bash -n scripts/session-browser.sh
 
 if [[ -n "$PYTHON" ]]; then
   run_check "Python source compiles" "$PYTHON" -m compileall -q src
   checks=(
-    scripts/checks/check_language_policy.py
-    scripts/checks/check_codex_agent_policy.py
-    scripts/checks/check_agent_runtime_manifest.py
-    scripts/checks/check_agent_hook_parity.py
-    scripts/checks/check_no_committed_local_paths.py
-    scripts/checks/check_agent_permission_policy.py
-    scripts/checks/check_agent_policy_size.py
-    scripts/checks/check_agent_rules_sync.py
-    scripts/checks/check_agent_runtime_isolation.py
-    scripts/checks/check_agent_runtime_worktree.py
-    scripts/checks/check_gate_bypass_resistance.py
-    scripts/checks/check_protected_roots_sync.py
-    scripts/checks/check_qoder_runtime_parity.py
-    scripts/checks/check_hook_payload_compat.py
-    scripts/checks/check_subagent_handoff_protocol.py
-    scripts/checks/check_skill_registry.py
-    scripts/checks/check_agent_entry_parity.py
-    scripts/checks/check_no_real_session_fixtures.py
-    scripts/checks/check_secret_like_content.py
-    scripts/checks/check_agent_runtime_report.py
+    repository.language-policy
+    agent.codex-policy
+    agent.runtime-manifest
+    agent.hook-parity
+    repository.no-committed-local-paths
+    agent.permission-policy
+    agent.policy-size
+    agent.rules-sync
+    agent.runtime-isolation
+    agent.runtime-worktree
+    repository.gate-bypass
+    agent.protected-roots
+    agent.qoder-parity
+    agent.hook-payload
+    agent.subagent-handoff
+    agent.skill-registry
+    agent.entry-parity
+    repository.no-real-session-fixtures
+    security.secret-like-content
+    agent.runtime-report
+    web.css-ownership
   )
   for check in "${checks[@]}"; do
-    run_check "quality check: ${check##*/}" "$PYTHON" "$check"
+    run_check "quality check: $check" "$PYTHON" -m scripts.checks "$check"
   done
-  run_check "quality check: measure_gate_escape_rate.py" \
-    "$PYTHON" scripts/checks/measure_gate_escape_rate.py --threshold 0
-fi
-
-# CSS ownership 校验。
-if [[ -n "$PYTHON" ]]; then
-  css_output=""
-  css_rc=0
-  css_output="$("$PYTHON" scripts/checks/check_css_ownership.py 2>&1)" || css_rc=$?
-  if echo "$css_output" | grep -q 'Total:'; then
-    css_total="$(echo "$css_output" | grep 'Total:' | sed 's/.*Total: \([0-9]*\).*/\1/' || echo 0)"
-    if [[ "$css_total" -gt 0 ]]; then
-      fail_check "CSS ownership violations: $css_total"
-      echo "$css_output" >&2
-    else
-      pass_check "CSS ownership validation"
-      if [[ $VERBOSE -eq 1 && -n "$css_output" ]]; then
-        printf '%s\n' "$css_output"
-      fi
-    fi
-  elif [[ $css_rc -eq 0 ]]; then
-    pass_check "CSS ownership validation"
-    if [[ $VERBOSE -eq 1 && -n "$css_output" ]]; then
-      printf '%s\n' "$css_output"
-    fi
-  else
-    fail_check "CSS ownership validation command failed (exit=$css_rc)"
-    [[ -z "$css_output" ]] || printf '%s\n' "$css_output" >&2
-  fi
 fi
 
 # 检查个人文件和临时目录是否不存在于磁盘。

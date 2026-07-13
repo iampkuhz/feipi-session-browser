@@ -23,7 +23,7 @@ color: green
 # implementer 默认只处理本地仓库文件，不需要额外 MCP，避免扩大工具面。
 
 # 不配置 hooks：
-# 项目级硬约束由 .claude/settings.json 和 .claude/hooks/ 统一管理。
+# 项目级硬约束由 .claude/settings.json 和共享 hook dispatcher 统一管理。
 
 # 不配置 memory：
 # 避免 implementer 跨 task 记忆污染。

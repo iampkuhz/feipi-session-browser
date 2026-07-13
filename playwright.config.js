@@ -1,6 +1,8 @@
-// @ts-check
 const { defineConfig } = require('@playwright/test');
+const { execFileSync } = require('child_process');
 const path = require('path');
+
+delete process.env.NO_COLOR;
 
 function resolveWorkers() {
   const raw = process.env.SESSION_BROWSER_PLAYWRIGHT_WORKERS || process.env.PLAYWRIGHT_WORKERS || '';
@@ -12,59 +14,53 @@ function resolveWorkers() {
 const runId = process.env.FEIPI_RUN_ID || process.env.FEIPI_SESSION_ID || `pid-${process.pid}`;
 const runtimeRoot = process.env.FEIPI_AGENT_RUNTIME_ROOT || path.join(process.cwd(), 'tmp', 'agent-runtime');
 const runOutputRoot = process.env.PLAYWRIGHT_OUTPUT_ROOT || path.join(runtimeRoot, 'runs', runId, 'playwright');
-const fixtureBaseURL = process.env.BASE_URL || 'http://127.0.0.1:19099';
+const serverScript = path.join(__dirname, 'tests', 'playwright', 'start-java-fixture-server.js');
+const baseURL = process.env.BASE_URL || `http://127.0.0.1:${execFileSync(
+  process.execPath,
+  [serverScript, '--find-port'],
+  { encoding: 'utf8' },
+).trim()}`;
 const reuseFixtureServer = process.env.SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER === '1';
-process.env.BASE_URL = fixtureBaseURL;
-process.env.PW_SESSION_URL = process.env.PW_SESSION_URL || `${fixtureBaseURL}/sessions/claude_code/hifi-viz-session-001`;
-process.env.PW_LONG_SESSION_URL = process.env.PW_LONG_SESSION_URL || `${fixtureBaseURL}/sessions/claude_code/long-session-001`;
+
+process.env.BASE_URL = baseURL;
+process.env.PW_SESSION_URL = process.env.PW_SESSION_URL || `${baseURL}/sessions/claude_code/hifi-viz-session-001`;
+process.env.PW_LONG_SESSION_URL = process.env.PW_LONG_SESSION_URL || `${baseURL}/sessions/claude_code/long-session-001`;
 
 /**
- * Playwright 视觉/冒烟质量门禁配置
+ * Playwright 会话详情质量门禁配置。
  *
- * 用法：
- *   npx playwright test                          # 运行全部测试（需先启动服务）
- *   npx playwright test --headed                 # 带浏览器可见性运行
- *   npx playwright test session-detail           # 仅运行会话详情测试
- *   npx playwright test --update-snapshots       # 更新截图基线
- *
- * 服务需提前启动：
- *   ./scripts/session-browser.sh serve
- * 或设置 SB_TEST_DB 指向有效的 SQLite 索引并运行测试工具
+ * 默认由 Node starter 在动态端口启动真实 Java fixture server。Gate executor 已启动
+ * 外部服务时，需同时传入 BASE_URL 和 SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER=1。
  */
 module.exports = defineConfig({
   testDir: './tests/playwright',
   testMatch: ['**/*.spec.{js,ts}'],
   fullyParallel: true,
-  forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
   workers: resolveWorkers(),
+  forbidOnly: true,
+  retries: 0,
+  timeout: 30_000,
   reporter: [
     ['./tests/playwright/no-skip-reporter.js'],
     ['html', { outputFolder: path.join(runOutputRoot, 'report') }],
     ['list'],
   ],
-  webServer: {
-    command: 'python tests/support/start_fixture_server.py',
-    url: `${fixtureBaseURL}/dashboard`,
-    reuseExistingServer: reuseFixtureServer,
-    timeout: 30_000,
+  expect: {
+    timeout: 5_000,
   },
-
   use: {
-    baseURL: fixtureBaseURL,
+    baseURL,
+    headless: true,
+    viewport: { width: 1440, height: 1100 },
+    ignoreHTTPSErrors: true,
     trace: 'retain-on-failure',
     screenshot: 'only-on-failure',
-    viewport: { width: 1280, height: 900 },
-    actionTimeout: 10_000,
-    navigationTimeout: 15_000,
   },
-
-  projects: [
-    {
-      name: 'chromium',
-      use: { browserName: 'chromium' },
-    },
-  ],
-
   outputDir: path.join(runOutputRoot, 'test-results'),
+  webServer: {
+    command: `node "${serverScript}"`,
+    url: `${baseURL}/sessions/claude_code/hifi-viz-session-001`,
+    reuseExistingServer: reuseFixtureServer,
+    timeout: 120_000,
+  },
 });

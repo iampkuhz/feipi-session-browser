@@ -3,18 +3,14 @@
 
 不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
 
-import json
 import re
-import sys
-import tempfile
 from dataclasses import dataclass, field
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import repository_root
 
-from scripts.checks._trigger import parse_changed_files, skip_if_not_triggered  # noqa: E402
+REPO_ROOT = repository_root()
+
 
 CSS_FILE = (
     REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'css' / 'shell.css'
@@ -38,11 +34,6 @@ SESSION_HTML = (
     REPO_ROOT / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates' / 'session.html'
 )
 MIN_GRID_COLUMNS = 2
-
-# 触发模式：当变更文件匹配时运行此检查
-TRIGGER_PATTERNS = [
-    'java/web/src/main/resources/static/**',
-]
 
 
 @dataclass
@@ -431,146 +422,7 @@ def run_checks(
     return result.to_dict()
 
 
-# 解析命令行参数并运行脚本入口。
-def main() -> None:
-    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-
-    if '--self-test' in sys.argv:
-        return _self_test()
-
-    out = run_checks(CSS_FILE, BASE_HTML, SESSION_HTML, SHELL_CSS_FILE)
-    print(json.dumps(out, ensure_ascii=False, indent=2))
-
-    if out['status'] == 'FAIL':
-        for f in out['failures']:
-            print(f'  FAIL: [{f["code"]}] {f["message"]}', file=sys.stderr)
-        sys.exit(1)
-    else:
-        print('PASS: All static CSS/template checks passed')
-        sys.exit(0)
-
-
-# 运行脚本自测试场景。
-def _self_test() -> None:
-    good_css = """
-body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
-.shell.phase1-shell .main {
-    grid-column: 1 / -1;
-    width: 100%;
-    min-width: 0;
-}
-.session-detail-phase1 { width: min(100%, 1360px); margin: 0 auto; }
-.hero-main { grid-template-columns: 1fr; }
-.hero-title { overflow-wrap: break-word; word-break: normal; }
-"""
-
-    good_base = """
-<div class="shell{% block shell_class %}{% endblock %}" data-session-detail-shell>
-"""
-
-    good_session = """
-{% extends "base.html" %}
-{% block shell_class %} no-inspector phase1-shell{% endblock %}
-"""
-
-    # 运行检查流程。
-    def _run(
-        name: str, css_text: str, base_text: str, session_text: str, expect_pass: bool
-    ) -> bool:
-        """参数：
-            name: 打印到 CLI 的用例标签。
-            css_text: CSS fixture 内容。
-            base_text: base template fixture 内容。
-            session_text: session template fixture 内容。
-            expect_pass: 期望的 PASS/FAIL 状态。
-
-        返回：
-            观察状态符合预期时返回 true。
-        """
-        with tempfile.TemporaryDirectory() as td:
-            css_p = Path(td) / 'shell.css'
-            base_p = Path(td) / 'base.html'
-            session_p = Path(td) / 'session.html'
-            css_p.write_text(css_text)
-            base_p.write_text(base_text)
-            session_p.write_text(session_text)
-            out = run_checks(css_p, base_p, session_p)
-            actual_pass = out['status'] == 'PASS'
-            if actual_pass == expect_pass:
-                print(f'  PASS: {name}')
-                return True
-            codes = [f['code'] for f in out.get('failures', [])]
-            expected = 'PASS' if expect_pass else 'FAIL'
-            print(f'  FAIL: {name} - expected {expected}, got {out["status"]}, failures: {codes}')
-            return False
-
-    failures = 0
-
-    if not _run('full contract => PASS', good_css, good_base, good_session, True):
-        failures += 1
-
-    bad_css_2 = """
-.shell.phase1-shell .main { grid-column: 1 / -1; width: 100%; }
-.session-detail-phase1 { width: 100%; }
-.hero-main { grid-template-columns: 1fr; }
-.hero-title { overflow-wrap: break-word; }
-"""
-    if not _run('missing hide-left override => FAIL', bad_css_2, good_base, good_session, False):
-        failures += 1
-
-    bad_css_3 = """
-body.hide-left .shell.phase1-shell { grid-template-columns: 0 minmax(0, 1fr); }
-.shell.phase1-shell .main { width: 100%; }
-.session-detail-phase1 { width: 100%; }
-.hero-main { grid-template-columns: 1fr; }
-.hero-title { overflow-wrap: break-word; }
-"""
-    if not _run('missing main grid-column => FAIL', bad_css_3, good_base, good_session, False):
-        failures += 1
-
-    bad_css_4 = good_css.replace(
-        '.hero-main { grid-template-columns: 1fr; }',
-        '.session-detail-phase1 .hero-main { '
-        'grid-template-columns: minmax(0, 1fr) minmax(360px, 520px); }',
-    )
-    if not _run('hero two-column => FAIL', bad_css_4, good_base, good_session, False):
-        failures += 1
-
-    bad_css_5 = good_css.replace(
-        '.hero-title { overflow-wrap: break-word; word-break: normal; }',
-        '.hero-title { overflow-wrap: anywhere; }',
-    )
-    if not _run(
-        'hero title overflow-wrap:anywhere => FAIL', bad_css_5, good_base, good_session, False
-    ):
-        failures += 1
-
-    # 6. 缺失 session shell_class hook => FAIL。
-    bad_session = """
-{% extends "base.html" %}
-"""
-    if not _run('missing session shell_class => FAIL', good_css, good_base, bad_session, False):
-        failures += 1
-
-    bad_base = """
-<div class="shell" data-session-detail-shell>
-"""
-    if not _run('missing base shell application => FAIL', good_css, bad_base, good_session, False):
-        failures += 1
-
-    if failures:
-        print(f'\n{failures} test(s) failed')
-        sys.exit(1)
-    else:
-        print('\nAll self-tests passed')
-        sys.exit(0)
-
-
-if __name__ == '__main__':
-    main()
+def check_repository() -> list[str]:
+    """返回 repository Session Detail 静态契约诊断。"""
+    result = run_checks(CSS_FILE, BASE_HTML, SESSION_HTML, SHELL_CSS_FILE)
+    return [f"{failure['code']}: {failure['message']}" for failure in result['failures']]

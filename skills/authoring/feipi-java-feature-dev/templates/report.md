@@ -17,8 +17,8 @@
 | Gate | Result |
 |---|---|
 | `./scripts/session-browser.sh test` | <PASS/FAIL> |
-| `python scripts/checks/check_java_module_boundaries.py` | <PASS/FAIL> |
-| `python scripts/checks/check_java_api_snapshot.py` | <PASS/FAIL/skipped> |
+| `./gradlew check` | <PASS/FAIL> |
+| `python3 -m scripts.checks java.api-snapshot --check` | <PASS/FAIL/skipped> |
 | `python scripts/gates/cli.py` | <PASS/FAIL/skipped> |
 
 ## Risks

@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/session-start.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event session-start'",
             "timeout": 30
           }
         ]
@@ -17,7 +17,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/cwd-changed.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event cwd-changed'",
             "timeout": 30
           }
         ]
@@ -28,7 +28,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/user-prompt-submit.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event user-prompt-submit'",
             "timeout": 30
           }
         ]
@@ -39,7 +39,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/pre_tool_bootstrap.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event pre-tool-bootstrap'",
             "timeout": 30
           }
         ]
@@ -49,7 +49,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/pre_tool_guard.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event pre-bash'",
             "timeout": 60
           }
         ]
@@ -59,7 +59,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/pre_write_guard.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event pre-write'",
             "timeout": 60
           }
         ]
@@ -71,7 +71,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/post_bash_guard.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event post-bash'",
             "timeout": 60
           }
         ]
@@ -81,7 +81,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/post_tool_guard.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event post-write'",
             "timeout": 60
           }
         ]
@@ -92,7 +92,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/tool_failure.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event tool-failure'",
             "timeout": 60
           }
         ]
@@ -103,7 +103,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/stop_check.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event stop'",
             "timeout": 1500
           }
         ]
@@ -114,7 +114,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/stop_failure.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event stop-failure'",
             "timeout": 120
           }
         ]
@@ -125,7 +125,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec \"$root/.qoder/hooks/session_end.sh\"'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client qoder --event session-end'",
             "timeout": 60
           }
         ]

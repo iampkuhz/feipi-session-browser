@@ -329,7 +329,7 @@ run_tests() {
 # 打印 deps 子命令帮助。
 print_deps_usage() {
     cat <<'EOF'
-用法：./scripts/session-browser.sh deps [--dry-run] [--dev] [dev installer options]
+用法：./scripts/session-browser.sh deps [--dry-run] [--dev] [uv sync options]
 
 默认行为：
   deps                 构建 Java launcher，并运行产品运行时 preflight
@@ -347,19 +347,17 @@ EOF
 # 安装 Python 开发依赖；dry-run 只检查环境和锁文件。
 install_dev_deps() {
     cd "$PROJECT_DIR"
+    if ! command -v uv >/dev/null 2>&1; then
+        echo "错误：Python 开发依赖以 pyproject.toml + uv.lock 为唯一真相，需要安装 uv。" >&2
+        return 1
+    fi
     if [[ "${1:-}" == "--dry-run" ]]; then
+        uv lock --check
         "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" report
         echo "[DRY-RUN] 未安装依赖；锁文件一致性检查完成。"
         return 0
     fi
-    if command -v uv >/dev/null 2>&1 && [[ "${SESSION_BROWSER_DEPS_INSTALLER:-uv}" == "uv" ]]; then
-        uv sync --extra dev "$@"
-        return $?
-    fi
-    if [[ ! -x "$VENV_DIR/bin/python" ]]; then
-        python3 -m venv "$VENV_DIR"
-    fi
-    "$(python_bin)" -m pip install -r requirements-dev.txt "$@"
+    uv sync --frozen --extra dev "$@"
 }
 
 # 安装或检查项目依赖；默认构建 Java launcher，--dev 安装 Python 开发依赖。
@@ -465,19 +463,6 @@ run_lint() {
     run_dev_tool ruff check .
 }
 
-# 执行 Pyright 类型检查。
-run_type_check() {
-    PYRIGHT_PYTHON_IGNORE_WARNINGS=1 run_dev_tool pyright
-}
-
-# 执行脚本文档覆盖率和 docstring 质量检查。
-run_doc_checks() {
-    run_dev_tool interrogate scripts
-    if ! run_dev_tool pydoclint scripts; then
-        echo "提示：pydoclint report 已生成；python-standard 暂不因历史 docstring 格式债务阻断。" >&2
-    fi
-}
-
 # 执行 Python harness/quality 测试并生成 coverage 报告。
 run_coverage() {
     run_dev_tool pytest -W error \
@@ -501,8 +486,8 @@ run_coverage() {
         "$@"
 }
 
-# 使用 dev lock 运行 pip-audit，并把网络不可用降级为诊断提示。
-run_pip_audit_dev_lock() {
+# 从 uv.lock 导出完整开发依赖给 pip-audit，并把网络不可用降级为诊断提示。
+run_pip_audit_uv_lock() {
     local output
     local status
     set +e
@@ -510,14 +495,15 @@ run_pip_audit_dev_lock() {
         if [[ "${SESSION_BROWSER_AUDIT_USE_PROXY:-0}" != "1" ]]; then
             unset HTTPS_PROXY HTTP_PROXY ALL_PROXY https_proxy http_proxy all_proxy
         fi
-        run_dev_tool pip-audit \
-            -s osv \
-            -r requirements-dev.lock \
-            --no-deps \
-            --disable-pip \
-            --progress-spinner off \
-            --timeout 60 \
-            2>&1
+        uv export --frozen --extra dev --no-hashes --no-emit-project --no-header --no-annotate | \
+            run_dev_tool pip-audit \
+                -s osv \
+                -r /dev/stdin \
+                --no-deps \
+                --disable-pip \
+                --progress-spinner off \
+                --timeout 60 \
+                2>&1
     )"
     status=$?
     set -e
@@ -535,7 +521,7 @@ run_pip_audit_dev_lock() {
 
 # 执行依赖漏洞和高危 Bandit 安全检查。
 run_audit() {
-    run_pip_audit_dev_lock
+    run_pip_audit_uv_lock
     run_dev_tool bandit -r scripts --severity-level high
 }
 
@@ -560,8 +546,9 @@ run_deps_check() {
 run_quality() {
     run_format_check
     run_lint
-    run_type_check
-    run_doc_checks
+    "$(python_bin)" -m scripts.checks source.comment-language \
+        --script-comments scripts \
+        --policy "$PROJECT_DIR/config/technical-terms.json"
     run_coverage
     run_audit
     run_complexity
@@ -638,13 +625,11 @@ print_usage() {
 本地验证：
   deps                             构建 Java launcher 并运行产品 preflight
   deps --dry-run                   仅展示 Java bootstrap 计划，不写入构建产物
-  deps --dev [pip options]         安装 Python 开发/测试依赖
+  deps --dev [uv sync options]     按 uv.lock 安装 Python 开发/测试依赖
   deps --dev --dry-run             仅检查 Python、依赖声明和锁文件一致性
   format                           使用 Ruff Formatter/Ruff import 规则自动格式化
   format-check                     检查 Ruff 格式和 import 排序，不修改文件
   lint                             执行 Ruff lint
-  type                             执行 Pyright 类型检查
-  doc                              执行 interrogate 与 pydoclint 文档检查
   coverage [pytest options]        执行 pytest-cov/Coverage.py 覆盖率检查
   audit                            执行 pip-audit 与 Bandit 安全检查
   complexity                       执行 Xenon/Radon 复杂度检查
@@ -664,7 +649,6 @@ print_usage() {
 常用环境变量：
   SESSION_BROWSER_VENV_DIR         默认：./.venv
   SESSION_BROWSER_PYTHON           显式 Python；优先级高于虚拟环境
-  SESSION_BROWSER_DEPS_INSTALLER   deps --dev 默认：uv；设为 pip 可使用 requirements-dev.txt 安装
   SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
   SESSION_BROWSER_LOCAL_PORT       默认：8848
   SESSION_BROWSER_SERVE_AUTO_KILL_PORT
@@ -710,12 +694,6 @@ case "$CMD" in
         ;;
     lint)
         run_lint "$@"
-        ;;
-    type)
-        run_type_check "$@"
-        ;;
-    doc)
-        run_doc_checks "$@"
         ;;
     coverage)
         run_coverage "$@"

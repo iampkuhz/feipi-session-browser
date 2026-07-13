@@ -21,7 +21,6 @@ __pycache__/
 *.pyo
 .pytest_cache/
 .ruff_cache/
-uv.lock
 
 # SQLite index
 *.sqlite
@@ -62,7 +61,6 @@ playwright/.cache/
 # Node
 node_modules/
 /tmp/*
-!/tmp/.gitkeep
 /tests/playwright/*-snapshots/
 
 *.egg-info/

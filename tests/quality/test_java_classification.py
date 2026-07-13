@@ -14,7 +14,7 @@
 
 import json
 import tempfile
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 import pytest
@@ -316,7 +316,7 @@ class TestStaleArtifact:
             f.write(b'{}')
             f.flush()
             # 设置文件修改时间为 2 小时前
-            old_time = datetime.now(timezone.utc).timestamp() - 7200
+            old_time = datetime.now(UTC).timestamp() - 7200
             import os
 
             os.utime(f.name, (old_time, old_time))
@@ -383,8 +383,8 @@ class TestJavaChineseCommentsGate:
     """javaChineseComments 必须使用仓库内脚本和策略文件，禁止依赖 tmp。"""
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_uses_repo_script(self, tmp_path: Path):
-        """gate 命令指向 scripts/checks/check_code_comment_language.py。"""
+    def test_gate_command_uses_shared_check_cli(self, tmp_path: Path):
+        """gate 命令只指向共享 check CLI 和稳定 check ID。"""
         from scripts.gates import executor as gate_executor
 
         # 创建仓库脚本和策略文件的 mock 结构
@@ -398,9 +398,7 @@ class TestJavaChineseCommentsGate:
         cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
 
         assert cmd, 'gate 命令不应为空'
-        assert 'check_code_comment_language.py' in cmd[-1] or any(
-            'check_code_comment_language.py' in str(c) for c in cmd
-        ), f'命令应包含仓库内检查脚本: {cmd}'
+        assert cmd[1:4] == ['-m', 'scripts.checks', 'source.comment-language']
 
     @pytest.mark.contract_case('JR-020-001')
     def test_gate_command_includes_policy_file(self, tmp_path: Path):

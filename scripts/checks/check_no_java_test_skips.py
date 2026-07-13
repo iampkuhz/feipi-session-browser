@@ -5,25 +5,12 @@
 
 from __future__ import annotations
 
-import argparse
-import sys
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import argument_parser, repository_root
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-# 触发模式：当变更文件匹配这些 pattern 时才运行检查。
-TRIGGER_PATTERNS = [
-    'java/**/src/test/java/**/*.java',
-]
+REPO_ROOT = repository_root()
 
 
 # 判断模块是否包含 Java/Kotlin 测试源码。
@@ -160,17 +147,8 @@ def main(argv: list[str] | None = None) -> int:
     返回：
         进程退出码。
     """
-    parser = argparse.ArgumentParser()
+    parser = argument_parser()
     parser.add_argument('--root', default='.', help='repository root')
-    add_changed_files_arg(parser)
     args = parser.parse_args(argv)
 
-    # 自感知跳过：变更文件不匹配触发模式时直接 SKIP。
-    changed_files = parse_changed_files(getattr(args, 'changed_files', None))
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-
     return check(Path(args.root).resolve())
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

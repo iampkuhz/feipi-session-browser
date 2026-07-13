@@ -8,7 +8,7 @@ import pytest
 from scripts.agent_runtime.context import HookContext
 from scripts.agent_runtime.events.evidence import record_hook_event
 from scripts.agent_runtime.paths import build_paths, identity_from_values, quality_dir
-from scripts.harness.primary_session import (
+from scripts.agent_runtime.session.contract import (
     resolve_checkout_identity,
     resolve_runtime_root,
     validate_run_write_authorization,

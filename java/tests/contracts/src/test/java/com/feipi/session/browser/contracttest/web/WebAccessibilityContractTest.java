@@ -23,7 +23,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
- * Web 可访问性契约门禁。
+ * Web 可访问性契约门禁（UI-SD-029）。
  *
  * <p>验证键盘导航支持、ARIA 属性和基本可访问性结构。 本测试位于 HTTP adapter trust boundary， 验证 HTML 输出中的可访问性标记。
  */

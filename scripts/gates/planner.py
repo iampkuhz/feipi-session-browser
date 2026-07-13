@@ -14,6 +14,7 @@ from scripts.gates.catalog import (
     gate_by_name,
     target_by_name,
     tier_by_name,
+    validate_catalog_schema,
 )
 from scripts.gates.model import FileClassification, GatePlan, TargetGatePlan
 
@@ -218,63 +219,7 @@ def plan(
     )
 
 
-# 验证 catalog 唯一、引用完整且 target dominance/Gate includedBy 无环。
+# 保留 planner 的公开校验入口，schema 真正由 catalog loader 负责。
 def validate_catalog() -> None:
-    """返回：
-    当前函数的稳定结果。
-    """
-    gate_names = [gate.name for gate in GATES]
-    target_names = [target.name for target in TARGETS]
-    if len(gate_names) != len(set(gate_names)):
-        raise ValueError('duplicate Gate name in catalog')
-    if len(target_names) != len(set(target_names)):
-        raise ValueError('duplicate target name in catalog')
-    known_gates = set(gate_names)
-    known_targets = set(target_names)
-    for gate in GATES:
-        if not gate.description.strip() or not gate.description.endswith('。'):
-            raise ValueError(f'Gate description must be Chinese prose: {gate.name}')
-        if bool(gate.command_key) == bool(gate.gradle_tasks):
-            raise ValueError(f'Gate needs exactly one command source: {gate.name}')
-        if not gate.target_rules or any(
-            rule.target not in known_targets for rule in gate.target_rules
-        ):
-            raise ValueError(f'Gate target reference is invalid: {gate.name}')
-        if not gate.changed_files_input:
-            raise ValueError(f'Gate changed-files input is invalid: {gate.name}')
-        if any(parent not in known_gates for parent in gate.included_by):
-            raise ValueError(f'Gate includedBy reference is invalid: {gate.name}')
-    _assert_acyclic(
-        {target.name: target.includes for target in TARGETS},
-        'target dominance',
-    )
-    _assert_acyclic(
-        {gate.name: gate.included_by for gate in GATES},
-        'Gate includedBy',
-    )
-
-
-# 对 catalog 小型有向图执行确定性 DFS 环检测。
-def _assert_acyclic(graph: dict[str, tuple[str, ...]], label: str) -> None:
-    visiting: set[str] = set()
-    visited: set[str] = set()
-
-    # 访问单个图节点并检测回边。
-    def visit(node: str) -> None:
-        """参数：
-        node: 当前待访问的 catalog 节点。
-        """
-        if node in visiting:
-            raise ValueError(f'cycle in {label}: {node}')
-        if node in visited:
-            return
-        visiting.add(node)
-        for child in graph[node]:
-            if child not in graph:
-                raise ValueError(f'unknown reference in {label}: {child}')
-            visit(child)
-        visiting.remove(node)
-        visited.add(node)
-
-    for node in graph:
-        visit(node)
+    """校验当前唯一 catalog 声明。"""
+    validate_catalog_schema()

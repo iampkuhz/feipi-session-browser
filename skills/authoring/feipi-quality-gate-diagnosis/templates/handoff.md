@@ -33,8 +33,8 @@
 <失败的命令>
 
 # 运行 required baseline
-python scripts/checks/check_skill_registry.py
-python scripts/checks/check_agent_runtime_manifest.py
+python3 -m scripts.checks agent.skill-registry
+python3 -m scripts.checks agent.runtime-manifest
 bash scripts/harness/doctor.sh
 ```
 

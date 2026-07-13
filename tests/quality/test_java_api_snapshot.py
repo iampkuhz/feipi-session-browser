@@ -67,7 +67,9 @@ def test_check_reports_unified_diff_for_public_api_drift(tmp_path):
     subprocess.run(
         [
             sys.executable,
-            str(SCRIPT),
+            "-m",
+            "scripts.checks",
+            "java.api-snapshot",
             "--write",
             "--java-root",
             str(tmp_path),
@@ -77,6 +79,7 @@ def test_check_reports_unified_diff_for_public_api_drift(tmp_path):
         check=True,
         text=True,
         capture_output=True,
+        cwd=REPO_ROOT,
     )
 
     write_java(
@@ -94,7 +97,9 @@ def test_check_reports_unified_diff_for_public_api_drift(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            str(SCRIPT),
+            "-m",
+            "scripts.checks",
+            "java.api-snapshot",
             "--check",
             "--java-root",
             str(tmp_path),
@@ -104,9 +109,10 @@ def test_check_reports_unified_diff_for_public_api_drift(tmp_path):
         text=True,
         capture_output=True,
         check=False,
+        cwd=REPO_ROOT,
     )
 
     assert result.returncode == 1
-    assert "--- " in result.stderr
-    assert "+++ current-java-public-api" in result.stderr
-    assert "+method example.Api public String added()" in result.stderr
+    assert "--- " in result.stdout
+    assert "+++ current-java-public-api" in result.stdout
+    assert "+method example.Api public String added()" in result.stdout

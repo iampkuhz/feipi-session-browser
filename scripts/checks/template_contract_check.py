@@ -4,21 +4,11 @@
 
 from __future__ import annotations
 
-import sys
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import repository_root
 
-from scripts.checks._trigger import parse_changed_files, skip_if_not_triggered  # noqa: E402
-
-# 触发模式：当变更文件匹配时运行此检查
-TRIGGER_PATTERNS = [
-    'java/web/src/main/resources/templates/**',
-    'tests/ui/test_web_template_contract.py',
-    'scripts/checks/template_contract_check.py',
-]
+REPO_ROOT = repository_root()
 
 
 # 检查模板契约并返回违规列表。
@@ -46,14 +36,10 @@ def check_templates(repo_root: Path) -> list[str]:
 
 
 # 解析命令行参数并运行脚本入口。
+
+
 def main() -> int:
     """解析命令行参数并运行脚本入口。"""
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
 
     root = Path.cwd()
     failures = check_templates(root)
@@ -63,7 +49,3 @@ def main() -> int:
         return 1
     print('template contract PASS')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

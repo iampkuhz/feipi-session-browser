@@ -108,16 +108,13 @@ def test_guard_does_not_require_change_for_unprotected_path(tmp_path: Path) -> N
 
 
 def copy_runtime_guard_fixture(root: Path) -> None:
-    """构造只覆盖 wrapper→共享入口→OpenSpec guard 的最小隔离仓库。"""
+    """构造只覆盖共享 Hook 入口→OpenSpec guard 的最小隔离仓库。"""
 
     write_manifest(root)
     files = [
         'scripts/hooks/guard_openspec_change.py',
         'scripts/openspec/validate_active_change.py',
         'scripts/agent_runtime/policy.py',
-        '.codex/hooks/pre_write_guard.sh',
-        '.qoder/hooks/pre_write_guard.sh',
-        'scripts/harness/hook-common.sh',
     ]
     for rel in files:
         src = REPO / rel
@@ -127,6 +124,7 @@ def copy_runtime_guard_fixture(root: Path) -> None:
     for rel in (
         'scripts/__init__.py',
         'scripts/agent_runtime/__init__.py',
+        'scripts/agent_runtime/session/__init__.py',
         'scripts/harness/__init__.py',
         'scripts/hooks/__init__.py',
         'scripts/openspec/__init__.py',
@@ -142,7 +140,7 @@ def copy_runtime_guard_fixture(root: Path) -> None:
         "def legacy_active_change_path(root): return Path(root)/'tmp/active_change.json'\n",
         encoding='utf-8',
     )
-    (root / 'scripts' / 'harness' / 'primary_session.py').write_text(
+    (root / 'scripts' / 'agent_runtime' / 'session' / 'contract.py').write_text(
         "def validate_run_write_authorization(*args, **kwargs): return True, [], {}\n"
         "def load_run_record(*args, **kwargs): return None\n",
         encoding='utf-8',
@@ -206,7 +204,11 @@ def test_claude_pre_write_blocks_protected_without_change(tmp_path: Path) -> Non
 def test_codex_pre_write_blocks_protected_without_change(tmp_path: Path) -> None:
     copy_runtime_guard_fixture(tmp_path)
 
-    result = run_in_fixture(tmp_path, ['bash', '.codex/hooks/pre_write_guard.sh'], write_payload())
+    result = run_in_fixture(
+        tmp_path,
+        [sys.executable, '-m', 'scripts.agent_runtime.hook_entry', 'pre-write'],
+        write_payload(),
+    )
 
     assert result.returncode == 2
     assert 'OpenSpec guard BLOCK' in result.stderr
@@ -215,7 +217,11 @@ def test_codex_pre_write_blocks_protected_without_change(tmp_path: Path) -> None
 def test_qoder_pre_write_blocks_protected_without_change(tmp_path: Path) -> None:
     copy_runtime_guard_fixture(tmp_path)
 
-    result = run_in_fixture(tmp_path, ['bash', '.qoder/hooks/pre_write_guard.sh'], write_payload())
+    result = run_in_fixture(
+        tmp_path,
+        [sys.executable, '-m', 'scripts.agent_runtime.hook_entry', 'pre-write'],
+        write_payload(),
+    )
 
     assert result.returncode == 2
     assert 'OpenSpec guard BLOCK' in result.stderr

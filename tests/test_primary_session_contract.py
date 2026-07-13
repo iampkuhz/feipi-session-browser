@@ -4,7 +4,7 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from scripts.harness.primary_session import (
+from scripts.agent_runtime.session.contract import (
     PrimarySessionValidationError,
     ensure_private_directory,
     resolve_checkout_identity,
@@ -206,7 +206,7 @@ def test_checkout_record_authorizes_detached_branch_independently_and_contains_p
     }
     (leases / f'{record["worktreeId"]}.json').write_text(json.dumps(lease), encoding="utf-8")
 
-    from scripts.harness.primary_session import validate_run_write_authorization
+    from scripts.agent_runtime.session.contract import validate_run_write_authorization
 
     ok, errors, _ = validate_run_write_authorization(
         worktree,

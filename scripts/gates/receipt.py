@@ -8,7 +8,7 @@ import os
 import subprocess
 import sys
 from dataclasses import asdict, dataclass
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -200,7 +200,7 @@ def write_pass_receipt(
         cache_key=cache_key,
         catalog_version=CATALOG_VERSION,
         changed_files=tuple(changed_files),
-        created_at=datetime.now(timezone.utc).isoformat(),
+        created_at=datetime.now(UTC).isoformat(),
         artifact_path=artifact_path,
         artifact_sha256=artifact_sha256,
         checkout_fingerprint=checkout_content_fingerprint(root),

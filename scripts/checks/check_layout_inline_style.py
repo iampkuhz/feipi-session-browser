@@ -5,22 +5,18 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import CheckOptions, argument_parser, repository_root
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
+if TYPE_CHECKING:
+    from pathlib import Path
+
+REPO_ROOT = repository_root()
+
 
 BASELINE_PATH = REPO_ROOT / 'scripts' / 'checks' / 'layout_inline_style_baseline.json'
 
@@ -46,12 +42,6 @@ JS_STYLE_ASSIGN_RE = re.compile(
 
 # JS 注释行
 JS_COMMENT_LINE_RE = re.compile(r'^\s*(?://|/\*|\*)')
-
-# 触发模式：当变更文件匹配时运行此检查
-TRIGGER_PATTERNS = [
-    'java/web/src/main/resources/static/**/*.js',
-    'scripts/checks/check_layout_inline_style.py',
-]
 
 
 # 查找HTML 文件。
@@ -194,7 +184,7 @@ def run_all_scans() -> list[dict]:
 
 
 # 运行检查。
-def run_check(args: argparse.Namespace) -> int:
+def run_check(args: CheckOptions) -> int:
     """运行检查。"""
     findings = run_all_scans()
     baseline = load_baseline()
@@ -238,11 +228,9 @@ def run_check(args: argparse.Namespace) -> int:
         return 1
 
     if args.check:
-        print('结论:PASS — 无新增 layout inline style.')
         return 0
 
     # 全量扫描模式
-    print('结论:PASS(全量扫描)— 存量技术债务已记录.')
     if not baseline:
         print('提示:首次运行,建议执行 --update-baseline 建立 baseline.')
         print(f'  baseline 路径:{BASELINE_PATH}')
@@ -250,7 +238,7 @@ def run_check(args: argparse.Namespace) -> int:
 
 
 # 更新 baseline 文件并保持稳定排序。
-def run_update_baseline(args: argparse.Namespace) -> int:
+def run_update_baseline(args: CheckOptions) -> int:
     """更新 baseline 文件并保持稳定排序。"""
     findings = run_all_scans()
     save_baseline(findings)
@@ -262,8 +250,7 @@ def run_update_baseline(args: argparse.Namespace) -> int:
 # 解析命令行参数并运行脚本入口。
 def main() -> int:
     """解析命令行参数并运行脚本入口。"""
-    parser = argparse.ArgumentParser(description='layout-inline-style 阻断 gate')
-    add_changed_files_arg(parser)
+    parser = argument_parser(description='layout-inline-style 阻断 gate')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         '--check', action='store_true', help='增量检查:对比 baseline,发现新增则 BLOCK'
@@ -271,13 +258,6 @@ def main() -> int:
     mode.add_argument('--update-baseline', action='store_true', help='更新 baseline 文件')
     args = parser.parse_args()
 
-    changed_files = parse_changed_files(args.changed_files)
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-
     if args.update_baseline:
         return run_update_baseline(args)
     return run_check(args)
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

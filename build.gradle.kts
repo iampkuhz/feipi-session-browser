@@ -171,7 +171,13 @@ val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
     val reportDir = layout.buildDirectory.dir("reports/chinese-comments")
 
     // 声明脚本和策略文件为 inputs。
-    inputs.files(checkerScript, policyFile)
+    inputs.files(
+        checkerScript,
+        policyFile,
+        file("scripts/checks/__main__.py"),
+        file("scripts/checks/_framework.py"),
+        file("scripts/checks/_registry.py"),
+    )
     // 声明所有 Java/Kotlin/Gradle 源文件为 inputs：源文件变化时 task 必须重新执行。
     // 排除 build 输出目录，避免与其他 task 的输出产生隐式依赖。
     inputs.files(
@@ -191,12 +197,12 @@ val verifyChineseJavaComments = tasks.register("verifyChineseJavaComments") {
     outputs.file(layout.buildDirectory.file("reports/chinese-comments/report.json"))
 
     // 配置时解析所有路径为绝对路径字符串，避免执行时引用脚本对象。
-    val scriptPath = checkerScript.absolutePath
+    val repoRootPath = projectDir.absolutePath
     val policyPath = policyFile.absolutePath
     val cachePath = cacheFile.get().asFile.absolutePath
     val reportPath = reportDir.get().asFile.absolutePath
 
-    doLast(runChineseCommentCheckAction(scriptPath, policyPath, cachePath, reportPath))
+    doLast(runChineseCommentCheckAction(repoRootPath, policyPath, cachePath, reportPath))
 }
 
 // ============================================================
@@ -211,18 +217,24 @@ val verifyChineseJavaCommentsChanged = tasks.register("verifyChineseJavaComments
     val changedFilesJson = layout.buildDirectory.file("tmp/changed-java-files.json")
     val reportDir = layout.buildDirectory.dir("reports/chinese-comments-changed")
 
-    inputs.files(checkerScript, policyFile)
+    inputs.files(
+        checkerScript,
+        policyFile,
+        file("scripts/checks/__main__.py"),
+        file("scripts/checks/_framework.py"),
+        file("scripts/checks/_registry.py"),
+    )
     // 声明输出文件，使 task 可被 up-to-date 检查（注意：git diff 本身不可复现）。
     outputs.file(layout.buildDirectory.file("reports/chinese-comments-changed/report.json"))
         .withPropertyName("reportFile")
 
     // 配置时解析路径，避免执行时引用脚本对象。
-    val scriptPath = checkerScript.absolutePath
+    val repoRootPath = projectDir.absolutePath
     val policyPath = policyFile.absolutePath
     val changedFilesPath = changedFilesJson.get().asFile.absolutePath
     val reportPath = reportDir.get().asFile.absolutePath
 
-    doLast(runChineseCommentCheckChangedAction(scriptPath, policyPath, changedFilesPath, reportPath))
+    doLast(runChineseCommentCheckChangedAction(repoRootPath, policyPath, changedFilesPath, reportPath))
 }
 
 tasks.named("check") {
@@ -254,7 +266,12 @@ val verifyJavaApiSnapshot = tasks.register<Exec>("verifyJavaApiSnapshot") {
     val snapshotFile = file("config/api-snapshots/java-public-api.txt")
     val reportFile = layout.buildDirectory.file("reports/java-api-snapshot/result.txt")
 
-    inputs.file(checkerScript).withPropertyName("checkerScript")
+    inputs.files(
+        checkerScript,
+        file("scripts/checks/__main__.py"),
+        file("scripts/checks/_framework.py"),
+        file("scripts/checks/_registry.py"),
+    ).withPropertyName("checkerCli")
     inputs.file(snapshotFile).withPropertyName("apiSnapshot")
     inputs.files(
         fileTree("java").apply {
@@ -266,13 +283,16 @@ val verifyJavaApiSnapshot = tasks.register<Exec>("verifyJavaApiSnapshot") {
 
     commandLine(
         "python3",
-        checkerScript.absolutePath,
+        "-m",
+        "scripts.checks",
+        "java.api-snapshot",
         "--check",
         "--java-root",
         file("java").absolutePath,
         "--snapshot",
         snapshotFile.absolutePath,
     )
+    workingDir(rootProject.projectDir)
     doLast {
         val result = reportFile.get().asFile
         result.parentFile.mkdirs()
@@ -433,7 +453,7 @@ private fun checkNoSkippedTestsAction(
  * 调用中文注释检查脚本对全量 Java 源文件进行扫描。
  */
 private fun runChineseCommentCheckAction(
-    scriptPath: String,
+    repoRootPath: String,
     policyPath: String,
     cachePath: String,
     reportDirPath: String,
@@ -443,13 +463,13 @@ private fun runChineseCommentCheckAction(
         reportDir.mkdirs()
         val reportFile = java.io.File(reportDir, "report.json")
         val cmd = listOf(
-            "python3", scriptPath,
+            "python3", "-m", "scripts.checks", "source.comment-language",
             "java", "build-logic", "build.gradle.kts", "settings.gradle.kts",
             "--policy", policyPath,
             "--json-report", reportFile.absolutePath,
             "--cache", cachePath,
         )
-        val pb = ProcessBuilder(cmd).inheritIO()
+        val pb = ProcessBuilder(cmd).directory(java.io.File(repoRootPath)).inheritIO()
         val process = pb.start()
         val exitCode = process.waitFor()
         if (exitCode != 0) {
@@ -466,7 +486,7 @@ private fun runChineseCommentCheckAction(
  * 仅扫描 Git 变更的 Java 文件的中文注释。
  */
 private fun runChineseCommentCheckChangedAction(
-    scriptPath: String,
+    repoRootPath: String,
     policyPath: String,
     changedFilesJsonPath: String,
     reportDirPath: String,
@@ -474,7 +494,7 @@ private fun runChineseCommentCheckChangedAction(
     return org.gradle.api.Action<Task> {
         val changedFiles = try {
             val proc = ProcessBuilder("git", "diff", "--name-only", "--diff-filter=ACMR", "HEAD")
-                .redirectErrorStream(true).start()
+                .directory(java.io.File(repoRootPath)).redirectErrorStream(true).start()
             proc.inputStream.bufferedReader().readLines().filter { it.endsWith(".java") }
         } catch (e: Exception) {
             logger.lifecycle("verifyChineseJavaCommentsChanged: 无法获取 changed files，回退到全量扫描。")
@@ -497,7 +517,7 @@ private fun runChineseCommentCheckChangedAction(
         val reportFile = java.io.File(reportDir, "report.json")
 
         val cmd = mutableListOf(
-            "python3", scriptPath,
+            "python3", "-m", "scripts.checks", "source.comment-language",
             "java", "build-logic",
             "--policy", policyPath,
             "--json-report", reportFile.absolutePath,
@@ -505,7 +525,7 @@ private fun runChineseCommentCheckChangedAction(
         if (filesFrom != null) {
             cmd.addAll(listOf("--files-from", filesFrom.absolutePath))
         }
-        val pb = ProcessBuilder(cmd).inheritIO()
+        val pb = ProcessBuilder(cmd).directory(java.io.File(repoRootPath)).inheritIO()
         val process = pb.start()
         val exitCode = process.waitFor()
         if (exitCode != 0) {

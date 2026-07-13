@@ -10,9 +10,9 @@ import sys
 import tempfile
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parents[2]
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import repository_root
+
+REPO_ROOT = repository_root()
 
 from scripts.agent_runtime.events.evidence import (  # noqa: E402
     read_recorded_changed_files_from_paths,  # noqa: E402
@@ -29,27 +29,6 @@ from scripts.agent_runtime.stop.evidence import (  # noqa: E402
 )
 
 GATE_NAME = 'agentRuntimeIsolation'
-
-from scripts.checks._trigger import (  # noqa: E402
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.agents/**',
-    '.claude/**',
-    '.codex/**',
-    '.qoder/**',
-    'skills/**',
-    'harness/**',
-    'scripts/agent_runtime/**/*.py',
-    'scripts/hooks/**/*.py',
-    'scripts/harness/**/*.py',
-    'scripts/harness/**/*.sh',
-    'scripts/checks/**/*.py',
-]
 
 
 def _write_changed_file(repo_root: Path, client: str, session: str, agent: str, file: str) -> Path:
@@ -246,15 +225,6 @@ def run_checks() -> list[str]:
 
 def main() -> int:
     """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-    else:
-        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     errors = run_checks()
     if errors:
@@ -263,7 +233,3 @@ def main() -> int:
         return 1
     print(f'[{GATE_NAME}] PASS')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

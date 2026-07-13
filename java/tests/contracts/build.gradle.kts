@@ -31,13 +31,15 @@ tasks.withType<Pmd>().configureEach {
 // 默认 test task 排除 sample-integration 标签的测试，
 // 这些测试由独立的 sampleIntegrationTest task 执行。
 tasks.named<Test>("test") {
+    // 两个模块都会频繁启停本地 Javalin server，串行可避免并行端口生命周期互相干扰。
+    mustRunAfter(":java:web:test")
     useJUnitPlatform {
         excludeTags("sample-integration")
     }
 }
 
 val sampleIntegrationTest = tasks.register<Test>("sampleIntegrationTest") {
-    description = "对照 docs/session-samples/ 运行会话样例集成测试"
+    description = "运行最小脱敏 synthetic session 样例集成测试"
     group = "verification"
 
     testClassesDirs = sourceSets["test"].output.classesDirs
@@ -50,7 +52,7 @@ val sampleIntegrationTest = tasks.register<Test>("sampleIntegrationTest") {
         includeTestsMatching("*SessionSampleIntegrationTest*")
     }
 
-    // 漂移报告写入项目根目录
+    // 真实 source adapter 需要从仓库根定位最小 synthetic fixture。
     systemProperty("user.dir", project.rootDir.absolutePath)
     System.getProperty("session.samples.writeExpected")?.let {
         systemProperty("session.samples.writeExpected", it)

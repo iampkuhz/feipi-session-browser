@@ -5,37 +5,18 @@
 
 from __future__ import annotations
 
-import argparse
 import json
 import os
 import re
 import subprocess
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import add_changed_files_arg, argument_parser, repository_root
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
+REPO_ROOT = repository_root()
 
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    'skills/**',
-    '.agents/skills/**',
-    '.codex/**',
-    '.claude/agents/**',
-    '.claude/skills/**',
-    '.qoder/**',
-    'harness/**',
-    'openspec/changes/**',
-    'scripts/checks/check_language_policy.py',
-]
+if TYPE_CHECKING:
+    from pathlib import Path
 
 POLICY_PATTERNS = [
     'AGENTS.md',
@@ -333,17 +314,13 @@ def main() -> int:
     """返回：
     进程退出码。
     """
-    parser = argparse.ArgumentParser(description='检查仓库语言策略')
+    parser = argument_parser(description='检查仓库语言策略')
     add_changed_files_arg(parser)
     parser.add_argument('--self-test', action='store_true')
     args = parser.parse_args()
 
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
-
     if args.self_test:
         _self_test()
-        print('language policy self-test PASS')
         return 0
 
     failures = run_check(REPO_ROOT, args.changed_files)
@@ -352,9 +329,4 @@ def main() -> int:
         for item in failures:
             print(f'[FAIL] {item}')
         return 1
-    print('language policy gate PASS')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

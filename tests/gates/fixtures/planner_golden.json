@@ -4,8 +4,6 @@
     "python-standard": [
       "pythonFormat",
       "pythonLint",
-      "pythonType",
-      "pythonDocstring",
       "pythonCoverage",
       "pythonAudit",
       "pythonComplexity",
@@ -111,7 +109,7 @@
       "sessionSamples"
     ]
   },
-  "uniqueGateCount": 60,
+  "uniqueGateCount": 58,
   "scenarios": {
     "read-only": {
       "changedFiles": [],

@@ -10,9 +10,9 @@ description: 用于 required quality gate、doctor、stop check 失败后的诊�
 
 ## 何时使用
 
-- Required baseline gate 失败（`check_agent_runtime_manifest.py`、`check_skill_registry.py` 等）。
+- Required baseline gate 失败（`agent.runtime-manifest`、`agent.skill-registry` 等）。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败。
-- 平台 Stop wrapper 或 `scripts/harness/stop_entry.py` 失败。
+- 共享 dispatcher 或 `scripts/harness/stop_entry.py` 的 Stop 转发失败。
 - Java gates（编译、测试、PMD）失败。
 - UI gates（静态检查、JS action handler 检查）失败。
 - Agent runtime gates（entry parity、hook parity、policy sync）失败。
@@ -77,15 +77,15 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 以下命令用于分层诊断；触发时 required Gate 不能 skipped：
 
 - 触发失败的 gate — 必须重跑并 PASS。
-- `python scripts/checks/check_skill_registry.py` — registry 完整性。
-- `python scripts/checks/check_agent_runtime_manifest.py` — manifest 完整性。
+- `python3 -m scripts.checks agent.skill-registry` — registry 完整性。
+- `python3 -m scripts.checks agent.runtime-manifest` — manifest 完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
 - `python3 scripts/gates/cli.py --tier required` — Stop/handoff 唯一 required baseline。
 
 选择策略：
 
 - 单个 gate 失败 → 修复后重跑该 gate + `doctor.sh`。
-- Registry/manifest 相关 → 追加 `check_skill_registry.py` 和 `check_agent_runtime_manifest.py`。
+- Registry/manifest 相关 → 追加 `agent.skill-registry` 和 `agent.runtime-manifest`。
 - 收口前 → 运行 `python3 scripts/gates/cli.py --tier required`。
 
 若诊断结果需要新增、修改或删除 Gate，退出本 skill 的单点修复模式，按

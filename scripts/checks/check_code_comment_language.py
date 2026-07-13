@@ -5,7 +5,6 @@
 
 from __future__ import annotations
 
-import argparse
 import ast
 import concurrent.futures
 import hashlib
@@ -13,29 +12,14 @@ import io
 import json
 import os
 import re
-import sys
 import tokenize
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import argument_parser, repository_root
 
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
+REPO_ROOT = repository_root()
 
-TRIGGER_PATTERNS = [
-    'scripts/**/*.py',
-    'scripts/**/*.sh',
-    '.claude/hooks/*.sh',
-    '.codex/hooks/*.sh',
-    '.qoder/hooks/*.sh',
-    '**/*.java',
-]
 
 HAN = re.compile(r'[㐀-䶿一-鿿豈-﫿]')
 LATIN = re.compile(r'[A-Za-z]')
@@ -503,7 +487,7 @@ def filter_changed_paths(values: list[str], changed_files: list[str]) -> list[st
 
 def main() -> int:
     """运行注释 Gate 并输出 path:line/code/message/suggestion；存在违规或策略错误时失败。"""
-    parser = argparse.ArgumentParser(description='生产源码中文注释契约检查器')
+    parser = argument_parser(description='生产源码中文注释契约检查器')
     parser.add_argument(
         'paths',
         nargs='*',
@@ -518,10 +502,7 @@ def main() -> int:
         '--script-comments', action='store_true', help='扫描 production Python/shell 注释契约'
     )
     parser.add_argument('--changed-files-env')
-    add_changed_files_arg(parser)
     args = parser.parse_args()
-    changed_files = parse_changed_files(getattr(args, 'changed_files', None))
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
     try:
         terms, forbidden = load_policy(Path(args.policy))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
@@ -609,9 +590,4 @@ def main() -> int:
         )
     if all_violations:
         return 1
-    print(f'PASS: scanned {len(files)} files; 0 violations; 0 banned phrases')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

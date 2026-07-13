@@ -1,0 +1,7 @@
+{"synthetic":true,"timestamp":"2026-04-24T11:00:00.000Z","type":"session_meta","payload":{"synthetic":true,"id":"synthetic-codex-parent","cwd":"synthetic/workspace","source":"cli"}}
+{"synthetic":true,"timestamp":"2026-04-24T11:00:01.000Z","type":"turn_context","payload":{"model":"synthetic-codex-model"}}
+{"synthetic":true,"timestamp":"2026-04-24T11:00:02.000Z","type":"event_msg","payload":{"type":"user_message","content":"[synthetic user input]"}}
+{"synthetic":true,"timestamp":"2026-04-24T11:00:03.000Z","type":"response_item","payload":{"type":"function_call","name":"spawn_agent","call_id":"synthetic-spawn-call","arguments":"{\"task\":\"synthetic\"}"}}
+{"synthetic":true,"timestamp":"2026-04-24T11:00:04.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"synthetic-spawn-call","output":"{\"agent_id\":\"synthetic-codex-child\"}"}}
+{"synthetic":true,"timestamp":"2026-04-24T11:00:05.000Z","type":"event_msg","payload":{"type":"agent_message","content":"[synthetic response]"}}
+{"synthetic":true,"timestamp":"2026-04-24T11:00:06.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":30,"cached_input_tokens":10,"output_tokens":8,"total_tokens":38}}}}

@@ -5,27 +5,18 @@
 
 from __future__ import annotations
 
-import argparse
-import sys
-from pathlib import Path
-
 import tomllib
+from typing import TYPE_CHECKING
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+import yaml
+from scripts.checks._framework import argument_parser, repository_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+REPO_ROOT = repository_root()
 AGENTS_DIR = REPO_ROOT / '.codex' / 'agents'
-
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    '.codex/agents/**',
-    'scripts/checks/check_codex_agent_policy.py',
-]
+RUNTIME_MANIFEST = REPO_ROOT / 'harness' / 'agent-runtime.manifest.yaml'
 
 READ_ONLY_AGENTS = {
     'migration-planner',
@@ -42,6 +33,7 @@ WRITE_CAPABLE_AGENTS = {
 
 ALLOWED_REASONING_EFFORTS = {'low', 'medium', 'high', 'xhigh'}
 MIN_DEVELOPER_INSTRUCTIONS_CHARS = 300
+SKILL_CONTRACT_HEADINGS = ('## 验证门禁', '## 输出格式')
 
 
 # 加载输入数据。
@@ -56,6 +48,45 @@ def _load(path: Path) -> dict:
         return tomllib.loads(path.read_text(encoding='utf-8'))
     except Exception as exc:
         raise ValueError(f'{path.relative_to(REPO_ROOT)}: TOML 解析失败: {exc}') from exc
+
+
+def _domain_skill(path: Path) -> str | None:
+    """返回 manifest 为当前 Codex 领域 Agent 指定的共享 Skill。"""
+    try:
+        data = yaml.safe_load(RUNTIME_MANIFEST.read_text(encoding='utf-8'))
+    except (OSError, yaml.YAMLError) as exc:
+        raise ValueError(
+            f'{RUNTIME_MANIFEST.relative_to(REPO_ROOT)}: YAML 解析失败: {exc}'
+        ) from exc
+    agents = data.get('domain_agents', {}) if isinstance(data, dict) else {}
+    config = agents.get(path.stem, {}) if isinstance(agents, dict) else {}
+    entries = config.get('entries', {}) if isinstance(config, dict) else {}
+    relative = str(entries.get('codex') or '') if isinstance(entries, dict) else ''
+    if relative != str(path.relative_to(REPO_ROOT)):
+        return None
+    skill = str(config.get('skill') or '')
+    return skill or None
+
+
+def _check_skill_entry(rel: Path, instructions: object, skill: str) -> list[str]:
+    """验证薄入口及其共享 Skill，避免把领域契约复制回平台配置。"""
+    failures: list[str] = []
+    text = instructions if isinstance(instructions, str) else ''
+    if skill not in text:
+        failures.append(f'{rel}: developer_instructions 缺少共享 Skill 入口 `{skill}`')
+    for token in ('handoff', 'BLOCKED'):
+        if token not in text:
+            failures.append(f'{rel}: developer_instructions 缺少 `{token}` 边界契约')
+
+    skill_path = REPO_ROOT / skill
+    if not skill_path.is_file():
+        failures.append(f'{rel}: 共享 Skill 不存在: {skill}')
+        return failures
+    skill_text = skill_path.read_text(encoding='utf-8')
+    for heading in SKILL_CONTRACT_HEADINGS:
+        if heading not in skill_text:
+            failures.append(f'{rel}: 共享 Skill 缺少 `{heading}` 契约: {skill}')
+    return failures
 
 
 # 检查agent。
@@ -73,12 +104,13 @@ def check_agent(path: Path) -> list[str]:
     name = data.get('name')
     description = data.get('description')
     instructions = data.get('developer_instructions')
+    skill = _domain_skill(path)
 
     if name != path.stem:
         failures.append(f'{rel}: name 必须等于文件名 `{path.stem}`')
     if not isinstance(description, str) or not description.strip():
         failures.append(f'{rel}: description 不能为空')
-    if (
+    if not skill and (
         not isinstance(instructions, str)
         or len(instructions.strip()) < MIN_DEVELOPER_INSTRUCTIONS_CHARS
     ):
@@ -97,15 +129,18 @@ def check_agent(path: Path) -> list[str]:
     if name in WRITE_CAPABLE_AGENTS and sandbox == 'read-only':
         failures.append(f'{rel}: 可写 agent 不得设置 sandbox_mode = "read-only"')
 
-    text = instructions or ''
-    for token in ('Handoff', 'BLOCKED', '输出固定为'):
-        if token not in text:
-            failures.append(f'{rel}: developer_instructions 缺少 `{token}` 契约')
-    if (
-        name not in {'repo-mapper', 'migration-planner', 'ui-architect'}
-        and 'Validation' not in text
-    ):
-        failures.append(f'{rel}: developer_instructions 缺少 `Validation` 契约')
+    if skill:
+        failures.extend(_check_skill_entry(rel, instructions, skill))
+    else:
+        text = instructions or ''
+        for token in ('Handoff', 'BLOCKED', '输出固定为'):
+            if token not in text:
+                failures.append(f'{rel}: developer_instructions 缺少 `{token}` 契约')
+        if (
+            name not in {'repo-mapper', 'migration-planner', 'ui-architect'}
+            and 'Validation' not in text
+        ):
+            failures.append(f'{rel}: developer_instructions 缺少 `Validation` 契约')
 
     return failures
 
@@ -131,6 +166,9 @@ def _self_test() -> None:
     assert 'implementer' in WRITE_CAPABLE_AGENTS
     assert 'qa-verifier' in READ_ONLY_AGENTS
     assert 'high' in ALLOWED_REASONING_EFFORTS
+    entry = AGENTS_DIR / 'java-backend-implementer.toml'
+    assert _domain_skill(entry) == 'skills/authoring/feipi-java-feature-dev/SKILL.md'
+    assert not check_agent(entry)
 
 
 # 解析命令行参数并运行脚本入口。
@@ -138,17 +176,12 @@ def main() -> int:
     """返回：
     进程退出码。
     """
-    parser = argparse.ArgumentParser(description='检查 Codex custom agent 配置')
+    parser = argument_parser(description='检查 Codex custom agent 配置')
     parser.add_argument('--self-test', action='store_true')
-    add_changed_files_arg(parser)
     args = parser.parse_args()
-
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     if args.self_test:
         _self_test()
-        print('codex agent policy self-test PASS')
         return 0
 
     failures = run_check()
@@ -157,9 +190,4 @@ def main() -> int:
         for item in failures:
             print(f'[FAIL] {item}')
         return 1
-    print('codex agent policy PASS')
     return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

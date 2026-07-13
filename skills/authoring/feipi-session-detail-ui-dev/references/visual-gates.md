@@ -6,23 +6,23 @@
 
 | Gate 脚本 | 用途 | 触发条件 |
 |---|---|---|
-| `check_session_detail_static.py` | Session detail 页面静态结构检查 | 改模板时必跑 |
-| `check_session_detail_shell_css.py` | Session detail shell CSS 一致性检查 | 改 shell/layout CSS 时必跑 |
-| `run_session_detail_interaction_gate.py` | Session detail 交互 gate（Playwright） | 改 JS handler 时必跑 |
-| `run_session_detail_layout_gate.py` | Session detail 布局 gate（Playwright） | 改布局或 shell 时必跑 |
-| `check_js_action_handlers.py` | JS action handler 完整性检查 | 改 JS 或模板按钮时必跑 |
-| `check_css_ownership.py` | CSS ownership 校验 | 改 CSS 时必跑 |
-| `check_no_legacy_css.py` | Legacy CSS 检查 | 改 CSS 时必跑 |
-| `check_layout_inline_style.py` | Inline style 检查 | 改模板时必跑 |
-| `check_raw_innerhtml.py` | Raw innerHTML 检查 | 改 JS 或模板时必跑 |
+| `web.session-detail-static` | Session detail 页面静态结构检查 | 改模板时必跑 |
+| `web.session-detail-static` | Session detail shell CSS 一致性检查 | 改 shell/layout CSS 时必跑 |
+| `session-detail.spec.js` + `session-detail-migrated-gates.spec.js` | Session detail 交互 gate（Node Playwright） | 改 JS handler 时必跑 |
+| `session-detail-layout.spec.js` | Session detail 布局 gate（Node Playwright） | 改布局或 shell 时必跑 |
+| `web.js-action-handlers` | JS action handler 完整性检查 | 改 JS 或模板按钮时必跑 |
+| `web.css-ownership` | CSS ownership 校验 | 改 CSS 时必跑 |
+| `repository.repo-slimming` | Legacy CSS 检查 | 改 CSS 时必跑 |
+| `web.layout-inline-style` | Inline style 检查 | 改模板时必跑 |
+| `web.raw-innerhtml` | Raw innerHTML 检查 | 改 JS 或模板时必跑 |
 
 ## 选择策略
 
-- **只改模板 HTML**：`check_session_detail_static.py` + `check_layout_inline_style.py` + `check_raw_innerhtml.py`。
-- **只改 CSS**：`check_css_ownership.py` + `check_no_legacy_css.py` + `check_session_detail_shell_css.py`（如涉及 shell）。
-- **只改 JS**：`check_js_action_handlers.py` + `check_raw_innerhtml.py` + `run_session_detail_interaction_gate.py`。
-- **改布局或 shell**：`run_session_detail_layout_gate.py` + `check_session_detail_shell_css.py` + `check_layout_inline_style.py`。
-- **收口前**：运行全部 9 个 gate。
+- **只改模板 HTML**：`web.session-detail-static` + `web.layout-inline-style` + `web.raw-innerhtml`。
+- **只改 CSS**：`web.css-ownership` + `repository.repo-slimming` + `web.session-detail-static`（如涉及 shell）。
+- **只改 JS**：`web.js-action-handlers` + `web.raw-innerhtml` + Node Playwright 交互 gate。
+- **改布局或 shell**：Node Playwright 布局 gate + `web.session-detail-static` + `web.layout-inline-style`。
+- **收口前**：运行静态 gate 与 `npx playwright test --config=playwright.config.js`。
 
 ## Baseline 文件
 

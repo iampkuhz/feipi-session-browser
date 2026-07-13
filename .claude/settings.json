@@ -29,7 +29,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-start.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event session-start'",
+            "timeout": 30
           }
         ]
       }
@@ -39,7 +40,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/cwd-changed.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event cwd-changed'",
+            "timeout": 30
           }
         ]
       }
@@ -49,7 +51,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/subagent-start.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event subagent-start'",
+            "timeout": 30
           }
         ]
       }
@@ -60,7 +63,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-bash.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event pre-bash'",
+            "timeout": 60
           }
         ]
       },
@@ -69,7 +73,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/pre-write.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event pre-write'",
+            "timeout": 60
           }
         ]
       }
@@ -80,7 +85,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post-bash.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event post-bash'",
+            "timeout": 60
           }
         ]
       },
@@ -89,7 +95,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/post-write.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event post-write'",
+            "timeout": 60
           }
         ]
       }
@@ -99,7 +106,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/tool-failure.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event tool-failure'",
+            "timeout": 60
           }
         ]
       }
@@ -109,7 +117,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/stop.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event stop'",
+            "timeout": 1500
           }
         ]
       }
@@ -119,7 +128,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/subagent-stop.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event stop'",
+            "timeout": 1500
           }
         ]
       }
@@ -129,7 +139,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/config-change.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event config-change'",
+            "timeout": 30
           }
         ]
       }
@@ -139,7 +150,8 @@
         "hooks": [
           {
             "type": "command",
-            "command": ".claude/hooks/session-end.sh"
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client claude --event session-end'",
+            "timeout": 60
           }
         ]
       }

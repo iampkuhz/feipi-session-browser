@@ -6,21 +6,15 @@
 from __future__ import annotations
 
 import re
-import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from scripts.checks._framework import repository_root
 
-from scripts.checks._trigger import parse_changed_files, skip_if_not_triggered  # noqa: E402
+ROOT = repository_root()
+
 
 GATE_NAME = "noCommittedLocalPaths"
 
-# 声明本脚本的触发模式：对所有文件变更都适用。
-TRIGGER_PATTERNS = [
-    '**',
-]
 
 SCAN_DIRS = [
     ".claude",
@@ -212,33 +206,6 @@ def _iter_scan_files() -> list[Path]:
 
 
 # 执行提交态本地路径扫描。
-def main() -> int:
-    """执行提交态本地路径扫描。"""
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    for i, arg in enumerate(sys.argv):
-        if arg == '--changed-files' and i + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[i + 1])
-            break
-    skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-
-    all_errors: list[str] = []
-
-    for filepath in _iter_scan_files():
-        # 跳过二进制文件和隐藏临时文件
-        if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3"):
-            continue
-        all_errors.extend(_scan_file(filepath))
-
-    if all_errors:
-        for err in all_errors:
-            print(f"[{GATE_NAME}] FAIL: {err}")
-        print(f"[{GATE_NAME}] FAIL: 共 {len(all_errors)} 处本地路径/用户名泄露")
-        return 1
-
-    print(f"[{GATE_NAME}] PASS")
-    return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())
+def check_local_paths() -> list[str]:
+    """返回所有已跟踪治理路径中的本地绝对路径诊断。"""
+    return [error for path in _iter_scan_files() for error in _scan_file(path)]

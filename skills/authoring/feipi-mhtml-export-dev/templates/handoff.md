@@ -32,8 +32,8 @@
 ## Validation
 
 ```bash
-python scripts/checks/check_session_detail_static.py
-python scripts/checks/check_js_action_handlers.py
+python3 -m scripts.checks web.session-detail-static
+python3 -m scripts.checks web.js-action-handlers
 ```
 
 按需追加：

@@ -69,6 +69,28 @@ def test_scan_dry_run_excludes_pid_scoped_transient_paths() -> None:
     assert 'pid-' not in encoded
 
 
+def test_playwright_plan_uses_node_managed_java_fixture_without_base_url() -> None:
+    """未提供外部 BASE_URL 时由根 Playwright 配置管理真实 Java fixture。"""
+    gate_plan = cli.create_plan(
+        ['java/web/src/main/resources/templates/session.html'],
+        tier='full',
+        target=None,
+        explicit_changed_files=True,
+    )
+
+    execution = executor.build_execution_plan(gate_plan, REPO_ROOT)
+    browser_groups = [
+        group
+        for group in execution.groups
+        if any(name in {'browserLayout', 'browserInteraction'} for name in group.gate_names)
+    ]
+
+    assert browser_groups
+    assert all(group.kind == 'command' for group in browser_groups)
+    assert all(dict(group.environment).get('FEIPI_AGENT_RUNTIME_ROOT') for group in browser_groups)
+    assert all('BASE_URL' not in dict(group.environment) for group in browser_groups)
+
+
 def test_resource_dag_serializes_conflicts_but_allows_disjoint_groups() -> None:
     base = executor.CommandGroup(
         'a', 'command', ('echo', 'a'), (), ('noTestSkips',), ('gradle-daemon',), True, 10

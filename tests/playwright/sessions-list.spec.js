@@ -104,7 +104,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('[UI-SESSIONS-003] token 条包含四段', async ({ page }) => {
+  test('[UI-SESSIONS-003][UI-SESSIONS-016][DATA-PRESENTER-013] token 条包含四段', async ({ page }) => {
     await page.goto('/sessions');
     const tokenbars = page.locator('.tokenbar');
     const count = await tokenbars.count();
@@ -115,7 +115,7 @@ test.describe('会话列表页', () => {
     }
   });
 
-  test('[UI-SESSIONS-007][UI-SESSIONS-011] next 一次到 page 2 且使用 JSON rows API', async ({ page }) => {
+  test('[UI-SESSIONS-007][UI-SESSIONS-011][UI-INTERACTION-002] next 一次到 page 2 且使用 JSON rows API', async ({ page }) => {
     // Regression test for S-09: duplicate JS listeners caused next click
     // to jump from page 1 to page 3 instead of page 2.
     await page.goto('/sessions?page=1');

@@ -17,7 +17,7 @@
 - 包含真实用户 home 绝对路径的 fixture。
 - 包含真实 API key 或 token 的任何文件。
 
-gate 脚本 `check_no_real_session_fixtures.py` 和 `check_secret_like_content.py` 负责检测。
+gate 脚本 `repository.no-real-session-fixtures` 和 `security.secret-like-content` 负责检测。
 
 ## 允许的最小样例
 
@@ -46,5 +46,5 @@ fixture 文件命名规则：
 - [ ] 是否包含真实 token 或密钥？
 - [ ] 文件路径是否使用占位符？
 - [ ] 是否在 `tests/fixtures/synthetic/` 目录下？
-- [ ] 是否通过了 `check_no_real_session_fixtures.py`？
-- [ ] 是否通过了 `check_secret_like_content.py`？
+- [ ] 是否通过了 `repository.no-real-session-fixtures`？
+- [ ] 是否通过了 `security.secret-like-content`？

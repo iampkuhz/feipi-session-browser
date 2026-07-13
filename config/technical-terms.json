@@ -5,7 +5,7 @@
     "record", "enum", "sealed interface", "token", "tool", "agent", "session",
     "SHA-256", "UTF-8", "stdout", "stderr", "fixture", "artifact", "schema",
     "private", "static", "Anthropic", "Qwen", "Claude", "OpenAI", "Codex", "Qoder",
-    "Python", "Bash", "shell", "Git", "GitHub", "pytest", "Ruff", "Pyright", "PMD", "CPD",
+    "Python", "Bash", "shell", "Git", "GitHub", "pytest", "Ruff", "PMD", "CPD",
     "Hook", "hooks", "Stop", "Gate", "PreToolUse", "PostToolUse", "SubagentStop", "OpenSpec",
     "runtime", "pipeline", "executor", "planner", "catalog", "receipt", "worktree", "checkout",
     "writer lease", "FileLock", "Registry", "payload", "baseline", "changed-files", "fail-closed",

@@ -164,29 +164,6 @@ def identity_from_values(
     )
 
 
-def identity_requires_fail_closed(
-    identity: RuntimeIdentity,
-    *,
-    operation: str,
-    protected: bool,
-    mutating: bool,
-) -> bool:
-    """参数：
-        identity: 当前 hook 运行身份。
-        operation: 操作名称（当前未使用）。
-        protected: 是否为受保护写入操作。
-        mutating: 是否为变更操作。
-
-    返回：
-        缺失 session id 时是否必须故障关闭。
-
-    Claude/Codex/Qoder 对受保护写入和变更操作共享同一策略：没有 session id
-    时不能写入共享证据目录；只读操作允许继续。
-    """
-    del operation
-    return not identity.raw_session_id and (protected or mutating)
-
-
 def identity_from_hook_context(ctx: Any, agent_client: str | None = None) -> RuntimeIdentity:
     """参数：
         ctx: ctx 参数。

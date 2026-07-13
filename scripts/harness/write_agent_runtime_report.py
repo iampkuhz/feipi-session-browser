@@ -8,7 +8,7 @@ from __future__ import annotations
 import argparse
 import json
 import sys
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -100,7 +100,7 @@ def main() -> int:
 
     report = {
         "change_id": args.change_id,
-        "created_at": datetime.now(timezone.utc).isoformat(),
+        "created_at": datetime.now(UTC).isoformat(),
         "agent_platform": args.agent_platform,
         "subagents": [],
         "changed_files": list(args.changed_file),

@@ -7,7 +7,7 @@ from pathlib import Path
 from scripts.gates import executor
 from scripts.gates.catalog import gate_by_name
 from scripts.gates.model import GatePlan, TargetGatePlan
-from scripts.gates.report import BLOCKED, FAIL, PASS
+from scripts.gates.report import FAIL, PASS
 
 
 def _single_plan(target: str, gate: str) -> GatePlan:
@@ -20,14 +20,13 @@ def _single_plan(target: str, gate: str) -> GatePlan:
     )
 
 
-def test_command_adapter_reads_typed_command_key(tmp_path: Path, monkeypatch) -> None:
-    checker = tmp_path / 'scripts/checks/check_no_test_skips.py'
-    checker.parent.mkdir(parents=True)
-    checker.write_text('')
+def test_command_adapter_reads_typed_declaration(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
     assert executor.command_for_gate(gate_by_name('noTestSkips'), tmp_path, 'hook-runtime') == [
         '/tmp/python',
-        'scripts/checks/check_no_test_skips.py',
+        '-m',
+        'scripts.checks',
+        'repository.no-test-skips',
     ]
 
 
@@ -76,20 +75,17 @@ def test_hook_runtime_pytest_uses_stable_capability_suites(monkeypatch) -> None:
     assert 'tests/gates' in command
 
 
-def test_browser_gate_without_base_url_is_blocked(monkeypatch) -> None:
+def test_browser_gate_without_base_url_uses_node_managed_fixture(monkeypatch) -> None:
     monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: ['npx', 'playwright', 'test'])
-    monkeypatch.setattr(
-        executor.runtime_paths,
-        'identity_from_values',
-        type(
-            'Identity',
-            (),
-            {'raw_run_id': '', 'client': 'test', 'raw_session_id': '', 'raw_worktree_id': ''},
-        ),
+    execution = executor.build_execution_plan(
+        _single_plan('session-detail', 'browserLayout'), Path.cwd()
     )
-    details = executor.execute_plan(_single_plan('session-detail', 'browserLayout'), Path.cwd())
-    assert details[0].status == BLOCKED
-    assert 'BASE_URL' in details[0].output
+    group = execution.groups[0]
+
+    assert group.kind == 'command'
+    assert group.command == ('npx', 'playwright', 'test')
+    assert dict(group.environment).get('FEIPI_AGENT_RUNTIME_ROOT')
+    assert 'BASE_URL' not in dict(group.environment)
 
 
 def test_skip_and_warning_never_pass(monkeypatch, tmp_path: Path) -> None:

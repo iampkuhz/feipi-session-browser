@@ -13,31 +13,10 @@ import tempfile
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from scripts.checks._framework import repository_root
+
+ROOT = repository_root()
 GATE_NAME = "agentRuntimeWorktree"
-
-from scripts.checks._trigger import (  # noqa: E402
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.agents/**',
-    '.claude/**',
-    '.codex/**',
-    '.qoder/**',
-    'skills/**',
-    'harness/**',
-    'scripts/agent_runtime/**/*.py',
-    'scripts/hooks/**/*.py',
-    'scripts/harness/**/*.py',
-    'scripts/harness/**/*.sh',
-    'scripts/checks/**/*.py',
-]
 
 
 # 在合成仓库中执行命令并捕获输出。
@@ -105,29 +84,26 @@ def _git_repo(tmp_root: Path) -> tuple[Path, Path, str]:
     return repo.resolve(), linked.resolve(), default_head
 
 
-# 通过公开 launcher 创建并检查 Codex CLI/App checkout。
+# 通过公开 launcher 创建并检查 Codex CLI checkout。
 def _launch_checkout(
     repo: Path,
     tmp_root: Path,
-    client: str,
 ) -> tuple[Path, dict]:
     """参数：
         repo: 主工作区检出路径。
         tmp_root: 合成测试临时目录。
-        client: Codex 客户端 surface。
-
     返回：
         launcher 创建的 checkout 与机器可读证据。
     """
 
-    name = f"gate-{client}"
+    name = "gate-codex-cli"
     root = tmp_root / "codex worktrees"
     result = _run(
         [
             sys.executable,
             str(ROOT / "scripts/harness/launch_codex_worktree.py"),
             "--client",
-            client,
+            "codex-cli",
             "--name",
             name,
             "--repo-root",
@@ -139,7 +115,7 @@ def _launch_checkout(
         ROOT,
         check=False,
     )
-    return (root / name).resolve(), _payload(result, f"launch {client}")
+    return (root / name).resolve(), _payload(result, "launch codex-cli")
 
 
 # 使用隔离 Runtime Registry 调用公开 sessionctl CLI。
@@ -295,19 +271,14 @@ def run_checks() -> list[str]:
             "Claude worktree.baseRef is not pinned to head",
             errors,
         )
-        cli_checkout, cli_launch = _launch_checkout(repo, tmp_root, "codex-cli")
-        app_checkout, app_launch = _launch_checkout(repo, tmp_root, "codex-app")
-        for label, checkout, evidence in (
-            ("codex-cli", cli_checkout, cli_launch),
-            ("codex-app", app_checkout, app_launch),
-        ):
-            _expect(
-                evidence.get("primarySnapshot", {}).get("head_commit") == current_head
-                and _run(["git", "rev-parse", "HEAD"], checkout).stdout.strip() == current_head
-                and current_head != default_head,
-                f"{label} launcher did not use the exact current primary HEAD",
-                errors,
-            )
+        cli_checkout, cli_launch = _launch_checkout(repo, tmp_root)
+        _expect(
+            cli_launch.get("primarySnapshot", {}).get("head_commit") == current_head
+            and _run(["git", "rev-parse", "HEAD"], cli_checkout).stdout.strip() == current_head
+            and current_head != default_head,
+            "codex-cli launcher did not use the exact current primary HEAD",
+            errors,
+        )
         mismatch = tmp_root / "wrong default checkout"
         _run(
             ["git", "worktree", "add", "-b", "codex/wrong-default", str(mismatch), default_head],
@@ -327,8 +298,7 @@ def run_checks() -> list[str]:
         )
         provider_worktrees = _worktree_roots(repo)
         _expect(
-            provider_worktrees
-            == sorted([repo, linked, cli_checkout, app_checkout, mismatch.resolve()]),
+            provider_worktrees == sorted([repo, linked, cli_checkout, mismatch.resolve()]),
             "synthetic providers did not establish the expected checkout inventory",
             errors,
         )
@@ -510,19 +480,12 @@ def run_checks() -> list[str]:
 
 
 # 执行检查并输出稳定的 gate 结果。
+
+
 def main() -> int:
     """返回：
     所有断言通过时返回 0，否则返回 1。
     """
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-    else:
-        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     try:
         errors = run_checks()
@@ -540,7 +503,3 @@ def main() -> int:
         return 1
     print(f"[{GATE_NAME}] PASS")
     return 0
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

@@ -47,12 +47,16 @@ def _doctor_fixture(tmp_path: Path, *, include_agents: bool = True) -> tuple[Pat
     venv_python = root / '.venv' / 'bin' / 'python'
     venv_python.parent.mkdir(parents=True)
     venv_python.symlink_to(fake_python)
+    fake_uv = root / 'uv'
+    fake_uv.write_text('#!/usr/bin/env bash\nexit 0\n', encoding='utf-8')
+    fake_uv.chmod(0o755)
     return doctor, fake_python
 
 
 def _run_doctor(doctor: Path, python: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env['SESSION_BROWSER_PYTHON'] = str(python)
+    env['PATH'] = f'{doctor.parents[2]}:{env.get("PATH", "")}'
     return subprocess.run(
         ['bash', str(doctor), *args],
         cwd=doctor.parents[2],

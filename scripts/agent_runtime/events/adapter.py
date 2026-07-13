@@ -2,7 +2,7 @@
 
 本模块只允许声明平台字段、别名和事件差异；Session 状态与路径策略不在这里实现。
 
-不负责平台 Hook wrapper 配置；由 Hook 或 Stop runtime 调用。"""
+不负责平台 Hook 配置；由共享 dispatcher 或 Stop runtime 调用。"""
 
 from __future__ import annotations
 
@@ -14,6 +14,26 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 UNVERIFIED = "UNVERIFIED"
+
+# 平台配置只能向共享 dispatcher 传递这些稳定 runtime event label。
+RUNTIME_EVENTS = frozenset(
+    {
+        'config-change',
+        'cwd-changed',
+        'post-bash',
+        'post-write',
+        'pre-bash',
+        'pre-tool-bootstrap',
+        'pre-write',
+        'session-end',
+        'session-start',
+        'stop',
+        'stop-failure',
+        'subagent-start',
+        'tool-failure',
+        'user-prompt-submit',
+    }
+)
 
 
 class HookPayload(Protocol):
@@ -46,7 +66,7 @@ class HookPayload(Protocol):
         """
         ...
 
-    # 返回 wrapper 声明的客户端名称。
+    # 返回 dispatcher 声明的客户端名称。
     @property
     def agent_client(self) -> str:
         """返回：
@@ -170,7 +190,7 @@ _EVENT_ALIASES = {
     "cwdchanged": "CwdChanged",
     "pretooluse": "PreToolUse",
     "pretoolbootstrap": "PreToolUse",
-    # Shell wrapper 按工具类型拆分 PreToolUse，adapter 仍统一为同一事件。
+    # 平台配置按工具类型拆分 PreToolUse，adapter 仍统一为同一事件。
     "prebash": "PreToolUse",
     "prewrite": "PreToolUse",
 }
@@ -191,7 +211,7 @@ def canonical_hook_event(*values: str) -> str:
     return ""
 
 
-# 根据显式 surface 或 wrapper client 选择薄 adapter。
+# 根据显式 surface 或 dispatcher client 选择薄 adapter。
 def resolve_platform_adapter(
     ctx: HookPayload,
     *,
@@ -200,7 +220,7 @@ def resolve_platform_adapter(
 ) -> PlatformAdapter | None:
     """参数：
         ctx: 平台 Hook payload。
-        wrapper_client: wrapper 明确声明的客户端。
+        wrapper_client: dispatcher 明确声明的客户端。
         hook_event: 统一后的 Hook 事件名。
 
     返回：
@@ -212,7 +232,7 @@ def resolve_platform_adapter(
     adapter = _ADAPTER_BY_ALIAS.get(_token(surface)) if surface else None
     if adapter and client and client != adapter.client:
         raise HookAdapterError(
-            f"hook surface {adapter.surface} conflicts with wrapper client {client}"
+            f"hook surface {adapter.surface} conflicts with dispatcher client {client}"
         )
     if adapter:
         return adapter
@@ -229,7 +249,7 @@ def build_bootstrap_request(
 ) -> BootstrapRequest | None:
     """参数：
         ctx: 平台 Hook payload。
-        wrapper_client: wrapper 明确声明的客户端。
+        wrapper_client: dispatcher 明确声明的客户端。
 
     返回：
         统一 bootstrap 请求；当前事件不触发 bootstrap 时返回 None。

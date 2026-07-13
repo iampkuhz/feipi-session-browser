@@ -7,213 +7,41 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import stat
 import time
 import uuid
-from dataclasses import dataclass, field
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from scripts.harness.primary_session import ensure_private_directory
-from scripts.harness.resource_lock import (
-    _atomic_publish_lock,
-    _fsync_directory,
-    _pid_start_time,
-    _read_lock_snapshot,
-    _same_lock_epoch,
-    process_is_alive,
-)
-
-from .evidence import git_dirty_hash, git_lines
+from scripts.agent_runtime.git_state import checkout_content_snapshot
+from scripts.agent_runtime.git_state import lines as git_lines
+from scripts.agent_runtime.locks import FencedFileLock
+from scripts.agent_runtime.session.contract import ensure_private_directory
+from scripts.agent_runtime.storage import load_json, stable_hash, utc_now, write_json_atomic
 
 
-def utc_now() -> str:
-    """返回 UTC ISO-8601 时间。"""
-    return datetime.now(UTC).isoformat().replace('+00:00', 'Z')
+class FileLock(FencedFileLock):
+    """Stop run-scoped 锁；仅允许回收同一 run/session/worktree 的死亡 owner。"""
 
-
-def write_private_json(path: Path, data: dict[str, Any]) -> None:
-    """以 owner-only 权限原子写入 JSON，拒绝符号链接目标。"""
-    ensure_private_directory(path.parent)
-    if path.exists() and path.is_symlink():
-        raise OSError(f'refusing symlink JSON path: {path}')
-    temp = path.with_name(f'.{path.name}.{uuid.uuid4().hex}.tmp')
-    descriptor = os.open(temp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
-    try:
-        with os.fdopen(descriptor, 'w', encoding='utf-8') as handle:
-            json.dump(data, handle, ensure_ascii=False, indent=2)
-            handle.write('\n')
-            handle.flush()
-            os.fsync(handle.fileno())
-        os.replace(temp, path)
-        os.chmod(path, 0o600)
-    finally:
-        try:
-            temp.unlink()
-        except FileNotFoundError:
-            pass
-
-
-@dataclass
-class FileLock:
-    """基于文件系统的排他锁，支持 stale owner 回收。"""
-
-    path: Path
-    owner: dict[str, Any]
-    acquired: bool = False
-    fencing_token: str = ''
-    lock_device: int = 0
-    lock_inode: int = 0
-    grace_seconds: float = 2.0
-    reclaimed_owner: dict[str, Any] = field(default_factory=dict)
-    reclaim_audit: dict[str, Any] = field(default_factory=dict)
-
-    # 不跟随符号链接且不接受所有者变更地读取锁负载。
-    def _read_payload(self) -> dict[str, Any]:
-        snapshot = _read_lock_snapshot(self.path)
-        return dict(snapshot.data) if snapshot and snapshot.data is not None else {}
-
-    # 尝试获取锁。
-    def acquire(self) -> bool:
-        """尝试获取锁。"""
-        self._remove_stale()
-        ensure_private_directory(self.path.parent)
-        payload = dict(self.owner)
-        self.fencing_token = uuid.uuid4().hex
-        payload.update(
-            {
-                'pid': os.getpid(),
-                'processStartTime': _pid_start_time(os.getpid()),
-                'fencingToken': self.fencing_token,
-                'createdAt': utc_now(),
-                'heartbeatAt': utc_now(),
-                'graceSeconds': max(0.0, self.grace_seconds),
-                'reclaimAudit': dict(self.reclaim_audit),
-            }
+    def __init__(self, path: Path, owner: dict[str, Any], grace_seconds: float = 2.0) -> None:
+        super().__init__(
+            path,
+            owner,
+            stale_seconds=grace_seconds,
+            strict_scope=True,
+            reclaim_event="STOP_LOCK_RECLAIMED",
         )
-        try:
-            published, complete = _atomic_publish_lock(self.path, payload)
-        except OSError:
-            return False
-        if not published:
-            return False
-        self.lock_device = int(complete['lockDevice'])
-        self.lock_inode = int(complete['lockInode'])
-        self.acquired = True
-        return True
 
-    # 释放锁（需 fencing token 匹配）。
-    def release(self) -> bool:
-        """释放锁（需 fencing token 匹配）。"""
-        if not self.acquired:
-            return False
-        released = False
-        try:
-            snapshot = _read_lock_snapshot(self.path)
-            if (
-                snapshot is None
-                or snapshot.device != self.lock_device
-                or snapshot.inode != self.lock_inode
-                or not snapshot.data
-                or snapshot.data.get('fencingToken') != self.fencing_token
-            ):
-                return False
-            data = snapshot.data
-            for field_name in ('runId', 'sessionId', 'worktreeId'):
-                if str(data.get(field_name) or '') != str(self.owner.get(field_name) or ''):
-                    return False
-            self.path.unlink()
-            _fsync_directory(self.path.parent)
-            released = True
-        except FileNotFoundError:
-            pass
-        finally:
-            self.acquired = False
-            self.fencing_token = ''
-            self.lock_device = 0
-            self.lock_inode = 0
-        return released
-
-    def heartbeat(self) -> bool:
-        """仅在 inode 与 fencing token 仍属当前 epoch 时刷新 lock mtime。"""
-        if not self.acquired:
-            return False
-        snapshot = _read_lock_snapshot(self.path)
-        if (
-            snapshot is None
-            or snapshot.device != self.lock_device
-            or snapshot.inode != self.lock_inode
-            or not snapshot.data
-            or snapshot.data.get('fencingToken') != self.fencing_token
-        ):
-            return False
-        os.utime(self.path, None, follow_symlinks=False)
-        return True
-
-    # 回收已死亡 owner 的锁。
-    def _remove_stale(self) -> None:
-        snapshot = _read_lock_snapshot(self.path)
-        if snapshot is None or snapshot.state in {'unsafe', 'foreign-uid'}:
-            return
-        if time.time() - snapshot.mtime < max(0.0, self.grace_seconds):
-            return
-        data = snapshot.data
-        if data:
-            for field_name in ('runId', 'sessionId', 'worktreeId'):
-                expected = str(self.owner.get(field_name) or '')
-                actual = str(data.get(field_name) or '')
-                if actual and (not expected or actual != expected):
-                    return
-            pid = data.get('pid')
-            started = str(data.get('processStartTime') or '')
-            if isinstance(pid, int) and pid > 0 and process_is_alive(pid, started):
-                return
-        if snapshot.state == 'valid' and data:
-            for field_name in ('runId', 'sessionId', 'worktreeId'):
-                if not str(self.owner.get(field_name) or ''):
-                    return
-        if not _same_lock_epoch(self.path, snapshot):
-            return
-        try:
-            self.path.unlink()
-            _fsync_directory(self.path.parent)
-            self.reclaimed_owner = dict(data or {'lockState': snapshot.state})
-            self.reclaim_audit = {
-                'event': 'STOP_LOCK_RECLAIMED',
-                'previousState': snapshot.state,
-                'previousDevice': snapshot.device,
-                'previousInode': snapshot.inode,
-                'previousUid': snapshot.uid,
-                'reclaimedAt': utc_now(),
-            }
-        except OSError:
-            return
+    def acquire(self) -> bool:
+        """尝试获取当前 Stop 恢复锁；冲突时返回失败并保留 owner 证据。"""
+        return self.try_acquire()
 
 
 MAX_CONTINUATIONS = 2
 
 
-# 计算失败列表的稳定指纹。
-def fingerprint(failures: list[str]) -> str:
-    """参数：
-        failures: 失败消息列表。
-
-    返回：
-        排序后失败内容的短哈希指纹。
-    """
-    raw = json.dumps(sorted(failures), ensure_ascii=False)
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
-
-
 # 提取用于隔离停止恢复状态的身份字段。
 def recovery_scope(record: dict[str, Any]) -> dict[str, str]:
-    """参数：
-        record: 当前会话记录。
-
-    返回：
-        恢复状态身份范围字典。
-    """
+    """执行对应 Runtime 安全契约，并保持身份、fencing 与 fail-closed 语义。"""
     return {
         'runId': str(record.get('runId') or ''),
         'sessionId': str(record.get('sessionId') or ''),
@@ -225,45 +53,20 @@ def recovery_scope(record: dict[str, Any]) -> dict[str, str]:
 
 # 判断已保存的停止恢复状态是否属于指定身份范围。
 def _scope_matches(state: dict[str, Any], scope: dict[str, str]) -> bool:
-    """参数：
-        state: 已保存的恢复状态。
-        scope: 期望的身份范围。
-
-    返回：
-        身份字段全部一致时返回 true，否则返回 false。
-    """
+    """内部安全原语；事实无法复核时抛出专用错误并关闭失败。"""
     stored = state.get('scope')
     return isinstance(stored, dict) and all(
         str(stored.get(key) or '') == value for key, value in scope.items()
     )
 
 
-# 从磁盘安全读取重入状态。
+# 从磁盘安全读取重入状态；不安全或损坏文件按首次运行处理。
 def load_reentry(path: Path) -> dict[str, Any]:
-    """参数：
-        path: 重入状态路径。
-
-    返回：
-        已读取的重入状态；读取失败时返回初始状态。
-    """
+    """读取 Stop 重入状态；文件缺失或损坏时按首次运行处理。"""
     try:
-        metadata = path.lstat()
-        if stat.S_ISLNK(metadata.st_mode) or not stat.S_ISREG(metadata.st_mode):
-            return {'continuationCount': 0}
-        if hasattr(os, 'geteuid') and metadata.st_uid != os.geteuid():
-            return {'continuationCount': 0}
-        descriptor = os.open(path, os.O_RDONLY | getattr(os, 'O_NOFOLLOW', 0))
-        try:
-            opened = os.fstat(descriptor)
-            if opened.st_ino != metadata.st_ino or opened.st_dev != metadata.st_dev:
-                return {'continuationCount': 0}
-            raw = os.read(descriptor, 1024 * 1024)
-        finally:
-            os.close(descriptor)
-        data = json.loads(raw.decode('utf-8'))
-    except Exception:
-        return {'continuationCount': 0}
-    return data if isinstance(data, dict) else {'continuationCount': 0}
+        return load_json(path, {"continuationCount": 0})
+    except (OSError, ValueError):
+        return {"continuationCount": 0}
 
 
 # 持久化停止恢复审计事件。
@@ -274,15 +77,7 @@ def write_recovery_audit(
     scope: dict[str, str],
     state: dict[str, Any],
 ) -> None:
-    """参数：
-        audit_dir: 恢复审计目录。
-        event: 审计事件名称。
-        scope: 当前恢复状态身份范围。
-        state: 当前恢复状态。
-
-    返回：
-        无返回值。
-    """
+    """原子更新 run-scoped 恢复证据，并保留身份与失败指纹。"""
     ensure_private_directory(audit_dir)
     payload = {
         'schemaVersion': 1,
@@ -293,7 +88,7 @@ def write_recovery_audit(
         'circuitState': str((state.get('circuitBreaker') or {}).get('state') or 'CLOSED'),
         'at': utc_now(),
     }
-    write_private_json(
+    write_json_atomic(
         audit_dir / f'{time.time_ns()}-{uuid.uuid4().hex[:12]}.json',
         payload,
     )
@@ -306,16 +101,9 @@ def stop_signature(
     *,
     change_id: str,
 ) -> dict[str, str]:
-    """参数：
-        repo_root: 仓库根目录。
-        failures: 失败消息列表。
-        change_id: 变更标识。
-
-    返回：
-        包含提交、工作区、变更和失败指纹的签名字典。
-    """
+    """执行对应 Runtime 安全契约，并保持身份、fencing 与 fail-closed 语义。"""
     head = git_lines(repo_root, 'rev-parse', 'HEAD')
-    dirty_hash = git_dirty_hash(repo_root)
+    dirty_hash = str(checkout_content_snapshot(repo_root)['fingerprint'])
     stable_failures = [
         f
         for f in failures
@@ -335,7 +123,9 @@ def stop_signature(
         'head': head[0] if head else '',
         'dirtyHash': dirty_hash,
         'changeId': change_id,
-        'failureFingerprint': fingerprint(stable_failures),
+        'failureFingerprint': stable_hash(json.dumps(sorted(stable_failures), ensure_ascii=False))[
+            :16
+        ],
         'environmentFingerprint': environment_fingerprint,
     }
 
@@ -348,15 +138,7 @@ def matching_reentry_failure(
     *,
     change_id: str,
 ) -> tuple[bool, dict[str, Any], bool]:
-    """参数：
-        path: 重入状态路径。
-        repo_root: 仓库根目录。
-        scope: 当前恢复状态身份范围。
-        change_id: 变更标识。
-
-    返回：
-        是否命中、已保存状态以及身份范围是否一致。
-    """
+    """执行对应 Runtime 安全契约，并保持身份、fencing 与 fail-closed 语义。"""
     if not path.exists():
         return False, {'schemaVersion': 1, 'scope': scope, 'continuationCount': 0}, True
     state = load_reentry(path)
@@ -387,17 +169,7 @@ def update_reentry(
     audit_dir: Path,
     change_id: str,
 ) -> tuple[int, list[str]]:
-    """参数：
-        path: 重入状态路径。
-        repo_root: 仓库根目录。
-        failures: 当前失败消息列表。
-        scope: 当前恢复状态身份范围。
-        audit_dir: 恢复审计目录。
-        change_id: 变更标识。
-
-    返回：
-        连续失败次数和附加失败列表。
-    """
+    """原子更新 run-scoped 恢复证据，并保留身份与失败指纹。"""
     state = load_reentry(path)
     if path.exists() and not _scope_matches(state, scope):
         return 0, ['run-scoped Stop recovery identity mismatch']
@@ -442,7 +214,7 @@ def update_reentry(
                 'circuitBreaker': {'state': 'CLOSED', 'reason': ''},
             }
         )
-    write_private_json(path, state)
+    write_json_atomic(path, state)
     write_recovery_audit(
         audit_dir,
         event='STOP_RECOVERY_FAILURE_RECORDED' if failures else 'STOP_RECOVERY_CLEARED',
@@ -454,12 +226,7 @@ def update_reentry(
 
 # 计算质量目标所需的排他资源锁名称。
 def resource_names(targets: list[str]) -> list[str]:
-    """参数：
-        targets: 质量目标列表。
-
-    返回：
-        去重后的排他资源锁名称列表。
-    """
+    """执行对应 Runtime 安全契约，并保持身份、fencing 与 fail-closed 语义。"""
     from scripts.gates.planner import target_parallel_meta
 
     names: list[str] = []

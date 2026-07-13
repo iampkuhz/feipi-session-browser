@@ -17,15 +17,15 @@
 
 | Gate | Result |
 |---|---|
-| `check_session_detail_static.py` | <PASS/FAIL> |
-| `check_css_ownership.py` | <PASS/FAIL> |
-| `check_js_action_handlers.py` | <PASS/FAIL/skipped> |
-| `check_no_legacy_css.py` | <PASS/FAIL/skipped> |
-| `check_layout_inline_style.py` | <PASS/FAIL/skipped> |
-| `check_session_detail_shell_css.py` | <PASS/FAIL/skipped> |
-| `run_session_detail_interaction_gate.py` | <PASS/FAIL/skipped> |
-| `run_session_detail_layout_gate.py` | <PASS/FAIL/skipped> |
-| `check_raw_innerhtml.py` | <PASS/FAIL/skipped> |
+| `web.session-detail-static` | <PASS/FAIL> |
+| `web.css-ownership` | <PASS/FAIL> |
+| `web.js-action-handlers` | <PASS/FAIL/NOT_RUN> |
+| `repository.repo-slimming` | <PASS/FAIL/NOT_RUN> |
+| `web.layout-inline-style` | <PASS/FAIL/NOT_RUN> |
+| `web.session-detail-static` | <PASS/FAIL/NOT_RUN> |
+| Node Playwright 交互门禁 | <PASS/FAIL/NOT_RUN> |
+| Node Playwright 布局门禁 | <PASS/FAIL/NOT_RUN> |
+| `web.raw-innerhtml` | <PASS/FAIL/NOT_RUN> |
 
 ## Risks
 

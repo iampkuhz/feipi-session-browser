@@ -20,7 +20,7 @@ if str(ROOT) not in sys.path:
 
 from typing import TYPE_CHECKING  # noqa: E402
 
-from scripts.harness.primary_session import (  # noqa: E402
+from scripts.agent_runtime.session.contract import (  # noqa: E402
     PrimaryHeadSnapshot,
     PrimarySessionValidationError,
     capture_primary_head_snapshot,
@@ -161,9 +161,8 @@ def _resolve_target(primary_root: Path, worktree_root: str | None, name: str) ->
 
 
 # 禁止透传参数覆盖 launcher 强制指定的 Codex checkout。
-def _validate_client_args(client: str, values: Sequence[str]) -> list[str]:
+def _validate_client_args(values: Sequence[str]) -> list[str]:
     """参数：
-        client: Codex 客户端 surface。
         values: `--` 后透传参数。
 
     返回：
@@ -173,11 +172,6 @@ def _validate_client_args(client: str, values: Sequence[str]) -> list[str]:
     args = list(values)
     if args[:1] == ["--"]:
         args = args[1:]
-    if client == "codex-app" and args:
-        raise LauncherError(
-            "APP_ARGUMENTS_UNSUPPORTED",
-            "codex-app does not accept arguments after --; its launch command is 'codex app <path>'",
-        )
     for value in args:
         if value.startswith("-C") or value == "--cd" or value.startswith("--cd="):
             raise LauncherError(
@@ -271,20 +265,17 @@ def _create_worktree(
     return identity
 
 
-# 构建 Codex CLI 或 App 的真实启动命令。
-def _launch_command(client: str, target: Path, client_args: Sequence[str]) -> list[str]:
+# 构建 Codex CLI 的真实启动命令。
+def _launch_command(target: Path, client_args: Sequence[str]) -> list[str]:
     """参数：
-        client: Codex 客户端 surface。
         target: 启动器选定的检出目录。
         client_args: 允许透传的 CLI 参数。
 
     返回：
-        Codex CLI 或 App 启动命令。
+        Codex CLI 启动命令。
     """
 
-    if client == "codex-cli":
-        return ["codex", "-C", str(target), *client_args]
-    return ["codex", "app", str(target)]
+    return ["codex", "-C", str(target), *client_args]
 
 
 # 创建参数解析器。
@@ -296,10 +287,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Create an external linked worktree from the stable exact HEAD of the primary "
-            "checkout, then launch Codex CLI or Codex App in it."
+            "checkout, then launch Codex CLI in it."
         )
     )
-    parser.add_argument("--client", required=True, choices=("codex-cli", "codex-app"))
+    parser.add_argument("--client", required=True, choices=("codex-cli",))
     parser.add_argument("--name", required=True, help="unique worktree/task name")
     parser.add_argument(
         "--repo-root",
@@ -332,7 +323,7 @@ def run(args: argparse.Namespace) -> int:
         验证或客户端进程退出码。
     """
 
-    client_args = _validate_client_args(args.client, args.client_args)
+    client_args = _validate_client_args(args.client_args)
     try:
         snapshot = capture_primary_head_snapshot(Path(args.repo_root))
         primary_root = Path(snapshot.primary_repo_root).resolve(strict=True)
@@ -360,7 +351,7 @@ def run(args: argparse.Namespace) -> int:
     _require_same_snapshot(snapshot, after_create, phase="during worktree creation")
     _require_clean_primary(primary_root)
 
-    command = _launch_command(args.client, target, client_args)
+    command = _launch_command(target, client_args)
     evidence = {
         "status": "READY" if args.no_launch else "LAUNCHING",
         "client": args.client,

@@ -6,14 +6,16 @@
 python3 scripts/gates/cli.py --tier required
 ```
 
-`quick`、`required`、`full`、target、Gate、path trigger、dominance、timeout、资源、并行与
-receipt metadata 的唯一注册真相是 `catalog.py`。任何 Markdown 都不得复制完整 Gate/target 清单。
+`quick`、`required`、`full`、target、Gate、path trigger、command/Gradle task、dominance、timeout、
+资源、并行与 receipt metadata 的唯一声明真相是 `config/gates.yaml`。`catalog.py` 只负责加载、
+schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制完整 Gate/target 清单。
 
 ## 模块边界
 
 | 模块 | 唯一职责 | 不负责 |
 |---|---|---|
-| `catalog.py` | typed Gate/target/tier/path registration 与 metadata | 运行命令、读取历史报告 |
+| `config/gates.yaml` | 每个普通 Gate 的唯一完整声明与 target/path/tier metadata | 执行或选择 Gate |
+| `catalog.py` | 加载/schema 校验并构造 typed Gate/target/tier/path model | 维护命令表、运行命令、读取历史报告 |
 | `planner.py` | 将 changed files 冻结为 classification、raw/effective target 与 applicable Gate plan | 运行时重新选择 Gate |
 | `executor.py` | 冻结 command group/resource DAG 后只执行 immutable plan，落实 Gradle 聚合、bounded parallel、timeout 与跨 run 锁 | 维护另一份 Gate/target 映射 |
 | `receipt.py` | 写入并校验绑定 checkout 内容、catalog 和环境的 `PASS` receipt | 缓存失败或阻断结果 |
@@ -81,12 +83,13 @@ duration/queue/resource wait、critical path、top-level Gradle/Python/Bash proc
 
 ## 新增、修改或删除 Gate 的唯一流程
 
-通常只允许改三类内容：`catalog.py` 的唯一 registration、`scripts/checks/` 中对应领域检查，
+通常只允许改三类内容：`config/gates.yaml` 的唯一 declaration、`scripts/checks/` 中对应领域检查，
 以及 `tests/gates/` 或对应领域下的 contract。不得同步维护 Markdown matrix。
 
 1. 先在 contract 中写出 trigger、plan 顺序、状态、命令和失败语义；删除 Gate 时先写无残留引用断言。
 2. 新增或调整一个职责单一、可确定复现的 check；Gradle Gate 则调整对应 Gradle task contract。
-3. 只在 `catalog.py` 更新 Gate registration、target/path rule、tier、timeout、资源与 receipt policy。
+3. 只在 `config/gates.yaml` 的同一 Gate 记录更新 description、target/order/pattern、tier、command 或
+   Gradle task、changed-files、timeout、并行资源与 receipt policy。
 4. 运行 catalog/planner/service contract，并用 `cli.py --dry-run` 检查公开 plan。
 5. 运行受影响 target，再运行 `python3 scripts/gates/cli.py --tier required`。
 6. 删除 Gate 时反向移除 catalog registration、对应孤立 check 与 contract，最后负向搜索旧名称和路径。

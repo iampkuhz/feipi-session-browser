@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | Dashboard 页面（概览统计、趋势图、模型/Agent 分布） |
 | 关联源码 | `src/session_browser/web/presenters/dashboard.py`、`src/session_browser/web/templates/dashboard.html` |
-| 关联测试 | `tests/pages/test_dashboard.py`、`test_dashboard_page.py`、`tests/web/test_dashboard_presenter.py`、`tests/ui/test_dashboard_tooltip_contract.py`、`tests/playwright/macbook-smoke.spec.js`、`tests/playwright/ui-contract.spec.ts` |
+| 关联测试 | `tests/playwright/ui-contract.spec.ts`、`test_dashboard_page.py`、`java/web/src/test/java/com/feipi/session/browser/web/api/DashboardResourceApiTest.java`、`tests/ui/test_dashboard_tooltip_contract.py`、`tests/playwright/macbook-smoke.spec.js`、`tests/playwright/ui-contract.spec.ts` |
 | 主要风险 | metric-card 数值与索引不一致；趋势图数据为空；多视口布局错乱 |
 
 ## 契约用例

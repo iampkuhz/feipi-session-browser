@@ -33,10 +33,10 @@
 
 列出必须运行的验证命令：
 
-- `python scripts/checks/check_no_real_session_fixtures.py`
-- `python scripts/checks/check_secret_like_content.py`
-- `python scripts/checks/check_skill_registry.py`
-- `python scripts/checks/check_agent_runtime_manifest.py`
+- `python3 -m scripts.checks repository.no-real-session-fixtures`
+- `python3 -m scripts.checks security.secret-like-content`
+- `python3 -m scripts.checks agent.skill-registry`
+- `python3 -m scripts.checks agent.runtime-manifest`
 - `bash scripts/harness/doctor.sh`
 
 ## Expected output

@@ -4,9 +4,11 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from scripts.agent_runtime.session import lifecycle as sessionctl
+from scripts.agent_runtime.session.contract import resolve_runtime_root
 from scripts.agent_runtime.stop import evidence as stop_evidence
-from scripts.harness import complete_change, sessionctl, stop_entry
-from scripts.harness.primary_session import resolve_runtime_root
+from scripts.agent_runtime.stop import pipeline as stop_pipeline
+from scripts.harness import complete_change
 
 
 @pytest.fixture(autouse=True)
@@ -111,7 +113,7 @@ def install_fake_stop_pass(monkeypatch, calls):
         )
         return 0
 
-    monkeypatch.setattr(stop_entry, "run_stop", fake_run_stop)
+    monkeypatch.setattr(stop_pipeline, "run_stop", fake_run_stop)
 
 
 def invoke(linked, record, *files):

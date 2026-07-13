@@ -5,28 +5,15 @@
 
 from __future__ import annotations
 
-import argparse
 import subprocess
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-if str(REPO_ROOT) not in sys.path:
-    sys.path.insert(0, str(REPO_ROOT))
+from scripts.checks._framework import argument_parser, repository_root
+
+REPO_ROOT = repository_root()
 GIT_TIMEOUT_SECONDS = 30
-
-from scripts.checks._trigger import (  # noqa: E402
-    add_changed_files_arg,
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    '.gitignore',
-    'scripts/checks/check_ignored_tracked_files.py',
-    'scripts/gates/**',
-]
 
 
 @dataclass(frozen=True)
@@ -213,9 +200,7 @@ def main(argv: list[str] | None = None) -> int:
     返回：
         进程退出码。
     """
-    parser = argparse.ArgumentParser(
-        description='Fail when ignored paths are staged or tracked by Git'
-    )
+    parser = argument_parser(description='Fail when ignored paths are staged or tracked by Git')
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to inspect')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
@@ -224,11 +209,7 @@ def main(argv: list[str] | None = None) -> int:
         help='Check staged added/copied/modified/renamed paths (default)',
     )
     mode.add_argument('--all-tracked', action='store_true', help='Audit all tracked paths')
-    add_changed_files_arg(parser)
     args = parser.parse_args(argv)
-
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    skip_if_not_triggered(parse_changed_files(args.changed_files), TRIGGER_PATTERNS)
 
     root = Path(args.root).resolve()
     selected_mode = 'all-tracked' if args.all_tracked else 'staged'
@@ -246,7 +227,3 @@ def main(argv: list[str] | None = None) -> int:
 
     print_report(selected_mode, candidates, findings)
     return 1 if findings else 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())

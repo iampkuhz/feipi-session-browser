@@ -6,16 +6,16 @@ import time
 from pathlib import Path
 
 import pytest
+from scripts.agent_runtime.locks import (
+    NamedResourceLock,
+    ResourceLockSet,
+    ResourceLockTimeoutError,
+    owner_metadata,
+)
+from scripts.agent_runtime.ports import reserve_port
 from scripts.gates import executor
 from scripts.gates.planner import plan
 from scripts.gates.report import PASS, GateDetail
-from scripts.harness.port_allocator import reserve_port
-from scripts.harness.resource_lock import (
-    NamedResourceLock,
-    ResourceLockSet,
-    ResourceLockTimeout,
-    owner_metadata,
-)
 
 
 def test_multi_resource_lock_uses_stable_order_and_finally_release(tmp_path: Path, monkeypatch):
@@ -78,7 +78,7 @@ def test_resource_lock_timeout_reports_owner(tmp_path: Path, monkeypatch):
         )
         try:
             second.acquire(timeout_seconds=0.01)
-        except ResourceLockTimeout as exc:
+        except ResourceLockTimeoutError as exc:
             assert exc.resource == 'gradle-daemon'
             assert exc.owner['runId'] == 'run-a'
         else:
@@ -158,7 +158,7 @@ def test_live_owner_never_reclaimed_and_pid_reuse_is_reclaimed_after_grace(
     tmp_path: Path, monkeypatch
 ) -> None:
     """live owner 即使过旧也保留；相同 PID 的 start-time 漂移按 PID reuse 回收。"""
-    from scripts.harness.resource_lock import _pid_start_time
+    from scripts.agent_runtime.locks import _pid_start_time
 
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
     path = tmp_path / 'runtime/locks/shared.lock'
@@ -209,20 +209,10 @@ def test_two_fixture_ports_are_distinct_and_records_are_run_scoped(tmp_path: Pat
 
 def test_executor_acquires_target_resources(monkeypatch, tmp_path: Path):
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
-    monkeypatch.setattr(
-        executor.runtime_paths,
-        'identity_from_values',
-        type(
-            'I',
-            (),
-            {
-                'raw_run_id': 'run',
-                'client': 'test',
-                'raw_session_id': 'session',
-                'raw_worktree_id': 'worktree',
-            },
-        ),
+    identity = executor.runtime_paths.identity_from_values(
+        agent_client='test', session_id='session', run_id='run', worktree_id='worktree'
     )
+    monkeypatch.setattr(executor.runtime_paths, 'identity_from_values', lambda: identity)
     active: list[list[str]] = []
 
     def fake_run(name, cmd, cwd, **kwargs):
@@ -232,7 +222,7 @@ def test_executor_acquires_target_resources(monkeypatch, tmp_path: Path):
     monkeypatch.setattr(executor, 'run_cmd', fake_run)
     monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: ['/bin/true'])
     gate_plan = plan(['java/app-cli/src/main/java/App.java'], ['java-src'], tier='required')
-    details = executor.execute_plan(gate_plan, tmp_path)
+    details = executor.execute_plan(executor.build_execution_plan(gate_plan, tmp_path), tmp_path)
     assert details
     assert active and all(item == ['gradle-daemon', 'java-build-tree'] for item in active)
     assert list((tmp_path / 'runtime/locks').glob('*.lock')) == []

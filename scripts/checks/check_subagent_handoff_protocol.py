@@ -6,35 +6,17 @@
 from __future__ import annotations
 
 import re
-import sys
-from pathlib import Path
+from typing import TYPE_CHECKING
 
-ROOT = Path(__file__).resolve().parents[2]
-if str(ROOT) not in sys.path:
-    sys.path.insert(0, str(ROOT))
+from scripts.checks._framework import repository_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
+
+ROOT = repository_root()
 GATE_NAME = "subagentHandoffProtocol"
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 
-from scripts.checks._trigger import (  # noqa: E402
-    parse_changed_files,
-    skip_if_not_triggered,
-)
-
-TRIGGER_PATTERNS = [
-    'AGENTS.md',
-    'CLAUDE.md',
-    '.agents/**',
-    '.claude/**',
-    '.codex/**',
-    '.qoder/**',
-    'skills/**',
-    'harness/**',
-    'scripts/agent_runtime/**/*.py',
-    'scripts/hooks/**/*.py',
-    'scripts/harness/**/*.py',
-    'scripts/harness/**/*.sh',
-    'scripts/checks/**/*.py',
-]
 
 MAIN_DOCS = {
     "Claude main": ROOT / ".claude" / "agents" / "qwen-main-default.md",
@@ -72,7 +54,6 @@ def _failures_to_exit(errors: list[str]) -> int:
         for error in errors:
             print(f"[{GATE_NAME}] FAIL: {error}")
         return 1
-    print(f"[{GATE_NAME}] PASS: subagent handoff protocol is declared and checkable")
     return 0
 
 
@@ -145,7 +126,6 @@ def check_agents_md_short() -> list[str]:
         errors.append(f"AGENTS.md {agents_size} bytes exceeds limit {agents_limit}")
     if "subagent_instance_protocol" not in manifest_text:
         errors.append("policy manifest missing subagent_instance_protocol")
-    print(f"[{GATE_NAME}] PASS: AGENTS.md {agents_size} bytes <= {agents_limit}")
     return errors
 
 
@@ -171,8 +151,6 @@ def check_required_handoff_fields() -> list[str]:
             errors.append(f"{label} missing non-overlapping parallel write scope rule")
         if not _has_any(text, FAIL_VALIDATION_TERMS):
             errors.append(f"{label} missing subagent failure cannot skip validation rule")
-    if not errors:
-        print(f"[{GATE_NAME}] PASS: handoff fields and identity rules declared")
     return errors
 
 
@@ -202,22 +180,11 @@ def check_no_skipped_pass() -> list[str]:
         text = _read(path)
         if _contains_skipped_can_pass(text):
             errors.append(f"{label} contains skipped-can-PASS wording")
-    if not errors:
-        print(f"[{GATE_NAME}] PASS: skipped checks are not documented as PASS")
     return errors
 
 
 def main() -> int:
     """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
-    # 自感知跳过：当变更文件不匹配触发模式时直接 SKIP。
-    changed_files = None
-    if '--changed-files' in sys.argv:
-        idx = sys.argv.index('--changed-files')
-        if idx + 1 < len(sys.argv):
-            changed_files = parse_changed_files(sys.argv[idx + 1])
-        skip_if_not_triggered(changed_files, TRIGGER_PATTERNS)
-    else:
-        skip_if_not_triggered(None, TRIGGER_PATTERNS)
 
     errors: list[str] = []
     errors.extend(check_agents_md_short())
@@ -225,7 +192,3 @@ def main() -> int:
     errors.extend(check_status_values())
     errors.extend(check_no_skipped_pass())
     return _failures_to_exit(errors)
-
-
-if __name__ == "__main__":
-    raise SystemExit(main())

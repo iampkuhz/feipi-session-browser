@@ -29,14 +29,13 @@
 
 ```bash
 ./scripts/session-browser.sh test
-python scripts/checks/check_java_module_boundaries.py
+./gradlew check
 ```
 
 按需追加：
 
 ```bash
-python scripts/checks/check_manifest.py
-python scripts/gates/cli.py
+python3 scripts/gates/cli.py --tier required
 ```
 
 ## Expected output

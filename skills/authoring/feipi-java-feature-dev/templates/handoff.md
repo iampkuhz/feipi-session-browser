@@ -28,13 +28,13 @@
 
 ```bash
 ./scripts/session-browser.sh test
-python scripts/checks/check_java_module_boundaries.py
+./gradlew check
 ```
 
 按需追加：
 
 ```bash
-python scripts/checks/check_java_api_snapshot.py
+python3 -m scripts.checks java.api-snapshot --check
 python scripts/gates/cli.py
 ```
 

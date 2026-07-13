@@ -5,7 +5,9 @@ import subprocess
 from pathlib import Path
 
 import pytest
-from scripts.harness import launch_codex_worktree, primary_session, sessionctl
+from scripts.agent_runtime.session import contract as primary_session
+from scripts.agent_runtime.session import lifecycle as sessionctl
+from scripts.harness import launch_codex_worktree
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -45,22 +47,13 @@ def test_claude_repository_setting_uses_current_head() -> None:
     assert settings["hooks"]
 
 
-@pytest.mark.parametrize(
-    ("client", "extra_args", "command_prefix"),
-    (
-        ("codex-cli", ["--", "--model", "gpt-test"], ["codex", "-C"]),
-        ("codex-app", [], ["codex", "app"]),
-    ),
-)
-def test_codex_launcher_uses_primary_head_not_origin_default(
+def test_codex_cli_launcher_uses_primary_head_not_origin_default(
     tmp_path: Path,
     capsys: pytest.CaptureFixture[str],
-    client: str,
-    extra_args: list[str],
-    command_prefix: list[str],
 ) -> None:
     repo, old_head, current_head = synthetic_repo(tmp_path)
     worktree_root = tmp_path / "external-worktrees"
+    client = "codex-cli"
 
     result = launch_codex_worktree.main(
         [
@@ -73,7 +66,9 @@ def test_codex_launcher_uses_primary_head_not_origin_default(
             "--worktree-root",
             str(worktree_root),
             "--no-launch",
-            *extra_args,
+            "--",
+            "--model",
+            "gpt-test",
         ]
     )
 
@@ -83,12 +78,11 @@ def test_codex_launcher_uses_primary_head_not_origin_default(
     assert evidence["status"] == "READY"
     assert evidence["primarySnapshot"]["branch"] == "main_java"
     assert evidence["primarySnapshot"]["head_commit"] == current_head
-    assert evidence["command"][:2] == command_prefix
+    assert evidence["command"][:2] == ["codex", "-C"]
     assert git(checkout, "rev-parse", "HEAD") == current_head
     assert git(checkout, "rev-parse", "HEAD") != old_head
     assert git(checkout, "branch", "--show-current") == f"codex/worktree-{client}"
-    if client == "codex-cli":
-        assert evidence["command"][-2:] == ["--model", "gpt-test"]
+    assert evidence["command"][-2:] == ["--model", "gpt-test"]
 
 
 @pytest.mark.parametrize("override", ("-C", "-C/tmp/other", "--cd", "--cd=/tmp/other"))
@@ -188,7 +182,7 @@ def test_primary_detached_and_snapshot_race_fail_closed(
         primary_session.capture_primary_head_snapshot(repo)
 
     git(repo, "switch", "main_java")
-    original_git_output = primary_session._git_output
+    original_git_output = primary_session.git_output
     head_reads = 0
 
     def racing_git_output(repo_root: Path, *args: str) -> str:
@@ -200,7 +194,7 @@ def test_primary_detached_and_snapshot_race_fail_closed(
                 return "f" * 40
         return value
 
-    monkeypatch.setattr(primary_session, "_git_output", racing_git_output)
+    monkeypatch.setattr(primary_session, "git_output", racing_git_output)
     with pytest.raises(
         primary_session.PrimarySessionValidationError,
         match="PRIMARY_HEAD_RACE",

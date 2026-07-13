@@ -447,28 +447,18 @@ class PythonRuntimeZeroGateTest {
     }
 
     @Test
-    @DisplayName("requirements.txt 和 pyproject.toml 运行时依赖已清理")
-    void noPythonRuntimeDependencies() throws IOException {
+    @DisplayName("pyproject.toml 与 uv.lock 是唯一 Python 依赖真相")
+    void pythonDependenciesHaveSingleTruth() {
       Path projectRoot = findProjectRoot();
-      Path requirements = projectRoot.resolve("requirements.txt");
-      if (Files.exists(requirements)) {
-        List<String> lines = Files.readAllLines(requirements);
-        // 检查是否仍有运行时依赖（flask, fastapi, django 等）
-        List<String> runtimeDeps =
-            lines.stream()
-                .filter(l -> !l.trim().isEmpty() && !l.trim().startsWith("#"))
-                .filter(
-                    l -> {
-                      String lower = l.toLowerCase();
-                      return lower.contains("flask")
-                          || lower.contains("fastapi")
-                          || lower.contains("django")
-                          || lower.contains("requests")
-                          || lower.contains("aiohttp")
-                          || lower.contains("sqlalchemy");
-                    })
-                .toList();
-        assertThat(runtimeDeps).as("requirements.txt 不应包含运行时 Python 依赖").isEmpty();
+      assertThat(projectRoot.resolve("pyproject.toml")).isRegularFile();
+      assertThat(projectRoot.resolve("uv.lock")).isRegularFile();
+      for (String legacy :
+          List.of(
+              "requirements.txt",
+              "requirements.lock",
+              "requirements-dev.txt",
+              "requirements-dev.lock")) {
+        assertThat(projectRoot.resolve(legacy)).as("旧依赖清单应已删除: %s", legacy).doesNotExist();
       }
     }
   }

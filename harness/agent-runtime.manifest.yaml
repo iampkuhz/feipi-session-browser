@@ -25,37 +25,43 @@ platforms:
   claude:
     config_files:
       - .claude/settings.json
-    hooks:
-      session_start: [.claude/hooks/session-start.sh]
-      cwd_changed: [.claude/hooks/cwd-changed.sh]
-      subagent_start: [.claude/hooks/subagent-start.sh]
-      pre_bash: [.claude/hooks/pre-bash.sh]
-      pre_write: [.claude/hooks/pre-write.sh]
-      post_bash: [.claude/hooks/post-bash.sh]
-      post_write: [.claude/hooks/post-write.sh]
-      tool_failure: [.claude/hooks/tool-failure.sh]
-      stop: [.claude/hooks/stop.sh]
-      subagent_stop: [.claude/hooks/subagent-stop.sh]
-      config_change: [.claude/hooks/config-change.sh]
-      session_end: [.claude/hooks/session-end.sh]
+    hook_dispatch:
+      entry: scripts/harness/hook_dispatch.py
+      client: claude
+      bindings:
+        - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
+        - {event: CwdChanged, matcher: "", dispatch_event: cwd-changed, timeout: 30}
+        - {event: SubagentStart, matcher: "", dispatch_event: subagent-start, timeout: 30}
+        - {event: PreToolUse, matcher: "Bash", dispatch_event: pre-bash, timeout: 60}
+        - {event: PreToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: pre-write, timeout: 60}
+        - {event: PostToolUse, matcher: "Bash", dispatch_event: post-bash, timeout: 60}
+        - {event: PostToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: post-write, timeout: 60}
+        - {event: PostToolUseFailure, matcher: "", dispatch_event: tool-failure, timeout: 60}
+        - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
+        - {event: SubagentStop, matcher: "", dispatch_event: stop, timeout: 1500}
+        - {event: ConfigChange, matcher: "", dispatch_event: config-change, timeout: 30}
+        - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
     agents_dir: .claude/agents
     skills_dir: .claude/skills
   codex:
     config_files:
       - .codex/config.toml
       - .codex/hooks.json
-    codex_hook_binding_note: Repository fixtures cover SessionStart and catch-all PreToolUse bootstrap for Codex App/CLI; real end-to-end client lifecycle remains UNVERIFIED.
-    hooks:
-      session_start: [.codex/hooks/session-start.sh]
-      pre_tool_bootstrap: [.codex/hooks/pre_tool_bootstrap.sh]
-      pre_bash: [.codex/hooks/pre_tool_guard.sh]
-      pre_write: [.codex/hooks/pre_write_guard.sh]
-      post_bash: [.codex/hooks/post_bash_guard.sh]
-      post_write: [.codex/hooks/post_tool_guard.sh]
-      tool_failure: [.codex/hooks/tool_failure.sh]
-      stop: [.codex/hooks/stop_check.sh]
-      stop_failure: [.codex/hooks/stop_failure.sh]
-      session_end: [.codex/hooks/session_end.sh]
+    hook_binding_note: Repository fixtures cover the shared dispatcher contract; real end-to-end client lifecycle remains UNVERIFIED.
+    hook_dispatch:
+      entry: scripts/harness/hook_dispatch.py
+      client: codex
+      bindings:
+        - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
+        - {event: PreToolUse, matcher: "", dispatch_event: pre-tool-bootstrap, timeout: 30}
+        - {event: PreToolUse, matcher: "Bash", dispatch_event: pre-bash, timeout: 60}
+        - {event: PreToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: pre-write, timeout: 60}
+        - {event: PostToolUse, matcher: "Bash", dispatch_event: post-bash, timeout: 60}
+        - {event: PostToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: post-write, timeout: 60}
+        - {event: PostToolUseFailure, matcher: "", dispatch_event: tool-failure, timeout: 60}
+        - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
+        - {event: StopFailure, matcher: "", dispatch_event: stop-failure, timeout: 120}
+        - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
     agents_dir: .codex/agents
     skills_dir: .agents/skills
   qoder:
@@ -63,20 +69,23 @@ platforms:
       - .qoder/AGENTS.md
       - .qoder/settings.json
       - .qoder/settings.local.example.json
-    qoder_hook_binding_note: Repository fixtures cover CLI SessionStart/CwdChanged and client UserPromptSubmit/PreToolUse fallback; real end-to-end client lifecycle remains UNVERIFIED.
-    hooks:
-      session_start: [.qoder/hooks/session-start.sh]
-      cwd_changed: [.qoder/hooks/cwd-changed.sh]
-      user_prompt_submit: [.qoder/hooks/user-prompt-submit.sh]
-      pre_tool_bootstrap: [.qoder/hooks/pre_tool_bootstrap.sh]
-      pre_bash: [.qoder/hooks/pre_tool_guard.sh]
-      pre_write: [.qoder/hooks/pre_write_guard.sh]
-      post_bash: [.qoder/hooks/post_bash_guard.sh]
-      post_write: [.qoder/hooks/post_tool_guard.sh]
-      tool_failure: [.qoder/hooks/tool_failure.sh]
-      stop: [.qoder/hooks/stop_check.sh]
-      stop_failure: [.qoder/hooks/stop_failure.sh]
-      session_end: [.qoder/hooks/session_end.sh]
+    hook_binding_note: Repository fixtures cover the shared dispatcher contract; real end-to-end client lifecycle remains UNVERIFIED.
+    hook_dispatch:
+      entry: scripts/harness/hook_dispatch.py
+      client: qoder
+      bindings:
+        - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
+        - {event: CwdChanged, matcher: "", dispatch_event: cwd-changed, timeout: 30}
+        - {event: UserPromptSubmit, matcher: "", dispatch_event: user-prompt-submit, timeout: 30}
+        - {event: PreToolUse, matcher: "", dispatch_event: pre-tool-bootstrap, timeout: 30}
+        - {event: PreToolUse, matcher: "Bash", dispatch_event: pre-bash, timeout: 60}
+        - {event: PreToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: pre-write, timeout: 60}
+        - {event: PostToolUse, matcher: "Bash", dispatch_event: post-bash, timeout: 60}
+        - {event: PostToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: post-write, timeout: 60}
+        - {event: PostToolUseFailure, matcher: "", dispatch_event: tool-failure, timeout: 60}
+        - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
+        - {event: StopFailure, matcher: "", dispatch_event: stop-failure, timeout: 120}
+        - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
 stop_runtime:
@@ -144,8 +153,8 @@ change_completion:
 
 resource_isolation:
   lock_root: runtime-root/locks
-  lock_manager: scripts/harness/resource_lock.py
-  port_allocator: scripts/harness/port_allocator.py
+  lock_manager: scripts/agent_runtime/locks.py
+  port_allocator: scripts/agent_runtime/ports.py
   ordered_multi_resource_acquire: true
   stale_pid_reclaim: true
   owner_metadata_fields: [runId, client, sessionId, worktreeId, target, pid, processStartTime, acquiredAt, hostMarker]
@@ -174,33 +183,50 @@ shared_skills:
     - feipi-mhtml-export-dev
     - feipi-quality-gate-diagnosis
     - feipi-privacy-redaction-dev
+domain_agents:
+  java-backend-implementer:
+    skill: skills/authoring/feipi-java-feature-dev/SKILL.md
+    entries: {claude: .claude/agents/java-backend-implementer.md, codex: .codex/agents/java-backend-implementer.toml, qoder: .qoder/agents/java-backend-implementer.md}
+  session-ingestion-specialist:
+    skill: skills/authoring/feipi-session-ingestion-dev/SKILL.md
+    entries: {claude: .claude/agents/session-ingestion-specialist.md, codex: .codex/agents/session-ingestion-specialist.toml, qoder: .qoder/agents/session-ingestion-specialist.md}
+  ui-implementation-specialist:
+    skill: skills/authoring/feipi-session-detail-ui-dev/SKILL.md
+    entries: {claude: .claude/agents/ui-implementation-specialist.md, codex: .codex/agents/ui-implementation-specialist.toml, qoder: .qoder/agents/ui-implementation-specialist.md}
+  mhtml-export-specialist:
+    skill: skills/authoring/feipi-mhtml-export-dev/SKILL.md
+    entries: {claude: .claude/agents/mhtml-export-specialist.md, codex: .codex/agents/mhtml-export-specialist.toml, qoder: .qoder/agents/mhtml-export-specialist.md}
+  quality-gate-diagnoser:
+    skill: skills/authoring/feipi-quality-gate-diagnosis/SKILL.md
+    entries: {claude: .claude/agents/quality-gate-diagnoser.md, codex: .codex/agents/quality-gate-diagnoser.toml, qoder: .qoder/agents/quality-gate-diagnoser.md}
+  privacy-reviewer:
+    skill: skills/authoring/feipi-privacy-redaction-dev/SKILL.md
+    entries: {claude: .claude/agents/privacy-reviewer.md, codex: .codex/agents/privacy-reviewer.toml, qoder: .qoder/agents/privacy-reviewer.md}
 permission_policy:
   committed_settings_must_not_contain_local_absolute_paths: true
   bypass_permissions_allowed_only_with_pre_write_guard: true
   local_settings_example: .claude/settings.local.example.json
   qoder_local_settings_example: .qoder/settings.local.example.json
 required_gates:
-  - scripts/checks/check_agent_runtime_manifest.py
-  - scripts/checks/check_agent_hook_parity.py
-  - scripts/checks/check_no_committed_local_paths.py
-  - scripts/checks/check_agent_permission_policy.py
-  - scripts/checks/check_agent_policy_size.py
-  - scripts/checks/check_agent_rules_sync.py
-  - scripts/checks/check_agent_runtime_isolation.py
-  - scripts/checks/check_agent_runtime_worktree.py
-  - scripts/checks/check_gate_bypass_resistance.py
-  - scripts/checks/measure_gate_escape_rate.py
-  - scripts/checks/check_protected_roots_sync.py
-  - scripts/checks/check_hook_payload_compat.py
-  - scripts/checks/check_subagent_handoff_protocol.py
-  - scripts/checks/check_skill_registry.py
-  - scripts/checks/check_agent_entry_parity.py
-  - scripts/checks/check_qoder_runtime_parity.py
-  - scripts/checks/check_no_real_session_fixtures.py
-  - scripts/checks/check_secret_like_content.py
-  - scripts/gates/cli.py
-  - scripts/checks/check_agent_runtime_report.py
-  - scripts/harness/doctor.sh
+  - agent.runtime-manifest
+  - agent.hook-parity
+  - repository.no-committed-local-paths
+  - agent.permission-policy
+  - agent.policy-size
+  - agent.rules-sync
+  - agent.runtime-isolation
+  - agent.runtime-worktree
+  - repository.gate-bypass
+  - agent.protected-roots
+  - agent.hook-payload
+  - agent.subagent-handoff
+  - agent.skill-registry
+  - agent.entry-parity
+  - agent.qoder-parity
+  - repository.no-real-session-fixtures
+  - security.secret-like-content
+  - agent.runtime-report
+  - web.css-ownership
 primary_sessions:
   writable_isolation: checkout-writer-lease
   same_worktree_max_writers: 1

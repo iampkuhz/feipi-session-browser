@@ -19,10 +19,10 @@
 
 列出运行的 gate 及结果：
 
-- `check_no_real_session_fixtures.py` — PASS/FAIL
-- `check_secret_like_content.py` — PASS/FAIL
-- `check_skill_registry.py` — PASS/FAIL
-- `check_agent_runtime_manifest.py` — PASS/FAIL
+- `repository.no-real-session-fixtures` — PASS/FAIL
+- `security.secret-like-content` — PASS/FAIL
+- `agent.skill-registry` — PASS/FAIL
+- `agent.runtime-manifest` — PASS/FAIL
 - `doctor.sh` — PASS/FAIL
 
 未运行的 gate 必须写明原因。

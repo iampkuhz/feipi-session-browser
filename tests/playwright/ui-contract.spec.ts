@@ -160,7 +160,7 @@ for (const vp of viewports) {
 const projectChecks = pageContracts.find((contract) => contract.name === 'projects')!.checks;
 
 for (const vp of viewports) {
-  test(`项目页 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
+  test(`[UI-PROJECTS-008] 项目页 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto('/projects');
 
@@ -181,12 +181,16 @@ const projectDetailChecks: VisibleCheck[] = [
 ];
 
 for (const vp of viewports) {
-  test(`项目详情 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
+  test(`[UI-PROJECTS-002][UI-PROJECTS-003][UI-PROJECTS-007] 项目详情 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     await page.goto(FIXTURE_PROJECT_URL, { waitUntil: 'domcontentloaded', timeout: 15000 });
 
     await expectPageStructure(page, projectDetailChecks);
     await expectViewportFits(page);
+    const headers = (await page.locator('.data-table th').allTextContents()).join(' ').toLowerCase();
+    for (const label of ['session', 'agent', 'model', 'tokens', 'rounds']) {
+      expect(headers).toContain(label);
+    }
   });
 }
 
@@ -218,7 +222,7 @@ const notFoundChecks: VisibleCheck[] = [
 ];
 
 for (const vp of viewports) {
-  test(`[UI-VISUAL-007] 404 页 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
+  test(`[UI-VISUAL-007][UI-VISUAL-015] 404 页 @ ${vp.label} — 结构 + 可见性`, async ({ page }) => {
     await page.setViewportSize({ width: vp.width, height: vp.height });
     // 导航到未映射 URL 触发 404。
     await page.goto('/__test-404-not-found__');

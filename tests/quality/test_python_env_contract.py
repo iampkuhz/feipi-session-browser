@@ -1,9 +1,9 @@
 """测试 Python 环境和依赖锁契约."""
 
+import tomllib
 from pathlib import Path
 
 import pytest
-import tomllib
 from scripts.gates import executor as gate_executor
 from scripts.harness import python_env
 
@@ -19,23 +19,10 @@ def _write_project(root: Path, *, dev_extra: str = '') -> None:
                 'dependencies = ["jinja2", "markdown-it-py"]',
                 '',
                 '[project.optional-dependencies]',
-                'dev = ["pytest", "pytest-xdist", "playwright"' + dev_extra + ']',
+                'dev = ["pytest", "pytest-xdist"' + dev_extra + ']',
                 '',
             ]
         ),
-        encoding='utf-8',
-    )
-    (root / 'requirements.txt').write_text('jinja2\nmarkdown-it-py\n', encoding='utf-8')
-    (root / 'requirements-dev.txt').write_text(
-        '-r requirements.txt\npytest\npytest-xdist\nplaywright\n',
-        encoding='utf-8',
-    )
-    (root / 'requirements.lock').write_text(
-        'jinja2==3.1.6\nmarkdown-it-py==4.0.0\n',
-        encoding='utf-8',
-    )
-    (root / 'requirements-dev.lock').write_text(
-        'jinja2==3.1.6\nmarkdown-it-py==4.0.0\npytest==9.0.3\npytest-xdist==3.8.0\nplaywright==1.59.0\n',
         encoding='utf-8',
     )
     (root / 'uv.lock').write_text(
@@ -54,6 +41,29 @@ def test_repository_pyproject_is_virtual_dev_tools_project():
     assert config['project']['name'] == 'feipi-session-browser-dev-tools'
     assert config['tool']['uv']['package'] is False
     assert config['tool']['pytest']['ini_options']['pythonpath'] == ['.']
+    assert (REPO_ROOT / 'uv.lock').is_file()
+    for name in (
+        'requirements.txt',
+        'requirements.lock',
+        'requirements-dev.txt',
+        'requirements-dev.lock',
+    ):
+        assert not (REPO_ROOT / name).exists()
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_python_tools_have_effective_non_overlapping_configuration():
+    config = tomllib.loads((REPO_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+    dev = set(config['project']['optional-dependencies']['dev'])
+    assert {'pyright', 'pydoclint', 'interrogate', 'playwright', 'beautifulsoup4'}.isdisjoint(dev)
+    assert 'pyright' not in config['tool']
+    assert 'pydoclint' not in config['tool']
+
+    selected = set(config['tool']['ruff']['lint']['select'])
+    ignored = set(config['tool']['ruff']['lint']['ignore'])
+    assert not {rule for rule in selected if rule in ignored}
+    assert {'ANN', 'D', 'PL', 'PTH', 'SIM'}.isdisjoint(selected | ignored)
+    assert {'PLC', 'PLE', 'PLW'} <= selected
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
@@ -85,27 +95,15 @@ def test_resolve_python_order_prefers_env_then_venv_then_fallback(
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
-def test_lock_check_requires_requirements_pyproject_and_locks_to_match(tmp_path: Path):
+def test_lock_check_requires_pyproject_and_uv_lock(tmp_path: Path):
     _write_project(tmp_path)
 
     assert python_env.check_locks(tmp_path) == []
 
-    (tmp_path / 'requirements.lock').write_text('jinja2==3.1.6\n', encoding='utf-8')
+    (tmp_path / 'uv.lock').unlink()
 
     problems = python_env.check_locks(tmp_path)
-    assert any('requirements.lock 缺少: markdown-it-py' in problem for problem in problems)
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-010')
-def test_lock_check_rejects_unpinned_lock_entries(tmp_path: Path):
-    _write_project(tmp_path)
-    (tmp_path / 'requirements-dev.lock').write_text(
-        'jinja2==3.1.6\nmarkdown-it-py==4.0.0\npytest\npytest-xdist==3.8.0\nplaywright==1.59.0\n',
-        encoding='utf-8',
-    )
-
-    problems = python_env.check_locks(tmp_path)
-    assert any('requirements-dev.lock 未固定版本' in problem for problem in problems)
+    assert any('缺少锁文件: uv.lock' in problem for problem in problems)
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
