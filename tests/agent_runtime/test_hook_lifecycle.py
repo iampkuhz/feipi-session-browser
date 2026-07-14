@@ -29,8 +29,6 @@ from scripts.agent_runtime.events.policy.file import evaluate_write_path
 from scripts.agent_runtime.events.policy.session import handle_session_start
 from scripts.agent_runtime.hook_entry import _bootstrap_hook_session, _controlled_primary_command
 from scripts.agent_runtime.paths import RepoPaths, build_paths, identity_from_values
-from scripts.agent_runtime.session.completion import require_mutation_baseline
-from scripts.agent_runtime.session.errors import SessionctlError
 from scripts.gates.planner import classify_path, required_quality_targets
 from scripts.harness.hook_dispatch import dispatch
 
@@ -624,18 +622,21 @@ def test_stop_dispatch_preserves_payload_output_and_exit_code(
     assert captured.err == 'stop-stderr\n'
 
 
-def test_codex_app_reports_start_not_enforced_and_cannot_mutate(
+def test_codex_app_enforces_start_in_detached_managed_worktree(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    repo = tmp_path / 'codex-app-repo'
+    repo = tmp_path / 'codex-app-primary'
     _init_repo(repo)
+    _git(repo, 'branch', '-M', 'main_java')
+    linked = tmp_path / 'codex-app-managed-worktree'
+    _git(repo, 'worktree', 'add', '--detach', str(linked), 'HEAD')
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
     ctx = read_stdin_json(
         'session-start',
         json.dumps(
             {
                 'session_id': 'codex-app-session',
-                'cwd': str(repo),
+                'cwd': str(linked),
                 'client_surface': 'codex-app',
                 'hook_event_name': 'SessionStart',
             }
@@ -645,7 +646,7 @@ def test_codex_app_reports_start_not_enforced_and_cannot_mutate(
     record = _bootstrap_hook_session(ctx, wrapper_client='codex')
 
     assert record is not None
-    assert record['changeBegin']['status'] == 'START_NOT_ENFORCED'
-    assert record['changeBegin']['capability'] == 'START_NOT_ENFORCED'
-    with pytest.raises(SessionctlError, match='START_NOT_ENFORCED'):
-        require_mutation_baseline(repo, record)
+    assert record['checkoutKind'] == 'linked-worktree'
+    assert record['detached'] is True
+    assert record['changeBegin']['status'] == 'ATTESTED'
+    assert record['changeBegin']['capability'] == 'START_ENFORCED'

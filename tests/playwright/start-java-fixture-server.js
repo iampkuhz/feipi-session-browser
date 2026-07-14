@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 const fs = require('fs');
+const http = require('http');
 const net = require('net');
 const os = require('os');
 const path = require('path');
@@ -11,6 +12,11 @@ const ROOT = path.resolve(__dirname, '..', '..');
 const MAIN_SESSION_ID = 'hifi-viz-session-001';
 const LONG_SESSION_ID = 'long-session-001';
 const MAX_DIAGNOSTIC_CHARS = 8_000;
+const FIXTURE_IDENTITY = Object.freeze({
+  dataset: 'synthetic-hifi-v1',
+  kind: 'feipi-session-browser-fixture',
+  schemaVersion: 1,
+});
 
 function tail(value) {
   return String(value || '').slice(-MAX_DIAGNOSTIC_CHARS);
@@ -26,6 +32,46 @@ function findPort() {
     const address = server.address();
     console.log(address.port);
     server.close();
+  });
+}
+
+function allocatePort() {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.once('error', reject);
+    server.listen(0, '127.0.0.1', () => {
+      const address = server.address();
+      server.close(() => resolve(address.port));
+    });
+  });
+}
+
+function startIdentityProxy(port, innerPort) {
+  const proxy = http.createServer((request, response) => {
+    if (request.url === '/__feipi_fixture_identity') {
+      response.writeHead(200, { 'content-type': 'application/json; charset=utf-8' });
+      response.end(JSON.stringify(FIXTURE_IDENTITY));
+      return;
+    }
+    const upstream = http.request({
+      headers: request.headers,
+      host: '127.0.0.1',
+      method: request.method,
+      path: request.url,
+      port: innerPort,
+    }, (upstreamResponse) => {
+      response.writeHead(upstreamResponse.statusCode || 502, upstreamResponse.headers);
+      upstreamResponse.pipe(response);
+    });
+    upstream.on('error', (error) => {
+      if (!response.headersSent) response.writeHead(502, { 'content-type': 'text/plain' });
+      response.end(`fixture upstream unavailable: ${error.message}`);
+    });
+    request.pipe(upstream);
+  });
+  return new Promise((resolve, reject) => {
+    proxy.once('error', reject);
+    proxy.listen(port, '127.0.0.1', () => resolve(proxy));
   });
 }
 
@@ -80,6 +126,7 @@ async function startServer() {
   const baseURL = process.env.BASE_URL || 'http://127.0.0.1:19099';
   const parsed = new URL(baseURL);
   const port = Number(parsed.port || 80);
+  const innerPort = await allocatePort();
   const launcher = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'bin', 'app-cli');
   if (!fs.existsSync(launcher)) {
     runChecked(
@@ -119,7 +166,7 @@ async function startServer() {
 
   const server = spawn(
     launcher,
-    ['serve', '--host', '127.0.0.1', '--port', String(port), '--allow-empty', '--no-scan'],
+    ['serve', '--host', '127.0.0.1', '--port', String(innerPort), '--allow-empty', '--no-scan'],
     { cwd: ROOT, env: { ...process.env, ...javaEnv }, stdio: ['ignore', 'pipe', 'pipe'] },
   );
   let diagnostics = '';
@@ -130,10 +177,12 @@ async function startServer() {
   }
 
   let stopping = false;
+  let proxy = null;
   const cleanup = () => fs.rmSync(runtimeDir, { recursive: true, force: true });
   const stop = (signal) => {
     if (stopping) return;
     stopping = true;
+    if (proxy) proxy.close();
     if (!server.killed) server.kill(signal);
     cleanup();
   };
@@ -155,13 +204,15 @@ async function startServer() {
     process.exit(0);
   });
 
-  if (!await waitUntilReady(baseURL, server)) {
-    console.error(`[playwright-fixture] readiness timeout for dashboard and fixture sessions on ${baseURL}.`);
+  const innerURL = `http://127.0.0.1:${innerPort}`;
+  if (!await waitUntilReady(innerURL, server)) {
+    console.error(`[playwright-fixture] readiness timeout for synthetic Java server on ${innerURL}.`);
     if (diagnostics.trim()) console.error(diagnostics);
     stop('SIGTERM');
     process.exit(1);
   }
-  console.log(`[playwright-fixture] ready with ${MAIN_SESSION_ID} and ${LONG_SESSION_ID} on ${baseURL}`);
+  proxy = await startIdentityProxy(port, innerPort);
+  console.log(`[playwright-fixture] ready with identity ${JSON.stringify(FIXTURE_IDENTITY)} on ${baseURL}`);
 }
 
 if (process.argv.includes('--find-port')) {

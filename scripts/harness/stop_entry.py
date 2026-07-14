@@ -2,7 +2,7 @@
 """跨平台 Stop 公开薄入口。
 
 本文件只负责把 harness 导入路径和 CLI 委托给
-``scripts.agent_runtime.stop.entry``；不得承载 Stop 业务、Gate 选择或报告逻辑。"""
+``scripts.agent_runtime.change.entry``；不得承载 Stop 业务、Gate 选择或报告逻辑。"""
 
 from __future__ import annotations
 
@@ -15,8 +15,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 # 仅导出 CLI/dispatcher 稳定入口，不转发内部 evidence/recovery/report API。
-from scripts.agent_runtime.stop.entry import main, read_stdin_once  # noqa: E402
-from scripts.agent_runtime.stop.pipeline import run_stop  # noqa: E402
+from scripts.agent_runtime.change.entry import main, read_stdin_once, run_stop_payload  # noqa: E402
+
+
+def run_stop(agent, raw_context, **_kwargs):
+    """旧 import 兼容：只转发统一 on-stop 并返回 exit code。"""
+    return run_stop_payload(agent, raw_context)[0]
+
 
 # 明确公开面仅包含委托入口，防止业务重新回流到 harness。
 # 业务测试应直接导入 scripts.agent_runtime.stop 对应责任模块。

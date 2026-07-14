@@ -32,6 +32,7 @@ def trusted_root() -> Path:
         text=True,
         capture_output=True,
         check=False,
+        timeout=2,
     )
     observed = Path(result.stdout.strip()).resolve() if result.returncode == 0 else None
     if observed != ROOT:

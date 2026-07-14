@@ -1,4 +1,3 @@
-import argparse
 import json
 import os
 import stat
@@ -13,15 +12,12 @@ ROOT = Path(__file__).resolve().parents[1]
 SESSIONCTL = ROOT / "scripts" / "harness" / "sessionctl.py"
 
 from scripts.agent_runtime.paths import identity_from_values  # noqa: E402
-from scripts.agent_runtime.session import finalize as session_finalize  # noqa: E402
 from scripts.agent_runtime.session import lifecycle as sessionctl  # noqa: E402
 from scripts.agent_runtime.session.completion import (  # noqa: E402
     ADOPT_CONFIRMATION,
     adopt_current,
     begin_change,
-    completion_requirement,
     require_mutation_baseline,
-    update_completion,
 )
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     resolve_git_common_dir,
@@ -32,7 +28,6 @@ from scripts.agent_runtime.session.contract import (  # noqa: E402
 from scripts.agent_runtime.session.errors import SessionctlError  # noqa: E402
 from scripts.agent_runtime.session.lifecycle import classify_tool_call  # noqa: E402
 from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
-from scripts.agent_runtime.stop import pipeline as stop_pipeline  # noqa: E402
 from scripts.agent_runtime.stop.evidence import collect_run_changed_files  # noqa: E402
 
 
@@ -90,56 +85,6 @@ def bootstrap(repo, session_id, hook_event="SessionStart", client="codex", *, en
         env=env,
     )
     return json.loads(result.stdout)
-
-
-def install_fake_stop_pass(monkeypatch):
-    def fake_run_stop(client, payload, *, handoff_on_failure=False, adapter_mode='hook'):
-        checkout = Path(payload["cwd"])
-        registry = sessionctl.Registry(checkout)
-        with registry.locked():
-            record = registry.load_run(payload["runId"])
-        facts = stop_evidence.collect_git_evidence(checkout, record)
-        summary = (
-            checkout
-            / "tmp"
-            / "agent_logs"
-            / client
-            / payload["sessionId"]
-            / "runs"
-            / payload["runId"]
-            / "main"
-            / "stop-check-summary.json"
-        )
-        summary.parent.mkdir(parents=True, exist_ok=True)
-        summary.write_text(json.dumps({"status": "PASS"}) + "\n", encoding="utf-8")
-        sessionctl.record_stop_result(
-            checkout,
-            payload["runId"],
-            stop_exit=0,
-            summary_status="PASS",
-            validated_facts=facts,
-            handoff_on_failure=handoff_on_failure,
-        )
-        return 0
-
-    monkeypatch.setattr(stop_pipeline, "run_stop", fake_run_stop)
-
-
-def stop_with_fake_pass(repo, record, monkeypatch, capsys):
-    install_fake_stop_pass(monkeypatch)
-    result = sessionctl.cmd_stop(argparse.Namespace(repo_root=str(repo), run_id=record["runId"]))
-    output = json.loads(capsys.readouterr().out)
-    assert result == 0
-    assert output["status"] == "VALIDATED"
-    return output
-
-
-def finalize_in_process(repo, record, capsys):
-    result = session_finalize.cmd_finalize(
-        argparse.Namespace(repo_root=str(repo), run_id=record["runId"])
-    )
-    output = json.loads(capsys.readouterr().out)
-    return result, output
 
 
 def acquire_for_session(checkout, session_id, client="codex"):
@@ -972,338 +917,6 @@ def test_handoff_includes_canonical_checkout_and_run_fields(tmp_path):
     assert any("finalize --run-id" in step for step in handoff["manualNextSteps"])
 
 
-def test_stop_records_canonical_git_facts_and_never_claims_integration(
-    tmp_path, monkeypatch, capsys
-):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, "session-stop")
-    (repo / "committed.txt").write_text("committed\n", encoding="utf-8")
-    run(["git", "add", "committed.txt"], cwd=repo)
-    run(["git", "commit", "-m", "session result"], cwd=repo)
-    (repo / "README.md").write_text("uncommitted\n", encoding="utf-8")
-    (repo / "untracked.txt").write_text("untracked\n", encoding="utf-8")
-
-    stopped = stop_with_fake_pass(repo, record, monkeypatch, capsys)
-
-    assert stopped["status"] == "VALIDATED"
-    assert stopped["stopExitCode"] == 0
-    assert stopped["status"] != "INTEGRATED"
-    facts = stopped["gitFacts"]
-    assert facts["committedFiles"] == ["committed.txt"]
-    assert facts["uncommittedFiles"] == ["README.md"]
-    assert facts["untrackedFiles"] == ["untracked.txt"]
-    assert set(facts["changedFiles"]) == {"README.md", "committed.txt", "untracked.txt"}
-    assert len(facts["commits"]) == 1
-    assert facts["initialDirtyBaseline"]["dirty"] is False
-    assert facts["checkoutKind"] == "primary-checkout"
-    assert facts["checkoutCreator"] == "unknown"
-    assert facts["targetStatus"]["headCommit"] == facts["headCommit"]
-    assert facts["primaryStatus"]["dirty"] is True
-    latest = json.loads(
-        (resolve_runtime_root(repo) / "runs" / f"{record['runId']}.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert latest["status"] == "VALIDATED"
-    assert latest["stopValidation"]["fresh"] is True
-    assert latest["stopValidation"]["headCommit"] == facts["headCommit"]
-
-
-def test_stop_validation_fingerprint_detects_same_path_content_change(
-    tmp_path, monkeypatch, capsys
-):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, "session-content-freshness")
-    acquire_for_session(repo, record["sessionId"])
-    (repo / "README.md").write_text("first-content\n", encoding="utf-8")
-    stop_with_fake_pass(repo, record, monkeypatch, capsys)
-
-    registry = sessionctl.Registry(repo)
-    with registry.locked():
-        validated = registry.load_run(record["runId"])
-    original_fingerprint = validated["stopValidation"]["checkoutFingerprint"]
-
-    (repo / "README.md").write_text("other-content\n", encoding="utf-8")
-    current_facts = sessionctl._collect_git_facts(validated)
-
-    assert current_facts["uncommittedFiles"] == ["README.md"]
-    assert current_facts["checkoutFingerprint"] != original_fingerprint
-    assert (
-        session_finalize._fresh_validation_error(
-            validated, current_facts, require_target_match=False
-        )
-        == "checkout Git state changed after Stop validation"
-    )
-
-
-@pytest.mark.parametrize("checkout_creator", ["codex", "external"])
-def test_finalize_ff_only_preserves_provider_checkout_and_releases_exact_lease(
-    tmp_path, monkeypatch, capsys, checkout_creator
-):
-    repo = git_repo(tmp_path)
-    linked = tmp_path / f"{checkout_creator} provider checkout"
-    run(
-        ["git", "worktree", "add", "-b", f"feature-{checkout_creator}", str(linked), "HEAD"],
-        cwd=repo,
-    )
-    record = bootstrap(
-        linked,
-        f"session-finalize-{checkout_creator}",
-        extra=("--checkout-creator", checkout_creator),
-    )
-    assert record["targetBranch"] == "main_java"
-    assert record["targetHeadAtBootstrap"] == record["baseCommit"]
-    leased = acquire_for_session(linked, record["sessionId"])
-    (linked / "result.txt").write_text(f"{checkout_creator}\n", encoding="utf-8")
-    run(["git", "add", "result.txt"], cwd=linked)
-    run(["git", "commit", "-m", "provider result"], cwd=linked)
-    stop_with_fake_pass(linked, record, monkeypatch, capsys)
-
-    result, summary = finalize_in_process(linked, record, capsys)
-
-    assert result == 0
-    assert summary["status"] == "INTEGRATED"
-    assert summary["strategy"] == "ff-only"
-    assert summary["checkoutCreator"] == checkout_creator
-    assert summary["checkoutPreserved"] is True
-    assert summary["pushed"] is False
-    assert linked.exists()
-    assert run(["git", "branch", "--show-current"], cwd=repo).stdout.strip() == "main_java"
-    assert (
-        run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
-        == run(["git", "rev-parse", "HEAD"], cwd=linked).stdout.strip()
-    )
-    runtime = resolve_runtime_root(linked)
-    latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
-    lease = json.loads(
-        (runtime / "writer-leases" / f"{record['worktreeId']}.json").read_text(encoding="utf-8")
-    )
-    assert latest["status"] == "INTEGRATED"
-    assert latest["writerLease"] == {}
-    assert lease["state"] == "RELEASED"
-    assert lease["leaseId"] == leased["writerLease"]["leaseId"]
-    assert lease["releaseReason"] == "finalize-integrated"
-    assert {event["event"] for event in latest["auditEvents"]} >= {
-        "WRITER_LEASE_RELEASED",
-        "RUN_INTEGRATED",
-    }
-
-
-def test_finalize_primary_checkout_is_already_on_target_and_preserves_status_on_release(
-    tmp_path, monkeypatch, capsys
-):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, "session-finalize-primary")
-    acquire_for_session(repo, record["sessionId"])
-    (repo / "primary-result.txt").write_text("result\n", encoding="utf-8")
-    run(["git", "add", "primary-result.txt"], cwd=repo)
-    run(["git", "commit", "-m", "primary result"], cwd=repo)
-    stop_with_fake_pass(repo, record, monkeypatch, capsys)
-
-    result, summary = finalize_in_process(repo, record, capsys)
-
-    assert result == 0
-    assert summary["strategy"] == "already-on-target"
-    assert summary["checkoutKind"] == "primary-checkout"
-    latest = json.loads(
-        (resolve_runtime_root(repo) / "runs" / f"{record['runId']}.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert latest["status"] == "INTEGRATED"
-    assert latest["writerLease"] == {}
-    assert repo.exists()
-
-
-def test_finalize_legacy_target_advance_without_commit_attestation_handoffs(
-    tmp_path, monkeypatch, capsys
-):
-    repo = git_repo(tmp_path)
-    linked = tmp_path / "provider-rebase"
-    run(["git", "worktree", "add", "-b", "feature-rebase", str(linked), "HEAD"], cwd=repo)
-    record = bootstrap(
-        linked,
-        "session-finalize-rebase",
-        extra=("--checkout-creator", "external"),
-    )
-    acquire_for_session(linked, record["sessionId"])
-    (linked / "feature.txt").write_text("feature\n", encoding="utf-8")
-    run(["git", "add", "feature.txt"], cwd=linked)
-    run(["git", "commit", "-m", "feature result"], cwd=linked)
-    stop_with_fake_pass(linked, record, monkeypatch, capsys)
-    (repo / "target.txt").write_text("target advanced\n", encoding="utf-8")
-    run(["git", "add", "target.txt"], cwd=repo)
-    run(["git", "commit", "-m", "target advance"], cwd=repo)
-
-    result, summary = finalize_in_process(linked, record, capsys)
-
-    assert result == 2
-    assert summary["status"] == "HANDOFF_REQUIRED"
-    assert summary["reason"] == "target advanced without an attested completion commit"
-    assert not (repo / "feature.txt").exists()
-    assert (repo / "target.txt").read_text(encoding="utf-8") == "target advanced\n"
-    assert linked.exists()
-    latest = json.loads(
-        (resolve_runtime_root(linked) / "runs" / f"{record['runId']}.json").read_text(
-            encoding="utf-8"
-        )
-    )
-    assert latest["status"] == "HANDOFF_REQUIRED"
-    assert sum(event["event"] == "STOP_VALIDATED" for event in latest["auditEvents"]) == 1
-
-
-def test_finalize_legacy_target_advance_never_invokes_a_second_full_stop(
-    tmp_path, monkeypatch, capsys
-):
-    repo = git_repo(tmp_path)
-    linked = tmp_path / "provider-revalidation-failure"
-    run(
-        ["git", "worktree", "add", "-b", "feature-revalidation-failure", str(linked), "HEAD"],
-        cwd=repo,
-    )
-    record = bootstrap(
-        linked,
-        "session-revalidation-failure",
-        extra=("--checkout-creator", "external"),
-    )
-    acquire_for_session(linked, record["sessionId"])
-    (linked / "feature.txt").write_text("feature\n", encoding="utf-8")
-    run(["git", "add", "feature.txt"], cwd=linked)
-    run(["git", "commit", "-m", "feature result"], cwd=linked)
-    stop_with_fake_pass(linked, record, monkeypatch, capsys)
-    (repo / "target.txt").write_text("target advanced\n", encoding="utf-8")
-    run(["git", "add", "target.txt"], cwd=repo)
-    run(["git", "commit", "-m", "target advance"], cwd=repo)
-    target_head = run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
-
-    monkeypatch.setattr(
-        stop_pipeline,
-        "run_stop",
-        lambda *_args, **_kwargs: (_ for _ in ()).throw(
-            AssertionError('finalize must not invoke a second full Stop')
-        ),
-    )
-    result, summary = finalize_in_process(linked, record, capsys)
-
-    assert result == 2
-    assert summary["status"] == "HANDOFF_REQUIRED"
-    assert summary["reason"] == "target advanced without an attested completion commit"
-    assert run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip() == target_head
-    runtime = resolve_runtime_root(linked)
-    latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
-    assert latest["status"] == "HANDOFF_REQUIRED"
-    assert latest["stopValidation"]["status"] == "PASS"
-    assert latest["writerLease"] == {}
-    assert sum(event["event"] == "STOP_VALIDATED" for event in latest["auditEvents"]) == 1
-
-
-@pytest.mark.parametrize(
-    "unsafe_state, expected_reason",
-    [
-        ("dirty-and-untracked", "uncommitted or untracked"),
-        ("primary-dirty", "primary checkout dirty"),
-        ("primary-branch-mismatch", "not on the recorded target branch"),
-        ("initial-dirty", "initial dirty baseline"),
-        ("validation-stale", "HEAD changed after Stop validation"),
-    ],
-)
-def test_finalize_unsafe_git_states_require_handoff_without_deleting_checkout(
-    tmp_path, monkeypatch, capsys, unsafe_state, expected_reason
-):
-    repo = git_repo(tmp_path)
-    linked = tmp_path / f"unsafe {unsafe_state}"
-    if unsafe_state == "detached":
-        run(["git", "worktree", "add", "--detach", str(linked), "HEAD"], cwd=repo)
-    else:
-        run(
-            ["git", "worktree", "add", "-b", f"feature-{unsafe_state}", str(linked), "HEAD"],
-            cwd=repo,
-        )
-    if unsafe_state == "initial-dirty":
-        (linked / "README.md").write_text("preexisting\n", encoding="utf-8")
-    record = bootstrap(
-        linked,
-        f"session-{unsafe_state}",
-        extra=("--checkout-creator", "external"),
-    )
-    acquire_for_session(linked, record["sessionId"])
-
-    if unsafe_state == "dirty-and-untracked":
-        (linked / "README.md").write_text("dirty\n", encoding="utf-8")
-        (linked / "untracked.txt").write_text("untracked\n", encoding="utf-8")
-    else:
-        (linked / "README.md").write_text(f"{unsafe_state}\n", encoding="utf-8")
-        run(["git", "add", "README.md"], cwd=linked)
-        run(["git", "commit", "-m", f"result {unsafe_state}"], cwd=linked)
-    stop_with_fake_pass(linked, record, monkeypatch, capsys)
-
-    if unsafe_state == "primary-dirty":
-        (repo / "primary-untracked.txt").write_text("keep\n", encoding="utf-8")
-    elif unsafe_state == "primary-branch-mismatch":
-        run(["git", "switch", "-c", "other-primary-branch"], cwd=repo)
-    elif unsafe_state == "validation-stale":
-        (linked / "after-stop.txt").write_text("later\n", encoding="utf-8")
-        run(["git", "add", "after-stop.txt"], cwd=linked)
-        run(["git", "commit", "-m", "changed after stop"], cwd=linked)
-
-    result, summary = finalize_in_process(linked, record, capsys)
-
-    assert result == 2
-    assert summary["status"] == "HANDOFF_REQUIRED"
-    assert expected_reason in summary["reason"]
-    assert linked.exists()
-    if unsafe_state == "primary-branch-mismatch":
-        assert (
-            run(["git", "branch", "--show-current"], cwd=repo).stdout.strip()
-            == "other-primary-branch"
-        )
-    runtime = resolve_runtime_root(linked)
-    latest = json.loads((runtime / "runs" / f"{record['runId']}.json").read_text(encoding="utf-8"))
-    lease = json.loads(
-        (runtime / "writer-leases" / f"{record['worktreeId']}.json").read_text(encoding="utf-8")
-    )
-    assert latest["status"] == "HANDOFF_REQUIRED"
-    assert latest["writerLease"] == {}
-    assert lease["state"] == "RELEASED"
-    handoff = json.loads(Path(latest["handoffSummary"]).read_text(encoding="utf-8"))
-    assert handoff["checkoutRoot"] == str(linked.resolve())
-    assert handoff["checkoutCreator"] == "external"
-    assert handoff["initialDirtyBaseline"]["dirty"] is (unsafe_state == "initial-dirty")
-
-
-def test_finalize_rebase_conflict_aborts_and_handoffs_without_moving_target(
-    tmp_path, monkeypatch, capsys
-):
-    repo = git_repo(tmp_path)
-    linked = tmp_path / "provider-conflict"
-    run(["git", "worktree", "add", "-b", "feature-conflict", str(linked), "HEAD"], cwd=repo)
-    record = bootstrap(
-        linked,
-        "session-finalize-conflict",
-        extra=("--checkout-creator", "external"),
-    )
-    acquire_for_session(linked, record["sessionId"])
-    (linked / "README.md").write_text("feature\n", encoding="utf-8")
-    run(["git", "add", "README.md"], cwd=linked)
-    run(["git", "commit", "-m", "feature conflict"], cwd=linked)
-    feature_head = run(["git", "rev-parse", "HEAD"], cwd=linked).stdout.strip()
-    stop_with_fake_pass(linked, record, monkeypatch, capsys)
-    (repo / "README.md").write_text("target\n", encoding="utf-8")
-    run(["git", "add", "README.md"], cwd=repo)
-    run(["git", "commit", "-m", "target conflict"], cwd=repo)
-    target_head = run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip()
-
-    result, summary = finalize_in_process(linked, record, capsys)
-
-    assert result == 2
-    assert summary["status"] == "HANDOFF_REQUIRED"
-    assert summary["reason"] == "target advanced without an attested completion commit"
-    assert run(["git", "rev-parse", "HEAD"], cwd=repo).stdout.strip() == target_head
-    assert run(["git", "rev-parse", "HEAD"], cwd=linked).stdout.strip() == feature_head
-    assert run(["git", "status", "--porcelain"], cwd=linked).stdout == ""
-    assert linked.exists()
-
-
 def test_begin_change_is_idempotent_and_records_full_baseline(tmp_path):
     repo = git_repo(tmp_path)
     record = bootstrap(repo, 'session-begin-idempotent')
@@ -1316,7 +929,6 @@ def test_begin_change_is_idempotent_and_records_full_baseline(tmp_path):
     assert second['changeBegin']['baseCommit'] == record['baseCommit']
     assert second['changeBegin']['targetHead'] == record['targetHeadAtBootstrap']
     assert second['changeBegin']['allowedPaths'] == ['.']
-    assert second['completion']['state'] == 'WORKING'
     assert sum(event['event'] == 'CHANGE_BEGIN_ATTESTED' for event in second['auditEvents']) == 1
 
 
@@ -1347,55 +959,3 @@ def test_mutation_guard_blocks_when_begin_baseline_is_missing(tmp_path):
 
     with pytest.raises(SessionctlError, match='START_NOT_ENFORCED'):
         require_mutation_baseline(repo, record)
-
-
-def test_normal_completion_with_task_changes_requires_attested_commit(tmp_path):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, 'session-commit-required')
-    begin_change(repo, record['runId'], activation_source='test:before-mutation')
-    (repo / 'owned.txt').write_text('owned\n', encoding='utf-8')
-
-    required = completion_requirement(repo, record)
-
-    assert required['status'] == 'COMMIT_REQUIRED'
-    assert required['changedFiles'] == ['owned.txt']
-    assert 'complete_change.py' in required['recoveryCommand']
-
-
-def test_normal_completion_rejects_clean_but_unattested_manual_commit(tmp_path):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, 'session-manual-commit-required')
-    begin_change(repo, record['runId'], activation_source='test:before-mutation')
-    (repo / 'owned.txt').write_text('owned\n', encoding='utf-8')
-    run(['git', 'add', 'owned.txt'], cwd=repo)
-    run(['git', 'commit', '-m', 'manual'], cwd=repo)
-
-    required = completion_requirement(repo, record)
-
-    assert required['status'] == 'COMMIT_REQUIRED'
-    assert required['changedFiles'] == ['owned.txt']
-
-
-def test_completion_state_updates_are_idempotent_and_preserve_commit_evidence(tmp_path):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, 'session-completion-state')
-    begin_change(repo, record['runId'], activation_source='test:before-mutation')
-
-    first = update_completion(
-        repo,
-        record['runId'],
-        'COMMITTED',
-        commitSha='a' * 40,
-        resultRef=f"refs/heads/codex/result/{record['runId']}",
-    )
-    second = update_completion(
-        repo,
-        record['runId'],
-        'COMMITTED',
-        commitSha='a' * 40,
-        resultRef=f"refs/heads/codex/result/{record['runId']}",
-    )
-
-    assert first['completion'] == second['completion']
-    assert second['completion']['state'] == 'COMMITTED'
-    assert sum(event['event'] == 'COMPLETION_COMMITTED' for event in second['auditEvents']) == 1

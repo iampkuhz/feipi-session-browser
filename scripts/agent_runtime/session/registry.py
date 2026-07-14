@@ -31,6 +31,8 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 REGISTRY_VERSION = 2
+REGISTRY_LOCK_TIMEOUT_SECONDS = 1.8
+REGISTRY_LOCK_POLL_SECONDS = 0.05
 IDENTIFIER_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]{0,127}$")
 
 
@@ -78,7 +80,21 @@ class Registry:
             if hasattr(os, 'geteuid') and opened.st_uid != os.geteuid():
                 raise SessionctlError(f'lock is not owned by current user: {path}')
             os.fchmod(descriptor, 0o600)
-            fcntl.flock(descriptor, fcntl.LOCK_EX)
+            started = time.monotonic()
+            while True:
+                try:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                    break
+                except BlockingIOError as exc:
+                    waited = time.monotonic() - started
+                    if waited >= REGISTRY_LOCK_TIMEOUT_SECONDS:
+                        owner = self._read_lock_metadata(descriptor)
+                        raise SessionctlError(
+                            'BUSY_RETRYABLE: registry lock owner='
+                            f'{json.dumps(owner, ensure_ascii=False, sort_keys=True)} '
+                            f'waitedSeconds={waited:.3f}'
+                        ) from exc
+                    time.sleep(REGISTRY_LOCK_POLL_SECONDS)
             try:
                 previous = self._read_lock_metadata(descriptor)
                 try:
@@ -151,9 +167,16 @@ class Registry:
             return {}
         try:
             data = json.loads(raw.decode('utf-8'))
-        except (UnicodeDecodeError, json.JSONDecodeError):
-            return {}
-        return data if isinstance(data, dict) else {}
+        except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise SessionctlError('TERMINAL_BLOCKED: registry lock metadata corrupt') from exc
+        if not isinstance(data, dict):
+            raise SessionctlError('TERMINAL_BLOCKED: registry lock metadata must be an object')
+        version = data.get('schemaVersion')
+        if version not in {None, REGISTRY_VERSION}:
+            raise SessionctlError(
+                f'TERMINAL_BLOCKED: registry lock schemaVersion unsupported: {version}'
+            )
+        return data
 
     @staticmethod
     def _persist_lock_metadata(descriptor: int, metadata: dict[str, Any]) -> None:

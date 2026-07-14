@@ -20,10 +20,11 @@ if str(ROOT) not in sys.path:
 
 from typing import TYPE_CHECKING  # noqa: E402
 
+from scripts.agent_runtime.change.controller import LifecycleController  # noqa: E402
+from scripts.agent_runtime.change.protocol import EXIT_CODES, encode_compact  # noqa: E402
 from scripts.agent_runtime.session.completion import (  # noqa: E402
     START_ENFORCED,
     begin_change,
-    completion_requirement,
 )
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     PrimaryHeadSnapshot,
@@ -71,6 +72,7 @@ def _git(repo: Path, *args: str, check: bool = True) -> subprocess.CompletedProc
         check=check,
         capture_output=True,
         text=True,
+        timeout=2,
     )
 
 
@@ -377,6 +379,8 @@ def run(args: argparse.Namespace) -> int:
         activation_source="launcher:codex-cli:before-agent",
         capability=START_ENFORCED,
     )
+    # Launcher 在 agent 进程前直接建立 canonical Session/Change，Start 强制不依赖提示词。
+    LifecycleController(target, record).ensure_session(event='start')
     registry = Registry(target)
     with registry.locked():
         record = registry.load_run(str(record["runId"]))
@@ -432,13 +436,12 @@ def run(args: argparse.Namespace) -> int:
             file=sys.stderr,
         )
         return completed.returncode
-    with registry.locked():
-        completed_record = registry.load_run(str(record["runId"]))
-    completion = completion_requirement(target, completed_record)
-    print(json.dumps(completion, ensure_ascii=False, sort_keys=True))
-    if completion["status"] == "COMMIT_REQUIRED":
-        return 2
-    return 0
+    completed_record = registry.load_run(str(record["runId"]))
+    completion = LifecycleController(target, completed_record).on_stop(
+        message=f"chore(agent): complete {completed_record.get('changeId') or record['runId']}"
+    )
+    print(encode_compact(completion))
+    return EXIT_CODES.get(str(completion.get('status')), 70)
 
 
 # CLI 入口：将所有可预期安全失败转换成机器可读 BLOCKED。

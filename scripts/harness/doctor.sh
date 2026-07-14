@@ -125,11 +125,16 @@ check_file scripts/harness/hook_dispatch.py
 check_file harness/manifest.yaml
 check_file docs/agent-runtime.md
 check_file scripts/harness/stop_entry.py
-check_file scripts/agent_runtime/stop/model.py
+check_file scripts/harness/change.py
+check_file scripts/agent_runtime/change/controller.py
+check_file scripts/agent_runtime/change/model.py
+check_file scripts/agent_runtime/change/store.py
+check_file scripts/agent_runtime/change/runtime.py
+check_file scripts/agent_runtime/change/candidate.py
+check_file scripts/agent_runtime/change/fixture.py
+check_file scripts/agent_runtime/change/protocol.py
 check_file scripts/agent_runtime/stop/pipeline.py
 check_file scripts/agent_runtime/stop/evidence.py
-check_file scripts/agent_runtime/stop/recovery.py
-check_file scripts/agent_runtime/stop/report.py
 check_dir tests
 check_dir scripts/agent_runtime
 

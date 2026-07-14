@@ -1,8 +1,7 @@
-"""负责 Session bootstrap、状态诊断、Stop 回执与清理生命周期；不负责执行 Gate 或远端集成；由 Hook、sessionctl 和 finalize 调用。"""
+"""负责 Session bootstrap、身份诊断与清理；不负责完成 Change，由 controller 调用。"""
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import re
@@ -18,7 +17,7 @@ from scripts.agent_runtime.git_state import run as git
 from scripts.agent_runtime.stop.evidence import GitEvidenceError, collect_git_evidence
 from scripts.agent_runtime.storage import utc_now as now_utc
 
-from .common import _append_run_audit, _set_run_status, _writer_status, emit_json
+from .common import _append_run_audit, emit_json
 from .contract import (
     ACTIVE_WRITER_STATUSES,
     CHECKOUT_CREATORS,
@@ -377,7 +376,6 @@ def _claim_launcher_run(
         candidate = registry.load_run(run_id)
     except SessionctlError:
         return None
-    completion = candidate.get('completion')
     if (
         candidate.get('launcherPending') is not True
         or candidate.get('client') != client
@@ -385,7 +383,7 @@ def _claim_launcher_run(
         or Path(str(candidate.get('checkoutRoot') or '')).resolve()
         != Path(str(facts.get('checkoutRoot') or '')).resolve()
         or candidate.get('writerLease')
-        or (isinstance(completion, Mapping) and completion.get('firstMutationAt'))
+        or candidate.get('firstMutationAt')
     ):
         return None
     previous_session = str(candidate.get('sessionId') or '')
@@ -835,195 +833,16 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
-def record_stop_result(
-    repo_root: Path,
-    run_id: str,
-    *,
-    stop_exit: int,
-    summary_status: str,
-    validated_facts: Mapping[str, Any],
-    handoff_on_failure: bool = False,
-    retryable_failure: bool = False,
-) -> tuple[dict[str, Any], dict[str, Any]]:
-    """在 Registry 锁内对照 gated 与当前 Git 指纹，持久化新鲜或失败的 Stop 回执。"""
-    registry = Registry(repo_root)
-    with registry.locked():
-        latest = registry.load_run(run_id)
-        try:
-            current_facts = _collect_git_facts(latest)
-            evidence_error = ''
-        except GitEvidenceError as exc:
-            evidence_error = str(exc)
-            current_facts = {'queryErrors': [evidence_error], 'gitFactErrors': [evidence_error]}
-        facts = dict(validated_facts)
-        pass_requested = stop_exit == 0 and summary_status == 'PASS'
-        expected_fingerprint = str(facts.get('checkoutFingerprint') or '')
-        current_fingerprint = str(current_facts.get('checkoutFingerprint') or '')
-        if pass_requested and (not evidence_error):
-            if not expected_fingerprint:
-                evidence_error = 'Stop validation evidence has no checkout fingerprint'
-            elif expected_fingerprint != current_fingerprint:
-                evidence_error = 'checkout Git snapshot changed after required gates'
-            elif str(facts.get('headCommit') or '') != str(current_facts.get('headCommit') or ''):
-                evidence_error = 'checkout HEAD changed after required gates'
-        passed = pass_requested and (not evidence_error)
-        if handoff_on_failure:
-            failure_status = 'HANDOFF_REQUIRED'
-        elif retryable_failure:
-            failure_status = (
-                _writer_status(latest)
-                if latest.get('status') in ACTIVE_WRITER_STATUSES
-                and isinstance(latest.get('writerLease'), dict)
-                and latest.get('writerLease')
-                else 'READ_ONLY_READY'
-            )
-        else:
-            failure_status = 'BLOCKED'
-        final_status = 'VALIDATED' if passed else failure_status
-        receipt_facts = facts if passed else current_facts
-        head = str(receipt_facts.get('headCommit') or latest.get('headCommit') or '')
-        target_commit = str((facts if pass_requested else receipt_facts).get('targetHead') or '')
-        fingerprint = expected_fingerprint if pass_requested else current_fingerprint
-        checkout_content_fingerprint = str(receipt_facts.get('checkoutContentFingerprint') or '')
-        primary_fingerprint = str(receipt_facts.get('primaryFingerprint') or '')
-        result_key = hashlib.sha256(
-            json.dumps(
-                {
-                    'runId': run_id,
-                    'stopExit': stop_exit,
-                    'summaryStatus': summary_status,
-                    'headCommit': head,
-                    'targetCommit': target_commit,
-                    'checkoutFingerprint': fingerprint,
-                    'checkoutContentFingerprint': checkout_content_fingerprint,
-                    'primaryFingerprint': primary_fingerprint,
-                    'evidenceError': evidence_error,
-                    'retryableFailure': retryable_failure,
-                },
-                sort_keys=True,
-            ).encode('utf-8')
-        ).hexdigest()
-        if latest.get('stopResultKey') == result_key and latest.get('status') == final_status:
-            stored_facts = latest.get('stopGitFacts')
-            return (latest, stored_facts if isinstance(stored_facts, dict) else receipt_facts)
-        if latest.get('status') != 'VALIDATING':
-            _set_run_status(latest, 'VALIDATING')
-        _set_run_status(latest, final_status)
-        latest['headCommit'] = head
-        latest['stopExitCode'] = stop_exit
-        timestamp = now_utc()
-        latest['stopValidation'] = {
-            'status': 'PASS' if passed else 'FAIL',
-            'summaryStatus': summary_status,
-            'fresh': passed,
-            'validatedAt': timestamp,
-            'headCommit': head,
-            'targetCommit': target_commit,
-            'checkoutFingerprint': fingerprint,
-            'checkoutContentFingerprint': checkout_content_fingerprint,
-            'primaryFingerprint': primary_fingerprint,
-            'evidenceError': evidence_error,
-            'candidateTree': str(receipt_facts.get('candidateTree') or ''),
-            'gateReceiptPaths': list(receipt_facts.get('gateReceiptPaths') or []),
-            'gateArtifactPath': str(receipt_facts.get('gateArtifactPath') or ''),
-            'gateReused': bool(receipt_facts.get('gateReused')),
-        }
-        latest['stopGitFacts'] = receipt_facts
-        latest['stopResultKey'] = result_key
-        latest.pop('validationStaleAt', None)
-        latest.pop('validationStaleReason', None)
-        latest['updatedAt'] = timestamp
-        outcome_event = (
-            'STOP_VALIDATED'
-            if passed
-            else 'STOP_HANDOFF_REQUIRED'
-            if final_status == 'HANDOFF_REQUIRED'
-            else 'STOP_RETRYABLE_BLOCKED'
-            if retryable_failure
-            else 'STOP_BLOCKED'
-        )
-        _append_run_audit(
-            registry,
-            latest,
-            {
-                'event': outcome_event,
-                'runId': latest['runId'],
-                'sessionId': latest['sessionId'],
-                'worktreeId': latest['worktreeId'],
-                'headCommit': head,
-                'targetCommit': target_commit,
-                'stopExitCode': stop_exit,
-                'evidenceError': evidence_error,
-                'at': timestamp,
-            },
-        )
-        registry.save_run(latest)
-        return (latest, receipt_facts)
-
-
 def cmd_stop(args: argparse.Namespace) -> int:
-    """先标记运行进入 VALIDATING，再调用唯一 Stop pipeline 并输出最终回执事实。"""
+    """将旧 stop 命令直接委托统一生命周期控制器，不复制收口业务。"""
     repo = repo_root_from_arg(args.repo_root)
-    registry = Registry(repo)
-    with registry.locked():
-        record = registry.load_run(args.run_id)
-        if record.get('status') == 'BLOCKED':
-            _append_run_audit(
-                registry,
-                record,
-                {
-                    'event': 'BLOCKED_RUN_RETRY_REQUESTED',
-                    'runId': record['runId'],
-                    'sessionId': record['sessionId'],
-                    'worktreeId': record['worktreeId'],
-                    'at': now_utc(),
-                },
-            )
-        record['stopRequestedAt'] = now_utc()
-        _set_run_status(record, 'VALIDATING')
-        record['updatedAt'] = now_utc()
-        registry.save_run(record)
-    from scripts.agent_runtime.stop.pipeline import run_stop
+    from scripts.agent_runtime.change.controller import LifecycleController
+    from scripts.agent_runtime.change.protocol import EXIT_CODES, encode_compact
 
-    payload = {
-        'cwd': record['checkoutRoot'],
-        'session_id': record.get('sessionId', ''),
-        'sessionId': record.get('sessionId', ''),
-        'run_id': record['runId'],
-        'runId': record['runId'],
-        'task_id': record['taskId'],
-        'taskId': record['taskId'],
-        'worktree_id': record['worktreeId'],
-        'worktreeId': record['worktreeId'],
-        'agent_client': record['client'],
-        'client': record['client'],
-        'completionCandidate': bool(getattr(args, 'candidate_mode', False)),
-    }
-    stop_exit = run_stop(
-        str(record['client']),
-        payload,
-        handoff_on_failure=bool(getattr(args, 'handoff_on_failure', False)),
-        adapter_mode='cli',
-    )
-    with registry.locked():
-        latest = registry.load_run(args.run_id)
-    facts = latest.get('stopGitFacts')
-    if not isinstance(facts, dict):
-        try:
-            facts = _collect_git_facts(latest)
-        except GitEvidenceError as exc:
-            facts = {'queryErrors': [str(exc)], 'gitFactErrors': [str(exc)]}
-    status = latest['status']
-    emit_json(
-        {
-            'status': status,
-            'runId': args.run_id,
-            'stopExitCode': stop_exit,
-            'killedProcess': False,
-            'gitFacts': facts,
-        }
-    )
-    return 0 if status == 'VALIDATED' else 2
+    controller = LifecycleController.from_run_id(repo, args.run_id)
+    result = controller.on_stop(message=f'chore(agent): complete {args.run_id}')
+    print(encode_compact(result))
+    return EXIT_CODES.get(str(result.get('status')), 70)
 
 
 def cmd_handoff(args: argparse.Namespace) -> int:

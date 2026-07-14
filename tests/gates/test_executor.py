@@ -1,13 +1,12 @@
 """唯一 Gate executor 的命令、环境、状态与进程终止 contract。"""
 
-import signal
-import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 from scripts.gates import executor
 from scripts.gates.catalog import gate_by_name
 from scripts.gates.model import GatePlan, TargetGatePlan
-from scripts.gates.report import FAIL, PASS
+from scripts.gates.report import BLOCKED, FAIL, PASS, GateDetail
 
 
 def _single_plan(target: str, gate: str) -> GatePlan:
@@ -92,19 +91,22 @@ def test_browser_gate_without_base_url_uses_node_managed_fixture(monkeypatch) ->
 
 
 def test_skip_and_warning_never_pass(monkeypatch, tmp_path: Path) -> None:
-    class FakeProc:
-        pid = 123
-        returncode = 0
-
-        def communicate(self, timeout=None):
-            return ('1 skipped\nUserWarning: warning after trigger', None)
-
     monkeypatch.setattr(executor.shutil, 'which', lambda _name: '/bin/tool')
-    monkeypatch.setattr(executor.subprocess, 'Popen', lambda *args, **kwargs: FakeProc())
+    monkeypatch.setenv('FEIPI_RUN_TMPDIR', str(tmp_path / 'runtime'))
+
+    def bounded(_cmd, **kwargs):
+        Path(kwargs['log_path']).parent.mkdir(parents=True, exist_ok=True)
+        Path(kwargs['log_path']).write_text('1 skipped\nUserWarning: warning after trigger')
+        return SimpleNamespace(
+            return_code=0, duration_seconds=0.01, timed_out=False, output_tail=''
+        )
+
+    monkeypatch.setattr(executor, 'run_bounded', bounded)
     assert executor.run_cmd('pytest', ['python3', '-m', 'pytest'], tmp_path).status == FAIL
 
 
-def test_successful_command_passes(tmp_path: Path) -> None:
+def test_successful_command_passes(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setenv('FEIPI_RUN_TMPDIR', str(tmp_path / 'runtime'))
     assert executor.run_cmd('echo', ['/bin/echo', 'ok'], tmp_path).status == PASS
 
 
@@ -120,26 +122,22 @@ def test_java_api_snapshot_uses_declarative_java_rule() -> None:
 
 
 def test_timeout_terminates_process_group(monkeypatch, tmp_path: Path) -> None:
-    class FakeProc:
-        pid = 456
-        returncode = -signal.SIGTERM
-        calls = 0
-
-        def communicate(self, timeout=None):
-            self.calls += 1
-            if self.calls == 1:
-                raise subprocess.TimeoutExpired(['tool'], timeout)
-            return ('terminated', None)
-
-    signals: list[tuple[int, int]] = []
     monkeypatch.setattr(executor.shutil, 'which', lambda _name: '/bin/tool')
-    monkeypatch.setattr(executor.subprocess, 'Popen', lambda *args, **kwargs: FakeProc())
-    monkeypatch.setattr(executor.os, 'killpg', lambda pid, sig: signals.append((pid, sig)))
+    monkeypatch.setenv('FEIPI_RUN_TMPDIR', str(tmp_path / 'runtime'))
+
+    def bounded(_cmd, **kwargs):
+        Path(kwargs['log_path']).parent.mkdir(parents=True, exist_ok=True)
+        Path(kwargs['log_path']).write_text('terminated')
+        return SimpleNamespace(
+            return_code=-15, duration_seconds=1.0, timed_out=True, output_tail='terminated'
+        )
+
+    monkeypatch.setattr(executor, 'run_bounded', bounded)
 
     detail = executor.run_cmd('timeout', ['tool'], tmp_path, timeout_seconds=1)
 
     assert detail.status == FAIL
-    assert signals == [(456, signal.SIGTERM)]
+    assert '超时' in detail.output
 
 
 def test_css_ownership_advisories_are_allowlisted_for_group_name() -> None:
@@ -153,3 +151,24 @@ def test_css_ownership_advisories_are_allowlisted_for_group_name() -> None:
         )
         is None
     )
+
+
+def test_dependency_failure_is_one_root_and_downstream_is_dependency_blocked(
+    tmp_path: Path, monkeypatch
+) -> None:
+    (tmp_path / 'gradlew').write_text('#!/bin/sh\n')
+    execution = executor.build_execution_plan(
+        _single_plan('session-ingestion', 'scanScriptSmoke'), tmp_path
+    )
+    prerequisite = next(group for group in execution.groups if not group.depends_on)
+
+    def execute(group, _repo, _identity):
+        assert group.group_id == prerequisite.group_id
+        return group.group_id, GateDetail(name=group.group_id, status=FAIL), 0
+
+    monkeypatch.setattr(executor, '_execute_group', execute)
+    details = executor.execute_plan(execution, tmp_path)
+
+    assert len(details) == 1
+    assert details[0].status == BLOCKED
+    assert details[0].executionState == 'DEPENDENCY_BLOCKED'

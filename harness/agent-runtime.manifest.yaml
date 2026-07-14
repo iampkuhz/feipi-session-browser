@@ -47,7 +47,7 @@ platforms:
     config_files:
       - .codex/config.toml
       - .codex/hooks.json
-    hook_binding_note: Repository fixtures cover dispatcher shape only; Codex App is START_NOT_ENFORCED until real host lifecycle evidence exists.
+    hook_binding_note: Repository contract tests prove local Start/PreTool/Stop dispatch; real Codex App host capability remains UNVERIFIED.
     hook_dispatch:
       entry: scripts/harness/hook_dispatch.py
       client: codex
@@ -90,9 +90,10 @@ platforms:
     skills_dir: .qoder/skills
 stop_runtime:
   public_entry: scripts/harness/stop_entry.py
-  authority: scripts/agent_runtime/stop/pipeline.py
-  model: scripts/agent_runtime/stop/model.py
-  phases: [identity, lock, evidence, reentry-recovery, gate, report, finalize]
+  authority: scripts/agent_runtime/change/controller.py
+  compatibility_entry: scripts/agent_runtime/stop/pipeline.py
+  model: scripts/agent_runtime/change/model.py
+  phases: [ensure-session, prepare, validating, commit, integration]
   gate_service: scripts.gates.cli.run_service
   gate_report_statuses: [EXECUTED, REUSED, NOT_TRIGGERED, FAILED, BLOCKED]
 
@@ -103,11 +104,11 @@ platform_hook_adapter:
   requires_feipi_run_id: false
   creates_worktree: false
   surfaces:
-    codex-app: {client: codex, validation: START_NOT_ENFORCED}
+    codex-app: {client: codex, validation: LOCAL_HOOK_CONTRACT_VERIFIED}
     codex-cli: {client: codex, validation: START_ENFORCED_BY_LAUNCHER}
-    claude-code-cli: {client: claude, validation: UNVERIFIED}
-    qoder-cli: {client: qoder, validation: UNVERIFIED}
-    qoder-client: {client: qoder, validation: UNVERIFIED}
+    claude-code-cli: {client: claude, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
+    qoder-cli: {client: qoder, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
+    qoder-client: {client: qoder, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
 worktree_isolation:
   mode: adopt-client-selected-checkout
   applies_to_clients: [claude, codex, qoder]
@@ -142,19 +143,22 @@ worktree_isolation:
     stop: all-clients-fail-closed-on-wrong-checkout-with-changes
 
 change_completion:
-  authority: scripts/harness/complete_change.py
-  shared_state_service: scripts/agent_runtime/session/completion.py
+  authority: scripts/agent_runtime/change/controller.py
+  public_entry: scripts/harness/change.py
+  compatibility_entry: scripts/harness/complete_change.py
+  shared_state_service: scripts/agent_runtime/change/store.py
+  schema_version: 3
   eligible_checkout: attested-checkout-with-exact-attribution
-  attributed_files: explicit-exact-set
+  attributed_files: automatic-nul-safe-exact-manifest
   sequence: [cheap-preflight, exact-stage, pre-commit-stabilize, candidate-tree, required-stop-once, commit, commit-attestation, integration]
-  completion_states: [WORKING, STAGED, VALIDATED_CANDIDATE, COMMITTED, INTEGRATED, BLOCKED_RETRYABLE, HANDOFF_REQUIRED]
-  persisted_fields: [oldHead, exactFilesHash, candidateTree, validationReceipt, commitSha, resultRef, targetHeadObserved]
-  target_integration: local-ff-only-with-target-delta-receipt-reuse
-  failure_statuses: [BLOCKED_RETRYABLE, COMMITTED_HANDOFF_REQUIRED, HANDOFF_REQUIRED]
+  completion_states: [WORKING, PREPARED, VALIDATING, REPAIR_REQUIRED, VALIDATED, COMMITTED, COMMITTED_HANDOFF, INTEGRATED, TERMINAL_BLOCKED]
+  persisted_fields: [sessionId, changeId, changeEpoch, attemptId, stateVersion, manifestHash, candidateTree, planFingerprint, commandFingerprint, environmentFingerprint, commitSha, resultRef]
+  target_integration: local-strict-ff-only-no-rewrite
+  failure_statuses: [REPAIR_REQUIRED, BUSY_RETRYABLE, CAPABILITY_RETRYABLE, COMMITTED_HANDOFF, TERMINAL_BLOCKED, INTERNAL_ERROR]
   required_gate_count: 1
   post_commit_heavy_process_count: 0
-  detached_result_ref: refs/heads/codex/result/<run-id>
-  forbidden_actions: [stash, reset, force, auto-push, auto-pull-request, delete-provider-checkout]
+  detached_result_ref: refs/heads/codex/result/<change-id>
+  forbidden_actions: [stash, reset, force, rebase, cherry-pick, integration-worktree, auto-push, auto-pull-request, delete-provider-checkout]
   remote_publish: false
 
 resource_isolation:

@@ -20,15 +20,6 @@ from .common import _append_run_audit, emit_json
 from .errors import SessionctlError
 from .registry import Registry
 
-COMPLETION_STATES = {
-    'WORKING',
-    'STAGED',
-    'VALIDATED_CANDIDATE',
-    'COMMITTED',
-    'INTEGRATED',
-    'BLOCKED_RETRYABLE',
-    'HANDOFF_REQUIRED',
-}
 START_ENFORCED = 'START_ENFORCED'
 START_NOT_ENFORCED = 'START_NOT_ENFORCED'
 ADOPT_CONFIRMATION = 'I_CONFIRM_ADOPT_CURRENT'
@@ -82,27 +73,6 @@ def _begin_payload(
     }
 
 
-def _completion(record: dict[str, Any]) -> dict[str, Any]:
-    value = record.setdefault(
-        'completion',
-        {
-            'state': 'WORKING',
-            'oldHead': str(record.get('baseCommit') or ''),
-            'exactFilesHash': '',
-            'candidateTree': '',
-            'validationReceipt': {},
-            'commitSha': '',
-            'resultRef': '',
-            'targetHeadObserved': str(record.get('targetHeadAtBootstrap') or ''),
-            'heavyGateRuns': 0,
-            'postCommitHeavyProcessCount': 0,
-        },
-    )
-    if not isinstance(value, dict):
-        raise SessionctlError('run completion state must be a mapping')
-    return value
-
-
 def begin_change(
     repo_root: Path,
     run_id: str,
@@ -145,7 +115,6 @@ def begin_change(
             capability=capability,
         )
         record['changeBegin'] = begin
-        _completion(record)
         timestamp = utc_now()
         record['updatedAt'] = timestamp
         _append_run_audit(
@@ -212,7 +181,6 @@ def adopt_current(
             'preexistingChangesAttributedToRun': True,
             'requiresHandoffIfIndistinguishable': False,
         }
-        _completion(record)
         timestamp = utc_now()
         record['updatedAt'] = timestamp
         _append_run_audit(
@@ -238,8 +206,7 @@ def require_mutation_baseline(repo_root: Path, record: dict[str, Any]) -> None:
         raise SessionctlError('START_NOT_ENFORCED: begin-change baseline is missing')
     if begin.get('status') != 'ATTESTED':
         raise SessionctlError(str(begin.get('status') or START_NOT_ENFORCED))
-    completion = _completion(record)
-    if completion.get('firstMutationAt'):
+    if record.get('firstMutationAt'):
         return
     adopted = bool(begin.get('adopted'))
     expected = sorted(begin.get('adoptedFiles') or []) if adopted else []
@@ -249,11 +216,10 @@ def require_mutation_baseline(repo_root: Path, record: dict[str, Any]) -> None:
 
 def activate_first_mutation(registry: Registry, record: dict[str, Any]) -> None:
     """baseline 复核后原子标记首次 mutation，重复 guard 不重写时间。"""
-    completion = _completion(record)
-    if completion.get('firstMutationAt'):
+    if record.get('firstMutationAt'):
         return
     timestamp = utc_now()
-    completion['firstMutationAt'] = timestamp
+    record['firstMutationAt'] = timestamp
     record['updatedAt'] = timestamp
     _append_run_audit(
         registry,
@@ -263,45 +229,8 @@ def activate_first_mutation(registry: Registry, record: dict[str, Any]) -> None:
     registry.save_run(record)
 
 
-def update_completion(
-    repo_root: Path,
-    run_id: str,
-    state: str,
-    **fields: Any,
-) -> dict[str, Any]:
-    """更新权威完成状态与持久证据；同状态同字段重入保持幂等。"""
-    if state not in COMPLETION_STATES:
-        raise SessionctlError(f'invalid completion state: {state}')
-    registry = Registry(repo_root)
-    with registry.locked():
-        record = registry.load_run(run_id)
-        completion = _completion(record)
-        changed = completion.get('state') != state or any(
-            completion.get(key) != value for key, value in fields.items()
-        )
-        completion.update(fields)
-        completion['state'] = state
-        if changed:
-            timestamp = utc_now()
-            completion['updatedAt'] = timestamp
-            record['updatedAt'] = timestamp
-            _append_run_audit(
-                registry,
-                record,
-                {
-                    'event': f'COMPLETION_{state}',
-                    'runId': run_id,
-                    'commitSha': completion.get('commitSha', ''),
-                    'candidateTree': completion.get('candidateTree', ''),
-                    'at': timestamp,
-                },
-            )
-            registry.save_run(record)
-        return record
-
-
 def completion_requirement(repo_root: Path, record: Mapping[str, Any]) -> dict[str, Any]:
-    """返回 normal Stop/SessionEnd/launcher post-exit 的 commit 强制结果。"""
+    """兼容查询 canonical Change 状态；修复命令是可解析 argv，不含占位符。"""
     dirty = _dirty_paths(repo_root)
     base = str(record.get('baseCommit') or '')
     head = git(repo_root, 'rev-parse', 'HEAD').stdout.strip()
@@ -321,18 +250,30 @@ def completion_requirement(repo_root: Path, record: Mapping[str, Any]) -> dict[s
         else []
     )
     task_changes = sorted(set(dirty + committed))
-    completion = record.get('completion')
-    state = str(completion.get('state') or '') if isinstance(completion, Mapping) else ''
-    commit_sha = str(completion.get('commitSha') or '') if isinstance(completion, Mapping) else ''
-    if task_changes and (state not in {'COMMITTED', 'INTEGRATED'} or not commit_sha):
+    from scripts.agent_runtime.change.controller import LifecycleController
+    from scripts.agent_runtime.change.model import current_change
+
+    controller = LifecycleController(repo_root, record)
+    session = controller.ensure_session(event='status')
+    change = current_change(session)
+    state = str(change.get('state') or '') if change else 'WORKING'
+    commit_sha = str(change.get('commitSha') or '') if change else ''
+    if task_changes and (
+        state not in {'COMMITTED', 'COMMITTED_HANDOFF', 'INTEGRATED'} or not commit_sha
+    ):
         return {
             'status': 'COMMIT_REQUIRED',
             'runId': record.get('runId', ''),
             'changedFiles': task_changes,
-            'recoveryCommand': (
-                'python3 scripts/harness/complete_change.py '
-                f'--run-id {record.get("runId", "")} --message <message> --file <path>'
-            ),
+            'recoveryArgv': [
+                'python3',
+                'scripts/harness/change.py',
+                'resume',
+                '--run-id',
+                str(record.get('runId', '')),
+                '--message',
+                'chore(agent): resume change',
+            ],
         }
     return {
         'status': state or 'WORKING',
@@ -342,7 +283,7 @@ def completion_requirement(repo_root: Path, record: Mapping[str, Any]) -> dict[s
 
 
 def cmd_begin_change(args: Any) -> int:
-    """稳定 CLI adapter：调用共享 begin service 并输出 begin/completion 事实。"""
+    """稳定 CLI adapter：调用共享 begin service 并输出 baseline 事实。"""
     repo = Path(args.repo_root or args.cwd).resolve()
     capability = START_ENFORCED if args.start_enforced else START_NOT_ENFORCED
     record = begin_change(
@@ -356,7 +297,6 @@ def cmd_begin_change(args: Any) -> int:
             'status': record['changeBegin']['status'],
             'runId': record['runId'],
             'changeBegin': record['changeBegin'],
-            'completion': record['completion'],
         }
     )
     return 0 if record['changeBegin']['status'] == 'ATTESTED' else 2
@@ -386,8 +326,7 @@ def cmd_completion_status(args: Any) -> int:
     """供 Stop/SessionEnd/launcher post-exit 共用的 normal completion 检查。"""
     repo = Path(args.repo_root).resolve() if args.repo_root else Path.cwd().resolve()
     registry = Registry(repo)
-    with registry.locked():
-        record = registry.load_run(args.run_id)
+    record = registry.load_run(args.run_id)
     result = completion_requirement(repo, record)
     emit_json(result)
     return 2 if result['status'] == 'COMMIT_REQUIRED' else 0

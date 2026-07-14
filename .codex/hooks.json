@@ -1,5 +1,5 @@
 {
-  "schemaNote": "All hooks call the shared dispatcher, but Codex App host lifecycle E2E is not proven; App Start must report START_NOT_ENFORCED and mutation remains fail-closed.",
+  "schemaNote": "All hooks call the shared dispatcher and enforce local ensure-session/on-stop; real Codex App host lifecycle capability remains UNVERIFIED.",
   "hooks": {
     "SessionStart": [
       {

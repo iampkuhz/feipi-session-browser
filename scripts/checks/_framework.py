@@ -101,7 +101,7 @@ class CheckSpec:
         return getattr(importlib.import_module(self.module), self.function)
 
 
-def invoke(spec: CheckSpec, context: ScanContext, arguments: list[str]) -> CheckResult:
+def invoke(spec: CheckSpec, _context: ScanContext, arguments: list[str]) -> CheckResult:
     """调用领域函数并把退出码、输出或异常归一为 CheckResult。"""
     function = spec.load()
     stdout, stderr = io.StringIO(), io.StringIO()

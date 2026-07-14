@@ -5,13 +5,13 @@ Registry，也不负责平台 payload 解析。"""
 
 from __future__ import annotations
 
-import fcntl
 import hashlib
 import json
 import time
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
+from scripts.agent_runtime.change.runtime import append_jsonl as append_jsonl_atomic
 from scripts.agent_runtime.context import current_change_id
 from scripts.agent_runtime.git_state import (
     GitStateError,
@@ -39,25 +39,16 @@ BASH_MUTATION_LOCK_STALE_SECONDS = 2 * 60 * 60
 def append_jsonl(path: Path, record: dict[str, Any]) -> None:
     """持久化对应 Runtime 证据；写入范围由调用方身份路径约束。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = path.with_suffix(path.suffix + '.lock')
     event_id = record.get('eventId')
-    with lock_path.open('a+', encoding='utf-8') as lock:
-        fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+    if event_id and path.exists():
         try:
-            if event_id and path.exists():
-                try:
-                    for line in path.read_text(encoding='utf-8').splitlines():
-                        if not line.strip():
-                            continue
-                        item = json.loads(line)
-                        if isinstance(item, dict) and item.get('eventId') == event_id:
-                            return
-                except Exception:
-                    pass
-            with path.open('a', encoding='utf-8') as f:
-                f.write(json.dumps(record, ensure_ascii=False, sort_keys=True) + '\n')
-        finally:
-            fcntl.flock(lock.fileno(), fcntl.LOCK_UN)
+            for line in path.read_text(encoding='utf-8').splitlines():
+                if line.strip() and json.loads(line).get('eventId') == event_id:
+                    return
+        except (OSError, json.JSONDecodeError, AttributeError):
+            pass
+    # 单次 O_APPEND+fsync 消除无限 flock；重复 eventId 即使竞态追加也保持事实一致。
+    append_jsonl_atomic(path, record)
 
 
 # 计算 hook 事件的稳定 id。

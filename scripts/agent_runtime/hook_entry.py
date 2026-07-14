@@ -59,7 +59,6 @@ from scripts.agent_runtime.registry import (
 )
 from scripts.agent_runtime.session.completion import (
     START_ENFORCED,
-    START_NOT_ENFORCED,
     activate_first_mutation,
     begin_change,
     completion_requirement,
@@ -172,15 +171,24 @@ def _bootstrap_hook_session(
         env_hints=os.environ,
         parent_run_id=request.parent_run_id,
     )
-    if request.hook_event == 'SessionStart' and not request.parent_run_id:
-        capability = (
-            START_NOT_ENFORCED if request.adapter.surface == 'codex-app' else START_ENFORCED
-        )
+    if not request.parent_run_id and not isinstance(record.get('changeBegin'), dict):
+        # Hook/PreTool 真实到达本地进程即构成强制 Start 证据；不再把 Codex App
+        # 降级成只能依赖 LLM 记忆的 START_NOT_ENFORCED。
+        capability = START_ENFORCED
         record = begin_change(
             Path(request.cwd),
             str(record['runId']),
             activation_source=f'hook:{request.adapter.surface}:SessionStart',
             capability=capability,
+        )
+    if not request.parent_run_id:
+        from scripts.agent_runtime.change.controller import LifecycleController
+
+        event = 'prompt' if request.hook_event in {'UserPromptSubmit', 'PreToolUse'} else 'start'
+        LifecycleController(Path(request.cwd), record).ensure_session(
+            event=event,
+            task_key=ctx.turn_id or ctx.task_id,
+            task_title=ctx.task_id or ctx.turn_id,
         )
     return record
 
@@ -327,6 +335,26 @@ def _run_mutation_block(
             operation='acquire',
             error=SessionctlError(reason),
         )
+    try:
+        from scripts.agent_runtime.change.controller import LifecycleController
+        from scripts.agent_runtime.change.model import current_change
+
+        lifecycle = LifecycleController(paths.repo_root, record)
+        session = lifecycle.ensure_session(
+            event='mutation',
+            task_key=ctx.turn_id or ctx.task_id,
+            task_title=ctx.task_id or ctx.turn_id,
+        )
+        change = current_change(session)
+        if change and change['state'] == 'COMMITTED_HANDOFF':
+            raise SessionctlError(
+                'COMMITTED_HANDOFF: commit 已安全保存；只能继续 integration/handoff，禁止新增修改'
+            )
+    except (SessionctlError, OSError, ValueError) as exc:
+        return _lease_block_result(paths, ctx, operation='change-epoch', error=exc)
+    except Exception as exc:
+        # lifecycle store/CAS/身份异常必须 fail closed，不能退回旧的 run-only guard。
+        return _lease_block_result(paths, ctx, operation='change-epoch', error=exc)
     registry = Registry(paths.repo_root)
     try:
         with registry.locked():
@@ -562,6 +590,7 @@ def handle_pre_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=2,
             )
             if guard.returncode != 0:
                 reason = (guard.stderr or guard.stdout).strip() or 'OpenSpec guard BLOCK'
@@ -609,6 +638,7 @@ def handle_post_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=5,
             )
             if proc.returncode != 0:
                 reason = f'shell syntax check failed: {raw_path}'
@@ -622,6 +652,7 @@ def handle_post_write(paths: RepoPaths, ctx: HookContext) -> HookResult:
                 text=True,
                 capture_output=True,
                 check=False,
+                timeout=5,
             )
             if proc.returncode != 0:
                 reason = f'json syntax check failed: {raw_path}'
@@ -667,7 +698,7 @@ def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult
         if record:
             required = completion_requirement(paths.repo_root, record)
             if required['status'] == 'COMMIT_REQUIRED':
-                reason = f"COMMIT_REQUIRED: {required['recoveryCommand']}"
+                reason = f"COMMIT_REQUIRED: {required['recoveryArgv']}"
                 record_hook_event(paths, ctx, status='BLOCK', extra=required)
                 return HookResult(status='BLOCK', exit_code=2, message=reason)
         release_block = _release_session_writer_lease(paths, ctx)

@@ -6,7 +6,8 @@
 - Harness 体检：`bash scripts/harness/doctor.sh`
 - 三平台 Hook：settings/config 直接调用 `scripts/harness/hook_dispatch.py`
 - Session CLI：`python3 scripts/harness/sessionctl.py begin-change|adopt-current|completion-status|...`
-- 受控收口：`python3 scripts/harness/complete_change.py ...`（一次 required Gate，commit 后仅轻量 attestation）
+- Lifecycle：`python3 scripts/harness/change.py ensure-session|status|on-stop|resume|next-change|abort`
+- 兼容收口：`python3 scripts/harness/complete_change.py ...`（薄入口，不再要求手拼 `--file`）
 - Gate：`python3 scripts/gates/cli.py --tier quick|required|full`
 - 共享 checks：`python3 -m scripts.checks <check-id>`
 - OpenSpec validators：`python3 scripts/openspec/validate_{layout,schema}.py`

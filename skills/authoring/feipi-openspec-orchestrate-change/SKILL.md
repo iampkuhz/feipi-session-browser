@@ -12,8 +12,8 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 
 - **`prompts/` 下的文件是输入，不是流程权威。** `prompts/` 下的提示词文件提供可复用的脚手架，它们不驱动流程。始终以本 skill 为入口。
 - **受保护文件编辑需要活跃的 OpenSpec 变更。** PreToolUse hook（`scripts/hooks/guard_openspec_change.py`）会在 `openspec/changes/` 下不存在活跃变更目录（排除 `archive`）时阻止对受保护文件的 Write/Edit/MultiEdit。
-- **默认自动提交并本地集成。** 用户没有明确要求保留未提交状态时，验证完成后不再询问；按本轮精确文件清单运行 `scripts/harness/complete_change.py`，由它执行 cheap preflight、exact stage、pre-commit 稳定、一次 required Stop、commit、轻量 attestation 和独立 finalize。
-- **安全失败优先。** 归因/禁区冲突报告 `HANDOFF_REQUIRED`；能力故障报告 `BLOCKED_RETRYABLE` 并在同一 run 重试；primary dirty/前进或 conflict 只阻断 integration，必须保留本地 commit/result ref 并报告 `COMMITTED_HANDOFF_REQUIRED`。不得 stash、reset、force、自动 push 或创建远端 PR/MR。
+- **默认自动提交并本地集成。** 用户没有明确要求保留未提交状态时，验证完成后不再询问；调用 `scripts/harness/change.py on-stop`，由唯一 controller 自动生成 exact manifest，执行稳定化、一次 required Gate、commit attestation 和 ff-only integration。
+- **安全失败优先。** candidate/Gate 错误报告 `REPAIR_REQUIRED`；活锁与能力故障分别报告 `BUSY_RETRYABLE`、`CAPABILITY_RETRYABLE`；primary dirty/前进只阻断 integration，必须保留 commit/result ref 并报告 `COMMITTED_HANDOFF`。不得 stash、reset、force、rebase、cherry-pick、自动 push 或创建远端 PR/MR。
 
 ## 阶段
 
@@ -86,16 +86,15 @@ description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创
 
 ### 阶段 7：提交、集成与汇报（Complete and Report）
 
-1. 从 `git diff --name-only HEAD` 与非 ignored untracked 文件生成本轮精确文件清单；不得包含 `openspec/changes/*`、runtime evidence、缓存、密钥或其他 Session 内容。
+1. 确认 OpenSpec runtime、缓存、密钥或其他 Session 内容不在 Git candidate 中；controller 会从 index/worktree/untracked 自动生成 NUL-safe exact manifest。
 2. 运行：
    ```bash
-   python3 scripts/harness/complete_change.py \
+   python3 scripts/harness/change.py on-stop \
      --run-id "$FEIPI_RUN_ID" \
-     --message "<type(scope): summary>" \
-     --file <path> [--file <path> ...]
+     --message "<type(scope): summary>"
    ```
 3. 命令在最终 staged `candidateTree` 上只执行一次 required Stop；commit 后只做 tree/parent/paths/clean/ref/receipt attestation，重 Gate进程数必须为 0。
-4. 命令返回 `INTEGRATED` 后才可报告已合并；返回 `BLOCKED_RETRYABLE` 时修复后复用同一 run，返回 `COMMITTED_HANDOFF_REQUIRED` 时保留 commit/result ref；不得创建 retry worktree 或改用强制集成。
+4. 命令返回 `INTEGRATED` 后才可报告已合并；`REPAIR_REQUIRED` 在同一 Change 修复，`BUSY_RETRYABLE`/`CAPABILITY_RETRYABLE` 原地重试，`COMMITTED_HANDOFF` 保留 commit/result ref；不得创建 retry worktree 或改用历史重写集成。
 5. 远端 push/PR/MR 是独立显式发布动作，不属于默认收口。
 
 输出总结：
@@ -115,8 +114,8 @@ Runtime 机器契约以 `harness/agent-runtime.manifest.yaml` 为真源：
   mutation 前证据；OpenSpec 路径策略由 `scripts/hooks/guard_openspec_change.py` 提供。
 - **PostToolUse/Failure/SessionEnd：** 仍由 manifest 登记的配置通过共享 dispatcher 委托 Runtime 补齐
   evidence、记录失败并精确释放 lease；本 skill 不复制平台 Hook 矩阵。
-- **Stop：** 共享 dispatcher 转发到 `scripts/harness/stop_entry.py`，再由
-  `scripts/agent_runtime/stop/pipeline.py` 执行七阶段；Gate 阶段只调用统一 service。
+- **Stop：** 共享 dispatcher 转发到 `scripts/harness/stop_entry.py`，再直接调用
+  `scripts/agent_runtime/change/controller.py`；`stop/pipeline.py` 仅是旧 import 兼容入口。
 - **Required Gate：** Stop/handoff 前唯一人工命令为
   `python3 scripts/gates/cli.py --tier required`；不得直接调用内部 Gate 模块。
 

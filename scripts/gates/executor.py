@@ -9,7 +9,6 @@ import os
 import re
 import shlex
 import shutil
-import signal
 import subprocess
 import sys
 import time
@@ -20,6 +19,7 @@ from pathlib import Path
 
 from scripts.agent_runtime import locks as resource_lock
 from scripts.agent_runtime import paths as runtime_paths
+from scripts.agent_runtime.change.runtime import run_bounded, sanitized_environment
 from scripts.agent_runtime.session.contract import resolve_runtime_root
 from scripts.gates.catalog import CATALOG_VERSION, gate_by_name
 from scripts.gates.model import (
@@ -73,6 +73,22 @@ def _run_tmp_dir(repo_root: Path, name: str) -> Path:
     path = root / name
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def gate_child_environment(
+    repo_root: Path, overrides: dict[str, str] | None = None
+) -> dict[str, str]:
+    """构造 Gate 真正使用的净化环境，并把临时数据/cache 绑定到当前 run。"""
+    child_root = _run_tmp_dir(repo_root, 'child-environment')
+    values = {
+        'TMPDIR': str(child_root / 'tmp'),
+        'XDG_CACHE_HOME': str(child_root / 'cache'),
+        'FEIPI_FIXTURE_DATA_DIR': str(child_root / 'fixture-data'),
+    }
+    for path in values.values():
+        Path(path).mkdir(parents=True, exist_ok=True)
+    values.update(overrides or {})
+    return sanitized_environment(values, base=sanitized_environment())
 
 
 # 维护relative existing 文件。
@@ -149,7 +165,7 @@ def _python_supports_modules(executable: str, repo_root: Path, modules: tuple[st
     if shutil.which(executable) is None:
         return False
 
-    env = os.environ.copy()
+    env = sanitized_environment()
     code = (
         'import importlib, sys\n'
         'missing=[]\n'
@@ -482,7 +498,6 @@ def run_cmd(
     返回：
         结构化 gate detail containing 状态, 命令, duration, 和。 t运行cated 输出. 命令 is 仅 side effect。
     """
-    started = time.time()
     if not cmd or shutil.which(cmd[0]) is None:
         status = BLOCKED if required else FAIL
         return GateDetail(
@@ -491,50 +506,53 @@ def run_cmd(
             command=cmd,
             durationMs=0,
             output=f'命令不存在: {cmd[0] if cmd else "<empty>"}',
+            executionState='CAPABILITY_BLOCKED',
         )
 
     default_timeout = timeout_seconds or DEFAULT_TIMEOUT_SECONDS
     timeout = PLAYWRIGHT_TIMEOUT_SECONDS if cmd[:2] == ['npx', 'playwright'] else default_timeout
 
-    # 构建the subprocess environment带可选 overrides。
-    run_env = os.environ.copy()
-    if env_overrides:
-        run_env.update(env_overrides)
+    # Gate、Gradle、fixture 和测试统一使用净化环境，provider 私有目录不得注入应用。
+    run_env = gate_child_environment(cwd, env_overrides)
     if _is_playwright_command(cmd) and run_env.get('FORCE_COLOR') and run_env.get('NO_COLOR'):
         run_env.pop('NO_COLOR', None)
 
     try:
-        proc = subprocess.Popen(
+        log_name = re.sub(r'[^A-Za-z0-9_.-]+', '-', name)[:80] or 'gate'
+        log_path = _run_tmp_dir(cwd, 'logs') / f'{log_name}-{_stable_hash(cmd)[:12]}.log'
+        bounded = run_bounded(
             cmd,
             cwd=cwd,
-            text=True,
-            stdout=subprocess.PIPE,
-            stderr=subprocess.STDOUT,
+            timeout=timeout,
             env=run_env,
-            start_new_session=True,
+            log_path=log_path,
         )
         try:
-            full_output, _ = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            os.killpg(proc.pid, signal.SIGTERM)
-            try:
-                full_output, _ = proc.communicate(timeout=5)
-            except subprocess.TimeoutExpired:
-                os.killpg(proc.pid, signal.SIGKILL)
-                full_output, _ = proc.communicate()
+            full_output = log_path.read_text(encoding='utf-8', errors='replace').strip()
+        except OSError:
+            full_output = bounded.output_tail.strip()
+        duration = int(bounded.duration_seconds * 1000)
+        if bounded.timed_out:
             return GateDetail(
                 name=name,
                 status=FAIL,
                 command=cmd,
-                durationMs=int((time.time() - started) * 1000),
-                output=f'超时: command exceeded {timeout}s\n{full_output or ""}',
+                durationMs=duration,
+                output=f'超时: command exceeded {timeout}s\n{bounded.output_tail}',
             )
-        duration = int((time.time() - started) * 1000)
-        full_output = (full_output or '').strip()
         output = full_output
         if len(output) > COMMAND_OUTPUT_TAIL_CHARS:
             output = output[-COMMAND_OUTPUT_TAIL_CHARS:]
-        status = PASS if proc.returncode == 0 else FAIL
+        if bounded.return_code is None:
+            return GateDetail(
+                name=name,
+                status=BLOCKED if required else FAIL,
+                command=cmd,
+                durationMs=duration,
+                output=f'命令启动失败: {bounded.output_tail or bounded.exit_reason}',
+                executionState='CAPABILITY_BLOCKED',
+            )
+        status = PASS if bounded.return_code == 0 else FAIL
         audit_block_reason = (
             _audit_network_block_reason(full_output, network_failure=network_failure)
             if status == FAIL
@@ -583,7 +601,7 @@ def run_cmd(
             name=name,
             status=status,
             command=cmd,
-            exitCode=proc.returncode,
+            exitCode=bounded.return_code,
             durationMs=duration,
             output=output,
             taskOutcomes=_gradle_task_outcomes(full_output)
@@ -591,7 +609,13 @@ def run_cmd(
             else {},
         )
     except OSError as exc:
-        return GateDetail(name=name, status=BLOCKED, command=cmd, output=f'命令启动失败: {exc}')
+        return GateDetail(
+            name=name,
+            status=BLOCKED,
+            command=cmd,
+            output=f'命令启动失败: {exc}',
+            executionState='CAPABILITY_BLOCKED',
+        )
 
 
 # 展开 catalog argv 中的运行时占位符。
@@ -1184,7 +1208,10 @@ def execute_plan(
         for group in blocked:
             outcomes[group.group_id] = (
                 GateDetail(
-                    name=group.group_id, status=BLOCKED, output='dependency group did not PASS.'
+                    name=group.group_id,
+                    status=BLOCKED,
+                    output='dependency group did not PASS.',
+                    executionState='DEPENDENCY_BLOCKED',
                 ),
                 0,
             )
@@ -1238,9 +1265,13 @@ def execute_plan(
                 exitCode=outcome.exitCode,
                 durationMs=outcome.durationMs,
                 output=output,
-                executionState='EXECUTED'
-                if status == PASS
-                else ('BLOCKED' if status == BLOCKED else 'FAILED'),
+                executionState=(
+                    'EXECUTED'
+                    if status == PASS
+                    else outcome.executionState
+                    if status == BLOCKED
+                    else 'FAILED'
+                ),
                 groupId=group.group_id,
                 queueWaitMs=waited_ms,
                 resourceWaitMs=waited_ms,
