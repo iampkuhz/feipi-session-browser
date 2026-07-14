@@ -578,3 +578,113 @@ def test_empty_gate_receipts_cannot_attest_even_when_summary_says_pass(
     assert completion['state'] == 'HANDOFF_REQUIRED'
     assert completion['commitSha']
     assert 'no target PASS receipts' in completion['reason']
+
+
+def capture_exact_stage_adds(monkeypatch):
+    original_run = subprocess.run
+    calls = []
+
+    def recording_run(command, *args, **kwargs):
+        if isinstance(command, list) and '--pathspec-from-file=-' in command:
+            payload = kwargs.get('input', b'')
+            calls.append({value.decode() for value in payload.split(b'\0') if value})
+        return original_run(command, *args, **kwargs)
+
+    monkeypatch.setattr(subprocess, 'run', recording_run)
+    return calls
+
+
+def test_stage_exact_is_idempotent_for_staged_deletion(tmp_path, monkeypatch):
+    repo = git_repo(tmp_path)
+    (repo / 'README.md').write_text('staged change\n', encoding='utf-8')
+    (repo / 'obsolete.txt').unlink()
+    run(['git', 'add', '-A', '--', 'README.md', 'obsolete.txt'], repo)
+    add_calls = capture_exact_stage_adds(monkeypatch)
+
+    complete_change._stage_exact(repo, {'README.md', 'obsolete.txt'})
+
+    assert add_calls == []
+    assert run(['git', 'diff', '--cached', '--name-status'], repo).stdout.splitlines() == [
+        'M\tREADME.md',
+        'D\tobsolete.txt',
+    ]
+
+
+def test_stage_exact_stages_unstaged_deletion(tmp_path, monkeypatch):
+    repo = git_repo(tmp_path)
+    (repo / 'obsolete.txt').unlink()
+    add_calls = capture_exact_stage_adds(monkeypatch)
+
+    complete_change._stage_exact(repo, {'obsolete.txt'})
+
+    assert add_calls == [{'obsolete.txt'}]
+    assert run(['git', 'diff', '--cached', '--name-status'], repo).stdout == 'D\tobsolete.txt\n'
+
+
+def test_stage_exact_restages_path_with_staged_and_unstaged_content(tmp_path, monkeypatch):
+    repo = git_repo(tmp_path)
+    (repo / 'README.md').write_text('staged version\n', encoding='utf-8')
+    run(['git', 'add', 'README.md'], repo)
+    (repo / 'README.md').write_text('latest version\n', encoding='utf-8')
+    add_calls = capture_exact_stage_adds(monkeypatch)
+
+    complete_change._stage_exact(repo, {'README.md'})
+
+    assert add_calls == [{'README.md'}]
+    assert run(['git', 'show', ':README.md'], repo).stdout == 'latest version\n'
+    assert run(['git', 'diff', '--name-only'], repo).stdout == ''
+
+
+def test_stage_exact_stages_declared_untracked_path(tmp_path, monkeypatch):
+    repo = git_repo(tmp_path)
+    (repo / 'new.txt').write_text('new\n', encoding='utf-8')
+    add_calls = capture_exact_stage_adds(monkeypatch)
+
+    complete_change._stage_exact(repo, {'new.txt'})
+
+    assert add_calls == [{'new.txt'}]
+    assert run(['git', 'show', ':new.txt'], repo).stdout == 'new\n'
+
+
+@pytest.mark.parametrize('extra_state', ['staged', 'unstaged', 'untracked'])
+def test_stage_exact_rejects_out_of_scope_path_before_index_mutation(
+    tmp_path, monkeypatch, extra_state
+):
+    repo = git_repo(tmp_path)
+    (repo / 'README.md').write_text('declared\n', encoding='utf-8')
+    if extra_state == 'untracked':
+        (repo / 'extra.txt').write_text('extra\n', encoding='utf-8')
+    else:
+        (repo / 'obsolete.txt').write_text('extra\n', encoding='utf-8')
+        if extra_state == 'staged':
+            run(['git', 'add', 'obsolete.txt'], repo)
+    tree_before = run(['git', 'write-tree'], repo).stdout.strip()
+    add_calls = capture_exact_stage_adds(monkeypatch)
+
+    with pytest.raises(SessionctlError, match='exact stage scope mismatch before index mutation'):
+        complete_change._stage_exact(repo, {'README.md'})
+
+    assert add_calls == []
+    assert run(['git', 'write-tree'], repo).stdout.strip() == tree_before
+
+
+def test_stage_exact_skips_git_add_when_every_path_is_staged(tmp_path, monkeypatch):
+    repo = git_repo(tmp_path)
+    (repo / 'README.md').write_text('staged\n', encoding='utf-8')
+    run(['git', 'add', 'README.md'], repo)
+    add_calls = capture_exact_stage_adds(monkeypatch)
+
+    complete_change._stage_exact(repo, {'README.md'})
+
+    assert add_calls == []
+
+
+def test_stage_exact_rejects_final_staged_scope_mismatch(tmp_path, monkeypatch):
+    repo = git_repo(tmp_path)
+    staged_results = iter([{'README.md'}, {'unexpected.txt'}])
+    monkeypatch.setattr(complete_change, '_staged_paths', lambda _repo: next(staged_results))
+    monkeypatch.setattr(complete_change, '_unstaged_paths', lambda _repo: set())
+    monkeypatch.setattr(complete_change, '_untracked_paths', lambda _repo: set())
+
+    with pytest.raises(SessionctlError, match='staged file scope mismatch'):
+        complete_change._stage_exact(repo, {'README.md'})

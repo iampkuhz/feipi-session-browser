@@ -7,13 +7,12 @@ from scripts.gates import executor as gate_executor
 from scripts.gates.planner import classify_path, required_gates_for_target
 
 
-def test_java_targets_include_module_boundaries_and_pmd_reuse_gates() -> None:
-    """java-src/java-build 都必须运行模块边界与复用门禁。"""
+def test_java_targets_include_pmd_reuse_gates() -> None:
+    """java-src/java-build 必须运行复用门禁；模块边界由 javaCheck 内的 Architecture suite 持有。"""
     java_src = required_gates_for_target('java-src')
     java_build = required_gates_for_target('java-build')
 
     for gates in (java_src, java_build):
-        assert 'javaModuleBoundaries' in gates
         assert 'reuseStandardCpd' in gates
         assert 'reuseAnalyzeIncremental' in gates
 
@@ -55,14 +54,6 @@ def test_java_module_build_file_is_known_java_build_path() -> None:
 
     assert classification.category == 'java-build'
     assert classification.quality_target == 'java-build'
-
-
-def test_java_module_boundaries_gate_uses_java_architecture_suite() -> None:
-    """模块边界只由 Gradle Java architecture suite 实现。"""
-    command = gate_executor.gate_command('javaModuleBoundaries', Path.cwd(), 'java-src')
-
-    assert command[-1] == 'check'
-    assert not any('scripts/checks/' in part for part in command)
 
 
 def test_reuse_standard_cpd_gate_command_uses_incremental_wrapper(

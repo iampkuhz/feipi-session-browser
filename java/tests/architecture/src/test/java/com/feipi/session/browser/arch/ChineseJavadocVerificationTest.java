@@ -148,31 +148,6 @@ class ChineseJavadocVerificationTest {
     }
 
     @Test
-    @DisplayName("record component without Chinese @param fails")
-    void recordComponentWithoutParamFails() throws IOException {
-      String source = "package test;\n/** 一条记录。 */\npublic record NoParamRecord(String value) {}\n";
-      writeTempFile("NoParamRecord.java", source);
-      ChineseJavadocVerifier.VerificationResult vr = new ChineseJavadocVerifier(tempDir).verify();
-      assertFalse(vr.passed());
-      assertThat(vr.failures()).anyMatch(f -> f.contains("value") && f.contains("@param"));
-    }
-
-    @Test
-    @DisplayName("record component with English-only @param fails")
-    void recordComponentWithEnglishParamFails() throws IOException {
-      String source =
-          "package test;\n"
-              + "/** 一条记录。\n"
-              + " * @param value The value.\n"
-              + " */\n"
-              + "public record EnglishParamRecord(String value) {}\n";
-      writeTempFile("EnglishParamRecord.java", source);
-      ChineseJavadocVerifier.VerificationResult vr = new ChineseJavadocVerifier(tempDir).verify();
-      assertFalse(vr.passed());
-      assertThat(vr.failures()).anyMatch(f -> f.contains("value") && f.contains("English-only"));
-    }
-
-    @Test
     @DisplayName("annotation type without Chinese Javadoc fails")
     void annotationTypeWithoutChineseJavadocFails() throws IOException {
       String source =
@@ -235,14 +210,11 @@ class ChineseJavadocVerificationTest {
     }
 
     @Test
-    @DisplayName("Chinese record Javadoc with @param passes")
-    void chineseRecordJavadocWithParamPasses() throws IOException {
+    @DisplayName("Chinese record type Javadoc passes without component tags")
+    void chineseRecordTypeJavadocPasses() throws IOException {
       String source =
           "package test;\n"
-              + "/** 一条中文记录。\n"
-              + " * @param name 名称字段\n"
-              + " * @param value 值字段\n"
-              + " */\n"
+              + "/** 一条中文记录。 */\n"
               + "public record ChineseRecord(String name, int value) {}\n";
       writeTempFile("ChineseRecord.java", source);
       ChineseJavadocVerifier.VerificationResult vr = new ChineseJavadocVerifier(tempDir).verify();
@@ -254,9 +226,7 @@ class ChineseJavadocVerificationTest {
     void chinesePublicMethodJavadocPasses() throws IOException {
       String source =
           "package test;\n"
-              + "/** 一个有方法的类。\n"
-              + " * @param name 名称。\n"
-              + " */\n"
+              + "/** 一个有方法的记录类型。 */\n"
               + "public record MethodDocRecord(String name) {\n"
               + "    /** 获取名称。 */\n"
               + "    public String displayName() { return name; }\n"
@@ -292,9 +262,7 @@ class ChineseJavadocVerificationTest {
     void mixedChineseWithTechnicalTermsPasses() throws IOException {
       String source =
           "package test;\n"
-              + "/** 表示一个 Session 的唯一标识符 ID。\n"
-              + " * @param value 会话标识的原始值\n"
-              + " */\n"
+              + "/** 表示一个 Session 的唯一标识符 ID。 */\n"
               + "public record SessionId(String value) {}\n";
       writeTempFile("SessionId.java", source);
       ChineseJavadocVerifier.VerificationResult vr = new ChineseJavadocVerifier(tempDir).verify();

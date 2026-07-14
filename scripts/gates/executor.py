@@ -50,6 +50,7 @@ DEFAULT_TIMEOUT_SECONDS = 300
 MODULE_CHECK_TIMEOUT_SECONDS = 10
 COMMAND_OUTPUT_TAIL_CHARS = 4000
 MAX_PARALLEL_GROUPS = 4
+JAVA_QUALITY_RULES_PROPERTY = '-PfeipiJavaQualityRules='
 
 
 # 返回当前运行隔离的临时目录。
@@ -680,7 +681,14 @@ def command_for_gate(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
     """从 typed declaration 构造单 Gate 命令。"""
     if spec.gradle_tasks:
         gradlew = repo_root / 'gradlew'
-        return [str(gradlew), *spec.gradle_tasks, *spec.gradle_args] if gradlew.exists() else []
+        java_rules = (
+            [f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(spec.java_rules)}'] if spec.java_rules else []
+        )
+        return (
+            [str(gradlew), *spec.gradle_tasks, *java_rules, *spec.gradle_args]
+            if gradlew.exists()
+            else []
+        )
     if spec.command is None:
         return []
     try:
@@ -859,6 +867,7 @@ def build_execution_plan(
     gradle_tasks: list[str] = []
     gradle_properties: list[str] = []
     gradle_args: list[str] = []
+    java_rules: list[str] = []
     gradle_gate_names: list[str] = []
     cpd_mode = ''
     for spec, _target in gradle_entries:
@@ -871,12 +880,16 @@ def build_execution_plan(
             continue
         gradle_tasks.extend(spec.gradle_tasks)
         gradle_args.extend(spec.gradle_args)
+        java_rules.extend(spec.java_rules)
         gradle_gate_names.append(spec.name)
     for spec, _target in scan_entries:
         if spec.command:
             gradle_tasks.extend(spec.command.prerequisite_tasks)
     gradle_tasks = list(dict.fromkeys(gradle_tasks))
     gradle_properties = list(dict.fromkeys(gradle_properties))
+    java_rules = list(dict.fromkeys(java_rules))
+    if java_rules:
+        gradle_properties.append(f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(java_rules)}')
 
     groups: list[CommandGroup] = []
     group_by_gate: dict[str, str] = {}

@@ -87,6 +87,7 @@ class GateSpec:
     command: CommandSpec | None
     gradle_tasks: tuple[str, ...]
     gradle_args: tuple[str, ...]
+    java_rules: tuple[str, ...]
     timeout_seconds: int
     parallel_safe: bool
     exclusive_resources: tuple[str, ...]

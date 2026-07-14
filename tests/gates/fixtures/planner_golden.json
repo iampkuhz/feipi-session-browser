@@ -89,7 +89,6 @@
     ],
     "java-src": [
       "javaCheck",
-      "javaModuleBoundaries",
       "javaChineseComments",
       "javaRecordComponentJavadocs",
       "noJavaTestSkips",
@@ -99,7 +98,6 @@
     ],
     "java-build": [
       "javaCheck",
-      "javaModuleBoundaries",
       "reuseStandardCpd",
       "reuseAnalyzeIncremental"
     ],
@@ -108,7 +106,7 @@
       "sessionSamples"
     ]
   },
-  "uniqueGateCount": 57,
+  "uniqueGateCount": 56,
   "scenarios": {
     "read-only": {
       "changedFiles": [],
@@ -132,7 +130,6 @@
       "gatesByTarget": {
         "java-src": [
           "javaCheck",
-          "javaModuleBoundaries",
           "javaChineseComments",
           "javaRecordComponentJavadocs",
           "noJavaSuppressWarnings",
@@ -143,7 +140,7 @@
           "scanScriptSmoke"
         ]
       },
-      "gateCount": 8
+      "gateCount": 7
     },
     "java-build": {
       "changedFiles": [
@@ -181,7 +178,6 @@
       "gatesByTarget": {
         "java-src": [
           "javaCheck",
-          "javaModuleBoundaries",
           "javaChineseComments",
           "javaRecordComponentJavadocs",
           "noJavaSuppressWarnings",
@@ -192,7 +188,7 @@
           "scanScriptSmoke"
         ]
       },
-      "gateCount": 8
+      "gateCount": 7
     },
     "hook-runtime": {
       "changedFiles": [

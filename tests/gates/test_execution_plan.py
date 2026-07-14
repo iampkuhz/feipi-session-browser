@@ -43,13 +43,17 @@ def test_mixed_required_uses_one_gradle_group_and_exact_cpd_input() -> None:
     command = gradle_groups[0].command
     for task in (
         'check',
-        ':java:tests:quality-gates:verifyJavaRecordComponentJavadocs',
+        ':java:tests:quality-gates:runJavaQualityGates',
         'reuseAnalyzeIncremental',
         'reuseStandardCpd',
         ':java:app-cli:installDist',
     ):
         assert command.count(task) == 1
     assert sum(part.startswith('-PfeipiReuseCpdFileList=') for part in command) == 1
+    java_rule_properties = [part for part in command if part.startswith('-PfeipiJavaQualityRules=')]
+    assert java_rule_properties == [
+        '-PfeipiJavaQualityRules=record-component-javadocs,no-pmd-suppressions'
+    ]
     assert '--no-configuration-cache' not in command
     assert 'clean' not in command
 
@@ -159,7 +163,7 @@ def test_gradle_group_maps_each_selected_task_outcome(monkeypatch) -> None:
                 FAIL,
                 taskOutcomes={
                     ':check': 'EXECUTED',
-                    ':java:tests:quality-gates:verifyJavaRecordComponentJavadocs': 'FAILED',
+                    ':java:tests:quality-gates:runJavaQualityGates': 'FAILED',
                     ':reuseStandardCpd': 'FROM-CACHE',
                     ':reuseAnalyzeIncremental': 'UP-TO-DATE',
                     ':java:app-cli:installDist': 'EXECUTED',
@@ -173,6 +177,7 @@ def test_gradle_group_maps_each_selected_task_outcome(monkeypatch) -> None:
 
     assert details['javaCheck'].status == PASS
     assert details['javaRecordComponentJavadocs'].status == FAIL
+    assert details['noJavaSuppressWarnings'].status == FAIL
     assert details['reuseStandardCpd'].status == PASS
     assert details['reuseAnalyzeIncremental'].status == PASS
 

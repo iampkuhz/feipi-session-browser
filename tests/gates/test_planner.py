@@ -72,6 +72,5 @@ def test_java_source_dominates_build_without_duplicate_logical_gates() -> None:
     names = [gate.name for gate in gate_plan.logical_gates]
     assert len(names) == len(set(names))
     assert names.count('javaCheck') == 1
-    assert names.count('javaModuleBoundaries') == 1
     assert names.count('reuseStandardCpd') == 1
     assert names.count('reuseAnalyzeIncremental') == 1

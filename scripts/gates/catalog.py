@@ -118,6 +118,7 @@ def _gate(raw: Any) -> GateSpec:
         command=command,
         gradle_tasks=tasks,
         gradle_args=_strings(gradle.get('args', []), 'gate.gradle.args'),
+        java_rules=_strings(gradle.get('java_rules', []), 'gate.gradle.java_rules'),
         timeout_seconds=int(row['timeout']),
         parallel_safe=bool(row['parallel']),
         exclusive_resources=_strings(row.get('resources', []), 'gate.resources'),
@@ -213,11 +214,17 @@ def validate_catalog_schema(catalog: GateCatalog = CATALOG) -> None:
         raise ValueError('duplicate tier name in catalog')
     known_gates, known_targets, known_tiers = set(gate_names), set(target_names), set(tier_names)
     orders: set[tuple[str, int]] = set()
+    java_rules: set[str] = set()
     for gate in catalog.gates:
         if not gate.description.strip() or not gate.description.endswith('。'):
             raise ValueError(f'Gate description must be Chinese prose: {gate.name}')
         if bool(gate.command) == bool(gate.gradle_tasks) or gate.timeout_seconds <= 0:
             raise ValueError(f'Gate execution declaration is invalid: {gate.name}')
+        if len(gate.java_rules) != len(set(gate.java_rules)) or java_rules.intersection(
+            gate.java_rules
+        ):
+            raise ValueError(f'duplicate Java quality rule: {gate.name}')
+        java_rules.update(gate.java_rules)
         if not gate.target_rules or any(
             rule.target not in known_targets for rule in gate.target_rules
         ):

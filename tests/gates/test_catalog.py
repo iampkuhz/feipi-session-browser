@@ -9,12 +9,13 @@ from scripts.gates.planner import gates_for_tier, validate_catalog
 
 def test_catalog_schema_is_complete_unique_and_acyclic() -> None:
     validate_catalog()
-    assert len(GATES) == 58
-    assert len({gate.name for gate in GATES}) == 58
+    assert len(GATES) == 57
+    assert len({gate.name for gate in GATES}) == 57
     for gate in GATES:
         assert gate.targets
         assert gate.executor_type
         assert bool(gate.command) != bool(gate.gradle_tasks)
+        assert isinstance(gate.java_rules, tuple)
         assert gate.timeout_seconds > 0
         assert isinstance(gate.parallel_safe, bool)
         assert isinstance(gate.exclusive_resources, tuple)
@@ -56,8 +57,32 @@ def test_changed_files_process_input_is_explicit_and_minimal() -> None:
     assert supported == {
         'languagePolicy',
         'javaRecordComponentJavadocs',
+        'noJavaSuppressWarnings',
         'reuseStandardCpd',
     }
+
+
+def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
+    expected = {
+        'javaRecordComponentJavadocs': ('record-component-javadocs',),
+        'noJavaSuppressWarnings': ('no-pmd-suppressions',),
+        'javaApiSnapshot': ('java-api-snapshot',),
+    }
+
+    for gate_name, rules in expected.items():
+        gate = gate_by_name(gate_name)
+        assert gate.gradle_tasks == (':java:tests:quality-gates:runJavaQualityGates',)
+        assert gate.java_rules == rules
+
+    with pytest.raises(ValueError, match='Unknown quality gate'):
+        gate_by_name('javaModuleBoundaries')
+
+
+def test_java_test_outcomes_use_existing_gradle_owner() -> None:
+    gate = gate_by_name('noJavaTestSkips')
+
+    assert gate.command is None
+    assert gate.gradle_tasks == ('verifyNoSkippedJavaTests',)
 
 
 def test_exclusive_resources_follow_gate_capability_not_target_union() -> None:

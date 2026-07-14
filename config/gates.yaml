@@ -1878,38 +1878,6 @@ gates:
     - javadoc
     - --parallel
     - --build-cache
-- name: javaModuleBoundaries
-  description: 执行 javaModuleBoundaries 所定义的仓库质量检查。
-  targets:
-  - name: java-src
-    order: 1
-    patterns:
-    - config/architecture/java-modules.yaml
-    - settings.gradle.kts
-    - java/**/build.gradle.kts
-    - java/**/src/main/java/**/*.java
-    - '**/*.java'
-  - name: java-build
-    order: 1
-    patterns:
-    - config/architecture/java-modules.yaml
-    - settings.gradle.kts
-    - java/**/build.gradle.kts
-  tiers:
-  - required
-  - full
-  timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  gradle:
-    tasks:
-    - check
 - name: javaChineseComments
   description: 执行 javaChineseComments 所定义的仓库质量检查。
   targets:
@@ -1967,7 +1935,9 @@ gates:
   receipt: content-sensitive
   gradle:
     tasks:
-    - :java:tests:quality-gates:verifyJavaRecordComponentJavadocs
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - record-component-javadocs
 - name: noJavaTestSkips
   description: 执行 noJavaTestSkips 所定义的仓库质量检查。
   targets:
@@ -1988,17 +1958,9 @@ gates:
   changed_files: none
   included_by: []
   receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - java.no-test-skips
-    - --root
-    - '{repo_root}'
-    required_paths:
-    - scripts/checks/check_no_java_test_skips.py
+  gradle:
+    tasks:
+    - verifyNoSkippedJavaTests
 - name: noJavaSuppressWarnings
   description: 执行 noJavaSuppressWarnings 所定义的仓库质量检查。
   targets:
@@ -2016,18 +1978,14 @@ gates:
   - gradle-daemon
   - java-build-tree
   incremental: patterns
-  changed_files: none
+  changed_files: environment
   included_by: []
   receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - java.no-suppress-warnings
-    required_paths:
-    - scripts/checks/check_no_java_suppress_warnings.py
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - no-pmd-suppressions
 - name: reuseStandardCpd
   description: 执行 reuseStandardCpd 所定义的仓库质量检查。
   targets:
@@ -2119,14 +2077,11 @@ gates:
   changed_files: none
   included_by: []
   receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - java.api-snapshot
-    - --check
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - java-api-snapshot
 - name: scanScriptSmoke
   description: 执行 scanScriptSmoke 所定义的仓库质量检查。
   targets:

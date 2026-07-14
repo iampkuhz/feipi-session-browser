@@ -19,7 +19,6 @@ def test_required_domains_are_registered() -> None:
     assert {
         'agent.hook-parity',
         'repository.dead-command-reference',
-        'java.api-snapshot',
         'web.css-ownership',
         'security.secret-like-content',
         'openspec.acceptance-contracts',

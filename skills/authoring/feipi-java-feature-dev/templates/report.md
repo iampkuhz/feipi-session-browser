@@ -18,7 +18,7 @@
 |---|---|
 | `./scripts/session-browser.sh test` | <PASS/FAIL> |
 | `./gradlew check` | <PASS/FAIL> |
-| `python3 -m scripts.checks java.api-snapshot --check` | <PASS/FAIL/skipped> |
+| `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot` | <PASS/FAIL/skipped> |
 | `python scripts/gates/cli.py` | <PASS/FAIL/skipped> |
 
 ## Risks

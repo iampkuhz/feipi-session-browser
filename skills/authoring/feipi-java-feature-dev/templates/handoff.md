@@ -34,7 +34,7 @@
 按需追加：
 
 ```bash
-python3 -m scripts.checks java.api-snapshot --check
+./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot
 python scripts/gates/cli.py
 ```
 

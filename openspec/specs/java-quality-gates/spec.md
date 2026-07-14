@@ -13,12 +13,12 @@
 
 每个 Python gate 迁移到 Java 遵循固定协议：
 
-1. legacy adapter：确认旧 Python 行为快照。
+1. deterministic corpus：冻结旧 Python 的 violation key 或输出快照。
 2. fixtures：建立覆盖有效和无效输入的 Java 源码 fixture corpus。
 3. Java implementation：在 quality-gates 模块实现对应 `QualityGate`。
-4. parity diff：用旧 Python 和新 Java 对同一 corpus 做对比，证明行为一致。
+4. parity diff：在迁移提交内用旧 Python 和新 Java 对同一 corpus 做一次性对比。
 5. root check 切换：root `build.gradle.kts` 中的 Gradle task 从 Python Exec 切换到 Java gate。
-6. 删除或隔离旧 Python：迁移完成后删除旧脚本，或标注 migration-only 保留。
+6. 删除旧 Python、parity runner、adapter 和重复测试；不得保留 migration-only 双栈。
 
 ## Batch 1 范围
 
@@ -48,15 +48,20 @@ Java 实现必须保持旧 Python 的三类违规：
 [㐀-䶿一-鿿豈-﫿]
 ```
 
-## Batch 1 不做
+## Batch 2 唯一 owner
 
-以下内容属于 Batch 2 或后续批次：
+Java registry 当前负责：
+
+- `record-component-javadocs`：record 类型与 component 中文 `@param`。
+- `no-pmd-suppressions`：禁止未审批的 `@SuppressWarnings("PMD.*")`。
+- `java-api-snapshot`：使用 compiler API 生成并比对 public API baseline。
+
+以下内容仍不属于 Java registry：
 
 - 新增 `@Example` 注解和 record component examples 强制规则。
 - record component layout 强制规则。
 - 修正 `@Ratio` 语义。
 - 全量 record metadata 更新。
-- 迁移 `check_java_api_snapshot.py`。
 - 迁移 `check_code_comment_language.py`。
 - 迁移 `run_required_quality_gates.py`。
 
@@ -66,7 +71,6 @@ Java 实现必须保持旧 Python 的三类违规：
 
 - `record-component-examples`
 - `record-component-layout`
-- `java-api-snapshot`
 - `chinese-java-comments`
 - `no-skipped-tests`
 
@@ -78,13 +82,14 @@ Java 实现必须保持旧 Python 的三类违规：
 com.feipi.session.browser.quality.gates
   cli        — CLI 入口和退出码
   core       — QualityGate 接口、QualityViolation、Context、Registry
-  discovery  — 文件发现和变更过滤
-  javaapi    — Java 源码解析模型
+  javaapi    — 单次 compiler API source set
   rules      — 具体 gate 规则实现
 ```
 
 ## Gradle 接线
 
-root `build.gradle.kts` 保留 `verifyJavaRecordComponentJavadocs` task name，但底层实现切换为 `:java:tests:quality-gates:verifyJavaRecordComponentJavadocs`。
+唯一公开 task 为 `:java:tests:quality-gates:runJavaQualityGates`。Gate planner 通过声明式
+`java_rules` 聚合 rule id，并在一次 Gradle invocation 中只传一个 `-PfeipiJavaQualityRules`。
 
-root `check` 继续 dependsOn `verifyJavaRecordComponentJavadocs`。
+root `check` 直接 dependsOn 该 task，不再注册逐 Gate alias。跨语言 comment policy 继续由 catalog
+中的 Python owner 执行；Java test skipped/aborted 由 Gradle `verifyNoSkippedJavaTests` 唯一检查。

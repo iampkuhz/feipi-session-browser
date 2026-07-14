@@ -342,7 +342,7 @@ Harness SHALL 只把 changed files 用于 planner/applicability 或 Gate 明确�
 - **Given** 一个 Gradle Gate 不声明 changed-files 输入协议
 - **When** executor 解析该 Gate 命令
 - **Then** executor SHALL NOT 附加未知 `--changed-files`
-- **And** `verifyJavaRecordComponentJavadocs` 与 `reuseAnalyzeIncremental` 的显式回归 SHALL 保持通过
+- **And** `runJavaQualityGates` 与 `reuseAnalyzeIncremental` 的显式回归 SHALL 保持通过
 
 #### Scenario: Baseline dirty 同路径再次修改
 

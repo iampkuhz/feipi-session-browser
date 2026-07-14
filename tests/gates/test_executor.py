@@ -33,7 +33,9 @@ def test_command_adapter_reads_typed_declaration(tmp_path: Path, monkeypatch) ->
 def test_gradle_tasks_come_from_catalog(tmp_path: Path) -> None:
     (tmp_path / 'gradlew').write_text('')
     gate = gate_by_name('javaRecordComponentJavadocs')
-    assert executor.command_for_gate(gate, tmp_path, 'java-src')[1:] == list(gate.gradle_tasks)
+    assert executor.command_for_gate(gate, tmp_path, 'java-src')[
+        1 : 1 + len(gate.gradle_tasks)
+    ] == list(gate.gradle_tasks)
 
 
 def test_changed_files_only_reach_explicitly_supported_gradle_gate(tmp_path: Path) -> None:
@@ -44,7 +46,8 @@ def test_changed_files_only_reach_explicitly_supported_gradle_gate(tmp_path: Pat
 
     assert executor.command_for_gate(javadocs, tmp_path, 'java-src') == [
         str(tmp_path / 'gradlew'),
-        ':java:tests:quality-gates:verifyJavaRecordComponentJavadocs',
+        ':java:tests:quality-gates:runJavaQualityGates',
+        '-PfeipiJavaQualityRules=record-component-javadocs',
     ]
     assert executor.changed_files_environment(javadocs, changed) == {
         'QUALITY_CHANGED_FILES': '["java/app/src/main/java/App.java"]'
@@ -105,12 +108,15 @@ def test_successful_command_passes(tmp_path: Path) -> None:
     assert executor.run_cmd('echo', ['/bin/echo', 'ok'], tmp_path).status == PASS
 
 
-def test_java_api_snapshot_uses_supported_check_mode() -> None:
+def test_java_api_snapshot_uses_declarative_java_rule() -> None:
     command = executor.command_for_gate(
         gate_by_name('javaApiSnapshot'), Path(__file__).resolve().parents[2], 'java-build'
     )
 
-    assert command[-1] == '--check'
+    assert command[-2:] == [
+        ':java:tests:quality-gates:runJavaQualityGates',
+        '-PfeipiJavaQualityRules=java-api-snapshot',
+    ]
 
 
 def test_timeout_terminates_process_group(monkeypatch, tmp_path: Path) -> None:

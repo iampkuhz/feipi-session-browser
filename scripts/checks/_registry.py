@@ -42,9 +42,6 @@ _ROWS = (
     ('web.static-contract', 'static_contract_check'),
     ('web.template-contract', 'template_contract_check'),
     ('source.comment-language', 'check_code_comment_language'),
-    ('java.api-snapshot', 'check_java_api_snapshot'),
-    ('java.no-test-skips', 'check_no_java_test_skips'),
-    ('java.no-suppress-warnings', 'check_no_java_suppress_warnings'),
 )
 
 CHECKS = {

@@ -5,112 +5,159 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.io.ByteArrayOutputStream;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.Map;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
-/** {@link QualityGateCli} 单元测试。 */
+/** 聚合 CLI 的候选解析、JSON、exit code 与 API maintenance contract。 */
 class QualityGateCliTest {
 
-  private static final Path FIXTURE_DIR =
-      Path.of("src/test/resources/fixtures/record-component-javadocs");
+  @TempDir Path repo;
 
   @Test
-  void missingGateOptionReturnsError() {
-    var exitCode = runCli();
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.ERROR);
+  void aggregatesMultipleRulesInOneSummary() throws Exception {
+    var source =
+        write(
+            "java/sample/src/main/java/example/Broken.java",
+            """
+            package example;
+            /** @param value English only. */
+            @SuppressWarnings("PMD.UnusedPrivateMethod")
+            public record Broken(String value) {}
+            """);
+
+    var result = run("record-component-javadocs,no-pmd-suppressions", null, source);
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out())
+        .contains("\"status\":\"FAILED\"")
+        .contains("RECORD_COMPONENT_PARAM_NOT_CHINESE")
+        .contains("PMD_SUPPRESSION_FORBIDDEN")
+        .contains("\"rule\":\"record-component-javadocs\"")
+        .contains("\"rule\":\"no-pmd-suppressions\"");
   }
 
   @Test
-  void unknownGateReturnsError() {
-    var exitCode = runCli("--gate", "nonexistent-gate");
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.ERROR);
-    assertThat(errOutput()).contains("gate not implemented");
-  }
+  void changedFilesSupportsEmptyAndWindowsPaths() throws Exception {
+    var source =
+        write(
+            "java/sample/src/main/java/example/Broken.java",
+            "package example; public record Broken(String value) {}\n");
 
-  @Test
-  void validFixturesReturnOk() {
-    var exitCode =
-        runCli(
-            "--gate",
+    var empty = run("record-component-javadocs", "[]", source);
+    var windows =
+        run(
             "record-component-javadocs",
-            "--paths",
-            FIXTURE_DIR.resolve("valid").toString());
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.OK);
+            "[\"java\\\\sample\\\\src\\\\main\\\\java\\\\example\\\\Broken.java\"]",
+            source);
+
+    assertThat(empty.exitCode()).isZero();
+    assertThat(empty.out())
+        .contains("\"status\":\"NOT_APPLICABLE\"")
+        .contains("\"candidateCount\":0");
+    assertThat(windows.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(windows.out()).contains("java/sample/src/main/java/example/Broken.java");
   }
 
   @Test
-  void invalidFixturesReturnViolations() {
-    var exitCode =
-        runCli(
-            "--gate",
-            "record-component-javadocs",
-            "--paths",
-            FIXTURE_DIR.resolve("invalid/MissingRecordJavadoc.java").toString());
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.VIOLATIONS);
-    assertThat(errOutput()).contains("RECORD_JAVADOC_MISSING");
+  void invalidChangedFilesFailsClosed() throws Exception {
+    var source = write("java/sample/src/main/java/example/Valid.java", "class Valid {}\n");
+
+    var result = run("record-component-javadocs", "not-json", source);
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
+    assertThat(result.err()).contains("failed closed").contains("JSON string array");
   }
 
   @Test
-  void textOutputFormatMatchesExpected() {
-    var exitCode =
-        runCli(
-            "--gate",
-            "record-component-javadocs",
-            "--paths",
-            FIXTURE_DIR.resolve("invalid/MissingRecordJavadoc.java").toString());
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.VIOLATIONS);
-    // 输出格式为 path:line: CODE: message
-    assertThat(errOutput()).matches("(?s).*:\\d+: RECORD_JAVADOC_MISSING:.*");
+  void preservesOnlyTheExactBackgroundScannerPmdException() throws Exception {
+    var source =
+        write(
+            "java/scan-engine/src/main/java/com/feipi/session/browser/scan/engine/BackgroundScanner.java",
+            """
+            package com.feipi.session.browser.scan.engine;
+            @SuppressWarnings({"PMD.CloseResource", "PMD.Other"})
+            public class BackgroundScanner {}
+            """);
+
+    var result = run("no-pmd-suppressions", null, source);
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out()).doesNotContain("PMD.CloseResource").contains("PMD.Other");
   }
 
   @Test
-  void jsonOutputFormat() {
-    var exitCode =
-        runCli(
-            "--gate", "record-component-javadocs",
-            "--format", "json",
-            "--paths", FIXTURE_DIR.resolve("invalid/MissingRecordJavadoc.java").toString());
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.VIOLATIONS);
-    assertThat(errOutput()).contains("\"code\":\"RECORD_JAVADOC_MISSING\"");
+  void writesAndChecksApiSnapshotOnlyInExplicitMode() throws Exception {
+    var source =
+        write(
+            "java/sample/src/main/java/example/Sample.java",
+            """
+            package example;
+            /** @param value 中文说明。 */
+            public record Sample(String value) {}
+            """);
+    var snapshot = repo.resolve("config/api-snapshots/java-public-api.txt");
+    var write = runApi(source, snapshot, true);
+    var check = runApi(source, snapshot, false);
+
+    assertThat(write.exitCode()).isZero();
+    assertThat(check.exitCode()).isZero();
+    assertThat(Files.readString(snapshot))
+        .contains("Generated by runJavaQualityGates --write-api-snapshot")
+        .contains("component example.Sample value: String")
+        .contains("type example.Sample public record [sample] record Sample(String value)");
   }
 
-  @Test
-  void unknownFormatReturnsError() {
-    var exitCode = runCli("--gate", "record-component-javadocs", "--format", "xml");
-    assertThat(exitCode).isEqualTo(QualityGateExitCodes.ERROR);
+  private Result run(String rules, String changedFiles, Path source) {
+    var args =
+        new String[] {
+          "--repo-root", repo.toString(), "--paths", source.toString(), "--rules", rules
+        };
+    var environment =
+        changedFiles == null
+            ? Map.<String, String>of()
+            : Map.of("QUALITY_CHANGED_FILES", changedFiles);
+    return invoke(args, environment);
   }
 
-  @Test
-  void reportFileWritten() throws Exception {
-    var tmpFile = java.nio.file.Files.createTempFile("qg-test-", ".txt");
-    try {
-      var exitCode =
-          runCli(
-              "--gate", "record-component-javadocs",
-              "--report-file", tmpFile.toString(),
-              "--paths", FIXTURE_DIR.resolve("valid/SimpleValidRecord.java").toString());
-      assertThat(exitCode).isEqualTo(QualityGateExitCodes.OK);
-      var content = java.nio.file.Files.readString(tmpFile, StandardCharsets.UTF_8);
-      assertThat(content).contains("PASSED");
-    } finally {
-      java.nio.file.Files.deleteIfExists(tmpFile);
+  private Result runApi(Path source, Path snapshot, boolean write) {
+    var args = new java.util.ArrayList<String>();
+    java.util.Collections.addAll(
+        args,
+        "--repo-root",
+        repo.toString(),
+        "--paths",
+        source.toString(),
+        "--rules",
+        "java-api-snapshot",
+        "--api-snapshot",
+        snapshot.toString());
+    if (write) {
+      args.add("--write-api-snapshot");
     }
+    return invoke(args.toArray(String[]::new), Map.of());
   }
 
-  // ---- 辅助方法 ----
-
-  private final ByteArrayOutputStream errBuf = new ByteArrayOutputStream();
-  private final ByteArrayOutputStream outBuf = new ByteArrayOutputStream();
-
-  private int runCli(String... args) {
-    errBuf.reset();
-    outBuf.reset();
-    var err = new PrintStream(errBuf, true, StandardCharsets.UTF_8);
-    var out = new PrintStream(outBuf, true, StandardCharsets.UTF_8);
-    return QualityGateCli.run(args, err, out);
+  private Result invoke(String[] args, Map<String, String> environment) {
+    var out = new ByteArrayOutputStream();
+    var err = new ByteArrayOutputStream();
+    var exitCode =
+        QualityGateCli.run(
+            args,
+            environment,
+            new PrintStream(err, true, StandardCharsets.UTF_8),
+            new PrintStream(out, true, StandardCharsets.UTF_8));
+    return new Result(
+        exitCode, out.toString(StandardCharsets.UTF_8), err.toString(StandardCharsets.UTF_8));
   }
 
-  private String errOutput() {
-    return errBuf.toString(StandardCharsets.UTF_8);
+  private Path write(String relativePath, String content) throws Exception {
+    var path = repo.resolve(relativePath);
+    Files.createDirectories(path.getParent());
+    return Files.writeString(path, content, StandardCharsets.UTF_8);
   }
+
+  private record Result(int exitCode, String out, String err) {}
 }

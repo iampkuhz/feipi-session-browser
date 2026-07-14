@@ -92,6 +92,14 @@ def _staged_paths(repo: Path) -> set[str]:
     )
 
 
+def _unstaged_paths(repo: Path) -> set[str]:
+    return _nul_paths(_git(repo, 'diff', '--name-only', '--no-renames', '-z', '--').stdout)
+
+
+def _untracked_paths(repo: Path) -> set[str]:
+    return _nul_paths(_git(repo, 'ls-files', '--others', '--exclude-standard', '-z', '--').stdout)
+
+
 def _normalize_files(values: Sequence[str]) -> set[str]:
     result: set[str] = set()
     for value in values:
@@ -139,9 +147,10 @@ def _validate_preconditions(repo: Path, record: Mapping[str, object], expected: 
             f'actual={sorted(actual)}'
         )
     staged = _staged_paths(repo)
-    if staged and staged != expected:
+    if not staged.issubset(expected):
         raise SessionctlError(
-            f'pre-existing staged scope mismatch: expected={sorted(expected)}, staged={sorted(staged)}'
+            f'pre-existing staged scope exceeds expected files: '
+            f'expected={sorted(expected)}, staged={sorted(staged)}'
         )
 
 
@@ -361,33 +370,52 @@ def cheap_preflight(repo: Path) -> PreflightResult:
 
 
 def _stage_exact(repo: Path, expected: set[str]) -> None:
-    payload = b''.join(os.fsencode(path) + b'\0' for path in sorted(expected))
-    result = subprocess.run(
-        [
-            'git',
-            '-C',
-            str(repo),
-            'add',
-            '-A',
-            '--pathspec-from-file=-',
-            '--pathspec-file-nul',
-        ],
-        input=payload,
-        capture_output=True,
-        check=False,
-    )
-    if result.returncode != 0:
+    staged_before = _staged_paths(repo)
+    unstaged_before = _unstaged_paths(repo)
+    untracked_before = _untracked_paths(repo)
+    actual_before = staged_before | unstaged_before | untracked_before
+    if actual_before != expected:
         raise SessionctlError(
-            result.stderr.decode(errors='replace').strip() or 'exact stage failed'
+            f'exact stage scope mismatch before index mutation: '
+            f'expected={sorted(expected)}, actual={sorted(actual_before)}'
         )
+    if not staged_before.issubset(expected):
+        raise SessionctlError(
+            f'pre-existing staged scope exceeds expected files: '
+            f'expected={sorted(expected)}, staged={sorted(staged_before)}'
+        )
+
+    to_stage = (unstaged_before | untracked_before) & expected
+    if to_stage:
+        payload = b''.join(os.fsencode(path) + b'\0' for path in sorted(to_stage))
+        result = subprocess.run(
+            [
+                'git',
+                '-C',
+                str(repo),
+                'add',
+                '-A',
+                '--pathspec-from-file=-',
+                '--pathspec-file-nul',
+            ],
+            input=payload,
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise SessionctlError(
+                result.stderr.decode(errors='replace').strip() or 'exact stage failed'
+            )
     staged = _staged_paths(repo)
     if staged != expected:
         raise SessionctlError(
             f'staged file scope mismatch: expected={sorted(expected)}, staged={sorted(staged)}'
         )
-    if _git(repo, 'diff', '--quiet', '--', check=False).returncode != 0:
+    unstaged_after = _unstaged_paths(repo)
+    if unstaged_after:
         raise SessionctlError('unstaged changes remain after exact staging')
-    if _git(repo, 'ls-files', '--others', '--exclude-standard', '--').stdout:
+    untracked_after = _untracked_paths(repo)
+    if untracked_after:
         raise SessionctlError('untracked files remain after exact staging')
 
 

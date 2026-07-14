@@ -1,168 +1,295 @@
 package com.feipi.session.browser.quality.gates.cli;
 
-import com.feipi.session.browser.quality.gates.core.QualityGateContext;
+import com.feipi.session.browser.quality.gates.core.JavaSourceSet;
+import com.feipi.session.browser.quality.gates.core.QualityContext;
 import com.feipi.session.browser.quality.gates.core.QualityGateRegistry;
-import com.feipi.session.browser.quality.gates.core.ViolationReporter;
-import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocGate;
+import com.feipi.session.browser.quality.gates.core.QualitySummary;
+import com.feipi.session.browser.quality.gates.core.QualityViolation;
+import com.feipi.session.browser.quality.gates.rules.JavaApiSnapshotRule;
+import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
+import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Map;
 
-/**
- * 质量门 CLI 入口。
- *
- * <p>支持参数：
- *
- * <ul>
- *   <li>{@code --gate <id>} 门禁 id（必需）。
- *   <li>{@code --repo-root <path>} 仓库根目录（默认当前目录）。
- *   <li>{@code --paths <path>} 输入路径，可重复（默认 {@code java}）。
- *   <li>{@code --files-from <path>} 从文件读取待检查路径列表。
- *   <li>{@code --format text|json} 输出格式（默认 text）。
- *   <li>{@code --report-file <path>} 报告文件路径。
- * </ul>
- */
+/** 多规则 Java quality-gate 的唯一 CLI 入口。 */
 public final class QualityGateCli {
 
   private QualityGateCli() {}
 
-  /**
-   * CLI 主入口。
-   *
-   * @param args 命令行参数。
-   */
+  /** Java 质量门禁的命令行主入口，负责接收参数并启动统一执行流程。 */
   public static void main(String[] args) {
-    System.exit(run(args, System.err, System.out));
+    System.exit(run(args, System.getenv(), System.err, System.out));
   }
 
   /**
-   * 可测试的 CLI 执行方法。
+   * 执行聚合规则；候选只在此边界解析一次。
    *
-   * @param args 命令行参数。
-   * @param err 错误输出流。
-   * @param out 标准输出流。
-   * @return 退出码。
+   * @return 0=通过/不适用，1=存在违规，2=输入或执行错误。
    */
-  public static int run(String[] args, PrintStream err, PrintStream out) {
-    String gateId = null;
-    Path repoRoot = Path.of("").toAbsolutePath();
-    var inputPaths = new ArrayList<Path>();
-    Path filesFrom = null;
-    String format = "text";
-    Path reportFile = null;
+  public static int run(
+      String[] args, Map<String, String> environment, PrintStream err, PrintStream out) {
+    try {
+      var options = Options.parse(args);
+      var registry = registry();
+      var unknown =
+          options.rules().stream().filter(id -> !registry.registeredIds().contains(id)).toList();
+      if (!unknown.isEmpty()) {
+        throw new IllegalArgumentException("Unknown rules: " + unknown);
+      }
+      if (options.writeApiSnapshot() && !options.rules().contains("java-api-snapshot")) {
+        throw new IllegalArgumentException("--write-api-snapshot requires java-api-snapshot rule");
+      }
+      var allCandidates = discover(options.repoRoot(), options.paths());
+      var changedJson = options.changedFiles();
+      if (changedJson == null) {
+        changedJson = environment.get("QUALITY_CHANGED_FILES");
+      }
+      var candidates =
+          options.rules().contains("java-api-snapshot") || changedJson == null
+              ? allCandidates
+              : selectChanged(options.repoRoot(), allCandidates, parseStringArray(changedJson));
+      if (candidates.isEmpty()) {
+        return writeSummary(options, "NOT_APPLICABLE", 0, List.of(), QualityGateExitCodes.OK, out);
+      }
+      var sources = JavaSourceSet.parse(options.repoRoot(), candidates);
+      var context =
+          new QualityContext(
+              options.repoRoot(), sources, options.apiSnapshot(), options.writeApiSnapshot());
+      var violations = new ArrayList<QualityViolation>();
+      for (var rule : registry.select(options.rules())) {
+        violations.addAll(rule.check(context));
+      }
+      return writeSummary(
+          options,
+          violations.isEmpty() ? "PASSED" : "FAILED",
+          candidates.size(),
+          violations,
+          violations.isEmpty() ? QualityGateExitCodes.OK : QualityGateExitCodes.VIOLATIONS,
+          out);
+    } catch (Exception exception) {
+      err.println("Java quality gates failed closed: " + exception.getMessage());
+      return QualityGateExitCodes.ERROR;
+    }
+  }
 
-    for (int i = 0; i < args.length; i++) {
-      switch (args[i]) {
-        case "--gate" -> {
-          if (++i < args.length) {
-            gateId = args[i];
+  private static int writeSummary(
+      Options options,
+      String status,
+      int candidateCount,
+      List<QualityViolation> violations,
+      int exitCode,
+      PrintStream out)
+      throws Exception {
+    var summary = QualitySummary.json(status, candidateCount, options.rules(), violations);
+    if (options.reportFile() != null) {
+      var parent = options.reportFile().toAbsolutePath().getParent();
+      if (parent != null) {
+        Files.createDirectories(parent);
+      }
+      Files.writeString(options.reportFile(), summary, StandardCharsets.UTF_8);
+    }
+    out.print(summary);
+    return exitCode;
+  }
+
+  private static List<Path> discover(Path repoRoot, List<Path> paths) throws Exception {
+    var result = new LinkedHashSet<Path>();
+    for (var input : paths) {
+      var path = input.isAbsolute() ? input : repoRoot.resolve(input);
+      path = path.toAbsolutePath().normalize();
+      if (Files.isRegularFile(path) && path.toString().endsWith(".java")) {
+        result.add(path);
+      } else if (Files.isDirectory(path)) {
+        try (var stream = Files.walk(path)) {
+          stream
+              .filter(Files::isRegularFile)
+              .filter(file -> file.toString().endsWith(".java"))
+              .filter(file -> JavaSourceSet.normalize(file).contains("/src/main/java/"))
+              .filter(file -> !JavaSourceSet.normalize(file).contains("/build/"))
+              .forEach(file -> result.add(file.toAbsolutePath().normalize()));
+        }
+      }
+    }
+    return result.stream().sorted().toList();
+  }
+
+  private static List<Path> selectChanged(
+      Path repoRoot, List<Path> candidates, List<String> changedFiles) {
+    var changed =
+        changedFiles.stream()
+            .map(path -> path.replace('\\', '/'))
+            .map(Path::of)
+            .map(path -> path.isAbsolute() ? path : repoRoot.resolve(path))
+            .map(path -> path.toAbsolutePath().normalize())
+            .collect(java.util.stream.Collectors.toSet());
+    return candidates.stream().filter(changed::contains).toList();
+  }
+
+  private static List<String> parseStringArray(String json) {
+    var values = new ArrayList<String>();
+    var index = skipWhitespace(json, 0);
+    if (index >= json.length() || json.charAt(index++) != '[') {
+      throw new IllegalArgumentException("changed-files must be a JSON string array");
+    }
+    index = skipWhitespace(json, index);
+    if (index < json.length() && json.charAt(index) == ']') {
+      index++;
+    } else {
+      while (index < json.length()) {
+        if (json.charAt(index++) != '"') {
+          throw new IllegalArgumentException("changed-files entries must be strings");
+        }
+        var value = new StringBuilder();
+        var closed = false;
+        while (index < json.length()) {
+          var character = json.charAt(index++);
+          if (character == '"') {
+            closed = true;
+            break;
+          }
+          if (character == '\\') {
+            if (index >= json.length()) {
+              throw new IllegalArgumentException("invalid changed-files escape");
+            }
+            var escaped = json.charAt(index++);
+            value.append(
+                switch (escaped) {
+                  case '"', '\\', '/' -> escaped;
+                  case 'b' -> '\b';
+                  case 'f' -> '\f';
+                  case 'n' -> '\n';
+                  case 'r' -> '\r';
+                  case 't' -> '\t';
+                  default -> throw new IllegalArgumentException("invalid changed-files escape");
+                });
+          } else {
+            value.append(character);
           }
         }
-        case "--repo-root" -> {
-          if (++i < args.length) {
-            repoRoot = Path.of(args[i]);
-          }
+        if (!closed) {
+          throw new IllegalArgumentException("unterminated changed-files string");
         }
-        case "--paths" -> {
-          if (++i < args.length) {
-            for (var segment : args[i].split(",")) {
-              inputPaths.add(Path.of(segment.trim()));
+        values.add(value.toString());
+        index = skipWhitespace(json, index);
+        if (index < json.length() && json.charAt(index) == ',') {
+          index = skipWhitespace(json, index + 1);
+          continue;
+        }
+        if (index < json.length() && json.charAt(index) == ']') {
+          index++;
+          break;
+        }
+        throw new IllegalArgumentException("changed-files array is malformed");
+      }
+    }
+    if (skipWhitespace(json, index) != json.length()) {
+      throw new IllegalArgumentException("trailing changed-files content");
+    }
+    return values;
+  }
+
+  private static int skipWhitespace(String value, int start) {
+    var index = start;
+    while (index < value.length() && Character.isWhitespace(value.charAt(index))) {
+      index++;
+    }
+    return index;
+  }
+
+  /** 创建所有 Java source rule 的单一 registry。 */
+  public static QualityGateRegistry registry() {
+    return QualityGateRegistry.builder()
+        .register(new RecordComponentJavadocsRule())
+        .register(new NoPmdSuppressionsRule())
+        .register(new JavaApiSnapshotRule())
+        .build();
+  }
+
+  /**
+   * 已校验的 CLI 参数。
+   *
+   * @param repoRoot 仓库根目录。
+   * @param paths 显式源码输入路径。
+   * @param rules 待运行的规则标识列表。
+   * @param changedFiles planner 传入的变更文件 JSON；未传时为空。
+   * @param reportFile 结构化摘要输出文件；未传时为空。
+   * @param apiSnapshot Java public API 基线文件。
+   * @param writeApiSnapshot 是否显式维护 API 基线。
+   */
+  private record Options(
+      Path repoRoot,
+      List<Path> paths,
+      List<String> rules,
+      String changedFiles,
+      Path reportFile,
+      Path apiSnapshot,
+      boolean writeApiSnapshot) {
+
+    private static Options parse(String[] args) {
+      var repoRoot = Path.of("").toAbsolutePath().normalize();
+      var paths = new ArrayList<Path>();
+      var rules = new ArrayList<String>();
+      String changedFiles = null;
+      Path reportFile = null;
+      Path apiSnapshot = null;
+      var write = false;
+      for (int index = 0; index < args.length; index++) {
+        switch (args[index]) {
+          case "--repo-root" -> repoRoot = Path.of(requiredValue(args, ++index, "--repo-root"));
+          case "--paths" -> {
+            for (var value : requiredValue(args, ++index, "--paths").split(",")) {
+              paths.add(Path.of(value.trim()));
             }
           }
-        }
-        case "--files-from" -> {
-          if (++i < args.length) {
-            filesFrom = Path.of(args[i]);
+          case "--rules" -> {
+            for (var value : requiredValue(args, ++index, "--rules").split(",")) {
+              if (!value.isBlank() && !rules.contains(value.trim())) {
+                rules.add(value.trim());
+              }
+            }
           }
-        }
-        case "--format" -> {
-          if (++i < args.length) {
-            format = args[i];
-          }
-        }
-        case "--report-file" -> {
-          if (++i < args.length) {
-            reportFile = Path.of(args[i]);
-          }
-        }
-        case "--help", "-h" -> {
-          err.println(
-              "Usage: quality-gate --gate <id> [--repo-root <path>] "
-                  + "[--paths <path>] [--files-from <path>] "
-                  + "[--format text|json] [--report-file <path>]");
-          return QualityGateExitCodes.OK;
-        }
-        default -> {
-          err.println("Unknown option: " + args[i]);
-          return QualityGateExitCodes.ERROR;
+          case "--changed-files" -> changedFiles = requiredValue(args, ++index, "--changed-files");
+          case "--report-file" ->
+              reportFile = Path.of(requiredValue(args, ++index, "--report-file"));
+          case "--api-snapshot" ->
+              apiSnapshot = Path.of(requiredValue(args, ++index, "--api-snapshot"));
+          case "--write-api-snapshot" -> write = true;
+          default -> throw new IllegalArgumentException("Unknown option: " + args[index]);
         }
       }
-    }
-
-    if (gateId == null) {
-      err.println("Missing required option: --gate");
-      return QualityGateExitCodes.ERROR;
-    }
-
-    if (!"text".equals(format) && !"json".equals(format)) {
-      err.println("Unknown format: " + format + " (expected text or json)");
-      return QualityGateExitCodes.ERROR;
-    }
-
-    var registry = createRegistry();
-    var gateOpt = registry.find(gateId);
-    if (gateOpt.isEmpty()) {
-      err.println("gate not implemented in Batch 1: " + gateId);
-      return QualityGateExitCodes.ERROR;
-    }
-
-    var gate = gateOpt.get();
-
-    if (inputPaths.isEmpty()) {
-      inputPaths.add(repoRoot.resolve("java"));
-    }
-
-    try {
-      var context =
-          QualityGateContext.builder()
-              .repoRoot(repoRoot)
-              .inputPaths(inputPaths)
-              .filesFrom(filesFrom)
-              .reportFile(reportFile)
-              .format(format)
-              .environment(System.getenv())
-              .build();
-
-      var violations = gate.check(context);
-
-      var output =
-          "json".equals(format)
-              ? ViolationReporter.formatJson(violations)
-              : ViolationReporter.formatText(violations);
-
-      if (violations.isEmpty()) {
-        out.print("PASSED\n");
-      } else {
-        err.print(output);
+      repoRoot = repoRoot.toAbsolutePath().normalize();
+      if (rules.isEmpty()) {
+        throw new IllegalArgumentException("Missing required option: --rules");
       }
-
-      if (reportFile != null) {
-        ViolationReporter.writeReport(violations, reportFile, format);
+      if (paths.isEmpty()) {
+        paths.add(repoRoot.resolve("java"));
       }
-
-      return violations.isEmpty() ? QualityGateExitCodes.OK : QualityGateExitCodes.VIOLATIONS;
-    } catch (Exception e) {
-      err.println("Internal error: " + e.getMessage());
-      return QualityGateExitCodes.ERROR;
+      if (apiSnapshot == null) {
+        apiSnapshot = repoRoot.resolve("config/api-snapshots/java-public-api.txt");
+      } else if (!apiSnapshot.isAbsolute()) {
+        apiSnapshot = repoRoot.resolve(apiSnapshot);
+      }
+      return new Options(
+          repoRoot,
+          List.copyOf(paths),
+          List.copyOf(rules),
+          changedFiles,
+          reportFile,
+          apiSnapshot,
+          write);
     }
-  }
 
-  /**
-   * 创建包含所有已注册门禁的注册表。
-   *
-   * @return 质量门注册表。
-   */
-  public static QualityGateRegistry createRegistry() {
-    return QualityGateRegistry.builder().register(new RecordComponentJavadocGate()).build();
+    private static String requiredValue(String[] args, int index, String option) {
+      if (index >= args.length) {
+        throw new IllegalArgumentException("Missing value for " + option);
+      }
+      return args[index];
+    }
   }
 }

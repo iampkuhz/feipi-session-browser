@@ -2,30 +2,30 @@ package com.feipi.session.browser.quality.gates.core;
 
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 
 /**
  * 质量门注册表。
  *
- * <p>管理已注册的 {@link QualityGate} 实例，支持按 id 查找。
+ * <p>管理已注册的 {@link QualityRule} 实例，并保持声明顺序。
  */
 public final class QualityGateRegistry {
 
-  private final Map<String, QualityGate> gates;
+  private final Map<String, QualityRule> rules;
 
-  private QualityGateRegistry(Map<String, QualityGate> gates) {
-    this.gates = Collections.unmodifiableMap(new LinkedHashMap<>(gates));
+  private QualityGateRegistry(Map<String, QualityRule> rules) {
+    this.rules = Collections.unmodifiableMap(new LinkedHashMap<>(rules));
   }
 
   /**
-   * 按 id 查找已注册的质量门。
+   * 按 id 顺序选择已注册的质量规则。
    *
-   * @param id 门禁 id。
-   * @return 门禁实例；未注册时返回空。
+   * @param ids 规则 id 列表。
+   * @return 按请求顺序排列的规则。
    */
-  public Optional<QualityGate> find(String id) {
-    return Optional.ofNullable(gates.get(id));
+  public List<QualityRule> select(List<String> ids) {
+    return ids.stream().map(rules::get).toList();
   }
 
   /**
@@ -34,7 +34,7 @@ public final class QualityGateRegistry {
    * @return 不可变 id 集合。
    */
   public java.util.Set<String> registeredIds() {
-    return gates.keySet();
+    return rules.keySet();
   }
 
   /**
@@ -49,18 +49,18 @@ public final class QualityGateRegistry {
   /** 注册表构建器。 */
   public static final class Builder {
 
-    private final Map<String, QualityGate> gates = new LinkedHashMap<>();
+    private final Map<String, QualityRule> rules = new LinkedHashMap<>();
 
     private Builder() {}
 
     /**
      * 注册一个质量门。
      *
-     * @param gate 质量门实例。
+     * @param rule 质量规则实例。
      * @return this。
      */
-    public Builder register(QualityGate gate) {
-      gates.put(gate.id(), gate);
+    public Builder register(QualityRule rule) {
+      rules.put(rule.id(), rule);
       return this;
     }
 
@@ -70,7 +70,7 @@ public final class QualityGateRegistry {
      * @return 不可变注册表。
      */
     public QualityGateRegistry build() {
-      return new QualityGateRegistry(gates);
+      return new QualityGateRegistry(rules);
     }
   }
 }

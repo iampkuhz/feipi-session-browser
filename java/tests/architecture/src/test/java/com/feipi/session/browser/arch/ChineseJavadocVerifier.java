@@ -2,7 +2,6 @@ package com.feipi.session.browser.arch;
 
 import com.sun.source.doctree.DocCommentTree;
 import com.sun.source.doctree.DocTree;
-import com.sun.source.doctree.ParamTree;
 import com.sun.source.doctree.TextTree;
 import com.sun.source.tree.AnnotationTree;
 import com.sun.source.tree.ClassTree;
@@ -34,8 +33,7 @@ import javax.tools.ToolProvider;
 /**
  * 中文 Javadoc 源码验证器。
  *
- * <p>使用 JDK {@code compiler} API 解析 Java 源文件，验证所有显式类型、方法、构造器、 record 组件、枚举常量和注解元素均有包含中文语义的 Javadoc
- * 文档。
+ * <p>使用 JDK {@code compiler} API 解析 Java 源文件，验证所有显式类型、方法、构造器、枚举常量和注解元素均有包含中文语义的 Javadoc 文档。
  */
 final class ChineseJavadocVerifier {
 
@@ -170,12 +168,6 @@ final class ChineseJavadocVerifier {
       checkTypeHasChineseJavadoc(classTree, typeName);
 
       boolean isEnum = classTree.getKind() == Tree.Kind.ENUM;
-      boolean isRecord = classTree.getKind() == Tree.Kind.RECORD;
-
-      DocCommentTree recordDoc = null;
-      if (isRecord) {
-        recordDoc = getDoc(classTree);
-      }
 
       for (Tree member : classTree.getMembers()) {
         Tree.Kind memberKind = member.getKind();
@@ -208,8 +200,6 @@ final class ChineseJavadocVerifier {
               continue;
             }
             checkEnumConstantHasChineseJavadoc(var);
-          } else if (isRecord) {
-            checkRecordComponentParam(var, recordDoc);
           }
         }
       }
@@ -280,22 +270,6 @@ final class ChineseJavadocVerifier {
       }
       if (!containsChinese(text)) {
         addFailure("English-only Javadoc for constructor '%s'", constructorName);
-      }
-    }
-
-    private void checkRecordComponentParam(VariableTree component, DocCommentTree recordDoc) {
-      String componentName = component.getName().toString();
-      if (recordDoc == null) {
-        addFailure("Record component '%s' missing Chinese @param", componentName);
-        return;
-      }
-      String paramText = getParamText(recordDoc, componentName);
-      if (paramText.isEmpty()) {
-        addFailure("Record component '%s' missing Chinese @param", componentName);
-        return;
-      }
-      if (!containsChinese(paramText)) {
-        addFailure("Record component '%s' has English-only @param", componentName);
       }
     }
 
@@ -476,21 +450,6 @@ final class ChineseJavadocVerifier {
         return false;
       }
       return mods.getFlags().contains(javax.lang.model.element.Modifier.STATIC);
-    }
-
-    private static String getParamText(DocCommentTree doc, String paramName) {
-      StringBuilder sb = new StringBuilder();
-      for (DocTree tag : doc.getBlockTags()) {
-        if (tag.getKind() == DocTree.Kind.PARAM) {
-          ParamTree param = (ParamTree) tag;
-          if (param.getName().getName().contentEquals(paramName)) {
-            for (DocTree desc : param.getDescription()) {
-              extractText(sb, desc);
-            }
-          }
-        }
-      }
-      return sb.toString();
     }
   }
 
