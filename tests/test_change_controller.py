@@ -32,6 +32,7 @@ def checkout(tmp_path):
     for path, text in {
         'README.md': 'initial\n',
         'config/gates.yaml': 'version: 1\n',
+        'openspec/changes/lifecycle-task/tasks.md': '- [ ] tracked lifecycle task\n',
         'scripts/gates/cli.py': '# gate entry\n',
     }.items():
         target = primary / path
@@ -373,6 +374,152 @@ def test_integrated_dirty_stop_self_heals_into_next_change(checkout):
     assert gates.calls == 2
 
 
+def test_post_integrated_tracked_mutation_status_rolls_epoch_and_isolates_receipt(
+    checkout, monkeypatch
+):
+    primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    session_a = ctl.ensure_session(event='prompt', task_key='task-a')
+    task_a_id = current_change(session_a)['changeId']
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a_result = ctl.on_stop(message='chore: task a')
+    sealed_session = ctl.store.load_session('session-controller')
+    sealed_task_a = next(
+        item for item in sealed_session['changes'] if item['changeId'] == task_a_id
+    )
+    task_a_attempt = ctl.store.list_attempts('session-controller', task_a_id)[0]
+    task_file = linked / 'openspec' / 'changes' / 'lifecycle-task' / 'tasks.md'
+    task_file.write_text('- [x] tracked lifecycle task\n', encoding='utf-8')
+
+    status = ctl.status()
+    session_b = ctl.store.load_session('session-controller')
+    task_b = current_change(session_b)
+
+    assert status['code'] != 'CHANGE_INTEGRATED'
+    assert status['state'] == 'WORKING'
+    assert status['sessionId'] == task_a_result['sessionId'] == session_b['sessionId']
+    assert task_b['changeEpoch'] == sealed_task_a['changeEpoch'] + 1
+    assert task_b['baseCommit'] == task_a_result['commitSha']
+    assert (
+        next(item for item in session_b['changes'] if item['changeId'] == task_a_id)
+        == sealed_task_a
+    )
+    assert sealed_task_a['commitSha'] == task_a_result['commitSha']
+    assert sealed_task_a['resultRef'] == task_a_result['resultRef']
+    assert sealed_task_a['commitAttestation']['status'] == 'PASS'
+    assert gates.calls == 1, 'status reconciliation must not run required Gate'
+
+    monkeypatch.setenv('FEIPI_CHANGE_FAILPOINT', 'gate-pass-receipt-written')
+    with pytest.raises(LifecycleError, match='injected crash'):
+        ctl.on_stop(message='chore: task b')
+    monkeypatch.delenv('FEIPI_CHANGE_FAILPOINT')
+    task_b_attempt = ctl.store.list_attempts('session-controller', str(task_b['changeId']))[0]
+    assert gates.calls == 2
+    assert task_b_attempt['attemptId'] != task_a_attempt['attemptId']
+    assert task_b_attempt['fingerprint'] != task_a_attempt['fingerprint']
+    assert task_b_attempt['receiptPath'] != task_a_attempt['receiptPath']
+    task_b_result = ctl.on_stop(message='chore: task b')
+
+    assert task_b_result['state'] == 'INTEGRATED'
+    assert task_b_result['commitSha'] != task_a_result['commitSha']
+    assert gates.calls == 2, 'retry may reuse only Task B own completed PASS receipt'
+    assert run(primary, 'git', 'rev-parse', 'HEAD').stdout.strip() == task_b_result['commitSha']
+    assert run(
+        linked,
+        'git',
+        'diff-tree',
+        '--no-commit-id',
+        '--name-only',
+        '-r',
+        f"{task_a_result['commitSha']}..{task_b_result['commitSha']}",
+    ).stdout.splitlines() == ['openspec/changes/lifecycle-task/tasks.md']
+    final_task_a = ctl.store.load_session('session-controller')['changes'][0]
+    assert final_task_a == sealed_task_a
+
+
+def test_post_integrated_staged_deletion_rolls_epoch_with_exact_manifest(checkout):
+    _primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    ctl.ensure_session(event='prompt', task_key='task-a')
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a = ctl.on_stop(message='chore: task a')
+    (linked / 'README.md').unlink()
+    run(linked, 'git', 'add', '-u', '--', 'README.md')
+
+    status = ctl.status()
+    task_b = current_change(ctl.store.load_session('session-controller'))
+
+    assert status['state'] == 'WORKING'
+    assert status['code'] != 'CHANGE_INTEGRATED'
+    assert task_b['changeEpoch'] == 2
+    assert task_b['baseCommit'] == task_a['commitSha']
+    assert gates.calls == 1
+    task_b_result = ctl.on_stop(message='chore: remove readme')
+    assert gates.calls == 2
+    assert run(
+        linked,
+        'git',
+        'diff-tree',
+        '--no-commit-id',
+        '--name-status',
+        '-r',
+        f"{task_a['commitSha']}..{task_b_result['commitSha']}",
+    ).stdout.splitlines() == ['D\tREADME.md']
+
+
+def test_post_integrated_untracked_file_rolls_epoch_with_exact_manifest(checkout):
+    _primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    ctl.ensure_session(event='prompt', task_key='task-a')
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a = ctl.on_stop(message='chore: task a')
+    (linked / 'post-terminal.txt').write_text('task b\n', encoding='utf-8')
+
+    status = ctl.status()
+    task_b = current_change(ctl.store.load_session('session-controller'))
+
+    assert status['state'] == 'WORKING'
+    assert status['code'] != 'CHANGE_INTEGRATED'
+    assert task_b['changeEpoch'] == 2
+    assert task_b['baseCommit'] == task_a['commitSha']
+    assert gates.calls == 1
+    task_b_result = ctl.on_stop(message='chore: add post terminal file')
+    assert gates.calls == 2
+    assert run(
+        linked,
+        'git',
+        'diff-tree',
+        '--no-commit-id',
+        '--name-only',
+        '-r',
+        f"{task_a['commitSha']}..{task_b_result['commitSha']}",
+    ).stdout.splitlines() == ['post-terminal.txt']
+
+
+def test_post_integrated_forbidden_mutation_fails_closed_without_epoch_roll(checkout):
+    _primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    ctl.ensure_session(event='prompt', task_key='task-a')
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a = ctl.on_stop(message='chore: task a')
+    (linked / '.env').write_text('PRIVATE=value\n', encoding='utf-8')
+
+    with pytest.raises(LifecycleError) as captured:
+        ctl.status()
+
+    assert captured.value.status == 'TERMINAL_BLOCKED'
+    assert ctl.store.load_session('session-controller')['changeEpoch'] == 1
+    assert (
+        current_change(ctl.store.load_session('session-controller'))['commitSha']
+        == task_a['commitSha']
+    )
+    assert gates.calls == 1
+
+
 def test_terminal_head_drift_fails_closed_instead_of_returning_pass(checkout):
     _primary, linked, _record, _runtime = checkout
     ctl = controller(checkout)
@@ -384,6 +531,83 @@ def test_terminal_head_drift_fails_closed_instead_of_returning_pass(checkout):
     with pytest.raises(LifecycleError, match='terminal Change') as captured:
         ctl.status()
     assert captured.value.code == 'STALE_TERMINAL_HEAD'
+
+
+def test_post_integrated_external_linked_commit_is_stale_terminal_head(checkout):
+    _primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    ctl.ensure_session(event='prompt', task_key='task-a')
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a = ctl.on_stop(message='chore: task a')
+    (linked / 'external.txt').write_text('external commit\n', encoding='utf-8')
+    run(linked, 'git', 'add', 'external.txt')
+    run(linked, 'git', 'commit', '-m', 'external linked head move')
+
+    with pytest.raises(LifecycleError) as captured:
+        ctl.status()
+
+    assert captured.value.status == 'TERMINAL_BLOCKED'
+    assert captured.value.code == 'STALE_TERMINAL_HEAD'
+    session = ctl.store.load_session('session-controller')
+    assert session['changeEpoch'] == 1
+    assert current_change(session)['commitSha'] == task_a['commitSha']
+    assert gates.calls == 1
+
+
+def test_primary_moved_without_integrated_commit_blocks_clean_terminal_status(checkout):
+    primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    ctl.ensure_session(event='prompt', task_key='task-a')
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a = ctl.on_stop(message='chore: task a')
+    session = ctl.store.load_session('session-controller')
+    task_a_change = current_change(session)
+    base = task_a_change['baseCommit']
+    run(primary, 'git', 'checkout', '--detach', base)
+    run(
+        primary,
+        'git',
+        'update-ref',
+        'refs/heads/main_java',
+        base,
+        task_a['commitSha'],
+    )
+    assert run(primary, 'git', 'status', '--porcelain').stdout == ''
+    assert run(linked, 'git', 'status', '--porcelain').stdout == ''
+
+    with pytest.raises(LifecycleError) as captured:
+        ctl.status()
+
+    assert captured.value.status == 'TERMINAL_BLOCKED'
+    assert ctl.store.load_session('session-controller')['changeEpoch'] == 1
+    assert (
+        current_change(ctl.store.load_session('session-controller'))['commitSha']
+        == task_a['commitSha']
+    )
+    assert gates.calls == 1
+
+
+def test_repeated_clean_terminal_status_is_idempotent_under_one_second(checkout):
+    _primary, linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    ctl.ensure_session(event='prompt', task_key='task-a')
+    (linked / 'task-a.txt').write_text('task a\n', encoding='utf-8')
+    task_a = ctl.on_stop(message='chore: task a')
+
+    started = time.monotonic()
+    first = ctl.status()
+    second = ctl.status()
+
+    assert time.monotonic() - started < 1
+    assert first['status'] == second['status'] == 'PASS'
+    assert first['state'] == second['state'] == 'INTEGRATED'
+    assert first['code'] == second['code'] == 'CHANGE_INTEGRATED'
+    assert first['commitSha'] == second['commitSha'] == task_a['commitSha']
+    assert first['idempotent'] is second['idempotent'] is True
+    assert gates.calls == 1
 
 
 def test_commit_attestation_failure_keeps_commit_monotonic_and_resume_reuses_it(
@@ -489,7 +713,7 @@ def test_live_integration_lock_returns_committed_handoff_and_preserves_commit(
 
 
 def test_seeded_100_cycle_crash_restart_soak_preserves_all_invariants(checkout, monkeypatch):
-    """固定种子覆盖六个 phase boundary，验证 100 个连续 Change 最终唯一收敛。"""
+    """固定种子覆盖终态后 mutation 与六个 phase boundary，连续 100 次唯一收敛。"""
     primary, linked, _record, _runtime = checkout
     gates = FakeGates()
     ctl = controller(checkout, gates)
@@ -503,10 +727,31 @@ def test_seeded_100_cycle_crash_restart_soak_preserves_all_invariants(checkout, 
         'primary-ff-completed',
     )
     initial_count = int(run(linked, 'git', 'rev-list', '--count', 'HEAD').stdout)
+    reconciliation_paths = {'status': 0, 'on-stop': 0}
 
     for cycle in range(100):
-        ctl.ensure_session(event='prompt', task_key=f'chaos-{cycle}')
-        (linked / f'chaos-{cycle:03d}.txt').write_text(f'{cycle}\n', encoding='utf-8')
+        if cycle == 0:
+            ctl.ensure_session(event='prompt', task_key='chaos-0')
+            (linked / 'chaos-live.txt').write_text('0\n', encoding='utf-8')
+        else:
+            mutation_kind = chooser.choice(('tracked', 'staged', 'untracked'))
+            if mutation_kind == 'tracked':
+                with (linked / 'chaos-live.txt').open('a', encoding='utf-8') as stream:
+                    stream.write(f'{cycle}\n')
+            else:
+                relative = f'chaos-{cycle:03d}.txt'
+                (linked / relative).write_text(f'{cycle}\n', encoding='utf-8')
+                if mutation_kind == 'staged':
+                    run(linked, 'git', 'add', '--', relative)
+
+            reconciliation = chooser.choice(('status', 'on-stop'))
+            reconciliation_paths[reconciliation] += 1
+            if reconciliation == 'status':
+                reconciled = ctl.status()
+                assert reconciled['state'] == 'WORKING'
+                assert reconciled['code'] != 'CHANGE_INTEGRATED'
+                assert gates.calls == cycle
+
         failpoint = chooser.choice(failpoints)
         monkeypatch.setenv('FEIPI_CHANGE_FAILPOINT', failpoint)
         with pytest.raises(Exception, match='injected crash'):
@@ -520,6 +765,7 @@ def test_seeded_100_cycle_crash_restart_soak_preserves_all_invariants(checkout, 
     assert linked_head == run(primary, 'git', 'rev-parse', 'HEAD').stdout.strip()
     assert int(run(linked, 'git', 'rev-list', '--count', 'HEAD').stdout) == initial_count + 100
     assert gates.calls == 100
+    assert all(count > 0 for count in reconciliation_paths.values())
     assert run(linked, 'git', 'status', '--porcelain').stdout == ''
 
 
@@ -549,18 +795,12 @@ def test_state_transition_and_lifecycle_business_have_single_owners() -> None:
             transition_offenders.append(relative)
     assert transition_offenders == []
 
-    for relative in (
+    retired = (
         'scripts/harness/complete_change.py',
         'scripts/harness/stop_entry.py',
         'scripts/agent_runtime/stop/entry.py',
         'scripts/agent_runtime/stop/pipeline.py',
-    ):
-        source = (root / relative).read_text(encoding='utf-8')
-        for forbidden in (
-            'run_service',
-            'BoundedMetadataLock',
-            'FixtureSupervisor',
-            'git commit',
-            'gradlew',
-        ):
-            assert forbidden not in source, f'{relative} duplicates lifecycle owner: {forbidden}'
+        'scripts/agent_runtime/session/completion.py',
+        'scripts/agent_runtime/session/finalize.py',
+    )
+    assert [relative for relative in retired if (root / relative).exists()] == []

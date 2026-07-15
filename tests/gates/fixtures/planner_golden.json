@@ -192,7 +192,8 @@
     },
     "hook-runtime": {
       "changedFiles": [
-        "scripts/harness/stop_entry.py",
+        "scripts/harness/change.py",
+        "scripts/agent_runtime/hook_entry.py",
         ".codex/hooks/stop_check.sh"
       ],
       "rawTargets": [
@@ -221,10 +222,11 @@
           "harnessStructure",
           "pytest"
         ],
-        "hook-runtime": [
-          "bashSyntax",
-          "scriptCommentLanguage",
-          "languagePolicy",
+      "hook-runtime": [
+        "bashSyntax",
+        "scriptCommentLanguage",
+        "pythonCompile",
+        "languagePolicy",
           "agentHookParity",
           "agentRuntimeIsolation",
           "agentRuntimeWorktree",
@@ -232,13 +234,15 @@
           "gateEscapeRate",
           "protectedRootsSync",
           "qoderRuntimeParity",
-          "hookPayloadCompat",
-          "subagentHandoffProtocol",
-          "doctor",
-          "repoStructure"
-        ]
-      },
-      "gateCount": 29
+        "hookPayloadCompat",
+        "subagentHandoffProtocol",
+        "hookSelfTest",
+        "pytest",
+        "doctor",
+        "repoStructure"
+      ]
+    },
+    "gateCount": 32
     },
     "python-policy": {
       "changedFiles": [

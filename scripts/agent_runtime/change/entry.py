@@ -7,10 +7,14 @@ import sys
 from pathlib import Path
 from typing import Any
 
-from scripts.agent_runtime.session.completion import START_ENFORCED, begin_change
 from scripts.agent_runtime.session.lifecycle import bootstrap_session
 
-from .controller import LifecycleController, map_controller_exception
+from .controller import (
+    START_ENFORCED,
+    LifecycleController,
+    attest_run_start,
+    map_controller_exception,
+)
 from .protocol import EXIT_CODES, compact_payload, encode_compact
 
 
@@ -53,7 +57,7 @@ def run_stop_payload(agent: str, payload: dict[str, Any]) -> tuple[int, dict[str
             },
         )
         if not isinstance(record.get('changeBegin'), dict):
-            record = begin_change(
+            record = attest_run_start(
                 cwd,
                 str(record['runId']),
                 activation_source=f'hook:{agent}:Stop-self-heal',

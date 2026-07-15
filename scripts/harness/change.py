@@ -18,6 +18,7 @@ if str(ROOT) not in sys.path:
 
 from scripts.agent_runtime.change.controller import (  # noqa: E402
     LifecycleController,
+    adopt_current,
     map_controller_exception,
 )
 from scripts.agent_runtime.change.protocol import (  # noqa: E402
@@ -59,6 +60,11 @@ def build_parser() -> argparse.ArgumentParser:
     next_change.add_argument('--run-id', required=True)
     next_change.add_argument('--task-key', required=True)
     next_change.add_argument('--task-title', default='')
+    adopt = commands.add_parser('adopt-current')
+    adopt.add_argument('--run-id', required=True)
+    adopt.add_argument('--base', required=True)
+    adopt.add_argument('--file', action='append', required=True)
+    adopt.add_argument('--confirmation', required=True)
     abort = commands.add_parser('abort')
     abort.add_argument('--run-id', required=True)
     return parser
@@ -66,7 +72,23 @@ def build_parser() -> argparse.ArgumentParser:
 
 def execute(args: argparse.Namespace) -> dict[str, Any]:
     """把已解析命令委托 controller；不展开 artifact 或改写结果。"""
-    controller = LifecycleController.from_run_id(_repo(args.repo_root), args.run_id)
+    repo = _repo(args.repo_root)
+    if args.command == 'adopt-current':
+        record = adopt_current(
+            repo,
+            args.run_id,
+            base_commit=args.base,
+            exact_files=args.file,
+            confirmation=args.confirmation,
+        )
+        return {
+            'status': 'PASS',
+            'state': 'WORKING',
+            'code': 'CURRENT_CHECKOUT_ADOPTED',
+            'sessionId': str(record.get('sessionId') or ''),
+            'nextAction': 'CONTINUE',
+        }
+    controller = LifecycleController.from_run_id(repo, args.run_id)
     if args.command == 'ensure-session':
         session = controller.ensure_session(
             event=args.event, task_key=args.task_key, task_title=args.task_title

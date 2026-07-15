@@ -7,10 +7,9 @@ project:
 runtime:
   hook_dispatcher: scripts/harness/hook_dispatch.py
   hook_entry: scripts/agent_runtime/hook_entry.py
-  shared_stop_entry: scripts/harness/stop_entry.py
+  lifecycle_cli: scripts/harness/change.py
   lifecycle_controller: scripts/agent_runtime/change/controller.py
   lifecycle_state_store: scripts/agent_runtime/change/store.py
-  stop_compatibility_entry: scripts/agent_runtime/stop/pipeline.py
   python_package: scripts.agent_runtime
   log_dir: tmp/agent_logs/
   runtime_manifest: harness/agent-runtime.manifest.yaml
@@ -35,9 +34,7 @@ public_executables:
   doctor: "bash scripts/harness/doctor.sh"
   sessionctl: "python3 scripts/harness/sessionctl.py"
   codex_cli_worktree: "python3 scripts/harness/launch_codex_worktree.py --client codex-cli"
-  complete_change: "python3 scripts/harness/complete_change.py"
   change_lifecycle: "python3 scripts/harness/change.py"
-  stop_entry: "python3 scripts/harness/stop_entry.py"
   hook_dispatcher: "python3 scripts/harness/hook_dispatch.py"
   quality_gate: "python3 scripts/gates/cli.py"
   dead_command_reference: "python3 -m scripts.checks repository.dead-command-reference"

@@ -170,7 +170,7 @@ Harness SHALL 在重构前盘点整个 `scripts/`、所有直接脚本测试及�
 
 #### Scenario: 冻结公开入口
 
-- **Given** inventory 已识别三平台 Hook、维护者 CLI、worktree/complete/finalize 和 CI/Gradle 调用
+- **Given** inventory 已识别三平台 Hook、维护者 CLI、worktree/change lifecycle 和 CI/Gradle 调用
 - **When** 重构内部 package
 - **Then** 外部确需稳定的路径 SHALL 被加入公开入口 allowlist
 - **And** allowlist 外部与内部边界 SHALL 记录在 `scripts/README.md`
@@ -204,7 +204,9 @@ Harness SHALL 删除无生产价值、历史兼容、重复包装和低信息脚
 
 ### Requirement: 单一 Hook 到 Gate 生产链路
 
-Claude、Codex、Qoder、manual、preflight 和 Stop SHALL 通过统一 Runtime、Gate catalog、planner、executor 和 receipt service 执行，不得保留双轨生产 runner。
+Claude、Codex、Qoder、manual、preflight 和 Stop SHALL 通过
+`scripts/harness/hook_dispatch.py` → `scripts/agent_runtime/hook_entry.py` →
+`scripts/agent_runtime/change/controller.py` 的统一 Runtime 和唯一 Gate service 执行，不得保留双轨生产 runner。
 
 #### Scenario: 三平台处理同一事件
 
@@ -215,10 +217,10 @@ Claude、Codex、Qoder、manual、preflight 和 Stop SHALL 通过统一 Runtime�
 
 #### Scenario: Stop 请求执行 Gate
 
-- **Given** Stop pipeline 已收集身份、锁和 Git evidence
+- **Given** controller 已收集身份、锁和 Git evidence
 - **When** 进入 Gate 阶段
-- **Then** Stop SHALL 调用统一 Gate service
-- **And** Stop SHALL NOT 自行选择 Gate、解析命令、循环 subprocess 或生成另一套 Gate report
+- **Then** controller SHALL 调用统一 Gate service
+- **And** Hook adapter SHALL NOT 自行选择 Gate、解析命令、循环 subprocess 或生成另一套 Gate report
 
 #### Scenario: 旧 runner 调用者已迁移
 
@@ -227,23 +229,24 @@ Claude、Codex、Qoder、manual、preflight 和 Stop SHALL 通过统一 Runtime�
 - **Then** 旧 runner、旧 mapping、迁移 adapter 和兼容 wrapper SHALL 被删除
 - **And** feature flag 或新旧双轨 SHALL NOT 进入最终交付
 
-### Requirement: Typed Stop 七阶段模型
+### Requirement: 单一 Change Controller 与公开 CLI
 
-Stop SHALL 以 typed context 和唯一 pipeline 实现“身份、锁、证据、重入/恢复、Gate、报告、收口”七阶段。
+Change lifecycle SHALL 只由 `scripts/agent_runtime/change/controller.py` 持有业务状态机，并且只由
+`scripts/harness/change.py` 提供公开 CLI。Hook adapter SHALL 只规范化 payload 与平台输出。
 
-#### Scenario: Stop 进入七阶段
+#### Scenario: 平台 Stop 到达 Controller
 
-- **Given** 共享 Stop 入口收到当前 run 的 payload
-- **When** pipeline 执行
-- **Then** 每个阶段 SHALL 通过 typed `StopContext` 传递明确状态
-- **And** 阶段、失败来源、exit code、registry 和 report SHALL 保持一致
+- **Given** 共享 dispatcher 收到当前 run 的 Stop payload
+- **When** dispatcher 调用共享 hook entry
+- **Then** hook entry SHALL 直接调用唯一 controller
+- **And** identity、evidence、Gate、commit、attestation 和 integration SHALL NOT 由第二套 Stop pipeline 编排
 
-#### Scenario: 外部路径需要稳定
+#### Scenario: 维护者操作 Change Lifecycle
 
-- **Given** 平台 settings 或公开命令必须保留一个 Stop 文件路径
-- **When** 该路径调用新 pipeline
-- **Then** 文件 SHALL 是只做参数和 exit code 转发的薄 wrapper
-- **And** wrapper SHALL 用中文注明平台、事件、唯一委托入口和禁止承载业务逻辑
+- **Given** 维护者需要 ensure-session、status、on-stop、resume、next-change、adopt-current 或 abort
+- **When** 调用公开命令
+- **Then** `scripts/harness/change.py` SHALL 映射 controller 的结构化状态与 exit code
+- **And** 旧 Completion/Stop wrapper 或 `sessionctl` completion dispatch SHALL NOT 继续存在
 
 ### Requirement: 唯一 typed Gate catalog
 
@@ -455,10 +458,10 @@ Gate service SHALL 输出简短控制台摘要和结构化报告，且状态和�
 #### Scenario: 受控提交和集成
 
 - **Given** 所有 required gates 真实 PASS 且本轮文件归因精确
-- **When** `complete_change` 执行 cheap preflight、exact stage、pre-commit 稳定、candidateTree、一次 required Stop、commit、轻量 attestation 和 integration
+- **When** `scripts/harness/change.py on-stop` 执行 cheap preflight、exact stage、pre-commit 稳定、candidateTree、一次 required Gate、commit、轻量 attestation 和 integration
 - **Then** 只有 `INTEGRATED` 结果 SHALL 被报告为已本地集成
 - **And** commit 后 attestation SHALL 验证 tree/parent/paths/clean/result ref/receipt，重 Gate进程数为 0
-- **And** primary dirty 或冲突 SHALL 保留 commit/result ref 并返回 `COMMITTED_HANDOFF_REQUIRED`
-- **And** 能力失败 SHALL 在同一 run 返回 `BLOCKED_RETRYABLE`，不得创建 retry worktree
+- **And** primary dirty 或冲突 SHALL 保留 commit/result ref 并返回 `COMMITTED_HANDOFF`
+- **And** 能力失败 SHALL 在同一 Change 返回明确 retryable 非 PASS 状态，不得创建 retry worktree
 - **And** 归因不明、receipt 失配或门禁失败 SHALL 如实返回非 PASS 状态
 - **And** 流程 SHALL NOT stash、reset、force 或自动 push

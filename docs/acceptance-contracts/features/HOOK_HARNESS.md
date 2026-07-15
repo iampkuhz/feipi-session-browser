@@ -4,9 +4,9 @@
 
 | 项 | 内容 |
 |---|---|
-| 模块 | 平台 Hook adapter、checkout writer lease、Stop/finalize 与质量报告 |
+| 模块 | 平台 Hook adapter、checkout writer lease、change controller 与质量报告 |
 | 关联源码 | `scripts/agent_runtime/`、`scripts/harness/`、`scripts/hooks/`、`scripts/checks/` |
-| 关联测试 | `tests/agent_runtime/`、`tests/gates/`、`tests/test_hook_payload_compat.py`、`tests/test_sessionctl_worktree.py`、`tests/test_stop_entry_runtime_report.py` |
+| 关联测试 | `tests/agent_runtime/`、`tests/gates/`、`tests/test_hook_payload_compat.py`、`tests/test_sessionctl_worktree.py`、`tests/test_change_entry_runtime_report.py` |
 | 主要风险 | 平台 payload 漂移、同 checkout 双写、Stop 伪 PASS、错误集成或删除 provider checkout |
 
 ## 契约用例
@@ -18,7 +18,7 @@
 | HOOK-HARNESS-003 | P0 | data | Hook 证据收集 | 测试 JSONL evidence 公共读写流程 | 证据写入 runtime 路径且内容完整 | pytest | — | `tests/agent_runtime/test_hook_lifecycle.py::test_changed_file_evidence_is_jsonl` |
 | HOOK-HARNESS-004 | P0 | data | Hook 文件策略 | 表驱动测试文件写入策略 | 普通产品文件触发 Gate，runtime 产物仅给出 warning | pytest | — | `tests/agent_runtime/test_hook_lifecycle.py::test_file_policy_matrix` |
 | HOOK-HARNESS-005 | P0 | data | Hook 输入输出 | 表驱动测试 payload normalization | Bash、Write payload 正确解析，坏 JSON fail-closed | pytest | — | `tests/agent_runtime/test_hook_lifecycle.py::test_hook_payload_normalization` |
-| HOOK-HARNESS-006 | P0 | data | Stop hook Git 变更真相 | 在真实临时 Git 仓库采集 evidence | committed、staged/working、untracked 变更分类正确，Git 失败时 fail-closed | pytest | — | `tests/test_stop_entry_runtime_report.py::test_git_evidence_separates_committed_staged_working_and_untracked` |
+| HOOK-HARNESS-006 | P0 | data | Stop hook Git 变更真相 | 在真实临时 Git 仓库采集 evidence | committed、staged/working、untracked 变更分类正确，Git 失败时 fail-closed | pytest | — | `tests/test_change_entry_runtime_report.py::test_git_evidence_separates_committed_staged_working_and_untracked` |
 | HOOK-HARNESS-007 | P0 | data | Gate 结构化报告 | 测试 `scripts.gates.report` 公共 contract | PASS 输出简洁，FAIL/BLOCKED 保留首因，JSON schema/hash 正确且诊断有界 | pytest | — | `tests/gates/test_receipt.py::test_report_contract_is_bounded_and_actionable` |
 | HOOK-HARNESS-008 | P0 | data | 新质量门禁规则 | 测试新增的质量门禁规则 | 规则按预期触发，PASS/FAIL 判定正确 | pytest | — | `tests/quality/test_new_quality_gates.py` |
 | HOOK-HARNESS-009 | P0 | data | 质量产物结构 | 测试 Gate service 产物与 receipt | 产物按 change-id 组织，路径正确 | pytest | — | `tests/gates/test_cli.py::test_service_writes_artifact_and_receipt` |

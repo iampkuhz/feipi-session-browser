@@ -9,12 +9,10 @@ import shutil
 import stat
 import subprocess
 import uuid
-from collections.abc import Mapping
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from scripts.agent_runtime.git_state import run as git
-from scripts.agent_runtime.stop.evidence import GitEvidenceError, collect_git_evidence
 from scripts.agent_runtime.storage import utc_now as now_utc
 
 from .common import _append_run_audit, emit_json
@@ -32,11 +30,11 @@ from .contract import (
     validate_run_record,
 )
 from .errors import SessionctlError
-from .handoff import build_handoff_report
 from .registry import REGISTRY_VERSION, Registry, _validate_identifier
 
 if TYPE_CHECKING:
     import argparse
+    from collections.abc import Mapping
 
 DEFAULT_FORBIDDEN_PATHS = [".env", ".mcp.json", "data", "output", "tmp/agent_logs"]
 
@@ -833,45 +831,6 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return 0
 
 
-def cmd_stop(args: argparse.Namespace) -> int:
-    """将旧 stop 命令直接委托统一生命周期控制器，不复制收口业务。"""
-    repo = repo_root_from_arg(args.repo_root)
-    from scripts.agent_runtime.change.controller import LifecycleController
-    from scripts.agent_runtime.change.protocol import EXIT_CODES, encode_compact
-
-    controller = LifecycleController.from_run_id(repo, args.run_id)
-    result = controller.on_stop(message=f'chore(agent): complete {args.run_id}')
-    print(encode_compact(result))
-    return EXIT_CODES.get(str(result.get('status')), 70)
-
-
-def cmd_handoff(args: argparse.Namespace) -> int:
-    """基于当前 Git 事实、doctor 错误和作用域冲突生成只读 handoff 报告。"""
-    repo = repo_root_from_arg(args.repo_root)
-    registry = Registry(repo)
-    with registry.locked():
-        record = registry.load_run(args.run_id)
-        other_records = [
-            item for item in registry.all_runs() if item.get('runId') != record.get('runId')
-        ]
-    facts = _collect_git_facts(record)
-    blocking_failures = doctor_record(record)
-    scope_overlaps = [
-        f'{collision.kind}: {collision.message}'
-        for collision in validate_run_collisions([record, *other_records])
-        if record['runId'] in {collision.first_run_id, collision.second_run_id}
-    ]
-    report = build_handoff_report(
-        registry,
-        record,
-        facts,
-        scope_overlaps=scope_overlaps,
-        blocking_failures=blocking_failures,
-    )
-    emit_json(report)
-    return 0
-
-
 def _cleanup_evidence_paths(
     registry: Registry, record: Mapping[str, Any]
 ) -> list[tuple[Path, Path]]:
@@ -991,29 +950,3 @@ def cmd_cleanup(args: argparse.Namespace) -> int:
     actions['removedEvidence'] = removed_evidence
     emit_json({'status': 'cleanup-complete', 'runId': args.run_id, 'actions': actions})
     return 0
-
-
-def _checkout_fingerprint(facts: Mapping[str, Any]) -> str:
-    fingerprint = str(facts.get('checkoutFingerprint') or '')
-    if not fingerprint:
-        snapshot = facts.get('checkoutSnapshot')
-        if isinstance(snapshot, Mapping):
-            fingerprint = str(snapshot.get('fingerprint') or '')
-    if not fingerprint:
-        raise GitEvidenceError('Git evidence has no content-sensitive checkout fingerprint')
-    return fingerprint
-
-
-def _collect_git_facts(record: Mapping[str, Any]) -> dict[str, Any]:
-    facts = collect_git_evidence(Path(str(record.get('checkoutRoot') or '')), dict(record))
-    checkout_status = facts['checkoutStatus']
-    facts['checkout'] = {
-        'checkoutKind': facts['checkoutKind'],
-        'checkoutCreator': facts['checkoutCreator'],
-        'branch': checkout_status['branch'],
-        'detached': checkout_status['detached'],
-        'gitCommonDir': record.get('gitCommonDir', ''),
-    }
-    facts['gitFactErrors'] = list(facts.get('queryErrors', []))
-    facts['checkoutFingerprint'] = _checkout_fingerprint(facts)
-    return facts

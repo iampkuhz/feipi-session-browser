@@ -2,7 +2,7 @@
 """三平台 Hook 的唯一输入适配器。
 
 本文件只负责校验 checkout、选择项目 Python、保留 stdin 并把事件转发给
-Hook 或 Stop 权威入口；不承载策略、evidence 或 Gate 业务。
+唯一 Hook 权威入口；不承载策略、evidence 或 Gate 业务。
 """
 
 from __future__ import annotations
@@ -57,7 +57,7 @@ def ensure_project_python(argv: list[str]) -> None:
 
 
 def dispatch(client: str, event: str, payload: str) -> int:
-    """保留 payload 字节内容并转发到唯一 Hook/Stop 入口。"""
+    """保留 payload 字节内容并转发到唯一 Hook 入口。"""
     if client not in CLIENTS or event not in RUNTIME_EVENTS:
         raise ValueError(f'unsupported hook dispatch: client={client} event={event}')
     os.environ['FEIPI_AGENT_CLIENT'] = client
@@ -65,10 +65,6 @@ def dispatch(client: str, event: str, payload: str) -> int:
     original_stdin = sys.stdin
     try:
         sys.stdin = io.StringIO(payload)
-        if event == 'stop':
-            from scripts.harness.stop_entry import main as stop_main
-
-            return stop_main(['--agent', client])
         from scripts.agent_runtime.hook_entry import main as hook_main
 
         return hook_main([event])

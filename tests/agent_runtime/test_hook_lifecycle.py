@@ -382,30 +382,50 @@ def test_primary_fingerprint_blocks_unparsed_bash_bypass(tmp_path: Path) -> None
     assert 'primary fingerprint audit BLOCK' in post_bash_isolation_failure(paths, post_ctx)
 
 
-def test_controlled_finalize_requires_current_fresh_validated_receipt() -> None:
-    """直接 finalize 仅接受当前 run 的 fresh VALIDATED Stop receipt。"""
-    ctx = read_stdin_json(
+@pytest.mark.parametrize('subcommand', ('on-stop', 'resume'))
+def test_controlled_primary_accepts_only_canonical_change_command_for_current_run(
+    subcommand: str,
+) -> None:
+    record = {'runId': 'run-a'}
+    current = read_stdin_json(
         'pre-bash',
-        '{"tool_name":"Bash","tool_input":{"command":'
-        '"python3 scripts/harness/sessionctl.py finalize --run-id run-a"}}',
+        json.dumps(
+            {
+                'tool_name': 'Bash',
+                'tool_input': {
+                    'command': 'python3 scripts/harness/change.py '
+                    f'{subcommand} --run-id run-a --message "complete task"'
+                },
+            }
+        ),
     )
-    record = {
-        'runId': 'run-a',
-        'status': 'VALIDATED',
-        'stopExitCode': 0,
-        'stopValidation': {'status': 'PASS', 'fresh': True},
-    }
-    assert _controlled_primary_command(ctx, record)
-    assert not _controlled_primary_command(
-        ctx,
-        {**record, 'stopValidation': {'status': 'PASS', 'fresh': False}},
-    )
-    other = read_stdin_json(
+    other_run = read_stdin_json(
         'pre-bash',
-        '{"tool_name":"Bash","tool_input":{"command":'
-        '"python3 scripts/harness/sessionctl.py finalize --run-id run-b"}}',
+        json.dumps(
+            {
+                'tool_name': 'Bash',
+                'tool_input': {
+                    'command': 'python3 scripts/harness/change.py '
+                    f'{subcommand} --run-id run-b --message "complete task"'
+                },
+            }
+        ),
     )
-    assert not _controlled_primary_command(other, record)
+    retired = read_stdin_json(
+        'pre-bash',
+        json.dumps(
+            {
+                'tool_name': 'Bash',
+                'tool_input': {
+                    'command': 'python3 scripts/harness/sessionctl.py finalize --run-id run-a'
+                },
+            }
+        ),
+    )
+
+    assert _controlled_primary_command(current, record)
+    assert not _controlled_primary_command(other_run, record)
+    assert not _controlled_primary_command(retired, record)
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-019')
@@ -600,26 +620,26 @@ def test_stop_dispatch_preserves_payload_output_and_exit_code(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    from scripts.harness import stop_entry
+    from scripts.agent_runtime import hook_entry
 
     seen: dict[str, object] = {}
 
-    def fake_stop_main(argv: list[str]) -> int:
+    def fake_hook_main(argv: list[str]) -> int:
         seen['argv'] = argv
         seen['payload'] = sys.stdin.read()
-        print('stop-stdout')
-        print('stop-stderr', file=sys.stderr)
+        print('hook-stdout')
+        print('hook-stderr', file=sys.stderr)
         return 7
 
-    monkeypatch.setattr(stop_entry, 'main', fake_stop_main)
+    monkeypatch.setattr(hook_entry, 'main', fake_hook_main)
     assert dispatch(client, 'stop', '{"payload":"unchanged"}') == 7
     assert seen == {
-        'argv': ['--agent', client],
+        'argv': ['stop'],
         'payload': '{"payload":"unchanged"}',
     }
     captured = capsys.readouterr()
-    assert captured.out == 'stop-stdout\n'
-    assert captured.err == 'stop-stderr\n'
+    assert captured.out == 'hook-stdout\n'
+    assert captured.err == 'hook-stderr\n'
 
 
 def test_codex_app_enforces_start_in_detached_managed_worktree(

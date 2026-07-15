@@ -13,10 +13,10 @@
 → scripts.gates.cli.run_service
 ```
 
-`scripts/harness/change.py` 是 canonical CLI。`scripts/harness/complete_change.py`、
-`scripts/harness/stop_entry.py`、`scripts/agent_runtime/stop/pipeline.py` 和
-`scripts/agent_runtime/session/finalize.py` 只保留参数或 payload 兼容，不拥有 candidate、Gate、
-commit 或 integration 业务。
+`scripts/harness/change.py` 是唯一公开 Change lifecycle CLI；业务 owner 只有
+`scripts/agent_runtime/change/controller.py`。平台 Stop 不经过额外 wrapper，dispatcher 规范化
+payload 后直接进入 `hook_entry.py`，再由 controller 处理 candidate、Gate、commit 与 integration。
+旧 Completion/Stop 入口和 `sessionctl` 的 completion 命令已下线，不提供静默 alias。
 
 ## Session、Change、Attempt
 
@@ -35,8 +35,8 @@ commit 或 integration 业务。
 
 受控 launcher 在启动 agent 前调用 `ensure-session`；三平台 SessionStart/Prompt/PreTool 进入同一
 入口；Stop 也会幂等自愈 clean checkout 的缺失 Start。primary checkout、身份不成立或 late dirty
-无法归因时在 mutation 前 fail closed。只有显式 `adopt-current` 携带 base、exact manifest 与用户
-确认，才可接管 pre-existing dirty 内容。
+无法归因时在 mutation 前 fail closed。只有显式 `change.py adopt-current` 携带 base、NUL-safe
+exact manifest 与用户确认，并通过 allowed/forbidden path 校验，才可接管 pre-existing dirty 内容。
 
 Registry 与 Change store 都位于 ignored、owner-private runtime root。锁等待默认 2 秒，活 owner
 返回 `BUSY_RETRYABLE`，dead owner 回收要验证 PID start identity 与 epoch。subagent 继承父
@@ -64,6 +64,13 @@ Gate PASS 后，同一 writer lease 内先持久化 commit intent，再执行正
 `refs/heads/codex/result/<change-id>`。若进程在 commit/ref/primary ff 后崩溃，resume 从 Git 与
 journal 恢复同一事实，不重复 commit 或 Gate。
 
+`status --compact`、`ensure-session`、`on-stop`、`resume` 和 launcher 收口在返回 terminal PASS 前
+都重新读取 worktree HEAD、index/working/untracked、result ref/candidate tree、primary target HEAD
+以及当前 Session 的 active Change。若历史 `INTEGRATED` 后出现可归因的新 mutation，历史 Change
+保持不变，同一 Session 自动建立以上一 commit 为 base 的新 epoch；当前状态不得复述旧 PASS。
+HEAD/ref/tree 或 integration 真相失配时 fail closed。只读 reconciliation 不运行 Gate，下一次
+`on-stop` 必须为新 epoch 形成独立 Attempt 和 receipt。
+
 自动 integration 仅在 primary clean、位于目标 branch、primary HEAD 等于 attested parent、source
 commit/tree/ref/receipt 仍匹配时执行一次 `git merge --ff-only`。否则保留 commit/ref 并返回
 `COMMITTED_HANDOFF`；禁止 rebase、cherry-pick、integration worktree、stash、reset、force 或
@@ -82,7 +89,14 @@ python3 scripts/harness/change.py --repo-root <checkout> status --run-id <run-id
 python3 scripts/harness/change.py --repo-root <checkout> on-stop --run-id <run-id> --message '<message>'
 python3 scripts/harness/change.py --repo-root <checkout> resume --run-id <run-id> --message '<message>'
 python3 scripts/harness/change.py --repo-root <checkout> next-change --run-id <run-id> --task-key <key>
+python3 scripts/harness/change.py --repo-root <checkout> adopt-current --run-id <run-id> ...
+python3 scripts/harness/change.py --repo-root <checkout> abort --run-id <run-id>
 ```
+
+`scripts/harness/sessionctl.py` 只管理 legacy run identity/Registry，例如 bootstrap、set-change、writer
+lease、list/status/doctor/cleanup；`begin-change`、`adopt-current`、`completion-status`、`stop`、
+`finalize`、`handoff` 不再属于其公开命令面。Codex App 的仓库内 fixture 只证明本地 dispatcher
+contract；真实 host Hook capability 在没有主机证据时仍是 `UNVERIFIED`。
 
 Stop/handoff 前唯一 required Gate 入口仍是 `python3 scripts/gates/cli.py --tier required`；正常
 平台 Stop 直接调用 controller，不依赖模型记住该命令。

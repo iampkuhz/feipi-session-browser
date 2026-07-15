@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+import sys
 from pathlib import Path
 
 import pytest
@@ -210,3 +211,83 @@ def test_primary_detached_and_snapshot_race_fail_closed(
         match="PRIMARY_HEAD_RACE",
     ):
         primary_session.capture_primary_head_snapshot(repo)
+
+
+@pytest.mark.parametrize(
+    ('status_result', 'expects_on_stop'),
+    (
+        (
+            {
+                'status': 'PASS',
+                'state': 'INTEGRATED',
+                'code': 'CHANGE_INTEGRATED',
+            },
+            False,
+        ),
+        (
+            {
+                'status': 'PASS',
+                'state': 'WORKING',
+                'code': 'CHANGE_STATUS',
+            },
+            True,
+        ),
+    ),
+)
+def test_launcher_client_exit_reconciles_status_before_optional_on_stop(
+    tmp_path: Path,
+    capsys: pytest.CaptureFixture[str],
+    monkeypatch: pytest.MonkeyPatch,
+    status_result: dict[str, str],
+    expects_on_stop: bool,
+) -> None:
+    repo, _, _ = synthetic_repo(tmp_path)
+    monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
+    calls: list[str] = []
+
+    class SpyController:
+        def __init__(self, _repo: Path, _record: dict):
+            pass
+
+        def ensure_session(self, *, event: str):
+            calls.append(f'ensure:{event}')
+            return {'status': 'PASS'}
+
+        def status(self):
+            calls.append('status')
+            return dict(status_result)
+
+        def on_stop(self, *, message: str):
+            assert message.startswith('chore(agent): complete')
+            calls.append('on_stop')
+            return {
+                'status': 'PASS',
+                'state': 'INTEGRATED',
+                'code': 'CHANGE_INTEGRATED',
+            }
+
+    monkeypatch.setattr(launch_codex_worktree, 'LifecycleController', SpyController)
+    monkeypatch.setattr(
+        launch_codex_worktree,
+        '_launch_command',
+        lambda _target, _args: [sys.executable, '-c', 'pass'],
+    )
+
+    result = launch_codex_worktree.main(
+        [
+            '--client',
+            'codex-cli',
+            '--name',
+            'exit-reconcile',
+            '--repo-root',
+            str(repo),
+            '--worktree-root',
+            str(tmp_path / 'worktrees'),
+        ]
+    )
+
+    assert result == 0
+    assert calls[:2] == ['ensure:start', 'status']
+    assert ('on_stop' in calls) is expects_on_stop
+    output = capsys.readouterr().out.splitlines()
+    assert json.loads(output[-1])['code'] == 'CHANGE_INTEGRATED'

@@ -13,19 +13,12 @@ SESSIONCTL = ROOT / "scripts" / "harness" / "sessionctl.py"
 
 from scripts.agent_runtime.paths import identity_from_values  # noqa: E402
 from scripts.agent_runtime.session import lifecycle as sessionctl  # noqa: E402
-from scripts.agent_runtime.session.completion import (  # noqa: E402
-    ADOPT_CONFIRMATION,
-    adopt_current,
-    begin_change,
-    require_mutation_baseline,
-)
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     resolve_git_common_dir,
     resolve_repo_key,
     resolve_runtime_root,
     validate_run_write_authorization,
 )
-from scripts.agent_runtime.session.errors import SessionctlError  # noqa: E402
 from scripts.agent_runtime.session.lifecycle import classify_tool_call  # noqa: E402
 from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
 from scripts.agent_runtime.stop.evidence import collect_run_changed_files  # noqa: E402
@@ -748,7 +741,7 @@ def test_registry_identity_wins_conflicting_hints_and_set_change_uses_session(tm
     assert audit_events == {"IDENTITY_HINT_IGNORED", "CHANGE_BOUND"}
 
 
-def test_random_detached_checkout_write_stop_evidence_and_handoff_ignore_branch_name(tmp_path):
+def test_random_detached_checkout_write_evidence_ignores_branch_name(tmp_path):
     repo = git_repo(tmp_path)
     linked = tmp_path / "provider worktrees" / "random-checkout"
     linked.parent.mkdir()
@@ -807,18 +800,6 @@ def test_random_detached_checkout_write_stop_evidence_and_handoff_ignore_branch_
     assert evidence_mode == "git-run-record"
     assert warnings == []
 
-    handoff = json.loads(ctl(linked, "handoff", "--run-id", record["runId"]).stdout)
-    assert handoff["checkoutKind"] == "linked-worktree"
-    assert handoff["checkoutCreator"] == "external"
-    assert handoff["observedBranch"] == "arbitrary-provider-branch"
-    assert handoff["changedFiles"] == ["README.md", "untracked.txt"]
-    assert handoff["committedFiles"] == []
-    assert handoff["uncommittedFiles"] == ["README.md"]
-    assert handoff["untrackedFiles"] == ["untracked.txt"]
-    assert handoff["initialDirtyBaseline"]["dirty"] is False
-    assert handoff["targetStatus"]["branch"] == "main_java"
-    assert handoff["primaryStatus"]["clean"] is True
-    assert not any("branch mismatch" in failure for failure in handoff["blockingFailures"])
     assert linked.exists()
 
 
@@ -888,74 +869,15 @@ def test_registry_concurrent_writes_keep_valid_json(tmp_path):
     assert set(run_ids) <= {item["runId"] for item in listed}
 
 
-def test_handoff_includes_canonical_checkout_and_run_fields(tmp_path):
+@pytest.mark.parametrize(
+    'command',
+    ('begin-change', 'adopt-current', 'completion-status', 'stop', 'finalize', 'handoff'),
+)
+def test_change_completion_commands_are_not_sessionctl_commands(tmp_path, command):
     repo = git_repo(tmp_path)
-    record = bootstrap(repo, "session-handoff")
-    handoff = json.loads(ctl(repo, "handoff", "--run-id", record["runId"]).stdout)
 
-    assert handoff["runId"] == record["runId"]
-    assert handoff["taskId"] == "session:session-handoff"
-    assert handoff["client"] == "codex"
-    assert handoff["checkoutRoot"] == record["checkoutRoot"]
-    assert handoff["checkoutKind"] == "primary-checkout"
-    assert handoff["checkoutCreator"] == "unknown"
-    assert handoff["branch"] == record["branch"]
-    assert handoff["baseCommit"] == record["baseCommit"]
-    assert handoff["commits"] == []
-    assert handoff["aheadBehind"] == {"ahead": 0, "behind": 0}
-    assert handoff["mergeBase"] == record["baseCommit"]
-    assert handoff["committedFiles"] == []
-    assert handoff["uncommittedFiles"] == []
-    assert handoff["untrackedFiles"] == []
-    assert handoff["initialDirtyBaseline"]["dirty"] is False
-    assert handoff["targetStatus"]["checkedOutInPrimary"] is True
-    assert handoff["primaryStatus"]["clean"] is True
-    assert handoff["requiredTargetSummary"]["allowedPaths"] == ["."]
-    assert "runRecord" in handoff["artifactPaths"]
-    assert "blockingFailures" in handoff
-    assert "writeScopeOverlap" in handoff["mergeRisk"]
-    assert any("finalize --run-id" in step for step in handoff["manualNextSteps"])
+    result = ctl(repo, command, check=False)
 
-
-def test_begin_change_is_idempotent_and_records_full_baseline(tmp_path):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, 'session-begin-idempotent')
-
-    first = begin_change(repo, record['runId'], activation_source='test:SessionStart')
-    second = begin_change(repo, record['runId'], activation_source='test:duplicate')
-
-    assert first['changeBegin'] == second['changeBegin']
-    assert second['changeBegin']['status'] == 'ATTESTED'
-    assert second['changeBegin']['baseCommit'] == record['baseCommit']
-    assert second['changeBegin']['targetHead'] == record['targetHeadAtBootstrap']
-    assert second['changeBegin']['allowedPaths'] == ['.']
-    assert sum(event['event'] == 'CHANGE_BEGIN_ATTESTED' for event in second['auditEvents']) == 1
-
-
-def test_late_begin_rejects_dirty_and_explicit_adopt_is_audited(tmp_path):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, 'session-late-adopt')
-    (repo / 'owned.txt').write_text('owned\n', encoding='utf-8')
-
-    with pytest.raises(SessionctlError, match='ADOPT_REQUIRED'):
-        begin_change(repo, record['runId'], activation_source='test:late')
-
-    adopted = adopt_current(
-        repo,
-        record['runId'],
-        base_commit=record['baseCommit'],
-        exact_files=['owned.txt'],
-        confirmation=ADOPT_CONFIRMATION,
-    )
-    assert adopted['changeBegin']['adopted'] is True
-    assert adopted['changeBegin']['adoptedFiles'] == ['owned.txt']
-    assert adopted['changeAttribution']['preexistingChangesAttributedToRun'] is True
-    assert any(event['event'] == 'CURRENT_CHECKOUT_ADOPTED' for event in adopted['auditEvents'])
-
-
-def test_mutation_guard_blocks_when_begin_baseline_is_missing(tmp_path):
-    repo = git_repo(tmp_path)
-    record = bootstrap(repo, 'session-no-begin')
-
-    with pytest.raises(SessionctlError, match='START_NOT_ENFORCED'):
-        require_mutation_baseline(repo, record)
+    assert result.returncode == 2
+    assert 'invalid choice' in result.stderr
+    assert 'change.py' not in result.stdout

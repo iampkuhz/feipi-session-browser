@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 from scripts.agent_runtime import hook_entry as hook_main
+from scripts.agent_runtime.change.protocol import LifecycleError
 from scripts.agent_runtime.context import read_stdin_json
 from scripts.agent_runtime.events.adapter import UNVERIFIED, build_bootstrap_request
 from scripts.agent_runtime.events.policy.file import pre_write_payload_block_reason
@@ -18,9 +19,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 PLATFORM_BOOTSTRAP_FIXTURES = (
     (
         'codex-app',
-        'codex-cli',
+        'codex-app',
         'session-start',
-        {'sessionId': 'codex-app-s', 'cwd': '/tmp/codex app'},
+        {
+            'sessionId': 'codex-app-s',
+            'cwd': '/tmp/codex app',
+            'clientSurface': 'codex-app',
+        },
         'codex',
         'SessionStart',
     ),
@@ -31,6 +36,7 @@ PLATFORM_BOOTSTRAP_FIXTURES = (
         {
             'session_id': 'codex-cli-s',
             'cwd': '/tmp/codex-cli',
+            'client_surface': 'codex-cli',
         },
         'codex',
         'PreToolUse',
@@ -149,6 +155,16 @@ def test_five_platform_payloads_repeat_bootstrap_on_real_git_checkouts(
     assert request.hook_event == hook_event
     assert request.checkout_creator == client
     worktrees_before = _git(primary, 'worktree', 'list', '--porcelain')
+
+    if checkout_kind == 'primary-checkout':
+        with pytest.raises(LifecycleError, match='independent linked worktree') as captured:
+            hook_main._bootstrap_hook_session(ctx, wrapper_client=client)
+        assert captured.value.code == 'PRIMARY_CHECKOUT_FORBIDDEN'
+        assert _git(primary, 'worktree', 'list', '--porcelain') == worktrees_before
+        records = Registry(checkout).all_runs()
+        assert len(records) == 1
+        assert records[0]['checkoutKind'] == 'primary-checkout'
+        return
 
     first = hook_main._bootstrap_hook_session(ctx, wrapper_client=client)
     second = hook_main._bootstrap_hook_session(ctx, wrapper_client=client)

@@ -1,4 +1,3 @@
-import ast
 import io
 import json
 import subprocess
@@ -9,9 +8,6 @@ import pytest
 from scripts.agent_runtime.change import entry
 from scripts.agent_runtime.session.contract import resolve_checkout_identity
 from scripts.agent_runtime.stop.evidence import GitEvidenceError, collect_git_evidence
-from scripts.harness import stop_entry
-
-ROOT = Path(__file__).resolve().parents[1]
 
 
 def _run_git(repo: Path, *args: str) -> None:
@@ -53,7 +49,7 @@ def _evidence_repo(tmp_path: Path, monkeypatch) -> tuple[Path, dict]:
     return repo, record
 
 
-def test_stop_entry_reads_platform_json_once_and_emits_one_compact_object(monkeypatch, capsys):
+def test_change_entry_reads_platform_json_once_and_emits_one_compact_object(monkeypatch, capsys):
     payload = {'cwd': '/tmp/repo', 'session_id': 'session-1'}
     monkeypatch.setattr(sys, 'stdin', io.StringIO(json.dumps(payload)))
     monkeypatch.setattr(
@@ -77,6 +73,7 @@ def test_stop_entry_reads_platform_json_once_and_emits_one_compact_object(monkey
     assert decoded['status'] == 'PASS'
     assert decoded['payload'] == payload
     assert len(output.encode()) <= 4096
+    assert output.count('\n') == 1
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-006')
@@ -107,32 +104,6 @@ def test_git_evidence_separates_committed_staged_working_and_untracked(tmp_path,
         collect_git_evidence(repo, dict(record, baseCommit='not-a-commit'))
 
 
-def test_harness_and_legacy_pipeline_are_thin_adapters():
-    for relative in (
-        'scripts/harness/stop_entry.py',
-        'scripts/agent_runtime/stop/entry.py',
-        'scripts/agent_runtime/stop/pipeline.py',
-    ):
-        source = (ROOT / relative).read_text(encoding='utf-8')
-        tree = ast.parse(source)
-        imports = {
-            node.module
-            for node in ast.walk(tree)
-            if isinstance(node, ast.ImportFrom) and node.module
-        }
-        assert any('change.entry' in module for module in imports)
-        assert 'run_service' not in source
-        assert 'subprocess' not in source
-        assert 'MAX_CONTINUATIONS' not in source
-
-
-def test_stop_compatibility_run_stop_maps_unified_exit(monkeypatch):
-    monkeypatch.setattr(
-        stop_entry, 'run_stop_payload', lambda *_args: (5, {'status': 'COMMITTED_HANDOFF'})
-    )
-    assert stop_entry.run_stop('qoder', {'session_id': 's'}) == 5
-
-
 @pytest.mark.parametrize('agent', ['codex', 'claude', 'qoder'])
 def test_stop_without_start_self_heals_through_same_controller(agent, tmp_path, monkeypatch):
     record = {
@@ -143,7 +114,7 @@ def test_stop_without_start_self_heals_through_same_controller(agent, tmp_path, 
     calls = []
     monkeypatch.setattr(entry, 'bootstrap_session', lambda **_kwargs: dict(record))
 
-    def begin_change(_cwd, run_id, **kwargs):
+    def attest_start(_cwd, run_id, **kwargs):
         calls.append((run_id, kwargs['activation_source'], kwargs['capability']))
         return {**record, 'changeBegin': {'status': 'ATTESTED'}}
 
@@ -156,7 +127,7 @@ def test_stop_without_start_self_heals_through_same_controller(agent, tmp_path, 
             assert message.startswith('chore(agent): complete')
             return {'status': 'PASS', 'state': 'WORKING', 'code': 'NO_CHANGES'}
 
-    monkeypatch.setattr(entry, 'begin_change', begin_change)
+    monkeypatch.setattr(entry, 'attest_run_start', attest_start)
     monkeypatch.setattr(entry, 'LifecycleController', FakeController)
 
     exit_code, result = entry.run_stop_payload(

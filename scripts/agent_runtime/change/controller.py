@@ -12,12 +12,13 @@ import os
 import shutil
 import subprocess
 import time
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Callable, Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 from scripts.agent_runtime.git_state import run as git
+from scripts.agent_runtime.session.common import audit_run
 from scripts.agent_runtime.session.contract import resolve_runtime_root
 from scripts.agent_runtime.session.errors import SessionctlError
 from scripts.agent_runtime.session.registry import Registry
@@ -86,6 +87,11 @@ class GateInputs:
     requires_fixture: bool = False
 
 
+START_ENFORCED = 'START_ENFORCED'
+START_NOT_ENFORCED = 'START_NOT_ENFORCED'
+ADOPT_CONFIRMATION = 'I_CONFIRM_ADOPT_CURRENT'
+
+
 def _hash(value: object) -> str:
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
@@ -120,6 +126,160 @@ def _git_head(repo: Path) -> str:
 
 def _git_tree(repo: Path, revision: str = 'HEAD') -> str:
     return git(repo, 'rev-parse', f'{revision}^{{tree}}', timeout=2).stdout.strip()
+
+
+def _manifest_hash(paths: Iterable[str]) -> str:
+    """对人工确认的 exact manifest 生成稳定审计哈希。"""
+    return _hash(sorted(set(paths)))
+
+
+def _start_payload(
+    record: Mapping[str, Any], *, activation_source: str, capability: str
+) -> dict[str, Any]:
+    """只从 bootstrap baseline 构造 Start attestation，不重新解释 Git 状态。"""
+    initial = record.get('initialDirtySnapshot')
+    if not isinstance(initial, Mapping):
+        raise SessionctlError('begin-change requires an initial dirty snapshot')
+    return {
+        'status': 'ATTESTED' if capability == START_ENFORCED else START_NOT_ENFORCED,
+        'capability': capability,
+        'repoKey': record.get('repoKey', ''),
+        'worktreeId': record.get('worktreeId', ''),
+        'checkoutRoot': record.get('checkoutRoot', ''),
+        'checkoutKind': record.get('checkoutKind', ''),
+        'detached': bool(record.get('detached')),
+        'client': record.get('client', ''),
+        'sessionId': record.get('sessionId', ''),
+        'runId': record.get('runId', ''),
+        'baseCommit': record.get('baseCommit', ''),
+        'targetBranch': record.get('targetBranch', ''),
+        'targetHead': record.get('targetHeadAtBootstrap', ''),
+        'initialDirtySnapshot': dict(initial),
+        'allowedPaths': list(record.get('allowedPaths') or []),
+        'forbiddenPaths': list(record.get('forbiddenPaths') or []),
+        'startedAt': utc_now(),
+        'activationEvidence': activation_source,
+    }
+
+
+def attest_run_start(
+    repo_root: Path,
+    run_id: str,
+    *,
+    activation_source: str,
+    capability: str = START_ENFORCED,
+) -> dict[str, Any]:
+    """在 mutation 前保存唯一 Start baseline；late dirty 必须显式 adopt。"""
+    repo = Path(repo_root).resolve()
+    if capability not in {START_ENFORCED, START_NOT_ENFORCED}:
+        raise SessionctlError(f'unsupported start capability: {capability}')
+    registry = Registry(repo)
+    with registry.locked():
+        record = registry.load_run(run_id)
+        existing = record.get('changeBegin')
+        if isinstance(existing, Mapping):
+            if (
+                existing.get('runId') != run_id
+                or existing.get('checkoutRoot') != record.get('checkoutRoot')
+                or existing.get('baseCommit') != record.get('baseCommit')
+            ):
+                raise SessionctlError('begin-change identity conflicts with existing attestation')
+            return record
+        initial = record.get('initialDirtySnapshot')
+        if not isinstance(initial, Mapping):
+            raise SessionctlError('begin-change has no initial baseline')
+        base = str(record.get('baseCommit') or '')
+        if _git_head(repo) != base:
+            raise SessionctlError('ADOPT_REQUIRED: HEAD changed before begin-change')
+        manifest = collect_manifest(repo)
+        initial_paths = sorted(
+            set(list(initial.get('tracked') or []) + list(initial.get('untracked') or []))
+        )
+        if list(manifest.paths) != initial_paths or manifest.paths:
+            raise SessionctlError(
+                'ADOPT_REQUIRED: late begin-change found pre-existing dirty content'
+            )
+        begin = _start_payload(
+            record,
+            activation_source=activation_source,
+            capability=capability,
+        )
+        record['changeBegin'] = begin
+        record['updatedAt'] = utc_now()
+        audit_run(
+            registry,
+            record,
+            'CHANGE_BEGIN_ATTESTED' if capability == START_ENFORCED else START_NOT_ENFORCED,
+            capability=capability,
+            activationEvidence=activation_source,
+        )
+        registry.save_run(record)
+        return record
+
+
+def adopt_current(
+    repo_root: Path,
+    run_id: str,
+    *,
+    base_commit: str,
+    exact_files: Iterable[str],
+    confirmation: str,
+) -> dict[str, Any]:
+    """显式接管 late dirty checkout，并绑定 base、scope 与 exact manifest。"""
+    repo = Path(repo_root).resolve()
+    expected = sorted({str(path) for path in exact_files})
+    if confirmation != ADOPT_CONFIRMATION:
+        raise SessionctlError('adopt-current requires explicit user confirmation')
+    if not expected:
+        raise SessionctlError('adopt-current requires an exact non-empty manifest')
+    registry = Registry(repo)
+    with registry.locked():
+        record = registry.load_run(run_id)
+        if base_commit != str(record.get('baseCommit') or ''):
+            raise SessionctlError('adopt-current base does not match run base')
+        if _git_head(repo) != base_commit:
+            raise SessionctlError('adopt-current HEAD does not match confirmed base')
+        manifest = collect_manifest(repo)
+        if list(manifest.paths) != expected:
+            raise SessionctlError(
+                'adopt-current exact manifest mismatch: '
+                f'expected={expected}, actual={list(manifest.paths)}'
+            )
+        try:
+            validate_scope(manifest, record)
+        except CandidateError as exc:
+            raise SessionctlError(f'adopt-current {exc.code}: {exc}') from exc
+        begin = _start_payload(
+            record,
+            activation_source='explicit-adopt-current',
+            capability=START_ENFORCED,
+        )
+        begin.update(
+            {
+                'status': 'ATTESTED',
+                'adopted': True,
+                'adoptedFiles': expected,
+                'adoptedFilesHash': _manifest_hash(expected),
+                'userConfirmation': confirmation,
+            }
+        )
+        record['changeBegin'] = begin
+        record['changeAttribution'] = {
+            'baseline': 'explicit-adopt-current',
+            'preexistingChangesAttributedToRun': True,
+            'requiresHandoffIfIndistinguishable': False,
+        }
+        record['updatedAt'] = utc_now()
+        audit_run(
+            registry,
+            record,
+            'CURRENT_CHECKOUT_ADOPTED',
+            baseCommit=base_commit,
+            exactFilesHash=begin['adoptedFilesHash'],
+            confirmation=confirmation,
+        )
+        registry.save_run(record)
+        return record
 
 
 class LifecycleController:
@@ -165,13 +325,6 @@ class LifecycleController:
                 TERMINAL_BLOCKED,
                 'WORKTREE_IDENTITY_MISMATCH',
                 'linked worktree/common-dir identity cannot be attested',
-            )
-        begin = self.record.get('changeBegin')
-        if not isinstance(begin, Mapping) or begin.get('status') != 'ATTESTED':
-            raise LifecycleError(
-                TERMINAL_BLOCKED,
-                'START_NOT_ENFORCED',
-                'mutation requires an attested local begin-change baseline',
             )
         runtime_root = resolve_runtime_root(self.repo)
         self.root = Path(store_root or runtime_root / 'change-controller').resolve()
@@ -242,6 +395,53 @@ class LifecycleController:
                 'terminal Change no longer matches linked HEAD/result ref/candidate tree',
             )
 
+    def _assert_terminal_target(self, change: Mapping[str, Any]) -> None:
+        """clean terminal PASS 要求 target 仍包含已证明 integrated 的 commit。"""
+        commit_sha = str(change.get('commitSha') or '')
+        if (
+            change.get('integrationStatus') != 'INTEGRATED'
+            or change.get('primaryNewSha') != commit_sha
+        ):
+            raise LifecycleError(
+                TERMINAL_BLOCKED,
+                'STALE_TERMINAL_TARGET',
+                'terminal Change no longer carries integrated target evidence',
+            )
+        target_head = self._target_head()
+        primary = Path(str(self.record.get('primaryRepoRoot') or '')).resolve()
+        ancestor = git(
+            primary,
+            'merge-base',
+            '--is-ancestor',
+            commit_sha,
+            target_head,
+            timeout=2,
+            check=False,
+        )
+        if ancestor.returncode != 0:
+            raise LifecycleError(
+                TERMINAL_BLOCKED,
+                'STALE_TERMINAL_TARGET',
+                'primary target no longer contains the integrated commit',
+            )
+
+    def _ensure_start_attestation(self, event: str) -> None:
+        """canonical ensure-session 可在 clean baseline 上自愈缺失的 Start。"""
+        begin = self.record.get('changeBegin')
+        if not isinstance(begin, Mapping):
+            self.record = attest_run_start(
+                self.repo,
+                self.run_id,
+                activation_source=f'controller:{event}-self-heal',
+            )
+            begin = self.record.get('changeBegin')
+        if not isinstance(begin, Mapping) or begin.get('status') != 'ATTESTED':
+            raise LifecycleError(
+                TERMINAL_BLOCKED,
+                'START_NOT_ENFORCED',
+                'mutation requires an attested local begin-change baseline',
+            )
+
     def _initial_dirty_is_attributed(self) -> bool:
         """只在 attested base/HEAD 与 scope 同时成立时恢复首次 dirty Change。"""
         begin = dict(self.record.get('changeBegin') or {})
@@ -267,6 +467,7 @@ class LifecycleController:
         task_title: str = '',
     ) -> dict[str, Any]:
         """幂等建立 Session；PromptStart/首次 mutation 可在同 Session 轮转新 epoch。"""
+        self._ensure_start_attestation(event)
         try:
             session = self.store.load_session(self.session_id)
         except ChangeStoreError as exc:
@@ -277,6 +478,8 @@ class LifecycleController:
         if active is not None and active['state'] == 'INTEGRATED':
             self._assert_terminal_head(active)
         clean = self._worktree_clean()
+        if active is not None and active['state'] == 'INTEGRATED' and clean:
+            self._assert_terminal_target(active)
         terminal_roll = False
         if active is not None and active['state'] == 'INTEGRATED':
             if not clean or event in {'mutation', 'next-change'}:
@@ -296,6 +499,17 @@ class LifecycleController:
                     'BLOCKED_UNATTRIBUTED_CHANGES',
                     'dirty candidate cannot be attributed to the attested baseline and scope',
                 )
+            if active is not None and active['state'] == 'INTEGRATED' and not clean:
+                try:
+                    manifest = collect_manifest(self.repo)
+                    if not manifest.paths:
+                        raise CandidateError(
+                            'POST_TERMINAL_MUTATION_UNATTRIBUTED',
+                            'dirty worktree has no exact attributable manifest',
+                        )
+                    validate_scope(manifest, self.record)
+                except CandidateError as exc:
+                    raise LifecycleError(TERMINAL_BLOCKED, exc.code, str(exc)) from exc
             epoch = int(session['changeEpoch']) + 1
             stable_task = task_key or str(
                 self.record.get('changeId') or self.record.get('taskId') or 'task'
@@ -319,6 +533,43 @@ class LifecycleController:
                 expected_current_version=int(active['stateVersion']) if active else 0,
             )
         return session
+
+    def authorize_mutation(self) -> dict[str, Any]:
+        """轮转当前 Change，并在首次写入前原子复核/激活 Start baseline。"""
+        session = self.ensure_session(event='mutation')
+        change = current_change(session)
+        if change and change['state'] == 'COMMITTED_HANDOFF':
+            raise LifecycleError(
+                TERMINAL_BLOCKED,
+                'COMMITTED_HANDOFF_MUTATION_FORBIDDEN',
+                'attested commit must be integrated or handed off before another mutation',
+            )
+        registry = Registry(self.repo)
+        with registry.locked():
+            record = registry.load_run(self.run_id)
+            begin = record.get('changeBegin')
+            if not isinstance(begin, Mapping):
+                raise SessionctlError('START_NOT_ENFORCED: begin-change baseline is missing')
+            if begin.get('status') != 'ATTESTED':
+                raise SessionctlError(str(begin.get('status') or START_NOT_ENFORCED))
+            if not record.get('firstMutationAt'):
+                manifest = collect_manifest(self.repo)
+                expected = (
+                    tuple(sorted(begin.get('adoptedFiles') or ())) if begin.get('adopted') else ()
+                )
+                if manifest.paths != expected:
+                    raise SessionctlError('mutation baseline changed before first authorized write')
+                try:
+                    validate_scope(manifest, record)
+                except CandidateError as exc:
+                    raise SessionctlError(f'mutation baseline {exc.code}: {exc}') from exc
+                timestamp = utc_now()
+                record['firstMutationAt'] = timestamp
+                record['updatedAt'] = timestamp
+                audit_run(registry, record, 'FIRST_MUTATION_AUTHORIZED', at=timestamp)
+                registry.save_run(record)
+            self.record = dict(record)
+            return dict(record)
 
     def _artifact_path(self, change: Mapping[str, Any], name: str) -> Path:
         directory = self.artifacts / str(change['changeId'])

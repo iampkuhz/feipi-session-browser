@@ -12,7 +12,7 @@ description: 用于 required quality gate、doctor、stop check 失败后的诊�
 
 - Required baseline gate 失败（`agent.runtime-manifest`、`agent.skill-registry` 等）。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败。
-- 共享 dispatcher 或 `scripts/harness/stop_entry.py` 的 Stop 转发失败。
+- 共享 dispatcher → `scripts/agent_runtime/hook_entry.py` → controller 的 Stop 转发失败。
 - Java gates（编译、测试、PMD）失败。
 - UI gates（静态检查、JS action handler 检查）失败。
 - Agent runtime gates（entry parity、hook parity、policy sync）失败。

@@ -20,12 +20,12 @@ if str(ROOT) not in sys.path:
 
 from typing import TYPE_CHECKING  # noqa: E402
 
-from scripts.agent_runtime.change.controller import LifecycleController  # noqa: E402
-from scripts.agent_runtime.change.protocol import EXIT_CODES, encode_compact  # noqa: E402
-from scripts.agent_runtime.session.completion import (  # noqa: E402
+from scripts.agent_runtime.change.controller import (  # noqa: E402
     START_ENFORCED,
-    begin_change,
+    LifecycleController,
+    attest_run_start,
 )
+from scripts.agent_runtime.change.protocol import EXIT_CODES, encode_compact  # noqa: E402
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     PrimaryHeadSnapshot,
     PrimarySessionValidationError,
@@ -373,7 +373,7 @@ def run(args: argparse.Namespace) -> int:
         hook_event="LauncherPrepare",
         checkout_creator="codex",
     )
-    record = begin_change(
+    record = attest_run_start(
         target,
         str(record["runId"]),
         activation_source="launcher:codex-cli:before-agent",
@@ -437,8 +437,17 @@ def run(args: argparse.Namespace) -> int:
         )
         return completed.returncode
     completed_record = registry.load_run(str(record["runId"]))
-    completion = LifecycleController(target, completed_record).on_stop(
-        message=f"chore(agent): complete {completed_record.get('changeId') or record['runId']}"
+    controller = LifecycleController(target, completed_record)
+    reconciled = controller.status()
+    terminal_clean = (
+        reconciled.get('state') == 'INTEGRATED' and reconciled.get('code') == 'CHANGE_INTEGRATED'
+    )
+    completion = (
+        reconciled
+        if terminal_clean
+        else controller.on_stop(
+            message=f"chore(agent): complete {completed_record.get('changeId') or record['runId']}"
+        )
     )
     print(encode_compact(completion))
     return EXIT_CODES.get(str(completion.get('status')), 70)

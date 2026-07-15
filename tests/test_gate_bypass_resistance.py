@@ -41,7 +41,9 @@ def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
     proc = subprocess.run(
         [
             sys.executable,
-            'scripts/checks/measure_gate_escape_rate.py',
+            '-m',
+            'scripts.checks',
+            'repository.gate-escape-rate',
             '--threshold',
             '0',
             '--json-out',
@@ -55,7 +57,7 @@ def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
 
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
-    assert '[gateEscapeRate] PASS escape_rate=0.0 escaped_required_cases=0' in proc.stdout
+    assert '[repository.gate-escape-rate] PASS' in proc.stdout
 
     report = json.loads(json_out.read_text(encoding='utf-8'))
     assert set(report) >= {'total_required_cases', 'escaped_required_cases', 'escape_rate', 'cases'}
@@ -80,7 +82,14 @@ def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
 
 def test_check_gate_bypass_resistance_reuses_measurement():
     proc = subprocess.run(
-        [sys.executable, 'scripts/checks/check_gate_bypass_resistance.py', '--threshold', '0'],
+        [
+            sys.executable,
+            '-m',
+            'scripts.checks',
+            'repository.gate-bypass',
+            '--threshold',
+            '0',
+        ],
         text=True,
         capture_output=True,
         env=_env(),
@@ -89,7 +98,7 @@ def test_check_gate_bypass_resistance_reuses_measurement():
 
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
-    assert '[gateEscapeRate] PASS escape_rate=0.0 escaped_required_cases=0' in proc.stdout
+    assert '[repository.gate-bypass] PASS' in proc.stdout
 
 
 def test_required_case_coverage_and_zero_escape_rate():
@@ -104,7 +113,7 @@ def test_synthetic_target_selection_is_fail_closed_or_targeted():
     expectations = {
         '.claude/agents/qwen-main-default.md': 'hook-runtime',
         '.qoder/hooks/pre_write_guard.sh': 'hook-runtime',
-        'scripts/harness/stop_entry.py': {'harness', 'hook-runtime'},
+        'scripts/agent_runtime/hook_entry.py': {'harness', 'hook-runtime'},
         'java/web/src/main/java/com/feipi/session/browser/X.java': 'java-src',
         'java/web/src/main/resources/templates/session-detail.html': 'session-detail',
     }

@@ -23,9 +23,9 @@ Doctor 负责组合结构、配置、语言、Hook/Runtime 与必要 contract �
 
 ## Stop
 
-共享 dispatcher 只委托 `scripts/harness/stop_entry.py`，再由
+共享 dispatcher 只委托 `scripts/agent_runtime/hook_entry.py`，再由
 `scripts/agent_runtime/change/controller.py` 执行 ensure-session、prepare、validating、commit、
-integration；`stop/pipeline.py` 只是兼容入口。Gate 阶段只调用 `scripts.gates.cli.run_service`。
+integration。Gate 阶段只调用 `scripts.gates.cli.run_service`，不存在第二套 Stop/Completion 入口。
 
 Stop 失败先判断身份/锁/证据/恢复/执行/报告哪一阶段阻断；不要绕过 Stop 直接把某个 leaf check
 成功当成整体 `PASS`。

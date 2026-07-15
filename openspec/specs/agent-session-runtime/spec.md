@@ -151,8 +151,8 @@ Runtime MUST 允许 run 在 OpenSpec change 创建或选择之前存在，并提
 
 ## Requirement: Change Start 本地强制与显式接管
 
-所有 mutation MUST 与同一 run 的 `begin-change` baseline 配对；本地 launcher、支持的
-SessionStart 和 mutation guard MUST 执行共享 service，不得依赖 LLM 记忆命令。
+所有 mutation MUST 与同一 Session/Change 的 `ensure-session` baseline 配对；本地 launcher、
+支持的 SessionStart 和 mutation guard MUST 进入共享 controller，不得依赖 LLM 记忆命令。
 
 ### Scenario: Launcher 先于 Agent 激活
 
@@ -170,8 +170,8 @@ SessionStart 和 mutation guard MUST 执行共享 service，不得依赖 LLM 记
 
 ### Scenario: Late dirty 显式接管
 
-- **Given** checkout 在 begin 前已有内容
-- **When** 调用 `adopt-current`
+- **Given** checkout 在 ensure-session baseline 前已有内容
+- **When** 调用唯一公开 CLI 的 `adopt-current`
 - **Then** MUST 要求 base、exact manifest 与用户确认并写审计
 - **And** 缺少任一证据 MUST 返回 `ADOPT_REQUIRED`
 - **And** Runtime MUST NOT 创建 recovery/retry worktree
@@ -253,9 +253,9 @@ run/session/checkout，subagent MUST 继承主 Session 的写者身份。
 ### Scenario: 初始 Dirty Checkout
 
 - **Given** checkout 在 bootstrap 前已经 dirty
-- **When** Runtime 保存 baseline 并在 finalize 归因变更
+- **When** Runtime 保存 baseline 并在 controller 收口时归因变更
 - **Then** 启动前变更 MUST NOT 自动归因当前 Session
-- **And** 无法安全区分时 finalize MUST 返回 `HANDOFF_REQUIRED`
+- **And** 无法安全区分时 controller MUST fail closed
 
 ## Requirement: 五类平台使用薄 Adapter
 
@@ -363,60 +363,77 @@ branch 或硬编码 `main`。
 - **Then** 被替代的生产说明和字段 MUST 已删除
 - **And** MUST 只保留一份当前生命周期与一份 machine truth
 
-## Requirement: Git 真相驱动 Stop 与 Finalize
+## Requirement: Git 真相驱动 Status 与 On-stop
 
-Stop/finalize MUST 以 `baseCommit...HEAD` commits/diff、working tree dirty、untracked、target 与
-primary 状态为事实，不得依赖 worktree 路径、目录名或创建者判断结果。
+`status --compact`、`ensure-session`、`on-stop`、`resume` 与 launcher/client-exit reconciliation
+MUST 实时读取 worktree HEAD、staged/unstaged/untracked、commit/ref/candidate tree、primary target
+HEAD、integration 状态和当前 active Change，不得复述旧 terminal snapshot。
 
-### Scenario: Stop 识别三类变更
+### Scenario: Controller 识别三类变更
 
 - **Given** 当前 run 有已提交、未提交或 untracked 变更中的任意组合
-- **When** Stop 收集 Git evidence
+- **When** controller 收集 Git evidence
 - **Then** MUST 分别报告 committed、uncommitted 与 untracked files
 - **And** MUST 报告 commits、ahead/behind、merge-base、initial dirty、checkout kind/creator 和
   target branch 状态
 
-### Scenario: Stop 只完成验证
+### Scenario: Integrated 后出现新 Mutation
 
-- **Given** Complete 已 exact stage 最终 candidate 且 required validation 已真实通过
-- **When** candidate Stop 成功结束
-- **Then** completion state 最多 MUST 更新为 `VALIDATED_CANDIDATE`
-- **And** Stop 成功 MUST NOT 被记录为 `INTEGRATED`
+- **Given** 当前 Change 已 `INTEGRATED`，且 HEAD/ref/tree 与历史 terminal seal 一致
+- **When** 随后出现可归因的 staged、unstaged、deletion 或 untracked 内容并查询状态
+- **Then** 历史 Change MUST 保持 `INTEGRATED` 且 commit/ref/attestation 不被回退或改写
+- **And** 同一 Session MUST 建立 changeEpoch 更大的新 Change，base 等于上一 integrated commit
+- **And** 新 exact manifest MUST 只包含 terminal seal 之后的 mutation
+- **And** 当前状态 MUST 为 `WORKING` 或明确的 `POST_TERMINAL_MUTATION`，不得返回旧 terminal PASS
 
-### Scenario: Normal Stop 强制 commit
+### Scenario: Terminal HEAD 或 Result 真相陈旧
 
-- **Given** 存在 task-owned changes 但没有 attested `commitSha`
-- **When** normal Stop、SessionEnd 或 launcher post-exit 检查完成状态
-- **Then** MUST 返回 `COMMIT_REQUIRED`
-- **And** MUST NOT 返回 PASS
+- **Given** 当前 Change 的 snapshot 标记为 `INTEGRATED`
+- **When** worktree HEAD、resultRef、commit tree 或 candidateTree 不一致
+- **Then** reconciliation MUST 返回 `TERMINAL_BLOCKED / STALE_TERMINAL_HEAD`
+- **And** MUST NOT 覆盖历史 Change 或报告 PASS
+
+### Scenario: Primary 在 Clean Terminal 后移动
+
+- **Given** worktree 仍 clean 且 terminal commit/ref/tree 一致
+- **When** primary target HEAD 已变化
+- **Then** 只有 primary 仍包含 result commit 且 target identity 一致时 MAY 保持 `INTEGRATED`
+- **And** result commit 不可达或 integration 事实不成立时 MUST fail closed
+
+### Scenario: Status 只做 Reconciliation
+
+- **Given** 维护者或 launcher 查询当前状态
+- **When** `status` 重读 Git 与 Store 真相
+- **Then** 它 MUST NOT 运行 required Gate
+- **And** repeated clean terminal status SHOULD 在一秒内幂等返回
+- **And** 新 Change 的下一次 `on-stop` MUST 形成自己的 Attempt、fingerprint 与 receipt，不得复用上一 Change 的 PASS receipt
 
 ### Scenario: 验证期间 Checkout 发生变化
 
-- **Given** Stop 已根据当前 HEAD、index、working tree 和 untracked 内容启动 required validation
+- **Given** `on-stop` 已根据当前 HEAD、index、working tree 和 untracked 内容启动 required validation
 - **When** 验证期间或 receipt 落库前任一内容变化
-- **Then** 内容敏感 snapshot MUST 失配并使 Stop 非零退出
+- **Then** 内容敏感 snapshot MUST 失配并使 `on-stop` 非零退出
 - **And** Runtime MUST NOT 把未验证的新状态记录为 `VALIDATED`
 
 ### Scenario: 安全 Fast-forward
 
 - **Given** target 未前进、结果已提交且 primary checkout clean
-- **When** finalize 验证 base/HEAD/target 关系
+- **When** controller 验证 base/HEAD/target 关系
 - **Then** MAY 使用 ff-only 集成
 - **And** MUST NOT force push、自动 push 或覆盖用户内容
 
 ### Scenario: Target 前进
 
 - **Given** target 在 run 期间前进
-- **When** 结果可安全 rebase 且没有冲突
-- **Then** Runtime MUST 比较 target delta 与 exact files、catalog、commands、environment 和 Gate inputs
-- **And** 输入不变时 MAY 复用 candidate validation；输入变化时最多执行 affected gates
-- **And** MUST NOT 默认再次执行完整 required/full Gate
+- **When** controller 准备 integration
+- **Then** MUST 保留已 attested commit 与 durable result ref 并返回 `COMMITTED_HANDOFF`
+- **And** MUST NOT rebase、cherry-pick、创建 integration worktree 或重跑已完成的 Gate
 
-### Scenario: Detached HEAD Finalize
+### Scenario: Detached HEAD 收口
 
 - **Given** run 工作在 detached HEAD
-- **When** finalize 需要保存结果
-- **Then** MUST 形成 commit 并创建 `refs/heads/codex/result/<run-id>`
+- **When** `on-stop` 需要保存结果
+- **Then** MUST 形成 commit 并创建 `refs/heads/codex/result/<change-id>`
 - **And** detached 状态 MUST NOT 依据路径被误判为非法 checkout
 
 ### Scenario: Commit 与 integration 解耦
@@ -429,8 +446,8 @@ primary 状态为事实，不得依赖 worktree 路径、目录名或创建者�
 ### Scenario: 必须 Handoff 的状态
 
 - **Given** primary dirty、存在冲突、验证过期、base 非祖先或 initial dirty 无法区分
-- **When** finalize 判断安全性
-- **Then** 已有 commit 时 MUST 返回 `COMMITTED_HANDOFF_REQUIRED`，否则返回 `HANDOFF_REQUIRED`
+- **When** controller 判断安全性
+- **Then** 已有 commit 时 MUST 返回 `COMMITTED_HANDOFF`，否则 MUST 返回明确非 PASS 状态
 - **And** MUST NOT 覆盖、强制集成或删除 provider worktree
 
 ### Scenario: Run-scoped 恢复
@@ -442,11 +459,11 @@ primary 状态为事实，不得依赖 worktree 路径、目录名或创建者�
 
 ## Requirement: 精简且不降级的回归契约
 
-Complete MUST 使用唯一权威状态 `WORKING`、`STAGED`、`VALIDATED_CANDIDATE`、`COMMITTED`、
-`INTEGRATED`、`BLOCKED_RETRYABLE`、`HANDOFF_REQUIRED`，并持久化 `oldHead`、
-`exactFilesHash`、`candidateTree`、`validationReceipt`、`commitSha`、`resultRef` 和
-`targetHeadObserved`。环境、server、网络、timeout 与 pre-commit capability failure MUST 在同一
-run 进入 `BLOCKED_RETRYABLE`。
+controller MUST 使用 schema v3 的唯一权威状态 `WORKING`、`PREPARED`、`VALIDATING`、
+`REPAIR_REQUIRED`、`VALIDATED`、`COMMITTED`、`COMMITTED_HANDOFF`、`INTEGRATED`、
+`TERMINAL_BLOCKED`，并持久化 Session/Change/Attempt identity、stateVersion、manifestHash、
+candidateTree、完整 fingerprint、commitSha 与 resultRef。环境、server、网络、timeout 与
+pre-commit capability failure MUST 在同一 Change 返回明确 retryable 非 PASS 状态。
 
 永久测试 MUST 合并重复平台与旧实现测试，同时保留 Session 身份、writer 隔离和 Git 收口的
 核心黑盒保障；临时迁移/canary/performance 代码 MUST 在最终提交前删除。
@@ -455,7 +472,7 @@ run 进入 `BLOCKED_RETRYABLE`。
 
 - **Given** 变更进入最终验收
 - **When** 收集相关永久测试
-- **Then** 测试 SHOULD 收敛为 Session service、checkout writer lease、Stop/finalize 三类 contract
+- **Then** 测试 SHOULD 收敛为 Session service、checkout writer lease、controller/status 三类 contract
 - **And** 新永久测试文件 MUST 不超过 3 个
 - **And** 相关永久测试文件总数 MUST 不增加并以净减少为目标
 

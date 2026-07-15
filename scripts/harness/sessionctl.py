@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""负责把稳定 CLI 参数适配到 agent_runtime Session 服务；不负责实现状态机或持久化；由 Hook、完成脚本和维护者命令行调用。"""
+"""负责把稳定命令行参数适配到会话身份与注册表服务；不负责变更完成编排；由人工诊断入口调用。"""
 
 from __future__ import annotations
 
@@ -11,27 +11,19 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 if str(ROOT) not in sys.path:
     sys.path.insert(0, str(ROOT))
-from scripts.agent_runtime.session.completion import (  # noqa: E402
-    cmd_adopt_current,
-    cmd_begin_change,
-    cmd_completion_status,
-)
 from scripts.agent_runtime.session.contract import (  # noqa: E402
     CHECKOUT_CREATORS,
     PrimarySessionValidationError,
 )
 from scripts.agent_runtime.session.errors import SessionctlError  # noqa: E402
-from scripts.agent_runtime.session.finalize import cmd_finalize  # noqa: E402
 from scripts.agent_runtime.session.lease import DEFAULT_LEASE_STALE_SECONDS, cmd_lease  # noqa: E402
 from scripts.agent_runtime.session.lifecycle import (  # noqa: E402
     cmd_bootstrap,
     cmd_cleanup,
     cmd_doctor,
-    cmd_handoff,
     cmd_list,
     cmd_set_change,
     cmd_status,
-    cmd_stop,
 )
 
 
@@ -59,22 +51,6 @@ def build_parser() -> argparse.ArgumentParser:
     set_change.add_argument('--change-id', required=True)
     set_change.add_argument('--task-id')
     set_change.set_defaults(func=cmd_set_change)
-    begin = sub.add_parser('begin-change')
-    begin.add_argument('--run-id', required=True)
-    begin.add_argument('--cwd', required=True)
-    begin.add_argument('--activation-source', required=True)
-    begin.add_argument('--start-enforced', action='store_true')
-    begin.set_defaults(func=cmd_begin_change)
-    adopt = sub.add_parser('adopt-current')
-    adopt.add_argument('--run-id', required=True)
-    adopt.add_argument('--cwd', required=True)
-    adopt.add_argument('--base', required=True)
-    adopt.add_argument('--file', action='append', required=True)
-    adopt.add_argument('--confirmation', required=True)
-    adopt.set_defaults(func=cmd_adopt_current)
-    completion = sub.add_parser('completion-status')
-    completion.add_argument('--run-id', required=True)
-    completion.set_defaults(func=cmd_completion_status)
 
     def add_lease_identity(command: argparse.ArgumentParser, *, parent: bool = True) -> None:
         """参数：
@@ -119,13 +95,10 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         p.add_argument('--json', action='store_true')
         p.set_defaults(func=func)
-    for name, func in [('status', cmd_status), ('stop', cmd_stop), ('handoff', cmd_handoff)]:
+    for name, func in [('status', cmd_status)]:
         p = sub.add_parser(name)
         p.add_argument('--run-id', required=True)
         p.set_defaults(func=func)
-    finalize = sub.add_parser('finalize')
-    finalize.add_argument('--run-id', required=True)
-    finalize.set_defaults(func=cmd_finalize)
     doctor = sub.add_parser('doctor')
     doctor.add_argument('--run-id', required=False)
     doctor.set_defaults(func=cmd_doctor)

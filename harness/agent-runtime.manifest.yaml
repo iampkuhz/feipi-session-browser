@@ -88,15 +88,6 @@ platforms:
         - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
-stop_runtime:
-  public_entry: scripts/harness/stop_entry.py
-  authority: scripts/agent_runtime/change/controller.py
-  compatibility_entry: scripts/agent_runtime/stop/pipeline.py
-  model: scripts/agent_runtime/change/model.py
-  phases: [ensure-session, prepare, validating, commit, integration]
-  gate_service: scripts.gates.cli.run_service
-  gate_report_statuses: [EXECUTED, REUSED, NOT_TRIGGERED, FAILED, BLOCKED]
-
 platform_hook_adapter:
   authority: scripts/agent_runtime/events/adapter.py
   service: scripts/harness/sessionctl.py bootstrap
@@ -104,7 +95,7 @@ platform_hook_adapter:
   requires_feipi_run_id: false
   creates_worktree: false
   surfaces:
-    codex-app: {client: codex, validation: LOCAL_HOOK_CONTRACT_VERIFIED}
+    codex-app: {client: codex, validation: UNVERIFIED}
     codex-cli: {client: codex, validation: START_ENFORCED_BY_LAUNCHER}
     claude-code-cli: {client: claude, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
     qoder-cli: {client: qoder, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
@@ -134,7 +125,7 @@ worktree_isolation:
   sessionctl: scripts/harness/sessionctl.py bootstrap
   registry_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
   enforcement_hooks:
-    session_start: shared-idempotent-begin-change
+    session_start: shared-idempotent-ensure-session
     user_prompt_submit: qoder-client-idempotent-bootstrap-fallback
     cwd_changed: claude-and-qoder-checkout-reconfirmation
     pre_tool_bootstrap: codex-and-qoder-idempotent-bootstrap-fallback
@@ -143,14 +134,18 @@ worktree_isolation:
     stop: all-clients-fail-closed-on-wrong-checkout-with-changes
 
 change_completion:
+  hook_dispatcher: scripts/harness/hook_dispatch.py
+  hook_entry: scripts/agent_runtime/hook_entry.py
   authority: scripts/agent_runtime/change/controller.py
   public_entry: scripts/harness/change.py
-  compatibility_entry: scripts/harness/complete_change.py
   shared_state_service: scripts/agent_runtime/change/store.py
+  model: scripts/agent_runtime/change/model.py
   schema_version: 3
   eligible_checkout: attested-checkout-with-exact-attribution
   attributed_files: automatic-nul-safe-exact-manifest
   sequence: [cheap-preflight, exact-stage, pre-commit-stabilize, candidate-tree, required-stop-once, commit, commit-attestation, integration]
+  gate_service: scripts.gates.cli.run_service
+  gate_report_statuses: [EXECUTED, REUSED, NOT_TRIGGERED, FAILED, BLOCKED]
   completion_states: [WORKING, PREPARED, VALIDATING, REPAIR_REQUIRED, VALIDATED, COMMITTED, COMMITTED_HANDOFF, INTEGRATED, TERMINAL_BLOCKED]
   persisted_fields: [sessionId, changeId, changeEpoch, attemptId, stateVersion, manifestHash, candidateTree, planFingerprint, commandFingerprint, environmentFingerprint, commitSha, resultRef]
   target_integration: local-strict-ff-only-no-rewrite

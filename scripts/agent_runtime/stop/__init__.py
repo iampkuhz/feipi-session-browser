@@ -1,4 +1,4 @@
-"""负责旧 Stop package 的证据导出；不负责加载 controller，由兼容入口调用。"""
+"""负责导出停止阶段的 Git 证据；不负责变更生命周期编排；由共享钩子入口调用。"""
 
 from .evidence import GitEvidenceError, collect_git_evidence
 

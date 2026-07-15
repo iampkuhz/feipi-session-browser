@@ -114,8 +114,8 @@ Runtime 机器契约以 `harness/agent-runtime.manifest.yaml` 为真源：
   mutation 前证据；OpenSpec 路径策略由 `scripts/hooks/guard_openspec_change.py` 提供。
 - **PostToolUse/Failure/SessionEnd：** 仍由 manifest 登记的配置通过共享 dispatcher 委托 Runtime 补齐
   evidence、记录失败并精确释放 lease；本 skill 不复制平台 Hook 矩阵。
-- **Stop：** 共享 dispatcher 转发到 `scripts/harness/stop_entry.py`，再直接调用
-  `scripts/agent_runtime/change/controller.py`；`stop/pipeline.py` 仅是旧 import 兼容入口。
+- **Stop：** 共享 dispatcher 转发到 `scripts/agent_runtime/hook_entry.py`，再直接调用
+  `scripts/agent_runtime/change/controller.py`；不得增加第二套 Stop/Completion wrapper 或 pipeline。
 - **Required Gate：** Stop/handoff 前唯一人工命令为
   `python3 scripts/gates/cli.py --tier required`；不得直接调用内部 Gate 模块。
 

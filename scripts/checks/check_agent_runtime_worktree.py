@@ -10,6 +10,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
@@ -147,6 +148,22 @@ def _ctl(
         env={"FEIPI_AGENT_RUNTIME_ROOT": str(runtime_root)},
         check=check,
     )
+
+
+def _ctl_retry_busy(
+    repo: Path,
+    runtime_root: Path,
+    *args: str,
+) -> subprocess.CompletedProcess[str]:
+    """同一合成调用重试短暂 Registry 互斥；真实 lease 冲突仍原样返回。"""
+    result = _ctl(repo, runtime_root, *args, check=False)
+    for _attempt in range(2):
+        detail = result.stderr + result.stdout
+        if result.returncode == 0 or 'BUSY_RETRYABLE' not in detail:
+            break
+        time.sleep(0.05)
+        result = _ctl(repo, runtime_root, *args, check=False)
+    return result
 
 
 # 解析一个成功的 sessionctl JSON 响应。
@@ -343,12 +360,11 @@ def run_checks() -> list[str]:
         with ThreadPoolExecutor(max_workers=len(sessions)) as executor:
             ready_results = {
                 name: executor.submit(
-                    _ctl,
+                    _ctl_retry_busy,
                     repo,
                     runtime_root,
                     "mark-read-only-ready",
                     *_identity_args(client, session_id, checkout),
-                    check=False,
                 )
                 for name, (client, session_id, checkout) in sessions.items()
             }
@@ -370,12 +386,11 @@ def run_checks() -> list[str]:
         with ThreadPoolExecutor(max_workers=len(sessions)) as executor:
             acquire_results = {
                 name: executor.submit(
-                    _ctl,
+                    _ctl_retry_busy,
                     repo,
                     runtime_root,
                     "acquire-writer-lease",
                     *_identity_args(client, session_id, checkout),
-                    check=False,
                 )
                 for name, (client, session_id, checkout) in sessions.items()
             }

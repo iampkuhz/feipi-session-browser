@@ -43,13 +43,13 @@
 
 ### Requirement: Claude Change Start/Complete 配对
 
-Claude SessionStart MUST 调用共享 `begin-change`，PreToolUse mutation MUST 在 baseline 缺失时
-关闭失败；normal Stop/SessionEnd 检测到 task-owned changes 但没有 attested commit 时 MUST 返回
-`COMMIT_REQUIRED`。这些行为 MUST 来自共享 Runtime，而不是 agent 提示词。
+Claude SessionStart MUST 通过 dispatcher → hook entry 调用共享 controller 的 `ensure-session`，
+PreToolUse mutation MUST 在 baseline 缺失时关闭失败；Stop/SessionEnd MUST 通过同一 controller
+实时核对 Git 与 Change 状态。这些行为 MUST 来自共享 Runtime，而不是 agent 提示词。
 
 #### Scenario: SessionStart 后首次写入
 
 - **Given** Claude SessionStart 已提供 session id 与 cwd
 - **When** 首次 Write/Edit/Bash mutation 到达
-- **Then** begin baseline MUST 已存在且 identity 一致
+- **Then** ensure-session baseline MUST 已存在且 identity 一致
 - **And** 缺失或冲突 MUST 阻断 mutation

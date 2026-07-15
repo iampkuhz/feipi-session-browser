@@ -14,6 +14,13 @@ import sys
 import tempfile
 from pathlib import Path
 
+from scripts.agent_runtime.change.controller import (
+    START_ENFORCED,
+    LifecycleController,
+    attest_run_start,
+)
+from scripts.agent_runtime.change.entry import run_stop_payload
+from scripts.agent_runtime.change.protocol import encode_compact
 from scripts.agent_runtime.context import HookContext, read_stdin_json
 from scripts.agent_runtime.events import evidence as changed_file_utils
 from scripts.agent_runtime.events.adapter import HookAdapterError, build_bootstrap_request
@@ -56,13 +63,6 @@ from scripts.agent_runtime.registry import (
     release_writer_lease,
     resolve_bound_run_record,
     validate_run_write_authorization,
-)
-from scripts.agent_runtime.session.completion import (
-    START_ENFORCED,
-    activate_first_mutation,
-    begin_change,
-    completion_requirement,
-    require_mutation_baseline,
 )
 from scripts.gates.planner import classify_path
 
@@ -171,19 +171,16 @@ def _bootstrap_hook_session(
         env_hints=os.environ,
         parent_run_id=request.parent_run_id,
     )
-    if not request.parent_run_id and not isinstance(record.get('changeBegin'), dict):
+    if not request.parent_run_id:
         # Hook/PreTool 真实到达本地进程即构成强制 Start 证据；不再把 Codex App
         # 降级成只能依赖 LLM 记忆的 START_NOT_ENFORCED。
-        capability = START_ENFORCED
-        record = begin_change(
+        record = attest_run_start(
             Path(request.cwd),
             str(record['runId']),
             activation_source=f'hook:{request.adapter.surface}:SessionStart',
-            capability=capability,
+            capability=START_ENFORCED,
         )
     if not request.parent_run_id:
-        from scripts.agent_runtime.change.controller import LifecycleController
-
         event = 'prompt' if request.hook_event in {'UserPromptSubmit', 'PreToolUse'} else 'start'
         LifecycleController(Path(request.cwd), record).ensure_session(
             event=event,
@@ -336,33 +333,14 @@ def _run_mutation_block(
             error=SessionctlError(reason),
         )
     try:
-        from scripts.agent_runtime.change.controller import LifecycleController
-        from scripts.agent_runtime.change.model import current_change
-
         lifecycle = LifecycleController(paths.repo_root, record)
-        session = lifecycle.ensure_session(
-            event='mutation',
-            task_key=ctx.turn_id or ctx.task_id,
-            task_title=ctx.task_id or ctx.turn_id,
-        )
-        change = current_change(session)
-        if change and change['state'] == 'COMMITTED_HANDOFF':
-            raise SessionctlError(
-                'COMMITTED_HANDOFF: commit 已安全保存；只能继续 integration/handoff，禁止新增修改'
-            )
+        record = lifecycle.authorize_mutation()
     except (SessionctlError, OSError, ValueError) as exc:
         return _lease_block_result(paths, ctx, operation='change-epoch', error=exc)
     except Exception as exc:
         # lifecycle store/CAS/身份异常必须 fail closed，不能退回旧的 run-only guard。
         return _lease_block_result(paths, ctx, operation='change-epoch', error=exc)
     registry = Registry(paths.repo_root)
-    try:
-        with registry.locked():
-            record = registry.load_run(str(record['runId']))
-            require_mutation_baseline(paths.repo_root, record)
-            activate_first_mutation(registry, record)
-    except (SessionctlError, OSError, ValueError) as exc:
-        return _lease_block_result(paths, ctx, operation='begin-change', error=exc)
     try:
         acquire_writer_lease(registry, record)
     except (
@@ -397,7 +375,7 @@ def _run_mutation_block(
 
 
 def _controlled_primary_command(ctx: HookContext, record: dict) -> bool:
-    """只认可当前 run 的 finalize 或完整受控收口入口，拒绝 shell 组合命令。"""
+    """只认可当前 run 的 canonical on-stop/resume，拒绝 shell 组合命令。"""
     if any(operator in ctx.command for operator in ('&&', '||', ';', '|', '>', '<', '`', '$(')):
         return False
     try:
@@ -418,21 +396,10 @@ def _controlled_primary_command(ctx: HookContext, record: dict) -> bool:
         return False
     if requested_run != str(record.get('runId') or ''):
         return False
-    if script.endswith('scripts/harness/complete_change.py'):
-        # 该公开入口内部仍必须依次取得两次 Stop receipt 后才能调用 finalize。
-        return True
-    if not script.endswith('scripts/harness/sessionctl.py'):
+    if not script.endswith('scripts/harness/change.py'):
         return False
-    if 'finalize' not in tokens[script_index + 1 :]:
-        return False
-    validation = record.get('stopValidation')
-    return bool(
-        record.get('status') == 'VALIDATED'
-        and record.get('stopExitCode') == 0
-        and isinstance(validation, dict)
-        and validation.get('status') == 'PASS'
-        and validation.get('fresh') is True
-    )
+    subcommands = [token for token in tokens[script_index + 1 :] if token in {'on-stop', 'resume'}]
+    return len(subcommands) == 1
 
 
 def _primary_isolation_policy(
@@ -696,10 +663,45 @@ def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult
     if normalized_label in {'session-end', 'sessionend'}:
         record = _bound_record(paths, ctx)
         if record:
-            required = completion_requirement(paths.repo_root, record)
-            if required['status'] == 'COMMIT_REQUIRED':
-                reason = f"COMMIT_REQUIRED: {required['recoveryArgv']}"
-                record_hook_event(paths, ctx, status='BLOCK', extra=required)
+            try:
+                lifecycle = LifecycleController(paths.repo_root, record)
+                current = lifecycle.status()
+            except Exception as exc:
+                reason = f'COMMIT_REQUIRED: canonical status reconciliation failed: {exc}'
+                record_hook_event(
+                    paths,
+                    ctx,
+                    status='BLOCK',
+                    extra={'reason': reason, 'errorType': type(exc).__name__},
+                )
+                return HookResult(status='BLOCK', exit_code=2, message=reason)
+            dirty = changed_file_utils.read_git_dirty_files(paths.repo_root)
+            state = str(current.get('state') or 'WORKING')
+            terminal = state == 'INTEGRATED' and current.get('code') == 'CHANGE_INTEGRATED'
+            durable_handoff = state == 'COMMITTED_HANDOFF' and bool(current.get('commitSha'))
+            incomplete = state != 'WORKING' and not (terminal or durable_handoff)
+            if dirty or incomplete:
+                recovery_argv = [
+                    'python3',
+                    'scripts/harness/change.py',
+                    'resume',
+                    '--run-id',
+                    str(record['runId']),
+                    '--message',
+                    'chore(agent): resume change',
+                ]
+                reason = f'COMMIT_REQUIRED: {recovery_argv}'
+                record_hook_event(
+                    paths,
+                    ctx,
+                    status='BLOCK',
+                    extra={
+                        'reason': reason,
+                        'dirtyCount': len(dirty),
+                        'lifecycleStatus': current,
+                        'recoveryArgv': recovery_argv,
+                    },
+                )
                 return HookResult(status='BLOCK', exit_code=2, message=reason)
         release_block = _release_session_writer_lease(paths, ctx)
         if release_block is not None:
@@ -766,6 +768,11 @@ def main(argv: list[str] | None = None) -> int:
 
     ctx = read_stdin_json(event_name)
     wrapper_client = os.environ.get('FEIPI_AGENT_CLIENT', '')
+    if event_name == 'stop':
+        agent = (wrapper_client or ctx.agent_client).strip().lower()
+        exit_code, result = run_stop_payload(agent, dict(ctx.raw))
+        print(encode_compact(result))
+        return exit_code
     try:
         _bootstrap_hook_session(ctx, wrapper_client=wrapper_client)
     except (HookAdapterError, SessionctlError, OSError, ValueError) as exc:

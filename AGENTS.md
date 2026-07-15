@@ -32,9 +32,9 @@
 ## 提交与集成
 
 - 使用 primary `HEAD` 的 linked worktree；Codex 用 `scripts/harness/launch_codex_worktree.py`；不改 provider checkout。
-- mutation 前须有 `begin-change`；baseline 缺失/`START_NOT_ENFORCED` 时阻断。late dirty 仅可用带 base、exact manifest、用户确认的 `adopt-current`。
-- 无需询问：精确文件运行 `complete_change.py`，顺序为 preflight→stage/pre-commit→一次 required Stop→commit→轻量 attestation→integration。
-- 归因/禁区冲突报 `HANDOFF_REQUIRED`；能力问题报 `BLOCKED_RETRYABLE` 并同 run 重试；primary dirty/前进/conflict 保留 commit/ref，报 `COMMITTED_HANDOFF_REQUIRED`。
+- mutation 前须由 `change.py ensure-session` 建立 baseline；缺失/`START_NOT_ENFORCED` 时阻断。late dirty 仅可用带 base、exact manifest、用户确认的 `change.py adopt-current`。
+- 无需询问：运行 `change.py on-stop`，顺序为 preflight→stage/pre-commit→一次 required Stop→commit→轻量 attestation→integration。
+- 归因/禁区冲突 fail closed；能力问题报 retryable 非 PASS 并在同 Change 重试；primary dirty/前进/conflict 保留 commit/ref，报 `COMMITTED_HANDOFF`。
 - 禁止 stash、reset、force、自动 push，失败不得称 PASS。
 
 ## 上下文治理

@@ -54,7 +54,7 @@ def test_manifest_required_gates_include_new_gates():
 
 
 def test_quality_targets_route_agent_config_to_runtime_gates():
-    changed_files = ['.qoder/AGENTS.md', 'scripts/harness/stop_entry.py']
+    changed_files = ['.qoder/AGENTS.md', 'scripts/harness/change.py']
     targets = required_quality_targets(changed_files)
     assert 'hook-runtime' in targets
     assert 'harness' in targets
@@ -91,7 +91,7 @@ def test_required_runner_dry_run_includes_runtime_gates_for_agent_config_change(
             'quick',
             '--dry-run',
             '--changed-files',
-            '[".qoder/AGENTS.md","scripts/harness/stop_entry.py"]',
+            '[".qoder/AGENTS.md","scripts/harness/change.py"]',
         ],
         cwd=REPO_ROOT,
         env=env,
