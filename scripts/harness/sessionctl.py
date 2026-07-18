@@ -20,6 +20,7 @@ from scripts.agent_runtime.session.lease import DEFAULT_LEASE_STALE_SECONDS, cmd
 from scripts.agent_runtime.session.lifecycle import (  # noqa: E402
     cmd_bootstrap,
     cmd_cleanup,
+    cmd_current,
     cmd_doctor,
     cmd_list,
     cmd_set_change,
@@ -95,6 +96,11 @@ def build_parser() -> argparse.ArgumentParser:
         p = sub.add_parser(name)
         p.add_argument('--json', action='store_true')
         p.set_defaults(func=func)
+    current = sub.add_parser('current')
+    current.add_argument('--client', required=True, choices=['codex', 'qoder', 'claude'])
+    current.add_argument('--session-id', required=True)
+    current.add_argument('--json', action='store_true')
+    current.set_defaults(func=cmd_current)
     for name, func in [('status', cmd_status)]:
         p = sub.add_parser(name)
         p.add_argument('--run-id', required=True)

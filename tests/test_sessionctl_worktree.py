@@ -1,3 +1,4 @@
+import copy
 import json
 import os
 import stat
@@ -11,6 +12,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SESSIONCTL = ROOT / "scripts" / "harness" / "sessionctl.py"
 
+from scripts.agent_runtime.change.controller import attest_run_start  # noqa: E402
 from scripts.agent_runtime.paths import identity_from_values  # noqa: E402
 from scripts.agent_runtime.session import lifecycle as sessionctl  # noqa: E402
 from scripts.agent_runtime.session.contract import (  # noqa: E402
@@ -20,6 +22,7 @@ from scripts.agent_runtime.session.contract import (  # noqa: E402
     validate_run_write_authorization,
 )
 from scripts.agent_runtime.session.lifecycle import classify_tool_call  # noqa: E402
+from scripts.agent_runtime.session.registry import Registry  # noqa: E402
 from scripts.agent_runtime.stop import evidence as stop_evidence  # noqa: E402
 from scripts.agent_runtime.stop.evidence import collect_run_changed_files  # noqa: E402
 
@@ -93,6 +96,102 @@ def acquire_for_session(checkout, session_id, client="codex"):
             str(checkout),
         ).stdout
     )
+
+
+def _runtime_file_state(root: Path) -> dict[str, tuple[int, bytes]]:
+    return {
+        str(path.relative_to(root)): (path.stat().st_mtime_ns, path.read_bytes())
+        for path in root.rglob('*')
+        if path.is_file()
+    }
+
+
+def test_current_returns_bounded_unique_attested_run_without_writes(tmp_path):
+    repo = git_repo(tmp_path)
+    record = bootstrap(repo, 'session-current')
+    attest_run_start(
+        repo,
+        record['runId'],
+        activation_source='hook:codex-app:SessionStart',
+    )
+    runtime = resolve_runtime_root(repo)
+    before = _runtime_file_state(runtime)
+
+    result = ctl(
+        repo,
+        'current',
+        '--client',
+        'codex',
+        '--session-id',
+        'session-current',
+        '--json',
+    )
+    payload = json.loads(result.stdout)
+
+    assert result.returncode == 0
+    assert payload['runId'] == record['runId']
+    assert payload['sessionId'] == 'session-current'
+    assert payload['checkoutRoot'] == str(repo.resolve())
+    assert payload['changeId'] is None
+    assert payload['state'] is None
+    assert payload['changeBegin']['status'] == 'ATTESTED'
+    assert 'auditEvents' not in result.stdout
+    assert len(result.stdout.encode()) < 4096
+    assert _runtime_file_state(runtime) == before
+
+
+def test_current_distinguishes_zero_multiple_and_unattested_matches(tmp_path):
+    repo = git_repo(tmp_path)
+    missing = ctl(
+        repo,
+        'current',
+        '--client',
+        'codex',
+        '--session-id',
+        'missing-session',
+        '--json',
+        check=False,
+    )
+    assert missing.returncode == 3
+    assert json.loads(missing.stdout)['code'] == 'CURRENT_SESSION_NOT_FOUND'
+
+    unattested_record = bootstrap(repo, 'session-unattested')
+    unattested = ctl(
+        repo,
+        'current',
+        '--client',
+        'codex',
+        '--session-id',
+        'session-unattested',
+        '--json',
+        check=False,
+    )
+    assert unattested.returncode == 5
+    assert json.loads(unattested.stdout)['code'] == 'CURRENT_SESSION_NOT_ATTESTED'
+
+    attested = attest_run_start(
+        repo,
+        unattested_record['runId'],
+        activation_source='hook:codex-app:SessionStart',
+    )
+    duplicate = copy.deepcopy(attested)
+    duplicate['runId'] = 'run-current-duplicate'
+    duplicate['changeBegin']['runId'] = duplicate['runId']
+    registry = Registry(repo)
+    registry.save_run(duplicate)
+
+    ambiguous = ctl(
+        repo,
+        'current',
+        '--client',
+        'codex',
+        '--session-id',
+        'session-unattested',
+        '--json',
+        check=False,
+    )
+    assert ambiguous.returncode == 4
+    assert json.loads(ambiguous.stdout)['code'] == 'CURRENT_SESSION_AMBIGUOUS'
 
 
 def test_bootstrap_without_hints_is_idempotent_and_adopts_real_checkout_facts(tmp_path):

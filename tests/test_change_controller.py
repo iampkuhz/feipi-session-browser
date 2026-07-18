@@ -214,6 +214,38 @@ def test_same_session_prompt_rolls_next_epoch_but_stop_does_not(checkout):
     )
 
 
+def test_no_change_turn_has_terminal_receipt_and_next_prompt_rolls_clean_epoch(checkout):
+    _primary, _linked, _record, _runtime = checkout
+    gates = FakeGates()
+    ctl = controller(checkout, gates)
+    first_session = ctl.ensure_session(event='prompt', task_key='turn-a')
+    first_change = current_change(first_session)
+
+    first_stop = ctl.on_stop(message='chore: no change', turn_key='turn-a')
+    sealed = current_change(ctl.store.load_session('session-controller'))
+    repeated = ctl.on_stop(message='chore: no change', turn_key='turn-a')
+
+    assert first_stop['code'] == repeated['code'] == 'NO_CHANGES'
+    assert first_stop['state'] == repeated['state'] == 'WORKING'
+    assert sealed['terminalStopReceipt']['code'] == 'NO_CHANGES'
+    assert sealed['terminalStopReceipt']['gateRuns'] == 0
+    assert sealed['terminalStopReceipt']['commitCount'] == 0
+    assert sealed['terminalStopReceipt']['integrationCount'] == 0
+    assert gates.calls == 0
+
+    second_session = ctl.ensure_session(event='prompt', task_key='turn-b')
+    second_change = current_change(second_session)
+
+    assert second_session['sessionId'] == first_session['sessionId']
+    assert second_change['changeEpoch'] == first_change['changeEpoch'] + 1
+    assert second_change['changeId'] != first_change['changeId']
+    assert second_change['terminalStopReceipt'] == {}
+    assert second_change['candidateTree'] == ''
+    assert second_change['currentAttemptId'] == ''
+    assert second_change['commitSha'] == ''
+    assert second_change['integrationStatus'] == 'PENDING'
+
+
 def test_terminal_same_prompt_replay_is_idempotent_but_implicit_mutation_rolls(checkout):
     _primary, linked, _record, _runtime = checkout
     gates = FakeGates()

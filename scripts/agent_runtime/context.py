@@ -45,6 +45,7 @@ class HookContext:
     raw: dict[str, Any] = field(default_factory=dict)
     parse_error: str | None = None
     empty_input: bool = False
+    runtime_record: dict[str, Any] = field(default_factory=dict, repr=False)
 
     def _raw_string(self, *keys: str) -> str:
         for key in keys:

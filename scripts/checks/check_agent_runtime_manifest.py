@@ -5,6 +5,8 @@
 
 from __future__ import annotations
 
+import json
+
 import yaml
 from scripts.agent_runtime.events.adapter import RUNTIME_EVENTS
 from scripts.checks._framework import repository_root
@@ -25,6 +27,63 @@ REQUIRED_TOP_FIELDS = [
     "domain_agents",
     "required_gates",
 ]
+CODEX_EVENTS = frozenset({'SessionStart', 'UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'Stop'})
+CODEX_TOP_FIELDS = frozenset({'hooks'})
+CODEX_GROUP_FIELDS = frozenset({'matcher', 'hooks'})
+CODEX_HANDLER_FIELDS = frozenset({'type', 'command', 'timeout'})
+
+
+def codex_hook_errors(data: object) -> list[str]:
+    """按宿主已支持的最小字段与事件 allowlist 校验 Codex Hook 配置。"""
+
+    if not isinstance(data, dict):
+        return ['Codex Hook 顶层必须为 object']
+    errors: list[str] = []
+    unknown_top = set(data) - CODEX_TOP_FIELDS
+    if unknown_top:
+        errors.append(f'Codex Hook 包含未知顶层字段: {sorted(unknown_top)}')
+    hooks = data.get('hooks')
+    if not isinstance(hooks, dict):
+        return [*errors, 'Codex Hook 缺少 hooks object']
+    unsupported = set(hooks) - CODEX_EVENTS
+    missing = CODEX_EVENTS - set(hooks)
+    if unsupported:
+        errors.append(f'Codex Hook 包含不支持事件: {sorted(unsupported)}')
+    if missing:
+        errors.append(f'Codex Hook 缺少受支持事件: {sorted(missing)}')
+    for event, groups in hooks.items():
+        if not isinstance(groups, list) or len(groups) != 1:
+            errors.append(f'Codex Hook {event} 必须且只能有一个 matcher group')
+            continue
+        group = groups[0]
+        if not isinstance(group, dict):
+            errors.append(f'Codex Hook {event} matcher group 必须为 object')
+            continue
+        unknown_group = set(group) - CODEX_GROUP_FIELDS
+        if unknown_group:
+            errors.append(f'Codex Hook {event} group 包含未知字段: {sorted(unknown_group)}')
+        handlers = group.get('hooks')
+        if not isinstance(handlers, list) or len(handlers) != 1:
+            errors.append(f'Codex Hook {event} 必须且只能有一个 command handler')
+            continue
+        handler = handlers[0]
+        if not isinstance(handler, dict):
+            errors.append(f'Codex Hook {event} handler 必须为 object')
+            continue
+        unknown_handler = set(handler) - CODEX_HANDLER_FIELDS
+        if unknown_handler:
+            errors.append(f'Codex Hook {event} handler 包含未知字段: {sorted(unknown_handler)}')
+        command = handler.get('command')
+        if handler.get('type') != 'command' or not isinstance(command, str):
+            errors.append(f'Codex Hook {event} handler 必须为 command')
+            continue
+        if 'scripts/harness/hook_dispatch.py' not in command:
+            errors.append(f'Codex Hook {event} 未调用共享 dispatcher')
+        marker = '--event '
+        dispatch_event = command.split(marker, 1)[1].split("'", 1)[0] if marker in command else ''
+        if dispatch_event not in RUNTIME_EVENTS:
+            errors.append(f'Codex Hook {event} 包含未知 runtime event: {dispatch_event}')
+    return errors
 
 
 # 输出 FAIL 并返回非 0。
@@ -90,6 +149,14 @@ def main() -> int:
 
     errors: list[str] = []
     warnings: list[str] = []
+
+    codex_path = ROOT / '.codex' / 'hooks.json'
+    try:
+        codex_data = json.loads(codex_path.read_text(encoding='utf-8'))
+    except (OSError, ValueError) as exc:
+        errors.append(f'Codex Hook 配置无法解析: {type(exc).__name__}')
+    else:
+        errors.extend(codex_hook_errors(codex_data))
 
     for field in REQUIRED_TOP_FIELDS:
         key = field

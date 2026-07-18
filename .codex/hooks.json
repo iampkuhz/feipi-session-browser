@@ -1,5 +1,4 @@
 {
-  "schemaNote": "All hooks call the shared dispatcher and enforce local ensure-session/on-stop; real Codex App host lifecycle capability remains UNVERIFIED.",
   "hooks": {
     "SessionStart": [
       {
@@ -12,32 +11,23 @@
         ]
       }
     ],
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event user-prompt-submit'",
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "PreToolUse": [
       {
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event pre-tool-bootstrap'",
-            "timeout": 30
-          }
-        ]
-      },
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event pre-bash'",
-            "timeout": 60
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event pre-write'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event pre-tool'",
             "timeout": 60
           }
         ]
@@ -45,32 +35,10 @@
     ],
     "PostToolUse": [
       {
-        "matcher": "Bash",
         "hooks": [
           {
             "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event post-bash'",
-            "timeout": 60
-          }
-        ]
-      },
-      {
-        "matcher": "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event post-write'",
-            "timeout": 60
-          }
-        ]
-      }
-    ],
-    "PostToolUseFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event tool-failure'",
+            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event post-tool'",
             "timeout": 60
           }
         ]
@@ -83,28 +51,6 @@
             "type": "command",
             "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event stop'",
             "timeout": 1500
-          }
-        ]
-      }
-    ],
-    "StopFailure": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event stop-failure'",
-            "timeout": 120
-          }
-        ]
-      }
-    ],
-    "SessionEnd": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "sh -c 'root=\"$(git rev-parse --show-toplevel)\" && exec python3 \"$root/scripts/harness/hook_dispatch.py\" --client codex --event session-end'",
-            "timeout": 60
           }
         ]
       }

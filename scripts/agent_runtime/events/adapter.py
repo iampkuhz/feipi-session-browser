@@ -21,8 +21,10 @@ RUNTIME_EVENTS = frozenset(
         'config-change',
         'cwd-changed',
         'post-bash',
+        'post-tool',
         'post-write',
         'pre-bash',
+        'pre-tool',
         'pre-tool-bootstrap',
         'pre-write',
         'session-end',
@@ -126,14 +128,14 @@ PLATFORM_ADAPTERS = (
         surface="codex-app",
         client="codex",
         checkout_creator="codex",
-        bootstrap_events=frozenset({"SessionStart", "PreToolUse"}),
+        bootstrap_events=frozenset({"SessionStart", "UserPromptSubmit", "PreToolUse"}),
         aliases=("codex-app", "codex_app", "codex app"),
     ),
     PlatformAdapter(
         surface="codex-cli",
         client="codex",
         checkout_creator="codex",
-        bootstrap_events=frozenset({"SessionStart", "PreToolUse"}),
+        bootstrap_events=frozenset({"SessionStart", "UserPromptSubmit", "PreToolUse"}),
         aliases=("codex-cli", "codex_cli", "codex cli", "codex"),
     ),
     PlatformAdapter(
@@ -191,11 +193,32 @@ _EVENT_ALIASES = {
     "userpromptsubmit": "UserPromptSubmit",
     "cwdchanged": "CwdChanged",
     "pretooluse": "PreToolUse",
+    "pretool": "PreToolUse",
     "pretoolbootstrap": "PreToolUse",
     # 平台配置按工具类型拆分 PreToolUse，adapter 仍统一为同一事件。
     "prebash": "PreToolUse",
     "prewrite": "PreToolUse",
 }
+
+_BASH_TOOL_NAMES = frozenset({'bash', 'shell', 'execcommand', 'command'})
+_WRITE_TOOL_NAMES = frozenset({'write', 'edit', 'multiedit', 'notebookedit', 'applypatch', 'patch'})
+
+
+def normalize_tool_name(value: str) -> str:
+    """把平台工具名压缩为无分隔符 token，供共享策略入口唯一分类。"""
+
+    return re.sub(r'[^a-z0-9]+', '', value.rsplit('.', 1)[-1].lower())
+
+
+def tool_handler_kind(value: str) -> str:
+    """返回 ``bash``、``write`` 或 ``observe``，未知工具不得误判为 mutation。"""
+
+    normalized = normalize_tool_name(value)
+    if normalized in _BASH_TOOL_NAMES:
+        return 'bash'
+    if normalized in _WRITE_TOOL_NAMES:
+        return 'write'
+    return 'observe'
 
 
 # 按优先级将 event label 转为统一事件名。

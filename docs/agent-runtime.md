@@ -18,18 +18,27 @@
 payload 后直接进入 `hook_entry.py`，再由 controller 处理 candidate、Gate、commit 与 integration。
 旧 Completion/Stop 入口和 `sessionctl` 的 completion 命令已下线，不提供静默 alias。
 
+Codex 配置只声明 `SessionStart`、`UserPromptSubmit`、`PreToolUse`、`PostToolUse` 与 `Stop`。
+每个事件只有一个 matcher group：`pre-tool`/`post-tool` 在同一 Runtime 进程中按 tool name 顺序
+复用 Bash 或写入 handler，未知工具只观察 lifecycle/evidence/lease。Claude、Qoder 的 legacy event
+label 继续调用相同 handler，不形成第二条平台链路。
+
 ## Session、Change、Attempt
 
 - Session 绑定 client、repo/common-dir、physical worktree、target branch 与 primary checkout，可顺序
   包含多个 Change。
-- 每个用户任务对应单调递增的 `changeEpoch`。`INTEGRATED` 且 checkout clean 后，下一次 Prompt/
-  PreTool 或显式 `next-change` 会在同一 Session 创建新 Change；`REPAIR_REQUIRED` 继续原 Change。
+- 每个用户 turn 对应单调递增的 `changeEpoch`。`SessionStart` 只建立 run；`UserPromptSubmit` 建立
+  Change，缺失时首个 `PreToolUse` 可幂等 fallback。同 turn 的 Pre/Post Tool 复用当前 Change。
+  `INTEGRATED` 或带 `NO_CHANGES` terminal Stop receipt 且 checkout clean 后，下一 turn 会在同一
+  Session 创建新 Change；`REPAIR_REQUIRED` 继续原 Change。
 - 每个 candidate/environment/plan/command 完整指纹只允许一个 Attempt。PASS、FAIL、BLOCKED、
   timeout 和 crash 都先登记后启动重 Gate child，实际执行次数不会只统计成功结果。
 - Change 状态为 `WORKING → PREPARED → VALIDATING → REPAIR_REQUIRED|VALIDATED → COMMITTED →
   COMMITTED_HANDOFF|INTEGRATED`。`TERMINAL_BLOCKED` 只用于身份、归因、损坏或安全不变量。
 - 状态写入必须同时校验 state、stateVersion、candidateTree 和 attemptId；bounded lock 内先追加
   audit/journal，再原子发布 snapshot。commit/ref 证据只能单调增加。
+- read-only turn 的 Stop 将 `NO_CHANGES` receipt 单调写入当前 Change；重复 Stop 不运行 Gate、不提交、
+  不集成，下一 turn 的新 Change 不继承 candidate、Attempt、receipt、commit 或 integration 证据。
 
 ## Start、归因与 writer
 
@@ -41,6 +50,12 @@ exact manifest 与用户确认，并通过 allowed/forbidden path 校验，才�
 Registry 与 Change store 都位于 ignored、owner-private runtime root。锁等待默认 2 秒，活 owner
 返回 `BUSY_RETRYABLE`，dead owner 回收要验证 PID start identity 与 epoch。subagent 继承父
 run/worktree/lease，不创建第二个 writer。
+
+dispatcher 自身保持标准库可启动，只选择 Python `>=3.12,<3.13` 且 runtime dependency ready 的
+解释器。显式 `SESSION_BROWSER_PYTHON` 不可用时不 fallback；worktree `.venv` 优先于系统 Python。
+未就绪时返回 `BLOCKED_PROJECT_PYTHON_NOT_READY` 与 `uv sync --frozen`，Hook 内不安装依赖。
+最早期 `ENTERED/PYTHON_NOT_READY/DISPATCHED/FAILED` trace 只保存摘要，位于系统临时目录的
+`feipi-agent-runtime/<repo-key>/hook-bootstrap/`，原子、有界且不记录 prompt、命令、token 或环境正文。
 
 ## Candidate、Gate 与 fixture
 
@@ -97,6 +112,16 @@ python3 scripts/harness/change.py --repo-root <checkout> abort --run-id <run-id>
 lease、list/status/doctor/cleanup；`begin-change`、`adopt-current`、`completion-status`、`stop`、
 `finalize`、`handoff` 不再属于其公开命令面。Codex App 的仓库内 fixture 只证明本地 dispatcher
 contract；真实 host Hook capability 在没有主机证据时仍是 `UNVERIFIED`。
+
+当前 Session 的有界只读查询使用：
+
+```bash
+uv run --frozen python scripts/harness/sessionctl.py \
+  --repo-root . current --client codex --session-id "$CODEX_THREAD_ID" --json
+```
+
+它只按 `client + sessionId + checkoutRoot` 返回唯一 run 摘要，不展开历史 `auditEvents`，也不获取
+Registry 写锁、bootstrap、lease 或修改 Change；零匹配、多匹配、未 attested 使用不同错误码和退出码。
 
 Stop/handoff 前唯一 required Gate 入口仍是 `python3 scripts/gates/cli.py --tier required`；正常
 平台 Stop 直接调用 controller，不依赖模型记住该命令。

@@ -67,7 +67,10 @@ def run_stop_payload(agent: str, payload: dict[str, Any]) -> tuple[int, dict[str
         message = _value(payload, 'commit_message', 'commitMessage') or (
             f"chore(agent): complete {_value(payload, 'task_id', 'taskId') or record['runId']}"
         )
-        result = controller.on_stop(message=message)
+        result = controller.on_stop(
+            message=message,
+            turn_key=_value(payload, 'turn_id', 'turnId', 'task_id', 'taskId'),
+        )
         return EXIT_CODES.get(str(result.get('status')), 70), result
     except BaseException as raw:
         error = map_controller_exception(raw)

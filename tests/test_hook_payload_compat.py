@@ -7,6 +7,8 @@ from pathlib import Path
 
 import pytest
 from scripts.agent_runtime import hook_entry as hook_main
+from scripts.agent_runtime.change.controller import LifecycleController
+from scripts.agent_runtime.change.model import current_change
 from scripts.agent_runtime.change.protocol import LifecycleError
 from scripts.agent_runtime.context import read_stdin_json
 from scripts.agent_runtime.events.adapter import UNVERIFIED, build_bootstrap_request
@@ -40,6 +42,19 @@ PLATFORM_BOOTSTRAP_FIXTURES = (
         },
         'codex',
         'PreToolUse',
+    ),
+    (
+        'codex-app-prompt',
+        'codex-app',
+        'user-prompt-submit',
+        {
+            'session_id': 'codex-app-prompt-s',
+            'cwd': '/tmp/codex-app-prompt',
+            'client_surface': 'codex-app',
+            'turn_id': 'turn-a',
+        },
+        'codex',
+        'UserPromptSubmit',
     ),
     (
         'claude-code-cli',
@@ -156,7 +171,10 @@ def test_five_platform_payloads_repeat_bootstrap_on_real_git_checkouts(
     assert request.checkout_creator == client
     worktrees_before = _git(primary, 'worktree', 'list', '--porcelain')
 
-    if checkout_kind == 'primary-checkout':
+    if checkout_kind == 'primary-checkout' and hook_event in {
+        'UserPromptSubmit',
+        'PreToolUse',
+    }:
         with pytest.raises(LifecycleError, match='independent linked worktree') as captured:
             hook_main._bootstrap_hook_session(ctx, wrapper_client=client)
         assert captured.value.code == 'PRIMARY_CHECKOUT_FORBIDDEN'
@@ -175,10 +193,95 @@ def test_five_platform_payloads_repeat_bootstrap_on_real_git_checkouts(
     assert first['checkoutKind'] == checkout_kind
     assert first['checkoutCreator'] == client
     assert first['bootstrap']['firstHookEvent'] == hook_event
+    assert first['changeBegin']['activationEvidence'].endswith(f':{hook_event}')
     assert _git(primary, 'worktree', 'list', '--porcelain') == worktrees_before
     records = Registry(checkout).all_runs()
     assert len(records) == 1
     assert records[0]['runId'] == first['runId']
+
+
+def test_session_start_then_same_turn_prompt_and_pretools_create_one_change(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    _primary, linked = _git_checkout(tmp_path, 'linked-worktree')
+    monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
+    start = read_stdin_json(
+        'session-start',
+        _payload(
+            {
+                'session_id': 'codex-same-turn',
+                'cwd': str(linked),
+                'client_surface': 'codex-app',
+            }
+        ),
+    )
+    started = hook_main._bootstrap_hook_session(start, wrapper_client='codex')
+    assert started is not None
+
+    prompt = read_stdin_json(
+        'user-prompt-submit',
+        _payload(
+            {
+                'session_id': 'codex-same-turn',
+                'cwd': str(linked),
+                'client_surface': 'codex-app',
+                'turn_id': 'turn-a',
+            }
+        ),
+    )
+    hook_main._bootstrap_hook_session(prompt, wrapper_client='codex')
+    for tool_name in ('Read', 'Bash', 'apply_patch'):
+        pretool = read_stdin_json(
+            'pre-tool',
+            _payload(
+                {
+                    'session_id': 'codex-same-turn',
+                    'cwd': str(linked),
+                    'client_surface': 'codex-app',
+                    'turn_id': 'turn-a',
+                    'tool_name': tool_name,
+                }
+            ),
+        )
+        hook_main._bootstrap_hook_session(pretool, wrapper_client='codex')
+
+    lifecycle = LifecycleController(linked, started)
+    session = lifecycle.store.load_session('codex-same-turn')
+
+    assert len(session['changes']) == 1
+    assert current_change(session)['taskKey'] == 'turn-a'
+
+
+def test_pretool_without_prompt_creates_one_fallback_change(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    """缺失 UserPromptSubmit 时，重复 PreToolUse 只建立一个 fallback Change。"""
+
+    _primary, linked = _git_checkout(tmp_path, 'linked-worktree')
+    monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
+    ctx = read_stdin_json(
+        'pre-tool',
+        _payload(
+            {
+                'session_id': 'codex-pretool-fallback',
+                'cwd': str(linked),
+                'client_surface': 'codex-app',
+                'turn_id': 'turn-fallback',
+                'tool_name': 'Read',
+            }
+        ),
+    )
+
+    first = hook_main._bootstrap_hook_session(ctx, wrapper_client='codex')
+    second = hook_main._bootstrap_hook_session(ctx, wrapper_client='codex')
+
+    assert first is not None and second is not None
+    session = LifecycleController(linked, first).store.load_session('codex-pretool-fallback')
+    assert first['runId'] == second['runId']
+    assert len(session['changes']) == 1
+    assert current_change(session)['taskKey'] == 'turn-fallback'
 
 
 def test_wrapper_event_is_authoritative_over_conflicting_payload_event():

@@ -205,6 +205,34 @@ def test_next_change_keeps_session_and_increments_epoch() -> None:
     assert current_change(second)["state"] == "WORKING"
 
 
+def test_no_change_terminal_receipt_allows_next_epoch_without_commit_evidence() -> None:
+    first = _first_change(_session())
+    active = current_change(first)
+    active['terminalStopReceipt'] = {
+        'code': 'NO_CHANGES',
+        'stoppedAt': '2026-07-15T00:00:02Z',
+    }
+    active['stateVersion'] = 2
+    first['changes'][0] = active
+
+    second = roll_next_change(
+        first,
+        change_id='change-2',
+        task_key='turn-b',
+        task_title='只读任务后的下一轮',
+        base_commit='a' * 40,
+        head_observed='a' * 40,
+        target_observed='a' * 40,
+        worktree_clean=True,
+        expected_current_change_id='change-1',
+        expected_current_version=2,
+    )
+
+    assert current_change(second)['changeEpoch'] == 2
+    assert current_change(second)['terminalStopReceipt'] == {}
+    assert current_change(second)['commitSha'] == ''
+
+
 @pytest.mark.parametrize("state", ["REPAIR_REQUIRED", "COMMITTED_HANDOFF"])
 def test_next_change_is_forbidden_for_non_integrated_current_change(state: str) -> None:
     session = _first_change(_session())

@@ -16,7 +16,11 @@ from scripts.agent_runtime.session.lease import (
     mark_read_only_ready,
     release_writer_lease,
 )
-from scripts.agent_runtime.session.lifecycle import bootstrap_session, classify_tool_call
+from scripts.agent_runtime.session.lifecycle import (
+    bootstrap_session,
+    classify_tool_call,
+    resolve_existing_session_run,
+)
 from scripts.agent_runtime.session.registry import Registry
 
 __all__ = [
@@ -32,5 +36,6 @@ __all__ = [
     "mark_read_only_ready",
     "release_writer_lease",
     "resolve_bound_run_record",
+    "resolve_existing_session_run",
     "validate_run_write_authorization",
 ]

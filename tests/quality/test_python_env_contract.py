@@ -1,5 +1,6 @@
 """测试 Python 环境和依赖锁契约."""
 
+import time
 import tomllib
 from pathlib import Path
 
@@ -75,23 +76,58 @@ def test_resolve_python_order_prefers_env_then_venv_then_fallback(
     venv_python.write_text('', encoding='utf-8')
     selected: list[str] = []
 
-    def fake_supports(candidate: str) -> bool:
+    def fake_probe(candidate: str, _repo_root: Path, *, timeout_seconds: float) -> str:
+        assert timeout_seconds > 0
         selected.append(candidate)
-        return str(candidate) == str(venv_python)
+        return 'ready' if str(candidate) == str(venv_python) else 'missing'
 
     monkeypatch.delenv('SESSION_BROWSER_PYTHON', raising=False)
     monkeypatch.delenv('SESSION_BROWSER_VENV_DIR', raising=False)
-    monkeypatch.setattr(python_env, '_supports_python_version', fake_supports)
+    monkeypatch.setattr(python_env, '_probe_python', fake_probe)
 
     assert python_env.resolve_python(tmp_path) == str(venv_python)
     assert selected[0] == str(venv_python)
 
     monkeypatch.setenv('SESSION_BROWSER_PYTHON', '/tmp/project-python')
     monkeypatch.setattr(
-        python_env, '_supports_python_version', lambda candidate: candidate == '/tmp/project-python'
+        python_env,
+        '_probe_python',
+        lambda candidate, _root, *, timeout_seconds: (
+            'ready' if candidate == '/tmp/project-python' and timeout_seconds > 0 else 'missing'
+        ),
     )
 
     assert python_env.resolve_python(tmp_path) == '/tmp/project-python'
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_explicit_python_without_runtime_dependency_fails_without_fallback(
+    monkeypatch: pytest.MonkeyPatch,
+    tmp_path: Path,
+) -> None:
+    monkeypatch.setenv('SESSION_BROWSER_PYTHON', '/tmp/explicit-python')
+    checked: list[str] = []
+
+    def fake_probe(candidate: str, _root: Path, *, timeout_seconds: float) -> str:
+        checked.append(candidate)
+        assert timeout_seconds > 0
+        return 'dependency-not-ready'
+
+    monkeypatch.setattr(python_env, '_probe_python', fake_probe)
+    started = time.monotonic()
+
+    with pytest.raises(python_env.ProjectPythonNotReadyError) as captured:
+        python_env.resolve_python(tmp_path)
+
+    assert time.monotonic() - started < 2
+    assert checked == ['/tmp/explicit-python']
+    assert not isinstance(captured.value, SystemExit)
+    assert captured.value.code == 'BLOCKED_PROJECT_PYTHON_NOT_READY'
+    rendered = captured.value.render()
+    assert 'repoRoot:' in rendered
+    assert 'checkedCandidates:' in rendered
+    assert 'remediation: uv sync --frozen' in rendered
+    assert '/tmp/explicit-python' not in rendered
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')

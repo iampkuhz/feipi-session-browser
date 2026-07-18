@@ -2,14 +2,18 @@
 
 from __future__ import annotations
 
+import copy
+import io
 import json
 import os
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import pytest
 import yaml
+from scripts.agent_runtime import hook_entry as hook_runtime
 from scripts.agent_runtime.context import read_stdin_json
 from scripts.agent_runtime.events.evidence import (
     acquire_bash_mutation_lock,
@@ -29,7 +33,9 @@ from scripts.agent_runtime.events.policy.file import evaluate_write_path
 from scripts.agent_runtime.events.policy.session import handle_session_start
 from scripts.agent_runtime.hook_entry import _bootstrap_hook_session, _controlled_primary_command
 from scripts.agent_runtime.paths import RepoPaths, build_paths, identity_from_values
+from scripts.checks.check_agent_runtime_manifest import codex_hook_errors
 from scripts.gates.planner import classify_path, required_quality_targets
+from scripts.harness import hook_dispatch
 from scripts.harness.hook_dispatch import dispatch
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
@@ -524,6 +530,75 @@ def _commands_for_event(path: Path) -> dict[tuple[str, str], dict]:
     }
 
 
+def test_codex_hook_schema_contract_rejects_unknown_fields_and_events() -> None:
+    config = json.loads((REPO_ROOT / '.codex/hooks.json').read_text(encoding='utf-8'))
+
+    assert codex_hook_errors(config) == []
+    assert set(config) == {'hooks'}
+    assert set(config['hooks']) == {
+        'SessionStart',
+        'UserPromptSubmit',
+        'PreToolUse',
+        'PostToolUse',
+        'Stop',
+    }
+    assert len(config['hooks']['PreToolUse']) == 1
+    assert len(config['hooks']['PostToolUse']) == 1
+
+    unknown_top = copy.deepcopy(config)
+    unknown_top['schemaNote'] = 'invalid'
+    assert any('未知顶层字段' in item for item in codex_hook_errors(unknown_top))
+    for event in ('PostToolUseFailure', 'StopFailure', 'SessionEnd'):
+        unsupported = copy.deepcopy(config)
+        unsupported['hooks'][event] = copy.deepcopy(config['hooks']['Stop'])
+        assert any('不支持事件' in item for item in codex_hook_errors(unsupported))
+    overlapping = copy.deepcopy(config)
+    overlapping['hooks']['PreToolUse'].append(copy.deepcopy(config['hooks']['PreToolUse'][0]))
+    assert any('只能有一个 matcher group' in item for item in codex_hook_errors(overlapping))
+    for groups in config['hooks'].values():
+        command = groups[0]['hooks'][0]['command']
+        assert 'scripts/harness/hook_dispatch.py' in command
+
+
+@pytest.mark.parametrize(
+    ('runtime_event', 'tool_name', 'expected_handler'),
+    (
+        ('pre-tool', 'Bash', 'pre-bash'),
+        ('pre-tool', 'apply_patch', 'pre-write'),
+        ('post-tool', 'Bash', 'post-bash'),
+        ('post-tool', 'Write', 'post-write'),
+    ),
+)
+def test_unified_tool_event_calls_exactly_one_shared_handler(
+    monkeypatch: pytest.MonkeyPatch,
+    runtime_event: str,
+    tool_name: str,
+    expected_handler: str,
+) -> None:
+    calls: list[str] = []
+
+    def fake(label: str):
+        def invoke(_paths, _ctx):
+            calls.append(label)
+            return label
+
+        return invoke
+
+    monkeypatch.setattr(hook_runtime, 'handle_pre_bash', fake('pre-bash'))
+    monkeypatch.setattr(hook_runtime, 'handle_pre_write', fake('pre-write'))
+    monkeypatch.setattr(hook_runtime, 'handle_post_bash', fake('post-bash'))
+    monkeypatch.setattr(hook_runtime, 'handle_post_write', fake('post-write'))
+    ctx = read_stdin_json(runtime_event, json.dumps({'tool_name': tool_name}))
+
+    if runtime_event == 'pre-tool':
+        result = hook_runtime.handle_pre_tool(object(), ctx)
+    else:
+        result = hook_runtime.handle_post_tool(object(), ctx)
+
+    assert result == expected_handler
+    assert calls == [expected_handler]
+
+
 @pytest.mark.parametrize(
     ('client', 'config_path'),
     (
@@ -614,6 +689,193 @@ def test_same_payload_has_same_fail_closed_result_for_all_platforms(tmp_path: Pa
     assert observed == [(2, True)] * 3
 
 
+def test_missing_dependency_python_fails_fast_without_traceback(
+    tmp_path: Path,
+) -> None:
+    wrapper = tmp_path / 'python-without-site'
+    wrapper.write_text(
+        f'#!/bin/sh\nexec "{sys.executable}" -I -S "$@"\n',
+        encoding='utf-8',
+    )
+    wrapper.chmod(0o755)
+    env = os.environ.copy()
+    env['SESSION_BROWSER_PYTHON'] = str(wrapper)
+    env['FEIPI_AGENT_RUNTIME_ROOT'] = str(tmp_path / 'runtime')
+    env['CODEX_THREAD_ID'] = 'private-session-id'
+    started = time.monotonic()
+
+    proc = subprocess.run(
+        [
+            sys.executable,
+            'scripts/harness/hook_dispatch.py',
+            '--client',
+            'codex',
+            '--event',
+            'pre-tool',
+        ],
+        cwd=REPO_ROOT,
+        input='{}',
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    duration = time.monotonic() - started
+
+    assert proc.returncode == 2
+    assert duration < 2
+    assert proc.stderr.splitlines()[0] == 'BLOCKED_PROJECT_PYTHON_NOT_READY'
+    assert 'remediation: uv sync --frozen' in proc.stderr
+    assert 'Traceback' not in proc.stderr
+    trace = json.loads(next((tmp_path / 'runtime/hook-bootstrap').glob('*.json')).read_text())
+    assert [item['phase'] for item in trace['phases']][-2:] == [
+        'ENTERED',
+        'PYTHON_NOT_READY',
+    ]
+    assert 'private-session-id' not in json.dumps(trace)
+
+
+def test_bootstrap_trace_is_atomic_private_and_bounded(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runtime = tmp_path / 'runtime'
+    monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(runtime))
+    monkeypatch.setenv('CODEX_THREAD_ID', 'private-session')
+    monkeypatch.setattr(hook_dispatch, 'TRACE_FILE_LIMIT', 2)
+    common = tmp_path / '.git'
+    for phase in ('ENTERED', 'PYTHON_NOT_READY', 'DISPATCHED', 'FAILED'):
+        hook_dispatch._record_bootstrap_trace(
+            common,
+            client='codex',
+            event='pre-tool',
+            phase=phase,
+            error_type='SyntheticError' if phase in {'PYTHON_NOT_READY', 'FAILED'} else '',
+        )
+    for index in range(10):
+        hook_dispatch._record_bootstrap_trace(
+            common,
+            client='codex',
+            event='pre-tool',
+            phase='ENTERED',
+        )
+    first = next((runtime / 'hook-bootstrap').glob('*.json'))
+    payload = json.loads(first.read_text(encoding='utf-8'))
+
+    assert len(payload['phases']) == hook_dispatch.TRACE_PHASE_LIMIT
+    assert first.stat().st_mode & 0o777 == 0o600
+    assert (runtime / 'hook-bootstrap').stat().st_mode & 0o777 == 0o700
+    assert 'private-session' not in first.read_text(encoding='utf-8')
+    assert list((runtime / 'hook-bootstrap').glob('*.tmp')) == []
+
+    for index in range(3):
+        monkeypatch.setenv('CODEX_THREAD_ID', f'session-{index}')
+        hook_dispatch._record_bootstrap_trace(
+            common,
+            client='codex',
+            event='post-tool',
+            phase='ENTERED',
+        )
+    assert len(list((runtime / 'hook-bootstrap').glob('*.json'))) == 2
+
+
+def test_ready_lightweight_dispatch_completes_within_one_second(
+    tmp_path: Path,
+) -> None:
+    primary = tmp_path / 'dispatcher-primary'
+    _init_repo(primary)
+    _git(primary, 'branch', '-M', 'main_java')
+    linked = tmp_path / 'dispatcher-linked'
+    _git(primary, 'worktree', 'add', '--detach', str(linked), 'HEAD')
+    env = os.environ.copy()
+    for name in ('FEIPI_RUN_ID', 'FEIPI_SESSION_ID', 'FEIPI_WORKTREE_ID'):
+        env.pop(name, None)
+    env['FEIPI_AGENT_RUNTIME_ROOT'] = str(tmp_path / 'runtime')
+    env['CODEX_THREAD_ID'] = 'performance-ready-pretool'
+    payload = json.dumps(
+        {
+            'session_id': 'performance-ready-pretool',
+            'turn_id': 'turn-a',
+            'cwd': str(linked),
+            'client_surface': 'codex-app',
+            'tool_name': 'Read',
+            'tool_input': {},
+        }
+    )
+    command = [
+        sys.executable,
+        'scripts/harness/hook_dispatch.py',
+        '--client',
+        'codex',
+        '--event',
+        'pre-tool',
+    ]
+    cold = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        input=payload,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    started = time.monotonic()
+    warm = subprocess.run(
+        command,
+        cwd=REPO_ROOT,
+        input=payload,
+        text=True,
+        capture_output=True,
+        env=env,
+        check=False,
+    )
+    duration = time.monotonic() - started
+
+    assert cold.returncode == 0, cold.stderr
+    assert warm.returncode == 0, warm.stderr
+    assert duration < 1
+    trace = json.loads(next((tmp_path / 'runtime/hook-bootstrap').glob('*.json')).read_text())
+    assert trace['phases'][-1]['phase'] == 'DISPATCHED'
+
+
+def test_project_python_path_comparison_does_not_collapse_venv_symlink(tmp_path: Path) -> None:
+    linked_python = tmp_path / 'venv-python'
+    linked_python.symlink_to(sys.executable)
+
+    assert hook_dispatch._executable_path(str(linked_python)) == linked_python.absolute()
+    assert hook_dispatch._executable_path(str(linked_python)) != Path(sys.executable).resolve()
+
+
+def test_dispatch_import_failure_is_structured_without_module_traceback(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    runtime = tmp_path / 'runtime'
+    monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(runtime))
+    monkeypatch.setenv('CODEX_THREAD_ID', 'private-failed-session')
+    monkeypatch.setattr(hook_dispatch, 'trusted_checkout', lambda: (REPO_ROOT, tmp_path / '.git'))
+    monkeypatch.setattr(hook_dispatch, 'ensure_project_python', lambda _argv: None)
+    monkeypatch.setattr(hook_dispatch.sys, 'stdin', io.StringIO('{}'))
+
+    def fail_dispatch(*_args, **_kwargs):
+        raise ModuleNotFoundError('sensitive-module-name')
+
+    monkeypatch.setattr(hook_dispatch, 'dispatch', fail_dispatch)
+
+    assert hook_dispatch.main(['--client', 'codex', '--event', 'pre-tool']) == 2
+    captured = capsys.readouterr()
+    assert captured.out == ''
+    assert 'BLOCKED_HOOK_DISPATCH_FAILED' in captured.err
+    assert 'errorType: ModuleNotFoundError' in captured.err
+    assert 'Traceback' not in captured.err
+    assert 'sensitive-module-name' not in captured.err
+    trace = json.loads(next((runtime / 'hook-bootstrap').glob('*.json')).read_text())
+    assert [item['phase'] for item in trace['phases']] == ['ENTERED', 'FAILED']
+    assert 'private-failed-session' not in json.dumps(trace)
+    assert 'sensitive-module-name' not in json.dumps(trace)
+
+
 @pytest.mark.parametrize('client', ('claude', 'codex', 'qoder'))
 def test_stop_dispatch_preserves_payload_output_and_exit_code(
     client: str,
@@ -670,3 +932,4 @@ def test_codex_app_enforces_start_in_detached_managed_worktree(
     assert record['detached'] is True
     assert record['changeBegin']['status'] == 'ATTESTED'
     assert record['changeBegin']['capability'] == 'START_ENFORCED'
+    assert ctx.runtime_record == record

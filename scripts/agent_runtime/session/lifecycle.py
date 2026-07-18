@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
 from scripts.agent_runtime.git_state import run as git
+from scripts.agent_runtime.storage import StorageError, load_json
 from scripts.agent_runtime.storage import utc_now as now_utc
 
 from .common import _append_run_audit, emit_json
@@ -21,8 +22,11 @@ from .contract import (
     CHECKOUT_CREATORS,
     PrimarySessionValidationError,
     capture_primary_head_snapshot,
+    repo_key_from_common_dir,
     resolve_checkout_identity,
     resolve_checkout_root,
+    resolve_git_common_dir,
+    runtime_root_path,
     snapshot_path_states,
     stable_worktree_id,
     validate_checkout_record,
@@ -37,6 +41,37 @@ if TYPE_CHECKING:
     from collections.abc import Mapping
 
 DEFAULT_FORBIDDEN_PATHS = [".env", ".mcp.json", "data", "output", "tmp/agent_logs"]
+
+
+def resolve_existing_session_run(
+    *,
+    client: str,
+    session_id: str,
+    cwd: Path,
+) -> dict[str, Any] | None:
+    """无写锁读取已绑定 run，供高频 Hook 复用；首次或歧义时回退完整 bootstrap。"""
+
+    try:
+        checkout = resolve_checkout_root(cwd)
+        common_dir = resolve_git_common_dir(checkout)
+        repo_key = repo_key_from_common_dir(common_dir)
+        root = runtime_root_path(checkout, repo_key=repo_key)
+        index = load_json(root / 'runs' / 'index.json', {})
+        matches: list[dict[str, Any]] = []
+        for run_id in index.get('runs', []):
+            record = load_json(root / 'runs' / f'{run_id}.json', {})
+            if (
+                record.get('client') == client
+                and record.get('sessionId') == session_id
+                and record.get('repoKey') == repo_key
+                and Path(str(record.get('checkoutRoot') or '')).resolve() == checkout
+                and Path(str(record.get('gitCommonDir') or '')).resolve() == common_dir
+            ):
+                validate_run_record(record)
+                matches.append(record)
+        return matches[0] if len(matches) == 1 else None
+    except (OSError, ValueError, StorageError, PrimarySessionValidationError):
+        return None
 
 
 def classify_tool_call(tool_name: str, tool_input: Mapping[str, Any] | None = None) -> str:
@@ -722,6 +757,135 @@ def cmd_list(args: argparse.Namespace) -> int:
             print(
                 f"{record['runId']}\t{record['client']}\t{record['status']}\t{record['branch']}\t{record['checkoutRoot']}"
             )
+    return 0
+
+
+def _current_error(*, code: str, message: str, exit_code: int) -> int:
+    """输出稳定 current 查询错误；错误码与进程退出码保持一一对应。"""
+
+    emit_json({'status': 'BLOCKED', 'code': code, 'message': message})
+    return exit_code
+
+
+def _current_summary(record: dict[str, Any], registry: Registry) -> dict[str, Any]:
+    """只读取当前 run 与当前 Change，避免展开 Registry 和历史 audit。"""
+
+    from scripts.agent_runtime.change.model import current_change
+    from scripts.agent_runtime.change.store import ChangeStore, ChangeStoreError
+
+    change = None
+    latest_attempt = None
+    try:
+        store = ChangeStore.open_read_only(registry.root / 'change-controller')
+        session = store.load_session(str(record['sessionId']))
+        change = current_change(session)
+        if change is not None:
+            attempts = store.list_attempts(str(record['sessionId']), str(change['changeId']))
+            latest_attempt = attempts[-1] if attempts else None
+    except ChangeStoreError as exc:
+        if 'unknown lifecycle' not in str(exc):
+            raise SessionctlError(f'current lifecycle read failed: {exc}') from exc
+    begin = dict(record.get('changeBegin') or {})
+    return {
+        'status': 'PASS',
+        'runId': record['runId'],
+        'sessionId': record['sessionId'],
+        'checkoutRoot': record['checkoutRoot'],
+        'checkoutKind': record['checkoutKind'],
+        'client': record['client'],
+        'changeId': change.get('changeId') if change else None,
+        'state': change.get('state') if change else None,
+        'change': (
+            {
+                'changeId': change['changeId'],
+                'changeEpoch': change['changeEpoch'],
+                'state': change['state'],
+                'taskKey': change['taskKey'],
+                'createdAt': change['createdAt'],
+            }
+            if change
+            else None
+        ),
+        'changeBegin': {
+            'status': begin.get('status'),
+            'capability': begin.get('capability'),
+            'baseCommit': begin.get('baseCommit'),
+            'startedAt': begin.get('startedAt'),
+            'activationEvidence': begin.get('activationEvidence'),
+        },
+        'stop': (
+            {
+                'attemptId': latest_attempt['attemptId'],
+                'status': latest_attempt['status'],
+                'startedAt': latest_attempt['startedAt'],
+                'finishedAt': latest_attempt['finishedAt'],
+            }
+            if latest_attempt
+            else dict(change.get('terminalStopReceipt') or {})
+            if change and change.get('terminalStopReceipt')
+            else None
+        ),
+        'commit': (
+            {
+                'commitSha': change.get('commitSha') or None,
+                'resultRef': change.get('resultRef') or None,
+            }
+            if change
+            else None
+        ),
+        'integration': (
+            {
+                'status': change.get('integrationStatus'),
+                'primaryOldSha': change.get('primaryOldSha'),
+                'primaryNewSha': change.get('primaryNewSha'),
+            }
+            if change
+            else None
+        ),
+    }
+
+
+def cmd_current(args: argparse.Namespace) -> int:
+    """按 client、Session 与当前 checkout 唯一匹配 run，并只读输出有界摘要。"""
+
+    repo = repo_root_from_arg(args.repo_root)
+    registry = Registry.open_read_only(repo)
+    matches = [
+        record
+        for record in registry.all_runs()
+        if record.get('client') == args.client
+        and record.get('sessionId') == args.session_id
+        and Path(str(record.get('checkoutRoot') or '')).resolve() == repo
+    ]
+    if not matches:
+        return _current_error(
+            code='CURRENT_SESSION_NOT_FOUND',
+            message='no current Session run matches client, sessionId and checkoutRoot',
+            exit_code=3,
+        )
+    if len(matches) != 1:
+        return _current_error(
+            code='CURRENT_SESSION_AMBIGUOUS',
+            message='multiple current Session runs match client, sessionId and checkoutRoot',
+            exit_code=4,
+        )
+    record = matches[0]
+    begin = record.get('changeBegin')
+    if not isinstance(begin, dict) or begin.get('status') != 'ATTESTED':
+        return _current_error(
+            code='CURRENT_SESSION_NOT_ATTESTED',
+            message='current Session run has no attested changeBegin',
+            exit_code=5,
+        )
+    summary = _current_summary(record, registry)
+    if args.json:
+        emit_json(summary)
+    else:
+        print(
+            f"{summary['runId']}\t{summary['sessionId']}\t"
+            f"{summary['changeId'] or '-'}\t{summary['state'] or '-'}\t"
+            f"{summary['checkoutRoot']}"
+        )
     return 0
 
 

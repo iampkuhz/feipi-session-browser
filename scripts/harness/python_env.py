@@ -7,11 +7,14 @@ from __future__ import annotations
 
 import argparse
 import importlib.metadata
+import json
 import os
 import re
 import shutil
 import subprocess
 import sys
+import time
+from dataclasses import dataclass
 
 try:
     import tomllib
@@ -28,6 +31,39 @@ _PYTHON_VERSION_LOCK = '.python-version'
 _UV_LOCK = 'uv.lock'
 _TEST_PACKAGES = {'pytest', 'pytest-xdist'}
 _NORMALIZE_RE = re.compile(r'[-_.]+')
+_IMPORT_NAME_OVERRIDES = {'pyyaml': 'yaml'}
+_PROBE_TIMEOUT_SECONDS = 0.45
+_RESOLVE_BUDGET_SECONDS = 1.5
+
+
+@dataclass(frozen=True, slots=True)
+class PythonCandidateCheck:
+    """仅保留候选来源与状态，诊断输出不得回显环境中的解释器路径。"""
+
+    source: str
+    status: str
+
+
+class ProjectPythonNotReadyError(RuntimeError):
+    """表示没有同时满足版本与 runtime dependency contract 的解释器。"""
+
+    code = 'BLOCKED_PROJECT_PYTHON_NOT_READY'
+
+    def __init__(self, repo_root: Path, checks: list[PythonCandidateCheck]):
+        super().__init__(self.code)
+        self.repo_root = Path(repo_root).resolve()
+        self.checks = tuple(checks)
+
+    def render(self) -> str:
+        checked = [{'source': item.source, 'status': item.status} for item in self.checks]
+        return '\n'.join(
+            (
+                self.code,
+                f'repoRoot: {self.repo_root}',
+                f'checkedCandidates: {json.dumps(checked, separators=(",", ":"))}',
+                'remediation: uv sync --frozen',
+            )
+        )
 
 
 # 规范化name。
@@ -55,28 +91,89 @@ def _is_executable(path: str) -> bool:
 
 
 # 判断解释器版本是否满足项目 Python 约束。
-def _supports_python_version(executable: str) -> bool:
-    """参数：
-        executable: 待探测的 Python executable。
+def _candidate_specs(repo_root: Path) -> list[tuple[str, str]]:
+    """按显式、worktree venv、配置 venv、系统解释器生成去重候选。"""
 
-    返回：
-        满足条件时返回 true，否则返回 false。
-    """
+    explicit = os.environ.get('SESSION_BROWSER_PYTHON', '').strip()
+    if explicit:
+        return [('explicit', explicit)]
+    candidates: list[tuple[str, str]] = [
+        ('worktree-venv', str(repo_root / '.venv' / 'bin' / 'python'))
+    ]
+    configured = os.environ.get('SESSION_BROWSER_VENV_DIR', '').strip()
+    if configured:
+        candidates.append(
+            ('configured-venv', str(Path(configured).expanduser() / 'bin' / 'python'))
+        )
+    candidates.extend((('system-python', 'python'), ('system-python3', 'python3')))
+    result: list[tuple[str, str]] = []
+    seen: set[str] = set()
+    for source, candidate in candidates:
+        resolved = shutil.which(candidate) if os.sep not in candidate else candidate
+        key = str(Path(resolved or candidate).expanduser().resolve())
+        if key in seen:
+            continue
+        seen.add(key)
+        result.append((source, candidate))
+    return result
+
+
+def _runtime_import_names(repo_root: Path) -> tuple[str, ...]:
+    """从 pyproject 读取 runtime dependency，并映射为最小 import 名。"""
+
+    path = repo_root / 'pyproject.toml'
+    if not path.is_file():
+        return ()
+    if tomllib is None:
+        dependencies, _dev = _parse_pyproject_arrays(path)
+    else:
+        project = tomllib.loads(path.read_text(encoding='utf-8')).get('project', {})
+        dependencies = [str(item) for item in project.get('dependencies', [])]
+    names = []
+    for dependency in dependencies:
+        match = re.match(r'[A-Za-z0-9_.-]+', dependency.strip())
+        if not match:
+            continue
+        distribution = normalize_name(match.group(0))
+        names.append(_IMPORT_NAME_OVERRIDES.get(distribution, distribution.replace('-', '_')))
+    return tuple(sorted(set(names)))
+
+
+def _probe_python(
+    executable: str,
+    repo_root: Path,
+    *,
+    timeout_seconds: float,
+) -> str:
+    """用单个短进程同时验证 Python 版本与 runtime import。"""
+
     if not _is_executable(executable):
-        return False
-    code = 'import sys; raise SystemExit(0 if (3, 12) <= sys.version_info[:2] < (3, 13) else 1)'
+        return 'missing'
+    imports = _runtime_import_names(repo_root)
+    code = (
+        'import importlib,sys;'
+        'ok=(3,12)<=sys.version_info[:2]<(3,13);'
+        f'mods={imports!r};'
+        'raise SystemExit(3 if not ok else 0 if all(importlib.import_module(m) for m in mods) else 4)'
+    )
     try:
         result = subprocess.run(
             [executable, '-c', code],
-            cwd=REPO_ROOT,
+            cwd=repo_root,
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            timeout=10,
+            timeout=max(0.05, timeout_seconds),
             check=False,
         )
-    except Exception:
-        return False
-    return result.returncode == 0
+    except subprocess.TimeoutExpired:
+        return 'timeout'
+    except OSError:
+        return 'missing'
+    if result.returncode == 0:
+        return 'ready'
+    if result.returncode == 3:
+        return 'wrong-version'
+    return 'dependency-not-ready'
 
 
 # 维护Python 候选项。
@@ -87,27 +184,7 @@ def python_candidates(repo_root: Path = REPO_ROOT) -> list[str]:
     返回：
         结果列表。
     """
-    candidates: list[str] = []
-    explicit = os.environ.get('SESSION_BROWSER_PYTHON')
-    if explicit:
-        candidates.append(explicit)
-
-    venv_dir = os.environ.get('SESSION_BROWSER_VENV_DIR')
-    if venv_dir:
-        candidates.append(str(Path(venv_dir).expanduser() / 'bin' / 'python'))
-    else:
-        candidates.append(str(repo_root / '.venv' / 'bin' / 'python'))
-
-    candidates.extend(['python', 'python3'])
-
-    result: list[str] = []
-    seen: set[str] = set()
-    for candidate in candidates:
-        if not candidate or candidate in seen:
-            continue
-        seen.add(candidate)
-        result.append(candidate)
-    return result
+    return [candidate for _source, candidate in _candidate_specs(repo_root)]
 
 
 # 解析Python。
@@ -118,15 +195,24 @@ def resolve_python(repo_root: Path = REPO_ROOT) -> str:
     返回：
         resolve python 字符串。
     """
-    explicit = os.environ.get('SESSION_BROWSER_PYTHON')
-    for candidate in python_candidates(repo_root):
-        if _supports_python_version(candidate):
+    started = time.monotonic()
+    checks: list[PythonCandidateCheck] = []
+    for source, candidate in _candidate_specs(repo_root):
+        remaining = _RESOLVE_BUDGET_SECONDS - (time.monotonic() - started)
+        if remaining <= 0:
+            checks.append(PythonCandidateCheck(source, 'timeout'))
+            break
+        status = _probe_python(
+            candidate,
+            repo_root,
+            timeout_seconds=min(_PROBE_TIMEOUT_SECONDS, remaining),
+        )
+        checks.append(PythonCandidateCheck(source, status))
+        if status == 'ready':
             return candidate
-        if explicit and candidate == explicit:
-            raise SystemExit(
-                f'SESSION_BROWSER_PYTHON 不可执行或不满足 Python {PYTHON_REQUIRES}: {explicit}'
-            )
-    raise SystemExit(f'未找到可用 Python 解释器(需要 Python {PYTHON_REQUIRES})。')
+        if source == 'explicit':
+            break
+    raise ProjectPythonNotReadyError(repo_root, checks)
 
 
 # 解析版本tuple。
@@ -352,25 +438,29 @@ def main(argv: list[str] | None = None) -> int:
     installed.add_argument('--profile', choices=['runtime', 'test', 'dev'], default='runtime')
     args = parser.parse_args(argv)
 
-    if args.cmd == 'resolve':
-        print(resolve_python())
-        return 0
-    if args.cmd == 'report':
-        return print_report()
-    problems = check_locks() if args.cmd == 'check-locks' else installed_problems(args.profile)
-    if problems:
-        for problem in problems:
-            print(f'[FAIL] {problem}', file=sys.stderr)
-        return 1
-    print(
-        '[PASS] '
-        + (
-            'Python dependency contract present'
-            if args.cmd == 'check-locks'
-            else f'{args.profile} dependencies installed'
+    try:
+        if args.cmd == 'resolve':
+            print(resolve_python())
+            return 0
+        if args.cmd == 'report':
+            return print_report()
+        problems = check_locks() if args.cmd == 'check-locks' else installed_problems(args.profile)
+        if problems:
+            for problem in problems:
+                print(f'[FAIL] {problem}', file=sys.stderr)
+            return 1
+        print(
+            '[PASS] '
+            + (
+                'Python dependency contract present'
+                if args.cmd == 'check-locks'
+                else f'{args.profile} dependencies installed'
+            )
         )
-    )
-    return 0
+        return 0
+    except ProjectPythonNotReadyError as exc:
+        print(exc.render(), file=sys.stderr)
+        return 2
 
 
 if __name__ == '__main__':

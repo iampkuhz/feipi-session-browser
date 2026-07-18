@@ -47,21 +47,16 @@ platforms:
     config_files:
       - .codex/config.toml
       - .codex/hooks.json
-    hook_binding_note: Repository contract tests prove local Start/PreTool/Stop dispatch; real Codex App host capability remains UNVERIFIED.
+    hook_binding_note: 仓库 contract 验证受支持事件与共享 dispatcher；真实 Codex App host capability 仍为 UNVERIFIED。
     hook_dispatch:
       entry: scripts/harness/hook_dispatch.py
       client: codex
       bindings:
         - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
-        - {event: PreToolUse, matcher: "", dispatch_event: pre-tool-bootstrap, timeout: 30}
-        - {event: PreToolUse, matcher: "Bash", dispatch_event: pre-bash, timeout: 60}
-        - {event: PreToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: pre-write, timeout: 60}
-        - {event: PostToolUse, matcher: "Bash", dispatch_event: post-bash, timeout: 60}
-        - {event: PostToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: post-write, timeout: 60}
-        - {event: PostToolUseFailure, matcher: "", dispatch_event: tool-failure, timeout: 60}
+        - {event: UserPromptSubmit, matcher: "", dispatch_event: user-prompt-submit, timeout: 30}
+        - {event: PreToolUse, matcher: "", dispatch_event: pre-tool, timeout: 60}
+        - {event: PostToolUse, matcher: "", dispatch_event: post-tool, timeout: 60}
         - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
-        - {event: StopFailure, matcher: "", dispatch_event: stop-failure, timeout: 120}
-        - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
     agents_dir: .codex/agents
     skills_dir: .agents/skills
   qoder:
@@ -126,9 +121,9 @@ worktree_isolation:
   registry_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
   enforcement_hooks:
     session_start: shared-idempotent-ensure-session
-    user_prompt_submit: qoder-client-idempotent-bootstrap-fallback
+    user_prompt_submit: codex-and-qoder-client-idempotent-change-start
     cwd_changed: claude-and-qoder-checkout-reconfirmation
-    pre_tool_bootstrap: codex-and-qoder-idempotent-bootstrap-fallback
+    pre_tool_bootstrap: codex-unified-and-qoder-idempotent-bootstrap-fallback
     pre_bash: all-clients-mutating-bash
     pre_write: all-clients-write-like-tools
     stop: all-clients-fail-closed-on-wrong-checkout-with-changes
@@ -147,7 +142,7 @@ change_completion:
   gate_service: scripts.gates.cli.run_service
   gate_report_statuses: [EXECUTED, REUSED, NOT_TRIGGERED, FAILED, BLOCKED]
   completion_states: [WORKING, PREPARED, VALIDATING, REPAIR_REQUIRED, VALIDATED, COMMITTED, COMMITTED_HANDOFF, INTEGRATED, TERMINAL_BLOCKED]
-  persisted_fields: [sessionId, changeId, changeEpoch, attemptId, stateVersion, manifestHash, candidateTree, planFingerprint, commandFingerprint, environmentFingerprint, commitSha, resultRef]
+  persisted_fields: [sessionId, changeId, changeEpoch, attemptId, stateVersion, manifestHash, candidateTree, terminalStopReceipt, planFingerprint, commandFingerprint, environmentFingerprint, commitSha, resultRef]
   target_integration: local-strict-ff-only-no-rewrite
   failure_statuses: [REPAIR_REQUIRED, BUSY_RETRYABLE, CAPABILITY_RETRYABLE, COMMITTED_HANDOFF, TERMINAL_BLOCKED, INTERNAL_ERROR]
   required_gate_count: 1

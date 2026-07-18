@@ -322,8 +322,13 @@ def capture_primary_head_snapshot(repo_root: Path) -> PrimaryHeadSnapshot:
 
 def resolve_repo_key(repo_root: Path) -> str:
     """根据规范化 Git common-dir 生成稳定仓库键，隔离不同仓库的运行时状态。"""
-    common_dir = resolve_git_common_dir(repo_root)
-    return hashlib.sha256(str(common_dir).encode('utf-8')).hexdigest()
+    return repo_key_from_common_dir(resolve_git_common_dir(repo_root))
+
+
+def repo_key_from_common_dir(common_dir: Path) -> str:
+    """对已验证的 Git common-dir 计算 repo key，不重复启动 Git 子进程。"""
+
+    return hashlib.sha256(str(Path(common_dir).resolve()).encode('utf-8')).hexdigest()
 
 
 def stable_worktree_id(repo_key: str, checkout_root: str | Path) -> str:
@@ -410,15 +415,25 @@ def validate_checkout_record(
     return (facts, errors)
 
 
-def resolve_runtime_root(repo_root: Path) -> Path:
-    """按环境覆盖或系统临时目录解析仓库隔离的属主私有 Runtime 根。"""
+def runtime_root_path(repo_root: Path, *, repo_key: str = '') -> Path:
+    """只计算仓库隔离 Runtime 路径，不创建目录，供只读查询使用。"""
+
     override = os.environ.get('FEIPI_AGENT_RUNTIME_ROOT', '').strip()
     if override:
-        return ensure_private_directory(Path(override))
+        return Path(override).expanduser().resolve()
     configured_temp = os.environ.get('TMPDIR', '').strip()
     temp_root = Path(configured_temp or tempfile.gettempdir()).expanduser().resolve(strict=True)
-    runtime_base = ensure_private_directory(temp_root / RUNTIME_DIR_NAME)
-    return ensure_private_directory(runtime_base / resolve_repo_key(repo_root), root=runtime_base)
+    return temp_root / RUNTIME_DIR_NAME / (repo_key or resolve_repo_key(repo_root))
+
+
+def resolve_runtime_root(repo_root: Path) -> Path:
+    """按环境覆盖或系统临时目录解析并创建属主私有 Runtime 根。"""
+
+    root = runtime_root_path(repo_root)
+    if os.environ.get('FEIPI_AGENT_RUNTIME_ROOT', '').strip():
+        return ensure_private_directory(root)
+    runtime_base = ensure_private_directory(root.parent)
+    return ensure_private_directory(root, root=runtime_base)
 
 
 def load_yaml(path: Path) -> dict[str, Any]:

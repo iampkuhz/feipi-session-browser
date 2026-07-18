@@ -169,6 +169,21 @@ class ChangeStore:
         self.locks_dir = ensure_private_directory(self.root / "locks", root=self.root)
         self.lock_timeout_seconds = float(lock_timeout_seconds)
 
+    @classmethod
+    def open_read_only(cls, root: Path) -> ChangeStore:
+        """绑定既有 store 目录但不创建目录或锁，供有界诊断查询使用。"""
+
+        resolved = Path(root).resolve()
+        sessions = resolved / 'sessions'
+        if not resolved.is_dir() or not sessions.is_dir():
+            raise ChangeStoreError(f'unknown lifecycle store: {resolved}')
+        instance = cls.__new__(cls)
+        instance.root = resolved
+        instance.sessions_dir = sessions
+        instance.locks_dir = resolved / 'locks'
+        instance.lock_timeout_seconds = 0.0
+        return instance
+
     def _session_dir(self, session_id: str) -> Path:
         return self.sessions_dir / _identifier(session_id, "sessionId")
 

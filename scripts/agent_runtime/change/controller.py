@@ -481,7 +481,12 @@ class LifecycleController:
         if active is not None and active['state'] == 'INTEGRATED' and clean:
             self._assert_terminal_target(active)
         terminal_roll = False
-        if active is not None and active['state'] == 'INTEGRATED':
+        no_change_terminal = bool(
+            active is not None
+            and active['state'] == 'WORKING'
+            and dict(active.get('terminalStopReceipt') or {}).get('code') == 'NO_CHANGES'
+        )
+        if active is not None and (active['state'] == 'INTEGRATED' or no_change_terminal):
             if not clean or event in {'mutation', 'next-change'}:
                 terminal_roll = True
             elif event == 'prompt':
@@ -499,7 +504,11 @@ class LifecycleController:
                     'BLOCKED_UNATTRIBUTED_CHANGES',
                     'dirty candidate cannot be attributed to the attested baseline and scope',
                 )
-            if active is not None and active['state'] == 'INTEGRATED' and not clean:
+            if (
+                active is not None
+                and (active['state'] == 'INTEGRATED' or no_change_terminal)
+                and not clean
+            ):
                 try:
                     manifest = collect_manifest(self.repo)
                     if not manifest.paths:
@@ -527,7 +536,11 @@ class LifecycleController:
                 worktree_clean=clean,
                 allow_dirty_roll=bool(
                     initial_dirty_recovery
-                    or (active and active['state'] == 'INTEGRATED' and not clean)
+                    or (
+                        active
+                        and (active['state'] == 'INTEGRATED' or no_change_terminal)
+                        and not clean
+                    )
                 ),
                 expected_current_change_id=str(active['changeId']) if active else '',
                 expected_current_version=int(active['stateVersion']) if active else 0,
@@ -1391,12 +1404,13 @@ class LifecycleController:
         self,
         *,
         message: str,
+        turn_key: str = '',
         expect_manifest_hash: str = '',
         expect_candidate_tree: str = '',
     ) -> dict[str, Any]:
         """有任务改动时强制 prepare→Gate→commit→ff-only integration。"""
         started = time.monotonic()
-        session = self.ensure_session(event='stop')
+        session = self.ensure_session(event='stop', task_key=turn_key)
         change = current_change(session)
         assert change is not None
         if change['state'] == 'INTEGRATED' and self._worktree_clean():
@@ -1405,6 +1419,17 @@ class LifecycleController:
                 status=PASS,
                 code='CHANGE_INTEGRATED',
                 next_action='START_NEXT_CHANGE',
+                idempotent=True,
+            )
+        if (
+            dict(change.get('terminalStopReceipt') or {}).get('code') == 'NO_CHANGES'
+            and self._worktree_clean()
+        ):
+            return self._payload(
+                session,
+                status=PASS,
+                code='NO_CHANGES',
+                next_action='WAIT_FOR_NEXT_PROMPT',
                 idempotent=True,
             )
         if change['state'] in {'COMMITTED', 'COMMITTED_HANDOFF'}:
@@ -1416,11 +1441,26 @@ class LifecycleController:
             session = self._integrate(session)
             return self._completion_payload(session, started)
         if self._worktree_clean():
+            receipt = {
+                'code': 'NO_CHANGES',
+                'turnKey': turn_key or str(change.get('taskKey') or ''),
+                'stoppedAt': utc_now(),
+                'gateRuns': 0,
+                'commitCount': 0,
+                'integrationCount': 0,
+            }
+            session = self.store.transition(
+                self.session_id,
+                str(change['changeId']),
+                target_state='WORKING',
+                expected=_cas(change),
+                updates={'terminalStopReceipt': receipt},
+            )
             return self._payload(
                 session,
                 status=PASS,
                 code='NO_CHANGES',
-                next_action='WAIT_FOR_CHANGES',
+                next_action='WAIT_FOR_NEXT_PROMPT',
                 idempotent=True,
             )
         self._cheap_preflight()
@@ -1532,7 +1572,11 @@ class LifecycleController:
         """显式创建下一 Change；非 INTEGRATED 状态一律关闭失败。"""
         existing = self.ensure_session(event='status')
         active = current_change(existing)
-        if active is not None and active['state'] != 'INTEGRATED':
+        no_change_terminal = bool(
+            active is not None
+            and dict(active.get('terminalStopReceipt') or {}).get('code') == 'NO_CHANGES'
+        )
+        if active is not None and active['state'] != 'INTEGRATED' and not no_change_terminal:
             raise LifecycleError(
                 TERMINAL_BLOCKED,
                 'NEXT_CHANGE_FORBIDDEN',

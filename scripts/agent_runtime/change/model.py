@@ -202,6 +202,7 @@ def new_change(
         "currentAttemptId": "",
         "attemptSequence": 0,
         "pendingCommitIntent": {},
+        "terminalStopReceipt": {},
         "commitSha": "",
         "resultRef": "",
         "integrationStatus": "PENDING",
@@ -375,10 +376,14 @@ def transition_change(
     old_ref = str(result.get("resultRef") or "")
     requested_commit = str(values.get("commitSha", old_commit) or "")
     requested_ref = str(values.get("resultRef", old_ref) or "")
+    old_stop_receipt = dict(result.get('terminalStopReceipt') or {})
+    requested_stop_receipt = dict(values.get('terminalStopReceipt') or old_stop_receipt)
     if old_commit and requested_commit != old_commit:
         raise CommitEvidenceError("persisted commitSha cannot be cleared or replaced")
     if old_ref and requested_ref != old_ref:
         raise CommitEvidenceError("persisted resultRef cannot be cleared or replaced")
+    if old_stop_receipt and requested_stop_receipt != old_stop_receipt:
+        raise LifecycleModelError('terminalStopReceipt cannot be cleared or replaced')
     result.update(values)
     result["state"] = target_state
 
@@ -471,7 +476,11 @@ def roll_next_change(
             or active["stateVersion"] != expected_current_version
         ):
             raise CompareAndSetError("next Change compare-and-set is stale")
-        if active["state"] != "INTEGRATED":
+        no_change_terminal = (
+            active['state'] == 'WORKING'
+            and dict(active.get('terminalStopReceipt') or {}).get('code') == 'NO_CHANGES'
+        )
+        if active["state"] != "INTEGRATED" and not no_change_terminal:
             raise InvalidTransitionError(f"cannot create next Change from state {active['state']}")
 
     if any(item["changeId"] == change_id for item in result["changes"]):
@@ -533,6 +542,14 @@ def validate_change(change: Mapping[str, Any]) -> None:
         raise LifecycleModelError(f"invalid integrationStatus: {integration!r}")
     if not isinstance(change.get("pendingCommitIntent"), Mapping):
         raise LifecycleModelError("Change.pendingCommitIntent must be a mapping")
+    stop_receipt = change.get('terminalStopReceipt', {})
+    if not isinstance(stop_receipt, Mapping):
+        raise LifecycleModelError('Change.terminalStopReceipt must be a mapping')
+    if stop_receipt:
+        if change.get('state') != 'WORKING' or stop_receipt.get('code') != 'NO_CHANGES':
+            raise LifecycleModelError('terminalStopReceipt requires WORKING NO_CHANGES')
+        if not stop_receipt.get('stoppedAt'):
+            raise LifecycleModelError('terminalStopReceipt requires stoppedAt')
     if state in {"COMMITTED", "COMMITTED_HANDOFF", "INTEGRATED"} and not change.get("commitSha"):
         raise LifecycleModelError(f"{state} Change must retain commitSha")
 

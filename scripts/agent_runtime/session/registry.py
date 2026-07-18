@@ -23,6 +23,7 @@ from .contract import (
     resolve_primary_repo_root,
     resolve_repo_key,
     resolve_runtime_root,
+    runtime_root_path,
     validate_run_record,
 )
 from .errors import SessionctlError
@@ -63,6 +64,26 @@ class Registry:
         self.lock_path = self.locks_dir / 'registry.lock'
         self._lock_descriptor: int | None = None
         self._lock_metadata: dict[str, Any] = {}
+
+    @classmethod
+    def open_read_only(cls, repo_root: Path) -> Registry:
+        """绑定既有 Registry 路径但不创建目录或写 lock metadata。"""
+
+        instance = cls.__new__(cls)
+        instance.repo_root = resolve_checkout_root(repo_root)
+        instance.primary_repo_root = resolve_primary_repo_root(instance.repo_root)
+        instance.repo_key = resolve_repo_key(instance.repo_root)
+        instance.root = runtime_root_path(instance.repo_root)
+        instance.runs_dir = instance.root / 'runs'
+        instance.locks_dir = instance.root / 'locks'
+        instance.writer_leases_dir = instance.root / 'writer-leases'
+        instance.mutation_locks_dir = instance.locks_dir / 'checkout-mutations'
+        instance.audit_dir = instance.root / 'audit'
+        instance.index_path = instance.runs_dir / 'index.json'
+        instance.lock_path = instance.locks_dir / 'registry.lock'
+        instance._lock_descriptor = None
+        instance._lock_metadata = {}
+        return instance
 
     def writer_lease_path(self, worktree_id: str) -> Path:
         """校验 worktree 标识符后返回权威 writer lease 路径，阻止路径注入。"""

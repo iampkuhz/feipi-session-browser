@@ -23,7 +23,11 @@ from scripts.agent_runtime.change.entry import run_stop_payload
 from scripts.agent_runtime.change.protocol import encode_compact
 from scripts.agent_runtime.context import HookContext, read_stdin_json
 from scripts.agent_runtime.events import evidence as changed_file_utils
-from scripts.agent_runtime.events.adapter import HookAdapterError, build_bootstrap_request
+from scripts.agent_runtime.events.adapter import (
+    HookAdapterError,
+    build_bootstrap_request,
+    tool_handler_kind,
+)
 from scripts.agent_runtime.events.evidence import (
     acquire_bash_mutation_lock,
     post_bash_isolation_failure,
@@ -46,8 +50,13 @@ from scripts.agent_runtime.events.policy.file import (
     pre_write_payload_block_reason,
 )
 from scripts.agent_runtime.events.policy.session import handle_session_start
-from scripts.agent_runtime.identity import identity_from_hook_context
-from scripts.agent_runtime.paths import RepoPaths, build_paths, ensure_runtime_dirs
+from scripts.agent_runtime.identity import identity_from_hook_context, identity_from_values
+from scripts.agent_runtime.paths import (
+    RepoPaths,
+    agent_log_dir,
+    build_paths,
+    ensure_runtime_dirs,
+)
 from scripts.agent_runtime.policy import is_protected_path
 from scripts.agent_runtime.registry import (
     ACTIVE_WRITER_STATUSES,
@@ -62,6 +71,7 @@ from scripts.agent_runtime.registry import (
     mark_read_only_ready,
     release_writer_lease,
     resolve_bound_run_record,
+    resolve_existing_session_run,
     validate_run_write_authorization,
 )
 from scripts.gates.planner import classify_path
@@ -99,7 +109,9 @@ def _context_repo_hint(ctx: HookContext) -> str:
     返回：
         可用于 git root detection 的路径提示。
     """
-    if ctx.event_name == 'pre-bash':
+    if ctx.event_name == 'pre-bash' or (
+        ctx.event_name == 'pre-tool' and tool_handler_kind(ctx.tool_name) == 'bash'
+    ):
         cd_path = _leading_cd_path(ctx.command)
         if cd_path:
             return cd_path
@@ -122,15 +134,17 @@ def _paths_for_context(paths: RepoPaths, ctx: HookContext) -> RepoPaths:
         使用实际 cwd 或绝对目标路径解析后的 repository paths。
     """
     if paths.identity.has_run:
-        try:
-            record = resolve_bound_run_record(
-                paths.repo_root,
-                paths.identity.client,
-                paths.identity.raw_session_id,
-                paths.identity.raw_run_id,
-            )
-        except Exception:
-            record = None
+        record = dict(ctx.runtime_record or {})
+        if not record:
+            try:
+                record = resolve_bound_run_record(
+                    paths.repo_root,
+                    paths.identity.client,
+                    paths.identity.raw_session_id,
+                    paths.identity.raw_run_id,
+                )
+            except Exception:
+                record = None
         if record and record.get('checkoutRoot'):
             hint = _context_repo_hint(ctx)
             if hint:
@@ -161,32 +175,46 @@ def _bootstrap_hook_session(
     request = build_bootstrap_request(ctx, wrapper_client=wrapper_client)
     if request is None:
         return None
-    record = bootstrap_session(
-        client=request.client,
-        session_id=request.session_id,
-        cwd=Path(request.cwd),
-        hook_event=request.hook_event,
-        checkout_creator=request.checkout_creator,
-        payload_hints=request.payload_hints,
-        env_hints=os.environ,
-        parent_run_id=request.parent_run_id,
+    identity_hint_present = any(
+        request.payload_hints.get(name) for name in ('run_id', 'runId', 'worktree_id', 'worktreeId')
+    ) or any(
+        os.environ.get(name)
+        for name in ('FEIPI_RUN_ID', 'FEIPI_WORKTREE_ID', 'FEIPI_SESSION_ID', 'FEIPI_CLIENT')
     )
-    if not request.parent_run_id:
+    record = None
+    if not request.parent_run_id and not identity_hint_present:
+        record = resolve_existing_session_run(
+            client=request.client,
+            session_id=request.session_id,
+            cwd=Path(request.cwd),
+        )
+    if record is None:
+        record = bootstrap_session(
+            client=request.client,
+            session_id=request.session_id,
+            cwd=Path(request.cwd),
+            hook_event=request.hook_event,
+            checkout_creator=request.checkout_creator,
+            payload_hints=request.payload_hints,
+            env_hints=os.environ,
+            parent_run_id=request.parent_run_id,
+        )
+    if not request.parent_run_id and not isinstance(record.get('changeBegin'), dict):
         # Hook/PreTool 真实到达本地进程即构成强制 Start 证据；不再把 Codex App
         # 降级成只能依赖 LLM 记忆的 START_NOT_ENFORCED。
         record = attest_run_start(
             Path(request.cwd),
             str(record['runId']),
-            activation_source=f'hook:{request.adapter.surface}:SessionStart',
+            activation_source=f'hook:{request.adapter.surface}:{request.hook_event}',
             capability=START_ENFORCED,
         )
-    if not request.parent_run_id:
-        event = 'prompt' if request.hook_event in {'UserPromptSubmit', 'PreToolUse'} else 'start'
+    if not request.parent_run_id and request.hook_event in {'UserPromptSubmit', 'PreToolUse'}:
         LifecycleController(Path(request.cwd), record).ensure_session(
-            event=event,
+            event='prompt',
             task_key=ctx.turn_id or ctx.task_id,
             task_title=ctx.task_id or ctx.turn_id,
         )
+    ctx.runtime_record = dict(record)
     return record
 
 
@@ -200,6 +228,8 @@ def _bound_record(paths: RepoPaths, ctx: HookContext) -> dict | None:
         已绑定的 run record；未绑定时返回 None。
     """
 
+    if ctx.runtime_record:
+        return dict(ctx.runtime_record)
     return resolve_bound_run_record(
         paths.repo_root,
         paths.identity.client,
@@ -262,10 +292,11 @@ def _observe_writer_lease(
     if not record:
         return None
     try:
-        registry = Registry(paths.repo_root)
         if record.get('status') in ACTIVE_WRITER_STATUSES:
+            registry = Registry(paths.repo_root)
             heartbeat_writer_lease(registry, record)
         elif record.get('status') == 'BOOTSTRAPPED':
+            registry = Registry(paths.repo_root)
             mark_read_only_ready(registry, record)
     except (SessionctlError, OSError, ValueError) as exc:
         if fail_closed:
@@ -648,6 +679,30 @@ def handle_post_bash(paths: RepoPaths, ctx: HookContext) -> HookResult:
     return HookResult(status='PASS', details={'changedFileCount': len(records)})
 
 
+def handle_pre_tool(paths: RepoPaths, ctx: HookContext) -> HookResult:
+    """按统一工具分类顺序复用既有 PreToolUse handler。"""
+
+    kind = tool_handler_kind(ctx.tool_name)
+    if kind == 'bash':
+        return handle_pre_bash(paths, ctx)
+    if kind == 'write':
+        return handle_pre_write(paths, ctx)
+    return handle_default(paths, ctx, 'pre-tool')
+
+
+def handle_post_tool(paths: RepoPaths, ctx: HookContext) -> HookResult:
+    """按统一工具分类顺序复用既有 PostToolUse handler。"""
+
+    kind = tool_handler_kind(ctx.tool_name)
+    if kind == 'bash':
+        return handle_post_bash(paths, ctx)
+    if kind == 'write':
+        return handle_post_write(paths, ctx)
+    paths = _paths_for_context(paths, ctx)
+    observed = _observe_writer_lease(paths, ctx, fail_closed=False)
+    return observed if observed is not None else handle_default(paths, ctx, 'post-tool')
+
+
 # 分发默认 hook 事件。
 def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult:
     """分发默认 hook 事件。"""
@@ -711,6 +766,7 @@ def handle_default(paths: RepoPaths, ctx: HookContext, label: str) -> HookResult
         'subagent-start',
         'user-prompt-submit',
         'cwd-changed',
+        'pre-tool',
         'pre-tool-bootstrap',
     }:
         if label in {'session-start', 'subagent-start'}:
@@ -774,7 +830,7 @@ def main(argv: list[str] | None = None) -> int:
         print(encode_compact(result))
         return exit_code
     try:
-        _bootstrap_hook_session(ctx, wrapper_client=wrapper_client)
+        bootstrapped_record = _bootstrap_hook_session(ctx, wrapper_client=wrapper_client)
     except (HookAdapterError, SessionctlError, OSError, ValueError) as exc:
         return emit(
             HookResult(
@@ -783,18 +839,44 @@ def main(argv: list[str] | None = None) -> int:
                 message=f'hook Session bootstrap BLOCK: {exc}',
             )
         )
-    identity = identity_from_hook_context(ctx, agent_client=wrapper_client or None)
-    paths = build_paths(repo_root=ctx.cwd or None, identity=identity)
+    if bootstrapped_record:
+        identity = identity_from_values(
+            agent_client=wrapper_client or str(bootstrapped_record.get('client') or ''),
+            session_id=ctx.session_id or str(bootstrapped_record.get('sessionId') or ''),
+            agent_id=ctx.agent_id,
+            run_id=str(bootstrapped_record.get('runId') or ''),
+            task_id=ctx.task_id or str(bootstrapped_record.get('taskId') or ''),
+            worktree_id=str(bootstrapped_record.get('worktreeId') or ''),
+            turn_id=ctx.turn_id,
+            stop_hook_active=ctx.stop_hook_active,
+            change_id=str(bootstrapped_record.get('changeId') or ''),
+            branch=str(bootstrapped_record.get('branch') or ''),
+            base_commit=str(bootstrapped_record.get('baseCommit') or ''),
+            checkout_root=str(bootstrapped_record.get('checkoutRoot') or ''),
+        )
+        repo_root = Path(str(bootstrapped_record['checkoutRoot'])).resolve()
+        paths = RepoPaths(
+            repo_root=repo_root,
+            agent_log_dir=agent_log_dir(repo_root, identity),
+            identity=identity,
+        )
+    else:
+        identity = identity_from_hook_context(ctx, agent_client=wrapper_client or None)
+        paths = build_paths(repo_root=ctx.cwd or None, identity=identity)
     ensure_runtime_dirs(paths)
 
     if event_name == 'pre-bash':
         return emit(handle_pre_bash(paths, ctx))
+    if event_name == 'pre-tool':
+        return emit(handle_pre_tool(paths, ctx))
     if event_name == 'pre-write':
         return emit(handle_pre_write(paths, ctx))
     if event_name == 'post-write':
         return emit(handle_post_write(paths, ctx))
     if event_name == 'post-bash':
         return emit(handle_post_bash(paths, ctx))
+    if event_name == 'post-tool':
+        return emit(handle_post_tool(paths, ctx))
 
     return emit(handle_default(paths, ctx, event_name))
 
