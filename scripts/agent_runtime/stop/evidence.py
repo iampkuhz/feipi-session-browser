@@ -322,7 +322,7 @@ LOCAL_ONLY_PATHS = [
     '.env',
     'data',
     'output',
-    '.venv',
+    '.local',
     '.pytest_cache',
 ]
 

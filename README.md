@@ -70,7 +70,7 @@ http://127.0.0.1:8848
 | `SESSION_BROWSER_LOCAL_PORT` | `8848` | 本地服务端口 |
 | `SESSION_BROWSER_LOCAL_DATA_DIR` | `~/.local/share/feipi/session-browser/local-test-index` | 本地索引目录 |
 | `SESSION_BROWSER_LOG_LEVEL` | `WARN` | 日志级别 |
-| `SESSION_BROWSER_VENV_DIR` | `./.venv` | 本地虚拟环境目录（仅用于 `deps --dev` 和 Python 开发工具） |
+| `SESSION_BROWSER_VENV_DIR` | `./.local/python/venv` | 本地虚拟环境目录（仅用于 `deps --dev` 和 Python 开发工具） |
 
 完整示例见 [`config/env/session-browser.env.example`](config/env/session-browser.env.example)。
 

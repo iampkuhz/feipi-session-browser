@@ -491,7 +491,7 @@ def main() -> int:
     parser.add_argument(
         'paths',
         nargs='*',
-        default=['java', 'build-logic', 'build.gradle.kts', 'settings.gradle.kts'],
+        default=['java', 'gradle/build-logic', 'build.gradle.kts', 'settings.gradle.kts'],
     )
     parser.add_argument('--jobs', default='auto')
     parser.add_argument('--policy', default=str(REPO_ROOT / 'config' / 'technical-terms.json'))

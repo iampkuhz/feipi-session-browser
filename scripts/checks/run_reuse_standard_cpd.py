@@ -21,8 +21,12 @@ from scripts.agent_runtime.events import evidence as changed_file_utils  # noqa:
 
 DEFAULT_MODE = 'incremental'
 VALID_MODES = {'incremental', 'full'}
-SUMMARY_RELATIVE_PATH = Path('build/reports/reuse-analysis/standard-cpd-summary.json')
-FILE_LIST_RELATIVE_PATH = Path('build/tmp/reuse-standard-cpd/reuse-cpd-file-list.txt')
+SUMMARY_RELATIVE_PATH = Path(
+    '.local/gradle/root-build/reports/reuse-analysis/standard-cpd-summary.json'
+)
+FILE_LIST_RELATIVE_PATH = Path(
+    '.local/gradle/root-build/tmp/reuse-standard-cpd/reuse-cpd-file-list.txt'
+)
 
 
 class CpdInputBlocked(RuntimeError):  # noqa: N818

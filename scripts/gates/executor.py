@@ -41,9 +41,9 @@ from scripts.gates.report import (
     PASS,
     GateDetail,
 )
-from scripts.harness.python_env import resolve_python
+from scripts.harness.python_env import project_venv_dir, resolve_python
 
-PLAYWRIGHT_COMMAND_MIN_PARTS = 3
+PLAYWRIGHT_COMMAND_MIN_PARTS = 5
 PLAYWRIGHT_MIN_WORKERS = 8
 PLAYWRIGHT_TIMEOUT_SECONDS = 120
 DEFAULT_TIMEOUT_SECONDS = 300
@@ -127,11 +127,7 @@ def _python_candidates(repo_root: Path) -> list[str]:
     if explicit:
         candidates.append(explicit)
 
-    venv_dir = os.environ.get('SESSION_BROWSER_VENV_DIR')
-    if venv_dir:
-        candidates.append(str(Path(venv_dir) / 'bin' / 'python'))
-    else:
-        candidates.append(str(repo_root / '.venv' / 'bin' / 'python'))
+    candidates.append(str(project_venv_dir(repo_root) / 'bin' / 'python'))
 
     for name in ('python', 'python3'):
         resolved = shutil.which(name)
@@ -292,12 +288,12 @@ def _is_playwright_command(cmd: list[str]) -> bool:
         cmd: gate 命令矩阵中的 subprocess 命令列表。
 
     返回：
-        命令以 ``npx playwright test`` 开头时返回 true。
+        命令以 ``npm --prefix tests/playwright test --`` 开头时返回 true。
     """
     return (
         len(cmd) >= PLAYWRIGHT_COMMAND_MIN_PARTS
-        and Path(cmd[0]).name == 'npx'
-        and cmd[1:3] == ['playwright', 'test']
+        and Path(cmd[0]).name == 'npm'
+        and cmd[1:5] == ['--prefix', 'tests/playwright', 'test', '--']
     )
 
 
@@ -510,7 +506,7 @@ def run_cmd(
         )
 
     default_timeout = timeout_seconds or DEFAULT_TIMEOUT_SECONDS
-    timeout = PLAYWRIGHT_TIMEOUT_SECONDS if cmd[:2] == ['npx', 'playwright'] else default_timeout
+    timeout = PLAYWRIGHT_TIMEOUT_SECONDS if _is_playwright_command(cmd) else default_timeout
 
     # Gate、Gradle、fixture 和测试统一使用净化环境，provider 私有目录不得注入应用。
     run_env = gate_child_environment(cwd, env_overrides)

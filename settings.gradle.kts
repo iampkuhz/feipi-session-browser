@@ -9,7 +9,7 @@ pluginManagement {
 
 rootProject.name = "feipi-session-browser"
 
-includeBuild("build-logic")
+includeBuild("gradle/build-logic")
 
 include(
     "java:common",

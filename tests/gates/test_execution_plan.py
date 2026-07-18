@@ -130,7 +130,11 @@ def test_scan_smoke_prerequisite_precedes_consumer_without_resource_cycle() -> N
 
 
 def test_browser_group_reuses_explicit_fixture_server(monkeypatch) -> None:
-    monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: ['npx', 'playwright', 'test'])
+    monkeypatch.setattr(
+        executor,
+        'command_for_gate',
+        lambda *_args: ['npm', '--prefix', 'tests/playwright', 'test', '--'],
+    )
     execution = executor.build_execution_plan(
         cli._with_preflight(  # noqa: SLF001
             plan(['java/web/src/main/resources/templates/session-detail.html'])

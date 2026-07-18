@@ -39,7 +39,7 @@ Claude Code, Codex, and Qoder stop hooks SHALL delegate to a shared harness runn
 
 Quality gates SHALL run with a project dependency-capable Python interpreter instead of assuming PATH `python3` has the required runtime and dev dependencies.
 
-The local harness SHALL use the same Python selection order for `deps`, `test`, doctor, and required quality gates: `SESSION_BROWSER_PYTHON` when executable, then the repository `.venv` interpreter, then the repository-approved fallback Python. Dependency declaration files and the checked-in requirements lock SHALL be treated as part of the runtime contract, and missing or inconsistent lock state SHALL fail or block doctor and required gates instead of producing a passing warning.
+The local harness SHALL use the same Python selection order for `deps`, `test`, doctor, and required quality gates: `SESSION_BROWSER_PYTHON` when executable, then the repository `.local/python/venv` interpreter, then the repository-approved fallback Python. Dependency declaration files and the checked-in requirements lock SHALL be treated as part of the runtime contract, and missing or inconsistent lock state SHALL fail or block doctor and required gates instead of producing a passing warning.
 
 #### Scenario: Python gate runs from an agent hook
 
@@ -48,9 +48,9 @@ The local harness SHALL use the same Python selection order for `deps`, `test`, 
 - **Then** the gate runner SHALL prefer an explicit project Python or local project environment
 - **And** `pytest` SHALL run through that Python with `-m pytest`
 
-#### Scenario: Local test script runs without a project venv
+#### Scenario: Local test script runs without the project-local venv
 
-- **Given** no `.venv` exists in the repository
+- **Given** no `.local/python/venv` exists in the repository
 - **And** PATH `python3` lacks dev dependencies
 - **When** `./scripts/session-browser.sh test` runs
 - **Then** the script SHALL prefer an explicit project Python or a Python 3 `python` before falling back to PATH `python3`

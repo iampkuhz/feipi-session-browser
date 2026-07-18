@@ -2,7 +2,7 @@
 
 - Java 产品模块的功能开发：`common`、`validation`、`core-domain`、`source-spi`、`sources`、`normalization-engine`、`index-api`、`index-store-sqlite`、`scan-engine`、`application`、`web`。
 - CLI 入口：`java:app-cli`。
-- Gradle 构建配置：`build-logic/`、各模块 `build.gradle.kts`。
+- Gradle 构建配置：`gradle/build-logic/`、各模块 `build.gradle.kts`。
 - 测试代码：`java/<module>/src/test/`、`java:tests:support`、`java:tests:architecture`、`java:tests:contracts`。
 - API snapshot：`config/api-snapshots/`。
 - 模块边界配置：`config/architecture/java-modules.yaml`。

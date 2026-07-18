@@ -469,7 +469,7 @@ gates:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - playwright.config.js
+    - tests/playwright/playwright.config.js
     - scripts/checks/check_no_test_skips.py
   - name: harness
     order: 3
@@ -477,7 +477,7 @@ gates:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - playwright.config.js
+    - tests/playwright/playwright.config.js
     - scripts/checks/check_no_test_skips.py
   - name: acceptance-contracts
     order: 0
@@ -485,7 +485,7 @@ gates:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - playwright.config.js
+    - tests/playwright/playwright.config.js
     - scripts/checks/check_no_test_skips.py
   - name: session-detail
     order: 1
@@ -493,7 +493,7 @@ gates:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - playwright.config.js
+    - tests/playwright/playwright.config.js
     - scripts/checks/check_no_test_skips.py
   tiers:
   - quick
@@ -1739,8 +1739,7 @@ gates:
     patterns:
     - java/web/src/main/resources/templates/**
     - java/web/src/main/resources/static/**
-    - tests/playwright/**/*.js
-    - playwright.config.js
+    - tests/playwright/**
   tiers:
   - required
   - full
@@ -1756,9 +1755,11 @@ gates:
   command:
     capability: playwright
     argv:
-    - npx
-    - playwright
+    - npm
+    - --prefix
+    - tests/playwright
     - test
+    - --
     - ui-contract.spec.ts
     - main-pages-visual.spec.ts
     - session-detail-layout
@@ -1767,8 +1768,9 @@ gates:
     - --workers={playwright_workers}
     required_paths:
     - tests/playwright
-    - playwright.config.js
-    - node_modules
+    - tests/playwright/playwright.config.js
+    - tests/playwright/package.json
+    - tests/playwright/node_modules
 - name: browserInteraction
   description: 执行 browserInteraction 所定义的仓库质量检查。
   targets:
@@ -1777,8 +1779,7 @@ gates:
     patterns:
     - java/web/src/main/resources/templates/**
     - java/web/src/main/resources/static/**
-    - tests/playwright/**/*.js
-    - playwright.config.js
+    - tests/playwright/**
   tiers:
   - required
   - full
@@ -1794,9 +1795,11 @@ gates:
   command:
     capability: playwright
     argv:
-    - npx
-    - playwright
+    - npm
+    - --prefix
+    - tests/playwright
     - test
+    - --
     - session-detail.spec.js
     - session-detail-migrated-gates.spec.js
     - sessions-list.spec.js
@@ -1805,8 +1808,9 @@ gates:
     - --workers={playwright_workers}
     required_paths:
     - tests/playwright
-    - playwright.config.js
-    - node_modules
+    - tests/playwright/playwright.config.js
+    - tests/playwright/package.json
+    - tests/playwright/node_modules
 - name: indexIntegrity
   description: 执行 indexIntegrity 所定义的仓库质量检查。
   targets:
@@ -1845,7 +1849,7 @@ gates:
     patterns:
     - config/api-snapshots/java-public-api.txt
     - config/architecture/java-modules.yaml
-    - build-logic/**
+    - gradle/build-logic/**
     - gradle/**
     - build.gradle.kts
     - settings.gradle.kts
@@ -2174,7 +2178,7 @@ path_rules:
   allowed_by_default: true
 - category: java-build
   patterns:
-  - build-logic/**
+  - gradle/build-logic/**
   - gradle/**
   - config/api-snapshots/java-public-api.txt
   - config/architecture/java-modules.yaml
@@ -2302,7 +2306,7 @@ path_rules:
   - tmp/**
   - data/**
   - output/**
-  - .venv/**
+  - .local/**
   - .pytest_cache/**
   - '**/*.sqlite'
   - '**/*.sqlite3'

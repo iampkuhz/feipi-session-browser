@@ -7,7 +7,10 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 CALLER_DIR="$(pwd)"
 VERSION_FILE="$PROJECT_DIR/VERSION"
-VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$PROJECT_DIR/.venv}"
+VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$PROJECT_DIR/.local/python/venv}"
+if [[ "$VENV_DIR" != /* ]]; then
+    VENV_DIR="$PROJECT_DIR/$VENV_DIR"
+fi
 DEFAULT_LOCAL_HOST=127.0.0.1
 DEFAULT_LOCAL_PORT=8848
 DEFAULT_LOCAL_DATA_DIR="$HOME/.local/share/feipi/session-browser/local-test-index"
@@ -357,7 +360,7 @@ install_dev_deps() {
         echo "[DRY-RUN] 未安装依赖；锁文件一致性检查完成。"
         return 0
     fi
-    uv sync --frozen --extra dev "$@"
+    UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync --frozen --extra dev "$@"
 }
 
 # 安装或检查项目依赖；默认构建 Java launcher，--dev 安装 Python 开发依赖。
@@ -647,7 +650,7 @@ print_usage() {
   set-version <x.y>                更新 VERSION
 
 常用环境变量：
-  SESSION_BROWSER_VENV_DIR         默认：./.venv
+  SESSION_BROWSER_VENV_DIR         默认：./.local/python/venv
   SESSION_BROWSER_PYTHON           显式 Python；优先级高于虚拟环境
   SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
   SESSION_BROWSER_LOCAL_PORT       默认：8848

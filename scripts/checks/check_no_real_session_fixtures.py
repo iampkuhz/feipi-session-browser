@@ -109,7 +109,7 @@ _BUILD_DIR_PARTS = {
     ".gradle",
     "node_modules",
     "__pycache__",
-    ".venv",
+    ".local",
     "venv",
 }
 

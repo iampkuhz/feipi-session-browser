@@ -10,8 +10,9 @@
 const { test, expect } = require('@playwright/test');
 const path = require('path');
 const fs = require('fs');
+const { runPlaywrightRoot } = require('./runtime-paths');
 
-const TMP_DIR = path.join(process.cwd(), 'tmp');
+const TMP_DIR = path.join(runPlaywrightRoot, 'screenshots');
 
 test.describe('Shell states — Session Detail', () => {
   const viewports = [

@@ -385,16 +385,16 @@ class PythonRuntimeZeroGateTest {
         pythonFiles =
             walk.filter(Files::isRegularFile)
                 .filter(p -> p.toString().endsWith(".py"))
-                // 排除 .git、tmp、build 和本地虚拟环境目录。
+                // 排除 .git、tmp、build 和本地生成目录。
                 .filter(
                     p -> {
                       String rel = projectRoot.relativize(p).toString().replace('\\', '/');
                       return !rel.startsWith(".git")
                           && !rel.startsWith(".claude/worktrees/")
-                          && !rel.startsWith(".venv")
+                          && !rel.startsWith(".local/")
                           && !rel.startsWith("tmp")
                           && !rel.contains("/build/")
-                          && !rel.contains("/.venv/")
+                          && !rel.contains("/.local/")
                           && !rel.contains("__pycache__");
                     })
                 .toList();

@@ -65,8 +65,8 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
 - `python3 -m scripts.checks web.session-detail-static` — session detail 静态检查与 shell CSS 一致性。
-- `npx playwright test --config=playwright.config.js session-detail.spec.js session-detail-migrated-gates.spec.js` — 交互 gate。
-- `npx playwright test --config=playwright.config.js session-detail-layout.spec.js` — 布局 gate。
+- `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js` — 交互 gate。
+- `npm --prefix tests/playwright test -- session-detail-layout.spec.js` — 布局 gate。
 - `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查。
 - `python3 -m scripts.checks web.css-ownership` — CSS ownership 校验。
 - `python3 -m scripts.checks repository.repo-slimming` — legacy CSS 检查。

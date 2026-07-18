@@ -29,6 +29,7 @@ PYTHON_REQUIRES = '>=3.12,<3.13'
 UV_PYTHON_REQUIRES = '==3.12.*'
 _PYTHON_VERSION_LOCK = '.python-version'
 _UV_LOCK = 'uv.lock'
+DEFAULT_VENV_RELATIVE_PATH = Path('.local/python/venv')
 _TEST_PACKAGES = {'pytest', 'pytest-xdist'}
 _NORMALIZE_RE = re.compile(r'[-_.]+')
 _IMPORT_NAME_OVERRIDES = {'pyyaml': 'yaml'}
@@ -55,13 +56,15 @@ class ProjectPythonNotReadyError(RuntimeError):
         self.checks = tuple(checks)
 
     def render(self) -> str:
+        """生成不泄露解释器路径的项目 Python 就绪诊断。"""
+
         checked = [{'source': item.source, 'status': item.status} for item in self.checks]
         return '\n'.join(
             (
                 self.code,
                 f'repoRoot: {self.repo_root}',
                 f'checkedCandidates: {json.dumps(checked, separators=(",", ":"))}',
-                'remediation: uv sync --frozen',
+                'remediation: ./scripts/session-browser.sh deps --dev',
             )
         )
 
@@ -90,21 +93,28 @@ def _is_executable(path: str) -> bool:
     return shutil.which(path) is not None
 
 
+def project_venv_dir(repo_root: Path = REPO_ROOT) -> Path:
+    """返回显式配置或仓库默认 Python venv 的绝对路径。"""
+
+    configured = os.environ.get('SESSION_BROWSER_VENV_DIR', '').strip()
+    candidate = (
+        Path(configured).expanduser() if configured else repo_root / DEFAULT_VENV_RELATIVE_PATH
+    )
+    if not candidate.is_absolute():
+        candidate = repo_root / candidate
+    return candidate.resolve()
+
+
 # 判断解释器版本是否满足项目 Python 约束。
 def _candidate_specs(repo_root: Path) -> list[tuple[str, str]]:
-    """按显式、worktree venv、配置 venv、系统解释器生成去重候选。"""
+    """按显式、项目 venv、系统解释器生成去重候选。"""
 
     explicit = os.environ.get('SESSION_BROWSER_PYTHON', '').strip()
     if explicit:
         return [('explicit', explicit)]
     candidates: list[tuple[str, str]] = [
-        ('worktree-venv', str(repo_root / '.venv' / 'bin' / 'python'))
+        ('project-venv', str(project_venv_dir(repo_root) / 'bin' / 'python'))
     ]
-    configured = os.environ.get('SESSION_BROWSER_VENV_DIR', '').strip()
-    if configured:
-        candidates.append(
-            ('configured-venv', str(Path(configured).expanduser() / 'bin' / 'python'))
-        )
     candidates.extend((('system-python', 'python'), ('system-python3', 'python3')))
     result: list[tuple[str, str]] = []
     seen: set[str] = set()

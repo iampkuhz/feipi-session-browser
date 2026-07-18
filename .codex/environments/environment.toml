@@ -26,4 +26,4 @@ if [ ! -f uv.lock ]; then
   exit 2
 fi
 
-uv sync --frozen'''
+UV_PROJECT_ENVIRONMENT="$repo_root/.local/python/venv" uv sync --frozen'''

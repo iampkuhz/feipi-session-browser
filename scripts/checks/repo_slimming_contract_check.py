@@ -328,7 +328,7 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
         '.mypy_cache',
         'dist',
         'venv',
-        '.venv',
+        '.local',
     }
     excluded_files = {'repo_slimming_contract_check.py', 'test_repo_slimming_contract.py'}
     filtered_files = []

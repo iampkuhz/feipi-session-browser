@@ -5,6 +5,7 @@ import tomllib
 from pathlib import Path
 
 import pytest
+from scripts.agent_runtime.change import candidate as change_candidate
 from scripts.gates import executor as gate_executor
 from scripts.harness import python_env
 
@@ -71,7 +72,7 @@ def test_python_tools_have_effective_non_overlapping_configuration():
 def test_resolve_python_order_prefers_env_then_venv_then_fallback(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path
 ):
-    venv_python = tmp_path / '.venv' / 'bin' / 'python'
+    venv_python = tmp_path / '.local' / 'python' / 'venv' / 'bin' / 'python'
     venv_python.parent.mkdir(parents=True)
     venv_python.write_text('', encoding='utf-8')
     selected: list[str] = []
@@ -101,6 +102,45 @@ def test_resolve_python_order_prefers_env_then_venv_then_fallback(
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_project_venv_dir_is_absolute_and_repo_relative(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv('SESSION_BROWSER_VENV_DIR', raising=False)
+    assert (
+        python_env.project_venv_dir(tmp_path) == (tmp_path / '.local' / 'python' / 'venv').resolve()
+    )
+
+    monkeypatch.setenv('SESSION_BROWSER_VENV_DIR', 'custom/venv')
+    assert python_env.project_venv_dir(tmp_path) == (tmp_path / 'custom' / 'venv').resolve()
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_official_uv_sync_entries_pin_the_local_environment() -> None:
+    script = (REPO_ROOT / 'scripts/session-browser.sh').read_text(encoding='utf-8')
+    codex_setup = (REPO_ROOT / '.codex/environments/environment.toml').read_text(encoding='utf-8')
+    workflow = (REPO_ROOT / '.github/workflows/quality.yml').read_text(encoding='utf-8')
+
+    assert 'UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync --frozen --extra dev' in script
+    assert 'UV_PROJECT_ENVIRONMENT="$repo_root/.local/python/venv" uv sync --frozen' in codex_setup
+    assert (
+        'UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.local/python/venv" uv sync --frozen --extra dev'
+    ) in workflow
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_pre_commit_fallback_uses_shared_project_venv(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    monkeypatch.delenv('SESSION_BROWSER_VENV_DIR', raising=False)
+    executable = tmp_path / '.local' / 'python' / 'venv' / 'bin' / 'pre-commit'
+    executable.parent.mkdir(parents=True)
+    executable.write_text('#!/bin/sh\n', encoding='utf-8')
+    executable.chmod(0o755)
+
+    assert change_candidate.default_formatter_argv(tmp_path) == (str(executable),)
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
 def test_explicit_python_without_runtime_dependency_fails_without_fallback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,
@@ -126,7 +166,7 @@ def test_explicit_python_without_runtime_dependency_fails_without_fallback(
     rendered = captured.value.render()
     assert 'repoRoot:' in rendered
     assert 'checkedCandidates:' in rendered
-    assert 'remediation: uv sync --frozen' in rendered
+    assert 'remediation: ./scripts/session-browser.sh deps --dev' in rendered
     assert '/tmp/explicit-python' not in rendered
 
 

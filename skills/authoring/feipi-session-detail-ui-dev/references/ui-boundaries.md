@@ -30,7 +30,7 @@
 ## Session Detail Shell
 
 - Session detail shell 是页面的外层容器，控制整体布局结构。
-- Shell 变更影响所有子组件的布局，必须运行 `npx playwright test --config=playwright.config.js session-detail-layout.spec.js`。
+- Shell 变更影响所有子组件的布局，必须运行 `npm --prefix tests/playwright test -- session-detail-layout.spec.js`。
 - Shell CSS 由 `web.session-detail-static` 守护，不允许随意修改 shell 类名。
 - Layout 变更必须更新 layout baseline（`layout_inline_style_baseline.json`）。
 

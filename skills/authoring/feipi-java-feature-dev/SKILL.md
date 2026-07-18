@@ -51,7 +51,7 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 - 生产代码：`java/<module>/src/main/java/` 下对应模块的包路径。
 - 测试代码：`java/<module>/src/test/java/` 下对应模块的包路径。
-- 构建配置：`java/<module>/build.gradle.kts`，`build-logic/`。
+- 构建配置：`java/<module>/build.gradle.kts`，`gradle/build-logic/`。
 - API snapshot：`config/api-snapshots/`。
 - 模块边界配置：`config/architecture/java-modules.yaml`。
 - 脚本入口：`scripts/session-browser.sh`。

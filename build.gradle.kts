@@ -3,6 +3,8 @@ plugins {
     jacoco
 }
 
+layout.buildDirectory.set(layout.projectDirectory.dir(".local/gradle/root-build"))
+
 group = "com.feipi.session.browser"
 version = file("VERSION").readText().trim()
 

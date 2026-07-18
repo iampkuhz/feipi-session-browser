@@ -15,7 +15,7 @@ tmp/quality/
 .agent/
 
 # Python
-.venv/
+/.local/
 __pycache__/
 *.pyc
 *.pyo
@@ -33,7 +33,7 @@ __pycache__/
 .env
 
 # IDE
-.idea/
+/.idea/
 .vscode/
 
 # OpenSpec local runtime state
@@ -43,9 +43,6 @@ openspec/changes/
 # Harness archive
 /harness/archive/
 
-# Reports
-reports/
-
 # Exports
 *.mhtml
 *.mht
@@ -53,13 +50,8 @@ reports/
 *.tar
 *.tar.gz
 
-# Playwright
-test-results/
-blob-report/
-playwright/.cache/
-
-# Node
-node_modules/
+# Node / Playwright
+/tests/playwright/node_modules/
 /tmp/*
 /tests/playwright/*-snapshots/
 
@@ -68,13 +60,12 @@ node_modules/
 /.refactor-artifacts/
 
 /docs/session-samples/*/*/litellm_calls/
-.gradle/
-.kotlin/
-.idea/
 out/
 gradle/verification-metadata.xml
 
-**/build/**
+/java/**/build/
+/gradle/build-logic/build/
+/gradle/build-logic/.gradle/
 /config/reuse-analysis/
 /.qoder/task-packs/
 /.qoder/agents/*

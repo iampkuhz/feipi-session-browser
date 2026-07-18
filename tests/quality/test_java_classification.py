@@ -57,7 +57,9 @@ class TestJavaBasicClassification:
     @pytest.mark.contract_case('J1-040-001')
     def test_java_build_classification(self):
         assert (
-            classify_path('build-logic/src/main/kotlin/feipi.java-base.gradle.kts').quality_target
+            classify_path(
+                'gradle/build-logic/src/main/kotlin/feipi.java-base.gradle.kts'
+            ).quality_target
             == 'java-build'
         )
         assert classify_path('gradle/libs.versions.toml').quality_target == 'java-build'

@@ -9,14 +9,14 @@ on:
     tags: ["v*"]
     paths:
       - 'java/**'
-      - 'build-logic/**'
+      - 'gradle/build-logic/**'
       - 'gradle/**'
       - 'scripts/release/**'
       - '.github/workflows/ci-distribution.yml'
   pull_request:
     paths:
       - 'java/**'
-      - 'build-logic/**'
+      - 'gradle/build-logic/**'
       - 'gradle/**'
       - 'scripts/release/**'
       - '.github/workflows/ci-distribution.yml'

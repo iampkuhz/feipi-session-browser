@@ -111,7 +111,11 @@ def _iter_files(root: Path, relative_roots: list[str], suffixes: tuple[str, ...]
         if not path.is_dir():
             continue
         for suffix in suffixes:
-            files.extend(path.rglob(f'*{suffix}'))
+            files.extend(
+                candidate
+                for candidate in path.rglob(f'*{suffix}')
+                if 'node_modules' not in candidate.relative_to(root).parts
+            )
     return sorted(set(files))
 
 
@@ -173,7 +177,7 @@ def scan_repo(root: Path = REPO_ROOT) -> list[Finding]:
         结果列表。
     """
     python_files = _iter_files(root, ['tests'], ('.py',))
-    playwright_files = _iter_files(root, ['tests', 'playwright.config.js'], ('.js', '.ts'))
+    playwright_files = _iter_files(root, ['tests'], ('.js', '.ts'))
 
     findings: list[Finding] = []
     for path in python_files:

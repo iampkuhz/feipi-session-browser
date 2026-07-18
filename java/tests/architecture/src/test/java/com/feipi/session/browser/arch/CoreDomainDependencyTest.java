@@ -133,7 +133,7 @@ final class CoreDomainDependencyTest {
    * {@code core-domain} 不得依赖未经批准的 {@code Lombok} 注解。
    *
    * <p>仅允许编译期注解 {@code @Getter} 和 {@code @RequiredArgsConstructor}。 其他 Lombok 注解由 {@code
-   * lombok.config} 和 PMD 规则阻止。
+   * java/lombok.config} 和 PMD 规则阻止。
    */
   @ArchTest
   static final ArchRule coreDomainMustNotDependOnUnapprovedLombok =

@@ -69,7 +69,7 @@ rules:
   - id: build_logic_guard
     when:
       path_any:
-        - build-logic/**
+        - gradle/build-logic/**
         - gradle/**
         - settings.gradle.kts
         - gradle.properties

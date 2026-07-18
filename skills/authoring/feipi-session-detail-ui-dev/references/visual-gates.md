@@ -22,7 +22,7 @@
 - **只改 CSS**：`web.css-ownership` + `repository.repo-slimming` + `web.session-detail-static`（如涉及 shell）。
 - **只改 JS**：`web.js-action-handlers` + `web.raw-innerhtml` + Node Playwright 交互 gate。
 - **改布局或 shell**：Node Playwright 布局 gate + `web.session-detail-static` + `web.layout-inline-style`。
-- **收口前**：运行静态 gate 与 `npx playwright test --config=playwright.config.js`。
+- **收口前**：运行静态 gate 与 `npm --prefix tests/playwright test --`。
 
 ## Baseline 文件
 

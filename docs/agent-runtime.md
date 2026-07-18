@@ -52,8 +52,9 @@ Registry 与 Change store 都位于 ignored、owner-private runtime root。锁�
 run/worktree/lease，不创建第二个 writer。
 
 dispatcher 自身保持标准库可启动，只选择 Python `>=3.12,<3.13` 且 runtime dependency ready 的
-解释器。显式 `SESSION_BROWSER_PYTHON` 不可用时不 fallback；worktree `.venv` 优先于系统 Python。
-未就绪时返回 `BLOCKED_PROJECT_PYTHON_NOT_READY` 与 `uv sync --frozen`，Hook 内不安装依赖。
+解释器。显式 `SESSION_BROWSER_PYTHON` 不可用时不 fallback；worktree `.local/python/venv` 优先于系统 Python。
+未就绪时返回 `BLOCKED_PROJECT_PYTHON_NOT_READY` 与官方入口
+`./scripts/session-browser.sh deps --dev`，Hook 内不安装依赖。
 最早期 `ENTERED/PYTHON_NOT_READY/DISPATCHED/FAILED` trace 只保存摘要，位于系统临时目录的
 `feipi-agent-runtime/<repo-key>/hook-bootstrap/`，原子、有界且不记录 prompt、命令、token 或环境正文。
 

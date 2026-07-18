@@ -44,7 +44,7 @@ def _doctor_fixture(tmp_path: Path, *, include_agents: bool = True) -> tuple[Pat
         encoding='utf-8',
     )
     fake_python.chmod(0o755)
-    venv_python = root / '.venv' / 'bin' / 'python'
+    venv_python = root / '.local' / 'python' / 'venv' / 'bin' / 'python'
     venv_python.parent.mkdir(parents=True)
     venv_python.symlink_to(fake_python)
     fake_uv = root / 'uv'

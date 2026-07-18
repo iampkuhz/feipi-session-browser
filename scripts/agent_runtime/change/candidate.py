@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 from scripts.agent_runtime.git_state import run as git
+from scripts.harness.python_env import project_venv_dir
 
 
 class CandidateError(RuntimeError):
@@ -161,7 +162,7 @@ def stage_exact(repo: Path, manifest: GitManifest) -> GitManifest:
 
 def default_formatter_argv(repo: Path) -> tuple[str, ...]:
     """只探测 pre-commit executable；具体只运行两个可修改源码的 Ruff hook。"""
-    local = repo / '.venv' / 'bin' / 'pre-commit'
+    local = project_venv_dir(repo) / 'bin' / 'pre-commit'
     executable = (
         str(local) if local.is_file() and os.access(local, os.X_OK) else shutil.which('pre-commit')
     )

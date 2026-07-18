@@ -3,12 +3,11 @@
 const fs = require('fs');
 const http = require('http');
 const net = require('net');
-const os = require('os');
 const path = require('path');
 const { spawn, spawnSync } = require('child_process');
 const { generateSessionFixtures } = require('../fixtures/generate-session-fixtures');
+const { repoRoot: ROOT, runTmpRoot } = require('./runtime-paths');
 
-const ROOT = path.resolve(__dirname, '..', '..');
 const MAIN_SESSION_ID = 'hifi-viz-session-001';
 const LONG_SESSION_ID = 'long-session-001';
 const MAX_DIAGNOSTIC_CHARS = 8_000;
@@ -137,10 +136,7 @@ async function startServer() {
     );
   }
 
-  const runId = process.env.FEIPI_RUN_ID || process.env.FEIPI_SESSION_ID || 'playwright';
-  const runtimeBase = process.env.FEIPI_AGENT_RUNTIME_ROOT
-    ? path.join(process.env.FEIPI_AGENT_RUNTIME_ROOT, 'runs', runId, 'tmp')
-    : os.tmpdir();
+  const runtimeBase = runTmpRoot;
   fs.mkdirSync(runtimeBase, { recursive: true });
   const runtimeDir = fs.mkdtempSync(path.join(runtimeBase, 'playwright-java-fixture-'));
   let dataDir;

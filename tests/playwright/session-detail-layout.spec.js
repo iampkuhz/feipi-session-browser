@@ -9,6 +9,7 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
+const { runPlaywrightRoot } = require('./runtime-paths');
 
 test.describe('会话详情 Phase 1 外壳布局', () => {
   test('[UI-SD-013][UI-SD-018] 1440px 视口下外壳布局正确', async ({ page }) => {
@@ -95,7 +96,7 @@ test.describe('会话详情 Phase 1 外壳布局', () => {
     });
 
     // 截图
-    const tmpDir = path.join(process.cwd(), 'tmp');
+    const tmpDir = path.join(runPlaywrightRoot, 'layout');
     if (!fs.existsSync(tmpDir)) fs.mkdirSync(tmpDir, { recursive: true });
     const screenshotPath = path.join(tmpDir, 'session-detail-layout-1440.png');
     await page.screenshot({ path: screenshotPath, fullPage: false });

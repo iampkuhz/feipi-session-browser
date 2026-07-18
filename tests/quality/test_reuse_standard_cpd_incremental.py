@@ -39,11 +39,25 @@ def test_incremental_file_list_contains_only_changed_java_file(tmp_path: Path) -
         tmp_path,
         ['java/app/src/main/java/com/example/Changed.java'],
     )
-    file_list = cpd.write_cpd_file_list(tmp_path, selected, tmp_path / 'build/tmp/cpd/files.txt')
+    file_list = cpd.write_cpd_file_list(
+        tmp_path,
+        selected,
+        tmp_path / cpd.FILE_LIST_RELATIVE_PATH,
+    )
 
     lines = file_list.read_text(encoding='utf-8').splitlines()
     assert lines == [changed.resolve().as_posix()]
     assert unchanged.resolve().as_posix() not in lines
+
+
+def test_root_outputs_use_local_gradle_tree() -> None:
+    """CPD wrapper writes only below the configured root Gradle output tree."""
+    assert cpd.SUMMARY_RELATIVE_PATH == Path(
+        '.local/gradle/root-build/reports/reuse-analysis/standard-cpd-summary.json'
+    )
+    assert cpd.FILE_LIST_RELATIVE_PATH == Path(
+        '.local/gradle/root-build/tmp/reuse-standard-cpd/reuse-cpd-file-list.txt'
+    )
 
 
 def test_incremental_ignores_non_production_or_missing_files(tmp_path: Path) -> None:

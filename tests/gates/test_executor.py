@@ -78,16 +78,24 @@ def test_hook_runtime_pytest_uses_stable_capability_suites(monkeypatch) -> None:
 
 
 def test_browser_gate_without_base_url_uses_node_managed_fixture(monkeypatch) -> None:
-    monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: ['npx', 'playwright', 'test'])
+    command = ['npm', '--prefix', 'tests/playwright', 'test', '--']
+    monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: command)
     execution = executor.build_execution_plan(
         _single_plan('session-detail', 'browserLayout'), Path.cwd()
     )
     group = execution.groups[0]
 
     assert group.kind == 'command'
-    assert group.command == ('npx', 'playwright', 'test')
+    assert group.command == tuple(command)
     assert dict(group.environment).get('FEIPI_AGENT_RUNTIME_ROOT')
     assert 'BASE_URL' not in dict(group.environment)
+
+
+def test_playwright_command_recognizes_repository_prefix() -> None:
+    command = ['npm', '--prefix', 'tests/playwright', 'test', '--', 'session-detail.spec.js']
+
+    assert executor._is_playwright_command(command)  # noqa: SLF001
+    assert not executor._is_playwright_command(['npx', 'playwright', 'test'])  # noqa: SLF001
 
 
 def test_skip_and_warning_never_pass(monkeypatch, tmp_path: Path) -> None:

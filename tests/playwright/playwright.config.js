@@ -1,6 +1,10 @@
 const { defineConfig } = require('@playwright/test');
 const { execFileSync } = require('child_process');
 const path = require('path');
+const {
+  repoRoot,
+  runPlaywrightRoot,
+} = require('./runtime-paths');
 
 delete process.env.NO_COLOR;
 
@@ -11,10 +15,10 @@ function resolveWorkers() {
   return 8;
 }
 
-const runId = process.env.FEIPI_RUN_ID || process.env.FEIPI_SESSION_ID || `pid-${process.pid}`;
-const runtimeRoot = process.env.FEIPI_AGENT_RUNTIME_ROOT || path.join(process.cwd(), 'tmp', 'agent-runtime');
-const runOutputRoot = process.env.PLAYWRIGHT_OUTPUT_ROOT || path.join(runtimeRoot, 'runs', runId, 'playwright');
-const serverScript = path.join(__dirname, 'tests', 'playwright', 'start-java-fixture-server.js');
+const runOutputRoot = process.env.PLAYWRIGHT_OUTPUT_ROOT
+  ? path.resolve(process.env.PLAYWRIGHT_OUTPUT_ROOT)
+  : runPlaywrightRoot;
+const serverScript = path.join(__dirname, 'start-java-fixture-server.js');
 const baseURL = process.env.BASE_URL || `http://127.0.0.1:${execFileSync(
   process.execPath,
   [serverScript, '--find-port'],
@@ -33,7 +37,7 @@ process.env.PW_LONG_SESSION_URL = process.env.PW_LONG_SESSION_URL || `${baseURL}
  * 外部服务时，需同时传入 BASE_URL 和 SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER=1。
  */
 module.exports = defineConfig({
-  testDir: './tests/playwright',
+  testDir: '.',
   testMatch: ['**/*.spec.{js,ts}'],
   fullyParallel: true,
   workers: resolveWorkers(),
@@ -41,7 +45,7 @@ module.exports = defineConfig({
   retries: 0,
   timeout: 30_000,
   reporter: [
-    ['./tests/playwright/no-skip-reporter.js'],
+    ['./no-skip-reporter.js'],
     ['html', { outputFolder: path.join(runOutputRoot, 'report') }],
     ['list'],
   ],
@@ -59,6 +63,7 @@ module.exports = defineConfig({
   outputDir: path.join(runOutputRoot, 'test-results'),
   webServer: {
     command: `node "${serverScript}"`,
+    cwd: repoRoot,
     url: `${baseURL}/sessions/claude_code/hifi-viz-session-001`,
     reuseExistingServer: reuseFixtureServer,
     timeout: 120_000,

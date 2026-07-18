@@ -725,7 +725,7 @@ def test_missing_dependency_python_fails_fast_without_traceback(
     assert proc.returncode == 2
     assert duration < 2
     assert proc.stderr.splitlines()[0] == 'BLOCKED_PROJECT_PYTHON_NOT_READY'
-    assert 'remediation: uv sync --frozen' in proc.stderr
+    assert 'remediation: ./scripts/session-browser.sh deps --dev' in proc.stderr
     assert 'Traceback' not in proc.stderr
     trace = json.loads(next((tmp_path / 'runtime/hook-bootstrap').glob('*.json')).read_text())
     assert [item['phase'] for item in trace['phases']][-2:] == [

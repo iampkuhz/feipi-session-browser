@@ -100,9 +100,14 @@ def test_pytest_runtime_skip_enforcement_fails_session(monkeypatch: pytest.Monke
 
 
 def test_playwright_no_skip_reporter_is_configured():
-    config_text = Path('playwright.config.js').read_text(encoding='utf-8')
+    config_text = Path('tests/playwright/playwright.config.js').read_text(encoding='utf-8')
+    runtime_paths = Path('tests/playwright/runtime-paths.js').read_text(encoding='utf-8')
 
-    assert './tests/playwright/no-skip-reporter.js' in config_text
+    assert './no-skip-reporter.js' in config_text
+    assert "path.resolve(__dirname, '../..')" in runtime_paths
+    assert "path.join(repoRoot, 'tmp', 'agent-runtime')" in runtime_paths
+    assert 'process.cwd()' not in config_text + runtime_paths
+    assert 'os.tmpdir()' not in config_text + runtime_paths
 
 
 def test_playwright_no_skip_reporter_fails_skipped_results():

@@ -8,7 +8,7 @@
 
 ## Lombok 约束
 
-- `lombok.config` 禁止 `experimental`、`builder`、`sneakyThrows`（flagUsage = error）。
+- `java/lombok.config` 禁止 `experimental`、`builder`、`sneakyThrows`（flagUsage = error）。
 - `@DomainModel` 标注的类型允许使用 `@Getter` 和 `@RequiredArgsConstructor`，由 ArchUnit 规则 `coreDomainMustNotDependOnUnapprovedLombok` 执行。
 - Lombok 不进入运行时 classpath（`compileOnly` + `annotationProcessor`）。
 - 测试源码仅在实际使用时添加 `testCompileOnly` 和 `testAnnotationProcessor`。

@@ -4,7 +4,10 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
-VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.venv}"
+VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$ROOT/.local/python/venv}"
+if [[ "$VENV_DIR" != /* ]]; then
+  VENV_DIR="$ROOT/$VENV_DIR"
+fi
 fail=0
 pass_count=0
 failure_count=0

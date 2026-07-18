@@ -40,8 +40,8 @@ python3 -m scripts.checks web.js-action-handlers
 python3 -m scripts.checks repository.repo-slimming
 python3 -m scripts.checks web.layout-inline-style
 python3 -m scripts.checks web.session-detail-static
-npx playwright test --config=playwright.config.js session-detail.spec.js session-detail-migrated-gates.spec.js
-npx playwright test --config=playwright.config.js session-detail-layout.spec.js
+npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js
+npm --prefix tests/playwright test -- session-detail-layout.spec.js
 python3 -m scripts.checks web.raw-innerhtml
 ```
 

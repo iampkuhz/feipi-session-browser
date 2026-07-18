@@ -13,14 +13,14 @@
  * 9. 长会话（100 轮）性能和 DOM 节点预算
  *
  * 环境准备：
- *   1. 根 playwright.config.js 自动启动真实 Java fixture server。
- *   2. 运行测试：npx playwright test --config=playwright.config.js session-detail.spec.js
+ *   1. tests/playwright/playwright.config.js 自动启动真实 Java fixture server。
+ *   2. 运行测试：npm --prefix tests/playwright test -- session-detail.spec.js
  *
  * 更新截图基线：
- *   npx playwright test --update-snapshots
+ *   npm --prefix tests/playwright test -- --update-snapshots
  *
  * 带可见浏览器运行：
- *   npx playwright test --headed
+ *   npm --prefix tests/playwright test -- --headed
  *
  * 测试自动发现会话详情 URL，优先级：
  *   - PW_SESSION_URL 环境变量（完整 URL）
@@ -30,10 +30,11 @@
 const { test, expect } = require('@playwright/test');
 const fs = require('fs');
 const path = require('path');
+const { runPlaywrightRoot } = require('./runtime-paths');
 
-const runId = process.env.FEIPI_RUN_ID || process.env.FEIPI_SESSION_ID || `pid-${process.pid}`;
-const runtimeRoot = process.env.FEIPI_AGENT_RUNTIME_ROOT || path.join(__dirname, '..', 'tmp', 'agent-runtime');
-const SCREENSHOT_DIR = process.env.SESSION_BROWSER_SCREENSHOT_DIR || path.join(runtimeRoot, 'runs', runId, 'playwright', 'screenshots');
+const SCREENSHOT_DIR = process.env.SESSION_BROWSER_SCREENSHOT_DIR
+  ? path.resolve(process.env.SESSION_BROWSER_SCREENSHOT_DIR)
+  : path.join(runPlaywrightRoot, 'screenshots');
 
 /**
  * 解析会话详情 URL。优先级：PW_SESSION_URL 环境变量 > fixture server URL。

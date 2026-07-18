@@ -8,7 +8,7 @@ on:
     branches: [main, main_java]
     paths:
       - 'java/**'
-      - 'build-logic/**'
+      - 'gradle/build-logic/**'
       - 'gradle/**'
       - 'gradle.properties'
       - 'build.gradle.kts'
@@ -19,7 +19,7 @@ on:
   pull_request:
     paths:
       - 'java/**'
-      - 'build-logic/**'
+      - 'gradle/build-logic/**'
       - 'gradle/**'
       - 'gradle.properties'
       - 'build.gradle.kts'

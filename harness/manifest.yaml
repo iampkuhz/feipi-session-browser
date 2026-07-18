@@ -89,7 +89,7 @@ local_only:
   - ".qoder/settings.local.json"
   - ".mcp.json"
   - ".env"
-  - ".venv/"
+  - ".local/"
   - ".pytest_cache/"
   - "data/"
   - "output/"

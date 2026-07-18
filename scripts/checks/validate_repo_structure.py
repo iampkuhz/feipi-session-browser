@@ -54,7 +54,7 @@ GENERATED_PREFIXES = [
     '.agent/',
     'data/',
     'output/',
-    '.venv/',
+    '.local/',
     '.pytest_cache/',
 ]
 

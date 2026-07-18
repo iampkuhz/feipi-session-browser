@@ -323,6 +323,53 @@ class TestNoDeadCompatShim:
 
 class TestActualRepoState:
     @pytest.mark.contract_case('HOOK-HARNESS-011')
+    def test_generated_projects_and_configs_live_below_top_level(self):
+        expected = [
+            'gradle/build-logic/settings.gradle.kts',
+            'java/lombok.config',
+            'tests/playwright/package.json',
+            'tests/playwright/package-lock.json',
+            'tests/playwright/playwright.config.js',
+        ]
+        legacy = [
+            '.gradle',
+            '.venv',
+            'build',
+            'build-logic',
+            'lombok.config',
+            'package.json',
+            'package-lock.json',
+            'playwright.config.js',
+            'node_modules',
+            'reports',
+        ]
+
+        assert all((ROOT / path).exists() for path in expected)
+        assert all(not (ROOT / path).exists() for path in legacy)
+
+    @pytest.mark.contract_case('HOOK-HARNESS-011')
+    def test_gitignore_exposes_legacy_top_level_outputs(self):
+        rules = {
+            line.strip()
+            for line in (ROOT / '.gitignore').read_text(encoding='utf-8').splitlines()
+            if line.strip() and not line.lstrip().startswith('#')
+        }
+        required = {
+            '/.local/',
+            '/.idea/',
+            '/tmp/*',
+            '/tests/playwright/node_modules/',
+            '/java/**/build/',
+            '/gradle/build-logic/build/',
+            '/gradle/build-logic/.gradle/',
+        }
+        forbidden = {'.gradle/', '.venv/', 'node_modules/', 'reports/', '**/build/**'}
+
+        assert required <= rules
+        assert not forbidden & rules
+        assert sum(line == '/.idea/' for line in rules) == 1
+
+    @pytest.mark.contract_case('HOOK-HARNESS-011')
     def test_no_mobile_viewports_in_css(self):
         static = ROOT / 'java/web/src/main/resources/static'
         css_files = list(static.rglob('*.css'))
