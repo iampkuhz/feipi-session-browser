@@ -388,7 +388,7 @@ def test_primary_fingerprint_blocks_unparsed_bash_bypass(tmp_path: Path) -> None
     assert 'primary fingerprint audit BLOCK' in post_bash_isolation_failure(paths, post_ctx)
 
 
-@pytest.mark.parametrize('subcommand', ('on-stop', 'resume'))
+@pytest.mark.parametrize('subcommand', ('on-stop', 'resume', 'adopt-current'))
 def test_controlled_primary_accepts_only_canonical_change_command_for_current_run(
     subcommand: str,
 ) -> None:
