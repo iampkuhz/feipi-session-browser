@@ -195,7 +195,7 @@ def attest_run_start(
         initial_paths = sorted(
             set(list(initial.get('tracked') or []) + list(initial.get('untracked') or []))
         )
-        if list(manifest.paths) != initial_paths or manifest.paths:
+        if list(manifest.paths) != initial_paths:
             raise SessionctlError(
                 'ADOPT_REQUIRED: late begin-change found pre-existing dirty content'
             )
