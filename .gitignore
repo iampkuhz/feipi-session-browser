@@ -80,3 +80,6 @@ gradle/verification-metadata.xml
 !/.qoder/agents/privacy-reviewer.md
 /feipi_jakarta_validation_prompt_tasks/
 /.claude/worktrees/
+**/.local/
+/harness/reports/
+/tests/test-results/
