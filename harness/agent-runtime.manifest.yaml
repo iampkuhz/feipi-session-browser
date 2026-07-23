@@ -163,7 +163,6 @@ resource_isolation:
     - java-build-tree
     - fixture-server
     - playwright-browser
-    - runtime-report
   run_scoped_outputs:
     - FEIPI_AGENT_RUNTIME_ROOT/runs/<run-id>/tmp
     - FEIPI_AGENT_RUNTIME_ROOT/runs/<run-id>/playwright
@@ -225,7 +224,6 @@ required_gates:
   - agent.qoder-parity
   - repository.no-real-session-fixtures
   - security.secret-like-content
-  - agent.runtime-report
   - web.css-ownership
 primary_sessions:
   writable_isolation: checkout-writer-lease

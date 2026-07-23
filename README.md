@@ -74,6 +74,19 @@ http://127.0.0.1:8848
 
 完整示例见 [`config/env/session-browser.env.example`](config/env/session-browser.env.example)。
 
+## 仓库内生成路径
+
+- 根 `tmp/` 保留为 Hook、Gate 和 Playwright fallback 的本地 runtime 父目录；其中 evidence
+  按 client/session/run 隔离。
+- 根 `.local/` 保存可再生的 Gradle 与 Python 产物：Python venv/cache/coverage 位于
+  `.local/python/`，根 Gradle cache/build 位于 `.local/gradle/`。
+- Playwright 项目与 `node_modules/` 位于 `tests/playwright/`；Java module build 仍位于各
+  `java/**/build/`。
+- `FEIPI_AGENT_RUNTIME_ROOT` 的既有优先级不变；未设置时 Playwright 继续 fallback 到
+  `<repoRoot>/tmp/agent-runtime/`。
+- `python3 -m scripts.checks repository.misplaced-generated-paths` 会直接检查磁盘上的旧路径，
+  即使路径被 ignore 也不会静默通过。
+
 示例：使用自定义端口启动。
 
 ```bash

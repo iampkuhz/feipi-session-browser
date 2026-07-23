@@ -83,8 +83,13 @@ def get_changed_files(explicit: str | None, repo_root: Path = REPO_ROOT) -> list
 
 # 把 catalog 中的全局 preflight Gate 注入同一不可变计划。
 def _with_preflight(gate_plan: GatePlan) -> GatePlan:
-    preflight = gate_by_name('ignoredTrackedFiles')
-    preflight_target = TargetGatePlan(target='hook-runtime', gates=(preflight,))
+    preflight_target = TargetGatePlan(
+        target='hook-runtime',
+        gates=(
+            gate_by_name('ignoredTrackedFiles'),
+            gate_by_name('misplacedGeneratedPaths'),
+        ),
+    )
     return GatePlan(
         changed_files=gate_plan.changed_files,
         classifications=gate_plan.classifications,
@@ -143,6 +148,7 @@ def run_service(
     base_url: str | None = None,
     include_preflight: bool = True,
     reuse_receipts: bool = True,
+    environment_overrides: dict[str, str] | None = None,
 ) -> GateServiceResult:
     """规划、执行、报告并写入内容敏感 PASS receipt。"""
     gate_plan = create_plan(
@@ -154,13 +160,14 @@ def run_service(
     execution_plan = _with_preflight(gate_plan) if include_preflight else gate_plan
     resolved_plan = executor.build_execution_plan(execution_plan, repo_root, base_url=base_url)
     output = out_dir or repo_root / 'tmp' / 'quality'
+    receipt_environment = {'BASE_URL': base_url or '', **(environment_overrides or {})}
     planned_targets = tuple(gate_plan.effective_targets or ((target,) if target else ()))
     cache_keys = {
         planned_target: receipt.content_cache_key(
             planned_target,
             changed_files,
             repo_root,
-            {'BASE_URL': base_url or ''},
+            receipt_environment,
             attribution={'explicitChangedFiles': explicit_changed_files},
             plan_fingerprint=resolved_plan.fingerprint,
             command_fingerprint=executor._stable_hash(  # noqa: SLF001
@@ -232,7 +239,11 @@ def run_service(
             report.PASS, gate_plan, cached_details, artifact, cached_paths, True
         )
 
-    details = executor.execute_plan(resolved_plan, repo_root)
+    details = executor.execute_plan(
+        resolved_plan,
+        repo_root,
+        environment_overrides=environment_overrides,
+    )
     receipt_miss_reason = (
         'receipt-reuse-disabled'
         if not reuse_receipts
@@ -305,7 +316,7 @@ def run_service(
                     command_fingerprint=executor._stable_hash(  # noqa: SLF001
                         [list(group.command) for group in resolved_plan.groups]
                     ),
-                    environment={'BASE_URL': base_url or ''},
+                    environment=receipt_environment,
                     gate_inputs={'changedFiles': changed_files},
                 )
             )

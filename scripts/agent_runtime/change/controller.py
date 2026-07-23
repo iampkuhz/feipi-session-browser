@@ -332,7 +332,16 @@ class LifecycleController:
         self.gate_runner = gate_runner
         self.gate_input_builder = gate_input_builder or self._default_gate_inputs
         self.artifacts = self.root / 'artifacts' / self.session_id
-        self.logs = self.root / 'logs' / self.session_id
+        client = str(self.record.get('client') or 'unknown')
+        self.logs = (
+            self.root
+            / 'logs'
+            / client
+            / self.session_id
+            / 'runs'
+            / self.run_id
+            / 'main'
+        )
 
     @classmethod
     def from_run_id(cls, repo_root: Path, run_id: str, **kwargs: Any) -> LifecycleController:
@@ -678,8 +687,14 @@ class LifecycleController:
             _with_preflight(gate_plan), repo, base_url=base_url
         )
         commands = [list(group.command) for group in resolved.groups]
+        identity_environment = self._gate_identity_environment()
         group_env = [
-            sorted(gate_executor.gate_child_environment(repo, dict(group.environment)).items())
+            sorted(
+                gate_executor.gate_child_environment(
+                    repo,
+                    {**dict(group.environment), **identity_environment},
+                ).items()
+            )
             for group in resolved.groups
         ]
         return GateInputs(
@@ -696,6 +711,15 @@ class LifecycleController:
                 for group in resolved.groups
             ),
         )
+
+    def _gate_identity_environment(self) -> dict[str, str]:
+        """把 controller 的权威 run identity 显式传给 Gate child。"""
+        return {
+            'FEIPI_AGENT_CLIENT': str(self.record.get('client') or 'unknown'),
+            'FEIPI_SESSION_ID': self.session_id,
+            'FEIPI_RUN_ID': self.run_id,
+            'FEIPI_WORKTREE_ID': str(self.record.get('worktreeId') or ''),
+        }
 
     def _planned_fixture_url(self, change: Mapping[str, Any]) -> str:
         """为一个 Change 生成稳定 loopback URL，使真实 plan/env 指纹可缓存。"""
@@ -766,7 +790,11 @@ class LifecycleController:
                 TERMINAL_BLOCKED, 'MANIFEST_GUARD_MISMATCH', 'manifest TOCTOU guard failed'
             )
         try:
-            prepared = prepare_candidate(self.repo, self.record)
+            prepared = prepare_candidate(
+                self.repo,
+                self.record,
+                log_dir=self.logs / str(change['changeId']) / 'candidate',
+            )
         except CandidateError as exc:
             status = PASS if exc.code == 'NO_CHANGES' else REPAIR_REQUIRED
             raise LifecycleError(
@@ -1011,6 +1039,7 @@ class LifecycleController:
                 include_preflight=True,
                 reuse_receipts=False,
                 base_url=base_url,
+                environment_overrides=self._gate_identity_environment(),
             )
             status = str(result.status).upper()
             status = (

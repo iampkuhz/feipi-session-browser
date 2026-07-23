@@ -8,7 +8,8 @@
       "pythonAudit",
       "pythonComplexity",
       "pythonDeadCode",
-      "pythonDeps"
+      "pythonDeps",
+      "misplacedGeneratedPaths"
     ],
     "hook-runtime": [
       "ignoredTrackedFiles",
@@ -35,7 +36,8 @@
       "repoSlimming",
       "rawInnerhtml",
       "layoutInlineStyle",
-      "acceptanceContracts"
+      "acceptanceContracts",
+      "misplacedGeneratedPaths"
     ],
     "harness": [
       "bashSyntax",
@@ -64,12 +66,14 @@
       "repoStructure",
       "harnessStructure",
       "openspecLayout",
-      "pytest"
+      "pytest",
+      "misplacedGeneratedPaths"
     ],
     "acceptance-contracts": [
       "noTestSkips",
       "acceptanceContracts",
-      "pytest"
+      "pytest",
+      "misplacedGeneratedPaths"
     ],
     "session-detail": [
       "pythonCompile",
@@ -82,10 +86,12 @@
       "layoutInlineStyle",
       "pytest",
       "browserLayout",
-      "browserInteraction"
+      "browserInteraction",
+      "misplacedGeneratedPaths"
     ],
     "index": [
-      "indexIntegrity"
+      "indexIntegrity",
+      "misplacedGeneratedPaths"
     ],
     "java-src": [
       "javaCheck",
@@ -94,19 +100,22 @@
       "noJavaTestSkips",
       "noJavaSuppressWarnings",
       "reuseStandardCpd",
-      "reuseAnalyzeIncremental"
+      "reuseAnalyzeIncremental",
+      "misplacedGeneratedPaths"
     ],
     "java-build": [
       "javaCheck",
       "reuseStandardCpd",
-      "reuseAnalyzeIncremental"
+      "reuseAnalyzeIncremental",
+      "misplacedGeneratedPaths"
     ],
     "scan-script-smoke": [
       "scanScriptSmoke",
-      "sessionSamples"
+      "sessionSamples",
+      "misplacedGeneratedPaths"
     ]
   },
-  "uniqueGateCount": 56,
+  "uniqueGateCount": 57,
   "scenarios": {
     "read-only": {
       "changedFiles": [],
@@ -134,13 +143,15 @@
           "javaRecordComponentJavadocs",
           "noJavaSuppressWarnings",
           "reuseStandardCpd",
-          "reuseAnalyzeIncremental"
+          "reuseAnalyzeIncremental",
+          "misplacedGeneratedPaths"
         ],
         "scan-script-smoke": [
-          "scanScriptSmoke"
+          "scanScriptSmoke",
+          "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 7
+      "gateCount": 9
     },
     "java-build": {
       "changedFiles": [
@@ -156,10 +167,11 @@
         "java-build": [
           "javaCheck",
           "reuseStandardCpd",
-          "reuseAnalyzeIncremental"
+          "reuseAnalyzeIncremental",
+          "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 3
+      "gateCount": 4
     },
     "java-source-build": {
       "changedFiles": [
@@ -182,13 +194,15 @@
           "javaRecordComponentJavadocs",
           "noJavaSuppressWarnings",
           "reuseStandardCpd",
-          "reuseAnalyzeIncremental"
+          "reuseAnalyzeIncremental",
+          "misplacedGeneratedPaths"
         ],
         "scan-script-smoke": [
-          "scanScriptSmoke"
+          "scanScriptSmoke",
+          "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 7
+      "gateCount": 9
     },
     "hook-runtime": {
       "changedFiles": [
@@ -220,7 +234,8 @@
           "secretLikeContent",
           "repoStructure",
           "harnessStructure",
-          "pytest"
+          "pytest",
+          "misplacedGeneratedPaths"
         ],
       "hook-runtime": [
         "bashSyntax",
@@ -239,10 +254,11 @@
         "hookSelfTest",
         "pytest",
         "doctor",
-        "repoStructure"
+        "repoStructure",
+        "misplacedGeneratedPaths"
       ]
     },
-    "gateCount": 32
+    "gateCount": 34
     },
     "python-policy": {
       "changedFiles": [
@@ -269,13 +285,15 @@
           "hookPayloadCompat",
           "subagentHandoffProtocol",
           "pytest",
-          "repoStructure"
+          "repoStructure",
+          "misplacedGeneratedPaths"
         ],
         "scan-script-smoke": [
-          "scanScriptSmoke"
+          "scanScriptSmoke",
+          "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 13
+      "gateCount": 15
     },
     "session-detail": {
       "changedFiles": [
@@ -294,10 +312,11 @@
           "cssOwnership",
           "pytest",
           "browserLayout",
-          "browserInteraction"
+          "browserInteraction",
+          "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 6
+      "gateCount": 7
     },
     "acceptance-contract": {
       "changedFiles": [
@@ -312,10 +331,11 @@
       "gatesByTarget": {
         "acceptance-contracts": [
           "acceptanceContracts",
-          "pytest"
+          "pytest",
+          "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 2
+      "gateCount": 3
     }
   }
 }

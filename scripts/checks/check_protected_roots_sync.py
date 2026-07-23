@@ -120,14 +120,6 @@ def check_dispatcher_has_no_policy_copy() -> list[str]:
     return ['hook_dispatch.py 不得复制 PROTECTED_ROOTS 策略'] if 'PROTECTED_ROOTS' in text else []
 
 
-def check_report_gate_uses_helper() -> list[str]:
-    """检查 `check_report_gate_uses_helper` 对应的仓库契约；发现不一致时返回结构化失败信息。"""
-    text = _read('scripts/checks/check_agent_runtime_report.py')
-    if 'runtime_policy.protected_roots' in text and 'runtime_policy.is_protected_path' in text:
-        return []
-    return ['check_agent_runtime_report.py 未使用 runtime policy helper']
-
-
 def check_rules_sync_uses_helper() -> list[str]:
     """检查 `check_rules_sync_uses_helper` 对应的仓库契约；发现不一致时返回结构化失败信息。"""
     text = _read('scripts/checks/check_agent_rules_sync.py')
@@ -151,7 +143,6 @@ def main() -> int:
     errors.extend(check_agents_doc_covers_manifest(roots))
     errors.extend(check_stop_check_uses_helper(roots))
     errors.extend(check_dispatcher_has_no_policy_copy())
-    errors.extend(check_report_gate_uses_helper())
     errors.extend(check_rules_sync_uses_helper())
     if errors:
         return fail(errors)

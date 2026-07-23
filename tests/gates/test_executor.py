@@ -118,6 +118,36 @@ def test_successful_command_passes(tmp_path: Path, monkeypatch) -> None:
     assert executor.run_cmd('echo', ['/bin/echo', 'ok'], tmp_path).status == PASS
 
 
+def test_execute_plan_injects_run_identity_into_gate_children(tmp_path: Path, monkeypatch) -> None:
+    captured = {}
+    monkeypatch.setattr(executor, 'command_for_gate', lambda *_args: ['/bin/true'])
+
+    def fake_run(name, cmd, cwd, **kwargs):
+        captured.update(kwargs['env_overrides'])
+        return GateDetail(name=name, status=PASS)
+
+    monkeypatch.setattr(executor, 'run_cmd', fake_run)
+    execution = executor.build_execution_plan(
+        _single_plan('session-detail', 'cssOwnership'),
+        tmp_path,
+    )
+
+    details = executor.execute_plan(
+        execution,
+        tmp_path,
+        environment_overrides={
+            'FEIPI_AGENT_CLIENT': 'codex',
+            'FEIPI_SESSION_ID': 'session-a',
+            'FEIPI_RUN_ID': 'run-a',
+        },
+    )
+
+    assert details[0].status == PASS
+    assert captured['FEIPI_AGENT_CLIENT'] == 'codex'
+    assert captured['FEIPI_SESSION_ID'] == 'session-a'
+    assert captured['FEIPI_RUN_ID'] == 'run-a'
+
+
 def test_java_api_snapshot_uses_declarative_java_rule() -> None:
     command = executor.command_for_gate(
         gate_by_name('javaApiSnapshot'), Path(__file__).resolve().parents[2], 'java-build'

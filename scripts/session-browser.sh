@@ -468,6 +468,8 @@ run_lint() {
 
 # 执行 Python harness/quality 测试并生成 coverage 报告。
 run_coverage() {
+    local coverage_dir="$PROJECT_DIR/.local/python/coverage"
+    mkdir -p "$coverage_dir"
     run_dev_tool pytest -W error \
         tests/harness \
         tests/agent_runtime \
@@ -484,7 +486,7 @@ run_coverage() {
         --cov=scripts \
         --cov-branch \
         --cov-report=term-missing \
-        --cov-report=xml \
+        --cov-report="xml:$coverage_dir/coverage.xml" \
         --cov-fail-under=0 \
         "$@"
 }

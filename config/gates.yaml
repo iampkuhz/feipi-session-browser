@@ -269,6 +269,49 @@ gates:
     - --staged
     required_paths:
     - scripts/checks/check_ignored_tracked_files.py
+- name: misplacedGeneratedPaths
+  description: 检查仓库磁盘上是否出现 manifest 禁止的生成路径。
+  targets:
+  - name: python-standard
+    order: 7
+  - name: hook-runtime
+    order: 25
+  - name: harness
+    order: 28
+  - name: acceptance-contracts
+    order: 3
+  - name: session-detail
+    order: 11
+  - name: index
+    order: 1
+  - name: java-src
+    order: 9
+  - name: java-build
+    order: 5
+  - name: scan-script-smoke
+    order: 2
+  tiers:
+  - required
+  - full
+  timeout: 30
+  parallel: true
+  resources: []
+  incremental: always
+  changed_files: none
+  included_by: []
+  receipt: content-sensitive
+  command:
+    capability: command
+    argv:
+    - '{python}'
+    - -m
+    - scripts.checks
+    - repository.misplaced-generated-paths
+    - --root
+    - '{repo_root}'
+    required_paths:
+    - harness/manifest.yaml
+    - scripts/checks/check_misplaced_generated_paths.py
 - name: settingsJson
   description: 执行 settingsJson 所定义的仓库质量检查。
   targets:

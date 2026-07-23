@@ -72,6 +72,9 @@ staged+unstaged 与 untracked 都由同一 exact-stage 路径处理；调用方�
 run-scoped log、有界 tail，以及移除 `CODEX_*`、`CLAUDE_*`、`QODER_*` 的净化环境。cheap
 preflight 不启动 fixture、不构建 distribution。需要浏览器 fixture 时由 controller supervisor
 管理单一 identity endpoint、PID/start/group/log，并在 15 秒内 ready 或结构化失败。
+controller 会把权威 `FEIPI_AGENT_CLIENT`、`FEIPI_SESSION_ID`、`FEIPI_RUN_ID` 和
+`FEIPI_WORKTREE_ID` 显式注入 Gate child；仓库内 quality artifact 因而写入
+`tmp/quality/<client>/<session-id>/runs/<run-id>/main/`，不会回退到跨 run 共享目录。
 
 ## Commit 与 ff-only integration
 

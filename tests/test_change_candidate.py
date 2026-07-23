@@ -132,19 +132,26 @@ def test_default_stabilizer_runs_only_source_modifying_ruff_hooks(repo, monkeypa
 
     (repo / 'keep.txt').write_text('before\n', encoding='utf-8')
     commands = []
+    log_paths = []
     monkeypatch.setattr(candidate_module, 'default_formatter_argv', lambda _repo: ('precommit',))
 
-    def bounded(command, **_kwargs):
+    def bounded(command, **kwargs):
         commands.append(list(command))
+        log_paths.append(kwargs['log_path'])
         return SimpleNamespace(return_code=0, passed=True)
 
     monkeypatch.setattr(runtime, 'run_bounded', bounded)
-    prepared = prepare_candidate(repo, record())
+    injected_log_dir = repo.parent / 'runtime' / 'candidate'
+    prepared = prepare_candidate(repo, record(), log_dir=injected_log_dir)
 
     assert prepared.formatter_runs == 1
     assert commands == [
         ['precommit', 'run', 'ruff-format', '--files', 'keep.txt'],
         ['precommit', 'run', 'ruff', '--files', 'keep.txt'],
+    ]
+    assert log_paths == [
+        injected_log_dir / 'formatter-ruff-format.log',
+        injected_log_dir / 'formatter-ruff.log',
     ]
 
 

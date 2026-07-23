@@ -1,26 +1,16 @@
 .DS_Store
 
 # Runtime output
-output/
-data/
-!java/data/
-!java/data/**
-
-# Hook/harness runtime logs (per-session subdirectories)
-tmp/agent_logs/
-tmp/agent-runtime/
-tmp/quality/
-
-# Legacy agent runtime logs
-.agent/
+/data/
+/output/
+/tmp/*
 
 # Python
 /.local/
 __pycache__/
 *.pyc
 *.pyo
-.pytest_cache/
-.ruff_cache/
+*.egg-info/
 
 # SQLite index
 *.sqlite
@@ -34,39 +24,21 @@ __pycache__/
 
 # IDE
 /.idea/
-.vscode/
+/.vscode/
 
 # OpenSpec local runtime state
 openspec/active_change.json
 openspec/changes/
 
-# Harness archive
-/harness/archive/
-
-# Exports
-*.mhtml
-*.mht
-*.zip
-*.tar
-*.tar.gz
-
 # Node / Playwright
 /tests/playwright/node_modules/
-/tmp/*
-/tests/playwright/*-snapshots/
 
-*.egg-info/
-/.traces/
-/.refactor-artifacts/
-
-/docs/session-samples/*/*/litellm_calls/
-out/
-gradle/verification-metadata.xml
-
+# Gradle build output
 /java/**/build/
 /gradle/build-logic/build/
 /gradle/build-logic/.gradle/
-/config/reuse-analysis/
+
+# Qoder/Claude local runtime state
 /.qoder/task-packs/
 /.qoder/agents/*
 !/.qoder/agents/
@@ -78,8 +50,4 @@ gradle/verification-metadata.xml
 !/.qoder/agents/ui-implementation-specialist.md
 !/.qoder/agents/mhtml-export-specialist.md
 !/.qoder/agents/privacy-reviewer.md
-/feipi_jakarta_validation_prompt_tasks/
 /.claude/worktrees/
-**/.local/
-/harness/reports/
-/tests/test-results/

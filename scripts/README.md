@@ -14,7 +14,8 @@
 目录职责：`agent_runtime/` 实现共享 Runtime，`gates/` 负责 catalog/plan/execute/receipt，
 `checks/` 提供无 trigger 的领域规则，`harness/` 只提供公开适配入口，`hooks/` 提供仓库策略。
 Runtime 生命周期见 `docs/agent-runtime.md`；Gate 修改流程见 `scripts/gates/README.md`。
-Runtime report 由 Stop 在 Gate 后原子生成并校验，不是 doctor 或本次 Gate 的前置输入。
+Stop 以 run-scoped Gate quality summary、receipt 和 controller attestation 作为完成证据；
+已退役的共享 runtime report 不是 doctor 或本次 Gate 的前置输入。
 
 Change completion 只有 `scripts/harness/change.py` 一个公开 CLI，平台链路固定为 dispatcher →
 `scripts/agent_runtime/hook_entry.py` → controller。`sessionctl` 的 `begin-change`、`adopt-current`、

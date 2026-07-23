@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import tomllib
 from pathlib import Path
 
 import pytest
@@ -363,11 +364,39 @@ class TestActualRepoState:
             '/gradle/build-logic/build/',
             '/gradle/build-logic/.gradle/',
         }
-        forbidden = {'.gradle/', '.venv/', 'node_modules/', 'reports/', '**/build/**'}
+        forbidden = {
+            '.gradle/',
+            '.venv/',
+            'node_modules/',
+            'reports/',
+            '**/build/**',
+            '**/.local/',
+            '.pytest_cache/',
+            '.ruff_cache/',
+            '/harness/reports/',
+            '/tests/test-results/',
+        }
 
         assert required <= rules
         assert not forbidden & rules
         assert sum(line == '/.idea/' for line in rules) == 1
+
+    @pytest.mark.contract_case('HOOK-HARNESS-011')
+    def test_python_tool_outputs_live_below_root_local(self):
+        config = tomllib.loads((ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
+        script = (ROOT / 'scripts/session-browser.sh').read_text(encoding='utf-8')
+
+        assert config['tool']['pytest']['ini_options']['cache_dir'] == (
+            '.local/python/pytest-cache'
+        )
+        assert config['tool']['ruff']['cache-dir'] == '.local/python/ruff-cache'
+        assert config['tool']['coverage']['run']['data_file'] == (
+            '.local/python/coverage/.coverage'
+        )
+        assert config['tool']['coverage']['xml']['output'] == (
+            '.local/python/coverage/coverage.xml'
+        )
+        assert '--cov-report="xml:$coverage_dir/coverage.xml"' in script
 
     @pytest.mark.contract_case('HOOK-HARNESS-011')
     def test_no_mobile_viewports_in_css(self):

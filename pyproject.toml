@@ -28,12 +28,14 @@ package = false
 pythonpath = ["."]
 testpaths = ["tests"]
 addopts = "-n auto"
+cache_dir = ".local/python/pytest-cache"
 markers = [
     "contract_case: Mark test with acceptance contract case ID(s)",
 ]
 
 [tool.coverage.run]
 branch = true
+data_file = ".local/python/coverage/.coverage"
 source = ["scripts"]
 omit = [
   "tests/*",
@@ -50,9 +52,13 @@ exclude_lines = [
   "if __name__ == .__main__.:",
 ]
 
+[tool.coverage.xml]
+output = ".local/python/coverage/coverage.xml"
+
 [tool.ruff]
 target-version = "py312"
 line-length = 100
+cache-dir = ".local/python/ruff-cache"
 src = ["scripts", "tests"]
 extend-exclude = [
   "tmp",

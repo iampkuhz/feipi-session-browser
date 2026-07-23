@@ -1181,16 +1181,26 @@ def _selected_task_outcomes(
 def execute_plan(
     execution_plan: ExecutionPlan,
     repo_root: Path,
+    *,
+    environment_overrides: dict[str, str] | None = None,
 ) -> tuple[GateDetail, ...]:
     """只执行冻结 execution plan；结果始终按 plan 顺序返回。"""
     _prepare_cpd(repo_root, execution_plan)
     identity = runtime_paths.identity_from_values()
-    pending = {group.group_id: group for group in execution_plan.groups}
+    overrides = environment_overrides or {}
+    execution_groups = tuple(
+        replace(
+            group,
+            environment=tuple(sorted({**dict(group.environment), **overrides}.items())),
+        )
+        for group in execution_plan.groups
+    )
+    pending = {group.group_id: group for group in execution_groups}
     outcomes: dict[str, tuple[GateDetail, int]] = {}
     while pending:
         ready = [
             group
-            for group in execution_plan.groups
+            for group in execution_groups
             if group.group_id in pending and all(dep in outcomes for dep in group.depends_on)
         ]
         if not ready:

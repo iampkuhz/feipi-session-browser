@@ -77,9 +77,11 @@ class FakeGates:
     def __init__(self, status='PASS'):
         self.status = status
         self.calls = 0
+        self.last_kwargs = {}
 
     def __call__(self, **kwargs):
         self.calls += 1
+        self.last_kwargs = kwargs
         out = Path(kwargs['out_dir'])
         out.mkdir(parents=True, exist_ok=True)
         artifact = out / 'fake-gate.json'
@@ -138,6 +140,34 @@ def controller(checkout, gates=None, inputs=None):
     )
 
 
+def test_controller_logs_are_isolated_by_client_session_and_run(checkout):
+    _primary, linked, record, runtime = checkout
+    second_record = dict(record, runId='run-controller-second')
+
+    first = LifecycleController(linked, record, store_root=runtime)
+    second = LifecycleController(linked, second_record, store_root=runtime)
+
+    assert first.logs == (
+        runtime
+        / 'logs'
+        / 'codex'
+        / 'session-controller'
+        / 'runs'
+        / 'run-controller'
+        / 'main'
+    )
+    assert second.logs == (
+        runtime
+        / 'logs'
+        / 'codex'
+        / 'session-controller'
+        / 'runs'
+        / 'run-controller-second'
+        / 'main'
+    )
+    assert first.logs != second.logs
+
+
 def test_primary_or_invalid_worktree_identity_fails_before_mutation_within_two_seconds(checkout):
     _primary, linked, record, runtime = checkout
     invalid = dict(record, checkoutKind='primary')
@@ -152,7 +182,7 @@ def test_primary_or_invalid_worktree_identity_fails_before_mutation_within_two_s
 
 
 def test_end_to_end_integrates_and_duplicate_stop_is_fast_with_zero_new_gate(checkout):
-    primary, linked, _record, _runtime = checkout
+    primary, linked, record, _runtime = checkout
     gates = FakeGates()
     ctl = controller(checkout, gates)
     first = ctl.ensure_session(event='prompt', task_key='first', task_title='First task')
@@ -168,6 +198,12 @@ def test_end_to_end_integrates_and_duplicate_stop_is_fast_with_zero_new_gate(che
     assert result['state'] == 'INTEGRATED'
     assert result['commitSha'] == run(primary, 'git', 'rev-parse', 'HEAD').stdout.strip()
     assert gates.calls == 1
+    assert gates.last_kwargs['environment_overrides'] == {
+        'FEIPI_AGENT_CLIENT': 'codex',
+        'FEIPI_SESSION_ID': 'session-controller',
+        'FEIPI_RUN_ID': 'run-controller',
+        'FEIPI_WORKTREE_ID': record['worktreeId'],
+    }
     started = time.monotonic()
     repeated = ctl.on_stop(message='chore(lifecycle): first')
     assert time.monotonic() - started < 1

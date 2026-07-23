@@ -26,6 +26,18 @@ def test_dry_run_has_stable_typed_plan(capsys) -> None:
     assert payload['commands'][0]['gate'] == 'ignoredTrackedFiles'
 
 
+def test_misplaced_paths_preflight_runs_for_docs_only_change(capsys) -> None:
+    rc = cli.main(['--tier', 'required', '--dry-run', '--changed-files', '["README.md"]'])
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload['effectiveTargets'] == []
+    assert [item['gate'] for item in payload['commands']] == [
+        'ignoredTrackedFiles',
+        'misplacedGeneratedPaths',
+    ]
+
+
 def test_target_and_tier_are_mutually_exclusive() -> None:
     with pytest.raises(SystemExit):
         cli.main(['--target', 'harness', '--tier', 'quick'])

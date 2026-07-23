@@ -42,13 +42,6 @@ def test_stop_check_uses_manifest_protected_roots():
     assert sync_gate.check_stop_check_uses_helper(runtime_policy.protected_roots(ROOT)) == []
 
 
-def test_report_gate_uses_manifest_protected_roots():
-    text = (ROOT / 'scripts/checks/check_agent_runtime_report.py').read_text(encoding='utf-8')
-    assert 'runtime_policy.protected_roots' in text
-    assert 'runtime_policy.is_protected_path' in text
-    assert sync_gate.check_report_gate_uses_helper() == []
-
-
 def test_sync_gate_fails_when_required_root_missing(tmp_path):
     roots = [root for root in runtime_policy.protected_roots(ROOT) if root != '.agents/']
     errors = sync_gate.check_required_manifest_roots(roots)

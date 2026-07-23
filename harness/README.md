@@ -4,7 +4,6 @@
 
 - `manifest.yaml`：公开入口与仓库级约定。
 - `agent-runtime.manifest.yaml`、`agent-policy.manifest.yaml`：Runtime/策略真相。
-- `agent-runtime-report.schema.json`：Runtime 报告 schema。
 - `context/routes.yaml`、`rules/trigger-policy.yaml`：最小上下文与触发规则。
 - `skill-registry.yaml`、`subagents/catalog.yaml`：Skill/Subagent registry。
 

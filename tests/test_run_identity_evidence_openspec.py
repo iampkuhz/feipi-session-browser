@@ -8,6 +8,7 @@ import pytest
 from scripts.agent_runtime.context import HookContext
 from scripts.agent_runtime.events.evidence import record_hook_event
 from scripts.agent_runtime.paths import build_paths, identity_from_values, quality_dir
+from scripts.checks.check_css_ownership import artifact_dir as css_artifact_dir
 from scripts.agent_runtime.session.contract import (
     resolve_checkout_identity,
     resolve_runtime_root,
@@ -152,6 +153,11 @@ def test_run_scoped_paths_separate_epochs_and_subagents(tmp_path: Path):
     )
     assert (
         quality_dir(tmp_path, first) == tmp_path / "tmp/quality/codex/same-session/runs/run-a/main"
+    )
+    assert css_artifact_dir(tmp_path, first) != css_artifact_dir(tmp_path, second)
+    assert css_artifact_dir(tmp_path, first) == (
+        tmp_path
+        / "tmp/quality/codex/same-session/runs/run-a/main/css-ownership"
     )
 
 

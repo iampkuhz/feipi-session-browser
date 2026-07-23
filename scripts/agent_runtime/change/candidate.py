@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 from scripts.agent_runtime.git_state import run as git
+from scripts.agent_runtime.session.contract import resolve_runtime_root
 from scripts.harness.python_env import project_venv_dir
 
 
@@ -169,7 +170,18 @@ def default_formatter_argv(repo: Path) -> tuple[str, ...]:
     return (str(executable),) if executable else ()
 
 
-def _run_changed_file_cheap_checks(repo: Path, manifest: GitManifest) -> None:
+def _default_log_dir(repo: Path) -> Path:
+    """为非 controller 调用提供 run-scoped runtime 日志目录。"""
+    run_id = os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID')
+    identity = run_id or f'pid-{os.getpid()}'
+    return resolve_runtime_root(repo) / 'runs' / identity / 'change-candidate'
+
+
+def _run_changed_file_cheap_checks(
+    repo: Path,
+    manifest: GitManifest,
+    log_dir: Path,
+) -> None:
     """稳定化后运行适用的 Spotless/中文注释检查，不允许它们修改 candidate。"""
     from scripts.agent_runtime.change.runtime import run_bounded
 
@@ -225,7 +237,7 @@ def _run_changed_file_cheap_checks(repo: Path, manifest: GitManifest) -> None:
             cwd=repo,
             timeout=timeout,
             env=None,
-            log_path=repo / 'tmp' / 'agent_logs' / 'change' / f'cheap-{name}.log',
+            log_path=log_dir / f'cheap-{name}.log',
         )
         if not result.passed:
             raise CandidateError(
@@ -246,6 +258,7 @@ def prepare_candidate(
     *,
     formatter_argv: Sequence[str] | None = None,
     run_formatter: Any | None = None,
+    log_dir: Path | None = None,
 ) -> PreparedCandidate:
     """自动 manifest、exact-stage，并允许 formatter 修改归属路径后自动再暂存一次。
 
@@ -259,9 +272,10 @@ def prepare_candidate(
     stage_exact(repo, manifest)
     default_formatter = formatter_argv is None
     argv = tuple(formatter_argv) if formatter_argv is not None else default_formatter_argv(repo)
+    candidate_log_dir = Path(log_dir or _default_log_dir(repo)).resolve()
     if not argv:
         candidate_tree = git(repo, 'write-tree').stdout.strip()
-        _run_changed_file_cheap_checks(repo, manifest)
+        _run_changed_file_cheap_checks(repo, manifest, candidate_log_dir)
         return PreparedCandidate(manifest, candidate_tree, 0)
     if run_formatter is None:
         from scripts.agent_runtime.change.runtime import run_bounded
@@ -274,7 +288,7 @@ def prepare_candidate(
                     cwd=repo,
                     timeout=600,
                     env=None,
-                    log_path=repo / 'tmp' / 'agent_logs' / 'change' / 'formatter.log',
+                    log_path=candidate_log_dir / 'formatter.log',
                 )
             executable, *paths = command
             outcomes = [
@@ -283,7 +297,7 @@ def prepare_candidate(
                     cwd=repo,
                     timeout=600,
                     env=None,
-                    log_path=repo / 'tmp' / 'agent_logs' / 'change' / f'formatter-{hook}.log',
+                    log_path=candidate_log_dir / f'formatter-{hook}.log',
                 )
                 for hook in ('ruff-format', 'ruff')
             ]
@@ -314,6 +328,6 @@ def prepare_candidate(
                 'FORMATTER_UNSTABLE',
                 f'formatter did not stabilize on pass {pass_number}',
             )
-        _run_changed_file_cheap_checks(repo, manifest)
+        _run_changed_file_cheap_checks(repo, manifest, candidate_log_dir)
         return PreparedCandidate(collect_manifest(repo), candidate_tree, pass_number)
     raise CandidateError('FORMATTER_UNSTABLE', 'formatter did not stabilize')

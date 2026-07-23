@@ -24,13 +24,12 @@ def test_secret_guard_scans_qoder_and_reports_paths(tmp_path, monkeypatch):
     )
     report_secret = _write(
         tmp_path,
-        "harness/reports/runtime.json",
+        "harness/runtime.json",
         '{"token":"' + "github" + "_pat_" + "A" * 32 + '"}\n',
     )
 
     scan_dirs = set(secrets.SCAN_DIRS)
     assert ".qoder" in scan_dirs
-    assert "harness/reports" in scan_dirs
     assert secrets._scan_file(qoder_secret)
     assert secrets._scan_file(report_secret)
     assert secrets._check_sensitive_marker("name=" + "AWS" + "_SECRET" + "_ACCESS_KEY")

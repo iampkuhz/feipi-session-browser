@@ -23,7 +23,6 @@ SCAN_DIRS = [
     ".agents",
     "skills",
     "harness",
-    "harness/reports",
     "scripts",
     "tests/fixtures",
 ]

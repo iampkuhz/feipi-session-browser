@@ -176,6 +176,7 @@ if [[ -n "$PYTHON" ]]; then
     agent.runtime-isolation
     agent.runtime-worktree
     repository.gate-bypass
+    repository.misplaced-generated-paths
     agent.protected-roots
     agent.qoder-parity
     agent.hook-payload
@@ -194,9 +195,6 @@ fi
 # 检查个人文件和临时目录是否不存在于磁盘。
 # 必须使用 `test ! -e`，因为 `.gitignore` 会隐藏 git status 结果。
 local_files=(.mcp.json .env)
-# 注意：不检查 `.pytest_cache`，因为它是 pytest 正常副作用。
-# doctor 本身也可能通过产品测试触发 pytest。
-local_dirs=(data output)
 for f in "${local_files[@]}"; do
   if [[ -e "$f" ]]; then
     fail_check "personal file should not exist: $f"
@@ -209,13 +207,6 @@ done
 if [[ -e ".claude/settings.local.json" ]]; then
   warn_check "personal config present: .claude/settings.local.json (gitignored, allowed)"
 fi
-for d in "${local_dirs[@]}"; do
-  if [[ -d "$d" ]]; then
-    fail_check "ephemeral dir should not exist: $d"
-  else
-    pass_check "ephemeral dir absent: $d"
-  fi
-done
 
 # OpenSpec runtime state 不应被 Git 追踪
 openspec_tracked=$(git ls-files openspec/active_change.json openspec/changes 2>/dev/null || true)

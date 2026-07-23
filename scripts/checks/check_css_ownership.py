@@ -6,10 +6,12 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from scripts.agent_runtime import paths as runtime_paths
 from scripts.checks._framework import repository_root
 
 REPO_ROOT = repository_root()
@@ -523,6 +525,23 @@ def format_report(result: OwnershipCheck) -> str:
     return '\n'.join(lines)
 
 
+def artifact_dir(
+    repo_root: Path,
+    identity: runtime_paths.RuntimeIdentity | None = None,
+) -> Path:
+    """返回按 client/session/run 隔离的 CSS quality artifact 目录。"""
+    resolved = identity or runtime_paths.identity_from_values()
+    if not resolved.has_session or not resolved.has_run:
+        process_id = f'pid-{os.getpid()}'
+        resolved = runtime_paths.identity_from_values(
+            agent_client=resolved.client,
+            session_id=resolved.raw_session_id or process_id,
+            agent_id=resolved.raw_agent_id,
+            run_id=resolved.raw_run_id or process_id,
+        )
+    return runtime_paths.quality_dir(repo_root, resolved) / 'css-ownership'
+
+
 # 解析命令行参数并运行脚本入口。
 
 
@@ -535,7 +554,7 @@ def main() -> int:
     print(report)
 
     # 写入本地 quality artifact。
-    out_dir = repo_root / 'tmp' / 'quality' / 'css-ownership'
+    out_dir = artifact_dir(repo_root)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / 'css-ownership-report.txt'
     out_file.write_text(report + '\n', encoding='utf-8')

@@ -34,7 +34,6 @@ SCAN_DIRS = [
     "tests/fixtures",
     "docs",
     ".qoder",
-    "harness/reports",
 ]
 SCAN_GLOBS = [
     "tests/test_*agent*runtime*.py",
