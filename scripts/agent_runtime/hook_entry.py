@@ -406,7 +406,7 @@ def _run_mutation_block(
 
 
 def _controlled_primary_command(ctx: HookContext, record: dict) -> bool:
-    """只认可当前 run 的 canonical on-stop/resume，拒绝 shell 组合命令。"""
+    """只认可当前 run 的 canonical on-stop/resume/adopt-current，拒绝 shell 组合命令。"""
     if any(operator in ctx.command for operator in ('&&', '||', ';', '|', '>', '<', '`', '$(')):
         return False
     try:
@@ -429,7 +429,7 @@ def _controlled_primary_command(ctx: HookContext, record: dict) -> bool:
         return False
     if not script.endswith('scripts/harness/change.py'):
         return False
-    subcommands = [token for token in tokens[script_index + 1 :] if token in {'on-stop', 'resume'}]
+    subcommands = [token for token in tokens[script_index + 1 :] if token in {'on-stop', 'resume', 'adopt-current'}]
     return len(subcommands) == 1
 
 
