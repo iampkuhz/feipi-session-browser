@@ -17,7 +17,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.agent_runtime.events import evidence as changed_file_utils  # noqa: E402
+from scripts.gates import support as changed_file_utils  # noqa: E402
 
 DEFAULT_MODE = 'incremental'
 VALID_MODES = {'incremental', 'full'}

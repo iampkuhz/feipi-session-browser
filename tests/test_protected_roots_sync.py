@@ -2,56 +2,31 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.agent_runtime import policy as runtime_policy
 from scripts.checks import check_protected_roots_sync as sync_gate
 
 ROOT = Path(__file__).resolve().parents[1]
-REQUIRED_ROOTS = [
-    '.claude/',
-    '.codex/',
-    '.qoder/',
-    '.agents/',
-    'skills/',
-    'harness/',
-    'scripts/',
-    'openspec/',
-    'src/session_browser/',
-    'tests/',
-    'AGENTS.md',
-    'CLAUDE.md',
-]
 
 
-def test_manifest_contains_required_protected_roots():
-    roots = runtime_policy.protected_roots(ROOT)
-    for required in REQUIRED_ROOTS:
-        assert required in roots
+def test_policy_manifest_contains_required_protected_roots():
+    roots = sync_gate.manifest_roots(ROOT)
+    assert sync_gate.check_required_manifest_roots(roots) == []
 
 
-def test_is_protected_path_matches_manifest_roots():
-    roots = runtime_policy.protected_roots(ROOT)
-    for protected in roots:
-        sample = protected if not protected.endswith('/') else protected + 'example.txt'
-        assert runtime_policy.is_protected_path(sample, ROOT), sample
-    assert not runtime_policy.is_protected_path('README-not-protected.tmp', ROOT)
+def test_agents_document_covers_complete_protected_scope():
+    assert sync_gate.check_agents_doc_covers_required_roots(ROOT) == []
 
 
-def test_stop_check_uses_manifest_protected_roots():
-    text = (ROOT / 'scripts/agent_runtime/stop/evidence.py').read_text(encoding='utf-8')
-    assert 'runtime_policy.protected_roots' in text or 'runtime_policy.is_protected_path' in text
-    assert sync_gate.check_stop_check_uses_helper(runtime_policy.protected_roots(ROOT)) == []
-
-
-def test_sync_gate_fails_when_required_root_missing(tmp_path):
-    roots = [root for root in runtime_policy.protected_roots(ROOT) if root != '.agents/']
-    errors = sync_gate.check_required_manifest_roots(roots)
-    assert any('.agents/' in error for error in errors)
-
-
-def test_sync_gate_fails_when_skills_or_tests_missing(tmp_path):
+def test_sync_gate_fails_when_agent_or_skill_root_missing():
     roots = [
-        root for root in runtime_policy.protected_roots(ROOT) if root not in {'skills/', 'tests/'}
+        root
+        for root in sync_gate.manifest_roots(ROOT)
+        if root not in {'.agents/', 'skills/'}
     ]
     errors = sync_gate.check_required_manifest_roots(roots)
+    assert any('.agents/' in error for error in errors)
     assert any('skills/' in error for error in errors)
-    assert any('tests/' in error for error in errors)
+
+
+def test_manifest_reader_is_fail_closed_for_missing_manifest(tmp_path):
+    assert sync_gate.manifest_roots(tmp_path) == []
+    assert sync_gate.check_required_manifest_roots([])

@@ -1,21 +1,20 @@
 ---
 name: feipi-quality-gate-diagnosis
 disable-model-invocation: true
-description: 用于 required quality gate、doctor、stop check 失败后的诊断和最小修复；功能开发前置设计不要使用。
+description: 用于 required quality gate、doctor 或显式质量检查失败后的诊断和最小修复；功能开发前置设计不要使用。
 ---
 
 # 质量门诊断
 
-本 skill 为 required quality gate、doctor、stop check 失败后的诊断和最小修复提供固定执行流程。核心原则：先定位触发 target，再看失败输出，再做最小修复；不得把 skipped/未运行当 PASS。
+本 skill 为 required quality gate、doctor 和显式质量检查失败后的诊断与最小修复提供固定执行流程。核心原则：先定位触发 target，再看失败输出，再做最小修复；不得把 skipped/未运行当 PASS。
 
 ## 何时使用
 
-- Required baseline gate 失败（`agent.runtime-manifest`、`agent.skill-registry` 等）。
+- Required baseline gate 失败（如 `agent.skill-registry`、OpenSpec 或产品 Gate）。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败。
-- 共享 dispatcher → `scripts/agent_runtime/hook_entry.py` → controller 的 Stop 转发失败。
 - Java gates（编译、测试、PMD）失败。
 - UI gates（静态检查、JS action handler 检查）失败。
-- Agent runtime gates（entry parity、hook parity、policy sync）失败。
+- Agent policy、skill registry 或 OpenSpec 结构检查失败。
 - 任何 required quality gate 返回非零 exit code。
 
 ## 不要何时使用
@@ -43,7 +42,7 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 ## 执行步骤
 
 1. **记录失败命令和完整 exit code**：复制触发失败的完整命令，记录 exit code（不是 0 的值）。不要截断或概括输出。
-2. **定位 gate 名称和 target**：从失败输出中提取 gate 名称（如 `[skillRegistry]`、`[agentRuntimeManifest]`）和具体 target（文件路径、skill 名称、agent 名称等）。
+2. **定位 gate 名称和 target**：从失败输出中提取 gate 名称（如 `[skillRegistry]`、`[openspecLayout]`）和具体 target（文件路径、skill 名称、agent 名称等）。
 3. **读取 gate 脚本，不读无关实现**：只读触发失败的 gate 脚本源码，理解它的检查逻辑和断言条件。不要读取与当前失败无关的其他 gate 脚本或产品代码。
 4. **找到失败文件和具体断言**：从 gate 输出中定位具体失败的文件路径和断言信息（如 "缺少必需文件"、"symlink 目标不存在"、"required skill 目录不存在"）。
 5. **判断失败类别**：将失败归类为以下五类之一：
@@ -65,12 +64,12 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 - 领域检查器：`scripts/checks/*.py`；只在定位单个失败时运行报告给出的精确 rerun 命令。
 - Harness 体检：`scripts/harness/doctor.sh`。
 - Registry 配置：`harness/skill-registry.yaml`。
-- Manifest 配置：`harness/agent-runtime.manifest.yaml`。
+- Harness 配置：`harness/manifest.yaml` 与 `harness/agent-policy.manifest.yaml`。
 - Agent 入口：`.claude/agents/*.md`、`.codex/agents/*.toml`。
 - Skill 源目录：`skills/authoring/<skill-name>/`。
 - Skill 入口：`.agents/skills/<skill-name>`、`.claude/skills/<skill-name>`、`.codex/skills/<skill-name>`。
 
-不要跨边界修改产品代码（Java、Python 产品逻辑）。不要修改与 gate 失败无关的配置文件。不要修改 hooks 脚本逻辑（除非 gate bug 定位到 hook）。
+不要跨边界修改产品代码（Java、Python 产品逻辑）。不要修改与 gate 失败无关的配置文件。不要重新引入平台 Hook、Session Registry、writer lease 或自动 Git mutation。
 
 ## 验证门禁
 
@@ -78,14 +77,13 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 
 - 触发失败的 gate — 必须重跑并 PASS。
 - `python3 -m scripts.checks agent.skill-registry` — registry 完整性。
-- `python3 -m scripts.checks agent.runtime-manifest` — manifest 完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
-- `python3 scripts/gates/cli.py --tier required` — Stop/handoff 唯一 required baseline。
+- `python3 scripts/gates/cli.py --tier required` — 显式 required baseline。
 
 选择策略：
 
 - 单个 gate 失败 → 修复后重跑该 gate + `doctor.sh`。
-- Registry/manifest 相关 → 追加 `agent.skill-registry` 和 `agent.runtime-manifest`。
+- Registry/manifest 相关 → 追加 `agent.skill-registry` 与 minimal harness 结构检查。
 - 收口前 → 运行 `python3 scripts/gates/cli.py --tier required`。
 
 若诊断结果需要新增、修改或删除 Gate，退出本 skill 的单点修复模式，按

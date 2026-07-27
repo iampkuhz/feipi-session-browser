@@ -9,15 +9,14 @@
 - **所有与用户的回复（思考、分析、总结、commit message 除外）统一使用中文。** Commit message 仍按项目历史风格使用英文前缀（如 `fix(codex): ...`）。
 - 默认不要预读 `AGENTS.md`、`harness/`、`openspec/`、`tests/`。
 - 先根据用户任务定位最小必要文件，再读取相关内容。
-- 只有任务涉及非平凡开发、OpenSpec、harness、质量门、hooks 或仓库规则改造时，才读取 `AGENTS.md`。
+- 只有任务涉及非平凡开发、OpenSpec、harness、质量门或仓库规则改造时，才读取 `AGENTS.md`。
 
 ## 维护入口
 
-- Scripts、Hook、Runtime、Stop 与 Gate 的目录职责和公开命令从 `scripts/README.md` 开始定位。
-- 平台 Hook 只调用已登记的薄 wrapper；不得从 settings、CI 或维护文档直接运行
-  `scripts/agent_runtime/**` 或 `scripts/gates/` 内部模块。
-- Stop/handoff 前唯一 required Gate 命令是
-  `python3 scripts/gates/cli.py --tier required`；未运行、失败或 skipped 不得描述为 `PASS`。
+- Scripts 与 Gate 的目录职责和公开命令从 `scripts/README.md` 开始定位。
+- 按任务范围显式运行验证；最终 required Gate 命令是
+  `python3 scripts/gates/cli.py --tier required`。
+- required gates 未运行、失败或 skipped 不得描述为 `PASS`。
 
 ## Subagent 协议索引
 

@@ -1,6 +1,7 @@
 schemaVersion: 1
-version: 1
-generated_by: repository-maintained-agent-runtime-manifest
+version: 2
+generated_by: repository-maintained-minimal-agent-contract
+
 policy_files:
   - AGENTS.md
   - CLAUDE.md
@@ -8,6 +9,7 @@ policy_files:
   - .codex/config.toml
   - .qoder/AGENTS.md
   - .qoder/settings.json
+
 protected_roots:
   - .claude/
   - .codex/
@@ -21,159 +23,45 @@ protected_roots:
   - tests/
   - AGENTS.md
   - CLAUDE.md
+
+lifecycle:
+  owner: client
+  checkout: client-selected
+  repository_state_required_for_read_or_write: false
+  branch_commit: explicit
+  branch_integration: explicit-user-action
+  forbidden_git_actions:
+    - stash
+    - reset
+    - force
+    - rebase
+    - auto-push
+  platform_event_bindings: []
+
 platforms:
   claude:
-    config_files:
-      - .claude/settings.json
-    hook_dispatch:
-      entry: scripts/harness/hook_dispatch.py
-      client: claude
-      bindings:
-        - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
-        - {event: CwdChanged, matcher: "", dispatch_event: cwd-changed, timeout: 30}
-        - {event: SubagentStart, matcher: "", dispatch_event: subagent-start, timeout: 30}
-        - {event: PreToolUse, matcher: "Bash", dispatch_event: pre-bash, timeout: 60}
-        - {event: PreToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: pre-write, timeout: 60}
-        - {event: PostToolUse, matcher: "Bash", dispatch_event: post-bash, timeout: 60}
-        - {event: PostToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: post-write, timeout: 60}
-        - {event: PostToolUseFailure, matcher: "", dispatch_event: tool-failure, timeout: 60}
-        - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
-        - {event: SubagentStop, matcher: "", dispatch_event: stop, timeout: 1500}
-        - {event: ConfigChange, matcher: "", dispatch_event: config-change, timeout: 30}
-        - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
+    config_files: [.claude/settings.json]
     agents_dir: .claude/agents
     skills_dir: .claude/skills
   codex:
-    config_files:
-      - .codex/config.toml
-      - .codex/hooks.json
-    hook_binding_note: 仓库 contract 验证受支持事件与共享 dispatcher；真实 Codex App host capability 仍为 UNVERIFIED。
-    hook_dispatch:
-      entry: scripts/harness/hook_dispatch.py
-      client: codex
-      bindings:
-        - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
-        - {event: UserPromptSubmit, matcher: "", dispatch_event: user-prompt-submit, timeout: 30}
-        - {event: PreToolUse, matcher: "", dispatch_event: pre-tool, timeout: 60}
-        - {event: PostToolUse, matcher: "", dispatch_event: post-tool, timeout: 60}
-        - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
+    config_files: [.codex/config.toml]
     agents_dir: .codex/agents
     skills_dir: .agents/skills
   qoder:
-    config_files:
-      - .qoder/AGENTS.md
-      - .qoder/settings.json
-      - .qoder/settings.local.example.json
-    hook_binding_note: Repository fixtures cover the shared dispatcher contract; real end-to-end client lifecycle remains UNVERIFIED.
-    hook_dispatch:
-      entry: scripts/harness/hook_dispatch.py
-      client: qoder
-      bindings:
-        - {event: SessionStart, matcher: "", dispatch_event: session-start, timeout: 30}
-        - {event: CwdChanged, matcher: "", dispatch_event: cwd-changed, timeout: 30}
-        - {event: UserPromptSubmit, matcher: "", dispatch_event: user-prompt-submit, timeout: 30}
-        - {event: PreToolUse, matcher: "", dispatch_event: pre-tool-bootstrap, timeout: 30}
-        - {event: PreToolUse, matcher: "Bash", dispatch_event: pre-bash, timeout: 60}
-        - {event: PreToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: pre-write, timeout: 60}
-        - {event: PostToolUse, matcher: "Bash", dispatch_event: post-bash, timeout: 60}
-        - {event: PostToolUse, matcher: "Write|Edit|MultiEdit|NotebookEdit|apply_patch|ApplyPatch", dispatch_event: post-write, timeout: 60}
-        - {event: PostToolUseFailure, matcher: "", dispatch_event: tool-failure, timeout: 60}
-        - {event: Stop, matcher: "", dispatch_event: stop, timeout: 1500}
-        - {event: StopFailure, matcher: "", dispatch_event: stop-failure, timeout: 120}
-        - {event: SessionEnd, matcher: "", dispatch_event: session-end, timeout: 60}
+    config_files: [.qoder/AGENTS.md, .qoder/settings.json]
     agents_dir: .qoder/agents
     skills_dir: .qoder/skills
-platform_hook_adapter:
-  authority: scripts/agent_runtime/events/adapter.py
-  service: scripts/harness/sessionctl.py bootstrap
-  checkout_source: payload cwd resolved through Git facts
-  requires_feipi_run_id: false
-  creates_worktree: false
-  surfaces:
-    codex-app: {client: codex, validation: UNVERIFIED}
-    codex-cli: {client: codex, validation: START_ENFORCED_BY_LAUNCHER}
-    claude-code-cli: {client: claude, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
-    qoder-cli: {client: qoder, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
-    qoder-client: {client: qoder, validation: LOCAL_ADAPTER_CONTRACT_VERIFIED}
-worktree_isolation:
-  mode: adopt-client-selected-checkout
-  applies_to_clients: [claude, codex, qoder]
-  identity_key: repo-key plus canonical checkout realpath
-  checkout_kinds: [primary-checkout, linked-worktree]
-  checkout_creators: [codex, claude, qoder, external, unknown]
-  authorization_facts: [git-top-level, git-common-dir, worktree-list, checkout-realpath]
-  ignored_identity_hints: [path-prefix, directory-name, client-name, branch-name, detached-state]
-  subagent_behavior: inherit-main-session-worktree
-  lifecycle_owner: client-or-external-provider
-  base_contract:
-    policy: exact-primary-named-branch-head
-    applies_to_new_linked_runs: [claude, codex]
-    forbidden_fallbacks: [origin-HEAD, remote-default-branch, tracking-branch, hardcoded-main]
-    mismatch_status: WORKTREE_BASE_MISMATCH
-    resume_behavior: reuse-registered-base
-    primary_detached: block
-    provider_checkout_mutation: forbidden
-  acquisition:
-    claude-code-cli: native-worktree-baseRef-head
-    codex-cli: repository-prelaunch-launcher-then-codex-cd
-    codex-app: user-selected-starting-branch-plus-bootstrap-validation
-  sessionctl: scripts/harness/sessionctl.py bootstrap
-  registry_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
-  enforcement_hooks:
-    session_start: shared-idempotent-ensure-session
-    user_prompt_submit: codex-and-qoder-client-idempotent-change-start
-    cwd_changed: claude-and-qoder-checkout-reconfirmation
-    pre_tool_bootstrap: codex-unified-and-qoder-idempotent-bootstrap-fallback
-    pre_bash: all-clients-mutating-bash
-    pre_write: all-clients-write-like-tools
-    stop: all-clients-fail-closed-on-wrong-checkout-with-changes
 
-change_completion:
-  hook_dispatcher: scripts/harness/hook_dispatch.py
-  hook_entry: scripts/agent_runtime/hook_entry.py
-  authority: scripts/agent_runtime/change/controller.py
-  public_entry: scripts/harness/change.py
-  shared_state_service: scripts/agent_runtime/change/store.py
-  model: scripts/agent_runtime/change/model.py
-  schema_version: 3
-  eligible_checkout: attested-checkout-with-exact-attribution
-  attributed_files: automatic-nul-safe-exact-manifest
-  sequence: [cheap-preflight, exact-stage, pre-commit-stabilize, candidate-tree, required-stop-once, commit, commit-attestation, integration]
-  gate_service: scripts.gates.cli.run_service
-  gate_report_statuses: [EXECUTED, REUSED, NOT_TRIGGERED, FAILED, BLOCKED]
-  completion_states: [WORKING, PREPARED, VALIDATING, REPAIR_REQUIRED, VALIDATED, COMMITTED, COMMITTED_HANDOFF, INTEGRATED, TERMINAL_BLOCKED]
-  persisted_fields: [sessionId, changeId, changeEpoch, attemptId, stateVersion, manifestHash, candidateTree, terminalStopReceipt, planFingerprint, commandFingerprint, environmentFingerprint, commitSha, resultRef]
-  target_integration: local-strict-ff-only-no-rewrite
-  failure_statuses: [REPAIR_REQUIRED, BUSY_RETRYABLE, CAPABILITY_RETRYABLE, COMMITTED_HANDOFF, TERMINAL_BLOCKED, INTERNAL_ERROR]
-  required_gate_count: 1
-  post_commit_heavy_process_count: 0
-  detached_result_ref: refs/heads/codex/result/<change-id>
-  forbidden_actions: [stash, reset, force, rebase, cherry-pick, integration-worktree, auto-push, auto-pull-request, delete-provider-checkout]
-  remote_publish: false
-
-resource_isolation:
-  lock_root: runtime-root/locks
-  lock_manager: scripts/agent_runtime/locks.py
-  port_allocator: scripts/agent_runtime/ports.py
-  ordered_multi_resource_acquire: true
-  stale_pid_reclaim: true
-  owner_metadata_fields: [runId, client, sessionId, worktreeId, target, pid, processStartTime, acquiredAt, hostMarker]
-  named_resources:
-    - gradle-daemon
-    - java-build-tree
-    - fixture-server
-    - playwright-browser
-  run_scoped_outputs:
-    - FEIPI_AGENT_RUNTIME_ROOT/runs/<run-id>/tmp
-    - FEIPI_AGENT_RUNTIME_ROOT/runs/<run-id>/playwright
-    - tmp/quality/<client>/<session-id>/runs/<run-id>/main
+validation:
+  required_command: python3 scripts/gates/cli.py --tier required
+  invocation: explicit
+  passing_requires_success: true
+  non_passing_results: [failed, warning, skipped, not-run, unavailable]
 
 shared_skills:
   registry: harness/skill-registry.yaml
   source_root: skills/authoring
-  exposed_roots:
-    - .agents/skills
-    - .qoder/skills
+  exposed_roots: [.agents/skills, .qoder/skills]
   required:
     - feipi-openspec-orchestrate-change
     - feipi-java-feature-dev
@@ -182,6 +70,7 @@ shared_skills:
     - feipi-mhtml-export-dev
     - feipi-quality-gate-diagnosis
     - feipi-privacy-redaction-dev
+
 domain_agents:
   java-backend-implementer:
     skill: skills/authoring/feipi-java-feature-dev/SKILL.md
@@ -201,182 +90,13 @@ domain_agents:
   privacy-reviewer:
     skill: skills/authoring/feipi-privacy-redaction-dev/SKILL.md
     entries: {claude: .claude/agents/privacy-reviewer.md, codex: .codex/agents/privacy-reviewer.toml, qoder: .qoder/agents/privacy-reviewer.md}
+
 permission_policy:
   committed_settings_must_not_contain_local_absolute_paths: true
-  bypass_permissions_allowed_only_with_pre_write_guard: true
   local_settings_example: .claude/settings.local.example.json
   qoder_local_settings_example: .qoder/settings.local.example.json
-required_gates:
-  - agent.runtime-manifest
-  - agent.hook-parity
-  - repository.no-committed-local-paths
-  - agent.permission-policy
-  - agent.policy-size
-  - agent.rules-sync
-  - agent.runtime-isolation
-  - agent.runtime-worktree
-  - repository.gate-bypass
-  - agent.protected-roots
-  - agent.hook-payload
-  - agent.subagent-handoff
-  - agent.skill-registry
-  - agent.entry-parity
-  - agent.qoder-parity
-  - repository.no-real-session-fixtures
-  - security.secret-like-content
-  - web.css-ownership
-primary_sessions:
-  writable_isolation: checkout-writer-lease
-  same_worktree_max_writers: 1
-  read_only_sessions_allowed: true
-  identity_layers:
-    primary_run: runId
-    client_session: sessionId
-    subagent: agentId-inherits-runId
-run_record:
-  required_fields:
-    - schemaVersion
-    - runId
-    - repoKey
-    - client
-    - taskId
-    - sessionId
-    - worktreeId
-    - checkoutRoot
-    - checkoutKind
-    - checkoutCreator
-    - gitCommonDir
-    - branch
-    - detached
-    - targetBranch
-    - primaryRepoRoot
-    - baseCommit
-    - headCommit
-    - initialDirtySnapshot
-    - changeAttribution
-    - changeId
-    - status
-    - allowedPaths
-    - forbiddenPaths
-    - writerLease
-    - hookActivation
-    - createdAt
-    - updatedAt
-  initial_dirty_snapshot:
-    path_states_field: pathStates
-    content_fields:
-      - exists
-      - size
-      - sha256
-    stores_file_content: false
-    unchanged_path_excluded_only_when_state_matches: true
-    legacy_missing_state_policy: exclude-path-fail-safe
-  statuses:
-    - BOOTSTRAPPED
-    - READ_ONLY_READY
-    - ISOLATED_WRITER
-    - LOCAL_WRITER
-    - READ_ONLY_CONFLICT
-    - VALIDATING
-    - VALIDATED
-    - INTEGRATING
-    - INTEGRATED
-    - HANDOFF_REQUIRED
-    - BLOCKED
-status_machine:
-  initial_status: BOOTSTRAPPED
-  terminal_statuses:
-    - INTEGRATED
-    - HANDOFF_REQUIRED
-    - BLOCKED
-  writable_ready_statuses:
-    - ISOLATED_WRITER
-    - LOCAL_WRITER
-  transitions:
-    BOOTSTRAPPED:
-      - READ_ONLY_READY
-      - ISOLATED_WRITER
-      - LOCAL_WRITER
-      - READ_ONLY_CONFLICT
-      - VALIDATING
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    READ_ONLY_READY:
-      - ISOLATED_WRITER
-      - LOCAL_WRITER
-      - READ_ONLY_CONFLICT
-      - VALIDATING
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    ISOLATED_WRITER:
-      - READ_ONLY_READY
-      - VALIDATING
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    LOCAL_WRITER:
-      - READ_ONLY_READY
-      - VALIDATING
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    READ_ONLY_CONFLICT:
-      - ISOLATED_WRITER
-      - LOCAL_WRITER
-      - VALIDATING
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    VALIDATING:
-      - READ_ONLY_READY
-      - VALIDATED
-      - ISOLATED_WRITER
-      - LOCAL_WRITER
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    VALIDATED:
-      - VALIDATING
-      - ISOLATED_WRITER
-      - LOCAL_WRITER
-      - READ_ONLY_CONFLICT
-      - INTEGRATING
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    INTEGRATING:
-      - INTEGRATED
-      - HANDOFF_REQUIRED
-      - BLOCKED
-    INTEGRATED: []
-    HANDOFF_REQUIRED:
-      - VALIDATING
-      - ISOLATED_WRITER
-      - LOCAL_WRITER
-      - READ_ONLY_CONFLICT
-      - INTEGRATING
-      - BLOCKED
-    BLOCKED:
-      - VALIDATING
-runtime_root:
-  resolution_order:
-    - FEIPI_AGENT_RUNTIME_ROOT
-    - TMPDIR-or-system-temp/feipi-agent-runtime/<repo-key>
-  repo_key: sha256 of canonical Git common-dir identity
-  ordinary_checkout: use the repository-scoped system temporary directory
-  linked_worktree: use the same repo-key as the primary checkout without writing Git metadata
-  directory_mode: "0700"
-  file_mode: "0600"
-  symlink_policy: reject managed symlinks
-  committed_config_absolute_paths_allowed: false
-registry_storage:
-  root: runtime_root
-  runs_dir: runs
-  writer_leases_dir: writer-leases
-  locks_dir: locks
-  atomic_write: write-temp-then-replace
-  lock_scope: repository-runtime-root
-collision_policy:
-  same_worktree_second_writer: BLOCK
-  stale_fencing_token: BLOCK
-  hook_activation_unconfirmed:
-    writable_ready_allowed: false
-subagents:
-  inherit_parent_run_id: true
-  require_independent_agent_id: true
-  create_primary_run: false
+
+subagent_protocol:
+  source: harness/agent-policy.manifest.yaml
+  statuses: [PASS, FAIL, BLOCKED]
+  evidence_scope: same-client-and-session

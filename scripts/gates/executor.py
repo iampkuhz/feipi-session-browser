@@ -17,10 +17,9 @@ from dataclasses import asdict, replace
 from functools import lru_cache
 from pathlib import Path
 
-from scripts.agent_runtime import locks as resource_lock
-from scripts.agent_runtime import paths as runtime_paths
-from scripts.agent_runtime.change.runtime import run_bounded, sanitized_environment
-from scripts.agent_runtime.session.contract import resolve_runtime_root
+from scripts.gates import resource_lock
+from scripts.gates import support as gate_support
+from scripts.gates.support import resolve_runtime_root, run_bounded, sanitized_environment
 from scripts.gates.catalog import CATALOG_VERSION, gate_by_name
 from scripts.gates.model import (
     ChangedFilesInput,
@@ -1186,7 +1185,7 @@ def execute_plan(
 ) -> tuple[GateDetail, ...]:
     """只执行冻结 execution plan；结果始终按 plan 顺序返回。"""
     _prepare_cpd(repo_root, execution_plan)
-    identity = runtime_paths.identity_from_values()
+    identity = gate_support.identity_from_values()
     overrides = environment_overrides or {}
     execution_groups = tuple(
         replace(

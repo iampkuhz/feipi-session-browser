@@ -9,17 +9,17 @@ from scripts.gates.planner import required_quality_targets
 
 def _env():
     env = os.environ.copy()
-    env['ACTIVE_CHANGE_ID'] = 'harden-agent-runtime-full-v3'
+    env['ACTIVE_CHANGE_ID'] = 'reset-minimal-agent-harness'
     return env
 
 
-def test_dry_run_hook_runtime_target_for_agent_config_change():
+def test_dry_run_harness_target_for_agent_config_change():
     proc = subprocess.run(
         [
             sys.executable,
             'scripts/gates/cli.py',
             '--change-id',
-            'harden-agent-runtime-full-v3',
+            'reset-minimal-agent-harness',
             '--changed-files',
             '[".claude/agents/qwen-main-default.md"]',
             '--dry-run',
@@ -33,7 +33,7 @@ def test_dry_run_hook_runtime_target_for_agent_config_change():
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
     payload = json.loads(combined)
-    assert 'hook-runtime' in payload['effectiveTargets']
+    assert 'harness' in payload['effectiveTargets']
 
 
 def test_measure_gate_escape_rate_stdout_and_json_contract(tmp_path):
@@ -111,18 +111,15 @@ def test_required_case_coverage_and_zero_escape_rate():
 
 def test_synthetic_target_selection_is_fail_closed_or_targeted():
     expectations = {
-        '.claude/agents/qwen-main-default.md': 'hook-runtime',
-        '.qoder/hooks/pre_write_guard.sh': 'hook-runtime',
-        'scripts/agent_runtime/hook_entry.py': {'harness', 'hook-runtime'},
+        '.claude/agents/qwen-main-default.md': 'harness',
+        '.qoder/settings.json': 'harness',
+        'harness/manifest.yaml': 'harness',
         'java/web/src/main/java/com/feipi/session/browser/X.java': 'java-src',
         'java/web/src/main/resources/templates/session-detail.html': 'session-detail',
     }
     for path, expected in expectations.items():
         targets = required_quality_targets([path])
-        if isinstance(expected, set):
-            assert expected & set(targets), (path, targets)
-        else:
-            assert expected in targets, (path, targets)
+        assert expected in targets, (path, targets)
 
     unknown_case = next(
         case for case in build_report()['cases'] if case['id'] == 'unknown-risky-path'

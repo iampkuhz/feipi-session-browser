@@ -22,7 +22,7 @@
 - `repository.no-real-session-fixtures` — PASS/FAIL
 - `security.secret-like-content` — PASS/FAIL
 - `agent.skill-registry` — PASS/FAIL
-- `agent.runtime-manifest` — PASS/FAIL
+- `minimal harness structure` — PASS/FAIL
 - `doctor.sh` — PASS/FAIL
 
 未运行的 gate 必须写明原因。

@@ -9,65 +9,23 @@
       "pythonComplexity",
       "pythonDeadCode",
       "pythonDeps",
-      "misplacedGeneratedPaths"
-    ],
-    "hook-runtime": [
+      "misplacedGeneratedPaths",
       "ignoredTrackedFiles",
-      "settingsJson",
       "bashSyntax",
-      "scriptCommentLanguage",
-      "pythonCompile",
-      "noTestSkips",
-      "languagePolicy",
-      "codexAgentPolicy",
-      "agentHookParity",
-      "agentRuntimeIsolation",
-      "agentRuntimeWorktree",
-      "gateBypassResistance",
-      "gateEscapeRate",
-      "protectedRootsSync",
-      "qoderRuntimeParity",
-      "hookPayloadCompat",
-      "subagentHandoffProtocol",
-      "hookSelfTest",
-      "pytest",
-      "doctor",
       "repoStructure",
       "repoSlimming",
-      "rawInnerhtml",
-      "layoutInlineStyle",
-      "acceptanceContracts",
-      "misplacedGeneratedPaths"
-    ],
-    "harness": [
-      "bashSyntax",
-      "scriptCommentLanguage",
-      "pythonCompile",
-      "noTestSkips",
-      "languagePolicy",
-      "codexAgentPolicy",
-      "agentRuntimeManifest",
-      "agentHookParity",
-      "agentRuntimeIsolation",
-      "agentRuntimeWorktree",
-      "gateBypassResistance",
-      "gateEscapeRate",
-      "protectedRootsSync",
-      "qoderRuntimeParity",
-      "hookPayloadCompat",
-      "subagentHandoffProtocol",
-      "agentPolicySize",
-      "agentRulesSync",
-      "skillRegistry",
-      "agentEntryParity",
       "noRealSessionFixtures",
       "secretLikeContent",
-      "doctor",
-      "repoStructure",
+      "doctor"
+    ],
+    "harness": [
+      "languagePolicy",
+      "protectedRootsSync",
+      "subagentHandoffProtocol",
+      "agentPolicySize",
+      "skillRegistry",
       "harnessStructure",
-      "openspecLayout",
-      "pytest",
-      "misplacedGeneratedPaths"
+      "openspecLayout"
     ],
     "acceptance-contracts": [
       "noTestSkips",
@@ -115,7 +73,7 @@
       "misplacedGeneratedPaths"
     ]
   },
-  "uniqueGateCount": 57,
+  "uniqueGateCount": 44,
   "scenarios": {
     "read-only": {
       "changedFiles": [],
@@ -204,96 +162,69 @@
       },
       "gateCount": 9
     },
-    "hook-runtime": {
+    "harness": {
       "changedFiles": [
-        "scripts/harness/change.py",
-        "scripts/agent_runtime/hook_entry.py",
-        ".codex/hooks/stop_check.sh"
+        "harness/manifest.yaml",
+        "scripts/gates/cli.py"
       ],
       "rawTargets": [
         "harness",
-        "hook-runtime"
+        "python-standard"
       ],
       "effectiveTargets": [
         "harness",
-        "hook-runtime"
+        "python-standard"
       ],
       "gatesByTarget": {
         "harness": [
-          "scriptCommentLanguage",
-          "pythonCompile",
           "languagePolicy",
-          "agentRuntimeIsolation",
-          "agentRuntimeWorktree",
-          "gateBypassResistance",
-          "gateEscapeRate",
           "protectedRootsSync",
-          "qoderRuntimeParity",
-          "hookPayloadCompat",
           "subagentHandoffProtocol",
-          "secretLikeContent",
-          "repoStructure",
-          "harnessStructure",
-          "pytest",
-          "misplacedGeneratedPaths"
+          "harnessStructure"
         ],
-      "hook-runtime": [
-        "bashSyntax",
-        "scriptCommentLanguage",
-        "pythonCompile",
-        "languagePolicy",
-          "agentHookParity",
-          "agentRuntimeIsolation",
-          "agentRuntimeWorktree",
-          "gateBypassResistance",
-          "gateEscapeRate",
-          "protectedRootsSync",
-          "qoderRuntimeParity",
-        "hookPayloadCompat",
-        "subagentHandoffProtocol",
-        "hookSelfTest",
-        "pytest",
-        "doctor",
-        "repoStructure",
-        "misplacedGeneratedPaths"
-      ]
-    },
-    "gateCount": 34
+        "python-standard": [
+          "pythonFormat",
+          "pythonLint",
+          "pythonAudit",
+          "pythonComplexity",
+          "pythonDeadCode",
+          "misplacedGeneratedPaths",
+          "ignoredTrackedFiles",
+          "repoStructure",
+          "repoSlimming",
+          "secretLikeContent"
+        ]
+      },
+      "gateCount": 14
     },
     "python-policy": {
       "changedFiles": [
         "scripts/checks/check_code_comment_language.py"
       ],
       "rawTargets": [
-        "hook-runtime",
+        "python-standard",
         "scan-script-smoke"
       ],
       "effectiveTargets": [
-        "hook-runtime",
+        "python-standard",
         "scan-script-smoke"
       ],
       "gatesByTarget": {
-        "hook-runtime": [
-          "scriptCommentLanguage",
-          "pythonCompile",
-          "agentRuntimeIsolation",
-          "agentRuntimeWorktree",
-          "gateBypassResistance",
-          "gateEscapeRate",
-          "protectedRootsSync",
-          "qoderRuntimeParity",
-          "hookPayloadCompat",
-          "subagentHandoffProtocol",
-          "pytest",
-          "repoStructure",
-          "misplacedGeneratedPaths"
+        "python-standard": [
+          "pythonFormat",
+          "pythonLint",
+          "pythonAudit",
+          "pythonComplexity",
+          "pythonDeadCode",
+          "misplacedGeneratedPaths",
+          "secretLikeContent"
         ],
         "scan-script-smoke": [
           "scanScriptSmoke",
           "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 15
+      "gateCount": 9
     },
     "session-detail": {
       "changedFiles": [

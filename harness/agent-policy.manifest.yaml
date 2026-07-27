@@ -21,6 +21,22 @@ protected_roots:
 gate_semantics:
   - "失败、未运行、跳过不得描述为 PASS"
   - "不得新增 skip"
+  - "required gate 由维护者显式运行"
+privacy:
+  forbidden_inputs:
+    - real-session-data
+    - secrets
+    - tokens
+    - runtime-cache
+    - personal-config
+git_safety:
+  forbidden_actions:
+    - stash
+    - reset
+    - force
+    - rebase
+    - unauthorized-push
+  integration_requires_explicit_user_choice: true
 context_hygiene:
   shared_rule_locations:
     - harness/agent-policy.manifest.yaml

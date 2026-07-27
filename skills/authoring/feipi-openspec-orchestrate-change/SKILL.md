@@ -1,128 +1,102 @@
 ---
 name: feipi-openspec-orchestrate-change
 disable-model-invocation: true
-description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创建或复用 change，生成 proposal/design/tasks/spec，按任务推进实现，并运行验证收口。普通单文件修改或只读查询不要使用。
+description: 用于本仓库非平凡变更的 OpenSpec 生命周期编排：创建或复用 change，生成 proposal/design/tasks/spec，按任务推进实现，并显式验证、在当前分支提交。普通单文件修改或只读查询不要使用。
 ---
 
 # OpenSpec 变更编排
 
-本 skill 是仓库共享真源，用于编排 OpenSpec 变更的完整生命周期：接收、检查、提案、规划、实现、验证和汇报。Claude Code、Codex 和 Qoder 的工具入口只通过 symlink 指向本目录。
+本 skill 是仓库共享真源，用于编排非平凡变更的接收、检查、提案、规划、实现、验证和分支内收口。
+Claude Code、Codex 和 Qoder 的工具入口只引用本目录。
 
 ## 策略
 
-- **`prompts/` 下的文件是输入，不是流程权威。** `prompts/` 下的提示词文件提供可复用的脚手架，它们不驱动流程。始终以本 skill 为入口。
-- **受保护文件编辑需要活跃的 OpenSpec 变更。** PreToolUse hook（`scripts/hooks/guard_openspec_change.py`）会在 `openspec/changes/` 下不存在活跃变更目录（排除 `archive`）时阻止对受保护文件的 Write/Edit/MultiEdit。
-- **默认自动提交并本地集成。** 用户没有明确要求保留未提交状态时，验证完成后不再询问；调用 `scripts/harness/change.py on-stop`，由唯一 controller 自动生成 exact manifest，执行稳定化、一次 required Gate、commit attestation 和 ff-only integration。
-- **安全失败优先。** candidate/Gate 错误报告 `REPAIR_REQUIRED`；活锁与能力故障分别报告 `BUSY_RETRYABLE`、`CAPABILITY_RETRYABLE`；primary dirty/前进只阻断 integration，必须保留 commit/result ref 并报告 `COMMITTED_HANDOFF`。不得 stash、reset、force、rebase、cherry-pick、自动 push 或创建远端 PR/MR。
+- **`prompts/` 是输入，不是流程权威。** 始终以本 skill、`AGENTS.md` 和当前 change 的 `tasks.md` 为准。
+- **OpenSpec-first。** 非平凡产品、agent、harness、gate、hook 或跨模块变更先创建或复用
+  `openspec/changes/<change-id>/`；普通只读查询和单文件小改不扩大流程。
+- **客户端拥有 checkout。** 在客户端已经选择的 checkout 和分支中工作；仓库状态不是普通写入的授权令牌。
+- **验证与提交均为显式步骤。** 先运行计划中的定向检查和唯一 required gate；成功后只 stage 精确归属路径，
+  使用普通 `git commit` 在当前分支形成 commit。用户明确要求保留未提交状态时不提交。
+- **集成由用户控制。** 不推进其他 checkout 或 primary 分支，不执行 stash、reset、force、rebase、
+  cherry-pick、未授权 push 或远端 PR/MR。
+- **结果语义真实。** required 检查 failed、warning、skipped、not-run 或 unavailable 时不得返回 PASS。
 
-## 阶段
+## 阶段 0：接收
 
-### 阶段 0：接收（Intake）
+1. 将用户文本或指定文件内容作为请求。
+2. 派生短小的 `<change-id>`（kebab-case），并检查 `openspec/changes/` 是否已有匹配 change。
+3. 读取 `AGENTS.md`、`openspec/config.yaml` 和请求直接相关的长期 spec；不展开无关 change 或真实运行数据。
 
-1. 解析用户请求。如果是文件路径，读取文件内容作为请求；否则视为自由文本描述。
-2. 从请求中派生短小的 `<change-id>`（kebab-case，例如 `add-search-filter`）。检查 `openspec/changes/` — 如果已有匹配的变更，复用它。
-3. 读取 `CLAUDE.md` 和 `openspec/config.yaml` 获取项目约束和流程设置。
+## 阶段 1：创建或复用
 
-### 阶段 1：创建（Create）
+1. 若 change 不存在，创建 `openspec/changes/<change-id>/`。
+2. 写入 `tmp/active_change.json`，记录 `change_id`、`change_path`、来源、受保护范围和计划的 required gates。
+3. 复用 change 时确认请求仍在 proposal/design/tasks 的边界内；不匹配则先修订计划。
 
-1. 如果 `openspec/changes/<change-id>/` 不存在则创建。
-2. 写入 `tmp/active_change.json`：
-   ```json
-   {
-     "change_id": "<change-id>",
-     "change_path": "openspec/changes/<change-id>/",
-     "started_at": "<ISO 8601 timestamp>",
-     "source_request": "<原始用户请求或提示文件路径>",
-     "protected_roots": ["openspec/", "harness/", ".claude/", ".codex/", ".qoder/", "CLAUDE.md"],
-     "required_gates": ["scripts/openspec/validate_layout.py", ...]
-   }
-   ```
-3. 子代理通过此文件继承活跃变更上下文。所有子代理工作必须引用 `tmp/active_change.json`。详见 `references/subagent-contract.md`。完整字段规范见 `tmp/SCHEMA.md`。
+## 阶段 2：检查
 
-### 阶段 2：检查（Inspect）
+1. 先读当前任务对应的 proposal、design、tasks 和 delta spec。
+2. 只读取与请求相关的源码、测试和配置片段。
+3. 搜索现有实现与调用者，确认精确修改范围、隐私边界和验证入口。
+4. 运行 OpenSpec layout validator，先消除结构问题。
 
-1. 读取 `CLAUDE.md`、`AGENTS.md` 获取仓库约束。
-2. 读取 `openspec/specs/` 中相关的当前行为真相。
-3. 检查与请求相关的源码、测试和配置文件。
-4. 运行 `python3 scripts/openspec/validate_layout.py` 确认仓库结构正确。
+## 阶段 3：提案
 
-### 阶段 3：提案（Propose）
+1. 写 `proposal.md`：问题、范围、非目标、用户影响、验证策略。
+2. 写 `design.md`：当前状态、方案、风险、回滚、验证。
+3. 写 `tasks.md`：顺序、小型、带验证的任务。
+4. 在 `specs/` 写符合 schema 的增量规格。
+5. 使用 `templates/` 中对应模板作为起点。
 
-1. 在 `openspec/changes/<change-id>/` 下写 `proposal.md` — 问题、范围、非目标、用户影响、验证策略。以 `templates/proposal.md` 为起点。
-2. 在 `openspec/changes/<change-id>/` 下写 `design.md` — 当前状态、提案方法、风险、回滚、验证。以 `templates/design.md` 为起点。
-3. 在 `openspec/changes/<change-id>/` 下写 `tasks.md` — 小型、顺序、带验证的检查项。以 `templates/tasks.md` 为起点。
-4. 在 `openspec/changes/<change-id>/specs/` 下写增量规格 — 使用 `openspec/validate_schema.py` 期望的格式。以 `templates/spec.md` 为起点。
+## 阶段 4：规划验证
 
-### 阶段 4：规划验证（Validate Plan）
+依次运行：
 
-1. 运行 `python3 scripts/openspec/validate_layout.py`
-2. 运行 `python3 scripts/openspec/validate_schema.py`
-3. 运行 `python3 scripts/harness/validate_harness_structure.py`
-4. 如果有验证器失败，修复变更文档后重新验证。
-5. 确认计划就绪。如果用户需要调整，在实现前修改。
+```bash
+python3 scripts/openspec/validate_layout.py
+python3 scripts/openspec/validate_schema.py
+python3 scripts/openspec/validate_active_change.py --change-id <change-id>
+```
 
-### 阶段 5：实现（串行）
+若变更影响 harness，再运行 `python3 scripts/harness/validate_harness_structure.py`。任何失败都先修复计划；
+未运行的检查不得记录为通过。
 
-按从上到下的顺序遍历 `openspec/changes/<change-id>/tasks.md`。每个任务：
+## 阶段 5：实现
 
-1. 执行任务描述的工作。
-2. 勾选复选框（`- [x]`）。
-3. 在任务下方添加简短验证说明。
-4. **不要跳过或重排任务。**
-5. **不要超出变更描述的范围。**
-6. 对于大型或有边界的任务，委派给项目子代理并明确范围边界。子代理必须读取 `tmp/active_change.json` 获取上下文。详见 `references/subagent-contract.md`。
+从上到下遍历 `tasks.md`：
 
-### 阶段 6：验证（Validate）
+1. 执行一个任务且不扩大范围。
+2. 运行该任务声明的最小 deterministic validation。
+3. 成功后勾选复选框并记录简短证据；失败时保留未完成状态。
+4. 大型或边界清晰的工作可委派 subagent。handoff 必须引用 `tmp/active_change.json`、限定写范围和验证命令，
+   并要求返回 `PASS`、`FAIL` 或 `BLOCKED`；详见 `references/subagent-contract.md`。
+5. subagent 的 `FAIL` 或 `BLOCKED` 不得被主 agent 静默忽略。
 
-运行所有质量门禁：
+## 阶段 6：验证
 
-1. `python3 scripts/openspec/validate_layout.py`
-2. `python3 scripts/openspec/validate_schema.py`
-3. `python3 scripts/openspec/validate_active_change.py --change-id <change-id>`
-4. `python3 scripts/harness/validate_harness_structure.py`
-5. 如果存在产品测试，也运行它们（例如 `./scripts/session-browser.sh test`）。
+1. 运行 change 中列出的全部定向验证。
+2. 重新运行 OpenSpec layout、schema 和 active-change validators。
+3. 产品代码或测试变更运行 `./scripts/session-browser.sh test`；其他 target 按 gate catalog 触发。
+4. 提交或交接前显式运行：
 
-如果有门禁失败，修复问题并重新运行所有门禁直到全部通过。
-
-### 阶段 7：提交、集成与汇报（Complete and Report）
-
-1. 确认 OpenSpec runtime、缓存、密钥或其他 Session 内容不在 Git candidate 中；controller 会从 index/worktree/untracked 自动生成 NUL-safe exact manifest。
-2. 运行：
    ```bash
-   python3 scripts/harness/change.py on-stop \
-     --run-id "$FEIPI_RUN_ID" \
-     --message "<type(scope): summary>"
+   python3 scripts/gates/cli.py --tier required
    ```
-3. 命令在最终 staged `candidateTree` 上只执行一次 required Stop；commit 后只做 tree/parent/paths/clean/ref/receipt attestation，重 Gate进程数必须为 0。
-4. 命令返回 `INTEGRATED` 后才可报告已合并；`REPAIR_REQUIRED` 在同一 Change 修复，`BUSY_RETRYABLE`/`CAPABILITY_RETRYABLE` 原地重试，`COMMITTED_HANDOFF` 保留 commit/result ref；不得创建 retry worktree 或改用历史重写集成。
-5. 远端 push/PR/MR 是独立显式发布动作，不属于默认收口。
 
-输出总结：
+5. required gate 只有所有已触发检查成功且无 warning、skipped 时才算通过。
 
-- 改了什么（创建、修改、删除的文件）。
-- 验证结果（每个门禁的通过/失败）。
-- commit 与本地 target integration 结果。
-- 剩余风险或后续事项。
-- **不要再次询问是否提交/合并。** 正常安全路径直接完成；失败路径给出精确 handoff。
+## 阶段 7：当前分支收口与汇报
 
-## Hook 强制层
-
-仓库通过三平台 settings/hooks 接入强制层；公开入口和目录职责以 `scripts/README.md` 为导航，
-Runtime 机器契约以 `harness/agent-runtime.manifest.yaml` 为真源：
-
-- **PreToolUse：** manifest 登记的三平台配置把 `client/event` 传给唯一共享 dispatcher，由它委托 Runtime 做写授权、Bash 策略和
-  mutation 前证据；OpenSpec 路径策略由 `scripts/hooks/guard_openspec_change.py` 提供。
-- **PostToolUse/Failure/SessionEnd：** 仍由 manifest 登记的配置通过共享 dispatcher 委托 Runtime 补齐
-  evidence、记录失败并精确释放 lease；本 skill 不复制平台 Hook 矩阵。
-- **Stop：** 共享 dispatcher 转发到 `scripts/agent_runtime/hook_entry.py`，再直接调用
-  `scripts/agent_runtime/change/controller.py`；不得增加第二套 Stop/Completion wrapper 或 pipeline。
-- **Required Gate：** Stop/handoff 前唯一人工命令为
-  `python3 scripts/gates/cli.py --tier required`；不得直接调用内部 Gate 模块。
-
-这些 hooks 是强制层。本 skill 编排流程，hooks 防止策略违规。
+1. 用 `git status --short`、`git diff --check` 和精确 changed-files 清单确认没有真实 session、密钥、token、
+   缓存、个人配置、越界文件或他人并行修改。
+2. required gate 成功后，若用户未要求保留未提交状态，使用 `git add -- <exact-owned-paths>`，检查
+   `git diff --cached --check` 和 staged 清单，再执行普通 `git commit -m '<type(scope): summary>'`。
+3. commit 保留在当前分支；不合并其他 checkout，不推进 primary，不 push。
+4. 输出：精确 changed files、每条 validation 的真实结果、Effect checks、当前分支 commit（如有）和 Risks。
+   最终状态固定为 `PASS`、`FAIL` 或 `BLOCKED`。
 
 ## 参考
 
-- 完整 7 阶段流程：`references/workflow.md`
+- 简版流程：`references/workflow.md`
 - 子代理继承契约：`references/subagent-contract.md`
-- 模板：`templates/` 目录
+- 模板：`templates/`

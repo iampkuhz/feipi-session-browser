@@ -9,10 +9,9 @@ from scripts.checks._framework import repository_root
 
 ROOT = repository_root()
 
-from scripts.agent_runtime import policy as runtime_policy  # noqa: E402
+from scripts.checks.check_protected_roots_sync import manifest_roots  # noqa: E402
 
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
-RUNTIME_MANIFEST = ROOT / "harness" / "agent-runtime.manifest.yaml"
 GATE_NAME = "agentRulesSync"
 
 
@@ -53,14 +52,10 @@ def _parse_yaml_list(text: str, key: str) -> list[str]:
     return result
 
 
-# 从 runtime manifest 中读取受保护路径列表。
-def _read_runtime_protected_roots() -> list[str]:
-    """返回：
-    runtime manifest 中声明的受保护路径。
-    """
-    if not RUNTIME_MANIFEST.is_file():
-        return []
-    return runtime_policy.protected_roots(ROOT)
+# 从共享 policy manifest 中读取受保护路径列表。
+def _read_policy_protected_roots() -> list[str]:
+    """返回共享 policy manifest 中声明的受保护路径。"""
+    return manifest_roots(ROOT)
 
 
 # 从 policy manifest 中读取必需短语列表。
@@ -101,12 +96,11 @@ def main() -> int:
         if phrase not in agents_text:
             errors.append(f"AGENTS.md 缺少 required phrase: {phrase!r}")
 
-    # AGENTS.md 受保护路径必须覆盖 runtime manifest 声明的全部根路径。
-    runtime_roots = _read_runtime_protected_roots()
-    if runtime_roots:
-        for root in runtime_roots:
-            if root not in agents_text:
-                errors.append(f"AGENTS.md 缺少 runtime manifest protected_root: {root}")
+    # AGENTS.md 受保护路径必须覆盖共享 policy manifest 声明的全部根路径。
+    policy_roots = _read_policy_protected_roots()
+    for root in policy_roots:
+        if root not in agents_text:
+            errors.append(f"AGENTS.md 缺少 policy manifest protected_root: {root}")
 
     # 三份规约文件都必须包含跳过不得视为通过的语义。
     skip_keywords = {"skipped", "跳过"}

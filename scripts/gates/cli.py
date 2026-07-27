@@ -16,8 +16,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.agent_runtime import paths as runtime_paths  # noqa: E402
-from scripts.agent_runtime.events import evidence  # noqa: E402
+from scripts.gates import support  # noqa: E402
 from scripts.gates import executor, receipt, report  # noqa: E402
 from scripts.gates.catalog import CATALOG_VERSION, TARGETS, gate_by_name, tier_by_name  # noqa: E402
 from scripts.gates.model import GatePlan, TargetGatePlan  # noqa: E402
@@ -62,29 +61,29 @@ def resolve_change_id(explicit: str | None, repo_root: Path = REPO_ROOT) -> str:
 def get_changed_files(explicit: str | None, repo_root: Path = REPO_ROOT) -> list[str]:
     """从显式 JSON 或当前 identity 的 evidence/Git 基线收集 changed files。"""
     if explicit is not None:
-        return evidence.parse_changed_files_json(explicit)
-    identity = runtime_paths.identity_from_values()
-    paths = runtime_paths.build_paths(repo_root, identity)
-    log_dirs = runtime_paths.session_log_dirs(
+        return support.parse_changed_files_json(explicit)
+    identity = support.identity_from_values()
+    paths = support.build_paths(repo_root, identity)
+    log_dirs = support.session_log_dirs(
         repo_root,
         identity,
         include_agents=identity.has_session and not identity.is_agent,
     )
-    recorded = evidence.read_recorded_changed_files_from_paths(
+    recorded = support.read_recorded_changed_files_from_paths(
         [path / 'changed-files.jsonl' for path in log_dirs],
         identity.raw_session_id or None,
         agent_id=identity.raw_agent_id or None,
     )
     base_commit = paths.agent_log_dir / 'base-commit.txt'
-    return evidence.dedupe_paths(
-        recorded + evidence.read_files_since_base_commit(repo_root, base_commit)
+    return support.dedupe_paths(
+        recorded + support.read_files_since_base_commit(repo_root, base_commit)
     )
 
 
 # 把 catalog 中的全局 preflight Gate 注入同一不可变计划。
 def _with_preflight(gate_plan: GatePlan) -> GatePlan:
     preflight_target = TargetGatePlan(
-        target='hook-runtime',
+        target='python-standard',
         gates=(
             gate_by_name('ignoredTrackedFiles'),
             gate_by_name('misplacedGeneratedPaths'),
@@ -377,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
     repo_root = Path.cwd()
     changed_files = get_changed_files(args.changed_files, repo_root)
     if args.changed_files is not None and not changed_files:
-        dirty = evidence.read_git_dirty_files(repo_root)
+        dirty = support.read_git_dirty_files(repo_root)
         if dirty and not (args.allow_empty_changed_files_because or '').strip():
             print(
                 'GATE_SERVICE_RESULT status=BLOCKED reason=explicit-empty-changed-files',

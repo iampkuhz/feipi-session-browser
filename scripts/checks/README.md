@@ -22,7 +22,7 @@
 - 平台 Hook payload 解析、writer lease 或 worktree 生命周期；
 - 真实 session、密钥、token、个人路径或不可提交运行数据的 fixture 构造。
 
-这些职责分别属于 `scripts/gates/`、`scripts/agent_runtime/`、`scripts/harness/` 与测试 support。
+这些职责分别属于 `scripts/gates/`、客户端/Git、minimal `scripts/harness/` 与测试 support；仓库不再提供 Agent Session Runtime。
 不要为单个 check 新增 runner wrapper，也不要让 CI/Stop 直接拼接一组 check 命令。
 
 ## 调用与诊断
@@ -30,14 +30,14 @@
 正常执行与直接诊断都只走共享 CLI：
 
 ```bash
-python3 -m scripts.checks agent.hook-parity
+python3 -m scripts.checks agent.skill-registry
 python3 -m scripts.checks repository.dead-command-reference
 python3 -m scripts.checks web.css-ownership
 ```
 
 Gate catalog/planner 是 trigger 与 applicability 唯一权威；领域 check 不解析 changed-files 来跳过。
 `ScanContext` 在同次组合检查中复用文件发现与文本读取。定位失败时使用 Gate 报告中的共享 CLI
-rerun command；Stop/handoff 仍必须运行：
+rerun command；最终 required 验证显式运行：
 
 ```bash
 python3 scripts/gates/cli.py --tier required

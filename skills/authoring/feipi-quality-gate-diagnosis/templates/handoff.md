@@ -7,13 +7,13 @@
 - 允许修改的文件列表：
   - `scripts/checks/<gate-script>.py` — 触发失败的 gate 脚本（如需修复 gate bug）
   - `harness/skill-registry.yaml` — registry 配置（如适用）
-  - `harness/agent-runtime.manifest.yaml` — manifest 配置（如适用）
+  - `harness/manifest.yaml` — minimal harness 配置（如适用）
   - 其他与当前 gate 失败直接相关的文件（按需列出）
 
 ## Forbidden scope
 
 - 不改产品代码逻辑（Java、Python 产品功能），除非是 gate 失败的最小修复。
-- 不改 hooks 脚本逻辑，除非 gate bug 定位到 hook。
+- 不重新引入平台 Hook、Session Runtime 或自动 Git mutation。
 - 不改真实 session 数据、缓存、密钥、token、个人配置。
 - 不删 required gates。
 - 不新增 skip。
@@ -34,8 +34,8 @@
 
 # 运行 required baseline
 python3 -m scripts.checks agent.skill-registry
-python3 -m scripts.checks agent.runtime-manifest
 bash scripts/harness/doctor.sh
+python3 scripts/gates/cli.py --tier required
 ```
 
 ## Expected output

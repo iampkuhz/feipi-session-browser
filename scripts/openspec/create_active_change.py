@@ -15,7 +15,7 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.agent_runtime import paths as runtime_paths  # noqa: E402
+from scripts.gates import support as gate_support  # noqa: E402
 
 # 常量定义。
 
@@ -161,14 +161,14 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     title = title or change_id
     now = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    identity = runtime_paths.identity_from_values(
+    identity = gate_support.identity_from_values(
         agent_client=agent_client,
         session_id=session_id or os.environ.get('FEIPI_SESSION_ID') or '',
         agent_id=agent_id or os.environ.get('FEIPI_AGENT_ID') or '',
     )
     change_dir = root / 'openspec' / 'changes' / change_id
     agent_dir = (
-        runtime_paths.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
+        gate_support.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
     )
     active_change_file = agent_dir / 'active_change.json'
 

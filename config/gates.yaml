@@ -6,12 +6,6 @@ targets:
   parallel: true
   resources: []
   timeout: 300
-- name: hook-runtime
-  description: 质量目标 hook-runtime 的确定性执行边界。
-  includes: []
-  parallel: true
-  resources: []
-  timeout: 300
 - name: harness
   description: 质量目标 harness 的确定性执行边界。
   includes: []
@@ -240,8 +234,8 @@ gates:
 - name: ignoredTrackedFiles
   description: 执行 ignoredTrackedFiles 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 0
+  - name: python-standard
+    order: 90
     patterns:
     - .gitignore
     - scripts/checks/check_ignored_tracked_files.py
@@ -274,10 +268,6 @@ gates:
   targets:
   - name: python-standard
     order: 7
-  - name: hook-runtime
-    order: 25
-  - name: harness
-    order: 28
   - name: acceptance-contracts
     order: 3
   - name: session-detail
@@ -312,54 +302,13 @@ gates:
     required_paths:
     - harness/manifest.yaml
     - scripts/checks/check_misplaced_generated_paths.py
-- name: settingsJson
-  description: 执行 settingsJson 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 1
-    patterns:
-    - .claude/settings.json
-    - .claude/settings.local.json
-    - .codex/hooks.json
-    - .qoder/settings.json
-    - .qoder/settings.local.example.json
-  tiers:
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -c
-    - import json,sys; [json.load(open(p, encoding='utf-8')) for p in sys.argv[1:]]
-    existing_args:
-    - .claude/settings.json
-    - .codex/hooks.json
-    - .qoder/settings.json
-    - .qoder/settings.local.example.json
 - name: bashSyntax
   description: 执行 bashSyntax 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 2
+  - name: python-standard
+    order: 91
     patterns:
-    - .claude/hooks/**/*.sh
-    - .codex/hooks/**/*.sh
-    - .qoder/hooks/**/*.sh
-    - scripts/hooks/**/*.sh
-    - scripts/agent_runtime/**/*.sh
-    - scripts/harness/**/*.sh
-  - name: harness
-    order: 0
-    patterns:
-    - scripts/harness/**/*.sh
+    - scripts/**/*.sh
   tiers:
   - quick
   - required
@@ -377,35 +326,10 @@ gates:
     - bash
     - -n
     glob_args:
-    - .claude/hooks/**/*.sh
-    - .codex/hooks/**/*.sh
-    - .qoder/hooks/**/*.sh
-    - scripts/harness/*.sh
+    - scripts/**/*.sh
 - name: scriptCommentLanguage
   description: 执行 scriptCommentLanguage 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 3
-    patterns:
-    - .claude/hooks/**/*.sh
-    - .codex/hooks/**/*.sh
-    - .qoder/hooks/**/*.sh
-    - scripts/**/*.py
-    - scripts/**/*.sh
-    - java/web/src/main/resources/static/**/*.js
-    - java/web/src/main/resources/static/**/*.css
-    - java/web/src/main/resources/templates/**/*.html
-  - name: harness
-    order: 1
-    patterns:
-    - .claude/hooks/**/*.sh
-    - .codex/hooks/**/*.sh
-    - .qoder/hooks/**/*.sh
-    - scripts/**/*.py
-    - scripts/**/*.sh
-    - java/web/src/main/resources/static/**/*.js
-    - java/web/src/main/resources/static/**/*.css
-    - java/web/src/main/resources/templates/**/*.html
   - name: session-detail
     order: 2
     patterns:
@@ -433,9 +357,6 @@ gates:
     - source.comment-language
     - --script-comments
     - scripts
-    - .claude/hooks
-    - .codex/hooks
-    - .qoder/hooks
     - java/web/src/main/resources/static
     - java/web/src/main/resources/templates
     required_paths:
@@ -448,21 +369,6 @@ gates:
 - name: pythonCompile
   description: 执行 pythonCompile 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 4
-    patterns:
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 2
-    patterns:
-    - scripts/harness/**/*.py
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
   - name: session-detail
     order: 0
     patterns:
@@ -482,46 +388,15 @@ gates:
   command:
     capability: command
     target_argv:
-      hook-runtime:
-      - '{python}'
-      - -m
-      - compileall
-      - -q
-      - scripts/agent_runtime
-      - scripts/checks
-      harness:
-      - '{python}'
-      - -m
-      - compileall
-      - -q
-      - scripts/harness
-      - scripts/checks
       session-detail:
       - '{python}'
       - -m
       - compileall
       - -q
-      - scripts/agent_runtime
       - scripts/checks
 - name: noTestSkips
   description: 执行 noTestSkips 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 5
-    patterns:
-    - tests/**/*.py
-    - tests/**/*.js
-    - tests/**/*.ts
-    - tests/playwright/playwright.config.js
-    - scripts/checks/check_no_test_skips.py
-  - name: harness
-    order: 3
-    patterns:
-    - tests/**/*.py
-    - tests/**/*.js
-    - tests/**/*.ts
-    - tests/playwright/playwright.config.js
-    - scripts/checks/check_no_test_skips.py
   - name: acceptance-contracts
     order: 0
     patterns:
@@ -559,20 +434,6 @@ gates:
 - name: languagePolicy
   description: 执行 languagePolicy 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 6
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - skills/**
-    - .agents/skills/**
-    - .codex/**
-    - .claude/agents/**
-    - .claude/skills/**
-    - .qoder/**
-    - harness/**
-    - openspec/changes/**
-    - scripts/checks/check_language_policy.py
   - name: harness
     order: 4
     patterns:
@@ -605,327 +466,9 @@ gates:
     - -m
     - scripts.checks
     - repository.language-policy
-- name: codexAgentPolicy
-  description: 执行 codexAgentPolicy 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 7
-    patterns:
-    - .codex/agents/**
-    - scripts/checks/check_codex_agent_policy.py
-  - name: harness
-    order: 5
-    patterns:
-    - .codex/agents/**
-    - scripts/checks/check_codex_agent_policy.py
-  tiers:
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.codex-policy
-- name: agentHookParity
-  description: 执行 agentHookParity 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 8
-    patterns:
-    - harness/agent-runtime.manifest.yaml
-    - .codex/hooks.json
-    - .qoder/settings.json
-    - .qoder/settings.local.example.json
-    - .codex/hooks/**/*.sh
-    - .qoder/hooks/**/*.sh
-    - scripts/checks/check_agent_hook_parity.py
-  - name: harness
-    order: 7
-    patterns:
-    - harness/agent-runtime.manifest.yaml
-    - .codex/hooks.json
-    - .qoder/settings.json
-    - .qoder/settings.local.example.json
-    - .codex/hooks/pre_write_guard.sh
-    - .qoder/hooks/pre_write_guard.sh
-    - scripts/checks/check_agent_hook_parity.py
-  tiers:
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.hook-parity
-- name: agentRuntimeIsolation
-  description: 执行 agentRuntimeIsolation 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 9
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 8
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.runtime-isolation
-- name: agentRuntimeWorktree
-  description: 执行 agentRuntimeWorktree 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 10
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 9
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.runtime-worktree
-- name: gateBypassResistance
-  description: 执行 gateBypassResistance 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 11
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 10
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.gate-bypass
-- name: gateEscapeRate
-  description: 执行 gateEscapeRate 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 12
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 11
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.gate-escape-rate
-    - --threshold
-    - '0'
 - name: protectedRootsSync
   description: 执行 protectedRootsSync 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 13
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
   - name: harness
     order: 12
     patterns:
@@ -937,8 +480,6 @@ gates:
     - .qoder/**
     - skills/**
     - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
     - scripts/harness/**/*.py
     - scripts/harness/**/*.sh
     - scripts/checks/**/*.py
@@ -962,141 +503,9 @@ gates:
     - -m
     - scripts.checks
     - agent.protected-roots
-- name: qoderRuntimeParity
-  description: 执行 qoderRuntimeParity 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 14
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 13
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.qoder-parity
-- name: hookPayloadCompat
-  description: 执行 hookPayloadCompat 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 15
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 14
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.hook-payload
 - name: subagentHandoffProtocol
   description: 执行 subagentHandoffProtocol 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 16
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .agents/**
-    - .claude/**
-    - .codex/**
-    - .qoder/**
-    - skills/**
-    - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/harness/**/*.py
-    - scripts/harness/**/*.sh
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
   - name: harness
     order: 15
     patterns:
@@ -1108,8 +517,6 @@ gates:
     - .qoder/**
     - skills/**
     - harness/**
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
     - scripts/harness/**/*.py
     - scripts/harness/**/*.sh
     - scripts/checks/**/*.py
@@ -1133,49 +540,9 @@ gates:
     - -m
     - scripts.checks
     - agent.subagent-handoff
-- name: hookSelfTest
-  description: 执行 hookSelfTest 所定义的仓库质量检查。
-  targets:
-  - name: hook-runtime
-    order: 17
-    patterns:
-    - scripts/agent_runtime/**/*.py
-  tiers:
-  - required
-  - full
-  timeout: 300
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.agent_runtime.hook_entry
-    - --self-test
 - name: pytest
   description: 执行 pytest 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 18
-    patterns:
-    - scripts/agent_runtime/**/*.py
-    - scripts/hooks/**/*.py
-    - scripts/checks/**/*.py
-    - scripts/gates/**/*.py
-    - config/gates.yaml
-  - name: harness
-    order: 27
-    patterns:
-    - scripts/harness/**/*.py
-    - scripts/agent_runtime/events/evidence.py
-    - scripts/gates/cli.py
-    - tests/harness/**/*.py
-    - tests/gates/test_service_contract.py
   - name: acceptance-contracts
     order: 2
     patterns:
@@ -1214,29 +581,6 @@ gates:
       - error
       - tests/ui/test_web_template_contract.py
       - tests/ui/test_web_static_contract.py
-      hook-runtime:
-      - '{dev_python}'
-      - -m
-      - pytest
-      - -q
-      - -W
-      - error
-      - tests/agent_runtime
-      - tests/harness
-      - tests/gates
-      - tests/quality/test_scan_script_smoke_gate.py
-      - tests/quality/test_python_env_contract.py
-      - tests/quality/test_no_test_skips_gate.py
-      - tests/quality/test_java_classification.py
-      harness:
-      - '{dev_python}'
-      - -m
-      - pytest
-      - -q
-      - -W
-      - error
-      - tests/harness
-      - tests/gates
       acceptance-contracts:
       - '{dev_python}'
       - -m
@@ -1249,20 +593,8 @@ gates:
 - name: doctor
   description: 执行 doctor 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 19
-    patterns:
-    - .claude/hooks/**/*.sh
-    - .codex/hooks/**/*.sh
-    - .qoder/hooks/**/*.sh
-    - .claude/settings.json
-    - scripts/**/*.sh
-    - pyproject.toml
-    - uv.lock
-    - .pre-commit-config.yaml
-    - .github/workflows/**
-  - name: harness
-    order: 23
+  - name: python-standard
+    order: 96
     patterns:
     - scripts/harness/**/*.sh
   tiers:
@@ -1284,28 +616,13 @@ gates:
 - name: repoStructure
   description: 执行 repoStructure 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 20
+  - name: python-standard
+    order: 92
     patterns:
-    - .claude/**
-    - .codex/**
-    - .github/workflows/**
-    - .pre-commit-config.yaml
-    - skills/**
-    - .agents/skills/**
-    - .qoder/**
-    - scripts/**/*.py
-    - scripts/**/*.sh
-    - AGENTS.md
-    - CLAUDE.md
-    - README.md
-    - pyproject.toml
-    - uv.lock
-    - docs/**
-  - name: harness
-    order: 24
-    patterns:
-    - scripts/harness/**
+    - scripts/checks/validate_repo_structure.py
+    - scripts/gates/**
+    - scripts/openspec/**
+    - config/gates.yaml
   tiers:
   - quick
   - required
@@ -1327,12 +644,11 @@ gates:
 - name: repoSlimming
   description: 执行 repoSlimming 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 21
+  - name: python-standard
+    order: 93
     patterns:
     - java/web/src/main/resources/static/**/*.css
     - java/web/src/main/resources/static/**/*.js
-    - java/web/src/main/resources/static/css/**/*.css
     - harness/**
     - openspec/**
     - tests/**/*.py
@@ -1358,11 +674,6 @@ gates:
 - name: rawInnerhtml
   description: 执行 rawInnerhtml 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 22
-    patterns:
-    - java/web/src/main/resources/static/**/*.js
-    - scripts/checks/check_raw_innerhtml.py
   - name: session-detail
     order: 6
     patterns:
@@ -1389,11 +700,6 @@ gates:
 - name: layoutInlineStyle
   description: 执行 layoutInlineStyle 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 23
-    patterns:
-    - java/web/src/main/resources/static/**/*.js
-    - scripts/checks/check_layout_inline_style.py
   - name: session-detail
     order: 7
     patterns:
@@ -1420,11 +726,6 @@ gates:
 - name: acceptanceContracts
   description: 执行 acceptanceContracts 所定义的仓库质量检查。
   targets:
-  - name: hook-runtime
-    order: 24
-    patterns:
-    - scripts/checks/validate_acceptance_contracts.py
-    - tests/quality/test_contract_case_specs.py
   - name: acceptance-contracts
     order: 1
     patterns:
@@ -1452,31 +753,6 @@ gates:
     - -m
     - scripts.checks
     - openspec.acceptance-contracts
-- name: agentRuntimeManifest
-  description: 执行 agentRuntimeManifest 所定义的仓库质量检查。
-  targets:
-  - name: harness
-    order: 6
-    patterns:
-    - harness/agent-runtime.manifest.yaml
-    - scripts/checks/check_agent_runtime_manifest.py
-  tiers:
-  - required
-  - full
-  timeout: 120
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.runtime-manifest
 - name: agentPolicySize
   description: 执行 agentPolicySize 所定义的仓库质量检查。
   targets:
@@ -1505,35 +781,6 @@ gates:
     - -m
     - scripts.checks
     - agent.policy-size
-- name: agentRulesSync
-  description: 执行 agentRulesSync 所定义的仓库质量检查。
-  targets:
-  - name: harness
-    order: 17
-    patterns:
-    - AGENTS.md
-    - CLAUDE.md
-    - .codex/model-instructions.md
-    - harness/agent-policy.manifest.yaml
-    - harness/agent-runtime.manifest.yaml
-    - scripts/checks/check_agent_rules_sync.py
-  tiers:
-  - required
-  - full
-  timeout: 120
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.rules-sync
 - name: skillRegistry
   description: 执行 skillRegistry 所定义的仓库质量检查。
   targets:
@@ -1563,38 +810,11 @@ gates:
     - -m
     - scripts.checks
     - agent.skill-registry
-- name: agentEntryParity
-  description: 执行 agentEntryParity 所定义的仓库质量检查。
-  targets:
-  - name: harness
-    order: 19
-    patterns:
-    - .claude/agents/**
-    - .codex/agents/**
-    - skills/**
-    - scripts/checks/check_agent_entry_parity.py
-  tiers:
-  - required
-  - full
-  timeout: 120
-  parallel: true
-  resources: []
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - agent.entry-parity
 - name: noRealSessionFixtures
   description: 执行 noRealSessionFixtures 所定义的仓库质量检查。
   targets:
-  - name: harness
-    order: 20
+  - name: python-standard
+    order: 94
     patterns:
     - tests/**
     - docs/**
@@ -1620,8 +840,8 @@ gates:
 - name: secretLikeContent
   description: 执行 secretLikeContent 所定义的仓库质量检查。
   targets:
-  - name: harness
-    order: 21
+  - name: python-standard
+    order: 95
     patterns:
     - tests/**
     - docs/**
@@ -2267,24 +1487,13 @@ path_rules:
   quality_target: session-detail
   risk: medium
   allowed_by_default: true
-- category: hook
-  patterns:
-  - .claude/hooks/**
-  - .codex/hooks/**
-  - .qoder/hooks/**
-  - scripts/agent_runtime/**
-  - scripts/hooks/**
-  requires_quality_gate: true
-  quality_target: hook-runtime
-  risk: high
-  allowed_by_default: true
 - category: quality-gate
   patterns:
   - scripts/checks/**
   - scripts/gates/**
   - config/gates.yaml
   requires_quality_gate: true
-  quality_target: hook-runtime
+  quality_target: python-standard
   risk: high
   allowed_by_default: true
 - category: harness
@@ -2307,7 +1516,7 @@ path_rules:
   - scripts/*.sh
   - scripts/**/*.sh
   requires_quality_gate: true
-  quality_target: hook-runtime
+  quality_target: python-standard
   risk: high
   allowed_by_default: true
 - category: python-tooling-config
@@ -2317,7 +1526,7 @@ path_rules:
   - .pre-commit-config.yaml
   - .github/workflows/**
   requires_quality_gate: true
-  quality_target: hook-runtime
+  quality_target: python-standard
   risk: high
   allowed_by_default: true
 - category: agent-config
@@ -2333,7 +1542,7 @@ path_rules:
   - .codex/**
   - .qoder/**
   requires_quality_gate: true
-  quality_target: hook-runtime
+  quality_target: harness
   risk: high
   allowed_by_default: true
 - category: docs

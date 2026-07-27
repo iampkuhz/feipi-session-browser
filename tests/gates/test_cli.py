@@ -95,7 +95,7 @@ def test_service_reuses_content_sensitive_pass_receipt(tmp_path: Path, monkeypat
 
 def test_explicit_empty_dirty_is_blocked(tmp_path: Path, monkeypatch, capsys) -> None:
     monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(cli.evidence, 'read_git_dirty_files', lambda _root: ['dirty.py'])
+    monkeypatch.setattr(cli.support, 'read_git_dirty_files', lambda _root: ['dirty.py'])
     assert cli.main(['--changed-files', '[]', '--dry-run']) == 1
     assert 'status=BLOCKED' in capsys.readouterr().err
 
@@ -148,3 +148,37 @@ def test_session_browser_test_fails_on_pytest_warning(tmp_path: Path) -> None:
     )
     assert proc.returncode != 0
     assert 'UserWarning: gate must reject this warning' in proc.stdout
+
+
+def test_changed_files_merge_recorded_evidence_and_git_fallback(
+    tmp_path: Path, monkeypatch
+) -> None:
+    subprocess.run(['git', 'init', '-q'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'config', 'user.email', 'gate@example.invalid'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'config', 'user.name', 'Gate Test'], cwd=tmp_path, check=True)
+    tracked = tmp_path / 'tracked.txt'
+    tracked.write_text('base\n', encoding='utf-8')
+    (tmp_path / '.gitignore').write_text('tmp/\n', encoding='utf-8')
+    subprocess.run(['git', 'add', 'tracked.txt', '.gitignore'], cwd=tmp_path, check=True)
+    subprocess.run(['git', 'commit', '-qm', 'base'], cwd=tmp_path, check=True)
+    base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=tmp_path, text=True).strip()
+
+    monkeypatch.setenv('FEIPI_AGENT_CLIENT', 'codex')
+    monkeypatch.setenv('FEIPI_SESSION_ID', 'session-a')
+    monkeypatch.setenv('FEIPI_RUN_ID', 'run-a')
+    identity = cli.support.identity_from_values()
+    log_dir = cli.support.agent_log_dir(tmp_path, identity)
+    log_dir.mkdir(parents=True)
+    (log_dir / 'base-commit.txt').write_text(base + '\n', encoding='utf-8')
+    (log_dir / 'changed-files.jsonl').write_text(
+        json.dumps({'sessionId': 'session-a', 'file': './recorded.py'}) + '\n',
+        encoding='utf-8',
+    )
+    tracked.write_text('changed\n', encoding='utf-8')
+    (tmp_path / 'untracked.txt').write_text('new\n', encoding='utf-8')
+
+    assert cli.get_changed_files(None, tmp_path) == [
+        'recorded.py',
+        'tracked.txt',
+        'untracked.txt',
+    ]

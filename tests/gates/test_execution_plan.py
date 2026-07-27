@@ -114,7 +114,7 @@ def test_resource_dag_serializes_conflicts_but_allows_disjoint_groups() -> None:
 
 def test_scan_smoke_prerequisite_precedes_consumer_without_resource_cycle() -> None:
     execution = executor.build_execution_plan(
-        cli._with_preflight(plan(['scripts/checks/check_agent_runtime_isolation.py'])),
+        cli._with_preflight(plan(['scripts/checks/check_code_comment_language.py'])),
         REPO_ROOT,
     )
     positions = {group.group_id: index for index, group in enumerate(execution.groups)}

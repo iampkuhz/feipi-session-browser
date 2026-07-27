@@ -1,42 +1,28 @@
 # Gate 诊断分类
 
-本页只提供失败分类，不保存 required Gate 清单。当前 target、Gate、tier、path trigger 与命令
-必须从 `scripts/gates/catalog.py` 和 `python3 scripts/gates/cli.py --dry-run` 派生；唯一维护流程见
-`scripts/gates/README.md`。
+本页只提供失败分类，不保存 required Gate 清单。当前 target、Gate、tier、path trigger 与命令必须从 `scripts/gates/catalog.py` 和 `python3 scripts/gates/cli.py --dry-run` 派生。
 
 ## Required baseline
 
-Stop/handoff 前唯一入口：
+显式入口：
 
 ```bash
 python3 scripts/gates/cli.py --tier required
 ```
 
-所有已触发 required Gate 必须完成并通过。失败、环境阻断、未运行或 skipped 都不能作为整体
-`PASS`。定位单 Gate 时使用结构化报告给出的精确 rerun 命令，修复后仍需重跑 required tier。
+所有已触发 Gate 必须完成并通过。失败、环境阻断、未运行、warning 或 skipped 都不能作为整体 `PASS`；`NOT_TRIGGERED` 单独报告。
 
 ## Doctor
 
-`bash scripts/harness/doctor.sh` 是 agent/harness/scripts/skills/OpenSpec 的综合体检入口。
-Doctor 负责组合结构、配置、语言、Hook/Runtime 与必要 contract 检查；它不是第二个 Gate catalog。
-失败时按输出中的首个具体检查定位，不手工拼接一份“required 列表”。
-
-## Stop
-
-共享 dispatcher 只委托 `scripts/agent_runtime/hook_entry.py`，再由
-`scripts/agent_runtime/change/controller.py` 执行 ensure-session、prepare、validating、commit、
-integration。Gate 阶段只调用 `scripts.gates.cli.run_service`，不存在第二套 Stop/Completion 入口。
-
-Stop 失败先判断身份/锁/证据/恢复/执行/报告哪一阶段阻断；不要绕过 Stop 直接把某个 leaf check
-成功当成整体 `PASS`。
+`bash scripts/harness/doctor.sh` 检查 minimal harness、agent/skill、OpenSpec 与工具环境。Doctor 不是第二个 Gate catalog，也不得要求 Hook/Session Runtime 文件存在。
 
 ## 领域分类
 
-- **Hook/Runtime**：平台入口、payload、身份、Registry、writer lease、evidence 或 Stop contract。
-- **Harness/OpenSpec**：目录结构、规则同步、active change 或变更生命周期 contract。
+- **Harness/OpenSpec**：目录结构、agent policy、skill registry、active change 或规格 contract。
+- **Gate framework**：catalog、planner、executor、resource lock、receipt 或报告。
 - **Java/build**：编译、测试、Javadoc、静态分析、Gradle 配置或发行 task。
 - **UI/browser**：模板、CSS、交互、布局、fixture server 或 Playwright contract。
 - **数据/隐私**：index、session sample、敏感内容与脱敏 contract。
 - **环境**：解释器、依赖、浏览器、网络或外部命令不可用；必须保留 `BLOCKED`。
 
-具体失败属于哪个 Gate、执行什么命令，只从本次 Gate plan 和结构化报告读取。
+仓库不再维护 Hook payload、Session Registry、writer lease、Stop controller 或自动 integration 分类。具体失败属于哪个 Gate、执行什么命令，只从本次 Gate plan 和结构化报告读取。

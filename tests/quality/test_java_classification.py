@@ -203,8 +203,8 @@ class TestJavaDominance:
 
     @pytest.mark.contract_case('J1-040-006')
     def test_dominance_preserves_other_targets(self):
-        result = effective_targets(['java-src', 'hook-runtime'])
-        assert result == ['java-src', 'hook-runtime']
+        result = effective_targets(['java-src', 'harness'])
+        assert result == ['java-src', 'harness']
 
     @pytest.mark.contract_case('J1-040-006')
     def test_dominance_metadata_consistency(self):
@@ -365,8 +365,8 @@ class TestParallelFailureDeterminism:
 
     @pytest.mark.contract_case('J1-040-011')
     def test_effective_targets_preserves_order(self):
-        result = effective_targets(['harness', 'java-src', 'java-build', 'hook-runtime'])
-        assert result == ['harness', 'java-src', 'hook-runtime']
+        result = effective_targets(['harness', 'java-src', 'java-build'])
+        assert result == ['harness', 'java-src']
 
     @pytest.mark.contract_case('J1-040-011')
     def test_required_targets_deterministic_order(self):

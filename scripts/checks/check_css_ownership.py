@@ -11,7 +11,7 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.agent_runtime import paths as runtime_paths
+from scripts.gates import support as gate_support
 from scripts.checks._framework import repository_root
 
 REPO_ROOT = repository_root()
@@ -527,19 +527,19 @@ def format_report(result: OwnershipCheck) -> str:
 
 def artifact_dir(
     repo_root: Path,
-    identity: runtime_paths.RuntimeIdentity | None = None,
+    identity: gate_support.ExecutionIdentity | None = None,
 ) -> Path:
     """返回按 client/session/run 隔离的 CSS quality artifact 目录。"""
-    resolved = identity or runtime_paths.identity_from_values()
+    resolved = identity or gate_support.identity_from_values()
     if not resolved.has_session or not resolved.has_run:
         process_id = f'pid-{os.getpid()}'
-        resolved = runtime_paths.identity_from_values(
+        resolved = gate_support.identity_from_values(
             agent_client=resolved.client,
             session_id=resolved.raw_session_id or process_id,
             agent_id=resolved.raw_agent_id,
             run_id=resolved.raw_run_id or process_id,
         )
-    return runtime_paths.quality_dir(repo_root, resolved) / 'css-ownership'
+    return gate_support.quality_dir(repo_root, resolved) / 'css-ownership'
 
 
 # 解析命令行参数并运行脚本入口。

@@ -1,4 +1,4 @@
-"""负责资源锁的无覆盖发布、存活检测和 fencing 释放；不负责 Session writer lease；由 Gate executor、Hook 与 Stop pipeline 调用。"""
+"""提供 Gate 命令组的跨进程资源锁与 fencing 释放。"""
 
 from __future__ import annotations
 
@@ -14,8 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from scripts.agent_runtime.session.contract import ensure_private_directory, resolve_runtime_root
-from scripts.agent_runtime.storage import stable_hash, utc_now
+from scripts.gates.support import ensure_private_directory, resolve_runtime_root, stable_hash, utc_now
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

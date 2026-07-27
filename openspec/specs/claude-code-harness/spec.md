@@ -2,54 +2,46 @@
 
 ## Requirements
 
-### Requirement: Project-level Claude configuration
+### Requirement: 项目级 Claude 配置
 
-仓库 SHALL 在 `.claude/` 下定义项目级 commands、agents、settings 与 hooks。
+仓库 SHALL 在 `.claude/` 下提供项目 agent、commands、skills 与 settings 入口；共享规则 SHALL 由 `skills/`、`harness/` 和顶层规则维护。
 
-### Requirement: Default main agent
+#### Scenario: 加载默认 Agent
 
-仓库 MUST 提供 `qwen-main-default` 项目 agent，作为 Qwen / LiteLLM-backed Claude Code 会话的默认协调入口。
+- **Given** Claude Code 从仓库根目录启动
+- **When** 读取项目 settings
+- **Then** 默认 agent SHALL 为仓库声明的主协调 agent
+- **And** worktree 起点 SHALL 使用当前 HEAD 而不是远端默认分支猜测
 
-#### Scenario: Load default agent from project settings
+### Requirement: 静态安全权限基线
 
-- **Given** 开发者在仓库根目录启动 Claude Code
-- **When** Claude Code 加载 `.claude/settings.json`
-- **Then** 顶层 `agent` MUST 为 `qwen-main-default`
+项目 settings MUST 保护 `.env`、`.mcp.json`、SSH、AWS、GitHub 凭据与破坏性 shell/Git 命令；安全 deny MUST NOT 依赖 repository Session Runtime。
 
-#### Scenario: Restrict main agent tools
+#### Scenario: 访问敏感路径
 
-- **Given** `.claude/agents/qwen-main-default.md` 存在
-- **When** 读取 agent frontmatter
-- **Then** `tools` MUST 只包含受限 `Agent(...)` 白名单、`Read`、`Edit`、`Write`、`Bash`、`Glob`、`Grep`、`TaskCreate`、`TaskUpdate`、`TaskList`、`TaskGet`
-- **And** `tools` MUST NOT 包含 `LS`、`MultiEdit`、`Task`、`TodoWrite`、`BashOutput`、`KillBash`、`WebFetch`、`WebSearch`
+- **Given** 工具请求读取或修改受保护的本地凭据
+- **When** Claude permissions 评估请求
+- **Then** settings MUST 拒绝该操作
+- **And** 拒绝 SHALL 由静态 permission 规则完成
 
-### Requirement: Claude permissions baseline
+### Requirement: 不绑定有状态 Hook matrix
 
-项目级 settings MUST 保留 hooks 与安全 deny 规则，并 SHOULD 避免把历史旧工具、Web 工具、Notebook 工具作为默认 permissions allow 基线。若暂时保留 `bypassPermissions`，变更报告 MUST 明确提示风险与后续收敛建议。
+项目 settings SHALL NOT 要求 SessionStart、PreToolUse、PostToolUse、PostToolUseFailure、Stop、SubagentStop、ConfigChange 或 SessionEnd 进入仓库 controller。
 
-#### Scenario: Keep hooks and safe denies
+#### Scenario: 普通工具调用
 
-- **Given** `.claude/settings.json` 存在
-- **When** 读取 settings
-- **Then** `hooks` MUST 保留 `SessionStart`、`SubagentStart`、`PreToolUse`、`PostToolUse`、`PostToolUseFailure`、`Stop`、`SubagentStop`、`ConfigChange`
-- **And** `permissions.deny` MUST 覆盖 `.env`、`.mcp.json`、`~/.ssh/**`、`~/.aws/**`、`~/.config/gh/hosts.yml` 与 destructive shell commands
+- **Given** Claude 已在用户选择的 checkout 中工作
+- **When** Read、Edit、Write 或 Bash 被调用
+- **Then** 仓库 SHALL NOT 为调用创建 baseline、Registry、writer lease 或 receipt
+- **And** 工具结果 SHALL 直接返回客户端
 
-#### Scenario: Avoid stale allow baseline
+### Requirement: 原生任务完成
 
-- **Given** `.claude/settings.json` 存在
-- **When** 读取 `permissions.allow`
-- **Then** `allow` MUST NOT 默认包含 `LS`、`MultiEdit`、`Task`、`TodoWrite`、`BashOutput`、`KillBash`、`WebFetch`、`WebSearch`、`NotebookEdit`
-- **And** 若 `permissions.defaultMode` 仍为 `bypassPermissions`，报告 MUST 说明该模式的风险并建议后续切换为 `default`
+Claude Stop 或 SessionEnd SHALL NOT 自动运行 required tier、stage、commit 或集成 primary 分支。
 
-### Requirement: Claude Change Start/Complete 配对
+#### Scenario: Claude 完成一次变更
 
-Claude SessionStart MUST 通过 dispatcher → hook entry 调用共享 controller 的 `ensure-session`，
-PreToolUse mutation MUST 在 baseline 缺失时关闭失败；Stop/SessionEnd MUST 通过同一 controller
-实时核对 Git 与 Change 状态。这些行为 MUST 来自共享 Runtime，而不是 agent 提示词。
-
-#### Scenario: SessionStart 后首次写入
-
-- **Given** Claude SessionStart 已提供 session id 与 cwd
-- **When** 首次 Write/Edit/Bash mutation 到达
-- **Then** ensure-session baseline MUST 已存在且 identity 一致
-- **And** 缺失或冲突 MUST 阻断 mutation
+- **Given** 当前分支包含修改
+- **When** Claude 准备交接
+- **Then** Agent SHALL 显式报告已运行和未运行的验证
+- **And** Git mutation 只在当前任务明确要求时执行

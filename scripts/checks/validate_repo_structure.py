@@ -16,10 +16,6 @@ REPO_ROOT = repository_root()
 
 # 01. 必需路径
 REQUIRED_PATHS = [
-    '.claude/settings.json',
-    'scripts/harness/hook_dispatch.py',
-    'scripts/agent_runtime/hook_entry.py',
-    'scripts/agent_runtime/context.py',
     'scripts/gates/catalog.py',
     'scripts/gates/model.py',
     'scripts/gates/planner.py',
@@ -27,23 +23,14 @@ REQUIRED_PATHS = [
     'scripts/gates/executor.py',
     'scripts/gates/receipt.py',
     'scripts/gates/report.py',
-    'scripts/agent_runtime/events/evidence.py',
     'scripts/checks/validate_acceptance_contracts.py',
-    'scripts/harness/change.py',
-    'scripts/agent_runtime/stop/evidence.py',
-    'scripts/agent_runtime/change/controller.py',
-    'scripts/agent_runtime/change/model.py',
-    'scripts/agent_runtime/change/store.py',
-    'scripts/agent_runtime/change/runtime.py',
-    'scripts/agent_runtime/change/candidate.py',
-    'scripts/agent_runtime/change/fixture.py',
-    'scripts/agent_runtime/change/protocol.py',
+    'harness/agent-policy.manifest.yaml',
+    'harness/skill-registry.yaml',
     'skills/authoring/feipi-openspec-orchestrate-change/SKILL.md',
     '.agents/skills/feipi-openspec-orchestrate-change',
     '.codex/skills/feipi-openspec-orchestrate-change',
     '.claude/skills/feipi-openspec-orchestrate-change',
     'harness/README.md',
-    'docs/agent-runtime.md',
     'docs/acceptance-contracts/README.md',
 ]
 

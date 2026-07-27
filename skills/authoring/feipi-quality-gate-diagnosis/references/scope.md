@@ -2,10 +2,9 @@
 
 - Required quality gate 失败后的诊断和最小修复。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败后的诊断。
-- Stop check 失败后的诊断。
 - Java gates（编译、测试、PMD）失败后的诊断。
 - UI gates（静态检查、JS action handler 检查）失败后的诊断。
-- Agent runtime gates（entry parity、hook parity、policy sync、skill registry、manifest）失败后的诊断。
+- Agent policy、skill registry、OpenSpec 与 minimal harness 检查失败后的诊断。
 - 判断失败类别并选择对应修复策略。
 - 确保不把 skipped/未运行/环境受限描述为 PASS。
 
@@ -14,7 +13,7 @@
 - 不改功能开发前置设计（应使用对应功能 skill）。
 - 不改 OpenSpec 编排（应使用 `feipi-openspec-orchestrate-change`）。
 - 不改产品代码逻辑（Java、Python 产品功能），除非是 gate 失败的最小修复。
-- 不改 hooks 脚本逻辑，除非 gate bug 定位到 hook。
+- 不重新引入平台 Hook、Session Runtime 或自动 Git mutation。
 - 不改真实 session 数据、缓存、密钥、token、个人配置。
 - 不删 required gates。
 - 不新增 skip（`pytest.skip`、`pytest.mark.skip`、`test.skip()` 等）。
@@ -27,7 +26,7 @@
 2. `scripts/checks/*.py` → 领域检查器，只按失败报告做精确 rerun。
 3. `scripts/harness/doctor.sh` → 环境体检脚本。
 4. `harness/skill-registry.yaml` → skill 注册表。
-5. `harness/agent-runtime.manifest.yaml` → agent runtime manifest。
+5. `harness/manifest.yaml` 与 `harness/agent-policy.manifest.yaml` → minimal harness 真相。
 6. `shared check `agent.entry-parity`` → agent 入口 parity 检查。
 7. `skills/authoring/<skill-name>/SKILL.md` → 各 skill 源文件。
 8. `.claude/agents/*.md`、`.codex/agents/*.toml` → agent 入口文件。
@@ -44,9 +43,7 @@
 ## 触发门禁
 
 - `python3 -m scripts.checks agent.skill-registry`
-- `python3 -m scripts.checks agent.runtime-manifest`
 - `python3 -m scripts.checks agent.entry-parity`
-- `python3 -m scripts.checks agent.hook-parity`
 - `python3 -m scripts.checks agent.rules-sync`
 - `bash scripts/harness/doctor.sh`
 - `python3 scripts/gates/cli.py --tier required`

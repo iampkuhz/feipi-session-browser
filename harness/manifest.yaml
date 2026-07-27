@@ -4,22 +4,12 @@ project:
   type: java-product
   description: Local session browser for Claude Code, Codex, and Qoder session data.
 
-runtime:
-  hook_dispatcher: scripts/harness/hook_dispatch.py
-  hook_entry: scripts/agent_runtime/hook_entry.py
-  lifecycle_cli: scripts/harness/change.py
-  lifecycle_controller: scripts/agent_runtime/change/controller.py
-  lifecycle_state_store: scripts/agent_runtime/change/store.py
-  python_package: scripts.agent_runtime
-  log_dir: tmp/agent_logs/
-  runtime_manifest: harness/agent-runtime.manifest.yaml
-  resource_lock_manager: scripts/agent_runtime/locks.py
-  port_allocator: scripts/agent_runtime/ports.py
-  runtime_root: FEIPI_AGENT_RUNTIME_ROOT or TMPDIR/feipi-agent-runtime/<repo-key>
-  platform_configs:
-    claude: .claude/settings.json
-    codex: .codex/hooks.json
-    qoder: .qoder/settings.json
+agent_contract:
+  policy_manifest: harness/agent-policy.manifest.yaml
+  lifecycle_manifest: harness/agent-runtime.manifest.yaml
+  lifecycle_owner: client
+  platform_event_bindings: false
+  validation_mode: explicit
   skill_entrypoints:
     openspec_orchestrate_change: skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
     codex_repo_scope: .agents/skills/feipi-openspec-orchestrate-change
@@ -32,10 +22,6 @@ public_executables:
   scan: "./scripts/session-browser.sh scan"
   serve: "./scripts/session-browser.sh serve"
   doctor: "bash scripts/harness/doctor.sh"
-  sessionctl: "python3 scripts/harness/sessionctl.py"
-  codex_cli_worktree: "python3 scripts/harness/launch_codex_worktree.py --client codex-cli"
-  change_lifecycle: "python3 scripts/harness/change.py"
-  hook_dispatcher: "python3 scripts/harness/hook_dispatch.py"
   quality_gate: "python3 scripts/gates/cli.py"
   dead_command_reference: "python3 -m scripts.checks repository.dead-command-reference"
   openspec_layout: "python3 scripts/openspec/validate_layout.py"
@@ -47,7 +33,6 @@ public_executables:
   release_checksums: "bash scripts/release/generate-checksums.sh"
   release_rollback_drill: "bash scripts/release/drill-upgrade-rollback.sh"
 
-# 诊断 leaf 必须使用精确文件路径；此处只声明命名约定，不复制 catalog 清单。
 diagnostic_executables:
   - scripts/checks/check_*.py
   - scripts/checks/run_*.py
@@ -56,23 +41,15 @@ diagnostic_executables:
 
 quality:
   runner: scripts/gates/cli.py
-  targets:
-    - hook-runtime
-    - harness
-    - acceptance-contracts
-    - java-src
-    - java-build
-  # target dominance 声明: 避免重复运行 Gradle baseline
+  required_command: python3 scripts/gates/cli.py --tier required
+  targets: [harness, acceptance-contracts, java-src, java-build]
   dominance:
     java-src:
       includes: [java-build]
 
 quality_gates:
-  - name: unit-tests
-    command: "./scripts/session-browser.sh test"
-    required: true
-  - name: harness-doctor
-    command: "bash scripts/harness/doctor.sh"
+  - name: required
+    command: "python3 scripts/gates/cli.py --tier required"
     required: true
 
 docs:
@@ -80,7 +57,6 @@ docs:
   - skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
   - harness/README.md
   - scripts/README.md
-  - scripts/agent_runtime/README.md
   - scripts/gates/README.md
   - scripts/checks/README.md
 

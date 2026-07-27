@@ -24,7 +24,7 @@
 - `shared check `security.secret-like-content`` — 类密钥内容门禁。
 - `tests/fixtures/synthetic/` — synthetic fixture 目录。
 - `harness/skill-registry.yaml` — skill registry。
-- `harness/agent-runtime.manifest.yaml` — runtime manifest。
+- `harness/manifest.yaml` — 最小 harness 清单。
 
 ## 常见误区
 
@@ -38,4 +38,4 @@
 - `repository.no-real-session-fixtures` — 扫描测试 fixture、`docs/`、Qoder 配置和 harness report，检测真实 session 标记。
 - `security.secret-like-content` — 扫描 `tests/`、`docs/`、`java/`、agent 平台入口和共享 skill，检测 `sk-` token、`Authorization: Bearer`、`api_key` 赋值。
 - `agent.skill-registry` — 确认 skill registry 条目完整。
-- `agent.runtime-manifest` — 确认 manifest 中 required skill 完整。
+- `minimal harness structure` — 确认 minimal harness 与 skill 入口完整。

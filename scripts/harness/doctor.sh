@@ -121,24 +121,13 @@ check_file README.md
 check_file pyproject.toml
 check_file uv.lock
 check_file scripts/session-browser.sh
-check_file .claude/settings.json
-check_file .codex/hooks.json
-check_file .qoder/settings.json
-check_file scripts/harness/hook_dispatch.py
-check_file harness/manifest.yaml
-check_file docs/agent-runtime.md
-check_file scripts/harness/change.py
-check_file scripts/agent_runtime/hook_entry.py
-check_file scripts/agent_runtime/change/controller.py
-check_file scripts/agent_runtime/change/model.py
-check_file scripts/agent_runtime/change/store.py
-check_file scripts/agent_runtime/change/runtime.py
-check_file scripts/agent_runtime/change/candidate.py
-check_file scripts/agent_runtime/change/fixture.py
-check_file scripts/agent_runtime/change/protocol.py
-check_file scripts/agent_runtime/stop/evidence.py
+check_file harness/agent-policy.manifest.yaml
+check_file harness/skill-registry.yaml
+check_file scripts/harness/validate_harness_structure.py
+check_file scripts/openspec/validate_layout.py
 check_dir tests
-check_dir scripts/agent_runtime
+check_dir skills
+check_dir openspec/specs
 
 if [[ -n "$PYTHON" ]]; then
   pass_check "python interpreter: $PYTHON"
@@ -155,34 +144,20 @@ else
   fail_check "uv is required for the Python dependency lock"
 fi
 
-if [[ -f .claude/settings.json && -n "$PYTHON" ]]; then
-  run_check "valid JSON: .claude/settings.json" \
-    "$PYTHON" -m json.tool .claude/settings.json
-fi
-
 run_check "valid shell syntax: scripts/session-browser.sh" bash -n scripts/session-browser.sh
 
 if [[ -n "$PYTHON" ]]; then
   run_check "Python source compiles" "$PYTHON" -m compileall -q src
+  run_check "harness structure" "$PYTHON" scripts/harness/validate_harness_structure.py
+  run_check "OpenSpec layout" "$PYTHON" scripts/openspec/validate_layout.py
   checks=(
     repository.language-policy
-    agent.codex-policy
-    agent.runtime-manifest
-    agent.hook-parity
     repository.no-committed-local-paths
-    agent.permission-policy
     agent.policy-size
-    agent.rules-sync
-    agent.runtime-isolation
-    agent.runtime-worktree
-    repository.gate-bypass
     repository.misplaced-generated-paths
     agent.protected-roots
-    agent.qoder-parity
-    agent.hook-payload
     agent.subagent-handoff
     agent.skill-registry
-    agent.entry-parity
     repository.no-real-session-fixtures
     security.secret-like-content
     web.css-ownership

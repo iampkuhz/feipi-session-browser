@@ -6,13 +6,13 @@ import time
 from pathlib import Path
 
 import pytest
-from scripts.agent_runtime.locks import (
+from scripts.gates.resource_lock import (
     NamedResourceLock,
     ResourceLockSet,
     ResourceLockTimeoutError,
     owner_metadata,
 )
-from scripts.agent_runtime.ports import reserve_port
+from scripts.gates.support import reserve_port
 from scripts.gates import executor
 from scripts.gates.planner import plan
 from scripts.gates.report import PASS, GateDetail
@@ -158,7 +158,7 @@ def test_live_owner_never_reclaimed_and_pid_reuse_is_reclaimed_after_grace(
     tmp_path: Path, monkeypatch
 ) -> None:
     """live owner 即使过旧也保留；相同 PID 的 start-time 漂移按 PID reuse 回收。"""
-    from scripts.agent_runtime.locks import _pid_start_time
+    from scripts.gates.resource_lock import _pid_start_time
 
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
     path = tmp_path / 'runtime/locks/shared.lock'
@@ -209,10 +209,10 @@ def test_two_fixture_ports_are_distinct_and_records_are_run_scoped(tmp_path: Pat
 
 def test_executor_acquires_target_resources(monkeypatch, tmp_path: Path):
     monkeypatch.setenv('FEIPI_AGENT_RUNTIME_ROOT', str(tmp_path / 'runtime'))
-    identity = executor.runtime_paths.identity_from_values(
+    identity = executor.gate_support.identity_from_values(
         agent_client='test', session_id='session', run_id='run', worktree_id='worktree'
     )
-    monkeypatch.setattr(executor.runtime_paths, 'identity_from_values', lambda: identity)
+    monkeypatch.setattr(executor.gate_support, 'identity_from_values', lambda: identity)
     active: list[list[str]] = []
 
     def fake_run(name, cmd, cwd, **kwargs):
@@ -224,5 +224,8 @@ def test_executor_acquires_target_resources(monkeypatch, tmp_path: Path):
     gate_plan = plan(['java/app-cli/src/main/java/App.java'], ['java-src'], tier='required')
     details = executor.execute_plan(executor.build_execution_plan(gate_plan, tmp_path), tmp_path)
     assert details
-    assert active and all(item == ['gradle-daemon', 'java-build-tree'] for item in active)
+    resource_runs = [item for item in active if item]
+    assert resource_runs and all(
+        item == ['gradle-daemon', 'java-build-tree'] for item in resource_runs
+    )
     assert list((tmp_path / 'runtime/locks').glob('*.lock')) == []

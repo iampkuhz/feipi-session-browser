@@ -17,7 +17,7 @@
 
 - 真实 session 数据。
 - 产品脱敏逻辑（除非任务明确要求）。
-- hooks 脚本。
+- 平台 Hook 或 Session Runtime。
 - 其他 skill 内容。
 
 ## Required reading
@@ -36,7 +36,7 @@
 - `python3 -m scripts.checks repository.no-real-session-fixtures`
 - `python3 -m scripts.checks security.secret-like-content`
 - `python3 -m scripts.checks agent.skill-registry`
-- `python3 -m scripts.checks agent.runtime-manifest`
+- `python3 scripts/harness/validate_harness_structure.py`
 - `bash scripts/harness/doctor.sh`
 
 ## Expected output

@@ -21,7 +21,7 @@ def _single_plan(target: str, gate: str) -> GatePlan:
 
 def test_command_adapter_reads_typed_declaration(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    assert executor.command_for_gate(gate_by_name('noTestSkips'), tmp_path, 'hook-runtime') == [
+    assert executor.command_for_gate(gate_by_name('noTestSkips'), tmp_path, 'acceptance-contracts') == [
         '/tmp/python',
         '-m',
         'scripts.checks',
@@ -67,14 +67,21 @@ def test_generic_gradle_gate_gets_no_unknown_changed_files_input(tmp_path: Path)
     assert executor.changed_files_environment(java_check, ['build.gradle.kts']) == {}
 
 
-def test_hook_runtime_pytest_uses_stable_capability_suites(monkeypatch) -> None:
+def test_acceptance_contract_pytest_uses_stable_capability_suite(monkeypatch) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    command = executor.command_for_gate(gate_by_name('pytest'), repo_root, 'hook-runtime')
-    assert command[:6] == ['/tmp/python', '-m', 'pytest', '-q', '-W', 'error']
-    assert 'tests/agent_runtime' in command
-    assert 'tests/harness' in command
-    assert 'tests/gates' in command
+    command = executor.command_for_gate(
+        gate_by_name('pytest'), repo_root, 'acceptance-contracts'
+    )
+    assert command == [
+        '/tmp/python',
+        '-m',
+        'pytest',
+        '-q',
+        '-W',
+        'error',
+        'tests/quality/test_contract_case_specs.py',
+    ]
 
 
 def test_browser_gate_without_base_url_uses_node_managed_fixture(monkeypatch) -> None:

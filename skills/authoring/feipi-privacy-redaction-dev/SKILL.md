@@ -54,16 +54,16 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 - Skill 源目录：`skills/authoring/feipi-privacy-redaction-dev/`。
 - 隐私 gate 脚本：`shared check `repository.no-real-session-fixtures``、`shared check `security.secret-like-content``。
 - 测试 fixture 目录：`tests/fixtures/synthetic/`。
-- 配置引用：`harness/skill-registry.yaml`、`harness/agent-runtime.manifest.yaml`。
+- 配置引用：`harness/skill-registry.yaml`、`harness/manifest.yaml`。
 
-不要跨边界修改产品脱敏逻辑。不要修改真实 session 数据。不要修改 hooks。
+不要跨边界修改产品脱敏逻辑。不要修改真实 session 数据。不要重新引入平台 Hook 或真实运行数据。
 
 ## 验证门禁
 
 - `python3 -m scripts.checks repository.no-real-session-fixtures` — 检测真实 session fixture。
 - `python3 -m scripts.checks security.secret-like-content` — 检测类密钥内容。
 - `python3 -m scripts.checks agent.skill-registry` — registry 完整性。
-- `python3 -m scripts.checks agent.runtime-manifest` — manifest 完整性。
+- `python3 scripts/harness/validate_harness_structure.py` — minimal harness 结构完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
 
 ## 输出格式

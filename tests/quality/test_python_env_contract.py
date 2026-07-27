@@ -5,7 +5,6 @@ import tomllib
 from pathlib import Path
 
 import pytest
-from scripts.agent_runtime.change import candidate as change_candidate
 from scripts.gates import executor as gate_executor
 from scripts.harness import python_env
 
@@ -125,19 +124,6 @@ def test_official_uv_sync_entries_pin_the_local_environment() -> None:
     assert (
         'UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.local/python/venv" uv sync --frozen --extra dev'
     ) in workflow
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-010')
-def test_pre_commit_fallback_uses_shared_project_venv(
-    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
-) -> None:
-    monkeypatch.delenv('SESSION_BROWSER_VENV_DIR', raising=False)
-    executable = tmp_path / '.local' / 'python' / 'venv' / 'bin' / 'pre-commit'
-    executable.parent.mkdir(parents=True)
-    executable.write_text('#!/bin/sh\n', encoding='utf-8')
-    executable.chmod(0o755)
-
-    assert change_candidate.default_formatter_argv(tmp_path) == (str(executable),)
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')

@@ -17,7 +17,7 @@ RUNNERS = {
 
 def test_required_domains_are_registered() -> None:
     assert {
-        'agent.hook-parity',
+        'agent.rules-sync',
         'repository.dead-command-reference',
         'web.css-ownership',
         'security.secret-like-content',

@@ -17,9 +17,9 @@
 | Gate | Result |
 |---|---|
 | <触发失败的 gate> | <PASS/FAIL> |
-| `agent.skill-registry` | <PASS/FAIL/skipped> |
-| `agent.runtime-manifest` | <PASS/FAIL/skipped> |
-| `doctor.sh` | <PASS/FAIL/skipped> |
+| `agent.skill-registry` | <PASS/FAIL/not run> |
+| `minimal harness structure` | <PASS/FAIL/not run> |
+| `doctor.sh` | <PASS/FAIL/not run> |
 
 ## Risks
 
