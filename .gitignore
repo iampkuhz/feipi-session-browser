@@ -51,3 +51,7 @@ openspec/changes/
 !/.qoder/agents/mhtml-export-specialist.md
 !/.qoder/agents/privacy-reviewer.md
 /.claude/worktrees/
+**/.local/
+
+harness/reports/
+tests/test-results/
