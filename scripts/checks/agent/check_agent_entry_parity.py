@@ -1,15 +1,18 @@
 #!/usr/bin/env python3
-"""负责验证跨平台领域 Agent 仅保留平台 metadata 与共享 Skill 入口；不负责修改 Agent；由 Gate 调用。"""
+"""检查跨平台领域 Agent 是否只保留 metadata 与共享 Skill 入口。
+
+薄入口可避免不同客户端复制同一套领域规则后发生漂移。公开入口是 `check(arguments)`；返回
+诊断表示入口缺失、解析失败或不再与 manifest 一致。
+"""
 
 from __future__ import annotations
 
 import re
-import sys
 import tomllib
 from typing import TYPE_CHECKING
 
 import yaml
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -69,7 +72,7 @@ def _check_qoder(name: str, path: Path, skill: str) -> list[str]:
     return errors
 
 
-def check_agent_entries(platform: str | None = None) -> list[str]:
+def _check_agent_entries(platform: str | None = None) -> list[str]:
     """按 manifest 唯一映射验证领域 Agent 薄入口；缺失或解析异常均形成失败诊断。"""
     errors: list[str] = []
     agents = _manifest_agents()
@@ -110,12 +113,9 @@ def _check_claude_main_allowlist() -> list[str]:
     ]
 
 
-def main() -> int:
-    """运行跨平台 Agent 入口等价检查，任一入口漂移即返回非零。"""
-    errors = [*check_agent_entries(), *_check_claude_main_allowlist()]
-    for error in errors:
-        print(f'[agentEntryParity] FAIL: {error}', file=sys.stderr)
-    if errors:
-        return 1
-    print(f'[agentEntryParity] PASS: checked {len(_manifest_agents())} domain agents')
-    return 0
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回跨平台 Agent 入口等价检查结果。"""
+    parser = argument_parser(description='检查跨平台 Agent 薄入口')
+    parser.parse_args(arguments)
+    errors = [*_check_agent_entries(), *_check_claude_main_allowlist()]
+    return CheckResult.from_errors(errors)

@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""检查 Session Detail 模板与样式的静态布局契约。
+"""检查 Session Detail 模板接线与静态布局契约。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这些规则防止主内容宽度、hero 单列布局和 shell class 接线在无浏览器测试时悄然回退。唯一公开
+入口是 `check(arguments)`；失败表示必需资源缺失或至少一项布局、标题、模板接线契约不成立。
+"""
 
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 
@@ -62,7 +64,7 @@ class StaticCheckResult:
         }
 
 
-def check_phase1_hide_left_override(css: str, result: StaticCheckResult) -> None:
+def _check_phase1_hide_left_override(css: str, result: StaticCheckResult) -> None:
     """确认隐藏左栏时存在足够特异性的 Phase 1 grid 覆盖规则。"""
     hide_left_phase1 = bool(
         re.search(
@@ -90,7 +92,7 @@ def check_phase1_hide_left_override(css: str, result: StaticCheckResult) -> None
         )
 
 
-def check_phase1_main_grid_column(css: str, result: StaticCheckResult) -> None:
+def _check_phase1_main_grid_column(css: str, result: StaticCheckResult) -> None:
     """确认 Phase 1 主内容区通过 grid 跨列或 flex 宽度契约铺满可用空间。"""
     has_main_rule = bool(re.search(r'\.shell\.phase1-shell\s+\.main', css))
     has_main_base = bool(re.search(r'\.main\b', css))  # 标记基础 main 规则是否存在
@@ -123,7 +125,7 @@ def check_phase1_main_grid_column(css: str, result: StaticCheckResult) -> None:
         )
 
 
-def check_detail_width_contract(css: str, result: StaticCheckResult) -> None:
+def _check_detail_width_contract(css: str, result: StaticCheckResult) -> None:
     """确认 Session Detail 容器显式声明 width 或 max-width。"""
     has_detail = bool(re.search(r'\.session-detail-phase1', css))
     has_width = bool(
@@ -185,7 +187,7 @@ def _is_two_column_grid(value: str) -> bool:
     return len(tokens) >= MIN_GRID_COLUMNS
 
 
-def check_hero_main_single_column(
+def _check_hero_main_single_column(
     css: str, result: None | StaticCheckResult = None
 ) -> StaticCheckResult:
     """确认 Session Detail hero 主区域没有继承或声明双列布局。"""
@@ -229,7 +231,7 @@ def check_hero_main_single_column(
     return result
 
 
-def check_hero_title_wrapping(css: str, result: StaticCheckResult) -> None:
+def _check_hero_title_wrapping(css: str, result: StaticCheckResult) -> None:
     """拒绝会在任意字符处断开 Session Detail 标题的换行规则。"""
     title_blocks = re.findall(
         r'\.hero-title\s*\{([^}]*)\}',
@@ -256,7 +258,7 @@ def check_hero_title_wrapping(css: str, result: StaticCheckResult) -> None:
             )
 
 
-def check_session_shell_class_hook(session_text: str, result: StaticCheckResult) -> None:
+def _check_session_shell_class_hook(session_text: str, result: StaticCheckResult) -> None:
     """确认 session.html 声明 shell_class block 及受支持的页面 shell class。"""
     has_block = bool(re.search(r'\{%\s*block\s+shell_class\s*%\}', session_text))
     has_phase1 = 'phase1-shell' in session_text
@@ -289,7 +291,7 @@ def check_session_shell_class_hook(session_text: str, result: StaticCheckResult)
         )
 
 
-def check_base_shell_class_application(base_text: str, result: StaticCheckResult) -> None:
+def _check_base_shell_class_application(base_text: str, result: StaticCheckResult) -> None:
     """确认 base.html 将 shell_class block 应用到 .shell 容器。"""
     has_shell_with_block = bool(
         re.search(
@@ -315,7 +317,7 @@ def check_base_shell_class_application(base_text: str, result: StaticCheckResult
         )
 
 
-def run_checks(
+def _run_checks(
     css_path: Path, base_path: Path, session_path: Path, shell_css_path: Path | None = None
 ) -> dict:
     """读取静态资源并执行全部布局契约；任一必需文件缺失即返回失败。"""
@@ -341,18 +343,25 @@ def run_checks(
     session_text = session_path.read_text()
 
     # 按布局、标题和模板接线三个阶段累积诊断，最后只归约一次状态。
-    check_phase1_hide_left_override(css, result)
-    check_phase1_main_grid_column(css, result)
-    check_detail_width_contract(css, result)
-    check_hero_main_single_column(css, result)
-    check_hero_title_wrapping(css, result)
-    check_session_shell_class_hook(session_text, result)
-    check_base_shell_class_application(base_text, result)
+    _check_phase1_hide_left_override(css, result)
+    _check_phase1_main_grid_column(css, result)
+    _check_detail_width_contract(css, result)
+    _check_hero_main_single_column(css, result)
+    _check_hero_title_wrapping(css, result)
+    _check_session_shell_class_hook(session_text, result)
+    _check_base_shell_class_application(base_text, result)
 
     return result.to_dict()
 
 
-def check_repository() -> list[str]:
+def _check_repository() -> list[str]:
     """对仓库默认资源执行检查并返回扁平诊断列表。"""
-    result = run_checks(SHELL_CSS_FILE, BASE_HTML, SESSION_HTML)
+    result = _run_checks(SHELL_CSS_FILE, BASE_HTML, SESSION_HTML)
     return [f"{failure['code']}: {failure['message']}" for failure in result['failures']]
+
+
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一 CLI 参数，并按布局、标题、模板接线的既定顺序返回失败。"""
+    parser = argument_parser(description='检查 Session Detail 静态布局契约')
+    parser.parse_args(arguments)
+    return CheckResult.from_errors(_check_repository())

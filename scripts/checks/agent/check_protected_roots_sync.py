@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""本模块负责检查共享 agent policy 的受保护路径声明。
+"""检查共享 Agent policy 与 AGENTS.md 的受保护路径声明。
 
-不负责加载 Hook 或 Session Runtime；由共享 checks CLI 或 Gate executor 调用。
+完整的受保护路径可避免治理文件在普通修改中被意外覆盖。公开入口是 `check(arguments)`；
+返回诊断表示 manifest 或入口文档遗漏了必需路径。
 """
 
 from __future__ import annotations
@@ -9,15 +10,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import yaml
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 ROOT = repository_root()
 POLICY_MANIFEST = ROOT / 'harness' / 'agent-policy.manifest.yaml'
-GATE_NAME = 'protectedRootsSync'
-
 POLICY_REQUIRED_ROOTS = [
     '.claude/',
     '.codex/',
@@ -39,13 +38,6 @@ DOCUMENTED_REQUIRED_ROOTS = [
 OMISSION_SENTINELS = ['.agents/', 'skills/', 'tests/']
 
 
-def fail(errors: list[str]) -> int:
-    """输出全部失败原因并返回非零状态。"""
-    for error in errors:
-        print(f'[{GATE_NAME}] FAIL: {error}')
-    return 1
-
-
 def _normalize_repo_path(value: str) -> str:
     normalized = value.strip().replace('\\', '/')
     if normalized.startswith('./'):
@@ -55,7 +47,7 @@ def _normalize_repo_path(value: str) -> str:
     return normalized
 
 
-def manifest_roots(root: Path = ROOT) -> list[str]:
+def _manifest_roots(root: Path = ROOT) -> list[str]:
     """读取并规范化 protected_roots；解析失败返回空列表交由调用方关闭式失败。"""
     path = root / 'harness' / 'agent-policy.manifest.yaml'
     try:
@@ -75,7 +67,7 @@ def manifest_roots(root: Path = ROOT) -> list[str]:
     return result
 
 
-def check_required_manifest_roots(roots: list[str]) -> list[str]:
+def _check_required_manifest_roots(roots: list[str]) -> list[str]:
     """检查共享 manifest 是否覆盖最小受保护根目录集合。"""
     return [
         f'agent-policy manifest protected_roots 缺少必需项: {root}'
@@ -84,7 +76,7 @@ def check_required_manifest_roots(roots: list[str]) -> list[str]:
     ]
 
 
-def check_agents_doc_covers_required_roots(root: Path = ROOT) -> list[str]:
+def _check_agents_doc_covers_required_roots(root: Path = ROOT) -> list[str]:
     """检查 AGENTS.md 是否继续声明产品、测试及治理目录的完整保护范围。"""
     try:
         text = (root / 'AGENTS.md').read_text(encoding='utf-8')
@@ -97,12 +89,11 @@ def check_agents_doc_covers_required_roots(root: Path = ROOT) -> list[str]:
     ]
 
 
-def main() -> int:
-    """交叉校验 manifest 与 AGENTS.md 的受保护路径，任一遗漏即失败。"""
-    roots = manifest_roots(ROOT)
-    errors = check_required_manifest_roots(roots)
-    errors.extend(check_agents_doc_covers_required_roots(ROOT))
-    if errors:
-        return fail(errors)
-    print(f'[{GATE_NAME}] PASS')
-    return 0
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回受保护路径交叉检查结果。"""
+    parser = argument_parser(description='检查 Agent policy 受保护路径')
+    parser.parse_args(arguments)
+    roots = _manifest_roots(ROOT)
+    errors = _check_required_manifest_roots(roots)
+    errors.extend(_check_agents_doc_covers_required_roots(ROOT))
+    return CheckResult.from_errors(errors)

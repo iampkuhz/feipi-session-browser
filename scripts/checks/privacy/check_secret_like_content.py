@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""本模块负责轻量启发式：扫描受保护路径和测试文档，检测类密钥内容。
+"""检查受保护路径和测试文档中的类密钥内容。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这项检查避免疑似 token、授权头或私钥标记进入仓库。公开入口是 ``check(arguments)``，失败
+表示发现必须移除、轮换或替换为合成值的可疑凭据。"""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 
@@ -96,12 +97,6 @@ def _is_excluded_path(path: Path) -> bool:
     except ValueError:
         return True
     return any(relative == prefix or prefix in relative.parents for prefix in _SKIP_RELATIVE_DIRS)
-
-
-def fail(message: str) -> int:
-    """输出单条隐私 Gate 失败原因并返回非零退出码。"""
-    print(f"[{GATE_NAME}] FAIL: {message}")
-    return 1
 
 
 def _is_safe_value(value: str) -> bool:
@@ -224,9 +219,10 @@ def _scan_file(filepath: Path) -> list[str]:
     return errors
 
 
-def main() -> int:
-    """扫描受保护文本文件中的类密钥内容，任一可疑匹配即失败。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一入口参数并返回全部类密钥内容诊断。"""
+    parser = argument_parser(description="检查受保护文件中的类密钥内容")
+    parser.parse_args(arguments)
     all_errors: list[str] = []
 
     seen_files: set[Path] = set()
@@ -270,11 +266,4 @@ def main() -> int:
                 continue
             all_errors.extend(_scan_file(filepath))
 
-    if all_errors:
-        for err in all_errors:
-            print(f"[{GATE_NAME}] FAIL: {err}")
-        print(f"[{GATE_NAME}] FAIL: 共 {len(all_errors)} 处类密钥内容")
-        return 1
-
-    print(f"[{GATE_NAME}] PASS")
-    return 0
+    return CheckResult.from_errors(all_errors)

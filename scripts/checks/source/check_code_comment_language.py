@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""负责审计生产源码的中文注释契约；不修改源码，由 Gate CLI 与维护者调用。
+"""检查生产源码的中文注释、术语和说明完整性。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这项检查保证关键源码说明以中文表达职责和约束。公开入口是 ``check(arguments)``，失败表示
+发现必须改写的注释、docstring 或术语策略问题。"""
 
 from __future__ import annotations
 
@@ -16,7 +17,7 @@ import tokenize
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
-from scripts.checks._framework import argument_parser, repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 
@@ -91,7 +92,7 @@ class Violation:
     preview: str
 
 
-def load_policy(path: Path | None = None) -> tuple[set[str], tuple[str, ...]]:
+def _load_policy(path: Path | None = None) -> tuple[set[str], tuple[str, ...]]:
     """从集中策略加载规范技术术语与禁用翻译，策略缺失或结构错误时 fail-closed。"""
     target = path or REPO_ROOT / 'config' / 'technical-terms.json'
     data = json.loads(target.read_text(encoding='utf-8'))
@@ -119,7 +120,9 @@ def _normalize(text: str, terms: set[str]) -> str:
     return re.sub(r'\s+', ' ', value).strip()
 
 
-def check(comment: Comment, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
+def _check_comment(
+    comment: Comment, terms: set[str], forbidden: tuple[str, ...]
+) -> list[Violation]:
     """检查一段叙述文本的术语、信息量和中文主体，不决定该位置是否必须有说明。"""
     raw = comment.text.strip()
     first = re.sub(r'^\s*\*?\s?', '', raw.splitlines()[0]).strip() if raw else ''
@@ -213,7 +216,7 @@ def _docstring_violations(
     comment: Comment, terms: set[str], forbidden: tuple[str, ...]
 ) -> list[Violation]:
     """逐段检查标准 Python docstring，并给英文段落标题精确定位。"""
-    violations = check(comment, terms, forbidden)
+    violations = _check_comment(comment, terms, forbidden)
     for offset, raw in enumerate(comment.text.splitlines()):
         value = raw.strip()
         if ENGLISH_SECTION.match(value):
@@ -236,11 +239,36 @@ def _required_definition(node: ast.AST) -> bool:
     return bool(name and (not name.startswith('_') or CORE_NAME.search(name)))
 
 
-def _module_contract_missing(text: str) -> list[str]:
-    """报告模块说明遗漏的职责、非职责或调用者维度。"""
+def _is_check_leaf(path: Path) -> bool:
+    """判断文件是否位于领域目录并使用统一 `check_*.py` 命名。"""
+    normalized = path.as_posix()
+    return (
+        normalized.startswith('scripts/checks/') or '/scripts/checks/' in normalized
+    ) and path.name.startswith('check_')
+
+
+def _module_contract_missing(path: Path, text: str) -> list[str]:
+    """按领域 Check 或普通模块各自的首屏说明约定报告缺失信息。"""
+    if _is_check_leaf(path):
+        missing = []
+        if not re.search(r'检查|验证|审计|核对|检测', text):
+            missing.append('检查对象')
+        if not re.search(
+            r'避免|防止|阻止|确保|保证|证明|保持|降低|以便|帮助|用于|原因|需要|必须|会|因此',
+            text,
+        ):
+            missing.append('存在原因')
+        if not re.search(r'(?:公开|唯一|唯一公开)\s*入口.{0,60}check', text, re.S | re.I):
+            missing.append('公开入口')
+        if not re.search(r'失败|诊断|错误|违规|不满足', text):
+            missing.append('失败含义')
+        return missing
+
+    # 非 Check 模块仍说明职责边界和调用位置，避免把领域模板强加给基础设施。
     missing = []
     if not re.search(
-        r'负责|用于|检查|验证|解析|定义|提供|执行|运行|判定|持久化|生成|统一|维护|审计', text
+        r'负责|用于|检查|验证|解析|定义|登记|提供|执行|运行|判定|持久化|生成|统一|维护|审计',
+        text,
     ):
         missing.append('职责')
     if not re.search(
@@ -255,7 +283,7 @@ def _module_contract_missing(text: str) -> list[str]:
     return missing
 
 
-def check_python_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
+def _check_python_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
     """审计 Python module/public/core docstring 与真实 token 注释，不扫描字符串中的井号。"""
     text = path.read_text(encoding='utf-8')
     try:
@@ -274,27 +302,37 @@ def check_python_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -
     violations: list[Violation] = []
     module_doc = _docstring_comment(path, tree, 'module-doc')
     if module_doc is None:
+        suggestion = (
+            '添加中文说明：检查什么、为什么需要、公开入口和失败表示什么'
+            if _is_check_leaf(path)
+            else '在 shebang/未来导入之前添加职责、非职责和调用者说明'
+        )
         violations.append(
             Violation(
                 str(path),
                 1,
                 'MODULE_DOCSTRING_MISSING',
                 '生产模块缺少中文职责说明',
-                '在 shebang/未来导入之前添加职责、非职责和调用者说明',
+                suggestion,
                 path.name,
             )
         )
     else:
         violations.extend(_docstring_violations(module_doc, terms, forbidden))
-        missing = _module_contract_missing(module_doc.text)
+        missing = _module_contract_missing(path, module_doc.text)
         if missing:
+            suggestion = (
+                '依次说明检查什么、为什么需要、公开入口和失败表示什么'
+                if _is_check_leaf(path)
+                else '说明本模块负责什么、不负责什么、由哪个入口或运行阶段调用'
+            )
             violations.append(
                 Violation(
                     str(path),
                     module_doc.line,
                     'MODULE_DOCSTRING_INCOMPLETE',
                     f'模块说明缺少：{"、".join(missing)}',
-                    '说明本模块负责什么、不负责什么、由哪个入口或运行阶段调用',
+                    suggestion,
                     module_doc.text.splitlines()[0][:160],
                 )
             )
@@ -329,7 +367,7 @@ def check_python_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -
                 continue
             if re.search(r'[A-Za-z㐀-䶿一-鿿豈-﫿]', value):
                 violations.extend(
-                    check(
+                    _check_comment(
                         Comment(str(path), token.start[0], 'script-line', value), terms, forbidden
                     )
                 )
@@ -338,7 +376,7 @@ def check_python_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -
     return violations
 
 
-def extract_script_comments(path: Path) -> list[Comment]:
+def _extract_script_comments(path: Path) -> list[Comment]:
     """提取 shell 叙述注释；不把 shebang、工具指令或纯分隔符作为说明。"""
     comments = []
     for lineno, raw in enumerate(path.read_text(encoding='utf-8').splitlines(), 1):
@@ -351,10 +389,12 @@ def extract_script_comments(path: Path) -> list[Comment]:
     return comments
 
 
-def check_shell_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
+def _check_shell_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -> list[Violation]:
     """审计 shell 说明；Hook wrapper 还必须明确委托边界，普通内部函数不强制逐个注释。"""
-    comments = extract_script_comments(path)
-    violations = [item for comment in comments for item in check(comment, terms, forbidden)]
+    comments = _extract_script_comments(path)
+    violations = [
+        item for comment in comments for item in _check_comment(comment, terms, forbidden)
+    ]
     if '/hooks/' in f'/{path.as_posix()}':
         header = [comment for comment in comments if comment.line <= 8]
         if not header:
@@ -382,7 +422,7 @@ def check_shell_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) ->
     return violations
 
 
-def extract(path: Path) -> list[Comment]:
+def _extract(path: Path) -> list[Comment]:
     """词法提取 Java/Kotlin 行注释与块注释，忽略字符串和 text block。"""
     text = path.read_text(encoding='utf-8')
     out: list[Comment] = []
@@ -443,7 +483,7 @@ def extract(path: Path) -> list[Comment]:
     return out
 
 
-def discover(values: list[str], *, script_comments: bool = False) -> list[Path]:
+def _discover(values: list[str], *, script_comments: bool = False) -> list[Path]:
     """在显式根目录下发现受支持源码，并排除生成物与依赖目录。"""
     suffixes = {'.py', '.sh'} if script_comments else {'.java', '.kt', '.kts'}
     result: set[Path] = set()
@@ -471,7 +511,7 @@ def _is_under(path: Path, root: Path) -> bool:
         return False
 
 
-def filter_changed_paths(values: list[str], changed_files: list[str]) -> list[str]:
+def _filter_changed_paths(values: list[str], changed_files: list[str]) -> list[str]:
     """保留与扫描根相交的 changed-files，保持输入顺序并去重。"""
     roots = [Path(raw) for raw in values]
     result = []
@@ -485,8 +525,8 @@ def filter_changed_paths(values: list[str], changed_files: list[str]) -> list[st
     return result
 
 
-def main() -> int:
-    """运行注释 Gate 并输出 path:line/code/message/suggestion；存在违规或策略错误时失败。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一入口参数，保留报告和缓存副作用并返回注释违规诊断。"""
     parser = argument_parser(description='生产源码中文注释契约检查器')
     parser.add_argument(
         'paths',
@@ -502,12 +542,13 @@ def main() -> int:
         '--script-comments', action='store_true', help='扫描 production Python/shell 注释契约'
     )
     parser.add_argument('--changed-files-env')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
     try:
-        terms, forbidden = load_policy(Path(args.policy))
+        terms, forbidden = _load_policy(Path(args.policy))
     except (OSError, ValueError, json.JSONDecodeError) as exc:
-        print(f'{args.policy}:1: POLICY_INVALID: {exc}: suggestion=修复集中术语策略后重试')
-        return 2
+        return CheckResult.from_errors(
+            [f'{args.policy}:1: POLICY_INVALID: {exc}: suggestion=修复集中术语策略后重试']
+        )
     paths = args.paths
     if args.files_from:
         raw = Path(args.files_from).read_text(encoding='utf-8').strip()
@@ -517,8 +558,8 @@ def main() -> int:
             selected = json.loads(os.environ.get(args.changed_files_env, '[]'))
         except json.JSONDecodeError:
             selected = []
-        paths = filter_changed_paths(paths, selected if isinstance(selected, list) else [])
-    files = discover(paths, script_comments=args.script_comments)
+        paths = _filter_changed_paths(paths, selected if isinstance(selected, list) else [])
+    files = _discover(paths, script_comments=args.script_comments)
     jobs = (
         min(16, max(1, os.cpu_count() or 1), max(1, len(files)))
         if args.jobs == 'auto'
@@ -536,26 +577,28 @@ def main() -> int:
         except (OSError, json.JSONDecodeError):
             pass
 
-    def scan(path: Path) -> tuple[str, str, list[Violation]]:
+    def _scan(path: Path) -> tuple[str, str, list[Violation]]:
         """扫描单个文件并复用内容哈希一致的缓存结果。"""
         digest = hashlib.sha256(path.read_bytes()).hexdigest()
         old = cache.get('entries', {}).get(path.as_posix())
         if old and old.get('sha256') == digest:
             return str(path), digest, [Violation(**item) for item in old.get('violations', [])]
         if args.script_comments and path.suffix == '.py':
-            violations = check_python_file(path, terms, forbidden)
+            violations = _check_python_file(path, terms, forbidden)
         elif args.script_comments and path.suffix == '.sh':
-            violations = check_shell_file(path, terms, forbidden)
+            violations = _check_shell_file(path, terms, forbidden)
         else:
             violations = [
-                item for comment in extract(path) for item in check(comment, terms, forbidden)
+                item
+                for comment in _extract(path)
+                for item in _check_comment(comment, terms, forbidden)
             ]
         return str(path), digest, violations
 
     all_violations: list[Violation] = []
     entries = {}
     with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        for path_str, digest, violations in pool.map(scan, files):
+        for path_str, digest, violations in pool.map(_scan, files):
             all_violations.extend(violations)
             entries[path_str] = {
                 'sha256': digest,
@@ -584,10 +627,9 @@ def main() -> int:
             + '\n',
             encoding='utf-8',
         )
-    for item in all_violations:
-        print(
+    return CheckResult.from_errors(
+        (
             f'{item.path}:{item.line}: {item.code}: {item.message}: suggestion={item.suggestion}: {item.preview}'
         )
-    if all_violations:
-        return 1
-    return 0
+        for item in all_violations
+    )

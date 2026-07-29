@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""检查 Codex custom agent 配置及其共享 Skill 契约。
+"""检查 Codex custom Agent 配置及其共享 Skill 契约。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+一致的 metadata、sandbox 和 handoff 约束可避免子 Agent 越权或丢失验证证据。公开入口是
+`check(arguments)`；返回诊断表示 TOML、共享 Skill 或执行边界不符合约定。
+"""
 
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ import tomllib
 from typing import TYPE_CHECKING
 
 import yaml
-from scripts.checks._framework import argument_parser, repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -83,7 +85,7 @@ def _check_skill_entry(rel: Path, instructions: object, skill: str) -> list[str]
     return failures
 
 
-def check_agent(path: Path) -> list[str]:
+def _check_agent(path: Path) -> list[str]:
     """检查单个 Codex Agent 的 metadata、执行边界与共享 Skill 入口。"""
     failures: list[str] = []
     rel = path.relative_to(REPO_ROOT)
@@ -133,14 +135,14 @@ def check_agent(path: Path) -> list[str]:
     return failures
 
 
-def run_check() -> list[str]:
+def _run_check() -> list[str]:
     """检查全部 Codex Agent；配置目录不存在时保持兼容并返回空结果。"""
     if not AGENTS_DIR.exists():
         return []
     failures: list[str] = []
     for path in sorted(AGENTS_DIR.glob('*.toml')):
         try:
-            failures.extend(check_agent(path))
+            failures.extend(_check_agent(path))
         except ValueError as exc:
             failures.append(str(exc))
     return failures
@@ -152,23 +154,17 @@ def _self_test() -> None:
     assert 'high' in ALLOWED_REASONING_EFFORTS
     entry = AGENTS_DIR / 'java-backend-implementer.toml'
     assert _domain_skill(entry) == 'skills/authoring/feipi-java-feature-dev/SKILL.md'
-    assert not check_agent(entry)
+    assert not _check_agent(entry)
 
 
-def main() -> int:
-    """运行 Codex Agent policy 检查，任何配置解析或契约错误均返回非零。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回 Codex Agent policy 检查结果。"""
     parser = argument_parser(description='检查 Codex custom agent 配置')
     parser.add_argument('--self-test', action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
     if args.self_test:
         _self_test()
-        return 0
+        return CheckResult()
 
-    failures = run_check()
-    if failures:
-        print('codex agent policy FAIL')
-        for item in failures:
-            print(f'[FAIL] {item}')
-        return 1
-    return 0
+    return CheckResult.from_errors(_run_check())

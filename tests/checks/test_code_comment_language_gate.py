@@ -16,14 +16,22 @@ assert spec and spec.loader
 checker = importlib.util.module_from_spec(spec)
 sys.modules[spec.name] = checker
 spec.loader.exec_module(checker)
-TERMS, FORBIDDEN = checker.load_policy(REPO_ROOT / 'config' / 'technical-terms.json')
+TERMS, FORBIDDEN = checker._load_policy(REPO_ROOT / 'config' / 'technical-terms.json')
 
 
 def scan_python(tmp_path: Path, source: str) -> list[checker.Violation]:
     """写入最小 Python fixture 并返回结构化违规。"""
     path = tmp_path / 'tool.py'
     path.write_text(source, encoding='utf-8')
-    return checker.check_python_file(path, TERMS, FORBIDDEN)
+    return checker._check_python_file(path, TERMS, FORBIDDEN)
+
+
+def scan_check_leaf(tmp_path: Path, source: str) -> list[checker.Violation]:
+    """写入统一协议的领域 Check fixture。"""
+    path = tmp_path / 'scripts' / 'checks' / 'source' / 'check_sample.py'
+    path.parent.mkdir(parents=True)
+    path.write_text(source, encoding='utf-8')
+    return checker._check_python_file(path, TERMS, FORBIDDEN)
 
 
 def scan_shell(tmp_path: Path, source: str, *, hook: bool = False) -> list[checker.Violation]:
@@ -32,7 +40,7 @@ def scan_shell(tmp_path: Path, source: str, *, hook: bool = False) -> list[check
     parent.mkdir(exist_ok=True)
     path = parent / 'tool.sh'
     path.write_text(source, encoding='utf-8')
-    return checker.check_shell_file(path, TERMS, FORBIDDEN)
+    return checker._check_shell_file(path, TERMS, FORBIDDEN)
 
 
 def codes(violations: list[checker.Violation]) -> set[str]:
@@ -80,6 +88,34 @@ def test_module_contract_requires_responsibility_boundary_and_caller(tmp_path: P
     violations = scan_python(tmp_path, '"""中文工具。"""\n')
     assert 'MODULE_DOCSTRING_INCOMPLETE' in codes(violations)
     assert '职责、非职责、调用者' in violations[0].message
+
+
+def test_check_leaf_module_contract_explains_rule_entry_and_failure(tmp_path: Path) -> None:
+    source = '''"""检查示例配置是否包含必需字段。
+
+这项检查用于防止无效配置进入仓库。公开入口是 `check(arguments)`；返回诊断表示配置缺失。
+"""
+
+def check(arguments: list[str]) -> object:
+    """检查传入配置。"""
+    return object()
+'''
+    assert scan_check_leaf(tmp_path, source) == []
+
+
+def test_check_leaf_module_contract_rejects_architecture_only_description(tmp_path: Path) -> None:
+    source = '''"""检查示例配置。
+
+公开入口是 `check(arguments)`。
+"""
+'''
+    violation = next(
+        item
+        for item in scan_check_leaf(tmp_path, source)
+        if item.code == 'MODULE_DOCSTRING_INCOMPLETE'
+    )
+    assert '存在原因' in violation.message
+    assert '失败含义' in violation.message
 
 
 @pytest.mark.parametrize(
@@ -156,28 +192,30 @@ def test_hook_wrapper_requires_chinese_delegation_boundary(tmp_path: Path) -> No
 def test_java_lexer_ignores_comment_markers_inside_strings(tmp_path: Path) -> None:
     path = tmp_path / 'Sample.java'
     path.write_text('class Sample { String value = "// English text"; }', encoding='utf-8')
-    assert checker.extract(path) == []
+    assert checker._extract(path) == []
 
 
 def test_java_keeps_legacy_line_comment_threshold_and_term_mix() -> None:
     comment = checker.Comment('Sample.java', 7, 'line', '退出码：mismatch → 1，source error → 2')
-    assert checker.check(comment, TERMS, FORBIDDEN) == []
+    assert checker._check_comment(comment, TERMS, FORBIDDEN) == []
 
 
 def test_java_still_rejects_english_dominant_comment() -> None:
     comment = checker.Comment(
         'Sample.java', 7, 'line', 'Read cached execution result from local storage.'
     )
-    assert 'COMMENT_NOT_CHINESE_DOMINANT' in codes(checker.check(comment, TERMS, FORBIDDEN))
+    assert 'COMMENT_NOT_CHINESE_DOMINANT' in codes(
+        checker._check_comment(comment, TERMS, FORBIDDEN)
+    )
 
 
 def test_java_does_not_inherit_script_only_template_policy() -> None:
     comment = checker.Comment('Sample.java', 7, 'javadoc', '此对象表示 Sample 的来源信息。')
-    assert checker.check(comment, TERMS, FORBIDDEN) == []
+    assert checker._check_comment(comment, TERMS, FORBIDDEN) == []
 
 
 def test_filter_changed_paths_limits_roots() -> None:
-    assert checker.filter_changed_paths(
+    assert checker._filter_changed_paths(
         ['scripts', '.claude/hooks'],
         ['scripts/tool.py', '.claude/hooks/stop.sh', 'tests/test_tool.py'],
     ) == ['scripts/tool.py', '.claude/hooks/stop.sh']

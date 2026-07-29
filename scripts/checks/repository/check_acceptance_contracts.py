@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""校验验收契约表、测试绑定与代码位置之间的一致性。
+"""检查验收契约表、测试绑定与代码位置是否一致。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+该检查防止活跃契约缺少测试绑定、引用失效路径或出现未登记 ID。唯一入口 ``check(arguments)``
+返回全部有序诊断；任一诊断都表示验收契约不可作为可信发布依据。
+"""
 
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.checks._framework import argument_parser
+from scripts.checks._framework import CheckResult, argument_parser
 
 _REPO_ROOT = Path(__file__).resolve().parent.parent.parent
 
@@ -145,7 +147,7 @@ def _validate_code_locations(repo_root: Path, cases: dict[str, ContractCase]) ->
     return errors
 
 
-def validate_acceptance_contracts(repo_root: Path) -> ValidationResult:
+def _validate_acceptance_contracts(repo_root: Path) -> ValidationResult:
     """校验契约、测试绑定与代码位置；必需目录缺失或任一不一致均 fail-closed。"""
     feature_dir = repo_root / 'docs' / 'acceptance-contracts' / 'features'
     tests_dir = repo_root / 'tests'
@@ -184,21 +186,12 @@ def validate_acceptance_contracts(repo_root: Path) -> ValidationResult:
     return ValidationResult(cases=cases, code_bindings=code_bindings, errors=errors)
 
 
-def main() -> int:
-    """执行验收契约校验并返回适合 Gate 调用的退出码。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回验收契约的全部阻断性诊断。"""
     parser = argument_parser(description='Validate acceptance contract tables.')
     parser.add_argument('--repo-root', default='.', help='Repository root')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
     repo_root = Path(args.repo_root).resolve()
-    result = validate_acceptance_contracts(repo_root)
-
-    print(f'契约用例数: {len(result.cases)}')
-    print(f'测试绑定 ID 数: {len(result.code_bindings)}')
-    if result.errors:
-        print('校验失败:')
-        for error in result.errors:
-            print(f'- {error}')
-        return 1
-    print('校验通过')
-    return 0
+    result = _validate_acceptance_contracts(repo_root)
+    return CheckResult.from_errors(result.errors)

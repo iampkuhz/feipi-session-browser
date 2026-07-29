@@ -1,28 +1,28 @@
-"""scripts/checks/web/static_contract_check.py 纯函数测试."""
+"""测试 scripts/checks/web/check_static_contract.py 的内部规则。"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
 import pytest
-from scripts.checks.web import static_contract_check
+from scripts.checks.web import check_static_contract
 
 ROOT = Path(__file__).resolve().parents[2]
 
-check_css_load_order = static_contract_check.check_css_load_order
-check_css_ownership_gate = static_contract_check.check_css_ownership_gate
-check_innerhtml_safety = static_contract_check.check_innerhtml_safety
-check_no_dead_css = static_contract_check.check_no_dead_css
-check_no_duplicate_base_css = static_contract_check.check_no_duplicate_base_css
-check_no_global_component_override = static_contract_check.check_no_global_component_override
-check_no_important = static_contract_check.check_no_important
+check_css_load_order = check_static_contract._check_css_load_order
+check_css_ownership_gate = check_static_contract._check_css_ownership_gate
+check_innerhtml_safety = check_static_contract._check_innerhtml_safety
+check_no_dead_css = check_static_contract._check_no_dead_css
+check_no_duplicate_base_css = check_static_contract._check_no_duplicate_base_css
+check_no_global_component_override = check_static_contract._check_no_global_component_override
+check_no_important = check_static_contract._check_no_important
 check_no_layout_inline_style_new_block = (
-    static_contract_check.check_no_layout_inline_style_new_block
+    check_static_contract._check_no_layout_inline_style_new_block
 )
-check_no_raw_innerhtml_new_block = static_contract_check.check_no_raw_innerhtml_new_block
-check_payload_modal_ownership = static_contract_check.check_payload_modal_ownership
-check_selector_depth_new_block = static_contract_check.check_selector_depth_new_block
-check_shell_ownership = static_contract_check.check_shell_ownership
+check_no_raw_innerhtml_new_block = check_static_contract._check_no_raw_innerhtml_new_block
+check_payload_modal_ownership = check_static_contract._check_payload_modal_ownership
+check_selector_depth_new_block = check_static_contract._check_selector_depth_new_block
+check_shell_ownership = check_static_contract._check_shell_ownership
 
 # ── check_no_important ────────────────────────────────────────────────
 

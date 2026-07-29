@@ -1,24 +1,17 @@
 #!/usr/bin/env python3
-"""检查跨平台 agent 规则同步一致性。
+"""检查跨平台 Agent 规则是否与共享 policy manifest 保持一致。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+同步检查可防止客户端入口遗漏保护范围或把 skipped 误写为通过。公开入口是
+`check(arguments)`；返回诊断表示必需短语、受保护路径或安全语义缺失。
+"""
 
 from __future__ import annotations
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 
-from scripts.checks.agent.check_protected_roots_sync import manifest_roots  # noqa: E402
-
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
-GATE_NAME = "agentRulesSync"
-
-
-def fail(msg: str) -> int:
-    """输出单条 Gate 失败原因并返回非零退出码。"""
-    print(f"[{GATE_NAME}] FAIL: {msg}")
-    return 1
 
 
 def _parse_yaml_list(text: str, key: str) -> list[str]:
@@ -41,7 +34,9 @@ def _parse_yaml_list(text: str, key: str) -> list[str]:
 
 def _read_policy_protected_roots() -> list[str]:
     """返回共享 policy manifest 中声明的受保护路径。"""
-    return manifest_roots(ROOT)
+    if not POLICY_MANIFEST.is_file():
+        return []
+    return _parse_yaml_list(POLICY_MANIFEST.read_text(encoding="utf-8"), "protected_roots")
 
 
 def _read_required_phrases() -> list[str]:
@@ -52,13 +47,16 @@ def _read_required_phrases() -> list[str]:
     return _parse_yaml_list(text, "required_phrases")
 
 
-def main() -> int:
-    """校验各平台规约与共享 manifest 的关键语义，任一缺失即失败。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回跨平台规约同步检查结果。"""
+    parser = argument_parser(description='检查跨平台 Agent 规则同步')
+    parser.parse_args(arguments)
     errors: list[str] = []
 
     if not POLICY_MANIFEST.is_file():
-        return fail(f"policy manifest 不存在: {POLICY_MANIFEST.relative_to(ROOT)}")
+        return CheckResult.from_errors(
+            [f"policy manifest 不存在: {POLICY_MANIFEST.relative_to(ROOT)}"]
+        )
 
     agents_path = ROOT / "AGENTS.md"
     claude_path = ROOT / "CLAUDE.md"
@@ -103,10 +101,4 @@ def main() -> int:
                 missing.append("PASS/pass")
             errors.append(f"{fname} 缺少 skipped-not-pass 语义关键词: {', '.join(missing)}")
 
-    if errors:
-        for e in errors:
-            print(f"[{GATE_NAME}] FAIL: {e}")
-        return 1
-
-    print(f"[{GATE_NAME}] PASS")
-    return 0
+    return CheckResult.from_errors(errors)

@@ -1,4 +1,4 @@
-"""本模块负责聚合 CSS、JavaScript、模板和 Session Detail 静态检查。
+"""把 CSS、JavaScript、模板和 Session Detail 静态检查归入 web 领域。
 
-不负责渲染页面或修复资源；由共享 checks CLI 按 registry 延迟加载。
+这里不负责渲染页面或修改资源；共享 CLI 只加载用户指定的 `check`。
 """

@@ -1,20 +1,19 @@
 #!/usr/bin/env python3
-"""负责检查活跃维护资料中的仓库脚本命令是否仍可执行。
+"""检查活跃维护资料中的仓库脚本引用是否存在且具备公开或诊断资格。
 
-不负责维护公开入口副本；公开命令与诊断命名约定均来自 harness manifest，
-Gate leaf 还会从 typed catalog 的实际命令派生；由 repository check 入口调用。
+该检查防止文档和 Agent 规则传播失效或非公开命令。唯一入口 ``check(arguments)`` 返回有序
+诊断；任一诊断都表示引用不可可靠执行。
 """
 
 from __future__ import annotations
 
 import re
-import sys
 from dataclasses import dataclass
 from fnmatch import fnmatchcase
 from pathlib import Path
 
 import yaml
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 
@@ -68,7 +67,7 @@ def _command_target(command: str) -> str | None:
     return match.group(1) if match else None
 
 
-def load_registry(root: Path) -> tuple[frozenset[str], tuple[str, ...]]:
+def _load_registry(root: Path) -> tuple[frozenset[str], tuple[str, ...]]:
     """从 manifest 派生公开精确路径与诊断 pattern。"""
     data = _manifest(root)
     commands = data.get("public_executables")
@@ -85,7 +84,7 @@ def load_registry(root: Path) -> tuple[frozenset[str], tuple[str, ...]]:
     return public, tuple(patterns)
 
 
-def catalog_diagnostics(root: Path) -> frozenset[str]:
+def _catalog_diagnostics(root: Path) -> frozenset[str]:
     """从 typed catalog 的命令声明派生精确 diagnostic leaf。"""
     result: set[str] = set()
     for gate in CATALOG.gates:
@@ -105,7 +104,7 @@ def catalog_diagnostics(root: Path) -> frozenset[str]:
     return frozenset(result)
 
 
-def source_files(root: Path) -> tuple[Path, ...]:
+def _source_files(root: Path) -> tuple[Path, ...]:
     """返回 CI、Agent、Skill、规则与维护文档的去重稳定集合。"""
     paths = {root / item for item in RULE_FILES}
     for pattern in SCAN_GLOBS:
@@ -113,12 +112,12 @@ def source_files(root: Path) -> tuple[Path, ...]:
     return tuple(sorted(path for path in paths if path.is_file()))
 
 
-def scan_references(
+def _scan_references(
     root: Path, paths: tuple[Path, ...] | None = None
 ) -> tuple[CommandReference, ...]:
     """提取显式调用 Python/Shell 的仓库脚本命令。"""
     references: list[CommandReference] = []
-    for path in paths or source_files(root):
+    for path in paths or _source_files(root):
         relative = path.relative_to(root).as_posix()
         for line_number, line in enumerate(path.read_text(encoding="utf-8").splitlines(), 1):
             references.extend(
@@ -128,7 +127,7 @@ def scan_references(
     return tuple(references)
 
 
-def reference_status(
+def _reference_status(
     root: Path,
     target: str,
     public: frozenset[str],
@@ -147,13 +146,13 @@ def reference_status(
     return "non-public"
 
 
-def check_repository(root: Path = ROOT) -> tuple[str, ...]:
+def _check_repository(root: Path = ROOT) -> tuple[str, ...]:
     """返回所有失效或非公开的可执行命令引用。"""
-    public, patterns = load_registry(root)
-    catalog_leaves = catalog_diagnostics(root)
+    public, patterns = _load_registry(root)
+    catalog_leaves = _catalog_diagnostics(root)
     errors: list[str] = []
-    for reference in scan_references(root):
-        status = reference_status(root, reference.target, public, patterns, catalog_leaves)
+    for reference in _scan_references(root):
+        status = _reference_status(root, reference.target, public, patterns, catalog_leaves)
         if status in {"missing", "non-public"}:
             errors.append(
                 f"{reference.source}:{reference.line}: {status} executable reference: "
@@ -162,15 +161,13 @@ def check_repository(root: Path = ROOT) -> tuple[str, ...]:
     return tuple(errors)
 
 
-def main() -> int:
-    """执行检查并返回适合 CI 的退出码。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回全部失效或非公开命令引用。"""
+    parser = argument_parser(description='Check active repository command references.')
+    parser.add_argument('--root', default=str(ROOT), help='Repository root to inspect')
+    args = parser.parse_args(arguments)
     try:
-        errors = check_repository()
+        errors = _check_repository(Path(args.root).resolve())
     except (OSError, ValueError, yaml.YAMLError) as exc:
-        print(f"[dead-command-reference] FAIL: {exc}", file=sys.stderr)
-        return 1
-    if errors:
-        for error in errors:
-            print(f"[dead-command-reference] FAIL: {error}", file=sys.stderr)
-        return 1
-    return 0
+        return CheckResult.from_errors([f'[dead-command-reference] FAIL: {exc}'])
+    return CheckResult.from_errors(f'[dead-command-reference] FAIL: {error}' for error in errors)

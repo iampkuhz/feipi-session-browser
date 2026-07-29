@@ -1,22 +1,16 @@
 #!/usr/bin/env python3
-"""本模块负责执行 `validate_repo_structure` 对应的确定性仓库检查。
+"""检查仓库必需路径以及 Git 追踪内容的结构边界。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+该检查防止维护入口缺失，或运行态、数据库文件进入版本控制。唯一入口 ``check(arguments)``
+返回按必需路径和 Git index 顺序排列的诊断；任一诊断都表示仓库结构不可发布。
+"""
 
 from __future__ import annotations
 
 import subprocess
-import sys
 from pathlib import Path
 
-if __package__ in {None, ''}:
-    # 该结构校验保留公开的文件路径入口；仅在直接执行时补齐 package import 根。
-    sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-
-from scripts.checks._framework import repository_root
-
-REPO_ROOT = repository_root()
-
+from scripts.checks._framework import CheckResult, argument_parser
 
 # 仓库运行和维护契约要求始终存在的路径。
 REQUIRED_PATHS = [
@@ -26,7 +20,7 @@ REQUIRED_PATHS = [
     'scripts/gates/cli.py',
     'scripts/gates/executor.py',
     'scripts/gates/report.py',
-    'scripts/checks/repository/validate_acceptance_contracts.py',
+    'scripts/checks/repository/check_acceptance_contracts.py',
     'harness/agent-policy.manifest.yaml',
     'harness/skill-registry.yaml',
     'skills/authoring/feipi-openspec-orchestrate-change/SKILL.md',
@@ -49,7 +43,7 @@ GENERATED_PREFIXES = [
 ]
 
 
-def git_tracked_files(root: Path) -> list[str]:
+def _git_tracked_files(root: Path) -> list[str]:
     """读取仍存在的 Git 追踪路径；Git 不可用或目录非 checkout 时返回空列表。"""
     try:
         out = subprocess.check_output(
@@ -64,7 +58,7 @@ def git_tracked_files(root: Path) -> list[str]:
         return []
 
 
-def validate(root: Path) -> list[str]:
+def _validate(root: Path) -> list[str]:
     """检查必需路径与禁入追踪的运行态文件，返回全部阻断性问题。"""
     failures: list[str] = []
 
@@ -72,7 +66,7 @@ def validate(root: Path) -> list[str]:
         if not (root / rel).exists():
             failures.append(f'缺少必需路径: {rel}')
 
-    tracked = git_tracked_files(root)
+    tracked = _git_tracked_files(root)
     for item in tracked:
         is_generated = any(
             item == prefix.rstrip('/') or item.startswith(prefix) for prefix in GENERATED_PREFIXES
@@ -85,14 +79,11 @@ def validate(root: Path) -> list[str]:
     return failures
 
 
-def main() -> int:
-    """执行仓库结构检查；发现任一问题时返回失败。"""
-
-    root = Path.cwd()
-    failures = validate(root)
-    if failures:
-        for item in failures:
-            print(f'[FAIL] {item}')
-        return 1
-    print('validate_repo_structure PASS')
-    return 0
+def check(arguments: list[str]) -> CheckResult:
+    """解析仓库根目录并返回必需路径或 Git 追踪结构问题。"""
+    parser = argument_parser(description='Validate repository structure.')
+    parser.add_argument('--root', default='.', help='Repository root to inspect')
+    args = parser.parse_args(arguments)
+    return CheckResult.from_errors(
+        f'[FAIL] {item}' for item in _validate(Path(args.root).resolve())
+    )

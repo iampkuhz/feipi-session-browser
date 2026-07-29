@@ -533,7 +533,7 @@ gates:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - scripts/checks/repository/validate_acceptance_contracts.py
+    - scripts/checks/repository/check_acceptance_contracts.py
     - tests/quality/test_contract_case_specs.py
     - pyproject.toml
   - name: session-detail
@@ -600,7 +600,7 @@ gates:
   - name: python-standard
     order: 92
     patterns:
-    - scripts/checks/repository/validate_repo_structure.py
+    - scripts/checks/repository/check_repo_structure.py
     - scripts/gates/**
     - scripts/openspec/**
     - config/gates.yaml
@@ -632,7 +632,7 @@ gates:
     - harness/**
     - openspec/**
     - tests/**/*.py
-    - scripts/checks/repository/repo_slimming_contract_check.py
+    - scripts/checks/repository/check_repo_slimming.py
     - tests/quality/test_repo_slimming_contract.py
   tiers:
   - required
@@ -710,7 +710,7 @@ gates:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - scripts/checks/repository/validate_acceptance_contracts.py
+    - scripts/checks/repository/check_acceptance_contracts.py
     - tests/quality/test_contract_case_specs.py
     - pyproject.toml
   tiers:
@@ -895,7 +895,7 @@ gates:
     patterns:
     - java/web/src/main/resources/templates/**
     - tests/ui/test_web_template_contract.py
-    - scripts/checks/web/template_contract_check.py
+    - scripts/checks/web/check_template_contract.py
   tiers:
   - required
   - full
@@ -920,7 +920,7 @@ gates:
     patterns:
     - java/web/src/main/resources/static/css/**/*.css
     - tests/ui/test_web_static_contract.py
-    - scripts/checks/web/static_contract_check.py
+    - scripts/checks/web/check_static_contract.py
   tiers:
   - required
   - full

@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
-"""本模块负责仓库瘦身回归门禁。
+"""检查仓库是否重新引入历史标记、非桌面视口或无效兼容垫片。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+该检查保持源码、Harness 和静态资源只描述当前受支持状态。唯一入口 ``check(arguments)`` 返回
+原规则顺序下的阻断诊断；任一诊断都表示仓库瘦身约束发生回归。
+"""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-_REPO_ROOT = Path(__file__).resolve().parent.parent.parent
-
+from scripts.checks._framework import CheckResult, argument_parser
 
 # 当前态文档和源码中禁止保留的历史版本标记。
 HISTORICAL_VERSION_PATTERNS = [
@@ -21,7 +22,7 @@ HISTORICAL_VERSION_PATTERNS = [
 ]
 
 
-def check_no_historical_version_comments(
+def _check_no_historical_version_comments(
     files: list[Path],
 ) -> tuple[list[str], list[str]]:
     """检查历史版本标记；仓库只描述当前状态，命中即阻断。"""
@@ -69,7 +70,7 @@ def _line_has_allowed_context(line: str) -> bool:
     return False
 
 
-def check_harness_current_state(
+def _check_harness_current_state(
     harness_files: list[Path],
 ) -> tuple[list[str], list[str]]:
     """检查 Harness 是否只描述当前可执行状态；非豁免命中即阻断。"""
@@ -116,7 +117,7 @@ def _is_allowed_viewport(line: str) -> bool:
     return False
 
 
-def check_supported_viewports_only(
+def _check_supported_viewports_only(
     css_files: list[Path],
     js_files: list[Path],
 ) -> tuple[list[str], list[str]]:
@@ -169,7 +170,7 @@ def _js_is_only_comments_or_empty(text: str) -> bool:
     return len(lines) == 0
 
 
-def check_no_dead_compat_shim(
+def _check_no_dead_compat_shim(
     css_files: list[Path],
     js_files: list[Path],
 ) -> tuple[list[str], list[str]]:
@@ -231,7 +232,7 @@ def check_no_dead_compat_shim(
     return errors, warnings
 
 
-def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
+def _check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
     """运行全部仓库瘦身回归检查并分别汇总错误与告警。"""
     errors: list[str] = []
     warnings: list[str] = []
@@ -250,22 +251,33 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
         'venv',
         '.local',
     }
-    excluded_files = {'repo_slimming_contract_check.py', 'test_repo_slimming_contract.py'}
+    excluded_files = {
+        'check_repo_slimming.py',
+        'test_repo_slimming_contract.py',
+    }
     filtered_files = []
     for f in all_text_files:
         if any(ex in f.parts for ex in exclude_dirs):
             continue
+        relative = f.relative_to(repo_root)
+        if (
+            len(relative.parts) >= 2
+            and relative.parts[0] in {'.claude', '.codex', '.qoder'}
+            and relative.parts[1] == 'worktrees'
+        ):
+            # 客户端私有 worktree 不是当前 checkout 的内容，不能参与仓库规则判定。
+            continue
         if f.name in excluded_files:
             continue
         filtered_files.append(f)
-    e, w = check_no_historical_version_comments(filtered_files)
+    e, w = _check_no_historical_version_comments(filtered_files)
     errors.extend(e)
     warnings.extend(w)
 
     harness_dir = repo_root / 'harness'
     if harness_dir.exists():
         harness_files = list(harness_dir.rglob('*.md')) + list(harness_dir.rglob('*.yaml'))
-        e, w = check_harness_current_state(harness_files)
+        e, w = _check_harness_current_state(harness_files)
         errors.extend(e)
         warnings.extend(w)
 
@@ -273,30 +285,22 @@ def check_repo_slimming(repo_root: Path) -> tuple[list[str], list[str]]:
     if static.exists():
         css_files = list(static.rglob('*.css'))
         js_files = list(static.rglob('*.js'))
-        e, w = check_supported_viewports_only(css_files, js_files)
+        e, w = _check_supported_viewports_only(css_files, js_files)
         errors.extend(e)
         warnings.extend(w)
 
-        e, w = check_no_dead_compat_shim(css_files, js_files)
+        e, w = _check_no_dead_compat_shim(css_files, js_files)
         errors.extend(e)
         warnings.extend(w)
 
     return errors, warnings
 
 
-def main() -> int:
-    """执行仓库瘦身检查；任一阻断项存在时返回失败。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析仓库根目录并返回全部仓库瘦身阻断项。"""
+    parser = argument_parser(description='Check repository slimming invariants.')
+    parser.add_argument('--root', default='.', help='Repository root to inspect')
+    args = parser.parse_args(arguments)
 
-    errors, warnings = check_repo_slimming(Path.cwd())
-    for item in warnings:
-        print(f'[WARN] {item}')
-    if errors:
-        for item in errors:
-            print(f'[BLOCK] {item}')
-        return 1
-    print(
-        'repo slimming contract PASS'
-        if not warnings
-        else 'repo slimming contract PASS (with warnings)'
-    )
-    return 0
+    errors, _warnings = _check_repo_slimming(Path(args.root).resolve())
+    return CheckResult.from_errors(f'[BLOCK] {item}' for item in errors)

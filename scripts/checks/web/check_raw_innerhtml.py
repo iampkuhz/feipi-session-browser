@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""检查 JavaScript 中新增的 raw innerHTML 赋值。
+"""检查 JavaScript 是否新增 raw innerHTML 赋值。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+已审计基线只容纳存量位置，新增赋值必须改用安全文本或转义渲染。唯一公开入口是
+`check(arguments)`；失败表示扫描结果出现基线外条目，`--update-baseline` 仍显式更新原基线。
+"""
 
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import CheckOptions, argument_parser, repository_root
+from scripts.checks._framework import CheckOptions, CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,7 +33,7 @@ COMMENT_LINE_RE = re.compile(r'^\s*(?://|/\*|\*)')
 CLEAR_ASSIGN_RE = re.compile(r"\.innerHTML\s*=\s*['\"]\s*['\"]")
 
 
-def find_js_files(root: Path) -> list[Path]:
+def _find_js_files(root: Path) -> list[Path]:
     """返回静态资源、测试和脚本目录中的 JavaScript 文件。"""
     js_dirs = [
         root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js',
@@ -48,7 +50,7 @@ def find_js_files(root: Path) -> list[Path]:
     return results
 
 
-def scan_innerhtml_assignments(js_files: list[Path]) -> list[dict]:
+def _scan_innerhtml_assignments(js_files: list[Path]) -> list[dict]:
     """扫描 innerHTML 赋值并保留用于诊断的源码位置。"""
     findings: list[dict] = []
     for js_file in js_files:
@@ -75,7 +77,7 @@ def scan_innerhtml_assignments(js_files: list[Path]) -> list[dict]:
     return findings
 
 
-def load_baseline() -> set[str]:
+def _load_baseline() -> set[str]:
     """加载已批准的违规键；缺失或损坏时返回空集合以保持 fail-closed。"""
     if not BASELINE_PATH.exists():
         return set()
@@ -86,7 +88,7 @@ def load_baseline() -> set[str]:
         return set()
 
 
-def save_baseline(findings: list[dict]) -> None:
+def _save_baseline(findings: list[dict]) -> None:
     """保存稳定排序的已审计违规键，不写入扫描正文。"""
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(
@@ -99,83 +101,78 @@ def save_baseline(findings: list[dict]) -> None:
     )
 
 
-def run_check(args: CheckOptions) -> int:
-    """将扫描结果与基线比对，发现任何新增项时返回失败。"""
-    js_files = find_js_files(REPO_ROOT)
+def _run_check(args: CheckOptions) -> list[str]:
+    """将扫描结果与基线比对，按原有诊断顺序返回新增项。"""
+    js_files = _find_js_files(REPO_ROOT)
     if not js_files:
-        print('未找到 JS 文件.')
-        return 0
+        return []
 
-    findings = scan_innerhtml_assignments(js_files)
-    baseline = load_baseline()
+    findings = _scan_innerhtml_assignments(js_files)
+    baseline = _load_baseline()
     known_count = 0
     new_items: list[dict] = []
-
-    for f in findings:
-        key = f['file'] + ':' + str(f['line'])
+    for finding in findings:
+        key = finding['file'] + ':' + str(finding['line'])
         if key in baseline:
             known_count += 1
         else:
-            new_items.append(f)
+            new_items.append(finding)
 
-    total = len(findings)
-    clear_count = sum(1 for f in findings if f['isClear'])
-
-    print('=== raw-innerHTML 阻断 gate ===')
-    print(f'扫描文件数:{len(js_files)}')
-    print(f'innerHTML 赋值总数:{total}(含清空操作 {clear_count} 处)')
-    print(f'存量基线:{known_count} 处(技术债务)')
-    print(f'新增 BLOCK:{len(new_items)} 处')
-    print()
+    clear_count = sum(1 for finding in findings if finding['isClear'])
+    lines = [
+        '=== raw-innerHTML 阻断 gate ===',
+        f'扫描文件数:{len(js_files)}',
+        f'innerHTML 赋值总数:{len(findings)}(含清空操作 {clear_count} 处)',
+        f'存量基线:{known_count} 处(技术债务)',
+        f'新增 BLOCK:{len(new_items)} 处',
+        '',
+    ]
 
     if known_count > 0 and os.environ.get('SESSION_BROWSER_SHOW_BASELINE_WARNINGS') == '1':
-        print('--- 存量 innerHTML baseline ---')
-        for f in findings:
-            key = f['file'] + ':' + str(f['line'])
+        lines.append('--- 存量 innerHTML baseline ---')
+        for finding in findings:
+            key = finding['file'] + ':' + str(finding['line'])
             tag = '[BASELINE]' if key in baseline else '[NEW!!]'
-            clear_tag = ' (清空)' if f['isClear'] else ''
-            print(f'  {tag} {f["file"]}:{f["line"]}{clear_tag} | {f["snippet"]}')
-        print()
+            clear_tag = ' (清空)' if finding['isClear'] else ''
+            lines.append(
+                f'  {tag} {finding["file"]}:{finding["line"]}{clear_tag} | {finding["snippet"]}'
+            )
+        lines.append('')
 
-    if new_items:
-        print('!!! 新增 innerHTML 使用(BLOCK) !!!')
-        for f in new_items:
-            print(f'  [BLOCK] {f["file"]}:{f["line"]} | {f["snippet"]}')
-        print()
-        print('结论:FAIL — 检测到新增 innerHTML 赋值,违反 raw-innerHTML 阻断策略.')
-        print('如需豁免,请先修复为 textContent 或 escapeHtml(),或经审阅后运行 --update-baseline.')
-        return 1
+    if not new_items:
+        return []
 
-    if args.check:
-        return 0
-
-    # 全量扫描模式
-    if not baseline:
-        print('提示:首次运行,建议执行 --update-baseline 建立 baseline.')
-        print(f'  baseline 路径:{BASELINE_PATH}')
-    return 0
+    lines.append('!!! 新增 innerHTML 使用(BLOCK) !!!')
+    for finding in new_items:
+        lines.append(f'  [BLOCK] {finding["file"]}:{finding["line"]} | {finding["snippet"]}')
+    lines.extend(
+        [
+            '',
+            '结论:FAIL — 检测到新增 innerHTML 赋值,违反 raw-innerHTML 阻断策略.',
+            '如需豁免,请先修复为 textContent 或 escapeHtml(),或经审阅后运行 --update-baseline.',
+        ]
+    )
+    return lines
 
 
-def run_update_baseline(args: CheckOptions) -> int:
+def _run_update_baseline(args: CheckOptions) -> list[str]:
     """用当前扫描结果更新 baseline 文件。"""
-    js_files = find_js_files(REPO_ROOT)
-    findings = scan_innerhtml_assignments(js_files)
-    save_baseline(findings)
-    print(f'baseline 已更新:{BASELINE_PATH}')
-    print(f'记录 innerHTML 赋值 {len(findings)} 处.')
-    return 0
+    js_files = _find_js_files(REPO_ROOT)
+    findings = _scan_innerhtml_assignments(js_files)
+    _save_baseline(findings)
+    return []
 
 
-def main() -> int:
-    """解析命令行参数并运行脚本入口。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析扫描模式，并按摘要、基线明细、BLOCK 明细顺序返回失败。"""
     parser = argument_parser(description='raw-innerHTML 阻断 gate')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         '--check', action='store_true', help='增量检查:对比 baseline,发现新增则 BLOCK'
     )
     mode.add_argument('--update-baseline', action='store_true', help='更新 baseline 文件')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
     if args.update_baseline:
-        return run_update_baseline(args)
-    return run_check(args)
+        return CheckResult.from_errors(_run_update_baseline(args))
+    return CheckResult.from_errors(_run_check(args))

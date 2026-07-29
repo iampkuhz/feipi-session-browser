@@ -29,7 +29,7 @@ def test_gitignored_directory_is_still_detected(tmp_path: Path):
     (root / 'output').mkdir()
     (root / 'output' / 'ignored.txt').write_text('generated\n', encoding='utf-8')
 
-    assert check_misplaced_generated_paths.main(['--root', str(root)]) == 1
+    assert not check_misplaced_generated_paths.check(['--root', str(root)]).passed
 
 
 def test_clean_repository_passes(tmp_path: Path):
@@ -37,7 +37,7 @@ def test_clean_repository_passes(tmp_path: Path):
     root.mkdir()
     _write_manifest(root, ['output/', '.coverage'])
 
-    assert check_misplaced_generated_paths.main(['--root', str(root)]) == 0
+    assert check_misplaced_generated_paths.check(['--root', str(root)]).passed
 
 
 def test_manifest_configuration_is_read(tmp_path: Path):
@@ -46,17 +46,17 @@ def test_manifest_configuration_is_read(tmp_path: Path):
     manifest = _write_manifest(root, ['custom-generated/'])
     (root / 'custom-generated').mkdir()
 
-    assert check_misplaced_generated_paths.load_forbidden_paths(manifest) == ('custom-generated',)
-    assert check_misplaced_generated_paths.find_misplaced_paths(
+    assert check_misplaced_generated_paths._load_forbidden_paths(manifest) == ('custom-generated',)
+    assert check_misplaced_generated_paths._find_misplaced_paths(
         root,
-        check_misplaced_generated_paths.load_forbidden_paths(manifest),
+        check_misplaced_generated_paths._load_forbidden_paths(manifest),
     ) == ('custom-generated',)
 
 
 def test_repository_manifest_covers_legacy_root_and_misplaced_paths():
     root = check_misplaced_generated_paths.REPO_ROOT
     configured = set(
-        check_misplaced_generated_paths.load_forbidden_paths(
+        check_misplaced_generated_paths._load_forbidden_paths(
             root / check_misplaced_generated_paths.MANIFEST_RELATIVE_PATH
         )
     )

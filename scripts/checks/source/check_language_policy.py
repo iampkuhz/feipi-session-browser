@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-"""检查维护策略文件中的叙述语言是否符合中文优先约定。
+"""检查维护策略文件的叙述语言是否符合中文优先约定。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这项检查保证共享规则对中文维护者清晰可读。公开入口是 ``check(arguments)``，失败表示选中的
+策略文件含有应改写为中文的英文叙述。"""
 
 from __future__ import annotations
 
@@ -11,7 +12,12 @@ import re
 import subprocess
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import add_changed_files_arg, argument_parser, repository_root
+from scripts.checks._framework import (
+    CheckResult,
+    add_changed_files_arg,
+    argument_parser,
+    repository_root,
+)
 
 REPO_ROOT = repository_root()
 
@@ -201,7 +207,7 @@ def _line_violates(line: str) -> bool:
     return len(meaningful) >= MIN_MEANINGFUL_ENGLISH_WORDS
 
 
-def check_file(path: Path) -> list[str]:
+def _check_file(path: Path) -> list[str]:
     """检查单个策略文件，代码围栏内的示例不参与语言判定。"""
     failures: list[str] = []
     in_fence = False
@@ -219,11 +225,11 @@ def check_file(path: Path) -> list[str]:
     return failures
 
 
-def run_check(root: Path, changed_files: str | None = None) -> list[str]:
+def _run_check(root: Path, changed_files: str | None = None) -> list[str]:
     """检查选中的策略文件并汇总违规；无法解析 changed-files 时回退到 Git 状态。"""
     failures: list[str] = []
     for path in _target_files(root, changed_files):
-        failures.extend(check_file(path))
+        failures.extend(_check_file(path))
     return failures
 
 
@@ -240,21 +246,15 @@ def _self_test() -> None:
     )
 
 
-def main() -> int:
-    """执行语言策略检查并返回适合 Gate 调用的退出码。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一入口参数，执行自测或返回语言策略违规诊断。"""
     parser = argument_parser(description='检查仓库语言策略')
     add_changed_files_arg(parser)
     parser.add_argument('--self-test', action='store_true')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
     if args.self_test:
         _self_test()
-        return 0
+        return CheckResult()
 
-    failures = run_check(REPO_ROOT, args.changed_files)
-    if failures:
-        print('language policy gate FAIL')
-        for item in failures:
-            print(f'[FAIL] {item}')
-        return 1
-    return 0
+    return CheckResult.from_errors(_run_check(REPO_ROOT, args.changed_files))

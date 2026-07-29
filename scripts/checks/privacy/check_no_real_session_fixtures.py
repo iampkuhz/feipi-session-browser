@@ -1,17 +1,8 @@
 #!/usr/bin/env python3
-"""本模块负责扫描受保护路径，检测是否包含真实 session fixture 或本地 home 路径。
+"""检查受保护路径是否包含真实 session fixture 或本地 home 路径。
 
-失败条件（按 PROMPT 要求）：
-- 文件路径或内容包含 .claude/projects、.codex/sessions 的真实 home 路径。
-- 大 JSONL fixture 中出现明显真实 session 标记且未在 tests/fixtures/synthetic/ 下。
-- 出现真实用户 home 路径（如开发者本机的绝对路径）。
-
-允许：
-- 文档中使用占位符 ~/.claude、~/.codex、~/.qoder。
-- synthetic fixture 明确标注 synthetic。
-- tests/fixtures/ 下使用合成用户名（如 test、demo）的 fixture。
-
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这项检查避免真实会话内容和个人路径进入仓库，同时放行明确的合成 fixture。公开入口是
+``check(arguments)``，失败表示发现必须移除或脱敏的真实会话痕迹。"""
 
 from __future__ import annotations
 
@@ -19,7 +10,7 @@ import json
 import re
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -111,12 +102,6 @@ _BUILD_DIR_PARTS = {
     ".local",
     "venv",
 }
-
-
-def fail(message: str) -> int:
-    """输出单条 fixture 隐私失败原因并返回非零退出码。"""
-    print(f"[{GATE_NAME}] FAIL: {message}")
-    return 1
 
 
 def _safe_excerpt(line: str) -> str:
@@ -272,7 +257,7 @@ def _iter_scan_files() -> list[Path]:
     files: list[Path] = []
     seen: set[Path] = set()
 
-    def add(path: Path) -> None:
+    def _add(path: Path) -> None:
         """仅追加尚未收集的普通文件。"""
         if path.is_file() and path not in seen:
             seen.add(path)
@@ -283,18 +268,19 @@ def _iter_scan_files() -> list[Path]:
         if not dir_path.is_dir():
             continue
         for filepath in sorted(dir_path.rglob("*")):
-            add(filepath)
+            _add(filepath)
 
     for pattern in SCAN_GLOBS:
         for filepath in sorted(ROOT.glob(pattern)):
-            add(filepath)
+            _add(filepath)
 
     return files
 
 
-def main() -> int:
-    """扫描真实 session fixture 与 home 泄露，任一可疑项即返回非零。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一入口参数并返回真实 session 与 home 路径诊断。"""
+    parser = argument_parser(description="检查真实 session fixture 与 home 路径")
+    parser.parse_args(arguments)
     all_errors: list[str] = []
 
     for filepath in _iter_scan_files():
@@ -303,11 +289,4 @@ def main() -> int:
             continue
         all_errors.extend(_scan_file(filepath))
 
-    if all_errors:
-        for err in all_errors:
-            print(f"[{GATE_NAME}] FAIL: {err}")
-        print(f"[{GATE_NAME}] FAIL: 共 {len(all_errors)} 处真实 session/home 路径泄露")
-        return 1
-
-    print(f"[{GATE_NAME}] PASS")
-    return 0
+    return CheckResult.from_errors(all_errors)

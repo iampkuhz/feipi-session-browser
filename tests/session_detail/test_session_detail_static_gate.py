@@ -39,7 +39,7 @@ GOOD_SESSION = """
 def _run_checks(css, base, session):
     with tempfile.TemporaryDirectory() as td:
         p = Path(td)
-        return _csd.run_checks(
+        return _csd._run_checks(
             p / 'shell.css',
             p / 'base.html',
             p / 'session.html',
@@ -60,7 +60,7 @@ def _run_checks_with_files(css, base, session):
         _write(css_p, css)
         _write(base_p, base)
         _write(session_p, session)
-        return _csd.run_checks(css_p, base_p, session_p, None)
+        return _csd._run_checks(css_p, base_p, session_p, None)
 
 
 class TestPassingContract:
@@ -162,5 +162,5 @@ class TestRealFiles:
             root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates' / 'session.html'
         )
         if css.exists() and base.exists() and session.exists():
-            out = _csd.run_checks(css, base, session, shell_css)
+            out = _csd._run_checks(css, base, session, shell_css)
             assert out['status'] == 'PASS', f'Real files failed: {out["failures"]}'

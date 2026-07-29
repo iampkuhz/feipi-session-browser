@@ -1,16 +1,17 @@
 #!/usr/bin/env python3
 """检查被 ignore 规则命中的路径是否被加入 Git 追踪。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+该检查阻止 force-add 绕过仓库忽略边界。唯一入口 ``check(arguments)`` 读取 staged 或完整
+Git index 并返回有序诊断；诊断表示追踪状态违规或 Git 状态无法可信读取。
+"""
 
 from __future__ import annotations
 
 import subprocess
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.checks._framework import argument_parser, repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 GIT_TIMEOUT_SECONDS = 30
@@ -43,7 +44,7 @@ def _run_git(
     )
 
 
-def is_git_worktree(root: Path) -> bool:
+def _is_git_worktree(root: Path) -> bool:
     """判断目录是否位于 Git worktree 内。"""
     proc = _run_git(root, ['rev-parse', '--is-inside-work-tree'])
     return proc.returncode == 0 and proc.stdout.strip() == b'true'
@@ -54,7 +55,7 @@ def _split_nul_paths(raw: bytes) -> list[str]:
     return [item.decode('utf-8', errors='replace') for item in raw.split(b'\0') if item]
 
 
-def staged_candidate_paths(root: Path) -> list[str]:
+def _staged_candidate_paths(root: Path) -> list[str]:
     """读取暂存区新增、复制、修改和重命名路径；删除操作不应被阻断。"""
     proc = _run_git(root, ['diff', '--cached', '--name-only', '-z', '--diff-filter=ACMR'])
     if proc.returncode != 0:
@@ -62,7 +63,7 @@ def staged_candidate_paths(root: Path) -> list[str]:
     return _split_nul_paths(proc.stdout)
 
 
-def tracked_paths(root: Path) -> list[str]:
+def _tracked_paths(root: Path) -> list[str]:
     """读取 Git index 中的全部追踪路径。"""
     proc = _run_git(root, ['ls-files', '-z'])
     if proc.returncode != 0:
@@ -87,7 +88,7 @@ def _parse_check_ignore_output(raw: bytes) -> list[IgnoredTrackedFinding]:
     return findings
 
 
-def ignored_paths(root: Path, paths: list[str]) -> list[IgnoredTrackedFinding]:
+def _ignored_paths(root: Path, paths: list[str]) -> list[IgnoredTrackedFinding]:
     """找出被 ignore 规则命中且未由否定规则恢复的候选路径。"""
     if not paths:
         return []
@@ -112,31 +113,15 @@ def ignored_paths(root: Path, paths: list[str]) -> list[IgnoredTrackedFinding]:
     return _parse_check_ignore_output(proc.stdout)
 
 
-def print_report(mode: str, candidates: list[str], findings: list[IgnoredTrackedFinding]) -> None:
-    """输出稳定的检查摘要与可操作发现。"""
-    print('=== ignored-tracked quality gate ===')
-    print('Policy: gitignore 命中的路径不得通过手工 force-add 加入 Git 追踪。')
-    print(f'Mode: {mode}')
-    print(f'Candidate paths: {len(candidates)}')
-    print(f'Findings: {len(findings)}')
-    if findings:
-        print()
-        for item in findings:
-            print(f'  [FAIL] {item.path}')
-            print(f'         matched {item.source}:{item.line}:{item.pattern}')
-        print()
-        print('Fix: unstage/remove the path from Git tracking, or change .gitignore explicitly.')
-
-
-def collect_candidates(root: Path, mode: str) -> list[str]:
+def _collect_candidates(root: Path, mode: str) -> list[str]:
     """按检查模式读取暂存区或全量追踪路径。"""
     if mode == 'staged':
-        return staged_candidate_paths(root)
-    return tracked_paths(root)
+        return _staged_candidate_paths(root)
+    return _tracked_paths(root)
 
 
-def main(argv: list[str] | None = None) -> int:
-    """执行 ignored-tracked 检查；Git 状态读取错误时返回阻断性退出码。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析 Git 审计模式并返回 ignore 规则命中的追踪路径。"""
     parser = argument_parser(description='Fail when ignored paths are staged or tracked by Git')
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to inspect')
     mode = parser.add_mutually_exclusive_group()
@@ -146,21 +131,21 @@ def main(argv: list[str] | None = None) -> int:
         help='Check staged added/copied/modified/renamed paths (default)',
     )
     mode.add_argument('--all-tracked', action='store_true', help='Audit all tracked paths')
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
 
     root = Path(args.root).resolve()
     selected_mode = 'all-tracked' if args.all_tracked else 'staged'
-    if not is_git_worktree(root):
-        print('=== ignored-tracked quality gate ===')
-        print(f'Root is not a Git worktree; not applicable: {root}')
-        return 0
+    if not _is_git_worktree(root):
+        return CheckResult()
 
     try:
-        candidates = collect_candidates(root, selected_mode)
-        findings = ignored_paths(root, candidates)
+        candidates = _collect_candidates(root, selected_mode)
+        findings = _ignored_paths(root, candidates)
     except RuntimeError as exc:
-        print(f'ignored-tracked quality gate failed to inspect Git state: {exc}', file=sys.stderr)
-        return 2
+        return CheckResult.from_errors(
+            [f'ignored-tracked quality gate failed to inspect Git state: {exc}']
+        )
 
-    print_report(selected_mode, candidates, findings)
-    return 1 if findings else 0
+    return CheckResult.from_errors(
+        f'{item.path}: matched {item.source}:{item.line}:{item.pattern}' for item in findings
+    )

@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import yaml
-from scripts.checks.agent.check_agent_entry_parity import check_agent_entries
+from scripts.checks.agent.check_agent_entry_parity import _check_agent_entries
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'harness' / 'agent-runtime.manifest.yaml'
@@ -37,7 +37,7 @@ def test_manifest_is_the_domain_agent_skill_mapping_authority():
 
 
 def test_domain_agent_entries_are_thin_on_all_platforms():
-    assert check_agent_entries() == []
+    assert _check_agent_entries() == []
 
 
 def test_shared_agent_entry_parity_check_passes():

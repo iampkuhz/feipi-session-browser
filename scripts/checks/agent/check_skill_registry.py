@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""检查 skill-registry.yaml 完整性：源目录、入口链接、必需文件、命名规范。
+"""检查 skill-registry.yaml 的源目录、入口链接、必需文件和命名。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+registry 完整性可保证各客户端入口仍指向同一 Skill 真源。公开入口是 `check(arguments)`；
+返回诊断表示 registry 无法解析、结构不完整或入口与真源不一致。
+"""
 
 from __future__ import annotations
 
@@ -10,31 +12,17 @@ import re
 from typing import TYPE_CHECKING
 
 import yaml
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 ROOT = repository_root()
 REGISTRY = ROOT / "harness" / "skill-registry.yaml"
-GATE_NAME = "skillRegistry"
-
-
 KEBAB_CASE_RE = re.compile(r"^[a-z]+(-[a-z]+)*$")
 
 # SKILL.md 副本超过此字节数且非 symlink 时视为非法复制。
 _MAX_ENTRY_SKILL_MD_BYTES = 2000
-
-
-def fail(message: str) -> int:
-    """输出单条 registry 失败原因并返回非零退出码。"""
-    print(f"[{GATE_NAME}] FAIL: {message}")
-    return 1
-
-
-def warn(message: str) -> None:
-    """输出不阻断 Gate 的 registry 告警。"""
-    print(f"[{GATE_NAME}] WARN: {message}")
 
 
 def _load_registry() -> dict | None:
@@ -72,16 +60,17 @@ def _check_entry_not_copy(entry_path: Path, source_path: Path) -> str | None:
     return None
 
 
-def main() -> int:
-    """校验 registry 结构、Skill 真源及平台入口，任一不一致即失败。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回 Skill registry 完整性检查结果。"""
+    parser = argument_parser(description='检查 Skill registry 完整性')
+    parser.parse_args(arguments)
     # 先建立可信 registry 模型；无法解析时不继续猜测配置。
     if not REGISTRY.is_file():
-        return fail(f"registry 不存在: {REGISTRY.relative_to(ROOT)}")
+        return CheckResult.from_errors([f"registry 不存在: {REGISTRY.relative_to(ROOT)}"])
 
     data = _load_registry()
     if data is None:
-        return fail("registry 解析失败")
+        return CheckResult.from_errors(["registry 解析失败"])
 
     errors: list[str] = []
 
@@ -92,9 +81,7 @@ def main() -> int:
             errors.append(f"缺少顶层字段: {field}")
 
     if errors:
-        for e in errors:
-            print(f"[{GATE_NAME}] FAIL: {e}")
-        return 1
+        return CheckResult.from_errors(errors)
 
     # 验证共享真源根目录。
     source_root = data.get("source_root", "")
@@ -153,10 +140,4 @@ def main() -> int:
                         if copy_err:
                             errors.append(copy_err)
 
-    if errors:
-        for e in errors:
-            print(f"[{GATE_NAME}] FAIL: {e}")
-        return 1
-
-    print(f"[{GATE_NAME}] PASS")
-    return 0
+    return CheckResult.from_errors(errors)

@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""负责检查模板与脚本中新引入的布局 inline style。
+"""检查 HTML 与 JavaScript 是否新增布局 inline style。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+已审计基线只容纳存量位置，新增布局声明必须回到 CSS class 或 custom property。唯一公开入口是
+`check(arguments)`；失败表示扫描结果出现基线外条目，`--update-baseline` 仍显式更新原基线。
+"""
 
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ import os
 import re
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import CheckOptions, argument_parser, repository_root
+from scripts.checks._framework import CheckOptions, CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -46,7 +48,7 @@ JS_STYLE_ASSIGN_RE = re.compile(
 JS_COMMENT_LINE_RE = re.compile(r'^\s*(?://|/\*|\*)')
 
 
-def find_html_files(root: Path) -> list[Path]:
+def _find_html_files(root: Path) -> list[Path]:
     """返回仓库模板目录中的 HTML 文件。"""
     templates_dir = root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'templates'
     results: list[Path] = []
@@ -55,7 +57,7 @@ def find_html_files(root: Path) -> list[Path]:
     return results
 
 
-def find_js_files(root: Path) -> list[Path]:
+def _find_js_files(root: Path) -> list[Path]:
     """返回仓库静态资源目录中的 JavaScript 文件。"""
     js_dirs = [
         root / 'java' / 'web' / 'src' / 'main' / 'resources' / 'static' / 'js',
@@ -67,7 +69,7 @@ def find_js_files(root: Path) -> list[Path]:
     return results
 
 
-def scan_html_inline_styles(html_files: list[Path]) -> list[dict]:
+def _scan_html_inline_styles(html_files: list[Path]) -> list[dict]:
     """扫描 HTML 中包含布局属性的 inline style。"""
     findings: list[dict] = []
     for html_file in html_files:
@@ -116,7 +118,7 @@ def scan_html_inline_styles(html_files: list[Path]) -> list[dict]:
     return findings
 
 
-def scan_js_style_assignments(js_files: list[Path]) -> list[dict]:
+def _scan_js_style_assignments(js_files: list[Path]) -> list[dict]:
     """扫描 JavaScript 中直接写入布局 style 属性的语句。"""
     findings: list[dict] = []
     for js_file in js_files:
@@ -142,7 +144,7 @@ def scan_js_style_assignments(js_files: list[Path]) -> list[dict]:
     return findings
 
 
-def load_baseline() -> set[str]:
+def _load_baseline() -> set[str]:
     """加载已批准的违规键；缺失或损坏时返回空集合以保持 fail-closed。"""
     if not BASELINE_PATH.exists():
         return set()
@@ -153,7 +155,7 @@ def load_baseline() -> set[str]:
         return set()
 
 
-def save_baseline(findings: list[dict]) -> None:
+def _save_baseline(findings: list[dict]) -> None:
     """保存稳定排序的已审计违规键，不写入扫描正文。"""
     BASELINE_PATH.parent.mkdir(parents=True, exist_ok=True)
     BASELINE_PATH.write_text(
@@ -166,88 +168,87 @@ def save_baseline(findings: list[dict]) -> None:
     )
 
 
-def run_all_scans() -> list[dict]:
+def _run_all_scans() -> list[dict]:
     """汇总 HTML 与 JavaScript 的布局 inline style 扫描结果。"""
-    html_files = find_html_files(REPO_ROOT)
-    js_files = find_js_files(REPO_ROOT)
+    html_files = _find_html_files(REPO_ROOT)
+    js_files = _find_js_files(REPO_ROOT)
     findings: list[dict] = []
-    findings.extend(scan_html_inline_styles(html_files))
-    findings.extend(scan_js_style_assignments(js_files))
+    findings.extend(_scan_html_inline_styles(html_files))
+    findings.extend(_scan_js_style_assignments(js_files))
     return findings
 
 
-def run_check(args: CheckOptions) -> int:
-    """将扫描结果与基线比对，发现任何新增项时返回失败。"""
-    findings = run_all_scans()
-    baseline = load_baseline()
+def _run_check(args: CheckOptions) -> list[str]:
+    """将扫描结果与基线比对，按原有诊断顺序返回新增项。"""
+    findings = _run_all_scans()
+    baseline = _load_baseline()
     known_count = 0
     new_items: list[dict] = []
 
-    for f in findings:
-        key = f['file'] + ':' + str(f['line'])
+    for finding in findings:
+        key = finding['file'] + ':' + str(finding['line'])
         if key in baseline:
             known_count += 1
         else:
-            new_items.append(f)
+            new_items.append(finding)
 
-    total = len(findings)
-
-    print('=== layout-inline-style 阻断 gate ===')
-    print(f'HTML 模板文件数:{len(find_html_files(REPO_ROOT))}')
-    print(f'JS 文件数:{len(find_js_files(REPO_ROOT))}')
-    print(f'layout inline style 总数:{total}')
-    print(f'存量基线:{known_count} 处(技术债务)')
-    print(f'新增 BLOCK:{len(new_items)} 处')
-    print()
+    lines = [
+        '=== layout-inline-style 阻断 gate ===',
+        f'HTML 模板文件数:{len(_find_html_files(REPO_ROOT))}',
+        f'JS 文件数:{len(_find_js_files(REPO_ROOT))}',
+        f'layout inline style 总数:{len(findings)}',
+        f'存量基线:{known_count} 处(技术债务)',
+        f'新增 BLOCK:{len(new_items)} 处',
+        '',
+    ]
 
     if known_count > 0 and os.environ.get('SESSION_BROWSER_SHOW_BASELINE_WARNINGS') == '1':
-        print('--- 存量 layout inline style baseline ---')
-        for f in findings:
-            key = f['file'] + ':' + str(f['line'])
+        lines.append('--- 存量 layout inline style baseline ---')
+        for finding in findings:
+            key = finding['file'] + ':' + str(finding['line'])
             tag = '[BASELINE]' if key in baseline else '[NEW!!]'
-            src_tag = f'[{f["source"].upper()}]'
-            print(f'  {tag} {src_tag} {f["file"]}:{f["line"]} | {f["snippet"]}')
-        print()
+            src_tag = f'[{finding["source"].upper()}]'
+            lines.append(
+                f'  {tag} {src_tag} {finding["file"]}:{finding["line"]} | {finding["snippet"]}'
+            )
+        lines.append('')
 
-    if new_items:
-        print('!!! 新增 layout inline style(BLOCK) !!!')
-        for f in new_items:
-            src_tag = f'[{f["source"].upper()}]'
-            print(f'  [BLOCK] {src_tag} {f["file"]}:{f["line"]} | {f["snippet"]}')
-        print()
-        print('结论:FAIL — 检测到新增 layout inline style,违反 layout-inline-style 阻断策略.')
-        print('请移除 inline style 并改用 CSS class 或 CSS custom property.')
-        return 1
+    if not new_items:
+        return []
 
-    if args.check:
-        return 0
+    lines.append('!!! 新增 layout inline style(BLOCK) !!!')
+    for finding in new_items:
+        src_tag = f'[{finding["source"].upper()}]'
+        lines.append(
+            f'  [BLOCK] {src_tag} {finding["file"]}:{finding["line"]} | {finding["snippet"]}'
+        )
+    lines.extend(
+        [
+            '',
+            '结论:FAIL — 检测到新增 layout inline style,违反 layout-inline-style 阻断策略.',
+            '请移除 inline style 并改用 CSS class 或 CSS custom property.',
+        ]
+    )
+    return lines
 
-    # 全量扫描模式
-    if not baseline:
-        print('提示:首次运行,建议执行 --update-baseline 建立 baseline.')
-        print(f'  baseline 路径:{BASELINE_PATH}')
-    return 0
 
-
-def run_update_baseline(args: CheckOptions) -> int:
+def _run_update_baseline(args: CheckOptions) -> list[str]:
     """用当前扫描结果更新 baseline 文件。"""
-    findings = run_all_scans()
-    save_baseline(findings)
-    print(f'baseline 已更新:{BASELINE_PATH}')
-    print(f'记录 layout inline style {len(findings)} 处.')
-    return 0
+    findings = _run_all_scans()
+    _save_baseline(findings)
+    return []
 
 
-def main() -> int:
-    """解析命令行参数并运行脚本入口。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析扫描模式，并按摘要、基线明细、BLOCK 明细顺序返回失败。"""
     parser = argument_parser(description='layout-inline-style 阻断 gate')
     mode = parser.add_mutually_exclusive_group()
     mode.add_argument(
         '--check', action='store_true', help='增量检查:对比 baseline,发现新增则 BLOCK'
     )
     mode.add_argument('--update-baseline', action='store_true', help='更新 baseline 文件')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
     if args.update_baseline:
-        return run_update_baseline(args)
-    return run_check(args)
+        return CheckResult.from_errors(_run_update_baseline(args))
+    return CheckResult.from_errors(_run_check(args))

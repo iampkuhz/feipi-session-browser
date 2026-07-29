@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.checks.repository.validate_acceptance_contracts import (
+from scripts.checks.repository.check_acceptance_contracts import (
     EXPECTED_FEATURE_TABLES,
-    validate_acceptance_contracts,
+    _validate_acceptance_contracts,
 )
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -39,7 +39,7 @@ def test_data_presenter_006_is_defined_in_current_spec() -> None:
 
 
 def test_acceptance_contract_bindings_are_consistent() -> None:
-    result = validate_acceptance_contracts(ROOT)
+    result = _validate_acceptance_contracts(ROOT)
     assert result.errors == []
 
 
@@ -74,7 +74,7 @@ def test_orphan_test_marker_fails_when_contract_row_is_missing(tmp_path: Path) -
         encoding='utf-8',
     )
 
-    result = validate_acceptance_contracts(tmp_path)
+    result = _validate_acceptance_contracts(tmp_path)
 
     assert any(
         orphan_id in error and '在测试代码中绑定' in error and 'docs 契约表未定义' in error

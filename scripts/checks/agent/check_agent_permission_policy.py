@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""本模块负责检查 Claude 项目 settings 的敏感路径与破坏性命令 deny 规则。
+"""检查 Claude 项目 settings 是否拒绝敏感路径和破坏性命令。
 
-不负责修改客户端配置；由共享 checks CLI 或 Gate executor 调用。
+完整的 deny 规则可降低密钥泄露和工作区破坏风险。公开入口是 `check(arguments)`；返回诊断
+表示 settings 缺失、无法解析或缺少必需规则。
 """
 
 from __future__ import annotations
 
 import json
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 SETTINGS_JSON = ROOT / '.claude' / 'settings.json'
 
 
-def check_permission_policy(_args: list[str] | None = None) -> list[str]:
+def _check_permission_policy() -> list[str]:
     """检查静态敏感路径与破坏性命令 deny 规则；配置缺失或无效时关闭式失败。"""
     settings_path = SETTINGS_JSON
     if not settings_path.is_file():
@@ -35,3 +36,10 @@ def check_permission_policy(_args: list[str] | None = None) -> list[str]:
         if not any(command in item for item in deny):
             errors.append(f'deny 规则中缺少危险 Bash 操作: {command}')
     return errors
+
+
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回 Claude permission policy 检查结果。"""
+    parser = argument_parser(description='检查 Claude permission deny 规则')
+    parser.parse_args(arguments)
+    return CheckResult.from_errors(_check_permission_policy())

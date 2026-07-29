@@ -27,7 +27,7 @@ def test_scanner_reports_pytest_runtime_and_marker_skips(tmp_path: Path):
         'def test_marker():\n    assert True\n',
     )
 
-    findings = check_no_test_skips.scan_repo(tmp_path)
+    findings = check_no_test_skips._scan_repo(tmp_path)
 
     assert {finding.rule for finding in findings} == {
         'pytest-runtime-skip',
@@ -47,7 +47,7 @@ def test_scanner_reports_playwright_skip_and_fixme(tmp_path: Path):
         f"test('case', async () => {{ {bad_fixme}true, 'broken'); }});\n",
     )
 
-    findings = check_no_test_skips.scan_repo(tmp_path)
+    findings = check_no_test_skips._scan_repo(tmp_path)
 
     assert {finding.rule for finding in findings} == {
         'playwright-test-skip',
@@ -57,7 +57,7 @@ def test_scanner_reports_playwright_skip_and_fixme(tmp_path: Path):
 
 
 def test_scanner_passes_for_repo_sources():
-    findings = check_no_test_skips.scan_repo()
+    findings = check_no_test_skips._scan_repo()
 
     assert findings == []
 

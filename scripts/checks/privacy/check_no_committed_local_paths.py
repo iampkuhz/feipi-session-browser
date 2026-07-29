@@ -1,14 +1,15 @@
 #!/usr/bin/env python3
-"""本模块负责扫描受保护路径，检测提交态中是否包含个人机器绝对路径。
+"""检查提交态受保护路径是否泄露个人机器绝对路径。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这项检查避免仓库保存本地用户名和 home 路径。公开入口是 ``check(arguments)``，失败表示发现
+必须移除或脱敏的本地路径。"""
 
 from __future__ import annotations
 
 import re
 from pathlib import Path
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 
@@ -78,12 +79,6 @@ _SYNTHETIC_USERNAMES = {
     "username",
     "dev",
 }
-
-
-def fail(message: str) -> int:
-    """输出单条本地路径泄露原因并返回非零退出码。"""
-    print(f"[{GATE_NAME}] FAIL: {message}")
-    return 1
 
 
 def _safe_excerpt(line: str) -> str:
@@ -170,7 +165,7 @@ def _iter_scan_files() -> list[Path]:
     files: list[Path] = []
     seen: set[Path] = set()
 
-    def add(path: Path) -> None:
+    def _add(path: Path) -> None:
         """仅接收仓库扫描边界内的普通文件，并保持首次出现顺序。"""
         try:
             relative = path.relative_to(ROOT)
@@ -187,18 +182,22 @@ def _iter_scan_files() -> list[Path]:
         if not dir_path.is_dir():
             continue
         for filepath in sorted(dir_path.rglob("*")):
-            add(filepath)
+            _add(filepath)
 
     for filename in SCAN_FILES:
-        add(ROOT / filename)
+        _add(ROOT / filename)
 
     for pattern in SCAN_GLOBS:
         for filepath in sorted(ROOT.glob(pattern)):
-            add(filepath)
+            _add(filepath)
 
     return files
 
 
-def check_local_paths() -> list[str]:
-    """扫描治理路径并返回全部脱敏诊断；任何非空结果都应阻断 Gate。"""
-    return [error for path in _iter_scan_files() for error in _scan_file(path)]
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一入口参数并返回全部本地路径泄露诊断。"""
+    parser = argument_parser(description="检查提交态本地绝对路径")
+    parser.parse_args(arguments)
+    return CheckResult.from_errors(
+        error for path in _iter_scan_files() for error in _scan_file(path)
+    )

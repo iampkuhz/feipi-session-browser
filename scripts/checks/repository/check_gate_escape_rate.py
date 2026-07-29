@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""本模块负责测量显式 required Gate 路径路由的合成逃逸率。
+"""测量显式 required Gate 路径路由的合成逃逸率。
 
-不负责执行 Gate 或改变 planner 结果；由共享 checks CLI 或维护者调用。
+该检查用固定高风险路径证明 planner 不会漏掉 required target。唯一入口 ``check(arguments)``
+先验证用例集合，再按原顺序写可选 JSON artifact 并返回阈值诊断；诊断表示路由保护不足。
 """
 
 from __future__ import annotations
 
 import json
-import sys
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import argument_parser, repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 from scripts.gates.planner import classify_path, required_quality_targets
 
 if TYPE_CHECKING:
@@ -104,7 +104,7 @@ def _unknown_risky_case() -> GateEscapeCase:
     )
 
 
-def build_cases() -> list[GateEscapeCase]:
+def _build_cases() -> list[GateEscapeCase]:
     """构造覆盖 minimal harness、产品和工具链的确定性路径场景。"""
     return [
         _target_case(
@@ -165,9 +165,9 @@ def build_cases() -> list[GateEscapeCase]:
     ]
 
 
-def build_report() -> dict[str, object]:
+def _build_report() -> dict[str, object]:
     """构造稳定 JSON 报告，不执行外部命令。"""
-    cases = build_cases()
+    cases = _build_cases()
     escaped = [case for case in cases if case.escaped]
     total = len(cases)
     return {
@@ -178,35 +178,34 @@ def build_report() -> dict[str, object]:
     }
 
 
-def write_json(path: Path, report: dict[str, object]) -> None:
+def _write_json(path: Path, report: dict[str, object]) -> None:
     """写入可选报告路径。"""
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8')
 
 
-def main() -> int:
-    """运行 escape-rate 检查并按阈值返回退出码。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析阈值与 artifact 参数，返回缺失用例或逃逸率诊断。"""
     parser = argument_parser(description='Measure synthetic required-gate escape rate.')
     parser.add_argument('--threshold', type=float, default=0.0, help='Maximum allowed escape rate.')
     parser.add_argument('--json-out', default=None, help='Optional JSON report path.')
-    args = parser.parse_args()
+    args = parser.parse_args(arguments)
 
-    report = build_report()
+    report = _build_report()
     case_ids = {case['id'] for case in report['cases']}  # type: ignore[index]
     missing = sorted(REQUIRED_CASE_IDS - case_ids)
     if missing:
-        print(f'[gateEscapeRate] FAIL missing_required_cases={missing}', file=sys.stderr)
-        return 1
+        return CheckResult.from_errors([f'[gateEscapeRate] FAIL missing_required_cases={missing}'])
     if args.json_out:
-        write_json(Path(args.json_out), report)
+        _write_json(Path(args.json_out), report)
     escaped_cases = int(report['escaped_required_cases'])
     escape_rate = float(report['escape_rate'])
     total = int(report['total_required_cases'])
     if escape_rate <= args.threshold:
-        return 0
-    print(
-        f'[gateEscapeRate] FAIL escape_rate={escape_rate:.6f} '
-        f'escaped_required_cases={escaped_cases} total_required_cases={total}',
-        file=sys.stderr,
+        return CheckResult()
+    return CheckResult.from_errors(
+        [
+            f'[gateEscapeRate] FAIL escape_rate={escape_rate:.6f} '
+            f'escaped_required_cases={escaped_cases} total_required_cases={total}'
+        ]
     )
-    return 1

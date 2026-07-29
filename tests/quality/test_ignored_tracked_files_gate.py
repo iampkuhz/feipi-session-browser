@@ -38,13 +38,13 @@ def test_staged_ignored_file_fails(tmp_path: Path):
     _git(repo, 'add', '.gitignore')
     _git(repo, 'add', '-f', 'output/leak.txt')
 
-    findings = check_ignored_tracked_files.ignored_paths(
+    findings = check_ignored_tracked_files._ignored_paths(
         repo,
-        check_ignored_tracked_files.staged_candidate_paths(repo),
+        check_ignored_tracked_files._staged_candidate_paths(repo),
     )
 
     assert [finding.path for finding in findings] == ['output/leak.txt']
-    assert check_ignored_tracked_files.main(['--root', str(repo), '--staged']) == 1
+    assert not check_ignored_tracked_files.check(['--root', str(repo), '--staged']).passed
 
 
 def test_staged_deleted_ignored_file_is_allowed_for_cleanup(tmp_path: Path):
@@ -59,8 +59,8 @@ def test_staged_deleted_ignored_file_is_allowed_for_cleanup(tmp_path: Path):
 
     _git(repo, 'rm', 'output/legacy.txt')
 
-    assert check_ignored_tracked_files.staged_candidate_paths(repo) == []
-    assert check_ignored_tracked_files.main(['--root', str(repo), '--staged']) == 0
+    assert check_ignored_tracked_files._staged_candidate_paths(repo) == []
+    assert check_ignored_tracked_files.check(['--root', str(repo), '--staged']).passed
 
 
 def test_negated_gitignore_rule_is_not_reported(tmp_path: Path):
@@ -72,7 +72,7 @@ def test_negated_gitignore_rule_is_not_reported(tmp_path: Path):
 
     _git(repo, 'add', '.gitignore', 'tmp/.gitkeep')
 
-    assert check_ignored_tracked_files.main(['--root', str(repo), '--staged']) == 0
+    assert check_ignored_tracked_files.check(['--root', str(repo), '--staged']).passed
 
 
 def test_all_tracked_mode_reports_legacy_ignored_tracking(tmp_path: Path):
@@ -85,4 +85,4 @@ def test_all_tracked_mode_reports_legacy_ignored_tracking(tmp_path: Path):
     _git(repo, 'add', '-f', 'output/legacy.txt')
     _git(repo, 'commit', '-m', 'legacy ignored tracked file')
 
-    assert check_ignored_tracked_files.main(['--root', str(repo), '--all-tracked']) == 1
+    assert not check_ignored_tracked_files.check(['--root', str(repo), '--all-tracked']).passed

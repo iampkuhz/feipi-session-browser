@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
-"""CSS 所有权门禁检查。
+"""检查 CSS 分层所有权、依赖方向与跨层重复定义。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+样式层级若相互覆盖会让页面规则来源不可预测，因此阻断越权定义并保留颜色债务警告。唯一公开
+入口是 `check(arguments)`；失败表示存在 BLOCK 级所有权违规，完整报告仍写入隔离 artifact。
+"""
 
 from __future__ import annotations
 
@@ -11,7 +13,7 @@ import re
 from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 from scripts.gates import support as gate_support
 
 if TYPE_CHECKING:
@@ -88,7 +90,7 @@ EXEMPT_FROM_DUPLICATE = {
 }
 
 
-def extract_css_rules(text: str) -> list[tuple[int, str, str]]:
+def _extract_css_rules(text: str) -> list[tuple[int, str, str]]:
     """提取 CSS rule 及其源码位置，不修改原始文本。"""
     rules: list[tuple[int, str, str]] = []
     # 去掉注释
@@ -124,7 +126,7 @@ def extract_css_rules(text: str) -> list[tuple[int, str, str]]:
     return rules
 
 
-def split_selectors(selector_str: str) -> list[str]:
+def _split_selectors(selector_str: str) -> list[str]:
     """按顶层逗号拆分 selector，不切开括号内的参数。"""
     depth = 0
     parts: list[str] = []
@@ -144,7 +146,7 @@ def split_selectors(selector_str: str) -> list[str]:
     return [p for p in parts if p and not p.startswith('@')]
 
 
-def is_base_selector(sel: str) -> bool:
+def _is_base_selector(sel: str) -> bool:
     """判断 selector 是否以标准 HTML 元素开头。"""
     base_pattern = re.compile(
         r'^(html|body|div|span|p|a|img|ul|ol|li|table|th|td|thead|tbody|tfoot|'
@@ -159,7 +161,7 @@ def is_base_selector(sel: str) -> bool:
     return bool(base_pattern.match(sel))
 
 
-def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules stay grouped.
+def _check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules stay grouped.
     filename: str,
     rules: list[tuple[int, str, str]],
 ) -> list[Violation]:
@@ -189,7 +191,7 @@ def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules st
         for lineno, selector, _body in rules:
             if selector.startswith('@'):
                 continue
-            for raw_sel in split_selectors(selector):
+            for raw_sel in _split_selectors(selector):
                 sel = raw_sel.strip()
                 if not sel:
                     continue
@@ -197,7 +199,7 @@ def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules st
                     continue
                 if sel.startswith(':root'):
                     continue
-                if is_base_selector(sel):
+                if _is_base_selector(sel):
                     continue
                 # 伪类/伪元素
                 if sel.startswith(':') and not any(c in sel for c in '.#'):
@@ -223,7 +225,7 @@ def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules st
         for lineno, selector, _body in rules:
             if selector.startswith('@'):
                 continue
-            for raw_sel in split_selectors(selector):
+            for raw_sel in _split_selectors(selector):
                 sel = raw_sel.strip()
                 if not sel:
                     continue
@@ -252,7 +254,7 @@ def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules st
         for lineno, selector, _body in rules:
             if selector.startswith('@'):
                 continue
-            for raw_sel in split_selectors(selector):
+            for raw_sel in _split_selectors(selector):
                 sel = raw_sel.strip()
                 if not sel:
                     continue
@@ -280,7 +282,7 @@ def check_layer_purity(  # noqa: PLR0912 - layer-specific CSS ownership rules st
     return violations
 
 
-def check_cross_layer_duplicate(
+def _check_cross_layer_duplicate(
     filename: str,
     rules: list[tuple[int, str, str]],
     ui_primitives_selectors: set[str],
@@ -294,7 +296,7 @@ def check_cross_layer_duplicate(
     for lineno, selector, _body in rules:
         if selector.startswith('@'):
             continue
-        for raw_sel in split_selectors(selector):
+        for raw_sel in _split_selectors(selector):
             sel = raw_sel.strip()
             if not sel:
                 continue
@@ -326,7 +328,7 @@ def check_cross_layer_duplicate(
     return violations
 
 
-def check_dependency_direction(
+def _check_dependency_direction(
     filename: str,
     rules: list[tuple[int, str, str]],
 ) -> list[Violation]:
@@ -378,7 +380,7 @@ def check_dependency_direction(
     return violations
 
 
-def check_hardcoded_colors(
+def _check_hardcoded_colors(
     filename: str,
     rules: list[tuple[int, str, str]],
 ) -> list[Violation]:
@@ -410,7 +412,7 @@ def check_hardcoded_colors(
     return violations
 
 
-def check_css_ownership(repo_root: Path) -> OwnershipCheck:
+def _check_css_ownership(repo_root: Path) -> OwnershipCheck:
     """执行 CSS 所有权规则；目录缺失时产生 BLOCK，避免静默放行。"""
     result = OwnershipCheck()
     css_dir = repo_root / 'java/web/src/main/resources/static/css'
@@ -434,31 +436,31 @@ def check_css_ownership(repo_root: Path) -> OwnershipCheck:
     ui_primitives_path = css_dir / 'ui-primitives.css'
     if ui_primitives_path.exists():
         text = ui_primitives_path.read_text(encoding='utf-8')
-        for _, selector, _ in extract_css_rules(text):
-            for sel in split_selectors(selector):
+        for _, selector, _ in _extract_css_rules(text):
+            for sel in _split_selectors(selector):
                 ui_primitives_selectors.add(sel.strip())
 
     for css_path in css_files:
         filename = css_path.name
         text = css_path.read_text(encoding='utf-8')
-        rules = extract_css_rules(text)
+        rules = _extract_css_rules(text)
         result.selectors_analyzed += len(rules)
 
         # BLOCK 与 WARN 分流必须在汇总阶段完成，避免报告层重新解释规则结果。
-        result.blocks.extend(check_layer_purity(filename, rules))
+        result.blocks.extend(_check_layer_purity(filename, rules))
 
-        for v in check_cross_layer_duplicate(filename, rules, ui_primitives_selectors):
+        for v in _check_cross_layer_duplicate(filename, rules, ui_primitives_selectors):
             (result.blocks if v.severity == 'BLOCK' else result.warnings).append(v)
 
-        for v in check_dependency_direction(filename, rules):
+        for v in _check_dependency_direction(filename, rules):
             (result.blocks if v.severity == 'BLOCK' else result.warnings).append(v)
 
-        result.warnings.extend(check_hardcoded_colors(filename, rules))
+        result.warnings.extend(_check_hardcoded_colors(filename, rules))
 
     return result
 
 
-def format_report(result: OwnershipCheck) -> str:
+def _format_report(result: OwnershipCheck) -> str:
     """将结构化所有权结果格式化为稳定的人类可读报告。"""
     lines: list[str] = []
     lines.append('=' * 60)
@@ -497,7 +499,7 @@ def format_report(result: OwnershipCheck) -> str:
     return '\n'.join(lines)
 
 
-def artifact_dir(
+def _artifact_dir(
     repo_root: Path,
     identity: gate_support.ExecutionIdentity | None = None,
 ) -> Path:
@@ -514,16 +516,16 @@ def artifact_dir(
     return gate_support.quality_dir(repo_root, resolved) / 'css-ownership'
 
 
-def main() -> int:
-    """解析命令行参数并运行脚本入口。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一 CLI 参数，写出结构化报告，并按报告顺序返回 BLOCK 失败。"""
+    parser = argument_parser(description='检查 CSS 分层所有权')
+    parser.parse_args(arguments)
     repo_root = REPO_ROOT
-    result = check_css_ownership(repo_root)
-    report = format_report(result)
-    print(report)
+    result = _check_css_ownership(repo_root)
+    report = _format_report(result)
 
-    # 同一份报告同时输出到终端和隔离 artifact，确保人工诊断与 Gate 集成一致。
-    out_dir = artifact_dir(repo_root)
+    # 完整报告写入隔离 artifact；失败时同一内容也作为统一 CLI 诊断返回。
+    out_dir = _artifact_dir(repo_root)
     out_dir.mkdir(parents=True, exist_ok=True)
     out_file = out_dir / 'css-ownership-report.txt'
     out_file.write_text(report + '\n', encoding='utf-8')
@@ -551,4 +553,6 @@ def main() -> int:
         json.dumps(json_report, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
     )
 
-    return 0 if not result.blocks else 1
+    if not result.blocks:
+        return CheckResult()
+    return CheckResult.from_errors(report.splitlines())

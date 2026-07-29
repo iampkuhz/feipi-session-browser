@@ -1,17 +1,19 @@
-"""检查 Jinja 模板的基础语法与事件绑定契约。
+"""检查 Jinja 模板的基础闭合语法与 inline onclick 禁令。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+未闭合的模板标记会破坏渲染，inline onclick 会绕过静态 JavaScript 绑定约束。唯一公开入口是
+`check(arguments)`；失败表示模板目录不可用或至少一个模板违反这些契约。
+"""
 
 from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 
 
-def check_templates(repo_root: Path) -> list[str]:
+def _check_templates(repo_root: Path) -> list[str]:
     """返回模板缺失、括号未闭合或使用 inline onclick 的诊断。"""
     failures: list[str] = []
     templates = repo_root / 'java/web/src/main/resources/templates'
@@ -34,14 +36,10 @@ def check_templates(repo_root: Path) -> list[str]:
     return failures
 
 
-def main() -> int:
-    """解析命令行参数并运行脚本入口。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一 CLI 参数，并按模板遍历顺序返回语法或事件绑定失败。"""
+    parser = argument_parser(description='检查 Jinja 模板基础契约')
+    parser.parse_args(arguments)
     root = Path.cwd()
-    failures = check_templates(root)
-    if failures:
-        for item in failures:
-            print(item)
-        return 1
-    print('template contract PASS')
-    return 0
+    failures = _check_templates(root)
+    return CheckResult.from_errors(failures)

@@ -1,3 +1,4 @@
-"""本模块负责执行 `__init__` 对应的确定性仓库检查。
+"""把领域 Check 组织成可由 Python 加载的 package。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+这里不负责实现具体规则；维护者统一通过 `python3 -m scripts.checks <check-id>` 运行检查。
+"""

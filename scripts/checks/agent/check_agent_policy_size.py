@@ -1,24 +1,19 @@
 #!/usr/bin/env python3
-"""检查 agent 规约体积是否在限制内。
+"""检查 Agent 规约体积是否符合共享 manifest 和 Codex 配置限制。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+体积边界可防止入口文档被客户端截断。公开入口是 `check(arguments)`；返回诊断表示必需配置
+缺失、AGENTS.md 超限或 Codex 读取上限不足。
+"""
 
 from __future__ import annotations
 
 import re
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 CODEX_CONFIG = ROOT / ".codex" / "config.toml"
-GATE_NAME = "agentPolicySize"
-
-
-def fail(msg: str) -> int:
-    """输出单条 Gate 失败原因并返回非零退出码。"""
-    print(f"[{GATE_NAME}] FAIL: {msg}")
-    return 1
 
 
 def _parse_size_limits(text: str) -> dict[str, int]:
@@ -55,62 +50,45 @@ def _read_codex_max() -> int | None:
     return None
 
 
-def main() -> int:
-    """检查共享规约与 Codex 配置的体积契约，任一硬限制不满足即失败。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回共享规约与 Codex 配置的体积检查结果。"""
+    parser = argument_parser(description='检查 Agent 规约体积限制')
+    parser.parse_args(arguments)
     if not POLICY_MANIFEST.is_file():
-        return fail(f"policy manifest 不存在: {POLICY_MANIFEST.relative_to(ROOT)}")
+        return CheckResult.from_errors(
+            [f"policy manifest 不存在: {POLICY_MANIFEST.relative_to(ROOT)}"]
+        )
 
     manifest_text = POLICY_MANIFEST.read_text(encoding="utf-8")
     size_limits = _parse_size_limits(manifest_text)
     if not size_limits:
-        return fail("policy manifest 缺少 size_limits")
+        return CheckResult.from_errors(["policy manifest 缺少 size_limits"])
 
     agents_limit = size_limits.get("AGENTS.md")
-    claude_limit = size_limits.get("CLAUDE.md")
     if agents_limit is None:
-        return fail("policy manifest size_limits 缺少 AGENTS.md 限制")
+        return CheckResult.from_errors(["policy manifest size_limits 缺少 AGENTS.md 限制"])
 
     agents_file = ROOT / "AGENTS.md"
-    claude_file = ROOT / "CLAUDE.md"
 
     errors: list[str] = []
 
     # AGENTS.md 是硬限制，缺失或超限都阻断 Gate。
     if agents_file.is_file():
         agents_size = agents_file.stat().st_size
-        print(f"[{GATE_NAME}] AGENTS.md: {agents_size} bytes (limit: {agents_limit})")
         if agents_size > agents_limit:
             errors.append(f"AGENTS.md {agents_size} bytes 超过限制 {agents_limit} bytes")
     else:
-        return fail("AGENTS.md 不存在")
-
-    # CLAUDE.md 沿用 soft limit，超限只告警而不混入硬失败。
-    if claude_file.is_file() and claude_limit is not None:
-        claude_size = claude_file.stat().st_size
-        print(f"[{GATE_NAME}] CLAUDE.md: {claude_size} bytes (limit: {claude_limit})")
-        if claude_size > claude_limit:
-            print(
-                f"[{GATE_NAME}] WARN: CLAUDE.md {claude_size} bytes "
-                f"超过 soft limit {claude_limit} bytes"
-            )
+        return CheckResult.from_errors(["AGENTS.md 不存在"])
 
     # Codex 读取上限还需预留少量增长空间，避免入口文档被截断。
     codex_max = _read_codex_max()
     if codex_max is not None and agents_file.is_file():
         agents_size = agents_file.stat().st_size
         needed = agents_size + 100
-        print(f"[{GATE_NAME}] Codex project_doc_max_bytes: {codex_max} (need >= {needed})")
         if codex_max < needed:
             errors.append(
                 f".codex/config.toml project_doc_max_bytes={codex_max} "
                 f"< AGENTS.md size({agents_size}) + 100 = {needed}"
             )
 
-    if errors:
-        for e in errors:
-            print(f"[{GATE_NAME}] FAIL: {e}")
-        return 1
-
-    print(f"[{GATE_NAME}] PASS")
-    return 0
+    return CheckResult.from_errors(errors)

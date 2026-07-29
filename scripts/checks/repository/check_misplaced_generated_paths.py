@@ -1,23 +1,24 @@
 #!/usr/bin/env python3
-"""本模块负责检查 manifest 禁止的生成路径是否直接出现在仓库磁盘上。
+"""检查 manifest 禁止的生成路径是否直接出现在仓库磁盘上。
 
-不负责删除或读取生成内容；由 Gate executor、doctor 或维护者命令行调用。"""
+该检查阻止运行产物污染仓库工作区，同时不读取其内容。唯一入口 ``check(arguments)`` 返回配置
+错误或按 manifest 顺序排列的路径诊断；任一诊断都表示仓库边界不可信。
+"""
 
 from __future__ import annotations
 
 import os
-import sys
 from pathlib import Path
 
 import yaml
-from scripts.checks._framework import argument_parser, repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 MANIFEST_RELATIVE_PATH = Path('harness/manifest.yaml')
 MANIFEST_KEY = 'forbidden_generated_paths'
 
 
-def load_forbidden_paths(manifest_path: Path) -> tuple[str, ...]:
+def _load_forbidden_paths(manifest_path: Path) -> tuple[str, ...]:
     """从 harness manifest 读取唯一的禁止生成路径清单。"""
     try:
         document = yaml.safe_load(manifest_path.read_text(encoding='utf-8'))
@@ -42,18 +43,18 @@ def load_forbidden_paths(manifest_path: Path) -> tuple[str, ...]:
     return tuple(normalized)
 
 
-def path_exists(path: Path) -> bool:
+def _path_exists(path: Path) -> bool:
     """检查普通路径及悬空 symlink，避免 Git ignore 状态影响结果。"""
     return path.exists() or os.path.lexists(path)
 
 
-def find_misplaced_paths(root: Path, forbidden_paths: tuple[str, ...]) -> tuple[str, ...]:
+def _find_misplaced_paths(root: Path, forbidden_paths: tuple[str, ...]) -> tuple[str, ...]:
     """返回磁盘上实际存在的禁止路径。"""
-    return tuple(path for path in forbidden_paths if path_exists(root / path))
+    return tuple(path for path in forbidden_paths if _path_exists(root / path))
 
 
-def main(argv: list[str] | None = None) -> int:
-    """执行禁止生成路径检查。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析仓库与 manifest 参数并返回所有误放生成路径。"""
     parser = argument_parser(
         description='Fail when generated paths are misplaced in the repository'
     )
@@ -62,25 +63,16 @@ def main(argv: list[str] | None = None) -> int:
         '--manifest',
         help='Manifest path; relative paths are resolved from --root',
     )
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
 
     root = Path(args.root).resolve()
     manifest_path = Path(args.manifest) if args.manifest else MANIFEST_RELATIVE_PATH
     if not manifest_path.is_absolute():
         manifest_path = root / manifest_path
     try:
-        forbidden_paths = load_forbidden_paths(manifest_path)
+        forbidden_paths = _load_forbidden_paths(manifest_path)
     except ValueError as exc:
-        print(f'misplaced-generated-paths configuration error: {exc}', file=sys.stderr)
-        return 2
+        return CheckResult.from_errors([f'misplaced-generated-paths configuration error: {exc}'])
 
-    findings = find_misplaced_paths(root, forbidden_paths)
-    if findings:
-        for path in findings:
-            print(f'misplaced generated path exists: {path}', file=sys.stderr)
-        return 1
-    return 0
-
-
-if __name__ == '__main__':
-    raise SystemExit(main())
+    findings = _find_misplaced_paths(root, forbidden_paths)
+    return CheckResult.from_errors(f'misplaced generated path exists: {path}' for path in findings)

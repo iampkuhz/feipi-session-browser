@@ -1,13 +1,15 @@
 #!/usr/bin/env python3
-"""核对模板声明的关键 action 是否存在 JavaScript handler。
+"""检查模板关键 action 与 JavaScript handler 是否成对存在。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+关键交互若只有模板声明而没有 handler，页面操作会静默失效。唯一公开入口是
+`check(arguments)`；失败表示至少一个受保护 action 缺少可识别的实现。
+"""
 
 from __future__ import annotations
 
 import re
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 
@@ -80,7 +82,7 @@ def _extract_js_handlers() -> set[str]:
     return handlers
 
 
-def check_action_handlers() -> list[str]:
+def _check_action_handlers() -> list[str]:
     """返回缺失 handler 的关键 template action；无法识别时按缺失处理。"""
     handlers = _extract_js_handlers()
     actions = {action for values in _extract_template_actions().values() for action in values}
@@ -89,3 +91,10 @@ def check_action_handlers() -> list[str]:
         for action in sorted(actions - handlers - BUILT_IN_ACTIONS)
         if action in CRITICAL_ACTIONS
     ]
+
+
+def check(arguments: list[str]) -> CheckResult:
+    """解析统一 CLI 参数，并把缺失的关键 handler 按 action 排序返回。"""
+    parser = argument_parser(description='核对模板关键 action 的 JavaScript handler')
+    parser.parse_args(arguments)
+    return CheckResult.from_errors(_check_action_handlers())

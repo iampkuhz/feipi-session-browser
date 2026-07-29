@@ -26,25 +26,25 @@ def test_reference_status_covers_missing_non_public_public_and_diagnostic(
     catalog = frozenset({"scripts/checks/catalog_leaf.py"})
 
     assert (
-        checker.reference_status(tmp_path, "scripts/missing.py", public, patterns, catalog)
+        checker._reference_status(tmp_path, "scripts/missing.py", public, patterns, catalog)
         == "missing"
     )
     assert (
-        checker.reference_status(tmp_path, "scripts/private.py", public, patterns, catalog)
+        checker._reference_status(tmp_path, "scripts/private.py", public, patterns, catalog)
         == "non-public"
     )
     assert (
-        checker.reference_status(tmp_path, "scripts/public.py", public, patterns, catalog)
+        checker._reference_status(tmp_path, "scripts/public.py", public, patterns, catalog)
         == "public"
     )
     assert (
-        checker.reference_status(
+        checker._reference_status(
             tmp_path, "scripts/checks/repository/check_named.py", public, patterns, catalog
         )
         == "diagnostic"
     )
     assert (
-        checker.reference_status(
+        checker._reference_status(
             tmp_path, "scripts/checks/catalog_leaf.py", public, patterns, catalog
         )
         == "diagnostic"
@@ -65,7 +65,7 @@ def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) 
         encoding="utf-8",
     )
 
-    references = checker.scan_references(tmp_path, (source,))
+    references = checker._scan_references(tmp_path, (source,))
 
     assert [(item.line, item.target) for item in references] == [
         (1, "scripts/gates/cli.py"),
@@ -75,4 +75,4 @@ def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) 
 
 
 def test_repository_has_no_dead_or_private_command_references() -> None:
-    assert checker.check_repository(ROOT) == ()
+    assert checker._check_repository(ROOT) == ()

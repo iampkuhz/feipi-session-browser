@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """检查本地 Session 索引的文件、表结构与关键数据完整性。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+该检查防止维护命令在缺失、空白或字段损坏的 SQLite 索引上继续工作。唯一入口
+``check(arguments)`` 依次执行原有查询并返回有序诊断；诊断表示索引不可可信使用。
+"""
 
 from __future__ import annotations
 
@@ -10,7 +12,7 @@ import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 
@@ -40,15 +42,16 @@ class IntegrityResult:
     """汇总各项完整性检查的稳定状态。"""
 
     checks: list[tuple[str, str]] = field(default_factory=list)
+    errors: list[str] = field(default_factory=list)
 
     def ok(self, name: str) -> None:
         """记录一项通过的检查。"""
         self.checks.append((name, 'PASS'))
 
     def fail(self, name: str, detail: str = '') -> None:
-        """记录并输出一项失败的检查。"""
+        """记录一项失败检查及其稳定诊断。"""
         msg = f'{name}: {detail}' if detail else name
-        print(f'  [FAIL] {msg}')
+        self.errors.append(f'  [FAIL] {msg}')
         self.checks.append((name, 'FAIL'))
 
     @property
@@ -67,7 +70,7 @@ def _get_connection(db_path: Path) -> sqlite3.Connection | None:
         return None
 
 
-def check_index_file_exists(result: IntegrityResult) -> None:
+def _check_index_file_exists(result: IntegrityResult) -> None:
     """检查配置的索引文件是否存在。"""
     if INDEX_PATH.is_file():
         result.ok('index file exists')
@@ -75,7 +78,7 @@ def check_index_file_exists(result: IntegrityResult) -> None:
         result.fail('index file exists', f'not found at {INDEX_PATH}')
 
 
-def check_session_count(result: IntegrityResult, conn: sqlite3.Connection) -> None:
+def _check_session_count(result: IntegrityResult, conn: sqlite3.Connection) -> None:
     """确认索引至少包含一条 Session 记录，查询失败按失败处理。"""
     try:
         row = conn.execute('SELECT COUNT(*) AS cnt FROM sessions').fetchone()
@@ -88,7 +91,7 @@ def check_session_count(result: IntegrityResult, conn: sqlite3.Connection) -> No
         result.fail('session count > 0', f'sessions table query failed: {exc}')
 
 
-def check_required_fields(result: IntegrityResult, conn: sqlite3.Connection) -> None:
+def _check_required_fields(result: IntegrityResult, conn: sqlite3.Connection) -> None:
     """检查每条 Session 记录的必填字段均非空，查询失败按失败处理。"""
     try:
         # 单次查询收集任一必填字段为空的记录，确保所有字段使用同一判定口径。
@@ -107,7 +110,7 @@ def check_required_fields(result: IntegrityResult, conn: sqlite3.Connection) -> 
         result.fail('required fields non-empty', f'query failed: {exc}')
 
 
-def check_no_orphan_agents(result: IntegrityResult, conn: sqlite3.Connection) -> None:
+def _check_no_orphan_agents(result: IntegrityResult, conn: sqlite3.Connection) -> None:
     """检查索引中的 Agent 类型均属于已知集合，查询失败按失败处理。"""
     try:
         row = conn.execute(
@@ -125,55 +128,40 @@ def check_no_orphan_agents(result: IntegrityResult, conn: sqlite3.Connection) ->
         result.fail('no orphan agents', f'query failed: {exc}')
 
 
-def check_scan_log_exists(result: IntegrityResult, conn: sqlite3.Connection) -> None:
+def _check_scan_log_exists(result: IntegrityResult, conn: sqlite3.Connection) -> None:
     """检查 ``scan_log`` 表；为兼容未初始化 schema，缺表只告警。"""
     try:
         conn.execute('SELECT COUNT(*) FROM scan_log').fetchone()
         result.ok('scan_log table exists')
     except sqlite3.OperationalError:
         # 该表不影响 Session 数据完整性，因此 schema 尚未初始化时保持非阻断。
-        print('  [WARN] scan_log table missing (non-blocking)')
         result.ok('scan_log table exists (warn-only, missing is acceptable)')
 
 
-def main() -> int:
-    """依次执行索引检查；文件或连接不可用时立即 fail-closed。"""
-
-    print(f'\n{"=" * 60}')
-    print('index integrity gate')
-    print(f'index path: {INDEX_PATH}')
-    print(f'{"=" * 60}\n')
+def check(arguments: list[str]) -> CheckResult:
+    """解析入口参数并依次执行索引文件与 SQLite 完整性检查。"""
+    parser = argument_parser(description='Check local Session index integrity.')
+    parser.parse_args(arguments)
 
     result = IntegrityResult()
 
     # 文件不存在时数据库检查没有可信输入，直接阻断而不制造后续噪声。
-    check_index_file_exists(result)
+    _check_index_file_exists(result)
 
     if not INDEX_PATH.is_file():
-        print('\nIndex file does not exist — cannot run further checks.\n')
-        return 1
+        return CheckResult.from_errors(result.errors)
 
     conn = _get_connection(INDEX_PATH)
     if conn is None:
         result.fail('database connection', 'cannot open SQLite connection')
-        print('\nResult: FAIL\n')
-        return 1
+        return CheckResult.from_errors(result.errors)
 
     try:
-        check_session_count(result, conn)
-        check_required_fields(result, conn)
-        check_no_orphan_agents(result, conn)
-        check_scan_log_exists(result, conn)
+        _check_session_count(result, conn)
+        _check_required_fields(result, conn)
+        _check_no_orphan_agents(result, conn)
+        _check_scan_log_exists(result, conn)
     finally:
         conn.close()
 
-    # 最后统一汇总，避免单项输出掩盖其他可操作问题。
-    passed = sum(1 for _, s in result.checks if s == 'PASS')
-    failed = sum(1 for _, s in result.checks if s == 'FAIL')
-    total = passed + failed
-
-    print(f'\n{"=" * 60}')
-    print(f'summary: {passed}/{total} passed, {failed} failures')
-    print(f'{"=" * 60}\n')
-
-    return 0 if result.all_passed else 1
+    return CheckResult.from_errors(result.errors)

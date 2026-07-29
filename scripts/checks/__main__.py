@@ -1,4 +1,8 @@
-"""负责调度共享 repository check 并统一输出；不负责实现领域规则；由模块命令行入口调用。"""
+"""提供所有领域 Check 的唯一命令行入口。
+
+命令行根据 check ID 找到一个 `check_*.py` 模块，把剩余参数交给该模块唯一的 `check(arguments)`
+函数，最后统一输出 PASS、FAIL 和诊断；这里不包含任何领域规则。
+"""
 
 from __future__ import annotations
 
@@ -21,10 +25,10 @@ def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     result = invoke(get_check(args.check_id), args.arguments)
     if result.passed:
-        print(f'[{result.check_id}] PASS')
+        print(f'[{args.check_id}] PASS')
         return 0
     for diagnostic in result.diagnostics:
-        print(f'[{result.check_id}] FAIL: {diagnostic.render()}')
+        print(f'[{args.check_id}] FAIL: {diagnostic.render()}')
     return 1
 
 

@@ -1,39 +1,48 @@
-# Checks 规则边界
+# Checks 维护说明
 
-`scripts/checks/` 保存 Gate executor 与 doctor 调用的领域检查器和叶子工具。这里定义“检查什么”，
-不定义“本次选择哪些 Gate、如何并发执行、是否复用或 overall 是否通过”。
+这里保存“仓库必须满足什么条件”的小型检查。最简单的理解方式是：
 
-## 职责
+```text
+一个 check_*.py 文件  = 一个 Checker 实现
+check(arguments)      = 唯一 public 方法
+_开头的函数           = 文件内部实现
+_registry.py          = Check ID 到实现文件的路由表
+__main__.py           = 唯一命令行入口
+```
 
-- `agent/`：Agent 入口、policy、permission、受保护路径、skill registry 与 handoff 契约。
-- `repository/`：仓库结构、索引、忽略文件、测试约束、逃逸率与 acceptance contract。
-- `privacy/`：本地路径、真实 session fixture 与类密钥内容边界。
-- `source/`：注释语言、仓库语言策略与禁止新增产品 Python 的约束。
-- `web/`：CSS、JavaScript、模板、静态资源与 Session Detail 契约；`web/baselines/` 只保存
-  Web 规则自身的已审计基线。
-- 各领域中的 `check_*.py`：只实现一个可命名的仓库不变量，不提供独立 CLI。
-- 各领域中的 `validate_*.py`、报告或测量脚本：封装一个领域验证动作或 artifact contract，
-  仍不得选择 quality target 或维护 required Gate 集合。
-- `_framework.py`：唯一 `CheckResult`/`Diagnostic` 与领域调用协议。
-- `_registry.py`：唯一公开 check ID registry；`__main__.py` 统一参数、状态、诊断和退出码。
-- 根目录只保留本 README、package/CLI 入口、共享 framework 与显式 registry。
+维护者不需要从多个 `main`、`run_check` 或 `validate` 中猜入口。打开任意 `check_*.py` 后，先读文件
+顶部的中文说明，再找唯一的 `check(arguments)` 即可。
 
-## 不得承担
+## 固定文件约定
 
-单个 check 不得实现以下能力：
+- 领域检查文件必须命名为 `check_<subject>.py`。
+- 每个文件只在 `_registry.py` 登记一次，也只对应一个 Check ID。
+- 每个文件只公开：
 
-- Gate/target/tier 注册、dominance 或 path routing；
-- 通用 subprocess 循环、timeout、bounded parallel 或 exclusive resource lock；
-- 历史结果复用、跨 Gate cache、overall summary 或 Stop/Registry 状态推进；
-- 平台 Hook payload 解析、writer lease 或 worktree 生命周期；
-- 真实 session、密钥、token、个人路径或不可提交运行数据的 fixture 构造。
+  ```python
+  def check(arguments: list[str]) -> CheckResult:
+      """解析参数，执行业务检查并返回全部失败诊断。"""
+  ```
 
-这些职责分别属于 `scripts/gates/`、客户端/Git、minimal `scripts/harness/` 与测试 support；仓库不再提供 Agent Session Runtime。
-不要为单个 check 新增 runner wrapper，也不要让 CI/Stop 直接拼接一组 check 命令。
+- 其他函数使用 `_` 前缀。它们可以负责读取文件、解析配置或判断一条规则，但不是执行入口。
+- leaf 文件不包含 `main()` 或 `if __name__ == '__main__'`，也不能单独充当命令行程序。
+- `CheckResult` 没有诊断表示通过；有诊断表示失败。Check ID 和最终输出格式由共享 CLI 统一处理。
 
-## 调用与诊断
+## 目录怎么找
 
-正常执行与直接诊断都只走共享 CLI：
+- `agent/`：Agent 入口、permission、共享规约、skill registry 和 handoff。
+- `privacy/`：个人路径、真实 session fixture 和类密钥内容。
+- `repository/`：Git、仓库结构、测试纪律、验收契约和路径路由。
+- `source/`：源码语言、注释语言和产品 Python 边界。
+- `web/`：CSS、JavaScript、模板和 Session Detail 静态契约。
+- `web/baselines/`：仅保存 Web 检查使用的已审计基线。
+
+根目录中的 `_framework.py`、`_registry.py`、`__main__.py` 是共享基础设施，不是领域 Check，因此
+不使用 `check_` 前缀。
+
+## 如何运行
+
+所有检查都通过同一个命令行入口运行：
 
 ```bash
 python3 -m scripts.checks agent.skill-registry
@@ -41,22 +50,31 @@ python3 -m scripts.checks repository.dead-command-reference
 python3 -m scripts.checks web.css-ownership
 ```
 
-Gate catalog/planner 是 trigger 与 applicability 唯一权威；领域 check 不解析 changed-files 来跳过。
-定位失败时使用 Gate 报告中的共享 CLI rerun command；最终 required 验证显式运行：
+成功时只输出：
+
+```text
+[<check-id>] PASS
+```
+
+失败时逐条输出：
+
+```text
+[<check-id>] FAIL: <位置和原因>
+```
+
+不要直接运行领域文件。最终质量验证仍使用：
 
 ```bash
 python3 scripts/gates/cli.py --tier required
 ```
 
-## 变更规则
+## 新增或删除 Check
 
-1. 为规则补对应 contract，覆盖成功、真实失败和边界输入；禁止用 skip 代替 fixture 或环境准备。
-2. check 保持单一领域职责、确定性输出和非零失败退出码，不自行降级 error 为 warning。
-3. 在 `config/gates.yaml` 维护唯一 Gate registration 与 trigger metadata；`catalog.py` 只负责加载
-   和校验声明。
-4. 用 `python3 scripts/gates/cli.py --dry-run` 检查 plan，再运行受影响 contract 和 required tier。
-5. 删除规则时同时删除 `config/gates.yaml` 声明、适用的 `_registry.py` check registration、孤立
-   check、contract 和调用引用；不得保留兼容 wrapper。
+1. 新增一个 `check_<subject>.py`，只公开 `check(arguments)`。
+2. 在 `_registry.py` 增加唯一的 ID/module pair。
+3. 如需加入质量流程，只在 `config/gates.yaml` 声明 Gate、路径 trigger 和 command。
+4. 同批增加成功、真实失败和边界 contract。
+5. 运行定向测试和 required Gate。
 
-当前 Gate 名称、target 与 tier 只能从 `config/gates.yaml` 经 catalog/CLI 派生；本目录 README
-不维护静态清单。
+删除时反向删除 `config/gates.yaml` 声明、`_registry.py` registration、实现、测试和调用引用。移动或
+改名时必须一次更新全部 caller，旧路径直接删除，不保留 wrapper、re-export 或旧 ID alias。

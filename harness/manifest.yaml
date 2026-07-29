@@ -34,9 +34,6 @@ public_executables:
 
 diagnostic_executables:
   - scripts/checks/*/check_*.py
-  - scripts/checks/*/run_*.py
-  - scripts/checks/*/validate_*.py
-  - scripts/checks/*/measure_*.py
 
 quality:
   runner: scripts/gates/cli.py

@@ -1,20 +1,21 @@
 #!/usr/bin/env python3
-"""本模块负责检查 subagent handoff、身份与验证证据契约。
+"""检查 subagent handoff、身份和验证证据契约。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+完整契约可防止并行任务越界、身份混淆或静默跳过失败验证。公开入口是
+`check(arguments)`；返回诊断表示主入口或 policy manifest 缺少必需约束。
+"""
 
 from __future__ import annotations
 
 import re
 from typing import TYPE_CHECKING
 
-from scripts.checks._framework import repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path
 
 ROOT = repository_root()
-GATE_NAME = "subagentHandoffProtocol"
 POLICY_MANIFEST = ROOT / "harness" / "agent-policy.manifest.yaml"
 
 
@@ -47,14 +48,6 @@ IDENTITY_TERMS = ["agent_id", "instance id"]
 EVIDENCE_TERMS = ["client/session_id", "evidence"]
 NON_OVERLAP_TERMS = ["不重叠", "non-overlapping"]
 FAIL_VALIDATION_TERMS = ["静默跳过 validation", "silently skip validation"]
-
-
-def _failures_to_exit(errors: list[str]) -> int:
-    if errors:
-        for error in errors:
-            print(f"[{GATE_NAME}] FAIL: {error}")
-        return 1
-    return 0
 
 
 def _read(path: Path) -> str:
@@ -109,7 +102,7 @@ def _contains_skipped_can_pass(text: str) -> bool:
     return False
 
 
-def check_agents_md_short() -> list[str]:
+def _check_agents_md_short() -> list[str]:
     """检查 AGENTS.md 体积上限及 subagent 实例协议声明。"""
     errors: list[str] = []
     manifest_text = _read(POLICY_MANIFEST)
@@ -129,7 +122,7 @@ def check_agents_md_short() -> list[str]:
     return errors
 
 
-def check_required_handoff_fields() -> list[str]:
+def _check_required_handoff_fields() -> list[str]:
     """检查各主 Agent 入口是否声明完整 handoff、输出和证据聚合契约。"""
     errors: list[str] = []
     for label, path in MAIN_DOCS.items():
@@ -154,7 +147,7 @@ def check_required_handoff_fields() -> list[str]:
     return errors
 
 
-def check_status_values() -> list[str]:
+def _check_status_values() -> list[str]:
     """检查共享 manifest 与主入口是否同时声明 PASS、FAIL、BLOCKED。"""
     errors: list[str] = []
     docs = {"policy manifest": POLICY_MANIFEST, **MAIN_DOCS}
@@ -162,12 +155,10 @@ def check_status_values() -> list[str]:
         text = _read(path)
         if not _has_status_values(text):
             errors.append(f"{label} missing status values PASS/FAIL/BLOCKED")
-    if not errors:
-        print(f"[{GATE_NAME}] PASS: status values PASS/FAIL/BLOCKED declared")
     return errors
 
 
-def check_no_skipped_pass() -> list[str]:
+def _check_no_skipped_pass() -> list[str]:
     """拒绝任何把 skipped 表述为可通过的跨平台规约文本。"""
     errors: list[str] = []
     docs = {
@@ -183,12 +174,13 @@ def check_no_skipped_pass() -> list[str]:
     return errors
 
 
-def main() -> int:
-    """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
-
+def check(arguments: list[str]) -> CheckResult:
+    """解析参数并返回 subagent handoff 协议检查结果。"""
+    parser = argument_parser(description='检查 subagent handoff 协议')
+    parser.parse_args(arguments)
     errors: list[str] = []
-    errors.extend(check_agents_md_short())
-    errors.extend(check_required_handoff_fields())
-    errors.extend(check_status_values())
-    errors.extend(check_no_skipped_pass())
-    return _failures_to_exit(errors)
+    errors.extend(_check_agents_md_short())
+    errors.extend(_check_required_handoff_fields())
+    errors.extend(_check_status_values())
+    errors.extend(_check_no_skipped_pass())
+    return CheckResult.from_errors(errors)

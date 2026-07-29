@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """检查仓库测试是否使用会产生 skipped 结果的 API。
 
-不负责修复被检查对象；由 Gate executor 或维护者命令行调用。"""
+该检查保证测试通过来自确定性 fixture 和断言，而不是测试框架的跳过标记。唯一入口
+``check(arguments)`` 返回按文件、行号和规则排列的诊断；任一诊断都表示测试结果可能被跳过。
+"""
 
 from __future__ import annotations
 
@@ -9,7 +11,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.checks._framework import argument_parser, repository_root
+from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 REPO_ROOT = repository_root()
 
@@ -108,7 +110,7 @@ def _is_comment_only(line: str) -> bool:
     return bool(COMMENT_LINE_RE.match(line.strip()))
 
 
-def scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding]:
+def _scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding]:
     """按规则扫描单个测试文件；文件不可读时不产生伪造发现。"""
     try:
         lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
@@ -138,51 +140,29 @@ def scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding]
     return findings
 
 
-def scan_repo(root: Path = REPO_ROOT) -> list[Finding]:
+def _scan_repo(root: Path = REPO_ROOT) -> list[Finding]:
     """扫描仓库 Python 与 Playwright 测试中的禁用 skip API。"""
     python_files = _iter_files(root, ['tests'], ('.py',))
     playwright_files = _iter_files(root, ['tests'], ('.js', '.ts'))
 
     findings: list[Finding] = []
     for path in python_files:
-        findings.extend(scan_file(path, root, PYTHON_RULES))
+        findings.extend(_scan_file(path, root, PYTHON_RULES))
     for path in playwright_files:
-        findings.extend(scan_file(path, root, PLAYWRIGHT_RULES))
+        findings.extend(_scan_file(path, root, PLAYWRIGHT_RULES))
     return findings
 
 
-def print_report(findings: list[Finding]) -> None:
-    """输出稳定摘要及每条 skip API 发现。"""
-    print('=== no-test-skips quality gate ===')
-    print(
-        'Policy: selected/full/release pytest and Playwright runs must complete with '
-        '0 skipped outcomes.'
-    )
-    print('Changed-file target mapping may be not triggered, but required tests must not skip.')
-    print(f'Findings: {len(findings)}')
-    if findings:
-        print()
-        print('Forbidden skip APIs:')
-        for item in findings:
-            print(f'  [FAIL] {item.file}:{item.line} {item.rule} | {item.snippet}')
-            print(f'         {item.message}')
-
-
-def main(argv: list[str] | None = None) -> int:
-    """执行 no-test-skips 检查，存在任何发现时返回失败。"""
+def check(arguments: list[str]) -> CheckResult:
+    """解析扫描根目录并返回所有禁用 skip API 的位置。"""
     parser = argument_parser(
         description='Fail when repository tests use pytest or Playwright skip APIs'
     )
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to scan')
-    args = parser.parse_args(argv)
+    args = parser.parse_args(arguments)
 
-    findings = scan_repo(Path(args.root).resolve())
-    print_report(findings)
-    if findings:
-        print()
-        print(
-            '结论: FAIL - 检测到测试 skip API. 请删除 skip, 改为确定性 fixture, '
-            '明确断言或从触发映射中移除.'
-        )
-        return 1
-    return 0
+    findings = _scan_repo(Path(args.root).resolve())
+    return CheckResult.from_errors(
+        f'{item.file}:{item.line} {item.rule} | {item.snippet} | {item.message}'
+        for item in findings
+    )
