@@ -16,7 +16,6 @@ from scripts.gates.model import (
     IncrementalMode,
     OptionalCommandArgs,
     PathRule,
-    ReceiptPolicy,
     TargetCommand,
     TargetSpec,
     TierSpec,
@@ -70,12 +69,8 @@ def _command(raw: Any, label: str) -> CommandSpec:
         existing_args=_strings(row.get('existing_args', []), f'{label}.existing_args'),
         glob_args=_strings(row.get('glob_args', []), f'{label}.glob_args'),
         optional_args=optional,
-        full_args=_strings(row.get('full_args', []), f'{label}.full_args'),
         prerequisite_tasks=_strings(
             row.get('prerequisite_tasks', []), f'{label}.prerequisite_tasks'
-        ),
-        gradle_outcome_tasks=_strings(
-            row.get('gradle_outcome_tasks', []), f'{label}.gradle_outcome_tasks'
         ),
         existing_only=bool(row.get('existing_only', False)),
     )
@@ -126,7 +121,6 @@ def _gate(raw: Any) -> GateSpec:
         changed_files_input=ChangedFilesInput(str(row['changed_files'])),
         included_by=_strings(row.get('included_by', []), 'gate.included_by'),
         tiers=_strings(row['tiers'], 'gate.tiers'),
-        receipt_policy=ReceiptPolicy(str(row['receipt'])),
         description=str(row['description']),
         network_failure=str(row.get('network_failure', 'fail')),
     )
@@ -235,7 +229,7 @@ def validate_catalog_schema(catalog: GateCatalog = CATALOG) -> None:
         if not set(gate.tiers) <= known_tiers or not set(gate.included_by) <= known_gates:
             raise ValueError(f'Gate tier/includedBy reference is invalid: {gate.name}')
         if gate.command:
-            if gate.command.capability not in {'command', 'playwright', 'cpd', 'scan-smoke'}:
+            if gate.command.capability not in {'command', 'playwright', 'scan-smoke'}:
                 raise ValueError(f'Gate command capability is invalid: {gate.name}')
             command_targets = {command.target for command in gate.command.target_argv}
             if not command_targets <= set(gate.targets) or (

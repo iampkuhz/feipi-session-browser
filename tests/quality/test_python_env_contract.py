@@ -127,6 +127,21 @@ def test_official_uv_sync_entries_pin_the_local_environment() -> None:
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
+def test_coverage_test_inputs_exist() -> None:
+    """Coverage 清单不得继续引用已经删除的测试路径。"""
+    script = (REPO_ROOT / 'scripts/session-browser.sh').read_text(encoding='utf-8')
+    coverage_body = script.split('run_coverage() {', 1)[1].split('\n}', 1)[0]
+    test_inputs = [
+        line.strip().removesuffix('\\').strip()
+        for line in coverage_body.splitlines()
+        if line.strip().startswith('tests/')
+    ]
+
+    assert test_inputs
+    assert [path for path in test_inputs if not (REPO_ROOT / path).exists()] == []
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-010')
 def test_explicit_python_without_runtime_dependency_fails_without_fallback(
     monkeypatch: pytest.MonkeyPatch,
     tmp_path: Path,

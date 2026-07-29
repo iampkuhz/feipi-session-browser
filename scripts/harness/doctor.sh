@@ -147,24 +147,8 @@ fi
 run_check "valid shell syntax: scripts/session-browser.sh" bash -n scripts/session-browser.sh
 
 if [[ -n "$PYTHON" ]]; then
-  run_check "Python source compiles" "$PYTHON" -m compileall -q src
   run_check "harness structure" "$PYTHON" scripts/harness/validate_harness_structure.py
   run_check "OpenSpec layout" "$PYTHON" scripts/openspec/validate_layout.py
-  checks=(
-    repository.language-policy
-    repository.no-committed-local-paths
-    agent.policy-size
-    repository.misplaced-generated-paths
-    agent.protected-roots
-    agent.subagent-handoff
-    agent.skill-registry
-    repository.no-real-session-fixtures
-    security.secret-like-content
-    web.css-ownership
-  )
-  for check in "${checks[@]}"; do
-    run_check "quality check: $check" "$PYTHON" -m scripts.checks "$check"
-  done
 fi
 
 # 检查个人文件和临时目录是否不存在于磁盘。
@@ -191,19 +175,11 @@ else
   pass_check "OpenSpec runtime state 未被 Git 追踪"
 fi
 
-# openspec/changes/ 应存在，不存在时自动创建
+# 缺少本地 change 目录不阻断环境使用；doctor 只报告，不自动修复。
 if [[ ! -d "openspec/changes" ]]; then
-  mkdir -p openspec/changes
-  warn_check "openspec/changes/ 不存在，已自动创建"
+  warn_check "openspec/changes/ 不存在；需要时请显式创建 OpenSpec change"
 else
   pass_check "openspec/changes/ 目录存在"
-fi
-
-# active_change.json 不存在是正常状态
-if [[ -f "openspec/active_change.json" ]]; then
-  pass_check "openspec/active_change.json 存在（本地 runtime state）"
-else
-  pass_check "openspec/active_change.json 不存在（正常状态）"
 fi
 
 if [[ $fail -ne 0 ]]; then

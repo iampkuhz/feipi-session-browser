@@ -125,7 +125,6 @@ class GateDetail:
     groupId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     queueWaitMs: int = 0  # noqa: N815 - Preserve JSON artifact schema.
     resourceWaitMs: int = 0  # noqa: N815 - Preserve JSON artifact schema.
-    receiptReason: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     rerunCommand: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     taskOutcomes: dict[str, str] = field(default_factory=dict)  # noqa: N815
 
@@ -155,7 +154,6 @@ class QualitySummary:
     reportHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     planId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     planFingerprint: str = ''  # noqa: N815 - Preserve JSON artifact schema.
-    checkoutFingerprint: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     catalogVersion: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     commandGroups: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815
     processCounts: dict[str, int] = field(default_factory=dict)  # noqa: N815
@@ -235,7 +233,6 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
         groupId=str(detail.get('groupId', '')),
         queueWaitMs=int(detail.get('queueWaitMs') or 0),
         resourceWaitMs=int(detail.get('resourceWaitMs') or 0),
-        receiptReason=str(detail.get('receiptReason', '')),
         rerunCommand=str(detail.get('rerunCommand', '')),
         taskOutcomes={
             str(key): str(value) for key, value in dict(detail.get('taskOutcomes') or {}).items()
@@ -373,7 +370,6 @@ def write_quality_summary(
     base_dir: Path,
     summary: QualitySummary,
     target_specific: bool = True,
-    artifact_variant: str = '',
 ) -> Path:
     """参数：
         base_dir: artifact 基目录；change id 附加在其下方。
@@ -386,9 +382,8 @@ def write_quality_summary(
     out_dir = base_dir / summary.changeId
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    variant = f'.{artifact_variant}' if artifact_variant else ''
     filename = (
-        f'quality-gate-summary.{summary.target}{variant}.json'
+        f'quality-gate-summary.{summary.target}.json'
         if target_specific
         else 'quality-gate-summary.json'
     )
@@ -404,7 +399,7 @@ def write_quality_summary(
     )
 
     details = out_dir / (
-        f'gate-details.{summary.target}{variant}.json' if target_specific else 'gate-details.json'
+        f'gate-details.{summary.target}.json' if target_specific else 'gate-details.json'
     )
     details.write_text(
         json.dumps(summary.gateDetails, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
@@ -458,7 +453,6 @@ def build_summary(
         freshness='0s',
         planId=str(metadata.get('planId', '')),
         planFingerprint=str(metadata.get('planFingerprint', '')),
-        checkoutFingerprint=str(metadata.get('checkoutFingerprint', '')),
         catalogVersion=str(metadata.get('catalogVersion', '')),
         commandGroups=list(metadata.get('commandGroups', [])),
         processCounts=dict(metadata.get('processCounts', {})),
@@ -467,8 +461,7 @@ def build_summary(
             **{
                 detail.name: (
                     detail.executionState
-                    if detail.executionState
-                    in {'EXECUTED', 'REUSED', 'NOT_TRIGGERED', 'FAILED', 'BLOCKED'}
+                    if detail.executionState in {'EXECUTED', 'NOT_TRIGGERED', 'FAILED', 'BLOCKED'}
                     else ('EXECUTED' if detail.status == PASS else detail.status)
                 )
                 for detail in details

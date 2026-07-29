@@ -17,11 +17,7 @@ def test_agents_document_covers_complete_protected_scope():
 
 
 def test_sync_gate_fails_when_agent_or_skill_root_missing():
-    roots = [
-        root
-        for root in sync_gate.manifest_roots(ROOT)
-        if root not in {'.agents/', 'skills/'}
-    ]
+    roots = [root for root in sync_gate.manifest_roots(ROOT) if root not in {'.agents/', 'skills/'}]
     errors = sync_gate.check_required_manifest_roots(roots)
     assert any('.agents/' in error for error in errors)
     assert any('skills/' in error for error in errors)

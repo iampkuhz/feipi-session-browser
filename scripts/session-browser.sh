@@ -472,10 +472,8 @@ run_coverage() {
     mkdir -p "$coverage_dir"
     run_dev_tool pytest -W error \
         tests/harness \
-        tests/agent_runtime \
         tests/gates \
         tests/quality/test_contract_case_specs.py \
-        tests/quality/test_java_api_snapshot.py \
         tests/quality/test_java_classification.py \
         tests/quality/test_new_quality_gates.py \
         tests/quality/test_no_test_skips_gate.py \

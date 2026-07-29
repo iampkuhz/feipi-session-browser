@@ -56,20 +56,13 @@ def test_java_module_build_file_is_known_java_build_path() -> None:
     assert classification.quality_target == 'java-build'
 
 
-def test_reuse_standard_cpd_gate_command_uses_incremental_wrapper(
-    tmp_path: Path, monkeypatch
-) -> None:
-    """reuseStandardCpd gate 必须调用默认增量 wrapper，而不是直接全量 Gradle task。"""
-    monkeypatch.delenv('QUALITY_GATE_TIER', raising=False)
-    runner = tmp_path / 'scripts' / 'checks' / 'run_reuse_standard_cpd.py'
-    runner.parent.mkdir(parents=True)
-    runner.write_text('#!/usr/bin/env python3\n', encoding='utf-8')
+def test_reuse_standard_cpd_gate_command_uses_gradle_owner(tmp_path: Path) -> None:
+    """reuseStandardCpd Gate 直接调用 Gradle owner，不再经过 Python wrapper。"""
+    (tmp_path / 'gradlew').write_text('#!/bin/sh\n', encoding='utf-8')
 
     command = gate_executor.gate_command('reuseStandardCpd', tmp_path, 'java-src')
 
-    assert command
-    assert command[1] == str(runner)
-    assert '--mode' not in command
+    assert command == [str(tmp_path / 'gradlew'), 'reuseStandardCpd']
 
 
 def test_gate_cli_can_resolve_active_change_id(tmp_path: Path) -> None:

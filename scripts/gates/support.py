@@ -15,7 +15,10 @@ import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any, Mapping, Sequence
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from collections.abc import Mapping, Sequence
 
 PROVIDER_ENV_PREFIXES = ('CODEX_', 'QODER_', 'CLAUDE_')
 PROCESS_TAIL_BYTES = 4096
@@ -196,7 +199,11 @@ def parse_changed_files_json(value: str | None) -> list[str]:
         parsed: Any = json.loads(value)
     except json.JSONDecodeError:
         return []
-    return dedupe_paths([item for item in parsed if isinstance(item, str)]) if isinstance(parsed, list) else []
+    return (
+        dedupe_paths([item for item in parsed if isinstance(item, str)])
+        if isinstance(parsed, list)
+        else []
+    )
 
 
 def read_recorded_changed_files_from_paths(
@@ -265,7 +272,7 @@ def ensure_private_directory(path: Path, *, root: Path | None = None) -> Path:
     target.mkdir(parents=True, exist_ok=True, mode=0o700)
     _reject_symlink_components(target)
     metadata = target.lstat()
-    uid = (getattr(os, 'geteuid', None) or getattr(os, 'getuid'))()
+    uid = (getattr(os, 'geteuid', None) or os.getuid)()
     if not stat.S_ISDIR(metadata.st_mode) or metadata.st_uid != uid:
         raise ValueError(f'unsafe private directory: {target}')
     os.chmod(target, 0o700)
@@ -351,10 +358,18 @@ def _log_tail(path: Path, limit: int = PROCESS_TAIL_BYTES) -> str:
 
 
 def run_bounded(
-    argv: Sequence[str], *, cwd: Path | str, timeout: float, env: Mapping[str, str | None] | None,
-    log_path: Path | str
+    argv: Sequence[str],
+    *,
+    cwd: Path | str,
+    timeout: float,
+    env: Mapping[str, str | None] | None,
+    log_path: Path | str,
 ) -> BoundedRunResult:
-    if isinstance(argv, (str, bytes)) or not argv or any(not isinstance(v, str) or not v or '\0' in v for v in argv):
+    if (
+        isinstance(argv, (str, bytes))
+        or not argv
+        or any(not isinstance(v, str) or not v or '\0' in v for v in argv)
+    ):
         raise ValueError('argv must contain non-empty strings without NUL')
     if timeout <= 0:
         raise ValueError('timeout must be positive')
@@ -373,8 +388,14 @@ def run_bounded(
     with os.fdopen(descriptor, 'wb') as log:
         try:
             process = subprocess.Popen(
-                command, cwd=Path(cwd).resolve(), env=child_env, stdin=subprocess.DEVNULL,
-                stdout=log, stderr=subprocess.STDOUT, start_new_session=True, shell=False
+                command,
+                cwd=Path(cwd).resolve(),
+                env=child_env,
+                stdin=subprocess.DEVNULL,
+                stdout=log,
+                stderr=subprocess.STDOUT,
+                start_new_session=True,
+                shell=False,
             )
             try:
                 return_code = process.wait(timeout=timeout)
@@ -394,10 +415,17 @@ def run_bounded(
             log.flush()
             os.fsync(log.fileno())
     return BoundedRunResult(
-        return_code, exit_reason, timed_out, stable_hash(json.dumps(command)),
-        stable_hash(json.dumps(sorted(child_env.items()))), started_at, utc_now(),
-        round(time.monotonic() - started, 6), process.pid if process else None,
-        str(selected_log), _log_tail(selected_log)
+        return_code,
+        exit_reason,
+        timed_out,
+        stable_hash(json.dumps(command)),
+        stable_hash(json.dumps(sorted(child_env.items()))),
+        started_at,
+        utc_now(),
+        round(time.monotonic() - started, 6),
+        process.pid if process else None,
+        str(selected_log),
+        _log_tail(selected_log),
     )
 
 
@@ -424,7 +452,9 @@ def reserve_port(repo_root: Path, name: str, *, hold_socket: bool = True) -> Por
     port = int(sock.getsockname()[1])
     if not hold_socket:
         sock.close()
-    run_id = os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
+    run_id = (
+        os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
+    )
     path = root / f'{_safe_segment(run_id)}-{_safe_segment(name)}.json'
     path.write_text(json.dumps({'runId': run_id, 'name': name, 'port': port}) + '\n')
     return PortAllocation(name, port, path, sock if hold_socket else None)

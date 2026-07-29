@@ -16,8 +16,11 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.gates import support  # noqa: E402
-from scripts.gates import executor, receipt, report  # noqa: E402
+from scripts.gates import (  # noqa: E402
+    executor,
+    report,
+    support,  # noqa: E402
+)
 from scripts.gates.catalog import CATALOG_VERSION, TARGETS, gate_by_name, tier_by_name  # noqa: E402
 from scripts.gates.model import GatePlan, TargetGatePlan  # noqa: E402
 from scripts.gates.planner import plan as build_plan  # noqa: E402
@@ -31,8 +34,6 @@ class GateServiceResult:
     plan: GatePlan
     details: tuple[report.GateDetail, ...]
     artifact_path: Path | None
-    receipt_paths: tuple[Path, ...]
-    reused: bool = False
 
     # 仅在状态严格为 PASS 时返回 true。
     @property
@@ -134,7 +135,7 @@ def _overall_status(details: tuple[report.GateDetail, ...]) -> str:
     return report.PASS
 
 
-# 规划、执行、报告并写入内容敏感 PASS receipt。
+# 规划、执行并写入本次运行的质量报告。
 def run_service(
     *,
     repo_root: Path,
@@ -146,10 +147,9 @@ def run_service(
     explicit_changed_files: bool = True,
     base_url: str | None = None,
     include_preflight: bool = True,
-    reuse_receipts: bool = True,
     environment_overrides: dict[str, str] | None = None,
 ) -> GateServiceResult:
-    """规划、执行、报告并写入内容敏感 PASS receipt。"""
+    """规划、执行并写入本次运行的质量报告。"""
     gate_plan = create_plan(
         changed_files,
         tier=tier,
@@ -159,100 +159,14 @@ def run_service(
     execution_plan = _with_preflight(gate_plan) if include_preflight else gate_plan
     resolved_plan = executor.build_execution_plan(execution_plan, repo_root, base_url=base_url)
     output = out_dir or repo_root / 'tmp' / 'quality'
-    receipt_environment = {'BASE_URL': base_url or '', **(environment_overrides or {})}
-    planned_targets = tuple(gate_plan.effective_targets or ((target,) if target else ()))
-    cache_keys = {
-        planned_target: receipt.content_cache_key(
-            planned_target,
-            changed_files,
-            repo_root,
-            receipt_environment,
-            attribution={'explicitChangedFiles': explicit_changed_files},
-            plan_fingerprint=resolved_plan.fingerprint,
-            command_fingerprint=executor._stable_hash(  # noqa: SLF001
-                [list(group.command) for group in resolved_plan.groups]
-            ),
-            gate_inputs={'changedFiles': changed_files},
-        )
-        for planned_target in planned_targets
-        if planned_target
-    }
-    cached_paths = tuple(
-        receipt.receipt_path(output, change_id, planned_target) for planned_target in cache_keys
-    )
-    decisions = tuple(
-        receipt.reuse_decision(path, cache_keys[planned_target])
-        for planned_target, path in zip(cache_keys, cached_paths, strict=True)
-    )
-    if cache_keys and reuse_receipts and all(valid for valid, _reason in decisions):
-        seen: set[str] = set()
-        cached_details_list: list[report.GateDetail] = []
-        for target_plan in execution_plan.targets:
-            for spec in target_plan.gates:
-                if spec.name in seen:
-                    continue
-                seen.add(spec.name)
-                cached_details_list.append(
-                    report.GateDetail(
-                        name=spec.name,
-                        status=report.PASS,
-                        output='content-sensitive PASS receipt reused',
-                        executionState='REUSED',
-                        receiptReason='all-bound-fingerprints-matched',
-                    )
-                )
-        cached_details = tuple(cached_details_list)
-        summary = report.build_summary(
-            target or tier,
-            change_id,
-            report.utc_now(),
-            list(cached_details),
-            repo_root=repo_root,
-            execution_metadata={
-                'planId': resolved_plan.plan_id,
-                'planFingerprint': resolved_plan.fingerprint,
-                'checkoutFingerprint': receipt.checkout_content_fingerprint(repo_root),
-                'catalogVersion': CATALOG_VERSION,
-                'commandGroups': [
-                    {
-                        'groupId': group.group_id,
-                        'kind': group.kind,
-                        'gates': list(group.gate_names),
-                        'command': list(group.command),
-                        'resources': list(group.resources),
-                        'dependsOn': list(group.depends_on),
-                        'aggregationReason': group.aggregation_reason,
-                    }
-                    for group in resolved_plan.groups
-                ],
-                'processCounts': {'gradle': 0, 'python': 0, 'bash': 0, 'total': 0},
-            },
-        )
-        artifact = report.write_quality_summary(
-            output,
-            summary,
-            target_specific=True,
-            artifact_variant='reuse',
-        )
-        return GateServiceResult(
-            report.PASS, gate_plan, cached_details, artifact, cached_paths, True
-        )
-
     details = executor.execute_plan(
         resolved_plan,
         repo_root,
-        environment_overrides=environment_overrides,
+        environment_overrides={
+            'QUALITY_GATE_TIER': tier,
+            **(environment_overrides or {}),
+        },
     )
-    receipt_miss_reason = (
-        'receipt-reuse-disabled'
-        if not reuse_receipts
-        else next(
-            (reason for valid, reason in decisions if not valid),
-            'no-target-receipt',
-        )
-    )
-    for detail in details:
-        detail.receiptReason = receipt_miss_reason
     status = _overall_status(details)
     label = target or tier
     started_at = report.utc_now()
@@ -265,7 +179,6 @@ def run_service(
         execution_metadata={
             'planId': resolved_plan.plan_id,
             'planFingerprint': resolved_plan.fingerprint,
-            'checkoutFingerprint': receipt.checkout_content_fingerprint(repo_root),
             'catalogVersion': CATALOG_VERSION,
             'commandGroups': [
                 {
@@ -295,31 +208,7 @@ def run_service(
     )
     summary.status = status
     artifact = report.write_quality_summary(output, summary, target_specific=True)
-    receipt_paths: list[Path] = []
-    if status == report.PASS:
-        for planned_target in planned_targets:
-            if not planned_target:
-                continue
-            cache_key = cache_keys[planned_target]
-            receipt_paths.append(
-                receipt.write_pass_receipt(
-                    output,
-                    target=planned_target,
-                    change_id=change_id,
-                    changed_files=changed_files,
-                    cache_key=cache_key,
-                    artifact_path=str(artifact),
-                    repo_root=repo_root,
-                    attribution={'explicitChangedFiles': explicit_changed_files},
-                    plan_fingerprint=resolved_plan.fingerprint,
-                    command_fingerprint=executor._stable_hash(  # noqa: SLF001
-                        [list(group.command) for group in resolved_plan.groups]
-                    ),
-                    environment=receipt_environment,
-                    gate_inputs={'changedFiles': changed_files},
-                )
-            )
-    return GateServiceResult(status, gate_plan, details, artifact, tuple(receipt_paths))
+    return GateServiceResult(status, gate_plan, details, artifact)
 
 
 # 返回稳定、可机器读取且不执行子进程的 dry-run 摘要。

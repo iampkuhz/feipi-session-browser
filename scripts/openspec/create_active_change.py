@@ -167,9 +167,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         agent_id=agent_id or os.environ.get('FEIPI_AGENT_ID') or '',
     )
     change_dir = root / 'openspec' / 'changes' / change_id
-    agent_dir = (
-        gate_support.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
-    )
+    agent_dir = gate_support.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
     active_change_file = agent_dir / 'active_change.json'
 
     created: list[str] = []

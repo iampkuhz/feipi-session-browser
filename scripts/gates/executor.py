@@ -19,7 +19,6 @@ from pathlib import Path
 
 from scripts.gates import resource_lock
 from scripts.gates import support as gate_support
-from scripts.gates.support import resolve_runtime_root, run_bounded, sanitized_environment
 from scripts.gates.catalog import CATALOG_VERSION, gate_by_name
 from scripts.gates.model import (
     ChangedFilesInput,
@@ -40,6 +39,7 @@ from scripts.gates.report import (
     PASS,
     GateDetail,
 )
+from scripts.gates.support import resolve_runtime_root, run_bounded, sanitized_environment
 from scripts.harness.python_env import project_venv_dir, resolve_python
 
 PLAYWRIGHT_COMMAND_MIN_PARTS = 5
@@ -260,6 +260,11 @@ _GRADLE_TASK_RE = re.compile(
     r'^> Task (?P<task>:\S+?)(?: (?P<outcome>UP-TO-DATE|FROM-CACHE|NO-SOURCE|SKIPPED|FAILED))?$',
     flags=re.MULTILINE,
 )
+_GATE_TASK_RESULT_RE = re.compile(
+    r'^GATE_TASK_RESULT task=(?P<task>:\S+) status=BLOCKED '
+    r'reason=(?P<reason>[A-Za-z0-9._-]+)$',
+    flags=re.MULTILINE,
+)
 
 
 # 维护去除 ANSI。
@@ -275,10 +280,16 @@ def _strip_ansi(text: str) -> str:
 
 def _gradle_task_outcomes(output: str) -> dict[str, str]:
     """从完整 plain console 输出提取稳定 Gradle task outcome。"""
-    return {
+    clean = _strip_ansi(output)
+    outcomes = {
         match.group('task'): match.group('outcome') or 'EXECUTED'
-        for match in _GRADLE_TASK_RE.finditer(_strip_ansi(output))
+        for match in _GRADLE_TASK_RE.finditer(clean)
     }
+    # task 自己可用通用 marker 将执行失败细分为 BLOCKED；marker 必须精确绑定 task。
+    outcomes.update(
+        {match.group('task'): 'BLOCKED' for match in _GATE_TASK_RESULT_RE.finditer(clean)}
+    )
+    return outcomes
 
 
 # 判断是否Playwright 命令。
@@ -655,14 +666,6 @@ def _declared_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]
     return command
 
 
-def _cpd_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
-    """按 CPD 能力声明补充 full 模式参数。"""
-    command = _declared_command(spec, repo_root, target)
-    if command and os.environ.get('QUALITY_GATE_TIER') == 'full' and spec.command:
-        command.extend(spec.command.full_args)
-    return command
-
-
 def _scan_smoke_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
     """兼容独立调用：用 catalog prerequisite 与 pytest 声明构造 smoke 命令。"""
     pytest_command = _declared_command(spec, repo_root, target)
@@ -686,7 +689,6 @@ def _scan_smoke_command(spec: GateSpec, repo_root: Path, target: str) -> list[st
 _COMMAND_ADAPTERS = {
     'command': _declared_command,
     'playwright': _declared_command,
-    'cpd': _cpd_command,
     'scan-smoke': _scan_smoke_command,
 }
 
@@ -827,23 +829,6 @@ def _stable_hash(value: object) -> str:
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def _cpd_gradle_parts(repo_root: Path, changed_files: tuple[str, ...]) -> tuple[list[str], str]:
-    """解析 CPD 精确输入并返回可并入 Gradle group 的 task/property。"""
-    from scripts.checks import run_reuse_standard_cpd as cpd
-
-    mode = 'full' if os.environ.get('QUALITY_GATE_TIER') == 'full' else 'incremental'
-    if mode == 'full':
-        return ['reuseStandardCpd', '-PfeipiReuseCpdMode=full'], mode
-    if any(cpd.is_reuse_policy_path(path) for path in changed_files):
-        return [], 'blocked-policy'
-    java_files = cpd.select_incremental_java_files(repo_root, list(changed_files))
-    if not java_files:
-        return [], 'no-java-input'
-    file_list = repo_root / cpd.FILE_LIST_RELATIVE_PATH
-    property_arg = f'-PfeipiReuseCpdFileList={file_list.resolve().as_posix()}'
-    return ['reuseStandardCpd', property_arg, '-PfeipiReuseCpdMode=incremental'], mode
-
-
 def _add_dependency_edges(groups: list[CommandGroup]) -> list[CommandGroup]:
     """按稳定顺序为资源冲突和非并发 group 添加无环依赖边。"""
     result: list[CommandGroup] = []
@@ -876,11 +861,7 @@ def build_execution_plan(
                 seen.add(spec.name)
                 entries.append((spec, target_plan.target))
 
-    gradle_entries = [
-        (spec, target)
-        for spec, target in entries
-        if spec.gradle_tasks or _capability(spec) == 'cpd'
-    ]
+    gradle_entries = [(spec, target) for spec, target in entries if spec.gradle_tasks]
     scan_entries = [entry for entry in entries if _capability(entry[0]) == 'scan-smoke']
     scan_requested = bool(scan_entries)
     gradle_tasks: list[str] = []
@@ -888,15 +869,7 @@ def build_execution_plan(
     gradle_args: list[str] = []
     java_rules: list[str] = []
     gradle_gate_names: list[str] = []
-    cpd_mode = ''
     for spec, _target in gradle_entries:
-        if _capability(spec) == 'cpd':
-            parts, cpd_mode = _cpd_gradle_parts(repo_root, gate_plan.changed_files)
-            if parts:
-                gradle_tasks.append(parts[0])
-                gradle_properties.extend(parts[1:])
-                gradle_gate_names.append(spec.name)
-            continue
         gradle_tasks.extend(spec.gradle_tasks)
         gradle_args.extend(spec.gradle_args)
         java_rules.extend(spec.java_rules)
@@ -967,10 +940,7 @@ def build_execution_plan(
             # Gradle Gate 时也必须先插入 Gradle group，避免随后资源串行边形成环。
             groups.append(gradle_group)
             gradle_added = True
-        if capability == 'cpd' and cpd_mode in {'no-java-input', 'blocked-policy'}:
-            kind = 'cpd-noop' if cpd_mode == 'no-java-input' else 'cpd-blocked'
-            command: list[str] = []
-        elif capability == 'scan-smoke':
+        if capability == 'scan-smoke':
             kind = 'command'
             command = _declared_command(spec, repo_root, target)
         else:
@@ -1036,18 +1006,6 @@ def build_execution_plan(
     return ExecutionPlan(f'plan-{fingerprint[:16]}', fingerprint, gate_plan, planned, tuple(groups))
 
 
-def _prepare_cpd(repo_root: Path, execution_plan: ExecutionPlan) -> None:
-    """在 Gradle group 启动前写入其 plan 已绑定的精确 CPD file list。"""
-    if not any(_capability(gate_by_name(gate.name)) == 'cpd' for gate in execution_plan.gates):
-        return
-    from scripts.checks import run_reuse_standard_cpd as cpd
-
-    changed = list(execution_plan.gate_plan.changed_files)
-    java_files = cpd.select_incremental_java_files(repo_root, changed)
-    if java_files:
-        cpd.write_cpd_file_list(repo_root, java_files, repo_root / cpd.FILE_LIST_RELATIVE_PATH)
-
-
 def _execute_group(
     group: CommandGroup,
     repo_root: Path,
@@ -1070,43 +1028,7 @@ def _execute_group(
             timeout_seconds=min(120, group.timeout_seconds),
         ):
             waited_ms = int((time.monotonic() - started_wait) * 1000)
-            if group.kind == 'cpd-noop':
-                from scripts.checks import run_reuse_standard_cpd as cpd
-
-                changed = json.loads(dict(group.environment).get('QUALITY_CHANGED_FILES', '[]'))
-                cpd.write_summary(
-                    repo_root,
-                    status=PASS,
-                    mode='incremental',
-                    changed_files=changed,
-                    cpd_input_files=[],
-                    changed_files_source='Gate execution plan',
-                    reason='No changed production Java files; full CPD was not invoked.',
-                )
-                detail = GateDetail(
-                    name=group.group_id,
-                    status=PASS,
-                    output='No changed production Java files; CPD full scan was not invoked.',
-                )
-            elif group.kind == 'cpd-blocked':
-                from scripts.checks import run_reuse_standard_cpd as cpd
-
-                changed = json.loads(dict(group.environment).get('QUALITY_CHANGED_FILES', '[]'))
-                cpd.write_summary(
-                    repo_root,
-                    status=BLOCKED,
-                    mode='incremental',
-                    changed_files=changed,
-                    cpd_input_files=[],
-                    changed_files_source='Gate execution plan',
-                    reason='CPD policy changed; explicit full mode is required.',
-                )
-                detail = GateDetail(
-                    name=group.group_id,
-                    status=BLOCKED,
-                    output='CPD policy changed; explicit full mode is required.',
-                )
-            elif not group.command:
+            if not group.command:
                 detail = GateDetail(
                     name=group.group_id, status=BLOCKED, output='Gate command unavailable.'
                 )
@@ -1151,6 +1073,8 @@ def _gradle_gate_outcome(task_outcomes: dict[str, str], tasks: tuple[str, ...]) 
         if len(matches) != 1:
             return None
         resolved.append(matches[0])
+    if any(value == 'BLOCKED' for value in resolved):
+        return 'BLOCKED'
     if any(value == 'FAILED' for value in resolved):
         return 'FAILED'
     if any(value == 'SKIPPED' for value in resolved):
@@ -1184,7 +1108,6 @@ def execute_plan(
     environment_overrides: dict[str, str] | None = None,
 ) -> tuple[GateDetail, ...]:
     """只执行冻结 execution plan；结果始终按 plan 顺序返回。"""
-    _prepare_cpd(repo_root, execution_plan)
     identity = gate_support.identity_from_values()
     overrides = environment_overrides or {}
     execution_groups = tuple(
@@ -1241,13 +1164,18 @@ def execute_plan(
         output = outcome.output
         spec = gate_by_name(gate.name)
         selected_outcomes: dict[str, str] = {}
+        task_outcome: str | None = None
         if group.kind == 'gradle':
-            selected_tasks = spec.gradle_tasks or (
-                spec.command.gradle_outcome_tasks if spec.command else ()
-            )
+            selected_tasks = spec.gradle_tasks
             task_outcome = _gradle_gate_outcome(outcome.taskOutcomes, selected_tasks)
             selected_outcomes = _selected_task_outcomes(outcome.taskOutcomes, selected_tasks)
-            if task_outcome == 'SKIPPED':
+            if task_outcome == 'BLOCKED':
+                status = BLOCKED
+                output = (
+                    f'{output}\n'
+                    '[quality-gate] BLOCKED: selected Gradle task reported a blocking result.'
+                )
+            elif task_outcome == 'SKIPPED':
                 status = FAIL
                 output = f'{output}\n[quality-gate] FAIL: selected Gradle task was SKIPPED.'
             elif task_outcome == 'FAILED':
@@ -1273,6 +1201,8 @@ def execute_plan(
                 executionState=(
                     'EXECUTED'
                     if status == PASS
+                    else 'BLOCKED'
+                    if task_outcome == 'BLOCKED'
                     else outcome.executionState
                     if status == BLOCKED
                     else 'FAILED'

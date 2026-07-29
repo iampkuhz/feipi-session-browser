@@ -6,6 +6,9 @@ import time
 from pathlib import Path
 
 import pytest
+from scripts.gates import executor
+from scripts.gates.planner import plan
+from scripts.gates.report import PASS, GateDetail
 from scripts.gates.resource_lock import (
     NamedResourceLock,
     ResourceLockSet,
@@ -13,9 +16,6 @@ from scripts.gates.resource_lock import (
     owner_metadata,
 )
 from scripts.gates.support import reserve_port
-from scripts.gates import executor
-from scripts.gates.planner import plan
-from scripts.gates.report import PASS, GateDetail
 
 
 def test_multi_resource_lock_uses_stable_order_and_finally_release(tmp_path: Path, monkeypatch):

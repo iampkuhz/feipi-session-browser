@@ -3,10 +3,13 @@
 
 from __future__ import annotations
 
-from pathlib import Path
+from typing import TYPE_CHECKING
 
 import yaml
 from scripts.checks._framework import repository_root
+
+if TYPE_CHECKING:
+    from pathlib import Path
 
 ROOT = repository_root()
 POLICY_MANIFEST = ROOT / 'harness' / 'agent-policy.manifest.yaml'

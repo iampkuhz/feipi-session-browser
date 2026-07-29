@@ -5,7 +5,6 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import yaml
-
 from scripts.checks import check_misplaced_generated_paths
 
 if TYPE_CHECKING:
@@ -47,9 +46,7 @@ def test_manifest_configuration_is_read(tmp_path: Path):
     manifest = _write_manifest(root, ['custom-generated/'])
     (root / 'custom-generated').mkdir()
 
-    assert check_misplaced_generated_paths.load_forbidden_paths(manifest) == (
-        'custom-generated',
-    )
+    assert check_misplaced_generated_paths.load_forbidden_paths(manifest) == ('custom-generated',)
     assert check_misplaced_generated_paths.find_misplaced_paths(
         root,
         check_misplaced_generated_paths.load_forbidden_paths(manifest),

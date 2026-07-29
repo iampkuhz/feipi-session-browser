@@ -10,7 +10,6 @@ import sys
 from pathlib import Path
 
 import yaml
-
 from scripts.checks._framework import argument_parser, repository_root
 
 REPO_ROOT = repository_root()
@@ -55,7 +54,9 @@ def find_misplaced_paths(root: Path, forbidden_paths: tuple[str, ...]) -> tuple[
 
 def main(argv: list[str] | None = None) -> int:
     """执行禁止生成路径检查。"""
-    parser = argument_parser(description='Fail when generated paths are misplaced in the repository')
+    parser = argument_parser(
+        description='Fail when generated paths are misplaced in the repository'
+    )
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to inspect')
     parser.add_argument(
         '--manifest',

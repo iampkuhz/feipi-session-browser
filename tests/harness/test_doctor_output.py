@@ -11,7 +11,12 @@ from pathlib import Path
 import pytest
 
 
-def _doctor_fixture(tmp_path: Path, *, include_agents: bool = True) -> tuple[Path, Path]:
+def _doctor_fixture(
+    tmp_path: Path,
+    *,
+    include_agents: bool = True,
+    include_changes: bool = True,
+) -> tuple[Path, Path]:
     """Create the smallest filesystem accepted by the doctor shell contract."""
     root = tmp_path / 'repo'
     script_dir = root / 'scripts' / 'harness'
@@ -31,11 +36,13 @@ def _doctor_fixture(tmp_path: Path, *, include_agents: bool = True) -> tuple[Pat
         path.write_text('{}\n' if relative.endswith('.json') else '\n', encoding='utf-8')
     for relative in directories:
         (root / relative).mkdir(parents=True, exist_ok=True)
-    (root / 'openspec' / 'changes').mkdir(parents=True, exist_ok=True)
+    if include_changes:
+        (root / 'openspec' / 'changes').mkdir(parents=True, exist_ok=True)
 
     fake_python = root / 'fake-python'
     fake_python.write_text(
         '#!/usr/bin/env bash\n'
+        'printf "%s\\n" "$*" >> "${DOCTOR_CALL_LOG:?}"\n'
         'if [[ "$*" == *"python_env.py resolve"* ]]; then\n'
         '  printf "%s\\n" "$0"\n'
         'else\n'
@@ -56,6 +63,7 @@ def _doctor_fixture(tmp_path: Path, *, include_agents: bool = True) -> tuple[Pat
 def _run_doctor(doctor: Path, python: Path, *args: str) -> subprocess.CompletedProcess[str]:
     env = os.environ.copy()
     env['SESSION_BROWSER_PYTHON'] = str(python)
+    env['DOCTOR_CALL_LOG'] = str(doctor.parents[2] / '.doctor-call-log')
     env['PATH'] = f'{doctor.parents[2]}:{env.get("PATH", "")}'
     return subprocess.run(
         ['bash', str(doctor), *args],
@@ -68,7 +76,23 @@ def _run_doctor(doctor: Path, python: Path, *args: str) -> subprocess.CompletedP
     )
 
 
-@pytest.mark.contract_case('HOOK-HARNESS-009')
+def _tree_snapshot(root: Path) -> dict[str, tuple[str, bytes | str]]:
+    """Return repository contents, excluding the test-only invocation log."""
+    snapshot: dict[str, tuple[str, bytes | str]] = {}
+    for path in sorted(root.rglob('*')):
+        relative = path.relative_to(root).as_posix()
+        if relative == '.doctor-call-log':
+            continue
+        if path.is_symlink():
+            snapshot[relative] = ('symlink', os.readlink(path))
+        elif path.is_dir():
+            snapshot[relative] = ('dir', '')
+        else:
+            snapshot[relative] = ('file', path.read_bytes())
+    return snapshot
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-009', 'HOOK-HARNESS-014')
 def test_doctor_success_is_one_line_by_default(tmp_path: Path):
     doctor, python = _doctor_fixture(tmp_path)
 
@@ -99,3 +123,33 @@ def test_doctor_failure_names_the_failed_check(tmp_path: Path):
     assert proc.returncode == 1
     assert '[FAIL] missing file: AGENTS.md' in proc.stdout
     assert 'DOCTOR_RESULT status=FAIL' in proc.stdout
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-009', 'HOOK-HARNESS-014')
+def test_doctor_is_read_only_and_does_not_run_quality_gates(tmp_path: Path):
+    doctor, python = _doctor_fixture(tmp_path)
+    root = doctor.parents[2]
+    before = _tree_snapshot(root)
+
+    proc = _run_doctor(doctor, python)
+
+    assert proc.returncode == 0, proc.stdout
+    assert _tree_snapshot(root) == before
+    calls = (root / '.doctor-call-log').read_text(encoding='utf-8')
+    assert '-m scripts.checks' not in calls
+    assert 'scripts/gates/cli.py' not in calls
+    assert 'scripts.gates.cli' not in calls
+    assert 'compileall' not in calls
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-009', 'HOOK-HARNESS-014')
+def test_doctor_does_not_create_missing_openspec_changes(tmp_path: Path):
+    doctor, python = _doctor_fixture(tmp_path, include_changes=False)
+    changes = doctor.parents[2] / 'openspec' / 'changes'
+
+    proc = _run_doctor(doctor, python)
+
+    assert proc.returncode == 0, proc.stdout
+    assert not changes.exists()
+    assert '[WARN] openspec/changes/ 不存在' in proc.stdout
+    assert 'DOCTOR_RESULT status=PASS' in proc.stdout

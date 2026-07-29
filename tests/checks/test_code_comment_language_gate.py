@@ -68,9 +68,9 @@ def _helper():
 
 
 def test_safety_critical_private_requires_docstring(tmp_path: Path) -> None:
-    source = '''"""负责读取执行收据；不负责运行命令，由 Stop pipeline 调用。"""
+    source = '''"""负责读取执行摘要；不负责运行命令，由 Stop pipeline 调用。"""
 
-def _load_receipt():
+def _load_gate_summary():
     return None
 '''
     assert 'DEFINITION_DOCSTRING_MISSING' in codes(scan_python(tmp_path, source))
@@ -120,10 +120,10 @@ def run_check():
 
 
 def test_canonical_technical_terms_do_not_dilute_chinese(tmp_path: Path) -> None:
-    source = '''"""负责校验 Stop Gate receipt；不负责执行 pipeline，由 Hook CLI 调用。"""
+    source = '''"""负责校验 Stop Gate artifact；不负责执行 pipeline，由 Hook CLI 调用。"""
 
-def validate_receipt():
-    """读取 JSON receipt，并校验 SHA-256 与 worktree identity 一致。"""
+def validate_artifact():
+    """读取 JSON artifact，并校验 SHA-256 与本次执行信息一致。"""
     return True
 '''
     assert scan_python(tmp_path, source) == []

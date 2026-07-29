@@ -1,15 +1,15 @@
-"""Phase 8 execution plan、聚合、资源 DAG 与 receipt 的 contract。"""
+"""Phase 8 execution plan、聚合与资源 DAG contract。"""
 
 from __future__ import annotations
 
 import json
-import subprocess
 from dataclasses import asdict
 from pathlib import Path
 
-from scripts.gates import cli, executor, receipt
+import pytest
+from scripts.gates import cli, executor
 from scripts.gates.planner import plan
-from scripts.gates.report import FAIL, PASS, GateDetail
+from scripts.gates.report import BLOCKED, FAIL, PASS, GateDetail
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 MIXED_FILES = [
@@ -32,7 +32,7 @@ def test_execution_plan_is_deterministic_immutable_and_acyclic() -> None:
         completed.add(group.group_id)
 
 
-def test_mixed_required_uses_one_gradle_group_and_exact_cpd_input() -> None:
+def test_mixed_required_uses_one_gradle_group_and_changed_files_environment() -> None:
     execution = executor.build_execution_plan(
         cli._with_preflight(plan(MIXED_FILES)),
         REPO_ROOT,  # noqa: SLF001
@@ -49,13 +49,64 @@ def test_mixed_required_uses_one_gradle_group_and_exact_cpd_input() -> None:
         ':java:app-cli:installDist',
     ):
         assert command.count(task) == 1
-    assert sum(part.startswith('-PfeipiReuseCpdFileList=') for part in command) == 1
+    assert json.loads(dict(gradle_groups[0].environment)['QUALITY_CHANGED_FILES']) == MIXED_FILES
     java_rule_properties = [part for part in command if part.startswith('-PfeipiJavaQualityRules=')]
     assert java_rule_properties == [
         '-PfeipiJavaQualityRules=record-component-javadocs,no-pmd-suppressions'
     ]
     assert '--no-configuration-cache' not in command
     assert 'clean' not in command
+
+
+@pytest.mark.parametrize(
+    ('task_outcome', 'expected_status', 'diagnostic'),
+    [
+        ('EXECUTED', PASS, 'Gradle task outcome confirmed'),
+        ('UP-TO-DATE', PASS, 'Gradle task outcome confirmed'),
+        ('FAILED', FAIL, ''),
+        ('SKIPPED', FAIL, 'selected Gradle task was SKIPPED'),
+        (None, BLOCKED, 'selected Gradle task outcome was not confirmed'),
+    ],
+)
+def test_session_samples_uses_one_gradle_group_and_standard_task_outcome(
+    monkeypatch,
+    task_outcome: str | None,
+    expected_status: str,
+    diagnostic: str,
+) -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(plan(['tests/fixtures/session_samples/sample.json'])),
+        REPO_ROOT,  # noqa: SLF001
+    )
+    gradle_groups = [group for group in execution.groups if group.kind == 'gradle']
+    outcomes = (
+        {':java:tests:contracts:sampleIntegrationTest': task_outcome}
+        if task_outcome is not None
+        else {}
+    )
+
+    assert len(gradle_groups) == 1
+    assert gradle_groups[0].command.count(':java:tests:contracts:sampleIntegrationTest') == 1
+
+    def fake_group(group, _repo_root, _identity):
+        if group.kind != 'gradle':
+            return group.group_id, GateDetail(group.group_id, PASS), 0
+        return (
+            group.group_id,
+            GateDetail(
+                group.group_id,
+                PASS,
+                taskOutcomes=outcomes,
+            ),
+            0,
+        )
+
+    monkeypatch.setattr(executor, '_execute_group', fake_group)
+    details = {detail.name: detail for detail in executor.execute_plan(execution, REPO_ROOT)}
+
+    assert details['sessionSamples'].status == expected_status
+    assert diagnostic in details['sessionSamples'].output
+    assert details['sessionSamples'].taskOutcomes == outcomes
 
 
 def test_scan_dry_run_excludes_pid_scoped_transient_paths() -> None:
@@ -186,65 +237,36 @@ def test_gradle_group_maps_each_selected_task_outcome(monkeypatch) -> None:
     assert details['reuseAnalyzeIncremental'].status == PASS
 
 
-def test_checkout_fingerprint_covers_commit_index_worktree_and_untracked(tmp_path: Path) -> None:
-    subprocess.run(['git', 'init', '-q'], cwd=tmp_path, check=True)
-    subprocess.run(
-        ['git', 'config', 'user.email', 'gate@example.invalid'], cwd=tmp_path, check=True
-    )
-    subprocess.run(['git', 'config', 'user.name', 'Gate Test'], cwd=tmp_path, check=True)
-    tracked = tmp_path / 'tracked.txt'
-    tracked.write_text('one\n')
-    subprocess.run(['git', 'add', 'tracked.txt'], cwd=tmp_path, check=True)
-    subprocess.run(['git', 'commit', '-qm', 'initial'], cwd=tmp_path, check=True)
-    committed = receipt.checkout_content_fingerprint(tmp_path)
-
-    tracked.write_text('two\n')
-    working = receipt.checkout_content_fingerprint(tmp_path)
-    subprocess.run(['git', 'add', 'tracked.txt'], cwd=tmp_path, check=True)
-    staged = receipt.checkout_content_fingerprint(tmp_path)
-    (tmp_path / 'untracked.txt').write_text('new\n')
-    untracked = receipt.checkout_content_fingerprint(tmp_path)
-
-    assert len({committed, working, staged, untracked}) == 4
-
-
-def test_receipt_key_invalidates_attribution_plan_command_env_and_gate_input(
-    tmp_path: Path, monkeypatch
+@pytest.mark.parametrize(
+    ('task_outcomes', 'expected_status'),
+    [
+        ({':reuseStandardCpd': 'BLOCKED'}, BLOCKED),
+        ({':reuseStandardCpd': 'FAILED'}, FAIL),
+    ],
+)
+def test_gradle_task_status_is_generic_and_preserves_blocked_vs_failed(
+    monkeypatch, task_outcomes: dict[str, str], expected_status: str
 ) -> None:
-    monkeypatch.setattr(receipt, 'checkout_content_fingerprint', lambda _root: 'checkout')
+    execution = executor.build_execution_plan(
+        cli._with_preflight(plan(['config/reuse-policy/policy.json'])),  # noqa: SLF001
+        REPO_ROOT,
+    )
 
-    def key(**overrides):
-        values = {
-            'attribution': {'baseline': 'a'},
-            'plan_fingerprint': 'plan-a',
-            'command_fingerprint': 'command-a',
-            'environment': {'BASE_URL': 'http://fixture-a'},
-            'gate_inputs': {'files': ['a.py']},
-        }
-        values.update(overrides)
-        return receipt.content_cache_key('harness', ['a.py'], tmp_path, **values)
+    def fake_group(group, _repo_root, _identity):
+        if group.kind != 'gradle':
+            return group.group_id, GateDetail(group.group_id, PASS), 0
+        return (
+            group.group_id,
+            GateDetail(group.group_id, FAIL, taskOutcomes=task_outcomes),
+            0,
+        )
 
-    baseline = key()
-    variants = {
-        key(attribution={'baseline': 'b'}),
-        key(plan_fingerprint='plan-b'),
-        key(command_fingerprint='command-b'),
-        key(environment={'BASE_URL': 'http://fixture-b'}),
-        key(gate_inputs={'files': ['b.py']}),
-    }
-    assert baseline not in variants
-    assert len(variants) == 5
+    monkeypatch.setattr(executor, '_execute_group', fake_group)
+    details = {detail.name: detail for detail in executor.execute_plan(execution, REPO_ROOT)}
 
-
-def test_corrupt_foreign_and_non_pass_receipts_are_never_reused(tmp_path: Path) -> None:
-    path = tmp_path / 'receipt.json'
-    assert receipt.reuse_decision(path, 'key') == (False, 'missing-or-corrupt-receipt')
-    path.write_text('{broken', encoding='utf-8')
-    assert receipt.reuse_decision(path, 'key') == (False, 'missing-or-corrupt-receipt')
-    path.write_text(json.dumps({'schema_version': 1, 'status': 'PASS'}), encoding='utf-8')
-    assert receipt.reuse_decision(path, 'key') == (False, 'foreign-schema')
-    path.write_text(json.dumps({'schema_version': 2, 'status': 'FAIL'}), encoding='utf-8')
-    assert receipt.reuse_decision(path, 'key') == (False, 'non-pass-receipt')
+    assert details['reuseStandardCpd'].status == expected_status
+    if expected_status == BLOCKED:
+        assert details['reuseStandardCpd'].executionState == 'BLOCKED'
 
 
 def test_execution_plan_serialization_is_stable() -> None:

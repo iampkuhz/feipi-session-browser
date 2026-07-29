@@ -28,7 +28,6 @@ public_executables:
   openspec_schema: "python3 scripts/openspec/validate_schema.py"
   openspec_active_change: "python3 scripts/openspec/validate_active_change.py"
   harness_structure: "python3 scripts/harness/validate_harness_structure.py"
-  subagent_catalog: "python3 scripts/harness/validate_subagent_catalog.py"
   release_candidate: "bash scripts/release/create-release-candidate.sh"
   release_checksums: "bash scripts/release/generate-checksums.sh"
   release_rollback_drill: "bash scripts/release/drill-upgrade-rollback.sh"

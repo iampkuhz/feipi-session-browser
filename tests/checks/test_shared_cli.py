@@ -9,10 +9,7 @@ from scripts.checks._framework import CheckSpec, ScanContext, invoke
 from scripts.checks._registry import CHECKS
 
 ROOT = Path(__file__).resolve().parents[2]
-RUNNERS = {
-    'run_reuse_standard_cpd.py',
-    'run_session_samples_gate.py',
-}
+RUNNERS: set[str] = set()
 
 
 def test_required_domains_are_registered() -> None:

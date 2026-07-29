@@ -21,7 +21,9 @@ def _single_plan(target: str, gate: str) -> GatePlan:
 
 def test_command_adapter_reads_typed_declaration(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    assert executor.command_for_gate(gate_by_name('noTestSkips'), tmp_path, 'acceptance-contracts') == [
+    assert executor.command_for_gate(
+        gate_by_name('noTestSkips'), tmp_path, 'acceptance-contracts'
+    ) == [
         '/tmp/python',
         '-m',
         'scripts.checks',
@@ -35,6 +37,33 @@ def test_gradle_tasks_come_from_catalog(tmp_path: Path) -> None:
     assert executor.command_for_gate(gate, tmp_path, 'java-src')[
         1 : 1 + len(gate.gradle_tasks)
     ] == list(gate.gradle_tasks)
+
+
+def test_generic_task_marker_overrides_only_its_bound_failed_task() -> None:
+    output = '\n'.join(
+        [
+            '> Task :first FAILED',
+            '> Task :second FAILED',
+            'GATE_TASK_RESULT task=:first status=BLOCKED reason=input-unavailable',
+        ]
+    )
+
+    assert executor._gradle_task_outcomes(output) == {  # noqa: SLF001
+        ':first': 'BLOCKED',
+        ':second': 'FAILED',
+    }
+
+
+def test_malformed_or_unbound_task_marker_does_not_change_failed_outcome() -> None:
+    output = '\n'.join(
+        [
+            '> Task :first FAILED',
+            'GATE_TASK_RESULT task=first status=BLOCKED reason=input-unavailable',
+            'GATE_TASK_RESULT task=:first status=FAIL reason=input-unavailable',
+        ]
+    )
+
+    assert executor._gradle_task_outcomes(output) == {':first': 'FAILED'}  # noqa: SLF001
 
 
 def test_changed_files_only_reach_explicitly_supported_gradle_gate(tmp_path: Path) -> None:
@@ -70,9 +99,7 @@ def test_generic_gradle_gate_gets_no_unknown_changed_files_input(tmp_path: Path)
 def test_acceptance_contract_pytest_uses_stable_capability_suite(monkeypatch) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    command = executor.command_for_gate(
-        gate_by_name('pytest'), repo_root, 'acceptance-contracts'
-    )
+    command = executor.command_for_gate(gate_by_name('pytest'), repo_root, 'acceptance-contracts')
     assert command == [
         '/tmp/python',
         '-m',

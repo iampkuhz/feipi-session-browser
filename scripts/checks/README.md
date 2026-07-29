@@ -18,7 +18,7 @@
 
 - Gate/target/tier 注册、dominance 或 path routing；
 - 通用 subprocess 循环、timeout、bounded parallel 或 exclusive resource lock；
-- receipt、跨 Gate cache、overall summary 或 Stop/Registry 状态推进；
+- 历史结果复用、跨 Gate cache、overall summary 或 Stop/Registry 状态推进；
 - 平台 Hook payload 解析、writer lease 或 worktree 生命周期；
 - 真实 session、密钥、token、个人路径或不可提交运行数据的 fixture 构造。
 

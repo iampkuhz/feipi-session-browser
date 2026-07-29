@@ -76,7 +76,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -101,7 +100,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -125,7 +123,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -150,7 +147,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -175,7 +171,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -200,7 +195,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -224,7 +218,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -250,7 +243,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -289,7 +281,6 @@ gates:
   incremental: always
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -319,7 +310,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -347,7 +337,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -384,7 +373,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     target_argv:
@@ -423,7 +411,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -458,7 +445,6 @@ gates:
   incremental: patterns
   changed_files: environment
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -495,7 +481,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -532,7 +517,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -568,7 +552,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     target_argv:
@@ -607,7 +590,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -633,7 +615,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -663,7 +644,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -688,7 +668,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -714,7 +693,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -745,7 +723,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -773,7 +750,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -802,7 +778,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -829,7 +804,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -863,7 +837,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -889,7 +862,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -911,7 +883,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -935,7 +906,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -961,7 +931,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -986,7 +955,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -1014,7 +982,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: playwright
     argv:
@@ -1054,7 +1021,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: playwright
     argv:
@@ -1090,7 +1056,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -1132,7 +1097,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   gradle:
     tasks:
     - check
@@ -1165,7 +1129,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: command
     argv:
@@ -1199,7 +1162,6 @@ gates:
   incremental: patterns
   changed_files: environment
   included_by: []
-  receipt: content-sensitive
   gradle:
     tasks:
     - :java:tests:quality-gates:runJavaQualityGates
@@ -1224,7 +1186,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   gradle:
     tasks:
     - verifyNoSkippedJavaTests
@@ -1247,7 +1208,6 @@ gates:
   incremental: patterns
   changed_files: environment
   included_by: []
-  receipt: content-sensitive
   gradle:
     tasks:
     - :java:tests:quality-gates:runJavaQualityGates
@@ -1279,18 +1239,8 @@ gates:
   incremental: patterns
   changed_files: environment
   included_by: []
-  receipt: content-sensitive
-  command:
-    capability: cpd
-    argv:
-    - '{python}'
-    - '{repo_root}/scripts/checks/run_reuse_standard_cpd.py'
-    required_paths:
-    - scripts/checks/run_reuse_standard_cpd.py
-    full_args:
-    - --mode
-    - full
-    gradle_outcome_tasks:
+  gradle:
+    tasks:
     - reuseStandardCpd
 - name: reuseAnalyzeIncremental
   description: 执行 reuseAnalyzeIncremental 所定义的仓库质量检查。
@@ -1317,7 +1267,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   gradle:
     tasks:
     - reuseAnalyzeIncremental
@@ -1343,7 +1292,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   gradle:
     tasks:
     - :java:tests:quality-gates:runJavaQualityGates
@@ -1373,7 +1321,6 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
   command:
     capability: scan-smoke
     argv:
@@ -1412,17 +1359,9 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  receipt: content-sensitive
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - '{repo_root}/scripts/checks/run_session_samples_gate.py'
-    - --repo-root
-    - '{repo_root}'
-    required_paths:
-    - gradlew
-    - scripts/checks/run_session_samples_gate.py
+  gradle:
+    tasks:
+    - :java:tests:contracts:sampleIntegrationTest
 path_rules:
 - category: acceptance-contract
   patterns:

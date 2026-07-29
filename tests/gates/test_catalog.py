@@ -23,7 +23,6 @@ def test_catalog_schema_is_complete_unique_and_acyclic() -> None:
         assert gate.changed_files_input
         assert isinstance(gate.included_by, tuple)
         assert 'full' in gate.tiers
-        assert gate.receipt_policy
         assert gate.description.endswith('。')
 
 
@@ -83,6 +82,21 @@ def test_java_test_outcomes_use_existing_gradle_owner() -> None:
 
     assert gate.command is None
     assert gate.gradle_tasks == ('verifyNoSkippedJavaTests',)
+
+
+def test_session_samples_uses_existing_gradle_owner() -> None:
+    gate = gate_by_name('sessionSamples')
+
+    assert gate.command is None
+    assert gate.gradle_tasks == (':java:tests:contracts:sampleIntegrationTest',)
+
+
+def test_reuse_standard_cpd_uses_gradle_owner_and_changed_files_environment() -> None:
+    gate = gate_by_name('reuseStandardCpd')
+
+    assert gate.command is None
+    assert gate.gradle_tasks == ('reuseStandardCpd',)
+    assert gate.changed_files_input.value == 'environment'
 
 
 def test_exclusive_resources_follow_gate_capability_not_target_union() -> None:

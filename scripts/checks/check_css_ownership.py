@@ -11,8 +11,8 @@ import re
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from scripts.gates import support as gate_support
 from scripts.checks._framework import repository_root
+from scripts.gates import support as gate_support
 
 REPO_ROOT = repository_root()
 

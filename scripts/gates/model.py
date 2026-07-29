@@ -29,12 +29,6 @@ class ChangedFilesInput(StrEnum):
     ENVIRONMENT = 'environment'
 
 
-class ReceiptPolicy(StrEnum):
-    """标识成功 receipt 必须采用的复用策略。"""
-
-    CONTENT_SENSITIVE = 'content-sensitive'
-
-
 @dataclass(frozen=True, slots=True)
 class TargetCommand:
     """保存同一能力在某个 target 下的 argv。"""
@@ -62,9 +56,7 @@ class CommandSpec:
     existing_args: tuple[str, ...] = ()
     glob_args: tuple[str, ...] = ()
     optional_args: tuple[OptionalCommandArgs, ...] = ()
-    full_args: tuple[str, ...] = ()
     prerequisite_tasks: tuple[str, ...] = ()
-    gradle_outcome_tasks: tuple[str, ...] = ()
     existing_only: bool = False
 
 
@@ -95,7 +87,6 @@ class GateSpec:
     changed_files_input: ChangedFilesInput
     included_by: tuple[str, ...]
     tiers: tuple[str, ...]
-    receipt_policy: ReceiptPolicy
     description: str
     network_failure: str = 'fail'
 

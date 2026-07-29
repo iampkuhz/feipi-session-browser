@@ -21,7 +21,6 @@ REQUIRED_PATHS = [
     'scripts/gates/planner.py',
     'scripts/gates/cli.py',
     'scripts/gates/executor.py',
-    'scripts/gates/receipt.py',
     'scripts/gates/report.py',
     'scripts/checks/validate_acceptance_contracts.py',
     'harness/agent-policy.manifest.yaml',

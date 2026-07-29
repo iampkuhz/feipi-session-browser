@@ -14,7 +14,12 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, Any
 
-from scripts.gates.support import ensure_private_directory, resolve_runtime_root, stable_hash, utc_now
+from scripts.gates.support import (
+    ensure_private_directory,
+    resolve_runtime_root,
+    stable_hash,
+    utc_now,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

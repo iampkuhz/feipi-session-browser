@@ -7,7 +7,7 @@ python3 scripts/gates/cli.py --tier required
 ```
 
 `quick`、`required`、`full`、target、Gate、path trigger、command/Gradle task、dominance、timeout、
-资源、并行与 receipt metadata 的唯一声明真相是 `config/gates.yaml`。`catalog.py` 只负责加载、
+资源与并行 metadata 的唯一声明真相是 `config/gates.yaml`。`catalog.py` 只负责加载、
 schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制完整 Gate/target 清单。
 
 ## 模块边界
@@ -18,9 +18,8 @@ schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制
 | `catalog.py` | 加载/schema 校验并构造 typed Gate/target/tier/path model | 维护命令表、运行命令、读取历史报告 |
 | `planner.py` | 将 changed files 冻结为 classification、raw/effective target 与 applicable Gate plan | 运行时重新选择 Gate |
 | `executor.py` | 冻结 command group/resource DAG 后只执行 immutable plan，落实 Gradle 聚合、bounded parallel、timeout 与跨 run 锁 | 维护另一份 Gate/target 映射 |
-| `receipt.py` | 写入并校验绑定 checkout 内容、catalog 和环境的 `PASS` receipt | 缓存失败或阻断结果 |
 | `report.py` | typed 状态归约、结构化 summary 与有界诊断 | 猜测未执行 Gate 的结果 |
-| `cli.py` | 公开参数、统一 service、plan/execute/report/receipt 编排与退出码 | 产品业务处理 |
+| `cli.py` | 公开参数、统一 service、plan/execute/report 编排与退出码 | 产品业务处理 |
 
 Stop 的 Gate 阶段只调用 `scripts.gates.cli.run_service`。不要直接运行内部模块，也不要新增
 Stop 专用选择器、runner、命令表或 artifact 解析器。
@@ -69,16 +68,13 @@ top-level invocation，`scanScriptSmoke` 的 `installDist` 前置也并入该 gr
 - `SKIPPED`：Gate 已被选中，但测试框架报告 skipped 或验证没有完整执行；required/full 必须归约为
   `FAIL` 或 `BLOCKED`。
 - `EXECUTED`：已选 Gate 实际执行并通过。
-- `REUSED`：target、changed files/baseline attribution、committed/staged/working/untracked 内容、
-  catalog version、plan/command/task、Gate 输入与关键环境仍匹配可信
-  `PASS` receipt，且引用的 summary 仍是完整 `PASS`。
 - `FAILED` / `BLOCKED`：分别表示实际失败或无法完成/证明；都阻断 Stop 与收口。
 
-只有选中集合全部完成且没有 skipped 才能产生 overall `PASS` 与可复用 receipt。控制台文字、
-`FAIL`、`BLOCKED` 和缺少 Gate 明细都不能写成 `PASS` receipt。
+每次调用都会执行当前 plan。只有选中集合全部完成且没有 skipped 才能产生 overall `PASS`；
+控制台文字、历史结果、`FAIL`、`BLOCKED` 和缺少 Gate 明细都不能作为本次 `PASS`。
 
-summary schema 保留兼容字段，并输出 plan/checkout fingerprint、`gateStates`、command group、
-duration/queue/resource wait、critical path、top-level Gradle/Python/Bash process count、receipt 原因和
+summary 输出 plan fingerprint、catalog version、`gateStates`、command group、
+duration/queue/resource wait、critical path、top-level Gradle/Python/Bash process count 和
 精确 rerun command。成功控制台只输出单行；失败控制台只保留首因和有界诊断，完整证据位于 artifact。
 
 ## 新增、修改或删除 Gate 的唯一流程
@@ -89,7 +85,7 @@ duration/queue/resource wait、critical path、top-level Gradle/Python/Bash proc
 1. 先在 contract 中写出 trigger、plan 顺序、状态、命令和失败语义；删除 Gate 时先写无残留引用断言。
 2. 新增或调整一个职责单一、可确定复现的 check；Gradle Gate 则调整对应 Gradle task contract。
 3. 只在 `config/gates.yaml` 的同一 Gate 记录更新 description、target/order/pattern、tier、command 或
-   Gradle task、changed-files、timeout、并行资源与 receipt policy。
+   Gradle task、changed-files、timeout 与并行资源。
 4. 运行 catalog/planner/service contract，并用 `cli.py --dry-run` 检查公开 plan。
 5. 运行受影响 target，再运行 `python3 scripts/gates/cli.py --tier required`。
 6. 删除 Gate 时反向移除 catalog registration、对应孤立 check 与 contract，最后负向搜索旧名称和路径。

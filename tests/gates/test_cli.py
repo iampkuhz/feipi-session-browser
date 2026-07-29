@@ -1,4 +1,4 @@
-"""Gate CLI/service 的解析、artifact、receipt 与 warning 边界 contract。"""
+"""Gate CLI/service 的解析、当次 artifact 与 warning 边界 contract。"""
 
 import json
 import os
@@ -7,14 +7,13 @@ import sys
 from pathlib import Path
 
 import pytest
-from scripts.gates import cli, executor, receipt, report
+from scripts.gates import cli, executor, report
 from scripts.gates.report import FAIL, PASS, GateDetail
 
 
 def test_service_modules_expose_stable_entrypoints() -> None:
     assert callable(cli.run_service)
     assert callable(executor.execute_plan)
-    assert callable(receipt.content_cache_key)
     assert callable(report.format_quality_report)
 
 
@@ -44,7 +43,7 @@ def test_target_and_tier_are_mutually_exclusive() -> None:
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-009')
-def test_service_writes_artifact_and_receipt(tmp_path: Path, monkeypatch) -> None:
+def test_service_writes_current_run_artifact(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
         executor,
         'execute_plan',
@@ -62,10 +61,9 @@ def test_service_writes_artifact_and_receipt(tmp_path: Path, monkeypatch) -> Non
     )
     assert result.passed
     assert result.artifact_path and result.artifact_path.exists()
-    assert result.receipt_paths and result.receipt_paths[0].exists()
 
 
-def test_service_reuses_content_sensitive_pass_receipt(tmp_path: Path, monkeypatch) -> None:
+def test_service_executes_plan_on_every_run(tmp_path: Path, monkeypatch) -> None:
     calls = 0
 
     def fake_execute(*_args, **_kwargs):
@@ -84,13 +82,40 @@ def test_service_reuses_content_sensitive_pass_receipt(tmp_path: Path, monkeypat
     first = cli.run_service(**kwargs)
     second = cli.run_service(**kwargs)
     assert first.passed and second.passed
-    assert calls == 1
+    assert calls == 2
     assert all(detail.status == PASS for detail in second.details)
-    assert all(detail.executionState == 'REUSED' for detail in second.details)
-    assert first.artifact_path != second.artifact_path
-    assert second.artifact_path and second.artifact_path.name.endswith('.reuse.json')
-    bound = receipt.read_receipt(second.receipt_paths[0]) or {}
-    assert bound['artifact_path'] == str(first.artifact_path)
+    assert all(detail.executionState == 'EXECUTED' for detail in second.details)
+    assert second.artifact_path and second.artifact_path.exists()
+
+
+def test_service_injects_tier_and_keeps_explicit_environment_override(
+    tmp_path: Path, monkeypatch
+) -> None:
+    captured: list[dict[str, str]] = []
+
+    def fake_execute(*_args, **kwargs):
+        captured.append(kwargs['environment_overrides'])
+        return (GateDetail(name='harnessStructure', status=PASS),)
+
+    monkeypatch.setattr(executor, 'execute_plan', fake_execute)
+    cli.run_service(
+        repo_root=tmp_path,
+        changed_files=['harness/manifest.yaml'],
+        tier='full',
+        out_dir=tmp_path / 'out',
+    )
+    cli.run_service(
+        repo_root=tmp_path,
+        changed_files=['harness/manifest.yaml'],
+        tier='full',
+        out_dir=tmp_path / 'out-override',
+        environment_overrides={'QUALITY_GATE_TIER': 'required', 'CUSTOM': 'value'},
+    )
+
+    assert captured == [
+        {'QUALITY_GATE_TIER': 'full'},
+        {'QUALITY_GATE_TIER': 'required', 'CUSTOM': 'value'},
+    ]
 
 
 def test_explicit_empty_dirty_is_blocked(tmp_path: Path, monkeypatch, capsys) -> None:
@@ -101,30 +126,21 @@ def test_explicit_empty_dirty_is_blocked(tmp_path: Path, monkeypatch, capsys) ->
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-012')
-def test_required_gate_failure_never_writes_pass_receipt(tmp_path: Path, monkeypatch) -> None:
+def test_required_gate_failure_writes_failure_artifact(tmp_path: Path, monkeypatch) -> None:
     failed = GateDetail(name='required-check', status=FAIL, output='failed')
     monkeypatch.setattr(executor, 'execute_plan', lambda *_args, **_kwargs: (failed,))
-    monkeypatch.setattr(receipt, 'content_cache_key', lambda *_args, **_kwargs: 'cache-key')
-    monkeypatch.setattr(
-        report,
-        'write_quality_summary',
-        lambda *_args, **_kwargs: tmp_path / 'quality-gate-summary.required.json',
-    )
-    monkeypatch.setattr(
-        receipt,
-        'write_pass_receipt',
-        lambda *_args, **_kwargs: pytest.fail('失败的 required Gate 不得写 PASS receipt'),
-    )
     result = cli.run_service(
         repo_root=tmp_path,
         changed_files=['build.gradle.kts'],
         change_id='required-failure',
+        out_dir=tmp_path / 'out',
         include_preflight=False,
-        reuse_receipts=False,
     )
     assert result.status == FAIL
     assert result.passed is False
-    assert result.receipt_paths == ()
+    assert result.artifact_path and result.artifact_path.exists()
+    payload = json.loads(result.artifact_path.read_text(encoding='utf-8'))
+    assert payload['status'] == FAIL
 
 
 def test_session_browser_test_fails_on_pytest_warning(tmp_path: Path) -> None:
@@ -154,7 +170,9 @@ def test_changed_files_merge_recorded_evidence_and_git_fallback(
     tmp_path: Path, monkeypatch
 ) -> None:
     subprocess.run(['git', 'init', '-q'], cwd=tmp_path, check=True)
-    subprocess.run(['git', 'config', 'user.email', 'gate@example.invalid'], cwd=tmp_path, check=True)
+    subprocess.run(
+        ['git', 'config', 'user.email', 'gate@example.invalid'], cwd=tmp_path, check=True
+    )
     subprocess.run(['git', 'config', 'user.name', 'Gate Test'], cwd=tmp_path, check=True)
     tracked = tmp_path / 'tracked.txt'
     tracked.write_text('base\n', encoding='utf-8')
