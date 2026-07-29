@@ -390,7 +390,7 @@ class TestJavaChineseCommentsGate:
         from scripts.gates import executor as gate_executor
 
         # 创建仓库脚本和策略文件的 mock 结构
-        checker = tmp_path / 'scripts' / 'checks' / 'check_code_comment_language.py'
+        checker = tmp_path / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
         policy = tmp_path / 'config' / 'technical-terms.json'
@@ -407,7 +407,7 @@ class TestJavaChineseCommentsGate:
         """gate 命令包含 --policy 参数指向 config/technical-terms.json。"""
         from scripts.gates import executor as gate_executor
 
-        checker = tmp_path / 'scripts' / 'checks' / 'check_code_comment_language.py'
+        checker = tmp_path / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
         policy = tmp_path / 'config' / 'technical-terms.json'
@@ -427,7 +427,7 @@ class TestJavaChineseCommentsGate:
         """gate 命令不得引用 tmp/ 目录下的路径。"""
         from scripts.gates import executor as gate_executor
 
-        checker = tmp_path / 'scripts' / 'checks' / 'check_code_comment_language.py'
+        checker = tmp_path / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
         checker.parent.mkdir(parents=True)
         checker.write_text('# mock', encoding='utf-8')
 

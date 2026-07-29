@@ -22,7 +22,6 @@ if TYPE_CHECKING:
     from collections.abc import Iterable
 
 
-# 规范化 repository-relative path，兼容 Windows 分隔符与 ``./`` 前缀。
 def normalize_repo_path(path: str) -> str:
     """规范化 repository-relative path，兼容 Windows 分隔符与 ``./`` 前缀。"""
     value = path.replace('\\', '/')
@@ -31,7 +30,6 @@ def normalize_repo_path(path: str) -> str:
     return value.strip('/')
 
 
-# 按历史 Gate glob 语义匹配路径，保证迁移前后触发结果一致。
 def pattern_matches(path: str, pattern: str) -> bool:
     """按历史 Gate glob 语义匹配路径，保证迁移前后触发结果一致。"""
     normalized_path = normalize_repo_path(path)
@@ -45,7 +43,6 @@ def pattern_matches(path: str, pattern: str) -> bool:
     return bool(re.match(f'^{regex}$', normalized_path))
 
 
-# 按 catalog 的首个命中规则分类单个 path，未知路径保持历史默认允许语义。
 def classify_path(path: str) -> FileClassification:
     """按 catalog 的首个命中规则分类单个 path，未知路径保持历史默认允许语义。"""
     normalized = normalize_repo_path(path)
@@ -69,13 +66,11 @@ def classify_path(path: str) -> FileClassification:
     )
 
 
-# 保持输入顺序分类一组 path，并返回不可变结果。
 def classify_files(paths: Iterable[str]) -> tuple[FileClassification, ...]:
     """保持输入顺序分类一组 path，并返回不可变结果。"""
     return tuple(classify_path(path) for path in paths)
 
 
-# 由分类规则与 scan smoke 附加规则派生历史 raw target 顺序。
 def required_quality_targets(files: Iterable[str]) -> list[str]:
     """由分类规则与 scan smoke 附加规则派生历史 raw target 顺序。"""
     normalized_files = [normalize_repo_path(path) for path in files]
@@ -91,7 +86,6 @@ def required_quality_targets(files: Iterable[str]) -> list[str]:
     return targets
 
 
-# 应用 catalog dominance，保持历史顺序并移除已被 dominant target 覆盖的 target。
 def effective_targets(targets: Iterable[str]) -> list[str]:
     """应用 catalog dominance，保持历史顺序并移除已被 dominant target 覆盖的 target。"""
     source = list(targets)
@@ -104,7 +98,6 @@ def effective_targets(targets: Iterable[str]) -> list[str]:
     return result
 
 
-# 按 catalog 的 target 内 order 返回全量 baseline Gate 名称。
 def required_gates_for_target(target: str) -> list[str]:
     """按 catalog 的 target 内 order 返回全量 baseline Gate 名称。"""
     target_by_name(target)
@@ -120,7 +113,6 @@ def required_gates_for_target(target: str) -> list[str]:
     return [name for _, name in rules]
 
 
-# 按增量 pattern 选择 applicable Gate；``None`` 表示完整 baseline。
 def applicable_gates_for_target(
     target: str, changed_files: Iterable[str] | None = None
 ) -> list[str]:
@@ -140,7 +132,6 @@ def applicable_gates_for_target(
     return applicable
 
 
-# 为现有 executor 提供由 typed target spec 派生的并发元数据快照。
 def target_parallel_meta(target: str) -> dict[str, object]:
     """为现有 executor 提供由 typed target spec 派生的并发元数据快照。"""
     spec = next((item for item in TARGETS if item.name == target), None)
@@ -153,13 +144,11 @@ def target_parallel_meta(target: str) -> dict[str, object]:
     }
 
 
-# 验证 target 已注册；未知 target 抛出 ``ValueError``。
 def validate_target(target: str) -> None:
     """验证 target 已注册；未知 target 抛出 ``ValueError``。"""
     target_by_name(target)
 
 
-# 从 Gate 自身 tiers 字段返回该档位的逻辑 Gate 集合。
 def gates_for_tier(tier: str) -> frozenset[str]:
     """从 Gate 自身 tiers 字段返回该档位的逻辑 Gate 集合。"""
     tier_by_name(tier)
@@ -167,11 +156,8 @@ def gates_for_tier(tier: str) -> frozenset[str]:
     return frozenset(names)
 
 
-# 为现有 CLI 派生 tier 描述与失败策略，不复制 tier 真相。
 def tier_metadata() -> dict[str, dict[str, str]]:
-    """返回：
-    当前函数的稳定结果。
-    """
+    """从 catalog 派生 tier 描述与失败策略。"""
     return {
         tier.name: {
             'description': tier.description,
@@ -181,7 +167,6 @@ def tier_metadata() -> dict[str, dict[str, str]]:
     }
 
 
-# 冻结 classification、raw/effective target 与 applicable Gate 的完整计划。
 def plan(
     changed_files: Iterable[str],
     targets: Iterable[str] | None = None,
@@ -219,7 +204,6 @@ def plan(
     )
 
 
-# 保留 planner 的公开校验入口，schema 真正由 catalog loader 负责。
 def validate_catalog() -> None:
     """校验当前唯一 catalog 声明。"""
     validate_catalog_schema()

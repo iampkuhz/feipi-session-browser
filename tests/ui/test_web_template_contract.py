@@ -1,7 +1,7 @@
 from pathlib import Path
 
 import pytest
-from scripts.checks.template_contract_check import check_templates
+from scripts.checks.web.template_contract_check import check_templates
 
 
 @pytest.mark.contract_case('UI-VISUAL-001')

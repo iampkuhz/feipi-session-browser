@@ -54,9 +54,9 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - Jinja 模板：`src/templates/` 下 session detail 相关模板。
 - CSS 文件：`src/static/css/` 下 session detail 相关样式。
 - JS 文件：`src/static/js/` 下 session detail 相关交互脚本。
-- UI 质量门：`scripts/checks/check_session_detail_*.py`、`tests/playwright/session-detail*.spec.js`。
+- UI 质量门：`scripts/checks/web/check_session_detail_*.py`、`tests/playwright/session-detail*.spec.js`。
 - CSS ownership 配置：`shared check `web.css-ownership`` 相关配置。
-- UI gate baseline：`scripts/checks/*_baseline.json`。
+- UI gate baseline：`scripts/checks/web/baselines/*.json`。
 
 不要跨边界修改后端 parser 或 Java 产品代码。不要在模板中直接嵌入 inline style。
 

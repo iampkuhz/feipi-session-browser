@@ -4,7 +4,7 @@
 
 ## Changed files
 
-- `scripts/checks/<gate-script>.py` — <修改说明>
+- `scripts/checks/<domain>/<gate-script>.py` — <修改说明>
 - `harness/skill-registry.yaml` — <修改说明>
 - ...
 

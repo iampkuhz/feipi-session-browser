@@ -3,10 +3,7 @@
 # 输出 MANIFEST.SHA256 包含所有发行产物的 hash、文件名和大小，
 # 供 release 发布和消费者验证使用。
 #
-# 用法：
-# 校验脚本运行前置条件和输入输出边界。
-# 校验脚本运行前置条件和输入输出边界。
-#
+# 用法：generate-checksums.sh <dist-dir> [--verify]
 # <dist-dir> 包含 *.zip / *.tar.gz 发行文件的目录。
 # --verify  读取目录中的 MANIFEST.SHA256 并逐一校验。
 set -euo pipefail
@@ -26,7 +23,7 @@ fi
 
 MANIFEST_FILE="$DIST_DIR/MANIFEST.SHA256"
 
-# 生成 SHA-256 manifest
+# 生成阶段只覆盖发行压缩包，避免把旧 manifest 或旁路文件误纳入校验边界。
 generate_manifest() {
     local timestamp
     timestamp="$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -64,7 +61,7 @@ generate_manifest() {
     echo "已生成 ${MANIFEST_FILE}（${count} 个文件）"
 }
 
-# 从 MANIFEST.SHA256 验证每个文件的 checksum
+# 验证阶段遵循 manifest 的显式条目，不自行扩展或修复发行集合。
 verify_manifest() {
     if [[ ! -f "$MANIFEST_FILE" ]]; then
         echo "错误: manifest 不存在: $MANIFEST_FILE" >&2
@@ -75,7 +72,7 @@ verify_manifest() {
     local checked=0
 
     while IFS= read -r line; do
-        # 跳过注释和空行
+        # manifest 头部是供人阅读的元数据，不参与内容校验。
         [[ "$line" =~ ^#.*$ || -z "${line// /}" ]] && continue
 
         local expected_hash expected_size filename

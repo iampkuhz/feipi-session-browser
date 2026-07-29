@@ -8,8 +8,8 @@
   - `src/templates/` 下 session detail 相关 Jinja 模板
   - `src/static/css/` 下 session detail 相关 CSS 文件
   - `src/static/js/` 下 session detail 相关 JS 文件
-  - `scripts/checks/check_session_detail_*.py`（如需）
-  - `scripts/checks/*_baseline.json`（如需）
+  - `scripts/checks/web/check_session_detail_*.py`（如需）
+  - `scripts/checks/web/baselines/*.json`（如需）
 
 ## Forbidden scope
 

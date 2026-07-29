@@ -22,7 +22,7 @@ from scripts.gates import (  # noqa: E402
     support,  # noqa: E402
 )
 from scripts.gates.catalog import CATALOG_VERSION, TARGETS, gate_by_name, tier_by_name  # noqa: E402
-from scripts.gates.model import GatePlan, TargetGatePlan  # noqa: E402
+from scripts.gates.model import ExecutionPlan, GatePlan, TargetGatePlan  # noqa: E402
 from scripts.gates.planner import plan as build_plan  # noqa: E402
 
 
@@ -35,16 +35,12 @@ class GateServiceResult:
     details: tuple[report.GateDetail, ...]
     artifact_path: Path | None
 
-    # 仅在状态严格为 PASS 时返回 true。
     @property
     def passed(self) -> bool:
-        """返回：
-        当前函数的稳定结果。
-        """
+        """仅当总体状态严格为 PASS 时返回 True。"""
         return self.status == report.PASS
 
 
-# 优先采用显式 change id，否则读取 active change evidence。
 def resolve_change_id(explicit: str | None, repo_root: Path = REPO_ROOT) -> str:
     """优先采用显式 change id，否则读取 active change evidence。"""
     if explicit:
@@ -58,13 +54,11 @@ def resolve_change_id(explicit: str | None, repo_root: Path = REPO_ROOT) -> str:
     return value.strip() if isinstance(value, str) and value.strip() else 'manual-run'
 
 
-# 从显式 JSON 或当前 identity 的 evidence/Git 基线收集 changed files。
 def get_changed_files(explicit: str | None, repo_root: Path = REPO_ROOT) -> list[str]:
     """从显式 JSON 或当前 identity 的 evidence/Git 基线收集 changed files。"""
     if explicit is not None:
         return support.parse_changed_files_json(explicit)
     identity = support.identity_from_values()
-    paths = support.build_paths(repo_root, identity)
     log_dirs = support.session_log_dirs(
         repo_root,
         identity,
@@ -75,14 +69,14 @@ def get_changed_files(explicit: str | None, repo_root: Path = REPO_ROOT) -> list
         identity.raw_session_id or None,
         agent_id=identity.raw_agent_id or None,
     )
-    base_commit = paths.agent_log_dir / 'base-commit.txt'
+    base_commit = support.agent_log_dir(repo_root, identity) / 'base-commit.txt'
     return support.dedupe_paths(
         recorded + support.read_files_since_base_commit(repo_root, base_commit)
     )
 
 
-# 把 catalog 中的全局 preflight Gate 注入同一不可变计划。
 def _with_preflight(gate_plan: GatePlan) -> GatePlan:
+    """把不可绕过的全局 preflight Gate 注入同一不可变计划。"""
     preflight_target = TargetGatePlan(
         target='python-standard',
         gates=(
@@ -99,7 +93,6 @@ def _with_preflight(gate_plan: GatePlan) -> GatePlan:
     )
 
 
-# 为显式 target 或 tier 构造唯一 catalog 驱动的不可变计划。
 def create_plan(
     changed_files: list[str],
     *,
@@ -125,8 +118,8 @@ def create_plan(
     )
 
 
-# 将执行明细归约为 PASS/FAIL/BLOCKED，绝不把 skipped/warning 当 PASS。
 def _overall_status(details: tuple[report.GateDetail, ...]) -> str:
+    """归约总体状态，绝不把 skipped、warning 或空结果当作 PASS。"""
     statuses = {detail.status.upper() for detail in details}
     if report.FAIL in statuses or report.SKIPPED in statuses:
         return report.FAIL
@@ -135,7 +128,39 @@ def _overall_status(details: tuple[report.GateDetail, ...]) -> str:
     return report.PASS
 
 
-# 规划、执行并写入本次运行的质量报告。
+def _build_execution_metadata(execution_plan: ExecutionPlan) -> dict[str, object]:
+    """从冻结执行计划派生报告所需的 group 与进程计数元数据。"""
+    return {
+        'planId': execution_plan.plan_id,
+        'planFingerprint': execution_plan.fingerprint,
+        'catalogVersion': CATALOG_VERSION,
+        'commandGroups': [
+            {
+                'groupId': group.group_id,
+                'kind': group.kind,
+                'gates': list(group.gate_names),
+                'command': list(group.command),
+                'resources': list(group.resources),
+                'dependsOn': list(group.depends_on),
+                'aggregationReason': group.aggregation_reason,
+            }
+            for group in execution_plan.groups
+        ],
+        'processCounts': {
+            'gradle': sum(group.kind == 'gradle' for group in execution_plan.groups),
+            'python': sum(
+                bool(group.command) and Path(group.command[0]).name.startswith('python')
+                for group in execution_plan.groups
+            ),
+            'bash': sum(
+                bool(group.command) and Path(group.command[0]).name == 'bash'
+                for group in execution_plan.groups
+            ),
+            'total': sum(bool(group.command) for group in execution_plan.groups),
+        },
+    }
+
+
 def run_service(
     *,
     repo_root: Path,
@@ -149,7 +174,8 @@ def run_service(
     include_preflight: bool = True,
     environment_overrides: dict[str, str] | None = None,
 ) -> GateServiceResult:
-    """规划、执行并写入本次运行的质量报告。"""
+    """按“规划 → 冻结执行计划 → 执行 → 状态归约 → 报告”运行 Gate service。"""
+    # 先由 planner 选择 Gate，再一次性冻结命令、资源依赖和 fingerprint。
     gate_plan = create_plan(
         changed_files,
         tier=tier,
@@ -158,6 +184,7 @@ def run_service(
     )
     execution_plan = _with_preflight(gate_plan) if include_preflight else gate_plan
     resolved_plan = executor.build_execution_plan(execution_plan, repo_root, base_url=base_url)
+    # executor 只消费冻结计划；严格状态归约和报告在执行结束后分别完成。
     output = out_dir or repo_root / 'tmp' / 'quality'
     details = executor.execute_plan(
         resolved_plan,
@@ -176,43 +203,15 @@ def run_service(
         started_at,
         list(details),
         repo_root=repo_root,
-        execution_metadata={
-            'planId': resolved_plan.plan_id,
-            'planFingerprint': resolved_plan.fingerprint,
-            'catalogVersion': CATALOG_VERSION,
-            'commandGroups': [
-                {
-                    'groupId': group.group_id,
-                    'kind': group.kind,
-                    'gates': list(group.gate_names),
-                    'command': list(group.command),
-                    'resources': list(group.resources),
-                    'dependsOn': list(group.depends_on),
-                    'aggregationReason': group.aggregation_reason,
-                }
-                for group in resolved_plan.groups
-            ],
-            'processCounts': {
-                'gradle': sum(group.kind == 'gradle' for group in resolved_plan.groups),
-                'python': sum(
-                    bool(group.command) and Path(group.command[0]).name.startswith('python')
-                    for group in resolved_plan.groups
-                ),
-                'bash': sum(
-                    bool(group.command) and Path(group.command[0]).name == 'bash'
-                    for group in resolved_plan.groups
-                ),
-                'total': sum(bool(group.command) for group in resolved_plan.groups),
-            },
-        },
+        execution_metadata=_build_execution_metadata(resolved_plan),
     )
     summary.status = status
     artifact = report.write_quality_summary(output, summary, target_specific=True)
     return GateServiceResult(status, gate_plan, details, artifact)
 
 
-# 返回稳定、可机器读取且不执行子进程的 dry-run 摘要。
 def _dry_run_payload(gate_plan: GatePlan, repo_root: Path) -> dict[str, object]:
+    """返回稳定、可机器读取且不执行子进程的 dry-run 摘要。"""
     resolved = executor.build_execution_plan(_with_preflight(gate_plan), repo_root)
     groups = {group.group_id: group for group in resolved.groups}
     commands = [
@@ -247,7 +246,6 @@ def _dry_run_payload(gate_plan: GatePlan, repo_root: Path) -> dict[str, object]:
     }
 
 
-# 解析统一 CLI，并按 fail-closed 语义返回进程退出码。
 def main(argv: list[str] | None = None) -> int:
     """解析统一 CLI，并按 fail-closed 语义返回进程退出码。"""
     parser = argparse.ArgumentParser(description='Unified typed Gate service')

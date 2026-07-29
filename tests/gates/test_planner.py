@@ -26,7 +26,7 @@ def test_phase1_changed_files_plans_are_exact() -> None:
     baseline = json.loads(GOLDEN.read_text(encoding='utf-8'))
     for name, expected in baseline['scenarios'].items():
         changed_files = (
-            ['scripts/checks/check_code_comment_language.py']
+            ['scripts/checks/source/check_code_comment_language.py']
             if name == 'python-policy'
             else expected['changedFiles']
         )

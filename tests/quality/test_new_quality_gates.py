@@ -5,20 +5,20 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
-from scripts.checks.check_css_ownership import (
+from scripts.checks.web.check_css_ownership import (
     check_cross_layer_duplicate,
     check_hardcoded_colors,
     check_layer_purity,
 )
 
 # ── check_layout_inline_style ────────────────────────────────────────────
-from scripts.checks.check_layout_inline_style import (
+from scripts.checks.web.check_layout_inline_style import (
     scan_html_inline_styles,
     scan_js_style_assignments,
 )
 
 # ── check_raw_innerhtml ──────────────────────────────────────────────────
-from scripts.checks.check_raw_innerhtml import (
+from scripts.checks.web.check_raw_innerhtml import (
     scan_innerhtml_assignments,
 )
 

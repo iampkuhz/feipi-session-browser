@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 import argparse
-from pathlib import Path
 
-from scripts.checks._framework import ScanContext, invoke
+from scripts.checks._framework import invoke
 from scripts.checks._registry import CHECKS, get_check
 
 
@@ -20,7 +19,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: list[str] | None = None) -> int:
     """执行一个 check 并统一输出状态、诊断与退出码。"""
     args = build_parser().parse_args(argv)
-    result = invoke(get_check(args.check_id), ScanContext(Path.cwd()), args.arguments)
+    result = invoke(get_check(args.check_id), args.arguments)
     if result.passed:
         print(f'[{result.check_id}] PASS')
         return 0

@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODULE = REPO_ROOT / 'scripts' / 'checks' / 'check_code_comment_language.py'
+MODULE = REPO_ROOT / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
 spec = importlib.util.spec_from_file_location('comment_checker', MODULE)
 assert spec and spec.loader
 checker = importlib.util.module_from_spec(spec)

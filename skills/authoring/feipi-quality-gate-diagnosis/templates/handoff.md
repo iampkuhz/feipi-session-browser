@@ -5,7 +5,7 @@
 ## Allowed scope
 
 - 允许修改的文件列表：
-  - `scripts/checks/<gate-script>.py` — 触发失败的 gate 脚本（如需修复 gate bug）
+  - `scripts/checks/<domain>/<gate-script>.py` — 触发失败的 gate 脚本（如需修复 gate bug）
   - `harness/skill-registry.yaml` — registry 配置（如适用）
   - `harness/manifest.yaml` — minimal harness 配置（如适用）
   - 其他与当前 gate 失败直接相关的文件（按需列出）

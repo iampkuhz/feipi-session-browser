@@ -1,4 +1,7 @@
-"""Gate 与检查脚本共用的路径、Git 输入和有界进程原语。"""
+"""本模块负责 Gate 共用的身份路径、Git 输入和隔离运行目录。
+
+不负责 Gate 选择、进程执行或状态归约；由 CLI、executor 和少量领域工具调用。
+"""
 
 from __future__ import annotations
 
@@ -6,31 +9,25 @@ import hashlib
 import json
 import os
 import re
-import signal
 import socket
 import stat
 import subprocess
 import tempfile
-import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
-if TYPE_CHECKING:
-    from collections.abc import Mapping, Sequence
-
-PROVIDER_ENV_PREFIXES = ('CODEX_', 'QODER_', 'CLAUDE_')
-PROCESS_TAIL_BYTES = 4096
-PROCESS_TERM_GRACE_SECONDS = 0.4
 _SAFE_SEGMENT_RE = re.compile(r'[^A-Za-z0-9._-]+')
 
 
 def utc_now() -> str:
+    """返回秒级 UTC 时间戳，供运行目录与锁证据使用。"""
     return datetime.now(UTC).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
 def stable_hash(value: str | bytes) -> str:
+    """计算文本或字节内容的稳定 SHA-256。"""
     payload = value.encode() if isinstance(value, str) else value
     return hashlib.sha256(payload).hexdigest()
 
@@ -46,6 +43,8 @@ def _safe_segment(value: str | None, fallback: str = 'unknown') -> str:
 
 @dataclass(frozen=True)
 class ExecutionIdentity:
+    """保存路径安全 identity 与仅供匹配证据的原始 identity。"""
+
     client: str
     session_id: str
     agent_id: str = ''
@@ -58,19 +57,18 @@ class ExecutionIdentity:
 
     @property
     def has_session(self) -> bool:
+        """判断调用方是否提供了原始 session identity。"""
         return bool(self.raw_session_id)
 
     @property
     def is_agent(self) -> bool:
+        """判断当前 identity 是否对应子 agent。"""
         return bool(self.raw_agent_id)
 
     @property
     def has_run(self) -> bool:
+        """判断调用方是否提供了独立 run identity。"""
         return bool(self.raw_run_id)
-
-
-# Compatibility name for callers that only need the small execution identity contract.
-RuntimeIdentity = ExecutionIdentity
 
 
 def identity_from_values(
@@ -79,8 +77,8 @@ def identity_from_values(
     agent_id: str | None = None,
     run_id: str | None = None,
     worktree_id: str | None = None,
-    **_unused: object,
 ) -> ExecutionIdentity:
+    """合并显式值与环境变量，并生成可安全用于路径的执行身份。"""
     client = agent_client if agent_client is not None else os.environ.get('FEIPI_AGENT_CLIENT')
     raw_session = session_id if session_id is not None else os.environ.get('FEIPI_SESSION_ID', '')
     raw_agent = agent_id if agent_id is not None else os.environ.get('FEIPI_AGENT_ID', '')
@@ -102,19 +100,23 @@ def identity_from_values(
 
 
 def session_root_dir(repo_root: Path, identity: ExecutionIdentity) -> Path:
+    """返回当前 client/session 的日志根目录。"""
     return repo_root / 'tmp' / 'agent_logs' / identity.client / identity.session_id
 
 
 def run_root_dir(repo_root: Path, identity: ExecutionIdentity) -> Path:
+    """返回 session 根目录，存在 run identity 时追加隔离层。"""
     root = session_root_dir(repo_root, identity)
     return root / 'runs' / identity.run_id if identity.has_run else root
 
 
 def session_main_log_dir(repo_root: Path, identity: ExecutionIdentity) -> Path:
+    """返回当前 run 主 agent 的日志目录。"""
     return run_root_dir(repo_root, identity) / 'main'
 
 
 def agent_log_dir(repo_root: Path, identity: ExecutionIdentity | None = None) -> Path:
+    """按 identity 返回主 agent 或子 agent 的日志目录。"""
     selected = identity or identity_from_values()
     if selected.is_agent:
         return run_root_dir(repo_root, selected) / 'agents' / selected.agent_id
@@ -124,6 +126,7 @@ def agent_log_dir(repo_root: Path, identity: ExecutionIdentity | None = None) ->
 def session_log_dirs(
     repo_root: Path, identity: ExecutionIdentity, *, include_agents: bool = False
 ) -> list[Path]:
+    """返回当前 identity 可读取的日志目录，并可显式包含全部子 agent。"""
     if identity.is_agent:
         return [agent_log_dir(repo_root, identity)]
     result = [session_main_log_dir(repo_root, identity)]
@@ -134,6 +137,7 @@ def session_log_dirs(
 
 
 def quality_dir(repo_root: Path, identity: ExecutionIdentity | None = None) -> Path:
+    """返回按 client/session/run/agent 隔离的质量产物目录。"""
     selected = identity or identity_from_values()
     root = repo_root / 'tmp' / 'quality' / selected.client / selected.session_id
     if selected.has_run:
@@ -141,16 +145,8 @@ def quality_dir(repo_root: Path, identity: ExecutionIdentity | None = None) -> P
     return root / 'agents' / selected.agent_id if selected.is_agent else root / 'main'
 
 
-@dataclass(frozen=True)
-class ExecutionPaths:
-    agent_log_dir: Path
-
-
-def build_paths(repo_root: Path, identity: ExecutionIdentity | None = None) -> ExecutionPaths:
-    return ExecutionPaths(agent_log_dir(repo_root, identity))
-
-
 def normalize_path(path: str) -> str:
+    """规范化 repository-relative 路径的分隔符与相对前缀。"""
     value = path.replace('\\', '/').strip()
     while value.startswith('./'):
         value = value[2:]
@@ -158,6 +154,7 @@ def normalize_path(path: str) -> str:
 
 
 def dedupe_paths(paths: list[str]) -> list[str]:
+    """保持输入顺序，规范化并去重非空 repository-relative 路径。"""
     result: list[str] = []
     seen: set[str] = set()
     for path in paths:
@@ -179,6 +176,7 @@ def _git(repo_root: Path, *args: str) -> subprocess.CompletedProcess[str] | None
 
 
 def read_git_dirty_files(repo_root: Path) -> list[str]:
+    """读取 Git dirty 文件；Git 不可用或失败时返回空列表。"""
     result = _git(repo_root, 'status', '--short', '--untracked-files=all')
     if result is None:
         return []
@@ -193,6 +191,7 @@ def read_git_dirty_files(repo_root: Path) -> list[str]:
 
 
 def parse_changed_files_json(value: str | None) -> list[str]:
+    """解析 changed-files JSON array；格式无效时 fail-closed 为空列表。"""
     if value is None:
         return []
     try:
@@ -209,6 +208,7 @@ def parse_changed_files_json(value: str | None) -> list[str]:
 def read_recorded_changed_files_from_paths(
     paths: list[Path], session_id: str | None = None, agent_id: str | None = None
 ) -> list[str]:
+    """从 evidence 文件读取匹配 identity 的 changed files，并忽略损坏记录。"""
     files: list[str] = []
     for path in paths:
         try:
@@ -233,6 +233,7 @@ def read_recorded_changed_files_from_paths(
 
 
 def read_files_since_base_commit(repo_root: Path, base_commit_file: Path) -> list[str]:
+    """读取 base commit 后的 tracked 与 untracked 文件；证据不可用时返回空列表。"""
     try:
         base = base_commit_file.read_text(encoding='utf-8').strip()
     except OSError:
@@ -260,6 +261,7 @@ def _reject_symlink_components(path: Path) -> None:
 
 
 def ensure_private_directory(path: Path, *, root: Path | None = None) -> Path:
+    """创建仅当前用户可访问的目录，并拒绝越界、符号链接或属主异常。"""
     target = Path(os.path.abspath(path.expanduser()))
     boundary = Path(os.path.abspath(root.expanduser())) if root is not None else target
     try:
@@ -280,6 +282,7 @@ def ensure_private_directory(path: Path, *, root: Path | None = None) -> Path:
 
 
 def resolve_runtime_root(repo_root: Path) -> Path:
+    """解析 checkout 共享的私有 runtime 根目录，并执行目录安全校验。"""
     override = os.environ.get('FEIPI_AGENT_RUNTIME_ROOT', '').strip()
     if override:
         return ensure_private_directory(Path(override).expanduser().resolve())
@@ -294,149 +297,17 @@ def resolve_runtime_root(repo_root: Path) -> Path:
     return ensure_private_directory(root, root=ensure_private_directory(root.parent))
 
 
-def sanitized_environment(
-    overrides: Mapping[str, str | None] | None = None, *, base: Mapping[str, str] | None = None
-) -> dict[str, str]:
-    result = {str(key): str(value) for key, value in (os.environ if base is None else base).items()}
-    for key, value in (overrides or {}).items():
-        if value is None:
-            result.pop(str(key), None)
-        else:
-            result[str(key)] = str(value)
-    for key in tuple(result):
-        if key.startswith(PROVIDER_ENV_PREFIXES):
-            result.pop(key, None)
-    return result
-
-
-@dataclass(frozen=True, slots=True)
-class BoundedRunResult:
-    return_code: int | None
-    exit_reason: str
-    timed_out: bool
-    command_fingerprint: str
-    environment_fingerprint: str
-    started_at: str
-    finished_at: str
-    duration_seconds: float
-    child_pid: int | None
-    log_path: str
-    output_tail: str
-
-    def as_dict(self) -> dict[str, Any]:
-        return asdict(self)
-
-
-def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        process.wait(timeout=2)
-        return
-    try:
-        os.killpg(process.pid, signal.SIGTERM)
-    except (ProcessLookupError, PermissionError):
-        pass
-    deadline = time.monotonic() + PROCESS_TERM_GRACE_SECONDS
-    while process.poll() is None and time.monotonic() < deadline:
-        time.sleep(0.02)
-    if process.poll() is None:
-        try:
-            os.killpg(process.pid, signal.SIGKILL)
-        except (ProcessLookupError, PermissionError):
-            pass
-    process.wait(timeout=2)
-
-
-def _log_tail(path: Path, limit: int = PROCESS_TAIL_BYTES) -> str:
-    try:
-        with path.open('rb') as handle:
-            handle.seek(0, os.SEEK_END)
-            size = handle.tell()
-            handle.seek(max(0, size - limit))
-            return handle.read(limit).decode('utf-8', errors='replace')
-    except OSError:
-        return ''
-
-
-def run_bounded(
-    argv: Sequence[str],
-    *,
-    cwd: Path | str,
-    timeout: float,
-    env: Mapping[str, str | None] | None,
-    log_path: Path | str,
-) -> BoundedRunResult:
-    if (
-        isinstance(argv, (str, bytes))
-        or not argv
-        or any(not isinstance(v, str) or not v or '\0' in v for v in argv)
-    ):
-        raise ValueError('argv must contain non-empty strings without NUL')
-    if timeout <= 0:
-        raise ValueError('timeout must be positive')
-    command = tuple(argv)
-    selected_log = Path(os.path.abspath(Path(log_path).expanduser()))
-    selected_log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, 'O_NOFOLLOW', 0)
-    descriptor = os.open(selected_log, flags, 0o600)
-    child_env = sanitized_environment(env)
-    started_at = utc_now()
-    started = time.monotonic()
-    process: subprocess.Popen[bytes] | None = None
-    return_code: int | None = None
-    exit_reason = 'SPAWN_ERROR'
-    timed_out = False
-    with os.fdopen(descriptor, 'wb') as log:
-        try:
-            process = subprocess.Popen(
-                command,
-                cwd=Path(cwd).resolve(),
-                env=child_env,
-                stdin=subprocess.DEVNULL,
-                stdout=log,
-                stderr=subprocess.STDOUT,
-                start_new_session=True,
-                shell=False,
-            )
-            try:
-                return_code = process.wait(timeout=timeout)
-                exit_reason = 'SIGNAL' if return_code < 0 else 'EXITED'
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                exit_reason = 'TIMEOUT'
-                _terminate_process_group(process)
-                return_code = process.returncode
-        except OSError as exc:
-            log.write(f'{type(exc).__name__}: {exc}\n'.encode(errors='replace'))
-        except BaseException:
-            if process is not None:
-                _terminate_process_group(process)
-            raise
-        finally:
-            log.flush()
-            os.fsync(log.fileno())
-    return BoundedRunResult(
-        return_code,
-        exit_reason,
-        timed_out,
-        stable_hash(json.dumps(command)),
-        stable_hash(json.dumps(sorted(child_env.items()))),
-        started_at,
-        utc_now(),
-        round(time.monotonic() - started, 6),
-        process.pid if process else None,
-        str(selected_log),
-        _log_tail(selected_log),
-    )
-
-
 @dataclass
 class PortAllocation:
+    """保存 loopback 端口、run-scoped 记录与可选的占用 socket。"""
+
     name: str
     port: int
     path: Path
     socket: socket.socket | None = None
 
     def close(self) -> None:
+        """关闭保留 socket，并删除对应的 run-scoped 端口记录。"""
         if self.socket is not None:
             self.socket.close()
             self.socket = None
@@ -444,6 +315,7 @@ class PortAllocation:
 
 
 def reserve_port(repo_root: Path, name: str, *, hold_socket: bool = True) -> PortAllocation:
+    """预留 loopback 端口并写入 run-scoped 记录，可选择持续持有 socket。"""
     root = resolve_runtime_root(repo_root) / 'ports'
     root.mkdir(parents=True, exist_ok=True)
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)

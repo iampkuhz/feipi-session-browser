@@ -26,7 +26,7 @@
 
 ## Baseline 文件
 
-- `scripts/checks/layout_inline_style_baseline.json` — 行内样式基线数据。
-- `scripts/checks/innerhtml_baseline.json` — innerHTML 基线数据。
+- `scripts/checks/web/baselines/layout_inline_style_baseline.json` — 行内样式基线数据。
+- `scripts/checks/web/baselines/innerhtml_baseline.json` — innerHTML 基线数据。
 
 修改 baseline 前必须确认变更是有意为之，不是为了绕过 gate。

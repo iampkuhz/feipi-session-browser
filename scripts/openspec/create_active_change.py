@@ -17,8 +17,6 @@ if str(REPO_ROOT) not in sys.path:
 
 from scripts.gates import support as gate_support  # noqa: E402
 
-# 常量定义。
-
 KEBAB_RE = re.compile(r'^[a-z0-9][a-z0-9-]*$')
 
 PROTECTED_ROOTS = [
@@ -46,14 +44,8 @@ TEMPLATE_FILES = {
 }
 
 
-# 验证change id。
 def validate_change_id(change_id: str) -> str | None:
-    """参数：
-        change_id: 当前 OpenSpec change id。
-
-    返回：
-        None 当 有效；否则 human-读取able validation 错误。
-    """
+    """验证 change id 是否可安全映射为 kebab-case 目录名。"""
     if not change_id:
         return 'change-id is required and cannot be empty'
     if not KEBAB_RE.match(change_id):
@@ -66,14 +58,8 @@ def validate_change_id(change_id: str) -> str | None:
     return None
 
 
-# 维护templates 目录。
 def _templates_dir(root: Path) -> Path:
-    """参数：
-        root: 扫描根目录。
-
-    返回：
-        解析后的 HookContext；失败时携带 parse_error。
-    """
+    """返回 change skill 的模板目录；缺失时保留预期路径供调用方降级。"""
     candidates = [
         root / '.claude' / 'skills' / 'change' / 'templates',
     ]
@@ -83,15 +69,10 @@ def _templates_dir(root: Path) -> Path:
     return candidates[0]  # 缺失时返回最接近的候选路径，交由调用方报告
 
 
-# 写入文件 missing。
 def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
-    """参数：
-        path: Destination 文件路径。
-        content: Text到write 当 文件 is 缺失。
-        label: 输出中显示的人类可读标签。
+    """仅在目标不存在时写入文件，并返回本次是否创建。
 
-    返回：
-        当a 文件 was created; 当 destination al读取y existed.时返回 true。
+    ``label`` 保留为既有调用契约；文件内容和存在性语义不依赖该展示字段。
     """
     if path.exists():
         return False
@@ -100,7 +81,6 @@ def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
     return True
 
 
-# 模板缺失时复制默认结构前先报告失败。
 def copy_template_if_missing(
     change_dir: Path,
     dest_rel: str,
@@ -108,15 +88,9 @@ def copy_template_if_missing(
     templates_dir: Path,
     change_id: str,
 ) -> bool:
-    """参数：
-        change_dir: change dir 参数。
-        dest_rel: 相对 change 目录的目标路径。
-        template_name: openspec/templates 下的 template 文件名。
-        templates_dir: OpenSpec template 目录。
-        change_id: 当前 OpenSpec change id。
+    """从模板创建缺失的 change 文件，并替换 change 占位符。
 
-    返回：
-        满足条件时返回 true，否则返回 false。
+    模板缺失时仍写入最小标题，确保 scaffold 的幂等文件集合保持完整。
     """
     dest = change_dir / dest_rel
     if dest.exists():
@@ -133,7 +107,6 @@ def copy_template_if_missing(
     return True
 
 
-# 创建active change。
 def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     change_id: str,
     source: str,
@@ -143,17 +116,10 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     session_id: str | None = None,
     agent_id: str | None = None,
 ) -> dict:
-    """参数：
-        change_id: 当前 OpenSpec change id。
-        source: 输入来源标识。
-        title: 可选display title用于generated proposal text。
-        root: 扫描根目录。
-        agent_client: agent client 参数。
-        session_id: 用于筛选记录的 session id。
-        agent_id: 用于筛选记录的 agent id。
+    """幂等创建 OpenSpec change 骨架和当前 agent 的 active-change sentinel。
 
-    返回：
-        结果映射。
+    已存在的 change 文件不会被覆盖；sentinel 会刷新身份字段，但会在复用同一
+    change 时保留最初的 ``started_at`` 与 ``source_request``。
     """
     if root is None:
         root = Path.cwd()
@@ -174,7 +140,7 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     existed: list[str] = []
     updated: list[str] = []
 
-    # 创建或复用 change 目录与模板文件。
+    # 先补齐受版本控制的 change 骨架，再处理会话范围的 runtime sentinel。
     if not change_dir.exists():
         change_dir.mkdir(parents=True, exist_ok=True)
         created.append(f'openspec/changes/{change_id}/')
@@ -190,10 +156,8 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         else:
             existed.append(f'openspec/changes/{change_id}/{dest_rel}')
 
-    # tmp/ 目录。
     if not agent_dir.exists():
         agent_dir.mkdir(parents=True, exist_ok=True)
-    # 构建parser。
     else:
         existed.append(str(agent_dir.relative_to(root)) + '/')
 
@@ -236,11 +200,8 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     }
 
 
-# 构建parser。
 def build_parser() -> argparse.ArgumentParser:
-    """返回：
-    解析后的 HookContext；失败时携带 parse_error。
-    """
+    """构建公开命令的参数解析器。"""
     parser = argparse.ArgumentParser(
         description='Create an active OpenSpec change and sentinel file.',
     )
@@ -265,15 +226,11 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-# 解析命令行参数并运行脚本入口。
 def main() -> int:
-    """返回：
-    进程退出码。
-    """
+    """校验输入、创建 change，并报告 created/existed/updated 分类。"""
     parser = build_parser()
     args = parser.parse_args()
 
-    # 校验 change-id。
     err = validate_change_id(args.change_id)
     if err:
         print(f'ERROR: {err}', file=sys.stderr)
@@ -288,7 +245,7 @@ def main() -> int:
         agent_id=args.agent_id,
     )
 
-    # 报告输出。
+    # 分类输出是调用方确认幂等结果的公开诊断，不合并为模糊的成功消息。
     if result['created']:
         print(f"Created change '{result['change_id']}':")
         for p in result['created']:

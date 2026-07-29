@@ -2,9 +2,9 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.checks import check_no_committed_local_paths as local_paths
-from scripts.checks import check_no_real_session_fixtures as real_sessions
-from scripts.checks import check_secret_like_content as secrets
+from scripts.checks.privacy import check_no_committed_local_paths as local_paths
+from scripts.checks.privacy import check_no_real_session_fixtures as real_sessions
+from scripts.checks.privacy import check_secret_like_content as secrets
 
 
 def _write(root: Path, rel: str, text: str) -> Path:

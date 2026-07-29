@@ -1,30 +1,28 @@
-"""scripts/checks/static_contract_check.py 纯函数测试."""
+"""scripts/checks/web/static_contract_check.py 纯函数测试."""
 
 from __future__ import annotations
 
-import importlib
-import sys
 from pathlib import Path
 
 import pytest
+from scripts.checks.web import static_contract_check
 
 ROOT = Path(__file__).resolve().parents[2]
-sys.path.insert(0, str(ROOT / 'scripts' / 'checks'))
 
-SC = importlib.import_module('static_contract_check')
-
-check_css_load_order = SC.check_css_load_order
-check_css_ownership_gate = SC.check_css_ownership_gate
-check_innerhtml_safety = SC.check_innerhtml_safety
-check_no_dead_css = SC.check_no_dead_css
-check_no_duplicate_base_css = SC.check_no_duplicate_base_css
-check_no_global_component_override = SC.check_no_global_component_override
-check_no_important = SC.check_no_important
-check_no_layout_inline_style_new_block = SC.check_no_layout_inline_style_new_block
-check_no_raw_innerhtml_new_block = SC.check_no_raw_innerhtml_new_block
-check_payload_modal_ownership = SC.check_payload_modal_ownership
-check_selector_depth_new_block = SC.check_selector_depth_new_block
-check_shell_ownership = SC.check_shell_ownership
+check_css_load_order = static_contract_check.check_css_load_order
+check_css_ownership_gate = static_contract_check.check_css_ownership_gate
+check_innerhtml_safety = static_contract_check.check_innerhtml_safety
+check_no_dead_css = static_contract_check.check_no_dead_css
+check_no_duplicate_base_css = static_contract_check.check_no_duplicate_base_css
+check_no_global_component_override = static_contract_check.check_no_global_component_override
+check_no_important = static_contract_check.check_no_important
+check_no_layout_inline_style_new_block = (
+    static_contract_check.check_no_layout_inline_style_new_block
+)
+check_no_raw_innerhtml_new_block = static_contract_check.check_no_raw_innerhtml_new_block
+check_payload_modal_ownership = static_contract_check.check_payload_modal_ownership
+check_selector_depth_new_block = static_contract_check.check_selector_depth_new_block
+check_shell_ownership = static_contract_check.check_shell_ownership
 
 # ── check_no_important ────────────────────────────────────────────────
 

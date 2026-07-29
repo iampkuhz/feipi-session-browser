@@ -1,4 +1,7 @@
-"""提供 Gate 命令组的跨进程资源锁与 fencing 释放。"""
+"""本模块负责 Gate 命令组的跨进程资源锁与 fencing 释放。
+
+不负责选择 Gate 或归约业务状态；由 executor 调度命令组时调用。
+"""
 
 from __future__ import annotations
 

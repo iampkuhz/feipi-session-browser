@@ -26,7 +26,7 @@
 4. `shared check `web.session-detail-static`` → 静态检查入口。
 5. `shared check `web.css-ownership`` → CSS ownership 校验。
 6. `shared check `web.js-action-handlers`` → JS handler 完整性检查。
-7. `scripts/checks/*_baseline.json` → UI gate baseline 数据。
+7. `scripts/checks/web/baselines/*.json` → UI gate baseline 数据。
 
 ## 常见误区
 

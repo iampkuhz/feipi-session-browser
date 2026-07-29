@@ -28,7 +28,7 @@ case "${1:-}" in
     ;;
 esac
 
-# 记录一项通过的检查结果。
+# 三类记录函数集中维护计数与稳定输出格式，避免检查分支各自拼装结果。
 pass_check() {
   local message="$1"
   pass_count=$((pass_count + 1))
@@ -37,7 +37,6 @@ pass_check() {
   fi
 }
 
-# 记录一项失败的检查结果。
 fail_check() {
   local message="$1"
   failure_count=$((failure_count + 1))
@@ -45,14 +44,13 @@ fail_check() {
   echo "[FAIL] $message" >&2
 }
 
-# 记录一项警告检查结果。
 warn_check() {
   local message="$1"
   warning_count=$((warning_count + 1))
   echo "[WARN] $message" >&2
 }
 
-# 执行检查命令并记录结果。
+# 子检查输出有界截断，防止 doctor 失败时用下游长日志淹没首要诊断。
 run_check() {
   local label="$1"
   shift
@@ -77,7 +75,7 @@ run_check() {
   fi
 }
 
-# 通过共享 resolver 解析项目 Python executable。
+# 这里只选择能启动共享 resolver 的 bootstrap Python；最终项目解释器仍由 python_env.py 判定。
 python_bin() {
   local resolver=""
   if [[ -x "$VENV_DIR/bin/python" ]]; then
@@ -95,7 +93,6 @@ python_bin() {
 
 PYTHON="$(python_bin)" || PYTHON=""
 
-# 检查文件。
 check_file() {
   local file="$1"
   if [[ -f "$file" ]]; then
@@ -105,7 +102,6 @@ check_file() {
   fi
 }
 
-# 检查dir。
 check_dir() {
   local dir="$1"
   if [[ -d "$dir" ]]; then
@@ -167,7 +163,7 @@ if [[ -e ".claude/settings.local.json" ]]; then
   warn_check "personal config present: .claude/settings.local.json (gitignored, allowed)"
 fi
 
-# OpenSpec runtime state 不应被 Git 追踪
+# OpenSpec runtime state 属于会话数据；一旦被追踪就阻断，避免个人运行状态进入仓库。
 openspec_tracked=$(git ls-files openspec/active_change.json openspec/changes 2>/dev/null || true)
 if [[ -n "$openspec_tracked" ]]; then
   fail_check "OpenSpec runtime state 不应被 Git 追踪: $openspec_tracked"

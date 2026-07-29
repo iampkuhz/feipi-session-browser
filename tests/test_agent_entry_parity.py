@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import yaml
-from scripts.checks.check_agent_entry_parity import check_agent_entries
+from scripts.checks.agent.check_agent_entry_parity import check_agent_entries
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'harness' / 'agent-runtime.manifest.yaml'

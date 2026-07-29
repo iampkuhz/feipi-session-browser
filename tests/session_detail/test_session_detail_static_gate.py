@@ -1,4 +1,4 @@
-"""Tests for scripts/checks/check_session_detail_static.py."""
+"""Tests for scripts/checks/web/check_session_detail_static.py."""
 
 import importlib.util
 import tempfile
@@ -7,7 +7,11 @@ from pathlib import Path
 import pytest
 
 SCRIPT_PATH = (
-    Path(__file__).resolve().parents[2] / 'scripts' / 'checks' / 'check_session_detail_static.py'
+    Path(__file__).resolve().parents[2]
+    / 'scripts'
+    / 'checks'
+    / 'web'
+    / 'check_session_detail_static.py'
 )
 _spec = importlib.util.spec_from_file_location('check_session_detail_static', SCRIPT_PATH)
 _csd = importlib.util.module_from_spec(_spec)

@@ -69,25 +69,13 @@ class ProjectPythonNotReadyError(RuntimeError):
         )
 
 
-# 规范化name。
 def normalize_name(name: str) -> str:
-    """参数：
-        name: 原始dependency name从project metadata 或 lock 文件。
-
-    返回：
-        normalize name 字符串。
-    """
+    """按 Python distribution 规范统一依赖名，供 metadata 与 lock 比对。"""
     return _NORMALIZE_RE.sub('-', name).lower()
 
 
-# 判断是否executable。
 def _is_executable(path: str) -> bool:
-    """参数：
-        path: 命令name 或 filesystem 路径以检查。
-
-    返回：
-        满足条件时返回 true，否则返回 false。
-    """
+    """判断命令名或文件路径是否指向可执行文件。"""
     if os.sep in path or (os.altsep and os.altsep in path):
         return Path(path).expanduser().is_file() and os.access(Path(path).expanduser(), os.X_OK)
     return shutil.which(path) is not None
@@ -105,9 +93,8 @@ def project_venv_dir(repo_root: Path = REPO_ROOT) -> Path:
     return candidate.resolve()
 
 
-# 判断解释器版本是否满足项目 Python 约束。
 def _candidate_specs(repo_root: Path) -> list[tuple[str, str]]:
-    """按显式、项目 venv、系统解释器生成去重候选。"""
+    """按显式配置、项目 venv、系统解释器的优先级生成去重候选。"""
 
     explicit = os.environ.get('SESSION_BROWSER_PYTHON', '').strip()
     if explicit:
@@ -186,24 +173,15 @@ def _probe_python(
     return 'dependency-not-ready'
 
 
-# 维护Python 候选项。
 def python_candidates(repo_root: Path = REPO_ROOT) -> list[str]:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        结果列表。
-    """
+    """返回 resolver 会依次探测的 Python executable。"""
     return [candidate for _source, candidate in _candidate_specs(repo_root)]
 
 
-# 解析Python。
 def resolve_python(repo_root: Path = REPO_ROOT) -> str:
-    """参数：
-        repo_root: 仓库根目录。
+    """在总时间预算内选择首个满足版本和 runtime dependency 契约的解释器。
 
-    返回：
-        resolve python 字符串。
+    显式配置失败时不会降级到其他候选，避免用户指定的环境被静默绕过。
     """
     started = time.monotonic()
     checks: list[PythonCandidateCheck] = []
@@ -225,14 +203,8 @@ def resolve_python(repo_root: Path = REPO_ROOT) -> str:
     raise ProjectPythonNotReadyError(repo_root, checks)
 
 
-# 解析版本tuple。
 def _parse_version(value: str) -> tuple[int, int, int] | None:
-    """参数：
-        value: 版本字符串，例如 ``3.12.11``。
-
-    返回：
-        可比较的三段版本；无法解析时返回 None。
-    """
+    """把三段 Python 版本解析为可比较 tuple，格式不合法时返回 None。"""
     parts = value.strip().split('.')
     if len(parts) != 3:
         return None
@@ -242,26 +214,14 @@ def _parse_version(value: str) -> tuple[int, int, int] | None:
         return None
 
 
-# 判断版本是否满足项目 Python minor 合约。
 def _version_in_range(version: tuple[int, int, int]) -> bool:
-    """参数：
-        version: 三段 Python 版本。
-
-    返回：
-        满足 ``>=3.12,<3.13`` 时返回 true。
-    """
+    """判断版本是否满足项目固定的 Python minor 契约。"""
     major_minor = version[:2]
     return MIN_VERSION <= major_minor < MAX_VERSION
 
 
-# 读取 pyproject 中声明的 Python 版本约束。
 def _pyproject_requires_python(path: Path) -> str:
-    """参数：
-        path: pyproject.toml 路径。
-
-    返回：
-        requires-python 字符串，缺失时为空。
-    """
+    """读取 pyproject.toml 的 requires-python，缺失时返回空字符串。"""
     if tomllib is None:
         for raw in path.read_text(encoding='utf-8').splitlines():
             line = raw.strip()
@@ -272,14 +232,8 @@ def _pyproject_requires_python(path: Path) -> str:
     return str(data.get('project', {}).get('requires-python', ''))
 
 
-# 读取 uv.lock requires-python。
 def _uv_requires_python(path: Path) -> str:
-    """参数：
-        path: uv.lock 路径。
-
-    返回：
-        lock 文件声明的 requires-python。
-    """
+    """读取 uv.lock 的 requires-python，文件或字段缺失时返回空字符串。"""
     if not path.is_file():
         return ''
     for raw in path.read_text(encoding='utf-8').splitlines()[:20]:
@@ -289,14 +243,8 @@ def _uv_requires_python(path: Path) -> str:
     return ''
 
 
-# 检查 Python 版本合约文件。
 def _python_contract_problems(repo_root: Path) -> list[str]:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        Python 版本合约 drift 列表。
-    """
+    """汇总 pyproject、uv.lock 与 .python-version 之间的版本口径漂移。"""
     problems: list[str] = []
     pyproject_requires = _pyproject_requires_python(repo_root / 'pyproject.toml')
     if pyproject_requires != PYTHON_REQUIRES:
@@ -318,14 +266,8 @@ def _python_contract_problems(repo_root: Path) -> list[str]:
     return problems
 
 
-# 解析 pyproject 中的数组字段。
 def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
-    """参数：
-        path: 待检查的路径。
-
-    返回：
-        结果 tuple。
-    """
+    """在 tomllib 不可用时解析项目维护的简单 dependency 数组结构。"""
     text = path.read_text(encoding='utf-8')
     deps: list[str] = []
     dev: list[str] = []
@@ -352,14 +294,8 @@ def _parse_pyproject_arrays(path: Path) -> tuple[list[str], list[str]]:
     return deps, dev
 
 
-# 维护pyproject names。
 def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
-    """参数：
-        path: Pyproject 文件到解析。
-
-    返回：
-        结果 tuple。
-    """
+    """返回 pyproject 声明的 runtime 与 dev distribution 名。"""
     if tomllib is None:
         return _parse_pyproject_arrays(path)
     data = tomllib.loads(path.read_text(encoding='utf-8'))
@@ -369,7 +305,6 @@ def pyproject_names(path: Path) -> tuple[list[str], list[str]]:
     return deps, dev
 
 
-# 检查locks。
 def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
     """检查 Python 版本文件与唯一 uv lock 是否齐全、口径一致。"""
     problems: list[str] = []
@@ -379,15 +314,8 @@ def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
     return problems
 
 
-# 汇总已安装依赖与契约不一致的问题。
 def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
-    """参数：
-        profile: profile 参数。
-        repo_root: 仓库根目录。
-
-    返回：
-        结果列表。
-    """
+    """汇总指定依赖 profile 中尚未安装的 distribution。"""
     runtime, dev = pyproject_names(repo_root / 'pyproject.toml')
     if profile == 'runtime':
         names = set(runtime)
@@ -407,14 +335,8 @@ def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
     return problems
 
 
-# 打印报告。
 def print_report(repo_root: Path = REPO_ROOT) -> int:
-    """参数：
-        repo_root: 仓库根目录。
-
-    返回：
-        进程退出码。
-    """
+    """打印 Python 依赖契约摘要，并以退出码表示 lock 是否一致。"""
     python = resolve_python(repo_root)
     print(f'[INFO] python: {python}')
     print(f'[INFO] python requires: {PYTHON_REQUIRES}')
@@ -431,14 +353,8 @@ def print_report(repo_root: Path = REPO_ROOT) -> int:
     return 0
 
 
-# 解析命令行参数并运行脚本入口。
 def main(argv: list[str] | None = None) -> int:
-    """参数：
-        argv: 可选命令-行 参数; defaults到``sys.argv``。
-
-    返回：
-        进程退出码。
-    """
+    """解析子命令并运行 resolver、报告或依赖契约检查。"""
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest='cmd', required=True)
     sub.add_parser('resolve')

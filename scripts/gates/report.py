@@ -16,7 +16,6 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from pathlib import Path
 
-# 定义 PASS 常量配置。
 PASS = 'PASS'
 FAIL = 'FAIL'
 BLOCKED = 'BLOCKED'
@@ -35,22 +34,13 @@ _FILE_REFERENCE_RE = re.compile(
 )
 
 
-# 返回当前 UTC timestamp。
 def utc_now() -> str:
-    """返回：
-    当前 UTC timestamp 字符串。
-    """
+    """返回当前 UTC 时间戳。"""
     return datetime.now(UTC).isoformat()
 
 
-# 读取当前 HEAD 的短 commit hash。
 def resolve_base_commit(repo_root: str = '.') -> str:
-    """参数：
-        repo_root: 执行 git 命令时使用的 repo root。
-
-    返回：
-        短 commit hash；git 不可用时返回空字符串。
-    """
+    """读取当前 HEAD 的短 commit hash；Git 不可用时返回空字符串。"""
     try:
         result = subprocess.run(
             ['git', 'rev-parse', '--short', 'HEAD'],
@@ -65,14 +55,8 @@ def resolve_base_commit(repo_root: str = '.') -> str:
         return ''
 
 
-# 计算工作树脏状态的短哈希，用于稳定报告标识。
 def resolve_dirty_hash(repo_root: str = '.') -> str:
-    """参数：
-        repo_root: 执行 git 命令时使用的 repo root。
-
-    返回：
-        dirty 状态短 hash；工作区干净或 git 不可用时返回空字符串。
-    """
+    """计算工作树 dirty 状态短 hash；无变化或 Git 不可用时返回空字符串。"""
     try:
         result = subprocess.run(
             ['git', 'diff', '--shortstat'],
@@ -92,15 +76,8 @@ def resolve_dirty_hash(repo_root: str = '.') -> str:
         return ''
 
 
-# 判断 quality artifact 是否仍在有效时间窗口内。
 def is_artifact_fresh(artifact_path: str, max_age_seconds: int = 3600) -> bool:
-    """参数：
-        artifact_path: 路径到 artifact JSON 文件。
-        max_age_seconds: 允许的最大年龄，单位为秒。
-
-    返回：
-        满足条件时返回 true，否则返回 false。
-    """
+    """判断 quality artifact 是否仍在有效时间窗口内。"""
     from pathlib import Path as _Path
 
     p = _Path(artifact_path)
@@ -144,7 +121,7 @@ class QualitySummary:
     warnings: list[str] = field(default_factory=list)
     artifacts: dict[str, Any] = field(default_factory=dict)
     gateDetails: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815 - Preserve schema.
-    # 04b. 新增 artifact 元数据字段
+    # 运行身份与执行计划字段沿用既有 JSON schema 的 camelCase 命名。
     runId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     baseCommit: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     dirtyHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
@@ -161,21 +138,13 @@ class QualitySummary:
     gateStates: dict[str, str] = field(default_factory=dict)  # noqa: N815
 
 
-# 生成优先保留错误行的有界诊断摘要。
 def concise_diagnostic(
     output: str,
     *,
     max_chars: int = DIAGNOSTIC_MAX_CHARS,
     max_lines: int = DIAGNOSTIC_MAX_LINES,
 ) -> str:
-    """参数：
-        output: 原始诊断输出。
-        max_chars: 摘要最大字符数。
-        max_lines: 摘要最大行数。
-
-    返回：
-        有界诊断摘要。
-    """
+    """生成优先保留错误行且受字符数与行数限制的诊断摘要。"""
     raw_lines = [line.strip() for line in output.splitlines() if line.strip()]
     if not raw_lines:
         return '(no gate output; inspect the artifact or rerun the command)'
@@ -209,14 +178,8 @@ def concise_diagnostic(
     return excerpt
 
 
-# 把序列化的门禁明细规范化为报告对象。
 def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
-    """参数：
-        detail: 门禁明细对象或序列化字典。
-
-    返回：
-        规范化后的门禁明细对象。
-    """
+    """把序列化字典或现有对象规范化为 GateDetail。"""
     if isinstance(detail, GateDetail):
         return detail
     raw_command = detail.get('command') or []
@@ -240,15 +203,8 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
     )
 
 
-# 从诊断输出提取数量受限的受影响文件列表。
 def _affected_files(output: str, limit: int = 8) -> list[str]:
-    """参数：
-        output: 原始诊断输出。
-        limit: 最多返回的文件数量。
-
-    返回：
-        去重后的受影响文件列表。
-    """
+    """从诊断输出提取数量受限且去重的受影响文件。"""
     files: list[str] = []
     for match in _FILE_REFERENCE_RE.finditer(output):
         value = match.group(1)
@@ -259,17 +215,10 @@ def _affected_files(output: str, limit: int = 8) -> list[str]:
     return files
 
 
-# 将质量结果格式化为有界报告。
 def format_quality_report(
     summary: QualitySummary | dict[str, Any], artifact_path: str | Path
 ) -> str:
-    """参数：
-        summary: 质量摘要对象或序列化字典。
-        artifact_path: 质量摘要产物路径。
-
-    返回：
-        成功时为单行结果，失败时为有界可操作报告。
-    """
+    """格式化质量结果；成功为单行，失败为有界可操作报告。"""
     if isinstance(summary, dict):
         status = str(summary.get('status', BLOCKED)).upper()
         target = str(summary.get('target', 'unknown'))
@@ -329,14 +278,8 @@ def format_quality_report(
     return '\n'.join(lines)
 
 
-# 计算必需 gate 的 fail-closed 总体状态。
 def compute_overall(required_gates: dict[str, str]) -> tuple[str, list[str]]:
-    """参数：
-        required_gates: 必需 gate 名称到报告状态的映射。
-
-    返回：
-        结果 tuple。
-    """
+    """按 fail-closed 规则归约 required Gate 状态与失败原因。"""
     failures: list[str] = []
     if not required_gates:
         return BLOCKED, ['requiredGates is empty; cannot default to PASS.']
@@ -353,32 +296,18 @@ def compute_overall(required_gates: dict[str, str]) -> tuple[str, list[str]]:
     return (PASS, []) if not failures else (FAIL, failures)
 
 
-# 计算 artifact 内容 hash。
 def _compute_report_hash(data: dict) -> str:
-    """参数：
-        data: 待处理的数据对象。
-
-    返回：
-        12 位十六进制哈希前缀。
-    """
+    """计算 artifact 内容的 12 位稳定 hash。"""
     content = json.dumps(data, ensure_ascii=False, indent=2, sort_keys=True)
     return hashlib.sha256(content.encode('utf-8')).hexdigest()[:12]
 
 
-# 写入 quality summary 及其明细 artifact。
 def write_quality_summary(
     base_dir: Path,
     summary: QualitySummary,
     target_specific: bool = True,
 ) -> Path:
-    """参数：
-        base_dir: artifact 基目录；change id 附加在其下方。
-        summary: 要序列化的 summary dataclass。
-        target_specific: 文件名是否包含 ``summary.target`` 以支持并行 target。
-
-    返回：
-        写入的 summary JSON 文件路径。
-    """
+    """写入 quality summary artifact，并返回 JSON 路径。"""
     out_dir = base_dir / summary.changeId
     out_dir.mkdir(parents=True, exist_ok=True)
 
@@ -407,7 +336,6 @@ def write_quality_summary(
     return summary_path
 
 
-# 由 executor 明细构造 schema v3 的稳定 target 摘要。
 def build_summary(
     target: str,
     change_id: str,

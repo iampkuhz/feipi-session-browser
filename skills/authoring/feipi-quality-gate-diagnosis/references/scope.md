@@ -23,7 +23,7 @@
 ## 关键路径
 
 1. `scripts/gates/cli.py` → 唯一 Gate CLI；内部模块不得直跑。
-2. `scripts/checks/*.py` → 领域检查器，只按失败报告做精确 rerun。
+2. `scripts/checks/<domain>/*.py` → 领域检查器，只按失败报告做精确 rerun。
 3. `scripts/harness/doctor.sh` → 环境体检脚本。
 4. `harness/skill-registry.yaml` → skill 注册表。
 5. `harness/manifest.yaml` 与 `harness/agent-policy.manifest.yaml` → minimal harness 真相。

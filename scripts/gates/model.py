@@ -90,20 +90,14 @@ class GateSpec:
     description: str
     network_failure: str = 'fail'
 
-    # 返回 Gate 所属 target，顺序与 catalog 注册顺序一致。
     @property
     def targets(self) -> tuple[str, ...]:
-        """返回：
-        当前函数的稳定结果。
-        """
+        """按 catalog 注册顺序返回 Gate 所属 target。"""
         return tuple(rule.target for rule in self.target_rules)
 
-    # 返回跨 target 去重后的增量 pattern。
     @property
     def patterns(self) -> tuple[str, ...]:
-        """返回：
-        当前函数的稳定结果。
-        """
+        """返回跨 target 去重后的增量 pattern。"""
         return tuple(
             dict.fromkeys(pattern for rule in self.target_rules for pattern in rule.patterns)
         )
@@ -185,12 +179,9 @@ class GatePlan:
     effective_targets: tuple[str, ...]
     targets: tuple[TargetGatePlan, ...]
 
-    # 按 target/注册顺序返回去重后的逻辑 Gate。
     @property
     def logical_gates(self) -> tuple[GateSpec, ...]:
-        """返回：
-        当前函数的稳定结果。
-        """
+        """按 target/注册顺序返回去重后的逻辑 Gate。"""
         seen: set[str] = set()
         result: list[GateSpec] = []
         for target_plan in self.targets:

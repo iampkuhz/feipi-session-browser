@@ -61,7 +61,7 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 ## 文件边界
 
 - Gate 唯一公开入口：`scripts/gates/cli.py`；内部 catalog/planner/executor/receipt/report 不直接运行。
-- 领域检查器：`scripts/checks/*.py`；只在定位单个失败时运行报告给出的精确 rerun 命令。
+- 领域检查器：`scripts/checks/<domain>/*.py`；只在定位单个失败时运行报告给出的精确 rerun 命令。
 - Harness 体检：`scripts/harness/doctor.sh`。
 - Registry 配置：`harness/skill-registry.yaml`。
 - Harness 配置：`harness/manifest.yaml` 与 `harness/agent-policy.manifest.yaml`。

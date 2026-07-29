@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.checks import check_protected_roots_sync as sync_gate
+from scripts.checks.agent import check_protected_roots_sync as sync_gate
 
 ROOT = Path(__file__).resolve().parents[1]
 

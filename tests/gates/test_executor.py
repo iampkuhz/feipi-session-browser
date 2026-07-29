@@ -219,7 +219,7 @@ def test_css_ownership_advisories_are_allowlisted_for_group_name() -> None:
         executor._warning_after_trigger_reason(
             output,
             gate_name='group-040-cssOwnership',
-            cmd=['python3', 'scripts/checks/check_css_ownership.py'],
+            cmd=['python3', 'scripts/checks/web/check_css_ownership.py'],
         )
         is None
     )

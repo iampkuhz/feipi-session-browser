@@ -5,7 +5,6 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-CHECKER = ROOT / "scripts" / "checks" / "check_subagent_handoff_protocol.py"
 
 
 def _read(relative: str) -> str:
@@ -14,7 +13,7 @@ def _read(relative: str) -> str:
 
 def test_subagent_protocol_checker_passes():
     result = subprocess.run(
-        [sys.executable, str(CHECKER)],
+        [sys.executable, "-m", "scripts.checks", "agent.subagent-handoff"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -22,7 +21,7 @@ def test_subagent_protocol_checker_passes():
         check=False,
     )
     assert result.returncode == 0, result.stdout
-    assert "[subagentHandoffProtocol] PASS" in result.stdout
+    assert "[agent.subagent-handoff] PASS" in result.stdout
 
 
 def test_required_handoff_fields_are_declared_for_all_platforms():

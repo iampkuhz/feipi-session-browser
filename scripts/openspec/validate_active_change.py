@@ -10,14 +10,8 @@ import tempfile
 from pathlib import Path
 
 
-# 验证change。
 def validate_change(change_id: str) -> list[str]:
-    """参数：
-        change_id: 当前 OpenSpec change id。
-
-    返回：
-        列出of validation 错误 messages; 空 means change is 有效。
-    """
+    """验证当前工作目录下指定 change 的必需文件与 specs 目录。"""
     root = Path.cwd()
     change_dir = root / 'openspec' / 'changes' / change_id
     errors: list[str] = []
@@ -42,17 +36,14 @@ def validate_change(change_id: str) -> list[str]:
     return errors
 
 
-# 运行self test。
 def run_self_test() -> bool:
-    """返回：
-    当all embedded validator scenarios pass; false 之后 printing 失败项.时返回 true。
-    """
+    """在临时目录运行缺失、完整和不存在三类内嵌契约场景。"""
     tmp_root = Path(tempfile.mkdtemp(prefix='openspec_selftest_'))
     change_dir = tmp_root / 'openspec' / 'changes' / 'test-change'
     specs_dir = change_dir / 'specs'
 
     try:
-        # Test 1: 缺失 everything。
+        # 先证明空 change 会 fail-closed，再补齐文件验证成功路径。
         (change_dir / 'specs').mkdir(parents=True)
         errors = validate_change_at_root('test-change', tmp_root)
         if not errors:
@@ -81,15 +72,8 @@ def run_self_test() -> bool:
         shutil.rmtree(tmp_root, ignore_errors=True)
 
 
-# 验证change at 根目录。
 def validate_change_at_root(change_id: str, root: Path) -> list[str]:
-    """参数：
-        change_id: 当前 OpenSpec change id。
-        root: 扫描根目录。
-
-    返回：
-        列出of validation 错误 messages; 空 means change is 有效。
-    """
+    """在显式仓库根目录验证 change，供 self-test 隔离真实工作区。"""
     change_dir = root / 'openspec' / 'changes' / change_id
     errors: list[str] = []
 
@@ -112,7 +96,6 @@ def validate_change_at_root(change_id: str, root: Path) -> list[str]:
     return errors
 
 
-# 解析命令行参数并运行脚本入口。
 def main() -> None:
     """解析命令行参数并运行本文件契约；任一检查失败时返回非零退出码。"""
     parser = argparse.ArgumentParser(description='Validate active OpenSpec change structure')

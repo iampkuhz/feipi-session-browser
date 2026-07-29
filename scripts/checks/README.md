@@ -5,12 +5,18 @@
 
 ## 职责
 
-- `check_*.py`：领域函数或小对象，只实现一个可命名的仓库不变量，不提供独立 CLI。
-- `run_*.py`、`validate_*.py`、报告或测量脚本：封装一个领域验证动作或 artifact contract，
+- `agent/`：Agent 入口、policy、permission、受保护路径、skill registry 与 handoff 契约。
+- `repository/`：仓库结构、索引、忽略文件、测试约束、逃逸率与 acceptance contract。
+- `privacy/`：本地路径、真实 session fixture 与类密钥内容边界。
+- `source/`：注释语言、仓库语言策略与禁止新增产品 Python 的约束。
+- `web/`：CSS、JavaScript、模板、静态资源与 Session Detail 契约；`web/baselines/` 只保存
+  Web 规则自身的已审计基线。
+- 各领域中的 `check_*.py`：只实现一个可命名的仓库不变量，不提供独立 CLI。
+- 各领域中的 `validate_*.py`、报告或测量脚本：封装一个领域验证动作或 artifact contract，
   仍不得选择 quality target 或维护 required Gate 集合。
-- `_framework.py`：唯一 `CheckResult`/`Diagnostic`/`ScanContext` 与领域调用协议。
+- `_framework.py`：唯一 `CheckResult`/`Diagnostic` 与领域调用协议。
 - `_registry.py`：唯一公开 check ID registry；`__main__.py` 统一参数、状态、诊断和退出码。
-- baseline 文件只保存规则自身所需的审计基线，不能保存另一份 Gate/target matrix。
+- 根目录只保留本 README、package/CLI 入口、共享 framework 与显式 registry。
 
 ## 不得承担
 
@@ -36,8 +42,7 @@ python3 -m scripts.checks web.css-ownership
 ```
 
 Gate catalog/planner 是 trigger 与 applicability 唯一权威；领域 check 不解析 changed-files 来跳过。
-`ScanContext` 在同次组合检查中复用文件发现与文本读取。定位失败时使用 Gate 报告中的共享 CLI
-rerun command；最终 required 验证显式运行：
+定位失败时使用 Gate 报告中的共享 CLI rerun command；最终 required 验证显式运行：
 
 ```bash
 python3 scripts/gates/cli.py --tier required
@@ -47,9 +52,11 @@ python3 scripts/gates/cli.py --tier required
 
 1. 为规则补对应 contract，覆盖成功、真实失败和边界输入；禁止用 skip 代替 fixture 或环境准备。
 2. check 保持单一领域职责、确定性输出和非零失败退出码，不自行降级 error 为 warning。
-3. 在 `scripts/gates/catalog.py` 维护唯一 Gate registration 与 trigger metadata。
+3. 在 `config/gates.yaml` 维护唯一 Gate registration 与 trigger metadata；`catalog.py` 只负责加载
+   和校验声明。
 4. 用 `python3 scripts/gates/cli.py --dry-run` 检查 plan，再运行受影响 contract 和 required tier。
-5. 删除规则时同时删除 catalog registration、孤立 check、contract 和调用引用；不得保留兼容 wrapper。
+5. 删除规则时同时删除 `config/gates.yaml` 声明、适用的 `_registry.py` check registration、孤立
+   check、contract 和调用引用；不得保留兼容 wrapper。
 
-当前 Gate 名称、target 与 tier 只能从 `scripts/gates/catalog.py` 或 `scripts/gates/cli.py` 派生；
-本目录 README 不维护静态清单。
+当前 Gate 名称、target 与 tier 只能从 `config/gates.yaml` 经 catalog/CLI 派生；本目录 README
+不维护静态清单。

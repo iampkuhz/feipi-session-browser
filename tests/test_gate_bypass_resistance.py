@@ -3,7 +3,7 @@ import os
 import subprocess
 import sys
 
-from scripts.checks.measure_gate_escape_rate import REQUIRED_CASE_IDS, build_report
+from scripts.checks.repository.measure_gate_escape_rate import REQUIRED_CASE_IDS, build_report
 from scripts.gates.planner import required_quality_targets
 
 

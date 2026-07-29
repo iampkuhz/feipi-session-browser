@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.checks import check_dead_command_reference as checker
+from scripts.checks.repository import check_dead_command_reference as checker
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -18,11 +18,11 @@ def test_reference_status_covers_missing_non_public_public_and_diagnostic(
 ) -> None:
     _write(tmp_path, "scripts/public.py")
     _write(tmp_path, "scripts/private.py")
-    _write(tmp_path, "scripts/checks/check_named.py")
+    _write(tmp_path, "scripts/checks/repository/check_named.py")
     _write(tmp_path, "scripts/checks/catalog_leaf.py")
 
     public = frozenset({"scripts/public.py", "scripts/missing.py"})
-    patterns = ("scripts/checks/check_*.py",)
+    patterns = ("scripts/checks/*/check_*.py",)
     catalog = frozenset({"scripts/checks/catalog_leaf.py"})
 
     assert (
@@ -39,7 +39,7 @@ def test_reference_status_covers_missing_non_public_public_and_diagnostic(
     )
     assert (
         checker.reference_status(
-            tmp_path, "scripts/checks/check_named.py", public, patterns, catalog
+            tmp_path, "scripts/checks/repository/check_named.py", public, patterns, catalog
         )
         == "diagnostic"
     )

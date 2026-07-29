@@ -1,4 +1,4 @@
-"""负责共享 check 结果、诊断、扫描上下文与调用协议；不负责选择 Gate；由检查命令行入口调用。"""
+"""负责共享 check 结果、诊断与领域函数调用协议；不负责选择 Gate；由检查命令行入口调用。"""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ import inspect
 import io
 import json
 import sys
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -62,32 +62,6 @@ class CheckResult:
     diagnostics: tuple[Diagnostic, ...] = ()
 
 
-@dataclass(slots=True)
-class ScanContext:
-    """在同次调用中复用文件发现与文本读取。"""
-
-    root: Path
-    _files: dict[tuple[str, ...], tuple[Path, ...]] = field(default_factory=dict)
-    _text: dict[Path, str] = field(default_factory=dict)
-
-    def files(self, patterns: tuple[str, ...]) -> tuple[Path, ...]:
-        """返回按 repository-relative path 排序且缓存的文件集合。"""
-        if patterns not in self._files:
-            found = {
-                path for pattern in patterns for path in self.root.glob(pattern) if path.is_file()
-            }
-            self._files[patterns] = tuple(
-                sorted(found, key=lambda path: path.relative_to(self.root).as_posix())
-            )
-        return self._files[patterns]
-
-    def read_text(self, path: Path) -> str:
-        """读取并缓存 UTF-8 文本。"""
-        if path not in self._text:
-            self._text[path] = path.read_text(encoding='utf-8')
-        return self._text[path]
-
-
 @dataclass(frozen=True, slots=True)
 class CheckSpec:
     """绑定公开 check ID 与领域函数。"""
@@ -101,7 +75,7 @@ class CheckSpec:
         return getattr(importlib.import_module(self.module), self.function)
 
 
-def invoke(spec: CheckSpec, _context: ScanContext, arguments: list[str]) -> CheckResult:
+def invoke(spec: CheckSpec, arguments: list[str]) -> CheckResult:
     """调用领域函数并把退出码、输出或异常归一为 CheckResult。"""
     function = spec.load()
     stdout, stderr = io.StringIO(), io.StringIO()

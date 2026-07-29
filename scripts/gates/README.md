@@ -18,11 +18,23 @@ schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制
 | `catalog.py` | 加载/schema 校验并构造 typed Gate/target/tier/path model | 维护命令表、运行命令、读取历史报告 |
 | `planner.py` | 将 changed files 冻结为 classification、raw/effective target 与 applicable Gate plan | 运行时重新选择 Gate |
 | `executor.py` | 冻结 command group/resource DAG 后只执行 immutable plan，落实 Gradle 聚合、bounded parallel、timeout 与跨 run 锁 | 维护另一份 Gate/target 映射 |
+| `runtime/environment.py` | 净化并合并子进程环境 | 识别 Gate、target、session 或业务状态 |
+| `runtime/process.py` | 执行 bounded subprocess、记录日志尾部并清理超时进程组 | 把退出结果归约为 Gate 五态 |
 | `report.py` | typed 状态归约、结构化 summary 与有界诊断 | 猜测未执行 Gate 的结果 |
 | `cli.py` | 公开参数、统一 service、plan/execute/report 编排与退出码 | 产品业务处理 |
 
 Stop 的 Gate 阶段只调用 `scripts.gates.cli.run_service`。不要直接运行内部模块，也不要新增
 Stop 专用选择器、runner、命令表或 artifact 解析器。
+
+主调用链固定为：
+
+```text
+cli 解析输入 → planner 选择 Gate → executor 冻结 ExecutionPlan
+→ executor 调度 runtime subprocess → 逻辑 Gate 状态归约 → report 写入并格式化结果
+```
+
+`runtime/` 只保存无 Gate 领域状态的环境和进程技术原语，不得导入
+`cli/catalog/planner/executor/report`，也不得出现 Gate ID、target 或五态判断。
 
 ## 查看当前 Gate 与计划
 

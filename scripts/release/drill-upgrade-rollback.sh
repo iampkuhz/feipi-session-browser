@@ -6,12 +6,7 @@
 # 2. 升级后的数据可以被正确回滚到备份状态
 # 3. 升级过程中失败时不会留下半成品状态
 #
-# 用法：
-# 校验脚本运行前置条件和输入输出边界。
-#
-# 参数：
-#   --candidate-dir  包含发行产物的目录（release-candidate）
-#   --version        当前发布版本号
+# 调用时必须同时提供 candidate-dir 产物目录和与仓库 VERSION 一致的 version。
 set -euo pipefail
 
 CANDIDATE_DIR=""
@@ -49,9 +44,7 @@ echo "Version: $VERSION"
 echo "Candidate dir: $CANDIDATE_DIR"
 echo ""
 
-# ============================================================
 # 阶段 1：校验 distribution artifact 完整性
-# ============================================================
 echo "--- Phase 1: Distribution artifact completeness ---"
 
 platform_count=0
@@ -82,9 +75,7 @@ fi
 echo "  All $platform_count platforms verified"
 echo ""
 
-# ============================================================
 # 阶段 2：校验 VERSION 一致性
-# ============================================================
 echo "--- Phase 2: VERSION consistency ---"
 
 file_version="$(tr -d '[:space:]' < VERSION)"
@@ -95,9 +86,7 @@ fi
 echo "  PASS: VERSION matches release version ($VERSION)"
 echo ""
 
-# ============================================================
 # 阶段 3：校验 distribution archives 中的 VERSION 文件
-# ============================================================
 echo "--- Phase 3: VERSION in distribution archives ---"
 
 for dir in "$CANDIDATE_DIR"/dist-*/; do
@@ -125,9 +114,7 @@ for dir in "$CANDIDATE_DIR"/dist-*/; do
 done
 echo ""
 
-# ============================================================
 # 阶段 4：校验 checksum manifest 覆盖范围
-# ============================================================
 echo "--- Phase 4: Checksum manifest coverage ---"
 
 checksums_base="$(cd "$CANDIDATE_DIR/.." && pwd)/checksums"
@@ -161,9 +148,7 @@ for checksum_dir in "$checksums_base"/checksum-*/; do
 done
 echo ""
 
-# ============================================================
 # 阶段 5：upgrade safety verification（结构检查）
-# ============================================================
 echo "--- Phase 5: Upgrade safety ---"
 
 echo "  PASS: Upgrade path version provided by build-info.properties"
@@ -171,9 +156,7 @@ echo "  PASS: Schema migration handled by IndexMigrationManager (see index-sqlit
 echo "  PASS: Pre-upgrade automatic backup by DS-050 (see java/application module)"
 echo ""
 
-# ============================================================
 # 阶段 6：rollback safety verification（结构检查）
-# ============================================================
 echo "--- Phase 6: Rollback safety ---"
 
 echo "  PASS: Rollback uses SQLite WAL mode for atomicity"
@@ -181,9 +164,7 @@ echo "  PASS: Rollback target version verified via VERSION file"
 echo "  PASS: Post-rollback data integrity ensured by SQLite CHECK constraints"
 echo ""
 
-# ============================================================
 # 汇总
-# ============================================================
 echo "===== Drill Summary ====="
 echo "Version: $VERSION"
 echo "Platforms: $platform_count"

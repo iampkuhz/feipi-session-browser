@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import yaml
-from scripts.checks import check_misplaced_generated_paths
+from scripts.checks.repository import check_misplaced_generated_paths
 
 if TYPE_CHECKING:
     from pathlib import Path
