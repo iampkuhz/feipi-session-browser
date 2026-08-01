@@ -1,13 +1,13 @@
 # Gate Service
 
-`scripts/gates/` 是 manual、preflight 与 Stop 共用的唯一 Gate service。公开 CLI 是：
+`scripts/gates/` 是本地开发与 CI 共用的唯一 Gate service。公开 CLI 是：
 
 ```bash
 python3 scripts/gates/cli.py --tier required
 ```
 
-`quick`、`required`、`full`、target、Gate、path trigger、command/Gradle task、dominance、timeout、
-资源与并行 metadata 的唯一声明真相是 `config/gates.yaml`。`catalog.py` 只负责加载、
+`quick`、`required`、`full`、target、Gate、path trigger、command/Gradle task、dominance、timeout 和
+执行参数的唯一声明真相是 `config/gates.yaml`。`catalog.py` 只负责加载、
 schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制完整 Gate/target 清单。
 
 ## 模块边界
@@ -23,8 +23,7 @@ schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制
 | `report.py` | typed 状态归约、结构化 summary 与有界诊断 | 猜测未执行 Gate 的结果 |
 | `cli.py` | 公开参数、统一 service、plan/execute/report 编排与退出码 | 产品业务处理 |
 
-Stop 的 Gate 阶段只调用 `scripts.gates.cli.run_service`。不要直接运行内部模块，也不要新增
-Stop 专用选择器、runner、命令表或 artifact 解析器。
+不要直接运行内部模块，也不要新增第二套选择器、runner、命令表或 artifact 解析器。
 
 主调用链固定为：
 
@@ -35,6 +34,20 @@ cli 解析输入 → planner 选择 Gate → executor 冻结 ExecutionPlan
 
 `runtime/` 只保存无 Gate 领域状态的环境和进程技术原语，不得导入
 `cli/catalog/planner/executor/report`，也不得出现 Gate ID、target 或五态判断。
+
+## 从 Gate 追到唯一 owner
+
+先在 `config/gates.yaml` 找 Gate 声明，不要按文件名猜实现：
+
+| catalog declaration | 唯一 owner | 继续阅读 |
+|---|---|---|
+| `gradle.java_rules` | Java quality-gates registry 与对应 rule | `QualityGateCli.registry()`、`QualityGateRegistry`、对应 `*Rule.java` |
+| `command.argv` 包含 `-m scripts.checks <check-id>` | 共享 Python Check CLI | `scripts/checks/_registry.py`、对应唯一 `check_*.py` |
+| 只有 `gradle.tasks` | Gradle task | 对应 `build.gradle.kts` 或 `gradle/build-logic/` task 定义 |
+| 其他 `command` | catalog 中写明的工具/脚本 | 从 `argv` 指向的公开入口继续，不在 executor 中查特判 |
+
+每个 Gate 只有一个 owner 和一个 catalog registration。catalog 负责选中 owner；executor 只执行冻结
+后的 plan，不承载具体规则语义。
 
 ## 查看当前 Gate 与计划
 
@@ -57,7 +70,7 @@ python3 scripts/gates/cli.py \
   --dry-run
 ```
 
-`--target <target>` 用于精确诊断或维护场景；Stop/handoff 使用 `--tier required`。
+`--target <target>` 用于精确诊断或维护场景；最终验证使用 `--tier required`。
 显式空 changed-files 与实际 dirty 状态冲突时会 fail-closed，不能借此绕过 Gate。
 changed-files 默认只供 planner 判断 target/applicability。executor 只有在 catalog 的
 `changed_files_input` 明确声明支持时才传递 `QUALITY_CHANGED_FILES`；通用 Gradle 与其他 Gate
@@ -80,42 +93,68 @@ timeout 会终止整个 process group，报告仍按 plan 顺序。
 |---|---|---|
 | Gradle daemon/cache | Gradle | Gradle 原生文件锁；顶层 Gate Runner 只发起一次 Gradle |
 | Gradle build tree | 当前 checkout | 每个 checkout 有自己的 `build/` 目录 |
-| fixture server / port | Playwright `webServer` 与 Node starter；显式 `BASE_URL` 时为外部调用方 | identity proxy 与内部 Java child 端口都先跨 checkout 原子 claim，再由 starter 一次性消费 token；claim 只含 checkout owner，不含 run/session、lease 或 fencing |
+| fixture server / port | Playwright `webServer` 与 Node starter；显式 `BASE_URL` 时为外部调用方 | identity proxy 与 starter 协调端口 claim，由资源 owner 管理冲突和生命周期 |
 | Playwright/browser | Playwright fixture | runtime/output 按 checkout hash 与 run 隔离；每次调用管理自己的 server/browser 生命周期 |
 | 临时目录 | `executor.py` | 按 run 和 checkout hash 隔离 |
-| quality artifact | `report.py` | 写入当前 checkout 下的 session/run 目录 |
+| Gate run summary | `report.py` | CLI 默认写到 repo-local `tmp/quality`；相对 `--out` 在 repo 下解析，显式绝对 `--out` 可选择其他根 |
+| rule-scoped artifact | 产出它的 rule，例如 `CssOwnershipRule` | executor 向子进程注入执行身份根；Java 校验其 repo-local、symlink-safe 边界，rule 只写自己的子目录 |
 
-不再为这些资源维护第二套 session-aware lock/fencing 控制面。若新 Gate 引入不能由
-owner 自行隔离的可变共享资源，必须先增加资源 contract，再决定是否需要最小通用锁。
+表中资源由各自 owner 管理，不另建仓库级控制面。若新 Gate 引入不能由 owner 自行隔离的可变
+共享资源，必须先增加资源 contract，再决定是否需要最小通用锁。两类质量产物边界独立：CLI 控制
+Gate run summary 的输出根；executor 只向子进程注入 rule-scoped artifact 根，不能假设二者使用同一路径。
 
 ## Trigger、Skip 与状态
 
-- `NOT_TRIGGERED`：路径/tier 规划没有选中该 Gate。它不等于 `SKIPPED`，也不是该 Gate 已执行的
-  `PASS` 证据。
-- `SKIPPED`：Gate 已被选中，但测试框架报告 skipped 或验证没有完整执行；required/full 必须归约为
-  `FAIL` 或 `BLOCKED`。
-- `EXECUTED`：已选 Gate 实际执行并通过。
-- `FAILED` / `BLOCKED`：分别表示实际失败或无法完成/证明；都阻断 Stop 与收口。
+先区分结果语义与执行证据，不能把两层混成一套状态：
 
-每次调用都会执行当前 plan。只有选中集合全部完成且没有 skipped 才能产生 overall `PASS`；
-控制台文字、历史结果、`FAIL`、`BLOCKED` 和缺少 Gate 明细都不能作为本次 `PASS`。
+- **Gate 结果语义：** `PASS`、`FAIL`、`BLOCKED`、`SKIPPED`。`SKIPPED` 表示已选 Gate 没有完整
+  执行；required/full 必须阻断，不能把它当作通过。
+- **未选中语义：** `NOT_TRIGGERED` 表示路径/tier 规划没有选中该 Gate。它不等于 `SKIPPED`，
+  也不是该 Gate 的 `PASS` 证据。
+- **执行证据字段：** summary 的 `gateStates` 与 detail 的 `executionState` 描述是否及如何执行；其中
+  `EXECUTED`、`FAILED`、`BLOCKED`、`NOT_TRIGGERED` 都只是执行证据，不是另一套 Gate 结果。
+  `executionState` 还可以细分阻断原因；无论哪种值，`EXECUTED` 都不能代替 `PASS`。
+
+每次调用都会执行当前 plan。required 只有在全部选中 Gate 实际完成并得到 `PASS` 时才能产生
+overall `PASS`；控制台文字、历史结果、`FAIL`、`BLOCKED`、`SKIPPED`、`NOT_TRIGGERED` 和缺少 Gate
+明细都不能作为本次通过证据。
 
 summary 输出 plan fingerprint、catalog version、`gateStates`、command group、
 duration、top-level Gradle/Python/Bash process count 和
 精确 rerun command。成功控制台只输出单行；失败控制台只保留首因和有界诊断，完整证据位于 artifact。
 
+## 一屏故障定位
+
+| 现象 | 先确认 | owner 内定位 |
+|---|---|---|
+| `gateStates` / `executionState` 是 `NOT_TRIGGERED` | `--dry-run` 中的 path、tier、target | 修正 `config/gates.yaml` 声明或 changed-files 输入，不伪造 Gate 结果 |
+| plan 选错 owner/顺序 | catalog declaration 与 ordered group | 查 `catalog.py` / `planner.py` contract，不在 owner 中复制 trigger |
+| Java/Python/Gradle Gate 结果是 `FAIL` | rule/Check ID/task outcome 与诊断 | 回到 catalog 指向的唯一 owner 及其 contract |
+| Gate 结果是 `BLOCKED` | run summary 的首因、前置结果和 rerun command | 查 required path、环境、timeout 或唯一 prerequisite |
+| Gate 结果或 framework outcome 是 `SKIPPED` | framework/Gradle 的 skip 原因 | 修复未执行原因；required/full 不得将其当作 `PASS` |
+| `gateStates` 是 `FAILED` / `BLOCKED`，或 `executionState` 记录失败/阻断 | 对应 command group 的执行证据 | 用它解释 `FAIL` / `BLOCKED`，不要把证据字段当成 Gate 结果 |
+| timeout | 对应 command group 与 bounded log | 查 `executor.py` / `runtime/process.py`，不要在 rule 内再造 runner |
+
+`FAIL`、`BLOCKED`、`SKIPPED` 和未运行都不是 `PASS`；`NOT_TRIGGERED` 仅表示当前 plan 没有选中，
+不等于 `SKIPPED`。
+
 ## 新增、修改或删除 Gate 的唯一流程
 
-通常只允许改三类内容：`config/gates.yaml` 的唯一 declaration、`scripts/checks/` 中对应领域检查，
-以及 `tests/gates/` 或对应领域下的 contract。不得同步维护 Markdown matrix。
+不得在 Markdown 中维护 Gate matrix；当前清单只从 catalog/CLI 派生。
 
-1. 先在 contract 中写出 trigger、plan 顺序、状态、命令和失败语义；删除 Gate 时先写无残留引用断言。
-2. 新增或调整一个职责单一、可确定复现的 check；Gradle Gate 则调整对应 Gradle task contract。
-3. 只在 `config/gates.yaml` 的同一 Gate 记录更新 description、target/order/pattern、tier、command 或
-   Gradle task、changed-files 与 timeout。
-4. 运行 catalog/planner/service contract，并用 `cli.py --dry-run` 检查公开 plan。
-5. 运行受影响 target，再运行 `python3 scripts/gates/cli.py --tier required`。
-6. 删除 Gate 时反向移除 catalog registration、对应孤立 check 与 contract，最后负向搜索旧名称和路径。
+1. **选择一个 owner。** JVM/Web source rule 使用 Java quality-gates；Git/OpenSpec/隐私/跨语言规则使用
+   Python Check CLI；已有 Gradle 生命周期检查使用单一 Gradle task。禁止同时保留两个实现。
+2. **只登记一次。** 在 `config/gates.yaml` 的一个 Gate declaration 中写 target、pattern、tier、owner
+   command/task/rule、changed-files 与 timeout；Java rule 或 Python check 再分别在自己的 registry
+   登记一次。
+3. **先写 contract。** 覆盖真实成功、失败边界、trigger/target 与状态语义；修改 owner 时加入旧实现和
+   旧 registration 的无残留断言。
+4. **定向验证 owner 与 plan。** 运行对应 Java/Python/Gradle contract、catalog/planner/service contract，
+   再用 `cli.py --dry-run` 核对公开 plan。
+5. **验证 target 与 required。** 先运行受影响 target，再运行
+   `python3 scripts/gates/cli.py --tier required`；任何失败、阻断或跳过都不能称为通过。
+6. **负向搜索后删除。** 删除/迁移时同步移除旧实现、registration、contract 和直接 caller；旧名称与
+   旧路径搜索为零后直接删除，不保留 wrapper、alias 或 adapter。
 
 只有引入全新的 executor 类型或 report schema 时才允许在 OpenSpec 设计中扩展 `executor.py` 或
 `report.py`；不能为了一个 Gate 在内部模块增加特判映射。Gate 行为变化必须同时更新 contract，
