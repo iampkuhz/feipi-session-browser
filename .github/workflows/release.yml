@@ -58,7 +58,7 @@ jobs:
           if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
             tag="${GITHUB_REF_NAME}"
             if [[ ! "$tag" =~ ^v([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ ]]; then
-              echo "::error::非法发布 tag：$tag。请使用 vX.Y 或 vX.Y.Z 格式。" >&2
+              echo "::error::非法发布 tag：$tag。请使用发布 tag vX.Y 或 vX.Y.Z，例如 v0.4 或 v0.4.1-rc.1" >&2
               exit 1
             fi
             version="${tag#v}"
@@ -66,7 +66,7 @@ jobs:
           else
             version="${INPUT_VERSION}"
             if [[ ! "$version" =~ ^([0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?|[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?)$ ]]; then
-              echo "::error::非法发布版本：$version。请使用 X.Y 或 X.Y.Z 格式。" >&2
+              echo "::error::非法发布版本：$version。请使用发布版本 X.Y 或 X.Y.Z，例如 0.4 或 0.4.1-rc.1" >&2
               exit 1
             fi
             if [[ "${INPUT_PUBLISH}" == "true" ]]; then

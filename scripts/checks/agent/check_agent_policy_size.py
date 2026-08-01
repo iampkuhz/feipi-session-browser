@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 Agent 规约体积是否符合共享 manifest 和 Codex 配置限制。
 
 体积边界可防止入口文档被客户端截断。公开入口是 `check(arguments)`；返回诊断表示必需配置

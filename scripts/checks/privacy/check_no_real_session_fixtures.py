@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查受保护路径是否包含真实 session fixture 或本地 home 路径。
 
 这项检查避免真实会话内容和个人路径进入仓库，同时放行明确的合成 fixture。公开入口是

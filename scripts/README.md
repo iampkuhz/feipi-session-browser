@@ -3,6 +3,19 @@
 公开入口以 `harness/manifest.yaml` 为机器真相；本文只回答“从哪里进入、到哪里修改”，不复制完整
 Gate 清单。
 
+## Java 维护者先看这一层
+
+日常不要展开整个 `scripts/`。按问题逐层进入：
+
+1. **L0 产品开发：** 只使用 `./scripts/session-browser.sh deps|test|scan|serve|stop`。
+2. **L1 最终验证：** 只使用 `python3 scripts/gates/cli.py --tier required`；
+   `session-browser.sh quality` 目前只是 Python 工具集合，不等于 required Gate。
+3. **L2 单项诊断：** 根据失败输出中的 Check ID 查 `_registry.py`，再打开唯一 leaf。
+4. **L3 基础设施维护：** 只有修改 Gate/Harness/OpenSpec/Release 本身时才阅读内部模块。
+
+文件浏览器中的 `__pycache__/` 和 `*.pyc` 是未跟踪运行缓存，不属于源码；应在 IDE 中隐藏。查看真实
+维护面时以 `git ls-files scripts` 为准。
+
 ## 先按业务对象找目录
 
 ```text

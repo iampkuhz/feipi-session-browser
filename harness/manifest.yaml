@@ -32,9 +32,6 @@ public_executables:
   release_checksums: "bash scripts/release/generate-checksums.sh"
   release_rollback_drill: "bash scripts/release/drill-upgrade-rollback.sh"
 
-diagnostic_executables:
-  - scripts/checks/*/check_*.py
-
 quality:
   runner: scripts/gates/cli.py
   required_command: python3 scripts/gates/cli.py --tier required

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查跨平台领域 Agent 是否只保留 metadata 与共享 Skill 入口。
 
 薄入口可避免不同客户端复制同一套领域规则后发生漂移。公开入口是 `check(arguments)`；返回

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 Claude 项目 settings 是否拒绝敏感路径和破坏性命令。
 
 完整的 deny 规则可降低密钥泄露和工作区破坏风险。公开入口是 `check(arguments)`；返回诊断

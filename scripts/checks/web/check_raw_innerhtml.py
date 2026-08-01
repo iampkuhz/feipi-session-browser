@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 JavaScript 是否新增 raw innerHTML 赋值。
 
 已审计基线只容纳存量位置，新增赋值必须改用安全文本或转义渲染。唯一公开入口是

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查跨平台 Agent 规则是否与共享 policy manifest 保持一致。
 
 同步检查可防止客户端入口遗漏保护范围或把 skipped 误写为通过。公开入口是

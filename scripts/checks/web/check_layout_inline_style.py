@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 HTML 与 JavaScript 是否新增布局 inline style。
 
 已审计基线只容纳存量位置，新增布局声明必须回到 CSS class 或 custom property。唯一公开入口是

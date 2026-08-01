@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 Codex custom Agent 配置及其共享 Skill 契约。
 
 一致的 metadata、sandbox 和 handoff 约束可避免子 Agent 越权或丢失验证证据。公开入口是

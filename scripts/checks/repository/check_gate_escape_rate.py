@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """测量显式 required Gate 路径路由的合成逃逸率。
 
 该检查用固定高风险路径证明 planner 不会漏掉 required target。唯一入口 ``check(arguments)``

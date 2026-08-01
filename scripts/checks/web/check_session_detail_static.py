@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 Session Detail 模板接线与静态布局契约。
 
 这些规则防止主内容宽度、hero 单列布局和 shell class 接线在无浏览器测试时悄然回退。唯一公开

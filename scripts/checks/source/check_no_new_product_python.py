@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查退役的产品 Python 目录是否重新出现源码。
 
 这项检查防止已经迁移到 Java 的产品实现回流。公开入口是 ``check(arguments)``，失败表示

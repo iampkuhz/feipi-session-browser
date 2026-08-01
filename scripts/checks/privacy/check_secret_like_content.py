@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查受保护路径和测试文档中的类密钥内容。
 
 这项检查避免疑似 token、授权头或私钥标记进入仓库。公开入口是 ``check(arguments)``，失败

@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查被 ignore 规则命中的路径是否被加入 Git 追踪。
 
 该检查阻止 force-add 绕过仓库忽略边界。唯一入口 ``check(arguments)`` 读取 staged 或完整

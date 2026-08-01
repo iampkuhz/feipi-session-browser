@@ -13,42 +13,15 @@ def _write(root: Path, relative: str) -> None:
     path.write_text("# synthetic executable\n", encoding="utf-8")
 
 
-def test_reference_status_covers_missing_non_public_public_and_diagnostic(
-    tmp_path: Path,
-) -> None:
+def test_reference_status_covers_missing_non_public_and_public(tmp_path: Path) -> None:
     _write(tmp_path, "scripts/public.py")
     _write(tmp_path, "scripts/private.py")
-    _write(tmp_path, "scripts/checks/repository/check_named.py")
-    _write(tmp_path, "scripts/checks/catalog_leaf.py")
 
     public = frozenset({"scripts/public.py", "scripts/missing.py"})
-    patterns = ("scripts/checks/*/check_*.py",)
-    catalog = frozenset({"scripts/checks/catalog_leaf.py"})
 
-    assert (
-        checker._reference_status(tmp_path, "scripts/missing.py", public, patterns, catalog)
-        == "missing"
-    )
-    assert (
-        checker._reference_status(tmp_path, "scripts/private.py", public, patterns, catalog)
-        == "non-public"
-    )
-    assert (
-        checker._reference_status(tmp_path, "scripts/public.py", public, patterns, catalog)
-        == "public"
-    )
-    assert (
-        checker._reference_status(
-            tmp_path, "scripts/checks/repository/check_named.py", public, patterns, catalog
-        )
-        == "diagnostic"
-    )
-    assert (
-        checker._reference_status(
-            tmp_path, "scripts/checks/catalog_leaf.py", public, patterns, catalog
-        )
-        == "diagnostic"
-    )
+    assert checker._reference_status(tmp_path, "scripts/missing.py", public) == "missing"
+    assert checker._reference_status(tmp_path, "scripts/private.py", public) == "non-public"
+    assert checker._reference_status(tmp_path, "scripts/public.py", public) == "public"
 
 
 def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) -> None:
@@ -76,3 +49,7 @@ def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) 
 
 def test_repository_has_no_dead_or_private_command_references() -> None:
     assert checker._check_repository(ROOT) == ()
+
+
+def test_manifest_does_not_advertise_internal_check_files_as_executables() -> None:
+    assert 'diagnostic_executables' not in checker._manifest(ROOT)

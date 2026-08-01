@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 skill-registry.yaml 的源目录、入口链接、必需文件和命名。
 
 registry 完整性可保证各客户端入口仍指向同一 Skill 真源。公开入口是 `check(arguments)`；

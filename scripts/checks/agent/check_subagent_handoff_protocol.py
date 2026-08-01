@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 subagent handoff、身份和验证证据契约。
 
 完整契约可防止并行任务越界、身份混淆或静默跳过失败验证。公开入口是

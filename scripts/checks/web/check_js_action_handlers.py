@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查模板关键 action 与 JavaScript handler 是否成对存在。
 
 关键交互若只有模板声明而没有 handler，页面操作会静默失效。唯一公开入口是

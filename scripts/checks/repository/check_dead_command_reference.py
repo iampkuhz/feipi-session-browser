@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查活跃维护资料中的仓库脚本引用是否存在且具备公开或诊断资格。
 
 该检查防止文档和 Agent 规则传播失效或非公开命令。唯一入口 ``check(arguments)`` 返回有序
@@ -9,15 +8,12 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass
-from fnmatch import fnmatchcase
 from pathlib import Path
 
 import yaml
 from scripts.checks._framework import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
-
-from scripts.gates.catalog import CATALOG  # noqa: E402
 
 MANIFEST_PATH = Path("harness/manifest.yaml")
 REFERENCE_PATTERN = re.compile(
@@ -41,7 +37,6 @@ RULE_FILES = (
     ".codex/model-instructions.md",
     "scripts/README.md",
 )
-WILDCARD_MARKERS = frozenset("*?{}[]")
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,41 +62,17 @@ def _command_target(command: str) -> str | None:
     return match.group(1) if match else None
 
 
-def _load_registry(root: Path) -> tuple[frozenset[str], tuple[str, ...]]:
-    """从 manifest 派生公开精确路径与诊断 pattern。"""
+def _load_registry(root: Path) -> frozenset[str]:
+    """从 manifest 派生唯一公开脚本路径集合。"""
     data = _manifest(root)
     commands = data.get("public_executables")
-    patterns = data.get("diagnostic_executables")
     if not isinstance(commands, dict) or not all(
         isinstance(item, str) for item in commands.values()
     ):
         raise ValueError("harness/manifest.yaml public_executables must be a string mapping")
-    if not isinstance(patterns, list) or not all(isinstance(item, str) for item in patterns):
-        raise ValueError("harness/manifest.yaml diagnostic_executables must be a string list")
-    public = frozenset(
+    return frozenset(
         target for command in commands.values() if (target := _command_target(command)) is not None
     )
-    return public, tuple(patterns)
-
-
-def _catalog_diagnostics(root: Path) -> frozenset[str]:
-    """从 typed catalog 的命令声明派生精确 diagnostic leaf。"""
-    result: set[str] = set()
-    for gate in CATALOG.gates:
-        if gate.command is None:
-            continue
-        arguments = [*gate.command.argv, *gate.command.existing_args]
-        arguments.extend(
-            argument for command in gate.command.target_argv for argument in command.argv
-        )
-        arguments.extend(
-            argument for optional in gate.command.optional_args for argument in optional.argv
-        )
-        for argument in arguments:
-            candidate = argument.removeprefix("{repo_root}/")
-            if candidate.startswith("scripts/checks/") and Path(candidate).suffix in {".py", ".sh"}:
-                result.add(candidate)
-    return frozenset(result)
 
 
 def _source_files(root: Path) -> tuple[Path, ...]:
@@ -131,28 +102,21 @@ def _reference_status(
     root: Path,
     target: str,
     public: frozenset[str],
-    diagnostic_patterns: tuple[str, ...],
-    catalog_leaves: frozenset[str],
 ) -> str:
-    """按存在性、公开 registry 与诊断资格返回稳定分类。"""
-    if any(marker in target for marker in WILDCARD_MARKERS) or not (root / target).is_file():
+    """按存在性与公开 registry 返回稳定分类。"""
+    if not (root / target).is_file():
         return "missing"
     if target in public:
         return "public"
-    if target in catalog_leaves or any(
-        fnmatchcase(target, pattern) for pattern in diagnostic_patterns
-    ):
-        return "diagnostic"
     return "non-public"
 
 
 def _check_repository(root: Path = ROOT) -> tuple[str, ...]:
     """返回所有失效或非公开的可执行命令引用。"""
-    public, patterns = _load_registry(root)
-    catalog_leaves = _catalog_diagnostics(root)
+    public = _load_registry(root)
     errors: list[str] = []
     for reference in _scan_references(root):
-        status = _reference_status(root, reference.target, public, patterns, catalog_leaves)
+        status = _reference_status(root, reference.target, public)
         if status in {"missing", "non-public"}:
             errors.append(
                 f"{reference.source}:{reference.line}: {status} executable reference: "

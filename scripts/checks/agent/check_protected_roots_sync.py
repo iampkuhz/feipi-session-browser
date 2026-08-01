@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查共享 Agent policy 与 AGENTS.md 的受保护路径声明。
 
 完整的受保护路径可避免治理文件在普通修改中被意外覆盖。公开入口是 `check(arguments)`；

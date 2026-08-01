@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import ast
+import stat
 from pathlib import Path
 
 import pytest
@@ -50,6 +51,8 @@ def test_registry_has_one_id_per_leaf_module() -> None:
 def test_leaf_modules_expose_only_the_fixed_check_entry() -> None:
     for path in _leaf_paths():
         assert path.name.startswith('check_'), path
+        assert not path.read_text(encoding='utf-8').startswith('#!'), path
+        assert path.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH) == 0, path
         tree = ast.parse(path.read_text(encoding='utf-8'))
         functions = [
             node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))

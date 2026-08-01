@@ -21,7 +21,7 @@ def _copy_script_project(tmp_path: Path) -> Path:
     return copied_script
 
 
-def test_version_help_uses_two_part_release_contract():
+def test_version_help_keeps_version_contract_without_removed_python_distribution_commands():
     result = subprocess.run(
         [str(SCRIPT), 'help'],
         cwd=PROJECT_DIR,
@@ -32,9 +32,9 @@ def test_version_help_uses_two_part_release_contract():
 
     assert result.returncode == 0
     assert 'set-version <x.y>' in result.stdout
-    assert 'build-dist [x.y]' in result.stdout
-    assert 'verify-dist [x.y]' in result.stdout
-    assert 'release-check 0.4' in result.stdout
+    assert 'build-dist' not in result.stdout
+    assert 'verify-dist' not in result.stdout
+    assert 'release-check' not in result.stdout
     assert '<x.y.z>' not in result.stdout
 
 

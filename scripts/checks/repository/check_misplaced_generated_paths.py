@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """检查 manifest 禁止的生成路径是否直接出现在仓库磁盘上。
 
 该检查阻止运行产物污染仓库工作区，同时不读取其内容。唯一入口 ``check(arguments)`` 返回配置
