@@ -4,9 +4,15 @@ const fs = require('fs');
 const http = require('http');
 const net = require('net');
 const path = require('path');
+const crypto = require('crypto');
 const { spawn, spawnSync } = require('child_process');
-const { generateSessionFixtures } = require('../fixtures/generate-session-fixtures');
-const { repoRoot: ROOT, runTmpRoot } = require('./runtime-paths');
+const {
+  checkoutScope,
+  repoRoot: ROOT,
+  runPlaywrightRoot,
+  runTmpRoot,
+  runtimeRoot,
+} = require('./runtime-paths');
 
 const MAIN_SESSION_ID = 'hifi-viz-session-001';
 const LONG_SESSION_ID = 'long-session-001';
@@ -21,28 +27,71 @@ function tail(value) {
   return String(value || '').slice(-MAX_DIAGNOSTIC_CHARS);
 }
 
-function findPort() {
-  const server = net.createServer();
-  server.on('error', (error) => {
-    console.error(`[playwright-fixture] port allocation failed: ${error.message}`);
-    process.exitCode = 1;
-  });
-  server.listen(0, '127.0.0.1', () => {
-    const address = server.address();
-    console.log(address.port);
-    server.close();
-  });
+function portClaimPath(port) {
+  return path.join(portClaimRoot(), `${port}.json`);
 }
 
-function allocatePort() {
-  return new Promise((resolve, reject) => {
-    const server = net.createServer();
-    server.once('error', reject);
-    server.listen(0, '127.0.0.1', () => {
-      const address = server.address();
-      server.close(() => resolve(address.port));
-    });
+function portClaimRoot() {
+  if (process.env.FEIPI_AGENT_RUNTIME_ROOT) {
+    return path.join(runtimeRoot, 'playwright-port-claims');
+  }
+  const commonDir = spawnSync('git', ['rev-parse', '--git-common-dir'], {
+    cwd: ROOT,
+    encoding: 'utf8',
   });
+  const repositoryIdentity = commonDir.status === 0
+    ? path.resolve(ROOT, commonDir.stdout.trim())
+    : ROOT;
+  const repositoryScope = crypto
+    .createHash('sha256')
+    .update(repositoryIdentity)
+    .digest('hex')
+    .slice(0, 16);
+  return path.join(process.env.TMPDIR || '/tmp', 'feipi-playwright-port-claims', repositoryScope);
+}
+
+/**
+ * 在真实 socket 仍被持有时原子写入端口 claim，然后才释放探测 socket。
+ * claim 是跨 checkout 的端口选择协议；starter 绑定前必须持有匹配 token，
+ * 因而两个本仓库 invocation 不会经历“查找后无所有权地等待绑定”的窗口。
+ */
+async function reservePortClaim(requestedPort = 0) {
+  const claimRoot = portClaimRoot();
+  fs.mkdirSync(claimRoot, { recursive: true });
+  for (let attempt = 0; attempt < 20; attempt += 1) {
+    const server = net.createServer();
+    await new Promise((resolve, reject) => {
+      server.once('error', reject);
+      server.listen(requestedPort, '127.0.0.1', resolve);
+    });
+    const port = server.address().port;
+    const token = crypto.randomUUID();
+    const claimPath = portClaimPath(port);
+    try {
+      fs.writeFileSync(claimPath, JSON.stringify({ checkoutScope, token }), {
+        encoding: 'utf8',
+        flag: 'wx',
+        mode: 0o600,
+      });
+      await new Promise((resolve) => server.close(resolve));
+      return { port, token };
+    } catch (error) {
+      await new Promise((resolve) => server.close(resolve));
+      if (error.code !== 'EEXIST' || requestedPort) throw error;
+    }
+  }
+  throw new Error('unable to claim a unique Playwright proxy port');
+}
+
+function consumePortClaim(port, token) {
+  const claimPath = portClaimPath(port);
+  const claim = JSON.parse(fs.readFileSync(claimPath, 'utf8'));
+  if (claim.checkoutScope !== checkoutScope || claim.token !== token) {
+    throw new Error(`invalid Playwright proxy port claim for ${port}`);
+  }
+  // token 只消费一次；claim 文件继续代表该 checkout 对端口的临时所有权。
+  fs.writeFileSync(claimPath, JSON.stringify({ checkoutScope }), { encoding: 'utf8', mode: 0o600 });
+  return claimPath;
 }
 
 function startIdentityProxy(port, innerPort) {
@@ -91,6 +140,8 @@ function runChecked(command, args, label, options = {}) {
 }
 
 function copyFixtures(runtimeDir) {
+  // 只在真实 fixture 启动路径加载生成器，使轻量 isolation contract 不依赖完整测试树。
+  const { generateSessionFixtures } = require('../fixtures/generate-session-fixtures');
   const dataDir = path.join(runtimeDir, 'fixture-data');
   const indexDir = path.join(runtimeDir, 'fixture-index');
   const mainRoot = path.join(ROOT, 'tests', 'fixtures', 'session_hifi_fixture');
@@ -121,50 +172,86 @@ async function waitUntilReady(baseURL, server) {
   return false;
 }
 
-async function startServer() {
+function contractChild(innerPort, failImmediately) {
+  if (failImmediately) {
+    return spawn(process.execPath, ['-e', 'process.exit(7)'], {
+      cwd: ROOT,
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+  }
+  const script = [
+    "const http=require('http');",
+    `const server=http.createServer((_q,r)=>{r.writeHead(200);r.end('ready')});`,
+    `server.listen(${innerPort},'127.0.0.1');`,
+    "const stop=()=>server.close(()=>process.exit(0));",
+    "process.on('SIGINT',stop);process.on('SIGTERM',stop);",
+  ].join('');
+  return spawn(process.execPath, ['-e', script], {
+    cwd: ROOT,
+    stdio: ['ignore', 'pipe', 'pipe'],
+  });
+}
+
+/**
+ * 启动 fixture 的唯一生产生命周期。contract 只注入轻量 child，端口 claim、readiness、
+ * identity proxy、signal 与清理全部复用本函数，不维护第二套测试代理实现。
+ */
+async function startServer({ useContractChild = false, failContractChild = false, claimToken = '' } = {}) {
   const baseURL = process.env.BASE_URL || 'http://127.0.0.1:19099';
   const parsed = new URL(baseURL);
   const port = Number(parsed.port || 80);
-  const innerPort = await allocatePort();
+  const outerClaimPath = consumePortClaim(port, claimToken);
+  let innerClaimPath = null;
   const launcher = path.join(ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'bin', 'app-cli');
-  if (!fs.existsSync(launcher)) {
-    runChecked(
-      path.join(ROOT, 'gradlew'),
-      [':java:app-cli:installDist', '--console=plain'],
-      'Gradle installDist',
-      { timeout: 300_000 },
-    );
-  }
-
-  const runtimeBase = runTmpRoot;
-  fs.mkdirSync(runtimeBase, { recursive: true });
-  const runtimeDir = fs.mkdtempSync(path.join(runtimeBase, 'playwright-java-fixture-'));
-  let dataDir;
-  let indexDir;
-  let javaEnv;
+  let innerPort;
+  let runtimeDir = '';
+  let javaEnv = {};
+  const cleanup = () => {
+    if (runtimeDir) fs.rmSync(runtimeDir, { recursive: true, force: true });
+    fs.rmSync(outerClaimPath, { force: true });
+    if (innerClaimPath) fs.rmSync(innerClaimPath, { force: true });
+  };
   try {
-    ({ dataDir, indexDir } = copyFixtures(runtimeDir));
-    javaEnv = {
-      CLAUDE_DATA_DIR: dataDir,
-      INDEX_DIR: indexDir,
-      SESSION_BROWSER_LOG_LEVEL: 'WARN',
-    };
-    runChecked(
-      launcher,
-      ['scan', '--full', '--index-dir', indexDir],
-      'fixture scan',
-      { env: javaEnv, timeout: 120_000 },
-    );
+    const innerClaim = await reservePortClaim();
+    innerPort = innerClaim.port;
+    innerClaimPath = consumePortClaim(innerPort, innerClaim.token);
+    if (!useContractChild && !fs.existsSync(launcher)) {
+      runChecked(
+        path.join(ROOT, 'gradlew'),
+        [':java:app-cli:installDist', '--console=plain'],
+        'Gradle installDist',
+        { timeout: 300_000 },
+      );
+    }
+
+    fs.mkdirSync(runTmpRoot, { recursive: true });
+    runtimeDir = fs.mkdtempSync(path.join(runTmpRoot, 'playwright-java-fixture-'));
+    if (!useContractChild) {
+      const { dataDir, indexDir } = copyFixtures(runtimeDir);
+      javaEnv = {
+        CLAUDE_DATA_DIR: dataDir,
+        INDEX_DIR: indexDir,
+        SESSION_BROWSER_LOG_LEVEL: 'WARN',
+      };
+      runChecked(
+        launcher,
+        ['scan', '--full', '--index-dir', indexDir],
+        'fixture scan',
+        { env: javaEnv, timeout: 120_000 },
+      );
+    }
   } catch (error) {
-    fs.rmSync(runtimeDir, { recursive: true, force: true });
+    cleanup();
     throw error;
   }
 
-  const server = spawn(
-    launcher,
-    ['serve', '--host', '127.0.0.1', '--port', String(innerPort), '--allow-empty', '--no-scan'],
-    { cwd: ROOT, env: { ...process.env, ...javaEnv }, stdio: ['ignore', 'pipe', 'pipe'] },
-  );
+  const server = useContractChild
+    ? contractChild(innerPort, failContractChild)
+    : spawn(
+      launcher,
+      ['serve', '--host', '127.0.0.1', '--port', String(innerPort), '--allow-empty', '--no-scan'],
+      { cwd: ROOT, env: { ...process.env, ...javaEnv }, stdio: ['ignore', 'pipe', 'pipe'] },
+    );
   let diagnostics = '';
   for (const stream of [server.stdout, server.stderr]) {
     stream.on('data', (chunk) => {
@@ -173,11 +260,12 @@ async function startServer() {
   }
 
   let stopping = false;
+  let stopExitCode = 0;
   let proxy = null;
-  const cleanup = () => fs.rmSync(runtimeDir, { recursive: true, force: true });
-  const stop = (signal) => {
+  const stop = (signal, exitCode = 0) => {
     if (stopping) return;
     stopping = true;
+    stopExitCode = exitCode;
     if (proxy) proxy.close();
     if (!server.killed) server.kill(signal);
     cleanup();
@@ -197,8 +285,14 @@ async function startServer() {
       if (diagnostics.trim()) console.error(diagnostics);
       process.exit(code || 1);
     }
-    process.exit(0);
+    process.exit(stopExitCode);
   });
+
+  if (useContractChild) {
+    console.log(JSON.stringify({
+      status: 'starting', checkoutScope, port, innerPort, runtimeDir, playwrightRoot: runPlaywrightRoot,
+    }));
+  }
 
   const innerURL = `http://127.0.0.1:${innerPort}`;
   if (!await waitUntilReady(innerURL, server)) {
@@ -207,14 +301,40 @@ async function startServer() {
     stop('SIGTERM');
     process.exit(1);
   }
-  proxy = await startIdentityProxy(port, innerPort);
-  console.log(`[playwright-fixture] ready with identity ${JSON.stringify(FIXTURE_IDENTITY)} on ${baseURL}`);
+  try {
+    proxy = await startIdentityProxy(port, innerPort);
+  } catch (error) {
+    console.error(`[playwright-fixture] identity proxy launch failed: ${error.message}`);
+    stop('SIGTERM', 1);
+    return;
+  }
+  if (useContractChild) {
+    console.log(JSON.stringify({
+      status: 'ready', checkoutScope, port, innerPort, runtimeDir, playwrightRoot: runPlaywrightRoot,
+    }));
+  } else {
+    console.log(`[playwright-fixture] ready with identity ${JSON.stringify(FIXTURE_IDENTITY)} on ${baseURL}`);
+  }
 }
 
-if (process.argv.includes('--find-port')) {
-  findPort();
+function argumentValue(name) {
+  const index = process.argv.indexOf(name);
+  return index >= 0 ? process.argv[index + 1] : '';
+}
+
+if (process.argv.includes('--reserve-port')) {
+  const requestedPort = Number(argumentValue('--port') || 0);
+  reservePortClaim(requestedPort).then((claim) => console.log(JSON.stringify(claim))).catch((error) => {
+    console.error(`[playwright-fixture] port claim failed: ${error.stack || error.message}`);
+    process.exit(1);
+  });
 } else {
-  startServer().catch((error) => {
+  const failContractChild = process.argv.includes('--contract-child-fail');
+  startServer({
+    useContractChild: process.argv.includes('--contract-child') || failContractChild,
+    failContractChild,
+    claimToken: argumentValue('--claim-token'),
+  }).catch((error) => {
     console.error(`[playwright-fixture] setup failed: ${error.stack || error.message}`);
     process.exit(1);
   });

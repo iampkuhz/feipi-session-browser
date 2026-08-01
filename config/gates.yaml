@@ -1,62 +1,30 @@
-version: gate-catalog:v3
+version: gate-catalog:v4
 targets:
 - name: python-standard
   description: 质量目标 python-standard 的确定性执行边界。
   includes: []
-  parallel: true
-  resources: []
-  timeout: 300
 - name: harness
   description: 质量目标 harness 的确定性执行边界。
   includes: []
-  parallel: true
-  resources: []
-  timeout: 120
 - name: acceptance-contracts
   description: 质量目标 acceptance-contracts 的确定性执行边界。
   includes: []
-  parallel: true
-  resources: []
-  timeout: 120
 - name: session-detail
   description: 质量目标 session-detail 的确定性执行边界。
   includes: []
-  parallel: true
-  resources:
-  - fixture-server
-  - playwright-browser
-  timeout: 300
 - name: index
   description: 质量目标 index 的确定性执行边界。
   includes: []
-  parallel: true
-  resources: []
-  timeout: 120
 - name: java-src
   description: 质量目标 java-src 的确定性执行边界。
   includes:
   - java-build
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
-  timeout: 1200
 - name: java-build
   description: 质量目标 java-build 的确定性执行边界。
   includes: []
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
-  timeout: 300
 - name: scan-script-smoke
   description: 质量目标 scan-script-smoke 的确定性执行边界。
   includes: []
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
-  timeout: 300
 gates:
 - name: pythonFormat
   description: 执行 pythonFormat 所定义的仓库质量检查。
@@ -71,8 +39,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -95,8 +61,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -118,8 +82,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -142,8 +104,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -166,8 +126,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -190,8 +148,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -213,8 +169,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -238,8 +192,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -276,8 +228,6 @@ gates:
   - required
   - full
   timeout: 30
-  parallel: true
-  resources: []
   incremental: always
   changed_files: none
   included_by: []
@@ -305,8 +255,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -332,8 +280,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -367,8 +313,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -405,8 +349,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -439,8 +381,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: environment
   included_by: []
@@ -475,8 +415,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -511,8 +449,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -546,8 +482,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -584,8 +518,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -609,8 +541,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -638,8 +568,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -662,8 +590,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -687,8 +613,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -717,8 +641,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -744,8 +666,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -772,8 +692,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -798,8 +716,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -831,8 +747,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -856,8 +770,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -877,8 +789,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -900,8 +810,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -925,8 +833,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -949,8 +855,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -974,10 +878,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources:
-  - fixture-server
-  - playwright-browser
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1013,10 +913,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources:
-  - fixture-server
-  - playwright-browser
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1050,8 +946,6 @@ gates:
   - required
   - full
   timeout: 120
-  parallel: true
-  resources: []
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1089,10 +983,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1106,6 +996,7 @@ gates:
     - checkstyleTest
     - -x
     - javadoc
+    # Gate Runner 串行的是顶层命令；Gradle 仍可在单次调用内管理自身并行。
     - --parallel
     - --build-cache
 - name: javaChineseComments
@@ -1121,10 +1012,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1154,10 +1041,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: environment
   included_by: []
@@ -1178,10 +1061,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1200,10 +1079,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: environment
   included_by: []
@@ -1231,10 +1106,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: environment
   included_by: []
@@ -1259,10 +1130,6 @@ gates:
   - required
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1284,10 +1151,6 @@ gates:
   tiers:
   - full
   timeout: 1200
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1313,10 +1176,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []
@@ -1351,10 +1210,6 @@ gates:
   - required
   - full
   timeout: 300
-  parallel: true
-  resources:
-  - gradle-daemon
-  - java-build-tree
   incremental: patterns
   changed_files: none
   included_by: []

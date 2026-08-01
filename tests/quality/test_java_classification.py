@@ -7,7 +7,6 @@
 - Windows 路径规范化
 - 多文件、多 target 去重
 - dominance 去重
-- 并行执行元数据
 - artifact 元数据字段
 - 过期 artifact 检测
 """
@@ -25,7 +24,6 @@ from scripts.gates.planner import (
     effective_targets,
     required_gates_for_target,
     required_quality_targets,
-    target_parallel_meta,
 )
 from scripts.gates.report import (
     PASS,
@@ -221,38 +219,7 @@ class TestJavaDominance:
         assert 'harness' in result
 
 
-# 07. 并行元数据测试
-class TestParallelMeta:
-    """并行执行元数据。"""
-
-    @pytest.mark.contract_case('J1-040-007')
-    def test_java_src_parallel_meta(self):
-        meta = target_parallel_meta('java-src')
-        assert meta['parallel_safe'] is True
-        assert 'gradle-daemon' in meta['exclusive_resources']
-        assert meta['timeout'] == 1200
-
-    @pytest.mark.contract_case('J1-040-007')
-    def test_java_build_parallel_meta(self):
-        meta = target_parallel_meta('java-build')
-        assert 'gradle-daemon' in meta['exclusive_resources']
-
-    @pytest.mark.contract_case('J1-040-007')
-    def test_java_targets_share_gradle_daemon(self):
-        """java-src 和 java-build 共享 gradle-daemon 互斥资源。"""
-        src_res = set(target_parallel_meta('java-src')['exclusive_resources'])
-        build_res = set(target_parallel_meta('java-build')['exclusive_resources'])
-        assert src_res & build_res == {'gradle-daemon', 'java-build-tree'}
-
-    @pytest.mark.contract_case('J1-040-007')
-    def test_unknown_target_default_meta(self):
-        meta = target_parallel_meta('nonexistent')
-        assert meta['parallel_safe'] is True
-        assert meta['exclusive_resources'] == []
-        assert meta['timeout'] == 300
-
-
-# 08. Artifact 元数据测试
+# 07. Artifact 元数据测试
 class TestArtifactMetadata:
     """QualitySummary 新增 artifact 元数据字段。"""
 

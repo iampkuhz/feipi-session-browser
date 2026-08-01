@@ -10,7 +10,6 @@ from typing import TYPE_CHECKING
 from scripts.gates.catalog import (
     CATALOG,
     GATES,
-    TARGETS,
     gate_by_name,
     target_by_name,
     tier_by_name,
@@ -130,18 +129,6 @@ def applicable_gates_for_target(
         ):
             applicable.append(gate_name)
     return applicable
-
-
-def target_parallel_meta(target: str) -> dict[str, object]:
-    """为现有 executor 提供由 typed target spec 派生的并发元数据快照。"""
-    spec = next((item for item in TARGETS if item.name == target), None)
-    if spec is None:
-        return {'parallel_safe': True, 'exclusive_resources': [], 'timeout': 300}
-    return {
-        'parallel_safe': spec.parallel_safe,
-        'exclusive_resources': list(spec.exclusive_resources),
-        'timeout': spec.timeout_seconds,
-    }
 
 
 def validate_target(target: str) -> None:

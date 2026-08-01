@@ -100,8 +100,6 @@ class GateDetail:
     output: str = ''
     executionState: str = 'EXECUTED'  # noqa: N815 - Preserve JSON artifact schema.
     groupId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
-    queueWaitMs: int = 0  # noqa: N815 - Preserve JSON artifact schema.
-    resourceWaitMs: int = 0  # noqa: N815 - Preserve JSON artifact schema.
     rerunCommand: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     taskOutcomes: dict[str, str] = field(default_factory=dict)  # noqa: N815
 
@@ -134,7 +132,6 @@ class QualitySummary:
     catalogVersion: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     commandGroups: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815
     processCounts: dict[str, int] = field(default_factory=dict)  # noqa: N815
-    criticalPathMs: int = 0  # noqa: N815 - Preserve JSON artifact schema.
     gateStates: dict[str, str] = field(default_factory=dict)  # noqa: N815
 
 
@@ -194,8 +191,6 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
         output=str(detail.get('output', '') or ''),
         executionState=str(detail.get('executionState', 'EXECUTED')),
         groupId=str(detail.get('groupId', '')),
-        queueWaitMs=int(detail.get('queueWaitMs') or 0),
-        resourceWaitMs=int(detail.get('resourceWaitMs') or 0),
         rerunCommand=str(detail.get('rerunCommand', '')),
         taskOutcomes={
             str(key): str(value) for key, value in dict(detail.get('taskOutcomes') or {}).items()
@@ -345,7 +340,7 @@ def build_summary(
     repo_root: Path | None = None,
     execution_metadata: dict[str, Any] | None = None,
 ) -> QualitySummary:
-    """由 executor 明细构造 schema v3 的稳定 target 摘要。"""
+    """由 executor 明细构造无并发元数据的 schema v4 target 摘要。"""
     required = {detail.name: detail.status for detail in details}
     status, failures = compute_overall(required)
     warning_failures = [
@@ -356,14 +351,8 @@ def build_summary(
     base_commit = resolve_base_commit(str(repo_root)) if repo_root else ''
     dirty_hash = resolve_dirty_hash(str(repo_root)) if repo_root else ''
     metadata = execution_metadata or {}
-    durations_by_group: dict[str, int] = {}
-    for detail in details:
-        if detail.groupId:
-            durations_by_group[detail.groupId] = max(
-                durations_by_group.get(detail.groupId, 0), detail.durationMs or 0
-            )
     return QualitySummary(
-        schemaVersion=3,
+        schemaVersion=4,
         status=status,
         target=target,
         changeId=change_id,
@@ -384,7 +373,6 @@ def build_summary(
         catalogVersion=str(metadata.get('catalogVersion', '')),
         commandGroups=list(metadata.get('commandGroups', [])),
         processCounts=dict(metadata.get('processCounts', {})),
-        criticalPathMs=sum(durations_by_group.values()),
         gateStates={
             **{
                 detail.name: (

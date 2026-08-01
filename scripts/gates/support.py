@@ -327,6 +327,7 @@ def reserve_port(repo_root: Path, name: str, *, hold_socket: bool = True) -> Por
     run_id = (
         os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
     )
-    path = root / f'{_safe_segment(run_id)}-{_safe_segment(name)}.json'
+    checkout_id = stable_hash(str(repo_root.resolve()))[:12]
+    path = root / f'{_safe_segment(run_id)}-{checkout_id}-{_safe_segment(name)}.json'
     path.write_text(json.dumps({'runId': run_id, 'name': name, 'port': port}) + '\n')
     return PortAllocation(name, port, path, sock if hold_socket else None)

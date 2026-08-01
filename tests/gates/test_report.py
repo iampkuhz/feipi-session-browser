@@ -55,8 +55,11 @@ def test_report_contract_is_bounded_and_actionable(tmp_path: Path) -> None:
     assert 'gate=check status=FAIL' in rendered
     assert 'scripts/example.py:42' in rendered
     assert 'fix_hint=' in rendered
-    assert payload['schemaVersion'] == 3
+    assert payload['schemaVersion'] == 4
     assert payload['reportHash']
+    assert 'criticalPathMs' not in payload
+    assert 'queueWaitMs' not in payload['gateDetails'][0]
+    assert 'resourceWaitMs' not in payload['gateDetails'][0]
     assert len(concise_diagnostic('x\n' * 100)) < 1800
     assert is_artifact_fresh(str(path))
 

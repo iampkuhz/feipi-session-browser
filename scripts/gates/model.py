@@ -81,8 +81,6 @@ class GateSpec:
     gradle_args: tuple[str, ...]
     java_rules: tuple[str, ...]
     timeout_seconds: int
-    parallel_safe: bool
-    exclusive_resources: tuple[str, ...]
     incremental_mode: IncrementalMode
     changed_files_input: ChangedFilesInput
     included_by: tuple[str, ...]
@@ -105,13 +103,10 @@ class GateSpec:
 
 @dataclass(frozen=True, slots=True)
 class TargetSpec:
-    """保存 target 的 dominance 与并发执行元数据。"""
+    """保存 target 的名称、dominance 关系和中文说明。"""
 
     name: str
     includes: tuple[str, ...]
-    parallel_safe: bool
-    exclusive_resources: tuple[str, ...]
-    timeout_seconds: int
     description: str
 
 
@@ -200,24 +195,19 @@ class PlannedGate:
     target: str
     group_id: str
     status_source: str
-    resources: tuple[str, ...]
-    parallel_safe: bool
     timeout_seconds: int
 
 
 @dataclass(frozen=True, slots=True)
 class CommandGroup:
-    """冻结一次顶层进程调用及其逻辑 Gate、资源和依赖。"""
+    """冻结一次顶层进程调用及其逻辑 Gate。"""
 
     group_id: str
     kind: str
     command: tuple[str, ...]
     environment: tuple[tuple[str, str], ...]
     gate_names: tuple[str, ...]
-    resources: tuple[str, ...]
-    parallel_safe: bool
     timeout_seconds: int
-    depends_on: tuple[str, ...] = ()
     aggregation_reason: str = ''
 
 

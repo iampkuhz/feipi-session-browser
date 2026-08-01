@@ -140,8 +140,6 @@ def _build_execution_metadata(execution_plan: ExecutionPlan) -> dict[str, object
                 'kind': group.kind,
                 'gates': list(group.gate_names),
                 'command': list(group.command),
-                'resources': list(group.resources),
-                'dependsOn': list(group.depends_on),
                 'aggregationReason': group.aggregation_reason,
             }
             for group in execution_plan.groups
@@ -175,7 +173,7 @@ def run_service(
     environment_overrides: dict[str, str] | None = None,
 ) -> GateServiceResult:
     """按“规划 → 冻结执行计划 → 执行 → 状态归约 → 报告”运行 Gate service。"""
-    # 先由 planner 选择 Gate，再一次性冻结命令、资源依赖和 fingerprint。
+    # 先由 planner 选择 Gate，再一次性冻结串行命令组和 fingerprint。
     gate_plan = create_plan(
         changed_files,
         tier=tier,
@@ -237,8 +235,6 @@ def _dry_run_payload(gate_plan: GatePlan, repo_root: Path) -> dict[str, object]:
                 'kind': group.kind,
                 'gates': list(group.gate_names),
                 'command': list(group.command),
-                'resources': list(group.resources),
-                'dependsOn': list(group.depends_on),
                 'aggregationReason': group.aggregation_reason,
             }
             for group in resolved.groups

@@ -17,8 +17,6 @@ def test_catalog_schema_is_complete_unique_and_acyclic() -> None:
         assert bool(gate.command) != bool(gate.gradle_tasks)
         assert isinstance(gate.java_rules, tuple)
         assert gate.timeout_seconds > 0
-        assert isinstance(gate.parallel_safe, bool)
-        assert isinstance(gate.exclusive_resources, tuple)
         assert gate.incremental_mode
         assert gate.changed_files_input
         assert isinstance(gate.included_by, tuple)
@@ -97,16 +95,3 @@ def test_reuse_standard_cpd_uses_gradle_owner_and_changed_files_environment() ->
     assert gate.command is None
     assert gate.gradle_tasks == ('reuseStandardCpd',)
     assert gate.changed_files_input.value == 'environment'
-
-
-def test_exclusive_resources_follow_gate_capability_not_target_union() -> None:
-    """共享 pytest 不得占用其内部 contract 还会获取的浏览器资源。"""
-    assert gate_by_name('pytest').exclusive_resources == ()
-    assert gate_by_name('browserLayout').exclusive_resources == (
-        'fixture-server',
-        'playwright-browser',
-    )
-    assert gate_by_name('javaCheck').exclusive_resources == (
-        'gradle-daemon',
-        'java-build-tree',
-    )

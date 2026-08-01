@@ -11,14 +11,10 @@ import shlex
 import shutil
 import subprocess
 import sys
-import time
-from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, replace
 from functools import lru_cache
 from pathlib import Path
 
-from scripts.gates import resource_lock
-from scripts.gates import support as gate_support
 from scripts.gates.catalog import CATALOG_VERSION, gate_by_name
 from scripts.gates.model import (
     ChangedFilesInput,
@@ -27,11 +23,6 @@ from scripts.gates.model import (
     GatePlan,
     GateSpec,
     PlannedGate,
-)
-from scripts.gates.planner import (
-    applicable_gates_for_target,
-    required_gates_for_target,
-    target_parallel_meta,
 )
 from scripts.gates.report import (
     BLOCKED,
@@ -50,7 +41,6 @@ PLAYWRIGHT_TIMEOUT_SECONDS = 120
 DEFAULT_TIMEOUT_SECONDS = 300
 MODULE_CHECK_TIMEOUT_SECONDS = 10
 COMMAND_OUTPUT_TAIL_CHARS = 4000
-MAX_PARALLEL_GROUPS = 4
 JAVA_QUALITY_RULES_PROPERTY = '-PfeipiJavaQualityRules='
 
 
@@ -62,7 +52,12 @@ def _run_tmp_dir(repo_root: Path, name: str) -> Path:
     root = (
         Path(os.environ.get('FEIPI_RUN_TMPDIR', '')).expanduser()
         if os.environ.get('FEIPI_RUN_TMPDIR')
-        else resolve_runtime_root(repo_root) / 'runs' / run_id / 'tmp'
+        else (
+            resolve_runtime_root(repo_root)
+            / 'runs'
+            / f'{run_id}-{hashlib.sha256(str(repo_root.resolve()).encode()).hexdigest()[:12]}'
+            / 'tmp'
+        )
     )
     path = root / name
     path.mkdir(parents=True, exist_ok=True)
@@ -194,15 +189,6 @@ def _playwright_workers() -> int:
         except ValueError:
             pass
     return PLAYWRIGHT_MIN_WORKERS
-
-
-def _tail_file(path: Path, max_chars: int = 2000) -> str:
-    """读取日志尾部；无法读取时返回空字符串。"""
-    try:
-        text = path.read_text(encoding='utf-8', errors='replace')
-    except OSError:
-        return ''
-    return text[-max_chars:].strip()
 
 
 _ANSI_RE = re.compile(r'\x1b\[[0-9;]*m')
@@ -661,104 +647,10 @@ def changed_files_environment(
     raise ValueError(f'unsupported changed-files input: {spec.changed_files_input}')
 
 
-_VERBOSE_OUTPUT = False
-
-
-def _progress(message: str) -> None:
-    """在 verbose 模式向 stderr 输出统一前缀的进度行。"""
-    if _VERBOSE_OUTPUT:
-        print(f'[quality-gate] {message}', file=sys.stderr, flush=True)
-
-
-def _environment_fingerprint(repo_root: Path) -> str:
-    """计算当前执行环境的稳定短 fingerprint。"""
-    raw = json.dumps(
-        {
-            'python': sys.version.split()[0],
-            'platform': sys.platform,
-            'javaHome': os.environ.get('JAVA_HOME', ''),
-            'gradleUserHomeSet': bool(os.environ.get('GRADLE_USER_HOME')),
-            'repo': str(repo_root),
-        },
-        sort_keys=True,
-    )
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()[:16]
-
-
-def run_target(
-    repo_root: Path,
-    target: str,
-    changed_files: list[str] | None = None,
-    *,
-    base_url: str | None = None,
-) -> list[GateDetail]:
-    """运行目标命令并收集有界输出；失败时保留退出码。"""
-    details: list[GateDetail] = []
-    gates = (
-        required_gates_for_target(target)
-        if changed_files is None
-        else applicable_gates_for_target(target, changed_files)
-    )
-    target_timeout = int(target_parallel_meta(target).get('timeout', DEFAULT_TIMEOUT_SECONDS))
-    for gate_name in gates:
-        spec = gate_by_name(gate_name)
-        command = command_for_gate(spec, repo_root, target)
-        if not command:
-            details.append(
-                GateDetail(
-                    name=gate_name,
-                    status=BLOCKED,
-                    output=f'required gate {gate_name} 没有可执行命令或依赖缺失。',
-                )
-            )
-            continue
-        env = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
-        env.update(changed_files_environment(spec, changed_files))
-        if _capability(spec) == 'playwright':
-            env['FEIPI_AGENT_RUNTIME_ROOT'] = str(resolve_runtime_root(repo_root))
-            if base_url:
-                env.update(
-                    {
-                        'BASE_URL': base_url,
-                        'PW_SESSION_URL': f'{base_url}/sessions/claude_code/hifi-viz-session-001',
-                        'PW_LONG_SESSION_URL': f'{base_url}/sessions/claude_code/long-session-001',
-                        'SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER': '1',
-                    }
-                )
-        details.append(
-            run_cmd(
-                gate_name,
-                command,
-                repo_root,
-                env_overrides=env,
-                timeout_seconds=min(target_timeout, spec.timeout_seconds),
-                network_failure=spec.network_failure,
-            )
-        )
-    return details
-
-
 def _stable_hash(value: object) -> str:
     """计算 JSON 数据的稳定 SHA-256。"""
     raw = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(',', ':'))
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
-
-
-def _add_dependency_edges(groups: list[CommandGroup]) -> list[CommandGroup]:
-    """按稳定顺序为资源冲突和非并发 group 添加无环依赖边。"""
-    result: list[CommandGroup] = []
-    for index, group in enumerate(groups):
-        dependencies = list(group.depends_on)
-        resources = set(group.resources)
-        for previous in groups[:index]:
-            if (
-                not group.parallel_safe
-                or not previous.parallel_safe
-                or resources.intersection(previous.resources)
-            ) and previous.group_id not in dependencies:
-                dependencies.append(previous.group_id)
-        result.append(replace(group, depends_on=tuple(dependencies)))
-    return result
 
 
 def _unique_gate_entries(gate_plan: GatePlan) -> list[tuple[GateSpec, str]]:
@@ -796,13 +688,6 @@ def _build_gradle_group(
     if not gradle_tasks:
         return None, gate_names
 
-    resources = tuple(
-        dict.fromkeys(
-            resource
-            for spec, _target in (*gradle_entries, *scan_entries)
-            for resource in spec.exclusive_resources
-        )
-    )
     environment = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
     if any(spec.changed_files_input is ChangedFilesInput.ENVIRONMENT for spec, _ in gradle_entries):
         environment['QUALITY_CHANGED_FILES'] = json.dumps(
@@ -821,8 +706,6 @@ def _build_gradle_group(
             ),
             environment=tuple(sorted(environment.items())),
             gate_names=gate_names,
-            resources=resources,
-            parallel_safe=False,
             timeout_seconds=max((spec.timeout_seconds for spec, _ in gradle_entries), default=300),
             aggregation_reason=(
                 'same checkout/environment Gradle tasks aggregated; '
@@ -880,24 +763,20 @@ def _build_command_groups(
                         'SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER': '1',
                     }
                 )
-        dependencies = (gradle_group_id,) if capability == 'scan-smoke' and gradle_group_id else ()
         groups.append(
             CommandGroup(
                 group_id=group_id,
-                kind='command',
+                kind='scan-smoke' if capability == 'scan-smoke' else 'command',
                 command=tuple(command),
                 environment=tuple(sorted(environment.items())),
                 gate_names=(spec.name,),
-                resources=spec.exclusive_resources,
-                parallel_safe=spec.parallel_safe,
                 timeout_seconds=spec.timeout_seconds,
-                depends_on=dependencies,
             )
         )
         group_by_gate[spec.name] = group_id
     if gradle_group is not None and not gradle_added:
         groups.append(gradle_group)
-    return _add_dependency_edges(groups), group_by_gate, gradle_group_id
+    return groups, group_by_gate, gradle_group_id
 
 
 def _freeze_planned_gates(
@@ -916,8 +795,6 @@ def _freeze_planned_gates(
                 if group_by_gate[spec.name] == gradle_group_id
                 else 'process-exit'
             ),
-            resources=spec.exclusive_resources,
-            parallel_safe=spec.parallel_safe,
             timeout_seconds=spec.timeout_seconds,
         )
         for spec, target in entries
@@ -930,7 +807,7 @@ def build_execution_plan(
     *,
     base_url: str | None = None,
 ) -> ExecutionPlan:
-    """按“去重 → 分组 → 资源依赖 → 冻结指纹”生成不可变执行计划。"""
+    """按“去重 → 稳定分组 → 冻结指纹”生成不可变串行执行计划。"""
     entries = _unique_gate_entries(gate_plan)
     groups, group_by_gate, gradle_group_id = _build_command_groups(
         entries, gate_plan, repo_root, base_url=base_url
@@ -950,55 +827,22 @@ def build_execution_plan(
 def _execute_group(
     group: CommandGroup,
     repo_root: Path,
-    identity: object,
-) -> tuple[str, GateDetail, int]:
-    """在跨 run ResourceLockSet 内执行一个冻结 group。"""
-    started_wait = time.monotonic()
-    owner = resource_lock.owner_metadata(
-        run_id=getattr(identity, 'raw_run_id', ''),
-        client=getattr(identity, 'client', ''),
-        session_id=getattr(identity, 'raw_session_id', ''),
-        worktree_id=getattr(identity, 'raw_worktree_id', ''),
-        target=group.group_id,
+) -> GateDetail:
+    """执行一个冻结 group；调用方保证严格按 plan tuple 顺序调用。"""
+    if not group.command:
+        return GateDetail(name=group.group_id, status=BLOCKED, output='Gate command unavailable.')
+    return run_cmd(
+        group.group_id,
+        list(group.command),
+        repo_root,
+        env_overrides=dict(group.environment),
+        timeout_seconds=group.timeout_seconds,
+        network_failure=(
+            'blocked'
+            if any(gate_by_name(name).network_failure == 'blocked' for name in group.gate_names)
+            else 'fail'
+        ),
     )
-    try:
-        with resource_lock.ResourceLockSet(
-            repo_root,
-            group.resources,
-            owner,
-            timeout_seconds=min(120, group.timeout_seconds),
-        ):
-            waited_ms = int((time.monotonic() - started_wait) * 1000)
-            if not group.command:
-                detail = GateDetail(
-                    name=group.group_id, status=BLOCKED, output='Gate command unavailable.'
-                )
-            else:
-                detail = run_cmd(
-                    group.group_id,
-                    list(group.command),
-                    repo_root,
-                    env_overrides=dict(group.environment),
-                    timeout_seconds=group.timeout_seconds,
-                    network_failure=(
-                        'blocked'
-                        if any(
-                            gate_by_name(name).network_failure == 'blocked'
-                            for name in group.gate_names
-                        )
-                        else 'fail'
-                    ),
-                )
-            return group.group_id, detail, waited_ms
-    except resource_lock.ResourceLockTimeoutError as exc:
-        waited_ms = int((time.monotonic() - started_wait) * 1000)
-        detail = GateDetail(
-            name=group.group_id,
-            status=BLOCKED,
-            command=list(group.command),
-            output=f'resource lock timeout: {exc.resource}; owner={json.dumps(exc.owner, ensure_ascii=False, sort_keys=True)}',
-        )
-        return group.group_id, detail, waited_ms
 
 
 def _gradle_gate_outcome(task_outcomes: dict[str, str], tasks: tuple[str, ...]) -> str | None:
@@ -1042,14 +886,31 @@ def _selected_task_outcomes(
     return selected
 
 
-def _schedule_groups(
+def _scan_prerequisite_passed(group: CommandGroup, gradle_outcome: GateDetail | None) -> bool:
+    """只验证 scan-smoke 声明的真实 Gradle prerequisite 已执行成功。"""
+    if group.kind != 'scan-smoke':
+        return True
+    tasks = tuple(
+        task
+        for name in group.gate_names
+        for task in (
+            gate_by_name(name).command.prerequisite_tasks if gate_by_name(name).command else ()
+        )
+    )
+    return bool(
+        gradle_outcome
+        and tasks
+        and _gradle_gate_outcome(gradle_outcome.taskOutcomes, tasks) == 'EXECUTED'
+    )
+
+
+def _run_groups_serially(
     groups: tuple[CommandGroup, ...],
     repo_root: Path,
     *,
     environment_overrides: dict[str, str] | None = None,
-) -> dict[str, tuple[GateDetail, int]]:
-    """按冻结依赖调度 group，保留原有并发上限与依赖阻断语义。"""
-    identity = gate_support.identity_from_values()
+) -> dict[str, GateDetail]:
+    """逐项执行 immutable group tuple；独立失败不阻断后续 group。"""
     overrides = environment_overrides or {}
     execution_groups = tuple(
         replace(
@@ -1058,43 +919,21 @@ def _schedule_groups(
         )
         for group in groups
     )
-    pending = {group.group_id: group for group in execution_groups}
-    outcomes: dict[str, tuple[GateDetail, int]] = {}
-    while pending:
-        ready = [
-            group
-            for group in execution_groups
-            if group.group_id in pending and all(dep in outcomes for dep in group.depends_on)
-        ]
-        if not ready:
-            raise RuntimeError('execution plan resource DAG contains a cycle')
-        runnable = [
-            group
-            for group in ready
-            if all(outcomes[dep][0].status == PASS for dep in group.depends_on)
-        ]
-        blocked = [group for group in ready if group not in runnable]
-        for group in blocked:
-            outcomes[group.group_id] = (
-                GateDetail(
-                    name=group.group_id,
-                    status=BLOCKED,
-                    output='dependency group did not PASS.',
-                    executionState='DEPENDENCY_BLOCKED',
-                ),
-                0,
+    outcomes: dict[str, GateDetail] = {}
+    gradle_outcome: GateDetail | None = None
+    for group in execution_groups:
+        if not _scan_prerequisite_passed(group, gradle_outcome):
+            detail = GateDetail(
+                name=group.group_id,
+                status=BLOCKED,
+                output='scanScriptSmoke Gradle prerequisite did not complete successfully.',
+                executionState='DEPENDENCY_BLOCKED',
             )
-            pending.pop(group.group_id)
-        with ThreadPoolExecutor(
-            max_workers=min(MAX_PARALLEL_GROUPS, max(1, len(runnable)))
-        ) as pool:
-            futures = [
-                pool.submit(_execute_group, group, repo_root, identity) for group in runnable
-            ]
-            for future in futures:
-                group_id, detail, waited_ms = future.result()
-                outcomes[group_id] = (detail, waited_ms)
-                pending.pop(group_id)
+        else:
+            detail = _execute_group(group, repo_root)
+        outcomes[group.group_id] = detail
+        if group.kind == 'gradle':
+            gradle_outcome = detail
     return outcomes
 
 
@@ -1102,7 +941,6 @@ def _logical_gate_detail(
     gate: PlannedGate,
     group: CommandGroup,
     outcome: GateDetail,
-    waited_ms: int,
 ) -> GateDetail:
     """把 group 技术结果映射为单个逻辑 Gate 明细。"""
     status = outcome.status
@@ -1153,8 +991,6 @@ def _logical_gate_detail(
             else 'FAILED'
         ),
         groupId=group.group_id,
-        queueWaitMs=waited_ms,
-        resourceWaitMs=waited_ms,
         rerunCommand=shlex.join(group.command),
         taskOutcomes=selected_outcomes,
     )
@@ -1167,7 +1003,7 @@ def execute_plan(
     environment_overrides: dict[str, str] | None = None,
 ) -> tuple[GateDetail, ...]:
     """执行冻结 group，再按 plan 顺序归约并返回逻辑 Gate 明细。"""
-    outcomes = _schedule_groups(
+    outcomes = _run_groups_serially(
         execution_plan.groups,
         repo_root,
         environment_overrides=environment_overrides,
@@ -1177,8 +1013,7 @@ def execute_plan(
         _logical_gate_detail(
             gate,
             group_by_id[gate.group_id],
-            outcomes[gate.group_id][0],
-            outcomes[gate.group_id][1],
+            outcomes[gate.group_id],
         )
         for gate in execution_plan.gates
     )

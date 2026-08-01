@@ -82,9 +82,6 @@ def _target(raw: Any) -> TargetSpec:
     return TargetSpec(
         name=str(row['name']),
         includes=_strings(row.get('includes', []), 'target.includes'),
-        parallel_safe=bool(row['parallel']),
-        exclusive_resources=_strings(row.get('resources', []), 'target.resources'),
-        timeout_seconds=int(row['timeout']),
         description=str(row['description']),
     )
 
@@ -115,8 +112,6 @@ def _gate(raw: Any) -> GateSpec:
         gradle_args=_strings(gradle.get('args', []), 'gate.gradle.args'),
         java_rules=_strings(gradle.get('java_rules', []), 'gate.gradle.java_rules'),
         timeout_seconds=int(row['timeout']),
-        parallel_safe=bool(row['parallel']),
-        exclusive_resources=_strings(row.get('resources', []), 'gate.resources'),
         incremental_mode=IncrementalMode(str(row['incremental'])),
         changed_files_input=ChangedFilesInput(str(row['changed_files'])),
         included_by=_strings(row.get('included_by', []), 'gate.included_by'),

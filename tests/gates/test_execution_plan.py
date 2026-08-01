@@ -1,4 +1,4 @@
-"""Phase 8 execution plan、聚合与资源 DAG contract。"""
+"""Gate serial execution plan、Gradle 聚合与状态 contract。"""
 
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ MIXED_FILES = [
 ]
 
 
-def test_execution_plan_is_deterministic_immutable_and_acyclic() -> None:
+def test_execution_plan_is_deterministic_immutable_and_serial() -> None:
     gate_plan = cli._with_preflight(plan(MIXED_FILES))  # noqa: SLF001
     first = executor.build_execution_plan(gate_plan, REPO_ROOT)
     second = executor.build_execution_plan(gate_plan, REPO_ROOT)
@@ -26,10 +26,7 @@ def test_execution_plan_is_deterministic_immutable_and_acyclic() -> None:
     assert first == second
     assert first.plan_id == f'plan-{first.fingerprint[:16]}'
     assert len({gate.name for gate in first.gates}) == len(first.gates)
-    completed: set[str] = set()
-    for group in first.groups:
-        assert set(group.depends_on) <= completed
-        completed.add(group.group_id)
+    assert isinstance(first.groups, tuple)
 
 
 def test_mixed_required_uses_one_gradle_group_and_changed_files_environment() -> None:
@@ -88,17 +85,13 @@ def test_session_samples_uses_one_gradle_group_and_standard_task_outcome(
     assert len(gradle_groups) == 1
     assert gradle_groups[0].command.count(':java:tests:contracts:sampleIntegrationTest') == 1
 
-    def fake_group(group, _repo_root, _identity):
+    def fake_group(group, _repo_root):
         if group.kind != 'gradle':
-            return group.group_id, GateDetail(group.group_id, PASS), 0
-        return (
+            return GateDetail(group.group_id, PASS)
+        return GateDetail(
             group.group_id,
-            GateDetail(
-                group.group_id,
-                PASS,
-                taskOutcomes=outcomes,
-            ),
-            0,
+            PASS,
+            taskOutcomes=outcomes,
         )
 
     monkeypatch.setattr(executor, '_execute_group', fake_group)
@@ -146,24 +139,30 @@ def test_playwright_plan_uses_node_managed_java_fixture_without_base_url() -> No
     assert all('BASE_URL' not in dict(group.environment) for group in browser_groups)
 
 
-def test_resource_dag_serializes_conflicts_but_allows_disjoint_groups() -> None:
-    base = executor.CommandGroup(
-        'a', 'command', ('echo', 'a'), (), ('noTestSkips',), ('gradle-daemon',), True, 10
+def test_runner_executes_groups_in_tuple_order_after_independent_failure(
+    monkeypatch, tmp_path: Path
+) -> None:
+    groups = (
+        executor.CommandGroup('a', 'command', ('echo', 'a'), (), ('noTestSkips',), 10),
+        executor.CommandGroup('b', 'command', ('echo', 'b'), (), ('languagePolicy',), 10),
+        executor.CommandGroup('c', 'command', ('echo', 'c'), (), ('codexAgentPolicy',), 10),
     )
-    conflict = executor.CommandGroup(
-        'b', 'command', ('echo', 'b'), (), ('languagePolicy',), ('gradle-daemon',), True, 10
-    )
-    disjoint = executor.CommandGroup(
-        'c', 'command', ('echo', 'c'), (), ('codexAgentPolicy',), ('fixture-server',), True, 10
-    )
+    calls: list[str] = []
 
-    groups = executor._add_dependency_edges([base, conflict, disjoint])  # noqa: SLF001
+    def execute(group, _repo):
+        calls.append(group.group_id)
+        return GateDetail(group.group_id, FAIL if group.group_id == 'a' else PASS)
 
-    assert groups[1].depends_on == ('a',)
-    assert groups[2].depends_on == ()
+    monkeypatch.setattr(executor, '_execute_group', execute)
+    outcomes = executor._run_groups_serially(groups, tmp_path)  # noqa: SLF001
+
+    assert calls == ['a', 'b', 'c']
+    assert outcomes['a'].status == FAIL
+    assert outcomes['b'].status == PASS
+    assert outcomes['c'].status == PASS
 
 
-def test_scan_smoke_prerequisite_precedes_consumer_without_resource_cycle() -> None:
+def test_scan_smoke_prerequisite_precedes_consumer_in_serial_plan() -> None:
     execution = executor.build_execution_plan(
         cli._with_preflight(plan(['scripts/checks/source/check_code_comment_language.py'])),
         REPO_ROOT,
@@ -171,13 +170,8 @@ def test_scan_smoke_prerequisite_precedes_consumer_without_resource_cycle() -> N
     positions = {group.group_id: index for index, group in enumerate(execution.groups)}
     scan = next(group for group in execution.groups if 'scanScriptSmoke' in group.gate_names)
 
-    assert scan.depends_on == ('group-gradle-000',)
     assert positions['group-gradle-000'] < positions[scan.group_id]
-    assert all(
-        positions[dependency] < positions[group.group_id]
-        for group in execution.groups
-        for dependency in group.depends_on
-    )
+    assert scan.kind == 'scan-smoke'
 
 
 def test_browser_group_reuses_explicit_fixture_server(monkeypatch) -> None:
@@ -208,23 +202,19 @@ def test_gradle_group_maps_each_selected_task_outcome(monkeypatch) -> None:
         REPO_ROOT,  # noqa: SLF001
     )
 
-    def fake_group(group, _repo_root, _identity):
+    def fake_group(group, _repo_root):
         if group.kind != 'gradle':
-            return group.group_id, GateDetail(group.group_id, PASS), 0
-        return (
+            return GateDetail(group.group_id, PASS)
+        return GateDetail(
             group.group_id,
-            GateDetail(
-                group.group_id,
-                FAIL,
-                taskOutcomes={
-                    ':check': 'EXECUTED',
-                    ':java:tests:quality-gates:runJavaQualityGates': 'FAILED',
-                    ':reuseStandardCpd': 'FROM-CACHE',
-                    ':reuseAnalyzeIncremental': 'UP-TO-DATE',
-                    ':java:app-cli:installDist': 'EXECUTED',
-                },
-            ),
-            0,
+            FAIL,
+            taskOutcomes={
+                ':check': 'EXECUTED',
+                ':java:tests:quality-gates:runJavaQualityGates': 'FAILED',
+                ':reuseStandardCpd': 'FROM-CACHE',
+                ':reuseAnalyzeIncremental': 'UP-TO-DATE',
+                ':java:app-cli:installDist': 'EXECUTED',
+            },
         )
 
     monkeypatch.setattr(executor, '_execute_group', fake_group)
@@ -252,14 +242,10 @@ def test_gradle_task_status_is_generic_and_preserves_blocked_vs_failed(
         REPO_ROOT,
     )
 
-    def fake_group(group, _repo_root, _identity):
+    def fake_group(group, _repo_root):
         if group.kind != 'gradle':
-            return group.group_id, GateDetail(group.group_id, PASS), 0
-        return (
-            group.group_id,
-            GateDetail(group.group_id, FAIL, taskOutcomes=task_outcomes),
-            0,
-        )
+            return GateDetail(group.group_id, PASS)
+        return GateDetail(group.group_id, FAIL, taskOutcomes=task_outcomes)
 
     monkeypatch.setattr(executor, '_execute_group', fake_group)
     details = {detail.name: detail for detail in executor.execute_plan(execution, REPO_ROOT)}

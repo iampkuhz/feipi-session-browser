@@ -23,6 +23,7 @@ def test_dry_run_has_stable_typed_plan(capsys) -> None:
     assert rc == 0
     assert payload['effectiveTargets'] == ['java-build']
     assert payload['commands'][0]['gate'] == 'ignoredTrackedFiles'
+    assert all('resources' not in group and 'dependsOn' not in group for group in payload['groups'])
 
 
 def test_misplaced_paths_preflight_runs_for_docs_only_change(capsys) -> None:

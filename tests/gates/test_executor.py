@@ -232,11 +232,15 @@ def test_dependency_failure_is_one_root_and_downstream_is_dependency_blocked(
     execution = executor.build_execution_plan(
         _single_plan('session-ingestion', 'scanScriptSmoke'), tmp_path
     )
-    prerequisite = next(group for group in execution.groups if not group.depends_on)
+    prerequisite = next(group for group in execution.groups if group.kind == 'gradle')
 
-    def execute(group, _repo, _identity):
+    def execute(group, _repo):
         assert group.group_id == prerequisite.group_id
-        return group.group_id, GateDetail(name=group.group_id, status=FAIL), 0
+        return GateDetail(
+            name=group.group_id,
+            status=FAIL,
+            taskOutcomes={':java:app-cli:installDist': 'FAILED'},
+        )
 
     monkeypatch.setattr(executor, '_execute_group', execute)
     details = executor.execute_plan(execution, tmp_path)
