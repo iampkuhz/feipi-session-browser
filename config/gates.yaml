@@ -256,7 +256,7 @@ gates:
   - name: index
     order: 1
   - name: java-src
-    order: 9
+    order: 10
   - name: java-build
     order: 5
   - name: scan-script-smoke
@@ -530,7 +530,6 @@ gates:
       - -q
       - -W
       - error
-      - tests/ui/test_web_template_contract.py
       - tests/ui/test_web_static_contract.py
       acceptance-contracts:
       - '{dev_python}'
@@ -839,8 +838,11 @@ gates:
     order: 3
     patterns:
     - java/web/src/main/resources/templates/**
-    - tests/ui/test_web_template_contract.py
-    - scripts/checks/web/check_template_contract.py
+  - name: java-src
+    order: 9
+    patterns:
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRuleTest.java
   tiers:
   - required
   - full
@@ -848,13 +850,11 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - web.template-contract
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - template-contract
 - name: staticCssContract
   description: 执行 staticCssContract 所定义的仓库质量检查。
   targets:

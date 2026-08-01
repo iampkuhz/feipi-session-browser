@@ -59,6 +59,7 @@
       "noJavaSuppressWarnings",
       "reuseStandardCpd",
       "reuseAnalyzeIncremental",
+      "templateContract",
       "misplacedGeneratedPaths"
     ],
     "java-build": [

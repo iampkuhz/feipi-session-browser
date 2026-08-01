@@ -112,6 +112,40 @@ class QualityGateCliTest {
   }
 
   @Test
+  void templateRuleStaysRepositoryWideWhenAggregatedWithIncrementalJavaRule() throws Exception {
+    write(
+        "java/web/src/main/resources/templates/broken.html",
+        "<button onclick=\"run()\">运行</button>\n");
+    write(
+        "java/sample/src/main/java/example/Valid.java",
+        """
+        package example;
+        /** @param value 中文说明。 */
+        public record Valid(String value) {}
+        """);
+
+    var result =
+        invoke(
+            new String[] {
+              "--repo-root",
+              repo.toString(),
+              "--paths",
+              repo.resolve("java").toString(),
+              "--rules",
+              "template-contract,record-component-javadocs"
+            },
+            Map.of("QUALITY_CHANGED_FILES", "[\"java/sample/src/main/java/example/Valid.java\"]"));
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out())
+        .contains(
+            "{\"rule\":\"template-contract\",\"status\":\"FAILED\",\"candidateCount\":2,\"violationCount\":1}")
+        .contains(
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+        .contains("ONCLICK_FORBIDDEN");
+  }
+
+  @Test
   void testOnlyJavaDoesNotTurnZeroCandidateMainRuleIntoPassed() throws Exception {
     write(
         "config/technical-terms.json",

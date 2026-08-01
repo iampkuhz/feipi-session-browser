@@ -20,6 +20,7 @@ val writeApiSnapshot = providers.gradleProperty("feipiJavaApiSnapshotWrite")
     .orElse(false)
 val apiSnapshot = rootProject.layout.projectDirectory.file("config/api-snapshots/java-public-api.txt")
 val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
+val templatesRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/templates")
 val summary = layout.buildDirectory.file("reports/java-quality-gates/summary.json")
 val javaMainSources = rootProject.fileTree("java") {
     include("**/src/main/java/**/*.java")
@@ -37,6 +38,9 @@ val jvmCommentSources = rootProject.files(
     rootProject.layout.projectDirectory.file("build.gradle.kts"),
     rootProject.layout.projectDirectory.file("settings.gradle.kts"),
 )
+val templateSources = rootProject.fileTree(templatesRoot) {
+    include("**/*.html")
+}
 
 // 所有 Java source rules 共用这一项公开 JavaExec；禁止增加逐 rule alias/task。
 tasks.register<JavaExec>("runJavaQualityGates") {
@@ -46,8 +50,13 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     classpath = sourceSets["main"].runtimeClasspath
     jvmArgs("--add-modules", "jdk.compiler")
 
-    inputs.files(javaMainSources).withPropertyName("javaMainSources").withPathSensitivity(PathSensitivity.RELATIVE)
     val selectedRules = javaQualityRules.get().split(',').map(String::trim)
+    val javaSourceRules = setOf("record-component-javadocs", "no-pmd-suppressions", "java-api-snapshot")
+    if (selectedRules.any(javaSourceRules::contains)) {
+        inputs.files(javaMainSources)
+            .withPropertyName("javaMainSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
     if ("java-comment-language" in selectedRules) {
         inputs.files(jvmCommentSources)
             .withPropertyName("jvmCommentSources")
@@ -55,6 +64,12 @@ tasks.register<JavaExec>("runJavaQualityGates") {
         inputs.file(technicalTermsPolicy)
             .withPropertyName("technicalTermsPolicy")
             .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+    if ("template-contract" in selectedRules) {
+        inputs.files(templateSources)
+            .withPropertyName("templateSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.property("templatesRootExists", providers.provider { templatesRoot.asFile.exists() })
     }
     inputs.property("rules", javaQualityRules)
     inputs.property("changedFiles", changedFiles)
@@ -67,15 +82,22 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     }
     outputs.cacheIf("deterministic compiler AST report") { true }
 
-    val sourcePaths = if ("java-comment-language" in selectedRules) {
-        listOf(
-            rootProject.file("java"),
-            rootProject.file("gradle/build-logic"),
-            rootProject.file("build.gradle.kts"),
-            rootProject.file("settings.gradle.kts"),
+    val sourcePaths = linkedSetOf<File>()
+    if (selectedRules.any(javaSourceRules::contains)) {
+        sourcePaths.add(rootProject.file("java"))
+    }
+    if ("java-comment-language" in selectedRules) {
+        sourcePaths.addAll(
+            listOf(
+                rootProject.file("java"),
+                rootProject.file("gradle/build-logic"),
+                rootProject.file("build.gradle.kts"),
+                rootProject.file("settings.gradle.kts"),
+            )
         )
-    } else {
-        listOf(rootProject.file("java"))
+    }
+    if ("template-contract" in selectedRules) {
+        sourcePaths.add(templatesRoot.asFile)
     }
     args(
         "--repo-root", rootProject.projectDir.absolutePath,

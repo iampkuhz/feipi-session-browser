@@ -2827,6 +2827,7 @@ method com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder 
 method com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder public QualityGateRegistry build()
 method com.feipi.session.browser.quality.gates.core.QualityRule public List<QualityViolation> check(QualityContext context) throws Exception
 method com.feipi.session.browser.quality.gates.core.QualityRule public String id()
+method com.feipi.session.browser.quality.gates.core.QualityRule public default List<Path> requiredInputs(Path repoRoot)
 method com.feipi.session.browser.quality.gates.core.QualityRule public default boolean supportsPath(String relativePath)
 method com.feipi.session.browser.quality.gates.core.QualityRule public default boolean usesChangedFiles()
 method com.feipi.session.browser.quality.gates.core.QualitySummary public static String json(int candidateCount, List<RuleExecution> executions)
@@ -2841,6 +2842,11 @@ method com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule pub
 method com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule public boolean usesChangedFiles()
 method com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule public List<QualityViolation> check(QualityContext context)
 method com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule public String id()
+method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public List<Path> requiredInputs(Path repoRoot)
+method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public List<QualityViolation> check(QualityContext context)
+method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public String id()
+method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public boolean supportsPath(String relativePath)
+method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public boolean usesChangedFiles()
 method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public List<QualityViolation> check(QualityContext context)
 method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public String id()
 method com.feipi.session.browser.query.api.AgentFilter public String agent()
@@ -3532,6 +3538,7 @@ type com.feipi.session.browser.quality.gates.core.SourceText public record [test
 type com.feipi.session.browser.quality.gates.rules.JavaApiSnapshotRule public class [tests] final class JavaApiSnapshotRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule public class [tests] final class JavaCommentLanguageRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule public class [tests] final class NoPmdSuppressionsRule implements QualityRule
+type com.feipi.session.browser.quality.gates.rules.TemplateContractRule public class [tests] final class TemplateContractRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public class [tests] final class RecordComponentJavadocsRule implements QualityRule
 type com.feipi.session.browser.query.api.AgentFilter public class [index-api] final class AgentFilter
 type com.feipi.session.browser.query.api.AnomalyFilter public class [index-api] final class AnomalyFilter

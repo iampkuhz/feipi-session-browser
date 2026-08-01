@@ -59,7 +59,10 @@ public record RepositorySourceSet(List<SourceText> sources) {
         try (var stream = Files.walk(path)) {
           stream
               .filter(Files::isRegularFile)
-              .filter(candidate -> !hasExcludedPart(normalizedRoot, candidate))
+              // build/generated/vendor 等排除项只属于 JVM 源码扫描；固定 Web 资源根必须完整遍历。
+              .filter(
+                  candidate ->
+                      !isJvmSource(candidate) || !hasExcludedPart(normalizedRoot, candidate))
               .forEach(
                   candidate ->
                       addIfSupported(normalizedRoot, candidate, supportedPath, candidates));
@@ -72,7 +75,7 @@ public record RepositorySourceSet(List<SourceText> sources) {
           new SourceText(
               path,
               relativePath(normalizedRoot, path),
-              Files.readString(path, StandardCharsets.UTF_8)));
+              new String(Files.readAllBytes(path), StandardCharsets.UTF_8)));
     }
     sources.sort(Comparator.comparing(SourceText::relativePath));
     return new RepositorySourceSet(sources);
@@ -98,6 +101,11 @@ public record RepositorySourceSet(List<SourceText> sources) {
       }
     }
     return false;
+  }
+
+  private static boolean isJvmSource(Path path) {
+    var fileName = path.getFileName().toString();
+    return fileName.endsWith(".java") || fileName.endsWith(".kt") || fileName.endsWith(".kts");
   }
 
   private static String relativePath(Path repoRoot, Path path) {

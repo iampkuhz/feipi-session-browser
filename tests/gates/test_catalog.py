@@ -65,6 +65,7 @@ def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
         'javaRecordComponentJavadocs': ('record-component-javadocs',),
         'noJavaSuppressWarnings': ('no-pmd-suppressions',),
         'javaApiSnapshot': ('java-api-snapshot',),
+        'templateContract': ('template-contract',),
     }
 
     for gate_name, rules in expected.items():
@@ -74,6 +75,20 @@ def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
 
     with pytest.raises(ValueError, match='Unknown quality gate'):
         gate_by_name('javaModuleBoundaries')
+
+
+def test_template_contract_has_one_java_owner_and_fixed_resource_root() -> None:
+    gate = gate_by_name('templateContract')
+    target_rules = {rule.target: rule for rule in gate.target_rules}
+
+    assert gate.command is None
+    assert gate.gradle_tasks == (':java:tests:quality-gates:runJavaQualityGates',)
+    assert gate.java_rules == ('template-contract',)
+    assert target_rules['session-detail'].patterns == ('java/web/src/main/resources/templates/**',)
+    assert target_rules['java-src'].patterns == (
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRule.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRuleTest.java',
+    )
 
 
 def test_script_comment_gate_scans_only_real_script_sources() -> None:

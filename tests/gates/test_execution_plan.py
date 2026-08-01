@@ -118,6 +118,21 @@ def test_scan_dry_run_excludes_pid_scoped_transient_paths() -> None:
     assert 'pid-' not in encoded
 
 
+def test_template_resource_uses_one_java_quality_group() -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(  # noqa: SLF001
+            plan(['java/web/src/main/resources/templates/session.html'])
+        ),
+        REPO_ROOT,
+    )
+    groups = [group for group in execution.groups if 'templateContract' in group.gate_names]
+
+    assert len(groups) == 1
+    assert groups[0].kind == 'gradle'
+    assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
+    assert '-PfeipiJavaQualityRules=template-contract' in groups[0].command
+
+
 def test_playwright_plan_uses_node_managed_java_fixture_without_base_url() -> None:
     """未提供外部 BASE_URL 时由根 Playwright 配置管理真实 Java fixture。"""
     gate_plan = cli.create_plan(

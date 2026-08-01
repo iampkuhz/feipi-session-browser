@@ -1,5 +1,6 @@
 package com.feipi.session.browser.quality.gates.core;
 
+import java.nio.file.Path;
 import java.util.List;
 
 /** 单 JVM quality-gate registry 中的一条 Java 源码规则。 */
@@ -25,6 +26,18 @@ public interface QualityRule {
    */
   default boolean usesChangedFiles() {
     return true;
+  }
+
+  /**
+   * 返回即使不存在源码文件也必须检查的逻辑输入路径；默认规则没有必需根路径。
+   *
+   * <p>CLI 会把这些路径计入该规则的候选数，因此目录缺失或为空时规则仍会执行，而不会被误判为 {@code NOT_APPLICABLE}。
+   *
+   * @param repoRoot 仓库根目录。
+   * @return 规则必须验证的文件或目录路径。
+   */
+  default List<Path> requiredInputs(Path repoRoot) {
+    return List.of();
   }
 
   /** 对共享输入执行规则，不得自行扫描 Git 或再次解析源码。 */

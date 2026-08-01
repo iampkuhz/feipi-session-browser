@@ -84,6 +84,19 @@ def test_web_change_does_not_trigger_script_comment_owner() -> None:
     assert 'scriptCommentLanguage' not in {gate.name for gate in gate_plan.logical_gates}
 
 
+def test_template_resource_and_rule_source_select_the_java_template_owner() -> None:
+    resource_plan = plan(['java/web/src/main/resources/templates/session.html'])
+    rule_plan = plan(
+        [
+            'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+            'rules/TemplateContractRule.java'
+        ]
+    )
+
+    assert [gate.name for gate in resource_plan.logical_gates].count('templateContract') == 1
+    assert [gate.name for gate in rule_plan.logical_gates].count('templateContract') == 1
+
+
 def test_kotlin_source_selects_only_compatible_java_comment_rule() -> None:
     gate_plan = plan(['java/sample/src/main/kotlin/example/Foo.kt'])
 

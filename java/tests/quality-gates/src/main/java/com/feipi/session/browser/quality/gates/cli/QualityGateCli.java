@@ -11,6 +11,7 @@ import com.feipi.session.browser.quality.gates.core.RepositorySourceSet;
 import com.feipi.session.browser.quality.gates.rules.JavaApiSnapshotRule;
 import com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule;
 import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
+import com.feipi.session.browser.quality.gates.rules.TemplateContractRule;
 import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -19,6 +20,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -66,20 +68,26 @@ public final class QualityGateCli {
               ? changedPaths(options.repoRoot(), parseStringArray(changedJson))
               : null;
       var sourcesByRule = new LinkedHashMap<String, RepositorySourceSet>();
+      var requiredInputsByRule = new LinkedHashMap<String, List<Path>>();
       var candidateIndex = new LinkedHashMap<Path, RepositorySourceSet.SourceText>();
+      var candidatePaths = new LinkedHashSet<Path>();
       for (var rule : selectedRules) {
         var ruleSources = selectForRule(allSources, rule, changedPaths);
+        var requiredInputs = requiredInputs(options.repoRoot(), rule);
         sourcesByRule.put(rule.id(), ruleSources);
+        requiredInputsByRule.put(rule.id(), requiredInputs);
         for (var source : ruleSources.sources()) {
           candidateIndex.put(source.path(), source);
+          candidatePaths.add(source.path());
         }
+        candidatePaths.addAll(requiredInputs);
       }
       var repositorySources =
           new RepositorySourceSet(
               candidateIndex.values().stream()
                   .sorted(Comparator.comparing(RepositorySourceSet.SourceText::relativePath))
                   .toList());
-      if (repositorySources.sources().isEmpty()) {
+      if (candidatePaths.isEmpty()) {
         var executions =
             selectedRules.stream().map(rule -> new RuleExecution(rule.id(), 0, List.of())).toList();
         return writeSummary(options, 0, executions, QualityGateExitCodes.OK, out);
@@ -104,16 +112,21 @@ public final class QualityGateCli {
       var executions = new ArrayList<RuleExecution>();
       for (var rule : selectedRules) {
         var ruleSources = sourcesByRule.get(rule.id());
+        var ruleCandidates = new LinkedHashSet<Path>();
+        ruleSources.sources().stream()
+            .map(RepositorySourceSet.SourceText::path)
+            .forEach(ruleCandidates::add);
+        ruleCandidates.addAll(requiredInputsByRule.get(rule.id()));
         var violations =
-            ruleSources.sources().isEmpty()
+            ruleCandidates.isEmpty()
                 ? List.<QualityViolation>of()
                 : rule.check(contextForRule(context, ruleSources));
-        executions.add(new RuleExecution(rule.id(), ruleSources.sources().size(), violations));
+        executions.add(new RuleExecution(rule.id(), ruleCandidates.size(), violations));
       }
       var hasViolations = executions.stream().anyMatch(item -> !item.violations().isEmpty());
       return writeSummary(
           options,
-          repositorySources.sources().size(),
+          candidatePaths.size(),
           executions,
           hasViolations ? QualityGateExitCodes.VIOLATIONS : QualityGateExitCodes.OK,
           out);
@@ -181,6 +194,20 @@ public final class QualityGateCli {
                         || changedPaths.contains(source.path()))
             .toList();
     return new RepositorySourceSet(selected);
+  }
+
+  private static List<Path> requiredInputs(Path repoRoot, QualityRule rule) {
+    var normalizedRoot = repoRoot.toAbsolutePath().normalize();
+    var result = new LinkedHashSet<Path>();
+    for (var input : rule.requiredInputs(normalizedRoot)) {
+      var path = input.isAbsolute() ? input : normalizedRoot.resolve(input);
+      path = path.toAbsolutePath().normalize();
+      if (!path.startsWith(normalizedRoot)) {
+        throw new IllegalArgumentException("required input escapes repository: " + path);
+      }
+      result.add(path);
+    }
+    return List.copyOf(result);
   }
 
   private static List<String> parseStringArray(String json) {
@@ -258,6 +285,7 @@ public final class QualityGateCli {
   public static QualityGateRegistry registry() {
     return QualityGateRegistry.builder()
         .register(new JavaCommentLanguageRule())
+        .register(new TemplateContractRule())
         .register(new RecordComponentJavadocsRule())
         .register(new NoPmdSuppressionsRule())
         .register(new JavaApiSnapshotRule())
