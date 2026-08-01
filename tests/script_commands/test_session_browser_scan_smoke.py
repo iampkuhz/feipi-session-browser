@@ -178,7 +178,6 @@ def isolated_env(tmp_path: Path):
     env['CLAUDE_DATA_DIR'] = str(claude_dir)
     env['CODEX_DATA_DIR'] = str(codex_dir)
     env['QODER_DATA_DIR'] = str(qoder_dir)
-    env['SESSION_BROWSER_LOCAL_DATA_DIR'] = str(index_dir)
     env['INDEX_DIR'] = str(index_dir)
     env['SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS'] = '0'
 

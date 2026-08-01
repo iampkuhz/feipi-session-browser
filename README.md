@@ -25,27 +25,31 @@ http://127.0.0.1:8848
 
 ## 常用命令
 
+`session-browser.sh` 是唯一公开产品入口：脚本自身只处理 `deps`、`test`、
+`quality` 三个仓库级命令，其他命令和参数原样交给 Java CLI。
+
 ```bash
 # 准备或修复 Java launcher
 ./scripts/session-browser.sh deps
 
-# 安装 Python 开发/测试依赖（仅开发质量门需要）
-./scripts/session-browser.sh deps --dev
+# 运行产品测试
+./scripts/session-browser.sh test
 
-# 查看当前版本（Java CLI）
+# 运行 required Gate（提交前的统一质量检查）
+./scripts/session-browser.sh quality
+
+# 以下产品命令均由 Java CLI 实现
 ./scripts/session-browser.sh version
-
-# 重新扫描会话数据
 ./scripts/session-browser.sh scan
-
-# 前台启动服务（Java launcher）
 ./scripts/session-browser.sh serve
-
-# 按端口停止本地服务进程（Java launcher）
 ./scripts/session-browser.sh stop --port 8848
-
-# 查看所有可用命令（Java CLI）
 ./scripts/session-browser.sh help
+```
+
+只在修改 Python Gate/Harness 时才需要开发依赖，直接使用唯一安装命令：
+
+```bash
+UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev
 ```
 
 ## 默认数据位置
@@ -66,11 +70,8 @@ http://127.0.0.1:8848
 | `CLAUDE_DATA_DIR` | `~/.claude` | Claude Code 数据目录 |
 | `CODEX_DATA_DIR` | `~/.codex` | Codex 数据目录 |
 | `QODER_DATA_DIR` | `~/.qoder` | Qoder 数据目录 |
-| `SESSION_BROWSER_LOCAL_HOST` | `127.0.0.1` | 本地服务绑定地址 |
-| `SESSION_BROWSER_LOCAL_PORT` | `8848` | 本地服务端口 |
-| `SESSION_BROWSER_LOCAL_DATA_DIR` | `~/.local/share/feipi/session-browser/local-test-index` | 本地索引目录 |
+| `INDEX_DIR` | XDG 平台默认目录 | Java CLI 的索引目录 |
 | `SESSION_BROWSER_LOG_LEVEL` | `WARN` | 日志级别 |
-| `SESSION_BROWSER_VENV_DIR` | `./.local/python/venv` | 本地虚拟环境目录（仅用于 `deps --dev` 和 Python 开发工具） |
 
 完整示例见 [`config/env/session-browser.env.example`](config/env/session-browser.env.example)。
 
@@ -96,7 +97,7 @@ http://127.0.0.1:8848
 示例：使用自定义索引目录扫描。
 
 ```bash
-SESSION_BROWSER_LOCAL_DATA_DIR=/tmp/session-browser-index ./scripts/session-browser.sh scan
+./scripts/session-browser.sh scan --index-dir /tmp/session-browser-index
 ```
 
 ## 页面入口

@@ -45,9 +45,12 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - format-check
+    - '{dev_python}'
+    - -m
+    - ruff
+    - format
+    - --check
+    - .
 - name: pythonLint
   description: 执行 pythonLint 所定义的仓库质量检查。
   targets:
@@ -67,9 +70,13 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - lint
+    - '{dev_python}'
+    - -m
+    - ruff
+    - check
+    - --extend-select
+    - I
+    - .
 - name: pythonCoverage
   description: 执行 pythonCoverage 所定义的仓库质量检查。
   targets:
@@ -88,9 +95,27 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - coverage
+    - '{dev_python}'
+    - -m
+    - pytest
+    - -W
+    - error
+    - tests/harness
+    - tests/gates
+    - tests/quality/test_contract_case_specs.py
+    - tests/quality/test_java_classification.py
+    - tests/quality/test_new_quality_gates.py
+    - tests/quality/test_no_test_skips_gate.py
+    - tests/quality/test_python_env_contract.py
+    - tests/quality/test_repo_slimming_contract.py
+    - tests/quality/test_static_contract.py
+    - tests/checks/test_code_comment_language_gate.py
+    - tests/checks/test_python_security.py
+    - --cov=scripts
+    - --cov-branch
+    - --cov-report=term-missing
+    - --cov-report=xml:.local/python/coverage/coverage.xml
+    - --cov-fail-under=0
 - name: pythonAudit
   description: 执行 pythonAudit 所定义的仓库质量检查。
   targets:
@@ -110,12 +135,17 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - audit
+    - '{dev_python}'
+    - -m
+    - scripts.checks
+    - repository.python-security
+    - --root
+    - '{repo_root}'
+    required_paths:
+    - scripts/checks/repository/check_python_security.py
   network_failure: blocked
 - name: pythonComplexity
-  description: 执行 pythonComplexity 所定义的仓库质量检查。
+  description: 生成 Python 复杂度债务报告，作为不阻断的维护建议。
   targets:
   - name: python-standard
     order: 4
@@ -132,9 +162,15 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - complexity
+    - '{dev_python}'
+    - -m
+    - radon
+    - cc
+    - --min
+    - B
+    - --show-complexity
+    - --average
+    - scripts
 - name: pythonDeadCode
   description: 执行 pythonDeadCode 所定义的仓库质量检查。
   targets:
@@ -154,9 +190,9 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - dead-code
+    - '{dev_python}'
+    - -m
+    - vulture
 - name: pythonDeps
   description: 执行 pythonDeps 所定义的仓库质量检查。
   targets:
@@ -175,9 +211,10 @@ gates:
   command:
     capability: command
     argv:
-    - bash
-    - scripts/session-browser.sh
-    - deps-check
+    - '{dev_python}'
+    - -m
+    - deptry
+    - scripts
 - name: ignoredTrackedFiles
   description: 执行 ignoredTrackedFiles 所定义的仓库质量检查。
   targets:

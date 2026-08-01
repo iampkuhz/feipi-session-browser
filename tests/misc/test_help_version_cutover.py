@@ -1,563 +1,390 @@
-"""help/version/serve/stop cutover 进程级测试。
+"""`session-browser.sh` 薄入口进程级契约。
 
-验证 help/version/serve/stop/deps 命令通过 Java launcher 执行，test 和 deps --dev 仍走 Python。
-使用 fake python trap marker 证明未调用 Python。
+测试只观察公开参数、进程、输出和退出码，不绑定 shell 内部函数。
 """
 
+from __future__ import annotations
+
 import os
-import re
-import shutil
+import signal
 import stat
 import subprocess
-import tempfile
+import time
+from pathlib import Path
 
-# 项目根目录
-SB_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-SHELL_SCRIPT = os.path.join(SB_ROOT, 'scripts', 'session-browser.sh')
+import pytest
+
+REPO_ROOT = Path(__file__).resolve().parents[2]
+SHELL_SCRIPT = REPO_ROOT / 'scripts' / 'session-browser.sh'
+LAUNCHER_RELATIVE = Path('java/app-cli/build/install/app-cli/bin/app-cli')
+INSTALLED_LAUNCHER = REPO_ROOT / LAUNCHER_RELATIVE
 
 
-def _create_python_trap(tmp_dir: str) -> str:
-    """创建 fake python/python3 trap marker，返回 trap 目录路径。"""
-    trap_dir = os.path.join(tmp_dir, 'trap_bin')
-    os.makedirs(trap_dir, exist_ok=True)
-    marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+def _write_executable(path: Path, content: str) -> None:
+    """写入可执行的测试替身。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(content, encoding='utf-8')
+    path.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
 
-    for name in ('python', 'python3'):
-        script_path = os.path.join(trap_dir, name)
-        with open(script_path, 'w') as f:
-            f.write('#!/bin/sh\n')
-            f.write(f'echo "TRAPPED" >> "{marker_file}"\n')
-            f.write('exit 0\n')
-        os.chmod(
-            script_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
+
+def _create_fake_project(
+    tmp_path: Path,
+    *,
+    launcher_body: str | None = None,
+    include_launcher: bool = True,
+) -> tuple[Path, Path]:
+    """创建路径含空格的最小项目，只保留公开进程边界。"""
+    project = tmp_path / 'project with spaces'
+    script = project / 'scripts' / 'session-browser.sh'
+    script.parent.mkdir(parents=True)
+    script.write_bytes(SHELL_SCRIPT.read_bytes())
+    script.chmod(stat.S_IRUSR | stat.S_IWUSR | stat.S_IXUSR)
+    (project / 'scripts' / 'gates').mkdir(parents=True)
+    (project / 'scripts' / 'gates' / 'cli.py').write_text('# fake gate entry\n', encoding='utf-8')
+
+    if include_launcher:
+        body = launcher_body or (
+            '#!/usr/bin/env bash\n'
+            'printf "CWD=<%s>\\n" "$PWD"\n'
+            'printf "ARG=<%s>\\n" "$@"\n'
+            'exit "${FAKE_LAUNCHER_EXIT:-0}"\n'
         )
+        _write_executable(project / LAUNCHER_RELATIVE, body)
 
-    return trap_dir
+    return project, script
 
 
 def _run_shell(
-    cmd: str, *, cwd: str | None = None, extra_env: dict | None = None
-) -> subprocess.CompletedProcess:
-    """运行 session-browser.sh 命令并返回结果。"""
-    env = os.environ.copy()
-    if extra_env:
-        env.update(extra_env)
+    script: Path,
+    *args: str,
+    cwd: Path | None = None,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str]:
+    """从指定工作目录运行公开 shell 入口。"""
     return subprocess.run(
-        ['bash', SHELL_SCRIPT, cmd],
-        capture_output=True,
-        text=True,
+        ['bash', str(script), *args],
         cwd=cwd,
         env=env,
+        text=True,
+        capture_output=True,
         timeout=30,
+        check=False,
     )
 
 
-def _run_shell_with_trap(
-    cmd: str, *, cwd: str | None = None, extra_env: dict | None = None
-) -> tuple:
-    """运行命令并检查 Python trap marker。返回 (result, trap_called)。"""
-    with tempfile.TemporaryDirectory() as tmp_dir:
-        trap_dir = _create_python_trap(tmp_dir)
-        marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
+def test_no_args_routes_to_java_help_from_arbitrary_cwd(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    outside = tmp_path / 'outside cwd'
+    outside.mkdir()
 
-        env = os.environ.copy()
-        env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-        if extra_env:
-            env.update(extra_env)
+    result = _run_shell(script, cwd=outside)
 
-        result = subprocess.run(
-            ['bash', SHELL_SCRIPT, cmd],
-            capture_output=True,
-            text=True,
-            cwd=cwd,
-            env=env,
-            timeout=30,
-        )
-        trap_called = os.path.isfile(marker_file)
-        return result, trap_called
+    assert result.returncode == 0, result.stderr
+    assert 'ARG=<--help>' in result.stdout
+    assert f'CWD=<{outside}>' in result.stdout
+    assert project != outside
 
 
-def _create_fake_project_with_launcher(tmp_dir: str) -> tuple[str, str]:
-    """创建包含 fake Java launcher 的最小项目副本，返回 (script, project)。"""
-    fake_project = os.path.join(tmp_dir, 'fake_project')
-    fake_scripts = os.path.join(fake_project, 'scripts')
-    launcher_dir = os.path.join(
-        fake_project, 'java', 'app-cli', 'build', 'install', 'app-cli', 'bin'
+@pytest.mark.parametrize(
+    ('arguments', 'expected'),
+    [
+        (('help',), ('help',)),
+        (('--help',), ('--help',)),
+        (('-h',), ('-h',)),
+        (('version',), ('version',)),
+        (('serve', '--port', '19000'), ('serve', '--port', '19000')),
+        (('stop', '--force'), ('stop', '--force')),
+        (('status',), ('status',)),
+        (('doctor',), ('doctor',)),
+        (('diagnose', 'session', 'fixture.json'), ('diagnose', 'session', 'fixture.json')),
+    ],
+)
+def test_java_commands_are_forwarded_without_rewriting(
+    tmp_path: Path,
+    arguments: tuple[str, ...],
+    expected: tuple[str, ...],
+) -> None:
+    _, script = _create_fake_project(tmp_path)
+
+    result = _run_shell(script, *arguments, cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[-len(expected) :] == [f'ARG=<{arg}>' for arg in expected]
+
+
+def test_argument_boundaries_survive_spaces(tmp_path: Path) -> None:
+    _, script = _create_fake_project(tmp_path)
+    data_dir = str(tmp_path / 'index path with spaces')
+
+    result = _run_shell(
+        script,
+        'scan',
+        '--full',
+        '--index-dir',
+        data_dir,
+        '--agent',
+        'codex',
+        cwd=tmp_path,
     )
-    os.makedirs(fake_scripts, exist_ok=True)
-    os.makedirs(launcher_dir, exist_ok=True)
-    fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
-    shutil.copy2(SHELL_SCRIPT, fake_sh)
-    os.chmod(fake_sh, stat.S_IRWXU)
-    with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
-        f.write('0.0-test\n')
-
-    launcher = os.path.join(launcher_dir, 'app-cli')
-    with open(launcher, 'w') as f:
-        f.write('#!/bin/sh\n')
-        f.write('printf "APP_CLI_OPTS=%s\\n" "${APP_CLI_OPTS:-}"\n')
-        f.write('printf "JAVA_OPTS=%s\\n" "${JAVA_OPTS:-}"\n')
-        f.write('printf "ARGS=%s\\n" "$*"\n')
-    os.chmod(launcher, stat.S_IRWXU)
-    return fake_sh, fake_project
-
-
-class TestHelpVersionRoutesToJava:
-    """help/version 正向路径：路由到 Java，不经过 Python。"""
-
-    def test_help_routes_to_java(self):
-        """help 命令通过 Java launcher 执行。"""
-        result, trap_called = _run_shell_with_trap('help')
-        assert result.returncode == 0, f'stderr: {result.stderr}'
-        assert 'session-browser' in result.stdout.lower() or 'session-browser' in result.stdout
-        assert not trap_called, 'help 不应调用 Python'
-
-    def test_help_flag_routes_to_java(self):
-        """--help 标志通过 Java launcher 执行。"""
-        result, trap_called = _run_shell_with_trap('--help')
-        assert result.returncode == 0, f'stderr: {result.stderr}'
-        assert 'session-browser' in result.stdout.lower() or 'session-browser' in result.stdout
-        assert not trap_called, '--help 不应调用 Python'
-
-    def test_h_flag_routes_to_java(self):
-        """-h 标志通过 Java launcher 执行。"""
-        result, trap_called = _run_shell_with_trap('-h')
-        assert result.returncode == 0, f'stderr: {result.stderr}'
-        assert not trap_called, '-h 不应调用 Python'
-
-    def test_version_routes_to_java(self):
-        """version 命令通过 Java launcher 执行。"""
-        result, trap_called = _run_shell_with_trap('version')
-        assert result.returncode == 0, f'stderr: {result.stderr}'
-        assert re.fullmatch(r'\d+\.\d+(\.\d+)?(-[\w.]+)?', result.stdout.strip())
-        assert not trap_called, 'version 不应调用 Python'
-
-    def test_help_outside_repo_cwd(self):
-        """从仓库外 cwd 运行 help 仍能定位 Java launcher。"""
-        with tempfile.TemporaryDirectory() as outside_dir:
-            result, trap_called = _run_shell_with_trap('help', cwd=outside_dir)
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert not trap_called, '仓库外 cwd 不应调用 Python'
-
-    def test_version_outside_repo_cwd(self):
-        """从仓库外 cwd 运行 version 仍能定位 Java launcher。"""
-        with tempfile.TemporaryDirectory() as outside_dir:
-            result, trap_called = _run_shell_with_trap('version', cwd=outside_dir)
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert not trap_called, '仓库外 cwd 不应调用 Python'
-
-
-class TestServeStopRoutesToJava:
-    """serve/stop 正向路径：路由到 Java，不经过 Python。"""
-
-    def test_serve_routes_to_java(self):
-        """serve --help 命令路由到 Java launcher，不调用 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            result = subprocess.run(
-                ['bash', SHELL_SCRIPT, 'serve', '--help'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30,
-            )
-            assert not os.path.isfile(marker_file), 'serve 不应调用 Python'
-            # Java launcher 应输出 serve 帮助信息
-            assert 'serve' in result.stdout.lower() or result.returncode == 0
-
-    def test_stop_routes_to_java(self):
-        """stop --help 命令路由到 Java launcher，不调用 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            result = subprocess.run(
-                ['bash', SHELL_SCRIPT, 'stop', '--help'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30,
-            )
-            assert not os.path.isfile(marker_file), 'stop 不应调用 Python'
-            # Java launcher 应输出 stop 帮助信息
-            assert 'stop' in result.stdout.lower() or result.returncode == 0
-
-
-class TestHelpVersionPathWithSpaces:
-    """路径含空格场景。"""
-
-    def test_help_path_with_spaces(self):
-        """项目路径含空格时 help 仍能工作。"""
-        with tempfile.TemporaryDirectory() as tmp:
-            space_dir = os.path.join(tmp, 'path with spaces')
-            os.makedirs(space_dir)
-            # 创建 symlink 指向项目根
-            link_target = os.path.join(space_dir, 'project')
-            os.symlink(SB_ROOT, link_target)
-            script_in_space = os.path.join(link_target, 'scripts', 'session-browser.sh')
-
-            trap_dir = _create_python_trap(tmp)
-            marker_file = os.path.join(tmp, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-
-            result = subprocess.run(
-                ['bash', script_in_space, 'help'],
-                capture_output=True,
-                text=True,
-                cwd=tmp,
-                env=env,
-                timeout=30,
-            )
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert not os.path.isfile(marker_file), '路径含空格时不应调用 Python'
-
-
-class TestLauncherMissingNoFallback:
-    """launcher 缺失场景：中文报错、非零退出、不 fallback。"""
-
-    def test_launcher_missing_help(self):
-        """Java launcher 缺失时 help 回退到 shell print_usage，不 fallback 到 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            # 复制 shell script 到临时目录，模拟无 launcher 的项目
-            fake_project = os.path.join(tmp_dir, 'fake_project')
-            os.makedirs(fake_project)
-            fake_scripts = os.path.join(fake_project, 'scripts')
-            os.makedirs(fake_scripts)
-            # 创建 src 目录（shell 脚本初始化时需要）
-            os.makedirs(os.path.join(fake_project, 'src'))
-            fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
-            shutil.copy2(SHELL_SCRIPT, fake_sh)
-            os.chmod(fake_sh, stat.S_IRWXU)
-            # VERSION 文件
-            with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
-                f.write('0.0-test\n')
-
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'help'],
-                capture_output=True,
-                text=True,
-                cwd=tmp_dir,
-                env=env,
-                timeout=30,
-            )
-            # help 回退到 shell print_usage，始终成功
-            assert result.returncode == 0, f'help 应通过 print_usage 成功: {result.stderr}'
-            # 不应 fallback 到 Python
-            assert not os.path.isfile(marker_file), '不应 fallback 到 Python'
-
-    def test_launcher_missing_version(self):
-        """Java launcher 缺失时 version 报错退出，不 fallback 到 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_project = os.path.join(tmp_dir, 'fake_project')
-            os.makedirs(fake_project)
-            fake_scripts = os.path.join(fake_project, 'scripts')
-            os.makedirs(fake_scripts)
-            # 创建 src 目录（shell 脚本初始化时需要）
-            os.makedirs(os.path.join(fake_project, 'src'))
-            fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
-            shutil.copy2(SHELL_SCRIPT, fake_sh)
-            os.chmod(fake_sh, stat.S_IRWXU)
-            with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
-                f.write('0.0-test\n')
-
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'version'],
-                capture_output=True,
-                text=True,
-                cwd=tmp_dir,
-                env=env,
-                timeout=30,
-            )
-            assert result.returncode != 0, 'launcher 缺失应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, (
-                f'stderr 应包含中文错误信息: {result.stderr}'
-            )
-            assert not os.path.isfile(marker_file), '不应 fallback 到 Python'
-
-    def test_launcher_missing_serve(self):
-        """Java launcher 缺失时 serve 报错退出，不 fallback 到 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_project = os.path.join(tmp_dir, 'fake_project')
-            os.makedirs(fake_project)
-            fake_scripts = os.path.join(fake_project, 'scripts')
-            os.makedirs(fake_scripts)
-            os.makedirs(os.path.join(fake_project, 'src'))
-            fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
-            shutil.copy2(SHELL_SCRIPT, fake_sh)
-            os.chmod(fake_sh, stat.S_IRWXU)
-            with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
-                f.write('0.0-test\n')
-
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'serve'],
-                capture_output=True,
-                text=True,
-                cwd=tmp_dir,
-                env=env,
-                timeout=30,
-            )
-            assert result.returncode != 0, 'launcher 缺失时 serve 应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, (
-                f'stderr 应包含中文错误信息: {result.stderr}'
-            )
-            assert not os.path.isfile(marker_file), 'serve 不应 fallback 到 Python'
-
-    def test_launcher_missing_stop(self):
-        """Java launcher 缺失时 stop 报错退出，不 fallback 到 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_project = os.path.join(tmp_dir, 'fake_project')
-            os.makedirs(fake_project)
-            fake_scripts = os.path.join(fake_project, 'scripts')
-            os.makedirs(fake_scripts)
-            os.makedirs(os.path.join(fake_project, 'src'))
-            fake_sh = os.path.join(fake_scripts, 'session-browser.sh')
-            shutil.copy2(SHELL_SCRIPT, fake_sh)
-            os.chmod(fake_sh, stat.S_IRWXU)
-            with open(os.path.join(fake_project, 'VERSION'), 'w') as f:
-                f.write('0.0-test\n')
-
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'stop'],
-                capture_output=True,
-                text=True,
-                cwd=tmp_dir,
-                env=env,
-                timeout=30,
-            )
-            assert result.returncode != 0, 'launcher 缺失时 stop 应非零退出'
-            assert '错误' in result.stderr or '未找到' in result.stderr, (
-                f'stderr 应包含中文错误信息: {result.stderr}'
-            )
-            assert not os.path.isfile(marker_file), 'stop 不应 fallback 到 Python'
-
-
-class TestBuildInfoCorrupted:
-    """build-info.properties 损坏场景。"""
-
-    def test_corrupted_build_info(self):
-        """build-info 损坏时 Java launcher 非零退出。"""
-        lib_dir = os.path.join(SB_ROOT, 'java', 'app-cli', 'build', 'install', 'app-cli', 'lib')
-        if not os.path.isdir(lib_dir):
-            raise AssertionError('install/lib 目录不存在')
-
-        # 找到包含 build-info.properties 的 JAR
-        jar_files = [f for f in os.listdir(lib_dir) if f.startswith('app-cli')]
-        if not jar_files:
-            raise AssertionError('app-cli JAR 不存在')
-
-        # 此测试只验证 Java launcher 在 build-info 损坏时非零退出
-        # 实际损坏测试通过 Gradle cliSmokeTest 覆盖
-        # 这里只确认正常状态下 launcher 能工作
-        result = _run_shell('version')
-        assert result.returncode == 0, f'stderr: {result.stderr}'
-
-
-class TestUnswitchedCommandsRegression:
-    """命令路由回归：产品命令不调用 Python，开发命令仍调用 Python。
-
-    通过设置 SESSION_BROWSER_VENV_DIR 指向不存在的路径，
-    强制 python_bin() 使用 PATH 中的 trap python。
-    """
-
-    def test_scan_routes_to_java(self):
-        """scan 命令路由到 Java launcher，不调用 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            subprocess.run(
-                ['bash', SHELL_SCRIPT, 'scan', '--help'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30,
-            )
-            # scan 路由到 Java launcher；launcher 不存在时报错但不 fallback 到 Python
-            assert not os.path.isfile(marker_file), 'scan 不应调用 Python'
-
-    def test_test_still_uses_python(self):
-        """test 命令仍路由到 Python。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            subprocess.run(
-                ['bash', SHELL_SCRIPT, 'test', '--collect-only'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30,
-            )
-            assert os.path.isfile(marker_file), 'test 应调用 Python'
-
-    def test_deps_dry_run_routes_to_java_bootstrap(self):
-        """deps --dry-run 命令不再路由到 Python 开发依赖安装。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            result = subprocess.run(
-                ['bash', SHELL_SCRIPT, 'deps', '--dry-run'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30,
-            )
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert not os.path.isfile(marker_file), 'deps --dry-run 不应调用 Python'
-            assert 'DRY-RUN' in result.stdout or '依赖准备完成' in result.stdout
-
-    def test_deps_dev_dry_run_still_uses_python(self):
-        """deps --dev --dry-run 命令仍路由到 Python 开发依赖检查。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            trap_dir = _create_python_trap(tmp_dir)
-            uv_path = os.path.join(trap_dir, 'uv')
-            with open(uv_path, 'w') as f:
-                f.write('#!/bin/sh\nexit 0\n')
-            os.chmod(
-                uv_path, stat.S_IRWXU | stat.S_IRGRP | stat.S_IXGRP | stat.S_IROTH | stat.S_IXOTH
-            )
-            marker_file = os.path.join(tmp_dir, 'python_trap_marker.txt')
-            env = os.environ.copy()
-            env['PATH'] = trap_dir + os.pathsep + env.get('PATH', '')
-            env['SESSION_BROWSER_VENV_DIR'] = os.path.join(tmp_dir, 'no_such_venv')
-
-            subprocess.run(
-                ['bash', SHELL_SCRIPT, 'deps', '--dev', '--dry-run'],
-                capture_output=True,
-                text=True,
-                env=env,
-                timeout=30,
-            )
-            assert os.path.isfile(marker_file), 'deps --dev 应调用 Python'
-
-
-class TestScanFullJvmProfile:
-    """scan --full 脚本入口的 JVM profile 契约。"""
-
-    def test_scan_full_injects_heap_without_user_env(self):
-        """scan --full 自动注入 full scan heap，不要求用户手动设置 APP_CLI_OPTS。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
-            env = os.environ.copy()
-            env.pop('APP_CLI_OPTS', None)
-            env.pop('JAVA_OPTS', None)
-            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'scan', '--full'],
-                capture_output=True,
-                text=True,
-                cwd=fake_project,
-                env=env,
-                timeout=30,
-            )
-
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert 'APP_CLI_OPTS=-Xmx512m' in result.stdout
-            assert 'ARGS=scan --full' in result.stdout
-
-    def test_incremental_scan_does_not_inject_heap(self):
-        """普通增量 scan 保持轻量 JVM profile。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
-            env = os.environ.copy()
-            env.pop('APP_CLI_OPTS', None)
-            env.pop('JAVA_OPTS', None)
-            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'scan'],
-                capture_output=True,
-                text=True,
-                cwd=fake_project,
-                env=env,
-                timeout=30,
-            )
-
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert 'APP_CLI_OPTS=' in result.stdout
-            assert '-Xmx512m' not in result.stdout
-
-    def test_scan_full_respects_user_app_cli_heap(self):
-        """用户显式 APP_CLI_OPTS -Xmx 不会被脚本覆盖。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
-            env = os.environ.copy()
-            env['APP_CLI_OPTS'] = '-Dfoo=bar -Xmx2g'
-            env.pop('JAVA_OPTS', None)
-            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'scan', '--full'],
-                capture_output=True,
-                text=True,
-                cwd=fake_project,
-                env=env,
-                timeout=30,
-            )
-
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert 'APP_CLI_OPTS=-Dfoo=bar -Xmx2g' in result.stdout
-            assert '-Xmx512m' not in result.stdout
-
-    def test_scan_full_respects_user_java_heap(self):
-        """用户显式 JAVA_OPTS -Xmx 时，脚本不追加 APP_CLI_OPTS heap。"""
-        with tempfile.TemporaryDirectory() as tmp_dir:
-            fake_sh, fake_project = _create_fake_project_with_launcher(tmp_dir)
-            env = os.environ.copy()
-            env.pop('APP_CLI_OPTS', None)
-            env['JAVA_OPTS'] = '-Xmx2g'
-            env['SESSION_BROWSER_LOCAL_DATA_DIR'] = os.path.join(tmp_dir, 'index')
-
-            result = subprocess.run(
-                ['bash', fake_sh, 'scan', '--full'],
-                capture_output=True,
-                text=True,
-                cwd=fake_project,
-                env=env,
-                timeout=30,
-            )
-
-            assert result.returncode == 0, f'stderr: {result.stderr}'
-            assert 'APP_CLI_OPTS=' in result.stdout
-            assert 'JAVA_OPTS=-Xmx2g' in result.stdout
-            assert '-Xmx512m' not in result.stdout
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines()[1:] == [
+        'ARG=<scan>',
+        'ARG=<--full>',
+        'ARG=<--index-dir>',
+        f'ARG=<{data_dir}>',
+        'ARG=<--agent>',
+        'ARG=<codex>',
+    ]
+
+
+@pytest.mark.parametrize('arguments', [(), ('version',), ('serve',)])
+def test_missing_launcher_fails_closed_in_chinese(
+    tmp_path: Path, arguments: tuple[str, ...]
+) -> None:
+    _, script = _create_fake_project(tmp_path, include_launcher=False)
+
+    result = _run_shell(script, *arguments, cwd=tmp_path)
+
+    assert result.returncode != 0
+    assert '错误：Java launcher 未找到' in result.stderr
+    assert 'session-browser.sh deps' in result.stderr
+
+
+def test_java_exit_code_is_preserved(tmp_path: Path) -> None:
+    _, script = _create_fake_project(tmp_path)
+    env = {**os.environ, 'FAKE_LAUNCHER_EXIT': '37'}
+
+    result = _run_shell(script, 'scan', '--full', cwd=tmp_path, env=env)
+
+    assert result.returncode == 37
+
+
+def test_deps_builds_launcher_then_runs_java_preflight(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    gradle_log = project / 'gradle.args'
+    _write_executable(
+        project / 'gradlew',
+        '#!/usr/bin/env bash\nprintf "GRADLE_ARG=<%s>\\n" "$@" > "$GRADLE_LOG"\n',
+    )
+    env = {**os.environ, 'GRADLE_LOG': str(gradle_log)}
+
+    result = _run_shell(script, 'deps', cwd=tmp_path, env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert gradle_log.read_text(encoding='utf-8').splitlines() == [
+        'GRADLE_ARG=<:java:app-cli:installDist>'
+    ]
+    assert 'ARG=<deps>' in result.stdout
+    assert f'CWD=<{project}>' in result.stdout
+
+
+def test_deps_dry_run_has_no_side_effect(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    marker = project / 'unexpected-execution'
+    _write_executable(project / 'gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
+
+    result = _run_shell(script, 'deps', '--dry-run', cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert '[DRY-RUN]' in result.stdout
+    assert not marker.exists()
+    assert 'ARG=<' not in result.stdout
+
+
+@pytest.mark.parametrize('arguments', [('--dev',), ('--dry-run', '--dev'), ('unexpected',)])
+def test_deps_rejects_removed_python_and_extra_options(
+    tmp_path: Path, arguments: tuple[str, ...]
+) -> None:
+    project, script = _create_fake_project(tmp_path)
+    marker = project / 'unexpected-execution'
+    _write_executable(project / 'gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
+
+    result = _run_shell(script, 'deps', *arguments, cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert '错误：deps' in result.stderr
+    assert not marker.exists()
+
+
+def test_test_command_runs_fixed_java_verification(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    _write_executable(
+        project / 'gradlew',
+        '#!/usr/bin/env bash\nprintf "GRADLE_ARG=<%s>\\n" "$@"\n',
+    )
+
+    result = _run_shell(script, 'test', cwd=tmp_path)
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        'GRADLE_ARG=<verifyNoSkippedJavaTests>',
+        'GRADLE_ARG=<--no-daemon>',
+        'GRADLE_ARG=<--no-build-cache>',
+        'GRADLE_ARG=<--no-parallel>',
+        'GRADLE_ARG=<--max-workers=1>',
+    ]
+
+
+def test_test_command_rejects_pytest_arguments(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    marker = project / 'unexpected-execution'
+    _write_executable(project / 'gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
+
+    result = _run_shell(script, 'test', 'tests/example.py', cwd=tmp_path)
+
+    assert result.returncode == 2
+    assert 'test 不接受额外参数' in result.stderr
+    assert not marker.exists()
+
+
+def _quality_env(tmp_path: Path) -> dict[str, str]:
+    """创建仅记录 Gate CLI 参数的 python3 进程边界。"""
+    fake_bin = tmp_path / 'fake-bin'
+    _write_executable(
+        fake_bin / 'python3',
+        '#!/usr/bin/env bash\nprintf "PY_ARG=<%s>\\n" "$@"\n',
+    )
+    return {**os.environ, 'PATH': f'{fake_bin}{os.pathsep}{os.environ.get("PATH", "")}'}
+
+
+def test_quality_defaults_to_required_gate(tmp_path: Path) -> None:
+    _, script = _create_fake_project(tmp_path)
+
+    result = _run_shell(script, 'quality', cwd=tmp_path, env=_quality_env(tmp_path))
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        'PY_ARG=<scripts/gates/cli.py>',
+        'PY_ARG=<--tier>',
+        'PY_ARG=<required>',
+    ]
+
+
+def test_quality_forwards_explicit_gate_arguments(tmp_path: Path) -> None:
+    _, script = _create_fake_project(tmp_path)
+
+    result = _run_shell(
+        script,
+        'quality',
+        '--tier',
+        'full',
+        '--changed-file',
+        'path with spaces.java',
+        cwd=tmp_path,
+        env=_quality_env(tmp_path),
+    )
+
+    assert result.returncode == 0, result.stderr
+    assert result.stdout.splitlines() == [
+        'PY_ARG=<scripts/gates/cli.py>',
+        'PY_ARG=<--tier>',
+        'PY_ARG=<full>',
+        'PY_ARG=<--changed-file>',
+        'PY_ARG=<path with spaces.java>',
+    ]
+
+
+def test_shell_exec_preserves_pid_and_signal(tmp_path: Path) -> None:
+    pid_file = tmp_path / 'launcher.pid'
+    launcher_body = (
+        '#!/usr/bin/env bash\n'
+        'printf "%s\\n" "$$" > "$FAKE_PID_FILE"\n'
+        "trap 'exit 42' TERM\n"
+        'while :; do sleep 0.2; done\n'
+    )
+    _, script = _create_fake_project(tmp_path, launcher_body=launcher_body)
+    env = {**os.environ, 'FAKE_PID_FILE': str(pid_file)}
+    process = subprocess.Popen(
+        ['bash', str(script), 'scan'],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
+    try:
+        deadline = time.monotonic() + 5
+        while not pid_file.exists() and time.monotonic() < deadline:
+            time.sleep(0.02)
+        assert pid_file.exists(), '未观察到 Java launcher 进程'
+        assert int(pid_file.read_text(encoding='utf-8')) == process.pid
+        process.send_signal(signal.SIGTERM)
+        assert process.wait(timeout=5) == 42
+    finally:
+        if process.poll() is None:
+            process.kill()
+            process.wait(timeout=5)
+
+
+def _run_installed_launcher_with_fake_java(
+    tmp_path: Path, *arguments: str, app_cli_opts: str | None = None
+) -> subprocess.CompletedProcess[str]:
+    """用 fake Java 观测 Gradle 生成 launcher 的最终 JVM 参数。"""
+    assert INSTALLED_LAUNCHER.is_file(), '请先运行 :java:app-cli:installDist'
+    java_home = tmp_path / 'fake-java-home'
+    _write_executable(
+        java_home / 'bin' / 'java',
+        '#!/usr/bin/env bash\nprintf "JVM_ARG=<%s>\\n" "$@"\n',
+    )
+    env = {**os.environ, 'JAVA_HOME': str(java_home)}
+    if app_cli_opts is None:
+        env.pop('APP_CLI_OPTS', None)
+    else:
+        env['APP_CLI_OPTS'] = app_cli_opts
+    return subprocess.run(
+        [str(INSTALLED_LAUNCHER), *arguments],
+        cwd=tmp_path,
+        env=env,
+        text=True,
+        capture_output=True,
+        timeout=30,
+        check=False,
+    )
+
+
+def test_generated_launcher_selects_full_scan_heap(tmp_path: Path) -> None:
+    normal = _run_installed_launcher_with_fake_java(tmp_path, 'scan')
+    full = _run_installed_launcher_with_fake_java(tmp_path, 'scan', '--full')
+
+    assert normal.returncode == 0, normal.stderr
+    assert 'JVM_ARG=<-Xmx128m>' in normal.stdout
+    assert 'JVM_ARG=<-Xmx512m>' not in normal.stdout
+    assert full.returncode == 0, full.stderr
+    assert 'JVM_ARG=<-Xmx512m>' in full.stdout
+    assert 'JVM_ARG=<-Xmx128m>' not in full.stdout
+
+
+def test_generated_launcher_keeps_user_heap_override_last(tmp_path: Path) -> None:
+    result = _run_installed_launcher_with_fake_java(
+        tmp_path,
+        'scan',
+        '--full',
+        app_cli_opts='-Dexample=true -Xmx2g',
+    )
+
+    assert result.returncode == 0, result.stderr
+    args = result.stdout.splitlines()
+    assert args.index('JVM_ARG=<-Xmx512m>') < args.index('JVM_ARG=<-Xmx2g>')
+
+
+def test_removed_inline_branches_do_not_return() -> None:
+    source = SHELL_SCRIPT.read_text(encoding='utf-8')
+
+    for removed in (
+        'SESSION_BROWSER_SERVE_AUTO_KILL_PORT',
+        'SESSION_BROWSER_LOCAL_DATA_DIR',
+        'APP_CLI_OPTS',
+        'set_version',
+        'run_format',
+        'run_lint',
+        'run_coverage',
+        'run_audit',
+        'run_complexity',
+        'run_dead_code',
+        'run_deps_check',
+        'lsof',
+        'fuser',
+        'kill -9',
+    ):
+        assert removed not in source

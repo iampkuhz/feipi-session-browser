@@ -5,7 +5,8 @@
 
 用法：
     cd <repo-root>
-    ./scripts/session-browser.sh test tests/test_ui_density_and_font_size.py
+    DEV_PY="$(python3 scripts/harness/python_env.py resolve)"
+    "$DEV_PY" -m pytest tests/ui/test_ui_density_and_font_size.py
 """
 
 from __future__ import annotations

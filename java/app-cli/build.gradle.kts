@@ -1,19 +1,70 @@
 import java.time.Instant
+import org.gradle.jvm.application.scripts.TemplateBasedScriptGenerator
+import org.gradle.jvm.application.tasks.CreateStartScripts
 
 plugins {
     id("feipi.java-application")
     id("feipi.java-test")
 }
 
+// 产品 launcher 是 JVM profile 的唯一 owner；full scan 需要更大的有界堆。
+val standardLauncherJvmArgs = listOf(
+    "-XX:+UseSerialGC",
+    "-Xms16m",
+    "-Xmx128m",
+    "--enable-native-access=ALL-UNNAMED",
+)
+val fullScanLauncherJvmArgs = standardLauncherJvmArgs.map {
+    if (it == "-Xmx128m") "-Xmx512m" else it
+}
+
 application {
     mainClass.set("com.feipi.session.browser.cli.App")
     // 启动优化：Serial GC 加快冷启动，限制堆内存降低空闲 RSS
-    applicationDefaultJvmArgs = listOf(
-        "-XX:+UseSerialGC",
-        "-Xms16m",
-        "-Xmx128m",
-        // JDK 22+ native access 警告抑制（SQLite JDBC 使用 System.load）
-        "--enable-native-access=ALL-UNNAMED",
+    applicationDefaultJvmArgs = standardLauncherJvmArgs
+}
+
+// Gradle 生成的 launcher 根据 Java CLI 参数选择 profile，避免在公开 shell 里复制 JVM 逻辑。
+tasks.named<CreateStartScripts>("startScripts") {
+    val fullScanUnix = "'" + fullScanLauncherJvmArgs.joinToString(" ") { "\"$it\"" } + "'"
+    val unixMarker = "DEFAULT_JVM_OPTS=${'$'}{defaultJvmOpts}"
+    val unixProfile = """
+        $unixMarker
+
+        # full scan 的有界堆由 launcher 统一选择；用户 JAVA_OPTS/APP_CLI_OPTS 仍可覆盖。
+        if [ "\${'$'}{1:-}" = "scan" ]
+        then
+            for arg in "\${'$'}@"
+            do
+                if [ "\${'$'}arg" = "--full" ]
+                then
+                    DEFAULT_JVM_OPTS=$fullScanUnix
+                    break
+                fi
+            done
+        fi
+    """.trimIndent()
+    val unixGenerator = unixStartScriptGenerator as TemplateBasedScriptGenerator
+    val unixTemplate = unixGenerator.template.asString()
+    require(unixTemplate.contains(unixMarker)) { "startScripts 缺少预期的 Unix JVM profile 模板" }
+    unixGenerator.template = resources.text.fromString(unixTemplate.replace(unixMarker, unixProfile))
+
+    val fullScanWindows = fullScanLauncherJvmArgs.joinToString(" ") { "\"$it\"" }
+    val windowsMarker = "set DEFAULT_JVM_OPTS=${'$'}{defaultJvmOpts}"
+    val windowsProfile = """
+        $windowsMarker
+        @rem full scan 的有界堆由 launcher 统一选择。
+        if "%~1"=="scan" (
+            for %%a in (%*) do if "%%~a"=="--full" set DEFAULT_JVM_OPTS=$fullScanWindows
+        )
+    """.trimIndent()
+    val windowsGenerator = windowsStartScriptGenerator as TemplateBasedScriptGenerator
+    val windowsTemplate = windowsGenerator.template.asString()
+    require(windowsTemplate.contains(windowsMarker)) {
+        "startScripts 缺少预期的 Windows JVM profile 模板"
+    }
+    windowsGenerator.template = resources.text.fromString(
+        windowsTemplate.replace(windowsMarker, windowsProfile),
     )
 }
 
@@ -114,6 +165,11 @@ abstract class CliSmokeTestTask : DefaultTask() {
         val binScript = spaceDir.resolve("bin/app-cli")
         binScript.setExecutable(true)
 
+        val launcherContent = binScript.readText(Charsets.UTF_8)
+        require(launcherContent.contains("-Xmx128m") && launcherContent.contains("-Xmx512m")) {
+            "Smoke test failed: launcher 未同时包含标准/full-scan JVM profile"
+        }
+
         val workDir = temporaryDir.apply { mkdirs() }
 
         // 从任意 cwd 运行 --help
@@ -125,7 +181,7 @@ abstract class CliSmokeTestTask : DefaultTask() {
             "Smoke test failed: --help output missing 'session-browser'"
         }
         // 验证公开子命令全部出现在 help 输出中
-        val publicCommands = listOf("scan", "serve", "stop", "status", "doctor", "test", "deps", "quality", "version", "release", "diagnose")
+        val publicCommands = listOf("scan", "serve", "stop", "status", "doctor", "deps", "version", "diagnose")
         for (cmd in publicCommands) {
             require(helpResult.first.contains(cmd)) {
                 "Smoke test failed: --help output missing public command '$cmd'"
@@ -353,8 +409,9 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
         val binDir = root.resolve("bin")
         binDir.mkdirs()
 
-        // JVM 启动参数：Serial GC 加快冷启动，限制堆内存降低空闲 RSS
-        val jvmArgs = "-XX:+UseSerialGC -Xms16m -Xmx128m --enable-native-access=ALL-UNNAMED"
+        // runtime distribution 与 installDist 共用同一组 JVM profile 真源。
+        val standardJvmArgs = standardLauncherJvmArgs.joinToString(" ")
+        val fullScanJvmArgs = fullScanLauncherJvmArgs.joinToString(" ")
 
         // Unix launcher —— 使用自包含 runtime java，无需系统 JDK。
         val unixScript = binDir.resolve("run")
@@ -377,7 +434,13 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             "        CLASSPATH=\"\$CLASSPATH:\$jar\"\n" +
             "    fi\n" +
             "done\n\n" +
-            "exec \"\$RUNTIME_JAVA\" $jvmArgs -cp \"\$CLASSPATH\" $mainClassName \"\$@\"\n",
+            "JVM_ARGS=\"$standardJvmArgs\"\n" +
+            "if [ \"\${1:-}\" = \"scan\" ]; then\n" +
+            "    for arg in \"\$@\"; do\n" +
+            "        if [ \"\$arg\" = \"--full\" ]; then JVM_ARGS=\"$fullScanJvmArgs\"; break; fi\n" +
+            "    done\n" +
+            "fi\n\n" +
+            "exec \"\$RUNTIME_JAVA\" \$JVM_ARGS -cp \"\$CLASSPATH\" $mainClassName \"\$@\"\n",
             Charsets.UTF_8,
         )
         unixScript.setExecutable(true)
@@ -402,7 +465,9 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             "if \"%CLASSPATH%\"==\"\" (set CLASSPATH=%~1) else (set CLASSPATH=%CLASSPATH%;%~1)\r\n" +
             "goto :eof\r\n\r\n" +
             ":run\r\n" +
-            "\"%RUNTIME_JAVA%\" $jvmArgs -cp \"%CLASSPATH%\" $mainClassName %*\r\n",
+            "set JVM_ARGS=$standardJvmArgs\r\n" +
+            "if \"%~1\"==\"scan\" for %%a in (%*) do if \"%%~a\"==\"--full\" set JVM_ARGS=$fullScanJvmArgs\r\n" +
+            "\"%RUNTIME_JAVA%\" %JVM_ARGS% -cp \"%CLASSPATH%\" $mainClassName %*\r\n",
             Charsets.UTF_8,
         )
 

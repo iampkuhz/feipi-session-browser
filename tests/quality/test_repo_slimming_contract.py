@@ -382,9 +382,8 @@ class TestActualRepoState:
         assert sum(line == '/.idea/' for line in rules) == 1
 
     @pytest.mark.contract_case('HOOK-HARNESS-011')
-    def test_python_tool_outputs_live_below_root_local(self):
+    def test_python_tool_output_configuration_lives_below_root_local(self):
         config = tomllib.loads((ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
-        script = (ROOT / 'scripts/session-browser.sh').read_text(encoding='utf-8')
 
         assert config['tool']['pytest']['ini_options']['cache_dir'] == (
             '.local/python/pytest-cache'
@@ -396,7 +395,6 @@ class TestActualRepoState:
         assert config['tool']['coverage']['xml']['output'] == (
             '.local/python/coverage/coverage.xml'
         )
-        assert '--cov-report="xml:$coverage_dir/coverage.xml"' in script
 
     @pytest.mark.contract_case('HOOK-HARNESS-011')
     def test_no_mobile_viewports_in_css(self):

@@ -1,746 +1,96 @@
 #!/usr/bin/env bash
-# 本地 entry point for session-browser（Java launcher + Python 开发工具）。
+# Session Browser 唯一公开产品入口：仅负责构建引导、验证入口和 Java CLI 转发。
 
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
-CALLER_DIR="$(pwd)"
-VERSION_FILE="$PROJECT_DIR/VERSION"
-VENV_DIR="${SESSION_BROWSER_VENV_DIR:-$PROJECT_DIR/.local/python/venv}"
-if [[ "$VENV_DIR" != /* ]]; then
-    VENV_DIR="$PROJECT_DIR/$VENV_DIR"
-fi
-DEFAULT_LOCAL_HOST=127.0.0.1
-DEFAULT_LOCAL_PORT=8848
-DEFAULT_LOCAL_DATA_DIR="$HOME/.local/share/feipi/session-browser/local-test-index"
-FULL_SCAN_JVM_HEAP_OPTS="-Xmx512m"
+JAVA_LAUNCHER="$PROJECT_DIR/java/app-cli/build/install/app-cli/bin/app-cli"
 
-export PYTHONPATH="${PYTHONPATH:-}"
-
-CMD="${1:-help}"
-shift || true
-
-# 读取当前版本号，优先使用环境变量，其次读取 VERSION 文件。
-read_version() {
-    if [[ -n "${SESSION_BROWSER_VERSION:-}" ]]; then
-        printf '%s\n' "$SESSION_BROWSER_VERSION"
-    elif [[ -f "$VERSION_FILE" ]]; then
-        tr -d '[:space:]' < "$VERSION_FILE"
-        printf '\n'
-    else
-        printf '0.0-dev\n'
+# Java launcher 是所有产品子命令的唯一 owner；缺失时必须显式失败。
+require_java_launcher() {
+    if [[ -x "$JAVA_LAUNCHER" ]]; then
+        return 0
     fi
+    echo "错误：Java launcher 未找到：$JAVA_LAUNCHER" >&2
+    echo "请先执行：./scripts/session-browser.sh deps" >&2
+    return 1
 }
 
-# 校验维护版本号格式，支持 x.y 和 x.y.z 形式。
-validate_version() {
-    local version="$1"
-    if [[ ! "$version" =~ ^[0-9]+\.[0-9]+(-[A-Za-z0-9._-]+)?$|^[0-9]+\.[0-9]+\.[0-9]+([.-][A-Za-z0-9._-]+)?$ ]]; then
-        echo "版本号不合法：$version" >&2
-        echo "请使用版本号 x.y 或 x.y.z，例如 0.4 或 0.4.1-rc.1" >&2
-        exit 1
-    fi
-}
-
-# 写入新的版本号到 VERSION 文件。
-set_version() {
-    local version="$1"
-    validate_version "$version"
-    printf '%s\n' "$version" > "$VERSION_FILE"
-    echo "版本已更新：$version"
-}
-
-# 解析本地测试索引目录，并按非 main 分支自动区分。
-local_test_index_dir() {
-    local base_dir="$DEFAULT_LOCAL_DATA_DIR"
-    if [[ -z "${SESSION_BROWSER_LOCAL_DATA_DIR:-}" ]]; then
-        local branch
-        branch="$(git -C "$PROJECT_DIR" rev-parse --abbrev-ref HEAD 2>/dev/null || echo "")"
-        if [[ -n "$branch" && "$branch" != "main" ]]; then
-            base_dir="${DEFAULT_LOCAL_DATA_DIR}-${branch}"
-        fi
-    fi
-    expand_path "${SESSION_BROWSER_LOCAL_DATA_DIR:-$base_dir}"
-}
-
-# 判断参数列表中是否包含指定 option。
-arg_has_option() {
-    local opt="$1"
-    shift || true
-    local arg
-    for arg in "$@"; do
-        if [[ "$arg" == "$opt" || "$arg" == "$opt="* ]]; then
+# deps 只负责构建 launcher，随后交给 Java deps 执行运行时 preflight。
+run_deps() {
+    case "${1:-}" in
+        "")
+            ;;
+        --dry-run)
+            if [[ $# -ne 1 ]]; then
+                echo "错误：deps --dry-run 不接受额外参数。" >&2
+                return 2
+            fi
+            echo "[DRY-RUN] 将执行：./gradlew :java:app-cli:installDist"
+            echo "[DRY-RUN] 构建后将执行：$JAVA_LAUNCHER deps"
             return 0
-        fi
-    done
-    return 1
-}
-
-# 读取 serve 参数中的 option 值；支持 --port 8848、--port=8848、-p 8848、-p=8848。
-serve_option_value() {
-    local long_opt="$1"
-    local short_opt="$2"
-    shift 2 || true
-
-    local -a args=("$@")
-    local value=""
-    local i=0
-    local len="${#args[@]}"
-    local arg
-
-    while [[ "$i" -lt "$len" ]]; do
-        arg="${args[$i]}"
-        case "$arg" in
-            "$long_opt")
-                if [[ $((i + 1)) -lt "$len" ]]; then
-                    i=$((i + 1))
-                    value="${args[$i]}"
-                fi
-                ;;
-            "$long_opt="*)
-                value="${arg#*=}"
-                ;;
-        esac
-
-        if [[ -n "$short_opt" ]]; then
-            case "$arg" in
-                "$short_opt")
-                    if [[ $((i + 1)) -lt "$len" ]]; then
-                        i=$((i + 1))
-                        value="${args[$i]}"
-                    fi
-                    ;;
-                "$short_opt="*)
-                    value="${arg#*=}"
-                    ;;
-            esac
-        fi
-
-        i=$((i + 1))
-    done
-
-    if [[ -n "$value" ]]; then
-        printf '%s\n' "$value"
-        return 0
-    fi
-    return 1
-}
-
-# 查找指定 TCP 端口的监听进程 PID。
-listen_pids_for_port() {
-    local port="$1"
-    if command -v lsof >/dev/null 2>&1; then
-        lsof -nP -tiTCP:"$port" -sTCP:LISTEN 2>/dev/null | sort -u
-        return 0
-    fi
-    if command -v fuser >/dev/null 2>&1; then
-        fuser -n tcp "$port" 2>/dev/null | tr ' ' '\n' | awk 'NF' | sort -u
-        return 0
-    fi
-    return 0
-}
-
-# 等待端口释放。
-wait_for_port_release() {
-    local port="$1"
-    local max_attempts="${2:-20}"
-    local attempt=0
-    local pids
-    while [[ "$attempt" -lt "$max_attempts" ]]; do
-        pids="$(listen_pids_for_port "$port" || true)"
-        if [[ -z "$pids" ]]; then
+            ;;
+        -h|--help)
+            echo "用法：./scripts/session-browser.sh deps [--dry-run]"
             return 0
-        fi
-        sleep 0.25
-        attempt=$((attempt + 1))
-    done
-    return 1
-}
-
-# serve 启动前处理端口占用：默认自动终止监听进程，可用环境变量关闭。
-ensure_serve_port_available() {
-    local port="$1"
-    if [[ ! "$port" =~ ^[0-9]+$ || "$port" == "0" ]]; then
-        return 0
-    fi
-
-    local pids
-    pids="$(listen_pids_for_port "$port" || true)"
-    if [[ -z "$pids" ]]; then
-        return 0
-    fi
-
-    local pids_display="${pids//$'\n'/ }"
-    case "${SESSION_BROWSER_SERVE_AUTO_KILL_PORT:-1}" in
-        0|false|FALSE|False|no|NO|No)
-            echo "错误：端口 $port 已被占用，监听进程：$pids_display" >&2
-            echo "请先停止占用进程，或取消 SESSION_BROWSER_SERVE_AUTO_KILL_PORT=0 后重试。" >&2
-            return 1
+            ;;
+        *)
+            echo "错误：deps 仅支持 --dry-run，不接受：$*" >&2
+            return 2
             ;;
     esac
 
-    echo "端口 $port 已被占用，自动终止监听进程：$pids_display" >&2
-    local pid
-    for pid in $pids; do
-        if [[ "$pid" != "$$" ]]; then
-            kill "$pid" 2>/dev/null || true
-        fi
-    done
-
-    if ! wait_for_port_release "$port" 20; then
-        pids="$(listen_pids_for_port "$port" || true)"
-        pids_display="${pids//$'\n'/ }"
-        echo "端口 $port 未释放，强制终止监听进程：$pids_display" >&2
-        for pid in $pids; do
-            if [[ "$pid" != "$$" ]]; then
-                kill -9 "$pid" 2>/dev/null || true
-            fi
-        done
-    fi
-
-    if ! wait_for_port_release "$port" 20; then
-        pids="$(listen_pids_for_port "$port" || true)"
-        pids_display="${pids//$'\n'/ }"
-        echo "错误：端口 $port 仍被占用，无法启动 serve。监听进程：$pids_display" >&2
-        return 1
-    fi
-    echo "端口 $port 已释放，继续启动 serve。" >&2
-}
-
-# 判断当前 Java opts 中是否已经配置 -Xmx。
-jvm_opts_have_max_heap() {
-    local combined=" ${JAVA_OPTS:-} ${APP_CLI_OPTS:-} "
-    [[ "$combined" =~ [[:space:]]-Xmx[^[:space:]]+ ]]
-}
-
-# full scan 时为 Java launcher 注入有界 heap profile。
-apply_scan_jvm_profile() {
-    if ! arg_has_option "--full" "$@"; then
-        return 0
-    fi
-    if jvm_opts_have_max_heap; then
-        return 0
-    fi
-
-    if [[ -n "${APP_CLI_OPTS:-}" ]]; then
-        APP_CLI_OPTS="${APP_CLI_OPTS} ${FULL_SCAN_JVM_HEAP_OPTS}"
-    else
-        APP_CLI_OPTS="${FULL_SCAN_JVM_HEAP_OPTS}"
-    fi
-    export APP_CLI_OPTS
-}
-
-# 将用户输入路径展开为绝对路径，支持 ~ 和相对路径。
-expand_path() {
-    local value="$1"
-    local expanded
-    case "$value" in
-        "~") expanded="$HOME" ;;
-        "~/"*) expanded="$HOME/${value#~/}" ;;
-        *) expanded="$value" ;;
-    esac
-
-    case "$expanded" in
-        /*) printf '%s\n' "$expanded" ;;
-        *) printf '%s/%s\n' "$CALLER_DIR" "$expanded" ;;
-    esac
-}
-
-# 定位 Java launcher，供帮助和版本命令统一切换。
-# 不执行 Gradle build；launcher 必须已预构建。
-java_launcher_path() {
-    printf '%s\n' "$PROJECT_DIR/java/app-cli/build/install/app-cli/bin/app-cli"
-}
-
-# 通过 Java launcher 执行帮助或版本查询。
-# launcher 缺失时中文报错、非零退出、不 fallback 到 Python。
-run_java_help_version() {
-    run_java_command "$@"
-}
-
-# 选择满足版本要求的 Python 解释器。
-python_bin() {
-    if [[ -n "${SESSION_BROWSER_PYTHON:-}" ]]; then
-        if python_is_compatible "$SESSION_BROWSER_PYTHON"; then
-            printf '%s\n' "$SESSION_BROWSER_PYTHON"
-            return 0
-        fi
-        echo "SESSION_BROWSER_PYTHON 不可执行或低于 Python 3.10：$SESSION_BROWSER_PYTHON" >&2
-        exit 1
-    fi
-
-    if [[ -x "$VENV_DIR/bin/python" ]] && python_is_compatible "$VENV_DIR/bin/python"; then
-        printf '%s\n' "$VENV_DIR/bin/python"
-        return 0
-    fi
-
-    if command -v python >/dev/null 2>&1 && python_is_compatible python; then
-        printf 'python\n'
-        return 0
-    fi
-
-    if command -v python3 >/dev/null 2>&1 && python_is_compatible python3; then
-        printf 'python3\n'
-        return 0
-    fi
-
-    echo "未找到可用 Python 解释器（需要 Python >= 3.10）。" >&2
-    exit 1
-}
-
-# 检查候选 Python 是否满足最低版本要求。
-python_is_compatible() {
-    local candidate="$1"
-    "$candidate" - <<'PY' >/dev/null 2>&1
-import sys
-raise SystemExit(0 if sys.version_info >= (3, 10) else 1)
-PY
-}
-
-# 在项目目录中优先通过 venv 或 uv 执行开发工具。
-run_dev_tool() {
-    local tool="$1"
-    shift || true
-    cd "$PROJECT_DIR"
-    if [[ -x "$VENV_DIR/bin/$tool" ]]; then
-        "$VENV_DIR/bin/$tool" "$@"
-        return $?
-    fi
-    if command -v uv >/dev/null 2>&1; then
-        uv run "$tool" "$@"
-        return $?
-    fi
-    PATH="$VENV_DIR/bin:${PATH:-}" "$tool" "$@"
-}
-
-# 执行 Java 产品 smoke；显式传参时保留 pytest 调试入口。
-run_tests() {
-    cd "$PROJECT_DIR"
-    if [[ $# -eq 0 ]]; then
-        ./gradlew verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
-        return $?
-    fi
-
-    "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" check-installed --profile test
-    local -a pytest_args
-    pytest_args=(-W error)
-    pytest_args+=("$@")
-    PYTHONPATH="${PYTHONPATH:-}" "$(python_bin)" -m pytest "${pytest_args[@]}"
-}
-
-# 打印 deps 子命令帮助。
-print_deps_usage() {
-    cat <<'EOF'
-用法：./scripts/session-browser.sh deps [--dry-run] [--dev] [uv sync options]
-
-默认行为：
-  deps                 构建 Java launcher，并运行产品运行时 preflight
-  deps --dry-run       只检查将执行的 Java bootstrap 步骤，不写入构建产物
-
-开发依赖：
-  deps --dev           安装 Python 开发/测试依赖
-  deps --dev --dry-run 仅检查 Python 依赖声明和锁文件一致性
-
-说明：
-  scan/serve 是产品命令，依赖 Java launcher；Python 依赖仅用于开发质量门和测试。
-EOF
-}
-
-# 安装 Python 开发依赖；dry-run 只检查环境和锁文件。
-install_dev_deps() {
-    cd "$PROJECT_DIR"
-    if ! command -v uv >/dev/null 2>&1; then
-        echo "错误：Python 开发依赖以 pyproject.toml + uv.lock 为唯一真相，需要安装 uv。" >&2
-        return 1
-    fi
-    if [[ "${1:-}" == "--dry-run" ]]; then
-        uv lock --check
-        "$(python_bin)" "$PROJECT_DIR/scripts/harness/python_env.py" report
-        echo "[DRY-RUN] 未安装依赖；锁文件一致性检查完成。"
-        return 0
-    fi
-    UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync --frozen --extra dev "$@"
-}
-
-# 安装或检查项目依赖；默认构建 Java launcher，--dev 安装 Python 开发依赖。
-install_deps() {
-    local dry_run=false
-    local dev=false
-    local -a passthrough=()
-
-    while [[ $# -gt 0 ]]; do
-        case "$1" in
-            --dry-run)
-                dry_run=true
-                ;;
-            --dev)
-                dev=true
-                ;;
-            -h|--help)
-                print_deps_usage
-                return 0
-                ;;
-            *)
-                passthrough+=("$1")
-                ;;
-        esac
-        shift
-    done
-
-    if [[ "$dev" == true ]]; then
-        if [[ "$dry_run" == true ]]; then
-            if [[ ${#passthrough[@]} -gt 0 ]]; then
-                install_dev_deps --dry-run "${passthrough[@]}"
-            else
-                install_dev_deps --dry-run
-            fi
-        else
-            if [[ ${#passthrough[@]} -gt 0 ]]; then
-                install_dev_deps "${passthrough[@]}"
-            else
-                install_dev_deps
-            fi
-        fi
-        return $?
-    fi
-
-    if [[ ${#passthrough[@]} -gt 0 ]]; then
-        echo "错误：deps 默认 bootstrap 不接受额外参数：${passthrough[*]}" >&2
-        echo "如需安装 Python 开发依赖，请使用：./scripts/session-browser.sh deps --dev" >&2
-        return 1
-    fi
-
-    cd "$PROJECT_DIR"
-    local index_dir
-    index_dir="$(local_test_index_dir)"
-    if ! command -v java >/dev/null 2>&1; then
-        echo "错误：未找到 Java 运行时。请先安装 Java 17 或更高版本。" >&2
-        return 1
-    fi
     if [[ ! -x "$PROJECT_DIR/gradlew" ]]; then
         echo "错误：Gradle wrapper 不可执行：$PROJECT_DIR/gradlew" >&2
         return 1
     fi
 
-    local launcher
-    launcher="$(java_launcher_path)"
-    if [[ "$dry_run" == true ]]; then
-        echo "[DRY-RUN] 将执行：./gradlew :java:app-cli:installDist"
-        echo "[DRY-RUN] 将使用本地索引目录：$index_dir"
-        if [[ -x "$launcher" ]]; then
-            echo "[DRY-RUN] Java launcher 已存在：$launcher"
-        else
-            echo "[DRY-RUN] Java launcher 尚未构建；正式运行 deps 会创建：$launcher"
-        fi
-        return 0
-    fi
-
+    cd "$PROJECT_DIR"
     ./gradlew :java:app-cli:installDist
-    if [[ ! -x "$launcher" ]]; then
-        echo "错误：Java launcher 构建后仍未找到：$launcher" >&2
-        return 1
+    require_java_launcher
+    exec "$JAVA_LAUNCHER" deps
+}
+
+# test 是固定的 Java 产品验证；定向 Python 测试不再伪装成产品命令。
+run_test() {
+    if [[ $# -ne 0 ]]; then
+        echo "错误：test 不接受额外参数；该入口固定执行 Java 产品测试。" >&2
+        return 2
     fi
-    export INDEX_DIR="$index_dir"
-    "$launcher" deps
-    echo ""
-    echo "下一步："
-    echo "  ./scripts/session-browser.sh scan"
-    echo "  ./scripts/session-browser.sh serve"
+    cd "$PROJECT_DIR"
+    exec ./gradlew verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
 }
 
-# 执行 Ruff 格式化和 import 自动修复。
-run_format() {
-    run_dev_tool ruff format .
-    run_dev_tool ruff check --select I --fix .
-}
-
-# 检查 Ruff 格式和 import 排序，不修改文件。
-run_format_check() {
-    run_dev_tool ruff format --check .
-    run_dev_tool ruff check --select I .
-}
-
-# 执行 Ruff lint 检查。
-run_lint() {
-    run_dev_tool ruff check .
-}
-
-# 执行 Python harness/quality 测试并生成 coverage 报告。
-run_coverage() {
-    local coverage_dir="$PROJECT_DIR/.local/python/coverage"
-    mkdir -p "$coverage_dir"
-    run_dev_tool pytest -W error \
-        tests/harness \
-        tests/gates \
-        tests/quality/test_contract_case_specs.py \
-        tests/quality/test_java_classification.py \
-        tests/quality/test_new_quality_gates.py \
-        tests/quality/test_no_test_skips_gate.py \
-        tests/quality/test_python_env_contract.py \
-        tests/quality/test_repo_slimming_contract.py \
-        tests/quality/test_static_contract.py \
-        tests/checks/test_code_comment_language_gate.py \
-        --cov=scripts \
-        --cov-branch \
-        --cov-report=term-missing \
-        --cov-report="xml:$coverage_dir/coverage.xml" \
-        --cov-fail-under=0 \
-        "$@"
-}
-
-# 从 uv.lock 导出完整开发依赖给 pip-audit，并把网络不可用降级为诊断提示。
-run_pip_audit_uv_lock() {
-    local output
-    local status
-    set +e
-    output="$(
-        if [[ "${SESSION_BROWSER_AUDIT_USE_PROXY:-0}" != "1" ]]; then
-            unset HTTPS_PROXY HTTP_PROXY ALL_PROXY https_proxy http_proxy all_proxy
-        fi
-        uv export --frozen --extra dev --no-hashes --no-emit-project --no-header --no-annotate | \
-            run_dev_tool pip-audit \
-                -s osv \
-                -r /dev/stdin \
-                --no-deps \
-                --disable-pip \
-                --progress-spinner off \
-                --timeout 60 \
-                2>&1
-    )"
-    status=$?
-    set -e
-    if [[ "$status" -ne 0 ]] && printf '%s\n' "$output" | grep -Eqi 'requests\.exceptions\.(SSLError|ProxyError|ReadTimeout|ConnectionError)|urllib3\.exceptions\.(ReadTimeoutError|MaxRetryError)|HTTPSConnectionPool|RemoteDisconnected|UNEXPECTED_EOF_WHILE_READING'; then
-        echo "提示：pip-audit vulnerability service/network 当前不可用；python-standard 记录为非阻塞网络诊断，请修复本机代理/证书后单独重跑 audit。"
-        return 0
-    fi
-    printf '%s\n' "$output" | awk '
-        /^WARNING:pip_audit\._cli:--no-deps is supported/ { next }
-        /^WARNING:pip_audit\._cli:Consider using a tool like `pip-compile`/ { next }
-        { print }
-    '
-    return "$status"
-}
-
-# 执行依赖漏洞和高危 Bandit 安全检查。
-run_audit() {
-    run_pip_audit_uv_lock
-    run_dev_tool bandit -r scripts --severity-level high
-}
-
-# 执行 Xenon 复杂度检查并报告历史复杂度债务。
-run_complexity() {
-    if ! run_dev_tool xenon --max-absolute B --max-modules B --max-average A scripts; then
-        echo "提示：complexity report 已生成；python-standard 暂不因历史复杂度债务阻断。" >&2
-    fi
-}
-
-# 执行 Python dead-code 检查。
-run_dead_code() {
-    run_dev_tool vulture
-}
-
-# 执行 Deptry 依赖声明检查。
-run_deps_check() {
-    run_dev_tool deptry scripts
-}
-
-# 串行执行本地 Python 质量基线。
+# quality 默认执行 required tier；显式参数原样交给 Gate CLI。
 run_quality() {
-    run_format_check
-    run_lint
-    "$(python_bin)" -m scripts.checks source.comment-language \
-        --script-comments scripts \
-        --policy "$PROJECT_DIR/config/technical-terms.json"
-    run_coverage
-    run_audit
-    run_complexity
-    run_dead_code
-    run_deps_check
-}
-
-# 通过 Java launcher 执行 serve/stop/scan 等命令。
-# launcher 缺失时中文报错、非零退出、不 fallback 到 Python。
-run_java_command() {
-    local launcher
-    launcher="$(java_launcher_path)"
-    if [[ ! -x "$launcher" ]]; then
-        echo "错误：Java launcher 未找到：$launcher" >&2
-        echo "请先执行构建：./gradlew :java:app-cli:installDist" >&2
-        exit 1
+    cd "$PROJECT_DIR"
+    if [[ $# -eq 0 ]]; then
+        exec python3 scripts/gates/cli.py --tier required
     fi
-    exec "$launcher" "$@"
+    exec python3 scripts/gates/cli.py "$@"
 }
 
-# 通过 Java launcher 执行 scan，并设置本地测试索引目录。
-run_scan() {
-    local index_dir
-    index_dir="$(local_test_index_dir)"
-    mkdir -p "$index_dir"
+if [[ $# -eq 0 ]]; then
+    require_java_launcher
+    exec "$JAVA_LAUNCHER" --help
+fi
 
-    export INDEX_DIR="$index_dir"
-    export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-    export SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS="${SESSION_BROWSER_SCAN_LOCK_TIMEOUT_SECONDS:-30}"
-    apply_scan_jvm_profile "$@"
-    echo "使用本地测试索引目录：$index_dir"
-    run_java_command scan "$@"
-}
+COMMAND="$1"
+shift
 
-# 通过 Java launcher 启动本地 serve，并补齐默认 host/port。
-run_serve() {
-    local index_dir
-    index_dir="$(local_test_index_dir)"
-    mkdir -p "$index_dir"
-
-    export INDEX_DIR="$index_dir"
-    export SESSION_BROWSER_VERSION="${SESSION_BROWSER_VERSION:-$(read_version)}"
-    local -a java_args
-    java_args=()
-    local explicit_host
-    local explicit_port
-    explicit_host="$(serve_option_value "--host" "" "$@" || true)"
-    explicit_port="$(serve_option_value "--port" "-p" "$@" || true)"
-    if [[ -z "$explicit_host" ]]; then
-        java_args+=("--host" "${SESSION_BROWSER_LOCAL_HOST:-$DEFAULT_LOCAL_HOST}")
-    fi
-    if [[ -z "$explicit_port" ]]; then
-        java_args+=("--port" "${SESSION_BROWSER_LOCAL_PORT:-$DEFAULT_LOCAL_PORT}")
-    fi
-    if [[ $# -gt 0 ]]; then
-        java_args+=("$@")
-    fi
-    if ! arg_has_option "--help" "$@" && ! arg_has_option "-h" "$@"; then
-        ensure_serve_port_available "${explicit_port:-${SESSION_BROWSER_LOCAL_PORT:-$DEFAULT_LOCAL_PORT}}"
-    fi
-    run_java_command serve "${java_args[@]}"
-}
-
-# 通过 Java launcher 执行 stop 命令。
-run_stop() {
-    run_java_command stop "$@"
-}
-
-# 打印 session-browser.sh 命令帮助。
-print_usage() {
-    cat <<'EOF'
-用法：./scripts/session-browser.sh <command> [options]
-
-本地验证：
-  deps                             构建 Java launcher 并运行产品 preflight
-  deps --dry-run                   仅展示 Java bootstrap 计划，不写入构建产物
-  deps --dev [uv sync options]     按 uv.lock 安装 Python 开发/测试依赖
-  deps --dev --dry-run             仅检查 Python、依赖声明和锁文件一致性
-  format                           使用 Ruff Formatter/Ruff import 规则自动格式化
-  format-check                     检查 Ruff 格式和 import 排序，不修改文件
-  lint                             执行 Ruff lint
-  coverage [pytest options]        执行 pytest-cov/Coverage.py 覆盖率检查
-  audit                            执行 pip-audit 与 Bandit 安全检查
-  complexity                       执行 Xenon/Radon 复杂度检查
-  dead-code                        执行 Vulture 死代码检查
-  deps-check                       执行 Deptry 依赖声明检查
-  quality                          执行完整 Python 标准质量门禁
-  serve [serve options]            前台启动本地服务（Java launcher）
-  scan [scan options]              扫描到本地测试索引（Java launcher）
-  stop [--port 8848]               按端口停止本地服务进程（Java launcher）
-  test                             执行 Java 产品 smoke（无 skipped）
-  test <pytest args>               执行指定 pytest 调试子集
-
-版本管理：
-  version                          输出当前版本
-  set-version <x.y>                更新 VERSION
-
-常用环境变量：
-  SESSION_BROWSER_VENV_DIR         默认：./.local/python/venv
-  SESSION_BROWSER_PYTHON           显式 Python；优先级高于虚拟环境
-  SESSION_BROWSER_LOCAL_HOST       默认：127.0.0.1
-  SESSION_BROWSER_LOCAL_PORT       默认：8848
-  SESSION_BROWSER_SERVE_AUTO_KILL_PORT
-                                   默认：1；serve 启动前自动终止占用端口的监听进程，设为 0 关闭
-  SESSION_BROWSER_LOCAL_DATA_DIR   默认：~/.local/share/feipi/session-browser/local-test-index
-  SESSION_BROWSER_LOG_LEVEL        默认：WARN；可设为 INFO 或 DEBUG 输出更多日志
-  SESSION_BROWSER_DEV_SCAN_LOGIC_VERSION_GATE
-                                   本地 scan 默认启用；内部逻辑版本变化时自动 full scan
-  CLAUDE_DATA_DIR                  默认：~/.claude
-  CODEX_DATA_DIR                   默认：~/.codex
-  QODER_DATA_DIR                   默认：~/.qoder
-  QODER_APP_SUPPORT_DIR            默认：~/Library/Application Support/Qoder
-
-示例：
-  ./scripts/session-browser.sh serve
-  ./scripts/session-browser.sh scan
-  ./scripts/session-browser.sh scan --full
-EOF
-}
-
-case "$CMD" in
-    help|-h|--help)
-        print_usage
-        # 尝试运行 Java launcher 显示扩展帮助；launcher 缺失时忽略错误
-        _launcher="$(java_launcher_path)"
-        if [[ -x "$_launcher" ]]; then
-            echo ""
-            "$_launcher" "--help" || true
-        fi
-        ;;
-    dev)
-        echo "提示：dev 已合并到 serve；等同执行 ./scripts/session-browser.sh serve。" >&2
-        run_serve "$@"
-        ;;
+case "$COMMAND" in
     deps)
-        install_deps "$@"
+        run_deps "$@"
         ;;
-    format)
-        run_format "$@"
-        ;;
-    format-check)
-        run_format_check "$@"
-        ;;
-    lint)
-        run_lint "$@"
-        ;;
-    coverage)
-        run_coverage "$@"
-        ;;
-    audit)
-        run_audit "$@"
-        ;;
-    complexity)
-        run_complexity "$@"
-        ;;
-    dead-code)
-        run_dead_code "$@"
-        ;;
-    deps-check)
-        run_deps_check "$@"
+    test)
+        run_test "$@"
         ;;
     quality)
         run_quality "$@"
         ;;
-    scan)
-        run_scan "$@"
-        ;;
-    serve)
-        run_serve "$@"
-        ;;
-    stop)
-        run_stop "$@"
-        ;;
-    test)
-        run_tests "$@"
-        ;;
-    version)
-        run_java_help_version "--version"
-        ;;
-    set-version)
-        if [[ $# -lt 1 ]]; then
-            echo "用法：$0 set-version <x.y>" >&2
-            exit 1
-        fi
-        set_version "$1"
-        ;;
     *)
-        echo "未知命令：$CMD" >&2
-        print_usage
-        exit 1
+        require_java_launcher
+        exec "$JAVA_LAUNCHER" "$COMMAND" "$@"
         ;;
 esac

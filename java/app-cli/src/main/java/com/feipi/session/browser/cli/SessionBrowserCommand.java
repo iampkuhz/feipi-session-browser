@@ -6,9 +6,8 @@ import picocli.CommandLine.Option;
 /**
  * Session 浏览器根命令。
  *
- * <p>提供 {@code --help} 和 {@code --version} 选项，并注册公开子命令。 已迁移到 Java 的子命令直接实现；未迁移的子命令以桩形式注册，
- * 运行时输出提示信息并引导用户使用 Shell 入口。 内部子命令（如 {@code normalized-batch}）通过 {@code hidden = true} 隐藏，不出现在 help
- * 输出中。
+ * <p>提供 {@code --help} 和 {@code --version} 选项，并仅注册具有真实 Java 实现的公开子命令。内部子命令（如 {@code
+ * normalized-batch}）通过 {@code hidden = true} 隐藏，不出现在 help 输出中。
  */
 @Command(
     name = "session-browser",
@@ -20,11 +19,8 @@ import picocli.CommandLine.Option;
       StopCommand.class,
       StatusCommand.class,
       DoctorCommand.class,
-      TestCommand.class,
       DepsCommand.class,
-      QualityCommand.class,
       VersionCommand.class,
-      ReleaseCommand.class,
       NormalizedBatchCommand.class,
       DiagnoseCommand.class
     },

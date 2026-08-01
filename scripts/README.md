@@ -7,9 +7,11 @@ Gate 清单。
 
 日常不要展开整个 `scripts/`。按问题逐层进入：
 
-1. **L0 产品开发：** 只使用 `./scripts/session-browser.sh deps|test|scan|serve|stop`。
+1. **L0 产品开发：** 只使用 `./scripts/session-browser.sh <command>`。脚本仅为
+   `deps|test|quality` 保留仓库级分支，`scan|serve|stop|status|doctor|version|help`
+   及其参数均透传给 Java CLI。
 2. **L1 最终验证：** 只使用 `python3 scripts/gates/cli.py --tier required`；
-   `session-browser.sh quality` 目前只是 Python 工具集合，不等于 required Gate。
+   `./scripts/session-browser.sh quality` 是同一 required Gate 的日常入口。
 3. **L2 单项诊断：** 根据失败输出中的 Check ID 查 `_registry.py`，再打开唯一 leaf。
 4. **L3 基础设施维护：** 只有修改 Gate/Harness/OpenSpec/Release 本身时才阅读内部模块。
 
@@ -20,7 +22,7 @@ Gate 清单。
 
 ```text
 scripts/
-├── session-browser.sh        产品运行、测试和开发命令的统一入口
+├── session-browser.sh        薄产品入口：三个仓库命令 + Java CLI 透传
 ├── checks/                   “具体检查什么”
 │   ├── agent/                Agent 入口、权限、规则与 skill 契约
 │   ├── privacy/              本地路径、真实 session 与 secret-like 内容保护
@@ -39,7 +41,7 @@ scripts/
 
 ## 公开入口
 
-- 产品与本地开发：`./scripts/session-browser.sh <command>`
+- 产品与本地开发：`./scripts/session-browser.sh <command>`（唯一公开产品入口）
 - Harness 体检：`bash scripts/harness/doctor.sh`
 - Gate：`python3 scripts/gates/cli.py --tier quick|required|full`
 - 共享 checks：`python3 -m scripts.checks <check-id>`
@@ -49,6 +51,10 @@ scripts/
 
 leaf check 和 `scripts/gates/` 内部模块不是独立入口。直接诊断 check 也应使用
 `python3 -m scripts.checks <check-id>`，不要直接执行领域文件。
+
+Python 开发工具不属于产品入口：依赖统一用
+`UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev` 安装，单项诊断直接运行
+对应工具，提交前再运行 required Gate。
 
 ## 一屏调用链
 

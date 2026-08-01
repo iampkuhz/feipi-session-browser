@@ -115,30 +115,16 @@ def test_project_venv_dir_is_absolute_and_repo_relative(
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
 def test_official_uv_sync_entries_pin_the_local_environment() -> None:
-    script = (REPO_ROOT / 'scripts/session-browser.sh').read_text(encoding='utf-8')
     codex_setup = (REPO_ROOT / '.codex/environments/environment.toml').read_text(encoding='utf-8')
     workflow = (REPO_ROOT / '.github/workflows/quality.yml').read_text(encoding='utf-8')
 
-    assert 'UV_PROJECT_ENVIRONMENT="$VENV_DIR" uv sync --frozen --extra dev' in script
+    assert python_env.DEV_SYNC_COMMAND == (
+        'UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev'
+    )
     assert 'UV_PROJECT_ENVIRONMENT="$repo_root/.local/python/venv" uv sync --frozen' in codex_setup
     assert (
         'UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.local/python/venv" uv sync --frozen --extra dev'
     ) in workflow
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-010')
-def test_coverage_test_inputs_exist() -> None:
-    """Coverage 清单不得继续引用已经删除的测试路径。"""
-    script = (REPO_ROOT / 'scripts/session-browser.sh').read_text(encoding='utf-8')
-    coverage_body = script.split('run_coverage() {', 1)[1].split('\n}', 1)[0]
-    test_inputs = [
-        line.strip().removesuffix('\\').strip()
-        for line in coverage_body.splitlines()
-        if line.strip().startswith('tests/')
-    ]
-
-    assert test_inputs
-    assert [path for path in test_inputs if not (REPO_ROOT / path).exists()] == []
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
@@ -167,7 +153,7 @@ def test_explicit_python_without_runtime_dependency_fails_without_fallback(
     rendered = captured.value.render()
     assert 'repoRoot:' in rendered
     assert 'checkedCandidates:' in rendered
-    assert 'remediation: ./scripts/session-browser.sh deps --dev' in rendered
+    assert f'remediation: {python_env.DEV_SYNC_COMMAND}' in rendered
     assert '/tmp/explicit-python' not in rendered
 
 

@@ -105,8 +105,8 @@ class CliContractTest {
     }
 
     @Test
-    @DisplayName("help 隐藏内部命令（normalized-batch），展示公开子命令")
-    void helpHidesInternalCommands() {
+    @DisplayName("help 隐藏内部命令，且不展示无实现的桩命令")
+    void helpShowsOnlyImplementedPublicCommands() {
       CliExecution result = execute("--help");
 
       assertThat(result.exitCode()).isEqualTo(0);
@@ -118,12 +118,13 @@ class CliContractTest {
           .contains("stop")
           .contains("status")
           .contains("doctor")
-          .contains("test")
           .contains("deps")
-          .contains("quality")
           .contains("version")
-          .contains("release")
           .contains("diagnose");
+      assertThat(result.stdout())
+          .doesNotContain("test")
+          .doesNotContain("quality")
+          .doesNotContain("release");
     }
 
     @Test

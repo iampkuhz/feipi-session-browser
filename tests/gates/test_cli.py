@@ -1,9 +1,7 @@
 """Gate CLI/service 的解析、当次 artifact 与 warning 边界 contract。"""
 
 import json
-import os
 import subprocess
-import sys
 from pathlib import Path
 
 import pytest
@@ -144,27 +142,19 @@ def test_required_gate_failure_writes_failure_artifact(tmp_path: Path, monkeypat
     assert payload['status'] == FAIL
 
 
-def test_session_browser_test_fails_on_pytest_warning(tmp_path: Path) -> None:
-    test_file = tmp_path / 'test_warning_gate.py'
-    test_file.write_text(
-        'import warnings\n\n'
-        'def test_warning_after_trigger():\n'
-        "    warnings.warn('gate must reject this warning', UserWarning)\n",
-        encoding='utf-8',
-    )
+def test_session_browser_test_rejects_pytest_arguments() -> None:
     repo_root = Path(__file__).resolve().parents[2]
     proc = subprocess.run(
-        ['./scripts/session-browser.sh', 'test', str(test_file)],
+        ['./scripts/session-browser.sh', 'test', 'tests/example.py'],
         cwd=repo_root,
-        env={**os.environ, 'SESSION_BROWSER_PYTHON': sys.executable},
         text=True,
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
-        timeout=60,
+        timeout=30,
         check=False,
     )
-    assert proc.returncode != 0
-    assert 'UserWarning: gate must reject this warning' in proc.stdout
+    assert proc.returncode == 2
+    assert 'test 不接受额外参数' in proc.stdout
 
 
 def test_changed_files_merge_recorded_evidence_and_git_fallback(

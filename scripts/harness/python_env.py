@@ -30,6 +30,7 @@ UV_PYTHON_REQUIRES = '==3.12.*'
 _PYTHON_VERSION_LOCK = '.python-version'
 _UV_LOCK = 'uv.lock'
 DEFAULT_VENV_RELATIVE_PATH = Path('.local/python/venv')
+DEV_SYNC_COMMAND = 'UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev'
 _TEST_PACKAGES = {'pytest', 'pytest-xdist'}
 _NORMALIZE_RE = re.compile(r'[-_.]+')
 _IMPORT_NAME_OVERRIDES = {'pyyaml': 'yaml'}
@@ -64,7 +65,7 @@ class ProjectPythonNotReadyError(RuntimeError):
                 self.code,
                 f'repoRoot: {self.repo_root}',
                 f'checkedCandidates: {json.dumps(checked, separators=(",", ":"))}',
-                'remediation: ./scripts/session-browser.sh deps --dev',
+                f'remediation: {DEV_SYNC_COMMAND}',
             )
         )
 

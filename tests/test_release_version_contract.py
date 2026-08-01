@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 import re
-import shutil
 import subprocess
 from pathlib import Path
 
@@ -12,16 +11,7 @@ SCRIPT = PROJECT_DIR / 'scripts' / 'session-browser.sh'
 RELEASE_WORKFLOW = PROJECT_DIR / '.github' / 'workflows' / 'release.yml'
 
 
-def _copy_script_project(tmp_path: Path) -> Path:
-    script_dir = tmp_path / 'scripts'
-    script_dir.mkdir()
-    (tmp_path / 'src').mkdir()
-    copied_script = script_dir / 'session-browser.sh'
-    shutil.copy2(SCRIPT, copied_script)
-    return copied_script
-
-
-def test_version_help_keeps_version_contract_without_removed_python_distribution_commands():
+def test_help_does_not_advertise_removed_shell_release_commands():
     result = subprocess.run(
         [str(SCRIPT), 'help'],
         cwd=PROJECT_DIR,
@@ -31,55 +21,27 @@ def test_version_help_keeps_version_contract_without_removed_python_distribution
     )
 
     assert result.returncode == 0
-    assert 'set-version <x.y>' in result.stdout
+    assert 'set-version' not in result.stdout
     assert 'build-dist' not in result.stdout
     assert 'verify-dist' not in result.stdout
     assert 'release-check' not in result.stdout
-    assert '<x.y.z>' not in result.stdout
+    assert 'release' not in result.stdout
 
 
-def test_set_version_accepts_canonical_two_part_and_patch_compat(tmp_path):
-    copied_script = _copy_script_project(tmp_path)
-    version_file = tmp_path / 'VERSION'
-    version_file.write_text('0.0-dev\n', encoding='utf-8')
-
-    canonical = subprocess.run(
-        [str(copied_script), 'set-version', '0.4'],
-        cwd=tmp_path,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert canonical.returncode == 0, canonical.stderr
-    assert version_file.read_text(encoding='utf-8').strip() == '0.4'
-
-    patch = subprocess.run(
-        [str(copied_script), 'set-version', '0.4.1-rc.1'],
-        cwd=tmp_path,
-        text=True,
-        capture_output=True,
-        check=False,
-    )
-    assert patch.returncode == 0, patch.stderr
-    assert version_file.read_text(encoding='utf-8').strip() == '0.4.1-rc.1'
-
-
-def test_version_validation_rejects_invalid_versions(tmp_path):
-    copied_script = _copy_script_project(tmp_path)
-    version_file = tmp_path / 'VERSION'
-    version_file.write_text('0.4\n', encoding='utf-8')
+def test_set_version_is_not_a_shell_mutation_command():
+    version_file = PROJECT_DIR / 'VERSION'
+    before = version_file.read_bytes()
 
     result = subprocess.run(
-        [str(copied_script), 'set-version', '0.4.beta'],
-        cwd=tmp_path,
+        [str(SCRIPT), 'set-version', '0.4'],
+        cwd=PROJECT_DIR,
         text=True,
         capture_output=True,
         check=False,
     )
-    assert result.returncode == 1
-    assert '版本号不合法：0.4.beta' in result.stderr
-    assert '请使用版本号 x.y 或 x.y.z，例如 0.4 或 0.4.1-rc.1' in result.stderr
-    assert version_file.read_text(encoding='utf-8').strip() == '0.4'
+    assert result.returncode == 2
+    assert 'set-version' in result.stderr
+    assert version_file.read_bytes() == before
 
 
 def _workflow_regex_after(marker: str) -> str:

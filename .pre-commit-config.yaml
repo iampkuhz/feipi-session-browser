@@ -21,31 +21,3 @@ repos:
         language: system
         types_or: [python, pyi]
         pass_filenames: false
-
-      - id: python-security
-        name: python security
-        entry: bash -c './scripts/session-browser.sh audit'
-        language: system
-        files: ^(pyproject\.toml|uv\.lock)$
-        pass_filenames: false
-
-      - id: python-complexity
-        name: python complexity
-        entry: bash -c './scripts/session-browser.sh complexity'
-        language: system
-        types_or: [python, pyi]
-        pass_filenames: false
-
-      - id: python-dead-code
-        name: python dead code
-        entry: bash -c './scripts/session-browser.sh dead-code'
-        language: system
-        types_or: [python, pyi]
-        pass_filenames: false
-
-      - id: python-deps
-        name: python dependencies
-        entry: bash -c './scripts/session-browser.sh deps-check'
-        language: system
-        files: ^(pyproject\.toml|uv\.lock)$
-        pass_filenames: false

@@ -16,9 +16,9 @@ dev = [
   "pytest-cov",
   "pytest-xdist",
   "pre-commit",
+  "radon",
   "ruff",
   "vulture",
-  "xenon",
 ]
 
 [tool.uv]
