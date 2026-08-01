@@ -36,6 +36,7 @@ public final class RecordComponentJavadocsRule implements QualityRule {
     return violations;
   }
 
+  /** 遍历 record 声明并把缺失的 component 说明收集为统一违规。 */
   private static final class Scanner extends TreePathScanner<Void, Void> {
     private final QualityContext context;
     private final ParsedSource source;

@@ -33,6 +33,7 @@ public final class NoPmdSuppressionsRule implements QualityRule {
     return violations;
   }
 
+  /** 遍历注解节点并报告源码中的 PMD 抑制声明。 */
   private static final class Scanner extends TreePathScanner<Void, Void> {
     private final QualityContext context;
     private final ParsedSource source;

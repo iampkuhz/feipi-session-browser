@@ -10,6 +10,7 @@
       "pythonDeadCode",
       "pythonDeps",
       "misplacedGeneratedPaths",
+      "scriptCommentLanguage",
       "ignoredTrackedFiles",
       "bashSyntax",
       "repoStructure",
@@ -36,7 +37,6 @@
     "session-detail": [
       "pythonCompile",
       "noTestSkips",
-      "scriptCommentLanguage",
       "templateContract",
       "staticCssContract",
       "cssOwnership",
@@ -63,9 +63,11 @@
     ],
     "java-build": [
       "javaCheck",
+      "javaChineseComments",
       "reuseStandardCpd",
       "reuseAnalyzeIncremental",
-      "misplacedGeneratedPaths"
+      "misplacedGeneratedPaths",
+      "scriptCommentLanguage"
     ],
     "scan-script-smoke": [
       "scanScriptSmoke",
@@ -124,12 +126,13 @@
       "gatesByTarget": {
         "java-build": [
           "javaCheck",
+          "javaChineseComments",
           "reuseStandardCpd",
           "reuseAnalyzeIncremental",
           "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 4
+      "gateCount": 5
     },
     "java-source-build": {
       "changedFiles": [
@@ -189,13 +192,14 @@
           "pythonComplexity",
           "pythonDeadCode",
           "misplacedGeneratedPaths",
+          "scriptCommentLanguage",
           "ignoredTrackedFiles",
           "repoStructure",
           "repoSlimming",
           "secretLikeContent"
         ]
       },
-      "gateCount": 14
+      "gateCount": 15
     },
     "python-policy": {
       "changedFiles": [
@@ -217,6 +221,7 @@
           "pythonComplexity",
           "pythonDeadCode",
           "misplacedGeneratedPaths",
+          "scriptCommentLanguage",
           "secretLikeContent"
         ],
         "scan-script-smoke": [
@@ -224,7 +229,7 @@
           "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 9
+      "gateCount": 10
     },
     "session-detail": {
       "changedFiles": [
@@ -238,7 +243,6 @@
       ],
       "gatesByTarget": {
         "session-detail": [
-          "scriptCommentLanguage",
           "staticCssContract",
           "cssOwnership",
           "pytest",
@@ -247,7 +251,7 @@
           "misplacedGeneratedPaths"
         ]
       },
-      "gateCount": 7
+      "gateCount": 6
     },
     "acceptance-contract": {
       "changedFiles": [

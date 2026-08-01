@@ -52,6 +52,14 @@ class TestJavaBasicClassification:
         assert c.category == 'java-src'
         assert c.quality_target == 'java-src'
 
+    @pytest.mark.contract_case('JR-020-001')
+    def test_kotlin_src_main_classification(self):
+        """Java 模块中的 Kotlin 源码必须进入同一个 java-src 质量目标。"""
+        c = classify_path('java/sample/src/main/kotlin/example/Foo.kt')
+        assert c.category == 'java-src'
+        assert c.quality_target == 'java-src'
+        assert c.allowed_by_default is True
+
     @pytest.mark.contract_case('J1-040-001')
     def test_java_build_classification(self):
         assert (
@@ -349,70 +357,35 @@ class TestParallelFailureDeterminism:
 
 # 12. javaChineseComments gate 路由测试
 class TestJavaChineseCommentsGate:
-    """javaChineseComments 必须使用仓库内脚本和策略文件，禁止依赖 tmp。"""
+    """javaChineseComments 必须由统一 Java quality-gates task 唯一执行。"""
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_uses_shared_check_cli(self, tmp_path: Path):
-        """gate 命令只指向共享 check CLI 和稳定 check ID。"""
+    def test_gate_command_uses_java_quality_registry(self, tmp_path: Path):
+        """Gate 命令只选择统一 Gradle task 中的稳定 Java rule ID。"""
         from scripts.gates import executor as gate_executor
 
-        # 创建仓库脚本和策略文件的 mock 结构
-        checker = tmp_path / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
-        checker.parent.mkdir(parents=True)
-        checker.write_text('# mock', encoding='utf-8')
-        policy = tmp_path / 'config' / 'technical-terms.json'
-        policy.parent.mkdir(parents=True)
-        policy.write_text('{}', encoding='utf-8')
+        (tmp_path / 'gradlew').write_text('', encoding='utf-8')
 
         cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
 
-        assert cmd, 'gate 命令不应为空'
-        assert cmd[1:4] == ['-m', 'scripts.checks', 'source.comment-language']
+        assert cmd == [
+            str(tmp_path / 'gradlew'),
+            ':java:tests:quality-gates:runJavaQualityGates',
+            '-PfeipiJavaQualityRules=java-comment-language',
+        ]
+        assert 'check_code_comment_language.py' not in ' '.join(cmd)
 
     @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_includes_policy_file(self, tmp_path: Path):
-        """gate 命令包含 --policy 参数指向 config/technical-terms.json。"""
+    def test_gate_keeps_repository_wide_input_when_group_has_changed_files(self):
+        """该 Gate 不声明增量输入，避免聚合组的变更列表缩小全量语义。"""
         from scripts.gates import executor as gate_executor
 
-        checker = tmp_path / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
-        checker.parent.mkdir(parents=True)
-        checker.write_text('# mock', encoding='utf-8')
-        policy = tmp_path / 'config' / 'technical-terms.json'
-        policy.parent.mkdir(parents=True)
-        policy.write_text('{}', encoding='utf-8')
-
-        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
-
-        assert '--policy' in cmd, f'命令应包含 --policy 参数: {cmd}'
-        policy_idx = cmd.index('--policy')
-        assert 'technical-terms.json' in cmd[policy_idx + 1], (
-            f'--policy 后应为 technical-terms.json: {cmd}'
+        gate = gate_executor.gate_by_name('javaChineseComments')
+        environment = gate_executor.changed_files_environment(
+            gate, ['java/app/src/main/java/App.java']
         )
 
-    @pytest.mark.contract_case('JR-020-001')
-    def test_gate_command_does_not_reference_tmp(self, tmp_path: Path):
-        """gate 命令不得引用 tmp/ 目录下的路径。"""
-        from scripts.gates import executor as gate_executor
-
-        checker = tmp_path / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
-        checker.parent.mkdir(parents=True)
-        checker.write_text('# mock', encoding='utf-8')
-
-        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
-
-        for part in cmd:
-            assert 'tmp' not in str(part) or 'tmp_path' in str(part), (
-                f'命令不应引用 tmp 路径: {cmd}'
-            )
-
-    @pytest.mark.contract_case('JR-020-001')
-    def test_gate_returns_empty_when_checker_missing(self, tmp_path: Path):
-        """检查脚本不存在时返回空列表（BLOCKED）。"""
-        from scripts.gates import executor as gate_executor
-
-        # tmp_path 下不创建检查脚本
-        cmd = gate_executor.gate_command('javaChineseComments', tmp_path, 'java-src')
-        assert cmd == []
+        assert environment == {}
 
 
 # 13. reportHash artifact 完整性测试

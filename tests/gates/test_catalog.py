@@ -61,6 +61,7 @@ def test_changed_files_process_input_is_explicit_and_minimal() -> None:
 
 def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
     expected = {
+        'javaChineseComments': ('java-comment-language',),
         'javaRecordComponentJavadocs': ('record-component-javadocs',),
         'noJavaSuppressWarnings': ('no-pmd-suppressions',),
         'javaApiSnapshot': ('java-api-snapshot',),
@@ -73,6 +74,23 @@ def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
 
     with pytest.raises(ValueError, match='Unknown quality gate'):
         gate_by_name('javaModuleBoundaries')
+
+
+def test_script_comment_gate_scans_only_real_script_sources() -> None:
+    gate = gate_by_name('scriptCommentLanguage')
+    target_rules = {rule.target: rule for rule in gate.target_rules}
+
+    assert gate.targets == ('python-standard', 'java-build')
+    assert target_rules['python-standard'].patterns == ('scripts/**/*.py', 'scripts/**/*.sh')
+    assert target_rules['java-build'].patterns == ('config/technical-terms.json',)
+    assert gate.command is not None
+    assert gate.command.argv == (
+        '{python}',
+        '-m',
+        'scripts.checks',
+        'source.comment-language',
+        'scripts',
+    )
 
 
 def test_java_test_outcomes_use_existing_gradle_owner() -> None:

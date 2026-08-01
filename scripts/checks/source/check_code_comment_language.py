@@ -1,19 +1,16 @@
-"""检查生产源码的中文注释、术语和说明完整性。
+"""检查生产 Python/shell 源码的中文注释、术语和说明完整性。
 
 这项检查保证关键源码说明以中文表达职责和约束。公开入口是 ``check(arguments)``，失败表示
-发现必须改写的注释、docstring 或术语策略问题。"""
+发现必须改写的注释、docstring 或术语策略问题。Java/Kotlin 注释由 Java quality-gates 负责。"""
 
 from __future__ import annotations
 
 import ast
-import concurrent.futures
-import hashlib
 import io
 import json
-import os
 import re
 import tokenize
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 from scripts.checks._framework import CheckResult, argument_parser, repository_root
@@ -37,9 +34,6 @@ LOW_INFORMATION = re.compile(
     r'维护\s+project\s+Python\s+cached|表示\s+[A-Za-z_][\w/.-]*\s*[。.]|'
     r'维护\s+[A-Za-z_][\w.-]*\s+(?:函数)?行为|提供\s+[A-Za-z_][\w.-]*\s+脚本能力',
     re.I,
-)
-JAVA_LOW_INFORMATION = re.compile(
-    r'\b(?:TODO|TBD|FIXME|XXX)\b|待补充|以后补|稍后处理|临时注释|此处保留必要英文术语', re.I
 )
 ENGLISH_SECTION = re.compile(
     r'^(?:Args|Arguments|Parameters|Returns|Yields|Raises|Examples|Attributes|Notes?):\s*$', re.I
@@ -66,7 +60,6 @@ EXCLUDED_PARTS = {
     '__pycache__',
     'tmp',
 }
-JAVA_COMMENT_KINDS = {'line', 'block', 'javadoc'}
 
 
 @dataclass(frozen=True)
@@ -139,9 +132,7 @@ def _check_comment(
                     first[:160],
                 )
             ]
-    script_scope = comment.kind not in JAVA_COMMENT_KINDS
-    low_information = LOW_INFORMATION if script_scope else JAVA_LOW_INFORMATION
-    if low_information.search(raw):
+    if LOW_INFORMATION.search(raw):
         return [
             Violation(
                 comment.path,
@@ -160,7 +151,7 @@ def _check_comment(
     ratio = han_count / max(1, han_count + latin_count)
     min_han = 2 if comment.kind.endswith('line') else 4
     violations: list[Violation] = []
-    min_ratio = 0.08 if comment.kind == 'line' else 0.12
+    min_ratio = 0.12
     if han_count < min_han or ratio < min_ratio:
         violations.append(
             Violation(
@@ -173,7 +164,7 @@ def _check_comment(
             )
         )
     english_words = re.findall(r'\b[A-Za-z]{3,}\b', value)
-    if script_scope and han_count < 6 and len(english_words) >= 3:
+    if han_count < 6 and len(english_words) >= 3:
         violations.append(
             Violation(
                 comment.path,
@@ -181,17 +172,6 @@ def _check_comment(
                 'COMMENT_MECHANICAL_MIXED_LANGUAGE',
                 '说明使用中文前缀包裹英文主体或机械中英混排',
                 '把英文句子改为中文，仅保留集中 allowlist 中的术语',
-                first[:160],
-            )
-        )
-    if '{@inheritDoc}' in raw and han_count < 4:
-        violations.append(
-            Violation(
-                comment.path,
-                comment.line,
-                'INHERITDOC_WITHOUT_CHINESE',
-                '不能只用 inheritDoc 代替中文说明',
-                '补充实现边界或失败语义的中文说明',
                 first[:160],
             )
         )
@@ -421,70 +401,9 @@ def _check_shell_file(path: Path, terms: set[str], forbidden: tuple[str, ...]) -
     return violations
 
 
-def _extract(path: Path) -> list[Comment]:
-    """词法提取 Java/Kotlin 行注释与块注释，忽略字符串和 text block。"""
-    text = path.read_text(encoding='utf-8')
-    out: list[Comment] = []
-    i = 0
-    state = 'normal'
-    start = depth = 0
-    while i < len(text):
-        if state == 'normal':
-            if text.startswith('"""', i):
-                state, i = 'text', i + 3
-            elif text[i] == '"':
-                state, i = 'string', i + 1
-            elif text[i] == "'":
-                state, i = 'char', i + 1
-            elif text.startswith('//', i):
-                start, state, i = i, 'line', i + 2
-            elif text.startswith('/*', i):
-                start, depth, state, i = i, 1, 'block', i + 2
-            else:
-                i += 1
-        elif state in {'string', 'char'}:
-            end = '"' if state == 'string' else "'"
-            if text[i] == '\\':
-                i += 2
-            elif text[i] == end:
-                state, i = 'normal', i + 1
-            else:
-                i += 1
-        elif state == 'text':
-            if text.startswith('"""', i):
-                state, i = 'normal', i + 3
-            else:
-                i += 1
-        elif state == 'line':
-            if text[i] == '\n':
-                out.append(
-                    Comment(str(path), text.count('\n', 0, start) + 1, 'line', text[start + 2 : i])
-                )
-                state = 'normal'
-            i += 1
-        else:
-            if text.startswith('/*', i):
-                depth, i = depth + 1, i + 2
-            elif text.startswith('*/', i):
-                depth, i = depth - 1, i + 2
-                if depth == 0:
-                    kind = 'javadoc' if text.startswith('/**', start) else 'block'
-                    out.append(
-                        Comment(
-                            str(path), text.count('\n', 0, start) + 1, kind, text[start + 2 : i - 2]
-                        )
-                    )
-                    state = 'normal'
-            else:
-                i += 1
-    if state == 'line':
-        out.append(Comment(str(path), text.count('\n', 0, start) + 1, 'line', text[start + 2 :]))
-    return out
-
-
-def _discover(values: list[str], *, script_comments: bool = False) -> list[Path]:
-    """在显式根目录下发现受支持源码，并排除生成物与依赖目录。"""
-    suffixes = {'.py', '.sh'} if script_comments else {'.java', '.kt', '.kts'}
+def _discover(values: list[str]) -> list[Path]:
+    """在显式根目录下发现 Python/shell 源码，并排除生成物与依赖目录。"""
+    suffixes = {'.py', '.sh'}
     result: set[Path] = set()
     for raw in values:
         path = Path(raw)
@@ -501,46 +420,15 @@ def _discover(values: list[str], *, script_comments: bool = False) -> list[Path]
     return sorted(result, key=lambda item: item.as_posix())
 
 
-def _is_under(path: Path, root: Path) -> bool:
-    """判断路径是否位于扫描根内；不解析符号链接，供 changed-files 过滤调用。"""
-    try:
-        path.relative_to(root)
-        return True
-    except ValueError:
-        return False
-
-
-def _filter_changed_paths(values: list[str], changed_files: list[str]) -> list[str]:
-    """保留与扫描根相交的 changed-files，保持输入顺序并去重。"""
-    roots = [Path(raw) for raw in values]
-    result = []
-    for raw in changed_files:
-        path = Path(raw)
-        normalized = path.as_posix()
-        if normalized not in result and any(
-            path == root or _is_under(path, root) for root in roots
-        ):
-            result.append(normalized)
-    return result
-
-
 def check(arguments: list[str]) -> CheckResult:
-    """解析统一入口参数，保留报告和缓存副作用并返回注释违规诊断。"""
-    parser = argument_parser(description='生产源码中文注释契约检查器')
+    """解析统一入口参数，返回 Python/shell 注释违规诊断。"""
+    parser = argument_parser(description='Python/shell 生产源码中文注释契约检查器')
     parser.add_argument(
         'paths',
         nargs='*',
-        default=['java', 'gradle/build-logic', 'build.gradle.kts', 'settings.gradle.kts'],
+        default=['scripts'],
     )
-    parser.add_argument('--jobs', default='auto')
     parser.add_argument('--policy', default=str(REPO_ROOT / 'config' / 'technical-terms.json'))
-    parser.add_argument('--json-report')
-    parser.add_argument('--cache')
-    parser.add_argument('--files-from')
-    parser.add_argument(
-        '--script-comments', action='store_true', help='扫描 production Python/shell 注释契约'
-    )
-    parser.add_argument('--changed-files-env')
     args = parser.parse_args(arguments)
     try:
         terms, forbidden = _load_policy(Path(args.policy))
@@ -548,84 +436,13 @@ def check(arguments: list[str]) -> CheckResult:
         return CheckResult.from_errors(
             [f'{args.policy}:1: POLICY_INVALID: {exc}: suggestion=修复集中术语策略后重试']
         )
-    paths = args.paths
-    if args.files_from:
-        raw = Path(args.files_from).read_text(encoding='utf-8').strip()
-        paths = json.loads(raw) if raw.startswith('[') else raw.splitlines()
-    if args.changed_files_env:
-        try:
-            selected = json.loads(os.environ.get(args.changed_files_env, '[]'))
-        except json.JSONDecodeError:
-            selected = []
-        paths = _filter_changed_paths(paths, selected if isinstance(selected, list) else [])
-    files = _discover(paths, script_comments=args.script_comments)
-    jobs = (
-        min(16, max(1, os.cpu_count() or 1), max(1, len(files)))
-        if args.jobs == 'auto'
-        else max(1, int(args.jobs))
-    )
-    policy_hash = hashlib.sha256(
-        json.dumps([sorted(terms), sorted(forbidden), 'checker-v3']).encode()
-    ).hexdigest()
-    cache = {'policy_hash': policy_hash, 'entries': {}}
-    if args.cache and Path(args.cache).exists():
-        try:
-            loaded = json.loads(Path(args.cache).read_text(encoding='utf-8'))
-            if loaded.get('policy_hash') == policy_hash:
-                cache = loaded
-        except (OSError, json.JSONDecodeError):
-            pass
-
-    def _scan(path: Path) -> tuple[str, str, list[Violation]]:
-        """扫描单个文件并复用内容哈希一致的缓存结果。"""
-        digest = hashlib.sha256(path.read_bytes()).hexdigest()
-        old = cache.get('entries', {}).get(path.as_posix())
-        if old and old.get('sha256') == digest:
-            return str(path), digest, [Violation(**item) for item in old.get('violations', [])]
-        if args.script_comments and path.suffix == '.py':
-            violations = _check_python_file(path, terms, forbidden)
-        elif args.script_comments and path.suffix == '.sh':
-            violations = _check_shell_file(path, terms, forbidden)
-        else:
-            violations = [
-                item
-                for comment in _extract(path)
-                for item in _check_comment(comment, terms, forbidden)
-            ]
-        return str(path), digest, violations
-
     all_violations: list[Violation] = []
-    entries = {}
-    with concurrent.futures.ThreadPoolExecutor(max_workers=jobs) as pool:
-        for path_str, digest, violations in pool.map(_scan, files):
-            all_violations.extend(violations)
-            entries[path_str] = {
-                'sha256': digest,
-                'violations': [asdict(item) for item in violations],
-            }
+    for path in _discover(args.paths):
+        if path.suffix == '.py':
+            all_violations.extend(_check_python_file(path, terms, forbidden))
+        else:
+            all_violations.extend(_check_shell_file(path, terms, forbidden))
     all_violations.sort(key=lambda item: (item.path, item.line, item.code))
-    if args.cache:
-        target = Path(args.cache)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            json.dumps(
-                {'policy_hash': policy_hash, 'entries': entries}, ensure_ascii=False, indent=2
-            )
-            + '\n',
-            encoding='utf-8',
-        )
-    if args.json_report:
-        target = Path(args.json_report)
-        target.parent.mkdir(parents=True, exist_ok=True)
-        target.write_text(
-            json.dumps(
-                {'files': len(files), 'violations': [asdict(item) for item in all_violations]},
-                ensure_ascii=False,
-                indent=2,
-            )
-            + '\n',
-            encoding='utf-8',
-        )
     return CheckResult.from_errors(
         (
             f'{item.path}:{item.line}: {item.code}: {item.message}: suggestion={item.suggestion}: {item.preview}'

@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.feipi.session.browser.quality.gates.core.JavaSourceSet;
 import com.feipi.session.browser.quality.gates.core.QualityContext;
+import com.feipi.session.browser.quality.gates.core.RepositorySourceSet;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -21,7 +22,13 @@ class RecordComponentJavadocsRuleTest {
       var sourceSet = JavaSourceSet.parse(repo, sources);
       var violations =
           new RecordComponentJavadocsRule()
-              .check(new QualityContext(repo, sourceSet, repo.resolve("unused"), false));
+              .check(
+                  new QualityContext(
+                      repo,
+                      sourceSet,
+                      new RepositorySourceSet(java.util.List.of()),
+                      repo.resolve("unused"),
+                      false));
 
       assertThat(violations).hasSize(6);
       assertThat(violations)

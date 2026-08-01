@@ -59,6 +59,43 @@ def test_declarative_catalog_change_triggers_gate_service_contracts() -> None:
     assert {'ignoredTrackedFiles', 'misplacedGeneratedPaths', 'repoStructure'} <= names
 
 
+def test_technical_terms_policy_triggers_both_language_owners() -> None:
+    gate_plan = plan(['config/technical-terms.json'])
+
+    assert gate_plan.raw_targets == ('java-build',)
+    assert gate_plan.effective_targets == ('java-build',)
+    names = [gate.name for gate in gate_plan.logical_gates]
+    assert {'javaChineseComments', 'scriptCommentLanguage'} <= set(names)
+    assert names.count('javaChineseComments') == 1
+    assert names.count('scriptCommentLanguage') == 1
+
+
+def test_script_change_triggers_script_comment_owner() -> None:
+    gate_plan = plan(['scripts/checks/source/check_code_comment_language.py'])
+
+    names = [gate.name for gate in gate_plan.logical_gates]
+    assert gate_plan.raw_targets[:1] == ('python-standard',)
+    assert names.count('scriptCommentLanguage') == 1
+
+
+def test_web_change_does_not_trigger_script_comment_owner() -> None:
+    gate_plan = plan(['java/web/src/main/resources/static/css/session-detail.css'])
+
+    assert 'scriptCommentLanguage' not in {gate.name for gate in gate_plan.logical_gates}
+
+
+def test_kotlin_source_selects_only_compatible_java_comment_rule() -> None:
+    gate_plan = plan(['java/sample/src/main/kotlin/example/Foo.kt'])
+
+    assert gate_plan.raw_targets == ('java-src',)
+    assert gate_plan.effective_targets == ('java-src',)
+    names = [gate.name for gate in gate_plan.logical_gates]
+    assert names.count('javaChineseComments') == 1
+    assert 'javaCheck' not in names
+    assert 'javaRecordComponentJavadocs' not in names
+    assert 'noJavaSuppressWarnings' not in names
+
+
 def test_java_source_dominates_build_without_duplicate_logical_gates() -> None:
     gate_plan = plan(
         [

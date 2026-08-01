@@ -34,6 +34,11 @@ public final class JavaApiSnapshotRule implements QualityRule {
   }
 
   @Override
+  public boolean usesChangedFiles() {
+    return false;
+  }
+
+  @Override
   public List<QualityViolation> check(QualityContext context) throws Exception {
     var current = generate(context);
     if (context.writeApiSnapshot()) {
@@ -408,6 +413,7 @@ public final class JavaApiSnapshotRule implements QualityRule {
    */
   private record TypeNode(ClassTree tree, List<TypeNode> children) {}
 
+  /** 按源码嵌套层级收集类型节点，供公开 API 快照生成器稳定遍历。 */
   private static final class TypeCollector extends TreePathScanner<Void, List<TypeNode>> {
     private final ParsedSource source;
 

@@ -56,7 +56,9 @@ class QualityGateCliTest {
     assertThat(empty.exitCode()).isZero();
     assertThat(empty.out())
         .contains("\"status\":\"NOT_APPLICABLE\"")
-        .contains("\"candidateCount\":0");
+        .contains("\"candidateCount\":0")
+        .contains(
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
     assertThat(windows.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(windows.out()).contains("java/sample/src/main/java/example/Broken.java");
   }
@@ -69,6 +71,88 @@ class QualityGateCliTest {
 
     assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(result.err()).contains("failed closed").contains("JSON string array");
+  }
+
+  @Test
+  void mixedRulesApplyChangedFilesPerRule() throws Exception {
+    write(
+        "config/technical-terms.json",
+        "{\"canonical_terms\":[\"Java\"],\"forbidden_translations\":[]}\n");
+    write(
+        "java/sample/src/main/java/example/Unmodified.java",
+        """
+        package example;
+        // Read cached execution result from local storage.
+        public record Unmodified(String value) {}
+        """);
+    write(
+        "java/sample/src/main/java/example/Modified.java",
+        "package example; public record Modified(String value) {}\n");
+    var result =
+        invoke(
+            new String[] {
+              "--repo-root",
+              repo.toString(),
+              "--paths",
+              repo.resolve("java").toString(),
+              "--rules",
+              "java-comment-language,record-component-javadocs"
+            },
+            Map.of(
+                "QUALITY_CHANGED_FILES", "[\"java/sample/src/main/java/example/Modified.java\"]"));
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out())
+        .contains(
+            "\"rule\":\"java-comment-language\",\"path\":\"java/sample/src/main/java/example/Unmodified.java\"")
+        .contains(
+            "\"rule\":\"record-component-javadocs\",\"path\":\"java/sample/src/main/java/example/Modified.java\"")
+        .doesNotContain(
+            "\"rule\":\"record-component-javadocs\",\"path\":\"java/sample/src/main/java/example/Unmodified.java\"");
+  }
+
+  @Test
+  void testOnlyJavaDoesNotTurnZeroCandidateMainRuleIntoPassed() throws Exception {
+    write(
+        "config/technical-terms.json",
+        "{\"canonical_terms\":[\"Java\"],\"forbidden_translations\":[]}\n");
+    var source =
+        write(
+            "java/sample/src/test/java/example/SampleTest.java",
+            "package example; // 验证测试路径。\nclass SampleTest {}\n");
+
+    var result =
+        run(
+            "java-comment-language,record-component-javadocs",
+            "[\"java/sample/src/test/java/example/SampleTest.java\"]",
+            source);
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.out())
+        .contains("\"status\":\"PASSED\"")
+        .contains(
+            "{\"rule\":\"java-comment-language\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+        .contains(
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
+  }
+
+  @Test
+  void zeroCandidateRuleIsNotExecuted() throws Exception {
+    write(
+        "config/technical-terms.json",
+        "{\"canonical_terms\":[\"Java\"],\"forbidden_translations\":[]}\n");
+    var source =
+        write(
+            "java/sample/src/main/kotlin/example/Sample.kt",
+            "package example\n// 验证 Kotlin 路径。\nclass Sample\n");
+
+    var result = run("java-comment-language,java-api-snapshot", null, source);
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.out())
+        .doesNotContain("JAVA_API_SNAPSHOT_MISSING")
+        .contains(
+            "{\"rule\":\"java-api-snapshot\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
   }
 
   @Test

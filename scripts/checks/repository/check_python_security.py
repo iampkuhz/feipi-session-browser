@@ -1,7 +1,8 @@
 """执行 Python 依赖漏洞与高危源码安全检查。
 
-唯一入口 ``check(arguments)`` 串行执行锁文件审计和 Bandit；失败诊断保留底层工具输出，使 Gate
-执行器仍能把漏洞服务不可用归约为 ``BLOCKED``，而真实漏洞或高危问题归约为 ``FAIL``。
+这项检查用于防止已知漏洞依赖或高危源码进入仓库。唯一入口 ``check(arguments)`` 串行执行锁文件
+审计和 Bandit；失败诊断保留底层工具输出，使 Gate 执行器仍能把漏洞服务不可用归约为
+``BLOCKED``，而真实漏洞或高危问题归约为 ``FAIL``。
 """
 
 from __future__ import annotations

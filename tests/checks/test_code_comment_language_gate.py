@@ -189,33 +189,63 @@ def test_hook_wrapper_requires_chinese_delegation_boundary(tmp_path: Path) -> No
     assert scan_shell(tmp_path, documented, hook=True) == []
 
 
-def test_java_lexer_ignores_comment_markers_inside_strings(tmp_path: Path) -> None:
-    path = tmp_path / 'Sample.java'
-    path.write_text('class Sample { String value = "// English text"; }', encoding='utf-8')
-    assert checker._extract(path) == []
-
-
-def test_java_keeps_legacy_line_comment_threshold_and_term_mix() -> None:
-    comment = checker.Comment('Sample.java', 7, 'line', '退出码：mismatch → 1，source error → 2')
-    assert checker._check_comment(comment, TERMS, FORBIDDEN) == []
-
-
-def test_java_still_rejects_english_dominant_comment() -> None:
-    comment = checker.Comment(
-        'Sample.java', 7, 'line', 'Read cached execution result from local storage.'
-    )
-    assert 'COMMENT_NOT_CHINESE_DOMINANT' in codes(
-        checker._check_comment(comment, TERMS, FORBIDDEN)
+def test_public_check_accepts_valid_script(tmp_path: Path) -> None:
+    """公开入口直接扫描显式路径，合法源码不产生诊断。"""
+    source = tmp_path / 'tool.py'
+    source.write_text(
+        '"""负责读取检查输入；不负责写入数据，由 Gate CLI 调用。"""\n',
+        encoding='utf-8',
     )
 
+    assert checker.check(
+        [str(source), '--policy', str(REPO_ROOT / 'config/technical-terms.json')]
+    ).passed
 
-def test_java_does_not_inherit_script_only_template_policy() -> None:
-    comment = checker.Comment('Sample.java', 7, 'javadoc', '此对象表示 Sample 的来源信息。')
-    assert checker._check_comment(comment, TERMS, FORBIDDEN) == []
+
+def test_public_check_reports_comment_violation(tmp_path: Path) -> None:
+    """公开入口返回带路径和规则代码的可定位诊断。"""
+    source = tmp_path / 'tool.py'
+    source.write_text(
+        '"""负责读取检查输入；不负责写入数据，由 Gate CLI 调用。"""\n'
+        '# Run migration command from local cache.\n',
+        encoding='utf-8',
+    )
+
+    result = checker.check(
+        [str(source), '--policy', str(REPO_ROOT / 'config/technical-terms.json')]
+    )
+
+    assert not result.passed
+    messages = [diagnostic.message for diagnostic in result.diagnostics]
+    assert all(str(source) in message for message in messages)
+    assert any('COMMENT_NOT_CHINESE_DOMINANT' in message for message in messages)
 
 
-def test_filter_changed_paths_limits_roots() -> None:
-    assert checker._filter_changed_paths(
-        ['scripts', '.claude/hooks'],
-        ['scripts/tool.py', '.claude/hooks/stop.sh', 'tests/test_tool.py'],
-    ) == ['scripts/tool.py', '.claude/hooks/stop.sh']
+@pytest.mark.parametrize('policy_state', ['missing', 'invalid'])
+def test_public_check_fails_closed_for_invalid_policy(tmp_path: Path, policy_state: str) -> None:
+    """集中策略缺失或 JSON 无效时，公开入口必须返回失败而不是跳过检查。"""
+    policy = tmp_path / 'policy.json'
+    if policy_state == 'invalid':
+        policy.write_text('{not-json', encoding='utf-8')
+
+    result = checker.check(['--policy', str(policy)])
+
+    assert not result.passed
+    assert 'POLICY_INVALID' in result.diagnostics[0].message
+
+
+@pytest.mark.parametrize(
+    'legacy_option',
+    [
+        '--jobs',
+        '--json-report',
+        '--cache',
+        '--files-from',
+        '--script-comments',
+        '--changed-files-env',
+    ],
+)
+def test_public_check_rejects_removed_legacy_options(legacy_option: str) -> None:
+    """已删除的并发、缓存和增量参数不得继续形成隐藏兼容入口。"""
+    with pytest.raises(SystemExit):
+        checker.check([legacy_option])

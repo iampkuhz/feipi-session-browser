@@ -3,9 +3,13 @@ package com.feipi.session.browser.quality.gates.cli;
 import com.feipi.session.browser.quality.gates.core.JavaSourceSet;
 import com.feipi.session.browser.quality.gates.core.QualityContext;
 import com.feipi.session.browser.quality.gates.core.QualityGateRegistry;
+import com.feipi.session.browser.quality.gates.core.QualityRule;
 import com.feipi.session.browser.quality.gates.core.QualitySummary;
+import com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution;
 import com.feipi.session.browser.quality.gates.core.QualityViolation;
+import com.feipi.session.browser.quality.gates.core.RepositorySourceSet;
 import com.feipi.session.browser.quality.gates.rules.JavaApiSnapshotRule;
+import com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule;
 import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
 import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule;
 import java.io.PrintStream;
@@ -13,9 +17,11 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
-import java.util.LinkedHashSet;
+import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 /** 多规则 Java quality-gate 的唯一 CLI 入口。 */
 public final class QualityGateCli {
@@ -45,32 +51,71 @@ public final class QualityGateCli {
       if (options.writeApiSnapshot() && !options.rules().contains("java-api-snapshot")) {
         throw new IllegalArgumentException("--write-api-snapshot requires java-api-snapshot rule");
       }
-      var allCandidates = discover(options.repoRoot(), options.paths());
+      var selectedRules = registry.select(options.rules());
+      var allSources =
+          RepositorySourceSet.discover(
+              options.repoRoot(),
+              options.paths(),
+              path -> selectedRules.stream().anyMatch(rule -> rule.supportsPath(path)));
       var changedJson = options.changedFiles();
       if (changedJson == null) {
         changedJson = environment.get("QUALITY_CHANGED_FILES");
       }
-      var candidates =
-          options.rules().contains("java-api-snapshot") || changedJson == null
-              ? allCandidates
-              : selectChanged(options.repoRoot(), allCandidates, parseStringArray(changedJson));
-      if (candidates.isEmpty()) {
-        return writeSummary(options, "NOT_APPLICABLE", 0, List.of(), QualityGateExitCodes.OK, out);
+      var changedPaths =
+          changedJson != null && selectedRules.stream().anyMatch(QualityRule::usesChangedFiles)
+              ? changedPaths(options.repoRoot(), parseStringArray(changedJson))
+              : null;
+      var sourcesByRule = new LinkedHashMap<String, RepositorySourceSet>();
+      var candidateIndex = new LinkedHashMap<Path, RepositorySourceSet.SourceText>();
+      for (var rule : selectedRules) {
+        var ruleSources = selectForRule(allSources, rule, changedPaths);
+        sourcesByRule.put(rule.id(), ruleSources);
+        for (var source : ruleSources.sources()) {
+          candidateIndex.put(source.path(), source);
+        }
       }
-      var sources = JavaSourceSet.parse(options.repoRoot(), candidates);
+      var repositorySources =
+          new RepositorySourceSet(
+              candidateIndex.values().stream()
+                  .sorted(Comparator.comparing(RepositorySourceSet.SourceText::relativePath))
+                  .toList());
+      if (repositorySources.sources().isEmpty()) {
+        var executions =
+            selectedRules.stream().map(rule -> new RuleExecution(rule.id(), 0, List.of())).toList();
+        return writeSummary(options, 0, executions, QualityGateExitCodes.OK, out);
+      }
+      var javaCandidates =
+          repositorySources.sources().stream()
+              .filter(source -> source.relativePath().endsWith(".java"))
+              .map(RepositorySourceSet.SourceText::path)
+              .toList();
+      // 纯 Kotlin 批次不启动空 javac task；Java 规则不会收到这批候选。
+      var sources =
+          javaCandidates.isEmpty()
+              ? new JavaSourceSet(List.of(), null)
+              : JavaSourceSet.parse(options.repoRoot(), javaCandidates);
       var context =
           new QualityContext(
-              options.repoRoot(), sources, options.apiSnapshot(), options.writeApiSnapshot());
-      var violations = new ArrayList<QualityViolation>();
-      for (var rule : registry.select(options.rules())) {
-        violations.addAll(rule.check(context));
+              options.repoRoot(),
+              sources,
+              repositorySources,
+              options.apiSnapshot(),
+              options.writeApiSnapshot());
+      var executions = new ArrayList<RuleExecution>();
+      for (var rule : selectedRules) {
+        var ruleSources = sourcesByRule.get(rule.id());
+        var violations =
+            ruleSources.sources().isEmpty()
+                ? List.<QualityViolation>of()
+                : rule.check(contextForRule(context, ruleSources));
+        executions.add(new RuleExecution(rule.id(), ruleSources.sources().size(), violations));
       }
+      var hasViolations = executions.stream().anyMatch(item -> !item.violations().isEmpty());
       return writeSummary(
           options,
-          violations.isEmpty() ? "PASSED" : "FAILED",
-          candidates.size(),
-          violations,
-          violations.isEmpty() ? QualityGateExitCodes.OK : QualityGateExitCodes.VIOLATIONS,
+          repositorySources.sources().size(),
+          executions,
+          hasViolations ? QualityGateExitCodes.VIOLATIONS : QualityGateExitCodes.OK,
           out);
     } catch (Exception exception) {
       err.println("Java quality gates failed closed: " + exception.getMessage());
@@ -78,15 +123,32 @@ public final class QualityGateCli {
     }
   }
 
+  private static QualityContext contextForRule(
+      QualityContext context, RepositorySourceSet repositorySources) {
+    var selectedPaths =
+        repositorySources.sources().stream()
+            .map(RepositorySourceSet.SourceText::path)
+            .collect(java.util.stream.Collectors.toSet());
+    var javaSources =
+        context.sources().sources().stream()
+            .filter(source -> selectedPaths.contains(source.path()))
+            .toList();
+    return new QualityContext(
+        context.repoRoot(),
+        new JavaSourceSet(javaSources, context.sources().docTrees()),
+        repositorySources,
+        context.apiSnapshot(),
+        context.writeApiSnapshot());
+  }
+
   private static int writeSummary(
       Options options,
-      String status,
       int candidateCount,
-      List<QualityViolation> violations,
+      List<RuleExecution> executions,
       int exitCode,
       PrintStream out)
       throws Exception {
-    var summary = QualitySummary.json(status, candidateCount, options.rules(), violations);
+    var summary = QualitySummary.json(candidateCount, executions);
     if (options.reportFile() != null) {
       var parent = options.reportFile().toAbsolutePath().getParent();
       if (parent != null) {
@@ -98,37 +160,27 @@ public final class QualityGateCli {
     return exitCode;
   }
 
-  private static List<Path> discover(Path repoRoot, List<Path> paths) throws Exception {
-    var result = new LinkedHashSet<Path>();
-    for (var input : paths) {
-      var path = input.isAbsolute() ? input : repoRoot.resolve(input);
-      path = path.toAbsolutePath().normalize();
-      if (Files.isRegularFile(path) && path.toString().endsWith(".java")) {
-        result.add(path);
-      } else if (Files.isDirectory(path)) {
-        try (var stream = Files.walk(path)) {
-          stream
-              .filter(Files::isRegularFile)
-              .filter(file -> file.toString().endsWith(".java"))
-              .filter(file -> JavaSourceSet.normalize(file).contains("/src/main/java/"))
-              .filter(file -> !JavaSourceSet.normalize(file).contains("/build/"))
-              .forEach(file -> result.add(file.toAbsolutePath().normalize()));
-        }
-      }
-    }
-    return result.stream().sorted().toList();
+  private static Set<Path> changedPaths(Path repoRoot, List<String> changedFiles) {
+    return changedFiles.stream()
+        .map(path -> path.replace('\\', '/'))
+        .map(Path::of)
+        .map(path -> path.isAbsolute() ? path : repoRoot.resolve(path))
+        .map(path -> path.toAbsolutePath().normalize())
+        .collect(java.util.stream.Collectors.toUnmodifiableSet());
   }
 
-  private static List<Path> selectChanged(
-      Path repoRoot, List<Path> candidates, List<String> changedFiles) {
-    var changed =
-        changedFiles.stream()
-            .map(path -> path.replace('\\', '/'))
-            .map(Path::of)
-            .map(path -> path.isAbsolute() ? path : repoRoot.resolve(path))
-            .map(path -> path.toAbsolutePath().normalize())
-            .collect(java.util.stream.Collectors.toSet());
-    return candidates.stream().filter(changed::contains).toList();
+  private static RepositorySourceSet selectForRule(
+      RepositorySourceSet sources, QualityRule rule, Set<Path> changedPaths) {
+    var selected =
+        sources.sources().stream()
+            .filter(source -> rule.supportsPath(source.relativePath()))
+            .filter(
+                source ->
+                    changedPaths == null
+                        || !rule.usesChangedFiles()
+                        || changedPaths.contains(source.path()))
+            .toList();
+    return new RepositorySourceSet(selected);
   }
 
   private static List<String> parseStringArray(String json) {
@@ -205,6 +257,7 @@ public final class QualityGateCli {
   /** 创建所有 Java source rule 的单一 registry。 */
   public static QualityGateRegistry registry() {
     return QualityGateRegistry.builder()
+        .register(new JavaCommentLanguageRule())
         .register(new RecordComponentJavadocsRule())
         .register(new NoPmdSuppressionsRule())
         .register(new JavaApiSnapshotRule())

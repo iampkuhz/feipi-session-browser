@@ -20,7 +20,7 @@ import javax.tools.ToolProvider;
  * <p>所有规则共享同一批 {@link CompilationUnitTree}、{@link DocTrees} 和源码位置；规则不得自行扫描 Git 或再次解析源码。
  *
  * @param sources 已按仓库相对路径排序的源码。
- * @param docTrees JDK compiler 文档树入口。
+ * @param docTrees JDK compiler 文档树入口；纯 Kotlin 候选时为空。
  */
 public record JavaSourceSet(List<ParsedSource> sources, DocTrees docTrees) {
 

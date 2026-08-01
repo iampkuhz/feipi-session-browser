@@ -3,6 +3,7 @@ plugins {
 }
 
 dependencies {
+    implementation(libs.jackson.databind)
     testImplementation(libs.junit.jupiter)
     testImplementation(libs.assertj.core)
 }
@@ -18,11 +19,24 @@ val writeApiSnapshot = providers.gradleProperty("feipiJavaApiSnapshotWrite")
     .map(String::toBoolean)
     .orElse(false)
 val apiSnapshot = rootProject.layout.projectDirectory.file("config/api-snapshots/java-public-api.txt")
+val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
 val summary = layout.buildDirectory.file("reports/java-quality-gates/summary.json")
 val javaMainSources = rootProject.fileTree("java") {
     include("**/src/main/java/**/*.java")
     exclude("**/build/**")
 }
+val jvmCommentSources = rootProject.files(
+    rootProject.fileTree("java") {
+        include("**/*.java", "**/*.kt", "**/*.kts")
+        exclude("**/build/**", "**/.gradle/**", "**/generated/**", "**/gen/**")
+    },
+    rootProject.fileTree("gradle/build-logic") {
+        include("**/*.java", "**/*.kt", "**/*.kts")
+        exclude("**/build/**", "**/.gradle/**", "**/generated/**")
+    },
+    rootProject.layout.projectDirectory.file("build.gradle.kts"),
+    rootProject.layout.projectDirectory.file("settings.gradle.kts"),
+)
 
 // 所有 Java source rules 共用这一项公开 JavaExec；禁止增加逐 rule alias/task。
 tasks.register<JavaExec>("runJavaQualityGates") {
@@ -33,6 +47,15 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     jvmArgs("--add-modules", "jdk.compiler")
 
     inputs.files(javaMainSources).withPropertyName("javaMainSources").withPathSensitivity(PathSensitivity.RELATIVE)
+    val selectedRules = javaQualityRules.get().split(',').map(String::trim)
+    if ("java-comment-language" in selectedRules) {
+        inputs.files(jvmCommentSources)
+            .withPropertyName("jvmCommentSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.file(technicalTermsPolicy)
+            .withPropertyName("technicalTermsPolicy")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
     inputs.property("rules", javaQualityRules)
     inputs.property("changedFiles", changedFiles)
     inputs.property("writeApiSnapshot", writeApiSnapshot)
@@ -44,9 +67,19 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     }
     outputs.cacheIf("deterministic compiler AST report") { true }
 
+    val sourcePaths = if ("java-comment-language" in selectedRules) {
+        listOf(
+            rootProject.file("java"),
+            rootProject.file("gradle/build-logic"),
+            rootProject.file("build.gradle.kts"),
+            rootProject.file("settings.gradle.kts"),
+        )
+    } else {
+        listOf(rootProject.file("java"))
+    }
     args(
         "--repo-root", rootProject.projectDir.absolutePath,
-        "--paths", rootProject.file("java").absolutePath,
+        "--paths", sourcePaths.joinToString(",") { it.absolutePath },
         "--rules", javaQualityRules.get(),
         "--api-snapshot", apiSnapshot.asFile.absolutePath,
         "--report-file", summary.get().asFile.absolutePath,

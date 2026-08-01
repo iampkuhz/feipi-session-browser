@@ -305,13 +305,14 @@ gates:
 - name: scriptCommentLanguage
   description: 执行 scriptCommentLanguage 所定义的仓库质量检查。
   targets:
-  - name: session-detail
-    order: 2
+  - name: python-standard
+    order: 8
     patterns:
-    - java/web/src/main/resources/static/**/*.js
-    - java/web/src/main/resources/static/**/*.css
-    - java/web/src/main/resources/templates/**/*.html
-    - scripts/checks/source/check_code_comment_language.py
+    - scripts/**/*.py
+    - scripts/**/*.sh
+  - name: java-build
+    order: 6
+    patterns:
     - config/technical-terms.json
   tiers:
   - required
@@ -327,10 +328,7 @@ gates:
     - -m
     - scripts.checks
     - source.comment-language
-    - --script-comments
     - scripts
-    - java/web/src/main/resources/static
-    - java/web/src/main/resources/templates
     required_paths:
     - scripts/checks/source/check_code_comment_language.py
     optional_args:
@@ -1044,7 +1042,19 @@ gates:
     patterns:
     - java/**/src/main/java/**/*.java
     - java/**/src/test/java/**/*.java
+    - java/**/src/main/kotlin/**/*.kt
+    - java/**/src/test/kotlin/**/*.kt
     - '**/*.java'
+  - name: java-build
+    order: 1
+    patterns:
+    - config/technical-terms.json
+    - gradle/build-logic/**/*.java
+    - gradle/build-logic/**/*.kt
+    - gradle/build-logic/**/*.kts
+    - build.gradle.kts
+    - settings.gradle.kts
+    - java/**/build.gradle.kts
   tiers:
   - required
   - full
@@ -1052,20 +1062,11 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - source.comment-language
-    required_paths:
-    - scripts/checks/source/check_code_comment_language.py
-    optional_args:
-    - path: config/technical-terms.json
-      argv:
-      - --policy
-      - '{repo_root}/config/technical-terms.json'
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - java-comment-language
 - name: javaRecordComponentJavadocs
   description: 执行 javaRecordComponentJavadocs 所定义的仓库质量检查。
   targets:
@@ -1265,6 +1266,8 @@ path_rules:
   patterns:
   - java/**/src/main/java/**/*.java
   - java/**/src/test/java/**/*.java
+  - java/**/src/main/kotlin/**/*.kt
+  - java/**/src/test/kotlin/**/*.kt
   requires_quality_gate: true
   quality_target: java-src
   risk: medium
@@ -1273,6 +1276,7 @@ path_rules:
   patterns:
   - gradle/build-logic/**
   - gradle/**
+  - config/technical-terms.json
   - config/api-snapshots/java-public-api.txt
   - config/architecture/java-modules.yaml
   - config/pmd/**

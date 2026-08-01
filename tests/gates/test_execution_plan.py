@@ -49,7 +49,8 @@ def test_mixed_required_uses_one_gradle_group_and_changed_files_environment() ->
     assert json.loads(dict(gradle_groups[0].environment)['QUALITY_CHANGED_FILES']) == MIXED_FILES
     java_rule_properties = [part for part in command if part.startswith('-PfeipiJavaQualityRules=')]
     assert java_rule_properties == [
-        '-PfeipiJavaQualityRules=record-component-javadocs,no-pmd-suppressions'
+        '-PfeipiJavaQualityRules=java-comment-language,record-component-javadocs,'
+        'no-pmd-suppressions'
     ]
     assert '--no-configuration-cache' not in command
     assert 'clean' not in command
