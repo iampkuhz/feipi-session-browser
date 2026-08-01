@@ -13,20 +13,30 @@
 | `web.js-action-handlers` | JS action handler 完整性检查 | 改 JS 或模板按钮时必跑 |
 | `web.css-ownership` | CSS ownership 校验 | 改 CSS 时必跑 |
 | `repository.repo-slimming` | Legacy CSS 检查 | 改 CSS 时必跑 |
-| `web.layout-inline-style` | Inline style 检查 | 改模板时必跑 |
-| `web.raw-innerhtml` | Raw innerHTML 检查 | 改 JS 或模板时必跑 |
+| `layoutInlineStyle` | Java `layout-inline-style` rule | 改模板时必跑 |
+| `rawInnerhtml` | Java `raw-innerhtml` rule | 改 JS 时必跑 |
 
 ## 选择策略
 
-- **只改模板 HTML**：`web.session-detail-static` + `web.layout-inline-style` + `web.raw-innerhtml`。
+- **只改模板 HTML**：`web.session-detail-static` + `layoutInlineStyle`。
 - **只改 CSS**：`web.css-ownership` + `repository.repo-slimming` + `web.session-detail-static`（如涉及 shell）。
-- **只改 JS**：`web.js-action-handlers` + `web.raw-innerhtml` + Node Playwright 交互 gate。
-- **改布局或 shell**：Node Playwright 布局 gate + `web.session-detail-static` + `web.layout-inline-style`。
+- **只改 JS**：`web.js-action-handlers` + `rawInnerhtml` + Node Playwright 交互 gate。
+- **改布局或 shell**：Node Playwright 布局 gate + `web.session-detail-static` + `layoutInlineStyle`。
 - **收口前**：运行静态 gate 与 `npm --prefix tests/playwright test --`。
 
-## Baseline 文件
+## Baseline 文件与显式维护
 
-- `scripts/checks/web/baselines/layout_inline_style_baseline.json` — 行内样式基线数据。
-- `scripts/checks/web/baselines/innerhtml_baseline.json` — innerHTML 基线数据。
+- `config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries` — 行内样式基线。
+- `config/web-quality-baselines.json` 的 `rules.raw-innerhtml.entries` — innerHTML 基线。
 
-修改 baseline 前必须确认变更是有意为之，不是为了绕过 gate。
+修改 baseline 前必须确认变更是有意为之，不是为了绕过 gate。完成审阅后，才可显式执行唯一 Gradle task：
+
+```bash
+./gradlew :java:tests:quality-gates:runJavaQualityGates \
+  -PfeipiJavaQualityRules=layout-inline-style \
+  -PfeipiJavaQualityBaselineUpdateRules=layout-inline-style
+
+./gradlew :java:tests:quality-gates:runJavaQualityGates \
+  -PfeipiJavaQualityRules=raw-innerhtml \
+  -PfeipiJavaQualityBaselineUpdateRules=raw-innerhtml
+```

@@ -9,7 +9,8 @@
 - 复用已有 macro，不重新发明组件。
 - 修改 macro 前必须搜索所有调用点，确认不会影响其他页面。
 - 模板中不直接嵌入 `<style>` 或 inline style。
-- 模板中不直接使用 raw `innerHTML`，必须通过 `web.raw-innerhtml` 校验。
+- 模板中不嵌入处理 `innerHTML` 的脚本；静态 JS 变更不得新增 raw `innerHTML`，并必须通过 catalog Gate
+  `rawInnerhtml` 校验。
 
 ## CSS ownership
 
@@ -32,7 +33,8 @@
 - Session detail shell 是页面的外层容器，控制整体布局结构。
 - Shell 变更影响所有子组件的布局，必须运行 `npm --prefix tests/playwright test -- session-detail-layout.spec.js`。
 - Shell CSS 由 `web.session-detail-static` 守护，不允许随意修改 shell 类名。
-- Layout 变更必须更新 layout baseline（`layout_inline_style_baseline.json`）。
+- Layout 变更应优先消除 inline style；只有经审阅确认保留时，才显式更新
+  `config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries`。
 
 ## 禁止 legacy CSS
 
@@ -52,7 +54,7 @@
 
 1. **单独文本框式散乱 CSS**：每个样式规则散落在不同文件中，没有统一 ownership，导致样式冲突和覆盖。
 2. **新增全局 id selector**：使用 `#some-id` 选择器绕过 class 体系，破坏 CSS ownership 模型。
-3. **使用 inline style 绕过 gate**：在模板中直接写 `style="..."` 绕过 CSS ownership 检查，被 `web.layout-inline-style` 拦截。
+3. **使用 inline style 绕过 gate**：在模板中直接写 `style="..."` 绕过 CSS ownership 检查，被 catalog Gate `layoutInlineStyle` 拦截。
 4. **删除按钮但不删 JS handler**：模板中移除了按钮元素，但对应的 JS 事件绑定仍然存在，导致 `web.js-action-handlers` 报错或运行时错误。
 5. **修改 macro 不检查所有调用点**：只修改了 macro 定义，没有搜索和验证所有使用该 macro 的页面，导致其他页面渲染异常。
 6. **为了截图通过隐藏内容**：使用 `display: none` 或 `visibility: hidden` 隐藏有问题的元素来通过视觉回归测试，掩盖了真实的 UI 问题。

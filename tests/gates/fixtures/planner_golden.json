@@ -17,7 +17,8 @@
       "repoSlimming",
       "noRealSessionFixtures",
       "secretLikeContent",
-      "doctor"
+      "doctor",
+      "rawInnerhtml"
     ],
     "harness": [
       "languagePolicy",
@@ -32,7 +33,8 @@
       "noTestSkips",
       "acceptanceContracts",
       "pytest",
-      "misplacedGeneratedPaths"
+      "misplacedGeneratedPaths",
+      "rawInnerhtml"
     ],
     "session-detail": [
       "pythonCompile",
@@ -61,7 +63,9 @@
       "reuseAnalyzeIncremental",
       "templateContract",
       "staticCssContract",
-      "misplacedGeneratedPaths"
+      "misplacedGeneratedPaths",
+      "rawInnerhtml",
+      "layoutInlineStyle"
     ],
     "java-build": [
       "javaCheck",

@@ -193,6 +193,49 @@ class QualityGateCliTest {
   }
 
   @Test
+  void rawAndLayoutRulesStayIndependentAndRepositoryWideWithIncrementalJavaRule() throws Exception {
+    write(
+        "config/web-quality-baselines.json",
+        "{\"version\":1,\"rules\":{"
+            + "\"raw-innerhtml\":{\"entries\":[]},"
+            + "\"layout-inline-style\":{\"entries\":[]}}}\n");
+    write("java/web/src/main/resources/static/js/raw.js", "node.innerHTML = value;\n");
+    write(
+        "java/web/src/main/resources/templates/layout.html",
+        "<div style=\"display:grid\">布局</div>\n");
+    write(
+        "java/sample/src/main/java/example/Valid.java",
+        """
+        package example;
+        /** @param value 中文说明。 */
+        public record Valid(String value) {}
+        """);
+
+    var result =
+        invoke(
+            new String[] {
+              "--repo-root",
+              repo.toString(),
+              "--paths",
+              repo.toString(),
+              "--rules",
+              "raw-innerhtml,layout-inline-style,record-component-javadocs"
+            },
+            Map.of("QUALITY_CHANGED_FILES", "[\"java/sample/src/main/java/example/Valid.java\"]"));
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out())
+        .contains(
+            "{\"rule\":\"raw-innerhtml\",\"status\":\"FAILED\",\"candidateCount\":2,\"violationCount\":1}")
+        .contains(
+            "{\"rule\":\"layout-inline-style\",\"status\":\"FAILED\",\"candidateCount\":3,\"violationCount\":1}")
+        .contains(
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+        .contains("RAW_INNERHTML_NEW")
+        .contains("LAYOUT_INLINE_STYLE_NEW");
+  }
+
+  @Test
   void testOnlyJavaDoesNotTurnZeroCandidateMainRuleIntoPassed() throws Exception {
     write(
         "config/technical-terms.json",

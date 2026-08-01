@@ -45,9 +45,7 @@ _ROWS = (
     ),
     ('security.secret-like-content', 'scripts.checks.privacy.check_secret_like_content'),
     ('web.css-ownership', 'scripts.checks.web.check_css_ownership'),
-    ('web.layout-inline-style', 'scripts.checks.web.check_layout_inline_style'),
     ('web.js-action-handlers', 'scripts.checks.web.check_js_action_handlers'),
-    ('web.raw-innerhtml', 'scripts.checks.web.check_raw_innerhtml'),
     ('web.session-detail-static', 'scripts.checks.web.check_session_detail_static'),
     ('source.comment-language', 'scripts.checks.source.check_code_comment_language'),
 )

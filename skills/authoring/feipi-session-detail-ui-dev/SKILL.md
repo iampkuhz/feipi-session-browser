@@ -56,7 +56,8 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - JS 文件：`src/static/js/` 下 session detail 相关交互脚本。
 - UI 质量门：`scripts/checks/web/check_session_detail_*.py`、`tests/playwright/session-detail*.spec.js`。
 - CSS ownership 配置：`shared check `web.css-ownership`` 相关配置。
-- UI gate baseline：`scripts/checks/web/baselines/*.json`。
+- P4 Web gate baseline：`config/web-quality-baselines.json` 中的 `rules.raw-innerhtml.entries` 与
+  `rules.layout-inline-style.entries`；CSS ownership 仍由当前 Python owner/artifact 管理。
 
 不要跨边界修改后端 parser 或 Java 产品代码。不要在模板中直接嵌入 inline style。
 
@@ -70,15 +71,15 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查。
 - `python3 -m scripts.checks web.css-ownership` — CSS ownership 校验。
 - `python3 -m scripts.checks repository.repo-slimming` — legacy CSS 检查。
-- `python3 -m scripts.checks web.layout-inline-style` — inline style 检查。
-- `python3 -m scripts.checks web.raw-innerhtml` — raw innerHTML 检查。
+- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style` — inline style 检查。
+- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml` — raw innerHTML 检查。
 
 选择策略：
 
 - 只改模板 → 至少运行 `web.session-detail-static` + `web.css-ownership`。
 - 改 CSS → 追加 `web.session-detail-static` + `repository.repo-slimming`。
 - 改 JS → 追加 `web.js-action-handlers` + Node Playwright 交互 gate。
-- 改布局或 shell → 追加 Node Playwright 布局 gate + `web.layout-inline-style`。
+- 改布局或 shell → 追加 Node Playwright 布局 gate + catalog Gate `layoutInlineStyle`。
 - 收口前 → 运行全部 UI gate。
 
 ## 输出格式

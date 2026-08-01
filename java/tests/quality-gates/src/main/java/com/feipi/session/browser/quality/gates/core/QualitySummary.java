@@ -27,15 +27,7 @@ public final class QualitySummary {
       throw new IllegalArgumentException("global and rule candidate counts are inconsistent");
     }
     var violations =
-        executions.stream()
-            .flatMap(execution -> execution.violations().stream())
-            .sorted(
-                Comparator.comparing(QualityViolation::path)
-                    .thenComparingInt(QualityViolation::line)
-                    .thenComparing(QualityViolation::rule)
-                    .thenComparing(QualityViolation::code)
-                    .thenComparing(item -> item.attributes().toString()))
-            .toList();
+        executions.stream().flatMap(execution -> execution.violations().stream()).toList();
     var status = "FAILED";
     if (violations.isEmpty()) {
       status = allRulesHaveNoCandidates ? "NOT_APPLICABLE" : "PASSED";
@@ -103,7 +95,7 @@ public final class QualitySummary {
    *
    * @param rule 稳定规则标识。
    * @param candidateCount 该规则实际收到的源码文件数。
-   * @param violations 该规则产生的违规。
+   * @param violations 该规则按自身扫描语义产生的稳定诊断顺序。
    */
   public record RuleExecution(String rule, int candidateCount, List<QualityViolation> violations) {
 

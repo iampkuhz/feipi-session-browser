@@ -51,4 +51,16 @@ class QualityViolationTest {
         .contains(
             "{\"rule\":\"incremental\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
   }
+
+  @Test
+  void preservesEachRuleStableDiagnosticOrder() {
+    var first = new QualityViolation("rule", "z.html", 2, "FIRST", "first", Map.of());
+    var second = new QualityViolation("rule", "a.js", 1, "SECOND", "second", Map.of());
+
+    var json =
+        QualitySummary.json(
+            2, List.of(new QualitySummary.RuleExecution("rule", 2, List.of(first, second))));
+
+    assertThat(json).containsSubsequence("z.html", "a.js");
+  }
 }

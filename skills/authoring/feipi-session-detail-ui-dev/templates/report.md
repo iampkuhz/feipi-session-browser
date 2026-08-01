@@ -21,11 +21,11 @@
 | `web.css-ownership` | <PASS/FAIL> |
 | `web.js-action-handlers` | <PASS/FAIL/NOT_RUN> |
 | `repository.repo-slimming` | <PASS/FAIL/NOT_RUN> |
-| `web.layout-inline-style` | <PASS/FAIL/NOT_RUN> |
+| `layoutInlineStyle` | <PASS/FAIL/NOT_RUN> |
 | `web.session-detail-static` | <PASS/FAIL/NOT_RUN> |
 | Node Playwright 交互门禁 | <PASS/FAIL/NOT_RUN> |
 | Node Playwright 布局门禁 | <PASS/FAIL/NOT_RUN> |
-| `web.raw-innerhtml` | <PASS/FAIL/NOT_RUN> |
+| `rawInnerhtml` | <PASS/FAIL/NOT_RUN> |
 
 ## Risks
 

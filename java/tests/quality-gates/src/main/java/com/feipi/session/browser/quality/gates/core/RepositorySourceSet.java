@@ -2,8 +2,11 @@ package com.feipi.session.browser.quality.gates.core;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashSet;
@@ -31,6 +34,8 @@ public record RepositorySourceSet(List<SourceText> sources) {
           "node_modules",
           "__pycache__",
           "tmp");
+  private static final Set<String> VOLATILE_DIRECTORY_PARTS =
+      Set.of("build", ".gradle", "node_modules", "__pycache__");
 
   /** 对源码列表做防御性复制，保证规则之间不能相互修改候选。 */
   public RepositorySourceSet {
@@ -56,17 +61,7 @@ public record RepositorySourceSet(List<SourceText> sources) {
       if (Files.isRegularFile(path)) {
         addIfSupported(normalizedRoot, path, supportedPath, candidates);
       } else if (Files.isDirectory(path)) {
-        try (var stream = Files.walk(path)) {
-          stream
-              .filter(Files::isRegularFile)
-              // build/generated/vendor 等排除项只属于 JVM 源码扫描；固定 Web 资源根必须完整遍历。
-              .filter(
-                  candidate ->
-                      !isJvmSource(candidate) || !hasExcludedPart(normalizedRoot, candidate))
-              .forEach(
-                  candidate ->
-                      addIfSupported(normalizedRoot, candidate, supportedPath, candidates));
-        }
+        collectDirectorySources(normalizedRoot, path, supportedPath, candidates);
       }
     }
     var sources = new ArrayList<SourceText>();
@@ -79,6 +74,40 @@ public record RepositorySourceSet(List<SourceText> sources) {
     }
     sources.sort(Comparator.comparing(SourceText::relativePath));
     return new RepositorySourceSet(sources);
+  }
+
+  private static void collectDirectorySources(
+      Path repoRoot,
+      Path directory,
+      Predicate<String> supportedPath,
+      LinkedHashSet<Path> candidates)
+      throws IOException {
+    Files.walkFileTree(
+        directory,
+        new SimpleFileVisitor<>() {
+          @Override
+          public FileVisitResult preVisitDirectory(Path path, BasicFileAttributes attributes) {
+            // 这些目录永不属于 source owner；遍历前剪枝也避免与并行构建清理发生竞态。
+            return isVolatileDirectory(path)
+                ? FileVisitResult.SKIP_SUBTREE
+                : FileVisitResult.CONTINUE;
+          }
+
+          @Override
+          public FileVisitResult visitFile(Path path, BasicFileAttributes attributes) {
+            // build/generated/vendor 等排除项只属于 JVM 源码；固定 Web 资源根仍需完整遍历。
+            if (attributes.isRegularFile()
+                && (!isJvmSource(path) || !hasExcludedPart(repoRoot, path))) {
+              addIfSupported(repoRoot, path, supportedPath, candidates);
+            }
+            return FileVisitResult.CONTINUE;
+          }
+        });
+  }
+
+  private static boolean isVolatileDirectory(Path path) {
+    var name = path.getFileName();
+    return name != null && VOLATILE_DIRECTORY_PARTS.contains(name.toString());
   }
 
   private static void addIfSupported(

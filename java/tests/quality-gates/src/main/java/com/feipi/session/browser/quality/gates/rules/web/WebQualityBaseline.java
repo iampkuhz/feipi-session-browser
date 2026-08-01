@@ -1,6 +1,7 @@
 package com.feipi.session.browser.quality.gates.rules.web;
 
 import com.fasterxml.jackson.core.JsonParser;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
@@ -14,7 +15,9 @@ import java.util.Map;
 final class WebQualityBaseline {
 
   private static final ObjectMapper MAPPER =
-      new ObjectMapper().enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION);
+      new ObjectMapper()
+          .enable(JsonParser.Feature.STRICT_DUPLICATE_DETECTION)
+          .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
 
   private final Map<String, Map<String, List<String>>> rules;
 
@@ -31,6 +34,13 @@ final class WebQualityBaseline {
     try {
       var root = MAPPER.readTree(path.toFile());
       if (root == null || !root.isObject()) {
+        return empty();
+      }
+      if (root.size() != 2 || !root.has("version") || !root.has("rules")) {
+        return empty();
+      }
+      var version = root.get("version");
+      if (!version.isInt() || version.intValue() != 1) {
         return empty();
       }
       var rulesNode = root.get("rules");

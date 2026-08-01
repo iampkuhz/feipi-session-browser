@@ -18,6 +18,7 @@ val changedFiles = providers.environmentVariable("QUALITY_CHANGED_FILES").orElse
 val writeApiSnapshot = providers.gradleProperty("feipiJavaApiSnapshotWrite")
     .map(String::toBoolean)
     .orElse(false)
+val baselineUpdateRules = providers.gradleProperty("feipiJavaQualityBaselineUpdateRules").orElse("")
 val apiSnapshot = rootProject.layout.projectDirectory.file("config/api-snapshots/java-public-api.txt")
 val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
 val templatesRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/templates")
@@ -46,6 +47,15 @@ val templateSources = rootProject.fileTree(templatesRoot) {
 val staticResourceSources = rootProject.fileTree(staticRoot) {
     include("**/*.css", "**/*.js")
 }
+val staticJavaScriptSources = rootProject.fileTree(staticRoot.dir("js")) {
+    include("**/*.js")
+}
+val testJavaScriptSources = rootProject.fileTree("tests") {
+    include("**/*.js")
+}
+val scriptJavaScriptSources = rootProject.fileTree("scripts") {
+    include("**/*.js")
+}
 
 // 所有 Java source rules 共用这一项公开 JavaExec；禁止增加逐 rule alias/task。
 tasks.register<JavaExec>("runJavaQualityGates") {
@@ -70,7 +80,7 @@ tasks.register<JavaExec>("runJavaQualityGates") {
             .withPropertyName("technicalTermsPolicy")
             .withPathSensitivity(PathSensitivity.RELATIVE)
     }
-    if (selectedRules.any(setOf("template-contract", "static-resource-contract")::contains)) {
+    if (selectedRules.any(setOf("template-contract", "static-resource-contract", "layout-inline-style")::contains)) {
         inputs.files(templateSources)
             .withPropertyName("templateSources")
             .withPathSensitivity(PathSensitivity.RELATIVE)
@@ -82,29 +92,54 @@ tasks.register<JavaExec>("runJavaQualityGates") {
         inputs.files(staticResourceSources)
             .withPropertyName("staticResourceSources")
             .withPathSensitivity(PathSensitivity.RELATIVE)
-        inputs.files(webQualityBaseline)
-            .withPropertyName("webQualityBaseline")
-            .withPathSensitivity(PathSensitivity.RELATIVE)
         inputs.property("staticRootExists", providers.provider { staticRoot.asFile.exists() })
         inputs.property(
             "baseTemplateExists",
             providers.provider { templatesRoot.file("base.html").asFile.exists() },
         )
-        inputs.property(
-            "webQualityBaselineExists",
-            providers.provider { webQualityBaseline.asFile.exists() },
-        )
+    }
+    if (selectedRules.any(setOf("raw-innerhtml", "layout-inline-style")::contains)) {
+        inputs.files(staticJavaScriptSources)
+            .withPropertyName("staticJavaScriptSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+    if ("raw-innerhtml" in selectedRules) {
+        inputs.files(testJavaScriptSources)
+            .withPropertyName("testJavaScriptSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.files(scriptJavaScriptSources)
+            .withPropertyName("scriptJavaScriptSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+    if (selectedRules.any(setOf("static-resource-contract", "raw-innerhtml", "layout-inline-style")::contains)) {
+        if (baselineUpdateRules.get().isBlank()) {
+            inputs.files(webQualityBaseline)
+                .withPropertyName("webQualityBaseline")
+                .withPathSensitivity(PathSensitivity.RELATIVE)
+            inputs.property(
+                "webQualityBaselineExists",
+                providers.provider { webQualityBaseline.asFile.exists() },
+            )
+        } else {
+            outputs.file(webQualityBaseline).withPropertyName("webQualityBaseline")
+        }
     }
     inputs.property("rules", javaQualityRules)
     inputs.property("changedFiles", changedFiles)
     inputs.property("writeApiSnapshot", writeApiSnapshot)
+    inputs.property("baselineUpdateRules", baselineUpdateRules)
     outputs.file(summary).withPropertyName("summary")
     if (writeApiSnapshot.get()) {
         outputs.file(apiSnapshot).withPropertyName("apiSnapshot")
     } else {
         inputs.file(apiSnapshot).withPropertyName("apiSnapshot").withPathSensitivity(PathSensitivity.RELATIVE)
     }
-    outputs.cacheIf("deterministic compiler AST report") { true }
+    if (baselineUpdateRules.get().isBlank()) {
+        outputs.cacheIf("deterministic quality report") { true }
+    } else {
+        outputs.cacheIf("explicit baseline maintenance is not cacheable") { false }
+        outputs.upToDateWhen { false }
+    }
 
     val sourcePaths = linkedSetOf<File>()
     if (selectedRules.any(javaSourceRules::contains)) {
@@ -120,11 +155,18 @@ tasks.register<JavaExec>("runJavaQualityGates") {
             )
         )
     }
-    if (selectedRules.any(setOf("template-contract", "static-resource-contract")::contains)) {
+    if (selectedRules.any(setOf("template-contract", "static-resource-contract", "layout-inline-style")::contains)) {
         sourcePaths.add(templatesRoot.asFile)
     }
     if ("static-resource-contract" in selectedRules) {
         sourcePaths.add(staticRoot.asFile)
+    }
+    if (selectedRules.any(setOf("raw-innerhtml", "layout-inline-style")::contains)) {
+        sourcePaths.add(staticRoot.dir("js").asFile)
+    }
+    if ("raw-innerhtml" in selectedRules) {
+        sourcePaths.add(rootProject.file("tests"))
+        sourcePaths.add(rootProject.file("scripts"))
     }
     args(
         "--repo-root", rootProject.projectDir.absolutePath,
@@ -138,5 +180,8 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     }
     if (writeApiSnapshot.get()) {
         args("--write-api-snapshot")
+    }
+    if (baselineUpdateRules.get().isNotBlank()) {
+        args("--update-baselines", baselineUpdateRules.get())
     }
 }

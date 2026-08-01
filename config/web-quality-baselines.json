@@ -24,6 +24,30 @@
         "web/static/css/ui-primitives/_tables.css:.data-table.sessions-grid .table-head .th.sortable button",
         "web/static/css/ui-primitives/_modals.css:.payload-modal__rendered .rendered-message-list li .msg-role"
       ]
+    },
+    "raw-innerhtml": {
+      "entries": [
+        "java/web/src/main/resources/static/js/data-table.js:117",
+        "java/web/src/main/resources/static/js/payload_viewer.js:104",
+        "java/web/src/main/resources/static/js/payload_viewer.js:106",
+        "java/web/src/main/resources/static/js/payload_viewer.js:108",
+        "java/web/src/main/resources/static/js/payload_viewer.js:114",
+        "java/web/src/main/resources/static/js/payload_viewer.js:116",
+        "java/web/src/main/resources/static/js/payload_viewer.js:118",
+        "java/web/src/main/resources/static/js/payload_viewer.js:124",
+        "java/web/src/main/resources/static/js/payload_viewer.js:126",
+        "java/web/src/main/resources/static/js/payload_viewer.js:227",
+        "java/web/src/main/resources/static/js/session_detail_timeline.js:102",
+        "java/web/src/main/resources/static/js/session_detail_timeline.js:134",
+        "java/web/src/main/resources/static/js/session_detail_timeline.js:138",
+        "java/web/src/main/resources/static/js/sessions-list.js:415",
+        "java/web/src/main/resources/static/js/sessions-list.js:422",
+        "java/web/src/main/resources/static/js/sessions-list.js:428",
+        "java/web/src/main/resources/static/js/sessions-list.js:482"
+      ]
+    },
+    "layout-inline-style": {
+      "entries": []
     }
   }
 }

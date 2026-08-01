@@ -122,6 +122,48 @@ def test_static_resources_baseline_and_rule_source_select_one_java_static_owner(
         assert 'staticCssContract' not in {gate.name for gate in gate_plan.logical_gates}
 
 
+def test_raw_and_layout_inputs_select_independent_java_resource_owners() -> None:
+    raw_only = (
+        'tests/playwright/raw.spec.js',
+        'scripts/generated/raw-tool.js',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/RawInnerHtmlRule.java',
+    )
+    layout_only = (
+        'java/web/src/main/resources/templates/page.html',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/LayoutInlineStyleRule.java',
+    )
+    shared = (
+        'java/web/src/main/resources/static/js/page.js',
+        'config/web-quality-baselines.json',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'core/QualityRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'core/RepositorySourceSet.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
+        'core/RepositorySourceSetTest.java',
+    )
+
+    for changed_path in raw_only:
+        names = [gate.name for gate in plan([changed_path]).logical_gates]
+        assert names.count('rawInnerhtml') == 1
+        assert 'layoutInlineStyle' not in names
+    for changed_path in layout_only:
+        names = [gate.name for gate in plan([changed_path]).logical_gates]
+        assert names.count('layoutInlineStyle') == 1
+        assert 'rawInnerhtml' not in names
+    for changed_path in shared:
+        names = [gate.name for gate in plan([changed_path]).logical_gates]
+        assert names.count('rawInnerhtml') == 1
+        assert names.count('layoutInlineStyle') == 1
+
+    outside_static_js = plan(['java/web/src/main/resources/static/generated/page.js'])
+    outside_names = {gate.name for gate in outside_static_js.logical_gates}
+    assert 'rawInnerhtml' not in outside_names
+    assert 'layoutInlineStyle' not in outside_names
+
+
 def test_kotlin_source_selects_only_compatible_java_comment_rule() -> None:
     gate_plan = plan(['java/sample/src/main/kotlin/example/Foo.kt'])
 

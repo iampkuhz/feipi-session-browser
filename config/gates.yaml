@@ -617,8 +617,33 @@ gates:
   - name: session-detail
     order: 6
     patterns:
-    - java/web/src/main/resources/static/**/*.js
-    - scripts/checks/web/check_raw_innerhtml.py
+    - java/web/src/main/resources/static/js/**/*.js
+    - config/web-quality-baselines.json
+  - name: acceptance-contracts
+    order: 4
+    patterns:
+    - tests/**/*.js
+  - name: python-standard
+    order: 97
+    patterns:
+    - scripts/**/*.js
+  - name: java-src
+    order: 12
+    patterns:
+    - java/tests/quality-gates/build.gradle.kts
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/BaselineUpdatableRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/BaselineUpdateWriter.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRuleTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/WebBaselineUpdateCliTest.java
   tiers:
   - required
   - full
@@ -626,22 +651,37 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - web.raw-innerhtml
-    - --check
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - raw-innerhtml
 - name: layoutInlineStyle
   description: 执行 layoutInlineStyle 所定义的仓库质量检查。
   targets:
   - name: session-detail
     order: 7
     patterns:
-    - java/web/src/main/resources/static/**/*.js
-    - scripts/checks/web/check_layout_inline_style.py
+    - java/web/src/main/resources/static/js/**/*.js
+    - java/web/src/main/resources/templates/**/*.html
+    - config/web-quality-baselines.json
+  - name: java-src
+    order: 13
+    patterns:
+    - java/tests/quality-gates/build.gradle.kts
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/BaselineUpdatableRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/BaselineUpdateWriter.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRuleTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/WebBaselineUpdateCliTest.java
   tiers:
   - required
   - full
@@ -649,14 +689,11 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - web.layout-inline-style
-    - --check
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - layout-inline-style
 - name: acceptanceContracts
   description: 执行 acceptanceContracts 所定义的仓库质量检查。
   targets:
@@ -1354,6 +1391,8 @@ path_rules:
   patterns:
   - scripts/*.sh
   - scripts/**/*.sh
+  - scripts/*.js
+  - scripts/**/*.js
   requires_quality_gate: true
   quality_target: python-standard
   risk: high

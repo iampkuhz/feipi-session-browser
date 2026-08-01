@@ -1,5 +1,7 @@
 package com.feipi.session.browser.quality.gates.cli;
 
+import com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule;
+import com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule.BaselineUpdate;
 import com.feipi.session.browser.quality.gates.core.JavaSourceSet;
 import com.feipi.session.browser.quality.gates.core.QualityContext;
 import com.feipi.session.browser.quality.gates.core.QualityGateRegistry;
@@ -13,6 +15,8 @@ import com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule;
 import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
 import com.feipi.session.browser.quality.gates.rules.TemplateContractRule;
 import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule;
+import com.feipi.session.browser.quality.gates.rules.web.LayoutInlineStyleRule;
+import com.feipi.session.browser.quality.gates.rules.web.RawInnerHtmlRule;
 import com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
@@ -51,10 +55,31 @@ public final class QualityGateCli {
       if (!unknown.isEmpty()) {
         throw new IllegalArgumentException("Unknown rules: " + unknown);
       }
+      var unknownUpdates =
+          options.baselineUpdateRules().stream()
+              .filter(id -> !registry.registeredIds().contains(id))
+              .toList();
+      if (!unknownUpdates.isEmpty()) {
+        throw new IllegalArgumentException("Unknown baseline update rules: " + unknownUpdates);
+      }
       if (options.writeApiSnapshot() && !options.rules().contains("java-api-snapshot")) {
         throw new IllegalArgumentException("--write-api-snapshot requires java-api-snapshot rule");
       }
+      if (options.baselineUpdateRequested()) {
+        if (!new LinkedHashSet<>(options.rules())
+            .equals(new LinkedHashSet<>(options.baselineUpdateRules()))) {
+          throw new IllegalArgumentException("--update-baselines must exactly match --rules");
+        }
+        if (options.writeApiSnapshot()) {
+          throw new IllegalArgumentException(
+              "--update-baselines cannot be combined with --write-api-snapshot");
+        }
+      }
       var selectedRules = registry.select(options.rules());
+      var selectedUpdaters =
+          options.baselineUpdateRequested()
+              ? requireBaselineUpdaters(selectedRules)
+              : List.<BaselineUpdatableRule>of();
       var allSources =
           RepositorySourceSet.discover(
               options.repoRoot(),
@@ -88,11 +113,6 @@ public final class QualityGateCli {
               candidateIndex.values().stream()
                   .sorted(Comparator.comparing(RepositorySourceSet.SourceText::relativePath))
                   .toList());
-      if (candidatePaths.isEmpty()) {
-        var executions =
-            selectedRules.stream().map(rule -> new RuleExecution(rule.id(), 0, List.of())).toList();
-        return writeSummary(options, 0, executions, QualityGateExitCodes.OK, out);
-      }
       var javaCandidates =
           repositorySources.sources().stream()
               .filter(source -> source.relativePath().endsWith(".java"))
@@ -110,6 +130,21 @@ public final class QualityGateCli {
               repositorySources,
               options.apiSnapshot(),
               options.writeApiSnapshot());
+      if (options.baselineUpdateRequested()) {
+        return updateBaselines(
+            options,
+            selectedUpdaters,
+            sourcesByRule,
+            requiredInputsByRule,
+            candidatePaths,
+            context,
+            out);
+      }
+      if (candidatePaths.isEmpty()) {
+        var executions =
+            selectedRules.stream().map(rule -> new RuleExecution(rule.id(), 0, List.of())).toList();
+        return writeSummary(options, 0, executions, QualityGateExitCodes.OK, out);
+      }
       var executions = new ArrayList<RuleExecution>();
       for (var rule : selectedRules) {
         var ruleSources = sourcesByRule.get(rule.id());
@@ -135,6 +170,64 @@ public final class QualityGateCli {
       err.println("Java quality gates failed closed: " + exception.getMessage());
       return QualityGateExitCodes.ERROR;
     }
+  }
+
+  private static int updateBaselines(
+      Options options,
+      List<BaselineUpdatableRule> selectedRules,
+      Map<String, RepositorySourceSet> sourcesByRule,
+      Map<String, List<Path>> requiredInputsByRule,
+      Set<Path> candidatePaths,
+      QualityContext context,
+      PrintStream out)
+      throws Exception {
+    var updatesByPath =
+        new java.util.TreeMap<Path, Map<String, Map<String, List<String>>>>(
+            Comparator.comparing(Path::toString));
+    var executions = new ArrayList<RuleExecution>();
+    for (var rule : selectedRules) {
+      var ruleSources = sourcesByRule.get(rule.id());
+      var ruleContext = contextForRule(context, ruleSources);
+      var update = rule.baselineUpdate(ruleContext);
+      var path = normalizedBaselinePath(options.repoRoot(), update);
+      candidatePaths.add(path);
+      var sections = updatesByPath.computeIfAbsent(path, ignored -> new LinkedHashMap<>());
+      sections.put(rule.id(), update.section());
+
+      var ruleCandidates = new LinkedHashSet<Path>();
+      ruleSources.sources().stream()
+          .map(RepositorySourceSet.SourceText::path)
+          .forEach(ruleCandidates::add);
+      ruleCandidates.addAll(requiredInputsByRule.get(rule.id()));
+      ruleCandidates.add(path);
+      executions.add(new RuleExecution(rule.id(), ruleCandidates.size(), List.of()));
+    }
+    for (var update : updatesByPath.entrySet()) {
+      BaselineUpdateWriter.mergeAndWrite(update.getKey(), update.getValue());
+    }
+    return writeSummary(options, candidatePaths.size(), executions, QualityGateExitCodes.OK, out);
+  }
+
+  private static List<BaselineUpdatableRule> requireBaselineUpdaters(
+      List<QualityRule> selectedRules) {
+    var updaters = new ArrayList<BaselineUpdatableRule>();
+    for (var rule : selectedRules) {
+      if (!(rule instanceof BaselineUpdatableRule updater)) {
+        throw new IllegalArgumentException("Rule does not support baseline updates: " + rule.id());
+      }
+      updaters.add(updater);
+    }
+    return List.copyOf(updaters);
+  }
+
+  private static Path normalizedBaselinePath(Path repoRoot, BaselineUpdate update) {
+    var root = repoRoot.toAbsolutePath().normalize();
+    var path = update.path().isAbsolute() ? update.path() : root.resolve(update.path());
+    path = path.toAbsolutePath().normalize();
+    if (!path.startsWith(root)) {
+      throw new IllegalArgumentException("baseline update escapes repository: " + path);
+    }
+    return path;
   }
 
   private static QualityContext contextForRule(
@@ -288,6 +381,8 @@ public final class QualityGateCli {
         .register(new JavaCommentLanguageRule())
         .register(new TemplateContractRule())
         .register(new StaticResourceContractRule())
+        .register(new RawInnerHtmlRule())
+        .register(new LayoutInlineStyleRule())
         .register(new RecordComponentJavadocsRule())
         .register(new NoPmdSuppressionsRule())
         .register(new JavaApiSnapshotRule())
@@ -304,6 +399,8 @@ public final class QualityGateCli {
    * @param reportFile 结构化摘要输出文件；未传时为空。
    * @param apiSnapshot Java public API 基线文件。
    * @param writeApiSnapshot 是否显式维护 API 基线。
+   * @param baselineUpdateRequested 是否出现 baseline 维护 option。
+   * @param baselineUpdateRules 显式维护 baseline 的 rule id 集合。
    */
   private record Options(
       Path repoRoot,
@@ -312,7 +409,9 @@ public final class QualityGateCli {
       String changedFiles,
       Path reportFile,
       Path apiSnapshot,
-      boolean writeApiSnapshot) {
+      boolean writeApiSnapshot,
+      boolean baselineUpdateRequested,
+      List<String> baselineUpdateRules) {
 
     private static Options parse(String[] args) {
       var repoRoot = Path.of("").toAbsolutePath().normalize();
@@ -322,6 +421,8 @@ public final class QualityGateCli {
       Path reportFile = null;
       Path apiSnapshot = null;
       var write = false;
+      var baselineUpdateRequested = false;
+      var baselineUpdateRules = new ArrayList<String>();
       for (int index = 0; index < args.length; index++) {
         switch (args[index]) {
           case "--repo-root" -> repoRoot = Path.of(requiredValue(args, ++index, "--repo-root"));
@@ -343,12 +444,26 @@ public final class QualityGateCli {
           case "--api-snapshot" ->
               apiSnapshot = Path.of(requiredValue(args, ++index, "--api-snapshot"));
           case "--write-api-snapshot" -> write = true;
+          case "--update-baselines" -> {
+            if (baselineUpdateRequested) {
+              throw new IllegalArgumentException("--update-baselines may only be specified once");
+            }
+            baselineUpdateRequested = true;
+            for (var value : requiredValue(args, ++index, "--update-baselines").split(",")) {
+              if (!value.isBlank() && !baselineUpdateRules.contains(value.trim())) {
+                baselineUpdateRules.add(value.trim());
+              }
+            }
+          }
           default -> throw new IllegalArgumentException("Unknown option: " + args[index]);
         }
       }
       repoRoot = repoRoot.toAbsolutePath().normalize();
       if (rules.isEmpty()) {
         throw new IllegalArgumentException("Missing required option: --rules");
+      }
+      if (baselineUpdateRequested && baselineUpdateRules.isEmpty()) {
+        throw new IllegalArgumentException("--update-baselines requires at least one rule");
       }
       if (paths.isEmpty()) {
         paths.add(repoRoot.resolve("java"));
@@ -365,7 +480,9 @@ public final class QualityGateCli {
           changedFiles,
           reportFile,
           apiSnapshot,
-          write);
+          write,
+          baselineUpdateRequested,
+          List.copyOf(baselineUpdateRules));
     }
 
     private static String requiredValue(String[] args, int index, String option) {

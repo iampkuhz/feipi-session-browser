@@ -18,7 +18,7 @@
 | 用例 ID | 优先级 | 分层 | 场景 | 怎么测 | 必须断言 | 测试类型 | 关联检查 | 代码位置 |
 |---|---:|---|---|---|---|---|---|---|
 | HOOK-HARNESS-007 | P0 | data | Gate 结构化报告 | 测试 `scripts.gates.report` 公共 contract | PASS 输出简洁，FAIL/BLOCKED 保留首因，JSON schema/hash 正确且诊断有界 | pytest | — | `tests/gates/test_report.py` |
-| HOOK-HARNESS-008 | P0 | data | 高价值质量门禁 | 运行领域质量检查 contract | 隐私、密钥、生成路径、skip/warning 等规则按预期触发 | pytest | — | `tests/quality/test_new_quality_gates.py` |
+| HOOK-HARNESS-008 | P0 | data | 高价值质量门禁 | 运行领域质量检查 contract | 隐私、密钥、生成路径、skip/warning 等规则按预期触发 | pytest / JUnit | — | `tests/quality/test_new_quality_gates.py`; `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRuleTest.java`; `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRuleTest.java` |
 | HOOK-HARNESS-009 | P0 | data | 质量产物结构 | 测试 Gate service 的当次运行产物 | 产物使用 ignored 质量目录，路径稳定且不会进入 candidate | pytest | — | `tests/gates/test_cli.py`; `tests/harness/test_doctor_output.py` |
 | HOOK-HARNESS-010 | P0 | data | Gate executor | 测试唯一 executor 的命令、超时、环境与资源隔离 | catalog 命令被执行，warning/skip/timeout 不得 PASS | pytest | — | `tests/gates/test_executor.py`; `tests/quality/test_python_env_contract.py` |
 | HOOK-HARNESS-011 | P0 | data | 仓库精简契约 | 测试仓库精简规则 | 精简后保留必要产品与质量入口，移除 runtime/cache/临时路径 | pytest | — | `tests/quality/test_repo_slimming_contract.py` |

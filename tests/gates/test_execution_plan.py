@@ -130,7 +130,90 @@ def test_template_resource_uses_one_java_quality_group() -> None:
     assert len(groups) == 1
     assert groups[0].kind == 'gradle'
     assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
-    assert '-PfeipiJavaQualityRules=template-contract,static-resource-contract' in groups[0].command
+    assert (
+        '-PfeipiJavaQualityRules=template-contract,static-resource-contract,layout-inline-style'
+        in groups[0].command
+    )
+    assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
+
+
+def test_static_javascript_aggregates_three_independent_java_rule_states() -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(  # noqa: SLF001
+            plan(['java/web/src/main/resources/static/js/session.js'])
+        ),
+        REPO_ROOT,
+    )
+    groups = [group for group in execution.groups if 'rawInnerhtml' in group.gate_names]
+
+    assert len(groups) == 1
+    assert groups[0].kind == 'gradle'
+    assert groups[0].gate_names == (
+        'staticCssContract',
+        'rawInnerhtml',
+        'layoutInlineStyle',
+    )
+    assert (
+        '-PfeipiJavaQualityRules=static-resource-contract,raw-innerhtml,layout-inline-style'
+        in groups[0].command
+    )
+    assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
+
+
+def test_shared_repository_source_set_change_aggregates_both_p4_rules_once() -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(  # noqa: SLF001
+            plan(
+                [
+                    'java/tests/quality-gates/src/main/java/com/feipi/session/browser/'
+                    'quality/gates/core/RepositorySourceSet.java'
+                ]
+            )
+        ),
+        REPO_ROOT,
+    )
+    groups = [
+        group
+        for group in execution.groups
+        if 'rawInnerhtml' in group.gate_names or 'layoutInlineStyle' in group.gate_names
+    ]
+
+    assert len(groups) == 1
+    assert groups[0].kind == 'gradle'
+    assert groups[0].gate_names.count('rawInnerhtml') == 1
+    assert groups[0].gate_names.count('layoutInlineStyle') == 1
+    assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
+    rule_args = [
+        argument
+        for argument in groups[0].command
+        if argument.startswith('-PfeipiJavaQualityRules=')
+    ]
+    assert len(rule_args) == 1
+    selected_rules = rule_args[0].partition('=')[2].split(',')
+    assert selected_rules.count('raw-innerhtml') == 1
+    assert selected_rules.count('layout-inline-style') == 1
+    assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
+
+
+@pytest.mark.parametrize(
+    'changed_path',
+    ['tests/playwright/raw.spec.js', 'scripts/generated/raw-tool.js'],
+)
+def test_non_product_javascript_selects_only_raw_innerhtml_java_rule(
+    changed_path: str,
+) -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(plan([changed_path])),  # noqa: SLF001
+        REPO_ROOT,
+    )
+    groups = [group for group in execution.groups if 'rawInnerhtml' in group.gate_names]
+
+    assert len(groups) == 1
+    assert groups[0].kind == 'gradle'
+    assert groups[0].gate_names == ('rawInnerhtml',)
+    assert '-PfeipiJavaQualityRules=raw-innerhtml' in groups[0].command
+    assert 'layoutInlineStyle' not in groups[0].gate_names
+    assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
 
 
 @pytest.mark.parametrize(

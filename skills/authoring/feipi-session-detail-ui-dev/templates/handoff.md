@@ -9,7 +9,7 @@
   - `src/static/css/` 下 session detail 相关 CSS 文件
   - `src/static/js/` 下 session detail 相关 JS 文件
   - `scripts/checks/web/check_session_detail_*.py`（如需）
-  - `scripts/checks/web/baselines/*.json`（如需）
+  - `config/web-quality-baselines.json` 的 `raw-innerhtml` / `layout-inline-style` section（仅在审阅后维护）
 
 ## Forbidden scope
 
@@ -38,11 +38,11 @@ python3 -m scripts.checks web.css-ownership
 ```bash
 python3 -m scripts.checks web.js-action-handlers
 python3 -m scripts.checks repository.repo-slimming
-python3 -m scripts.checks web.layout-inline-style
+./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style
 python3 -m scripts.checks web.session-detail-static
 npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js
 npm --prefix tests/playwright test -- session-detail-layout.spec.js
-python3 -m scripts.checks web.raw-innerhtml
+./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml
 ```
 
 ## Expected output

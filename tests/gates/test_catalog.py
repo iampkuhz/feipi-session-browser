@@ -67,6 +67,8 @@ def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
         'javaApiSnapshot': ('java-api-snapshot',),
         'templateContract': ('template-contract',),
         'staticCssContract': ('static-resource-contract',),
+        'rawInnerhtml': ('raw-innerhtml',),
+        'layoutInlineStyle': ('layout-inline-style',),
     }
 
     for gate_name, rules in expected.items():
@@ -110,6 +112,64 @@ def test_static_contract_has_one_java_owner_and_complete_resource_inputs() -> No
         'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRule.java',
         'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java',
         'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java',
+    )
+
+
+def test_raw_and_layout_contracts_have_independent_java_owners_and_complete_inputs() -> None:
+    raw = gate_by_name('rawInnerhtml')
+    layout = gate_by_name('layoutInlineStyle')
+    raw_targets = {rule.target: rule for rule in raw.target_rules}
+    layout_targets = {rule.target: rule for rule in layout.target_rules}
+
+    assert raw.command is None
+    assert raw.gradle_tasks == (':java:tests:quality-gates:runJavaQualityGates',)
+    assert raw.java_rules == ('raw-innerhtml',)
+    assert raw_targets['session-detail'].patterns == (
+        'java/web/src/main/resources/static/js/**/*.js',
+        'config/web-quality-baselines.json',
+    )
+    assert raw_targets['acceptance-contracts'].patterns == ('tests/**/*.js',)
+    assert raw_targets['python-standard'].patterns == ('scripts/**/*.js',)
+    assert raw_targets['java-src'].patterns == (
+        'java/tests/quality-gates/build.gradle.kts',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/BaselineUpdatableRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/BaselineUpdateWriter.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRule.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRuleTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/WebBaselineUpdateCliTest.java',
+    )
+
+    assert layout.command is None
+    assert layout.gradle_tasks == (':java:tests:quality-gates:runJavaQualityGates',)
+    assert layout.java_rules == ('layout-inline-style',)
+    assert layout_targets['session-detail'].patterns == (
+        'java/web/src/main/resources/static/js/**/*.js',
+        'java/web/src/main/resources/templates/**/*.html',
+        'config/web-quality-baselines.json',
+    )
+    assert layout_targets['java-src'].patterns == (
+        'java/tests/quality-gates/build.gradle.kts',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/BaselineUpdatableRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/BaselineUpdateWriter.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRule.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRuleTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/WebBaselineUpdateCliTest.java',
     )
 
 
