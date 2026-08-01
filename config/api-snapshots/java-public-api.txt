@@ -2849,6 +2849,11 @@ method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public
 method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public boolean usesChangedFiles()
 method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public List<QualityViolation> check(QualityContext context)
 method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public String id()
+method com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public List<Path> requiredInputs(Path repoRoot)
+method com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public List<QualityViolation> check(QualityContext context)
+method com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public String id()
+method com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public boolean supportsPath(String relativePath)
+method com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public boolean usesChangedFiles()
 method com.feipi.session.browser.query.api.AgentFilter public String agent()
 method com.feipi.session.browser.query.api.AgentFilter public String toString()
 method com.feipi.session.browser.query.api.AgentFilter public boolean equals(Object obj)
@@ -3540,6 +3545,7 @@ type com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule publi
 type com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule public class [tests] final class NoPmdSuppressionsRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.TemplateContractRule public class [tests] final class TemplateContractRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public class [tests] final class RecordComponentJavadocsRule implements QualityRule
+type com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public class [tests] final class StaticResourceContractRule implements QualityRule
 type com.feipi.session.browser.query.api.AgentFilter public class [index-api] final class AgentFilter
 type com.feipi.session.browser.query.api.AnomalyFilter public class [index-api] final class AnomalyFilter
 type com.feipi.session.browser.query.api.AnomalySeverity public enum [index-api] enum AnomalySeverity

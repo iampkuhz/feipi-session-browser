@@ -108,7 +108,6 @@ gates:
     - tests/quality/test_no_test_skips_gate.py
     - tests/quality/test_python_env_contract.py
     - tests/quality/test_repo_slimming_contract.py
-    - tests/quality/test_static_contract.py
     - tests/checks/test_code_comment_language_gate.py
     - tests/checks/test_python_security.py
     - --cov=scripts
@@ -256,7 +255,7 @@ gates:
   - name: index
     order: 1
   - name: java-src
-    order: 10
+    order: 11
   - name: java-build
     order: 5
   - name: scan-script-smoke
@@ -861,9 +860,17 @@ gates:
   - name: session-detail
     order: 4
     patterns:
-    - java/web/src/main/resources/static/css/**/*.css
+    - java/web/src/main/resources/static/**/*.css
+    - java/web/src/main/resources/static/**/*.js
+    - java/web/src/main/resources/templates/**/*.html
+    - config/web-quality-baselines.json
     - tests/ui/test_web_static_contract.py
-    - scripts/checks/web/check_static_contract.py
+  - name: java-src
+    order: 10
+    patterns:
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java
   tiers:
   - required
   - full
@@ -871,13 +878,11 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - web.static-contract
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - static-resource-contract
 - name: cssOwnership
   description: 执行 cssOwnership 所定义的仓库质量检查。
   targets:
@@ -1314,6 +1319,7 @@ path_rules:
   patterns:
   - java/web/src/main/resources/static/**
   - java/web/src/main/resources/templates/**
+  - config/web-quality-baselines.json
   - src/session_browser/web/**
   - scripts/checks/web/check_session_detail_*.py
   requires_quality_gate: true

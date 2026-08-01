@@ -97,6 +97,31 @@ def test_template_resource_and_rule_source_select_the_java_template_owner() -> N
     assert [gate.name for gate in rule_plan.logical_gates].count('templateContract') == 1
 
 
+def test_static_resources_baseline_and_rule_source_select_one_java_static_owner() -> None:
+    changed_paths = (
+        'java/web/src/main/resources/static/css/page.css',
+        'java/web/src/main/resources/static/js/page.js',
+        'java/web/src/main/resources/static/generated/page.css',
+        'java/web/src/main/resources/static/tmp/page.js',
+        'java/web/src/main/resources/templates/page.html',
+        'config/web-quality-baselines.json',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/StaticResourceContractRule.java',
+    )
+
+    for changed_path in changed_paths:
+        gate_plan = plan([changed_path])
+        assert [gate.name for gate in gate_plan.logical_gates].count('staticCssContract') == 1
+
+    unsupported_paths = (
+        'java/web/src/main/resources/static/generated/page.html',
+        'java/web/src/main/resources/static/tmp/page.txt',
+    )
+    for changed_path in unsupported_paths:
+        gate_plan = plan([changed_path])
+        assert 'staticCssContract' not in {gate.name for gate in gate_plan.logical_gates}
+
+
 def test_kotlin_source_selects_only_compatible_java_comment_rule() -> None:
     gate_plan = plan(['java/sample/src/main/kotlin/example/Foo.kt'])
 

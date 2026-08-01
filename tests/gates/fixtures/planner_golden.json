@@ -60,6 +60,7 @@
       "reuseStandardCpd",
       "reuseAnalyzeIncremental",
       "templateContract",
+      "staticCssContract",
       "misplacedGeneratedPaths"
     ],
     "java-build": [

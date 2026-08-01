@@ -66,6 +66,7 @@ def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
         'noJavaSuppressWarnings': ('no-pmd-suppressions',),
         'javaApiSnapshot': ('java-api-snapshot',),
         'templateContract': ('template-contract',),
+        'staticCssContract': ('static-resource-contract',),
     }
 
     for gate_name, rules in expected.items():
@@ -88,6 +89,27 @@ def test_template_contract_has_one_java_owner_and_fixed_resource_root() -> None:
     assert target_rules['java-src'].patterns == (
         'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRule.java',
         'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRuleTest.java',
+    )
+
+
+def test_static_contract_has_one_java_owner_and_complete_resource_inputs() -> None:
+    gate = gate_by_name('staticCssContract')
+    target_rules = {rule.target: rule for rule in gate.target_rules}
+
+    assert gate.command is None
+    assert gate.gradle_tasks == (':java:tests:quality-gates:runJavaQualityGates',)
+    assert gate.java_rules == ('static-resource-contract',)
+    assert target_rules['session-detail'].patterns == (
+        'java/web/src/main/resources/static/**/*.css',
+        'java/web/src/main/resources/static/**/*.js',
+        'java/web/src/main/resources/templates/**/*.html',
+        'config/web-quality-baselines.json',
+        'tests/ui/test_web_static_contract.py',
+    )
+    assert target_rules['java-src'].patterns == (
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java',
     )
 
 

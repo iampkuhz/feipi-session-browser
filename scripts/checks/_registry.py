@@ -49,7 +49,6 @@ _ROWS = (
     ('web.js-action-handlers', 'scripts.checks.web.check_js_action_handlers'),
     ('web.raw-innerhtml', 'scripts.checks.web.check_raw_innerhtml'),
     ('web.session-detail-static', 'scripts.checks.web.check_session_detail_static'),
-    ('web.static-contract', 'scripts.checks.web.check_static_contract'),
     ('source.comment-language', 'scripts.checks.source.check_code_comment_language'),
 )
 

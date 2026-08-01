@@ -130,7 +130,29 @@ def test_template_resource_uses_one_java_quality_group() -> None:
     assert len(groups) == 1
     assert groups[0].kind == 'gradle'
     assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
-    assert '-PfeipiJavaQualityRules=template-contract' in groups[0].command
+    assert '-PfeipiJavaQualityRules=template-contract,static-resource-contract' in groups[0].command
+
+
+@pytest.mark.parametrize(
+    'changed_path',
+    [
+        'java/web/src/main/resources/static/generated/page.css',
+        'java/web/src/main/resources/static/tmp/page.js',
+    ],
+)
+def test_static_resource_in_arbitrary_subdirectory_uses_one_java_quality_group(
+    changed_path: str,
+) -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(plan([changed_path])),  # noqa: SLF001
+        REPO_ROOT,
+    )
+    groups = [group for group in execution.groups if 'staticCssContract' in group.gate_names]
+
+    assert len(groups) == 1
+    assert groups[0].kind == 'gradle'
+    assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
+    assert '-PfeipiJavaQualityRules=static-resource-contract' in groups[0].command
 
 
 def test_playwright_plan_uses_node_managed_java_fixture_without_base_url() -> None:

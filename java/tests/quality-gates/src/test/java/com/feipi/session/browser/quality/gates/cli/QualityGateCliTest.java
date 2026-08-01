@@ -146,6 +146,53 @@ class QualityGateCliTest {
   }
 
   @Test
+  void staticResourceRuleStaysRepositoryWideWhenAggregatedWithIncrementalJavaRule()
+      throws Exception {
+    write(
+        "config/web-quality-baselines.json",
+        "{\"version\":1,\"rules\":{\"static-resource-contract\":{"
+            + "\"component_override_violations\":[],\"selector_depth_violations\":[]}}}\n");
+    write(
+        "java/web/src/main/resources/templates/base.html",
+        """
+        /static/css/tokens.css
+        /static/css/base.css
+        /static/css/shell.css
+        /static/css/ui-primitives.css
+        {% block head_extra %}
+        """);
+    write("java/web/src/main/resources/static/css/valid.css", ".valid { color: red; }\n");
+    write("java/web/src/main/resources/static/js/broken.js", "eval(userInput);\n");
+    write(
+        "java/sample/src/main/java/example/Valid.java",
+        """
+        package example;
+        /** @param value 中文说明。 */
+        public record Valid(String value) {}
+        """);
+
+    var result =
+        invoke(
+            new String[] {
+              "--repo-root",
+              repo.toString(),
+              "--paths",
+              repo.resolve("java").toString(),
+              "--rules",
+              "static-resource-contract,record-component-javadocs"
+            },
+            Map.of("QUALITY_CHANGED_FILES", "[\"java/sample/src/main/java/example/Valid.java\"]"));
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out())
+        .contains(
+            "{\"rule\":\"static-resource-contract\",\"status\":\"FAILED\",\"candidateCount\":5,\"violationCount\":1}")
+        .contains(
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+        .contains("EVAL_FORBIDDEN");
+  }
+
+  @Test
   void testOnlyJavaDoesNotTurnZeroCandidateMainRuleIntoPassed() throws Exception {
     write(
         "config/technical-terms.json",

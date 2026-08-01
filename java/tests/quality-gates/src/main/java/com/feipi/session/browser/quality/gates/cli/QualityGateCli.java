@@ -13,6 +13,7 @@ import com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule;
 import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
 import com.feipi.session.browser.quality.gates.rules.TemplateContractRule;
 import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule;
+import com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule;
 import java.io.PrintStream;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
@@ -286,6 +287,7 @@ public final class QualityGateCli {
     return QualityGateRegistry.builder()
         .register(new JavaCommentLanguageRule())
         .register(new TemplateContractRule())
+        .register(new StaticResourceContractRule())
         .register(new RecordComponentJavadocsRule())
         .register(new NoPmdSuppressionsRule())
         .register(new JavaApiSnapshotRule())

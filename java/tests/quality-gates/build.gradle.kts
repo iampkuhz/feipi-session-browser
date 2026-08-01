@@ -21,6 +21,8 @@ val writeApiSnapshot = providers.gradleProperty("feipiJavaApiSnapshotWrite")
 val apiSnapshot = rootProject.layout.projectDirectory.file("config/api-snapshots/java-public-api.txt")
 val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
 val templatesRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/templates")
+val staticRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/static")
+val webQualityBaseline = rootProject.layout.projectDirectory.file("config/web-quality-baselines.json")
 val summary = layout.buildDirectory.file("reports/java-quality-gates/summary.json")
 val javaMainSources = rootProject.fileTree("java") {
     include("**/src/main/java/**/*.java")
@@ -40,6 +42,9 @@ val jvmCommentSources = rootProject.files(
 )
 val templateSources = rootProject.fileTree(templatesRoot) {
     include("**/*.html")
+}
+val staticResourceSources = rootProject.fileTree(staticRoot) {
+    include("**/*.css", "**/*.js")
 }
 
 // 所有 Java source rules 共用这一项公开 JavaExec；禁止增加逐 rule alias/task。
@@ -65,11 +70,30 @@ tasks.register<JavaExec>("runJavaQualityGates") {
             .withPropertyName("technicalTermsPolicy")
             .withPathSensitivity(PathSensitivity.RELATIVE)
     }
-    if ("template-contract" in selectedRules) {
+    if (selectedRules.any(setOf("template-contract", "static-resource-contract")::contains)) {
         inputs.files(templateSources)
             .withPropertyName("templateSources")
             .withPathSensitivity(PathSensitivity.RELATIVE)
+    }
+    if ("template-contract" in selectedRules) {
         inputs.property("templatesRootExists", providers.provider { templatesRoot.asFile.exists() })
+    }
+    if ("static-resource-contract" in selectedRules) {
+        inputs.files(staticResourceSources)
+            .withPropertyName("staticResourceSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.files(webQualityBaseline)
+            .withPropertyName("webQualityBaseline")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.property("staticRootExists", providers.provider { staticRoot.asFile.exists() })
+        inputs.property(
+            "baseTemplateExists",
+            providers.provider { templatesRoot.file("base.html").asFile.exists() },
+        )
+        inputs.property(
+            "webQualityBaselineExists",
+            providers.provider { webQualityBaseline.asFile.exists() },
+        )
     }
     inputs.property("rules", javaQualityRules)
     inputs.property("changedFiles", changedFiles)
@@ -96,8 +120,11 @@ tasks.register<JavaExec>("runJavaQualityGates") {
             )
         )
     }
-    if ("template-contract" in selectedRules) {
+    if (selectedRules.any(setOf("template-contract", "static-resource-contract")::contains)) {
         sourcePaths.add(templatesRoot.asFile)
+    }
+    if ("static-resource-contract" in selectedRules) {
+        sourcePaths.add(staticRoot.asFile)
     }
     args(
         "--repo-root", rootProject.projectDir.absolutePath,
