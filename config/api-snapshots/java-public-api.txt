@@ -554,6 +554,8 @@ component com.feipi.session.browser.normalization.NormalizationEngine.Conservati
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult declaredTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult executedTools: int
 component com.feipi.session.browser.normalization.NormalizationEngine.ConservationCheckResult tokensConserved: boolean
+component com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule.Evaluation advisories: List<QualityAdvisory>
+component com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule.Evaluation violations: List<QualityViolation>
 component com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule.BaselineUpdate path: Path
 component com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule.BaselineUpdate section: Map<String, List<String>>
 component com.feipi.session.browser.quality.gates.core.JavaSourceSet docTrees: DocTrees
@@ -566,11 +568,19 @@ component com.feipi.session.browser.quality.gates.core.ParsedSource path: Path
 component com.feipi.session.browser.quality.gates.core.ParsedSource relativePath: String
 component com.feipi.session.browser.quality.gates.core.ParsedSource text: String
 component com.feipi.session.browser.quality.gates.core.ParsedSource unit: CompilationUnitTree
+component com.feipi.session.browser.quality.gates.core.QualityAdvisory attributes: Map<String, String>
+component com.feipi.session.browser.quality.gates.core.QualityAdvisory code: String
+component com.feipi.session.browser.quality.gates.core.QualityAdvisory line: int
+component com.feipi.session.browser.quality.gates.core.QualityAdvisory message: String
+component com.feipi.session.browser.quality.gates.core.QualityAdvisory path: String
+component com.feipi.session.browser.quality.gates.core.QualityAdvisory rule: String
 component com.feipi.session.browser.quality.gates.core.QualityContext apiSnapshot: Path
+component com.feipi.session.browser.quality.gates.core.QualityContext qualityArtifactDir: Path
 component com.feipi.session.browser.quality.gates.core.QualityContext repoRoot: Path
 component com.feipi.session.browser.quality.gates.core.QualityContext repositorySources: RepositorySourceSet
 component com.feipi.session.browser.quality.gates.core.QualityContext sources: JavaSourceSet
 component com.feipi.session.browser.quality.gates.core.QualityContext writeApiSnapshot: boolean
+component com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution advisories: List<QualityAdvisory>
 component com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution candidateCount: int
 component com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution rule: String
 component com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution violations: List<QualityViolation>
@@ -584,6 +594,7 @@ component com.feipi.session.browser.quality.gates.core.RepositorySourceSet sourc
 component com.feipi.session.browser.quality.gates.core.RepositorySourceSet.SourceText path: Path
 component com.feipi.session.browser.quality.gates.core.RepositorySourceSet.SourceText relativePath: String
 component com.feipi.session.browser.quality.gates.core.RepositorySourceSet.SourceText text: String
+component com.feipi.session.browser.quality.gates.core.RuleExecution advisories: List<QualityAdvisory>
 component com.feipi.session.browser.quality.gates.core.RuleExecution candidateCount: int
 component com.feipi.session.browser.quality.gates.core.RuleExecution rule: String
 component com.feipi.session.browser.quality.gates.core.RuleExecution violations: List<QualityViolation>
@@ -1835,11 +1846,15 @@ constructor com.feipi.session.browser.index.store.sqlite.util.PlatformDetectionR
 constructor com.feipi.session.browser.index.store.sqlite.util.SqliteSqlUtils.WhereClauses public WhereClauses()
 constructor com.feipi.session.browser.index.store.sqlite.util.Thresholds public Thresholds()
 constructor com.feipi.session.browser.index.store.sqlite.util.WhereClauses public WhereClauses()
+constructor com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule.Evaluation public Evaluation()
 constructor com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule.BaselineUpdate public BaselineUpdate()
+constructor com.feipi.session.browser.quality.gates.core.QualityAdvisory public QualityAdvisory()
 constructor com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution public RuleExecution()
+constructor com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution public RuleExecution(String rule, int candidateCount, List<QualityViolation> violations)
 constructor com.feipi.session.browser.quality.gates.core.QualityViolation public QualityViolation()
 constructor com.feipi.session.browser.quality.gates.core.RepositorySourceSet public RepositorySourceSet()
 constructor com.feipi.session.browser.quality.gates.core.RuleExecution public RuleExecution()
+constructor com.feipi.session.browser.quality.gates.core.RuleExecution public RuleExecution(String rule, int candidateCount, List<QualityViolation> violations)
 constructor com.feipi.session.browser.query.api.AgentFilter public static final AgentFilter NONE = new AgentFilter("")
 constructor com.feipi.session.browser.query.api.AnomalyFilter public static final AnomalyFilter NONE = new AnomalyFilter(null)
 constructor com.feipi.session.browser.query.api.CallRound public CallRound( int roundIndex, List<String> calls, List<String> toolCallIds, String parentCallId)
@@ -2819,6 +2834,8 @@ method com.feipi.session.browser.normalization.TokenAccountant public static Nor
 method com.feipi.session.browser.quality.gates.cli.QualityGateCli public static QualityGateRegistry registry()
 method com.feipi.session.browser.quality.gates.cli.QualityGateCli public static int run( String[] args, Map<String, String> environment, PrintStream err, PrintStream out)
 method com.feipi.session.browser.quality.gates.cli.QualityGateCli public static void main(String[] args)
+method com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule public Evaluation evaluate(QualityContext context) throws Exception
+method com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule public default List<QualityViolation> check(QualityContext context) throws Exception
 method com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule public BaselineUpdate baselineUpdate(QualityContext context) throws Exception
 method com.feipi.session.browser.quality.gates.core.Builder public Builder register(QualityRule rule)
 method com.feipi.session.browser.quality.gates.core.Builder public QualityGateRegistry build()
@@ -2853,6 +2870,11 @@ method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public
 method com.feipi.session.browser.quality.gates.rules.TemplateContractRule public boolean usesChangedFiles()
 method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public List<QualityViolation> check(QualityContext context)
 method com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public String id()
+method com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule public Evaluation evaluate(QualityContext context) throws IOException
+method com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule public List<Path> requiredInputs(Path repoRoot)
+method com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule public String id()
+method com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule public boolean supportsPath(String relativePath)
+method com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule public boolean usesChangedFiles()
 method com.feipi.session.browser.quality.gates.rules.web.LayoutInlineStyleRule public BaselineUpdate baselineUpdate(QualityContext context)
 method com.feipi.session.browser.quality.gates.rules.web.LayoutInlineStyleRule public List<Path> requiredInputs(Path repoRoot)
 method com.feipi.session.browser.quality.gates.rules.web.LayoutInlineStyleRule public List<QualityViolation> check(QualityContext context)
@@ -3541,28 +3563,32 @@ type com.feipi.session.browser.normalization.NormalizationEngine.ConservationChe
 type com.feipi.session.browser.normalization.TokenAccountant public class [normalization-engine] final class TokenAccountant
 type com.feipi.session.browser.quality.gates.cli.QualityGateCli public class [tests] final class QualityGateCli
 type com.feipi.session.browser.quality.gates.cli.QualityGateExitCodes public class [tests] final class QualityGateExitCodes
+type com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule public interface [tests] interface AdvisoryQualityRule extends QualityRule
+type com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule.Evaluation public record [tests] record Evaluation(List<QualityViolation> violations, List<QualityAdvisory> advisories)
 type com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule public interface [tests] interface BaselineUpdatableRule extends QualityRule
 type com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule.BaselineUpdate public record [tests] record BaselineUpdate(Path path, Map<String, List<String>> section)
 type com.feipi.session.browser.quality.gates.core.Builder public class [tests] static final class Builder
 type com.feipi.session.browser.quality.gates.core.JavaSourceSet public record [tests] record JavaSourceSet(List<ParsedSource> sources, DocTrees docTrees)
 type com.feipi.session.browser.quality.gates.core.JavaSourceSet.ParsedSource public record [tests] record ParsedSource( Path path, String relativePath, String text, CompilationUnitTree unit)
 type com.feipi.session.browser.quality.gates.core.ParsedSource public record [tests] record ParsedSource( Path path, String relativePath, String text, CompilationUnitTree unit)
-type com.feipi.session.browser.quality.gates.core.QualityContext public record [tests] record QualityContext( Path repoRoot, JavaSourceSet sources, RepositorySourceSet repositorySources, Path apiSnapshot, boolean writeApiSnapshot)
+type com.feipi.session.browser.quality.gates.core.QualityAdvisory public record [tests] record QualityAdvisory( String rule, String path, int line, String code, String message, Map<String, String> attributes)
+type com.feipi.session.browser.quality.gates.core.QualityContext public record [tests] record QualityContext( Path repoRoot, JavaSourceSet sources, RepositorySourceSet repositorySources, Path apiSnapshot, boolean writeApiSnapshot, Path qualityArtifactDir)
 type com.feipi.session.browser.quality.gates.core.QualityGateRegistry public class [tests] final class QualityGateRegistry
 type com.feipi.session.browser.quality.gates.core.QualityGateRegistry.Builder public class [tests] static final class Builder
 type com.feipi.session.browser.quality.gates.core.QualityRule public interface [tests] interface QualityRule
 type com.feipi.session.browser.quality.gates.core.QualitySummary public class [tests] final class QualitySummary
-type com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution public record [tests] record RuleExecution(String rule, int candidateCount, List<QualityViolation> violations)
+type com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution public record [tests] record RuleExecution( String rule, int candidateCount, List<QualityViolation> violations, List<QualityAdvisory> advisories)
 type com.feipi.session.browser.quality.gates.core.QualityViolation public record [tests] record QualityViolation( String rule, String path, int line, String code, String message, Map<String, String> attributes)
 type com.feipi.session.browser.quality.gates.core.RepositorySourceSet public record [tests] record RepositorySourceSet(List<SourceText> sources)
 type com.feipi.session.browser.quality.gates.core.RepositorySourceSet.SourceText public record [tests] record SourceText(Path path, String relativePath, String text)
-type com.feipi.session.browser.quality.gates.core.RuleExecution public record [tests] record RuleExecution(String rule, int candidateCount, List<QualityViolation> violations)
+type com.feipi.session.browser.quality.gates.core.RuleExecution public record [tests] record RuleExecution( String rule, int candidateCount, List<QualityViolation> violations, List<QualityAdvisory> advisories)
 type com.feipi.session.browser.quality.gates.core.SourceText public record [tests] record SourceText(Path path, String relativePath, String text)
 type com.feipi.session.browser.quality.gates.rules.JavaApiSnapshotRule public class [tests] final class JavaApiSnapshotRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule public class [tests] final class JavaCommentLanguageRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule public class [tests] final class NoPmdSuppressionsRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.TemplateContractRule public class [tests] final class TemplateContractRule implements QualityRule
 type com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule public class [tests] final class RecordComponentJavadocsRule implements QualityRule
+type com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule public class [tests] final class CssOwnershipRule implements AdvisoryQualityRule
 type com.feipi.session.browser.quality.gates.rules.web.LayoutInlineStyleRule public class [tests] final class LayoutInlineStyleRule implements BaselineUpdatableRule
 type com.feipi.session.browser.quality.gates.rules.web.RawInnerHtmlRule public class [tests] final class RawInnerHtmlRule implements BaselineUpdatableRule
 type com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule public class [tests] final class StaticResourceContractRule implements QualityRule

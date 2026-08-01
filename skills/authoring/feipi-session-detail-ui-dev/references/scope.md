@@ -6,7 +6,7 @@
 - Session detail shell、layout、interaction 组件。
 - UI 视觉质量门的维护和新增。
 - Jinja macro 的复用和优化。
-- CSS ownership artifact，以及审阅后的 P4 Web baseline section 更新。
+- Java `css-ownership` rule 的隔离 artifact，以及审阅后的 P4 Web baseline section 更新。
 
 ## 禁止范围
 
@@ -24,14 +24,15 @@
 2. `src/static/css/` → CSS 样式文件，ownership 分区。
 3. `src/static/js/` → JS 交互脚本，action handler 绑定。
 4. `shared check `web.session-detail-static`` → 静态检查入口。
-5. `shared check `web.css-ownership`` → CSS ownership 校验。
+5. catalog Gate `cssOwnership` / Java `css-ownership` rule → CSS ownership 校验。
 6. `shared check `web.js-action-handlers`` → JS handler 完整性检查。
 7. `config/web-quality-baselines.json` → `raw-innerhtml` 与 `layout-inline-style` 的 canonical baseline section；
-   CSS ownership 仍由当前 Python owner/artifact 管理。
+   CSS ownership 由 Java rule 管理，并继续写出按运行隔离的 artifact；该 artifact 不是 baseline。
 
 ## 常见误区
 
-- 误以为可以直接添加全局 CSS 类。实际每个 CSS 规则必须有明确 ownership，通过 `web.css-ownership` 校验。
+- 误以为可以直接添加全局 CSS 类。实际每个 CSS 规则必须有明确 ownership，通过 catalog Gate
+  `cssOwnership` 校验。
 - 误以为 inline style 是快速修复的好方法。实际 inline style 会被 catalog Gate `layoutInlineStyle` 拦截。
 - 误以为删除模板中的按钮只需改 HTML。实际必须同步删除对应的 JS action handler。
 - 误以为修改 macro 只影响当前页面。实际必须检查所有调用点。
@@ -44,7 +45,7 @@
 - `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js`
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js`
 - `python3 -m scripts.checks web.js-action-handlers`
-- `python3 -m scripts.checks web.css-ownership`
+- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership`
 - `python3 -m scripts.checks repository.repo-slimming`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml`

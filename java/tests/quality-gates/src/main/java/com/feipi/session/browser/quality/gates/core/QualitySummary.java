@@ -2,6 +2,7 @@ package com.feipi.session.browser.quality.gates.core;
 
 import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /** 稳定 JSON summary 生成器；字段顺序是 CLI contract 的一部分。 */
@@ -28,6 +29,8 @@ public final class QualitySummary {
     }
     var violations =
         executions.stream().flatMap(execution -> execution.violations().stream()).toList();
+    var advisories =
+        executions.stream().flatMap(execution -> execution.advisories().stream()).toList();
     var status = "FAILED";
     if (violations.isEmpty()) {
       status = allRulesHaveNoCandidates ? "NOT_APPLICABLE" : "PASSED";
@@ -57,6 +60,8 @@ public final class QualitySummary {
           .append(execution.candidateCount())
           .append(",\"violationCount\":")
           .append(execution.violations().size())
+          .append(",\"advisoryCount\":")
+          .append(execution.advisories().size())
           .append('}');
     }
     output.append("],\"violations\":[");
@@ -64,28 +69,14 @@ public final class QualitySummary {
       if (index > 0) {
         output.append(',');
       }
-      var item = violations.get(index);
-      output
-          .append("{\"rule\":")
-          .append(string(item.rule()))
-          .append(",\"path\":")
-          .append(string(item.path()))
-          .append(",\"line\":")
-          .append(item.line())
-          .append(",\"code\":")
-          .append(string(item.code()))
-          .append(",\"message\":")
-          .append(string(item.message()))
-          .append(",\"attributes\":{");
-      var attributes = item.attributes().entrySet().stream().sorted(MapEntry.COMPARATOR).toList();
-      for (int attributeIndex = 0; attributeIndex < attributes.size(); attributeIndex++) {
-        if (attributeIndex > 0) {
-          output.append(',');
-        }
-        var attribute = attributes.get(attributeIndex);
-        output.append(string(attribute.getKey())).append(':').append(string(attribute.getValue()));
+      appendDiagnostic(output, JsonDiagnostic.from(violations.get(index)));
+    }
+    output.append("],\"advisories\":[");
+    for (int index = 0; index < advisories.size(); index++) {
+      if (index > 0) {
+        output.append(',');
       }
-      output.append("}}");
+      appendDiagnostic(output, JsonDiagnostic.from(advisories.get(index)));
     }
     return output.append("]}\n").toString();
   }
@@ -95,23 +86,91 @@ public final class QualitySummary {
    *
    * @param rule 稳定规则标识。
    * @param candidateCount 该规则实际收到的源码文件数。
-   * @param violations 该规则按自身扫描语义产生的稳定诊断顺序。
+   * @param violations 该规则按自身扫描语义产生的稳定阻断诊断顺序。
+   * @param advisories 该规则按自身扫描语义产生的稳定非阻断建议顺序。
    */
-  public record RuleExecution(String rule, int candidateCount, List<QualityViolation> violations) {
+  public record RuleExecution(
+      String rule,
+      int candidateCount,
+      List<QualityViolation> violations,
+      List<QualityAdvisory> advisories) {
+
+    /** 普通规则没有建议项，继续使用简洁的三参数构造。 */
+    public RuleExecution(String rule, int candidateCount, List<QualityViolation> violations) {
+      this(rule, candidateCount, violations, List.of());
+    }
 
     /** 校验候选与违规归属并做防御性复制。 */
     public RuleExecution {
       Objects.requireNonNull(rule, "rule");
       violations = List.copyOf(violations);
+      advisories = List.copyOf(advisories);
       if (rule.isBlank() || candidateCount < 0) {
         throw new IllegalArgumentException("rule and candidate count must be valid");
       }
-      if (candidateCount == 0 && !violations.isEmpty()) {
-        throw new IllegalArgumentException("zero-candidate rule cannot contain violations");
+      if (candidateCount == 0 && (!violations.isEmpty() || !advisories.isEmpty())) {
+        throw new IllegalArgumentException("zero-candidate rule cannot contain diagnostics");
       }
       if (violations.stream().anyMatch(violation -> !violation.rule().equals(rule))) {
         throw new IllegalArgumentException("violation must belong to its rule execution");
       }
+      if (advisories.stream().anyMatch(advisory -> !advisory.rule().equals(rule))) {
+        throw new IllegalArgumentException("advisory must belong to its rule execution");
+      }
+    }
+  }
+
+  /** 统一写出阻断项与建议项，避免两类诊断的 JSON contract 漂移。 */
+  private static void appendDiagnostic(StringBuilder output, JsonDiagnostic item) {
+    output
+        .append("{\"rule\":")
+        .append(string(item.rule()))
+        .append(",\"path\":")
+        .append(string(item.path()))
+        .append(",\"line\":")
+        .append(item.line())
+        .append(",\"code\":")
+        .append(string(item.code()))
+        .append(",\"message\":")
+        .append(string(item.message()))
+        .append(",\"attributes\":{");
+    var attributes = item.attributes().entrySet().stream().sorted(MapEntry.COMPARATOR).toList();
+    for (int index = 0; index < attributes.size(); index++) {
+      if (index > 0) {
+        output.append(',');
+      }
+      var attribute = attributes.get(index);
+      output.append(string(attribute.getKey())).append(':').append(string(attribute.getValue()));
+    }
+    output.append("}}");
+  }
+
+  /**
+   * JSON writer 的内部诊断视图。
+   *
+   * @param rule 规则 id。
+   * @param path 仓库相对路径。
+   * @param line 诊断行号。
+   * @param code 稳定诊断代码。
+   * @param message 用户可读说明。
+   * @param attributes 附加属性。
+   */
+  private record JsonDiagnostic(
+      String rule,
+      String path,
+      int line,
+      String code,
+      String message,
+      Map<String, String> attributes) {
+
+    private static JsonDiagnostic from(QualityViolation item) {
+      return new JsonDiagnostic(
+          item.rule(), item.path(), item.line(), item.code(), item.message(), item.attributes());
+    }
+
+    private static JsonDiagnostic from(QualityAdvisory item) {
+      return new JsonDiagnostic(
+          item.rule(), item.path(), item.line(), item.code(), item.message(), item.attributes());
     }
   }
 
@@ -132,8 +191,8 @@ public final class QualitySummary {
 
   /** 按属性键稳定排序，保证质量摘要在重复运行时保持确定顺序。 */
   private static final class MapEntry {
-    private static final Comparator<java.util.Map.Entry<String, String>> COMPARATOR =
-        java.util.Map.Entry.comparingByKey();
+    private static final Comparator<Map.Entry<String, String>> COMPARATOR =
+        Map.Entry.comparingByKey();
 
     private MapEntry() {}
   }

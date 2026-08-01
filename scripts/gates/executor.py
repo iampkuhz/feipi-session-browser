@@ -32,7 +32,12 @@ from scripts.gates.report import (
 )
 from scripts.gates.runtime.environment import sanitized_environment
 from scripts.gates.runtime.process import BoundedRunResult, run_bounded
-from scripts.gates.support import resolve_runtime_root
+from scripts.gates.support import (
+    ensure_private_directory,
+    identity_from_values,
+    quality_dir,
+    resolve_runtime_root,
+)
 from scripts.harness.python_env import project_venv_dir, resolve_python
 
 PLAYWRIGHT_COMMAND_MIN_PARTS = 5
@@ -67,7 +72,27 @@ def _run_tmp_dir(repo_root: Path, name: str) -> Path:
 def gate_child_environment(
     repo_root: Path, overrides: dict[str, str] | None = None
 ) -> dict[str, str]:
-    """构造 Gate 真正使用的净化环境，并把临时数据/cache 绑定到当前 run。"""
+    """构造 Gate 净化环境，并按执行身份隔离临时数据和质量产物。"""
+    selected_overrides = overrides or {}
+    identity = identity_from_values(
+        agent_client=selected_overrides.get('FEIPI_AGENT_CLIENT'),
+        session_id=selected_overrides.get('FEIPI_SESSION_ID'),
+        agent_id=selected_overrides.get('FEIPI_AGENT_ID'),
+        run_id=selected_overrides.get('FEIPI_RUN_ID'),
+        worktree_id=selected_overrides.get('FEIPI_WORKTREE_ID'),
+    )
+    if not identity.has_session or not identity.has_run:
+        # 缺少 session/run 时沿用旧 owner 的进程级隔离，避免多个无身份执行共享 unknown/main。
+        process_id = f'pid-{os.getpid()}'
+        identity = identity_from_values(
+            agent_client=identity.client,
+            session_id=identity.raw_session_id or process_id,
+            agent_id=identity.raw_agent_id,
+            run_id=identity.raw_run_id or process_id,
+            worktree_id=identity.raw_worktree_id,
+        )
+    quality_root = repo_root / 'tmp' / 'quality'
+    artifact_dir = ensure_private_directory(quality_dir(repo_root, identity), root=quality_root)
     child_root = _run_tmp_dir(repo_root, 'child-environment')
     values = {
         'TMPDIR': str(child_root / 'tmp'),
@@ -76,7 +101,9 @@ def gate_child_environment(
     }
     for path in values.values():
         Path(path).mkdir(parents=True, exist_ok=True)
-    values.update(overrides or {})
+    values.update(selected_overrides)
+    # 质量产物根目录只能由统一 identity 算法生成，调用方不能注入任意路径。
+    values['FEIPI_QUALITY_ARTIFACT_DIR'] = str(artifact_dir)
     return sanitized_environment(values, base=sanitized_environment())
 
 
@@ -255,24 +282,8 @@ def _pytest_skip_count(output: str) -> int:
 
 
 def _strip_allowed_warning_noise(output: str, *, gate_name: str, cmd: list[str]) -> str:
-    """移除策略明确允许的 CSS 与 Playwright warning 噪声。"""
+    """只移除策略明确允许的 Playwright warning 噪声。"""
     clean = _strip_ansi(output)
-
-    is_css_ownership = any(Path(part).name == 'check_css_ownership.py' for part in cmd)
-    if is_css_ownership:
-        lines: list[str] = []
-        for line in clean.splitlines():
-            stripped = line.strip()
-            if re.match(r'^Warnings:\s*\d+\s*$', stripped, flags=re.IGNORECASE):
-                continue
-            if re.match(r'^\[WARN\]\s+', stripped, flags=re.IGNORECASE):
-                continue
-            if re.match(
-                r'^CSS ownership:\s+PASS\s+\(\d+\s+warnings?\)\s*$', stripped, flags=re.IGNORECASE
-            ):
-                continue
-            lines.append(line)
-        return '\n'.join(lines)
 
     if _is_playwright_command(cmd):
         lines = []
@@ -341,7 +352,11 @@ def _warning_after_trigger_reason(
     warning_lines = [
         line.strip()
         for line in clean.splitlines()
-        if re.match(r'^(?:\[.*?\]\s*)?(?:WARN|WARNING)\b', line.strip(), flags=re.IGNORECASE)
+        if re.match(
+            r'^(?:\[(?:WARN|WARNING)\]|(?:\[.*?\]\s*)?(?:WARN|WARNING)\b)',
+            line.strip(),
+            flags=re.IGNORECASE,
+        )
     ]
 
     if warning_count:

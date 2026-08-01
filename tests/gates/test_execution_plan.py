@@ -137,6 +137,48 @@ def test_template_resource_uses_one_java_quality_group() -> None:
     assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
 
 
+def test_css_resource_aggregates_static_and_ownership_java_rules_once() -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(  # noqa: SLF001
+            plan(['java/web/src/main/resources/static/css/page.css'])
+        ),
+        REPO_ROOT,
+    )
+    groups = [group for group in execution.groups if 'cssOwnership' in group.gate_names]
+
+    assert len(groups) == 1
+    assert groups[0].kind == 'gradle'
+    assert groups[0].gate_names == ('staticCssContract', 'cssOwnership')
+    assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
+    rule_args = [
+        argument
+        for argument in groups[0].command
+        if argument.startswith('-PfeipiJavaQualityRules=')
+    ]
+    assert rule_args == ['-PfeipiJavaQualityRules=static-resource-contract,css-ownership']
+    assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
+
+
+@pytest.mark.parametrize(
+    'changed_path',
+    ('scripts/gates/executor.py', 'tests/gates/test_executor.py'),
+)
+def test_css_executor_changes_run_java_rule_and_relevant_pytest(changed_path: str) -> None:
+    execution = executor.build_execution_plan(
+        cli._with_preflight(plan([changed_path])),  # noqa: SLF001
+        REPO_ROOT,
+    )
+    css_groups = [group for group in execution.groups if 'cssOwnership' in group.gate_names]
+    coverage_groups = [group for group in execution.groups if 'pythonCoverage' in group.gate_names]
+
+    assert len(css_groups) == 1
+    assert css_groups[0].kind == 'gradle'
+    assert '-PfeipiJavaQualityRules=css-ownership' in css_groups[0].command
+    assert len(coverage_groups) == 1
+    assert coverage_groups[0].kind == 'command'
+    assert 'tests/gates' in coverage_groups[0].command
+
+
 def test_static_javascript_aggregates_three_independent_java_rule_states() -> None:
     execution = executor.build_execution_plan(
         cli._with_preflight(  # noqa: SLF001
@@ -160,28 +202,36 @@ def test_static_javascript_aggregates_three_independent_java_rule_states() -> No
     assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
 
 
-def test_shared_repository_source_set_change_aggregates_both_p4_rules_once() -> None:
+@pytest.mark.parametrize(
+    'changed_path',
+    (
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/'
+        'quality/gates/core/RepositorySourceSet.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/'
+        'quality/gates/core/RepositorySourceSetTest.java',
+    ),
+)
+def test_shared_repository_source_set_change_aggregates_web_resource_rules_once(
+    changed_path: str,
+) -> None:
     execution = executor.build_execution_plan(
-        cli._with_preflight(  # noqa: SLF001
-            plan(
-                [
-                    'java/tests/quality-gates/src/main/java/com/feipi/session/browser/'
-                    'quality/gates/core/RepositorySourceSet.java'
-                ]
-            )
-        ),
+        cli._with_preflight(plan([changed_path])),  # noqa: SLF001
         REPO_ROOT,
     )
     groups = [
         group
         for group in execution.groups
-        if 'rawInnerhtml' in group.gate_names or 'layoutInlineStyle' in group.gate_names
+        if any(
+            name in group.gate_names
+            for name in ('rawInnerhtml', 'layoutInlineStyle', 'cssOwnership')
+        )
     ]
 
     assert len(groups) == 1
     assert groups[0].kind == 'gradle'
     assert groups[0].gate_names.count('rawInnerhtml') == 1
     assert groups[0].gate_names.count('layoutInlineStyle') == 1
+    assert groups[0].gate_names.count('cssOwnership') == 1
     assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
     rule_args = [
         argument
@@ -192,6 +242,7 @@ def test_shared_repository_source_set_change_aggregates_both_p4_rules_once() -> 
     selected_rules = rule_args[0].partition('=')[2].split(',')
     assert selected_rules.count('raw-innerhtml') == 1
     assert selected_rules.count('layout-inline-style') == 1
+    assert selected_rules.count('css-ownership') == 1
     assert 'feipiJavaQualityBaselineUpdateRules' not in groups[0].command
 
 

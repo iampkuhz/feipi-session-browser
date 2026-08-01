@@ -33,7 +33,6 @@ def test_required_domains_are_registered() -> None:
     assert {
         'agent.rules-sync',
         'repository.dead-command-reference',
-        'web.css-ownership',
         'security.secret-like-content',
         'openspec.acceptance-contracts',
     } <= CHECKS.keys()

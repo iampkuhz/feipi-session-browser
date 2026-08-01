@@ -1,12 +1,16 @@
 """唯一 Gate executor 的命令、环境、状态与进程终止 contract。"""
 
+import os
+import stat
 from pathlib import Path
 from types import SimpleNamespace
 
+import pytest
 from scripts.gates import executor
 from scripts.gates.catalog import gate_by_name
 from scripts.gates.model import GatePlan, TargetGatePlan
 from scripts.gates.report import BLOCKED, FAIL, PASS, GateDetail
+from scripts.gates.support import identity_from_values, quality_dir
 
 
 def _single_plan(target: str, gate: str) -> GatePlan:
@@ -162,7 +166,7 @@ def test_execute_plan_injects_run_identity_into_gate_children(tmp_path: Path, mo
 
     monkeypatch.setattr(executor, 'run_cmd', fake_run)
     execution = executor.build_execution_plan(
-        _single_plan('session-detail', 'cssOwnership'),
+        _single_plan('python-standard', 'scriptCommentLanguage'),
         tmp_path,
     )
 
@@ -180,6 +184,93 @@ def test_execute_plan_injects_run_identity_into_gate_children(tmp_path: Path, mo
     assert captured['FEIPI_AGENT_CLIENT'] == 'codex'
     assert captured['FEIPI_SESSION_ID'] == 'session-a'
     assert captured['FEIPI_RUN_ID'] == 'run-a'
+
+
+def test_gate_child_environment_uses_current_identity_for_private_quality_dir(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv('FEIPI_AGENT_CLIENT', 'codex')
+    monkeypatch.setenv('FEIPI_SESSION_ID', 'current-session')
+    monkeypatch.setenv('FEIPI_RUN_ID', 'current-run')
+    monkeypatch.setenv('FEIPI_AGENT_ID', 'current-agent')
+    monkeypatch.setenv('FEIPI_RUN_TMPDIR', str(tmp_path / 'runtime'))
+
+    child = executor.gate_child_environment(tmp_path)
+    expected = quality_dir(tmp_path, identity_from_values())
+
+    assert child['FEIPI_QUALITY_ARTIFACT_DIR'] == str(expected)
+    assert expected.is_dir()
+    assert stat.S_IMODE(expected.stat().st_mode) == 0o700
+
+
+def test_gate_child_environment_adds_pid_to_each_missing_identity_part(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv('FEIPI_RUN_TMPDIR', str(tmp_path / 'runtime'))
+    process_id = f'pid-{os.getpid()}'
+    cases = {
+        'missing-both': ('', ''),
+        'session-only': ('session-only', ''),
+        'run-only': ('', 'run-only'),
+        'full': ('session-full', 'run-full'),
+    }
+    observed: set[str] = set()
+
+    for session_id, run_id in cases.values():
+        overrides = {
+            'FEIPI_AGENT_CLIENT': 'codex',
+            'FEIPI_SESSION_ID': session_id,
+            'FEIPI_AGENT_ID': 'agent-a',
+            'FEIPI_RUN_ID': run_id,
+            'FEIPI_WORKTREE_ID': 'worktree-a',
+        }
+        child = executor.gate_child_environment(tmp_path, overrides)
+        expected_identity = identity_from_values(
+            agent_client='codex',
+            session_id=session_id or process_id,
+            agent_id='agent-a',
+            run_id=run_id or process_id,
+            worktree_id='worktree-a',
+        )
+        expected = quality_dir(tmp_path, expected_identity)
+
+        assert child['FEIPI_QUALITY_ARTIFACT_DIR'] == str(expected)
+        assert expected.is_dir()
+        assert stat.S_IMODE(expected.stat().st_mode) == 0o700
+        observed.add(str(expected))
+
+    assert len(observed) == len(cases)
+
+
+def test_gate_child_environment_respects_identity_overrides_and_rejects_path_override(
+    tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setenv('FEIPI_AGENT_CLIENT', 'current-client')
+    monkeypatch.setenv('FEIPI_SESSION_ID', 'current-session')
+    monkeypatch.setenv('FEIPI_RUN_ID', 'current-run')
+    monkeypatch.setenv('FEIPI_AGENT_ID', 'current-agent')
+    monkeypatch.setenv('FEIPI_RUN_TMPDIR', str(tmp_path / 'runtime'))
+    overrides = {
+        'FEIPI_AGENT_CLIENT': 'override-client',
+        'FEIPI_SESSION_ID': 'override-session',
+        'FEIPI_RUN_ID': 'override-run',
+        'FEIPI_AGENT_ID': 'override-agent',
+        'FEIPI_QUALITY_ARTIFACT_DIR': str(tmp_path / 'injected'),
+    }
+
+    child = executor.gate_child_environment(tmp_path, overrides)
+    expected_identity = identity_from_values(
+        agent_client='override-client',
+        session_id='override-session',
+        run_id='override-run',
+        agent_id='override-agent',
+    )
+    expected = quality_dir(tmp_path, expected_identity)
+
+    assert child['FEIPI_QUALITY_ARTIFACT_DIR'] == str(expected)
+    assert expected.is_dir()
+    assert stat.S_IMODE(expected.stat().st_mode) == 0o700
+    assert not (tmp_path / 'injected').exists()
 
 
 def test_java_api_snapshot_uses_declarative_java_rule() -> None:
@@ -212,14 +303,44 @@ def test_timeout_terminates_process_group(monkeypatch, tmp_path: Path) -> None:
     assert '超时' in detail.output
 
 
-def test_css_ownership_advisories_are_allowlisted_for_group_name() -> None:
-    output = "Warnings: 2\n  [WARN] hardcoded-color\nCSS ownership: PASS (2 warnings)"
+@pytest.mark.parametrize(
+    'output',
+    (
+        'Warnings: 2',
+        '{"warningCount": 1}',
+        '[WARN] hardcoded-color',
+    ),
+)
+@pytest.mark.contract_case('HOOK-HARNESS-008')
+def test_warning_detector_rejects_ordinary_command_warnings(output: str) -> None:
+    command = ['python3', 'scripts/checks/quality_check.py']
+
+    reason = executor._warning_after_trigger_reason(
+        output,
+        gate_name='group-001-qualityCheck',
+        cmd=command,
+    )
+    status, _ = executor._audit_successful_output('group-001-qualityCheck', command, output, output)
+
+    assert reason is not None
+    assert status == FAIL
+
+
+def test_playwright_allowed_warning_noise_remains_ignored() -> None:
+    output = '\n'.join(
+        (
+            "Warning: The 'NO_COLOR' env is ignored due to the 'FORCE_COLOR' env being set.",
+            '[DEP0205] DeprecationWarning: `module.register()` is deprecated.',
+            '(Use `node --trace-deprecation ...` to show where the warning was created)',
+            '2 passed',
+        )
+    )
 
     assert (
         executor._warning_after_trigger_reason(
             output,
-            gate_name='group-040-cssOwnership',
-            cmd=['python3', 'scripts/checks/web/check_css_ownership.py'],
+            gate_name='group-001-browserLayout',
+            cmd=['npm', '--prefix', 'tests/playwright', 'test', '--'],
         )
         is None
     )

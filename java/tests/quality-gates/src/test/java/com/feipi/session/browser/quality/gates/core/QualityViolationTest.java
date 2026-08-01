@@ -47,9 +47,9 @@ class QualityViolationTest {
     assertThat(json)
         .contains("\"status\":\"PASSED\"")
         .contains(
-            "{\"rule\":\"full-scan\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+            "{\"rule\":\"full-scan\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0,\"advisoryCount\":0}")
         .contains(
-            "{\"rule\":\"incremental\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
+            "{\"rule\":\"incremental\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0,\"advisoryCount\":0}");
   }
 
   @Test
@@ -62,5 +62,39 @@ class QualityViolationTest {
             2, List.of(new QualitySummary.RuleExecution("rule", 2, List.of(first, second))));
 
     assertThat(json).containsSubsequence("z.html", "a.js");
+  }
+
+  @Test
+  void advisoryDoesNotFailRuleAndUsesNeutralSummaryVocabulary() {
+    var advisory =
+        new QualityAdvisory(
+            "rule", "web/page.css", 4, "COLOR_DEBT", "建议改用 token。", Map.of("z", "1"));
+
+    var json =
+        QualitySummary.json(
+            1, List.of(new QualitySummary.RuleExecution("rule", 1, List.of(), List.of(advisory))));
+
+    assertThat(json)
+        .isEqualTo(
+            "{\"status\":\"PASSED\",\"candidateCount\":1,\"rules\":["
+                + "{\"rule\":\"rule\",\"status\":\"PASSED\",\"candidateCount\":1,"
+                + "\"violationCount\":0,\"advisoryCount\":1}],\"violations\":[],"
+                + "\"advisories\":[{\"rule\":\"rule\",\"path\":\"web/page.css\",\"line\":4,"
+                + "\"code\":\"COLOR_DEBT\",\"message\":\"建议改用 token。\","
+                + "\"attributes\":{\"z\":\"1\"}}]}\n")
+        .doesNotContainIgnoringCase("warning")
+        .doesNotContain("[WARN]");
+  }
+
+  @Test
+  void rejectsAdvisoryWithWrongRuleOrWithoutCandidate() {
+    var advisory = new QualityAdvisory("other", "web/page.css", 1, "CODE", "建议处理。", Map.of());
+
+    assertThatThrownBy(
+            () -> new QualitySummary.RuleExecution("rule", 1, List.of(), List.of(advisory)))
+        .isInstanceOf(IllegalArgumentException.class);
+    assertThatThrownBy(
+            () -> new QualitySummary.RuleExecution("other", 0, List.of(), List.of(advisory)))
+        .isInstanceOf(IllegalArgumentException.class);
   }
 }

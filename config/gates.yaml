@@ -84,7 +84,12 @@ gates:
     order: 2
     patterns:
     - pyproject.toml
+    - scripts/gates/executor.py
     - tests/**/*.py
+  - name: acceptance-contracts
+    order: 5
+    patterns:
+    - tests/gates/test_executor.py
   tiers:
   - required
   - full
@@ -104,7 +109,6 @@ gates:
     - tests/gates
     - tests/quality/test_contract_case_specs.py
     - tests/quality/test_java_classification.py
-    - tests/quality/test_new_quality_gates.py
     - tests/quality/test_no_test_skips_gate.py
     - tests/quality/test_python_env_contract.py
     - tests/quality/test_repo_slimming_contract.py
@@ -927,7 +931,33 @@ gates:
     order: 5
     patterns:
     - java/web/src/main/resources/static/css/**/*.css
-    - scripts/checks/web/check_css_ownership.py
+  - name: python-standard
+    order: 14
+    patterns:
+    - scripts/gates/executor.py
+  - name: acceptance-contracts
+    order: 14
+    patterns:
+    - tests/gates/test_executor.py
+  - name: java-src
+    order: 14
+    patterns:
+    - java/tests/quality-gates/build.gradle.kts
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/AdvisoryQualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityAdvisory.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityContext.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityViolation.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/ArtifactPairPublisher.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/QualityGateCliTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRuleTest.java
   tiers:
   - required
   - full
@@ -935,13 +965,11 @@ gates:
   incremental: patterns
   changed_files: none
   included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - web.css-ownership
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - css-ownership
 - name: browserLayout
   description: 执行 browserLayout 所定义的仓库质量检查。
   targets:

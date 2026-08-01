@@ -11,7 +11,7 @@
 | `session-detail.spec.js` + `session-detail-migrated-gates.spec.js` | Session detail 交互 gate（Node Playwright） | 改 JS handler 时必跑 |
 | `session-detail-layout.spec.js` | Session detail 布局 gate（Node Playwright） | 改布局或 shell 时必跑 |
 | `web.js-action-handlers` | JS action handler 完整性检查 | 改 JS 或模板按钮时必跑 |
-| `web.css-ownership` | CSS ownership 校验 | 改 CSS 时必跑 |
+| `cssOwnership` | Java `css-ownership` rule；CSS ownership 校验并写出隔离 artifact | 改 CSS 时必跑 |
 | `repository.repo-slimming` | Legacy CSS 检查 | 改 CSS 时必跑 |
 | `layoutInlineStyle` | Java `layout-inline-style` rule | 改模板时必跑 |
 | `rawInnerhtml` | Java `raw-innerhtml` rule | 改 JS 时必跑 |
@@ -19,7 +19,7 @@
 ## 选择策略
 
 - **只改模板 HTML**：`web.session-detail-static` + `layoutInlineStyle`。
-- **只改 CSS**：`web.css-ownership` + `repository.repo-slimming` + `web.session-detail-static`（如涉及 shell）。
+- **只改 CSS**：`cssOwnership` + `repository.repo-slimming` + `web.session-detail-static`（如涉及 shell）。
 - **只改 JS**：`web.js-action-handlers` + `rawInnerhtml` + Node Playwright 交互 gate。
 - **改布局或 shell**：Node Playwright 布局 gate + `web.session-detail-static` + `layoutInlineStyle`。
 - **收口前**：运行静态 gate 与 `npm --prefix tests/playwright test --`。
@@ -39,4 +39,11 @@
 ./gradlew :java:tests:quality-gates:runJavaQualityGates \
   -PfeipiJavaQualityRules=raw-innerhtml \
   -PfeipiJavaQualityBaselineUpdateRules=raw-innerhtml
+```
+
+CSS ownership 没有可维护 baseline；运行 catalog Gate `cssOwnership` 时使用唯一 Java rule，并保留其
+隔离 artifact：
+
+```bash
+./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
 ```

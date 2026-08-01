@@ -11,6 +11,7 @@
       "pythonDeps",
       "misplacedGeneratedPaths",
       "scriptCommentLanguage",
+      "cssOwnership",
       "ignoredTrackedFiles",
       "bashSyntax",
       "repoStructure",
@@ -34,7 +35,9 @@
       "acceptanceContracts",
       "pytest",
       "misplacedGeneratedPaths",
-      "rawInnerhtml"
+      "rawInnerhtml",
+      "pythonCoverage",
+      "cssOwnership"
     ],
     "session-detail": [
       "pythonCompile",
@@ -65,7 +68,8 @@
       "staticCssContract",
       "misplacedGeneratedPaths",
       "rawInnerhtml",
-      "layoutInlineStyle"
+      "layoutInlineStyle",
+      "cssOwnership"
     ],
     "java-build": [
       "javaCheck",

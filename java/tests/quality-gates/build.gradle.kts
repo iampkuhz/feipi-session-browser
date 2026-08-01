@@ -23,6 +23,7 @@ val apiSnapshot = rootProject.layout.projectDirectory.file("config/api-snapshots
 val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
 val templatesRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/templates")
 val staticRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/static")
+val cssRoot = staticRoot.dir("css")
 val webQualityBaseline = rootProject.layout.projectDirectory.file("config/web-quality-baselines.json")
 val summary = layout.buildDirectory.file("reports/java-quality-gates/summary.json")
 val javaMainSources = rootProject.fileTree("java") {
@@ -46,6 +47,9 @@ val templateSources = rootProject.fileTree(templatesRoot) {
 }
 val staticResourceSources = rootProject.fileTree(staticRoot) {
     include("**/*.css", "**/*.js")
+}
+val cssOwnershipSources = rootProject.fileTree(cssRoot) {
+    include("*.css")
 }
 val staticJavaScriptSources = rootProject.fileTree(staticRoot.dir("js")) {
     include("**/*.js")
@@ -98,6 +102,12 @@ tasks.register<JavaExec>("runJavaQualityGates") {
             providers.provider { templatesRoot.file("base.html").asFile.exists() },
         )
     }
+    if ("css-ownership" in selectedRules) {
+        inputs.files(cssOwnershipSources)
+            .withPropertyName("cssOwnershipSources")
+            .withPathSensitivity(PathSensitivity.RELATIVE)
+        inputs.property("cssRootExists", providers.provider { cssRoot.asFile.exists() })
+    }
     if (selectedRules.any(setOf("raw-innerhtml", "layout-inline-style")::contains)) {
         inputs.files(staticJavaScriptSources)
             .withPropertyName("staticJavaScriptSources")
@@ -134,10 +144,10 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     } else {
         inputs.file(apiSnapshot).withPropertyName("apiSnapshot").withPathSensitivity(PathSensitivity.RELATIVE)
     }
-    if (baselineUpdateRules.get().isBlank()) {
+    if (baselineUpdateRules.get().isBlank() && "css-ownership" !in selectedRules) {
         outputs.cacheIf("deterministic quality report") { true }
     } else {
-        outputs.cacheIf("explicit baseline maintenance is not cacheable") { false }
+        outputs.cacheIf("execution-scoped output is not cacheable") { false }
         outputs.upToDateWhen { false }
     }
 
@@ -160,6 +170,9 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     }
     if ("static-resource-contract" in selectedRules) {
         sourcePaths.add(staticRoot.asFile)
+    }
+    if ("css-ownership" in selectedRules) {
+        sourcePaths.add(cssRoot.asFile)
     }
     if (selectedRules.any(setOf("raw-innerhtml", "layout-inline-style")::contains)) {
         sourcePaths.add(staticRoot.dir("js").asFile)

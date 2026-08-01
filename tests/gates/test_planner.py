@@ -122,6 +122,41 @@ def test_static_resources_baseline_and_rule_source_select_one_java_static_owner(
         assert 'staticCssContract' not in {gate.name for gate in gate_plan.logical_gates}
 
 
+def test_css_resource_and_rule_sources_select_one_java_css_owner() -> None:
+    changed_paths = (
+        'java/web/src/main/resources/static/css/page.css',
+        'java/web/src/main/resources/static/css/components/page.css',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'core/AdvisoryQualityRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'core/QualitySummary.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'core/RepositorySourceSet.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
+        'core/RepositorySourceSetTest.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/PythonTextSemantics.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/ArtifactPairPublisher.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/CssOwnershipRule.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
+        'cli/QualityGateCliTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
+        'rules/web/CssOwnershipRuleTest.java',
+        'scripts/gates/executor.py',
+        'tests/gates/test_executor.py',
+    )
+
+    for changed_path in changed_paths:
+        names = [gate.name for gate in plan([changed_path]).logical_gates]
+        assert names.count('cssOwnership') == 1
+
+    for changed_path in ('scripts/gates/executor.py', 'tests/gates/test_executor.py'):
+        names = [gate.name for gate in plan([changed_path]).logical_gates]
+        assert names.count('pythonCoverage') == 1
+
+
 def test_raw_and_layout_inputs_select_independent_java_resource_owners() -> None:
     raw_only = (
         'tests/playwright/raw.spec.js',

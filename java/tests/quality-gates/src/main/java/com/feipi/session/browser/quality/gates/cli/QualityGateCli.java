@@ -1,8 +1,10 @@
 package com.feipi.session.browser.quality.gates.cli;
 
+import com.feipi.session.browser.quality.gates.core.AdvisoryQualityRule;
 import com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule;
 import com.feipi.session.browser.quality.gates.core.BaselineUpdatableRule.BaselineUpdate;
 import com.feipi.session.browser.quality.gates.core.JavaSourceSet;
+import com.feipi.session.browser.quality.gates.core.QualityAdvisory;
 import com.feipi.session.browser.quality.gates.core.QualityContext;
 import com.feipi.session.browser.quality.gates.core.QualityGateRegistry;
 import com.feipi.session.browser.quality.gates.core.QualityRule;
@@ -15,6 +17,7 @@ import com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule;
 import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
 import com.feipi.session.browser.quality.gates.rules.TemplateContractRule;
 import com.feipi.session.browser.quality.gates.rules.record.RecordComponentJavadocsRule;
+import com.feipi.session.browser.quality.gates.rules.web.CssOwnershipRule;
 import com.feipi.session.browser.quality.gates.rules.web.LayoutInlineStyleRule;
 import com.feipi.session.browser.quality.gates.rules.web.RawInnerHtmlRule;
 import com.feipi.session.browser.quality.gates.rules.web.StaticResourceContractRule;
@@ -76,6 +79,8 @@ public final class QualityGateCli {
         }
       }
       var selectedRules = registry.select(options.rules());
+      var needsQualityArtifacts =
+          selectedRules.stream().anyMatch(CssOwnershipRule.class::isInstance);
       var selectedUpdaters =
           options.baselineUpdateRequested()
               ? requireBaselineUpdaters(selectedRules)
@@ -129,7 +134,8 @@ public final class QualityGateCli {
               sources,
               repositorySources,
               options.apiSnapshot(),
-              options.writeApiSnapshot());
+              options.writeApiSnapshot(),
+              qualityArtifactDirectory(options.repoRoot(), environment, needsQualityArtifacts));
       if (options.baselineUpdateRequested()) {
         return updateBaselines(
             options,
@@ -153,11 +159,19 @@ public final class QualityGateCli {
             .map(RepositorySourceSet.SourceText::path)
             .forEach(ruleCandidates::add);
         ruleCandidates.addAll(requiredInputsByRule.get(rule.id()));
-        var violations =
-            ruleCandidates.isEmpty()
-                ? List.<QualityViolation>of()
-                : rule.check(contextForRule(context, ruleSources));
-        executions.add(new RuleExecution(rule.id(), ruleCandidates.size(), violations));
+        var violations = List.<QualityViolation>of();
+        var advisories = List.<QualityAdvisory>of();
+        if (!ruleCandidates.isEmpty()) {
+          var ruleContext = contextForRule(context, ruleSources);
+          if (rule instanceof AdvisoryQualityRule advisoryRule) {
+            var evaluation = advisoryRule.evaluate(ruleContext);
+            violations = evaluation.violations();
+            advisories = evaluation.advisories();
+          } else {
+            violations = rule.check(ruleContext);
+          }
+        }
+        executions.add(new RuleExecution(rule.id(), ruleCandidates.size(), violations, advisories));
       }
       var hasViolations = executions.stream().anyMatch(item -> !item.violations().isEmpty());
       return writeSummary(
@@ -245,7 +259,45 @@ public final class QualityGateCli {
         new JavaSourceSet(javaSources, context.sources().docTrees()),
         repositorySources,
         context.apiSnapshot(),
-        context.writeApiSnapshot());
+        context.writeApiSnapshot(),
+        context.qualityArtifactDir());
+  }
+
+  private static Path qualityArtifactDirectory(
+      Path repoRoot, Map<String, String> environment, boolean required) {
+    var normalizedRoot = repoRoot.toAbsolutePath().normalize();
+    var directFallback =
+        normalizedRoot.resolve("tmp/quality/direct/pid-" + ProcessHandle.current().pid());
+    if (!required) {
+      // 当前只有 CSS ownership 产出该目录；其他聚合规则不解析与自身无关的环境变量。
+      return directFallback;
+    }
+    var configured = environment.get("FEIPI_QUALITY_ARTIFACT_DIR");
+    if (configured == null || configured.isBlank()) {
+      return requireRepoLocalArtifactDirectory(normalizedRoot, directFallback);
+    }
+    var path = Path.of(configured);
+    if (!path.isAbsolute()) {
+      throw new IllegalArgumentException("FEIPI_QUALITY_ARTIFACT_DIR must be absolute");
+    }
+    return requireRepoLocalArtifactDirectory(normalizedRoot, path.toAbsolutePath().normalize());
+  }
+
+  private static Path requireRepoLocalArtifactDirectory(Path repoRoot, Path candidate) {
+    var qualityRoot = repoRoot.resolve("tmp/quality").normalize();
+    if (!candidate.startsWith(qualityRoot)) {
+      throw new IllegalArgumentException(
+          "FEIPI_QUALITY_ARTIFACT_DIR must stay within " + qualityRoot);
+    }
+    var current = repoRoot;
+    for (var component : repoRoot.relativize(candidate)) {
+      current = current.resolve(component);
+      if (Files.isSymbolicLink(current)) {
+        throw new IllegalArgumentException(
+            "FEIPI_QUALITY_ARTIFACT_DIR contains symbolic link: " + current);
+      }
+    }
+    return candidate;
   }
 
   private static int writeSummary(
@@ -383,6 +435,7 @@ public final class QualityGateCli {
         .register(new StaticResourceContractRule())
         .register(new RawInnerHtmlRule())
         .register(new LayoutInlineStyleRule())
+        .register(new CssOwnershipRule())
         .register(new RecordComponentJavadocsRule())
         .register(new NoPmdSuppressionsRule())
         .register(new JavaApiSnapshotRule())

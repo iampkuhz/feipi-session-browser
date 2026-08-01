@@ -35,8 +35,8 @@ __main__.py           = 唯一命令行入口
 - `privacy/`：个人路径、真实 session fixture 和类密钥内容。
 - `repository/`：Git、仓库结构、测试纪律、验收契约和路径路由。
 - `source/`：源码语言、注释语言和产品 Python 边界。
-- `web/`：CSS、JavaScript、模板和 Session Detail 静态契约。
-- `web/baselines/`：仅保存 Web 检查使用的已审计基线。
+- `web/`：JavaScript action handler 与 Session Detail 静态契约。已迁移的 Web resource 语义规则由
+  catalog Gate 和 Java quality-gates 管理，不在共享 Check CLI 重复注册。
 
 根目录中的 `_framework.py`、`_registry.py`、`__main__.py` 是共享基础设施，不是领域 Check，因此
 不使用 `check_` 前缀。
@@ -48,7 +48,7 @@ __main__.py           = 唯一命令行入口
 ```bash
 python3 -m scripts.checks agent.skill-registry
 python3 -m scripts.checks repository.dead-command-reference
-python3 -m scripts.checks web.css-ownership
+python3 -m scripts.checks web.session-detail-static
 ```
 
 成功时只输出：

@@ -15,7 +15,8 @@
 ## CSS ownership
 
 - CSS 文件按功能区域划分 ownership，每个规则必须有明确的 owner。
-- 使用 `web.css-ownership` 校验 ownership 合规性。
+- 使用 catalog Gate `cssOwnership`（Java `css-ownership` rule）校验 ownership 合规性；完整报告继续
+  写入按运行隔离的 artifact。
 - 新增 CSS 规则必须放到对应 owner 的文件中，不新增无 owner 的全局样式。
 - CSS 类名使用项目已有的命名约定，不新发明一套命名体系。
 - 不使用全局 id selector（`#some-id`），优先使用 class selector。

@@ -69,6 +69,7 @@ def test_java_quality_rules_share_one_declarative_gradle_entrypoint() -> None:
         'staticCssContract': ('static-resource-contract',),
         'rawInnerhtml': ('raw-innerhtml',),
         'layoutInlineStyle': ('layout-inline-style',),
+        'cssOwnership': ('css-ownership',),
     }
 
     for gate_name, rules in expected.items():
@@ -113,6 +114,47 @@ def test_static_contract_has_one_java_owner_and_complete_resource_inputs() -> No
         'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java',
         'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java',
     )
+
+
+def test_css_ownership_has_one_java_owner_and_complete_inputs() -> None:
+    gate = gate_by_name('cssOwnership')
+    target_rules = {rule.target: rule for rule in gate.target_rules}
+
+    assert gate.command is None
+    assert gate.gradle_tasks == (':java:tests:quality-gates:runJavaQualityGates',)
+    assert gate.java_rules == ('css-ownership',)
+    assert target_rules['session-detail'].patterns == (
+        'java/web/src/main/resources/static/css/**/*.css',
+    )
+    assert target_rules['python-standard'].patterns == ('scripts/gates/executor.py',)
+    assert target_rules['acceptance-contracts'].patterns == ('tests/gates/test_executor.py',)
+    assert target_rules['java-src'].patterns == (
+        'java/tests/quality-gates/build.gradle.kts',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/AdvisoryQualityRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityAdvisory.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityContext.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityViolation.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/ArtifactPairPublisher.java',
+        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRule.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/QualityGateCliTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java',
+        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRuleTest.java',
+    )
+
+
+def test_executor_change_runs_tests_gates_through_python_coverage() -> None:
+    gate = gate_by_name('pythonCoverage')
+    target_rules = {rule.target: rule for rule in gate.target_rules}
+
+    assert 'scripts/gates/executor.py' in target_rules['python-standard'].patterns
+    assert target_rules['acceptance-contracts'].patterns == ('tests/gates/test_executor.py',)
+    assert 'tests/gates' in gate.command.argv
 
 
 def test_raw_and_layout_contracts_have_independent_java_owners_and_complete_inputs() -> None:

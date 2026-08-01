@@ -18,7 +18,7 @@
 | Gate | Result |
 |---|---|
 | `web.session-detail-static` | <PASS/FAIL> |
-| `web.css-ownership` | <PASS/FAIL> |
+| `cssOwnership`（Java `css-ownership` rule） | <PASS/FAIL> |
 | `web.js-action-handlers` | <PASS/FAIL/NOT_RUN> |
 | `repository.repo-slimming` | <PASS/FAIL/NOT_RUN> |
 | `layoutInlineStyle` | <PASS/FAIL/NOT_RUN> |

@@ -30,7 +30,7 @@
 
 ```bash
 python3 -m scripts.checks web.session-detail-static
-python3 -m scripts.checks web.css-ownership
+./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
 ```
 
 按需追加：

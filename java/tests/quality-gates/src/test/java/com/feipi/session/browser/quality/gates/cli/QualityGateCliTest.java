@@ -40,6 +40,35 @@ class QualityGateCliTest {
   }
 
   @Test
+  void nonArtifactRuleIgnoresUnrelatedArtifactEnvironment() throws Exception {
+    var source =
+        write(
+            "java/sample/src/main/java/example/Valid.java",
+            """
+            package example;
+            /** @param value 中文说明。 */
+            public record Valid(String value) {}
+            """);
+    var external = repo.resolveSibling(repo.getFileName() + "-outside").toAbsolutePath();
+
+    var result =
+        invoke(
+            new String[] {
+              "--repo-root",
+              repo.toString(),
+              "--paths",
+              source.toString(),
+              "--rules",
+              "record-component-javadocs"
+            },
+            Map.of("FEIPI_QUALITY_ARTIFACT_DIR", external.toString()));
+
+    assertThat(result.exitCode()).isZero();
+    assertThat(result.out()).contains("\"status\":\"PASSED\"");
+    assertThat(external).doesNotExist();
+  }
+
+  @Test
   void changedFilesSupportsEmptyAndWindowsPaths() throws Exception {
     var source =
         write(
@@ -58,7 +87,7 @@ class QualityGateCliTest {
         .contains("\"status\":\"NOT_APPLICABLE\"")
         .contains("\"candidateCount\":0")
         .contains(
-            "{\"rule\":\"record-component-javadocs\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0,\"advisoryCount\":0}");
     assertThat(windows.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(windows.out()).contains("java/sample/src/main/java/example/Broken.java");
   }
@@ -139,9 +168,9 @@ class QualityGateCliTest {
     assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(result.out())
         .contains(
-            "{\"rule\":\"template-contract\",\"status\":\"FAILED\",\"candidateCount\":2,\"violationCount\":1}")
+            "{\"rule\":\"template-contract\",\"status\":\"FAILED\",\"candidateCount\":2,\"violationCount\":1,\"advisoryCount\":0}")
         .contains(
-            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0,\"advisoryCount\":0}")
         .contains("ONCLICK_FORBIDDEN");
   }
 
@@ -186,9 +215,9 @@ class QualityGateCliTest {
     assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(result.out())
         .contains(
-            "{\"rule\":\"static-resource-contract\",\"status\":\"FAILED\",\"candidateCount\":5,\"violationCount\":1}")
+            "{\"rule\":\"static-resource-contract\",\"status\":\"FAILED\",\"candidateCount\":5,\"violationCount\":1,\"advisoryCount\":0}")
         .contains(
-            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0,\"advisoryCount\":0}")
         .contains("EVAL_FORBIDDEN");
   }
 
@@ -226,11 +255,11 @@ class QualityGateCliTest {
     assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(result.out())
         .contains(
-            "{\"rule\":\"raw-innerhtml\",\"status\":\"FAILED\",\"candidateCount\":2,\"violationCount\":1}")
+            "{\"rule\":\"raw-innerhtml\",\"status\":\"FAILED\",\"candidateCount\":2,\"violationCount\":1,\"advisoryCount\":0}")
         .contains(
-            "{\"rule\":\"layout-inline-style\",\"status\":\"FAILED\",\"candidateCount\":3,\"violationCount\":1}")
+            "{\"rule\":\"layout-inline-style\",\"status\":\"FAILED\",\"candidateCount\":3,\"violationCount\":1,\"advisoryCount\":0}")
         .contains(
-            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0,\"advisoryCount\":0}")
         .contains("RAW_INNERHTML_NEW")
         .contains("LAYOUT_INLINE_STYLE_NEW");
   }
@@ -255,9 +284,9 @@ class QualityGateCliTest {
     assertThat(result.out())
         .contains("\"status\":\"PASSED\"")
         .contains(
-            "{\"rule\":\"java-comment-language\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0}")
+            "{\"rule\":\"java-comment-language\",\"status\":\"PASSED\",\"candidateCount\":1,\"violationCount\":0,\"advisoryCount\":0}")
         .contains(
-            "{\"rule\":\"record-component-javadocs\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
+            "{\"rule\":\"record-component-javadocs\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0,\"advisoryCount\":0}");
   }
 
   @Test
@@ -276,7 +305,7 @@ class QualityGateCliTest {
     assertThat(result.out())
         .doesNotContain("JAVA_API_SNAPSHOT_MISSING")
         .contains(
-            "{\"rule\":\"java-api-snapshot\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0}");
+            "{\"rule\":\"java-api-snapshot\",\"status\":\"NOT_APPLICABLE\",\"candidateCount\":0,\"violationCount\":0,\"advisoryCount\":0}");
   }
 
   @Test
