@@ -1,4 +1,4 @@
-"""Python Gate v6 职责与稳定命令 contract。"""
+"""当前 Python Gate 职责与稳定命令 contract。"""
 
 from pathlib import Path
 
@@ -59,12 +59,10 @@ def test_every_python_test_file_has_exactly_one_pytest_gate() -> None:
         if path.startswith(harness_roots)
         or any(Path(path).match(pattern) for pattern in harness.glob_args)
     }
-    web_root = gate_by_name('sessionDetailStaticTests').run.argv[-1].rstrip('/') + '/'
-    web_tests = {path for path in all_tests if path.startswith(web_root)}
     smoke = gate_by_name('scanScriptSmoke').run
     smoke_tests = {path for path in smoke.required_paths if path.startswith('tests/')}
 
-    owner_sets = (harness_tests, web_tests, smoke_tests)
+    owner_sets = (harness_tests, smoke_tests)
     assert set().union(*owner_sets) == all_tests
     assert sum(len(paths) for paths in owner_sets) == len(all_tests)
 

@@ -6,22 +6,22 @@
 
 | Gate 脚本 | 用途 | 触发条件 |
 |---|---|---|
-| `web.session-detail-static` | Session detail 页面静态结构检查 | 改模板时必跑 |
-| `web.session-detail-static` | Session detail shell CSS 一致性检查 | 改 shell/layout CSS 时必跑 |
+| `webResourceTests` | Session detail 页面静态结构检查 | 改模板时必跑 |
+| `webResourceTests` | Session detail shell CSS 一致性检查 | 改 shell/layout CSS 时必跑 |
 | `session-detail.spec.js` + `session-detail-migrated-gates.spec.js` | Session detail 交互 gate（Node Playwright） | 改 JS handler 时必跑 |
 | `session-detail-layout.spec.js` | Session detail 布局 gate（Node Playwright） | 改布局或 shell 时必跑 |
 | `web.js-action-handlers` | JS action handler 完整性检查 | 改 JS 或模板按钮时必跑 |
 | `cssOwnership` | Java `css-ownership` rule；CSS ownership 校验并写出隔离 artifact | 改 CSS 时必跑 |
-| `repository.repo-slimming` | Legacy CSS 检查 | 改 CSS 时必跑 |
+| `repository.current-source-policy` | Legacy CSS 检查 | 改 CSS 时必跑 |
 | `layoutInlineStyle` | Java `layout-inline-style` rule | 改模板时必跑 |
 | `rawInnerhtml` | Java `raw-innerhtml` rule | 改 JS 时必跑 |
 
 ## 选择策略
 
-- **只改模板 HTML**：`web.session-detail-static` + `layoutInlineStyle`。
-- **只改 CSS**：`cssOwnership` + `repository.repo-slimming` + `web.session-detail-static`（如涉及 shell）。
+- **只改模板 HTML**：`webResourceTests` + `layoutInlineStyle`。
+- **只改 CSS**：`cssOwnership` + `repository.current-source-policy` + `webResourceTests`（如涉及 shell）。
 - **只改 JS**：`web.js-action-handlers` + `rawInnerhtml` + Node Playwright 交互 gate。
-- **改布局或 shell**：Node Playwright 布局 gate + `web.session-detail-static` + `layoutInlineStyle`。
+- **改布局或 shell**：Node Playwright 布局 gate + `webResourceTests` + `layoutInlineStyle`。
 - **收口前**：运行静态 gate 与 `npm --prefix tests/playwright test --`。
 
 ## Baseline 文件与显式维护

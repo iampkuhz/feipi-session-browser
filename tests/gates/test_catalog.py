@@ -1,4 +1,4 @@
-"""Gate catalog v6 strict schema 与 typed inventory contract。"""
+"""当前 Gate catalog 的 strict schema 与 typed inventory contract。"""
 
 import copy
 import shutil
@@ -50,10 +50,9 @@ def _gate_with_run(catalog_tree: Path, run_kind: str) -> tuple[Path, dict, dict]
     raise AssertionError(f'run kind not found: {run_kind}')
 
 
-def test_v6_inventory_is_typed_unique_and_exactly_44() -> None:
+def test_current_inventory_is_typed_unique_and_exactly_42() -> None:
     validate_catalog()
-    assert CATALOG.version == 'gate-catalog:v6'
-    assert len(CATALOG.gates) == len({gate.name for gate in CATALOG.gates}) == 44
+    assert len(CATALOG.gates) == len({gate.name for gate in CATALOG.gates}) == 42
     assert CATALOG.gate_defaults.minimum_tier is MinimumTier.REQUIRED
     assert CATALOG.gate_defaults.timeout_seconds == 300
     assert CATALOG.gate_defaults.changed_files_input is ChangedFilesInput.NONE
@@ -63,7 +62,6 @@ def test_v6_inventory_is_typed_unique_and_exactly_44() -> None:
 def test_root_schema_has_typed_defaults_and_generic_target_triggers(catalog_tree: Path) -> None:
     root = _read(catalog_tree)
     assert set(root) == {
-        'version',
         'gate_defaults',
         'targets',
         'gate_files',
@@ -86,12 +84,11 @@ def test_gate_defaults_expand_and_same_value_override_is_rejected(catalog_tree: 
         _load_catalog(catalog_tree)
 
 
-@pytest.mark.parametrize('version', ['gate-catalog:v5', 'gate-catalog:v6.1', 'v6'])
-def test_catalog_version_is_fixed_to_v6(catalog_tree: Path, version: str) -> None:
+def test_catalog_rejects_obsolete_version_field(catalog_tree: Path) -> None:
     root = _read(catalog_tree)
-    root['version'] = version
+    root['version'] = 'obsolete-version'
     _write(catalog_tree, root)
-    with pytest.raises(ValueError, match=r'catalog\.version'):
+    with pytest.raises(ValueError, match=r'unexpected=.*version'):
         _load_catalog(catalog_tree)
 
 
@@ -174,7 +171,7 @@ def test_nested_schema_rejects_unknown_or_wrong_exact_types(
 @pytest.mark.parametrize(
     ('location', 'required_key'),
     [
-        ('root', 'version'),
+        ('root', 'gate_defaults'),
         ('defaults', 'timeout'),
         ('target', 'name'),
         ('path', 'patterns'),
@@ -257,7 +254,7 @@ def test_yaml_inheritance_and_duplicate_keys_are_rejected(catalog_tree: Path, sy
     if syntax == 'anchor':
         source = source.replace('targets:', 'targets: &targets', 1)
     elif syntax == 'duplicate':
-        source += '\nversion: duplicate\n'
+        source += '\ntargets: []\n'
     else:
         source += '\n<<: {}\n'
     catalog_tree.write_text(source, encoding='utf-8')
@@ -309,7 +306,7 @@ def test_tier_membership_is_derived_from_minimum_tier() -> None:
 
 def test_catalog_models_are_frozen() -> None:
     with pytest.raises(FrozenInstanceError):
-        CATALOG.version = 'changed'  # type: ignore[misc]
+        CATALOG.gates = ()  # type: ignore[misc]
 
 
 def test_scan_smoke_inventory_preserves_historical_trigger_paths() -> None:

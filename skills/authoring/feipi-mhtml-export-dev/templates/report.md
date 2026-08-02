@@ -18,7 +18,7 @@
 
 | Gate | Result |
 |---|---|
-| `web.session-detail-static` | <PASS/FAIL> |
+| `webResourceTests` | <PASS/FAIL> |
 | `web.js-action-handlers` | <PASS/FAIL/skipped> |
 | fixture-based 导出测试 | <PASS/FAIL/skipped> |
 | `agent.entry-parity` | <PASS/FAIL> |

@@ -134,7 +134,6 @@ class GateDefaults:
 class GateCatalog:
     """汇总已校验的 Gate、target、路径规则和场景触发规则。"""
 
-    version: str
     gate_defaults: GateDefaults
     gates: tuple[GateSpec, ...]
     targets: tuple[TargetSpec, ...]

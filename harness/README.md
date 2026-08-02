@@ -13,7 +13,7 @@
 ## 人类阅读路线
 
 1. **日常开发与验证：** 先读 `scripts/README.md`，只记产品入口和 required Gate。
-2. **定位一个失败 Gate：** 先查 [`config/gates/README.md`](../config/gates/README.md) 的 44 Gate 精简目录，
+2. **定位一个失败 Gate：** 先查 [`config/gates/README.md`](../config/gates/README.md) 的 42 Gate 使用手册，
    再打开对应领域 YAML，按 typed run 路由到 Java rule、Python check、Gradle task、tool 或固定 suite；
    实现入口与 `gradle`/`process` 执行通道必须分开，详细定位见 [`scripts/gates/README.md`](../scripts/gates/README.md)。
 3. **修改 Agent/Harness 约束：** 先读本目录对应 manifest，再按 `skill-registry.yaml` 进入唯一 skill

@@ -2,7 +2,7 @@
 
 公开入口以 `harness/manifest.yaml` 为机器真相。Gate 的根索引是 `config/gates.yaml`，完整 declaration
 位于它显式列出的 `config/gates/*.yaml`；人类先读
-[`config/gates/README.md`](../config/gates/README.md) 的 44 Gate 精简目录。
+[`config/gates/README.md`](../config/gates/README.md) 的 42 Gate 使用手册。
 本文只回答“从哪里进入、如何找到唯一实现入口”。
 
 ## Java 维护者先看这一层

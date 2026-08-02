@@ -66,7 +66,7 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `python3 -m scripts.checks web.session-detail-static` — session detail 静态检查。
+- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查。
 - `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查（导出后交互保真）。
 - fixture-based 导出测试 — 验证内联完整性和交互保真。
 - `python3 -m scripts.checks agent.entry-parity` — agent parity gate。
@@ -74,7 +74,7 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 选择策略：
 
 - 只改导出后端 → 至少运行 fixture-based 导出测试。
-- 改导出模板/内联 → 追加 `web.session-detail-static`。
+- 改导出模板/内联 → 追加 `webResourceTests`。
 - 改导出交互 → 追加 `web.js-action-handlers`。
 - 收口前 → 运行全部 UI 与导出相关 gate。
 

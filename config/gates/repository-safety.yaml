@@ -1,69 +1,39 @@
 gates:
-- name: ignoredTrackedFiles
-  description: 阻止被 Git 忽略的文件同时进入 tracked index。
+- name: repositoryFilePolicy
+  description: 统一检查必需入口、禁止根路径、Git 忽略规则和数据库文件边界。
   targets:
   - name: python-standard
     order: 90
     patterns:
     - .gitignore
-    - scripts/checks/repository/check_ignored_tracked_files.py
+    - harness/manifest.yaml
+    - scripts/checks/repository/check_repository_file_policy.py
     - scripts/gates/**
     - config/gates.yaml
     - config/gates/**
+  minimum_tier: quick
   run:
     python-check:
-      check: repository.ignored-tracked
+      check: repository.repository-file-policy
       args:
       - --root
       - '{repo_root}'
-      - --staged
-      required_paths:
-      - scripts/checks/repository/check_ignored_tracked_files.py
-- name: misplacedGeneratedPaths
-  description: 检查仓库磁盘上是否出现 manifest 禁止的生成路径。
-  targets:
-  - name: python-standard
-    order: 7
-    patterns: []
-  - name: acceptance-contracts
-    order: 3
-    patterns: []
-  - name: session-detail
-    order: 11
-    patterns: []
-  - name: index
-    order: 1
-    patterns: []
-  - name: java-src
-    order: 11
-    patterns: []
-  - name: java-build
-    order: 5
-    patterns: []
-  - name: scan-script-smoke
-    order: 2
-    patterns: []
-  run:
-    python-check:
-      check: repository.misplaced-generated-paths
-      args:
-      - --root
-      - '{repo_root}'
+      - --all-tracked
       required_paths:
       - harness/manifest.yaml
-      - scripts/checks/repository/check_misplaced_generated_paths.py
+      - scripts/checks/repository/check_repository_file_policy.py
   timeout: 30
-- name: noTestSkips
-  description: 阻止 Python 与 Playwright 测试新增 skip、skipif 或 fixme。
+- name: noPythonPlaywrightSkips
+  description: 阻止 Python 与 Playwright 测试使用会产生 skipped 结果的 API。
   targets:
-  - name: acceptance-contracts
+  - name: acceptance-cases
     order: 0
     patterns:
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
     - tests/playwright/playwright.config.js
-    - scripts/checks/repository/check_no_test_skips.py
+    - scripts/checks/repository/check_no_python_playwright_skips.py
   - name: session-detail
     order: 1
     patterns:
@@ -71,76 +41,72 @@ gates:
     - tests/**/*.js
     - tests/**/*.ts
     - tests/playwright/playwright.config.js
-    - scripts/checks/repository/check_no_test_skips.py
+    - scripts/checks/repository/check_no_python_playwright_skips.py
   minimum_tier: quick
   run:
     python-check:
-      check: repository.no-test-skips
+      check: repository.no-python-playwright-skips
       args: []
-- name: repoStructure
-  description: 检查必需维护入口存在，并阻止运行态或数据库文件进入 Git。
+- name: currentSourcePolicy
+  description: 检查源码只描述当前版本、当前 Harness、桌面视口和有效静态资源。
   targets:
   - name: python-standard
     order: 92
     patterns:
-    - scripts/checks/repository/check_repo_structure.py
-    - scripts/gates/**
-    - scripts/openspec/**
-    - config/gates.yaml
-    - config/gates/**
-  minimum_tier: quick
-  run:
-    python-check:
-      check: repository.structure
-      args: []
-- name: repoSlimming
-  description: 阻止历史标记、非桌面视口与无效兼容垫片回流仓库。
-  targets:
-  - name: python-standard
-    order: 93
-    patterns:
     - java/web/src/main/resources/static/**/*.css
     - java/web/src/main/resources/static/**/*.js
     - harness/**
-    - openspec/**
     - tests/**/*.py
-    - scripts/checks/repository/check_repo_slimming.py
-    - tests/quality/test_repo_slimming_contract.py
+    - scripts/checks/repository/check_current_source_policy.py
+    - tests/quality/test_current_source_policy.py
   run:
     python-check:
-      check: repository.repo-slimming
+      check: repository.current-source-policy
       args: []
-- name: acceptanceContracts
-  description: 检查 Acceptance Contract 文档与测试 case 映射完整一致。
+- name: acceptanceCaseMapping
+  description: 检查验收用例表中的 ID 与自动化测试绑定完整一致。
   targets:
-  - name: acceptance-contracts
+  - name: acceptance-cases
     order: 1
     patterns:
-    - docs/acceptance-contracts/**/*.md
+    - docs/acceptance-cases/**/*.md
     - tests/**/*.py
     - tests/**/*.js
     - tests/**/*.ts
-    - scripts/checks/repository/check_acceptance_contracts.py
-    - tests/quality/test_contract_case_specs.py
+    - java/**/src/test/java/**/*.java
+    - scripts/checks/repository/check_acceptance_case_mapping.py
+    - tests/checks/test_acceptance_case_mapping.py
     - pyproject.toml
   run:
     python-check:
-      check: openspec.acceptance-contracts
+      check: repository.acceptance-case-mapping
       args: []
-- name: noRealSessionFixtures
-  description: 阻止真实 Session 内容进入测试、文档或源码 fixture。
+- name: testDataPolicy
+  description: 确保测试数据受 Git 管理、可复现，并且不依赖个人电脑或真实 Session。
   targets:
-  - name: python-standard
-    order: 94
+  - name: acceptance-cases
+    order: 2
     patterns:
     - tests/**
-    - docs/**
-    - java/**
-    - scripts/checks/privacy/check_no_real_session_fixtures.py
+    - java/**/src/test/**
+    - scripts/checks/repository/check_test_data_policy.py
+  - name: python-standard
+    order: 93
+    patterns:
+    - tests/**
+    - scripts/checks/repository/check_test_data_policy.py
+  - name: java-src
+    order: 11
+    patterns:
+    - java/**/src/test/**
   run:
     python-check:
-      check: repository.no-real-session-fixtures
-      args: []
+      check: repository.test-data-policy
+      args:
+      - --repo-root
+      - '{repo_root}'
+      required_paths:
+      - scripts/checks/repository/check_test_data_policy.py
   timeout: 120
 - name: secretLikeContent
   description: 扫描仓库中的密钥、Token 与凭据形态内容。

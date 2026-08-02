@@ -27,7 +27,7 @@ testpaths = ["tests"]
 addopts = "-n auto"
 cache_dir = ".local/python/pytest-cache"
 markers = [
-    "contract_case: Mark test with acceptance contract case ID(s)",
+    "contract_case: Mark test with acceptance case ID(s)",
 ]
 
 [tool.ruff]

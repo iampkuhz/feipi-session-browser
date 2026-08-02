@@ -19,11 +19,12 @@
 ## 步骤
 
 1. **读取质量门禁摘要** `tmp/quality/<change-id>/quality-gate-summary.session-detail.json`。
-   - 确认哪些门禁失败了（staticCssContract、templateContract、browserLayout、pytest）。
+   - 确认哪些门禁失败了（`staticCssContract`、`webResourceTests`、`templateContract`、`browserLayout`）。
    - 读取 `blockingFailures` 获取失败代码和信息。
 
 2. **读取具体门禁结果 JSON**。
-   - `staticCssContract`：读取 `web.session-detail-static` 的输出。
+   - `staticCssContract`：读取 Java `static-resource-contract` rule 的输出。
+   - `webResourceTests`：读取 `:java:web:test` 中资源契约测试的输出。
    - `browserLayout`：读取 `session-detail-layout-result.json` 获取计算指标。
 
 3. **将失败代码映射到根因**：
@@ -37,8 +38,8 @@
    - `HORIZONTAL_SCROLL` → 内容宽于视口。
 
 4. **检查相关源码文件**：
-   - CSS：`src/session_browser/web/static/style.css`
-   - 模板：`src/session_browser/web/templates/base.html`、`session.html`
+   - CSS：`java/web/src/main/resources/static/css/`
+   - 模板：`java/web/src/main/resources/templates/`
    - 关注 `nextInspection` 中提到的选择器。
 
 5. **提出最小修复方案**：
@@ -48,7 +49,7 @@
 
 6. **提供精确验证命令**：
    - `python3 scripts/gates/cli.py --target session-detail`
-   - 或具体门禁：`python3 -m scripts.checks web.session-detail-static`
+   - 或具体门禁：`./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
 
 ## 输出格式
 

@@ -19,7 +19,7 @@ import org.junit.jupiter.api.Test;
  * <p>验证 contract-inventory.json 中的行为全部已归类（{@code decision} 不为空）， 并且模块拓扑声明的 S2 新模块存在于 Gradle 配置中。
  * 该测试保证契约审计无遗漏项，且 S2 冻结的模块边界可被脚本验证。
  *
- * <p>对应验收契约：AC-17、AC-18。
+ * <p>对应验收用例：AC-17、AC-18。
  */
 @DisplayName("S2 模块拓扑与契约清单验证")
 class ModuleTopologyContractTest {
@@ -45,26 +45,26 @@ class ModuleTopologyContractTest {
     assertThat(uncategorized).as("所有行为必须有 KEEP/FIX/DROP/NEEDS_DECISION 决策").isEmpty();
   }
 
-  /** 验证契约清单中所有验收契约都绑定了 owning_task 和 test_id。 */
+  /** 验证清单中的所有验收用例都绑定了 owning_task 和 test_id。 */
   @Test
-  @DisplayName("每条 acceptance contract 绑定 owning_task 和 test_id")
-  void allContractsHaveOwnerAndTestId() throws Exception {
+  @DisplayName("每条验收用例都绑定 owning_task 和 test_id")
+  void allAcceptanceCasesHaveOwnerAndTestId() throws Exception {
     JsonNode inventory = loadInventory();
-    JsonNode contracts = inventory.get("acceptance_contracts");
-    assertThat(contracts).isNotNull();
-    assertThat(contracts.isArray()).isTrue();
+    JsonNode acceptanceCases = inventory.get("acceptance_cases");
+    assertThat(acceptanceCases).isNotNull();
+    assertThat(acceptanceCases.isArray()).isTrue();
 
     List<String> missing = new ArrayList<>();
-    for (JsonNode contract : contracts) {
-      String id = contract.path("id").asText("");
-      if (contract.path("owning_task").asText("").isEmpty()) {
+    for (JsonNode acceptanceCase : acceptanceCases) {
+      String id = acceptanceCase.path("id").asText("");
+      if (acceptanceCase.path("owning_task").asText("").isEmpty()) {
         missing.add(id + ": missing owning_task");
       }
-      if (contract.path("test_id").asText("").isEmpty()) {
+      if (acceptanceCase.path("test_id").asText("").isEmpty()) {
         missing.add(id + ": missing test_id");
       }
     }
-    assertThat(missing).as("所有契约必须绑定 owning_task 和 test_id").isEmpty();
+    assertThat(missing).as("所有验收用例必须绑定 owning_task 和 test_id").isEmpty();
   }
 
   /** 验证 S2 模块拓扑声明的新模块数量。 */

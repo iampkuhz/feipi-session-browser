@@ -1,8 +1,7 @@
-version: gate-catalog:v6
 targets:
 - name: python-standard
 - name: harness
-- name: acceptance-contracts
+- name: acceptance-cases
 - name: session-detail
 - name: index
 - name: java-src
@@ -18,18 +17,25 @@ gate_files:
 - gates/java-quality.yaml
 - gates/product-smoke.yaml
 path_rules:
-- category: acceptance-contract
+- category: acceptance-case
   patterns:
-  - docs/acceptance-contracts/**
+  - docs/acceptance-cases/**
   risk: medium
   targets:
-  - acceptance-contracts
+  - acceptance-cases
+- category: java-test
+  patterns:
+  - java/**/src/test/java/**/*.java
+  - java/**/src/test/kotlin/**/*.kt
+  - java/**/src/test/resources/**
+  risk: medium
+  targets:
+  - java-src
+  - acceptance-cases
 - category: java-src
   patterns:
   - java/**/src/main/java/**/*.java
-  - java/**/src/test/java/**/*.java
   - java/**/src/main/kotlin/**/*.kt
-  - java/**/src/test/kotlin/**/*.kt
   risk: medium
   targets:
   - java-src
@@ -57,23 +63,15 @@ path_rules:
   risk: medium
   targets:
   - java-build
-- category: session-detail-ui-test
-  patterns:
-  - tests/ui/**/*.py
-  risk: medium
-  targets:
-  - session-detail
-  - acceptance-contracts
-  - python-standard
 - category: test
   patterns:
   - tests/**/*.py
   - tests/*.py
   risk: medium
   targets:
-  - acceptance-contracts
+  - acceptance-cases
   - python-standard
-- category: test-contract
+- category: browser-test
   patterns:
   - tests/**/*.js
   - tests/*.js
@@ -81,7 +79,7 @@ path_rules:
   - tests/*.ts
   risk: medium
   targets:
-  - acceptance-contracts
+  - acceptance-cases
 - category: session-detail-ui
   patterns:
   - java/web/src/main/resources/static/**

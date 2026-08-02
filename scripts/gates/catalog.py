@@ -28,7 +28,6 @@ from scripts.gates.model import (
 
 _CATALOG_PATH = Path(__file__).resolve().parents[2] / 'config' / 'gates.yaml'
 _ROOT_KEYS = {
-    'version',
     'gate_defaults',
     'targets',
     'gate_files',
@@ -38,7 +37,6 @@ _ROOT_KEYS = {
 _DEFAULT_KEYS = {'minimum_tier', 'timeout', 'changed_files', 'network_failure'}
 _FRAGMENT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*\.yaml')
 _TIERS = ('quick', 'required', 'full')
-_CATALOG_VERSION = 'gate-catalog:v6'
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
@@ -203,7 +201,7 @@ def _defaults(raw: Any) -> GateDefaults:
     )
     expected = GateDefaults(MinimumTier.REQUIRED, 300, ChangedFilesInput.NONE, 'fail')
     if defaults != expected:
-        raise ValueError('gate_defaults must equal the catalog v6 contract')
+        raise ValueError('gate_defaults must equal the current catalog contract')
     return defaults
 
 
@@ -369,13 +367,9 @@ def _target_trigger(raw: Any) -> TargetTrigger:
 def _load_catalog(path: Path = _CATALOG_PATH) -> GateCatalog:
     data = _mapping(_load_yaml(path), 'catalog')
     _exact_keys(data, _ROOT_KEYS, set(), 'catalog')
-    version = _string(data['version'], 'catalog.version')
-    if version != _CATALOG_VERSION:
-        raise ValueError(f'catalog.version must be {_CATALOG_VERSION!r}')
     defaults = _defaults(data['gate_defaults'])
     names = _gate_file_names(data['gate_files'])
     catalog = GateCatalog(
-        version=version,
         gate_defaults=defaults,
         gates=tuple(_gate(item, defaults) for item in _load_gates(path, names)),
         targets=tuple(_target(item) for item in _items(data['targets'], 'targets', nonempty=True)),
@@ -449,7 +443,6 @@ def validate_catalog_schema(catalog: GateCatalog) -> None:
 
 
 CATALOG = _load_catalog()
-CATALOG_VERSION = CATALOG.version
 GATES = CATALOG.gates
 TARGETS = CATALOG.targets
 _GATE_INDEX = {gate.name: gate for gate in GATES}

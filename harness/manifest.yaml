@@ -35,7 +35,7 @@ public_executables:
 quality:
   runner: scripts/gates/cli.py
   required_command: python3 scripts/gates/cli.py --tier required
-  targets: [harness, acceptance-contracts, java-src, java-build]
+  targets: [harness, acceptance-cases, java-src, java-build]
   dominance:
     java-src:
       includes: [java-build]
@@ -62,7 +62,7 @@ local_only:
   - "tmp/agent_logs/"
   - "tmp/quality/"
 
-forbidden_generated_paths:
+forbidden_root_paths:
   - ".gradle/"
   - ".venv/"
   - "build/"

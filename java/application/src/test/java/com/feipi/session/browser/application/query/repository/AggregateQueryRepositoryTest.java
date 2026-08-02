@@ -266,9 +266,9 @@ class AggregateQueryRepositoryTest {
           "codex",
           "workspace-1",
           "canonical workspace",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
           "2026-06-24T09:00:00Z",
           "2026-06-24T10:00:00Z",
           100.0,
@@ -291,9 +291,9 @@ class AggregateQueryRepositoryTest {
           "qoder",
           "workspace-2",
           "cache workspace",
-          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
-          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "-Users-test-workspace-feipi-session-browser-java",
+          "-Users-test-workspace-feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
           "2026-06-24T11:00:00Z",
           "2026-06-24T12:00:00Z",
           100.0,
@@ -311,8 +311,7 @@ class AggregateQueryRepositoryTest {
           2,
           0);
 
-      ProjectStats row =
-          repo.projectStats("/Users/zhehan/Documents/tools/llm/feipi-session-browser-java");
+      ProjectStats row = repo.projectStats("/Users/test/workspace/feipi-session-browser-java");
       assertThat(row.projectName()).isEqualTo("feipi-session-browser-java");
       assertThat(row.totalSessions()).isEqualTo(2);
       assertThat(row.codexSessions()).isEqualTo(1);
@@ -359,9 +358,9 @@ class AggregateQueryRepositoryTest {
           "codex",
           "workspace-count-1",
           "canonical workspace",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
           "2026-06-24T09:00:00Z",
           "2026-06-24T10:00:00Z",
           100.0,
@@ -384,9 +383,9 @@ class AggregateQueryRepositoryTest {
           "qoder",
           "workspace-count-2",
           "cache workspace",
-          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
-          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
-          "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java",
+          "-Users-test-workspace-feipi-session-browser-java",
+          "-Users-test-workspace-feipi-session-browser-java",
+          "/Users/test/workspace/feipi-session-browser-java",
           "2026-06-24T11:00:00Z",
           "2026-06-24T12:00:00Z",
           100.0,

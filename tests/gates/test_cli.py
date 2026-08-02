@@ -20,20 +20,17 @@ def test_dry_run_has_stable_typed_plan(capsys) -> None:
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
     assert payload['effectiveTargets'] == ['java-build']
-    assert payload['commands'][0]['gate'] == 'ignoredTrackedFiles'
+    assert payload['commands'][0]['gate'] == 'repositoryFilePolicy'
     assert all('resources' not in group and 'dependsOn' not in group for group in payload['groups'])
 
 
-def test_misplaced_paths_preflight_runs_for_docs_only_change(capsys) -> None:
+def test_repository_file_preflight_runs_for_docs_only_change(capsys) -> None:
     rc = cli.main(['--tier', 'required', '--dry-run', '--changed-files', '["README.md"]'])
     payload = json.loads(capsys.readouterr().out)
 
     assert rc == 0
     assert payload['effectiveTargets'] == []
-    assert [item['gate'] for item in payload['commands']] == [
-        'ignoredTrackedFiles',
-        'misplacedGeneratedPaths',
-    ]
+    assert [item['gate'] for item in payload['commands']] == ['repositoryFilePolicy']
 
 
 def test_target_and_tier_are_mutually_exclusive() -> None:
@@ -45,21 +42,21 @@ def test_repeated_targets_preserve_both_business_scenarios(capsys) -> None:
     rc = cli.main(
         [
             '--target',
-            'acceptance-contracts',
+            'acceptance-cases',
             '--target',
             'session-detail',
             '--dry-run',
             '--changed-files',
-            '["docs/acceptance-contracts/features/COMMON.md",'
+            '["docs/acceptance-cases/features/COMMON.md",'
             '"java/web/src/main/resources/static/css/main.css"]',
         ]
     )
     payload = json.loads(capsys.readouterr().out)
 
     assert rc == 0
-    assert payload['effectiveTargets'] == ['acceptance-contracts', 'session-detail']
+    assert payload['effectiveTargets'] == ['acceptance-cases', 'session-detail']
     gates = {item['gate'] for item in payload['commands']}
-    assert {'acceptanceContracts', 'sessionDetailStaticTests'} <= gates
+    assert {'acceptanceCaseMapping', 'webResourceTests'} <= gates
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-009')
@@ -68,7 +65,7 @@ def test_service_writes_current_run_artifact(tmp_path: Path, monkeypatch) -> Non
         executor,
         'execute_plan',
         lambda *_args, **_kwargs: (
-            GateDetail(name='ignoredTrackedFiles', status=PASS),
+            GateDetail(name='repositoryFilePolicy', status=PASS),
             GateDetail(name='harnessStructure', status=PASS),
         ),
     )

@@ -12,7 +12,7 @@ import org.junit.jupiter.api.Test;
  *
  * <p>验证 Markdown 渲染禁用原始 HTML（XSS 防护）和基本格式化正确。
  *
- * <p>Acceptance contracts: ROUTE-API-003
+ * <p>验收用例：ROUTE-API-003。
  */
 @DisplayName("安全 Markdown 渲染测试")
 class SafeMarkdownRendererTest {

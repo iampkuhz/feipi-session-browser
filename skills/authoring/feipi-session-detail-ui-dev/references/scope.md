@@ -23,7 +23,7 @@
 1. `src/templates/` → Jinja 模板文件，session detail 页面结构。
 2. `src/static/css/` → CSS 样式文件，ownership 分区。
 3. `src/static/js/` → JS 交互脚本，action handler 绑定。
-4. `shared check `web.session-detail-static`` → 静态检查入口。
+4. `shared check `webResourceTests`` → 静态检查入口。
 5. catalog Gate `cssOwnership` / Java `css-ownership` rule → CSS ownership 校验。
 6. `shared check `web.js-action-handlers`` → JS handler 完整性检查。
 7. `config/web-quality-baselines.json` → `raw-innerhtml` 与 `layout-inline-style` 的 canonical baseline section；
@@ -41,11 +41,11 @@
 
 ## 触发门禁
 
-- `python3 -m scripts.checks web.session-detail-static`
+- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
 - `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js`
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js`
 - `python3 -m scripts.checks web.js-action-handlers`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership`
-- `python3 -m scripts.checks repository.repo-slimming`
+- `python3 -m scripts.checks repository.current-source-policy`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml`

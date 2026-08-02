@@ -21,7 +21,7 @@ from scripts.gates import (  # noqa: E402
     report,
     support,  # noqa: E402
 )
-from scripts.gates.catalog import CATALOG_VERSION, TARGETS, gate_by_name, tier_by_name  # noqa: E402
+from scripts.gates.catalog import TARGETS, gate_by_name, tier_by_name  # noqa: E402
 from scripts.gates.model import ExecutionPlan, GatePlan, TargetGatePlan  # noqa: E402
 from scripts.gates.planner import plan as build_plan  # noqa: E402
 
@@ -79,10 +79,7 @@ def _with_preflight(gate_plan: GatePlan) -> GatePlan:
     """把不可绕过的全局 preflight Gate 注入同一不可变计划。"""
     preflight_target = TargetGatePlan(
         target='python-standard',
-        gates=(
-            gate_by_name('ignoredTrackedFiles'),
-            gate_by_name('misplacedGeneratedPaths'),
-        ),
+        gates=(gate_by_name('repositoryFilePolicy'),),
     )
     return GatePlan(
         changed_files=gate_plan.changed_files,
@@ -134,7 +131,6 @@ def _build_execution_metadata(execution_plan: ExecutionPlan) -> dict[str, object
     return {
         'planId': execution_plan.plan_id,
         'planFingerprint': execution_plan.fingerprint,
-        'catalogVersion': CATALOG_VERSION,
         'commandGroups': [
             {
                 'groupId': group.group_id,

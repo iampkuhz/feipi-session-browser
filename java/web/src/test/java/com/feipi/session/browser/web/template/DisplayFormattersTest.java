@@ -2,15 +2,22 @@ package com.feipi.session.browser.web.template;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 /** {@link DisplayFormatters} 显示格式化方法测试。 */
 @DisplayName("DisplayFormatters 显示格式化测试")
 class DisplayFormattersTest {
+
+  @TempDir Path tempDir;
 
   // ─── 数字格式化 ──────────────────────────────────────────────────
 
@@ -217,6 +224,7 @@ class DisplayFormattersTest {
 
   @Nested
   @DisplayName("displayPath 主目录替换")
+  @ResourceLock(Resources.SYSTEM_PROPERTIES)
   class DisplayPath {
 
     @Test
@@ -228,16 +236,33 @@ class DisplayFormattersTest {
     @Test
     @DisplayName("主目录替换为 ~")
     void homeReplacedWithTilde() {
-      String home = System.getProperty("user.home");
-      assertThat(DisplayFormatters.displayPath(home)).isEqualTo("~");
+      withSyntheticHome(home -> assertThat(DisplayFormatters.displayPath(home)).isEqualTo("~"));
     }
 
     @Test
     @DisplayName("主目录子路径替换为 ~")
     void homeSubdirReplaced() {
-      String home = System.getProperty("user.home");
-      String subPath = home + "/projects/test";
-      assertThat(DisplayFormatters.displayPath(subPath)).startsWith("~");
+      withSyntheticHome(
+          home -> {
+            String subPath = home + "/projects/test";
+            assertThat(DisplayFormatters.displayPath(subPath)).startsWith("~");
+          });
+    }
+
+    /** 用临时目录替代 {@code user.home}，断言结束后始终恢复进程属性。 */
+    private void withSyntheticHome(Consumer<String> assertions) {
+      String originalHome = System.getProperty("user.home");
+      String syntheticHome = tempDir.resolve("synthetic-home").toString();
+      try {
+        System.setProperty("user.home", syntheticHome);
+        assertions.accept(syntheticHome);
+      } finally {
+        if (originalHome == null) {
+          System.clearProperty("user.home");
+        } else {
+          System.setProperty("user.home", originalHome);
+        }
+      }
     }
   }
 

@@ -354,10 +354,9 @@ class JsonlReaderTest {
     @Test
     @DisplayName("非法 UTF-8 产生稳定诊断且不泄漏载荷")
     void invalidUtf8FailsClosedWithoutPayloadLeak() throws IOException {
+      String syntheticHome = "/Users/test";
       String secretPayload =
-          "{\"token\":\"secret-token-that-must-not-appear\",\"home\":\""
-              + System.getProperty("user.home")
-              + "\"";
+          "{\"token\":\"secret-token-that-must-not-appear\",\"home\":\"" + syntheticHome + "\"";
       byte[] prefix = secretPayload.getBytes(StandardCharsets.UTF_8);
       byte[] content = new byte[prefix.length + 3];
       System.arraycopy(prefix, 0, content, 0, prefix.length);
@@ -376,7 +375,7 @@ class JsonlReaderTest {
       assertThat(diag.code()).isEqualTo("BAD_JSON:INVALID_UTF8");
       assertThat(diag.preview()).isEmpty();
       assertThat(diag.message()).doesNotContain("secret-token-that-must-not-appear");
-      assertThat(diag.message()).doesNotContain(System.getProperty("user.home"));
+      assertThat(diag.message()).doesNotContain(syntheticHome);
     }
   }
 

@@ -7,7 +7,7 @@ gates:
     patterns:
     - java/web/src/main/resources/static/js/**/*.js
     - config/web-quality-baselines.json
-  - name: acceptance-contracts
+  - name: acceptance-cases
     order: 4
     patterns:
     - tests/**/*.js
@@ -92,7 +92,6 @@ gates:
     - java/web/src/main/resources/static/**/*.js
     - java/web/src/main/resources/templates/**/*.html
     - config/web-quality-baselines.json
-    - tests/ui/test_web_static_contract.py
   - name: java-src
     order: 10
     patterns:
@@ -114,7 +113,7 @@ gates:
     order: 14
     patterns:
     - scripts/gates/executor.py
-  - name: acceptance-contracts
+  - name: acceptance-cases
     order: 14
     patterns:
     - tests/gates/test_executor.py
@@ -141,6 +140,23 @@ gates:
     java-rule:
       rules:
       - css-ownership
+- name: webResourceTests
+  description: 运行 Java Web 模板、CSS 与 JavaScript 的资源契约测试。
+  targets:
+  - name: session-detail
+    order: 8
+    patterns:
+    - java/web/src/main/resources/templates/**
+    - java/web/src/main/resources/static/**
+    - java/web/src/test/java/com/feipi/session/browser/web/page/**
+  - name: java-src
+    order: 15
+    patterns:
+    - java/web/src/test/java/com/feipi/session/browser/web/page/**
+  run:
+    gradle-task:
+      tasks:
+      - :java:web:test
 - name: browserLayout
   description: 用 Playwright 验证主要页面、布局与视觉壳层契约。
   targets:

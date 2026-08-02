@@ -24,7 +24,7 @@ import org.junit.jupiter.api.io.TempDir;
  *
  * <p>验证 session detail 路由的 HTTP 行为：not found、正常渲染和模板上下文。
  *
- * <p>Acceptance contracts: UI-INTERACTION-008, UI-SD-019
+ * <p>验收用例：UI-INTERACTION-008、UI-SD-019。
  */
 @DisplayName("SessionDetailPage 集成测试")
 class SessionDetailPageTest {

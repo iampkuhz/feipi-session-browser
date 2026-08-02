@@ -33,14 +33,14 @@
 
 - Session detail shell 是页面的外层容器，控制整体布局结构。
 - Shell 变更影响所有子组件的布局，必须运行 `npm --prefix tests/playwright test -- session-detail-layout.spec.js`。
-- Shell CSS 由 `web.session-detail-static` 守护，不允许随意修改 shell 类名。
+- Shell CSS 由 `webResourceTests` 守护，不允许随意修改 shell 类名。
 - Layout 变更应优先消除 inline style；只有经审阅确认保留时，才显式更新
   `config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries`。
 
 ## 禁止 legacy CSS
 
 - 不新增 legacy alias CSS 类。
-- 使用 `repository.repo-slimming` 检查是否有 legacy CSS 引入。
+- 使用 `repository.current-source-policy` 检查是否有 legacy CSS 引入。
 - 已有的 legacy CSS 不在本 skill 范围内清理，除非任务明确要求。
 - 新增样式必须使用当前命名约定，不使用已废弃的前缀或别名。
 

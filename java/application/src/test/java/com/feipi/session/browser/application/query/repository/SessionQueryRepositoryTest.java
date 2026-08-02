@@ -374,7 +374,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("项目过滤器按 canonical key 合并 hyphen cache key")
     void projectFilterUsesCanonicalProjectKey() throws Exception {
-      String canonical = "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java";
+      String canonical = "/Users/test/workspace/feipi-session-browser-java";
       insertSessionWithProject(
           "codex:workspace-a",
           "codex",
@@ -388,7 +388,7 @@ class SessionQueryRepositoryTest {
           "qoder:workspace-b",
           "qoder",
           "workspace-b",
-          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "-Users-test-workspace-feipi-session-browser-java",
           "feipi-session-browser-java",
           canonical,
           2000,
@@ -675,7 +675,7 @@ class SessionQueryRepositoryTest {
     @Test
     @DisplayName("项目过滤器聚合按 canonical key 合并 hyphen cache key")
     void projectFilterAggregateUsesCanonicalProjectKey() throws Exception {
-      String canonical = "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java";
+      String canonical = "/Users/test/workspace/feipi-session-browser-java";
       insertSessionWithProject(
           "codex:workspace-a",
           "codex",
@@ -689,7 +689,7 @@ class SessionQueryRepositoryTest {
           "qoder:workspace-b",
           "qoder",
           "workspace-b",
-          "-Users-zhehan-Documents-tools-llm-feipi-session-browser-java",
+          "-Users-test-workspace-feipi-session-browser-java",
           "feipi-session-browser-java",
           canonical,
           2000,

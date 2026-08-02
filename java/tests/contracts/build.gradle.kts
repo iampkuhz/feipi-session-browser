@@ -52,8 +52,7 @@ val sampleIntegrationTest = tasks.register<Test>("sampleIntegrationTest") {
         includeTestsMatching("*SessionSampleIntegrationTest*")
     }
 
-    // 真实 source adapter 需要从仓库根定位最小 synthetic fixture。
-    systemProperty("user.dir", project.rootDir.absolutePath)
+    // 测试会从模块目录向上寻找仓库内的 synthetic fixture，无需绑定具体机器路径。
     System.getProperty("session.samples.writeExpected")?.let {
         systemProperty("session.samples.writeExpected", it)
     }

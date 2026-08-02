@@ -34,7 +34,7 @@ def test_required_domains_are_registered() -> None:
         'agent.rules-sync',
         'repository.dead-command-reference',
         'security.secret-like-content',
-        'openspec.acceptance-contracts',
+        'repository.acceptance-case-mapping',
     } <= CHECKS.keys()
 
 

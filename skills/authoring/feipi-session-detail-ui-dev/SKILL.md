@@ -46,15 +46,16 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 5. 修改模板时优先使用已有 macro 和 class：不重新发明已有组件，复用现有 macro。
 6. 不新增 legacy alias CSS，不新增无 owner 的全局样式：每个 CSS 规则必须有明确 ownership。
 7. 修改 JS 时同步 action handler gate：确保 `web.js-action-handlers` 能覆盖新增或修改的 handler。
-8. 跑静态 UI gate 和必要 Playwright gate：至少运行 `web.session-detail-static`，涉及布局时追加 layout gate。
+8. 跑静态 UI gate 和必要 Playwright gate：至少运行 `webResourceTests`，涉及布局时追加 layout gate。
 9. 输出截图/布局风险和未覆盖交互：报告视觉风险和交互覆盖盲区。
 
 ## 文件边界
 
-- Jinja 模板：`src/templates/` 下 session detail 相关模板。
-- CSS 文件：`src/static/css/` 下 session detail 相关样式。
-- JS 文件：`src/static/js/` 下 session detail 相关交互脚本。
-- UI 质量门：`scripts/checks/web/check_session_detail_*.py`、`tests/playwright/session-detail*.spec.js`。
+- Jinja 模板：`java/web/src/main/resources/templates/` 下 session detail 相关模板。
+- CSS 文件：`java/web/src/main/resources/static/css/` 下 session detail 相关样式。
+- JS 文件：`java/web/src/main/resources/static/js/` 下 session detail 相关交互脚本。
+- UI 质量门：`java/web/src/test/java/com/feipi/session/browser/web/page/`、
+  `tests/playwright/session-detail*.spec.js`。
 - CSS ownership 配置：catalog Gate `cssOwnership` 与 Java `css-ownership` rule 相关配置。
 - P4 Web gate baseline：`config/web-quality-baselines.json` 中的 `rules.raw-innerhtml.entries` 与
   `rules.layout-inline-style.entries`；CSS ownership Java rule 继续写出按运行隔离的 artifact，artifact
@@ -66,20 +67,20 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `python3 -m scripts.checks web.session-detail-static` — session detail 静态检查与 shell CSS 一致性。
+- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查与 shell CSS 一致性。
 - `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js` — 交互 gate。
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js` — 布局 gate。
 - `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership` — catalog
   Gate `cssOwnership` 的 CSS ownership 校验。
-- `python3 -m scripts.checks repository.repo-slimming` — legacy CSS 检查。
+- `python3 -m scripts.checks repository.current-source-policy` — legacy CSS 检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style` — inline style 检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml` — raw innerHTML 检查。
 
 选择策略：
 
-- 只改模板 → 至少运行 `web.session-detail-static` + catalog Gate `cssOwnership`。
-- 改 CSS → 追加 `web.session-detail-static` + `repository.repo-slimming`。
+- 只改模板 → 至少运行 `webResourceTests` + catalog Gate `cssOwnership`。
+- 改 CSS → 追加 `webResourceTests` + `repository.current-source-policy`。
 - 改 JS → 追加 `web.js-action-handlers` + Node Playwright 交互 gate。
 - 改布局或 shell → 追加 Node Playwright 布局 gate + catalog Gate `layoutInlineStyle`。
 - 收口前 → 运行全部 UI gate。

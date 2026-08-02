@@ -35,7 +35,7 @@ class GateEscapeCase:
 REQUIRED_CASE_IDS = {
     'agent-policy-target',
     'shared-skill-target',
-    'acceptance-contract-target',
+    'acceptance-case-target',
     'python-standard-target',
     'java-src-target',
     'java-build-target',
@@ -119,10 +119,10 @@ def _build_cases() -> list[GateEscapeCase]:
             'harness',
         ),
         _target_case(
-            'acceptance-contract-target',
-            'Acceptance contract change must trigger acceptance target',
-            'docs/acceptance-contracts/features/HOOK_HARNESS.md',
-            'acceptance-contracts',
+            'acceptance-case-target',
+            '验收用例表变更必须触发验收用例检查场景',
+            'docs/acceptance-cases/features/HOOK_HARNESS.md',
+            'acceptance-cases',
         ),
         _target_case(
             'python-standard-target',

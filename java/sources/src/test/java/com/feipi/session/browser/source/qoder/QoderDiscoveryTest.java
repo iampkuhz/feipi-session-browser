@@ -125,7 +125,7 @@ class QoderDiscoveryTest {
       Files.writeString(
           sessionFile,
           "{\"role\":\"assistant\",\"message\":{\"content\":[{\"type\":\"text\","
-              + "\"text\":\"file:///Users/zhehan/work/demo-project/src/Main.java\"}]}}\n",
+              + "\"text\":\"file:///Users/test/work/demo-project/src/Main.java\"}]}}\n",
           StandardCharsets.UTF_8);
 
       QoderDiscovery.QoderDiscoveryResult result =
@@ -133,8 +133,7 @@ class QoderDiscoveryTest {
 
       assertThat(result.sessions()).hasSize(1);
       assertThat(result.sessions().get(0).path()).isEqualTo(sessionFile);
-      assertThat(result.sessions().get(0).projectKey())
-          .isEqualTo("/Users/zhehan/work/demo-project");
+      assertThat(result.sessions().get(0).projectKey()).isEqualTo("/Users/test/work/demo-project");
     }
 
     @Test

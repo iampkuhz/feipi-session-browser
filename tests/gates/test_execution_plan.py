@@ -148,7 +148,11 @@ def test_css_resource_aggregates_static_and_ownership_java_rules_once() -> None:
 
     assert len(groups) == 1
     assert groups[0].kind == 'gradle'
-    assert groups[0].gate_names == ('staticCssContract', 'cssOwnership')
+    assert groups[0].gate_names == (
+        'staticCssContract',
+        'cssOwnership',
+        'webResourceTests',
+    )
     assert groups[0].command.count(':java:tests:quality-gates:runJavaQualityGates') == 1
     rule_args = [
         argument
@@ -196,6 +200,7 @@ def test_static_javascript_aggregates_three_independent_java_rule_states() -> No
         'staticCssContract',
         'rawInnerhtml',
         'layoutInlineStyle',
+        'webResourceTests',
     )
     assert (
         '-PfeipiJavaQualityRules=static-resource-contract,raw-innerhtml,layout-inline-style'
@@ -317,7 +322,7 @@ def test_runner_executes_groups_in_tuple_order_after_independent_failure(
     monkeypatch, tmp_path: Path
 ) -> None:
     groups = (
-        executor.CommandGroup('a', 'command', ('echo', 'a'), (), ('noTestSkips',), 10),
+        executor.CommandGroup('a', 'command', ('echo', 'a'), (), ('noPythonPlaywrightSkips',), 10),
         executor.CommandGroup('b', 'command', ('echo', 'b'), (), ('languagePolicy',), 10),
         executor.CommandGroup('c', 'command', ('echo', 'c'), (), ('codexAgentPolicy',), 10),
     )

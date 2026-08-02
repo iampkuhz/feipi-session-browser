@@ -32,7 +32,7 @@
 ## Validation
 
 ```bash
-python3 -m scripts.checks web.session-detail-static
+./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
 python3 -m scripts.checks web.js-action-handlers
 ```
 

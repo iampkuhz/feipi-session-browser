@@ -115,7 +115,7 @@ class WebCompositionRootTest {
   @Test
   @DisplayName("项目详情路由接受 raw slash path 和 encoded path")
   void projectDetailRouteAcceptsRawAndEncodedAbsolutePath() throws Exception {
-    String projectKey = "/Users/zhehan/Documents/tools/llm/feipi-session-browser-java";
+    String projectKey = "/workspace/feipi-session-browser-java";
     indexConnection
         .writerConnection()
         .createStatement()
@@ -129,9 +129,9 @@ class WebCompositionRootTest {
                 + " total_tokens, failed_tool_count, subagent_instance_count,"
                 + " indexed_at, file_mtime, file_path)"
                 + " VALUES ('codex:raw-route', 'codex', 'raw-route', 'Raw route session',"
-                + " '/Users/zhehan/Documents/tools/llm/feipi-session-browser-java',"
+                + " '/workspace/feipi-session-browser-java',"
                 + " 'feipi-session-browser-java',"
-                + " '/Users/zhehan/Documents/tools/llm/feipi-session-browser-java',"
+                + " '/workspace/feipi-session-browser-java',"
                 + " '2026-07-04T10:00:00Z', '2026-07-04T10:01:00Z',"
                 + " 60.0, 45.0, 5.0, 'gpt-5', 'main', 'fixture',"
                 + " 1, 1, 0, 10, 20, 30, 40, 100, 0, 0,"
@@ -147,8 +147,8 @@ class WebCompositionRootTest {
         (testApp, client) -> {
           for (String path :
               new String[] {
-                "/projects/%2FUsers%2Fzhehan%2FDocuments%2Ftools%2Fllm%2Ffeipi-session-browser-java",
-                "/projects//Users/zhehan/Documents/tools/llm/feipi-session-browser-java"
+                "/projects/%2Fworkspace%2Ffeipi-session-browser-java",
+                "/projects//workspace/feipi-session-browser-java"
               }) {
             var response = client.get(path);
             assertThat(response.code()).isEqualTo(200);

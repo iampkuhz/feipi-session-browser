@@ -59,6 +59,7 @@ def pytest_collectreport(report):
 
 
 def pytest_sessionfinish(session, exitstatus):
+    _ = exitstatus  # Pytest hook 签名要求保留该参数；最终状态统一写回 session。
     reports = getattr(session.config, _SKIP_REPORTS_ATTR, [])
     if not reports:
         return

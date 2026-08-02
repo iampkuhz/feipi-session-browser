@@ -25,6 +25,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.api.parallel.ResourceLock;
+import org.junit.jupiter.api.parallel.Resources;
 
 /** {@link NormalizedArtifactWriter} 文件写入合约测试。 */
 @DisplayName("NormalizedArtifactWriter 文件写入测试")
@@ -374,22 +376,30 @@ class NormalizedArtifactWriterTest {
 
   @Test
   @DisplayName("source fingerprint 脱敏：home 路径被替换为 ~")
+  @ResourceLock(Resources.SYSTEM_PROPERTIES)
   void sourceFingerprintsSanitizeHomePath() throws IOException {
-    String homePath = System.getProperty("user.home");
-    if (homePath == null || homePath.isEmpty()) {
-      return; // 无法测试
+    String originalHome = System.getProperty("user.home");
+    String syntheticHome = tempDir.resolve("synthetic-home").toString();
+    try {
+      System.setProperty("user.home", syntheticHome);
+      NormalizedSessionArtifact artifact = createMinimalArtifact("session-fingerprint");
+      Map<String, String> fingerprints =
+          Map.of(syntheticHome + "/.claude/projects/test/session.jsonl", "hash1");
+
+      WriteResult result = writer.write(tempDir, artifact, fingerprints);
+      ArtifactMeta meta = writer.readMeta(result.metaPath());
+
+      // home 路径应被替换为 ~，元数据中不得保留合成的绝对路径。
+      assertThat(meta.sourceFingerprints())
+          .containsEntry("~/.claude/projects/test/session.jsonl", "hash1")
+          .doesNotContainKey(syntheticHome + "/.claude/projects/test/session.jsonl");
+    } finally {
+      if (originalHome == null) {
+        System.clearProperty("user.home");
+      } else {
+        System.setProperty("user.home", originalHome);
+      }
     }
-
-    NormalizedSessionArtifact artifact = createMinimalArtifact("session-fingerprint");
-    Map<String, String> fingerprints =
-        Map.of(homePath + "/.claude/projects/test/session.jsonl", "hash1");
-
-    WriteResult result = writer.write(tempDir, artifact, fingerprints);
-    ArtifactMeta meta = writer.readMeta(result.metaPath());
-
-    // home 路径应被替换为 ~
-    assertThat(meta.sourceFingerprints()).containsKey("~/.claude/projects/test/session.jsonl");
-    assertThat(meta.sourceFingerprints()).doesNotContainKey(homePath);
   }
 
   @Test

@@ -129,7 +129,6 @@ class QualitySummary:
     reportHash: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     planId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     planFingerprint: str = ''  # noqa: N815 - Preserve JSON artifact schema.
-    catalogVersion: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     commandGroups: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815
     processCounts: dict[str, int] = field(default_factory=dict)  # noqa: N815
     gateStates: dict[str, str] = field(default_factory=dict)  # noqa: N815
@@ -370,7 +369,6 @@ def build_summary(
         freshness='0s',
         planId=str(metadata.get('planId', '')),
         planFingerprint=str(metadata.get('planFingerprint', '')),
-        catalogVersion=str(metadata.get('catalogVersion', '')),
         commandGroups=list(metadata.get('commandGroups', [])),
         processCounts=dict(metadata.get('processCounts', {})),
         gateStates={

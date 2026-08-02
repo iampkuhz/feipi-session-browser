@@ -74,7 +74,7 @@
     "new_s2": ["java:tests:contracts"],
     "future_s3_plus": ["java:normalized-contract", "java:normalized-io", "java:attribution-core", "java:index-core"]
   },
-  "acceptance_contracts": [
+  "acceptance_cases": [
     {"id": "AC-01", "behavior": "Schema version 一致性", "expected": "schema_version == session-detail.normalized.v3", "owning_task": "J2-010", "test_id": "normalized-schema-version-contract"},
     {"id": "AC-02", "behavior": "Agent 枚举约束", "expected": "agent in {codex, claude_code, qoder}", "owning_task": "J2-010", "test_id": "normalized-agent-enum-contract"},
     {"id": "AC-03", "behavior": "Session key 格式", "expected": "session_key == {agent}:{session_id}", "owning_task": "J2-010", "test_id": "normalized-session-key-contract"},

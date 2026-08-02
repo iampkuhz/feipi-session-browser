@@ -119,9 +119,10 @@ class SessionSampleIntegrationTest {
 
   private static SourceResult.Success parseFixture(
       Path input, SourceAdapter adapter, SourceId sourceId) throws Exception {
+    // SourceAdapter 读取实际文件，因此直接传入动态解析出的仓库内绝对路径；不要依赖进程工作目录。
     SourceFingerprint fingerprint =
         new SourceFingerprint(
-            relative(input).toString(),
+            input.toAbsolutePath().normalize().toString(),
             sourceId,
             Files.size(input),
             Files.getLastModifiedTime(input).toMillis(),

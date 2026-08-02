@@ -8,7 +8,7 @@ python3 scripts/gates/cli.py --tier required
 
 `quick`、`required`、`full`、target、Gate、path trigger、typed run、dominance、timeout 和
 执行参数的机器真相由 `config/gates.yaml` 根索引及其显式列出的 `config/gates/*.yaml` 共同组成。
-[`config/gates/README.md`](../../config/gates/README.md) 是受 contract 保护的 44 Gate 精简目录，
+[`config/gates/README.md`](../../config/gates/README.md) 是受 contract 保护的 42 Gate 使用手册，
 不复制完整命令或 pattern；
 `catalog.py` 只负责严格加载、schema 校验和 typed model 构造。
 
@@ -18,7 +18,7 @@ python3 scripts/gates/cli.py --tier required
 |---|---|---|
 | `config/gates.yaml` | 全局 target、path rule、tier 与有序分片清单 | 保存具体 Gate 命令 |
 | `config/gates/*.yaml` | 每个 Gate 的唯一完整 declaration | 复制全局 target/tier 或动态 include |
-| `config/gates/README.md` | 44 Gate 的作用、实现入口、执行通道、Target、Tier 与主要触发点精简目录 | 复制完整命令或全部 pattern |
+| `config/gates/README.md` | 42 Gate 的作用、合并执行方式、Target、Tier 与主要触发点 | 复制完整命令或全部 pattern |
 | `catalog.py` | 加载/schema 校验并构造 typed Gate/target/tier/path model | 维护命令表、运行命令、读取历史报告 |
 | `planner.py` | 将 changed files 冻结为 classification、raw/effective target 与 applicable Gate plan | 运行时重新选择 Gate |
 | `executor.py` | 冻结 ordered command group 后只执行 immutable plan，落实 Gradle 聚合、串行运行与 timeout | 维护另一份 Gate/target 映射 |
@@ -50,8 +50,8 @@ cli 解析输入 → planner 选择 Gate → executor 冻结 ExecutionPlan
 | `gradle-task` | Gradle task | 对应 `build.gradle.kts` 或 `gradle/build-logic/` task 定义 |
 | `command` / `playwright` / `scan-smoke` | argv 指向的 tool 或固定 test suite | 对应公开工具、脚本或 suite contract |
 
-实现入口直接由 typed run 派生，不另设 owner 字段。执行通道则只有 `gradle` 和 `process`：
-`java-rule`、`gradle-task` 进入聚合 Gradle group，其他 run 进入 bounded process。`command` 是 run kind，
+使用手册把实现入口和执行通道合并为“执行方式”，直接由 typed run 派生，不另设 owner 字段。执行器内部仍将
+`java-rule`、`gradle-task` 放入聚合 Gradle group，其他 run 放入 bounded process。`command` 是 run kind，
 不是 owner；executor 只执行冻结后的 plan，不承载具体规则语义。
 
 ## 查看当前 Gate 与计划
@@ -76,14 +76,10 @@ python3 scripts/gates/cli.py \
 ```
 
 `--target <target>` 用于精确诊断或维护场景；最终验证使用 `--tier required`。
-target 是 changed path 激活的可多选、有序验证场景，不是 owner、executor、tier 或唯一分类。选择顺序固定为：
-
-```text
-changed path → path rule.targets → Gate target rule（order + pattern）→ tier 过滤 → plan
-```
-
-例如 Python test 可同时激活 `acceptance-contracts` 与 `python-standard`；UI test 可同时激活
-`session-detail`、`acceptance-contracts` 与 `python-standard`。
+target 是 changed file 激活的可多选、有序验证场景，不是 owner、executor、tier 或唯一分类。完整的自然语言
+选择过程见 [`config/gates/README.md`](../../config/gates/README.md) 的“从一个改动文件到真正执行的 Gate”。
+例如 Python test 可同时激活 `acceptance-cases` 与 `python-standard`；Java test 可同时激活
+`java-src` 与 `acceptance-cases`。
 显式空 changed-files 与实际 dirty 状态冲突时会 fail-closed，不能借此绕过 Gate。
 changed-files 默认只供 planner 判断 target/applicability。executor 只有在 catalog 的
 `changed_files_input` 明确声明支持时才传递 `QUALITY_CHANGED_FILES`；通用 Gradle 与其他 Gate
@@ -132,8 +128,7 @@ Gate run summary 的输出根；executor 只向子进程注入 rule-scoped artif
 overall `PASS`；控制台文字、历史结果、`FAIL`、`BLOCKED`、`SKIPPED`、`NOT_TRIGGERED` 和缺少 Gate
 明细都不能作为本次通过证据。
 
-summary 输出 plan fingerprint、catalog version、`gateStates`、command group、
-duration、top-level Gradle/Python/Bash process count 和
+summary 输出 plan fingerprint、`gateStates`、command group、duration、top-level Gradle/Python/Bash process count 和
 精确 rerun command。成功控制台只输出单行；失败控制台只保留首因和有界诊断，完整证据位于 artifact。
 
 ## 一屏故障定位
@@ -158,10 +153,10 @@ duration、top-level Gradle/Python/Bash process count 和
 1. **选择一个实现入口。** JVM/Web source rule 使用 `java-rule`；Git/OpenSpec/隐私/跨语言规则使用
    `python-check`；已有 Gradle 生命周期检查使用 `gradle-task`；工具与固定 suite 使用 `command`、
    `playwright` 或 `scan-smoke`。禁止同时保留两个实现。
-2. **按 v6 strict schema 只登记一次。** 在一个 `config/gates/*.yaml` declaration 中显式写 `name`、
+2. **按当前 strict schema 只登记一次。** 在一个 `config/gates/*.yaml` declaration 中显式写 `name`、
    `description`、`targets`（每项含 `name`、`order`、`patterns`）和单一 discriminated `run`。
    `minimum_tier`、`timeout`、`changed_files`、`network_failure` 只在偏离根 `gate_defaults` 时覆盖；
-   v6 schema 未声明的兼容字段或旧式嵌套 mapping 一律拒绝。同步精简目录。
+   当前 schema 未声明的兼容字段或旧式嵌套 mapping 一律拒绝。同步使用手册。
 3. **先写 contract。** 覆盖真实成功、失败边界、trigger/target 与状态语义；修改实现入口时加入旧实现和
    旧 registration 的无残留断言。
 4. **定向验证实现与 plan。** 运行对应 Java/Python/Gradle contract、catalog/planner/service contract，

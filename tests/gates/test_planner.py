@@ -14,16 +14,12 @@ from scripts.gates.planner import (
 @pytest.mark.parametrize(
     ('path', 'targets'),
     [
-        ('tests/gates/test_catalog.py', ('acceptance-contracts', 'python-standard')),
+        ('tests/gates/test_catalog.py', ('acceptance-cases', 'python-standard')),
         (
-            'tests/ui/test_web_static_contract.py',
-            ('session-detail', 'acceptance-contracts', 'python-standard'),
+            'java/web/src/test/java/com/feipi/session/browser/web/page/WebResourceContractTest.java',
+            ('java-src', 'acceptance-cases'),
         ),
-        ('tests/playwright/specs/detail.spec.ts', ('acceptance-contracts',)),
-        (
-            'scripts/checks/web/check_session_detail_static.py',
-            ('session-detail', 'python-standard'),
-        ),
+        ('tests/playwright/specs/detail.spec.ts', ('acceptance-cases',)),
         (
             'scripts/checks/web/check_js_action_handlers.py',
             ('session-detail', 'python-standard'),
@@ -43,15 +39,15 @@ def test_targets_are_stably_deduplicated_across_paths_and_scan_trigger_is_append
     assert required_quality_targets(
         [
             'tests/gates/test_catalog.py',
-            'scripts/checks/web/check_session_detail_static.py',
+            'scripts/checks/web/check_js_action_handlers.py',
         ]
-    ) == ['acceptance-contracts', 'python-standard', 'session-detail', 'scan-script-smoke']
+    ) == ['acceptance-cases', 'python-standard', 'session-detail', 'scan-script-smoke']
     assert required_quality_targets(
         [
-            'scripts/checks/web/check_session_detail_static.py',
+            'scripts/checks/web/check_js_action_handlers.py',
             'tests/gates/test_catalog.py',
         ]
-    ) == ['session-detail', 'python-standard', 'acceptance-contracts', 'scan-script-smoke']
+    ) == ['session-detail', 'python-standard', 'acceptance-cases', 'scan-script-smoke']
 
 
 def test_only_explicit_target_dominance_is_applied() -> None:
@@ -59,8 +55,8 @@ def test_only_explicit_target_dominance_is_applied() -> None:
         'java-src',
         'python-standard',
     ]
-    assert effective_targets(['acceptance-contracts', 'session-detail', 'python-standard']) == [
-        'acceptance-contracts',
+    assert effective_targets(['acceptance-cases', 'session-detail', 'python-standard']) == [
+        'acceptance-cases',
         'session-detail',
         'python-standard',
     ]
@@ -71,14 +67,14 @@ def test_only_explicit_target_dominance_is_applied() -> None:
 def test_multi_target_plan_has_one_stable_responsibility_per_business_gate() -> None:
     result = plan(
         [
-            'docs/acceptance-contracts/features/COMMON.md',
+            'docs/acceptance-cases/features/COMMON.md',
             'java/web/src/main/resources/static/css/main.css',
         ],
         incremental=False,
     )
     names = [gate.name for gate in result.logical_gates]
-    assert names.count('acceptanceContracts') == 1
-    assert names.count('sessionDetailStaticTests') == 1
+    assert names.count('acceptanceCaseMapping') == 1
+    assert names.count('webResourceTests') == 1
     assert 'pytest' not in names
 
 
@@ -86,11 +82,11 @@ def test_python_test_selects_acceptance_harness_and_python_standard_without_dupl
     None
 ):
     result = plan(['tests/gates/test_executor.py'])
-    assert result.raw_targets == ('acceptance-contracts', 'python-standard')
+    assert result.raw_targets == ('acceptance-cases', 'python-standard')
     names = [gate.name for gate in result.logical_gates]
-    assert names.count('acceptanceContracts') == 1
+    assert names.count('acceptanceCaseMapping') == 1
     assert names.count('pythonHarnessTests') == 1
-    assert 'sessionDetailStaticTests' not in names
+    assert 'webResourceTests' not in names
 
 
 def test_full_only_dependency_vulnerability_gate_is_not_in_required() -> None:
@@ -102,25 +98,31 @@ def test_full_only_dependency_vulnerability_gate_is_not_in_required() -> None:
 
 @pytest.mark.contract_case('J1-040-001')
 @pytest.mark.parametrize(
-    ('path', 'category', 'target'),
+    ('path', 'category', 'targets'),
     [
-        ('java/core-domain/src/main/java/com/feipi/Foo.java', 'java-src', 'java-src'),
-        ('java/tests/architecture/src/test/java/com/feipi/BarTest.java', 'java-src', 'java-src'),
+        ('java/core-domain/src/main/java/com/feipi/Foo.java', 'java-src', ('java-src',)),
+        (
+            'java/tests/architecture/src/test/java/com/feipi/BarTest.java',
+            'java-test',
+            ('java-src', 'acceptance-cases'),
+        ),
         (
             'gradle/build-logic/src/main/kotlin/feipi.java-base.gradle.kts',
             'java-build',
-            'java-build',
+            ('java-build',),
         ),
-        ('gradle/libs.versions.toml', 'java-build', 'java-build'),
-        ('settings.gradle.kts', 'java-build', 'java-build'),
-        ('build.gradle.kts', 'java-root-dsl', 'java-build'),
-        ('gradle.properties', 'java-root-dsl', 'java-build'),
+        ('gradle/libs.versions.toml', 'java-build', ('java-build',)),
+        ('settings.gradle.kts', 'java-build', ('java-build',)),
+        ('build.gradle.kts', 'java-root-dsl', ('java-build',)),
+        ('gradle.properties', 'java-root-dsl', ('java-build',)),
     ],
 )
-def test_java_paths_keep_their_owned_classification(path: str, category: str, target: str) -> None:
+def test_java_paths_keep_their_owned_classification(
+    path: str, category: str, targets: tuple[str, ...]
+) -> None:
     classification = classify_path(path)
     assert classification.category == category
-    assert classification.targets == (target,)
+    assert classification.targets == targets
     assert classification.allowed is True
 
 

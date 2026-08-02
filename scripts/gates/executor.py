@@ -15,7 +15,7 @@ from dataclasses import asdict, replace
 from functools import lru_cache
 from pathlib import Path
 
-from scripts.gates.catalog import CATALOG_VERSION, gate_by_name
+from scripts.gates.catalog import gate_by_name
 from scripts.gates.model import (
     ChangedFilesInput,
     CommandGroup,
@@ -836,7 +836,6 @@ def build_execution_plan(
     )
     planned = _freeze_planned_gates(entries, group_by_gate, gradle_group_id)
     payload = {
-        'catalog': CATALOG_VERSION,
         'changedFiles': gate_plan.changed_files,
         'targets': gate_plan.effective_targets,
         'gates': [asdict(item) for item in planned],

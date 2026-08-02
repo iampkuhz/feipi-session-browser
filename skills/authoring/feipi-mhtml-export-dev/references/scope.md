@@ -40,7 +40,7 @@
 
 ## 触发门禁
 
-- `python3 -m scripts.checks web.session-detail-static`
+- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
 - `python3 -m scripts.checks web.js-action-handlers`
 - fixture-based 导出测试
 - `python3 -m scripts.checks agent.entry-parity`

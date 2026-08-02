@@ -1,0 +1,30 @@
+# 全局视觉契约
+
+## 范围
+
+| 项 | 内容 |
+|---|---|
+| 模块 | 全局视觉契约（Shell 布局、多视口矩阵、基础组件、滚动行为、密度/字体） |
+| 关联源码 | `java/web/src/main/resources/static/css/`（shell.css、states.css、全局 CSS）、`java/web/src/main/resources/static/js/` |
+| 关联测试 | `java/web/src/test/java/com/feipi/session/browser/web/page/WebStaticResourceContractTest.java`、`java/web/src/test/java/com/feipi/session/browser/web/template/PebbleEnvironmentTest.java`、`tests/playwright/macbook-smoke.spec.js`、`tests/playwright/ui-contract.spec.ts`、`tests/playwright/shell-states.spec.js` |
+| 主要风险 | 视口矩阵不全导致特定分辨率下布局崩坏；shell.css 级联冲突 |
+
+## 验收用例
+
+| 用例 ID | 优先级 | 分层 | 场景 | 怎么测 | 必须断言 | 测试类型 | 关联检查 | 代码位置 |
+|---|---:|---|---|---|---|---|---|---|
+| UI-VISUAL-001 | P0 | visual | Shell 状态网格宽度断言（Session Detail） | 通过 JS 设置 body class 后测量 `grid-template-columns` | normal: .main>800, sidebar>0; hide-left: sidebar=0, .main>900; hide-right: inspector=0; focus: sidebar+inspector=0, .main>1100 | Playwright | snapshot 更新条件：当 shell.css grid 变更时需更新快照 | `tests/playwright/shell-states.spec.js` |
+| UI-VISUAL-002 | P0 | visual | Shell 无水平滚动 | 各状态测量 scrollWidth vs viewportWidth | `scrollWidth <= viewportWidth + 2` | Playwright | — | `tests/playwright/shell-states.spec.js` |
+| UI-VISUAL-003 | P0 | visual | 1440x1100 会话详情外壳布局 | 质量门禁视口测量 | .main>1200, .session-detail-page>1100, .hero>900, 标题在 KPI 上方 | Playwright | snapshot 更新条件：当 shell CSS grid 变更时需更新快照 | `tests/playwright/session-detail-layout.spec.js` |
+| UI-VISUAL-004 | P0 | visual | Shell 状态多视口截图基线（normal/hide-right × 1440/1280/1180）| 各状态 × 视口截图 | 截图存入根 `tmp/agent-runtime/runs/<run-id>/playwright/screenshots/`，结构断言 main 宽度 > 600 | Playwright | snapshot 更新条件：当 shell.css 变更时需更新快照 | `tests/playwright/shell-states.spec.js` |
+| UI-VISUAL-005 | P0 | visual | Shell 状态截图基线（hide-left/focus × 1440/1280/1180）| 各状态 × 视口截图 | 截图存入根 `tmp/agent-runtime/runs/<run-id>/playwright/screenshots/`，main 宽度 > 600 | Playwright | snapshot 更新条件：当 shell.css 变更时需更新快照 | `tests/playwright/shell-states.spec.js` |
+| UI-VISUAL-006 | P0 | visual | Dashboard shell 状态（normal/hide-left） | 在 Dashboard 页面设置 body class 测量 | normal: .main>800, sidebar>0; hide-left: sidebar=0, .main>900, 无水平滚动 | Playwright | — | `tests/playwright/shell-states.spec.js` |
+| UI-VISUAL-007 | P0 | visual | 404 页多视口截图 + 可见性 | 访问 `/__test-404-not-found__`，各视口截图 | `.state-panel` 可见，标题为 "Page Not Found"，截图通过回归 | Playwright | snapshot 更新条件：当 states.css 变更时需更新快照 | `tests/playwright/ui-contract.spec.ts` |
+| UI-VISUAL-008 | P0 | visual | 2560x1440 超宽视口冒烟 | 设置超宽视口访问所有页面 | 所有页面 body 可见，无水平溢出 | pytest | — | 待补充 |
+| UI-VISUAL-009 | P0 | visual | MacBook 视口冒烟（1280x800 / 1440x900） | 各页面在 MacBook 视口加载 | body 可见，title 含页面名，metric-card 存在 | pytest + Playwright | — | 待补充 |
+| UI-VISUAL-010 | P1 | visual | 长内容滚动行为 | 加载 100-round session | 页面可纵向滚动且无水平 overflow | Playwright | — | `tests/playwright/session-detail-migrated-gates.spec.js` |
+| UI-VISUAL-011 | P1 | visual | UI 密度和字体大小 | 读取真实 `tokens.css` | 密度变量和字体 token 不低于可读性下限 | JUnit | — | `java/web/src/test/java/com/feipi/session/browser/web/page/WebStaticResourceContractTest.java` |
+| UI-VISUAL-012 | P1 | visual | UI 基础组件（primitives） | 检查 UI 基础元素渲染 | button/input/badge/tokenbar 等基础组件样式正确 | pytest | — | `java/web/src/test/java/com/feipi/session/browser/web/template/PebbleEnvironmentTest.java` |
+| UI-VISUAL-013 | P1 | visual | HiFi DOM 结构 | 检查高保真测试会话的 DOM 层级 | DOM 结构符合预期层级，无多余嵌套 | pytest | — | 待补充 |
+| UI-VISUAL-014 | P1 | visual | 卡片内容视觉间距复核 | 设计变更时人工复核 | 内容不重叠且视觉层级清楚 | manual | — | 待补充 |
+| UI-VISUAL-015 | P2 | visual | 状态页模板 | 多视口访问 404 | state panel/title/links 可见且无水平溢出 | Playwright | — | `tests/playwright/ui-contract.spec.ts` |

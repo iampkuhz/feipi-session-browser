@@ -17,38 +17,37 @@ _ROWS = (
     ('agent.protected-roots', 'scripts.checks.agent.check_protected_roots_sync'),
     ('agent.skill-registry', 'scripts.checks.agent.check_skill_registry'),
     ('agent.subagent-handoff', 'scripts.checks.agent.check_subagent_handoff_protocol'),
-    ('openspec.acceptance-contracts', 'scripts.checks.repository.check_acceptance_contracts'),
+    (
+        'repository.acceptance-case-mapping',
+        'scripts.checks.repository.check_acceptance_case_mapping',
+    ),
+    ('repository.current-source-policy', 'scripts.checks.repository.check_current_source_policy'),
     ('repository.dead-command-reference', 'scripts.checks.repository.check_dead_command_reference'),
     ('repository.gate-escape-rate', 'scripts.checks.repository.check_gate_escape_rate'),
-    ('repository.ignored-tracked', 'scripts.checks.repository.check_ignored_tracked_files'),
     ('repository.index-integrity', 'scripts.checks.repository.check_index_integrity'),
     ('repository.language-policy', 'scripts.checks.source.check_language_policy'),
     (
-        'repository.misplaced-generated-paths',
-        'scripts.checks.repository.check_misplaced_generated_paths',
+        'repository.no-python-playwright-skips',
+        'scripts.checks.repository.check_no_python_playwright_skips',
     ),
-    (
-        'repository.no-committed-local-paths',
-        'scripts.checks.privacy.check_no_committed_local_paths',
-    ),
-    (
-        'repository.no-real-session-fixtures',
-        'scripts.checks.privacy.check_no_real_session_fixtures',
-    ),
-    ('repository.no-test-skips', 'scripts.checks.repository.check_no_test_skips'),
     (
         'repository.python-dependency-vulnerabilities',
         'scripts.checks.repository.check_python_dependency_vulnerabilities',
     ),
-    ('repository.repo-slimming', 'scripts.checks.repository.check_repo_slimming'),
-    ('repository.structure', 'scripts.checks.repository.check_repo_structure'),
+    (
+        'repository.repository-file-policy',
+        'scripts.checks.repository.check_repository_file_policy',
+    ),
+    (
+        'repository.test-data-policy',
+        'scripts.checks.repository.check_test_data_policy',
+    ),
     (
         'repository.no-product-python',
         'scripts.checks.source.check_no_new_product_python',
     ),
     ('security.secret-like-content', 'scripts.checks.privacy.check_secret_like_content'),
     ('web.js-action-handlers', 'scripts.checks.web.check_js_action_handlers'),
-    ('web.session-detail-static', 'scripts.checks.web.check_session_detail_static'),
     ('source.comment-language', 'scripts.checks.source.check_code_comment_language'),
 )
 

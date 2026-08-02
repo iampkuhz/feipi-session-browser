@@ -26,12 +26,12 @@ def _single_plan(target: str, gate: str) -> GatePlan:
 def test_command_adapter_reads_typed_declaration(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
     assert executor.command_for_gate(
-        gate_by_name('noTestSkips'), tmp_path, 'acceptance-contracts'
+        gate_by_name('noPythonPlaywrightSkips'), tmp_path, 'acceptance-cases'
     ) == [
         '/tmp/python',
         '-m',
         'scripts.checks',
-        'repository.no-test-skips',
+        'repository.no-python-playwright-skips',
     ]
 
 
@@ -135,31 +135,19 @@ def test_generic_gradle_gate_gets_no_unknown_changed_files_input(tmp_path: Path)
     assert executor.changed_files_environment(java_check, ['build.gradle.kts']) == {}
 
 
-def test_session_detail_pytest_uses_one_stable_ui_suite(monkeypatch) -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    gate = gate_by_name('sessionDetailStaticTests')
-    command = executor.command_for_gate(gate, repo_root, 'session-detail')
+def test_web_resource_tests_use_java_web_gradle_task(tmp_path: Path) -> None:
+    (tmp_path / 'gradlew').write_text('', encoding='utf-8')
+    gate = gate_by_name('webResourceTests')
+    command = executor.command_for_gate(gate, tmp_path, 'session-detail')
     assert command == [
-        '/tmp/python',
-        '-m',
-        'pytest',
-        '-q',
-        '-W',
-        'error',
-        'tests/ui',
+        str(tmp_path / 'gradlew'),
+        ':java:web:test',
     ]
 
 
-def test_fixed_pytest_suite_missing_is_fail_closed(tmp_path: Path, monkeypatch) -> None:
-    monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    gate = gate_by_name('sessionDetailStaticTests')
+def test_web_resource_tests_missing_gradle_wrapper_is_fail_closed(tmp_path: Path) -> None:
+    gate = gate_by_name('webResourceTests')
     assert executor.command_for_gate(gate, tmp_path, 'session-detail') == []
-    execution = executor.build_execution_plan(
-        _single_plan('session-detail', 'sessionDetailStaticTests'), tmp_path
-    )
-    assert execution.groups[0].command == ()
-    assert executor._execute_group(execution.groups[0], tmp_path).status == BLOCKED  # noqa: SLF001
 
 
 def test_browser_gate_without_base_url_uses_node_managed_fixture(monkeypatch) -> None:

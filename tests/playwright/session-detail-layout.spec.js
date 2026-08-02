@@ -12,7 +12,7 @@ const path = require('path');
 const { runPlaywrightRoot } = require('./runtime-paths');
 
 test.describe('会话详情 Phase 1 外壳布局', () => {
-  test('[UI-SD-013][UI-SD-018] 1440px 视口下外壳布局正确', async ({ page }) => {
+  test('[UI-SD-013][UI-SD-018][UI-VISUAL-003] 1440px 视口下外壳布局正确', async ({ page }) => {
     // 使用质量门禁指定的 1440x1100 视口
     await page.setViewportSize({ width: 1440, height: 1100 });
 

@@ -29,7 +29,7 @@
 ## Validation
 
 ```bash
-python3 -m scripts.checks web.session-detail-static
+./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
 ```
 
@@ -37,9 +37,9 @@ python3 -m scripts.checks web.session-detail-static
 
 ```bash
 python3 -m scripts.checks web.js-action-handlers
-python3 -m scripts.checks repository.repo-slimming
+python3 -m scripts.checks repository.current-source-policy
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style
-python3 -m scripts.checks web.session-detail-static
+./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
 npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js
 npm --prefix tests/playwright test -- session-detail-layout.spec.js
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml
