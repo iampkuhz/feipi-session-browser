@@ -36,7 +36,10 @@ _ROWS = (
         'scripts.checks.privacy.check_no_real_session_fixtures',
     ),
     ('repository.no-test-skips', 'scripts.checks.repository.check_no_test_skips'),
-    ('repository.python-security', 'scripts.checks.repository.check_python_security'),
+    (
+        'repository.python-dependency-vulnerabilities',
+        'scripts.checks.repository.check_python_dependency_vulnerabilities',
+    ),
     ('repository.repo-slimming', 'scripts.checks.repository.check_repo_slimming'),
     ('repository.structure', 'scripts.checks.repository.check_repo_structure'),
     (

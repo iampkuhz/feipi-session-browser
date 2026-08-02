@@ -1,8 +1,8 @@
-"""执行 Python 依赖漏洞与高危源码安全检查。
+"""执行 Python 锁定依赖漏洞检查。
 
-这项检查用于防止已知漏洞依赖或高危源码进入仓库。唯一入口 ``check(arguments)`` 串行执行锁文件
-审计和 Bandit；失败诊断保留底层工具输出，使 Gate 执行器仍能把漏洞服务不可用归约为
-``BLOCKED``，而真实漏洞或高危问题归约为 ``FAIL``。
+为确保提交使用的完整锁定依赖没有已知漏洞，唯一入口 ``check(arguments)`` 串行执行 frozen
+lock export 和 pip-audit。失败诊断保留底层工具输出，使 Gate 执行器仍能把漏洞服务不可用
+归约为 ``BLOCKED``，而真实漏洞归约为 ``FAIL``。
 """
 
 from __future__ import annotations
@@ -95,19 +95,21 @@ def _output(process: subprocess.CompletedProcess) -> str:
 def _failure(tool: str, process: subprocess.CompletedProcess) -> CheckResult:
     """把工具非零退出转换为保留原始原因的单条诊断。"""
     detail = _output(process) or f'exit code {process.returncode}'
-    return CheckResult.from_errors([f'[python-security] {tool} FAIL:\n{detail}'])
+    return CheckResult.from_errors([f'[python-dependency-vulnerabilities] {tool} FAIL:\n{detail}'])
 
 
 def check(arguments: list[str]) -> CheckResult:
-    """解析仓库路径，依次执行锁文件漏洞审计与高危源码扫描。"""
-    parser = argument_parser(description='Check Python dependency and source security.')
+    """解析仓库路径，依次导出并审计锁定依赖。"""
+    parser = argument_parser(description='Check locked Python dependencies for vulnerabilities.')
     parser.add_argument('--root', default=str(ROOT), help='Repository root to inspect')
     args = parser.parse_args(arguments)
     root = Path(args.root).resolve()
 
     uv = shutil.which('uv')
     if uv is None:
-        return CheckResult.from_errors(['[python-security] uv FAIL: command not found'])
+        return CheckResult.from_errors(
+            ['[python-dependency-vulnerabilities] uv FAIL: command not found']
+        )
 
     exported = _run(
         [
@@ -147,11 +149,4 @@ def check(arguments: list[str]) -> CheckResult:
     )
     if audited.returncode != 0:
         return _failure('pip-audit', audited)
-
-    bandit = _run(
-        [sys.executable, '-m', 'bandit', '-r', 'scripts', '--severity-level', 'high'],
-        root=root,
-    )
-    if bandit.returncode != 0:
-        return _failure('bandit', bandit)
     return CheckResult()

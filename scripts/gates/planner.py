@@ -50,18 +50,16 @@ def classify_path(path: str) -> FileClassification:
             return FileClassification(
                 file=normalized,
                 category=rule.category,
-                requires_quality_gate=rule.requires_quality_gate,
-                quality_target=rule.quality_target,
+                targets=rule.targets,
                 risk_level=rule.risk_level,
-                allowed_by_default=rule.allowed_by_default,
+                allowed=rule.allowed,
             )
     return FileClassification(
         file=normalized,
         category='unknown',
-        requires_quality_gate=False,
-        quality_target=None,
+        targets=(),
         risk_level='low',
-        allowed_by_default=True,
+        allowed=True,
     )
 
 
@@ -75,13 +73,19 @@ def required_quality_targets(files: Iterable[str]) -> list[str]:
     normalized_files = [normalize_repo_path(path) for path in files]
     targets: list[str] = []
     for classification in classify_files(normalized_files):
-        target = classification.quality_target
-        if classification.requires_quality_gate and target and target not in targets:
-            targets.append(target)
-    for path in normalized_files:
-        if any(pattern_matches(path, pattern) for pattern in CATALOG.scan_script_smoke_patterns):
-            if 'scan-script-smoke' not in targets:
-                targets.append('scan-script-smoke')
+        for target in classification.targets:
+            if target not in targets:
+                targets.append(target)
+    for trigger in CATALOG.target_triggers:
+        if (
+            any(
+                pattern_matches(path, pattern)
+                for path in normalized_files
+                for pattern in trigger.patterns
+            )
+            and trigger.target not in targets
+        ):
+            targets.append(trigger.target)
     return targets
 
 
@@ -137,20 +141,28 @@ def validate_target(target: str) -> None:
 
 
 def gates_for_tier(tier: str) -> frozenset[str]:
-    """从 Gate 自身 tiers 字段返回该档位的逻辑 Gate 集合。"""
+    """按 minimum tier 返回该档位的逻辑 Gate 集合。"""
     tier_by_name(tier)
-    names = tuple(gate.name for gate in GATES if tier in gate.tiers)
+    rank = {'quick': 0, 'required': 1, 'full': 2}
+    names = tuple(gate.name for gate in GATES if rank[gate.minimum_tier.value] <= rank[tier])
     return frozenset(names)
 
 
 def tier_metadata() -> dict[str, dict[str, str]]:
     """从 catalog 派生 tier 描述与失败策略。"""
     return {
-        tier.name: {
-            'description': tier.description,
-            'failure_policy': tier.failure_policy,
-        }
-        for tier in CATALOG.tiers
+        'quick': {
+            'description': '本地开发默认快速反馈，只运行轻量级 Gate 子集。',
+            'failure_policy': 'triggered Gate 必须 PASS；not triggered 不算 skipped。',
+        },
+        'required': {
+            'description': 'PR 合入和 Stop/handoff 前必须通过。',
+            'failure_policy': '0 skipped outcome；skipped 即 FAIL/BLOCKED。',
+        },
+        'full': {
+            'description': '发布或大迁移收口前运行，包含全部 target 和额外验证。',
+            'failure_policy': '0 skipped outcome；skipped 即 FAIL/BLOCKED。',
+        },
     }
 
 
@@ -193,4 +205,4 @@ def plan(
 
 def validate_catalog() -> None:
     """校验当前唯一 catalog 声明。"""
-    validate_catalog_schema()
+    validate_catalog_schema(CATALOG)

@@ -1,32 +1,15 @@
-# 人工浏览先读 config/gates/README.md；本文件只保存全局索引，不再内联 45 个 Gate。
-version: gate-catalog:v5
+version: gate-catalog:v6
 targets:
 - name: python-standard
-  description: 质量目标 python-standard 的确定性执行边界。
-  includes: []
 - name: harness
-  description: 质量目标 harness 的确定性执行边界。
-  includes: []
 - name: acceptance-contracts
-  description: 质量目标 acceptance-contracts 的确定性执行边界。
-  includes: []
 - name: session-detail
-  description: 质量目标 session-detail 的确定性执行边界。
-  includes: []
 - name: index
-  description: 质量目标 index 的确定性执行边界。
-  includes: []
 - name: java-src
-  description: 质量目标 java-src 的确定性执行边界。
   includes:
   - java-build
 - name: java-build
-  description: 质量目标 java-build 的确定性执行边界。
-  includes: []
 - name: scan-script-smoke
-  description: 质量目标 scan-script-smoke 的确定性执行边界。
-  includes: []
-# 每个 Gate 完整声明只存在于一个业务领域文件；catalog_order 保持稳定注册顺序。
 gate_files:
 - gates/python-tooling.yaml
 - gates/repository-safety.yaml
@@ -38,20 +21,18 @@ path_rules:
 - category: acceptance-contract
   patterns:
   - docs/acceptance-contracts/**
-  requires_quality_gate: true
-  quality_target: acceptance-contracts
   risk: medium
-  allowed_by_default: true
+  targets:
+  - acceptance-contracts
 - category: java-src
   patterns:
   - java/**/src/main/java/**/*.java
   - java/**/src/test/java/**/*.java
   - java/**/src/main/kotlin/**/*.kt
   - java/**/src/test/kotlin/**/*.kt
-  requires_quality_gate: true
-  quality_target: java-src
   risk: medium
-  allowed_by_default: true
+  targets:
+  - java-src
 - category: java-build
   patterns:
   - gradle/build-logic/**
@@ -66,86 +47,95 @@ path_rules:
   - gradlew
   - gradlew.bat
   - '*.lockfile'
-  requires_quality_gate: true
-  quality_target: java-build
   risk: medium
-  allowed_by_default: true
+  targets:
+  - java-build
 - category: java-root-dsl
   patterns:
   - build.gradle.kts
   - gradle.properties
-  requires_quality_gate: true
-  quality_target: java-build
   risk: medium
-  allowed_by_default: true
+  targets:
+  - java-build
+- category: session-detail-ui-test
+  patterns:
+  - tests/ui/**/*.py
+  risk: medium
+  targets:
+  - session-detail
+  - acceptance-contracts
+  - python-standard
 - category: test
   patterns:
   - tests/**/*.py
   - tests/*.py
+  risk: medium
+  targets:
+  - acceptance-contracts
+  - python-standard
+- category: test-contract
+  patterns:
   - tests/**/*.js
   - tests/*.js
   - tests/**/*.ts
   - tests/*.ts
-  requires_quality_gate: true
-  quality_target: acceptance-contracts
   risk: medium
-  allowed_by_default: true
+  targets:
+  - acceptance-contracts
 - category: session-detail-ui
   patterns:
   - java/web/src/main/resources/static/**
   - java/web/src/main/resources/templates/**
   - config/web-quality-baselines.json
   - src/session_browser/web/**
-  - scripts/checks/web/check_session_detail_*.py
-  requires_quality_gate: true
-  quality_target: session-detail
+  - scripts/checks/web/**/*.py
   risk: medium
-  allowed_by_default: true
+  targets:
+  - session-detail
+  - python-standard
 - category: quality-gate
   patterns:
   - scripts/checks/**
   - scripts/gates/**
   - config/gates.yaml
   - config/gates/**
-  requires_quality_gate: true
-  quality_target: python-standard
   risk: high
-  allowed_by_default: true
+  targets:
+  - python-standard
 - category: harness
   patterns:
   - harness/**
   - scripts/harness/**
-  requires_quality_gate: true
-  quality_target: harness
   risk: high
-  allowed_by_default: true
+  targets:
+  - harness
+  - python-standard
 - category: openspec
   patterns:
   - openspec/**
-  requires_quality_gate: true
-  quality_target: harness
+  - scripts/openspec/**/*.py
   risk: medium
-  allowed_by_default: true
+  targets:
+  - harness
+  - python-standard
 - category: repo-script
   patterns:
   - scripts/*.sh
   - scripts/**/*.sh
   - scripts/*.js
   - scripts/**/*.js
-  requires_quality_gate: true
-  quality_target: python-standard
   risk: high
-  allowed_by_default: true
+  targets:
+  - python-standard
 - category: python-tooling-config
   patterns:
   - pyproject.toml
   - uv.lock
   - .pre-commit-config.yaml
   - .github/workflows/**
-  requires_quality_gate: true
-  quality_target: python-standard
   risk: high
-  allowed_by_default: true
+  targets:
+  - python-standard
 - category: agent-config
   patterns:
   - AGENTS.md
@@ -158,18 +148,14 @@ path_rules:
   - .claude/skills/**
   - .codex/**
   - .qoder/**
-  requires_quality_gate: true
-  quality_target: harness
   risk: high
-  allowed_by_default: true
+  targets:
+  - harness
 - category: docs
   patterns:
   - README.md
   - docs/**
-  requires_quality_gate: false
-  quality_target: null
   risk: low
-  allowed_by_default: true
 - category: local-or-generated
   patterns:
   - tmp/**
@@ -180,43 +166,37 @@ path_rules:
   - '**/*.sqlite'
   - '**/*.sqlite3'
   - '**/*.db'
-  requires_quality_gate: false
-  quality_target: null
   risk: local
-  allowed_by_default: true
 - category: java-src-unknown
   patterns:
   - '**/*.java'
-  requires_quality_gate: true
-  quality_target: java-src
   risk: high
-  allowed_by_default: false
+  targets:
+  - java-src
+  allowed: false
 - category: java-build-unknown
   patterns:
   - '**/*.gradle'
   - '**/*.gradle.kts'
-  requires_quality_gate: true
-  quality_target: java-build
   risk: high
-  allowed_by_default: false
-scan_script_smoke_patterns:
-- scripts/session-browser.sh
-- java/app-cli/**
-- java/scan-engine/**
-- java/sources/**
-- java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**
-- java/normalization-engine/**
-- java/artifact-normalized/**
-- java/index-sqlite/**
-- tests/fixtures/session_samples/**
-- scripts/checks/**
-tiers:
-- name: quick
-  description: 本地开发默认快速反馈，只运行轻量级 Gate 子集。
-  failure_policy: triggered Gate 必须 PASS；not triggered 不算 skipped。
-- name: required
-  description: PR 合入和 Stop/handoff 前必须通过。
-  failure_policy: 0 skipped outcome；skipped 即 FAIL/BLOCKED。
-- name: full
-  description: 发布或大迁移收口前运行，包含全部 target 和额外验证。
-  failure_policy: 0 skipped outcome；skipped 即 FAIL/BLOCKED。
+  targets:
+  - java-build
+  allowed: false
+gate_defaults:
+  minimum_tier: required
+  timeout: 300
+  changed_files: none
+  network_failure: fail
+target_triggers:
+- target: scan-script-smoke
+  patterns:
+  - scripts/session-browser.sh
+  - java/app-cli/**
+  - java/scan-engine/**
+  - java/sources/**
+  - java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**
+  - java/normalization-engine/**
+  - java/artifact-normalized/**
+  - java/index-sqlite/**
+  - tests/fixtures/session_samples/**
+  - scripts/checks/**

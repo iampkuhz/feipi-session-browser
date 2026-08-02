@@ -10,6 +10,13 @@ _SKIP_REPORTS_ATTR = '_session_browser_forbidden_skip_reports'
 _PYTEST_CONFIG = None
 
 
+@pytest.fixture(autouse=True)
+def _isolate_feipi_env(monkeypatch):
+    """统一清除 Gate 身份变量，防止本机环境泄漏到任一测试目录。"""
+    for variable in ('FEIPI_SESSION_ID', 'FEIPI_AGENT_CLIENT', 'FEIPI_AGENT_ID'):
+        monkeypatch.delenv(variable, raising=False)
+
+
 def pytest_configure(config):
     """Track skipped pytest reports so selected/full runs cannot pass with skips."""
     global _PYTEST_CONFIG

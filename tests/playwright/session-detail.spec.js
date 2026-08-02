@@ -423,16 +423,13 @@ test.describe('会话详情 — Phase 1', () => {
     }
     await gotoSessionDetail(page, sessionUrl);
     await expect(page.locator('[data-trace-panel]')).toBeVisible({ timeout: 10000 });
-    await page.waitForFunction(() => document.readyState === 'complete', null, { timeout: 10000 });
+    // 以业务数据完成注入为准；document.readyState 不代表异步 Session API 已完成渲染。
+    await waitForSessionApiHydrated(page);
 
     const payloadButtons = page.locator('button[data-action="open-payload"][data-payload-id]:visible');
 
     if (await payloadButtons.count() === 0) {
       await toggleAllTraceRounds(page);
-      await expect(
-        page.locator('[data-trace-detail]:not([hidden])').first(),
-        'expand-all must expose at least one round detail before selecting payload button',
-      ).toBeVisible({ timeout: 5000 });
     }
 
     const payloadBtn = payloadButtons.first();

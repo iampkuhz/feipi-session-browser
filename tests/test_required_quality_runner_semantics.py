@@ -5,7 +5,7 @@ from scripts.gates.report import BLOCKED, FAIL, GateDetail
 
 
 def test_not_triggered_is_empty_plan_not_skipped() -> None:
-    plan = cli.create_plan([], tier='required', target=None, explicit_changed_files=True)
+    plan = cli.create_plan([], tier='required', targets=None, explicit_changed_files=True)
     assert plan.logical_gates == ()
 
 
@@ -21,7 +21,7 @@ def test_session_detail_is_not_silently_excluded() -> None:
     plan = cli.create_plan(
         ['java/web/src/main/resources/templates/session-detail.html'],
         tier='required',
-        target=None,
+        targets=None,
         explicit_changed_files=True,
     )
     assert 'session-detail' in plan.effective_targets

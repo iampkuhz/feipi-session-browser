@@ -18,7 +18,16 @@ def _read(path: Path) -> str:
 def test_projects_table_matches_main_dom_contract():
     html = _read(PROJECTS_HTML)
     js = _read(PROJECTS_JS)
-    for label in ['Project', 'Agents', 'Sessions', 'Tokens', 'Tools', 'Failed', 'First Seen', 'Last Active']:
+    for label in [
+        'Project',
+        'Agents',
+        'Sessions',
+        'Tokens',
+        'Tools',
+        'Failed',
+        'First Seen',
+        'Last Active',
+    ]:
         assert label in html
     assert 'id="projects-table"' in html
     assert 'data-api-rows="/api/projects/rows"' in html

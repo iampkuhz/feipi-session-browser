@@ -1,6 +1,8 @@
 """Gate 结构化 report 的有界、fail-closed contract。"""
 
 import json
+import os
+import time
 from pathlib import Path
 
 import pytest
@@ -103,3 +105,58 @@ def test_blocked_report_keeps_first_cause(tmp_path: Path) -> None:
     assert 'gate=browserLayout status=BLOCKED' in rendered
     assert 'BASE_URL is missing' in rendered
     assert 'Provide the missing command' in rendered
+
+
+@pytest.mark.contract_case('J1-040-008')
+def test_summary_keeps_run_identity_and_freshness_metadata() -> None:
+    started = '2026-01-01T00:00:00Z'
+    repo_root = Path(__file__).resolve().parents[2]
+    summary = build_summary(
+        'java-src',
+        'test-change',
+        started,
+        [GateDetail(name='javaCheck', status=PASS)],
+        repo_root=repo_root,
+    )
+
+    assert summary.runId == f'test-change-java-src-{started}'
+    assert summary.generatedAt == started
+    assert summary.freshness == '0s'
+    assert len(summary.baseCommit) >= 7
+
+
+@pytest.mark.contract_case('J1-040-009')
+def test_artifact_freshness_rejects_missing_and_stale_files(tmp_path: Path) -> None:
+    artifact = tmp_path / 'summary.json'
+    assert is_artifact_fresh(str(artifact)) is False
+
+    artifact.write_text('{}', encoding='utf-8')
+    assert is_artifact_fresh(str(artifact), max_age_seconds=60) is True
+
+    old_time = time.time() - 7200
+    os.utime(artifact, (old_time, old_time))
+    assert is_artifact_fresh(str(artifact), max_age_seconds=3600) is False
+
+
+@pytest.mark.contract_case('JR-020-006')
+def test_report_hash_is_present_and_changes_with_content(tmp_path: Path) -> None:
+    first = build_summary(
+        'java-src',
+        'test-a',
+        '2026-01-01T00:00:00Z',
+        [GateDetail(name='a', status=PASS)],
+    )
+    first_path = write_quality_summary(tmp_path, first)
+    first_hash = json.loads(first_path.read_text(encoding='utf-8'))['reportHash']
+
+    second = build_summary(
+        'java-src',
+        'test-b',
+        '2026-01-01T00:00:00Z',
+        [GateDetail(name='b', status=PASS)],
+    )
+    second_path = write_quality_summary(tmp_path, second)
+    second_hash = json.loads(second_path.read_text(encoding='utf-8'))['reportHash']
+
+    assert len(first_hash) == len(second_hash) == 12
+    assert first_hash != second_hash

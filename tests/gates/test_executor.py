@@ -38,9 +38,44 @@ def test_command_adapter_reads_typed_declaration(tmp_path: Path, monkeypatch) ->
 def test_gradle_tasks_come_from_catalog(tmp_path: Path) -> None:
     (tmp_path / 'gradlew').write_text('')
     gate = gate_by_name('javaRecordComponentJavadocs')
-    assert executor.command_for_gate(gate, tmp_path, 'java-src')[
-        1 : 1 + len(gate.gradle_tasks)
-    ] == list(gate.gradle_tasks)
+    assert executor.command_for_gate(gate, tmp_path, 'java-src')[1] == (
+        ':java:tests:quality-gates:runJavaQualityGates'
+    )
+
+
+def test_scan_smoke_command_keeps_the_real_process_suite_and_fails_closed(
+    tmp_path: Path,
+) -> None:
+    repo_root = Path(__file__).resolve().parents[2]
+    gate = gate_by_name('scanScriptSmoke')
+    command = executor.command_for_gate(gate, repo_root, 'scan-script-smoke')
+
+    assert command[:2] == ['bash', '-c']
+    assert ':java:app-cli:installDist' in command[2]
+    assert 'tests/script_commands/test_session_browser_scan_smoke.py' in command[2]
+    assert executor.command_for_gate(gate, tmp_path, 'scan-script-smoke') == []
+
+
+def test_reuse_standard_cpd_uses_its_gradle_owner(tmp_path: Path) -> None:
+    (tmp_path / 'gradlew').write_text('', encoding='utf-8')
+    assert executor.command_for_gate(gate_by_name('reuseStandardCpd'), tmp_path, 'java-src') == [
+        str(tmp_path / 'gradlew'),
+        'reuseStandardCpd',
+    ]
+
+
+@pytest.mark.contract_case('JR-020-001')
+def test_java_comment_rule_uses_registry_and_repository_wide_environment(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / 'gradlew').write_text('', encoding='utf-8')
+    gate = gate_by_name('javaChineseComments')
+    assert executor.command_for_gate(gate, tmp_path, 'java-src') == [
+        str(tmp_path / 'gradlew'),
+        ':java:tests:quality-gates:runJavaQualityGates',
+        '-PfeipiJavaQualityRules=java-comment-language',
+    ]
+    assert executor.changed_files_environment(gate, ['java/app/src/main/java/App.java']) == {}
 
 
 def test_generic_task_marker_overrides_only_its_bound_failed_task() -> None:
@@ -100,10 +135,11 @@ def test_generic_gradle_gate_gets_no_unknown_changed_files_input(tmp_path: Path)
     assert executor.changed_files_environment(java_check, ['build.gradle.kts']) == {}
 
 
-def test_acceptance_contract_pytest_uses_stable_capability_suite(monkeypatch) -> None:
+def test_session_detail_pytest_uses_one_stable_ui_suite(monkeypatch) -> None:
     repo_root = Path(__file__).resolve().parents[2]
     monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
-    command = executor.command_for_gate(gate_by_name('pytest'), repo_root, 'acceptance-contracts')
+    gate = gate_by_name('sessionDetailStaticTests')
+    command = executor.command_for_gate(gate, repo_root, 'session-detail')
     assert command == [
         '/tmp/python',
         '-m',
@@ -111,8 +147,19 @@ def test_acceptance_contract_pytest_uses_stable_capability_suite(monkeypatch) ->
         '-q',
         '-W',
         'error',
-        'tests/quality/test_contract_case_specs.py',
+        'tests/ui',
     ]
+
+
+def test_fixed_pytest_suite_missing_is_fail_closed(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(executor, '_project_python', lambda _root, dev=False: '/tmp/python')
+    gate = gate_by_name('sessionDetailStaticTests')
+    assert executor.command_for_gate(gate, tmp_path, 'session-detail') == []
+    execution = executor.build_execution_plan(
+        _single_plan('session-detail', 'sessionDetailStaticTests'), tmp_path
+    )
+    assert execution.groups[0].command == ()
+    assert executor._execute_group(execution.groups[0], tmp_path).status == BLOCKED  # noqa: SLF001
 
 
 def test_browser_gate_without_base_url_uses_node_managed_fixture(monkeypatch) -> None:

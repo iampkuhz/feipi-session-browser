@@ -82,7 +82,7 @@ def _unknown_risky_case() -> GateEscapeCase:
     fail_closed = path.startswith(RISKY_UNCLASSIFIED_PREFIXES) and (
         classification.risk_level in {'high', 'medium'}
         or classification.requires_quality_gate
-        or not classification.allowed_by_default
+        or not classification.allowed
         or classification.category == 'unknown'
     )
     protected = bool(targets) or fail_closed

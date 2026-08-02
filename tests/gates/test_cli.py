@@ -41,6 +41,27 @@ def test_target_and_tier_are_mutually_exclusive() -> None:
         cli.main(['--target', 'harness', '--tier', 'quick'])
 
 
+def test_repeated_targets_preserve_both_business_scenarios(capsys) -> None:
+    rc = cli.main(
+        [
+            '--target',
+            'acceptance-contracts',
+            '--target',
+            'session-detail',
+            '--dry-run',
+            '--changed-files',
+            '["docs/acceptance-contracts/features/COMMON.md",'
+            '"java/web/src/main/resources/static/css/main.css"]',
+        ]
+    )
+    payload = json.loads(capsys.readouterr().out)
+
+    assert rc == 0
+    assert payload['effectiveTargets'] == ['acceptance-contracts', 'session-detail']
+    gates = {item['gate'] for item in payload['commands']}
+    assert {'acceptanceContracts', 'sessionDetailStaticTests'} <= gates
+
+
 @pytest.mark.contract_case('HOOK-HARNESS-009')
 def test_service_writes_current_run_artifact(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setattr(
@@ -191,3 +212,24 @@ def test_changed_files_merge_recorded_evidence_and_git_fallback(
         'tracked.txt',
         'untracked.txt',
     ]
+
+
+def test_change_id_falls_back_to_active_change_evidence(tmp_path: Path) -> None:
+    active_change = tmp_path / 'tmp' / 'active_change.json'
+    active_change.parent.mkdir()
+    active_change.write_text('{"change_id": "strengthen-java-reuse-analyzer"}', encoding='utf-8')
+
+    assert cli.resolve_change_id(None, tmp_path) == 'strengthen-java-reuse-analyzer'
+    assert cli.resolve_change_id('explicit-change', tmp_path) == 'explicit-change'
+
+
+@pytest.mark.contract_case('JR-020-004')
+def test_create_plan_applies_java_target_dominance_with_typed_targets_api() -> None:
+    gate_plan = cli.create_plan(
+        ['java/app-cli/src/main/java/App.java', 'build.gradle.kts'],
+        tier='required',
+        targets=None,
+        explicit_changed_files=True,
+    )
+    assert gate_plan.raw_targets == ('java-src', 'java-build', 'scan-script-smoke')
+    assert gate_plan.effective_targets == ('java-src', 'scan-script-smoke')

@@ -23,6 +23,7 @@ from scripts.gates.model import (
     GatePlan,
     GateSpec,
     PlannedGate,
+    RunKind,
 )
 from scripts.gates.report import (
     BLOCKED,
@@ -562,26 +563,13 @@ def _expand_argument(argument: str, repo_root: Path) -> str:
     return argument.format_map(values)
 
 
-def _declared_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
+def _declared_command(spec: GateSpec, repo_root: Path, _target: str) -> list[str]:
     """通用渲染 catalog command；不按普通 Gate 名称分派。"""
-    declared = spec.command
-    if declared is None:
-        return []
-    argv = next(
-        (row.argv for row in declared.target_argv if row.target == target),
-        declared.argv,
-    )
+    declared = spec.run
+    argv = declared.argv
     if not argv or any(not (repo_root / path).exists() for path in declared.required_paths):
         return []
     command = [_expand_argument(part, repo_root) for part in argv]
-    if declared.existing_only:
-        command = [
-            part for part in command if not part.startswith('tests/') or (repo_root / part).exists()
-        ]
-    existing = [path for path in declared.existing_args if (repo_root / path).exists()]
-    if declared.existing_args and not existing:
-        return []
-    command.extend(existing)
     globbed = _relative_existing_files(repo_root, list(declared.glob_args))
     if declared.glob_args and not globbed:
         return []
@@ -592,18 +580,32 @@ def _declared_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]
     return command
 
 
+def _python_check_command(spec: GateSpec, repo_root: Path, _target: str) -> list[str]:
+    """从 typed check id 构造调用；不从 argv 反向猜测 check。"""
+    run = spec.run
+    if not run.check or any(not (repo_root / path).exists() for path in run.required_paths):
+        return []
+    python = _project_python(repo_root, dev=run.python == 'dev')
+    command = [python, '-m', 'scripts.checks', run.check]
+    command.extend(_expand_argument(part, repo_root) for part in run.args)
+    for optional in run.optional_args:
+        if (repo_root / optional.path).exists():
+            command.extend(_expand_argument(part, repo_root) for part in optional.argv)
+    return command
+
+
 def _scan_smoke_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
     """兼容独立调用：用 catalog prerequisite 与 pytest 声明构造 smoke 命令。"""
     pytest_command = _declared_command(spec, repo_root, target)
-    if not pytest_command or not spec.command:
+    if not pytest_command:
         return []
     install_log = str(_run_tmp_dir(repo_root, 'logs') / 'scanScriptSmoke-installDist.log')
-    install = [str(repo_root / 'gradlew'), *spec.command.prerequisite_tasks]
+    install = [str(repo_root / 'gradlew'), *spec.run.prerequisite_tasks]
     script = (
         f'{shlex.join(install)} > {shlex.quote(install_log)} 2>&1; '
         'rc=$?; '
         'if [ $rc -ne 0 ]; then '
-        f'echo "FAIL: {shlex.join(spec.command.prerequisite_tasks)} (exit=$rc)"; '
+        f'echo "FAIL: {shlex.join(spec.run.prerequisite_tasks)} (exit=$rc)"; '
         f'tail -40 {shlex.quote(install_log)}; '
         'exit $rc; '
         'fi; '
@@ -614,6 +616,7 @@ def _scan_smoke_command(spec: GateSpec, repo_root: Path, target: str) -> list[st
 
 _COMMAND_ADAPTERS = {
     'command': _declared_command,
+    'python-check': _python_check_command,
     'playwright': _declared_command,
     'scan-smoke': _scan_smoke_command,
 }
@@ -621,27 +624,24 @@ _COMMAND_ADAPTERS = {
 
 def _capability(spec: GateSpec) -> str:
     """返回 catalog 声明的执行能力类型。"""
-    return spec.command.capability if spec.command else 'gradle'
+    return spec.run.kind.value
 
 
 def command_for_gate(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
     """从 typed declaration 构造单 Gate 命令。"""
-    if spec.gradle_tasks:
+    if spec.run.kind in {RunKind.GRADLE_TASK, RunKind.JAVA_RULE}:
         gradlew = repo_root / 'gradlew'
+        tasks = spec.run.tasks or (':java:tests:quality-gates:runJavaQualityGates',)
         java_rules = (
-            [f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(spec.java_rules)}'] if spec.java_rules else []
-        )
-        return (
-            [str(gradlew), *spec.gradle_tasks, *java_rules, *spec.gradle_args]
-            if gradlew.exists()
+            [f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(spec.run.java_rules)}']
+            if spec.run.java_rules
             else []
         )
-    if spec.command is None:
-        return []
+        return [str(gradlew), *tasks, *java_rules, *spec.run.args] if gradlew.exists() else []
     try:
-        adapter = _COMMAND_ADAPTERS[spec.command.capability]
+        adapter = _COMMAND_ADAPTERS[spec.run.kind.value]
     except KeyError as exc:
-        raise ValueError(f'unsupported command capability: {spec.command.capability}') from exc
+        raise ValueError(f'unsupported command capability: {spec.run.kind.value}') from exc
     return adapter(spec, repo_root, target)
 
 
@@ -686,15 +686,22 @@ def _build_gradle_group(
     repo_root: Path,
 ) -> tuple[CommandGroup | None, tuple[str, ...]]:
     """把同一 checkout 的 Gradle Gate 与 scan prerequisite 聚合为一个 group。"""
-    gradle_entries = [(spec, target) for spec, target in entries if spec.gradle_tasks]
+    gradle_entries = [
+        (spec, target)
+        for spec, target in entries
+        if spec.run.kind in {RunKind.GRADLE_TASK, RunKind.JAVA_RULE}
+    ]
     scan_entries = [entry for entry in entries if _capability(entry[0]) == 'scan-smoke']
-    gradle_tasks = [task for spec, _target in gradle_entries for task in spec.gradle_tasks]
-    gradle_args = [argument for spec, _target in gradle_entries for argument in spec.gradle_args]
-    java_rules = [rule for spec, _target in gradle_entries for rule in spec.java_rules]
+    gradle_tasks = [
+        task
+        for spec, _target in gradle_entries
+        for task in (spec.run.tasks or (':java:tests:quality-gates:runJavaQualityGates',))
+    ]
+    gradle_args = [argument for spec, _target in gradle_entries for argument in spec.run.args]
+    java_rules = [rule for spec, _target in gradle_entries for rule in spec.run.java_rules]
     gate_names = tuple(spec.name for spec, _target in gradle_entries)
     for spec, _target in scan_entries:
-        if spec.command:
-            gradle_tasks.extend(spec.command.prerequisite_tasks)
+        gradle_tasks.extend(spec.run.prerequisite_tasks)
     gradle_tasks = list(dict.fromkeys(gradle_tasks))
     java_rules = list(dict.fromkeys(java_rules))
     gradle_properties = (
@@ -906,11 +913,7 @@ def _scan_prerequisite_passed(group: CommandGroup, gradle_outcome: GateDetail | 
     if group.kind != 'scan-smoke':
         return True
     tasks = tuple(
-        task
-        for name in group.gate_names
-        for task in (
-            gate_by_name(name).command.prerequisite_tasks if gate_by_name(name).command else ()
-        )
+        task for name in group.gate_names for task in (gate_by_name(name).run.prerequisite_tasks)
     )
     return bool(
         gradle_outcome
@@ -963,7 +966,12 @@ def _logical_gate_detail(
     selected_outcomes: dict[str, str] = {}
     task_outcome: str | None = None
     if group.kind == 'gradle':
-        selected_tasks = gate_by_name(gate.name).gradle_tasks
+        selected_run = gate_by_name(gate.name).run
+        selected_tasks = selected_run.tasks or (
+            (':java:tests:quality-gates:runJavaQualityGates',)
+            if selected_run.kind is RunKind.JAVA_RULE
+            else ()
+        )
         task_outcome = _gradle_gate_outcome(outcome.taskOutcomes, selected_tasks)
         selected_outcomes = _selected_task_outcomes(outcome.taskOutcomes, selected_tasks)
         if task_outcome == 'BLOCKED':

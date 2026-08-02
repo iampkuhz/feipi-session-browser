@@ -1,7 +1,5 @@
-# 仓库结构、测试纪律、隐私与安全 Gate。
 gates:
-- catalog_order: 80
-  name: ignoredTrackedFiles
+- name: ignoredTrackedFiles
   description: 阻止被 Git 忽略的文件同时进入 tracked index。
   targets:
   - name: python-standard
@@ -12,64 +10,50 @@ gates:
     - scripts/gates/**
     - config/gates.yaml
     - config/gates/**
-  tiers:
-  - required
-  - full
-  timeout: 300
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.ignored-tracked
-    - --root
-    - '{repo_root}'
-    - --staged
-    required_paths:
-    - scripts/checks/repository/check_ignored_tracked_files.py
-- catalog_order: 90
-  name: misplacedGeneratedPaths
+  run:
+    python-check:
+      check: repository.ignored-tracked
+      args:
+      - --root
+      - '{repo_root}'
+      - --staged
+      required_paths:
+      - scripts/checks/repository/check_ignored_tracked_files.py
+- name: misplacedGeneratedPaths
   description: 检查仓库磁盘上是否出现 manifest 禁止的生成路径。
   targets:
   - name: python-standard
     order: 7
+    patterns: []
   - name: acceptance-contracts
     order: 3
+    patterns: []
   - name: session-detail
     order: 11
+    patterns: []
   - name: index
     order: 1
+    patterns: []
   - name: java-src
     order: 11
+    patterns: []
   - name: java-build
     order: 5
+    patterns: []
   - name: scan-script-smoke
     order: 2
-  tiers:
-  - required
-  - full
+    patterns: []
+  run:
+    python-check:
+      check: repository.misplaced-generated-paths
+      args:
+      - --root
+      - '{repo_root}'
+      required_paths:
+      - harness/manifest.yaml
+      - scripts/checks/repository/check_misplaced_generated_paths.py
   timeout: 30
-  incremental: always
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.misplaced-generated-paths
-    - --root
-    - '{repo_root}'
-    required_paths:
-    - harness/manifest.yaml
-    - scripts/checks/repository/check_misplaced_generated_paths.py
-- catalog_order: 130
-  name: noTestSkips
+- name: noTestSkips
   description: 阻止 Python 与 Playwright 测试新增 skip、skipif 或 fixme。
   targets:
   - name: acceptance-contracts
@@ -88,23 +72,12 @@ gates:
     - tests/**/*.ts
     - tests/playwright/playwright.config.js
     - scripts/checks/repository/check_no_test_skips.py
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.no-test-skips
-- catalog_order: 190
-  name: repoStructure
+  minimum_tier: quick
+  run:
+    python-check:
+      check: repository.no-test-skips
+      args: []
+- name: repoStructure
   description: 检查必需维护入口存在，并阻止运行态或数据库文件进入 Git。
   targets:
   - name: python-standard
@@ -115,23 +88,12 @@ gates:
     - scripts/openspec/**
     - config/gates.yaml
     - config/gates/**
-  tiers:
-  - quick
-  - required
-  - full
-  timeout: 300
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.structure
-- catalog_order: 200
-  name: repoSlimming
+  minimum_tier: quick
+  run:
+    python-check:
+      check: repository.structure
+      args: []
+- name: repoSlimming
   description: 阻止历史标记、非桌面视口与无效兼容垫片回流仓库。
   targets:
   - name: python-standard
@@ -144,22 +106,11 @@ gates:
     - tests/**/*.py
     - scripts/checks/repository/check_repo_slimming.py
     - tests/quality/test_repo_slimming_contract.py
-  tiers:
-  - required
-  - full
-  timeout: 300
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.repo-slimming
-- catalog_order: 230
-  name: acceptanceContracts
+  run:
+    python-check:
+      check: repository.repo-slimming
+      args: []
+- name: acceptanceContracts
   description: 检查 Acceptance Contract 文档与测试 case 映射完整一致。
   targets:
   - name: acceptance-contracts
@@ -172,22 +123,11 @@ gates:
     - scripts/checks/repository/check_acceptance_contracts.py
     - tests/quality/test_contract_case_specs.py
     - pyproject.toml
-  tiers:
-  - required
-  - full
-  timeout: 300
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - openspec.acceptance-contracts
-- catalog_order: 260
-  name: noRealSessionFixtures
+  run:
+    python-check:
+      check: openspec.acceptance-contracts
+      args: []
+- name: noRealSessionFixtures
   description: 阻止真实 Session 内容进入测试、文档或源码 fixture。
   targets:
   - name: python-standard
@@ -197,22 +137,12 @@ gates:
     - docs/**
     - java/**
     - scripts/checks/privacy/check_no_real_session_fixtures.py
-  tiers:
-  - required
-  - full
+  run:
+    python-check:
+      check: repository.no-real-session-fixtures
+      args: []
   timeout: 120
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - repository.no-real-session-fixtures
-- catalog_order: 270
-  name: secretLikeContent
+- name: secretLikeContent
   description: 扫描仓库中的密钥、Token 与凭据形态内容。
   targets:
   - name: python-standard
@@ -229,17 +159,8 @@ gates:
     - harness/**
     - scripts/**
     - scripts/checks/privacy/check_secret_like_content.py
-  tiers:
-  - required
-  - full
+  run:
+    python-check:
+      check: security.secret-like-content
+      args: []
   timeout: 120
-  incremental: patterns
-  changed_files: none
-  included_by: []
-  command:
-    capability: command
-    argv:
-    - '{python}'
-    - -m
-    - scripts.checks
-    - security.secret-like-content

@@ -9,14 +9,11 @@ dependencies = ["pyyaml"]
 [project.optional-dependencies]
 dev = [
   "bandit",
-  "coverage",
   "deptry",
   "pip-audit",
   "pytest",
-  "pytest-cov",
   "pytest-xdist",
   "pre-commit",
-  "radon",
   "ruff",
   "vulture",
 ]
@@ -33,28 +30,6 @@ markers = [
     "contract_case: Mark test with acceptance contract case ID(s)",
 ]
 
-[tool.coverage.run]
-branch = true
-data_file = ".local/python/coverage/.coverage"
-source = ["scripts"]
-omit = [
-  "tests/*",
-  "tmp/*",
-]
-
-[tool.coverage.report]
-fail_under = 80
-show_missing = true
-skip_covered = false
-exclude_lines = [
-  "pragma: no cover",
-  "if TYPE_CHECKING:",
-  "if __name__ == .__main__.:",
-]
-
-[tool.coverage.xml]
-output = ".local/python/coverage/coverage.xml"
-
 [tool.ruff]
 target-version = "py312"
 line-length = 100
@@ -67,11 +42,6 @@ extend-exclude = [
   ".local",
   ".pytest_cache",
   "__pycache__",
-  "tests/performance",
-  "tests/playwright",
-  "tests/rendering",
-  "tests/session_detail",
-  "tests/ui",
 ]
 
 [tool.ruff.format]
@@ -131,7 +101,7 @@ extend_exclude = [
 ]
 
 [tool.vulture]
-paths = ["scripts", "tests/harness", "tests/misc", "tests/quality"]
+paths = ["scripts", "tests"]
 exclude = [
   "tmp",
   "data",

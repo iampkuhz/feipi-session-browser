@@ -97,22 +97,23 @@ def create_plan(
     changed_files: list[str],
     *,
     tier: str,
-    target: str | None,
+    targets: tuple[str, ...] | None,
     explicit_changed_files: bool,
 ) -> GatePlan:
-    """为显式 target 或 tier 构造唯一 catalog 驱动的不可变计划。"""
+    """为显式 target 场景或 tier 构造唯一 catalog 驱动的不可变计划。"""
     tier_by_name(tier)
-    if target:
+    selected_targets = tuple(dict.fromkeys(targets or ()))
+    if selected_targets:
         return build_plan(
             changed_files,
-            [target],
+            selected_targets,
             tier=tier,
             incremental=explicit_changed_files,
         )
-    targets = [item.name for item in TARGETS] if tier == 'full' else None
+    selected = [item.name for item in TARGETS] if tier == 'full' else None
     return build_plan(
         changed_files,
-        targets,
+        selected,
         tier=tier,
         incremental=tier != 'full',
     )
@@ -164,7 +165,7 @@ def run_service(
     repo_root: Path,
     changed_files: list[str],
     tier: str = 'required',
-    target: str | None = None,
+    targets: tuple[str, ...] | None = None,
     change_id: str = 'manual-run',
     out_dir: Path | None = None,
     explicit_changed_files: bool = True,
@@ -177,7 +178,7 @@ def run_service(
     gate_plan = create_plan(
         changed_files,
         tier=tier,
-        target=target,
+        targets=targets,
         explicit_changed_files=explicit_changed_files,
     )
     execution_plan = _with_preflight(gate_plan) if include_preflight else gate_plan
@@ -193,7 +194,8 @@ def run_service(
         },
     )
     status = _overall_status(details)
-    label = target or tier
+    selected_targets = tuple(dict.fromkeys(targets or ()))
+    label = '+'.join(selected_targets) if selected_targets else tier
     started_at = report.utc_now()
     summary = report.build_summary(
         label,
@@ -246,7 +248,13 @@ def main(argv: list[str] | None = None) -> int:
     """解析统一 CLI，并按 fail-closed 语义返回进程退出码。"""
     parser = argparse.ArgumentParser(description='Unified typed Gate service')
     mode = parser.add_mutually_exclusive_group()
-    mode.add_argument('--target', choices=sorted(target.name for target in TARGETS))
+    mode.add_argument(
+        '--target',
+        dest='targets',
+        action='append',
+        choices=sorted(target.name for target in TARGETS),
+        help='可重复指定多个有序验证场景',
+    )
     mode.add_argument('--tier', choices=('quick', 'required', 'full'), default='required')
     parser.add_argument('--dry-run', action='store_true')
     parser.add_argument('--changed-files', default=None, help='JSON array of repository paths')
@@ -271,7 +279,7 @@ def main(argv: list[str] | None = None) -> int:
     gate_plan = create_plan(
         changed_files,
         tier=tier,
-        target=args.target,
+        targets=tuple(args.targets or ()),
         explicit_changed_files=args.changed_files is not None,
     )
     if args.dry_run:
@@ -287,7 +295,7 @@ def main(argv: list[str] | None = None) -> int:
         repo_root=repo_root,
         changed_files=changed_files,
         tier=tier,
-        target=args.target,
+        targets=tuple(args.targets or ()),
         change_id=resolve_change_id(args.change_id, repo_root),
         out_dir=out,
         explicit_changed_files=args.changed_files is not None,

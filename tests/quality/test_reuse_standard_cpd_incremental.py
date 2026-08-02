@@ -3,6 +3,7 @@
 from pathlib import Path
 
 from scripts.gates.catalog import gate_by_name
+from scripts.gates.model import RunKind
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -14,8 +15,8 @@ def _root_build_text() -> str:
 def test_catalog_registers_only_the_gradle_owner() -> None:
     gate = gate_by_name('reuseStandardCpd')
 
-    assert gate.command is None
-    assert gate.gradle_tasks == ('reuseStandardCpd',)
+    assert gate.run.kind is RunKind.GRADLE_TASK
+    assert gate.run.tasks == ('reuseStandardCpd',)
     assert gate.changed_files_input.value == 'environment'
 
 

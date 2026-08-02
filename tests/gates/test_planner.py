@@ -1,244 +1,273 @@
-"""changed-files 分类、tier 过滤与 Phase 1 golden plan contract。"""
+"""有序 multi-target classification 与 tier/planner contract。"""
 
-import json
-from pathlib import Path
+import pytest
+from scripts.gates.planner import (
+    applicable_gates_for_target,
+    classify_path,
+    effective_targets,
+    plan,
+    required_gates_for_target,
+    required_quality_targets,
+)
 
-from scripts.gates.catalog import GATES, TARGETS
-from scripts.gates.planner import plan, required_gates_for_target
 
-GOLDEN = Path(__file__).with_name('fixtures') / 'planner_golden.json'
+@pytest.mark.parametrize(
+    ('path', 'targets'),
+    [
+        ('tests/gates/test_catalog.py', ('acceptance-contracts', 'python-standard')),
+        (
+            'tests/ui/test_web_static_contract.py',
+            ('session-detail', 'acceptance-contracts', 'python-standard'),
+        ),
+        ('tests/playwright/specs/detail.spec.ts', ('acceptance-contracts',)),
+        (
+            'scripts/checks/web/check_session_detail_static.py',
+            ('session-detail', 'python-standard'),
+        ),
+        (
+            'scripts/checks/web/check_js_action_handlers.py',
+            ('session-detail', 'python-standard'),
+        ),
+        ('scripts/harness/python_env.py', ('harness', 'python-standard')),
+        ('scripts/openspec/validate_layout.py', ('harness', 'python-standard')),
+        ('README.md', ()),
+    ],
+)
+def test_path_classification_returns_ordered_targets(path: str, targets: tuple[str, ...]) -> None:
+    classification = classify_path(path)
+    assert classification.targets == targets
+    assert classification.requires_quality_gate is bool(targets)
 
 
-def test_phase1_target_gate_baseline_is_exact() -> None:
-    baseline = json.loads(GOLDEN.read_text(encoding='utf-8'))
-    tiers = {gate.name: gate.tiers for gate in GATES}
-    actual = {
-        target.name: [
-            name for name in required_gates_for_target(target.name) if 'required' in tiers[name]
+def test_targets_are_stably_deduplicated_across_paths_and_scan_trigger_is_appended() -> None:
+    assert required_quality_targets(
+        [
+            'tests/gates/test_catalog.py',
+            'scripts/checks/web/check_session_detail_static.py',
         ]
-        for target in TARGETS
-    }
-    assert actual == baseline['qualityTargets']
-    assert len({name for names in actual.values() for name in names}) == baseline['uniqueGateCount']
+    ) == ['acceptance-contracts', 'python-standard', 'session-detail', 'scan-script-smoke']
+    assert required_quality_targets(
+        [
+            'scripts/checks/web/check_session_detail_static.py',
+            'tests/gates/test_catalog.py',
+        ]
+    ) == ['session-detail', 'python-standard', 'acceptance-contracts', 'scan-script-smoke']
 
 
-def test_phase1_changed_files_plans_are_exact() -> None:
-    baseline = json.loads(GOLDEN.read_text(encoding='utf-8'))
-    for name, expected in baseline['scenarios'].items():
-        changed_files = (
-            ['scripts/checks/source/check_code_comment_language.py']
-            if name == 'python-policy'
-            else expected['changedFiles']
-        )
-        actual = plan(changed_files)
-        assert list(actual.raw_targets) == expected['rawTargets'], name
-        assert list(actual.effective_targets) == expected['effectiveTargets'], name
-        assert {
-            target.target: [gate.name for gate in target.gates] for target in actual.targets
-        } == expected['gatesByTarget'], name
-        assert sum(len(target.gates) for target in actual.targets) == expected['gateCount'], name
+def test_only_explicit_target_dominance_is_applied() -> None:
+    assert effective_targets(['java-src', 'java-build', 'python-standard']) == [
+        'java-src',
+        'python-standard',
+    ]
+    assert effective_targets(['acceptance-contracts', 'session-detail', 'python-standard']) == [
+        'acceptance-contracts',
+        'session-detail',
+        'python-standard',
+    ]
+    with pytest.raises(ValueError, match='Unknown quality target'):
+        effective_targets(['missing'])
 
 
-def test_required_plan_filters_full_only_gate() -> None:
-    required = plan(['build.gradle.kts'], tier='required')
-    full = plan(
-        [],
-        list(required.raw_targets or ('java-src',)),
-        tier='full',
+def test_multi_target_plan_has_one_stable_responsibility_per_business_gate() -> None:
+    result = plan(
+        [
+            'docs/acceptance-contracts/features/COMMON.md',
+            'java/web/src/main/resources/static/css/main.css',
+        ],
         incremental=False,
     )
-    assert 'javaApiSnapshot' not in {gate.name for gate in required.logical_gates}
-    assert 'javaApiSnapshot' in {gate.name for gate in full.logical_gates}
+    names = [gate.name for gate in result.logical_gates]
+    assert names.count('acceptanceContracts') == 1
+    assert names.count('sessionDetailStaticTests') == 1
+    assert 'pytest' not in names
 
 
-def test_declarative_catalog_changes_trigger_gate_service_contracts() -> None:
-    paths = (
-        'config/gates.yaml',
-        'config/gates/python-tooling.yaml',
-        'config/gates/repository-safety.yaml',
-        'config/gates/harness-governance.yaml',
-        'config/gates/web-quality.yaml',
-        'config/gates/java-quality.yaml',
-        'config/gates/product-smoke.yaml',
-        'config/gates/README.md',
-    )
-
-    for path in paths:
-        gate_plan = plan([path])
-        assert gate_plan.raw_targets == ('python-standard',), path
-        names = {gate.name for gate in gate_plan.logical_gates}
-        assert {
-            'ignoredTrackedFiles',
-            'misplacedGeneratedPaths',
-            'pythonCoverage',
-            'repoStructure',
-        } <= names, path
+def test_python_test_selects_acceptance_harness_and_python_standard_without_duplicate_business_gate() -> (
+    None
+):
+    result = plan(['tests/gates/test_executor.py'])
+    assert result.raw_targets == ('acceptance-contracts', 'python-standard')
+    names = [gate.name for gate in result.logical_gates]
+    assert names.count('acceptanceContracts') == 1
+    assert names.count('pythonHarnessTests') == 1
+    assert 'sessionDetailStaticTests' not in names
 
 
-def test_technical_terms_policy_triggers_both_language_owners() -> None:
-    gate_plan = plan(['config/technical-terms.json'])
-
-    assert gate_plan.raw_targets == ('java-build',)
-    assert gate_plan.effective_targets == ('java-build',)
-    names = [gate.name for gate in gate_plan.logical_gates]
-    assert {'javaChineseComments', 'scriptCommentLanguage'} <= set(names)
-    assert names.count('javaChineseComments') == 1
-    assert names.count('scriptCommentLanguage') == 1
+def test_full_only_dependency_vulnerability_gate_is_not_in_required() -> None:
+    required = plan(['uv.lock'], tier='required')
+    full = plan(['uv.lock'], tier='full')
+    assert 'pythonDependencyVulnerabilities' not in [g.name for g in required.logical_gates]
+    assert 'pythonDependencyVulnerabilities' in [g.name for g in full.logical_gates]
 
 
-def test_script_change_triggers_script_comment_owner() -> None:
-    gate_plan = plan(['scripts/checks/source/check_code_comment_language.py'])
+@pytest.mark.contract_case('J1-040-001')
+@pytest.mark.parametrize(
+    ('path', 'category', 'target'),
+    [
+        ('java/core-domain/src/main/java/com/feipi/Foo.java', 'java-src', 'java-src'),
+        ('java/tests/architecture/src/test/java/com/feipi/BarTest.java', 'java-src', 'java-src'),
+        (
+            'gradle/build-logic/src/main/kotlin/feipi.java-base.gradle.kts',
+            'java-build',
+            'java-build',
+        ),
+        ('gradle/libs.versions.toml', 'java-build', 'java-build'),
+        ('settings.gradle.kts', 'java-build', 'java-build'),
+        ('build.gradle.kts', 'java-root-dsl', 'java-build'),
+        ('gradle.properties', 'java-root-dsl', 'java-build'),
+    ],
+)
+def test_java_paths_keep_their_owned_classification(path: str, category: str, target: str) -> None:
+    classification = classify_path(path)
+    assert classification.category == category
+    assert classification.targets == (target,)
+    assert classification.allowed is True
 
-    names = [gate.name for gate in gate_plan.logical_gates]
-    assert gate_plan.raw_targets[:1] == ('python-standard',)
-    assert names.count('scriptCommentLanguage') == 1
+
+@pytest.mark.contract_case('JR-020-001')
+def test_kotlin_source_uses_the_java_source_target() -> None:
+    classification = classify_path('java/sample/src/main/kotlin/example/Foo.kt')
+    assert classification.category == 'java-src'
+    assert classification.targets == ('java-src',)
+    assert classification.allowed is True
 
 
-def test_web_change_does_not_trigger_script_comment_owner() -> None:
-    gate_plan = plan(['java/web/src/main/resources/static/css/session-detail.css'])
+@pytest.mark.contract_case('J1-040-002')
+@pytest.mark.parametrize(
+    'path',
+    [
+        'gradlew',
+        'gradlew.bat',
+        'settings-gradle.lockfile',
+        'gradle/wrapper/gradle-wrapper.jar',
+        'gradle/verification-metadata.xml',
+    ],
+)
+def test_extended_gradle_paths_are_java_build_inputs(path: str) -> None:
+    classification = classify_path(path)
+    assert classification.targets == ('java-build',)
+    assert classification.requires_quality_gate
+    assert classification.allowed is True
 
-    assert 'scriptCommentLanguage' not in {gate.name for gate in gate_plan.logical_gates}
+
+@pytest.mark.contract_case('J1-040-003')
+@pytest.mark.parametrize(
+    ('path', 'category', 'allowed'),
+    [
+        ('some/random/file.java', 'java-src-unknown', False),
+        ('random.gradle.kts', 'java-build-unknown', False),
+        ('java/core-domain/src/main/java/com/feipi/Foo.java', 'java-src', True),
+        ('build.gradle.kts', 'java-root-dsl', True),
+    ],
+)
+def test_java_classification_is_first_match_and_fails_closed(
+    path: str, category: str, allowed: bool
+) -> None:
+    classification = classify_path(path)
+    assert classification.category == category
+    assert classification.targets in {('java-src',), ('java-build',)}
+    assert classification.requires_quality_gate
+    assert classification.allowed is allowed
 
 
-def test_template_resource_and_rule_source_select_the_java_template_owner() -> None:
-    resource_plan = plan(['java/web/src/main/resources/templates/session.html'])
-    rule_plan = plan(
+@pytest.mark.contract_case('J1-040-004')
+@pytest.mark.parametrize(
+    ('path', 'normalized', 'target'),
+    [
+        (
+            r'java\core-domain\src\main\java\com\feipi\Foo.java',
+            'java/core-domain/src/main/java/com/feipi/Foo.java',
+            'java-src',
+        ),
+        (r'.\gradlew', 'gradlew', 'java-build'),
+    ],
+)
+def test_windows_java_paths_are_normalized(path: str, normalized: str, target: str) -> None:
+    classification = classify_path(path)
+    assert classification.file == normalized
+    assert classification.targets == (target,)
+
+
+@pytest.mark.contract_case('J1-040-005')
+def test_java_multi_file_targets_are_stably_deduplicated() -> None:
+    targets = required_quality_targets(
         [
-            'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-            'rules/TemplateContractRule.java'
-        ]
-    )
-
-    assert [gate.name for gate in resource_plan.logical_gates].count('templateContract') == 1
-    assert [gate.name for gate in rule_plan.logical_gates].count('templateContract') == 1
-
-
-def test_static_resources_baseline_and_rule_source_select_one_java_static_owner() -> None:
-    changed_paths = (
-        'java/web/src/main/resources/static/css/page.css',
-        'java/web/src/main/resources/static/js/page.js',
-        'java/web/src/main/resources/static/generated/page.css',
-        'java/web/src/main/resources/static/tmp/page.js',
-        'java/web/src/main/resources/templates/page.html',
-        'config/web-quality-baselines.json',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/StaticResourceContractRule.java',
-    )
-
-    for changed_path in changed_paths:
-        gate_plan = plan([changed_path])
-        assert [gate.name for gate in gate_plan.logical_gates].count('staticCssContract') == 1
-
-    unsupported_paths = (
-        'java/web/src/main/resources/static/generated/page.html',
-        'java/web/src/main/resources/static/tmp/page.txt',
-    )
-    for changed_path in unsupported_paths:
-        gate_plan = plan([changed_path])
-        assert 'staticCssContract' not in {gate.name for gate in gate_plan.logical_gates}
-
-
-def test_css_resource_and_rule_sources_select_one_java_css_owner() -> None:
-    changed_paths = (
-        'java/web/src/main/resources/static/css/page.css',
-        'java/web/src/main/resources/static/css/components/page.css',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'core/AdvisoryQualityRule.java',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'core/QualitySummary.java',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'core/RepositorySourceSet.java',
-        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
-        'core/RepositorySourceSetTest.java',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/PythonTextSemantics.java',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/ArtifactPairPublisher.java',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/CssOwnershipRule.java',
-        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
-        'cli/QualityGateCliTest.java',
-        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/CssOwnershipRuleTest.java',
-        'scripts/gates/executor.py',
-        'tests/gates/test_executor.py',
-    )
-
-    for changed_path in changed_paths:
-        names = [gate.name for gate in plan([changed_path]).logical_gates]
-        assert names.count('cssOwnership') == 1
-
-    for changed_path in ('scripts/gates/executor.py', 'tests/gates/test_executor.py'):
-        names = [gate.name for gate in plan([changed_path]).logical_gates]
-        assert names.count('pythonCoverage') == 1
-
-
-def test_raw_and_layout_inputs_select_independent_java_resource_owners() -> None:
-    raw_only = (
-        'tests/playwright/raw.spec.js',
-        'scripts/generated/raw-tool.js',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/RawInnerHtmlRule.java',
-    )
-    layout_only = (
-        'java/web/src/main/resources/templates/page.html',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'rules/web/LayoutInlineStyleRule.java',
-    )
-    shared = (
-        'java/web/src/main/resources/static/js/page.js',
-        'config/web-quality-baselines.json',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'core/QualityRule.java',
-        'java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/'
-        'core/RepositorySourceSet.java',
-        'java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/'
-        'core/RepositorySourceSetTest.java',
-    )
-
-    for changed_path in raw_only:
-        names = [gate.name for gate in plan([changed_path]).logical_gates]
-        assert names.count('rawInnerhtml') == 1
-        assert 'layoutInlineStyle' not in names
-    for changed_path in layout_only:
-        names = [gate.name for gate in plan([changed_path]).logical_gates]
-        assert names.count('layoutInlineStyle') == 1
-        assert 'rawInnerhtml' not in names
-    for changed_path in shared:
-        names = [gate.name for gate in plan([changed_path]).logical_gates]
-        assert names.count('rawInnerhtml') == 1
-        assert names.count('layoutInlineStyle') == 1
-
-    outside_static_js = plan(['java/web/src/main/resources/static/generated/page.js'])
-    outside_names = {gate.name for gate in outside_static_js.logical_gates}
-    assert 'rawInnerhtml' not in outside_names
-    assert 'layoutInlineStyle' not in outside_names
-
-
-def test_kotlin_source_selects_only_compatible_java_comment_rule() -> None:
-    gate_plan = plan(['java/sample/src/main/kotlin/example/Foo.kt'])
-
-    assert gate_plan.raw_targets == ('java-src',)
-    assert gate_plan.effective_targets == ('java-src',)
-    names = [gate.name for gate in gate_plan.logical_gates]
-    assert names.count('javaChineseComments') == 1
-    assert 'javaCheck' not in names
-    assert 'javaRecordComponentJavadocs' not in names
-    assert 'noJavaSuppressWarnings' not in names
-
-
-def test_java_source_dominates_build_without_duplicate_logical_gates() -> None:
-    gate_plan = plan(
-        [
-            'java/app-cli/src/main/java/com/feipi/session/browser/cli/App.java',
+            'java/core-domain/src/main/java/com/feipi/A.java',
+            'java/app-cli/src/main/java/com/feipi/B.java',
             'build.gradle.kts',
         ]
     )
+    assert targets == ['java-src', 'java-build', 'scan-script-smoke']
+    assert required_quality_targets(
+        [
+            'java/a/src/main/java/A.java',
+            'java/b/src/main/java/B.java',
+        ]
+    ) == ['java-src']
 
-    assert gate_plan.raw_targets[:2] == ('java-src', 'java-build')
-    assert 'java-build' not in gate_plan.effective_targets
-    names = [gate.name for gate in gate_plan.logical_gates]
-    assert len(names) == len(set(names))
-    assert names.count('javaCheck') == 1
-    assert names.count('reuseStandardCpd') == 1
-    assert names.count('reuseAnalyzeIncremental') == 1
+
+@pytest.mark.contract_case('J1-040-006')
+def test_java_target_dominance_is_explicit_and_order_preserving() -> None:
+    from scripts.gates.catalog import target_by_name
+
+    assert target_by_name('java-src').includes == ('java-build',)
+    assert effective_targets(['java-src', 'java-build']) == ['java-src']
+    assert effective_targets(['java-build']) == ['java-build']
+    assert effective_targets(['java-src', 'harness']) == ['java-src', 'harness']
+
+
+@pytest.mark.contract_case('J1-040-010')
+@pytest.mark.parametrize(
+    ('target', 'path'),
+    [
+        ('java-build', 'gradlew'),
+        ('java-build', 'settings-gradle.lockfile'),
+        ('java-src', 'some/random/File.java'),
+    ],
+)
+def test_java_gate_inventory_applies_to_supported_and_fail_closed_paths(
+    target: str, path: str
+) -> None:
+    gates = applicable_gates_for_target(target, [path])
+    assert 'javaCheck' in gates
+    if target == 'java-src':
+        assert {'javaChineseComments', 'noJavaTestSkips'} <= set(required_gates_for_target(target))
+
+
+@pytest.mark.contract_case('J1-040-011')
+def test_java_target_planning_is_deterministic() -> None:
+    assert effective_targets(['harness', 'java-src', 'java-build']) == ['harness', 'java-src']
+    files = [
+        'build.gradle.kts',
+        'java/core-domain/src/main/java/com/feipi/Foo.java',
+        '.claude/hooks/stop.sh',
+    ]
+    assert required_quality_targets(files) == required_quality_targets(files)
+
+
+@pytest.mark.parametrize(
+    ('path', 'expected'),
+    [
+        ('scripts/session-browser.sh', True),
+        ('java/scan-engine/src/main/java/com/feipi/scan/FullScanEngine.java', True),
+        ('java/sources/src/main/java/com/feipi/source/ClaudeSourceAdapter.java', True),
+        ('java/index-sqlite/src/main/java/com/feipi/index/ConnectionFactory.java', True),
+        ('java/app-cli/src/main/java/com/feipi/cli/ScanCommand.java', True),
+        ('scripts/checks/gate_executor.py', True),
+        ('java/web/src/main/resources/static/css/main.css', False),
+    ],
+)
+def test_scan_smoke_trigger_preserves_historical_paths(path: str, expected: bool) -> None:
+    assert ('scan-script-smoke' in required_quality_targets([path])) is expected
+
+
+def test_java_policy_files_are_known_java_build_inputs() -> None:
+    for path in (
+        'config/architecture/java-modules.yaml',
+        'config/reuse-policy/policy.json',
+        'config/pmd/pmd.xml',
+        'java/data/build.gradle.kts',
+    ):
+        classification = classify_path(path)
+        assert classification.targets == ('java-build',)
+        assert classification.allowed is True

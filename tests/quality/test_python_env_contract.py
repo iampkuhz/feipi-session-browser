@@ -56,6 +56,9 @@ def test_repository_pyproject_is_virtual_dev_tools_project():
 def test_python_tools_have_effective_non_overlapping_configuration():
     config = tomllib.loads((REPO_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
     dev = set(config['project']['optional-dependencies']['dev'])
+    assert {'bandit', 'pip-audit', 'deptry'} <= dev
+    assert {'coverage', 'pytest-cov', 'radon'}.isdisjoint(dev)
+    assert 'coverage' not in config['tool']
     assert {'pyright', 'pydoclint', 'interrogate', 'playwright', 'beautifulsoup4'}.isdisjoint(dev)
     assert 'pyright' not in config['tool']
     assert 'pydoclint' not in config['tool']

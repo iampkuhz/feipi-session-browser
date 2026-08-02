@@ -107,7 +107,7 @@ def test_scan_dry_run_excludes_pid_scoped_transient_paths() -> None:
     gate_plan = cli.create_plan(
         MIXED_FILES,
         tier='required',
-        target=None,
+        targets=None,
         explicit_changed_files=True,
     )
     first = cli._dry_run_payload(gate_plan, REPO_ROOT)  # noqa: SLF001
@@ -169,14 +169,16 @@ def test_css_executor_changes_run_java_rule_and_relevant_pytest(changed_path: st
         REPO_ROOT,
     )
     css_groups = [group for group in execution.groups if 'cssOwnership' in group.gate_names]
-    coverage_groups = [group for group in execution.groups if 'pythonCoverage' in group.gate_names]
+    harness_groups = [
+        group for group in execution.groups if 'pythonHarnessTests' in group.gate_names
+    ]
 
     assert len(css_groups) == 1
     assert css_groups[0].kind == 'gradle'
     assert '-PfeipiJavaQualityRules=css-ownership' in css_groups[0].command
-    assert len(coverage_groups) == 1
-    assert coverage_groups[0].kind == 'command'
-    assert 'tests/gates' in coverage_groups[0].command
+    assert len(harness_groups) == 1
+    assert harness_groups[0].kind == 'command'
+    assert 'tests/gates' in harness_groups[0].command
 
 
 def test_static_javascript_aggregates_three_independent_java_rule_states() -> None:
@@ -294,7 +296,7 @@ def test_playwright_plan_uses_node_managed_java_fixture_without_base_url() -> No
     gate_plan = cli.create_plan(
         ['java/web/src/main/resources/templates/session.html'],
         tier='full',
-        target=None,
+        targets=None,
         explicit_changed_files=True,
     )
 

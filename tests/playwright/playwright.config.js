@@ -21,11 +21,17 @@ const runOutputRoot = process.env.PLAYWRIGHT_OUTPUT_ROOT
 const serverScript = path.join(__dirname, 'start-java-fixture-server.js');
 const reuseFixtureServer = process.env.SESSION_BROWSER_REUSE_PLAYWRIGHT_SERVER === '1';
 const requestedURL = process.env.BASE_URL || '';
+// Playwright worker 会重新加载本配置。根进程写入的地址与标记同时存在时，
+// worker 只复用已经启动的受管服务，不能再次抢占同一个端口。
+const inheritedManagedServer = Boolean(
+  requestedURL
+  && process.env.FEIPI_PLAYWRIGHT_MANAGED_BASE_URL === requestedURL,
+);
 const parsedRequestedURL = requestedURL ? new URL(requestedURL) : null;
 const requestedPort = parsedRequestedURL
   ? (parsedRequestedURL.port || (parsedRequestedURL.protocol === 'https:' ? '443' : '80'))
   : '';
-const portClaim = reuseFixtureServer ? null : JSON.parse(execFileSync(
+const portClaim = reuseFixtureServer || inheritedManagedServer ? null : JSON.parse(execFileSync(
   process.execPath,
   [serverScript, '--reserve-port', ...(requestedPort ? ['--port', requestedPort] : [])],
   { encoding: 'utf8' },
@@ -38,6 +44,7 @@ const serverCommand = portClaim
 process.env.BASE_URL = baseURL;
 process.env.PW_SESSION_URL = process.env.PW_SESSION_URL || `${baseURL}/sessions/claude_code/hifi-viz-session-001`;
 process.env.PW_LONG_SESSION_URL = process.env.PW_LONG_SESSION_URL || `${baseURL}/sessions/claude_code/long-session-001`;
+if (portClaim) process.env.FEIPI_PLAYWRIGHT_MANAGED_BASE_URL = baseURL;
 
 /**
  * Playwright 会话详情质量门禁配置。
@@ -75,7 +82,7 @@ module.exports = defineConfig({
     command: serverCommand,
     cwd: repoRoot,
     url: `${baseURL}/sessions/claude_code/hifi-viz-session-001`,
-    reuseExistingServer: reuseFixtureServer,
+    reuseExistingServer: reuseFixtureServer || inheritedManagedServer,
     timeout: 120_000,
   },
 });
