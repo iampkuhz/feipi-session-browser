@@ -206,7 +206,9 @@ def test_child_temp_directories_are_checkout_scoped(tmp_path: Path, monkeypatch)
 
 
 def test_catalog_has_no_scheduler_or_resource_graph_fields() -> None:
-    catalog = Path('config/gates.yaml').read_text(encoding='utf-8')
+    catalog = Path('config/gates.yaml').read_text(encoding='utf-8') + ''.join(
+        path.read_text(encoding='utf-8') for path in sorted(Path('config/gates').glob('*.yaml'))
+    )
     playwright_config = Path('tests/playwright/playwright.config.js').read_text(encoding='utf-8')
     fixture_starter = Path('tests/playwright/start-java-fixture-server.js').read_text(
         encoding='utf-8'

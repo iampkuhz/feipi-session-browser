@@ -1,0 +1,333 @@
+# Python 工具链、脚本语法与通用测试 Gate。
+gates:
+- catalog_order: 10
+  name: pythonFormat
+  description: 校验仓库 Python 源码符合 Ruff 格式化结果。
+  targets:
+  - name: python-standard
+    order: 0
+    patterns:
+    - pyproject.toml
+    - scripts/**/*.py
+    - tests/**/*.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - ruff
+    - format
+    - --check
+    - .
+- catalog_order: 20
+  name: pythonLint
+  description: 检查 Python 静态问题与 import 顺序。
+  targets:
+  - name: python-standard
+    order: 1
+    patterns:
+    - pyproject.toml
+    - scripts/**/*.py
+    - tests/**/*.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - ruff
+    - check
+    - --extend-select
+    - I
+    - .
+- catalog_order: 30
+  name: pythonCoverage
+  description: 运行 Harness、Gate 与质量契约测试，并生成 scripts 分支覆盖率报告。
+  targets:
+  - name: python-standard
+    order: 2
+    patterns:
+    - pyproject.toml
+    - config/gates.yaml
+    - config/gates/**
+    - scripts/gates/executor.py
+    - tests/**/*.py
+  - name: acceptance-contracts
+    order: 5
+    patterns:
+    - tests/gates/test_executor.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - pytest
+    - -W
+    - error
+    - tests/harness
+    - tests/gates
+    - tests/quality/test_contract_case_specs.py
+    - tests/quality/test_java_classification.py
+    - tests/quality/test_no_test_skips_gate.py
+    - tests/quality/test_python_env_contract.py
+    - tests/quality/test_repo_slimming_contract.py
+    - tests/checks/test_code_comment_language_gate.py
+    - tests/checks/test_python_security.py
+    - --cov=scripts
+    - --cov-branch
+    - --cov-report=term-missing
+    - --cov-report=xml:.local/python/coverage/coverage.xml
+    - --cov-fail-under=0
+- catalog_order: 40
+  name: pythonAudit
+  description: 审计 Python 锁定依赖漏洞与 scripts 中的高危源码。
+  targets:
+  - name: python-standard
+    order: 3
+    patterns:
+    - pyproject.toml
+    - uv.lock
+    - scripts/**/*.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - scripts.checks
+    - repository.python-security
+    - --root
+    - '{repo_root}'
+    required_paths:
+    - scripts/checks/repository/check_python_security.py
+  network_failure: blocked
+- catalog_order: 50
+  name: pythonComplexity
+  description: 生成 Python 复杂度债务报告，作为不阻断的维护建议。
+  targets:
+  - name: python-standard
+    order: 4
+    patterns:
+    - pyproject.toml
+    - scripts/**/*.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - radon
+    - cc
+    - --min
+    - B
+    - --show-complexity
+    - --average
+    - scripts
+- catalog_order: 60
+  name: pythonDeadCode
+  description: 检查 scripts 与测试中的高置信度无引用 Python 代码。
+  targets:
+  - name: python-standard
+    order: 5
+    patterns:
+    - pyproject.toml
+    - scripts/**/*.py
+    - tests/**/*.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - vulture
+- catalog_order: 70
+  name: pythonDeps
+  description: 检查 scripts 的 Python 依赖缺失、误用与多余声明。
+  targets:
+  - name: python-standard
+    order: 6
+    patterns:
+    - pyproject.toml
+    - uv.lock
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{dev_python}'
+    - -m
+    - deptry
+    - scripts
+- catalog_order: 100
+  name: bashSyntax
+  description: 使用 bash 语法解析器检查仓库 Shell 脚本。
+  targets:
+  - name: python-standard
+    order: 91
+    patterns:
+    - scripts/**/*.sh
+  tiers:
+  - quick
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - bash
+    - -n
+    glob_args:
+    - scripts/**/*.sh
+- catalog_order: 110
+  name: scriptCommentLanguage
+  description: 检查 Python、Shell 注释语言与技术术语符合中文维护规范。
+  targets:
+  - name: python-standard
+    order: 8
+    patterns:
+    - scripts/**/*.py
+    - scripts/**/*.sh
+  - name: java-build
+    order: 6
+    patterns:
+    - config/technical-terms.json
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    argv:
+    - '{python}'
+    - -m
+    - scripts.checks
+    - source.comment-language
+    - scripts
+    required_paths:
+    - scripts/checks/source/check_code_comment_language.py
+    optional_args:
+    - path: config/technical-terms.json
+      argv:
+      - --policy
+      - '{repo_root}/config/technical-terms.json'
+- catalog_order: 120
+  name: pythonCompile
+  description: 编译 scripts/checks Python 模块，阻止语法错误。
+  targets:
+  - name: session-detail
+    order: 0
+    patterns:
+    - scripts/checks/web/check_session_detail_*.py
+  tiers:
+  - quick
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    target_argv:
+      session-detail:
+      - '{python}'
+      - -m
+      - compileall
+      - -q
+      - scripts/checks
+- catalog_order: 170
+  name: pytest
+  description: 运行 Acceptance Contract 与 Session Detail 的定向 Pytest 契约。
+  targets:
+  - name: acceptance-contracts
+    order: 2
+    patterns:
+    - docs/acceptance-contracts/**/*.md
+    - tests/**/*.py
+    - tests/**/*.js
+    - tests/**/*.ts
+    - scripts/checks/repository/check_acceptance_contracts.py
+    - tests/quality/test_contract_case_specs.py
+    - pyproject.toml
+  - name: session-detail
+    order: 8
+    patterns:
+    - java/web/src/main/resources/templates/**
+    - java/web/src/main/resources/static/**
+    - tests/ui/**/*.py
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: command
+    target_argv:
+      session-detail:
+      - '{dev_python}'
+      - -m
+      - pytest
+      - -q
+      - -W
+      - error
+      - tests/ui/test_web_static_contract.py
+      acceptance-contracts:
+      - '{dev_python}'
+      - -m
+      - pytest
+      - -q
+      - -W
+      - error
+      - tests/quality/test_contract_case_specs.py
+    existing_only: true

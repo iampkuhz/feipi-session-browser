@@ -1,0 +1,215 @@
+# Java/Gradle 编译、测试、注释与重复代码 Gate。
+gates:
+- catalog_order: 360
+  name: javaCheck
+  description: 运行 Java 模块编译、单元测试与标准 Gradle 检查。
+  targets:
+  - name: java-src
+    order: 0
+    patterns:
+    - java/**/src/main/java/**/*.java
+    - java/**/src/test/java/**/*.java
+    - '**/*.java'
+  - name: java-build
+    order: 0
+    patterns:
+    - config/api-snapshots/java-public-api.txt
+    - config/architecture/java-modules.yaml
+    - gradle/build-logic/**
+    - gradle/**
+    - build.gradle.kts
+    - settings.gradle.kts
+    - java/**/build.gradle.kts
+    - gradle.properties
+    - gradlew
+    - gradlew.bat
+    - '*.lockfile'
+  tiers:
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - check
+    args:
+    - -x
+    - checkstyleMain
+    - -x
+    - checkstyleTest
+    - -x
+    - javadoc
+    - --parallel
+    - --build-cache
+- catalog_order: 370
+  name: javaChineseComments
+  description: 检查 Java、Kotlin 与 Gradle 注释符合中文和术语政策。
+  targets:
+  - name: java-src
+    order: 2
+    patterns:
+    - java/**/src/main/java/**/*.java
+    - java/**/src/test/java/**/*.java
+    - java/**/src/main/kotlin/**/*.kt
+    - java/**/src/test/kotlin/**/*.kt
+    - '**/*.java'
+  - name: java-build
+    order: 1
+    patterns:
+    - config/technical-terms.json
+    - gradle/build-logic/**/*.java
+    - gradle/build-logic/**/*.kt
+    - gradle/build-logic/**/*.kts
+    - build.gradle.kts
+    - settings.gradle.kts
+    - java/**/build.gradle.kts
+  tiers:
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - java-comment-language
+- catalog_order: 380
+  name: javaRecordComponentJavadocs
+  description: 检查公开 record component 具有匹配的 Javadoc 参数说明。
+  targets:
+  - name: java-src
+    order: 3
+    patterns:
+    - java/**/src/main/java/**/*.java
+    - '**/*.java'
+  tiers:
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: environment
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - record-component-javadocs
+- catalog_order: 390
+  name: noJavaTestSkips
+  description: 阻止 Java 测试出现 skipped 或 aborted 结果。
+  targets:
+  - name: java-src
+    order: 4
+    patterns:
+    - java/**/src/test/java/**/*.java
+  tiers:
+  - quick
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - verifyNoSkippedJavaTests
+- catalog_order: 400
+  name: noJavaSuppressWarnings
+  description: 阻止 Java 生产源码新增 PMD 抑制注解。
+  targets:
+  - name: java-src
+    order: 5
+    patterns:
+    - java/**/src/main/java/**/*.java
+  tiers:
+  - quick
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: environment
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - no-pmd-suppressions
+- catalog_order: 410
+  name: reuseStandardCpd
+  description: 按共享复用政策执行 Java CPD 重复代码检查。
+  targets:
+  - name: java-src
+    order: 6
+    patterns:
+    - java/**/src/main/java/**/*.java
+    - config/reuse-policy/**
+  - name: java-build
+    order: 2
+    patterns:
+    - config/reuse-policy/**
+    - java/**/build.gradle.kts
+    - settings.gradle.kts
+    - build.gradle.kts
+  tiers:
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: environment
+  included_by: []
+  gradle:
+    tasks:
+    - reuseStandardCpd
+- catalog_order: 420
+  name: reuseAnalyzeIncremental
+  description: 生成 Java 增量复用分析证据并检查政策变更。
+  targets:
+  - name: java-src
+    order: 7
+    patterns:
+    - java/**/src/main/java/**/*.java
+  - name: java-build
+    order: 3
+    patterns:
+    - config/reuse-policy/**
+    - java/**/build.gradle.kts
+    - settings.gradle.kts
+    - build.gradle.kts
+  tiers:
+  - required
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - reuseAnalyzeIncremental
+- catalog_order: 430
+  name: javaApiSnapshot
+  description: 比较公开 Java API 与受控快照，防止未审阅的兼容变化。
+  targets:
+  - name: java-src
+    order: 8
+    patterns:
+    - config/api-snapshots/java-public-api.txt
+    - java/**/src/main/java/**/*.java
+  - name: java-build
+    order: 4
+    patterns:
+    - config/api-snapshots/java-public-api.txt
+  tiers:
+  - full
+  timeout: 1200
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - java-api-snapshot

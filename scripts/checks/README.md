@@ -4,7 +4,7 @@
 
 ## 先判断 owner，再打开文件
 
-先在 `config/gates.yaml` 查 Gate declaration：
+先在 `config/gates/README.md` 查 Gate 的精简目录，再打开该行指向的领域 YAML 查看完整 declaration：
 
 - `gradle.java_rules`：到 `java/tests/quality-gates/` 查 Java registry 和对应 rule。JVM 源码、template、
   CSS、静态资源等 Web source 语义规则优先由 Java rule 所有。
@@ -89,10 +89,10 @@ python3 scripts/gates/cli.py --tier required
 1. 先确认规则属于 Git/OpenSpec/隐私/Agent 契约或跨语言边界，不应由 Java rule/Gradle task 所有。
 2. 新增一个 `check_<subject>.py`，只公开 `check(arguments)`。
 3. 在 `_registry.py` 增加唯一的 ID/module pair。
-4. 如需加入质量流程，只在 `config/gates.yaml` 增加一个 Gate declaration、target、路径 trigger 和
-   `scripts.checks` command。
+4. 如需加入质量流程，只在一个 `config/gates/*.yaml` 领域文件增加完整 Gate declaration、target、
+   路径 trigger 和 `scripts.checks` command，并同步精简目录。
 5. 同批增加成功、真实失败和边界 contract，运行受影响 target 与 required Gate。
 6. 负向搜索确认没有第二 owner、旧 ID 或旧路径。
 
-删除时反向删除 `config/gates.yaml` 声明、`_registry.py` registration、实现、测试和调用引用。移动或
-改名时必须一次更新全部 caller，旧路径直接删除，不保留 wrapper、re-export 或旧 ID alias。
+删除时反向删除领域 YAML declaration、精简目录行、`_registry.py` registration、实现、测试和调用
+引用。移动或改名时必须一次更新全部 caller，旧路径直接删除，不保留 wrapper、re-export 或旧 ID alias。

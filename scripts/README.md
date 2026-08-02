@@ -1,7 +1,8 @@
 # Scripts 中文维护地图
 
-公开入口以 `harness/manifest.yaml` 为机器真相，Gate 声明以 `config/gates.yaml` 为机器真相。本文只回答
-“从哪里进入、如何找到唯一 owner”，不复制完整 Gate 清单。
+公开入口以 `harness/manifest.yaml` 为机器真相。Gate 的根索引是 `config/gates.yaml`，完整 declaration
+位于它显式列出的 `config/gates/*.yaml`；人类先读 `config/gates/README.md` 的 45 Gate 精简目录。
+本文只回答“从哪里进入、如何找到唯一 owner”。
 
 ## Java 维护者先看这一层
 
@@ -12,7 +13,8 @@
    及其参数均透传给 Java CLI。
 2. **L1 最终验证：** 只使用 `python3 scripts/gates/cli.py --tier required`；
    `./scripts/session-browser.sh quality` 是同一 required Gate 的日常入口。
-3. **L2 单项诊断：** 先在 `config/gates.yaml` 查失败的 Gate，再按声明类型找到唯一 owner：
+3. **L2 单项诊断：** 先在 `config/gates/README.md` 查失败 Gate 的作用、入口和主要触发点，再打开它
+   指向的单个领域 YAML；按声明类型找到唯一 owner：
    `gradle.java_rules` 找 Java registry/rule，调用 `scripts.checks` 的 `command` 找 Python
    registry/leaf，其他 `command.argv` 直接沿 argv 找 Ruff、Pytest、Bash、Playwright 或公开工具，
    `gradle.tasks` 找对应 Gradle task。
@@ -67,7 +69,7 @@ Python 开发工具不属于产品入口：依赖统一用
 ```text
 required Gate:
   gates.cli
-    → config/gates.yaml + catalog（唯一 Gate registration）
+    → config/gates.yaml（全局索引）→ config/gates/<domain>.yaml（唯一 Gate registration）
     → planner（按 changed files / tier 选择）
     → executor（冻结并执行命令组）
     → 根据 catalog 声明进入唯一 owner：
@@ -87,11 +89,11 @@ doctor:
 
 | 需求 | 唯一 owner | 同批检查 |
 |---|---|---|
-| 修改 JVM/Web resource 规则 | `java/tests/quality-gates/` 的 registry/rule | `config/gates.yaml`、Java contract、对应 target |
-| 修改 Git/OpenSpec/隐私/跨语言规则 | `scripts/checks/<domain>/` | `_registry.py`、`config/gates.yaml`、Python contract |
-| 修改 Ruff/Pytest/Bash/Playwright 等命令型 Gate | `command.argv` 指向的公开工具或脚本 | `config/gates.yaml`、工具 contract、对应 target |
-| 修改普通 Gradle 检查 | 对应 `build.gradle.kts` 或 build logic task | `config/gates.yaml`、Gradle contract、对应 target |
-| 修改 Gate 的 trigger、tier 或 owner registration | `config/gates.yaml` | catalog/planner/service contract 与 dry-run |
+| 修改 JVM/Web resource 规则 | `java/tests/quality-gates/` 的 registry/rule | 对应领域 Gate YAML、Java contract、对应 target |
+| 修改 Git/OpenSpec/隐私/跨语言规则 | `scripts/checks/<domain>/` | `_registry.py`、对应领域 Gate YAML、Python contract |
+| 修改 Ruff/Pytest/Bash/Playwright 等命令型 Gate | `command.argv` 指向的公开工具或脚本 | 对应领域 Gate YAML、工具 contract、对应 target |
+| 修改普通 Gradle 检查 | 对应 `build.gradle.kts` 或 build logic task | 对应领域 Gate YAML、Gradle contract、对应 target |
+| 修改 Gate 的 trigger、tier 或 owner registration | `config/gates/README.md` 指向的领域 YAML | catalog/planner/documentation contract 与 dry-run |
 | 修改 plan、执行或状态归约 | `scripts/gates/` | 五态、timeout、Gradle outcome、report contract |
 | 修改 Python 环境解析 | `scripts/harness/python_env.py` | Python resolver/lock contract |
 | 修改 OpenSpec 结构 | `scripts/openspec/` | layout、schema、active-change validators |
@@ -101,7 +103,7 @@ doctor:
 
 | 现象 | 先看 | 下一步 |
 |---|---|---|
-| Gate 未进入计划或 target 不对 | `config/gates.yaml` 与 `cli.py --dry-run` | 检查 pattern、tier、target 和 `NOT_TRIGGERED` 原因 |
+| Gate 未进入计划或 target 不对 | `config/gates/README.md`、对应领域 YAML 与 `cli.py --dry-run` | 检查 pattern、tier、target 和 `NOT_TRIGGERED` 原因 |
 | Java rule 失败 | summary 中的 rule id | 查 `QualityGateCli` registry、对应 `*Rule.java` 和 Java contract |
 | Python check 失败 | 输出中的 Check ID | 查 `scripts/checks/_registry.py`、唯一 `check_*.py` 和 Python contract |
 | Gradle task 失败 | catalog 的 `gradle.tasks` | 查对应 task 定义和 Gradle test/report |

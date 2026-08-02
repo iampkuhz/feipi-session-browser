@@ -1,0 +1,261 @@
+# Session Detail Web 资源、安全与浏览器 Gate。
+gates:
+- catalog_order: 210
+  name: rawInnerhtml
+  description: 阻止 JavaScript 使用未受控的 innerHTML 原始写入。
+  targets:
+  - name: session-detail
+    order: 6
+    patterns:
+    - java/web/src/main/resources/static/js/**/*.js
+    - config/web-quality-baselines.json
+  - name: acceptance-contracts
+    order: 4
+    patterns:
+    - tests/**/*.js
+  - name: python-standard
+    order: 97
+    patterns:
+    - scripts/**/*.js
+  - name: java-src
+    order: 12
+    patterns:
+    - java/tests/quality-gates/build.gradle.kts
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/BaselineUpdatableRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/BaselineUpdateWriter.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRuleTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/WebBaselineUpdateCliTest.java
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - raw-innerhtml
+- catalog_order: 220
+  name: layoutInlineStyle
+  description: 阻止模板或 JavaScript 绕过样式层直接写布局属性。
+  targets:
+  - name: session-detail
+    order: 7
+    patterns:
+    - java/web/src/main/resources/static/js/**/*.js
+    - java/web/src/main/resources/templates/**/*.html
+    - config/web-quality-baselines.json
+  - name: java-src
+    order: 13
+    patterns:
+    - java/tests/quality-gates/build.gradle.kts
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/BaselineUpdatableRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/BaselineUpdateWriter.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRuleTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/WebBaselineUpdateCliTest.java
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - layout-inline-style
+- catalog_order: 300
+  name: templateContract
+  description: 检查 Web 模板不使用遗留标记或不安全的内联交互。
+  targets:
+  - name: session-detail
+    order: 3
+    patterns:
+    - java/web/src/main/resources/templates/**
+  - name: java-src
+    order: 9
+    patterns:
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/TemplateContractRuleTest.java
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - template-contract
+- catalog_order: 310
+  name: staticCssContract
+  description: 检查 Web 静态资源加载、CSS 结构与基线契约。
+  targets:
+  - name: session-detail
+    order: 4
+    patterns:
+    - java/web/src/main/resources/static/**/*.css
+    - java/web/src/main/resources/static/**/*.js
+    - java/web/src/main/resources/templates/**/*.html
+    - config/web-quality-baselines.json
+    - tests/ui/test_web_static_contract.py
+  - name: java-src
+    order: 10
+    patterns:
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/WebQualityBaseline.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - static-resource-contract
+- catalog_order: 320
+  name: cssOwnership
+  description: 检查顶层 CSS 的组件归属、设计变量与选择器边界。
+  targets:
+  - name: session-detail
+    order: 5
+    patterns:
+    - java/web/src/main/resources/static/css/**/*.css
+  - name: python-standard
+    order: 14
+    patterns:
+    - scripts/gates/executor.py
+  - name: acceptance-contracts
+    order: 14
+    patterns:
+    - tests/gates/test_executor.py
+  - name: java-src
+    order: 14
+    patterns:
+    - java/tests/quality-gates/build.gradle.kts
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/AdvisoryQualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityAdvisory.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityContext.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityRule.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualitySummary.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/QualityViolation.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSet.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/RepositorySourceSetTest.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/cli/QualityGateCli.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/PythonTextSemantics.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/ArtifactPairPublisher.java
+    - java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRule.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/cli/QualityGateCliTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/core/QualityViolationTest.java
+    - java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRuleTest.java
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  gradle:
+    tasks:
+    - :java:tests:quality-gates:runJavaQualityGates
+    java_rules:
+    - css-ownership
+- catalog_order: 330
+  name: browserLayout
+  description: 用 Playwright 验证主要页面、布局与视觉壳层契约。
+  targets:
+  - name: session-detail
+    order: 9
+    patterns:
+    - java/web/src/main/resources/templates/**
+    - java/web/src/main/resources/static/**
+    - tests/playwright/**
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: playwright
+    argv:
+    - npm
+    - --prefix
+    - tests/playwright
+    - test
+    - --
+    - ui-contract.spec.ts
+    - main-pages-visual.spec.ts
+    - session-detail-layout
+    - shell-states
+    - dashboard-chart-coordinates
+    - --workers={playwright_workers}
+    required_paths:
+    - tests/playwright
+    - tests/playwright/playwright.config.js
+    - tests/playwright/package.json
+    - tests/playwright/node_modules
+- catalog_order: 340
+  name: browserInteraction
+  description: 用 Playwright 验证 Session、列表与迁移页面交互。
+  targets:
+  - name: session-detail
+    order: 10
+    patterns:
+    - java/web/src/main/resources/templates/**
+    - java/web/src/main/resources/static/**
+    - tests/playwright/**
+  tiers:
+  - required
+  - full
+  timeout: 300
+  incremental: patterns
+  changed_files: none
+  included_by: []
+  command:
+    capability: playwright
+    argv:
+    - npm
+    - --prefix
+    - tests/playwright
+    - test
+    - --
+    - session-detail.spec.js
+    - session-detail-migrated-gates.spec.js
+    - sessions-list.spec.js
+    - --grep-invert
+    - 100 轮
+    - --workers={playwright_workers}
+    required_paths:
+    - tests/playwright
+    - tests/playwright/playwright.config.js
+    - tests/playwright/package.json
+    - tests/playwright/node_modules

@@ -2,7 +2,8 @@
 
 Claude Code、Codex 与 Qoder 使用客户端已经选择的 checkout。仓库不为普通读取、编辑或提交维护
 Session 状态，也不要求平台事件先完成初始化。机器契约见
-`harness/agent-runtime.manifest.yaml`；Gate 清单以 `config/gates.yaml` 为真相。
+`harness/agent-runtime.manifest.yaml`；Gate 机器真相由 `config/gates.yaml` 根索引和它列出的领域分片
+组成，人类精简目录位于 `config/gates/README.md`。
 
 ## 生命周期与 Git 边界
 

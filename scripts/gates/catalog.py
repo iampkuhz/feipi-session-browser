@@ -1,7 +1,8 @@
-"""负责从唯一声明式文件加载并校验 typed Gate catalog；不负责规划或执行 Gate；由 planner 调用。"""
+"""负责从唯一根索引及其显式业务分片加载并校验 typed Gate catalog；不负责规划或执行 Gate。"""
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +23,134 @@ from scripts.gates.model import (
 )
 
 _CATALOG_PATH = Path(__file__).resolve().parents[2] / 'config' / 'gates.yaml'
+_ROOT_KEYS = {
+    'version',
+    'targets',
+    'gate_files',
+    'path_rules',
+    'scan_script_smoke_patterns',
+    'tiers',
+}
+_FRAGMENT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*\.yaml')
+
+
+class _UniqueKeyLoader(yaml.SafeLoader):
+    """加载受信任 schema，同时拒绝 YAML 默认会静默覆盖的重复 key。"""
+
+    def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
+        """逐项构造 mapping，并在重复 key 或 merge key 处立即失败。"""
+        result: dict[Any, Any] = {}
+        for key_node, value_node in node.value:
+            if key_node.tag == 'tag:yaml.org,2002:merge':
+                raise ValueError('YAML merge keys are not supported')
+            key = self.construct_object(key_node, deep=deep)
+            if key in result:
+                mark = key_node.start_mark
+                raise ValueError(f'duplicate YAML mapping key {key!r} at line {mark.line + 1}')
+            result[key] = self.construct_object(value_node, deep=deep)
+        return result
+
+
+def _load_yaml(path: Path) -> Any:
+    """读取一份 YAML；拒绝 anchor/alias，避免声明通过隐式继承变得不可读。"""
+    try:
+        source = path.read_text(encoding='utf-8')
+        if any(
+            isinstance(token, (yaml.AnchorToken, yaml.AliasToken)) for token in yaml.scan(source)
+        ):
+            raise ValueError('YAML anchors and aliases are not supported')
+        return yaml.load(source, Loader=_UniqueKeyLoader)
+    except (OSError, TypeError, yaml.YAMLError, ValueError) as exc:
+        raise ValueError(f'cannot load {path}: {exc}') from exc
+
+
+def _exact_keys(row: dict[str, Any], expected: set[str], label: str) -> None:
+    """要求声明只包含给定 key，防止拼写错误或旧格式被静默忽略。"""
+    actual = set(row)
+    if actual != expected:
+        missing = sorted(expected - actual)
+        unexpected = sorted(actual - expected)
+        raise ValueError(f'{label} keys are invalid: missing={missing}, unexpected={unexpected}')
+
+
+def _gate_file_names(value: Any) -> tuple[str, ...]:
+    """校验根索引中的显式分片清单及其稳定顺序。"""
+    names = _strings(value, 'gate_files')
+    if not names:
+        raise ValueError('gate_files must not be empty')
+    if len(names) != len(set(names)):
+        raise ValueError('gate_files must contain unique paths')
+    return names
+
+
+def _gate_fragment_path(catalog_path: Path, relative: str) -> Path:
+    """把受限 include 解析为根旁 ``gates/`` 下的 repo-local YAML 文件。"""
+    if '\\' in relative or relative.startswith('/'):
+        raise ValueError(f'invalid gate fragment path: {relative}')
+    parts = relative.split('/')
+    if (
+        len(parts) != 2
+        or parts[0] != 'gates'
+        or parts[1] in {'', '.', '..'}
+        or not _FRAGMENT_NAME.fullmatch(parts[1])
+    ):
+        raise ValueError(f'invalid gate fragment path: {relative}')
+
+    catalog_directory = catalog_path.parent.resolve()
+    gate_directory = (catalog_directory / 'gates').resolve()
+    if not gate_directory.is_relative_to(catalog_directory):
+        raise ValueError('gate fragment directory escapes catalog directory')
+    candidate = catalog_path.parent / relative
+    try:
+        resolved = candidate.resolve(strict=True)
+    except OSError as exc:
+        raise ValueError(f'cannot load gate fragment {relative}: {exc}') from exc
+    if not resolved.is_relative_to(gate_directory):
+        raise ValueError(f'gate fragment escapes gates directory: {relative}')
+    if not resolved.is_file():
+        raise ValueError(f'gate fragment is not a file: {relative}')
+    return resolved
+
+
+def _load_gates(catalog_path: Path, names: tuple[str, ...]) -> list[Any]:
+    """聚合业务分片，并按每条声明唯一的 ``catalog_order`` 恢复稳定顺序。"""
+    gates: list[tuple[int, dict[str, Any]]] = []
+    owners: dict[str, str] = {}
+    order_owners: dict[int, str] = {}
+    for name in names:
+        fragment_path = _gate_fragment_path(catalog_path, name)
+        fragment = _mapping(_load_yaml(fragment_path), f'gate fragment {name}')
+        _exact_keys(fragment, {'gates'}, f'gate fragment {name}')
+        fragment_gates = _items(fragment['gates'], f'gate fragment {name}.gates')
+        if not fragment_gates:
+            raise ValueError(f'gate fragment {name}.gates must not be empty')
+        for item in fragment_gates:
+            row = _mapping(item, f'gate fragment {name}.gates[]')
+            gate_name = row.get('name')
+            if not isinstance(gate_name, str) or not gate_name:
+                raise ValueError(f'Gate name must be a non-empty string in {name}')
+            if gate_name in owners:
+                raise ValueError(
+                    f'duplicate Gate name {gate_name!r} in {name}; first declared in '
+                    f'{owners[gate_name]}'
+                )
+            owners[gate_name] = name
+            order = row.get('catalog_order')
+            if isinstance(order, bool) or not isinstance(order, int) or order < 0:
+                raise ValueError(
+                    f'Gate catalog_order must be a non-negative integer in {name}: {gate_name}'
+                )
+            if order in order_owners:
+                raise ValueError(
+                    f'duplicate Gate catalog_order {order} in {name}; first declared in '
+                    f'{order_owners[order]}'
+                )
+            order_owners[order] = name
+            declaration = dict(row)
+            declaration.pop('catalog_order')
+            gates.append((order, declaration))
+
+    return [declaration for _, declaration in sorted(gates, key=lambda item: item[0])]
 
 
 def _mapping(value: Any, label: str) -> dict[str, Any]:
@@ -121,15 +250,14 @@ def _gate(raw: Any) -> GateSpec:
     )
 
 
-def _load_catalog() -> GateCatalog:
-    """读取 catalog YAML，校验顶层 schema 并构造不可变模型。"""
-    try:
-        raw = yaml.safe_load(_CATALOG_PATH.read_text(encoding='utf-8'))
-    except (OSError, yaml.YAMLError) as exc:
-        raise ValueError(f'cannot load {_CATALOG_PATH}: {exc}') from exc
+def _load_catalog(path: Path = _CATALOG_PATH) -> GateCatalog:
+    """读取根索引及显式有序分片，校验 schema 并构造不可变模型。"""
+    raw = _load_yaml(path)
     data = _mapping(raw, 'catalog')
+    _exact_keys(data, _ROOT_KEYS, 'catalog')
+    gate_files = _gate_file_names(data['gate_files'])
     targets = tuple(_target(item) for item in _items(data['targets'], 'targets'))
-    gates = tuple(_gate(item) for item in _items(data['gates'], 'gates'))
+    gates = tuple(_gate(item) for item in _load_gates(path, gate_files))
     tiers = tuple(
         TierSpec(
             name=str(row['name']),

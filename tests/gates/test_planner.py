@@ -51,12 +51,28 @@ def test_required_plan_filters_full_only_gate() -> None:
     assert 'javaApiSnapshot' in {gate.name for gate in full.logical_gates}
 
 
-def test_declarative_catalog_change_triggers_gate_service_contracts() -> None:
-    gate_plan = plan(['config/gates.yaml'])
+def test_declarative_catalog_changes_trigger_gate_service_contracts() -> None:
+    paths = (
+        'config/gates.yaml',
+        'config/gates/python-tooling.yaml',
+        'config/gates/repository-safety.yaml',
+        'config/gates/harness-governance.yaml',
+        'config/gates/web-quality.yaml',
+        'config/gates/java-quality.yaml',
+        'config/gates/product-smoke.yaml',
+        'config/gates/README.md',
+    )
 
-    assert gate_plan.raw_targets == ('python-standard',)
-    names = {gate.name for gate in gate_plan.logical_gates}
-    assert {'ignoredTrackedFiles', 'misplacedGeneratedPaths', 'repoStructure'} <= names
+    for path in paths:
+        gate_plan = plan([path])
+        assert gate_plan.raw_targets == ('python-standard',), path
+        names = {gate.name for gate in gate_plan.logical_gates}
+        assert {
+            'ignoredTrackedFiles',
+            'misplacedGeneratedPaths',
+            'pythonCoverage',
+            'repoStructure',
+        } <= names, path
 
 
 def test_technical_terms_policy_triggers_both_language_owners() -> None:

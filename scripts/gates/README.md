@@ -7,14 +7,17 @@ python3 scripts/gates/cli.py --tier required
 ```
 
 `quick`、`required`、`full`、target、Gate、path trigger、command/Gradle task、dominance、timeout 和
-执行参数的唯一声明真相是 `config/gates.yaml`。`catalog.py` 只负责加载、
-schema 校验和 typed model 构造；任何 Python 或 Markdown 都不得复制完整 Gate/target 清单。
+执行参数的机器真相由 `config/gates.yaml` 根索引及其显式列出的 `config/gates/*.yaml` 共同组成。
+`config/gates/README.md` 是受 contract 保护的 45 Gate 精简目录，不复制完整命令或 pattern；
+`catalog.py` 只负责严格加载、schema 校验和 typed model 构造。
 
 ## 模块边界
 
 | 模块 | 唯一职责 | 不负责 |
 |---|---|---|
-| `config/gates.yaml` | 每个普通 Gate 的唯一完整声明与 target/path/tier metadata | 执行或选择 Gate |
+| `config/gates.yaml` | 全局 target、path rule、tier 与有序分片清单 | 保存具体 Gate 命令 |
+| `config/gates/*.yaml` | 每个 Gate 的唯一完整 declaration | 复制全局 target/tier 或动态 include |
+| `config/gates/README.md` | 45 Gate 的作用、入口、Target 与主要触发点精简目录 | 复制完整命令或全部 pattern |
 | `catalog.py` | 加载/schema 校验并构造 typed Gate/target/tier/path model | 维护命令表、运行命令、读取历史报告 |
 | `planner.py` | 将 changed files 冻结为 classification、raw/effective target 与 applicable Gate plan | 运行时重新选择 Gate |
 | `executor.py` | 冻结 ordered command group 后只执行 immutable plan，落实 Gradle 聚合、串行运行与 timeout | 维护另一份 Gate/target 映射 |
@@ -37,7 +40,7 @@ cli 解析输入 → planner 选择 Gate → executor 冻结 ExecutionPlan
 
 ## 从 Gate 追到唯一 owner
 
-先在 `config/gates.yaml` 找 Gate 声明，不要按文件名猜实现：
+先在 `config/gates/README.md` 找 Gate，再打开该行所属的领域 YAML；不要从 executor 或文件名猜实现：
 
 | catalog declaration | 唯一 owner | 继续阅读 |
 |---|---|---|
@@ -51,7 +54,7 @@ cli 解析输入 → planner 选择 Gate → executor 冻结 ExecutionPlan
 
 ## 查看当前 Gate 与计划
 
-Gate/target 清单只从 catalog 或 CLI 派生，不在本文列出：
+完整执行清单只从 catalog 或 CLI 派生；人类概览统一位于 `config/gates/README.md`：
 
 ```bash
 # 查看公开参数与 catalog 派生的 target choices
@@ -127,7 +130,7 @@ duration、top-level Gradle/Python/Bash process count 和
 
 | 现象 | 先确认 | owner 内定位 |
 |---|---|---|
-| `gateStates` / `executionState` 是 `NOT_TRIGGERED` | `--dry-run` 中的 path、tier、target | 修正 `config/gates.yaml` 声明或 changed-files 输入，不伪造 Gate 结果 |
+| `gateStates` / `executionState` 是 `NOT_TRIGGERED` | `--dry-run` 中的 path、tier、target | 修正对应领域 YAML 声明或 changed-files 输入，不伪造 Gate 结果 |
 | plan 选错 owner/顺序 | catalog declaration 与 ordered group | 查 `catalog.py` / `planner.py` contract，不在 owner 中复制 trigger |
 | Java/Python/Gradle Gate 结果是 `FAIL` | rule/Check ID/task outcome 与诊断 | 回到 catalog 指向的唯一 owner 及其 contract |
 | Gate 结果是 `BLOCKED` | run summary 的首因、前置结果和 rerun command | 查 required path、环境、timeout 或唯一 prerequisite |
@@ -140,13 +143,13 @@ duration、top-level Gradle/Python/Bash process count 和
 
 ## 新增、修改或删除 Gate 的唯一流程
 
-不得在 Markdown 中维护 Gate matrix；当前清单只从 catalog/CLI 派生。
+不得在 Markdown 中复制完整 Gate 执行 matrix；`config/gates/README.md` 只保留受 contract 校验的精简目录。
 
 1. **选择一个 owner。** JVM/Web source rule 使用 Java quality-gates；Git/OpenSpec/隐私/跨语言规则使用
    Python Check CLI；已有 Gradle 生命周期检查使用单一 Gradle task。禁止同时保留两个实现。
-2. **只登记一次。** 在 `config/gates.yaml` 的一个 Gate declaration 中写 target、pattern、tier、owner
-   command/task/rule、changed-files 与 timeout；Java rule 或 Python check 再分别在自己的 registry
-   登记一次。
+2. **只登记一次。** 在一个 `config/gates/*.yaml` 领域文件的完整 declaration 中写 `catalog_order`、
+   target、pattern、tier、owner command/task/rule、changed-files 与 timeout；同步精简目录。Java rule
+   或 Python check 再分别在自己的 registry 登记一次。
 3. **先写 contract。** 覆盖真实成功、失败边界、trigger/target 与状态语义；修改 owner 时加入旧实现和
    旧 registration 的无残留断言。
 4. **定向验证 owner 与 plan。** 运行对应 Java/Python/Gradle contract、catalog/planner/service contract，
