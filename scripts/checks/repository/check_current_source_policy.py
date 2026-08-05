@@ -33,7 +33,8 @@ def _check_no_historical_version_comments(
     for path in files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except (OSError, UnicodeError) as exc:
+            warnings.append(f'{path}: unreadable-source: {exc}')
             continue
         for pattern in HISTORICAL_VERSION_PATTERNS:
             matches = pattern.findall(text)
@@ -81,7 +82,8 @@ def _check_harness_current_state(
     for path in harness_files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except (OSError, UnicodeError) as exc:
+            warnings.append(f'{path}: unreadable-source: {exc}')
             continue
         for pattern, label in HARNESS_FORBIDDEN_PATTERNS:
             for lineno, line in enumerate(text.splitlines(), 1):
@@ -130,7 +132,8 @@ def _check_supported_viewports_only(
     for path in all_files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except (OSError, UnicodeError) as exc:
+            warnings.append(f'{path}: unreadable-source: {exc}')
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             # 注释中的规则说明不代表实际启用视口行为。
@@ -184,7 +187,8 @@ def _check_no_dead_compat_shim(
     for path in css_files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except (OSError, UnicodeError) as exc:
+            warnings.append(f'{path}: unreadable-source: {exc}')
             continue
         if _css_has_only_comments_or_empty(text):
             errors.append(
@@ -194,7 +198,8 @@ def _check_no_dead_compat_shim(
     for path in js_files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except (OSError, UnicodeError) as exc:
+            warnings.append(f'{path}: unreadable-source: {exc}')
             continue
         if _js_is_only_comments_or_empty(text):
             errors.append(
@@ -208,7 +213,8 @@ def _check_no_dead_compat_shim(
     for path in css_files:
         try:
             text = path.read_text(encoding='utf-8', errors='replace')
-        except Exception:
+        except (OSError, UnicodeError) as exc:
+            warnings.append(f'{path}: unreadable-source: {exc}')
             continue
         for lineno, line in enumerate(text.splitlines(), 1):
             if 'display' in line and 'none' in line:
@@ -307,5 +313,12 @@ def check(arguments: list[str]) -> CheckResult:
     parser.add_argument('--root', default='.', help='Repository root to inspect')
     args = parser.parse_args(arguments)
 
-    errors, _warnings = _check_current_source_policy(Path(args.root).resolve())
+    try:
+        errors, scan_failures = _check_current_source_policy(Path(args.root).resolve())
+    except (OSError, UnicodeError) as exc:
+        return CheckResult.execution_failure(
+            [f'无法枚举待检查源码: {exc}'], reason='input-unavailable'
+        )
+    if scan_failures:
+        return CheckResult.execution_failure([*errors, *scan_failures], reason='input-unavailable')
     return CheckResult.from_errors(f'[BLOCK] {item}' for item in errors)

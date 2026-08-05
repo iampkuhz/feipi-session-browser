@@ -35,7 +35,7 @@ http://127.0.0.1:8848
 # 运行产品测试
 ./scripts/session-browser.sh test
 
-# 运行 required Gate（提交前的统一质量检查）
+# 运行 incremental Gate（提交前的统一质量检查）
 ./scripts/session-browser.sh quality
 
 # 以下产品命令均由 Java CLI 实现

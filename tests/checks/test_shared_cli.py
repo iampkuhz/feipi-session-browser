@@ -8,7 +8,7 @@ from pathlib import Path
 
 import pytest
 from scripts.checks.__main__ import main
-from scripts.checks._framework import CheckSpec, invoke
+from scripts.checks._framework import CheckSpec, CheckStatus, invoke
 from scripts.checks._registry import CHECKS
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -109,12 +109,24 @@ def test_invoke_calls_the_fixed_check_entry(monkeypatch) -> None:
 
 def test_shared_cli_emits_single_pass_line(capsys) -> None:
     assert main(['repository.no-product-python']) == 0
-    assert capsys.readouterr().out == '[repository.no-product-python] PASS\n'
+    assert capsys.readouterr().out == (
+        'GATE_RESULT status=PASS check=repository.no-product-python\n'
+    )
 
 
 def test_leaf_help_keeps_success_exit_code(capsys) -> None:
     assert main(['repository.no-product-python', '--help']) == 0
-    assert capsys.readouterr().out == '[repository.no-product-python] PASS\n'
+    assert capsys.readouterr().out == (
+        'GATE_RESULT status=PASS check=repository.no-product-python\n'
+    )
+
+
+def test_invoke_exception_is_execution_fail(monkeypatch) -> None:
+    spec = CheckSpec('broken', 'scripts.checks.agent.check_agent_permission_policy')
+    monkeypatch.setattr(CheckSpec, 'load', lambda _self: lambda _args: 1)
+    result = invoke(spec, [])
+    assert result.status is CheckStatus.FAIL
+    assert result.reason == 'outcome-unknown'
 
 
 def test_shared_cli_does_not_add_catalog_listing_mode() -> None:

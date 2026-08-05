@@ -94,7 +94,7 @@ def _check_agent_entries(platform: str | None = None) -> list[str]:
                 continue
             try:
                 errors.extend(checker(str(name), path, skill))
-            except (OSError, tomllib.TOMLDecodeError) as exc:
+            except tomllib.TOMLDecodeError as exc:
                 errors.append(f'{relative} parse failed: {exc}')
             text = path.read_text(encoding='utf-8')
             for heading in DOMAIN_HEADINGS:
@@ -116,5 +116,12 @@ def check(arguments: list[str]) -> CheckResult:
     """解析参数并返回跨平台 Agent 入口等价检查结果。"""
     parser = argument_parser(description='检查跨平台 Agent 薄入口')
     parser.parse_args(arguments)
-    errors = [*_check_agent_entries(), *_check_claude_main_allowlist()]
+    try:
+        errors = [*_check_agent_entries(), *_check_claude_main_allowlist()]
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'Agent 入口或 manifest 读取失败: {exc}'], reason='input-unavailable'
+        )
+    except (yaml.YAMLError, tomllib.TOMLDecodeError) as exc:
+        return CheckResult.from_errors([f'Agent 配置内容解析失败: {exc}'])
     return CheckResult.from_errors(errors)

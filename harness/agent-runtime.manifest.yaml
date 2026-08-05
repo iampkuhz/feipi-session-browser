@@ -53,10 +53,10 @@ platforms:
     skills_dir: .qoder/skills
 
 validation:
-  required_command: python3 scripts/gates/cli.py --tier required
+  delivery_command: python3 scripts/gates/cli.py --mode incremental
   invocation: explicit
   passing_requires_success: true
-  non_passing_results: [failed, warning, skipped, not-run, unavailable]
+  non_passing_results: [BLOCKED, FAIL]
 
 shared_skills:
   registry: harness/skill-registry.yaml

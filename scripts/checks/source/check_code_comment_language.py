@@ -432,16 +432,23 @@ def check(arguments: list[str]) -> CheckResult:
     args = parser.parse_args(arguments)
     try:
         terms, forbidden = _load_policy(Path(args.policy))
-    except (OSError, ValueError, json.JSONDecodeError) as exc:
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'{args.policy}:1: POLICY_UNAVAILABLE: {exc}'], reason='input-unavailable'
+        )
+    except (ValueError, json.JSONDecodeError) as exc:
         return CheckResult.from_errors(
             [f'{args.policy}:1: POLICY_INVALID: {exc}: suggestion=修复集中术语策略后重试']
         )
     all_violations: list[Violation] = []
-    for path in _discover(args.paths):
-        if path.suffix == '.py':
-            all_violations.extend(_check_python_file(path, terms, forbidden))
-        else:
-            all_violations.extend(_check_shell_file(path, terms, forbidden))
+    try:
+        for path in _discover(args.paths):
+            if path.suffix == '.py':
+                all_violations.extend(_check_python_file(path, terms, forbidden))
+            else:
+                all_violations.extend(_check_shell_file(path, terms, forbidden))
+    except OSError as exc:
+        return CheckResult.execution_failure([f'源码读取失败: {exc}'], reason='input-unavailable')
     all_violations.sort(key=lambda item: (item.path, item.line, item.code))
     return CheckResult.from_errors(
         (

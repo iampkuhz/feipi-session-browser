@@ -1,6 +1,6 @@
-"""测量显式 required Gate 路径路由的合成逃逸率。
+"""测量 Gate-first Trigger 的合成逃逸率。
 
-该检查用固定高风险路径证明 planner 不会漏掉 required target。唯一入口 ``check(arguments)``
+该检查用固定高风险路径证明 planner 不会漏掉应触发的 Gate。唯一入口 ``check(arguments)``
 先验证用例集合，再按原顺序写可选 JSON artifact 并返回阈值诊断；诊断表示路由保护不足。
 """
 
@@ -12,7 +12,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from scripts.checks._framework import CheckResult, argument_parser, repository_root
-from scripts.gates.planner import classify_path, required_quality_targets
+from scripts.gates.planner import classify_path, plan
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -33,15 +33,15 @@ class GateEscapeCase:
 
 
 REQUIRED_CASE_IDS = {
-    'agent-policy-target',
-    'shared-skill-target',
-    'acceptance-case-target',
-    'python-standard-target',
-    'java-src-target',
-    'java-build-target',
-    'session-detail-target',
-    'platform-settings-target',
-    'scan-script-target',
+    'agent-policy-gate',
+    'shared-skill-gate',
+    'acceptance-case-mapping-gate',
+    'python-tooling-gate',
+    'java-source-gate',
+    'java-build-gate',
+    'session-detail-gate',
+    'platform-settings-gate',
+    'scan-script-gate',
     'unknown-risky-path',
 }
 
@@ -58,47 +58,49 @@ RISKY_UNCLASSIFIED_PREFIXES = (
 )
 
 
-def _targets_for(files: Iterable[str]) -> list[str]:
-    return required_quality_targets(list(files))
+def _gates_for(files: Iterable[str]) -> list[str]:
+    """返回 changed files 直接匹配 Trigger 后选中的 Gate。"""
+    return [gate.name for gate in plan(list(files)).gates]
 
 
-def _target_case(case_id: str, description: str, path: str, expected_target: str) -> GateEscapeCase:
-    targets = _targets_for([path])
-    escaped = expected_target not in targets
+def _gate_case(case_id: str, description: str, path: str, expected_gate: str) -> GateEscapeCase:
+    """执行单个合成路径用例，并记录预期 Gate 是否被规划器选中。"""
+
+    gates = _gates_for([path])
+    escaped = expected_gate not in gates
     return GateEscapeCase(
         id=case_id,
         description=description,
-        expected_gate=expected_target,
-        observed='TARGET_MISSING' if escaped else 'TARGET_TRIGGERED',
+        expected_gate=expected_gate,
+        observed='GATE_MISSING' if escaped else 'GATE_TRIGGERED',
         escaped=escaped,
-        evidence=f'path={path}; targets={targets}',
+        evidence=f'path={path}; gates={gates}',
     )
 
 
 def _unknown_risky_case() -> GateEscapeCase:
     path = '.agents/experimental/new-policy.yaml'
     classification = classify_path(path)
-    targets = _targets_for([path])
+    gates = _gates_for([path])
     fail_closed = path.startswith(RISKY_UNCLASSIFIED_PREFIXES) and (
         classification.risk_level in {'high', 'medium'}
-        or classification.requires_quality_gate
         or not classification.allowed
         or classification.category == 'unknown'
     )
-    protected = bool(targets) or fail_closed
+    protected = bool(gates) or fail_closed
     return GateEscapeCase(
         id='unknown-risky-path',
-        description='新增未分类 agent 配置必须触发 target 或保持高风险分类',
-        expected_gate='harness-or-risk-policy',
+        description='新增未分类 agent 配置必须触发治理 Gate 或保持高风险分类',
+        expected_gate='protectedRootsSync-or-risk-policy',
         observed='BLOCK'
-        if protected and not targets
-        else 'TARGET_TRIGGERED'
-        if targets
-        else 'TARGET_MISSING',
+        if protected and not gates
+        else 'GATE_TRIGGERED'
+        if gates
+        else 'GATE_MISSING',
         escaped=not protected,
         evidence=(
             f'path={path}; category={classification.category}; '
-            f'targets={targets}; fail_closed={fail_closed}'
+            f'gates={gates}; fail_closed={fail_closed}'
         ),
     )
 
@@ -106,59 +108,59 @@ def _unknown_risky_case() -> GateEscapeCase:
 def _build_cases() -> list[GateEscapeCase]:
     """构造覆盖 minimal harness、产品和工具链的确定性路径场景。"""
     return [
-        _target_case(
-            'agent-policy-target',
-            'Agent policy change must trigger harness target',
+        _gate_case(
+            'agent-policy-gate',
+            'Agent policy change must trigger language policy Gate',
             '.claude/agents/qwen-main-default.md',
-            'harness',
+            'languagePolicy',
         ),
-        _target_case(
-            'shared-skill-target',
-            'Shared skill change must trigger harness target',
+        _gate_case(
+            'shared-skill-gate',
+            'Shared skill change must trigger skill registry Gate',
             'skills/authoring/feipi-java-feature-dev/SKILL.md',
-            'harness',
+            'skillRegistry',
         ),
-        _target_case(
-            'acceptance-case-target',
-            '验收用例表变更必须触发验收用例检查场景',
+        _gate_case(
+            'acceptance-case-mapping-gate',
+            '验收用例表变更必须直接触发映射 Gate',
             'docs/acceptance-cases/features/HOOK_HARNESS.md',
-            'acceptance-cases',
+            'acceptanceCaseMapping',
         ),
-        _target_case(
-            'python-standard-target',
-            'Gate implementation change must trigger Python target',
+        _gate_case(
+            'python-tooling-gate',
+            'Gate implementation change must trigger Python test Gate',
             'scripts/gates/planner.py',
-            'python-standard',
+            'pythonHarnessTests',
         ),
-        _target_case(
-            'java-src-target',
-            'Java source change must trigger java-src target',
+        _gate_case(
+            'java-source-gate',
+            'Java source change must trigger Java check Gate',
             'java/web/src/main/java/com/feipi/session/browser/X.java',
-            'java-src',
+            'javaCheck',
         ),
-        _target_case(
-            'java-build-target',
-            'Build configuration change must trigger java-build target',
+        _gate_case(
+            'java-build-gate',
+            'Build configuration change must trigger Java check Gate',
             'build.gradle.kts',
-            'java-build',
+            'javaCheck',
         ),
-        _target_case(
-            'session-detail-target',
-            'Session detail template change must trigger UI target',
+        _gate_case(
+            'session-detail-gate',
+            'Session detail template change must trigger browser Gate',
             'java/web/src/main/resources/templates/session-detail.html',
-            'session-detail',
+            'browserInteraction',
         ),
-        _target_case(
-            'platform-settings-target',
-            'Platform settings change must trigger harness target',
+        _gate_case(
+            'platform-settings-gate',
+            'Platform settings change must trigger protected roots Gate',
             '.qoder/settings.json',
-            'harness',
+            'protectedRootsSync',
         ),
-        _target_case(
-            'scan-script-target',
-            'Scan launcher change must trigger scan smoke target',
+        _gate_case(
+            'scan-script-gate',
+            'Scan launcher change must trigger scan smoke Gate',
             'scripts/session-browser.sh',
-            'scan-script-smoke',
+            'scanScriptSmoke',
         ),
         _unknown_risky_case(),
     ]
@@ -194,7 +196,9 @@ def check(arguments: list[str]) -> CheckResult:
     case_ids = {case['id'] for case in report['cases']}  # type: ignore[index]
     missing = sorted(REQUIRED_CASE_IDS - case_ids)
     if missing:
-        return CheckResult.from_errors([f'[gateEscapeRate] FAIL missing_required_cases={missing}'])
+        return CheckResult.from_errors(
+            [f'[gateEscapeRate] BLOCKED missing_required_cases={missing}']
+        )
     if args.json_out:
         _write_json(Path(args.json_out), report)
     escaped_cases = int(report['escaped_required_cases'])
@@ -204,7 +208,7 @@ def check(arguments: list[str]) -> CheckResult:
         return CheckResult()
     return CheckResult.from_errors(
         [
-            f'[gateEscapeRate] FAIL escape_rate={escape_rate:.6f} '
+            f'[gateEscapeRate] BLOCKED escape_rate={escape_rate:.6f} '
             f'escaped_required_cases={escaped_cases} total_required_cases={total}'
         ]
     )

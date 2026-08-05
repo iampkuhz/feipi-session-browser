@@ -1,4 +1,4 @@
-"""校验当前 42 个 Gate 的中文使用手册与 typed catalog 一致。"""
+"""校验当前 41 个 Gate 的中文使用手册与双模式 typed catalog 一致。"""
 
 from __future__ import annotations
 
@@ -8,10 +8,10 @@ from typing import TYPE_CHECKING
 
 import yaml
 from scripts.gates.catalog import CATALOG, GATES
-from scripts.gates.model import MinimumTier, RunKind
+from scripts.gates.model import RunKind, TriggerMode
 
 if TYPE_CHECKING:
-    from scripts.gates.model import GateSpec
+    from scripts.gates.model import GateSpec, RunProfile
 
 ROOT = Path(__file__).resolve().parents[2]
 CATALOG_ROOT = ROOT / 'config' / 'gates.yaml'
@@ -19,13 +19,13 @@ GUIDE = ROOT / 'config' / 'gates' / 'README.md'
 ROW = re.compile(
     r'^\| `(?P<name>[^`]+)` \| (?P<description>.*?) \| '
     r'`(?P<method>[^`]+)` \| `(?P<targets>[^`]+)` \| '
-    r'`(?P<tier>[^`]+)` \| (?P<trigger>.*?) \|$'
+    r'(?P<trigger>.*?) \| `(?P<incremental>[^`]+)` \| `(?P<full>[^`]+)` \|$'
 )
 FILE_MARKER = re.compile(r'^<!-- gate-file: (?P<path>gates/[a-z0-9-]+\.yaml) -->$')
 
 
 def _declared_fragments() -> tuple[tuple[str, ...], dict[str, str]]:
-    """返回根索引中的分片顺序，以及每个 Gate 唯一所属的分片。"""
+    """返回根索引中的分片顺序，以及每个 Gate 唯一所属分片。"""
     root = yaml.safe_load(CATALOG_ROOT.read_text(encoding='utf-8'))
     files = tuple(root['gate_files'])
     fragments: dict[str, str] = {}
@@ -38,9 +38,9 @@ def _declared_fragments() -> tuple[tuple[str, ...], dict[str, str]]:
 
 
 def _documented_rows() -> list[dict[str, str]]:
-    """解析标记区内的 Gate 表格，并保留每行当前所属的分片。"""
-    text = GUIDE.read_text(encoding='utf-8')
-    body = text.split('<!-- GATE-CATALOG:START -->', 1)[1].split('<!-- GATE-CATALOG:END -->', 1)[0]
+    """解析标记区内的 Gate 表格，并保留每行所属分片。"""
+    body = GUIDE.read_text(encoding='utf-8').split('<!-- GATE-CATALOG:START -->', 1)[1]
+    body = body.split('<!-- GATE-CATALOG:END -->', 1)[0]
     fragment = ''
     rows: list[dict[str, str]] = []
     for line in body.splitlines():
@@ -52,20 +52,21 @@ def _documented_rows() -> list[dict[str, str]]:
 
 
 def _execution_method(gate: GateSpec) -> str:
-    """从唯一 run 声明派生手册中的合并执行方式。"""
+    """从 incremental profile 的唯一 typed run 派生合并执行方式。"""
     run = gate.run
+    profile = run.incremental
     if run.kind is RunKind.JAVA_RULE:
-        return f'Java Rule · {",".join(run.java_rules)}'
+        return f'Java Rule · {",".join(profile.rules)}'
     if run.kind is RunKind.GRADLE_TASK:
-        return f'Gradle Task · {",".join(run.tasks)}'
+        return f'Gradle Task · {",".join(profile.tasks)}'
     if run.kind is RunKind.PYTHON_CHECK:
-        return f'Python Check · {run.check}'
+        return f'Python Check · {profile.check_id}'
     if run.kind is RunKind.PLAYWRIGHT:
         return 'Playwright · configured suite'
     if run.kind is RunKind.SCAN_SMOKE:
         return 'Scan Smoke · configured suite'
 
-    argv = run.argv
+    argv = profile.argv
     if '-m' in argv:
         index = argv.index('-m')
         module = argv[index + 1]
@@ -80,121 +81,62 @@ def _execution_method(gate: GateSpec) -> str:
     return f'Command · {argv[0]}'
 
 
+def _timing(profile: RunProfile) -> str:
+    """返回手册约定的“目标 / timeout”简写。"""
+    return f'{profile.target_seconds}s / {profile.timeout_seconds}s'
+
+
 def test_gate_guide_covers_current_catalog_once() -> None:
-    """目录恰好覆盖当前 42 个 Gate，且每个名称只出现一行。"""
+    """目录恰好覆盖当前 41 个 Gate，且每个名称只出现一行。"""
     rows = _documented_rows()
     names = [row['name'] for row in rows]
-    expected_names = {gate.name for gate in GATES}
-
-    assert len(rows) == len(GATES) == 42
+    assert len(rows) == len(GATES) == 41
     assert len(names) == len(set(names))
-    assert set(names) == expected_names
-
-    text = GUIDE.read_text(encoding='utf-8')
-    assert '**42 个逻辑 Gate**' in text
+    assert set(names) == {gate.name for gate in GATES}
+    assert '**41 个逻辑 Gate**' in GUIDE.read_text(encoding='utf-8')
 
 
-def test_gate_guide_matches_fragments_and_typed_run_taxonomy() -> None:
-    """分片、说明、Target、Tier 与合并执行方式均从 catalog 派生。"""
+def test_gate_guide_matches_fragments_runs_triggers_and_timing() -> None:
+    """分片、说明、Target、Trigger、执行方式与双模式时效均从 catalog 派生。"""
     files, fragments = _declared_fragments()
-    by_name = {gate.name: gate for gate in GATES}
     rows = _documented_rows()
-    text = GUIDE.read_text(encoding='utf-8')
-
+    by_name = {gate.name: gate for gate in GATES}
     assert {row['fragment'] for row in rows} == set(files)
-    for relative in files:
-        assert f']({Path(relative).name})' in text
 
     for row in rows:
         gate = by_name[row['name']]
         assert row['fragment'] == fragments[gate.name]
         assert row['description'] == gate.description
         assert row['method'] == _execution_method(gate)
-        assert row['targets'] == '、'.join(gate.targets)
-        assert row['tier'] == gate.minimum_tier.value
-
-    assert {row['method'].split(' · ', 1)[0] for row in rows} == {
-        'Command',
-        'Python Check',
-        'Playwright',
-        'Scan Smoke',
-        'Gradle Task',
-        'Java Rule',
-    }
-    assert '| Gate | 作用 | 执行方式 | Target | Tier | 主要触发点 |' in text
-    assert '| Gate | 作用 | 实现入口 | 执行通道 |' not in text
-
-
-def test_gate_guide_trigger_examples_are_real_target_patterns() -> None:
-    """触发摘要只引用真实 target pattern；空 pattern 使用唯一明确短语。"""
-    by_name = {gate.name: gate for gate in GATES}
-    for row in _documented_rows():
-        gate = by_name[row['name']]
+        assert row['targets'] == ('、'.join(gate.targets) or '无')
+        assert row['incremental'] == _timing(gate.run.incremental)
+        assert row['full'] == _timing(gate.run.full)
         examples = re.findall(r'`([^`]+)`', row['trigger'])
-        if not examples:
-            assert row['trigger'] == 'Target 命中即运行'
-            assert all(not rule.patterns for rule in gate.target_rules)
-            continue
-        assert 1 <= len(examples) <= 3
-        assert set(examples) <= set(gate.patterns)
+        if gate.trigger.mode is TriggerMode.ALWAYS:
+            assert examples == ['always']
+        else:
+            assert 1 <= len(examples) <= 3
+            assert set(examples) <= set(gate.trigger.paths)
 
 
-def test_gate_guide_explains_targets_and_file_to_gate_flow() -> None:
-    """8 个 Target、两层匹配和 full-only 说明均与 catalog 一致。"""
-    text = GUIDE.read_text(encoding='utf-8')
-    required_candidates = [gate for gate in GATES if gate.minimum_tier is not MinimumTier.FULL]
-    target_section = text.split('## 8 个 Target 的完整目录', 1)[1].split(
-        '## 从一个改动文件到真正执行的 Gate', 1
-    )[0]
-    documented_target_counts = {
-        match.group(1): int(match.group(2))
-        for match in re.finditer(r'^\| `([^`]+)` \|.*\| (\d+) \|$', target_section, re.MULTILINE)
-    }
-    expected_target_counts = {
-        target.name: sum(target.name in gate.targets for gate in GATES)
-        for target in CATALOG.targets
-    }
-
-    assert len(required_candidates) == 40
-    assert len(CATALOG.targets) == 8
-    assert documented_target_counts == expected_target_counts
-    assert '**40 个可进入 `required`**' in text
-    assert '**8 个 target**' in text
-    assert '`pythonDependencyVulnerabilities` 和 `javaApiSnapshot` 是仅限 `full`' in text
-    assert '根 YAML 的 pattern 做“文件 → target”' in text
-    assert '分片 YAML 的 pattern 做\n“target + 文件 → Gate”' in text
-    assert '`scripts/gates/cli.py::get_changed_files`' in text
-    assert '`path_rules[].patterns`' in text
-    assert '`docs/acceptance-cases/features/HOOK_HARNESS.md`' in text
-
-
-def test_gate_guide_explains_schema_and_all_six_execution_methods() -> None:
-    """手册先解释字段、取值和合并执行方式，再给完整目录。"""
+def test_gate_guide_explains_gate_first_targets_schema_and_statuses() -> None:
+    """手册先讲清 Gate-first、人工 Target、五字段和状态语义。"""
     text = GUIDE.read_text(encoding='utf-8')
     catalog_section = text.split('<!-- GATE-CATALOG:START -->', 1)[0]
-    for term in (
-        'gate_defaults',
-        'targets',
-        'gate_files',
-        'path_rules',
-        'target_triggers',
-        'order',
-        'patterns',
-        'run',
-    ):
-        assert f'`{term}`' in catalog_section
-    for method in (
-        'Command · ...',
-        'Python Check · <check-id>',
-        'Playwright · configured suite',
-        'Scan Smoke · configured suite',
-        'Gradle Task · <task>',
-        'Java Rule · <rule-id>',
-    ):
-        assert f'`{method}`' in catalog_section
-    assert '根索引没有 `version`' in text
-    assert '“仓库维护清单”' in text
-    assert '`forbidden_root_paths` 不是“所有生成文件”' in text
+    assert len(CATALOG.targets) == 6
+    assert 'acceptance-cases' not in {target.name for target in CATALOG.targets}
+    assert '**6 个 Target preset**' in catalog_section
+    assert 'Target 只供人工选择，不参与自动规划' in catalog_section
+    assert 'changed files → Gate.trigger → selected Gates' in catalog_section
+    assert '根 `path_rules` 只为改动文件附加风险分类' in catalog_section
+    for field in ('name', 'description', 'trigger', 'targets', 'run'):
+        assert f'`{field}`' in catalog_section
+    assert '`incremental/full`' in catalog_section
+    assert '`0=PASS`、`1=BLOCKED`、`2=FAIL`' in catalog_section
+    assert '`BLOCKED` | 是 | 是，确认存在阻断问题' in catalog_section
+    assert '`FAIL` | 否 | 否，无法判断' in catalog_section
+    assert '`docs/acceptance-cases/` 是验收用例总账，不是 Target' in catalog_section
+    assert '| Gate | 作用 | 执行方式 | Target preset | Trigger | 增量目标 | 全量目标 |' in text
 
 
 def test_gate_maintenance_docs_link_current_guide_without_catalog_versions() -> None:
@@ -212,7 +154,7 @@ def test_gate_maintenance_docs_link_current_guide_without_catalog_versions() -> 
 
 
 def test_gate_descriptions_explain_business_purpose() -> None:
-    """禁止重新使用“执行 Gate 名称所定义检查”这类无信息模板。"""
+    """禁止重新使用没有信息的 Gate 说明模板。"""
     for gate in GATES:
         assert f'执行 {gate.name} 所定义' not in gate.description
         assert len(gate.description) >= 12

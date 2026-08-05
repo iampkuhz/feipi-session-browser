@@ -1,15 +1,17 @@
 gates:
 - name: pythonFormat
   description: 校验仓库 Python 源码符合 Ruff 格式化结果。
-  targets:
-  - name: python-standard
-    order: 0
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - scripts/**/*.py
     - tests/**/*.py
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{dev_python}'
       - -m
@@ -17,17 +19,25 @@ gates:
       - format
       - --check
       - .
+      target_seconds: 10
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 20
+      timeout_seconds: 120
 - name: pythonLint
   description: 检查 Python 静态问题与 import 顺序。
-  targets:
-  - name: python-standard
-    order: 1
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - scripts/**/*.py
     - tests/**/*.py
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{dev_python}'
       - -m
@@ -36,12 +46,17 @@ gates:
       - --extend-select
       - I
       - .
+      target_seconds: 15
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 30
+      timeout_seconds: 120
 - name: pythonHarnessTests
   description: 运行 Harness、Gate 与质量契约的固定 Pytest 单测集合。
-  targets:
-  - name: python-standard
-    order: 2
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - config/gates.yaml
     - config/gates/**
@@ -55,8 +70,11 @@ gates:
     - tests/misc/**/*.py
     - tests/quality/**/*.py
     - tests/*.py
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{dev_python}'
       - -m
@@ -68,24 +86,32 @@ gates:
       - tests/checks
       - tests/quality
       - tests/misc
-      glob_args:
-      - tests/test_*.py
       required_paths:
       - tests/harness
       - tests/gates
       - tests/checks
       - tests/quality
       - tests/misc
+      append_globs:
+      - tests/test_*.py
+      target_seconds: 60
+      timeout_seconds: 240
+    full:
+      same_as: incremental
+      target_seconds: 180
+      timeout_seconds: 600
 - name: pythonSourceSecurity
   description: 使用 Bandit 对 scripts Python 源码执行离线安全扫描。
-  targets:
-  - name: python-standard
-    order: 3
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - scripts/**/*.py
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{dev_python}'
       - -m
@@ -97,91 +123,125 @@ gates:
       - scripts
       - --severity-level
       - high
+      target_seconds: 20
+      timeout_seconds: 90
+    full:
+      same_as: incremental
+      target_seconds: 45
+      timeout_seconds: 180
 - name: pythonDependencyVulnerabilities
   description: 审计 Python 锁定依赖中的已知漏洞。
-  targets:
-  - name: python-standard
-    order: 4
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - uv.lock
-  minimum_tier: full
-  network_failure: blocked
+  targets:
+  - python-standard
   run:
-    python-check:
-      check: repository.python-dependency-vulnerabilities
-      python: dev
+    kind: python-check
+    incremental:
+      id: repository.python-dependency-vulnerabilities
+      runtime: dev
       args:
       - --root
       - '{repo_root}'
-      required_paths:
-      - scripts/checks/repository/check_python_dependency_vulnerabilities.py
+      target_seconds: 60
+      timeout_seconds: 180
+    full:
+      same_as: incremental
+      target_seconds: 120
+      timeout_seconds: 360
 - name: pythonDeadCode
   description: 检查 scripts 与测试中的高置信度无引用 Python 代码。
-  targets:
-  - name: python-standard
-    order: 5
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - scripts/**/*.py
     - tests/**/*.py
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{dev_python}'
       - -m
       - vulture
+      target_seconds: 15
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 30
+      timeout_seconds: 120
 - name: pythonDependencyDeclarations
   description: 检查 scripts 的 Python 依赖声明完整性。
-  targets:
-  - name: python-standard
-    order: 6
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - pyproject.toml
     - scripts/**/*.py
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{dev_python}'
       - -m
       - deptry
       - scripts
+      target_seconds: 15
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 30
+      timeout_seconds: 120
 - name: bashSyntax
   description: 使用 bash 语法解析器检查仓库 Shell 脚本。
-  targets:
-  - name: python-standard
-    order: 91
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - scripts/**/*.sh
-  minimum_tier: quick
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - bash
       - -n
-      glob_args:
+      append_globs:
       - scripts/**/*.sh
+      target_seconds: 5
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 10
+      timeout_seconds: 60
 - name: scriptCommentLanguage
   description: 检查 Python、Shell 注释语言与技术术语符合中文维护规范。
-  targets:
-  - name: python-standard
-    order: 8
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - scripts/**/*.py
     - scripts/**/*.sh
-  - name: java-build
-    order: 6
-    patterns:
     - config/technical-terms.json
+  targets:
+  - python-standard
+  - java-build
   run:
-    python-check:
-      check: source.comment-language
+    kind: python-check
+    incremental:
+      id: source.comment-language
       args:
       - scripts
-      required_paths:
-      - scripts/checks/source/check_code_comment_language.py
-      optional_args:
-      - path: config/technical-terms.json
-        argv:
-        - --policy
-        - '{repo_root}/config/technical-terms.json'
+      - --policy
+      - '{repo_root}/config/technical-terms.json'
+      target_seconds: 10
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 20
+      timeout_seconds: 120

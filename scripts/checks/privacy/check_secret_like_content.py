@@ -172,15 +172,12 @@ def _check_sensitive_marker(line: str) -> str | None:
 
 
 def _scan_file(filepath: Path) -> list[str]:
-    """扫描单个文本文件并返回类密钥诊断；不可解码文件不参与判定。"""
+    """扫描单个文本文件并返回类密钥诊断；不可读取时由公开入口报告失败。"""
     errors: list[str] = []
     if filepath.name in _SKIP_BASENAMES:
         return errors
 
-    try:
-        text = filepath.read_text(encoding="utf-8")
-    except (OSError, UnicodeDecodeError):
-        return errors
+    text = filepath.read_text(encoding="utf-8")
 
     rel = filepath.relative_to(ROOT)
 
@@ -225,44 +222,56 @@ def check(arguments: list[str]) -> CheckResult:
     all_errors: list[str] = []
 
     seen_files: set[Path] = set()
-    for scan_dir in SCAN_DIRS:
-        dir_path = ROOT / scan_dir
-        if not dir_path.is_dir():
-            continue
-        for filepath in sorted(dir_path.rglob("*")):
-            if _is_excluded_path(filepath):
+    try:
+        for scan_dir in SCAN_DIRS:
+            dir_path = ROOT / scan_dir
+            if not dir_path.is_dir():
                 continue
-            if not filepath.is_file():
-                continue
-            if filepath in seen_files:
-                continue
-            seen_files.add(filepath)
-            # 先排除已知二进制，再以扩展名收紧文本扫描边界。
-            if filepath.suffix in (".pyc", ".pyo", ".sqlite", ".sqlite3", ".class", ".jar"):
-                continue
-            if filepath.suffix not in (
-                ".py",
-                ".md",
-                ".yaml",
-                ".yml",
-                ".json",
-                ".toml",
-                ".txt",
-                ".sh",
-                ".js",
-                ".ts",
-                ".java",
-                ".kts",
-                ".html",
-                ".css",
-                ".xml",
-                ".properties",
-                ".cfg",
-                ".ini",
-                ".conf",
-                "",
-            ):
-                continue
-            all_errors.extend(_scan_file(filepath))
+            for filepath in sorted(dir_path.rglob("*")):
+                if _is_excluded_path(filepath):
+                    continue
+                if not filepath.is_file():
+                    continue
+                if filepath in seen_files:
+                    continue
+                seen_files.add(filepath)
+                # 先排除已知二进制，再以扩展名收紧文本扫描边界。
+                if filepath.suffix in (
+                    ".pyc",
+                    ".pyo",
+                    ".sqlite",
+                    ".sqlite3",
+                    ".class",
+                    ".jar",
+                ):
+                    continue
+                if filepath.suffix not in (
+                    ".py",
+                    ".md",
+                    ".yaml",
+                    ".yml",
+                    ".json",
+                    ".toml",
+                    ".txt",
+                    ".sh",
+                    ".js",
+                    ".ts",
+                    ".java",
+                    ".kts",
+                    ".html",
+                    ".css",
+                    ".xml",
+                    ".properties",
+                    ".cfg",
+                    ".ini",
+                    ".conf",
+                    "",
+                ):
+                    continue
+                all_errors.extend(_scan_file(filepath))
+    except (OSError, UnicodeError) as exc:
+        return CheckResult.execution_failure(
+            [f'无法完整扫描类密钥内容: {exc}'], reason='input-unavailable'
+        )
 
     return CheckResult.from_errors(all_errors)

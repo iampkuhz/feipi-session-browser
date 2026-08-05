@@ -25,13 +25,11 @@ _MAX_ENTRY_SKILL_MD_BYTES = 2000
 
 
 def _load_registry() -> dict | None:
-    """加载 skill registry；文件无效或解析失败时返回 None。"""
-    if not REGISTRY.is_file():
-        return None
+    """加载 skill registry；YAML 内容无效时返回 None，读取异常交给公开入口处理。"""
     try:
         data = yaml.safe_load(REGISTRY.read_text(encoding="utf-8"))
         return data if isinstance(data, dict) else None
-    except (OSError, yaml.YAMLError):
+    except yaml.YAMLError:
         return None
 
 
@@ -47,7 +45,7 @@ def _check_entry_not_copy(entry_path: Path, source_path: Path) -> str | None:
     try:
         if entry_skill_md.samefile(source_path / "SKILL.md"):
             return None
-    except (OSError, FileNotFoundError):
+    except FileNotFoundError:
         pass
 
     if entry_skill_md.stat().st_size > _MAX_ENTRY_SKILL_MD_BYTES:
@@ -65,9 +63,15 @@ def check(arguments: list[str]) -> CheckResult:
     parser.parse_args(arguments)
     # 先建立可信 registry 模型；无法解析时不继续猜测配置。
     if not REGISTRY.is_file():
+        # registry 是仓库必须维护的治理文件；明确缺失已经形成仓库结论。
         return CheckResult.from_errors([f"registry 不存在: {REGISTRY.relative_to(ROOT)}"])
 
-    data = _load_registry()
+    try:
+        data = _load_registry()
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'registry 读取失败: {exc}'], reason='input-unavailable'
+        )
     if data is None:
         return CheckResult.from_errors(["registry 解析失败"])
 
@@ -96,47 +100,51 @@ def check(arguments: list[str]) -> CheckResult:
         errors.append("skills 字段不是 dict")
         skills = {}
 
-    for skill_name, skill_cfg in skills.items():
-        if not isinstance(skill_cfg, dict):
-            errors.append(f"skill {skill_name} 配置不是 dict")
-            continue
+    try:
+        for skill_name, skill_cfg in skills.items():
+            if not isinstance(skill_cfg, dict):
+                errors.append(f"skill {skill_name} 配置不是 dict")
+                continue
 
-        # registry 名称直接映射目录与入口，因此统一使用 kebab-case。
-        if not KEBAB_CASE_RE.match(skill_name):
-            errors.append(f"skill 名称不是 kebab-case: {skill_name}")
+            # registry 名称直接映射目录与入口，因此统一使用 kebab-case。
+            if not isinstance(skill_name, str) or not KEBAB_CASE_RE.match(skill_name):
+                errors.append(f"skill 名称不是 kebab-case: {skill_name}")
 
-        source = skill_cfg.get("source", "")
-        if isinstance(source, str) and source:
-            source_path = ROOT / source
-            if not source_path.is_dir():
-                errors.append(f"skill {skill_name} source 不存在: {source}")
-            else:
-                required_files = skill_cfg.get("required_files", [])
-                if isinstance(required_files, list):
-                    for rf in required_files:
-                        if isinstance(rf, str) and not (source_path / rf).is_file():
-                            errors.append(f"skill {skill_name} 缺少必需文件: {rf}")
-
-        exposed_in = skill_cfg.get("exposed_in", [])
-        if isinstance(exposed_in, list):
-            for entry in exposed_in:
-                if not isinstance(entry, str):
-                    continue
-                entry_path = ROOT / entry
-                if not entry_path.exists():
-                    errors.append(f"skill {skill_name} exposed entry 不存在: {entry}")
-                elif entry_path.is_symlink():
-                    target = entry_path.resolve()
-                    if not target.exists():
-                        errors.append(
-                            f"skill {skill_name} entry symlink 目标不存在:"
-                            f" {entry} -> {os.readlink(entry_path)}"
-                        )
+            source = skill_cfg.get("source", "")
+            if isinstance(source, str) and source:
+                source_path = ROOT / source
+                if not source_path.is_dir():
+                    errors.append(f"skill {skill_name} source 不存在: {source}")
                 else:
-                    # 普通目录只能保留短入口，避免平台副本漂移。
-                    if isinstance(source, str) and source:
+                    required_files = skill_cfg.get("required_files", [])
+                    if isinstance(required_files, list):
+                        for rf in required_files:
+                            if isinstance(rf, str) and not (source_path / rf).is_file():
+                                errors.append(f"skill {skill_name} 缺少必需文件: {rf}")
+
+            exposed_in = skill_cfg.get("exposed_in", [])
+            if isinstance(exposed_in, list):
+                for entry in exposed_in:
+                    if not isinstance(entry, str):
+                        continue
+                    entry_path = ROOT / entry
+                    if not entry_path.exists():
+                        errors.append(f"skill {skill_name} exposed entry 不存在: {entry}")
+                    elif entry_path.is_symlink():
+                        target = entry_path.resolve()
+                        if not target.exists():
+                            errors.append(
+                                f"skill {skill_name} entry symlink 目标不存在:"
+                                f" {entry} -> {os.readlink(entry_path)}"
+                            )
+                    elif isinstance(source, str) and source:
+                        # 普通目录只能保留短入口，避免平台副本漂移。
                         copy_err = _check_entry_not_copy(entry_path, ROOT / source)
                         if copy_err:
                             errors.append(copy_err)
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'registry 关联文件读取失败: {exc}'], reason='input-unavailable'
+        )
 
     return CheckResult.from_errors(errors)

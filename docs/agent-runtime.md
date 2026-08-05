@@ -3,9 +3,8 @@
 Claude Code、Codex 与 Qoder 使用客户端已经选择的 checkout。仓库不为普通读取、编辑或提交维护
 Session 状态，也不要求平台事件先完成初始化。机器契约见
 `harness/agent-runtime.manifest.yaml`；Gate 机器真相由 `config/gates.yaml` 根索引和它列出的领域分片
-组成，人类精简目录位于 [`config/gates/README.md`](../config/gates/README.md)。target 是 changed path
-激活的可多选验证场景；path rule targets、Gate target rule/order/pattern、tier 过滤之后才形成 plan，
-不能把 target 当作 owner、executor、tier 或唯一分类。
+组成，人类精简目录位于 [`config/gates/README.md`](../config/gates/README.md)。自动增量规划由
+changed path 直接匹配每个 Gate 的 Trigger；Target 只是人工选择的 preset/tag，不参与自动规划。
 
 ## 生命周期与 Git 边界
 
@@ -29,12 +28,12 @@ Session 状态，也不要求平台事件先完成初始化。机器契约见
 维护者在提交或交接前显式运行：
 
 ```bash
-python3 scripts/gates/cli.py --tier required
+python3 scripts/gates/cli.py --mode incremental
 ```
 
 若锁定依赖环境是当前变更的既定要求，可使用对应的 `uv run --frozen python ...` 入口。已经触发的
-required 检查必须成功；failed、warning、skipped、not-run 或 unavailable 均不得描述为 PASS。
-`not triggered` 仅表示该检查不在本次变更计划中，不等同于 skipped。
+本次选中的检查必须成功；`BLOCKED` 表示检查完成并发现阻断问题，`FAIL` 表示 Gate 未能完成，二者均不得
+描述为 PASS。`NOT_TRIGGERED` 仅表示自动增量规划没有选择该 Gate，不是执行结果。
 
 完成报告应列出精确 changed files、验证命令与结果、当前分支 commit（如有）和剩余风险。仓库不会在
 任务结束时改变 Git index、HEAD 或其他 checkout。

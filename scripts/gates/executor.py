@@ -17,13 +17,14 @@ from pathlib import Path
 
 from scripts.gates.catalog import gate_by_name
 from scripts.gates.model import (
-    ChangedFilesInput,
     CommandGroup,
+    ExecutionMode,
     ExecutionPlan,
     GatePlan,
     GateSpec,
     PlannedGate,
     RunKind,
+    RunProfile,
 )
 from scripts.gates.report import (
     BLOCKED,
@@ -43,11 +44,11 @@ from scripts.harness.python_env import project_venv_dir, resolve_python
 
 PLAYWRIGHT_COMMAND_MIN_PARTS = 5
 PLAYWRIGHT_MIN_WORKERS = 8
-PLAYWRIGHT_TIMEOUT_SECONDS = 120
 DEFAULT_TIMEOUT_SECONDS = 300
 MODULE_CHECK_TIMEOUT_SECONDS = 10
 COMMAND_OUTPUT_TAIL_CHARS = 4000
 JAVA_QUALITY_RULES_PROPERTY = '-PfeipiJavaQualityRules='
+GATE_REQUEST_ENVIRONMENT_KEYS = frozenset({'QUALITY_EXECUTION_MODE', 'QUALITY_CHANGED_FILES'})
 
 
 def _run_tmp_dir(repo_root: Path, name: str) -> Path:
@@ -225,8 +226,13 @@ _GRADLE_TASK_RE = re.compile(
     flags=re.MULTILINE,
 )
 _GATE_TASK_RESULT_RE = re.compile(
-    r'^GATE_TASK_RESULT task=(?P<task>:\S+) status=BLOCKED '
-    r'reason=(?P<reason>[A-Za-z0-9._-]+)$',
+    r'^GATE_TASK_RESULT task=(?P<task>:\S+) status=(?P<status>BLOCKED|FAIL)'
+    r'(?: reason=(?P<reason>[A-Za-z0-9._-]+))?$',
+    flags=re.MULTILINE,
+)
+_GATE_RESULT_RE = re.compile(
+    r'^GATE_RESULT status=(?P<status>PASS|BLOCKED|FAIL)'
+    r'(?: reason=(?P<reason>[A-Za-z0-9._-]+))?(?: .*)?$',
     flags=re.MULTILINE,
 )
 
@@ -243,11 +249,53 @@ def _gradle_task_outcomes(output: str) -> dict[str, str]:
         match.group('task'): match.group('outcome') or 'EXECUTED'
         for match in _GRADLE_TASK_RE.finditer(clean)
     }
-    # task 自己可用通用 marker 将执行失败细分为 BLOCKED；marker 必须精确绑定 task。
+    # task 自己用结构化 marker 区分“已有阻断结论”和“执行失败”。
     outcomes.update(
-        {match.group('task'): 'BLOCKED' for match in _GATE_TASK_RESULT_RE.finditer(clean)}
+        {
+            match.group('task'): match.group('status')
+            for match in _GATE_TASK_RESULT_RE.finditer(clean)
+        }
     )
     return outcomes
+
+
+def _gradle_task_failure_reasons(output: str) -> dict[str, str]:
+    """提取 Gradle owner 为 FAIL 提供的稳定原因码。"""
+
+    return {
+        match.group('task'): match.group('reason') or 'outcome-unknown'
+        for match in _GATE_TASK_RESULT_RE.finditer(_strip_ansi(output))
+        if match.group('status') == FAIL
+    }
+
+
+def _owner_result(output: str) -> tuple[str, str] | None:
+    """读取 leaf owner marker；冲突或缺失 FAIL reason 时 fail-closed。"""
+
+    markers = [
+        (match.group('status'), match.group('reason') or '')
+        for match in _GATE_RESULT_RE.finditer(_strip_ansi(output))
+    ]
+    if not markers:
+        return None
+    if len(set(markers)) != 1:
+        return FAIL, 'outcome-unknown'
+    status, reason = markers[0]
+    if status == FAIL and not reason:
+        return FAIL, 'outcome-unknown'
+    if status != FAIL and reason:
+        return FAIL, 'outcome-unknown'
+    return status, reason
+
+
+def _command_exit_status(cmd: list[str], return_code: int) -> tuple[str, bool]:
+    """把工具自身的退出码翻译为 Gate 状态，并标记该退出码是否已知。"""
+
+    # Vulture 用 3 表示“扫描完成且发现死代码”，它属于仓库问题而不是执行失败。
+    if len(cmd) >= 3 and cmd[1:3] == ['-m', 'vulture'] and return_code == 3:
+        return BLOCKED, True
+    status = {0: PASS, 1: BLOCKED, 2: FAIL}.get(return_code)
+    return (status, True) if status is not None else (FAIL, False)
 
 
 def _is_playwright_command(cmd: list[str]) -> bool:
@@ -371,32 +419,12 @@ def _warning_after_trigger_reason(
     return None
 
 
-def _audit_network_block_reason(output: str, *, network_failure: str) -> str | None:
-    """按声明策略识别外部漏洞服务或网络不可用。"""
-    if network_failure != 'blocked':
-        return None
-    clean = _strip_ansi(output)
-    network_markers = (
-        'requests.exceptions.SSLError',
-        'requests.exceptions.ProxyError',
-        'requests.exceptions.ReadTimeout',
-        'urllib3.exceptions.ReadTimeoutError',
-        'urllib3.exceptions.MaxRetryError',
-        'HTTPSConnectionPool',
-        'RemoteDisconnected',
-        'UNEXPECTED_EOF_WHILE_READING',
-    )
-    if any(marker in clean for marker in network_markers):
-        return 'pip-audit vulnerability service/network unavailable'
-    return None
-
-
 def _audit_successful_output(
     name: str,
     cmd: list[str],
     full_output: str,
     output: str,
-) -> tuple[str, str]:
+) -> tuple[str, str, str]:
     """拒绝测试框架 skip 与非允许 warning，避免不完整成功被归约为 PASS。"""
     skipped = 0
     skipped_kind = ''
@@ -417,28 +445,28 @@ def _audit_successful_output(
                 'triggered mapping/command; '
                 'if it is required, provide the needed fixture or environment instead of skipping.'
             ),
+            'execution-skipped',
         )
     warning_reason = _warning_after_trigger_reason(full_output, gate_name=name, cmd=cmd)
     if warning_reason:
         return (
-            FAIL,
+            BLOCKED,
             (
                 f'{output}\n\n'
-                f'[quality-gate] FAIL: {warning_reason}. '
+                f'[quality-gate] BLOCKED: {warning_reason}. '
                 'Triggered pytest/quality/full/release gates must be warning-free; '
                 'fix the warning or mark the gate BLOCKED instead of reporting PASS.'
             ),
+            '',
         )
-    return PASS, output
+    return PASS, output, ''
 
 
 def _detail_from_bounded_run(
     name: str,
     cmd: list[str],
     *,
-    required: bool,
     timeout: int,
-    network_failure: str,
     log_path: Path,
     bounded: BoundedRunResult,
 ) -> GateDetail:
@@ -455,34 +483,35 @@ def _detail_from_bounded_run(
             command=cmd,
             durationMs=duration,
             output=f'超时: command exceeded {timeout}s\n{bounded.output_tail}',
+            reason='timeout',
         )
     output = full_output[-COMMAND_OUTPUT_TAIL_CHARS:]
     if bounded.return_code is None:
         return GateDetail(
             name=name,
-            status=BLOCKED if required else FAIL,
+            status=FAIL,
             command=cmd,
             durationMs=duration,
             output=f'命令启动失败: {bounded.output_tail or bounded.exit_reason}',
-            executionState='CAPABILITY_BLOCKED',
+            executionState='CAPABILITY_FAILED',
+            reason='runtime-missing',
         )
 
-    status = PASS if bounded.return_code == 0 else FAIL
-    audit_block_reason = (
-        _audit_network_block_reason(full_output, network_failure=network_failure)
-        if status == FAIL
-        else None
-    )
-    if audit_block_reason:
-        status = BLOCKED
-        output = (
-            f'{output}\n\n'
-            f'[quality-gate] BLOCKED: {audit_block_reason}. '
-            'Fix local certificate/proxy/network access and rerun audit; '
-            'do not report the audit gate as PASS.'
-        )
-    elif status == PASS:
-        status, output = _audit_successful_output(name, cmd, full_output, output)
+    owner_result = _owner_result(full_output)
+    status, known_exit_code = _command_exit_status(cmd, bounded.return_code)
+    reason = 'outcome-unknown' if status == FAIL else ''
+    if owner_result is not None:
+        marker_status, marker_reason = owner_result
+        expected_exit = {PASS: 0, BLOCKED: 1, FAIL: 2}[marker_status]
+        if bounded.return_code == expected_exit:
+            status, reason = marker_status, marker_reason
+        else:
+            status, reason = FAIL, 'outcome-unknown'
+            output = f'{output}\n\n[quality-gate] FAIL: owner marker conflicts with exit code.'
+    if status == PASS:
+        status, output, reason = _audit_successful_output(name, cmd, full_output, output)
+    elif not known_exit_code:
+        output = f'{output}\n\n[quality-gate] FAIL: unrecognized exit code.'
     return GateDetail(
         name=name,
         status=status,
@@ -491,6 +520,10 @@ def _detail_from_bounded_run(
         durationMs=duration,
         output=output,
         taskOutcomes=(_gradle_task_outcomes(full_output) if Path(cmd[0]).name == 'gradlew' else {}),
+        taskFailureReasons=(
+            _gradle_task_failure_reasons(full_output) if Path(cmd[0]).name == 'gradlew' else {}
+        ),
+        reason=reason,
     )
 
 
@@ -498,25 +531,22 @@ def run_cmd(
     name: str,
     cmd: list[str],
     cwd: Path,
-    required: bool = True,
     env_overrides: dict[str, str] | None = None,
     timeout_seconds: int | None = None,
-    network_failure: str = 'fail',
 ) -> GateDetail:
     """执行单条受控命令，并严格归约 timeout、skip、warning 与网络阻断状态。"""
     if not cmd or shutil.which(cmd[0]) is None:
-        status = BLOCKED if required else FAIL
         return GateDetail(
             name=name,
-            status=status,
+            status=FAIL,
             command=cmd,
             durationMs=0,
             output=f'命令不存在: {cmd[0] if cmd else "<empty>"}',
-            executionState='CAPABILITY_BLOCKED',
+            executionState='CAPABILITY_FAILED',
+            reason='runtime-missing',
         )
 
-    default_timeout = timeout_seconds or DEFAULT_TIMEOUT_SECONDS
-    timeout = PLAYWRIGHT_TIMEOUT_SECONDS if _is_playwright_command(cmd) else default_timeout
+    timeout = timeout_seconds or DEFAULT_TIMEOUT_SECONDS
 
     # Gate、Gradle、fixture 和测试统一使用净化环境，provider 私有目录不得注入应用。
     run_env = gate_child_environment(cwd, env_overrides)
@@ -536,19 +566,18 @@ def run_cmd(
         return _detail_from_bounded_run(
             name,
             cmd,
-            required=required,
             timeout=timeout,
-            network_failure=network_failure,
             log_path=log_path,
             bounded=bounded,
         )
     except OSError as exc:
         return GateDetail(
             name=name,
-            status=BLOCKED,
+            status=FAIL,
             command=cmd,
             output=f'命令启动失败: {exc}',
-            executionState='CAPABILITY_BLOCKED',
+            executionState='CAPABILITY_FAILED',
+            reason='runtime-missing',
         )
 
 
@@ -563,61 +592,51 @@ def _expand_argument(argument: str, repo_root: Path) -> str:
     return argument.format_map(values)
 
 
-def _declared_command(spec: GateSpec, repo_root: Path, _target: str) -> list[str]:
+def _declared_command(profile: RunProfile, repo_root: Path) -> list[str]:
     """通用渲染 catalog command；不按普通 Gate 名称分派。"""
-    declared = spec.run
-    argv = declared.argv
-    if not argv or any(not (repo_root / path).exists() for path in declared.required_paths):
+    argv = profile.argv
+    if not argv or any(not (repo_root / path).exists() for path in profile.required_paths):
         return []
     command = [_expand_argument(part, repo_root) for part in argv]
-    globbed = _relative_existing_files(repo_root, list(declared.glob_args))
-    if declared.glob_args and not globbed:
+    globbed = _relative_existing_files(repo_root, list(profile.append_globs))
+    if profile.append_globs and not globbed:
         return []
     command.extend(globbed)
-    for optional in declared.optional_args:
-        if (repo_root / optional.path).exists():
-            command.extend(_expand_argument(part, repo_root) for part in optional.argv)
     return command
 
 
-def _python_check_command(spec: GateSpec, repo_root: Path, _target: str) -> list[str]:
+def _python_check_command(profile: RunProfile, repo_root: Path) -> list[str]:
     """从 typed check id 构造调用；不从 argv 反向猜测 check。"""
-    run = spec.run
-    if not run.check or any(not (repo_root / path).exists() for path in run.required_paths):
+    if not profile.check_id:
         return []
-    python = _project_python(repo_root, dev=run.python == 'dev')
-    command = [python, '-m', 'scripts.checks', run.check]
-    command.extend(_expand_argument(part, repo_root) for part in run.args)
-    for optional in run.optional_args:
-        if (repo_root / optional.path).exists():
-            command.extend(_expand_argument(part, repo_root) for part in optional.argv)
+    python = _project_python(repo_root, dev=profile.runtime == 'dev')
+    command = [python, '-m', 'scripts.checks', profile.check_id]
+    command.extend(_expand_argument(part, repo_root) for part in profile.args)
     return command
 
 
-def _scan_smoke_command(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
-    """兼容独立调用：用 catalog prerequisite 与 pytest 声明构造 smoke 命令。"""
-    pytest_command = _declared_command(spec, repo_root, target)
-    if not pytest_command:
-        return []
-    install_log = str(_run_tmp_dir(repo_root, 'logs') / 'scanScriptSmoke-installDist.log')
-    install = [str(repo_root / 'gradlew'), *spec.run.prerequisite_tasks]
-    script = (
-        f'{shlex.join(install)} > {shlex.quote(install_log)} 2>&1; '
-        'rc=$?; '
-        'if [ $rc -ne 0 ]; then '
-        f'echo "FAIL: {shlex.join(spec.run.prerequisite_tasks)} (exit=$rc)"; '
-        f'tail -40 {shlex.quote(install_log)}; '
-        'exit $rc; '
-        'fi; '
-        f'{shlex.join(pytest_command)}'
-    )
-    return ['bash', '-c', script]
+def _scan_smoke_command(profile: RunProfile, repo_root: Path) -> list[str]:
+    """构造 scan smoke 的 pytest 命令；Gradle prerequisite 由 group 负责。"""
+    return [_project_python(repo_root, dev=True), '-m', 'pytest', *profile.args, *profile.tests]
+
+
+def _playwright_command(profile: RunProfile, repo_root: Path) -> list[str]:
+    """构造仓库唯一 Playwright runner 命令。"""
+    return [
+        'npm',
+        '--prefix',
+        'tests/playwright',
+        'test',
+        '--',
+        *profile.tests,
+        *(_expand_argument(part, repo_root) for part in profile.args),
+    ]
 
 
 _COMMAND_ADAPTERS = {
     'command': _declared_command,
     'python-check': _python_check_command,
-    'playwright': _declared_command,
+    'playwright': _playwright_command,
     'scan-smoke': _scan_smoke_command,
 }
 
@@ -627,39 +646,41 @@ def _capability(spec: GateSpec) -> str:
     return spec.run.kind.value
 
 
-def command_for_gate(spec: GateSpec, repo_root: Path, target: str) -> list[str]:
+def command_for_gate(
+    spec: GateSpec, repo_root: Path, mode: ExecutionMode | str = ExecutionMode.INCREMENTAL
+) -> list[str]:
     """从 typed declaration 构造单 Gate 命令。"""
+    selected_mode = ExecutionMode(mode)
+    profile = spec.run.profile_for(selected_mode)
     if spec.run.kind in {RunKind.GRADLE_TASK, RunKind.JAVA_RULE}:
         gradlew = repo_root / 'gradlew'
-        tasks = spec.run.tasks or (':java:tests:quality-gates:runJavaQualityGates',)
+        tasks = profile.tasks or (':java:tests:quality-gates:runJavaQualityGates',)
         java_rules = (
-            [f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(spec.run.java_rules)}']
-            if spec.run.java_rules
-            else []
+            [f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(profile.rules)}'] if profile.rules else []
         )
-        return [str(gradlew), *tasks, *java_rules, *spec.run.args] if gradlew.exists() else []
+        return [str(gradlew), *tasks, *java_rules, *profile.args] if gradlew.exists() else []
     try:
         adapter = _COMMAND_ADAPTERS[spec.run.kind.value]
     except KeyError as exc:
         raise ValueError(f'unsupported command capability: {spec.run.kind.value}') from exc
-    return adapter(spec, repo_root, target)
+    return adapter(profile, repo_root)
 
 
-def gate_command(gate: str, repo_root: Path, target: str) -> list[str]:
+def gate_command(
+    gate: str, repo_root: Path, mode: ExecutionMode | str = ExecutionMode.INCREMENTAL
+) -> list[str]:
     """按名称读取 typed catalog，并委托能力 adapter。"""
-    return command_for_gate(gate_by_name(gate), repo_root, target)
+    return command_for_gate(gate_by_name(gate), repo_root, mode)
 
 
-def changed_files_environment(
-    spec: GateSpec,
-    changed_files: list[str] | tuple[str, ...] | None,
-) -> dict[str, str]:
-    """仅为 catalog 明确支持的 Gate 构造 changed-files 环境变量。"""
-    if not changed_files or spec.changed_files_input is ChangedFilesInput.NONE:
-        return {}
-    if spec.changed_files_input is ChangedFilesInput.ENVIRONMENT:
-        return {'QUALITY_CHANGED_FILES': json.dumps(changed_files, ensure_ascii=False)}
-    raise ValueError(f'unsupported changed-files input: {spec.changed_files_input}')
+def gate_request_environment(gate_plan: GatePlan) -> dict[str, str]:
+    """把统一 GateRequest 编码为所有 owner 都能读取的受控环境变量。"""
+    environment = {'QUALITY_EXECUTION_MODE': gate_plan.mode.value}
+    if gate_plan.mode is ExecutionMode.INCREMENTAL:
+        environment['QUALITY_CHANGED_FILES'] = json.dumps(
+            gate_plan.changed_files, ensure_ascii=False
+        )
+    return environment
 
 
 def _stable_hash(value: object) -> str:
@@ -668,112 +689,55 @@ def _stable_hash(value: object) -> str:
     return hashlib.sha256(raw.encode('utf-8')).hexdigest()
 
 
-def _unique_gate_entries(gate_plan: GatePlan) -> list[tuple[GateSpec, str]]:
-    """按 target/注册顺序收集去重后的 Gate 与首次所属 target。"""
-    entries: list[tuple[GateSpec, str]] = []
-    seen: set[str] = set()
-    for target_plan in gate_plan.targets:
-        for spec in target_plan.gates:
-            if spec.name not in seen:
-                seen.add(spec.name)
-                entries.append((spec, target_plan.target))
-    return entries
-
-
-def _build_gradle_group(
-    entries: list[tuple[GateSpec, str]],
-    gate_plan: GatePlan,
-    repo_root: Path,
-) -> tuple[CommandGroup | None, tuple[str, ...]]:
-    """把同一 checkout 的 Gradle Gate 与 scan prerequisite 聚合为一个 group。"""
-    gradle_entries = [
-        (spec, target)
-        for spec, target in entries
-        if spec.run.kind in {RunKind.GRADLE_TASK, RunKind.JAVA_RULE}
-    ]
-    scan_entries = [entry for entry in entries if _capability(entry[0]) == 'scan-smoke']
-    gradle_tasks = [
-        task
-        for spec, _target in gradle_entries
-        for task in (spec.run.tasks or (':java:tests:quality-gates:runJavaQualityGates',))
-    ]
-    gradle_args = [argument for spec, _target in gradle_entries for argument in spec.run.args]
-    java_rules = [rule for spec, _target in gradle_entries for rule in spec.run.java_rules]
-    gate_names = tuple(spec.name for spec, _target in gradle_entries)
-    for spec, _target in scan_entries:
-        gradle_tasks.extend(spec.run.prerequisite_tasks)
-    gradle_tasks = list(dict.fromkeys(gradle_tasks))
-    java_rules = list(dict.fromkeys(java_rules))
-    gradle_properties = (
-        [f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(java_rules)}'] if java_rules else []
-    )
-    if not gradle_tasks:
-        return None, gate_names
-
-    environment = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
-    if any(spec.changed_files_input is ChangedFilesInput.ENVIRONMENT for spec, _ in gradle_entries):
-        environment['QUALITY_CHANGED_FILES'] = json.dumps(
-            gate_plan.changed_files, ensure_ascii=False
-        )
-    return (
-        CommandGroup(
-            group_id='group-gradle-000',
-            kind='gradle',
-            command=(
-                str(repo_root / 'gradlew'),
-                *gradle_tasks,
-                *gradle_properties,
-                '--console=plain',
-                *gradle_args,
-            ),
-            environment=tuple(sorted(environment.items())),
-            gate_names=gate_names,
-            timeout_seconds=max((spec.timeout_seconds for spec, _ in gradle_entries), default=300),
-            aggregation_reason=(
-                'same checkout/environment Gradle tasks aggregated; '
-                'scanScriptSmoke installDist is a prerequisite of its pytest group'
-                if scan_entries
-                else 'same checkout/environment Gradle tasks aggregated'
-            ),
-        ),
-        gate_names,
-    )
+def _unique_gate_entries(gate_plan: GatePlan) -> list[GateSpec]:
+    """Planner 已按 Catalog 顺序去重，Executor 不再重建 Target 归属。"""
+    return list(gate_plan.gates)
 
 
 def _build_command_groups(
-    entries: list[tuple[GateSpec, str]],
+    entries: list[GateSpec],
     gate_plan: GatePlan,
     repo_root: Path,
     *,
     base_url: str | None,
-) -> tuple[list[CommandGroup], dict[str, str], str]:
-    """构造普通命令 group，并在原始稳定位置插入聚合 Gradle group。"""
-    gradle_group, gradle_gate_names = _build_gradle_group(entries, gate_plan, repo_root)
-    gradle_group_id = gradle_group.group_id if gradle_group else ''
-    group_by_gate = dict.fromkeys(gradle_gate_names, gradle_group_id)
+) -> tuple[list[CommandGroup], dict[str, str]]:
+    """为每个 Gate 构造独立命令；独立边界保证时效证据真正属于该 Gate。"""
     groups: list[CommandGroup] = []
+    group_by_gate: dict[str, str] = {}
     command_index = 1
-    gradle_added = False
-    for spec, target in entries:
-        if spec.name in group_by_gate:
-            if gradle_group is not None and not gradle_added:
-                groups.append(gradle_group)
-                gradle_added = True
-            continue
+    for spec in entries:
         capability = _capability(spec)
-        if capability == 'scan-smoke' and gradle_group is not None and not gradle_added:
-            # prerequisite 必须先出现，否则后续资源串行边可能反向指向并形成环。
-            groups.append(gradle_group)
-            gradle_added = True
+        profile = spec.run.profile_for(gate_plan.mode)
+        environment = {
+            'SESSION_BROWSER_PYTHON': _project_python(repo_root),
+            **gate_request_environment(gate_plan),
+        }
+        if capability == 'scan-smoke':
+            prerequisite_id = f'group-{command_index:03d}-{spec.name}-prerequisite'
+            command_index += 1
+            groups.append(
+                CommandGroup(
+                    group_id=prerequisite_id,
+                    kind='scan-prerequisite',
+                    command=(
+                        str(repo_root / 'gradlew'),
+                        *profile.prerequisite_tasks,
+                        '--console=plain',
+                    ),
+                    environment=tuple(sorted(environment.items())),
+                    gate_names=(spec.name,),
+                    timeout_seconds=profile.timeout_seconds,
+                )
+            )
         command = (
-            _declared_command(spec, repo_root, target)
+            _scan_smoke_command(profile, repo_root)
             if capability == 'scan-smoke'
-            else command_for_gate(spec, repo_root, target)
+            else command_for_gate(spec, repo_root, gate_plan.mode)
         )
+        if spec.run.kind in {RunKind.GRADLE_TASK, RunKind.JAVA_RULE}:
+            command.append('--console=plain')
         group_id = f'group-{command_index:03d}-{spec.name}'
         command_index += 1
-        environment = {'SESSION_BROWSER_PYTHON': _project_python(repo_root)}
-        environment.update(changed_files_environment(spec, gate_plan.changed_files))
         if capability == 'playwright':
             environment['FEIPI_AGENT_RUNTIME_ROOT'] = str(resolve_runtime_root(repo_root))
             if base_url:
@@ -788,38 +752,43 @@ def _build_command_groups(
         groups.append(
             CommandGroup(
                 group_id=group_id,
-                kind='scan-smoke' if capability == 'scan-smoke' else 'command',
+                kind=(
+                    'gradle'
+                    if spec.run.kind in {RunKind.GRADLE_TASK, RunKind.JAVA_RULE}
+                    else 'scan-smoke'
+                    if capability == 'scan-smoke'
+                    else 'command'
+                ),
                 command=tuple(command),
                 environment=tuple(sorted(environment.items())),
                 gate_names=(spec.name,),
-                timeout_seconds=spec.timeout_seconds,
+                timeout_seconds=profile.timeout_seconds,
             )
         )
         group_by_gate[spec.name] = group_id
-    if gradle_group is not None and not gradle_added:
-        groups.append(gradle_group)
-    return groups, group_by_gate, gradle_group_id
+    return groups, group_by_gate
 
 
 def _freeze_planned_gates(
-    entries: list[tuple[GateSpec, str]],
+    entries: list[GateSpec],
     group_by_gate: dict[str, str],
-    gradle_group_id: str,
+    group_kind_by_id: dict[str, str],
+    mode: ExecutionMode,
 ) -> tuple[PlannedGate, ...]:
     """冻结逻辑 Gate 到命令 group 与状态来源的映射。"""
     return tuple(
         PlannedGate(
             name=spec.name,
-            target=target,
+            target='',
             group_id=group_by_gate[spec.name],
             status_source=(
                 'gradle-task-outcome'
-                if group_by_gate[spec.name] == gradle_group_id
+                if group_kind_by_id[group_by_gate[spec.name]] == 'gradle'
                 else 'process-exit'
             ),
-            timeout_seconds=spec.timeout_seconds,
+            timeout_seconds=spec.run.profile_for(mode).timeout_seconds,
         )
-        for spec, target in entries
+        for spec in entries
     )
 
 
@@ -831,13 +800,14 @@ def build_execution_plan(
 ) -> ExecutionPlan:
     """按“去重 → 稳定分组 → 冻结指纹”生成不可变串行执行计划。"""
     entries = _unique_gate_entries(gate_plan)
-    groups, group_by_gate, gradle_group_id = _build_command_groups(
-        entries, gate_plan, repo_root, base_url=base_url
-    )
-    planned = _freeze_planned_gates(entries, group_by_gate, gradle_group_id)
+    groups, group_by_gate = _build_command_groups(entries, gate_plan, repo_root, base_url=base_url)
+    group_kind_by_id = {group.group_id: group.kind for group in groups}
+    planned = _freeze_planned_gates(entries, group_by_gate, group_kind_by_id, gate_plan.mode)
     payload = {
         'changedFiles': gate_plan.changed_files,
-        'targets': gate_plan.effective_targets,
+        'mode': gate_plan.mode.value,
+        'selector': gate_plan.selector,
+        'selectorValue': gate_plan.selector_value,
         'gates': [asdict(item) for item in planned],
         'groups': [asdict(item) for item in groups],
     }
@@ -851,18 +821,19 @@ def _execute_group(
 ) -> GateDetail:
     """执行一个冻结 group；调用方保证严格按 plan tuple 顺序调用。"""
     if not group.command:
-        return GateDetail(name=group.group_id, status=BLOCKED, output='Gate command unavailable.')
+        return GateDetail(
+            name=group.group_id,
+            status=FAIL,
+            output='Gate command unavailable.',
+            executionState='CAPABILITY_FAILED',
+            reason='runtime-missing',
+        )
     return run_cmd(
         group.group_id,
         list(group.command),
         repo_root,
         env_overrides=dict(group.environment),
         timeout_seconds=group.timeout_seconds,
-        network_failure=(
-            'blocked'
-            if any(gate_by_name(name).network_failure == 'blocked' for name in group.gate_names)
-            else 'fail'
-        ),
     )
 
 
@@ -881,10 +852,12 @@ def _gradle_gate_outcome(task_outcomes: dict[str, str], tasks: tuple[str, ...]) 
         resolved.append(matches[0])
     if any(value == 'BLOCKED' for value in resolved):
         return 'BLOCKED'
+    if any(value == 'FAIL' for value in resolved):
+        return 'FAIL'
     if any(value == 'FAILED' for value in resolved):
         return 'FAILED'
-    if any(value == 'SKIPPED' for value in resolved):
-        return 'SKIPPED'
+    if any(value in {'SKIPPED', 'NO-SOURCE'} for value in resolved):
+        return 'NOT_EXECUTED'
     return 'EXECUTED' if resolved else None
 
 
@@ -912,12 +885,27 @@ def _scan_prerequisite_passed(group: CommandGroup, gradle_outcome: GateDetail | 
     if group.kind != 'scan-smoke':
         return True
     tasks = tuple(
-        task for name in group.gate_names for task in (gate_by_name(name).run.prerequisite_tasks)
+        task
+        for name in group.gate_names
+        for task in gate_by_name(name)
+        .run.profile_for(ExecutionMode(dict(group.environment)['QUALITY_EXECUTION_MODE']))
+        .prerequisite_tasks
     )
     return bool(
         gradle_outcome
+        and gradle_outcome.status == PASS
         and tasks
         and _gradle_gate_outcome(gradle_outcome.taskOutcomes, tasks) == 'EXECUTED'
+    )
+
+
+def _with_total_scan_duration(detail: GateDetail, prerequisite: GateDetail) -> GateDetail:
+    """把 prerequisite 与 pytest 的实际耗时合并为 scan Gate 的唯一耗时。"""
+    if detail.durationMs is None and prerequisite.durationMs is None:
+        return detail
+    return replace(
+        detail,
+        durationMs=(detail.durationMs or 0) + (prerequisite.durationMs or 0),
     )
 
 
@@ -927,8 +915,12 @@ def _run_groups_serially(
     *,
     environment_overrides: dict[str, str] | None = None,
 ) -> dict[str, GateDetail]:
-    """逐项执行 immutable group tuple；独立失败不阻断后续 group。"""
+    """逐项执行独立命令；scan prerequisite 与测试共享同一个 Gate timeout。"""
     overrides = environment_overrides or {}
+    reserved = GATE_REQUEST_ENVIRONMENT_KEYS & overrides.keys()
+    if reserved:
+        names = ', '.join(sorted(reserved))
+        raise ValueError(f'GateRequest environment cannot be overridden: {names}')
     execution_groups = tuple(
         replace(
             group,
@@ -937,20 +929,45 @@ def _run_groups_serially(
         for group in groups
     )
     outcomes: dict[str, GateDetail] = {}
-    gradle_outcome: GateDetail | None = None
+    scan_prerequisites: dict[str, GateDetail] = {}
     for group in execution_groups:
-        if not _scan_prerequisite_passed(group, gradle_outcome):
-            detail = GateDetail(
-                name=group.group_id,
-                status=BLOCKED,
-                output='scanScriptSmoke Gradle prerequisite did not complete successfully.',
-                executionState='DEPENDENCY_BLOCKED',
-            )
+        if group.kind == 'scan-prerequisite':
+            detail = _execute_group(group, repo_root)
+            for gate_name in group.gate_names:
+                scan_prerequisites[gate_name] = detail
+        elif group.kind == 'scan-smoke':
+            prerequisite = scan_prerequisites.get(group.gate_names[0])
+            if not _scan_prerequisite_passed(group, prerequisite):
+                detail = GateDetail(
+                    name=group.group_id,
+                    status=FAIL,
+                    durationMs=prerequisite.durationMs if prerequisite else None,
+                    output=(
+                        'scan-smoke Gradle prerequisite did not complete successfully.\n'
+                        + (prerequisite.output if prerequisite else 'prerequisite result missing')
+                    ),
+                    executionState='DEPENDENCY_FAILED',
+                    reason='dependency-unavailable',
+                )
+            else:
+                remaining_ms = group.timeout_seconds * 1000 - (prerequisite.durationMs or 0)
+                if remaining_ms <= 0:
+                    detail = GateDetail(
+                        name=group.group_id,
+                        status=FAIL,
+                        durationMs=prerequisite.durationMs,
+                        output='scan-smoke prerequisite consumed the complete Gate timeout.',
+                        reason='timeout',
+                    )
+                else:
+                    remaining_seconds = max(1, (remaining_ms + 999) // 1000)
+                    detail = _execute_group(
+                        replace(group, timeout_seconds=remaining_seconds), repo_root
+                    )
+                    detail = _with_total_scan_duration(detail, prerequisite)
         else:
             detail = _execute_group(group, repo_root)
         outcomes[group.group_id] = detail
-        if group.kind == 'gradle':
-            gradle_outcome = detail
     return outcomes
 
 
@@ -962,34 +979,56 @@ def _logical_gate_detail(
     """把 group 技术结果映射为单个逻辑 Gate 明细。"""
     status = outcome.status
     output = outcome.output
+    reason = outcome.reason
+    spec = gate_by_name(gate.name)
+    mode = ExecutionMode(dict(group.environment)['QUALITY_EXECUTION_MODE'])
+    profile = spec.run.profile_for(mode)
     selected_outcomes: dict[str, str] = {}
+    selected_failure_reasons: dict[str, str] = {}
     task_outcome: str | None = None
     if group.kind == 'gradle':
-        selected_run = gate_by_name(gate.name).run
-        selected_tasks = selected_run.tasks or (
+        selected_run = spec.run
+        selected_profile = profile
+        selected_tasks = selected_profile.tasks or (
             (':java:tests:quality-gates:runJavaQualityGates',)
             if selected_run.kind is RunKind.JAVA_RULE
             else ()
         )
         task_outcome = _gradle_gate_outcome(outcome.taskOutcomes, selected_tasks)
         selected_outcomes = _selected_task_outcomes(outcome.taskOutcomes, selected_tasks)
+        selected_failure_reasons = _selected_task_outcomes(
+            outcome.taskFailureReasons, selected_tasks
+        )
         if task_outcome == 'BLOCKED':
             status = BLOCKED
+            reason = ''
             output = (
                 f'{output}\n'
                 '[quality-gate] BLOCKED: selected Gradle task reported a blocking result.'
             )
-        elif task_outcome == 'SKIPPED':
+        elif task_outcome == 'FAIL':
             status = FAIL
-            output = f'{output}\n[quality-gate] FAIL: selected Gradle task was SKIPPED.'
+            reason = next(
+                iter(selected_failure_reasons.values()),
+                'outcome-unknown',
+            )
+            output = f'{output}\n[quality-gate] FAIL: selected Gradle task owner failed.'
+        elif task_outcome == 'NOT_EXECUTED':
+            status = FAIL
+            reason = 'execution-skipped'
+            output = f'{output}\n[quality-gate] FAIL: selected Gradle task was not executed.'
         elif task_outcome == 'FAILED':
-            status = FAIL
+            # Gradle exit 1 表示 owner 完整运行后发现测试或规则问题。
+            status = BLOCKED if outcome.status == BLOCKED else FAIL
+            reason = '' if status == BLOCKED else (reason or 'outcome-unknown')
         elif task_outcome == 'EXECUTED':
             status = PASS
+            reason = ''
         else:
-            status = BLOCKED
+            status = FAIL
+            reason = 'outcome-unknown'
             output = (
-                f'{output}\n[quality-gate] BLOCKED: selected Gradle task outcome was not confirmed.'
+                f'{output}\n[quality-gate] FAIL: selected Gradle task outcome was not confirmed.'
             )
         if status == PASS:
             output = (
@@ -1008,13 +1047,22 @@ def _logical_gate_detail(
             if status == PASS
             else 'BLOCKED'
             if task_outcome == 'BLOCKED'
-            else outcome.executionState
+            else 'EXECUTED'
             if status == BLOCKED
             else 'FAILED'
         ),
         groupId=group.group_id,
         rerunCommand=shlex.join(group.command),
         taskOutcomes=selected_outcomes,
+        taskFailureReasons=selected_failure_reasons,
+        mode=mode.value,
+        targetSeconds=profile.target_seconds,
+        timingState=(
+            'OVER_TARGET'
+            if outcome.durationMs is not None and outcome.durationMs > profile.target_seconds * 1000
+            else 'WITHIN_TARGET'
+        ),
+        reason=reason,
     )
 
 

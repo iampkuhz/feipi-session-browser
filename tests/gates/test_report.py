@@ -1,162 +1,111 @@
-"""Gate 结构化 report 的有界、fail-closed contract。"""
+"""Gate report 的外部二态与内部三态 contract。"""
 
 import json
-import os
-import time
 from pathlib import Path
 
 import pytest
 from scripts.gates.report import (
     BLOCKED,
     FAIL,
+    NOT_PASS,
     PASS,
     GateDetail,
     build_summary,
     compute_overall,
     concise_diagnostic,
     format_quality_report,
-    is_artifact_fresh,
     write_quality_summary,
 )
 
 
 @pytest.mark.parametrize(
     ('statuses', 'expected'),
-    (
-        ({'a': PASS, 'b': PASS}, PASS),
-        ({'a': 'SKIPPED'}, FAIL),
-        ({'a': BLOCKED}, FAIL),
-        ({}, BLOCKED),
-    ),
+    [
+        ({'a': PASS}, PASS),
+        ({'a': BLOCKED}, NOT_PASS),
+        ({'a': FAIL}, NOT_PASS),
+        ({'a': 'SKIPPED'}, NOT_PASS),
+        ({}, NOT_PASS),
+    ],
 )
-def test_required_gate_status_is_fail_closed(statuses: dict[str, str], expected: str) -> None:
+def test_overall_is_only_pass_or_not_pass(statuses, expected) -> None:
     assert compute_overall(statuses)[0] == expected
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-007')
-def test_report_contract_is_bounded_and_actionable(tmp_path: Path) -> None:
+def test_summary_keeps_blocked_and_fail_details(tmp_path: Path) -> None:
     summary = build_summary(
-        'harness',
+        'incremental',
         'change',
         '2026-01-01T00:00:00Z',
-        [
-            GateDetail(
-                name='check',
-                status=FAIL,
-                command=['python3', 'check.py'],
-                exitCode=1,
-                output='ERROR scripts/example.py:42 failed\n' + 'noise\n' * 100,
-            )
-        ],
+        [GateDetail(name='rule', status=BLOCKED), GateDetail(name='runtime', status=FAIL)],
     )
     path = write_quality_summary(tmp_path, summary)
-    rendered = format_quality_report(summary, path)
-    payload = json.loads(path.read_text())
-
-    assert 'QUALITY_GATE_RESULT status=FAIL target=harness' in rendered
-    assert 'gate=check status=FAIL' in rendered
-    assert 'scripts/example.py:42' in rendered
-    assert 'fix_hint=' in rendered
+    payload = json.loads(path.read_text(encoding='utf-8'))
+    assert payload['status'] == NOT_PASS
+    assert payload['gateResults'] == {'rule': BLOCKED, 'runtime': FAIL}
+    assert payload['gateDetails'][1]['reason'] == 'outcome-unknown'
     assert payload['schemaVersion'] == 4
-    assert payload['reportHash']
-    assert 'criticalPathMs' not in payload
-    assert 'queueWaitMs' not in payload['gateDetails'][0]
-    assert 'resourceWaitMs' not in payload['gateDetails'][0]
-    assert len(concise_diagnostic('x\n' * 100)) < 1800
-    assert is_artifact_fresh(str(path))
+    assert len(payload['reportHash']) == 12
+    assert len(concise_diagnostic('ERROR first cause\n' + 'noise\n' * 100)) <= 1700
 
 
-@pytest.mark.contract_case('HOOK-HARNESS-007')
-def test_pass_report_is_concise(tmp_path: Path) -> None:
-    summary = build_summary(
-        'harness',
-        'change',
-        '2026-01-01T00:00:00Z',
-        [GateDetail(name='check', status=PASS)],
-    )
-    path = write_quality_summary(tmp_path, summary)
-    rendered = format_quality_report(summary, path)
-    details_path = path.parent / 'gate-details.harness.json'
-
-    assert rendered.startswith('QUALITY_GATE_RESULT status=PASS target=harness passed=1/1')
-    assert '\n' not in rendered
-    assert path.name == 'quality-gate-summary.harness.json'
-    assert details_path.exists()
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-007')
-def test_blocked_report_keeps_first_cause(tmp_path: Path) -> None:
+def test_fail_report_gives_environment_recovery_hint(tmp_path: Path) -> None:
     rendered = format_quality_report(
         {
-            'status': BLOCKED,
-            'target': 'session-detail',
-            'requiredGates': {'browserLayout': BLOCKED},
-            'blockingFailures': ['browserLayout=BLOCKED'],
+            'status': NOT_PASS,
+            'mode': 'incremental',
+            'gateResults': {'audit': FAIL},
             'gateDetails': [
                 {
-                    'name': 'browserLayout',
-                    'status': BLOCKED,
-                    'output': 'BASE_URL is missing',
+                    'name': 'audit',
+                    'status': FAIL,
+                    'reason': 'runtime-missing',
+                    'output': 'runtime missing',
                 }
             ],
         },
         tmp_path / 'summary.json',
     )
-    assert 'gate=browserLayout status=BLOCKED' in rendered
-    assert 'BASE_URL is missing' in rendered
-    assert 'Provide the missing command' in rendered
+    assert 'status=NOT_PASS' in rendered
+    assert 'reason=runtime-missing' in rendered
+    assert 'Restore the missing runtime' in rendered
 
 
-@pytest.mark.contract_case('J1-040-008')
-def test_summary_keeps_run_identity_and_freshness_metadata() -> None:
-    started = '2026-01-01T00:00:00Z'
-    repo_root = Path(__file__).resolve().parents[2]
+def test_blocked_report_tells_owner_to_fix_repository(tmp_path: Path) -> None:
+    rendered = format_quality_report(
+        {
+            'status': NOT_PASS,
+            'mode': 'incremental',
+            'gateResults': {'lint': BLOCKED},
+            'gateDetails': [
+                {
+                    'name': 'lint',
+                    'status': BLOCKED,
+                    'command': ['ruff', 'check'],
+                    'output': 'lint finding',
+                }
+            ],
+        },
+        tmp_path / 'summary.json',
+    )
+    assert 'Fix the repository issue' in rendered
+
+
+def test_missing_summary_status_stays_external_not_pass(tmp_path: Path) -> None:
+    rendered = format_quality_report(
+        {'mode': 'incremental', 'gateResults': {}}, tmp_path / 'summary.json'
+    )
+    assert 'status=NOT_PASS' in rendered
+
+
+@pytest.mark.contract_case('HOOK-HARNESS-007')
+def test_pass_report_is_one_line(tmp_path: Path) -> None:
     summary = build_summary(
-        'java-src',
-        'test-change',
-        started,
-        [GateDetail(name='javaCheck', status=PASS)],
-        repo_root=repo_root,
-    )
-
-    assert summary.runId == f'test-change-java-src-{started}'
-    assert summary.generatedAt == started
-    assert summary.freshness == '0s'
-    assert len(summary.baseCommit) >= 7
-
-
-@pytest.mark.contract_case('J1-040-009')
-def test_artifact_freshness_rejects_missing_and_stale_files(tmp_path: Path) -> None:
-    artifact = tmp_path / 'summary.json'
-    assert is_artifact_fresh(str(artifact)) is False
-
-    artifact.write_text('{}', encoding='utf-8')
-    assert is_artifact_fresh(str(artifact), max_age_seconds=60) is True
-
-    old_time = time.time() - 7200
-    os.utime(artifact, (old_time, old_time))
-    assert is_artifact_fresh(str(artifact), max_age_seconds=3600) is False
-
-
-@pytest.mark.contract_case('JR-020-006')
-def test_report_hash_is_present_and_changes_with_content(tmp_path: Path) -> None:
-    first = build_summary(
-        'java-src',
-        'test-a',
+        'incremental',
+        'change',
         '2026-01-01T00:00:00Z',
-        [GateDetail(name='a', status=PASS)],
+        [GateDetail(name='check', status=PASS)],
     )
-    first_path = write_quality_summary(tmp_path, first)
-    first_hash = json.loads(first_path.read_text(encoding='utf-8'))['reportHash']
-
-    second = build_summary(
-        'java-src',
-        'test-b',
-        '2026-01-01T00:00:00Z',
-        [GateDetail(name='b', status=PASS)],
-    )
-    second_path = write_quality_summary(tmp_path, second)
-    second_hash = json.loads(second_path.read_text(encoding='utf-8'))['reportHash']
-
-    assert len(first_hash) == len(second_hash) == 12
-    assert first_hash != second_hash
+    path = write_quality_summary(tmp_path, summary)
+    assert '\n' not in format_quality_report(summary, path)

@@ -1,6 +1,8 @@
-"""把 changed files 确定性转换为不可变 Gate plan，不执行任何命令。
+"""按 Gate Trigger 或人工 selector 生成稳定计划。
 
-不负责产品业务处理；由 Gate CLI 或 Stop pipeline 调用。"""
+本模块负责为 CLI 和 Executor 冻结有序 Gate 列表，不负责加载配置或执行命令；自动增量选择
+只读取每个 Gate 自己的 Trigger，人工 Target 仅作为显式预设使用。
+"""
 
 from __future__ import annotations
 
@@ -12,10 +14,9 @@ from scripts.gates.catalog import (
     GATES,
     gate_by_name,
     target_by_name,
-    tier_by_name,
     validate_catalog_schema,
 )
-from scripts.gates.model import FileClassification, GatePlan, TargetGatePlan
+from scripts.gates.model import ExecutionMode, FileClassification, GatePlan, GateSpec, TriggerMode
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -23,6 +24,7 @@ if TYPE_CHECKING:
 
 def normalize_repo_path(path: str) -> str:
     """规范化 repository-relative path，兼容 Windows 分隔符与 ``./`` 前缀。"""
+
     value = path.replace('\\', '/')
     while value.startswith('./'):
         value = value[2:]
@@ -30,7 +32,8 @@ def normalize_repo_path(path: str) -> str:
 
 
 def pattern_matches(path: str, pattern: str) -> bool:
-    """按历史 Gate glob 语义匹配路径，保证迁移前后触发结果一致。"""
+    """使用唯一的跨平台 glob 语义匹配一个 repository-relative path。"""
+
     normalized_path = normalize_repo_path(path)
     normalized_pattern = normalize_repo_path(pattern)
     regex = re.escape(normalized_pattern)
@@ -39,170 +42,78 @@ def pattern_matches(path: str, pattern: str) -> bool:
     regex = regex.replace(r'\?', '.')
     regex = regex.replace('\x00/', '(?:.+/)?')
     regex = regex.replace('\x00', '.*')
-    return bool(re.match(f'^{regex}$', normalized_path))
+    return bool(re.fullmatch(regex, normalized_path))
 
 
 def classify_path(path: str) -> FileClassification:
-    """按 catalog 的首个命中规则分类单个 path，未知路径保持历史默认允许语义。"""
+    """按首个命中规则分类路径，但不再由分类派生 Target。"""
+
     normalized = normalize_repo_path(path)
     for rule in CATALOG.path_rules:
         if any(pattern_matches(normalized, pattern) for pattern in rule.patterns):
-            return FileClassification(
-                file=normalized,
-                category=rule.category,
-                targets=rule.targets,
-                risk_level=rule.risk_level,
-                allowed=rule.allowed,
-            )
-    return FileClassification(
-        file=normalized,
-        category='unknown',
-        targets=(),
-        risk_level='low',
-        allowed=True,
-    )
+            return FileClassification(normalized, rule.category, rule.risk_level, rule.allowed)
+    return FileClassification(normalized, 'unknown', 'low', True)
 
 
 def classify_files(paths: Iterable[str]) -> tuple[FileClassification, ...]:
-    """保持输入顺序分类一组 path，并返回不可变结果。"""
+    """保持输入顺序返回路径治理分类。"""
+
     return tuple(classify_path(path) for path in paths)
 
 
-def required_quality_targets(files: Iterable[str]) -> list[str]:
-    """由分类规则与 scan smoke 附加规则派生历史 raw target 顺序。"""
-    normalized_files = [normalize_repo_path(path) for path in files]
-    targets: list[str] = []
-    for classification in classify_files(normalized_files):
-        for target in classification.targets:
-            if target not in targets:
-                targets.append(target)
-    for trigger in CATALOG.target_triggers:
-        if (
-            any(
-                pattern_matches(path, pattern)
-                for path in normalized_files
-                for pattern in trigger.patterns
-            )
-            and trigger.target not in targets
-        ):
-            targets.append(trigger.target)
-    return targets
+def gate_matches(gate: GateSpec, changed_files: Iterable[str]) -> bool:
+    """判断 Gate 是否被自动 incremental 规划选中。"""
 
-
-def effective_targets(targets: Iterable[str]) -> list[str]:
-    """应用 catalog dominance，保持历史顺序并移除已被 dominant target 覆盖的 target。"""
-    source = list(targets)
-    result = list(source)
-    for name in source:
-        target = target_by_name(name)
-        for included in target.includes:
-            if included in result:
-                result.remove(included)
-    return result
-
-
-def required_gates_for_target(target: str) -> list[str]:
-    """按 catalog 的 target 内 order 返回全量 baseline Gate 名称。"""
-    target_by_name(target)
-    rules = sorted(
-        (
-            (rule.order, gate.name)
-            for gate in GATES
-            for rule in gate.target_rules
-            if rule.target == target
-        ),
-        key=lambda item: item[0],
+    if gate.trigger.mode is TriggerMode.ALWAYS:
+        return True
+    return any(
+        pattern_matches(path, pattern) for path in changed_files for pattern in gate.trigger.paths
     )
-    return [name for _, name in rules]
 
 
-def applicable_gates_for_target(
-    target: str, changed_files: Iterable[str] | None = None
-) -> list[str]:
-    """按增量 pattern 选择 applicable Gate；``None`` 表示完整 baseline。"""
-    baseline = required_gates_for_target(target)
-    if changed_files is None:
-        return baseline
-    normalized_files = tuple(normalize_repo_path(path) for path in changed_files)
-    applicable: list[str] = []
-    for gate_name in baseline:
-        gate = gate_by_name(gate_name)
-        rule = next(rule for rule in gate.target_rules if rule.target == target)
-        if not rule.patterns or any(
-            pattern_matches(path, pattern) for path in normalized_files for pattern in rule.patterns
-        ):
-            applicable.append(gate_name)
-    return applicable
+def gates_for_target(target: str) -> tuple[GateSpec, ...]:
+    """按 Catalog 声明顺序返回一个人工 Target preset 的成员。"""
 
-
-def validate_target(target: str) -> None:
-    """验证 target 已注册；未知 target 抛出 ``ValueError``。"""
     target_by_name(target)
-
-
-def gates_for_tier(tier: str) -> frozenset[str]:
-    """按 minimum tier 返回该档位的逻辑 Gate 集合。"""
-    tier_by_name(tier)
-    rank = {'quick': 0, 'required': 1, 'full': 2}
-    names = tuple(gate.name for gate in GATES if rank[gate.minimum_tier.value] <= rank[tier])
-    return frozenset(names)
-
-
-def tier_metadata() -> dict[str, dict[str, str]]:
-    """从 catalog 派生 tier 描述与失败策略。"""
-    return {
-        'quick': {
-            'description': '本地开发默认快速反馈，只运行轻量级 Gate 子集。',
-            'failure_policy': 'triggered Gate 必须 PASS；not triggered 不算 skipped。',
-        },
-        'required': {
-            'description': 'PR 合入和 Stop/handoff 前必须通过。',
-            'failure_policy': '0 skipped outcome；skipped 即 FAIL/BLOCKED。',
-        },
-        'full': {
-            'description': '发布或大迁移收口前运行，包含全部 target 和额外验证。',
-            'failure_policy': '0 skipped outcome；skipped 即 FAIL/BLOCKED。',
-        },
-    }
+    members = tuple(gate for gate in GATES if target in gate.targets)
+    if not members:
+        raise ValueError(f'quality Target selects no Gate: {target}')
+    return members
 
 
 def plan(
-    changed_files: Iterable[str],
-    targets: Iterable[str] | None = None,
+    changed_files: Iterable[str] = (),
     *,
-    tier: str = 'required',
-    incremental: bool = True,
+    mode: ExecutionMode | str = ExecutionMode.INCREMENTAL,
+    target: str | None = None,
+    gate: str | None = None,
 ) -> GatePlan:
-    """冻结 classification、raw/effective target 与 applicable Gate 的完整计划。"""
+    """按 mode×selector 矩阵冻结计划；Target 永不参与自动选择。"""
+
+    if target is not None and gate is not None:
+        raise ValueError('target and gate selectors are mutually exclusive')
+    selected_mode = ExecutionMode(mode)
     files = tuple(normalize_repo_path(path) for path in changed_files)
-    classifications = classify_files(files)
-    raw = tuple(required_quality_targets(files) if targets is None else targets)
-    effective = tuple(effective_targets(raw))
-    allowed_gates = gates_for_tier(tier)
-    target_plans = tuple(
-        TargetGatePlan(
-            target=target,
-            gates=tuple(
-                gate_by_name(name)
-                for name in (
-                    applicable_gates_for_target(target, files)
-                    if incremental
-                    else required_gates_for_target(target)
-                )
-                if name in allowed_gates
-            ),
-        )
-        for target in effective
-    )
-    return GatePlan(
-        changed_files=files,
-        classifications=classifications,
-        raw_targets=raw,
-        effective_targets=effective,
-        targets=target_plans,
-    )
+    if selected_mode is ExecutionMode.FULL and files:
+        raise ValueError('full mode does not accept changed files')
+
+    selector: str | None = None
+    selector_value: str | None = None
+    if gate is not None:
+        selected = (gate_by_name(gate),)
+        selector, selector_value = 'gate', gate
+    elif target is not None:
+        selected = gates_for_target(target)
+        selector, selector_value = 'target', target
+    elif selected_mode is ExecutionMode.FULL:
+        selected = GATES
+    else:
+        selected = tuple(spec for spec in GATES if gate_matches(spec, files))
+
+    return GatePlan(selected_mode, files, selected, selector, selector_value)
 
 
 def validate_catalog() -> None:
-    """校验当前唯一 catalog 声明。"""
+    """校验当前唯一 Catalog 声明。"""
+
     validate_catalog_schema(CATALOG)

@@ -36,4 +36,5 @@
 - `./scripts/session-browser.sh test`
 - `./gradlew check`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot`
-- `python scripts/gates/cli.py`
+- `python3 scripts/gates/cli.py --mode incremental`（普通提交或交接）
+- `python3 scripts/gates/cli.py --mode full`（仅发布、周期审计或大迁移）

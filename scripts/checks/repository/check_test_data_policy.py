@@ -204,4 +204,14 @@ def check(arguments: list[str]) -> CheckResult:
     parser = argument_parser(description='检查测试数据可复现性与隐私边界')
     parser.add_argument('--repo-root', default=str(ROOT), help='Repository root')
     args = parser.parse_args(arguments)
-    return CheckResult.from_errors(_validate_test_data_policy(Path(args.repo_root).resolve()))
+    try:
+        errors = _validate_test_data_policy(Path(args.repo_root).resolve())
+    except (OSError, UnicodeError) as exc:
+        return CheckResult.execution_failure(
+            [f'无法完整读取测试数据检查输入: {exc}'], reason='input-unavailable'
+        )
+    if 'git-tracked-files-unavailable' in errors:
+        return CheckResult.execution_failure(errors, reason='dependency-unavailable')
+    if any(error.endswith('unreadable-test-data') for error in errors):
+        return CheckResult.execution_failure(errors, reason='input-unavailable')
+    return CheckResult.from_errors(errors)

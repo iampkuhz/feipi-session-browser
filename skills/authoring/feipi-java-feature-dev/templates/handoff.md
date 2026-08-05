@@ -15,7 +15,7 @@
 - 不改 Java 产品代码中本任务无关的模块。
 - 不改 hooks、quality gate 脚本。
 - 不改真实 session 数据、缓存、密钥、token、个人配置。
-- 不删 required gates。
+- 不删除任务范围外的 Gate。
 - 不新增 skip。
 
 ## Required reading
@@ -35,8 +35,10 @@
 
 ```bash
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot
-python scripts/gates/cli.py
+python3 scripts/gates/cli.py --mode incremental
 ```
+
+`--mode full` 仅用于发布、周期审计或大迁移，不作为普通提交或交接的默认模式。
 
 ## Expected output
 

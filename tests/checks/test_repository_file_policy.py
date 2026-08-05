@@ -6,6 +6,7 @@ import subprocess
 from pathlib import Path
 
 import yaml
+from scripts.checks._framework import CheckStatus
 from scripts.checks.repository import check_repository_file_policy as policy
 
 
@@ -80,6 +81,18 @@ def test_invalid_manifest_fails_closed(tmp_path: Path):
     assert not result.passed
     assert 'configuration' not in result.diagnostics[0].message.lower()
     assert 'must be a non-empty list' in result.diagnostics[0].message
+
+
+def test_missing_required_manifest_is_blocked(tmp_path: Path):
+    """必需政策文件缺失是明确仓库违规，而不是 Gate 执行失败。"""
+    root = tmp_path / 'repo'
+    _init_repo(root)
+    (root / policy.MANIFEST_RELATIVE_PATH).unlink()
+
+    result = policy.check(['--root', str(root)])
+
+    assert result.status is CheckStatus.BLOCKED
+    assert 'manifest is missing' in result.diagnostics[0].message
 
 
 def test_staged_ignored_file_fails(tmp_path: Path):

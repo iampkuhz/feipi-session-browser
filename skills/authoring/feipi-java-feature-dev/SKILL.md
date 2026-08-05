@@ -60,19 +60,20 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 ## 验证门禁
 
-以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
+以下门禁不是每次都全部运行；被选中的 Gate 必须完整执行并给出明确结论：
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
 - `./gradlew check` — 模块边界、package 归属、forbidden import。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot` — API snapshot 一致性。
-- `python scripts/gates/cli.py` — 全量 required quality gates。
+- `python3 scripts/gates/cli.py --mode incremental` — 根据当前改动自动选择并运行相关 Gate。
 
 选择策略：
 
 - 只改 Java 源码 → 至少运行 `test` + `Gradle check`。
 - 改 API 签名 → 追加 Java `java-api-snapshot` rule。
 - 改构建配置或模块依赖 → 必须运行 `./gradlew check`。
-- 收口前 → 运行 `python scripts/gates/cli.py`。
+- 普通提交或交接收口前 → 运行 `python3 scripts/gates/cli.py --mode incremental`。
+- 发布、周期审计或大迁移 → 运行 `python3 scripts/gates/cli.py --mode full`。
 
 ## 输出格式
 

@@ -14,13 +14,13 @@
 - 可选参数：变更 ID（change id）。
 - 如无参数，读取 `ACTIVE_CHANGE_ID` 环境变量或 `tmp/active_change.json` 文件。
 - 读取 `tmp/quality/<change-id>/quality-gate-summary.session-detail.json`。
-- 读取 `blockingFailures` / `artifacts` 中引用的每个失败门禁产物。
+- 读取 `notPassReasons` / `artifacts` 中引用的每个未通过 Gate 产物。
 
 ## 步骤
 
 1. **读取质量门禁摘要** `tmp/quality/<change-id>/quality-gate-summary.session-detail.json`。
    - 确认哪些门禁失败了（`staticCssContract`、`webResourceTests`、`templateContract`、`browserLayout`）。
-   - 读取 `blockingFailures` 获取失败代码和信息。
+   - 读取 `notPassReasons` 获取失败代码和信息。
 
 2. **读取具体门禁结果 JSON**。
    - `staticCssContract`：读取 Java `static-resource-contract` rule 的输出。

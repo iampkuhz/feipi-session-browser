@@ -47,11 +47,14 @@ def _normalize_repo_path(value: str) -> str:
 
 
 def _manifest_roots(root: Path = ROOT) -> list[str]:
-    """读取并规范化 protected_roots；解析失败返回空列表交由调用方关闭式失败。"""
+    """读取并规范化 protected_roots；YAML 内容错误返回空列表交由调用方阻断。"""
     path = root / 'harness' / 'agent-policy.manifest.yaml'
     try:
         data = yaml.safe_load(path.read_text(encoding='utf-8'))
-    except (OSError, yaml.YAMLError):
+    except FileNotFoundError:
+        # 必需政策文件缺失时返回空模型，交由领域规则形成 BLOCKED 结论。
+        return []
+    except yaml.YAMLError:
         return []
     values = data.get('protected_roots', []) if isinstance(data, dict) else []
     result: list[str] = []
@@ -79,8 +82,8 @@ def _check_agents_doc_covers_required_roots(root: Path = ROOT) -> list[str]:
     """检查 AGENTS.md 是否继续声明产品、测试及治理目录的完整保护范围。"""
     try:
         text = (root / 'AGENTS.md').read_text(encoding='utf-8')
-    except OSError as exc:
-        return [f'无法读取 AGENTS.md: {exc}']
+    except FileNotFoundError:
+        return ['AGENTS.md 不存在']
     return [
         f'AGENTS.md 缺少 protected_root: {required}'
         for required in DOCUMENTED_REQUIRED_ROOTS
@@ -92,7 +95,12 @@ def check(arguments: list[str]) -> CheckResult:
     """解析参数并返回受保护路径交叉检查结果。"""
     parser = argument_parser(description='检查 Agent policy 受保护路径')
     parser.parse_args(arguments)
-    roots = _manifest_roots(ROOT)
-    errors = _check_required_manifest_roots(roots)
-    errors.extend(_check_agents_doc_covers_required_roots(ROOT))
+    try:
+        roots = _manifest_roots(ROOT)
+        errors = _check_required_manifest_roots(roots)
+        errors.extend(_check_agents_doc_covers_required_roots(ROOT))
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'治理文件读取失败: {exc}'], reason='input-unavailable'
+        )
     return CheckResult.from_errors(errors)

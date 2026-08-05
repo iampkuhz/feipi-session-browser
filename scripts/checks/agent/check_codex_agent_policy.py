@@ -38,10 +38,10 @@ SKILL_CONTRACT_HEADINGS = ('## 验证门禁', '## 输出格式')
 
 
 def _load(path: Path) -> dict:
-    """解析 Agent TOML；读取或语法错误统一转为带相对路径的 ValueError。"""
+    """解析 Agent TOML；仅语法错误转为领域违规，读取异常保留给公开入口。"""
     try:
         return tomllib.loads(path.read_text(encoding='utf-8'))
-    except Exception as exc:
+    except tomllib.TOMLDecodeError as exc:
         raise ValueError(f'{path.relative_to(REPO_ROOT)}: TOML 解析失败: {exc}') from exc
 
 
@@ -49,7 +49,7 @@ def _domain_skill(path: Path) -> str | None:
     """返回 manifest 为当前 Codex 领域 Agent 指定的共享 Skill。"""
     try:
         data = yaml.safe_load(RUNTIME_MANIFEST.read_text(encoding='utf-8'))
-    except (OSError, yaml.YAMLError) as exc:
+    except yaml.YAMLError as exc:
         raise ValueError(
             f'{RUNTIME_MANIFEST.relative_to(REPO_ROOT)}: YAML 解析失败: {exc}'
         ) from exc
@@ -166,4 +166,9 @@ def check(arguments: list[str]) -> CheckResult:
         _self_test()
         return CheckResult()
 
-    return CheckResult.from_errors(_run_check())
+    try:
+        return CheckResult.from_errors(_run_check())
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'Agent policy 关联文件读取失败: {exc}'], reason='input-unavailable'
+        )

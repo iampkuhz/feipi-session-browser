@@ -231,7 +231,9 @@ def test_public_check_fails_closed_for_invalid_policy(tmp_path: Path, policy_sta
     result = checker.check(['--policy', str(policy)])
 
     assert not result.passed
-    assert 'POLICY_INVALID' in result.diagnostics[0].message
+    expected = 'POLICY_UNAVAILABLE' if policy_state == 'missing' else 'POLICY_INVALID'
+    assert expected in result.diagnostics[0].message
+    assert result.status.value == ('FAIL' if policy_state == 'missing' else 'BLOCKED')
 
 
 @pytest.mark.parametrize(

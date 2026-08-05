@@ -132,6 +132,11 @@ def check(arguments: list[str]) -> CheckResult:
     args = parser.parse_args(arguments)
     try:
         errors = _check_repository(Path(args.root).resolve())
-    except (OSError, ValueError, yaml.YAMLError) as exc:
-        return CheckResult.from_errors([f'[dead-command-reference] FAIL: {exc}'])
-    return CheckResult.from_errors(f'[dead-command-reference] FAIL: {error}' for error in errors)
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'[dead-command-reference] 无法读取检查输入: {exc}'],
+            reason='input-unavailable',
+        )
+    except (ValueError, yaml.YAMLError) as exc:
+        return CheckResult.from_errors([f'[dead-command-reference] manifest 违规: {exc}'])
+    return CheckResult.from_errors(f'[dead-command-reference] {error}' for error in errors)

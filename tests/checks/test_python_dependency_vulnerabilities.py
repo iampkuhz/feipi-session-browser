@@ -41,6 +41,8 @@ def test_dependency_vulnerability_check_fails_closed_when_uv_is_missing(
     result = audit.check(['--root', str(tmp_path)])
 
     assert not result.passed
+    assert result.status.value == 'FAIL'
+    assert result.reason == 'runtime-missing'
     assert 'command not found' in result.diagnostics[0].message
 
 
@@ -58,7 +60,9 @@ def test_dependency_vulnerability_check_stops_when_export_fails(monkeypatch, tmp
     result = audit.check(['--root', str(tmp_path)])
 
     assert not result.passed
-    assert 'uv export FAIL' in result.diagnostics[0].message
+    assert 'uv export' in result.diagnostics[0].message
+    assert result.status.value == 'FAIL'
+    assert result.reason == 'dependency-unavailable'
     assert 'lock export failed' in result.diagnostics[0].message
     assert calls == 1
 
@@ -76,7 +80,8 @@ def test_dependency_vulnerability_check_reports_audit_vulnerability(monkeypatch,
     result = audit.check(['--root', str(tmp_path)])
 
     assert not result.passed
-    assert 'pip-audit FAIL' in result.diagnostics[0].message
+    assert 'pip-audit' in result.diagnostics[0].message
+    assert result.status.value == 'BLOCKED'
     assert 'GHSA-example' in result.diagnostics[0].message
 
 
@@ -93,6 +98,8 @@ def test_dependency_vulnerability_check_preserves_network_error(monkeypatch, tmp
     result = audit.check(['--root', str(tmp_path)])
 
     assert not result.passed
+    assert result.status.value == 'FAIL'
+    assert result.reason == 'network-unavailable'
     assert 'requests.exceptions.SSLError' in result.diagnostics[0].message
 
 

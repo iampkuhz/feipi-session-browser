@@ -35,7 +35,7 @@
 按需追加：
 
 ```bash
-python3 scripts/gates/cli.py --tier required
+python3 scripts/gates/cli.py --mode incremental
 ```
 
 ## Expected output

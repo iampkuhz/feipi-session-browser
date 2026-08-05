@@ -14,18 +14,17 @@ ROOT = repository_root()
 SETTINGS_JSON = ROOT / '.claude' / 'settings.json'
 
 
-def _check_permission_policy() -> list[str]:
-    """检查静态敏感路径与破坏性命令 deny 规则；配置缺失或无效时关闭式失败。"""
-    settings_path = SETTINGS_JSON
-    if not settings_path.is_file():
-        return [f'文件不存在: {settings_path.relative_to(ROOT)}']
-    try:
-        settings = json.loads(settings_path.read_text(encoding='utf-8'))
-    except (json.JSONDecodeError, OSError) as exc:
-        return [f'.claude/settings.json 解析失败: {exc}']
-
+def _check_permission_policy(settings: object) -> list[str]:
+    """检查静态敏感路径与破坏性命令 deny 规则；配置结构错误属于领域违规。"""
+    if not isinstance(settings, dict):
+        return ['.claude/settings.json 顶层必须是 object']
     permissions = settings.get('permissions', {})
-    deny = [str(item) for item in permissions.get('deny', [])]
+    if not isinstance(permissions, dict):
+        return ['.claude/settings.json permissions 必须是 object']
+    raw_deny = permissions.get('deny', [])
+    if not isinstance(raw_deny, list):
+        return ['.claude/settings.json permissions.deny 必须是 array']
+    deny = [str(item) for item in raw_deny]
     errors: list[str] = []
     for required in ('.env', '.mcp.json', '~/.ssh/**', '~/.aws/**', '~/.config/gh/hosts.yml'):
         if not any(required in item for item in deny):
@@ -41,4 +40,14 @@ def check(arguments: list[str]) -> CheckResult:
     """解析参数并返回 Claude permission policy 检查结果。"""
     parser = argument_parser(description='检查 Claude permission deny 规则')
     parser.parse_args(arguments)
-    return CheckResult.from_errors(_check_permission_policy())
+    if not SETTINGS_JSON.is_file():
+        return CheckResult.from_errors([f'文件不存在: {SETTINGS_JSON.relative_to(ROOT)}'])
+    try:
+        settings = json.loads(SETTINGS_JSON.read_text(encoding='utf-8'))
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'.claude/settings.json 读取失败: {exc}'], reason='input-unavailable'
+        )
+    except json.JSONDecodeError as exc:
+        return CheckResult.from_errors([f'.claude/settings.json JSON 内容无效: {exc}'])
+    return CheckResult.from_errors(_check_permission_policy(settings))

@@ -248,7 +248,7 @@ def _quality_env(tmp_path: Path) -> dict[str, str]:
     return {**os.environ, 'PATH': f'{fake_bin}{os.pathsep}{os.environ.get("PATH", "")}'}
 
 
-def test_quality_defaults_to_required_gate(tmp_path: Path) -> None:
+def test_quality_defaults_to_incremental_gate(tmp_path: Path) -> None:
     _, script = _create_fake_project(tmp_path)
 
     result = _run_shell(script, 'quality', cwd=tmp_path, env=_quality_env(tmp_path))
@@ -256,8 +256,8 @@ def test_quality_defaults_to_required_gate(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         'PY_ARG=<scripts/gates/cli.py>',
-        'PY_ARG=<--tier>',
-        'PY_ARG=<required>',
+        'PY_ARG=<--mode>',
+        'PY_ARG=<incremental>',
     ]
 
 
@@ -267,7 +267,7 @@ def test_quality_forwards_explicit_gate_arguments(tmp_path: Path) -> None:
     result = _run_shell(
         script,
         'quality',
-        '--tier',
+        '--mode',
         'full',
         '--changed-file',
         'path with spaces.java',
@@ -278,7 +278,7 @@ def test_quality_forwards_explicit_gate_arguments(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         'PY_ARG=<scripts/gates/cli.py>',
-        'PY_ARG=<--tier>',
+        'PY_ARG=<--mode>',
         'PY_ARG=<full>',
         'PY_ARG=<--changed-file>',
         'PY_ARG=<path with spaces.java>',

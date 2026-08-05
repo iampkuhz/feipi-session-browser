@@ -35,7 +35,7 @@
 # 运行 required baseline
 python3 -m scripts.checks agent.skill-registry
 bash scripts/harness/doctor.sh
-python3 scripts/gates/cli.py --tier required
+python3 scripts/gates/cli.py --mode incremental
 ```
 
 ## Expected output

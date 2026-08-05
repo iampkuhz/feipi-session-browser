@@ -12,15 +12,15 @@
 
 ## 人类阅读路线
 
-1. **日常开发与验证：** 先读 `scripts/README.md`，只记产品入口和 required Gate。
-2. **定位一个失败 Gate：** 先查 [`config/gates/README.md`](../config/gates/README.md) 的 42 Gate 使用手册，
+1. **日常开发与验证：** 先读 `scripts/README.md`，只记产品入口和 incremental/full Gate。
+2. **定位一个失败 Gate：** 先查 [`config/gates/README.md`](../config/gates/README.md) 的 41 Gate 使用手册，
    再打开对应领域 YAML，按 typed run 路由到 Java rule、Python check、Gradle task、tool 或固定 suite；
    实现入口与 `gradle`/`process` 执行通道必须分开，详细定位见 [`scripts/gates/README.md`](../scripts/gates/README.md)。
 3. **修改 Agent/Harness 约束：** 先读本目录对应 manifest，再按 `skill-registry.yaml` 进入唯一 skill
    真源；不要从客户端目录反向推断共享规则。
 
 本目录不保存 Gate matrix，也不保存运行状态、历史结果或当前 Session 进度。Gate 执行清单从
-`config/gates.yaml` 根索引、领域分片与 CLI 派生；target 是 changed path 激活的可多选验证场景，
-选择顺序为 path rule targets、Gate target rule/order/pattern、tier、plan。人类精简目录位于
+`config/gates.yaml` 根索引、领域分片与 CLI 派生：incremental 由 changed path 直接匹配每个 Gate 的
+Trigger，full 选择全部 Gate；Target 只供维护者显式选择一组 Gate，不参与自动规划。人类精简目录位于
 [`config/gates/README.md`](../config/gates/README.md)，单次运行
 证据由 Gate artifact 所有。

@@ -21,7 +21,7 @@ def test_subagent_protocol_checker_passes():
         check=False,
     )
     assert result.returncode == 0, result.stdout
-    assert "[agent.subagent-handoff] PASS" in result.stdout
+    assert "GATE_RESULT status=PASS check=agent.subagent-handoff" in result.stdout
 
 
 def test_required_handoff_fields_are_declared_for_all_platforms():

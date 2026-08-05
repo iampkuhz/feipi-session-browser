@@ -1,7 +1,8 @@
-"""负责从根索引和显式分片加载并校验 Gate catalog。
+"""严格加载当前唯一的双模式 Gate Catalog。
 
-本模块只把 YAML 转为严格的领域模型，不负责选择或执行 Gate；planner 和 executor 通过这里
-暴露的查询入口读取已验证配置。
+Catalog 只接受 OpenSpec 定义的当前格式。旧 tier、默认值、Target rule 与其他未知字段会直接
+导致整个 Catalog 加载失败，不提供兼容解析路径。本模块不负责选择或执行 Gate；Planner
+与 Executor 分别调用这里暴露的只读声明完成后续工作。
 """
 
 from __future__ import annotations
@@ -12,36 +13,41 @@ from typing import Any
 
 import yaml
 from scripts.gates.model import (
-    ChangedFilesInput,
     GateCatalog,
-    GateDefaults,
     GateSpec,
-    GateTargetRule,
-    MinimumTier,
-    OptionalCommandArgs,
+    GateTrigger,
     PathRule,
     RunKind,
+    RunProfile,
     RunSpec,
     TargetSpec,
-    TargetTrigger,
+    TriggerMode,
 )
 
 _CATALOG_PATH = Path(__file__).resolve().parents[2] / 'config' / 'gates.yaml'
-_ROOT_KEYS = {
-    'gate_defaults',
-    'targets',
-    'gate_files',
-    'path_rules',
-    'target_triggers',
-}
-_DEFAULT_KEYS = {'minimum_tier', 'timeout', 'changed_files', 'network_failure'}
+_ROOT_KEYS = {'targets', 'gate_files', 'path_rules'}
 _FRAGMENT_NAME = re.compile(r'[a-z0-9]+(?:-[a-z0-9]+)*\.yaml')
-_TIERS = ('quick', 'required', 'full')
+_IDENTIFIER = re.compile(r'[a-z][A-Za-z0-9]*')
+_TARGET_IDENTIFIER = re.compile(r'[a-z][a-z0-9]*(?:-[a-z0-9]+)*')
+_CHECK_IDENTIFIER = re.compile(r'[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*')
+_CHINESE_CHARACTER = re.compile(r'[\u4e00-\u9fff]')
+_COMMON_PROFILE_KEYS = {'target_seconds', 'timeout_seconds'}
+_PROFILE_FIELDS: dict[RunKind, tuple[set[str], set[str]]] = {
+    RunKind.COMMAND: ({'argv'}, {'required_paths', 'append_globs'}),
+    RunKind.PYTHON_CHECK: ({'id'}, {'runtime', 'args'}),
+    RunKind.GRADLE_TASK: ({'tasks'}, {'args'}),
+    RunKind.JAVA_RULE: ({'rules'}, set()),
+    RunKind.PLAYWRIGHT: ({'tests'}, {'args'}),
+    RunKind.SCAN_SMOKE: ({'tests', 'prerequisite_tasks'}, {'args'}),
+}
 
 
 class _UniqueKeyLoader(yaml.SafeLoader):
+    """拒绝 YAML 重复键和 merge key，避免配置被静默覆盖。"""
+
     def construct_mapping(self, node: yaml.MappingNode, deep: bool = False) -> dict[Any, Any]:
-        """构造无重复键的映射；遇到合并键或重复键立即拒绝配置。"""
+        """构造单个 YAML 映射，并在重复键或合并键出现时立即拒绝配置。"""
+
         result: dict[Any, Any] = {}
         for key_node, value_node in node.value:
             if key_node.tag == 'tag:yaml.org,2002:merge':
@@ -55,8 +61,7 @@ class _UniqueKeyLoader(yaml.SafeLoader):
         return result
 
 
-# SafeLoader 默认采用 YAML 1.1：yes/on 会变成 bool，012/0x10 会变成 int。
-# Catalog 只接受容易人工识别的 YAML 1.2 子集，错误词法会保留为 str，再由 exact-type 校验拒绝。
+# 只接受容易人工识别的 YAML 1.2 bool/int 词法，避免 yes、012 等值被隐式改型。
 _UniqueKeyLoader.yaml_implicit_resolvers = {
     first: [
         resolver
@@ -76,7 +81,9 @@ _UniqueKeyLoader.add_implicit_resolver(
 def _load_yaml(path: Path) -> Any:
     try:
         source = path.read_text(encoding='utf-8')
-        if any(isinstance(t, (yaml.AnchorToken, yaml.AliasToken)) for t in yaml.scan(source)):
+        if any(
+            isinstance(token, (yaml.AnchorToken, yaml.AliasToken)) for token in yaml.scan(source)
+        ):
             raise ValueError('YAML anchors and aliases are not supported')
         return yaml.load(source, Loader=_UniqueKeyLoader)
     except (OSError, TypeError, yaml.YAMLError, ValueError) as exc:
@@ -84,387 +91,354 @@ def _load_yaml(path: Path) -> Any:
 
 
 def _mapping(value: Any, label: str) -> dict[str, Any]:
-    if not isinstance(value, dict) or not all(type(k) is str for k in value):
+    if not isinstance(value, dict) or not all(type(key) is str for key in value):
         raise ValueError(f'{label} must be a mapping')
     return value
 
 
 def _items(value: Any, label: str, *, nonempty: bool = False) -> list[Any]:
-    if not isinstance(value, list):
-        raise ValueError(f'{label} must be a sequence')
-    if nonempty and not value:
-        raise ValueError(f'{label} must not be empty')
+    if not isinstance(value, list) or (nonempty and not value):
+        suffix = ' a non-empty sequence' if nonempty else ' a sequence'
+        raise ValueError(f'{label} must be{suffix}')
     return value
 
 
 def _string(value: Any, label: str) -> str:
-    if type(value) is not str or not value:
-        raise ValueError(f'{label} must be a non-empty string')
+    if type(value) is not str or not value or value != value.strip() or '\n' in value:
+        raise ValueError(f'{label} must be a non-empty single-line string')
     return value
 
 
-def _strings(value: Any, label: str, *, nonempty: bool = False) -> tuple[str, ...]:
-    values = _items(value, label, nonempty=nonempty)
-    if not all(type(item) is str and item for item in values):
-        raise ValueError(f'{label} must contain non-empty strings')
-    return tuple(values)
+def _identifier(value: Any, label: str, pattern: re.Pattern[str]) -> str:
+    result = _string(value, label)
+    if not pattern.fullmatch(result):
+        raise ValueError(f'{label} has invalid identifier: {result}')
+    return result
 
 
-def _boolean(value: Any, label: str) -> bool:
-    if type(value) is not bool:
-        raise ValueError(f'{label} must be a boolean')
-    return value
+def _description(value: Any, label: str) -> str:
+    """读取便于中文维护者理解的单句说明。"""
 
-
-def _integer(value: Any, label: str, *, positive: bool = False) -> int:
-    if type(value) is not int or (positive and value <= 0) or (not positive and value < 0):
-        qualifier = 'positive' if positive else 'non-negative'
-        raise ValueError(f'{label} must be a {qualifier} integer')
-    return value
-
-
-def _exact_keys(row: dict[str, Any], required: set[str], optional: set[str], label: str) -> None:
-    actual = set(row)
-    missing = sorted(required - actual)
-    unexpected = sorted(actual - required - optional)
-    if missing or unexpected:
-        raise ValueError(f'{label} keys are invalid: missing={missing}, unexpected={unexpected}')
+    result = _string(value, label)
+    if not result.endswith('。') or not _CHINESE_CHARACTER.search(result):
+        raise ValueError(f'{label} must be one Chinese sentence ending with 。')
+    return result
 
 
 def _enum(value: Any, allowed: tuple[str, ...], label: str) -> str:
+    """读取一个明确枚举值，拒绝大小写或别名兼容。"""
+
     result = _string(value, label)
     if result not in allowed:
         raise ValueError(f'{label} has invalid value: {result}')
     return result
 
 
+def _strings(value: Any, label: str, *, nonempty: bool = False) -> tuple[str, ...]:
+    values = _items(value, label, nonempty=nonempty)
+    return tuple(_string(item, f'{label}[]') for item in values)
+
+
+def _positive_integer(value: Any, label: str) -> int:
+    if type(value) is not int or value <= 0:
+        raise ValueError(f'{label} must be a positive integer')
+    return value
+
+
+def _exact_keys(row: dict[str, Any], required: set[str], optional: set[str], label: str) -> None:
+    missing = sorted(required - set(row))
+    unexpected = sorted(set(row) - required - optional)
+    if missing or unexpected:
+        raise ValueError(f'{label} keys are invalid: missing={missing}, unexpected={unexpected}')
+
+
+def _repo_globs(value: Any, label: str) -> tuple[str, ...]:
+    globs = _strings(value, label, nonempty=True)
+    if len(globs) != len(set(globs)):
+        raise ValueError(f'{label} must not contain duplicates')
+    if any(
+        glob.startswith(('/', './'))
+        or '\\' in glob
+        or any(part == '..' for part in glob.split('/'))
+        for glob in globs
+    ):
+        raise ValueError(f'{label} must contain normalized repository-relative globs')
+    return globs
+
+
+def _repo_paths(value: Any, label: str) -> tuple[str, ...]:
+    """读取不含通配符的规范化仓库相对路径。"""
+
+    paths = _strings(value, label)
+    if len(paths) != len(set(paths)) or any(
+        path.startswith(('/', './'))
+        or '\\' in path
+        or any(part == '..' for part in path.split('/'))
+        or any(character in path for character in '*?[]')
+        for path in paths
+    ):
+        raise ValueError(f'{label} must contain unique normalized repository-relative paths')
+    return paths
+
+
 def _gate_file_names(value: Any) -> tuple[str, ...]:
-    """读取根索引声明的分片路径，并拒绝重复加载同一分片。"""
+    """校验并返回 Catalog 显式登记的唯一 Gate 分片路径。"""
+
     names = _strings(value, 'gate_files', nonempty=True)
     if len(names) != len(set(names)):
-        raise ValueError('gate_files must contain unique paths')
+        raise ValueError('gate_files must not contain duplicates')
+    if any(
+        len(parts := name.split('/')) != 2
+        or parts[0] != 'gates'
+        or not _FRAGMENT_NAME.fullmatch(parts[1])
+        for name in names
+    ):
+        raise ValueError('gate_files must contain canonical gates/<name>.yaml paths')
     return names
 
 
 def _gate_fragment_path(catalog_path: Path, relative: str) -> Path:
-    """把分片名限制在相邻 gates 目录，避免索引读取目录外文件。"""
-    if '\\' in relative or relative.startswith('/'):
-        raise ValueError(f'invalid gate fragment path: {relative}')
-    parts = relative.split('/')
-    if len(parts) != 2 or parts[0] != 'gates' or not _FRAGMENT_NAME.fullmatch(parts[1]):
-        raise ValueError(f'invalid gate fragment path: {relative}')
-    catalog_directory = catalog_path.parent.resolve()
-    gate_directory = (catalog_directory / 'gates').resolve()
-    candidate = catalog_path.parent / relative
+    """解析已登记分片，并阻止路径越出 Catalog 的 gates 目录。"""
+
+    gate_directory = (catalog_path.parent / 'gates').resolve()
     try:
-        resolved = candidate.resolve(strict=True)
+        resolved = (catalog_path.parent / relative).resolve(strict=True)
     except OSError as exc:
         raise ValueError(f'cannot load gate fragment {relative}: {exc}') from exc
-    if not resolved.is_relative_to(gate_directory):
+    if not resolved.is_relative_to(gate_directory) or not resolved.is_file():
         raise ValueError(f'gate fragment escapes gates directory: {relative}')
-    if not resolved.is_file():
-        raise ValueError(f'gate fragment is not a file: {relative}')
     return resolved
 
 
-def _load_gates(catalog_path: Path, names: tuple[str, ...]) -> list[Any]:
-    """按根索引顺序合并 Gate 分片，并在建模前拒绝重名声明。"""
-    gates: list[Any] = []
+def _target(raw: Any) -> TargetSpec:
+    row = _mapping(raw, 'targets[]')
+    _exact_keys(row, {'name', 'description'}, set(), 'targets[]')
+    return TargetSpec(
+        _identifier(row['name'], 'target.name', _TARGET_IDENTIFIER),
+        _description(row['description'], 'target.description'),
+    )
+
+
+def _path_rule(raw: Any) -> PathRule:
+    row = _mapping(raw, 'path_rules[]')
+    _exact_keys(row, {'category', 'patterns', 'risk'}, {'allowed'}, 'path_rules[]')
+    allowed = row.get('allowed', True)
+    if type(allowed) is not bool:
+        raise ValueError('path_rule.allowed must be a boolean')
+    return PathRule(
+        _string(row['category'], 'path_rule.category'),
+        _repo_globs(row['patterns'], 'path_rule.patterns'),
+        _enum(row['risk'], ('low', 'medium', 'high', 'local'), 'path_rule.risk'),
+        allowed,
+    )
+
+
+def _trigger(raw: Any, label: str) -> GateTrigger:
+    row = _mapping(raw, label)
+    mode = TriggerMode(_string(row.get('mode'), f'{label}.mode'))
+    if mode is TriggerMode.ALWAYS:
+        _exact_keys(row, {'mode'}, set(), label)
+        return GateTrigger(mode)
+    _exact_keys(row, {'mode', 'paths'}, set(), label)
+    return GateTrigger(mode, _repo_globs(row['paths'], f'{label}.paths'))
+
+
+def _profile_values(kind: RunKind, row: dict[str, Any], label: str) -> dict[str, Any]:
+    required, optional = _PROFILE_FIELDS[kind]
+    _exact_keys(row, _COMMON_PROFILE_KEYS | required, optional, label)
+    target_seconds = _positive_integer(row['target_seconds'], f'{label}.target_seconds')
+    timeout_seconds = _positive_integer(row['timeout_seconds'], f'{label}.timeout_seconds')
+    if timeout_seconds < target_seconds:
+        raise ValueError(f'{label}.timeout_seconds must be >= target_seconds')
+
+    values: dict[str, Any] = {
+        'target_seconds': target_seconds,
+        'timeout_seconds': timeout_seconds,
+    }
+    if kind is RunKind.COMMAND:
+        values.update(
+            argv=_strings(row['argv'], f'{label}.argv', nonempty=True),
+            required_paths=_repo_paths(row.get('required_paths', []), f'{label}.required_paths'),
+            append_globs=(
+                _repo_globs(row['append_globs'], f'{label}.append_globs')
+                if 'append_globs' in row
+                else ()
+            ),
+        )
+    elif kind is RunKind.PYTHON_CHECK:
+        values.update(
+            check_id=_identifier(row['id'], f'{label}.id', _CHECK_IDENTIFIER),
+            runtime=_string(row.get('runtime', 'system'), f'{label}.runtime'),
+            args=_strings(row.get('args', []), f'{label}.args'),
+        )
+        if values['runtime'] not in {'system', 'dev'}:
+            raise ValueError(f'{label}.runtime has invalid value: {values["runtime"]}')
+    elif kind is RunKind.GRADLE_TASK:
+        values.update(
+            tasks=_strings(row['tasks'], f'{label}.tasks', nonempty=True),
+            args=_strings(row.get('args', []), f'{label}.args'),
+        )
+    elif kind is RunKind.JAVA_RULE:
+        values['rules'] = _strings(row['rules'], f'{label}.rules', nonempty=True)
+    elif kind is RunKind.PLAYWRIGHT:
+        values.update(
+            tests=_strings(row['tests'], f'{label}.tests', nonempty=True),
+            args=_strings(row.get('args', []), f'{label}.args'),
+        )
+    else:
+        values.update(
+            tests=_strings(row['tests'], f'{label}.tests', nonempty=True),
+            prerequisite_tasks=_strings(
+                row['prerequisite_tasks'], f'{label}.prerequisite_tasks', nonempty=True
+            ),
+            args=_strings(row.get('args', []), f'{label}.args'),
+        )
+    return values
+
+
+def _profile(kind: RunKind, raw: Any, label: str, incremental: RunProfile | None) -> RunProfile:
+    row = _mapping(raw, label)
+    if 'same_as' not in row:
+        return RunProfile(**_profile_values(kind, row, label))
+    if incremental is None:
+        raise ValueError(f'{label}.same_as is only allowed for full profile')
+    _exact_keys(row, {'same_as', 'target_seconds', 'timeout_seconds'}, set(), label)
+    if row['same_as'] != 'incremental':
+        raise ValueError(f'{label}.same_as must equal incremental')
+    target_seconds = _positive_integer(row['target_seconds'], f'{label}.target_seconds')
+    timeout_seconds = _positive_integer(row['timeout_seconds'], f'{label}.timeout_seconds')
+    if timeout_seconds < target_seconds:
+        raise ValueError(f'{label}.timeout_seconds must be >= target_seconds')
+    values = {
+        field: getattr(incremental, field)
+        for field in RunProfile.__dataclass_fields__
+        if field not in {'target_seconds', 'timeout_seconds'}
+    }
+    return RunProfile(target_seconds, timeout_seconds, **values)
+
+
+def _run(raw: Any, label: str) -> RunSpec:
+    row = _mapping(raw, label)
+    _exact_keys(row, {'kind', 'incremental', 'full'}, set(), label)
+    try:
+        kind = RunKind(_string(row['kind'], f'{label}.kind'))
+    except ValueError as exc:
+        raise ValueError(f'{label}.kind has invalid value: {row.get("kind")}') from exc
+    incremental = _profile(kind, row['incremental'], f'{label}.incremental', None)
+    full = _profile(kind, row['full'], f'{label}.full', incremental)
+    return RunSpec(kind, incremental, full)
+
+
+def _gate(raw: Any) -> GateSpec:
+    """把一条严格五字段声明解析成不可变 Gate 规格。"""
+
+    row = _mapping(raw, 'gates[]')
+    _exact_keys(row, {'name', 'description', 'trigger', 'run'}, {'targets'}, 'gates[]')
+    name = _identifier(row['name'], 'gate.name', _IDENTIFIER)
+    targets = _strings(row.get('targets', []), f'gate.{name}.targets')
+    if len(targets) != len(set(targets)):
+        raise ValueError(f'gate.{name}.targets must not contain duplicates')
+    if any(not _TARGET_IDENTIFIER.fullmatch(target) for target in targets):
+        raise ValueError(f'gate.{name}.targets contains invalid Target identifier')
+    return GateSpec(
+        name,
+        _description(row['description'], f'gate.{name}.description'),
+        _trigger(row['trigger'], f'gate.{name}.trigger'),
+        targets,
+        _run(row['run'], f'gate.{name}.run'),
+    )
+
+
+def _load_gates(catalog_path: Path, names: tuple[str, ...]) -> tuple[GateSpec, ...]:
+    """按登记顺序加载 Gate 分片，并拒绝跨分片的重名声明。"""
+
+    result: list[GateSpec] = []
     owners: dict[str, str] = {}
     for fragment_name in names:
         fragment = _mapping(
             _load_yaml(_gate_fragment_path(catalog_path, fragment_name)), fragment_name
         )
         _exact_keys(fragment, {'gates'}, set(), f'gate fragment {fragment_name}')
-        for raw in _items(fragment['gates'], f'gate fragment {fragment_name}.gates', nonempty=True):
-            row = _mapping(raw, f'gate fragment {fragment_name}.gates[]')
-            name = _string(row.get('name'), f'gate fragment {fragment_name}.gate.name')
-            if name in owners:
+        for raw in _items(fragment['gates'], f'{fragment_name}.gates', nonempty=True):
+            gate = _gate(raw)
+            if gate.name in owners:
                 raise ValueError(
-                    f'duplicate Gate name {name!r} in {fragment_name}; first declared in {owners[name]}'
+                    f'duplicate Gate name {gate.name!r} in {fragment_name}; '
+                    f'first declared in {owners[gate.name]}'
                 )
-            owners[name] = fragment_name
-            gates.append(row)
-    return gates
-
-
-def _defaults(raw: Any) -> GateDefaults:
-    row = _mapping(raw, 'gate_defaults')
-    _exact_keys(row, _DEFAULT_KEYS, set(), 'gate_defaults')
-    defaults = GateDefaults(
-        MinimumTier(_enum(row['minimum_tier'], _TIERS, 'gate_defaults.minimum_tier')),
-        _integer(row['timeout'], 'gate_defaults.timeout', positive=True),
-        ChangedFilesInput(
-            _enum(row['changed_files'], ('none', 'environment'), 'gate_defaults.changed_files')
-        ),
-        _enum(row['network_failure'], ('fail', 'blocked'), 'gate_defaults.network_failure'),
-    )
-    expected = GateDefaults(MinimumTier.REQUIRED, 300, ChangedFilesInput.NONE, 'fail')
-    if defaults != expected:
-        raise ValueError('gate_defaults must equal the current catalog contract')
-    return defaults
-
-
-def _target(raw: Any) -> TargetSpec:
-    row = _mapping(raw, 'targets[]')
-    _exact_keys(row, {'name'}, {'includes'}, 'targets[]')
-    return TargetSpec(
-        _string(row['name'], 'target.name'),
-        _strings(row.get('includes', []), 'target.includes'),
-    )
-
-
-def _optional_args(raw: Any, label: str) -> tuple[OptionalCommandArgs, ...]:
-    result = []
-    for raw_item in _items(raw, label):
-        item = _mapping(raw_item, f'{label}[]')
-        _exact_keys(item, {'path', 'argv'}, set(), f'{label}[]')
-        result.append(
-            OptionalCommandArgs(
-                _string(item['path'], f'{label}[].path'),
-                _strings(item['argv'], f'{label}[].argv', nonempty=True),
-            )
-        )
+            owners[gate.name] = fragment_name
+            result.append(gate)
     return tuple(result)
 
 
-def _command_fields(
-    row: dict[str, Any], label: str, *, extras: set[str] | None = None
-) -> dict[str, Any]:
-    extras = extras or set()
-    optional = {'required_paths', 'glob_args', 'optional_args'} | extras
-    _exact_keys(row, {'argv'} if 'check' not in extras else {'check'}, optional, label)
-    return {
-        'argv': _strings(row.get('argv', []), f'{label}.argv', nonempty='check' not in extras),
-        'required_paths': _strings(row.get('required_paths', []), f'{label}.required_paths'),
-        'glob_args': _strings(row.get('glob_args', []), f'{label}.glob_args'),
-        'optional_args': _optional_args(row.get('optional_args', []), f'{label}.optional_args'),
-    }
+def validate_catalog_schema(catalog: GateCatalog) -> None:
+    """校验跨声明引用和必须全局唯一的 owner。"""
 
-
-def _run(raw: Any, label: str) -> RunSpec:
-    row = _mapping(raw, label)
-    if len(row) != 1:
-        raise ValueError(f'{label} must contain exactly one discriminated run kind')
-    discriminator, body_raw = next(iter(row.items()))
-    kind = RunKind(_enum(discriminator, tuple(item.value for item in RunKind), f'{label}.kind'))
-    body = _mapping(body_raw, f'{label}.{discriminator}')
-    if kind in {RunKind.COMMAND, RunKind.PLAYWRIGHT}:
-        return RunSpec(kind=kind, **_command_fields(body, f'{label}.{discriminator}'))
-    if kind is RunKind.PYTHON_CHECK:
-        run_label = f'{label}.{discriminator}'
-        _exact_keys(
-            body,
-            {'check'},
-            {'python', 'args', 'required_paths', 'optional_args'},
-            run_label,
-        )
-        return RunSpec(
-            kind=kind,
-            check=_string(body['check'], f'{run_label}.check'),
-            python=_enum(body.get('python', 'system'), ('system', 'dev'), f'{run_label}.python'),
-            args=_strings(body.get('args', []), f'{run_label}.args'),
-            required_paths=_strings(body.get('required_paths', []), f'{run_label}.required_paths'),
-            optional_args=_optional_args(
-                body.get('optional_args', []), f'{run_label}.optional_args'
-            ),
-        )
-    if kind is RunKind.SCAN_SMOKE:
-        fields = _command_fields(body, f'{label}.{discriminator}', extras={'prerequisite_tasks'})
-        prerequisites = _strings(
-            body.get('prerequisite_tasks', []),
-            f'{label}.{discriminator}.prerequisite_tasks',
-            nonempty=True,
-        )
-        return RunSpec(kind=kind, prerequisite_tasks=prerequisites, **fields)
-    if kind is RunKind.GRADLE_TASK:
-        _exact_keys(body, {'tasks'}, {'args'}, f'{label}.gradle-task')
-        return RunSpec(
-            kind=kind,
-            tasks=_strings(body['tasks'], f'{label}.gradle-task.tasks', nonempty=True),
-            args=_strings(body.get('args', []), f'{label}.gradle-task.args'),
-        )
-    _exact_keys(body, {'rules'}, set(), f'{label}.java-rule')
-    return RunSpec(
-        kind=kind,
-        java_rules=_strings(body['rules'], f'{label}.java-rule.rules', nonempty=True),
+    target_names = tuple(target.name for target in catalog.targets)
+    if len(target_names) != len(set(target_names)):
+        raise ValueError('target names must be unique')
+    known_targets = set(target_names)
+    unknown = sorted(
+        {target for gate in catalog.gates for target in gate.targets if target not in known_targets}
     )
-
-
-def _gate(raw: Any, defaults: GateDefaults) -> GateSpec:
-    """解析单个 Gate 声明，并阻止重复书写与全局默认值相同的字段。"""
-    row = _mapping(raw, 'gates[]')
-    optional = _DEFAULT_KEYS
-    _exact_keys(row, {'name', 'description', 'targets', 'run'}, optional, 'gates[]')
-    for yaml_key, default in (
-        ('minimum_tier', defaults.minimum_tier.value),
-        ('timeout', defaults.timeout_seconds),
-        ('changed_files', defaults.changed_files_input.value),
-        ('network_failure', defaults.network_failure),
-    ):
-        if yaml_key in row and row[yaml_key] == default:
-            raise ValueError(
-                f'gate.{row.get("name", "?")}.{yaml_key} redundantly overrides gate_defaults'
-            )
-    rules = []
-    for raw_rule in _items(row['targets'], 'gate.targets', nonempty=True):
-        rule = _mapping(raw_rule, 'gate.targets[]')
-        _exact_keys(rule, {'name', 'order', 'patterns'}, set(), 'gate.targets[]')
-        rules.append(
-            GateTargetRule(
-                _string(rule['name'], 'gate.targets[].name'),
-                _integer(rule['order'], 'gate.targets[].order'),
-                _strings(rule['patterns'], 'gate.targets[].patterns'),
-            )
-        )
-    return GateSpec(
-        name=_string(row['name'], 'gate.name'),
-        description=_string(row['description'], 'gate.description'),
-        target_rules=tuple(rules),
-        run=_run(row['run'], f'gate.{row["name"]}.run'),
-        minimum_tier=MinimumTier(
-            _enum(row.get('minimum_tier', defaults.minimum_tier.value), _TIERS, 'gate.minimum_tier')
-        ),
-        timeout_seconds=_integer(
-            row.get('timeout', defaults.timeout_seconds), 'gate.timeout', positive=True
-        ),
-        changed_files_input=ChangedFilesInput(
-            _enum(
-                row.get('changed_files', defaults.changed_files_input.value),
-                ('none', 'environment'),
-                'gate.changed_files',
-            )
-        ),
-        network_failure=_enum(
-            row.get('network_failure', defaults.network_failure),
-            ('fail', 'blocked'),
-            'gate.network_failure',
-        ),
+    if unknown:
+        raise ValueError(f'unknown Gate target references: {unknown}')
+    empty_targets = sorted(
+        target
+        for target in known_targets
+        if not any(target in gate.targets for gate in catalog.gates)
     )
+    if empty_targets:
+        raise ValueError(f'Target selects no Gate: {empty_targets}')
+
+    java_rules: set[str] = set()
+    for gate in catalog.gates:
+        overlap = java_rules.intersection(gate.run.incremental.rules, gate.run.full.rules)
+        # 同一个 Gate 的两个 profile 可以拥有相同 rule；不同 Gate 不可重复拥有。
+        owned = set(gate.run.incremental.rules) | set(gate.run.full.rules)
+        if overlap and gate.run.incremental.rules != gate.run.full.rules:
+            raise ValueError(f'Gate {gate.name} has inconsistent Java rule ownership')
+        duplicate_owner = java_rules.intersection(owned)
+        if duplicate_owner:
+            raise ValueError(f'duplicate Java rule ownership: {sorted(duplicate_owner)}')
+        java_rules.update(owned)
 
 
-def _path_rule(raw: Any) -> PathRule:
-    row = _mapping(raw, 'path_rules[]')
-    _exact_keys(row, {'category', 'patterns', 'risk'}, {'targets', 'allowed'}, 'path_rules[]')
-    return PathRule(
-        _string(row['category'], 'path_rule.category'),
-        _strings(row['patterns'], 'path_rule.patterns', nonempty=True),
-        _strings(row.get('targets', []), 'path_rule.targets'),
-        _enum(row['risk'], ('low', 'medium', 'high', 'local'), 'path_rule.risk'),
-        _boolean(row.get('allowed', True), 'path_rule.allowed'),
-    )
-
-
-def _target_trigger(raw: Any) -> TargetTrigger:
-    row = _mapping(raw, 'target_triggers[]')
-    _exact_keys(row, {'target', 'patterns'}, set(), 'target_triggers[]')
-    return TargetTrigger(
-        _string(row['target'], 'target_triggers[].target'),
-        _strings(row['patterns'], 'target_triggers[].patterns', nonempty=True),
-    )
-
-
-def _load_catalog(path: Path = _CATALOG_PATH) -> GateCatalog:
+def _load_catalog(path: Path) -> GateCatalog:
     data = _mapping(_load_yaml(path), 'catalog')
     _exact_keys(data, _ROOT_KEYS, set(), 'catalog')
-    defaults = _defaults(data['gate_defaults'])
-    names = _gate_file_names(data['gate_files'])
-    catalog = GateCatalog(
-        gate_defaults=defaults,
-        gates=tuple(_gate(item, defaults) for item in _load_gates(path, names)),
-        targets=tuple(_target(item) for item in _items(data['targets'], 'targets', nonempty=True)),
-        path_rules=tuple(
-            _path_rule(item) for item in _items(data['path_rules'], 'path_rules', nonempty=True)
-        ),
-        target_triggers=tuple(
-            _target_trigger(raw) for raw in _items(data['target_triggers'], 'target_triggers')
-        ),
+    targets = tuple(_target(raw) for raw in _items(data['targets'], 'targets', nonempty=True))
+    gates = _load_gates(path, _gate_file_names(data['gate_files']))
+    path_rules = tuple(
+        _path_rule(raw) for raw in _items(data['path_rules'], 'path_rules', nonempty=True)
     )
+    catalog = GateCatalog(targets, gates, path_rules)
     validate_catalog_schema(catalog)
     return catalog
 
 
-def _assert_acyclic(graph: dict[str, tuple[str, ...]], label: str) -> None:
-    visiting: set[str] = set()
-    visited: set[str] = set()
-
-    def visit(node: str) -> None:
-        """深度遍历一个目标节点，同时报告环和未知引用。"""
-        if node in visiting:
-            raise ValueError(f'cycle in {label}: {node}')
-        if node in visited:
-            return
-        visiting.add(node)
-        for child in graph[node]:
-            if child not in graph:
-                raise ValueError(f'unknown reference in {label}: {child}')
-            visit(child)
-        visiting.remove(node)
-        visited.add(node)
-
-    for node in graph:
-        visit(node)
-
-
-def validate_catalog_schema(catalog: GateCatalog) -> None:
-    """校验跨分片的名称、目标、顺序和 Java 规则等全局唯一约束。"""
-    gate_names = [gate.name for gate in catalog.gates]
-    target_names = [target.name for target in catalog.targets]
-    if len(gate_names) != len(set(gate_names)):
-        raise ValueError('duplicate Gate name in catalog')
-    if len(target_names) != len(set(target_names)):
-        raise ValueError('duplicate target name in catalog')
-    known_targets = set(target_names)
-    orders: set[tuple[str, int]] = set()
-    java_rules: set[str] = set()
-    for gate in catalog.gates:
-        if not gate.description.endswith('。'):
-            raise ValueError(f'Gate description must be Chinese prose: {gate.name}')
-        if any(rule.target not in known_targets for rule in gate.target_rules):
-            raise ValueError(f'Gate target reference is invalid: {gate.name}')
-        if len(gate.targets) != len(set(gate.targets)):
-            raise ValueError(f'duplicate Gate target: {gate.name}')
-        if any((rule.target, rule.order) in orders for rule in gate.target_rules):
-            raise ValueError(f'duplicate Gate target order: {gate.name}')
-        orders.update((rule.target, rule.order) for rule in gate.target_rules)
-        if java_rules.intersection(gate.run.java_rules):
-            raise ValueError(f'duplicate Java quality rule: {gate.name}')
-        java_rules.update(gate.run.java_rules)
-    for target in catalog.targets:
-        if len(target.includes) != len(set(target.includes)):
-            raise ValueError(f'duplicate target dominance: {target.name}')
-    if any(target not in known_targets for rule in catalog.path_rules for target in rule.targets):
-        raise ValueError('path rule target reference is invalid')
-    if any(trigger.target not in known_targets for trigger in catalog.target_triggers):
-        raise ValueError('target trigger reference is invalid')
-    _assert_acyclic(
-        {target.name: target.includes for target in catalog.targets}, 'target dominance'
-    )
-
-
-CATALOG = _load_catalog()
+CATALOG = _load_catalog(_CATALOG_PATH)
 GATES = CATALOG.gates
 TARGETS = CATALOG.targets
-_GATE_INDEX = {gate.name: gate for gate in GATES}
-_TARGET_INDEX = {target.name: target for target in TARGETS}
 
 
 def gate_by_name(name: str) -> GateSpec:
-    """按名称返回已验证 Gate，供 planner 构造执行计划。"""
-    try:
-        return _GATE_INDEX[name]
-    except KeyError as exc:
-        raise ValueError(f'Unknown quality gate: {name}') from exc
+    """按唯一名称查找 Gate。"""
+
+    for gate in GATES:
+        if gate.name == name:
+            return gate
+    return _raise_unknown('Gate', name)
 
 
 def target_by_name(name: str) -> TargetSpec:
-    """按名称返回已验证目标，供 planner 展开目标包含关系。"""
-    try:
-        return _TARGET_INDEX[name]
-    except KeyError as exc:
-        raise ValueError(f'Unknown quality target: {name}') from exc
+    """按唯一名称查找人工 Target preset。"""
+
+    for target in TARGETS:
+        if target.name == name:
+            return target
+    return _raise_unknown('Target', name)
 
 
-def tier_by_name(name: str) -> str:
-    """验证并返回层级名称，供 CLI 在规划前拒绝未知层级。"""
-    return _enum(name, _TIERS, 'tier')
+def _raise_unknown(kind: str, name: str) -> Any:
+    raise ValueError(f'Unknown quality {kind.lower()}: {name}')

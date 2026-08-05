@@ -111,11 +111,8 @@ def _is_comment_only(line: str) -> bool:
 
 
 def _scan_file(path: Path, root: Path, rules: list[PatternRule]) -> list[Finding]:
-    """按规则扫描单个测试文件；文件不可读时不产生伪造发现。"""
-    try:
-        lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
-    except OSError:
-        return []
+    """按规则扫描单个测试文件；文件不可读时向统一入口报告执行失败。"""
+    lines = path.read_text(encoding='utf-8', errors='replace').splitlines()
 
     try:
         rel_path = str(path.relative_to(root))
@@ -161,7 +158,12 @@ def check(arguments: list[str]) -> CheckResult:
     parser.add_argument('--root', default=str(REPO_ROOT), help='Repository root to scan')
     args = parser.parse_args(arguments)
 
-    findings = _scan_repo(Path(args.root).resolve())
+    try:
+        findings = _scan_repo(Path(args.root).resolve())
+    except (OSError, UnicodeError) as exc:
+        return CheckResult.execution_failure(
+            [f'无法完整扫描测试源码: {exc}'], reason='input-unavailable'
+        )
     return CheckResult.from_errors(
         f'{item.file}:{item.line} {item.rule} | {item.snippet} | {item.message}'
         for item in findings

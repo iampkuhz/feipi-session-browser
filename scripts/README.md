@@ -2,7 +2,7 @@
 
 公开入口以 `harness/manifest.yaml` 为机器真相。Gate 的根索引是 `config/gates.yaml`，完整 declaration
 位于它显式列出的 `config/gates/*.yaml`；人类先读
-[`config/gates/README.md`](../config/gates/README.md) 的 42 Gate 使用手册。
+[`config/gates/README.md`](../config/gates/README.md) 的 41 Gate 使用手册。
 本文只回答“从哪里进入、如何找到唯一实现入口”。
 
 ## Java 维护者先看这一层
@@ -12,8 +12,8 @@
 1. **L0 产品开发：** 只使用 `./scripts/session-browser.sh <command>`。脚本仅为
    `deps|test|quality` 保留仓库级分支，`scan|serve|stop|status|doctor|version|help`
    及其参数均透传给 Java CLI。
-2. **L1 最终验证：** 只使用 `python3 scripts/gates/cli.py --tier required`；
-   `./scripts/session-browser.sh quality` 是同一 required Gate 的日常入口。
+2. **L1 交付验证：** 只使用 `python3 scripts/gates/cli.py --mode incremental`；
+   `./scripts/session-browser.sh quality` 是同一增量 Gate 的日常入口。
 3. **L2 单项诊断：** 先在精简目录查失败 Gate 的作用、实现入口、执行通道和主要触发点，再打开它
    指向的单个领域 YAML；按 typed `run` 找唯一实现：`java-rule` 找 Java registry/rule，
    `python-check` 找 Python registry/leaf，`gradle-task` 找对应 Gradle task，`command`、`playwright`、
@@ -51,7 +51,7 @@ JVM 源码和已迁移的 Web resource 规则位于
 
 - 产品与本地开发：`./scripts/session-browser.sh <command>`（唯一公开产品入口）
 - Harness 体检：`bash scripts/harness/doctor.sh`
-- Gate：`python3 scripts/gates/cli.py --tier quick|required|full`
+- Gate：`python3 scripts/gates/cli.py --mode incremental|full`
 - 共享 Python checks：`python3 -m scripts.checks <check-id>`
 - OpenSpec validators：`python3 scripts/openspec/validate_{layout,schema}.py`
 - Active change validator：
@@ -62,15 +62,15 @@ Java rule、Python leaf 和 `scripts/gates/` 内部模块都不是额外的公�
 
 Python 开发工具不属于产品入口：依赖统一用
 `UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev` 安装，单项诊断直接运行
-对应工具，提交前再运行 required Gate。
+对应工具，提交前再运行增量 Gate。
 
 ## 一屏调用链
 
 ```text
-required Gate:
+incremental Gate:
   gates.cli
-    → config/gates.yaml（全局索引）→ config/gates/<domain>.yaml（唯一 Gate registration）
-    → planner（changed path → path rule.targets → Gate target rule/order/pattern → tier → plan）
+    → config/gates.yaml（Target preset 与分片索引）→ config/gates/<domain>.yaml（唯一 Gate registration）
+    → planner（changed path 直接匹配 Gate trigger → plan）
     → executor（冻结并执行命令组）
     → 根据 catalog 声明进入唯一实现入口：
         java-rule   → QualityGateCli registry → Java rule       → gradle 通道
@@ -93,8 +93,8 @@ doctor:
 | 修改 Git/OpenSpec/隐私/跨语言规则 | `scripts/checks/<domain>/` | `_registry.py`、对应领域 Gate YAML、Python contract |
 | 修改 Ruff/Pytest/Bash/Playwright 等 Gate | typed run 指向的公开 tool 或固定 suite | 对应领域 Gate YAML、实现 contract、对应 target |
 | 修改普通 Gradle 检查 | 对应 `build.gradle.kts` 或 build logic task | 对应领域 Gate YAML、Gradle contract、对应 target |
-| 修改 Gate 的 target rule、tier 或 run registration | `config/gates/README.md` 指向的领域 YAML | catalog/planner/documentation contract 与 dry-run |
-| 修改 plan、执行或状态归约 | `scripts/gates/` | 五态、timeout、Gradle outcome、report contract |
+| 修改 Gate 的 trigger、Target tag 或 run registration | `config/gates/README.md` 指向的领域 YAML | catalog/planner/documentation contract 与 dry-run |
+| 修改 plan、执行或状态归约 | `scripts/gates/` | 双模式、timeout、Gradle outcome、report contract |
 | 修改 Python 环境解析 | `scripts/harness/python_env.py` | Python resolver/lock contract |
 | 修改 OpenSpec 结构 | `scripts/openspec/` | layout、schema、active-change validators |
 | 修改发布流程 | `scripts/release/` | release contract、shell syntax 与 dry-run |
@@ -103,20 +103,19 @@ doctor:
 
 | 现象 | 先看 | 下一步 |
 |---|---|---|
-| Gate 未进入计划或 target 不对 | `config/gates/README.md`、对应领域 YAML 与 `cli.py --dry-run` | 检查 pattern、tier、target 和 `NOT_TRIGGERED` 原因 |
+| Gate 未进入计划 | `config/gates/README.md`、对应领域 YAML 与 `cli.py --dry-run` | 检查 Gate `trigger` 和 `NOT_TRIGGERED` 原因 |
 | Java rule 失败 | summary 中的 rule id | 查 `QualityGateCli` registry、对应 `*Rule.java` 和 Java contract |
 | Python check 失败 | 输出中的 Check ID | 查 `scripts/checks/_registry.py`、唯一 `check_*.py` 和 Python contract |
 | Gradle task 失败 | typed run 的 `gradle-task.tasks` | 查对应 task 定义和 Gradle test/report |
-| timeout 或 `BLOCKED` | artifact 中首因与 command group | 查 `scripts/gates/executor.py`、`runtime/` 和依赖前置 |
-| `SKIPPED` | framework/Gradle outcome | 视为未完整执行并修复；不得改写为 `PASS` |
+| `BLOCKED` | Gate 已完整执行并发现问题 | 先修改仓库内容，再重跑 |
+| timeout、skip/no-source 或 `FAIL` | Gate 未得到可信结论 | 查 `scripts/gates/executor.py`、`runtime/` 和 reason code |
 
-`FAIL`、`BLOCKED`、`SKIPPED` 和未运行都不是 `PASS`；`NOT_TRIGGERED` 仅表示当前计划没有选中，
-不等于 `SKIPPED`，也不是通过证据。
+`BLOCKED` 表示检查完成但结论阻断交付；`FAIL` 表示 Gate 自身执行失败。两者都不是
+`PASS`；`NOT_TRIGGERED` 仅表示自动 incremental 没有选中，不是 Gate 终态。
 
 移动实现入口时必须在同一批次迁移实现、catalog registration、registry/task、tests、docs 和直接 caller；
 旧名称与路径负向搜索为零后直接删除，不保留 wrapper、alias 或 re-export。
 
 客户端拥有 Session 与 checkout 生命周期，平台配置不为普通修改接线仓库状态控制器。非平凡变更先
 复用 OpenSpec change。提交或交接前显式运行
-`python3 scripts/gates/cli.py --tier required`；required Gate 失败、未运行、warning、skipped 或 unavailable
-不得称为 PASS。
+`python3 scripts/gates/cli.py --mode incremental`；任何 `BLOCKED`、`FAIL` 或未完整执行都不得称为 PASS。

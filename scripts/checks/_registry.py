@@ -24,7 +24,6 @@ _ROWS = (
     ('repository.current-source-policy', 'scripts.checks.repository.check_current_source_policy'),
     ('repository.dead-command-reference', 'scripts.checks.repository.check_dead_command_reference'),
     ('repository.gate-escape-rate', 'scripts.checks.repository.check_gate_escape_rate'),
-    ('repository.index-integrity', 'scripts.checks.repository.check_index_integrity'),
     ('repository.language-policy', 'scripts.checks.source.check_language_policy'),
     (
         'repository.no-python-playwright-skips',

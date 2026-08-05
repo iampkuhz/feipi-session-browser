@@ -49,4 +49,4 @@ def test_shared_agent_entry_parity_check_passes():
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert '[agent.entry-parity] PASS' in result.stdout
+    assert 'GATE_RESULT status=PASS check=agent.entry-parity' in result.stdout

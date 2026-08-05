@@ -1,14 +1,16 @@
 targets:
 - name: python-standard
+  description: 人工运行 Python 工具链与质量基础设施相关 Gate。
 - name: harness
-- name: acceptance-cases
+  description: 人工运行 Agent、Skill、Harness 与 OpenSpec 治理 Gate。
 - name: session-detail
-- name: index
+  description: 人工运行 Web 页面、静态资源与浏览器交互 Gate。
 - name: java-src
-  includes:
-  - java-build
+  description: 人工运行 Java 源码与测试质量 Gate。
 - name: java-build
+  description: 人工运行 Gradle 构建与 Java 工程配置 Gate。
 - name: scan-script-smoke
+  description: 人工运行扫描命令、发行 CLI 与样本集成 Gate。
 gate_files:
 - gates/python-tooling.yaml
 - gates/repository-safety.yaml
@@ -21,24 +23,17 @@ path_rules:
   patterns:
   - docs/acceptance-cases/**
   risk: medium
-  targets:
-  - acceptance-cases
 - category: java-test
   patterns:
   - java/**/src/test/java/**/*.java
   - java/**/src/test/kotlin/**/*.kt
   - java/**/src/test/resources/**
   risk: medium
-  targets:
-  - java-src
-  - acceptance-cases
 - category: java-src
   patterns:
   - java/**/src/main/java/**/*.java
   - java/**/src/main/kotlin/**/*.kt
   risk: medium
-  targets:
-  - java-src
 - category: java-build
   patterns:
   - gradle/build-logic/**
@@ -54,23 +49,16 @@ path_rules:
   - gradlew.bat
   - '*.lockfile'
   risk: medium
-  targets:
-  - java-build
 - category: java-root-dsl
   patterns:
   - build.gradle.kts
   - gradle.properties
   risk: medium
-  targets:
-  - java-build
 - category: test
   patterns:
   - tests/**/*.py
   - tests/*.py
   risk: medium
-  targets:
-  - acceptance-cases
-  - python-standard
 - category: browser-test
   patterns:
   - tests/**/*.js
@@ -78,8 +66,6 @@ path_rules:
   - tests/**/*.ts
   - tests/*.ts
   risk: medium
-  targets:
-  - acceptance-cases
 - category: session-detail-ui
   patterns:
   - java/web/src/main/resources/static/**
@@ -88,9 +74,6 @@ path_rules:
   - src/session_browser/web/**
   - scripts/checks/web/**/*.py
   risk: medium
-  targets:
-  - session-detail
-  - python-standard
 - category: quality-gate
   patterns:
   - scripts/checks/**
@@ -98,24 +81,16 @@ path_rules:
   - config/gates.yaml
   - config/gates/**
   risk: high
-  targets:
-  - python-standard
 - category: harness
   patterns:
   - harness/**
   - scripts/harness/**
   risk: high
-  targets:
-  - harness
-  - python-standard
 - category: openspec
   patterns:
   - openspec/**
   - scripts/openspec/**/*.py
   risk: medium
-  targets:
-  - harness
-  - python-standard
 - category: repo-script
   patterns:
   - scripts/*.sh
@@ -123,8 +98,6 @@ path_rules:
   - scripts/*.js
   - scripts/**/*.js
   risk: high
-  targets:
-  - python-standard
 - category: python-tooling-config
   patterns:
   - pyproject.toml
@@ -132,8 +105,6 @@ path_rules:
   - .pre-commit-config.yaml
   - .github/workflows/**
   risk: high
-  targets:
-  - python-standard
 - category: agent-config
   patterns:
   - AGENTS.md
@@ -147,8 +118,6 @@ path_rules:
   - .codex/**
   - .qoder/**
   risk: high
-  targets:
-  - harness
 - category: docs
   patterns:
   - README.md
@@ -169,32 +138,10 @@ path_rules:
   patterns:
   - '**/*.java'
   risk: high
-  targets:
-  - java-src
   allowed: false
 - category: java-build-unknown
   patterns:
   - '**/*.gradle'
   - '**/*.gradle.kts'
   risk: high
-  targets:
-  - java-build
   allowed: false
-gate_defaults:
-  minimum_tier: required
-  timeout: 300
-  changed_files: none
-  network_failure: fail
-target_triggers:
-- target: scan-script-smoke
-  patterns:
-  - scripts/session-browser.sh
-  - java/app-cli/**
-  - java/scan-engine/**
-  - java/sources/**
-  - java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**
-  - java/normalization-engine/**
-  - java/artifact-normalized/**
-  - java/index-sqlite/**
-  - tests/fixtures/session_samples/**
-  - scripts/checks/**

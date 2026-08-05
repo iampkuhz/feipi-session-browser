@@ -1,8 +1,8 @@
 """执行 Python 锁定依赖漏洞检查。
 
 为确保提交使用的完整锁定依赖没有已知漏洞，唯一入口 ``check(arguments)`` 串行执行 frozen
-lock export 和 pip-audit。失败诊断保留底层工具输出，使 Gate 执行器仍能把漏洞服务不可用
-归约为 ``BLOCKED``，而真实漏洞归约为 ``FAIL``。
+lock export 和 pip-audit。Check 自己返回结构化失败诊断：真实漏洞为 ``BLOCKED``，工具、依赖或网络导致
+审计未完成时为 ``FAIL``；Executor 不再猜测自然语言日志。
 """
 
 from __future__ import annotations
@@ -93,9 +93,17 @@ def _output(process: subprocess.CompletedProcess) -> str:
 
 
 def _failure(tool: str, process: subprocess.CompletedProcess) -> CheckResult:
-    """把工具非零退出转换为保留原始原因的单条诊断。"""
+    """区分漏洞结论与审计工具自身未完成，避免 executor 猜测日志。"""
     detail = _output(process) or f'exit code {process.returncode}'
-    return CheckResult.from_errors([f'[python-dependency-vulnerabilities] {tool} FAIL:\n{detail}'])
+    message = f'[python-dependency-vulnerabilities] {tool}:\n{detail}'
+    if any(marker in detail for marker in _NETWORK_MARKERS):
+        return CheckResult.execution_failure([message], reason='network-unavailable')
+    if tool == 'pip-audit':
+        # pip-audit 正常完成且以 1 报出漏洞，属于明确的仓库阻断结论。
+        if process.returncode == 1:
+            return CheckResult.from_errors([message])
+        return CheckResult.execution_failure([message], reason='outcome-unknown')
+    return CheckResult.execution_failure([message], reason='dependency-unavailable')
 
 
 def check(arguments: list[str]) -> CheckResult:
@@ -107,8 +115,9 @@ def check(arguments: list[str]) -> CheckResult:
 
     uv = shutil.which('uv')
     if uv is None:
-        return CheckResult.from_errors(
-            ['[python-dependency-vulnerabilities] uv FAIL: command not found']
+        return CheckResult.execution_failure(
+            ['[python-dependency-vulnerabilities] uv: command not found'],
+            reason='runtime-missing',
         )
 
     exported = _run(

@@ -77,3 +77,4 @@ test('UI-SD-003: Trace tab can expand a round', async () => { ... });
 5. 代码位置必填：必须标注关联的测试文件或实现文件路径。
 6. 测试代码中绑定的 ID 必须能在 `docs/acceptance-cases/features/*.md` 中找到。
 7. 不再需要的用例必须同时删除验收用例表格行和对应测试绑定；不得保留“已废弃/Deprecated/历史保留”说明。
+8. 验收用例 ID 总账不是 Gate Target；`acceptanceCaseMapping` 只校验映射，实际测试由对应 Pytest、JUnit 或 Playwright Gate 执行。

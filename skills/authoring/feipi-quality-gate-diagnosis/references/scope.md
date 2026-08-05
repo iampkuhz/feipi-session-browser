@@ -1,6 +1,6 @@
 ## 负责范围
 
-- Required quality gate 失败后的诊断和最小修复。
+- Gate 返回 `BLOCKED` 或 `FAIL` 后的诊断和最小修复。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败后的诊断。
 - Java gates（编译、测试、PMD）失败后的诊断。
 - UI gates（静态检查、JS action handler 检查）失败后的诊断。
@@ -15,7 +15,7 @@
 - 不改产品代码逻辑（Java、Python 产品功能），除非是 gate 失败的最小修复。
 - 不重新引入平台 Hook、Session Runtime 或自动 Git mutation。
 - 不改真实 session 数据、缓存、密钥、token、个人配置。
-- 不删 required gates。
+- 不删 Gate 或放宽 Trigger。
 - 不新增 skip（`pytest.skip`、`pytest.mark.skip`、`test.skip()` 等）。
 - 不伪造 PASS 结果。
 - 不安装依赖或修改运行环境。
@@ -34,10 +34,10 @@
 ## 常见误区
 
 - 误以为可以直接跳过失败的 gate。实际必须诊断和修复，不能 skip。
-- 误以为环境缺失时可以伪造 PASS。实际必须报告 BLOCKED。
+- 误以为环境缺失时可以伪造 PASS。实际必须报告带 reason code 的 FAIL。
 - 误以为可以大范围重构来修复 gate 失败。实际只做最小修复。
 - 误以为 gate 失败一定是代码问题。实际可能是 fixture 缺失、配置漂移或 gate 本身 bug。
-- 误以为修完失败 gate 就结束。实际还要重跑 required baseline 确认无回归。
+- 误以为修完原 Gate 就结束。实际还要重跑增量交付检查确认无回归。
 - 误以为未运行的 gate 可以计为 PASS。实际必须写明未运行原因。
 
 ## 触发门禁
@@ -46,4 +46,4 @@
 - `python3 -m scripts.checks agent.entry-parity`
 - `python3 -m scripts.checks agent.rules-sync`
 - `bash scripts/harness/doctor.sh`
-- `python3 scripts/gates/cli.py --tier required`
+- `python3 scripts/gates/cli.py --mode incremental`

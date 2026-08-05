@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import argparse
 
-from scripts.checks._framework import invoke
+from scripts.checks._framework import CheckStatus, invoke
 from scripts.checks._registry import CHECKS, get_check
 
 
@@ -24,12 +24,18 @@ def main(argv: list[str] | None = None) -> int:
     """执行一个 check 并统一输出状态、诊断与退出码。"""
     args = build_parser().parse_args(argv)
     result = invoke(get_check(args.check_id), args.arguments)
-    if result.passed:
-        print(f'[{args.check_id}] PASS')
+    if result.status is CheckStatus.PASS:
+        print(f'GATE_RESULT status=PASS check={args.check_id}')
         return 0
     for diagnostic in result.diagnostics:
-        print(f'[{args.check_id}] FAIL: {diagnostic.render()}')
-    return 1
+        print(f'[{args.check_id}] {result.status}: {diagnostic.render()}')
+    if result.status is CheckStatus.BLOCKED:
+        print(f'GATE_RESULT status=BLOCKED check={args.check_id}')
+        return 1
+    print(
+        f'GATE_RESULT status=FAIL reason={result.reason or "outcome-unknown"} check={args.check_id}'
+    )
+    return 2
 
 
 if __name__ == '__main__':

@@ -1,10 +1,9 @@
 gates:
 - name: languagePolicy
   description: 检查仓库规则、Skill 与 Harness 文本符合中文语言政策。
-  targets:
-  - name: harness
-    order: 4
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - AGENTS.md
     - CLAUDE.md
     - skills/**
@@ -16,18 +15,23 @@ gates:
     - harness/**
     - openspec/changes/**
     - scripts/checks/source/check_language_policy.py
-  changed_files: environment
-  minimum_tier: quick
+  targets:
+  - harness
   run:
-    python-check:
-      check: repository.language-policy
-      args: []
+    kind: python-check
+    incremental:
+      id: repository.language-policy
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: protectedRootsSync
   description: 检查各 Agent 入口声明的受保护路径与共享政策一致。
-  targets:
-  - name: harness
-    order: 12
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - AGENTS.md
     - CLAUDE.md
     - .agents/**
@@ -42,17 +46,23 @@ gates:
     - scripts/gates/**/*.py
     - config/gates.yaml
     - config/gates/**
-  minimum_tier: quick
+  targets:
+  - harness
   run:
-    python-check:
-      check: agent.protected-roots
-      args: []
+    kind: python-check
+    incremental:
+      id: agent.protected-roots
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: subagentHandoffProtocol
   description: 检查 subagent handoff 字段、状态和失败策略在各入口保持一致。
-  targets:
-  - name: harness
-    order: 15
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - AGENTS.md
     - CLAUDE.md
     - .agents/**
@@ -67,82 +77,121 @@ gates:
     - scripts/gates/**/*.py
     - config/gates.yaml
     - config/gates/**
-  minimum_tier: quick
+  targets:
+  - harness
   run:
-    python-check:
-      check: agent.subagent-handoff
-      args: []
+    kind: python-check
+    incremental:
+      id: agent.subagent-handoff
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: doctor
   description: 只读检查 Harness 依赖、结构与配置是否可用。
-  targets:
-  - name: python-standard
-    order: 96
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - scripts/harness/**/*.sh
-  minimum_tier: quick
+  targets:
+  - python-standard
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - bash
       - scripts/harness/doctor.sh
+      target_seconds: 15
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 30
+      timeout_seconds: 120
 - name: agentPolicySize
   description: 限制 Agent 入口与共享政策体积，防止规则重新膨胀。
-  targets:
-  - name: harness
-    order: 16
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - AGENTS.md
     - CLAUDE.md
     - .codex/config.toml
     - harness/agent-policy.manifest.yaml
     - scripts/checks/agent/check_agent_policy_size.py
+  targets:
+  - harness
   run:
-    python-check:
-      check: agent.policy-size
-      args: []
-  timeout: 120
+    kind: python-check
+    incremental:
+      id: agent.policy-size
+      target_seconds: 5
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 10
+      timeout_seconds: 60
 - name: skillRegistry
   description: 检查共享 Skill registry、平台入口与物理目录一致。
-  targets:
-  - name: harness
-    order: 18
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - harness/skill-registry.yaml
     - skills/**
     - .agents/skills/**
     - .claude/skills/**
     - .codex/skills/**
     - scripts/checks/agent/check_skill_registry.py
+  targets:
+  - harness
   run:
-    python-check:
-      check: agent.skill-registry
-      args: []
-  timeout: 120
+    kind: python-check
+    incremental:
+      id: agent.skill-registry
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: harnessStructure
   description: 验证 Harness manifest、Skill 链接和目录结构契约。
-  targets:
-  - name: harness
-    order: 25
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - harness/**
     - scripts/harness/**/*.py
-  minimum_tier: quick
+  targets:
+  - harness
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{python}'
       - scripts/harness/validate_harness_structure.py
-  timeout: 120
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: openspecLayout
   description: 验证 OpenSpec 目录布局和必需文件。
-  targets:
-  - name: harness
-    order: 26
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - openspec/**
+  targets:
+  - harness
   run:
-    command:
+    kind: command
+    incremental:
       argv:
       - '{python}'
       - scripts/openspec/validate_layout.py
-  timeout: 120
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60

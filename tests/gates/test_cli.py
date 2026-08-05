@@ -1,232 +1,302 @@
-"""Gate CLI/service 的解析、当次 artifact 与 warning 边界 contract。"""
+"""Gate CLI 的双模式、selector、输入与 service contract。"""
 
 import json
-import subprocess
 from pathlib import Path
+from types import SimpleNamespace
 
 import pytest
 from scripts.gates import cli, executor, report
-from scripts.gates.report import FAIL, PASS, GateDetail
+from scripts.gates.model import ExecutionMode
+from scripts.gates.report import BLOCKED, FAIL, NOT_PASS, PASS, GateDetail
 
 
-def test_service_modules_expose_stable_entrypoints() -> None:
-    assert callable(cli.run_service)
-    assert callable(executor.execute_plan)
-    assert callable(report.format_quality_report)
-
-
-def test_dry_run_has_stable_typed_plan(capsys) -> None:
-    rc = cli.main(['--tier', 'required', '--dry-run', '--changed-files', '["build.gradle.kts"]'])
+def test_default_incremental_dry_run_uses_changed_trigger(capsys) -> None:
+    rc = cli.main(['--dry-run', '--changed-files', '["scripts/gates/cli.py"]'])
     payload = json.loads(capsys.readouterr().out)
     assert rc == 0
-    assert payload['effectiveTargets'] == ['java-build']
-    assert payload['commands'][0]['gate'] == 'repositoryFilePolicy'
-    assert all('resources' not in group and 'dependsOn' not in group for group in payload['groups'])
+    assert payload['mode'] == 'incremental'
+    assert payload['selector'] is None
+    assert 'pythonHarnessTests' in payload['gates']
 
 
-def test_repository_file_preflight_runs_for_docs_only_change(capsys) -> None:
-    rc = cli.main(['--tier', 'required', '--dry-run', '--changed-files', '["README.md"]'])
-    payload = json.loads(capsys.readouterr().out)
-
-    assert rc == 0
-    assert payload['effectiveTargets'] == []
-    assert [item['gate'] for item in payload['commands']] == ['repositoryFilePolicy']
-
-
-def test_target_and_tier_are_mutually_exclusive() -> None:
-    with pytest.raises(SystemExit):
-        cli.main(['--target', 'harness', '--tier', 'quick'])
-
-
-def test_repeated_targets_preserve_both_business_scenarios(capsys) -> None:
-    rc = cli.main(
-        [
-            '--target',
-            'acceptance-cases',
-            '--target',
-            'session-detail',
-            '--dry-run',
-            '--changed-files',
-            '["docs/acceptance-cases/features/COMMON.md",'
-            '"java/web/src/main/resources/static/css/main.css"]',
-        ]
+def test_automatic_changed_files_include_current_git_dirty_paths(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """缺少客户端 evidence 时仍使用当前 checkout 的可信 Git dirty 路径。"""
+    identity = SimpleNamespace(
+        has_session=False,
+        is_agent=False,
+        raw_session_id='',
+        raw_agent_id='',
     )
-    payload = json.loads(capsys.readouterr().out)
-
-    assert rc == 0
-    assert payload['effectiveTargets'] == ['acceptance-cases', 'session-detail']
-    gates = {item['gate'] for item in payload['commands']}
-    assert {'acceptanceCaseMapping', 'webResourceTests'} <= gates
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-009')
-def test_service_writes_current_run_artifact(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(cli.support, 'identity_from_values', lambda: identity)
+    monkeypatch.setattr(cli.support, 'session_log_dirs', lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(cli.support, 'agent_log_dir', lambda *_args: tmp_path)
     monkeypatch.setattr(
-        executor,
-        'execute_plan',
-        lambda *_args, **_kwargs: (
-            GateDetail(name='repositoryFilePolicy', status=PASS),
-            GateDetail(name='harnessStructure', status=PASS),
-        ),
+        cli.support, 'read_recorded_changed_files_from_paths', lambda *_args, **_kwargs: []
     )
-    result = cli.run_service(
-        repo_root=tmp_path,
-        changed_files=['harness/manifest.yaml'],
-        tier='required',
-        change_id='change',
-        out_dir=tmp_path / 'out',
+    monkeypatch.setattr(cli.support, 'read_files_since_base_commit', lambda *_args: [])
+    monkeypatch.setattr(
+        cli.support,
+        'read_git_dirty_files',
+        lambda _root: ['scripts/gates/cli.py', 'tests/gates/test_cli.py'],
     )
-    assert result.passed
-    assert result.artifact_path and result.artifact_path.exists()
+
+    assert cli.get_changed_files(None, tmp_path) == [
+        'scripts/gates/cli.py',
+        'tests/gates/test_cli.py',
+    ]
 
 
-def test_service_executes_plan_on_every_run(tmp_path: Path, monkeypatch) -> None:
-    calls = 0
-
-    def fake_execute(*_args, **_kwargs):
-        nonlocal calls
-        calls += 1
-        return (GateDetail(name='harnessStructure', status=PASS),)
-
-    monkeypatch.setattr(executor, 'execute_plan', fake_execute)
-    kwargs = {
-        'repo_root': tmp_path,
-        'changed_files': ['harness/manifest.yaml'],
-        'tier': 'required',
-        'change_id': 'change',
-        'out_dir': tmp_path / 'out',
-    }
-    first = cli.run_service(**kwargs)
-    second = cli.run_service(**kwargs)
-    assert first.passed and second.passed
-    assert calls == 2
-    assert all(detail.status == PASS for detail in second.details)
-    assert all(detail.executionState == 'EXECUTED' for detail in second.details)
-    assert second.artifact_path and second.artifact_path.exists()
+@pytest.mark.parametrize('selector', ['--target', '--gate'])
+def test_selector_combines_with_full_mode(selector: str, capsys) -> None:
+    value = 'python-standard' if selector == '--target' else 'pythonLint'
+    assert cli.main(['--mode', 'full', selector, value, '--dry-run']) == 0
+    payload = json.loads(capsys.readouterr().out)
+    assert payload['mode'] == 'full'
+    assert payload['selector'] == selector.removeprefix('--')
 
 
-def test_service_injects_tier_and_keeps_explicit_environment_override(
+def test_target_and_gate_are_mutually_exclusive(capsys) -> None:
+    assert cli.main(['--target', 'harness', '--gate', 'pythonLint', '--dry-run']) == 2
+    assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('arguments', [['--mode', 'quick'], ['--unknown-option']])
+def test_argparse_errors_keep_external_not_pass(arguments: list[str], capsys) -> None:
+    """choice 和未知参数错误也必须使用统一二态输出，而不是裸 argparse usage。"""
+    assert cli.main(arguments) == 2
+    error = capsys.readouterr().err
+    assert 'status=NOT_PASS detailStatus=FAIL' in error
+    assert 'reason=input-unavailable' in error
+
+
+def test_full_rejects_changed_files(capsys) -> None:
+    assert cli.main(['--mode', 'full', '--changed-files', '[]', '--dry-run']) == 2
+    assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
+
+
+@pytest.mark.parametrize('raw', ['{}', '[1]', '["/tmp/x"]', '["../x"]', 'not-json'])
+def test_invalid_changed_files_fail(raw: str, capsys) -> None:
+    assert cli.main(['--changed-files', raw, '--dry-run']) == 2
+    assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
+
+
+def test_explicit_empty_dirty_is_execution_fail(tmp_path: Path, monkeypatch, capsys) -> None:
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.support, 'read_git_dirty_files', lambda _root: ['dirty.py'])
+    assert cli.main(['--changed-files', '[]', '--dry-run']) == 2
+    assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
+
+
+def test_explicit_empty_dirty_audit_exception_is_recorded(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    """空输入例外必须显式说明，并在计划证据中保留理由。"""
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(cli.support, 'read_git_dirty_files', lambda _root: ['dirty.py'])
+
+    assert (
+        cli.main(
+            [
+                '--changed-files',
+                '[]',
+                '--allow-empty-changed-files-because',
+                '只验证 always Gate',
+                '--dry-run',
+            ]
+        )
+        == 0
+    )
+
+    payload = json.loads(capsys.readouterr().out)
+    assert payload['inputAuditReason'] == '只验证 always Gate'
+
+
+def test_empty_changed_files_audit_exception_cannot_hide_nonempty_input(
+    capsys,
+) -> None:
+    """审计例外不能附着到普通增量输入上制造误导证据。"""
+    assert (
+        cli.main(
+            [
+                '--changed-files',
+                '["scripts/a.py"]',
+                '--allow-empty-changed-files-because',
+                'irrelevant',
+                '--dry-run',
+            ]
+        )
+        == 2
+    )
+    assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
+
+
+def test_service_preserves_custom_environment_without_reinjecting_mode(
     tmp_path: Path, monkeypatch
 ) -> None:
     captured: list[dict[str, str]] = []
 
     def fake_execute(*_args, **kwargs):
         captured.append(kwargs['environment_overrides'])
-        return (GateDetail(name='harnessStructure', status=PASS),)
+        return (GateDetail(name='pythonLint', status=PASS),)
 
     monkeypatch.setattr(executor, 'execute_plan', fake_execute)
-    cli.run_service(
-        repo_root=tmp_path,
-        changed_files=['harness/manifest.yaml'],
-        tier='full',
-        out_dir=tmp_path / 'out',
-    )
-    cli.run_service(
-        repo_root=tmp_path,
-        changed_files=['harness/manifest.yaml'],
-        tier='full',
-        out_dir=tmp_path / 'out-override',
-        environment_overrides={'QUALITY_GATE_TIER': 'required', 'CUSTOM': 'value'},
-    )
-
-    assert captured == [
-        {'QUALITY_GATE_TIER': 'full'},
-        {'QUALITY_GATE_TIER': 'required', 'CUSTOM': 'value'},
-    ]
-
-
-def test_explicit_empty_dirty_is_blocked(tmp_path: Path, monkeypatch, capsys) -> None:
-    monkeypatch.chdir(tmp_path)
-    monkeypatch.setattr(cli.support, 'read_git_dirty_files', lambda _root: ['dirty.py'])
-    assert cli.main(['--changed-files', '[]', '--dry-run']) == 1
-    assert 'status=BLOCKED' in capsys.readouterr().err
-
-
-@pytest.mark.contract_case('HOOK-HARNESS-012')
-def test_required_gate_failure_writes_failure_artifact(tmp_path: Path, monkeypatch) -> None:
-    failed = GateDetail(name='required-check', status=FAIL, output='failed')
-    monkeypatch.setattr(executor, 'execute_plan', lambda *_args, **_kwargs: (failed,))
     result = cli.run_service(
         repo_root=tmp_path,
-        changed_files=['build.gradle.kts'],
-        change_id='required-failure',
+        changed_files=['scripts/a.py'],
+        gate='pythonLint',
         out_dir=tmp_path / 'out',
-        include_preflight=False,
+        environment_overrides={'CUSTOM': 'value'},
     )
-    assert result.status == FAIL
-    assert result.passed is False
-    assert result.artifact_path and result.artifact_path.exists()
+    assert result.status == PASS
+    assert captured == [{'CUSTOM': 'value'}]
+
+
+@pytest.mark.parametrize('reserved', ['QUALITY_EXECUTION_MODE', 'QUALITY_CHANGED_FILES'])
+def test_service_rejects_gate_request_environment_override(tmp_path: Path, reserved: str) -> None:
+    """调用者不能让实际 owner 输入与冻结 plan、报告中的 mode 分叉。"""
+    with pytest.raises(ValueError, match='cannot be overridden'):
+        cli.run_service(
+            repo_root=tmp_path,
+            changed_files=['scripts/a.py'],
+            gate='pythonLint',
+            out_dir=tmp_path / 'out',
+            environment_overrides={reserved: 'full'},
+        )
+
+
+def test_service_writes_input_audit_reason_to_report(tmp_path: Path, monkeypatch) -> None:
+    """执行型审计例外必须进入最终报告，而不只存在于 CLI 内存。"""
+    monkeypatch.setattr(
+        executor,
+        'execute_plan',
+        lambda *_args, **_kwargs: (GateDetail(name='pythonLint', status=PASS),),
+    )
+
+    result = cli.run_service(
+        repo_root=tmp_path,
+        changed_files=[],
+        gate='pythonLint',
+        out_dir=tmp_path / 'out',
+        input_audit_reason='人工确认空增量输入',
+    )
+
     payload = json.loads(result.artifact_path.read_text(encoding='utf-8'))
-    assert payload['status'] == FAIL
+    assert payload['artifacts']['inputAuditReason'] == '人工确认空增量输入'
+    assert payload['mode'] == 'incremental'
+    assert payload['selector'] == 'gate'
+    assert payload['selectorValue'] == 'pythonLint'
+    assert 'target' not in payload
 
 
-def test_session_browser_test_rejects_pytest_arguments() -> None:
-    repo_root = Path(__file__).resolve().parents[2]
-    proc = subprocess.run(
-        ['./scripts/session-browser.sh', 'test', 'tests/example.py'],
-        cwd=repo_root,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.STDOUT,
-        timeout=30,
-        check=False,
+def test_service_timestamps_cover_gate_execution(tmp_path: Path, monkeypatch) -> None:
+    """报告起始时间必须先于执行，不能在 Gate 已全部结束后才生成。"""
+
+    events: list[str] = []
+    timestamps = iter(['2026-08-03T01:00:00+00:00', '2026-08-03T01:00:03+00:00'])
+
+    def now() -> str:
+        value = next(timestamps)
+        events.append(value)
+        return value
+
+    def execute(*_args, **_kwargs):
+        assert events == ['2026-08-03T01:00:00+00:00']
+        return (GateDetail(name='pythonLint', status=PASS, durationMs=3_000),)
+
+    monkeypatch.setattr(report, 'utc_now', now)
+    monkeypatch.setattr(executor, 'execute_plan', execute)
+
+    result = cli.run_service(
+        repo_root=tmp_path,
+        changed_files=['scripts/a.py'],
+        gate='pythonLint',
+        out_dir=tmp_path / 'out',
     )
-    assert proc.returncode == 2
-    assert 'test 不接受额外参数' in proc.stdout
+
+    payload = json.loads(result.artifact_path.read_text(encoding='utf-8'))
+    assert payload['startedAt'] == '2026-08-03T01:00:00+00:00'
+    assert payload['finishedAt'] == '2026-08-03T01:00:03+00:00'
+    assert payload['generatedAt'] == payload['finishedAt']
 
 
-def test_changed_files_merge_recorded_evidence_and_git_fallback(
+def test_automatic_incremental_report_lists_not_triggered_gates(
     tmp_path: Path, monkeypatch
 ) -> None:
-    subprocess.run(['git', 'init', '-q'], cwd=tmp_path, check=True)
-    subprocess.run(
-        ['git', 'config', 'user.email', 'gate@example.invalid'], cwd=tmp_path, check=True
-    )
-    subprocess.run(['git', 'config', 'user.name', 'Gate Test'], cwd=tmp_path, check=True)
-    tracked = tmp_path / 'tracked.txt'
-    tracked.write_text('base\n', encoding='utf-8')
-    (tmp_path / '.gitignore').write_text('tmp/\n', encoding='utf-8')
-    subprocess.run(['git', 'add', 'tracked.txt', '.gitignore'], cwd=tmp_path, check=True)
-    subprocess.run(['git', 'commit', '-qm', 'base'], cwd=tmp_path, check=True)
-    base = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=tmp_path, text=True).strip()
+    """自动增量报告显式区分未选中 Gate，且不把它们伪装成 PASS 或 skipped。"""
 
-    monkeypatch.setenv('FEIPI_AGENT_CLIENT', 'codex')
-    monkeypatch.setenv('FEIPI_SESSION_ID', 'session-a')
-    monkeypatch.setenv('FEIPI_RUN_ID', 'run-a')
-    identity = cli.support.identity_from_values()
-    log_dir = cli.support.agent_log_dir(tmp_path, identity)
-    log_dir.mkdir(parents=True)
-    (log_dir / 'base-commit.txt').write_text(base + '\n', encoding='utf-8')
-    (log_dir / 'changed-files.jsonl').write_text(
-        json.dumps({'sessionId': 'session-a', 'file': './recorded.py'}) + '\n',
-        encoding='utf-8',
-    )
-    tracked.write_text('changed\n', encoding='utf-8')
-    (tmp_path / 'untracked.txt').write_text('new\n', encoding='utf-8')
+    def execute(execution_plan, *_args, **_kwargs):
+        return tuple(
+            GateDetail(name=gate.name, status=PASS) for gate in execution_plan.gate_plan.gates
+        )
 
-    assert cli.get_changed_files(None, tmp_path) == [
-        'recorded.py',
-        'tracked.txt',
-        'untracked.txt',
-    ]
+    monkeypatch.setattr(executor, 'execute_plan', execute)
+    result = cli.run_service(
+        repo_root=tmp_path,
+        changed_files=['scripts/gates/cli.py'],
+        out_dir=tmp_path / 'out',
+    )
+
+    payload = json.loads(result.artifact_path.read_text(encoding='utf-8'))
+    not_triggered = payload['artifacts']['notTriggeredGates']
+    assert not_triggered
+    assert set(not_triggered).isdisjoint(payload['gateResults'])
+    assert all(payload['gateStates'][name] == 'NOT_TRIGGERED' for name in not_triggered)
+
+
+@pytest.mark.parametrize('detail_status', [BLOCKED, FAIL])
+@pytest.mark.contract_case('HOOK-HARNESS-012')
+def test_service_exposes_not_pass_and_keeps_detail(
+    detail_status: str, tmp_path: Path, monkeypatch
+) -> None:
+    monkeypatch.setattr(
+        executor,
+        'execute_plan',
+        lambda *_args, **_kwargs: (GateDetail(name='pythonLint', status=detail_status),),
+    )
+    result = cli.run_service(
+        repo_root=tmp_path,
+        changed_files=['scripts/a.py'],
+        gate='pythonLint',
+        out_dir=tmp_path / 'out',
+    )
+    assert result.status == NOT_PASS
+    payload = json.loads(result.artifact_path.read_text(encoding='utf-8'))
+    assert payload['status'] == NOT_PASS
+    assert payload['gateResults']['pythonLint'] == detail_status
+
+
+def test_create_plan_uses_exact_gate_selector() -> None:
+    plan = cli.create_plan(['README.md'], mode=ExecutionMode.INCREMENTAL, gate='pythonLint')
+    assert [gate.name for gate in plan.gates] == ['pythonLint']
+    assert plan.selector == 'gate'
+
+
+def test_base_url_requires_playwright_gate(capsys) -> None:
+    assert (
+        cli.main(
+            [
+                '--gate',
+                'pythonLint',
+                '--base-url',
+                'http://127.0.0.1:8080',
+                '--changed-files',
+                '["scripts/a.py"]',
+                '--dry-run',
+            ]
+        )
+        == 2
+    )
+    assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
 
 
 def test_change_id_falls_back_to_active_change_evidence(tmp_path: Path) -> None:
-    active_change = tmp_path / 'tmp' / 'active_change.json'
-    active_change.parent.mkdir()
-    active_change.write_text('{"change_id": "strengthen-java-reuse-analyzer"}', encoding='utf-8')
-
-    assert cli.resolve_change_id(None, tmp_path) == 'strengthen-java-reuse-analyzer'
-    assert cli.resolve_change_id('explicit-change', tmp_path) == 'explicit-change'
+    active = tmp_path / 'tmp' / 'active_change.json'
+    active.parent.mkdir()
+    active.write_text('{"change_id":"change-a"}', encoding='utf-8')
+    assert cli.resolve_change_id(None, tmp_path) == 'change-a'
 
 
-@pytest.mark.contract_case('JR-020-004')
-def test_create_plan_applies_java_target_dominance_with_typed_targets_api() -> None:
-    gate_plan = cli.create_plan(
-        ['java/app-cli/src/main/java/App.java', 'build.gradle.kts'],
-        tier='required',
-        targets=None,
-        explicit_changed_files=True,
-    )
-    assert gate_plan.raw_targets == ('java-src', 'java-build', 'scan-script-smoke')
-    assert gate_plan.effective_targets == ('java-src', 'scan-script-smoke')
+def test_report_module_exposes_external_summary_status() -> None:
+    assert report.NOT_PASS == 'NOT_PASS'

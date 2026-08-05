@@ -1,4 +1,6 @@
-"""当前 Gate catalog 的 strict schema 与 typed inventory contract。"""
+"""双模式 Gate Catalog 的严格 schema 与不可变模型契约。"""
+
+from __future__ import annotations
 
 import copy
 import shutil
@@ -7,249 +9,243 @@ from pathlib import Path
 
 import pytest
 import yaml
-from scripts.gates.catalog import CATALOG, _load_catalog, gate_by_name
-from scripts.gates.model import ChangedFilesInput, MinimumTier, RunKind
-from scripts.gates.planner import gates_for_tier, validate_catalog
+from scripts.gates.catalog import CATALOG, _load_catalog, gate_by_name, target_by_name
+from scripts.gates.model import ExecutionMode, RunKind, TriggerMode
 
-GATE_FILES = (
-    'gates/python-tooling.yaml',
-    'gates/repository-safety.yaml',
-    'gates/harness-governance.yaml',
-    'gates/web-quality.yaml',
-    'gates/java-quality.yaml',
-    'gates/product-smoke.yaml',
-)
+GATE_FILES = tuple(f'gates/{path.name}' for path in sorted(Path('config/gates').glob('*.yaml')))
 
 
 @pytest.fixture
 def catalog_tree(tmp_path: Path) -> Path:
-    source = Path(__file__).resolve().parents[2] / 'config'
-    shutil.copy2(source / 'gates.yaml', tmp_path / 'gates.yaml')
-    shutil.copytree(source / 'gates', tmp_path / 'gates')
-    return tmp_path / 'gates.yaml'
+    """复制当前 Catalog，让失败用例只修改隔离配置。"""
+
+    root = tmp_path / 'gates.yaml'
+    shutil.copy2('config/gates.yaml', root)
+    fragment_dir = tmp_path / 'gates'
+    fragment_dir.mkdir()
+    for source in Path('config/gates').glob('*.yaml'):
+        shutil.copy2(source, fragment_dir / source.name)
+    return root
 
 
 def _read(path: Path) -> dict[str, object]:
-    value = yaml.safe_load(path.read_text(encoding='utf-8'))
-    assert isinstance(value, dict)
-    return value
+    return yaml.safe_load(path.read_text(encoding='utf-8'))
 
 
 def _write(path: Path, value: object) -> None:
     path.write_text(yaml.safe_dump(value, allow_unicode=True, sort_keys=False), encoding='utf-8')
 
 
-def _gate_with_run(catalog_tree: Path, run_kind: str) -> tuple[Path, dict, dict]:
-    """返回包含指定 run kind 的分片、分片数据和 Gate 声明。"""
-    for relative in GATE_FILES:
-        path = catalog_tree.parent / relative
-        data = _read(path)
-        for gate in data['gates']:  # type: ignore[union-attr]
-            if run_kind in gate['run']:
-                return path, data, gate
-    raise AssertionError(f'run kind not found: {run_kind}')
-
-
-def test_current_inventory_is_typed_unique_and_exactly_42() -> None:
-    validate_catalog()
-    assert len(CATALOG.gates) == len({gate.name for gate in CATALOG.gates}) == 42
-    assert CATALOG.gate_defaults.minimum_tier is MinimumTier.REQUIRED
-    assert CATALOG.gate_defaults.timeout_seconds == 300
-    assert CATALOG.gate_defaults.changed_files_input is ChangedFilesInput.NONE
-    assert CATALOG.gate_defaults.network_failure == 'fail'
-
-
-def test_root_schema_has_typed_defaults_and_generic_target_triggers(catalog_tree: Path) -> None:
+def _first_gate(catalog_tree: Path) -> tuple[Path, dict[str, object], dict[str, object]]:
     root = _read(catalog_tree)
-    assert set(root) == {
-        'gate_defaults',
-        'targets',
-        'gate_files',
-        'path_rules',
-        'target_triggers',
-    }
-    assert tuple(root['gate_files']) == GATE_FILES  # type: ignore[arg-type]
-    assert _load_catalog(catalog_tree) == CATALOG
+    fragment = catalog_tree.parent / root['gate_files'][0]  # type: ignore[index]
+    data = _read(fragment)
+    return fragment, data, data['gates'][0]  # type: ignore[index,return-value]
 
 
-def test_gate_defaults_expand_and_same_value_override_is_rejected(catalog_tree: Path) -> None:
+def test_current_catalog_has_stable_inventory_and_all_six_run_kinds() -> None:
+    assert tuple(target.name for target in CATALOG.targets) == (
+        'python-standard',
+        'harness',
+        'session-detail',
+        'java-src',
+        'java-build',
+        'scan-script-smoke',
+    )
+    assert len(CATALOG.gates) == 41
+    assert tuple(gate.name for gate in CATALOG.gates[:3]) == (
+        'pythonFormat',
+        'pythonLint',
+        'pythonHarnessTests',
+    )
+    assert tuple(gate.name for gate in CATALOG.gates[-3:]) == (
+        'javaApiSnapshot',
+        'scanScriptSmoke',
+        'sessionSamples',
+    )
+    assert {gate.run.kind for gate in CATALOG.gates} == set(RunKind)
+    assert len(CATALOG.path_rules) == 18
+
+
+def test_every_gate_has_five_field_model_and_two_complete_timing_profiles() -> None:
+    for gate in CATALOG.gates:
+        assert gate.name and gate.description
+        assert gate.trigger.mode in TriggerMode
+        if gate.trigger.mode is TriggerMode.CHANGED:
+            assert gate.trigger.paths
+        else:
+            assert not gate.trigger.paths
+        for mode in ExecutionMode:
+            profile = gate.run.profile_for(mode)
+            assert profile.target_seconds > 0
+            assert profile.timeout_seconds >= profile.target_seconds
+
+
+def test_same_as_copies_execution_only_and_keeps_explicit_full_timing() -> None:
     gate = gate_by_name('pythonFormat')
-    assert gate.minimum_tier is MinimumTier.REQUIRED
-    assert gate.timeout_seconds == 300
-    fragment = catalog_tree.parent / GATE_FILES[0]
-    data = _read(fragment)
-    data['gates'][0]['timeout'] = 300  # type: ignore[index]
-    _write(fragment, data)
-    with pytest.raises(ValueError, match='redundantly overrides'):
-        _load_catalog(catalog_tree)
+    incremental = gate.run.incremental
+    full = gate.run.full
+    assert full.argv == incremental.argv
+    assert full is not incremental
+    assert full.target_seconds > 0
+    assert full.timeout_seconds >= full.target_seconds
+    assert gate.run.profile_for('incremental') is incremental
+    assert gate.run.profile_for('full') is full
 
 
-def test_catalog_rejects_obsolete_version_field(catalog_tree: Path) -> None:
-    root = _read(catalog_tree)
-    root['version'] = 'obsolete-version'
-    _write(catalog_tree, root)
-    with pytest.raises(ValueError, match=r'unexpected=.*version'):
-        _load_catalog(catalog_tree)
-
-
-@pytest.mark.parametrize('lexical', ['yes', 'no', 'on', 'off', 'True', 'FALSE'])
-def test_yaml_11_boolean_lexicals_are_not_accepted_as_booleans(
-    catalog_tree: Path, lexical: str
-) -> None:
-    source = catalog_tree.read_text(encoding='utf-8')
-    catalog_tree.write_text(
-        source.replace('allowed: false', f'allowed: {lexical}', 1), encoding='utf-8'
-    )
-    with pytest.raises(ValueError, match='must be a boolean'):
-        _load_catalog(catalog_tree)
-
-
-@pytest.mark.parametrize('lexical', ['012', '0x12', '1_000', '+12', '1:20'])
-def test_non_decimal_integer_lexicals_are_rejected(catalog_tree: Path, lexical: str) -> None:
-    fragment = catalog_tree.parent / GATE_FILES[0]
-    source = fragment.read_text(encoding='utf-8')
-    fragment.write_text(source.replace('order: 0', f'order: {lexical}', 1), encoding='utf-8')
-    with pytest.raises(ValueError, match='must be a non-negative integer'):
-        _load_catalog(catalog_tree)
-
-
-def test_python_check_rejects_glob_args_ignored_by_executor(catalog_tree: Path) -> None:
-    fragment = catalog_tree.parent / GATE_FILES[0]
-    data = _read(fragment)
-    python_check = next(
-        gate['run']['python-check']
-        for gate in data['gates']  # type: ignore[union-attr]
-        if 'python-check' in gate['run']
-    )
-    python_check['glob_args'] = ['tests/**/*.py']
-    _write(fragment, data)
-    with pytest.raises(ValueError, match=r'unexpected=.*glob_args'):
-        _load_catalog(catalog_tree)
+def test_lookup_and_models_are_strict_and_frozen() -> None:
+    assert target_by_name('java-src').description.startswith('人工运行')
+    with pytest.raises(ValueError, match='Unknown quality gate'):
+        gate_by_name('missing')
+    with pytest.raises(ValueError, match='Unknown quality target'):
+        target_by_name('missing')
+    with pytest.raises(FrozenInstanceError):
+        CATALOG.gates = ()  # type: ignore[misc]
 
 
 @pytest.mark.parametrize(
-    ('location', 'key', 'value'),
+    'old_key',
     [
-        ('root', 'unknown', True),
-        ('defaults', 'timeout', '300'),
-        ('target', 'name', False),
-        ('path', 'allowed', 'false'),
-        ('trigger', 'patterns', 'scripts/**'),
-        ('gate', 'timeout', True),
-        ('gate-target', 'order', '0'),
-        ('run', 'command', []),
+        'gate_defaults',
+        'target_triggers',
+        'minimum_tier',
+        'timeout',
+        'changed_files',
+        'network_failure',
+        'policy',
+        'inputs',
     ],
 )
-def test_nested_schema_rejects_unknown_or_wrong_exact_types(
-    catalog_tree: Path, location: str, key: str, value: object
-) -> None:
-    root = _read(catalog_tree)
-    fragment = catalog_tree.parent / GATE_FILES[0]
-    data = _read(fragment)
-    if location == 'root':
-        root[key] = value
-    elif location == 'defaults':
-        root['gate_defaults'][key] = value  # type: ignore[index]
-    elif location == 'target':
-        root['targets'][0][key] = value  # type: ignore[index]
-    elif location == 'path':
-        root['path_rules'][0][key] = value  # type: ignore[index]
-    elif location == 'trigger':
-        root['target_triggers'][0][key] = value  # type: ignore[index]
-    elif location == 'gate':
-        data['gates'][0][key] = value  # type: ignore[index]
-    elif location == 'gate-target':
-        data['gates'][0]['targets'][0][key] = value  # type: ignore[index]
+def test_old_root_or_gate_fields_are_rejected(catalog_tree: Path, old_key: str) -> None:
+    if old_key in {'gate_defaults', 'target_triggers'}:
+        root = _read(catalog_tree)
+        root[old_key] = {}
+        _write(catalog_tree, root)
     else:
-        data['gates'][0]['run'] = {key: value}  # type: ignore[index]
-    _write(catalog_tree, root)
-    _write(fragment, data)
-    with pytest.raises((ValueError, TypeError)):
+        fragment, data, gate = _first_gate(catalog_tree)
+        gate[old_key] = 'legacy'
+        _write(fragment, data)
+    with pytest.raises(ValueError, match='unexpected='):
         _load_catalog(catalog_tree)
 
 
-@pytest.mark.parametrize(
-    ('location', 'required_key'),
-    [
-        ('root', 'gate_defaults'),
-        ('defaults', 'timeout'),
-        ('target', 'name'),
-        ('path', 'patterns'),
-        ('trigger', 'target'),
-        ('fragment', 'gates'),
-        ('gate', 'description'),
-        ('gate-target', 'order'),
-    ],
-)
-def test_every_nested_object_rejects_missing_required_key(
-    catalog_tree: Path, location: str, required_key: str
-) -> None:
-    root = _read(catalog_tree)
-    fragment = catalog_tree.parent / GATE_FILES[0]
-    data = _read(fragment)
-    if location == 'root':
-        del root[required_key]
-    elif location == 'defaults':
-        del root['gate_defaults'][required_key]  # type: ignore[index]
-    elif location == 'target':
-        del root['targets'][0][required_key]  # type: ignore[index]
-    elif location == 'path':
-        del root['path_rules'][0][required_key]  # type: ignore[index]
-    elif location == 'trigger':
-        del root['target_triggers'][0][required_key]  # type: ignore[index]
-    elif location == 'fragment':
-        del data[required_key]
-    elif location == 'gate':
-        del data['gates'][0][required_key]  # type: ignore[index]
-    else:
-        del data['gates'][0]['targets'][0][required_key]  # type: ignore[index]
-    _write(catalog_tree, root)
+def test_target_rule_object_is_rejected(catalog_tree: Path) -> None:
+    fragment, data, gate = _first_gate(catalog_tree)
+    gate['targets'] = [{'name': 'python-standard', 'order': 0, 'patterns': ['scripts/**']}]
     _write(fragment, data)
-
-    with pytest.raises(ValueError, match='missing='):
-        _load_catalog(catalog_tree)
-
-
-@pytest.mark.parametrize(
-    ('run_kind', 'required_key'),
-    [
-        ('command', 'argv'),
-        ('python-check', 'check'),
-        ('playwright', 'argv'),
-        ('scan-smoke', 'prerequisite_tasks'),
-        ('gradle-task', 'tasks'),
-        ('java-rule', 'rules'),
-    ],
-)
-def test_each_run_kind_rejects_missing_required_source(
-    catalog_tree: Path, run_kind: str, required_key: str
-) -> None:
-    path, data, gate = _gate_with_run(catalog_tree, run_kind)
-    del gate['run'][run_kind][required_key]
-    _write(path, data)
-
     with pytest.raises(ValueError):
         _load_catalog(catalog_tree)
 
 
-@pytest.mark.parametrize('required_key', ['path', 'argv'])
-def test_optional_args_reject_missing_required_key(catalog_tree: Path, required_key: str) -> None:
-    fragment = catalog_tree.parent / GATE_FILES[0]
-    data = _read(fragment)
-    gate = next(
-        gate
-        for gate in data['gates']  # type: ignore[union-attr]
-        if gate['name'] == 'scriptCommentLanguage'
-    )
-    del gate['run']['python-check']['optional_args'][0][required_key]
-    _write(fragment, data)
-
+@pytest.mark.parametrize('location', ['root', 'target', 'path-rule', 'gate', 'trigger', 'run'])
+def test_required_fields_are_rejected_at_every_level(catalog_tree: Path, location: str) -> None:
+    root = _read(catalog_tree)
+    fragment, data, gate = _first_gate(catalog_tree)
+    if location == 'root':
+        del root['path_rules']
+        _write(catalog_tree, root)
+    elif location == 'target':
+        del root['targets'][0]['description']  # type: ignore[index]
+        _write(catalog_tree, root)
+    elif location == 'path-rule':
+        del root['path_rules'][0]['patterns']  # type: ignore[index]
+        _write(catalog_tree, root)
+    elif location == 'gate':
+        del gate['description']
+        _write(fragment, data)
+    elif location == 'trigger':
+        del gate['trigger']['paths']  # type: ignore[index]
+        _write(fragment, data)
+    else:
+        del gate['run']['full']  # type: ignore[index]
+        _write(fragment, data)
     with pytest.raises(ValueError, match='missing='):
         _load_catalog(catalog_tree)
 
 
+def test_always_trigger_forbids_paths(catalog_tree: Path) -> None:
+    fragment, data, gate = _first_gate(catalog_tree)
+    gate['trigger'] = {'mode': 'always', 'paths': ['scripts/**']}
+    _write(fragment, data)
+    with pytest.raises(ValueError, match='unexpected='):
+        _load_catalog(catalog_tree)
+
+
+@pytest.mark.parametrize(
+    ('mutation', 'message'),
+    [
+        ({'same_as': 'full', 'target_seconds': 1, 'timeout_seconds': 2}, 'same_as'),
+        (
+            {
+                'same_as': 'incremental',
+                'argv': ['tool'],
+                'target_seconds': 1,
+                'timeout_seconds': 2,
+            },
+            'unexpected=',
+        ),
+        ({'target_seconds': 10, 'timeout_seconds': 9, 'argv': ['tool']}, '>='),
+    ],
+)
+def test_same_as_and_timing_fail_closed(
+    catalog_tree: Path, mutation: dict[str, object], message: str
+) -> None:
+    fragment, data, gate = _first_gate(catalog_tree)
+    gate['run']['full'] = mutation  # type: ignore[index]
+    _write(fragment, data)
+    with pytest.raises(ValueError, match=message):
+        _load_catalog(catalog_tree)
+
+
+def test_unknown_target_and_duplicate_gate_are_rejected(catalog_tree: Path) -> None:
+    fragment, data, gate = _first_gate(catalog_tree)
+    gate['targets'] = ['missing-target']
+    data['gates'].append(copy.deepcopy(gate))  # type: ignore[index]
+    _write(fragment, data)
+    with pytest.raises(ValueError):
+        _load_catalog(catalog_tree)
+
+
+def test_unused_target_is_rejected(catalog_tree: Path) -> None:
+    root = _read(catalog_tree)
+    root['targets'].append({'name': 'unused', 'description': '人工运行未绑定的 Gate。'})  # type: ignore[index]
+    _write(catalog_tree, root)
+    with pytest.raises(ValueError, match='selects no Gate'):
+        _load_catalog(catalog_tree)
+
+
+@pytest.mark.parametrize(
+    ('mutation', 'message'),
+    [
+        (('target-description', 'not Chinese.'), 'Chinese sentence'),
+        (('path-risk', 'urgent'), 'invalid value'),
+        (('required-path', '../outside'), 'repository-relative paths'),
+        (('append-glob', '/absolute/**'), 'repository-relative globs'),
+    ],
+)
+def test_human_text_and_repository_paths_are_strict(
+    catalog_tree: Path, mutation: tuple[str, str], message: str
+) -> None:
+    kind, value = mutation
+    root = _read(catalog_tree)
+    if kind == 'target-description':
+        root['targets'][0]['description'] = value  # type: ignore[index]
+        _write(catalog_tree, root)
+    elif kind == 'path-risk':
+        root['path_rules'][0]['risk'] = value  # type: ignore[index]
+        _write(catalog_tree, root)
+    else:
+        fragment = catalog_tree.parent / 'gates/python-tooling.yaml'
+        data = _read(fragment)
+        profile = data['gates'][2]['run']['incremental']  # type: ignore[index]
+        profile['required_paths' if kind == 'required-path' else 'append_globs'] = [value]
+        _write(fragment, data)
+    with pytest.raises(ValueError, match=message):
+        _load_catalog(catalog_tree)
+
+
 @pytest.mark.parametrize('syntax', ['anchor', 'duplicate', 'merge'])
-def test_yaml_inheritance_and_duplicate_keys_are_rejected(catalog_tree: Path, syntax: str) -> None:
+def test_yaml_indirection_and_duplicate_keys_are_rejected(catalog_tree: Path, syntax: str) -> None:
     source = catalog_tree.read_text(encoding='utf-8')
     if syntax == 'anchor':
         source = source.replace('targets:', 'targets: &targets', 1)
@@ -262,70 +258,11 @@ def test_yaml_inheritance_and_duplicate_keys_are_rejected(catalog_tree: Path, sy
         _load_catalog(catalog_tree)
 
 
-def test_fragments_are_canonical_unique_and_cannot_escape(catalog_tree: Path) -> None:
+def test_fragments_are_unique_canonical_and_cannot_escape(catalog_tree: Path) -> None:
     root = _read(catalog_tree)
-    for bad in (
-        [],
-        [*GATE_FILES, GATE_FILES[0]],
-        ['/tmp/gates.yaml', *GATE_FILES[1:]],
-        ['gates/../python-tooling.yaml', *GATE_FILES[1:]],
-    ):
+    for bad in ([], [*GATE_FILES, GATE_FILES[0]], ['/tmp/gates.yaml'], ['gates/../bad.yaml']):
         changed = copy.deepcopy(root)
         changed['gate_files'] = bad
         _write(catalog_tree, changed)
         with pytest.raises(ValueError):
             _load_catalog(catalog_tree)
-
-
-def test_load_catalog_rejects_unknown_target_reference(catalog_tree: Path) -> None:
-    root = _read(catalog_tree)
-    root['path_rules'][0]['targets'] = ['unknown-target']  # type: ignore[index]
-    _write(catalog_tree, root)
-
-    with pytest.raises(ValueError, match='path rule target reference'):
-        _load_catalog(catalog_tree)
-
-
-def test_run_mapping_is_discriminated_and_java_task_is_adapter_owned() -> None:
-    kinds = {gate.run.kind for gate in CATALOG.gates}
-    assert kinds == set(RunKind)
-    for gate in CATALOG.gates:
-        if gate.run.kind is RunKind.JAVA_RULE:
-            assert gate.run.java_rules
-            assert not hasattr(gate.run, 'java_task')
-    assert gate_by_name('pythonDependencyVulnerabilities').run.python == 'dev'
-    assert gate_by_name('pythonDependencyVulnerabilities').minimum_tier is MinimumTier.FULL
-
-
-def test_tier_membership_is_derived_from_minimum_tier() -> None:
-    assert gate_by_name('bashSyntax').name in gates_for_tier('quick')
-    assert gate_by_name('pythonFormat').name not in gates_for_tier('quick')
-    assert gate_by_name('javaApiSnapshot').name not in gates_for_tier('required')
-    assert gate_by_name('javaApiSnapshot').name in gates_for_tier('full')
-
-
-def test_catalog_models_are_frozen() -> None:
-    with pytest.raises(FrozenInstanceError):
-        CATALOG.gates = ()  # type: ignore[misc]
-
-
-def test_scan_smoke_inventory_preserves_historical_trigger_paths() -> None:
-    trigger = next(item for item in CATALOG.target_triggers if item.target == 'scan-script-smoke')
-    assert {
-        'scripts/session-browser.sh',
-        'scripts/checks/**',
-        'java/app-cli/**',
-        'java/scan-engine/**',
-        'java/sources/**',
-        'java/index-sqlite/**',
-    } <= set(trigger.patterns)
-    assert gate_by_name('scanScriptSmoke').run.kind is RunKind.SCAN_SMOKE
-
-
-def test_java_targets_keep_reuse_and_pmd_rule_ownership() -> None:
-    for target in ('java-src', 'java-build'):
-        names = {gate.name for gate in CATALOG.gates if target in gate.targets}
-        assert {'reuseStandardCpd', 'reuseAnalyzeIncremental'} <= names
-
-    pmd_rules = Path('config/pmd/pmd.xml').read_text(encoding='utf-8')
-    assert 'FeipiDuplicateDelegatingMethods' in pmd_rules

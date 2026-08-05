@@ -1,16 +1,17 @@
 # Gate 诊断分类
 
-本页只提供失败分类，不保存 required Gate 清单。当前 target、Gate、tier、path trigger 与命令必须从 `scripts/gates/catalog.py` 和 `python3 scripts/gates/cli.py --dry-run` 派生。
+本页只提供失败分类，不保存 Gate 清单。当前 Target、Gate、Trigger、mode 与命令必须从 `scripts/gates/catalog.py` 和 `python3 scripts/gates/cli.py --dry-run` 派生。
 
-## Required baseline
+## 增量交付检查
 
 显式入口：
 
 ```bash
-python3 scripts/gates/cli.py --tier required
+python3 scripts/gates/cli.py --mode incremental
 ```
 
-所有已触发 Gate 必须完成并通过。失败、环境阻断、未运行、warning 或 skipped 都不能作为整体 `PASS`；`NOT_TRIGGERED` 单独报告。
+所有已触发 Gate 必须完成并通过。`BLOCKED` 表示检查已完成但结论阻断交付；`FAIL` 表示 Gate 未能完成。
+`NOT_TRIGGERED` 只是规划状态。
 
 ## Doctor
 
@@ -23,6 +24,6 @@ python3 scripts/gates/cli.py --tier required
 - **Java/build**：编译、测试、Javadoc、静态分析、Gradle 配置或发行 task。
 - **UI/browser**：模板、CSS、交互、布局、fixture server 或 Playwright contract。
 - **数据/隐私**：index、session sample、敏感内容与脱敏 contract。
-- **环境**：解释器、依赖、浏览器、网络或外部命令不可用；必须保留 `BLOCKED`。
+- **环境**：解释器、依赖、浏览器、网络或外部命令不可用；必须返回带 reason code 的 `FAIL`。
 
 仓库不再维护 Hook payload、Session Registry、writer lease、Stop controller 或自动 integration 分类。具体失败属于哪个 Gate、执行什么命令，只从本次 Gate plan 和结构化报告读取。

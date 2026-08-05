@@ -12,6 +12,7 @@ import importlib
 import io
 import json
 from dataclasses import dataclass
+from enum import StrEnum
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -19,6 +20,14 @@ if TYPE_CHECKING:
     from collections.abc import Callable, Iterable
 
 CheckOptions = argparse.Namespace
+
+
+class CheckStatus(StrEnum):
+    """定义 Python Check 对 Gate executor 输出的三态结论。"""
+
+    PASS = 'PASS'
+    BLOCKED = 'BLOCKED'
+    FAIL = 'FAIL'
 
 
 def repository_root() -> Path:
@@ -57,23 +66,40 @@ class Diagnostic:
 
 @dataclass(frozen=True, slots=True)
 class CheckResult:
-    """保存一个 Check 返回的全部失败诊断；没有诊断即表示通过。"""
+    """保存 Check 结论；规则命中为 BLOCKED，执行异常为 FAIL。"""
 
     diagnostics: tuple[Diagnostic, ...] = ()
+    outcome: CheckStatus = CheckStatus.BLOCKED
+    reason: str = ''
 
     @property
     def passed(self) -> bool:
         """仅当没有任何失败诊断时返回 True。"""
         return not self.diagnostics
 
+    @property
+    def status(self) -> CheckStatus:
+        """返回结构化状态；没有诊断时固定为 PASS。"""
+        return CheckStatus.PASS if self.passed else self.outcome
+
     @classmethod
     def from_errors(cls, errors: Iterable[object]) -> CheckResult:
-        """把领域规则产生的错误转换成统一诊断。"""
+        """把完整执行后发现的领域违规转换为 BLOCKED。"""
         return cls(
             tuple(
                 item if isinstance(item, Diagnostic) else Diagnostic(str(item)) for item in errors
             )
         )
+
+    @classmethod
+    def execution_failure(
+        cls, errors: Iterable[object], *, reason: str = 'outcome-unknown'
+    ) -> CheckResult:
+        """把 runtime、输入或依赖异常转换为没有检查结论的 FAIL。"""
+        diagnostics = tuple(
+            item if isinstance(item, Diagnostic) else Diagnostic(str(item)) for item in errors
+        )
+        return cls(diagnostics, CheckStatus.FAIL, reason)
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,11 +134,16 @@ def invoke(spec: CheckSpec, arguments: list[str]) -> CheckResult:
             for line in (*stdout.getvalue().splitlines(), *stderr.getvalue().splitlines())
             if line
         ]
-        return CheckResult.from_errors(lines or [f'argument parser exit code: {exc.code}'])
+        return CheckResult.execution_failure(
+            lines or [f'argument parser exit code: {exc.code}'], reason='input-unavailable'
+        )
     except Exception as exc:  # noqa: BLE001 - CLI 边界必须归一化领域异常。
-        return CheckResult.from_errors([f'{type(exc).__name__}: {exc}'])
+        return CheckResult.execution_failure(
+            [f'{type(exc).__name__}: {exc}'], reason='outcome-unknown'
+        )
     if not isinstance(result, CheckResult):
-        return CheckResult.from_errors(
-            [f'{spec.module}.check must return CheckResult, got {type(result).__name__}']
+        return CheckResult.execution_failure(
+            [f'{spec.module}.check must return CheckResult, got {type(result).__name__}'],
+            reason='outcome-unknown',
         )
     return result

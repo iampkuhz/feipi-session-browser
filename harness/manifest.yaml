@@ -34,15 +34,13 @@ public_executables:
 
 quality:
   runner: scripts/gates/cli.py
-  required_command: python3 scripts/gates/cli.py --tier required
-  targets: [harness, acceptance-cases, java-src, java-build]
-  dominance:
-    java-src:
-      includes: [java-build]
+  delivery_command: python3 scripts/gates/cli.py --mode incremental
+  full_command: python3 scripts/gates/cli.py --mode full
+  targets: [harness, java-src, java-build]
 
 quality_gates:
-  - name: required
-    command: "python3 scripts/gates/cli.py --tier required"
+  - name: incremental
+    command: "python3 scripts/gates/cli.py --mode incremental"
     required: true
 
 docs:

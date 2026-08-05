@@ -29,7 +29,7 @@ def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) 
     source.write_text(
         "\n".join(
             (
-                "`python3 scripts/gates/cli.py --tier required`",
+                "`python3 scripts/gates/cli.py --mode incremental`",
                 "`bash scripts/harness/doctor.sh`",
                 "`./scripts/session-browser.sh test`",
                 "reference scripts/gates/catalog.py without executing it",

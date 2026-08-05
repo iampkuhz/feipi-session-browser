@@ -112,16 +112,13 @@ def _is_policy_path(path: str) -> bool:
 
 
 def _git_changed_files(root: Path) -> list[str]:
-    """从 Git 工作区读取变更路径；Git 状态不可读时返回空列表。"""
-    try:
-        output = subprocess.check_output(
-            ['git', 'status', '--short', '--untracked-files=all'],
-            cwd=root,
-            text=True,
-            stderr=subprocess.DEVNULL,
-        )
-    except Exception:
-        return []
+    """从 Git 工作区读取变更路径；Git 不可用时抛出异常，禁止把空扫描误报为通过。"""
+    output = subprocess.check_output(
+        ['git', 'status', '--short', '--untracked-files=all'],
+        cwd=root,
+        text=True,
+        stderr=subprocess.DEVNULL,
+    )
 
     files: list[str] = []
     for raw in output.splitlines():
@@ -135,15 +132,12 @@ def _git_changed_files(root: Path) -> list[str]:
 
 
 def _parse_changed_files(value: str | None) -> list[str] | None:
-    """解析 changed-files JSON；缺失或无效输入返回 ``None`` 以触发后备来源。"""
+    """解析 changed-files JSON；缺失时返回 ``None``，无效输入抛错避免降级扫描。"""
     if not value:
         return None
-    try:
-        data = json.loads(value)
-    except json.JSONDecodeError:
-        return None
+    data = json.loads(value)
     if not isinstance(data, list):
-        return None
+        raise ValueError('changed-files 必须是 JSON array')
     return [_normalize(str(item)) for item in data if str(item).strip()]
 
 
@@ -256,4 +250,17 @@ def check(arguments: list[str]) -> CheckResult:
         _self_test()
         return CheckResult()
 
-    return CheckResult.from_errors(_run_check(REPO_ROOT, args.changed_files))
+    try:
+        return CheckResult.from_errors(_run_check(REPO_ROOT, args.changed_files))
+    except (json.JSONDecodeError, ValueError) as exc:
+        return CheckResult.execution_failure(
+            [f'changed-files 输入无效: {exc}'], reason='input-unavailable'
+        )
+    except subprocess.SubprocessError as exc:
+        return CheckResult.execution_failure(
+            [f'Git 状态读取失败: {exc}'], reason='dependency-unavailable'
+        )
+    except OSError as exc:
+        return CheckResult.execution_failure(
+            [f'策略文件读取失败: {exc}'], reason='input-unavailable'
+        )

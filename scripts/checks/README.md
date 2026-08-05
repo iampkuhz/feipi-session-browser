@@ -81,7 +81,7 @@ python3 -m scripts.checks repository.dead-command-reference
 不要直接运行领域文件。最终质量验证仍使用：
 
 ```bash
-python3 scripts/gates/cli.py --tier required
+python3 scripts/gates/cli.py --mode incremental
 ```
 
 ## 新增或删除 Python Check
@@ -91,7 +91,7 @@ python3 scripts/gates/cli.py --tier required
 3. 在 `_registry.py` 增加唯一的 ID/module pair。
 4. 如需加入质量流程，只在一个 `config/gates/*.yaml` 领域文件增加完整 Gate declaration、target、
    路径 trigger 和 `scripts.checks` command，并同步精简目录。
-5. 同批增加成功、真实失败和边界 contract，运行受影响 target 与 required Gate。
+5. 同批增加成功、真实失败和边界 contract，运行受影响 Gate 与增量交付检查。
 6. 负向搜索确认没有第二 owner、旧 ID 或旧路径。
 
 删除时反向删除领域 YAML declaration、精简目录行、`_registry.py` registration、实现、测试和调用

@@ -4,7 +4,7 @@ import subprocess
 import sys
 
 from scripts.checks.repository.check_gate_escape_rate import REQUIRED_CASE_IDS, _build_report
-from scripts.gates.planner import required_quality_targets
+from scripts.gates.planner import plan
 
 
 def _env():
@@ -13,7 +13,7 @@ def _env():
     return env
 
 
-def test_dry_run_harness_target_for_agent_config_change():
+def test_dry_run_selects_harness_gates_for_agent_config_change():
     proc = subprocess.run(
         [
             sys.executable,
@@ -33,7 +33,7 @@ def test_dry_run_harness_target_for_agent_config_change():
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
     payload = json.loads(combined)
-    assert 'harness' in payload['effectiveTargets']
+    assert {'languagePolicy', 'protectedRootsSync'} <= set(payload['gates'])
 
 
 def test_gate_escape_rate_stdout_and_json_contract(tmp_path):
@@ -57,7 +57,7 @@ def test_gate_escape_rate_stdout_and_json_contract(tmp_path):
 
     combined = proc.stdout + proc.stderr
     assert proc.returncode == 0, combined
-    assert '[repository.gate-escape-rate] PASS' in proc.stdout
+    assert 'GATE_RESULT status=PASS check=repository.gate-escape-rate' in proc.stdout
 
     report = json.loads(json_out.read_text(encoding='utf-8'))
     assert set(report) >= {'total_required_cases', 'escaped_required_cases', 'escape_rate', 'cases'}
@@ -75,7 +75,7 @@ def test_gate_escape_rate_stdout_and_json_contract(tmp_path):
             'escaped',
             'evidence',
         }
-        assert case['observed'] in {'PASS', 'BLOCK', 'FAIL', 'TARGET_TRIGGERED', 'TARGET_MISSING'}
+        assert case['observed'] in {'PASS', 'BLOCK', 'FAIL', 'GATE_TRIGGERED', 'GATE_MISSING'}
         assert case['escaped'] is False
         assert case['evidence']
 
@@ -88,20 +88,20 @@ def test_required_case_coverage_and_zero_escape_rate():
     assert REQUIRED_CASE_IDS <= {case['id'] for case in report['cases']}
 
 
-def test_synthetic_target_selection_is_fail_closed_or_targeted():
+def test_synthetic_paths_select_expected_gates_or_fail_closed():
     expectations = {
-        '.claude/agents/qwen-main-default.md': 'harness',
-        '.qoder/settings.json': 'harness',
-        'harness/manifest.yaml': 'harness',
-        'java/web/src/main/java/com/feipi/session/browser/X.java': 'java-src',
-        'java/web/src/main/resources/templates/session-detail.html': 'session-detail',
+        '.claude/agents/qwen-main-default.md': 'languagePolicy',
+        '.qoder/settings.json': 'protectedRootsSync',
+        'harness/manifest.yaml': 'harnessStructure',
+        'java/web/src/main/java/com/feipi/session/browser/X.java': 'javaCheck',
+        'java/web/src/main/resources/templates/session-detail.html': 'browserInteraction',
     }
     for path, expected in expectations.items():
-        targets = required_quality_targets([path])
-        assert expected in targets, (path, targets)
+        gates = [gate.name for gate in plan([path]).gates]
+        assert expected in gates, (path, gates)
 
     unknown_case = next(
         case for case in _build_report()['cases'] if case['id'] == 'unknown-risky-path'
     )
-    assert unknown_case['observed'] in {'BLOCK', 'TARGET_TRIGGERED'}
+    assert unknown_case['observed'] in {'BLOCK', 'GATE_TRIGGERED'}
     assert unknown_case['escaped'] is False

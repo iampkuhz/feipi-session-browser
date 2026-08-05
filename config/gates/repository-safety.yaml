@@ -1,74 +1,81 @@
 gates:
 - name: repositoryFilePolicy
   description: 统一检查必需入口、禁止根路径、Git 忽略规则和数据库文件边界。
-  targets:
-  - name: python-standard
-    order: 90
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - .gitignore
     - harness/manifest.yaml
     - scripts/checks/repository/check_repository_file_policy.py
     - scripts/gates/**
     - config/gates.yaml
     - config/gates/**
-  minimum_tier: quick
+  targets:
+  - python-standard
   run:
-    python-check:
-      check: repository.repository-file-policy
+    kind: python-check
+    incremental:
+      id: repository.repository-file-policy
       args:
       - --root
       - '{repo_root}'
       - --all-tracked
-      required_paths:
-      - harness/manifest.yaml
-      - scripts/checks/repository/check_repository_file_policy.py
-  timeout: 30
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: noPythonPlaywrightSkips
   description: 阻止 Python 与 Playwright 测试使用会产生 skipped 结果的 API。
+  trigger:
+    mode: changed
+    paths:
+    - tests/**/*.py
+    - tests/**/*.js
+    - tests/**/*.ts
+    - tests/playwright/playwright.config.js
+    - scripts/checks/repository/check_no_python_playwright_skips.py
   targets:
-  - name: acceptance-cases
-    order: 0
-    patterns:
-    - tests/**/*.py
-    - tests/**/*.js
-    - tests/**/*.ts
-    - tests/playwright/playwright.config.js
-    - scripts/checks/repository/check_no_python_playwright_skips.py
-  - name: session-detail
-    order: 1
-    patterns:
-    - tests/**/*.py
-    - tests/**/*.js
-    - tests/**/*.ts
-    - tests/playwright/playwright.config.js
-    - scripts/checks/repository/check_no_python_playwright_skips.py
-  minimum_tier: quick
+  - session-detail
   run:
-    python-check:
-      check: repository.no-python-playwright-skips
-      args: []
+    kind: python-check
+    incremental:
+      id: repository.no-python-playwright-skips
+      target_seconds: 8
+      timeout_seconds: 30
+    full:
+      same_as: incremental
+      target_seconds: 15
+      timeout_seconds: 60
 - name: currentSourcePolicy
   description: 检查源码只描述当前版本、当前 Harness、桌面视口和有效静态资源。
-  targets:
-  - name: python-standard
-    order: 92
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - java/web/src/main/resources/static/**/*.css
     - java/web/src/main/resources/static/**/*.js
     - harness/**
     - tests/**/*.py
     - scripts/checks/repository/check_current_source_policy.py
     - tests/quality/test_current_source_policy.py
+  targets:
+  - python-standard
   run:
-    python-check:
-      check: repository.current-source-policy
-      args: []
+    kind: python-check
+    incremental:
+      id: repository.current-source-policy
+      target_seconds: 10
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 20
+      timeout_seconds: 120
 - name: acceptanceCaseMapping
   description: 检查验收用例表中的 ID 与自动化测试绑定完整一致。
-  targets:
-  - name: acceptance-cases
-    order: 1
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - docs/acceptance-cases/**/*.md
     - tests/**/*.py
     - tests/**/*.js
@@ -78,42 +85,44 @@ gates:
     - tests/checks/test_acceptance_case_mapping.py
     - pyproject.toml
   run:
-    python-check:
-      check: repository.acceptance-case-mapping
-      args: []
+    kind: python-check
+    incremental:
+      id: repository.acceptance-case-mapping
+      target_seconds: 15
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 30
+      timeout_seconds: 120
 - name: testDataPolicy
   description: 确保测试数据受 Git 管理、可复现，并且不依赖个人电脑或真实 Session。
+  trigger:
+    mode: changed
+    paths:
+    - tests/**
+    - java/**/src/test/**
+    - scripts/checks/repository/check_test_data_policy.py
   targets:
-  - name: acceptance-cases
-    order: 2
-    patterns:
-    - tests/**
-    - java/**/src/test/**
-    - scripts/checks/repository/check_test_data_policy.py
-  - name: python-standard
-    order: 93
-    patterns:
-    - tests/**
-    - scripts/checks/repository/check_test_data_policy.py
-  - name: java-src
-    order: 11
-    patterns:
-    - java/**/src/test/**
+  - python-standard
+  - java-src
   run:
-    python-check:
-      check: repository.test-data-policy
+    kind: python-check
+    incremental:
+      id: repository.test-data-policy
       args:
       - --repo-root
       - '{repo_root}'
-      required_paths:
-      - scripts/checks/repository/check_test_data_policy.py
-  timeout: 120
+      target_seconds: 15
+      timeout_seconds: 60
+    full:
+      same_as: incremental
+      target_seconds: 30
+      timeout_seconds: 120
 - name: secretLikeContent
   description: 扫描仓库中的密钥、Token 与凭据形态内容。
-  targets:
-  - name: python-standard
-    order: 95
-    patterns:
+  trigger:
+    mode: changed
+    paths:
     - tests/**
     - docs/**
     - java/**
@@ -125,8 +134,15 @@ gates:
     - harness/**
     - scripts/**
     - scripts/checks/privacy/check_secret_like_content.py
+  targets:
+  - python-standard
   run:
-    python-check:
-      check: security.secret-like-content
-      args: []
-  timeout: 120
+    kind: python-check
+    incremental:
+      id: security.secret-like-content
+      target_seconds: 20
+      timeout_seconds: 90
+    full:
+      same_as: incremental
+      target_seconds: 45
+      timeout_seconds: 180

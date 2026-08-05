@@ -33,4 +33,4 @@ jobs:
         run: npm ci --prefix tests/playwright
 
       - name: Full quality gates
-        run: python3 scripts/gates/cli.py --tier full
+        run: python3 scripts/gates/cli.py --mode full

@@ -90,7 +90,12 @@ def _load_forbidden_paths(manifest_path: Path) -> tuple[str, ...]:
     """只从 manifest 的 ``forbidden_root_paths`` 读取禁止路径真源。"""
     try:
         document = yaml.safe_load(manifest_path.read_text(encoding='utf-8'))
-    except (OSError, UnicodeError, yaml.YAMLError) as exc:
+    except FileNotFoundError as exc:
+        # 这是仓库必须维护的政策文件；明确缺失属于仓库违规，而不是运行环境故障。
+        raise ValueError(f'manifest is missing: {manifest_path}') from exc
+    except (OSError, UnicodeError) as exc:
+        raise OSError(f'cannot read manifest {manifest_path}: {exc}') from exc
+    except yaml.YAMLError as exc:
         raise ValueError(f'cannot read manifest {manifest_path}: {exc}') from exc
     if not isinstance(document, dict):
         raise ValueError(f'manifest must be a mapping: {manifest_path}')
@@ -211,6 +216,17 @@ def check(arguments: list[str]) -> CheckResult:
         manifest_path = root / manifest_path
     try:
         errors = _validate(root, manifest_path, args.all_tracked)
-    except (RuntimeError, ValueError) as exc:
-        return CheckResult.from_errors([f'repository file policy cannot inspect repository: {exc}'])
+    except RuntimeError as exc:
+        return CheckResult.execution_failure(
+            [f'repository file policy cannot inspect repository: {exc}'],
+            reason='dependency-unavailable',
+        )
+    except (OSError, UnicodeError) as exc:
+        return CheckResult.execution_failure(
+            [f'repository file policy cannot read required input: {exc}'],
+            reason='input-unavailable',
+        )
+    except ValueError as exc:
+        # Manifest 内容不符合仓库规则是已完成的领域判定，而不是执行环境故障。
+        return CheckResult.from_errors([f'repository file policy violation: {exc}'])
     return CheckResult.from_errors(errors)

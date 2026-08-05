@@ -37,31 +37,32 @@ Stop、SessionEnd、post-tool 或其他自动事件 SHALL NOT stage、commit、m
 
 ### Requirement: 显式且按范围的质量验证
 
-仓库 SHALL 通过 `python3 scripts/gates/cli.py` 提供统一 Gate 入口；本地工具不得在每次命令或 Stop 时隐式运行全量 required tier。
+仓库 SHALL 通过 `python3 scripts/gates/cli.py` 提供统一 Gate 入口；本地工具不得在每次命令或 Stop 时隐式运行全量模式。
 
 #### Scenario: 代码变更准备交接
 
 - **Given** 变更已完成实现
 - **When** Agent 准备提交或交接
-- **Then** Agent SHALL 按变更范围运行适用 target
-- **And** Stop/handoff 前若规则要求 required tier，唯一命令 SHALL 为 `python3 scripts/gates/cli.py --tier required`
+- **Then** Agent SHALL 使用 Gate Trigger 按变更范围选择检查
+- **And** Stop/handoff 前唯一交付命令 SHALL 为 `python3 scripts/gates/cli.py --mode incremental`
 
 ### Requirement: 真实验证状态
 
-未触发、未运行、失败、warning 和 skipped SHALL 使用不同语义；任何已触发的 skipped、warning、FAIL 或 BLOCKED 结果不得描述为 PASS。
+Gate 终态 SHALL 为 `PASS`、`BLOCKED` 或 `FAIL`：`BLOCKED` 表示检查已完整执行并发现阻断问题，
+`FAIL` 表示 Gate 自身未能完成、无法判断仓库。两者均不得描述为 PASS。
 
 #### Scenario: Gate 未被路径映射触发
 
 - **Given** changed-files 规则没有选择某 Gate
 - **When** 生成验证报告
-- **Then** 该 Gate SHALL 标记为 `NOT_TRIGGERED`
-- **And** 报告 SHALL NOT 将其写成 skipped 或 PASS
+- **Then** 计划 SHALL 将该 Gate 标记为 `NOT_TRIGGERED`
+- **And** 报告 SHALL NOT 将它当作 Gate 执行结果或 PASS 证据
 
 #### Scenario: 已触发测试发生 skip 或 warning
 
 - **Given** pytest、Playwright、Gradle 或 doctor 已被选择运行
 - **When** 结果包含 skipped 或 warning
-- **Then** 验证 SHALL 返回 FAIL 或 BLOCKED
+- **Then** 验证 SHALL 返回 FAIL
 - **And** Agent SHALL 修复原因或移除错误触发，不得新增 skip、skipif 或 fixme API
 
 ### Requirement: 保留高价值安全检查
@@ -84,4 +85,4 @@ Gate SHALL 使用仓库锁定依赖可用的 Python 环境，并保留 bounded s
 - **Given** PATH 中的 `python3` 缺少 PyYAML 或 pytest
 - **When** 运行 Gate
 - **Then** Gate SHALL 选择仓库批准的项目 Python 或 `uv run --frozen`
-- **And** 缺失能力 SHALL 返回明确 FAIL/BLOCKED，不得伪造 PASS
+- **And** 缺失能力 SHALL 返回带 reason code 的 FAIL，不得伪造 PASS

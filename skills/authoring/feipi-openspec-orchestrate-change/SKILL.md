@@ -80,7 +80,7 @@ python3 scripts/openspec/validate_active_change.py --change-id <change-id>
 4. 提交或交接前显式运行：
 
    ```bash
-   python3 scripts/gates/cli.py --tier required
+   python3 scripts/gates/cli.py --mode incremental
    ```
 
 5. required gate 只有所有已触发检查成功且无 warning、skipped 时才算通过。

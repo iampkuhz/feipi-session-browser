@@ -17,10 +17,10 @@ if TYPE_CHECKING:
     from pathlib import Path
 
 PASS = 'PASS'
+NOT_PASS = 'NOT_PASS'
 FAIL = 'FAIL'
 BLOCKED = 'BLOCKED'
-SKIPPED = 'SKIPPED'
-ALLOWED_STATUSES = {PASS, FAIL, BLOCKED, SKIPPED}
+ALLOWED_STATUSES = {PASS, FAIL, BLOCKED}
 DIAGNOSTIC_MAX_CHARS = 1600
 DIAGNOSTIC_MAX_LINES = 16
 FAILED_GATE_REPORT_LIMIT = 8
@@ -102,6 +102,17 @@ class GateDetail:
     groupId: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     rerunCommand: str = ''  # noqa: N815 - Preserve JSON artifact schema.
     taskOutcomes: dict[str, str] = field(default_factory=dict)  # noqa: N815
+    taskFailureReasons: dict[str, str] = field(default_factory=dict)  # noqa: N815
+    mode: str = ''
+    targetSeconds: int | None = None  # noqa: N815
+    timingState: str = ''  # noqa: N815
+    reason: str = ''
+
+    def __post_init__(self) -> None:
+        """保证每个执行失败明细都有可机器处理的原因码。"""
+
+        if self.status == FAIL and not self.reason:
+            self.reason = 'outcome-unknown'
 
 
 @dataclass
@@ -110,12 +121,14 @@ class QualitySummary:
 
     schemaVersion: int  # noqa: N815 - Preserve JSON artifact schema.
     status: str
-    target: str
+    mode: str
     changeId: str  # noqa: N815 - Preserve JSON artifact schema.
     startedAt: str  # noqa: N815 - Preserve JSON artifact schema.
     finishedAt: str  # noqa: N815 - Preserve JSON artifact schema.
-    requiredGates: dict[str, str]  # noqa: N815 - Preserve JSON artifact schema.
-    blockingFailures: list[str] = field(default_factory=list)  # noqa: N815 - Preserve schema.
+    gateResults: dict[str, str]  # noqa: N815 - Preserve JSON artifact schema.
+    selector: str | None = None
+    selectorValue: str | None = None  # noqa: N815 - Preserve JSON artifact schema.
+    notPassReasons: list[str] = field(default_factory=list)  # noqa: N815 - Preserve schema.
     warnings: list[str] = field(default_factory=list)
     artifacts: dict[str, Any] = field(default_factory=dict)
     gateDetails: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815 - Preserve schema.
@@ -181,7 +194,7 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
     raw_command = detail.get('command') or []
     return GateDetail(
         name=str(detail.get('name', 'unknown')),
-        status=str(detail.get('status', BLOCKED)),
+        status=str(detail.get('status', FAIL)),
         command=[str(part) for part in raw_command] if isinstance(raw_command, list) else [],
         exitCode=detail.get('exitCode') if isinstance(detail.get('exitCode'), int) else None,
         durationMs=(
@@ -194,6 +207,16 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
         taskOutcomes={
             str(key): str(value) for key, value in dict(detail.get('taskOutcomes') or {}).items()
         },
+        taskFailureReasons={
+            str(key): str(value)
+            for key, value in dict(detail.get('taskFailureReasons') or {}).items()
+        },
+        mode=str(detail.get('mode', '')),
+        targetSeconds=(
+            detail.get('targetSeconds') if isinstance(detail.get('targetSeconds'), int) else None
+        ),
+        timingState=str(detail.get('timingState', '')),
+        reason=str(detail.get('reason', '')),
     )
 
 
@@ -214,44 +237,52 @@ def format_quality_report(
 ) -> str:
     """格式化质量结果；成功为单行，失败为有界可操作报告。"""
     if isinstance(summary, dict):
-        status = str(summary.get('status', BLOCKED)).upper()
-        target = str(summary.get('target', 'unknown'))
-        raw_required = summary.get('requiredGates') or {}
-        required = dict(raw_required) if isinstance(raw_required, dict) else {}
+        status = str(summary.get('status', NOT_PASS)).upper()
+        mode = str(summary.get('mode', 'unknown'))
+        selector = summary.get('selector')
+        selector_value = summary.get('selectorValue')
+        raw_results = summary.get('gateResults') or {}
+        results = dict(raw_results) if isinstance(raw_results, dict) else {}
         raw_details = summary.get('gateDetails') or []
         details = (
             [_coerce_detail(detail) for detail in raw_details if isinstance(detail, dict)]
             if isinstance(raw_details, list)
             else []
         )
-        raw_blocking = summary.get('blockingFailures') or []
-        blocking = list(raw_blocking) if isinstance(raw_blocking, list) else []
+        raw_reasons = summary.get('notPassReasons') or []
+        reasons = list(raw_reasons) if isinstance(raw_reasons, list) else []
     else:
         status = summary.status.upper()
-        target = summary.target
-        required = summary.requiredGates
+        mode = summary.mode
+        selector = summary.selector
+        selector_value = summary.selectorValue
+        results = summary.gateResults
         details = [_coerce_detail(detail) for detail in summary.gateDetails]
-        blocking = summary.blockingFailures
+        reasons = summary.notPassReasons
 
-    passed = sum(str(value).upper() == PASS for value in required.values())
+    passed = sum(str(value).upper() == PASS for value in results.values())
     artifact = str(artifact_path)
+    selection = f'{selector}:{selector_value}' if selector and selector_value else 'automatic'
     headline = (
-        f'QUALITY_GATE_RESULT status={status} target={target} '
-        f'passed={passed}/{len(required)} artifact={artifact}'
+        f'QUALITY_GATE_RESULT status={status} mode={mode} selector={selection} '
+        f'passed={passed}/{len(results)} artifact={artifact}'
     )
     if status == PASS:
         return headline
 
     failed_details = [detail for detail in details if detail.status.upper() != PASS]
     if not failed_details:
-        reason = concise_diagnostic('\n'.join(str(item) for item in blocking))
+        reason = concise_diagnostic('\n'.join(str(item) for item in reasons))
         return f'{headline}\nFAILED_GATES:\n- gate=unknown status={status}\n  error={reason}'
 
     lines = [headline, 'FAILED_GATES:']
     for detail in failed_details[:FAILED_GATE_REPORT_LIMIT]:
         gate_status = detail.status.upper()
         rendered_command = ''
-        lines.append(f'- gate={detail.name} status={gate_status} exit_code={detail.exitCode}')
+        reason_suffix = f' reason={detail.reason}' if detail.reason else ''
+        lines.append(
+            f'- gate={detail.name} status={gate_status} exit_code={detail.exitCode}{reason_suffix}'
+        )
         if detail.command:
             rendered_command = shlex.join(str(part) for part in detail.command)
             lines.append(f'  command={rendered_command}')
@@ -260,11 +291,14 @@ def format_quality_report(
             lines.append(f'  affected_files={", ".join(files)}')
         lines.append('  error_summary:')
         lines.extend(f'    {line}' for line in concise_diagnostic(detail.output).splitlines())
-        if rendered_command:
-            lines.append(f'  fix_hint=Fix the error, then rerun: {rendered_command}')
-        elif gate_status == BLOCKED:
+        if gate_status == BLOCKED:
+            suffix = f' Then rerun: {rendered_command}' if rendered_command else ''
+            lines.append(f'  fix_hint=Fix the repository issue.{suffix}')
+        elif gate_status == FAIL:
+            suffix = f' Then rerun: {rendered_command}' if rendered_command else ''
             lines.append(
-                '  fix_hint=Provide the missing command, dependency, or environment, then rerun.'
+                '  fix_hint=Restore the missing runtime, input, dependency, or environment.'
+                + suffix
             )
     omitted = len(failed_details) - FAILED_GATE_REPORT_LIMIT
     if omitted > 0:
@@ -272,22 +306,20 @@ def format_quality_report(
     return '\n'.join(lines)
 
 
-def compute_overall(required_gates: dict[str, str]) -> tuple[str, list[str]]:
-    """按 fail-closed 规则归约 required Gate 状态与失败原因。"""
+def compute_overall(gate_results: dict[str, str]) -> tuple[str, list[str]]:
+    """把三态 Gate 明细归约为唯一对外 PASS/NOT_PASS。"""
     failures: list[str] = []
-    if not required_gates:
-        return BLOCKED, ['requiredGates is empty; cannot default to PASS.']
+    if not gate_results:
+        return NOT_PASS, ['gateResults is empty; cannot default to PASS.']
 
-    for name, status in required_gates.items():
+    for name, status in gate_results.items():
         normalized = str(status).upper()
         if normalized not in ALLOWED_STATUSES:
             failures.append(f'{name} has invalid status: {status}')
-        elif normalized == SKIPPED:
-            failures.append(f'{name} is a required gate and cannot be SKIPPED.')
         elif normalized in {FAIL, BLOCKED}:
             failures.append(f'{name}={normalized}')
 
-    return (PASS, []) if not failures else (FAIL, failures)
+    return (PASS, []) if not failures else (NOT_PASS, failures)
 
 
 def _compute_report_hash(data: dict) -> str:
@@ -299,16 +331,15 @@ def _compute_report_hash(data: dict) -> str:
 def write_quality_summary(
     base_dir: Path,
     summary: QualitySummary,
-    target_specific: bool = True,
+    selection_specific: bool = True,
 ) -> Path:
     """写入 quality summary artifact，并返回 JSON 路径。"""
     out_dir = base_dir / summary.changeId
     out_dir.mkdir(parents=True, exist_ok=True)
 
+    label = summary.selectorValue or summary.mode
     filename = (
-        f'quality-gate-summary.{summary.target}.json'
-        if target_specific
-        else 'quality-gate-summary.json'
+        f'quality-gate-summary.{label}.json' if selection_specific else 'quality-gate-summary.json'
     )
     summary_path = out_dir / filename
 
@@ -322,7 +353,7 @@ def write_quality_summary(
     )
 
     details = out_dir / (
-        f'gate-details.{summary.target}.json' if target_specific else 'gate-details.json'
+        f'gate-details.{label}.json' if selection_specific else 'gate-details.json'
     )
     details.write_text(
         json.dumps(summary.gateDetails, ensure_ascii=False, indent=2) + '\n', encoding='utf-8'
@@ -331,15 +362,18 @@ def write_quality_summary(
 
 
 def build_summary(
-    target: str,
+    mode: str,
     change_id: str,
     started_at: str,
     details: list[GateDetail],
+    *,
+    selector: str | None = None,
+    selector_value: str | None = None,
     not_triggered_gates: list[str] | None = None,
     repo_root: Path | None = None,
     execution_metadata: dict[str, Any] | None = None,
 ) -> QualitySummary:
-    """由 executor 明细构造无并发元数据的 schema v4 target 摘要。"""
+    """由 executor 明细构造无并发元数据的 schema v4 Gate 运行摘要。"""
     required = {detail.name: detail.status for detail in details}
     status, failures = compute_overall(required)
     warning_failures = [
@@ -350,22 +384,31 @@ def build_summary(
     base_commit = resolve_base_commit(str(repo_root)) if repo_root else ''
     dirty_hash = resolve_dirty_hash(str(repo_root)) if repo_root else ''
     metadata = execution_metadata or {}
+    finished_at = utc_now()
     return QualitySummary(
         schemaVersion=4,
         status=status,
-        target=target,
+        mode=mode,
         changeId=change_id,
         startedAt=started_at,
-        finishedAt=utc_now(),
-        requiredGates=required,
-        blockingFailures=failures,
+        finishedAt=finished_at,
+        gateResults=required,
+        selector=selector,
+        selectorValue=selector_value,
+        notPassReasons=failures,
         warnings=warning_failures,
-        artifacts={'notTriggeredGates': not_triggered_gates or []},
+        artifacts={
+            'notTriggeredGates': not_triggered_gates or [],
+            'inputAuditReason': str(metadata.get('inputAuditReason', '')),
+        },
         gateDetails=[asdict(detail) for detail in details],
-        runId=f'{change_id}-{target}-{started_at}',
+        runId=(
+            f'{change_id}-{mode}-{selector or "automatic"}-'
+            f'{selector_value or "all-matched"}-{started_at}'
+        ),
         baseCommit=base_commit,
         dirtyHash=dirty_hash,
-        generatedAt=started_at,
+        generatedAt=finished_at,
         freshness='0s',
         planId=str(metadata.get('planId', '')),
         planFingerprint=str(metadata.get('planFingerprint', '')),

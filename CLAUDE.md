@@ -14,9 +14,9 @@
 ## 维护入口
 
 - Scripts 与 Gate 的目录职责和公开命令从 `scripts/README.md` 开始定位。
-- 按任务范围显式运行验证；最终 required Gate 命令是
-  `python3 scripts/gates/cli.py --tier required`。
-- required gates 未运行、失败或 skipped 不得描述为 `PASS`。
+- 按任务范围显式运行验证；普通提交和交接命令是
+  `python3 scripts/gates/cli.py --mode incremental`。
+- `BLOCKED` 表示检查完成后发现阻断问题；`FAIL` 表示 Gate 未能完成；两者都不得描述为 `PASS`。
 
 ## Subagent 协议索引
 
@@ -29,4 +29,4 @@
 - 不读取、输出或提交真实 session 大文件全文。
 - 不修改 `.claude/settings.local.json`、`.mcp.json`、密钥、token 或本地个人配置，除非用户明确要求。
 - 不回滚用户未提交改动。
-- required gates 失败、跳过（skipped）不得描述为 PASS。
+- Gate 返回 `BLOCKED`、`FAIL` 或未完整执行时不得描述为 PASS。

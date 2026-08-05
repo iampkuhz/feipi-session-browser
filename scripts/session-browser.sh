@@ -62,11 +62,11 @@ run_test() {
     exec ./gradlew verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
 }
 
-# quality 默认执行 required tier；显式参数原样交给 Gate CLI。
+# quality 默认执行增量 Gate；显式参数原样交给 Gate CLI。
 run_quality() {
     cd "$PROJECT_DIR"
     if [[ $# -eq 0 ]]; then
-        exec python3 scripts/gates/cli.py --tier required
+        exec python3 scripts/gates/cli.py --mode incremental
     fi
     exec python3 scripts/gates/cli.py "$@"
 }

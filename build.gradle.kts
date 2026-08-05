@@ -347,7 +347,7 @@ private class ReuseStandardCpdAction(
         val scope: String,
     )
 
-    private class CpdInputBlocked(
+    private class CpdExecutionFailure(
         val reasonCode: String,
         message: String,
     ) : RuntimeException(message)
@@ -370,12 +370,12 @@ private class ReuseStandardCpdAction(
             .sortedBy { relativePath(root, it) }
         val summaryFile = reportDir.resolve("standard-cpd-summary.json")
         var changedFiles = emptyList<String>()
-        val changedFilesSource = if (mode == "full") "full-scan" else "QUALITY_CHANGED_FILES"
+        var changedFilesSource = if (mode == "full") "full-scan" else "QUALITY_CHANGED_FILES"
 
         try {
             if (mode != "incremental" && mode != "full") {
-                throw CpdInputBlocked(
-                    "invalid-mode",
+                throw CpdExecutionFailure(
+                    "input-unavailable",
                     "Unsupported feipiReuseCpdMode=$mode",
                 )
             }
@@ -384,17 +384,17 @@ private class ReuseStandardCpdAction(
                 allSourceFiles
             } else {
                 changedFiles = changedFilesJson?.let { parseChangedFiles(it, root) }
-                    ?: throw CpdInputBlocked(
-                        "missing-changed-files",
+                    ?: throw CpdExecutionFailure(
+                        "input-unavailable",
                         "QUALITY_CHANGED_FILES is required in incremental mode.",
                     )
-                if (changedFiles.any { isReusePolicyPath(it) }) {
-                    throw CpdInputBlocked(
-                        "policy-changed",
-                        "CPD policy changed; explicit full mode is required.",
-                    )
+                if (changedFiles.any { requiresCompleteCpdInput(it) }) {
+                    // 仍是 incremental profile，只是该类改动无法安全缩小 CPD 输入范围。
+                    changedFilesSource = "QUALITY_CHANGED_FILES(expanded-to-all-sources)"
+                    allSourceFiles
+                } else {
+                    selectProductionJavaFiles(root, changedFiles)
                 }
-                selectProductionJavaFiles(root, changedFiles)
             }
             profiles = loadProfiles(policyFile)
 
@@ -416,7 +416,7 @@ private class ReuseStandardCpdAction(
                     if (mode == "full") {
                         "No production Java files; CPD was not invoked."
                     } else {
-                        "No changed production Java files; full CPD was not invoked."
+                        "No changed production Java files; CPD was not invoked."
                     },
                 )
                 task.logger.lifecycle("reuseStandardCpd: no CPD input files (mode=$mode)")
@@ -463,7 +463,7 @@ private class ReuseStandardCpdAction(
             writeReuseCpdSummary(
                 summaryFile,
                 root,
-                if (failures.isEmpty()) "PASS" else "FAIL",
+                if (failures.isEmpty()) "PASS" else "BLOCKED",
                 profiles,
                 changedFiles,
                 cpdInputFiles,
@@ -473,6 +473,9 @@ private class ReuseStandardCpdAction(
                 if (failures.isEmpty()) "" else "PMD CPD duplicate violations.",
             )
             if (failures.isNotEmpty()) {
+                task.logger.lifecycle(
+                    "GATE_TASK_RESULT task=${task.path} status=BLOCKED"
+                )
                 throw org.gradle.api.GradleException(
                     "PMD CPD duplicate violations: ${failures.joinToString(", ")}"
                 )
@@ -481,11 +484,11 @@ private class ReuseStandardCpdAction(
                 "reuseStandardCpd: PMD CPD PASS " +
                     "(${profiles.size} profile(s), mode=$mode, input=${cpdInputFiles.size})"
             )
-        } catch (exc: CpdInputBlocked) {
+        } catch (exc: CpdExecutionFailure) {
             writeReuseCpdSummary(
                 summaryFile,
                 root,
-                "BLOCKED",
+                "FAIL",
                 profiles,
                 changedFiles,
                 emptyList(),
@@ -496,10 +499,10 @@ private class ReuseStandardCpdAction(
             )
             // executor 只需要理解这条通用 task/status/reason 协议，不需要认识 CPD。
             task.logger.lifecycle(
-                "GATE_TASK_RESULT task=${task.path} status=BLOCKED reason=${exc.reasonCode}"
+                "GATE_TASK_RESULT task=${task.path} status=FAIL reason=${exc.reasonCode}"
             )
             throw org.gradle.api.GradleException(
-                "reuseStandardCpd blocked (${exc.reasonCode}): ${exc.message}",
+                "reuseStandardCpd failed (${exc.reasonCode}): ${exc.message}",
                 exc,
             )
         }
@@ -509,19 +512,19 @@ private class ReuseStandardCpdAction(
         val parsed = try {
             groovy.json.JsonSlurper().parseText(value)
         } catch (exc: RuntimeException) {
-            throw CpdInputBlocked(
-                "invalid-changed-files-json",
+            throw CpdExecutionFailure(
+                "input-unavailable",
                 "QUALITY_CHANGED_FILES must be valid JSON.",
             )
         }
         val values = parsed as? List<*>
-            ?: throw CpdInputBlocked(
-                "invalid-changed-files-type",
+            ?: throw CpdExecutionFailure(
+                "input-unavailable",
                 "QUALITY_CHANGED_FILES must be a JSON string array.",
             )
         if (values.any { it !is String }) {
-            throw CpdInputBlocked(
-                "invalid-changed-files-entry",
+            throw CpdExecutionFailure(
+                "input-unavailable",
                 "QUALITY_CHANGED_FILES must contain only string paths.",
             )
         }
@@ -565,8 +568,12 @@ private class ReuseStandardCpdAction(
     private fun isProductionJavaPath(path: String): Boolean =
         path.startsWith("java/") && path.contains("/src/main/java/") && path.endsWith(".java")
 
-    private fun isReusePolicyPath(path: String): Boolean =
-        path == "config/reuse-policy" || path.startsWith("config/reuse-policy/")
+    private fun requiresCompleteCpdInput(path: String): Boolean =
+        path == "build.gradle.kts" ||
+            path == "settings.gradle.kts" ||
+            path == "config/reuse-policy" ||
+            path.startsWith("config/reuse-policy/") ||
+            (path.startsWith("java/") && path.endsWith("/build.gradle.kts"))
 
     private fun loadProfiles(policyFile: java.io.File): List<Profile> {
         val defaultProfile = Profile(
@@ -713,10 +720,8 @@ gradle.projectsEvaluated {
         val workDir = layout.buildDirectory.dir("tmp/reuse-standard-cpd").get().asFile
         val explicitMode = (findProperty("feipiReuseCpdMode") as? String)?.trim()
             ?.takeIf { it.isNotEmpty() }
-        val qualityGateTier = providers.environmentVariable("QUALITY_GATE_TIER").orNull
-        val configuredMode = (
-            explicitMode ?: if (qualityGateTier.equals("full", ignoreCase = true)) "full" else "incremental"
-        ).lowercase()
+        val qualityExecutionMode = providers.environmentVariable("QUALITY_EXECUTION_MODE").orNull
+        val configuredMode = explicitMode ?: qualityExecutionMode ?: "incremental"
         val changedFilesJson = providers.environmentVariable("QUALITY_CHANGED_FILES").orNull
         val rootPath = rootDir.absolutePath
         val sourceDirPaths = productionSourceDirs.map { it.absolutePath }
