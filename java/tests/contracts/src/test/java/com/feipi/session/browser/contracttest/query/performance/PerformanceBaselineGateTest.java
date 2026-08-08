@@ -17,6 +17,8 @@ import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -58,6 +60,12 @@ class PerformanceBaselineGateTest {
 
   /** 详情查找性能预算（毫秒）。 */
   private static final long LOOKUP_BUDGET_MS = 50;
+
+  /** 详情查找的固定预热次数。 */
+  private static final int LOOKUP_WARMUP_COUNT = 3;
+
+  /** 详情查找的固定采样次数。 */
+  private static final int LOOKUP_SAMPLE_COUNT = 7;
 
   @TempDir Path tempDir;
   private IndexConnection ic;
@@ -167,6 +175,23 @@ class PerformanceBaselineGateTest {
                 + values);
       }
     }
+  }
+
+  /**
+   * 固定采集七次查找耗时，返回排序后的中位数。
+   *
+   * @param lookup 每次采样执行的查找操作
+   * @return 七次固定采样的中位耗时，单位为纳秒
+   */
+  private static long medianLookupElapsedNanos(Runnable lookup) {
+    long[] samples = new long[LOOKUP_SAMPLE_COUNT];
+    for (int index = 0; index < samples.length; index++) {
+      long start = System.nanoTime();
+      lookup.run();
+      samples[index] = System.nanoTime() - start;
+    }
+    Arrays.sort(samples);
+    return samples[samples.length / 2];
   }
 
   @Nested
@@ -356,15 +381,20 @@ class PerformanceBaselineGateTest {
     void lookupByKeyWithinBudget() throws Exception {
       SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
-      // 预热
-      repo.getSession("perf:s0001");
+      // 固定三次预热，不计入性能样本。
+      for (int index = 0; index < LOOKUP_WARMUP_COUNT; index++) {
+        repo.getSession("perf:s0250");
+      }
 
-      long start = System.nanoTime();
+      long medianElapsedNanos = medianLookupElapsedNanos(() -> repo.getSession("perf:s0250"));
+
+      // 正确性查询和断言均在计时外执行。
       var result = repo.getSession("perf:s0250");
-      long elapsed = (System.nanoTime() - start) / 1_000_000;
 
       assertThat(result).isPresent();
-      assertThat(elapsed).as("主键查找应在 %dms 内完成", LOOKUP_BUDGET_MS).isLessThan(LOOKUP_BUDGET_MS);
+      assertThat(medianElapsedNanos)
+          .as("七次主键查找的中位数应在 %dms 内完成", LOOKUP_BUDGET_MS)
+          .isLessThan(TimeUnit.MILLISECONDS.toNanos(LOOKUP_BUDGET_MS));
     }
 
     @Test
@@ -372,15 +402,20 @@ class PerformanceBaselineGateTest {
     void missingKeyLookupWithinBudget() throws Exception {
       SqliteSessionQueryRepository repo = new SqliteSessionQueryRepository(ic);
 
-      // 预热，避免把首次查询的 JDBC 初始化成本计入稳定态查找预算
-      repo.getSession("nonexistent:warmup");
+      // 固定三次预热，不计入性能样本。
+      for (int index = 0; index < LOOKUP_WARMUP_COUNT; index++) {
+        repo.getSession("nonexistent:key");
+      }
 
-      long start = System.nanoTime();
+      long medianElapsedNanos = medianLookupElapsedNanos(() -> repo.getSession("nonexistent:key"));
+
+      // 正确性查询和断言均在计时外执行。
       var result = repo.getSession("nonexistent:key");
-      long elapsed = (System.nanoTime() - start) / 1_000_000;
 
       assertThat(result).isEmpty();
-      assertThat(elapsed).isLessThan(LOOKUP_BUDGET_MS);
+      assertThat(medianElapsedNanos)
+          .as("七次缺失主键查找的中位数应在 %dms 内完成", LOOKUP_BUDGET_MS)
+          .isLessThan(TimeUnit.MILLISECONDS.toNanos(LOOKUP_BUDGET_MS));
     }
   }
 

@@ -14,6 +14,12 @@ import java.util.Objects;
 public record StoredSessionFingerprint(
     String sessionKey, String filePath, double fileMtime, String agent, String endedAt) {
 
+  /**
+   * 校验会话键、agent 和修改时间，并将可选路径及结束时间的 {@code null} 统一为空字符串。
+   *
+   * @throws NullPointerException {@code sessionKey} 或 {@code agent} 为 {@code null} 时抛出
+   * @throws IllegalArgumentException {@code sessionKey} 为空或 {@code fileMtime} 为负数时抛出
+   */
   public StoredSessionFingerprint {
     Objects.requireNonNull(sessionKey, "sessionKey 不得为 null");
     if (sessionKey.isEmpty()) {

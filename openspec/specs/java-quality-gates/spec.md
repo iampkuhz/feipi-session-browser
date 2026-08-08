@@ -91,4 +91,12 @@ com.feipi.session.browser.quality.gates
 
 root `check` 直接 dependsOn 该 task，不再注册逐 Gate alias。默认规则为 `java-comment-language`、
 `record-component-javadocs`、`no-pmd-suppressions`；Java test skipped/aborted 由 Gradle
-`verifyNoSkippedJavaTests` 唯一检查。CPD 继续由独立 `reuseStandardCpd` task 拥有，不隐藏进 root `check`。
+`verifyNoSkippedJavaTests` 唯一检查。`javaCheck` 执行无 task 排除的 root `check`，包含 Checkstyle、Javadoc、
+PMD、测试和 Java quality registry；不得使用 `-x`、suppression 或降低规则来回避存量源码问题。
+CPD 继续由独立 `reuseStandardCpd` task 拥有，不隐藏进 root `check`。
+
+## 稳定态性能基线
+
+SQLite 详情查找的 `50ms` 本地稳定态预算使用三次预热和七次固定采样的中位数判断。
+样本以纳秒比较，不取最快值，不使用失败后重试，也不放宽预算。七次中至少四次达到或超过
+`50ms` 时中位数仍应判定失败，查询结果的正确性在计时之外独立断言。

@@ -61,6 +61,11 @@ public final class SqliteSessionQueryRepository implements SessionQueryPort {
 
   private final IndexConnection indexConnection;
 
+  /**
+   * 封装一次可能抛出 {@link SQLException} 的只读查询。
+   *
+   * @param <T> 查询结果类型
+   */
   @FunctionalInterface
   private interface SqlQuery<T> {
     T execute() throws SQLException;

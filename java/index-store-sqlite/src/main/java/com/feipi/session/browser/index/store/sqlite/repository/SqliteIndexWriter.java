@@ -45,6 +45,14 @@ public final class SqliteIndexWriter implements IndexWriterPort {
   private final Connection conn;
   private final WriteBatch batch;
 
+  /**
+   * 使用调用方管理的 SQLite 连接创建写入器。
+   *
+   * <p>连接必须非 null 且保持打开；schema 可在后续通过 {@link #ensureSchema()} 初始化。
+   *
+   * @param conn 可用的 SQLite 连接
+   * @throws NullPointerException 当连接为 null 时
+   */
   public SqliteIndexWriter(Connection conn) {
     this.conn = Objects.requireNonNull(conn, "conn 不得为 null");
     this.batch = new WriteBatch(conn, WriteBatch.DEFAULT_MAX_ENTRIES);

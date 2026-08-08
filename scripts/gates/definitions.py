@@ -576,12 +576,6 @@ GATES = (
             gradle_task(
                 'javaCheck',
                 'check',
-                '-x',
-                'checkstyleMain',
-                '-x',
-                'checkstyleTest',
-                '-x',
-                'javadoc',
                 '--parallel',
                 '--build-cache',
             ),

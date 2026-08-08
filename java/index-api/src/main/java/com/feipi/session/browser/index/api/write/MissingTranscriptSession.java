@@ -31,6 +31,12 @@ public record MissingTranscriptSession(
     String source,
     Instant indexedAt) {
 
+  /**
+   * 校验会话键、来源会话标识、agent、项目键、结束时间和索引时间，并将可选文本的 {@code null} 统一为空字符串。
+   *
+   * @throws NullPointerException 必填文本或 {@code indexedAt} 为 {@code null} 时抛出
+   * @throws IllegalArgumentException 必填文本为空字符串时抛出
+   */
   public MissingTranscriptSession {
     requireNonEmpty(sessionKey, "sessionKey");
     requireNonEmpty(agent, "agent");

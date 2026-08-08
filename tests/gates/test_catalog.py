@@ -211,6 +211,16 @@ def test_merged_gate_triggers_cover_each_maintenance_boundary(
         assert any(pattern_matches(path, pattern) for pattern in patterns), (gate_name, path)
 
 
+def test_java_check_runs_complete_root_check_without_task_exclusions() -> None:
+    """javaCheck 必须真实执行完整 root check，不得隐藏原生任务。"""
+
+    step = gate_by_name('javaCheck').run.steps[0]
+
+    assert step.tasks == ('check',)
+    assert step.args == ('--parallel', '--build-cache')
+    assert '-x' not in step.args
+
+
 def test_lookup_and_models_are_strict_and_frozen() -> None:
     assert target_by_name('java-src').description.startswith('人工运行')
     with pytest.raises(ValueError, match='Unknown quality gate'):
