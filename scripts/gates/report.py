@@ -25,7 +25,7 @@ DIAGNOSTIC_MAX_CHARS = 1600
 DIAGNOSTIC_MAX_LINES = 16
 FAILED_GATE_REPORT_LIMIT = 8
 _DIAGNOSTIC_PRIORITY_RE = re.compile(
-    r'(?i)(fail|error|exception|traceback|blocked|timeout|timed out|warning|'
+    r'(?i)(fail|error|exception|traceback|blocked|warning|'
     r'assert|missing|not found|denied|invalid|\bE\d{3,4}\b)'
 )
 _FILE_REFERENCE_RE = re.compile(
@@ -47,7 +47,6 @@ def resolve_base_commit(repo_root: str = '.') -> str:
             cwd=repo_root,
             capture_output=True,
             text=True,
-            timeout=5,
             check=False,
         )
         return result.stdout.strip() if result.returncode == 0 else ''
@@ -63,12 +62,9 @@ def resolve_dirty_hash(repo_root: str = '.') -> str:
             cwd=repo_root,
             capture_output=True,
             text=True,
-            timeout=5,
             check=False,
         )
         if result.returncode == 0 and result.stdout.strip():
-            import hashlib
-
             # 使用 diff 摘要计算稳定短哈希，标识当前工作区的 dirty 状态。
             return hashlib.sha256(result.stdout.encode()).hexdigest()[:12]
         return ''
@@ -107,6 +103,7 @@ class GateDetail:
     targetSeconds: int | None = None  # noqa: N815
     timingState: str = ''  # noqa: N815
     reason: str = ''
+    leafResults: list[dict[str, Any]] = field(default_factory=list)  # noqa: N815
 
     def __post_init__(self) -> None:
         """保证每个执行失败明细都有可机器处理的原因码。"""
@@ -217,6 +214,9 @@ def _coerce_detail(detail: GateDetail | dict[str, Any]) -> GateDetail:
         ),
         timingState=str(detail.get('timingState', '')),
         reason=str(detail.get('reason', '')),
+        leafResults=[
+            dict(leaf) for leaf in detail.get('leafResults', []) if isinstance(leaf, dict)
+        ],
     )
 
 
@@ -291,6 +291,19 @@ def format_quality_report(
             lines.append(f'  affected_files={", ".join(files)}')
         lines.append('  error_summary:')
         lines.extend(f'    {line}' for line in concise_diagnostic(detail.output).splitlines())
+        for leaf in detail.leafResults:
+            leaf_status = str(leaf.get('status', FAIL)).upper()
+            leaf_reason = str(leaf.get('reason', '') or '')
+            leaf_duration = leaf.get('durationMs')
+            lines.append(
+                f'  leaf={leaf.get("name", "unknown")} status={leaf_status} '
+                f'duration_ms={leaf_duration if isinstance(leaf_duration, int) else "UNKNOWN"}'
+                + (f' reason={leaf_reason}' if leaf_reason else '')
+            )
+            lines.extend(
+                f'    {line}'
+                for line in concise_diagnostic(str(leaf.get('output', '') or '')).splitlines()
+            )
         if gate_status == BLOCKED:
             suffix = f' Then rerun: {rendered_command}' if rendered_command else ''
             lines.append(f'  fix_hint=Fix the repository issue.{suffix}')

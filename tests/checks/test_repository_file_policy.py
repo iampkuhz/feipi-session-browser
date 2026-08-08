@@ -6,8 +6,8 @@ import subprocess
 from pathlib import Path
 
 import yaml
-from scripts.checks._framework import CheckStatus
-from scripts.checks.repository import check_repository_file_policy as policy
+from scripts.gates.checks._framework import CheckStatus
+from scripts.gates.checks.repository import check_repository_file_policy as policy
 
 
 def _git(root: Path, *args: str) -> subprocess.CompletedProcess[str]:
@@ -18,7 +18,16 @@ def _write_manifest(root: Path, paths: list[str] | object) -> None:
     manifest = root / policy.MANIFEST_RELATIVE_PATH
     manifest.parent.mkdir(parents=True, exist_ok=True)
     manifest.write_text(
-        yaml.safe_dump({policy.MANIFEST_KEY: paths}, sort_keys=False), encoding='utf-8'
+        yaml.safe_dump(
+            {
+                policy.MANIFEST_KEY: paths,
+                'public_executables': {
+                    'quality_gate': 'python3 scripts/gates/cli.py',
+                },
+            },
+            sort_keys=False,
+        ),
+        encoding='utf-8',
     )
 
 
@@ -157,6 +166,19 @@ def test_tracked_database_fails(tmp_path: Path):
     assert any(
         '数据库文件不应进入 Git tracked: fixture.sqlite3' in d.message for d in result.diagnostics
     )
+
+
+def test_retired_product_python_path_fails(tmp_path: Path):
+    root = tmp_path / 'repo'
+    _init_repo(root)
+    legacy = root / 'src' / 'session_browser' / 'legacy.py'
+    legacy.parent.mkdir(parents=True)
+    legacy.write_text('print("legacy")\n', encoding='utf-8')
+
+    result = policy.check(['--root', str(root), '--all-tracked'])
+
+    assert not result.passed
+    assert any('产品 Python 已退役' in diagnostic.message for diagnostic in result.diagnostics)
 
 
 def test_git_read_error_fails_closed(tmp_path: Path):

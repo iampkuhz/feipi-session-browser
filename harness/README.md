@@ -12,15 +12,17 @@
 
 ## 人类阅读路线
 
-1. **日常开发与验证：** 先读 `scripts/README.md`，只记产品入口和 incremental/full Gate。
-2. **定位一个失败 Gate：** 先查 [`config/gates/README.md`](../config/gates/README.md) 的 41 Gate 使用手册，
-   再打开对应领域 YAML，按 typed run 路由到 Java rule、Python check、Gradle task、tool 或固定 suite；
-   实现入口与 `gradle`/`process` 执行通道必须分开，详细定位见 [`scripts/gates/README.md`](../scripts/gates/README.md)。
+1. **日常开发与验证：** 先读 `scripts/README.md`，只记产品入口和 incremental/full Gate；环境与性能维护才
+   显式运行 `python3 scripts/gates/cli.py health`。
+2. **定位一个失败 Gate：** 先查 [`scripts/gates/README.md`](../scripts/gates/README.md) 的 20 个逻辑 Gate，
+   再到 `scripts/gates/definitions.py` 查看唯一 recipe，按 typed leaf 路由到 Java rule、Python check、
+   Gradle task、tool 或固定 suite。
 3. **修改 Agent/Harness 约束：** 先读本目录对应 manifest，再按 `skill-registry.yaml` 进入唯一 skill
    真源；不要从客户端目录反向推断共享规则。
 
-本目录不保存 Gate matrix，也不保存运行状态、历史结果或当前 Session 进度。Gate 执行清单从
-`config/gates.yaml` 根索引、领域分片与 CLI 派生：incremental 由 changed path 直接匹配每个 Gate 的
-Trigger，full 选择全部 Gate；Target 只供维护者显式选择一组 Gate，不参与自动规划。人类精简目录位于
-[`config/gates/README.md`](../config/gates/README.md)，单次运行
-证据由 Gate artifact 所有。
+本目录不保存 Gate matrix，也不保存运行状态、历史结果或当前 Session 进度。Gate 清单只在
+`scripts/gates/definitions.py` 声明：incremental 由 changed path 匹配 Gate Trigger，full 选择全部 Gate；
+Target 只供维护者显式选择一组 Gate。人类手册是 `scripts/gates/README.md`，单次运行证据由 Gate artifact 所有。
+
+Harness doctor 是 standalone 只读诊断，并由显式 health 流程调用；它不属于 Gate Catalog，普通
+incremental/full、Hook 与 Stop/handoff 都不会隐式运行 doctor 或 health。

@@ -85,8 +85,8 @@ UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev
   `java/**/build/`。
 - `FEIPI_AGENT_RUNTIME_ROOT` 的既有优先级不变；未设置时 Playwright 继续 fallback 到
   `<repoRoot>/tmp/agent-runtime/`。
-- `python3 -m scripts.checks repository.misplaced-generated-paths` 会直接检查磁盘上的旧路径，
-  即使路径被 ignore 也不会静默通过。
+- `python3 scripts/gates/cli.py --mode incremental --gate repositoryFilePolicy` 会检查 tracked 文件和禁止生成路径，
+  即使路径被 ignore 也不会把已跟踪生成物静默当作正常源码。
 
 示例：使用自定义端口启动。
 

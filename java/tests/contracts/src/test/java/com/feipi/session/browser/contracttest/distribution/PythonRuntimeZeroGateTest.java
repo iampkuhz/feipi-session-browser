@@ -370,7 +370,7 @@ class PythonRuntimeZeroGateTest {
   /**
    * 开发工具 Python 边界验证。
    *
-   * <p>验证剩余 Python 文件仅存在于开发质量工具目录（scripts/checks、scripts/gates 等）， 不在产品运行链中。
+   * <p>验证剩余 Python 文件仅存在于开发质量工具目录（scripts/gates、scripts/harness 等）， 不在产品运行链中。
    */
   @Nested
   @DisplayName("开发工具 Python 边界")
@@ -403,7 +403,7 @@ class PythonRuntimeZeroGateTest {
       // 每个 Python 文件必须在允许的开发工具目录中，或在待清理的遗留 src/ 目录中
       List<String> allowedPrefixes =
           List.of(
-              "scripts/checks/",
+              "scripts/gates/checks/",
               "scripts/gates/",
               "scripts/qa/",
               "scripts/harness/",
@@ -421,26 +421,6 @@ class PythonRuntimeZeroGateTest {
         String rel = projectRoot.relativize(pyFile).toString().replace('\\', '/');
         boolean inAllowedDir = allowedPrefixes.stream().anyMatch(rel::startsWith);
         assertThat(inAllowedDir).as("Python 文件 %s 应仅存在于允许的开发工具目录中", rel).isTrue();
-      }
-    }
-
-    @Test
-    @DisplayName("PR-020/PR-030 已删除的 Python 子目录不再包含产品运行代码")
-    void pythonProductSubdirectoriesCleaned() throws IOException {
-      Path pythonSrc = findProjectRoot().resolve("src/session_browser");
-      if (!Files.exists(pythonSrc)) {
-        return; // 目录已完全移除，迁移完成
-      }
-      // PR-020/PR-030 应已清理的子目录
-      List<String> removedSubdirs = List.of("index", "normalized", "sources");
-      for (String subdir : removedSubdirs) {
-        Path sub = pythonSrc.resolve(subdir);
-        if (Files.exists(sub)) {
-          try (Stream<Path> walk = Files.walk(sub)) {
-            long pyCount = walk.filter(p -> p.toString().endsWith(".py")).count();
-            assertThat(pyCount).as("src/session_browser/%s 应已被 PR-020/PR-030 清理", subdir).isZero();
-          }
-        }
       }
     }
 

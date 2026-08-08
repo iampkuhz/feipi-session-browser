@@ -45,7 +45,7 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 4. 先用 fixture 页面复现，不读取真实 session：使用已有 fixture 或 mock 数据验证 UI 变更效果。
 5. 修改模板时优先使用已有 macro 和 class：不重新发明已有组件，复用现有 macro。
 6. 不新增 legacy alias CSS，不新增无 owner 的全局样式：每个 CSS 规则必须有明确 ownership。
-7. 修改 JS 时同步 action handler gate：确保 `web.js-action-handlers` 能覆盖新增或修改的 handler。
+7. 修改 JS 时同步交互测试：确保 `browserInteraction` 用真实浏览器行为覆盖新增或修改的 handler。
 8. 跑静态 UI gate 和必要 Playwright gate：至少运行 `webResourceTests`，涉及布局时追加 layout gate。
 9. 输出截图/布局风险和未覆盖交互：报告视觉风险和交互覆盖盲区。
 
@@ -56,7 +56,8 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - JS 文件：`java/web/src/main/resources/static/js/` 下 session detail 相关交互脚本。
 - UI 质量门：`java/web/src/test/java/com/feipi/session/browser/web/page/`、
   `tests/playwright/session-detail*.spec.js`。
-- CSS ownership 配置：catalog Gate `cssOwnership` 与 Java `css-ownership` rule 相关配置。
+- Web 源码政策：catalog 顶层 Gate `webSourcePolicy`；内部继续用 Java `css-ownership`、
+  `layout-inline-style`、`raw-innerhtml` 等 rule ID 分诊断。
 - P4 Web gate baseline：`config/web-quality-baselines.json` 中的 `rules.raw-innerhtml.entries` 与
   `rules.layout-inline-style.entries`；CSS ownership Java rule 继续写出按运行隔离的 artifact，artifact
   不是可维护 baseline。
@@ -70,19 +71,20 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 - `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查与 shell CSS 一致性。
 - `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js` — 交互 gate。
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js` — 布局 gate。
-- `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查。
-- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership` — catalog
-  Gate `cssOwnership` 的 CSS ownership 校验。
-- `python3 -m scripts.checks repository.current-source-policy` — legacy CSS 检查。
+- `python3 scripts/gates/cli.py --mode incremental --gate browserInteraction` — 浏览器交互 Gate。
+- `python3 scripts/gates/cli.py --gate webSourcePolicy --mode incremental` — 顶层 Web 源码政策 Gate；报告内部
+  Java rule IDs 用于定位 CSS ownership、inline style 与 raw innerHTML。
+- `python3 scripts/gates/cli.py --mode incremental --gate currentSourcePolicy` — legacy CSS 检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style` — inline style 检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml` — raw innerHTML 检查。
 
 选择策略：
 
-- 只改模板 → 至少运行 `webResourceTests` + catalog Gate `cssOwnership`。
-- 改 CSS → 追加 `webResourceTests` + `repository.current-source-policy`。
-- 改 JS → 追加 `web.js-action-handlers` + Node Playwright 交互 gate。
-- 改布局或 shell → 追加 Node Playwright 布局 gate + catalog Gate `layoutInlineStyle`。
+- 只改模板 → 至少运行 `webResourceTests` + catalog Gate `webSourcePolicy`。
+- 改 CSS → 追加 `webResourceTests` + `currentSourcePolicy`。
+- 改 JS → 运行 `browserInteraction`，不再维护第二套正则式 handler 扫描。
+- 改布局或 shell → 追加 Node Playwright 布局 gate + catalog Gate `webSourcePolicy`，按
+  `layout-inline-style` 内部 rule 定位。
 - 收口前 → 运行全部 UI gate。
 
 ## 输出格式

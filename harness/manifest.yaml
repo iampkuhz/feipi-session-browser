@@ -23,7 +23,6 @@ public_executables:
   serve: "./scripts/session-browser.sh serve"
   doctor: "bash scripts/harness/doctor.sh"
   quality_gate: "python3 scripts/gates/cli.py"
-  dead_command_reference: "python3 -m scripts.checks repository.dead-command-reference"
   openspec_layout: "python3 scripts/openspec/validate_layout.py"
   openspec_schema: "python3 scripts/openspec/validate_schema.py"
   openspec_active_change: "python3 scripts/openspec/validate_active_change.py"
@@ -49,7 +48,7 @@ docs:
   - harness/README.md
   - scripts/README.md
   - scripts/gates/README.md
-  - scripts/checks/README.md
+  - scripts/gates/checks/README.md
 
 local_only:
   - ".claude/settings.local.json"

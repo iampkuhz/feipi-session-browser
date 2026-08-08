@@ -3,7 +3,7 @@ size_limits:
   AGENTS.md: 2800
   CLAUDE.md: 12000
 required_phrases:
-  - "required gates"
+  - "增量 Gate"
   - "不纳入真实 session"
   - "先搜索定位"
   - "OpenSpec"

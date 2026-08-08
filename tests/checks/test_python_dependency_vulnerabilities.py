@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 
-from scripts.checks.repository import check_python_dependency_vulnerabilities as audit
+from scripts.gates.checks.repository import check_python_dependency_vulnerabilities as audit
 
 
 def _completed(

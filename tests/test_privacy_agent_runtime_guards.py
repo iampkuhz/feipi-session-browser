@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from scripts.checks.privacy import check_secret_like_content as secrets
+from scripts.gates.checks.privacy import check_secret_like_content as secrets
 
 if TYPE_CHECKING:
     from pathlib import Path

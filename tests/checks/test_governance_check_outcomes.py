@@ -6,14 +6,12 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.checks._framework import CheckStatus
-from scripts.checks.agent import check_agent_entry_parity as entry_parity
-from scripts.checks.agent import check_agent_permission_policy as permission_policy
-from scripts.checks.agent import check_codex_agent_policy as codex_policy
-from scripts.checks.agent import check_protected_roots_sync as protected_roots
-from scripts.checks.agent import check_skill_registry as skill_registry
-from scripts.checks.source import check_code_comment_language as comment_language
-from scripts.checks.source import check_language_policy as language_policy
+from scripts.gates.checks._framework import CheckStatus
+from scripts.gates.checks.agent import check_agent_document_policy as document_policy
+from scripts.gates.checks.agent import check_agent_runtime_policy as runtime_policy
+from scripts.gates.checks.agent import check_skill_registry as skill_registry
+from scripts.gates.checks.source import check_code_comment_language as comment_language
+from scripts.gates.checks.source import check_language_policy as language_policy
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -31,16 +29,21 @@ def test_protected_roots_yaml_violation_is_blocked(tmp_path: Path, monkeypatch) 
     (tmp_path / 'harness').mkdir()
     (tmp_path / 'harness' / 'agent-policy.manifest.yaml').write_text('[invalid', encoding='utf-8')
     (tmp_path / 'AGENTS.md').write_text('', encoding='utf-8')
-    monkeypatch.setattr(protected_roots, 'ROOT', tmp_path)
+    monkeypatch.setattr(document_policy, 'ROOT', tmp_path)
 
-    assert protected_roots.check([]).status is CheckStatus.BLOCKED
+    monkeypatch.setattr(
+        document_policy,
+        '_load_document_inputs',
+        lambda _root: (_ for _ in ()).throw(__import__('yaml').YAMLError('invalid')),
+    )
+    assert document_policy.check([]).status is CheckStatus.BLOCKED
 
 
-def test_protected_roots_required_files_missing_is_blocked(tmp_path: Path, monkeypatch) -> None:
-    """必需治理文件明确缺失时已经形成仓库违规结论。"""
-    monkeypatch.setattr(protected_roots, 'ROOT', tmp_path)
+def test_document_policy_required_files_missing_is_fail(tmp_path: Path, monkeypatch) -> None:
+    """合并检查的任一必需输入不可用时无法形成完整政策结论。"""
+    monkeypatch.setattr(document_policy, 'ROOT', tmp_path)
 
-    assert protected_roots.check([]).status is CheckStatus.BLOCKED
+    _assert_execution_failure(document_policy.check([]), 'input-unavailable')
 
 
 def test_skill_registry_read_error_is_fail(monkeypatch) -> None:
@@ -67,22 +70,27 @@ def test_skill_registry_missing_is_blocked(tmp_path: Path, monkeypatch) -> None:
     assert skill_registry.check([]).status is CheckStatus.BLOCKED
 
 
-def test_permission_json_content_violation_is_blocked(tmp_path: Path, monkeypatch) -> None:
+def test_permission_json_content_violation_is_blocked(monkeypatch) -> None:
     """JSON 语法错误是政策配置违规，而不是 runtime 异常。"""
-    settings = tmp_path / 'settings.json'
-    settings.write_text('{invalid', encoding='utf-8')
-    monkeypatch.setattr(permission_policy, 'SETTINGS_JSON', settings)
+    import json
 
-    assert permission_policy.check([]).status is CheckStatus.BLOCKED
+    monkeypatch.setattr(
+        runtime_policy,
+        '_load_runtime_inputs',
+        lambda _root: (_ for _ in ()).throw(json.JSONDecodeError('invalid', '', 0)),
+    )
+    assert runtime_policy.check([]).status is CheckStatus.BLOCKED
 
 
 def test_codex_policy_read_error_is_fail(monkeypatch) -> None:
     """Agent 文件读取失败时不能产出虚假的政策结论。"""
     monkeypatch.setattr(
-        codex_policy, '_run_check', lambda: (_ for _ in ()).throw(OSError('denied'))
+        runtime_policy,
+        '_load_runtime_inputs',
+        lambda _root: (_ for _ in ()).throw(OSError('denied')),
     )
 
-    _assert_execution_failure(codex_policy.check([]), 'input-unavailable')
+    _assert_execution_failure(runtime_policy.check([]), 'input-unavailable')
 
 
 def test_entry_parity_yaml_content_violation_is_blocked(monkeypatch) -> None:
@@ -90,12 +98,12 @@ def test_entry_parity_yaml_content_violation_is_blocked(monkeypatch) -> None:
     import yaml
 
     monkeypatch.setattr(
-        entry_parity,
-        '_check_agent_entries',
-        lambda: (_ for _ in ()).throw(yaml.YAMLError('invalid')),
+        runtime_policy,
+        '_load_runtime_inputs',
+        lambda _root: (_ for _ in ()).throw(yaml.YAMLError('invalid')),
     )
 
-    assert entry_parity.check([]).status is CheckStatus.BLOCKED
+    assert runtime_policy.check([]).status is CheckStatus.BLOCKED
 
 
 def test_comment_policy_missing_is_fail_but_invalid_json_is_blocked(
@@ -116,6 +124,31 @@ def test_language_policy_invalid_changed_files_does_not_silently_pass() -> None:
     result = language_policy.check(['--changed-files', '{invalid'])
 
     _assert_execution_failure(result, 'input-unavailable')
+
+
+@pytest.mark.parametrize(
+    'line',
+    [
+        'Use this skill only for this repository.',
+        'developer_instructions = "Run deterministic validation and report evidence."',
+    ],
+)
+def test_language_policy_blocks_english_narrative(line: str) -> None:
+    """原隐藏自测的英文叙述正例由真实 pytest 保护。"""
+    assert language_policy._line_violates(line)
+
+
+@pytest.mark.parametrize(
+    'line',
+    [
+        '默认使用简体中文, 命令名如 `pytest` 保持英文。',
+        'model = "gpt-5.4-mini"',
+        '- Validation: `python3 scripts/gates/cli.py --target harness` passed.',
+    ],
+)
+def test_language_policy_allows_chinese_or_technical_lines(line: str) -> None:
+    """原隐藏自测的中文、标识符和命令行反例由真实 pytest 保护。"""
+    assert not language_policy._line_violates(line)
 
 
 @pytest.mark.parametrize('error', [OSError('git missing'), subprocess.CalledProcessError(2, 'git')])

@@ -9,6 +9,13 @@ import subprocess
 from pathlib import Path
 
 import pytest
+from scripts.gates.catalog import gate_by_name
+
+
+def test_doctor_is_not_a_catalog_gate() -> None:
+    """Doctor remains standalone and is invoked only by explicit health maintenance."""
+    with pytest.raises(ValueError, match='Unknown quality gate: doctor'):
+        gate_by_name('doctor')
 
 
 def _doctor_fixture(
@@ -136,7 +143,7 @@ def test_doctor_is_read_only_and_does_not_run_quality_gates(tmp_path: Path):
     assert proc.returncode == 0, proc.stdout
     assert _tree_snapshot(root) == before
     calls = (root / '.doctor-call-log').read_text(encoding='utf-8')
-    assert '-m scripts.checks' not in calls
+    assert '-m scripts.gates.checks' not in calls
     assert 'scripts/gates/cli.py' not in calls
     assert 'scripts.gates.cli' not in calls
     assert 'compileall' not in calls

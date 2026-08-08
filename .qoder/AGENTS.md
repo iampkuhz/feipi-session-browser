@@ -36,7 +36,7 @@
 
 - Run the validation command specified by the task exactly when provided.
 - Treat failed, skipped, unavailable, excluded, or not-run required gates as non-PASS.
-- Before final reporting, verify changed Qoder runtime files against `python3 -m scripts.checks agent.qoder-parity` when available.
+- Before final reporting, verify changed Qoder runtime files against `python3 scripts/gates/cli.py --mode incremental --gate agentPolicy` when available.
 
 ## Forbidden Actions
 

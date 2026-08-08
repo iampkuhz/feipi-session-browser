@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.checks.repository import check_dead_command_reference as checker
+from scripts.gates.checks.repository import check_repository_file_policy as checker
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -45,10 +45,6 @@ def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) 
         (2, "scripts/harness/doctor.sh"),
         (3, "scripts/session-browser.sh"),
     ]
-
-
-def test_repository_has_no_dead_or_private_command_references() -> None:
-    assert checker._check_repository(ROOT) == ()
 
 
 def test_manifest_does_not_advertise_internal_check_files_as_executables() -> None:

@@ -1,20 +1,40 @@
+"""用最小合成路径证明高风险改动不会绕过 Gate planner。"""
+
+from __future__ import annotations
+
 import json
 import os
 import subprocess
 import sys
+from pathlib import Path
 
-from scripts.checks.repository.check_gate_escape_rate import REQUIRED_CASE_IDS, _build_report
 from scripts.gates.planner import plan
 
+ROOT = Path(__file__).resolve().parents[1]
+EXPECTED_PATH_GATES = {
+    '.claude/agents/qwen-main-default.md': 'languagePolicy',
+    'skills/authoring/feipi-java-feature-dev/SKILL.md': 'governanceStructure',
+    'docs/acceptance-cases/features/HOOK_HARNESS.md': 'acceptanceCaseMapping',
+    'scripts/gates/planner.py': 'pythonHarnessTests',
+    'java/web/src/main/java/com/feipi/session/browser/X.java': 'javaCheck',
+    'build.gradle.kts': 'javaCheck',
+    'java/web/src/main/resources/templates/session-detail.html': 'browserInteraction',
+    '.qoder/settings.json': 'agentPolicy',
+    'scripts/session-browser.sh': 'scanScriptSmoke',
+    '.agents/experimental/new-policy.yaml': 'agentPolicy',
+}
 
-def _env():
+
+def _env() -> dict[str, str]:
+    """构造隔离且可审计的 Gate CLI 环境。"""
+
     env = os.environ.copy()
     env['ACTIVE_CHANGE_ID'] = 'reset-minimal-agent-harness'
     return env
 
 
-def test_dry_run_selects_harness_gates_for_agent_config_change():
-    proc = subprocess.run(
+def test_dry_run_selects_harness_gates_for_agent_config_change() -> None:
+    result = subprocess.run(
         [
             sys.executable,
             'scripts/gates/cli.py',
@@ -24,84 +44,19 @@ def test_dry_run_selects_harness_gates_for_agent_config_change():
             '[".claude/agents/qwen-main-default.md"]',
             '--dry-run',
         ],
+        cwd=ROOT,
         text=True,
         capture_output=True,
         env=_env(),
         check=False,
     )
 
-    combined = proc.stdout + proc.stderr
-    assert proc.returncode == 0, combined
-    payload = json.loads(combined)
-    assert {'languagePolicy', 'protectedRootsSync'} <= set(payload['gates'])
+    combined = result.stdout + result.stderr
+    assert result.returncode == 0, combined
+    assert {'languagePolicy', 'agentPolicy'} <= set(json.loads(combined)['gates'])
 
 
-def test_gate_escape_rate_stdout_and_json_contract(tmp_path):
-    json_out = tmp_path / 'gate-escape-rate.json'
-    proc = subprocess.run(
-        [
-            sys.executable,
-            '-m',
-            'scripts.checks',
-            'repository.gate-escape-rate',
-            '--threshold',
-            '0',
-            '--json-out',
-            str(json_out),
-        ],
-        text=True,
-        capture_output=True,
-        env=_env(),
-        check=False,
-    )
-
-    combined = proc.stdout + proc.stderr
-    assert proc.returncode == 0, combined
-    assert 'GATE_RESULT status=PASS check=repository.gate-escape-rate' in proc.stdout
-
-    report = json.loads(json_out.read_text(encoding='utf-8'))
-    assert set(report) >= {'total_required_cases', 'escaped_required_cases', 'escape_rate', 'cases'}
-    assert report['escaped_required_cases'] == 0
-    assert report['escape_rate'] == 0.0
-    assert report['total_required_cases'] >= 10
-    case_ids = {case['id'] for case in report['cases']}
-    assert REQUIRED_CASE_IDS <= case_ids
-    for case in report['cases']:
-        assert set(case) >= {
-            'id',
-            'description',
-            'expected_gate',
-            'observed',
-            'escaped',
-            'evidence',
-        }
-        assert case['observed'] in {'PASS', 'BLOCK', 'FAIL', 'GATE_TRIGGERED', 'GATE_MISSING'}
-        assert case['escaped'] is False
-        assert case['evidence']
-
-
-def test_required_case_coverage_and_zero_escape_rate():
-    report = _build_report()
-    assert report['total_required_cases'] >= 10
-    assert report['escaped_required_cases'] == 0
-    assert report['escape_rate'] == 0.0
-    assert REQUIRED_CASE_IDS <= {case['id'] for case in report['cases']}
-
-
-def test_synthetic_paths_select_expected_gates_or_fail_closed():
-    expectations = {
-        '.claude/agents/qwen-main-default.md': 'languagePolicy',
-        '.qoder/settings.json': 'protectedRootsSync',
-        'harness/manifest.yaml': 'harnessStructure',
-        'java/web/src/main/java/com/feipi/session/browser/X.java': 'javaCheck',
-        'java/web/src/main/resources/templates/session-detail.html': 'browserInteraction',
-    }
-    for path, expected in expectations.items():
-        gates = [gate.name for gate in plan([path]).gates]
-        assert expected in gates, (path, gates)
-
-    unknown_case = next(
-        case for case in _build_report()['cases'] if case['id'] == 'unknown-risky-path'
-    )
-    assert unknown_case['observed'] in {'BLOCK', 'GATE_TRIGGERED'}
-    assert unknown_case['escaped'] is False
+def test_high_risk_paths_select_their_required_gate() -> None:
+    for path, expected in EXPECTED_PATH_GATES.items():
+        selected = {gate.name for gate in plan([path]).gates}
+        assert expected in selected, (path, selected)

@@ -128,7 +128,7 @@ def _build_execution_metadata(
             {
                 'groupId': group.group_id,
                 'kind': group.kind,
-                'gates': list(group.gate_names),
+                'gates': [group.gate_name],
                 'command': list(group.command),
             }
             for group in execution_plan.groups
@@ -203,7 +203,6 @@ def _dry_run_payload(
 ) -> dict[str, object]:
     """返回稳定、可机器读取且不产生 PASS 证据的计划摘要。"""
     resolved = executor.build_execution_plan(gate_plan, repo_root)
-    groups = {group.group_id: group for group in resolved.groups}
     return {
         'planId': resolved.plan_id,
         'planFingerprint': resolved.fingerprint,
@@ -215,29 +214,78 @@ def _dry_run_payload(
         'gates': [item.name for item in gate_plan.gates],
         'commands': [
             {
-                'gate': gate.name,
-                'groupId': gate.group_id,
-                'statusSource': gate.status_source,
-                'command': list(groups[gate.group_id].command),
+                'gate': group.gate_name,
+                'leaf': group.step_name,
+                'groupId': group.group_id,
+                'command': list(group.command),
             }
-            for gate in resolved.gates
+            for group in resolved.groups
         ],
         'groups': [
             {
                 'groupId': group.group_id,
                 'kind': group.kind,
-                'gates': list(group.gate_names),
+                'gates': [group.gate_name],
                 'command': list(group.command),
-                'timeoutSeconds': group.timeout_seconds,
             }
             for group in resolved.groups
         ],
     }
 
 
+def _health_main(argv: list[str]) -> int:
+    """解析独立 health 参数；不接受日常 mode、selector 或 changed-files。"""
+    from scripts.gates import health
+
+    parser = GateArgumentParser(
+        prog='python3 scripts/gates/cli.py health',
+        description='Explicit full Gate health maintenance (no automatic timeout)',
+    )
+    parser.add_argument('--out', default='tmp/quality-health')
+    parser.add_argument('--change-id', default=None)
+    repo_root = Path.cwd()
+    try:
+        args = parser.parse_args(argv)
+    except ValueError as exc:
+        print(
+            f'GATE_HEALTH_RESULT status=FAIL reason=input-unavailable detail={exc}',
+            file=sys.stderr,
+        )
+        return 2
+    out = Path(args.out)
+    if not out.is_absolute():
+        out = repo_root / out
+    try:
+        result = health.run_health(
+            repo_root=repo_root,
+            change_id=resolve_change_id(args.change_id, repo_root),
+            out_dir=out,
+        )
+    except KeyboardInterrupt:
+        print('GATE_HEALTH_RESULT status=FAIL reason=interrupted', file=sys.stderr)
+        return 130
+    except (Exception, SystemExit) as exc:
+        print(
+            f'GATE_HEALTH_RESULT status=FAIL reason=execution-unavailable '
+            f'detail={type(exc).__name__}: {exc}',
+            file=sys.stderr,
+        )
+        return 2
+    print(health.format_health_result(result))
+    if result.status == report.PASS:
+        return 0
+    return 1 if result.status == report.BLOCKED else 2
+
+
 def main(argv: list[str] | None = None) -> int:
     """解析统一 CLI；参数或执行条件不完整时以 FAIL 的退出码 2 结束。"""
-    parser = GateArgumentParser(description='Unified typed Gate service')
+    arguments = list(sys.argv[1:] if argv is None else argv)
+    if arguments and arguments[0] == 'health':
+        return _health_main(arguments[1:])
+    parser = GateArgumentParser(
+        description='Unified typed Gate service',
+        epilog='Maintenance: python3 scripts/gates/cli.py health',
+    )
     parser.add_argument('--mode', choices=tuple(ExecutionMode), default=ExecutionMode.INCREMENTAL)
     selector = parser.add_mutually_exclusive_group()
     selector.add_argument('--target', choices=sorted(item.name for item in TARGETS))
@@ -250,7 +298,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument('--allow-empty-changed-files-because', default=None)
     repo_root = Path.cwd()
     try:
-        args = parser.parse_args(argv)
+        args = parser.parse_args(arguments)
         input_audit_reason = (args.allow_empty_changed_files_because or '').strip()
         if args.mode == ExecutionMode.FULL and args.changed_files is not None:
             raise ValueError('full mode does not accept --changed-files')
@@ -275,7 +323,7 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError('empty changed-files audit exception requires an empty file list')
         gate_plan = create_plan(changed_files, mode=args.mode, target=args.target, gate=args.gate)
         if args.base_url and not any(
-            item.run.kind.value == 'playwright' for item in gate_plan.gates
+            step.kind.value == 'playwright' for item in gate_plan.gates for step in item.run.steps
         ):
             raise ValueError('--base-url requires a selected Playwright Gate')
     except (ValueError, json.JSONDecodeError) as exc:
@@ -298,17 +346,24 @@ def main(argv: list[str] | None = None) -> int:
     out = Path(args.out)
     if not out.is_absolute():
         out = repo_root / out
-    result = run_service(
-        repo_root=repo_root,
-        changed_files=changed_files,
-        mode=args.mode,
-        target=args.target,
-        gate=args.gate,
-        change_id=resolve_change_id(args.change_id, repo_root),
-        out_dir=out,
-        base_url=args.base_url or os.environ.get('BASE_URL'),
-        input_audit_reason=input_audit_reason,
-    )
+    try:
+        result = run_service(
+            repo_root=repo_root,
+            changed_files=changed_files,
+            mode=args.mode,
+            target=args.target,
+            gate=args.gate,
+            change_id=resolve_change_id(args.change_id, repo_root),
+            out_dir=out,
+            base_url=args.base_url or os.environ.get('BASE_URL'),
+            input_audit_reason=input_audit_reason,
+        )
+    except KeyboardInterrupt:
+        print(
+            'GATE_SERVICE_RESULT status=NOT_PASS detailStatus=FAIL reason=interrupted',
+            file=sys.stderr,
+        )
+        return 130
     print(
         report.format_quality_report(
             json.loads(result.artifact_path.read_text(encoding='utf-8')), result.artifact_path

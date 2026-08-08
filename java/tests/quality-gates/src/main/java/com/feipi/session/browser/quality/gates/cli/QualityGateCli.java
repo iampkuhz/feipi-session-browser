@@ -12,7 +12,6 @@ import com.feipi.session.browser.quality.gates.core.QualitySummary;
 import com.feipi.session.browser.quality.gates.core.QualitySummary.RuleExecution;
 import com.feipi.session.browser.quality.gates.core.QualityViolation;
 import com.feipi.session.browser.quality.gates.core.RepositorySourceSet;
-import com.feipi.session.browser.quality.gates.rules.JavaApiSnapshotRule;
 import com.feipi.session.browser.quality.gates.rules.JavaCommentLanguageRule;
 import com.feipi.session.browser.quality.gates.rules.NoPmdSuppressionsRule;
 import com.feipi.session.browser.quality.gates.rules.TemplateContractRule;
@@ -65,17 +64,10 @@ public final class QualityGateCli {
       if (!unknownUpdates.isEmpty()) {
         throw new IllegalArgumentException("Unknown baseline update rules: " + unknownUpdates);
       }
-      if (options.writeApiSnapshot() && !options.rules().contains("java-api-snapshot")) {
-        throw new IllegalArgumentException("--write-api-snapshot requires java-api-snapshot rule");
-      }
       if (options.baselineUpdateRequested()) {
         if (!new LinkedHashSet<>(options.rules())
             .equals(new LinkedHashSet<>(options.baselineUpdateRules()))) {
           throw new IllegalArgumentException("--update-baselines must exactly match --rules");
-        }
-        if (options.writeApiSnapshot()) {
-          throw new IllegalArgumentException(
-              "--update-baselines cannot be combined with --write-api-snapshot");
         }
       }
       var selectedRules = registry.select(options.rules());
@@ -133,8 +125,6 @@ public final class QualityGateCli {
               options.repoRoot(),
               sources,
               repositorySources,
-              options.apiSnapshot(),
-              options.writeApiSnapshot(),
               qualityArtifactDirectory(options.repoRoot(), environment, needsQualityArtifacts));
       if (options.baselineUpdateRequested()) {
         return updateBaselines(
@@ -258,8 +248,6 @@ public final class QualityGateCli {
         context.repoRoot(),
         new JavaSourceSet(javaSources, context.sources().docTrees()),
         repositorySources,
-        context.apiSnapshot(),
-        context.writeApiSnapshot(),
         context.qualityArtifactDir());
   }
 
@@ -438,7 +426,6 @@ public final class QualityGateCli {
         .register(new CssOwnershipRule())
         .register(new RecordComponentJavadocsRule())
         .register(new NoPmdSuppressionsRule())
-        .register(new JavaApiSnapshotRule())
         .build();
   }
 
@@ -450,8 +437,6 @@ public final class QualityGateCli {
    * @param rules 待运行的规则标识列表。
    * @param changedFiles planner 传入的变更文件 JSON；未传时为空。
    * @param reportFile 结构化摘要输出文件；未传时为空。
-   * @param apiSnapshot Java public API 基线文件。
-   * @param writeApiSnapshot 是否显式维护 API 基线。
    * @param baselineUpdateRequested 是否出现 baseline 维护 option。
    * @param baselineUpdateRules 显式维护 baseline 的 rule id 集合。
    */
@@ -461,8 +446,6 @@ public final class QualityGateCli {
       List<String> rules,
       String changedFiles,
       Path reportFile,
-      Path apiSnapshot,
-      boolean writeApiSnapshot,
       boolean baselineUpdateRequested,
       List<String> baselineUpdateRules) {
 
@@ -472,8 +455,6 @@ public final class QualityGateCli {
       var rules = new ArrayList<String>();
       String changedFiles = null;
       Path reportFile = null;
-      Path apiSnapshot = null;
-      var write = false;
       var baselineUpdateRequested = false;
       var baselineUpdateRules = new ArrayList<String>();
       for (int index = 0; index < args.length; index++) {
@@ -494,9 +475,6 @@ public final class QualityGateCli {
           case "--changed-files" -> changedFiles = requiredValue(args, ++index, "--changed-files");
           case "--report-file" ->
               reportFile = Path.of(requiredValue(args, ++index, "--report-file"));
-          case "--api-snapshot" ->
-              apiSnapshot = Path.of(requiredValue(args, ++index, "--api-snapshot"));
-          case "--write-api-snapshot" -> write = true;
           case "--update-baselines" -> {
             if (baselineUpdateRequested) {
               throw new IllegalArgumentException("--update-baselines may only be specified once");
@@ -521,19 +499,12 @@ public final class QualityGateCli {
       if (paths.isEmpty()) {
         paths.add(repoRoot.resolve("java"));
       }
-      if (apiSnapshot == null) {
-        apiSnapshot = repoRoot.resolve("config/api-snapshots/java-public-api.txt");
-      } else if (!apiSnapshot.isAbsolute()) {
-        apiSnapshot = repoRoot.resolve(apiSnapshot);
-      }
       return new Options(
           repoRoot,
           List.copyOf(paths),
           List.copyOf(rules),
           changedFiles,
           reportFile,
-          apiSnapshot,
-          write,
           baselineUpdateRequested,
           List.copyOf(baselineUpdateRules));
     }

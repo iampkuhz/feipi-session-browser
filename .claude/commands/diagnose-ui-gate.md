@@ -19,11 +19,11 @@
 ## 步骤
 
 1. **读取质量门禁摘要** `tmp/quality/<change-id>/quality-gate-summary.session-detail.json`。
-   - 确认哪些门禁失败了（`staticCssContract`、`webResourceTests`、`templateContract`、`browserLayout`）。
+   - 确认哪些顶层门禁失败了（`webSourcePolicy`、`webResourceTests`、`browserLayout`）。
    - 读取 `notPassReasons` 获取失败代码和信息。
 
 2. **读取具体门禁结果 JSON**。
-   - `staticCssContract`：读取 Java `static-resource-contract` rule 的输出。
+   - `webSourcePolicy`：展开 Java `static-resource-contract`、`template-contract`、`css-ownership` 等内部 rule 输出。
    - `webResourceTests`：读取 `:java:web:test` 中资源契约测试的输出。
    - `browserLayout`：读取 `session-detail-layout-result.json` 获取计算指标。
 

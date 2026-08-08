@@ -17,15 +17,16 @@
 
 | Gate | Result |
 |---|---|
-| `webResourceTests` | <PASS/FAIL> |
-| `cssOwnership`（Java `css-ownership` rule） | <PASS/FAIL> |
-| `web.js-action-handlers` | <PASS/FAIL/NOT_RUN> |
-| `repository.current-source-policy` | <PASS/FAIL/NOT_RUN> |
-| `layoutInlineStyle` | <PASS/FAIL/NOT_RUN> |
-| `webResourceTests` | <PASS/FAIL/NOT_RUN> |
-| Node Playwright 交互门禁 | <PASS/FAIL/NOT_RUN> |
-| Node Playwright 布局门禁 | <PASS/FAIL/NOT_RUN> |
-| `rawInnerhtml` | <PASS/FAIL/NOT_RUN> |
+| `webResourceTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `webSourcePolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| ↳ Java `css-ownership` rule | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `browserInteraction` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `currentSourcePolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| ↳ Java `layout-inline-style` rule | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `webResourceTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| Node Playwright 交互门禁 | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| Node Playwright 布局门禁 | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| ↳ Java `raw-innerhtml` rule | <PASS/BLOCKED/FAIL/NOT_RUN> |
 
 ## Risks
 

@@ -3,13 +3,12 @@
 from __future__ import annotations
 
 import pytest
-from scripts.checks._framework import CheckStatus
-from scripts.checks.privacy import check_secret_like_content as secret_policy
-from scripts.checks.repository import check_current_source_policy as current_source
-from scripts.checks.repository import check_dead_command_reference as dead_command
-from scripts.checks.repository import check_no_python_playwright_skips as no_skips
-from scripts.checks.repository import check_repository_file_policy as repository_files
-from scripts.checks.repository import check_test_data_policy as test_data
+from scripts.gates.checks._framework import CheckStatus
+from scripts.gates.checks.privacy import check_secret_like_content as secret_policy
+from scripts.gates.checks.repository import check_current_source_policy as current_source
+from scripts.gates.checks.repository import check_no_python_playwright_skips as no_skips
+from scripts.gates.checks.repository import check_repository_file_policy as repository_files
+from scripts.gates.checks.repository import check_test_data_policy as test_data
 
 
 def _assert_execution_failure(result, reason: str) -> None:
@@ -77,13 +76,13 @@ def test_repository_manifest_violation_is_blocked(monkeypatch, tmp_path) -> None
     assert result.status is CheckStatus.BLOCKED
 
 
-def test_dead_command_read_error_is_execution_failure(monkeypatch, tmp_path) -> None:
-    def unreadable(_root):
+def test_repository_input_read_error_is_execution_failure(monkeypatch, tmp_path) -> None:
+    def unreadable(*_args, **_kwargs):
         raise OSError('cannot read commands')
 
-    monkeypatch.setattr(dead_command, '_check_repository', unreadable)
+    monkeypatch.setattr(repository_files, '_validate', unreadable)
 
-    result = dead_command.check(['--root', str(tmp_path)])
+    result = repository_files.check(['--root', str(tmp_path)])
 
     _assert_execution_failure(result, 'input-unavailable')
 
@@ -103,7 +102,7 @@ def test_current_source_incomplete_scan_is_execution_failure(monkeypatch, tmp_pa
     monkeypatch.setattr(
         current_source,
         '_check_current_source_policy',
-        lambda _root: ([], ['source.css: unreadable-source']),
+        lambda _root, _changed_files=None: ([], ['source.css: unreadable-source']),
     )
 
     result = current_source.check(['--root', str(tmp_path)])
@@ -116,7 +115,7 @@ def test_current_source_policy_finding_is_blocked(monkeypatch, tmp_path) -> None
     monkeypatch.setattr(
         current_source,
         '_check_current_source_policy',
-        lambda _root: (['historical version'], []),
+        lambda _root, _changed_files=None: (['historical version'], []),
     )
 
     result = current_source.check(['--root', str(tmp_path)])

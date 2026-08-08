@@ -1,8 +1,8 @@
 """定义 Gate Catalog、Planner 与 Executor 共用的不可变领域模型。
 
-这里仅描述“配置是什么”和“计划选中了什么”。配置解析、Gate 选择和进程执行分别由
-``catalog``、``planner`` 和 ``executor`` 调用这些类型完成协作。本模块不负责配置解析、
-选择或执行，避免领域模型夹带隐式决策。
+这里仅描述“声明是什么”和“计划选中了什么”。声明校验、Gate 选择和进程执行分别由
+``catalog``、``planner`` 和 ``executor`` 调用这些类型完成协作。本模块不负责校验、选择或
+执行，避免领域模型夹带隐式决策。
 """
 
 from __future__ import annotations
@@ -45,11 +45,25 @@ class GateTrigger:
 
 
 @dataclass(frozen=True, slots=True)
-class RunProfile:
-    """保存一种 mode 的完整执行参数与 Gate 自己维护的时效目标。"""
+class RunTargets:
+    """保存 incremental/full 两个非阻断时效目标。"""
 
-    target_seconds: int
-    timeout_seconds: int
+    incremental: int
+    full: int
+
+    def target_for(self, mode: ExecutionMode | str) -> int:
+        """返回执行范围对应的维护目标，不参与 recipe 选择。"""
+
+        selected = ExecutionMode(mode)
+        return self.incremental if selected is ExecutionMode.INCREMENTAL else self.full
+
+
+@dataclass(frozen=True, slots=True)
+class RunStep:
+    """保存一个由既有六种 typed adapter 执行的 recipe step。"""
+
+    name: str
+    kind: RunKind
     argv: tuple[str, ...] = ()
     required_paths: tuple[str, ...] = ()
     append_globs: tuple[str, ...] = ()
@@ -64,17 +78,15 @@ class RunProfile:
 
 @dataclass(frozen=True, slots=True)
 class RunSpec:
-    """保存一种 adapter 及其互不推断的 incremental/full profile。"""
+    """保存唯一 recipe 及两个与 recipe 无关的非阻断目标。"""
 
-    kind: RunKind
-    incremental: RunProfile
-    full: RunProfile
+    target_seconds: RunTargets
+    steps: tuple[RunStep, ...]
 
-    def profile_for(self, mode: ExecutionMode | str) -> RunProfile:
-        """返回明确 mode 对应的 profile，不做 fallback 或自动升级。"""
+    def target_for(self, mode: ExecutionMode | str) -> int:
+        """返回 mode 对应目标；所有 mode 共用 ``steps`` recipe。"""
 
-        selected = ExecutionMode(mode)
-        return self.incremental if selected is ExecutionMode.INCREMENTAL else self.full
+        return self.target_seconds.target_for(mode)
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,32 +109,11 @@ class TargetSpec:
 
 
 @dataclass(frozen=True, slots=True)
-class PathRule:
-    """描述路径的风险分类；它不再决定 Target 或 Gate。"""
-
-    category: str
-    patterns: tuple[str, ...]
-    risk_level: str
-    allowed: bool
-
-
-@dataclass(frozen=True, slots=True)
-class FileClassification:
-    """保存路径经过首个命中规则后的治理分类。"""
-
-    file: str
-    category: str
-    risk_level: str
-    allowed: bool
-
-
-@dataclass(frozen=True, slots=True)
 class GateCatalog:
     """按声明顺序保存当前唯一的 Target 与 Gate 清单。"""
 
     targets: tuple[TargetSpec, ...]
     gates: tuple[GateSpec, ...]
-    path_rules: tuple[PathRule, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,22 +138,20 @@ class PlannedGate:
     """描述逻辑 Gate 与实际命令组之间的执行归属。"""
 
     name: str
-    target: str
-    group_id: str
-    status_source: str
-    timeout_seconds: int
+    group_ids: tuple[str, ...]
+    target_seconds: int
 
 
 @dataclass(frozen=True, slots=True)
 class CommandGroup:
-    """保存执行器可直接运行的一条有界命令。"""
+    """保存执行器可直接运行的一条真实命令。"""
 
     group_id: str
     kind: str
     command: tuple[str, ...]
     environment: tuple[tuple[str, str], ...]
-    gate_names: tuple[str, ...]
-    timeout_seconds: int
+    gate_name: str
+    step_name: str
 
 
 @dataclass(frozen=True, slots=True)

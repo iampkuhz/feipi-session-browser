@@ -58,7 +58,7 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 - 静态资源内联：`java/web/src/main/resources/static/` 下需要内联的 CSS/JS。
 - 导出测试：`tests/backend/test_mhtml_export.py` 或等效测试文件。
 - UI 导出按钮：session detail 模板中的导出触发元素。
-- 导出 gate：`scripts/checks/` 下导出相关检查脚本。
+- 导出 gate：`scripts/gates/checks/` 下导出相关检查脚本。
 
 不要跨边界修改后端 parser 或 Java 产品代码。不要在导出文件中引入外部网络依赖。
 
@@ -67,15 +67,15 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
 - `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查。
-- `python3 -m scripts.checks web.js-action-handlers` — JS action handler 检查（导出后交互保真）。
+- `python3 scripts/gates/cli.py --mode incremental --gate browserInteraction` — 真实浏览器交互检查。
 - fixture-based 导出测试 — 验证内联完整性和交互保真。
-- `python3 -m scripts.checks agent.entry-parity` — agent parity gate。
+- `python3 scripts/gates/cli.py --mode incremental --gate agentPolicy` — agent parity gate。
 
 选择策略：
 
 - 只改导出后端 → 至少运行 fixture-based 导出测试。
 - 改导出模板/内联 → 追加 `webResourceTests`。
-- 改导出交互 → 追加 `web.js-action-handlers`。
+- 改导出交互 → 追加 `browserInteraction`。
 - 收口前 → 运行全部 UI 与导出相关 gate。
 
 ## 输出格式

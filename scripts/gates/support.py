@@ -9,21 +9,13 @@ import hashlib
 import json
 import os
 import re
-import socket
 import stat
 import subprocess
 import tempfile
 from dataclasses import dataclass
-from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
 
 _SAFE_SEGMENT_RE = re.compile(r'[^A-Za-z0-9._-]+')
-
-
-def utc_now() -> str:
-    """返回秒级 UTC 时间戳，供运行目录与锁证据使用。"""
-    return datetime.now(UTC).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
 def stable_hash(value: str | bytes) -> str:
@@ -190,21 +182,6 @@ def read_git_dirty_files(repo_root: Path) -> list[str]:
     return sorted(dedupe_paths(paths))
 
 
-def parse_changed_files_json(value: str | None) -> list[str]:
-    """解析 changed-files JSON array；格式无效时 fail-closed 为空列表。"""
-    if value is None:
-        return []
-    try:
-        parsed: Any = json.loads(value)
-    except json.JSONDecodeError:
-        return []
-    return (
-        dedupe_paths([item for item in parsed if isinstance(item, str)])
-        if isinstance(parsed, list)
-        else []
-    )
-
-
 def read_recorded_changed_files_from_paths(
     paths: list[Path], session_id: str | None = None, agent_id: str | None = None
 ) -> list[str]:
@@ -295,39 +272,3 @@ def resolve_runtime_root(repo_root: Path) -> Path:
     base = Path(os.environ.get('TMPDIR') or tempfile.gettempdir()).expanduser().resolve()
     root = base / 'feipi-gate-runtime' / repo_key
     return ensure_private_directory(root, root=ensure_private_directory(root.parent))
-
-
-@dataclass
-class PortAllocation:
-    """保存 loopback 端口、run-scoped 记录与可选的占用 socket。"""
-
-    name: str
-    port: int
-    path: Path
-    socket: socket.socket | None = None
-
-    def close(self) -> None:
-        """关闭保留 socket，并删除对应的 run-scoped 端口记录。"""
-        if self.socket is not None:
-            self.socket.close()
-            self.socket = None
-        self.path.unlink(missing_ok=True)
-
-
-def reserve_port(repo_root: Path, name: str, *, hold_socket: bool = True) -> PortAllocation:
-    """预留 loopback 端口并写入 run-scoped 记录，可选择持续持有 socket。"""
-    root = resolve_runtime_root(repo_root) / 'ports'
-    root.mkdir(parents=True, exist_ok=True)
-    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 0)
-    sock.bind(('127.0.0.1', 0))
-    port = int(sock.getsockname()[1])
-    if not hold_socket:
-        sock.close()
-    run_id = (
-        os.environ.get('FEIPI_RUN_ID') or os.environ.get('FEIPI_SESSION_ID') or f'pid-{os.getpid()}'
-    )
-    checkout_id = stable_hash(str(repo_root.resolve()))[:12]
-    path = root / f'{_safe_segment(run_id)}-{checkout_id}-{_safe_segment(name)}.json'
-    path.write_text(json.dumps({'runId': run_id, 'name': name, 'port': port}) + '\n')
-    return PortAllocation(name, port, path, sock if hold_socket else None)

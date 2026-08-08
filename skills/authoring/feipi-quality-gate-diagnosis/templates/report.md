@@ -4,7 +4,7 @@
 
 ## Changed files
 
-- `scripts/checks/<domain>/<gate-script>.py` — <修改说明>
+- `scripts/gates/checks/<domain>/<gate-script>.py` — <修改说明>
 - `harness/skill-registry.yaml` — <修改说明>
 - ...
 
@@ -16,10 +16,10 @@
 
 | Gate | Result |
 |---|---|
-| <触发失败的 gate> | <PASS/FAIL> |
-| `agent.skill-registry` | <PASS/FAIL/not run> |
-| `minimal harness structure` | <PASS/FAIL/not run> |
-| `doctor.sh` | <PASS/FAIL/not run> |
+| <触发失败的 gate> | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `governanceStructure` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `minimal harness structure` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `doctor.sh` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 
 ## Risks
 

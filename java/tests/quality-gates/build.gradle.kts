@@ -13,13 +13,9 @@ tasks.withType<Test>().configureEach {
 }
 
 val javaQualityRules = providers.gradleProperty("feipiJavaQualityRules")
-    .orElse("record-component-javadocs,no-pmd-suppressions")
+    .orElse("java-comment-language,record-component-javadocs,no-pmd-suppressions")
 val changedFiles = providers.environmentVariable("QUALITY_CHANGED_FILES").orElse("")
-val writeApiSnapshot = providers.gradleProperty("feipiJavaApiSnapshotWrite")
-    .map(String::toBoolean)
-    .orElse(false)
 val baselineUpdateRules = providers.gradleProperty("feipiJavaQualityBaselineUpdateRules").orElse("")
-val apiSnapshot = rootProject.layout.projectDirectory.file("config/api-snapshots/java-public-api.txt")
 val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
 val templatesRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/templates")
 val staticRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/static")
@@ -70,7 +66,7 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     jvmArgs("--add-modules", "jdk.compiler")
 
     val selectedRules = javaQualityRules.get().split(',').map(String::trim)
-    val javaSourceRules = setOf("record-component-javadocs", "no-pmd-suppressions", "java-api-snapshot")
+    val javaSourceRules = setOf("record-component-javadocs", "no-pmd-suppressions")
     if (selectedRules.any(javaSourceRules::contains)) {
         inputs.files(javaMainSources)
             .withPropertyName("javaMainSources")
@@ -136,14 +132,8 @@ tasks.register<JavaExec>("runJavaQualityGates") {
     }
     inputs.property("rules", javaQualityRules)
     inputs.property("changedFiles", changedFiles)
-    inputs.property("writeApiSnapshot", writeApiSnapshot)
     inputs.property("baselineUpdateRules", baselineUpdateRules)
     outputs.file(summary).withPropertyName("summary")
-    if (writeApiSnapshot.get()) {
-        outputs.file(apiSnapshot).withPropertyName("apiSnapshot")
-    } else {
-        inputs.file(apiSnapshot).withPropertyName("apiSnapshot").withPathSensitivity(PathSensitivity.RELATIVE)
-    }
     if (baselineUpdateRules.get().isBlank() && "css-ownership" !in selectedRules) {
         outputs.cacheIf("deterministic quality report") { true }
     } else {
@@ -185,14 +175,10 @@ tasks.register<JavaExec>("runJavaQualityGates") {
         "--repo-root", rootProject.projectDir.absolutePath,
         "--paths", sourcePaths.joinToString(",") { it.absolutePath },
         "--rules", javaQualityRules.get(),
-        "--api-snapshot", apiSnapshot.asFile.absolutePath,
         "--report-file", summary.get().asFile.absolutePath,
     )
     if (changedFiles.get().isNotBlank()) {
         args("--changed-files", changedFiles.get())
-    }
-    if (writeApiSnapshot.get()) {
-        args("--write-api-snapshot")
     }
     if (baselineUpdateRules.get().isNotBlank()) {
         args("--update-baselines", baselineUpdateRules.get())

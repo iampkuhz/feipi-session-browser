@@ -15,9 +15,7 @@ repos:
       - id: python-comment-language
         name: python comment language
         entry: >-
-          python3 -m scripts.checks source.comment-language
-          --script-comments scripts
-          --policy config/technical-terms.json
+          python3 scripts/gates/cli.py --mode incremental --gate languagePolicy
         language: system
         types_or: [python, pyi]
         pass_filenames: false

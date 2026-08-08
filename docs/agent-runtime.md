@@ -2,9 +2,9 @@
 
 Claude Code、Codex 与 Qoder 使用客户端已经选择的 checkout。仓库不为普通读取、编辑或提交维护
 Session 状态，也不要求平台事件先完成初始化。机器契约见
-`harness/agent-runtime.manifest.yaml`；Gate 机器真相由 `config/gates.yaml` 根索引和它列出的领域分片
-组成，人类精简目录位于 [`config/gates/README.md`](../config/gates/README.md)。自动增量规划由
-changed path 直接匹配每个 Gate 的 Trigger；Target 只是人工选择的 preset/tag，不参与自动规划。
+`harness/agent-runtime.manifest.yaml`；Gate 机器真相集中在 `scripts/gates/definitions.py`，人类手册位于
+[`scripts/gates/README.md`](../scripts/gates/README.md)。自动增量规划由 changed path 直接匹配每个 Gate
+的 Trigger；Target 只是人工选择的 preset/tag，不参与自动规划。
 
 ## 生命周期与 Git 边界
 

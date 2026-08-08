@@ -10,7 +10,7 @@ from pathlib import Path
 import pytest
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
-MODULE = REPO_ROOT / 'scripts' / 'checks' / 'source' / 'check_code_comment_language.py'
+MODULE = REPO_ROOT / 'scripts' / 'gates' / 'checks' / 'source' / 'check_code_comment_language.py'
 spec = importlib.util.spec_from_file_location('comment_checker', MODULE)
 assert spec and spec.loader
 checker = importlib.util.module_from_spec(spec)
@@ -28,7 +28,7 @@ def scan_python(tmp_path: Path, source: str) -> list[checker.Violation]:
 
 def scan_check_leaf(tmp_path: Path, source: str) -> list[checker.Violation]:
     """写入统一协议的领域 Check fixture。"""
-    path = tmp_path / 'scripts' / 'checks' / 'source' / 'check_sample.py'
+    path = tmp_path / 'scripts' / 'gates' / 'checks' / 'source' / 'check_sample.py'
     path.parent.mkdir(parents=True)
     path.write_text(source, encoding='utf-8')
     return checker._check_python_file(path, TERMS, FORBIDDEN)

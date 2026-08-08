@@ -92,6 +92,43 @@ def test_blocked_report_tells_owner_to_fix_repository(tmp_path: Path) -> None:
     assert 'Fix the repository issue' in rendered
 
 
+def test_composite_failure_report_lists_each_leaf(tmp_path: Path) -> None:
+    rendered = format_quality_report(
+        {
+            'status': NOT_PASS,
+            'mode': 'incremental',
+            'gateResults': {'source': FAIL},
+            'gateDetails': [
+                {
+                    'name': 'source',
+                    'status': FAIL,
+                    'output': 'logical failure',
+                    'leafResults': [
+                        {
+                            'name': 'format',
+                            'status': BLOCKED,
+                            'durationMs': 12,
+                            'output': 'format finding',
+                        },
+                        {
+                            'name': 'lint',
+                            'status': FAIL,
+                            'reason': 'runtime-missing',
+                            'durationMs': None,
+                            'output': 'lint runtime missing',
+                        },
+                    ],
+                }
+            ],
+        },
+        tmp_path / 'summary.json',
+    )
+    assert 'leaf=format status=BLOCKED duration_ms=12' in rendered
+    assert 'leaf=lint status=FAIL duration_ms=UNKNOWN reason=runtime-missing' in rendered
+    assert 'format finding' in rendered
+    assert 'lint runtime missing' in rendered
+
+
 def test_missing_summary_status_stays_external_not_pass(tmp_path: Path) -> None:
     rendered = format_quality_report(
         {'mode': 'incremental', 'gateResults': {}}, tmp_path / 'summary.json'

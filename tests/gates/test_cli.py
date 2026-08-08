@@ -1,6 +1,7 @@
 """Gate CLI 的双模式、selector、输入与 service contract。"""
 
 import json
+import sys
 from pathlib import Path
 from types import SimpleNamespace
 
@@ -8,6 +9,13 @@ import pytest
 from scripts.gates import cli, executor, report
 from scripts.gates.model import ExecutionMode
 from scripts.gates.report import BLOCKED, FAIL, NOT_PASS, PASS, GateDetail
+
+
+@pytest.fixture(autouse=True)
+def _stable_project_python(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CLI 单元测试固定解释器，避免把环境探测时延混入编排契约。"""
+
+    monkeypatch.setattr(executor, '_project_python', lambda *_args, **_kwargs: sys.executable)
 
 
 def test_default_incremental_dry_run_uses_changed_trigger(capsys) -> None:
@@ -50,7 +58,7 @@ def test_automatic_changed_files_include_current_git_dirty_paths(
 
 @pytest.mark.parametrize('selector', ['--target', '--gate'])
 def test_selector_combines_with_full_mode(selector: str, capsys) -> None:
-    value = 'python-standard' if selector == '--target' else 'pythonLint'
+    value = 'python-standard' if selector == '--target' else 'scriptSourceStandard'
     assert cli.main(['--mode', 'full', selector, value, '--dry-run']) == 0
     payload = json.loads(capsys.readouterr().out)
     assert payload['mode'] == 'full'
@@ -58,7 +66,7 @@ def test_selector_combines_with_full_mode(selector: str, capsys) -> None:
 
 
 def test_target_and_gate_are_mutually_exclusive(capsys) -> None:
-    assert cli.main(['--target', 'harness', '--gate', 'pythonLint', '--dry-run']) == 2
+    assert cli.main(['--target', 'harness', '--gate', 'scriptSourceStandard', '--dry-run']) == 2
     assert 'status=NOT_PASS detailStatus=FAIL' in capsys.readouterr().err
 
 
@@ -139,13 +147,13 @@ def test_service_preserves_custom_environment_without_reinjecting_mode(
 
     def fake_execute(*_args, **kwargs):
         captured.append(kwargs['environment_overrides'])
-        return (GateDetail(name='pythonLint', status=PASS),)
+        return (GateDetail(name='scriptSourceStandard', status=PASS),)
 
     monkeypatch.setattr(executor, 'execute_plan', fake_execute)
     result = cli.run_service(
         repo_root=tmp_path,
         changed_files=['scripts/a.py'],
-        gate='pythonLint',
+        gate='scriptSourceStandard',
         out_dir=tmp_path / 'out',
         environment_overrides={'CUSTOM': 'value'},
     )
@@ -160,7 +168,7 @@ def test_service_rejects_gate_request_environment_override(tmp_path: Path, reser
         cli.run_service(
             repo_root=tmp_path,
             changed_files=['scripts/a.py'],
-            gate='pythonLint',
+            gate='scriptSourceStandard',
             out_dir=tmp_path / 'out',
             environment_overrides={reserved: 'full'},
         )
@@ -171,13 +179,13 @@ def test_service_writes_input_audit_reason_to_report(tmp_path: Path, monkeypatch
     monkeypatch.setattr(
         executor,
         'execute_plan',
-        lambda *_args, **_kwargs: (GateDetail(name='pythonLint', status=PASS),),
+        lambda *_args, **_kwargs: (GateDetail(name='scriptSourceStandard', status=PASS),),
     )
 
     result = cli.run_service(
         repo_root=tmp_path,
         changed_files=[],
-        gate='pythonLint',
+        gate='scriptSourceStandard',
         out_dir=tmp_path / 'out',
         input_audit_reason='人工确认空增量输入',
     )
@@ -186,7 +194,7 @@ def test_service_writes_input_audit_reason_to_report(tmp_path: Path, monkeypatch
     assert payload['artifacts']['inputAuditReason'] == '人工确认空增量输入'
     assert payload['mode'] == 'incremental'
     assert payload['selector'] == 'gate'
-    assert payload['selectorValue'] == 'pythonLint'
+    assert payload['selectorValue'] == 'scriptSourceStandard'
     assert 'target' not in payload
 
 
@@ -203,7 +211,7 @@ def test_service_timestamps_cover_gate_execution(tmp_path: Path, monkeypatch) ->
 
     def execute(*_args, **_kwargs):
         assert events == ['2026-08-03T01:00:00+00:00']
-        return (GateDetail(name='pythonLint', status=PASS, durationMs=3_000),)
+        return (GateDetail(name='scriptSourceStandard', status=PASS, durationMs=3_000),)
 
     monkeypatch.setattr(report, 'utc_now', now)
     monkeypatch.setattr(executor, 'execute_plan', execute)
@@ -211,7 +219,7 @@ def test_service_timestamps_cover_gate_execution(tmp_path: Path, monkeypatch) ->
     result = cli.run_service(
         repo_root=tmp_path,
         changed_files=['scripts/a.py'],
-        gate='pythonLint',
+        gate='scriptSourceStandard',
         out_dir=tmp_path / 'out',
     )
 
@@ -253,23 +261,25 @@ def test_service_exposes_not_pass_and_keeps_detail(
     monkeypatch.setattr(
         executor,
         'execute_plan',
-        lambda *_args, **_kwargs: (GateDetail(name='pythonLint', status=detail_status),),
+        lambda *_args, **_kwargs: (GateDetail(name='scriptSourceStandard', status=detail_status),),
     )
     result = cli.run_service(
         repo_root=tmp_path,
         changed_files=['scripts/a.py'],
-        gate='pythonLint',
+        gate='scriptSourceStandard',
         out_dir=tmp_path / 'out',
     )
     assert result.status == NOT_PASS
     payload = json.loads(result.artifact_path.read_text(encoding='utf-8'))
     assert payload['status'] == NOT_PASS
-    assert payload['gateResults']['pythonLint'] == detail_status
+    assert payload['gateResults']['scriptSourceStandard'] == detail_status
 
 
 def test_create_plan_uses_exact_gate_selector() -> None:
-    plan = cli.create_plan(['README.md'], mode=ExecutionMode.INCREMENTAL, gate='pythonLint')
-    assert [gate.name for gate in plan.gates] == ['pythonLint']
+    plan = cli.create_plan(
+        ['README.md'], mode=ExecutionMode.INCREMENTAL, gate='scriptSourceStandard'
+    )
+    assert [gate.name for gate in plan.gates] == ['scriptSourceStandard']
     assert plan.selector == 'gate'
 
 
@@ -278,7 +288,7 @@ def test_base_url_requires_playwright_gate(capsys) -> None:
         cli.main(
             [
                 '--gate',
-                'pythonLint',
+                'scriptSourceStandard',
                 '--base-url',
                 'http://127.0.0.1:8080',
                 '--changed-files',

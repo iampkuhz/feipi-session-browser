@@ -18,7 +18,6 @@
 |---|---|
 | `./scripts/session-browser.sh test` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | `./gradlew check` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | `python3 scripts/gates/cli.py --mode incremental` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 
 `BLOCKED` 表示检查完成并确认仓库有阻断问题；`FAIL` 表示 Gate 未能完成、无法判断仓库；未运行统一写

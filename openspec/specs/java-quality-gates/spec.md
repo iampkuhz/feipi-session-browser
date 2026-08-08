@@ -54,7 +54,7 @@ Java registry 当前负责：
 
 - `record-component-javadocs`：record 类型与 component 中文 `@param`。
 - `no-pmd-suppressions`：禁止未审批的 `@SuppressWarnings("PMD.*")`。
-- `java-api-snapshot`：使用 compiler API 生成并比对 public API baseline。
+- `java-comment-language`：Java 生产源码注释使用中文，并复用 `config/technical-terms.json`。
 
 以下内容仍不属于 Java registry：
 
@@ -62,7 +62,6 @@ Java registry 当前负责：
 - record component layout 强制规则。
 - 修正 `@Ratio` 语义。
 - 全量 record metadata 更新。
-- 迁移 `check_code_comment_language.py`。
 - 迁移 `run_required_quality_gates.py`。
 
 ## 未来预留
@@ -71,7 +70,6 @@ Java registry 当前负责：
 
 - `record-component-examples`
 - `record-component-layout`
-- `chinese-java-comments`
 - `no-skipped-tests`
 
 预留 id 如果被调用，应返回清晰错误 `gate not implemented`，不得 silently pass。
@@ -91,5 +89,6 @@ com.feipi.session.browser.quality.gates
 唯一公开 task 为 `:java:tests:quality-gates:runJavaQualityGates`。Gate planner 通过声明式
 `java_rules` 聚合 rule id，并在一次 Gradle invocation 中只传一个 `-PfeipiJavaQualityRules`。
 
-root `check` 直接 dependsOn 该 task，不再注册逐 Gate alias。跨语言 comment policy 继续由 catalog
-中的 Python owner 执行；Java test skipped/aborted 由 Gradle `verifyNoSkippedJavaTests` 唯一检查。
+root `check` 直接 dependsOn 该 task，不再注册逐 Gate alias。默认规则为 `java-comment-language`、
+`record-component-javadocs`、`no-pmd-suppressions`；Java test skipped/aborted 由 Gradle
+`verifyNoSkippedJavaTests` 唯一检查。CPD 继续由独立 `reuseStandardCpd` task 拥有，不隐藏进 root `check`。

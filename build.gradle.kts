@@ -160,7 +160,7 @@ tasks.named("check") {
 }
 
 // Java source 专属规则由 quality-gates registry 在一个 JavaExec 中聚合。
-// 跨语言中文注释继续由 Gate catalog 的 Python owner 执行，API snapshot 仅在 full plan 选中。
+// 默认 registry 一次执行注释语言、record Javadoc 与 PMD 抑制规则。
 tasks.named("check") {
     dependsOn(":java:tests:quality-gates:runJavaQualityGates")
 }
@@ -749,26 +749,4 @@ gradle.projectsEvaluated {
         )
     }
 
-    tasks.register("reuseAnalyzeIncremental") {
-        group = "verification"
-        description = "复用语义规则已迁移到 PMD；运行所有 pmdMain 作为增量复用门禁。"
-        val pmdTasks = subprojects.mapNotNull { sub -> sub.tasks.findByName("pmdMain") }
-        dependsOn(pmdTasks)
-        val outputFile = reuseAnalysisReportDir.get().file("incremental-result.json").asFile
-        outputs.file(outputFile).withPropertyName("resultFile")
-        doLast {
-            outputFile.parentFile.mkdirs()
-            outputFile.writeText("""{
-  "schemaVersion": 1,
-  "status": "PASS",
-  "findings": [],
-  "metadata": {
-    "engine": "PMD",
-    "delegatedTo": "pmdMain"
-  }
-}
-""", Charsets.UTF_8)
-            logger.lifecycle("reuseAnalyzeIncremental: delegated to PMD pmdMain")
-        }
-    }
 }

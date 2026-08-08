@@ -8,14 +8,10 @@ import java.nio.file.Path;
  * @param repoRoot 仓库根目录。
  * @param sources 一次 compiler parse 的候选源码。
  * @param repositorySources 一次读取的仓库文本源码。
- * @param apiSnapshot Java public API 基线文件。
- * @param writeApiSnapshot 是否处于显式 baseline 维护模式。
  * @param qualityArtifactDir 当前执行身份对应的质量产物根目录。
  */
 public record QualityContext(
     Path repoRoot,
     JavaSourceSet sources,
     RepositorySourceSet repositorySources,
-    Path apiSnapshot,
-    boolean writeApiSnapshot,
     Path qualityArtifactDir) {}

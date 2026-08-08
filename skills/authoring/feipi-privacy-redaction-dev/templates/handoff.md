@@ -33,9 +33,9 @@
 
 列出必须运行的验证命令：
 
-- `python3 -m scripts.checks repository.no-real-session-fixtures`
-- `python3 -m scripts.checks security.secret-like-content`
-- `python3 -m scripts.checks agent.skill-registry`
+- `python3 scripts/gates/cli.py --mode incremental --gate testDataPolicy`
+- `python3 scripts/gates/cli.py --mode incremental --gate secretLikeContent`
+- `python3 scripts/gates/cli.py --mode incremental --gate governanceStructure`
 - `python3 scripts/harness/validate_harness_structure.py`
 - `bash scripts/harness/doctor.sh`
 

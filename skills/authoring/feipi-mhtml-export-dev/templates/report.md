@@ -18,10 +18,10 @@
 
 | Gate | Result |
 |---|---|
-| `webResourceTests` | <PASS/FAIL> |
-| `web.js-action-handlers` | <PASS/FAIL/skipped> |
-| fixture-based 导出测试 | <PASS/FAIL/skipped> |
-| `agent.entry-parity` | <PASS/FAIL> |
+| `webResourceTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `browserInteraction` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| fixture-based 导出测试 | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `agentPolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 
 ## Risks
 

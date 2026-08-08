@@ -5,7 +5,7 @@
 ## Allowed scope
 
 - 允许修改的文件列表：
-  - `scripts/checks/<domain>/<gate-script>.py` — 触发失败的 gate 脚本（如需修复 gate bug）
+  - `scripts/gates/checks/<domain>/<gate-script>.py` — 触发失败的 gate 脚本（如需修复 gate bug）
   - `harness/skill-registry.yaml` — registry 配置（如适用）
   - `harness/manifest.yaml` — minimal harness 配置（如适用）
   - 其他与当前 gate 失败直接相关的文件（按需列出）
@@ -33,7 +33,7 @@
 <失败的命令>
 
 # 运行 required baseline
-python3 -m scripts.checks agent.skill-registry
+python3 scripts/gates/cli.py --mode incremental --gate governanceStructure
 bash scripts/harness/doctor.sh
 python3 scripts/gates/cli.py --mode incremental
 ```

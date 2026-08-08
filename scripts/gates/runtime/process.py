@@ -1,15 +1,15 @@
-"""本模块负责执行带超时、进程组清理和有界日志尾部的子进程。
+"""本模块负责执行受控子进程、进程组清理和有界日志尾部。
 
 不负责把进程结果归约为 Gate 状态；由 executor 的命令执行边界调用。
 """
 
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 import signal
 import subprocess
+import threading
 import time
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from collections.abc import Mapping, Sequence
 
 from scripts.gates.runtime.environment import sanitized_environment
+from scripts.gates.support import stable_hash
 
 PROCESS_TAIL_BYTES = 4096
 PROCESS_TERM_GRACE_SECONDS = 0.4
@@ -29,18 +30,12 @@ def _utc_now() -> str:
     return datetime.now(UTC).isoformat(timespec='seconds').replace('+00:00', 'Z')
 
 
-def _stable_hash(value: str | bytes) -> str:
-    payload = value.encode() if isinstance(value, str) else value
-    return hashlib.sha256(payload).hexdigest()
-
-
 @dataclass(frozen=True, slots=True)
-class BoundedRunResult:
+class ManagedRunResult:
     """保存一次受控子进程的技术执行结果，不解释业务状态。"""
 
     return_code: int | None
     exit_reason: str
-    timed_out: bool
     command_fingerprint: str
     environment_fingerprint: str
     started_at: str
@@ -55,23 +50,42 @@ class BoundedRunResult:
         return asdict(self)
 
 
+class ManagedRunInterrupted(KeyboardInterrupt):
+    """表示受控运行收到应清理子进程组的显式终止信号。"""
+
+    def __init__(self, signal_number: int) -> None:
+        super().__init__(f'received signal {signal_number}')
+        self.signal_number = signal_number
+
+
+def _raise_on_termination(signal_number: int, _frame: object) -> None:
+    raise ManagedRunInterrupted(signal_number)
+
+
+def _process_group_exists(process_group_id: int) -> bool:
+    try:
+        os.killpg(process_group_id, 0)
+    except ProcessLookupError:
+        return False
+    except PermissionError:
+        return True
+    return True
+
+
 def _terminate_process_group(process: subprocess.Popen[bytes]) -> None:
-    if process.poll() is not None:
-        process.wait(timeout=2)
-        return
     try:
         os.killpg(process.pid, signal.SIGTERM)
     except (ProcessLookupError, PermissionError):
         pass
     deadline = time.monotonic() + PROCESS_TERM_GRACE_SECONDS
-    while process.poll() is None and time.monotonic() < deadline:
+    while _process_group_exists(process.pid) and time.monotonic() < deadline:
         time.sleep(0.02)
-    if process.poll() is None:
+    if _process_group_exists(process.pid):
         try:
             os.killpg(process.pid, signal.SIGKILL)
         except (ProcessLookupError, PermissionError):
             pass
-    process.wait(timeout=2)
+    process.wait()
 
 
 def _log_tail(path: Path, limit: int = PROCESS_TAIL_BYTES) -> str:
@@ -85,23 +99,20 @@ def _log_tail(path: Path, limit: int = PROCESS_TAIL_BYTES) -> str:
         return ''
 
 
-def run_bounded(
+def run_managed(
     argv: Sequence[str],
     *,
     cwd: Path | str,
-    timeout: float,
     env: Mapping[str, str | None] | None,
     log_path: Path | str,
-) -> BoundedRunResult:
-    """运行无 shell 子进程；超时清理整个进程组并返回有界技术结果。"""
+) -> ManagedRunResult:
+    """运行无 shell 子进程；自然等待完成，异常或显式中断时清理进程组。"""
     if (
         isinstance(argv, (str, bytes))
         or not argv
         or any(not isinstance(value, str) or not value or '\0' in value for value in argv)
     ):
         raise ValueError('argv must contain non-empty strings without NUL')
-    if timeout <= 0:
-        raise ValueError('timeout must be positive')
     command = tuple(argv)
     selected_log = Path(os.path.abspath(Path(log_path).expanduser()))
     selected_log.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -113,9 +124,13 @@ def run_bounded(
     process: subprocess.Popen[bytes] | None = None
     return_code: int | None = None
     exit_reason = 'SPAWN_ERROR'
-    timed_out = False
+    previous_sigterm_handler: signal.Handlers | None = None
+    handles_sigterm = threading.current_thread() is threading.main_thread()
     with os.fdopen(descriptor, 'wb') as log:
         try:
+            if handles_sigterm:
+                previous_sigterm_handler = signal.getsignal(signal.SIGTERM)
+                signal.signal(signal.SIGTERM, _raise_on_termination)
             process = subprocess.Popen(
                 command,
                 cwd=Path(cwd).resolve(),
@@ -126,33 +141,31 @@ def run_bounded(
                 start_new_session=True,
                 shell=False,
             )
-            try:
-                return_code = process.wait(timeout=timeout)
-                exit_reason = 'SIGNAL' if return_code < 0 else 'EXITED'
-            except subprocess.TimeoutExpired:
-                timed_out = True
-                exit_reason = 'TIMEOUT'
-                _terminate_process_group(process)
-                return_code = process.returncode
+            return_code = process.wait()
+            exit_reason = 'SIGNAL' if return_code < 0 else 'EXITED'
         except OSError as exc:
+            if process is not None:
+                _terminate_process_group(process)
+                raise
             log.write(f'{type(exc).__name__}: {exc}\n'.encode(errors='replace'))
         except BaseException:
             if process is not None:
                 _terminate_process_group(process)
             raise
         finally:
+            if handles_sigterm and previous_sigterm_handler is not None:
+                signal.signal(signal.SIGTERM, previous_sigterm_handler)
             log.flush()
             os.fsync(log.fileno())
-    return BoundedRunResult(
-        return_code,
-        exit_reason,
-        timed_out,
-        _stable_hash(json.dumps(command)),
-        _stable_hash(json.dumps(sorted(child_env.items()))),
-        started_at,
-        _utc_now(),
-        round(time.monotonic() - started, 6),
-        process.pid if process else None,
-        str(selected_log),
-        _log_tail(selected_log),
+    return ManagedRunResult(
+        return_code=return_code,
+        exit_reason=exit_reason,
+        command_fingerprint=stable_hash(json.dumps(command)),
+        environment_fingerprint=stable_hash(json.dumps(sorted(child_env.items()))),
+        started_at=started_at,
+        finished_at=_utc_now(),
+        duration_seconds=round(time.monotonic() - started, 6),
+        child_pid=process.pid if process else None,
+        log_path=str(selected_log),
+        output_tail=_log_tail(selected_log),
     )

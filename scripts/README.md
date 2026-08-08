@@ -1,121 +1,83 @@
 # Scripts 中文维护地图
 
-公开入口以 `harness/manifest.yaml` 为机器真相。Gate 的根索引是 `config/gates.yaml`，完整 declaration
-位于它显式列出的 `config/gates/*.yaml`；人类先读
-[`config/gates/README.md`](../config/gates/README.md) 的 41 Gate 使用手册。
-本文只回答“从哪里进入、如何找到唯一实现入口”。
+公开命令以 `harness/manifest.yaml` 为机器真相。日常只需要两个入口：
 
-## Java 维护者先看这一层
+```bash
+./scripts/session-browser.sh <command>
+python3 scripts/gates/cli.py --mode incremental
+```
 
-日常不要展开整个 `scripts/`。按问题逐层进入：
+Gate 的完整中文手册是 `scripts/gates/README.md`；机器声明是
+`scripts/gates/definitions.py`。仓库不再把 Gate 声明放在 `config/`。
 
-1. **L0 产品开发：** 只使用 `./scripts/session-browser.sh <command>`。脚本仅为
-   `deps|test|quality` 保留仓库级分支，`scan|serve|stop|status|doctor|version|help`
-   及其参数均透传给 Java CLI。
-2. **L1 交付验证：** 只使用 `python3 scripts/gates/cli.py --mode incremental`；
-   `./scripts/session-browser.sh quality` 是同一增量 Gate 的日常入口。
-3. **L2 单项诊断：** 先在精简目录查失败 Gate 的作用、实现入口、执行通道和主要触发点，再打开它
-   指向的单个领域 YAML；按 typed `run` 找唯一实现：`java-rule` 找 Java registry/rule，
-   `python-check` 找 Python registry/leaf，`gradle-task` 找对应 Gradle task，`command`、`playwright`、
-   `scan-smoke` 沿 argv 找公开 tool 或固定 suite。
-4. **L3 基础设施维护：** 只有修改 catalog、plan、执行、状态归约、Harness、OpenSpec 或 Release
-   本身时，才阅读相应内部模块。
+## 从外到内只看三层
 
-文件浏览器中的 `__pycache__/` 和 `*.pyc` 是未跟踪运行缓存，不属于源码；应在 IDE 中隐藏。查看真实
-维护面时以 `git ls-files scripts` 为准。
+1. **产品开发：** 使用 `session-browser.sh` 的 `deps|test|scan|serve|stop|status|doctor|version|help`。
+2. **交付验证：** 使用 `gates/cli.py --mode incremental`；需要单项诊断时先看 Gate 手册，不直接猜内部文件。
+3. **基础设施维护：** 只有修改 Gate、Harness、OpenSpec 或 Release 本身时才进入对应目录。
 
-## 先按业务对象找目录
+## 一级目录按业务归属
 
 ```text
 scripts/
-├── session-browser.sh        薄产品入口：三个仓库命令 + Java CLI 透传
-├── checks/                   Git、OpenSpec、隐私及跨语言等共享 Python checks
-│   ├── agent/                Agent 入口、权限、规则与 skill 契约
-│   ├── privacy/              本地路径、真实 session 与 secret-like 内容保护
-│   ├── repository/           Git、仓库结构、测试纪律与 acceptance 契约
-│   ├── source/               Python/shell 注释、语言政策和产品 Python 边界
-│   └── web/                  仍由 Python 所有的少量 JS/Session Detail 契约
-├── gates/                    读取 catalog，选择、执行并归约 Gate
-│   └── runtime/              不认识 Gate 状态的进程与环境技术原语
-├── harness/                  只读体检、项目 Python 解析和 harness 结构验证
-├── openspec/                 change 创建与结构/schema/active-change 验证
-└── release/                  release candidate、checksum 和升级回滚演练
+├── session-browser.sh        产品/本地开发入口，业务命令透传 Java CLI
+├── gates/                    Gate 声明、选择、执行、报告和 Python leaf
+│   ├── definitions.py        6 个 Target 与 20 个 Gate 的唯一机器真源
+│   ├── cli.py                唯一公开 Gate CLI
+│   ├── checks/               只能用 Python 表达的领域检查
+│   │   ├── agent/            Agent、权限、Skill 与交接协议
+│   │   ├── privacy/          secret、真实 Session 与本地路径保护
+│   │   ├── repository/       Git、公开入口、测试、fixture 与验收映射
+│   │   └── source/           注释与语言政策
+│   └── runtime/              不认识 Gate ID 的进程与环境原语
+├── harness/                  只读 doctor、项目 Python 和 Harness 结构验证
+├── openspec/                 change 创建与 OpenSpec validators
+└── release/                  release candidate、checksum 和升级/回滚演练
 ```
 
-JVM 源码和已迁移的 Web resource 规则位于
-`java/tests/quality-gates/src/main/java/com/feipi/session/browser/quality/gates/`，不是
-`scripts/checks/` 的 Python leaf。`harness/`、`openspec/`、`release/` 都是少量、已内聚的公开命令，
-继续平铺比为单文件制造子目录更容易定位。不得创建 `misc/`、`common.py` 或 `utils.py` 来隐藏职责。
-
-## 公开入口
-
-- 产品与本地开发：`./scripts/session-browser.sh <command>`（唯一公开产品入口）
-- Harness 体检：`bash scripts/harness/doctor.sh`
-- Gate：`python3 scripts/gates/cli.py --mode incremental|full`
-- 共享 Python checks：`python3 -m scripts.checks <check-id>`
-- OpenSpec validators：`python3 scripts/openspec/validate_{layout,schema}.py`
-- Active change validator：
-  `python3 scripts/openspec/validate_active_change.py --change-id <change-id>`
-
-Java rule、Python leaf 和 `scripts/gates/` 内部模块都不是额外的公开入口。单项 Python 诊断也应使用
-`python3 -m scripts.checks <check-id>`，不要直接执行领域文件。
-
-Python 开发工具不属于产品入口：依赖统一用
-`UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev` 安装，单项诊断直接运行
-对应工具，提交前再运行增量 Gate。
+`checks/` 属于 Gate，所以不再与 `gates/` 平铺。JVM/Web resource 规则位于
+`java/tests/quality-gates/`，由 Java owner 实现；Python leaf 不复制一套。
 
 ## 一屏调用链
 
 ```text
-incremental Gate:
-  gates.cli
-    → config/gates.yaml（Target preset 与分片索引）→ config/gates/<domain>.yaml（唯一 Gate registration）
-    → planner（changed path 直接匹配 Gate trigger → plan）
-    → executor（冻结并执行命令组）
-    → 根据 catalog 声明进入唯一实现入口：
-        java-rule   → QualityGateCli registry → Java rule       → gradle 通道
-        gradle-task → 对应 Gradle task                           → gradle 通道
-        python-check → _registry → Python leaf                   → process 通道
-        command / playwright / scan-smoke → tool 或固定 suite   → process 通道
-    → report（严格归约状态并写 Gate run summary）
-
-doctor:
-  harness/doctor.sh
-    → harness/python_env.py（选择项目 Python）
-    → 只读结构、依赖与配置检查
+gates.cli
+  → definitions（Target、Trigger、唯一 recipe）
+  → planner（changed paths / --gate / --target / full 选择 Gate）
+  → executor（依次运行 leaf）
+      python-check → 内部 gates.checks 适配器 → registry → 唯一 check() leaf
+      java-rule    → Gradle → QualityGateCli → 唯一 Java rule
+      gradle-task  → 对应 Gradle task
+      command / playwright / scan-smoke → 固定外部工具或 suite
+  → report（PASS / BLOCKED / FAIL 与 leaf 诊断）
 ```
+
+这条链中 Planner、Executor、Process、Report 分别负责选择、执行、进程生命周期和状态归约，属于真实边界；
+已删除 YAML loader、无用路径风险分类旁路、旧 command wrapper 和零调用 helper。不要再新增 `utils.py`、
+`common.py`、第二份 registry 或只转发一次的 wrapper。
 
 ## 到哪里修改
 
-| 需求 | 唯一实现入口 | 同批检查 |
+| 需求 | 唯一入口 | 同批验证 |
 |---|---|---|
-| 修改 JVM/Web resource 规则 | `java/tests/quality-gates/` 的 registry/rule | 对应领域 Gate YAML、Java contract、对应 target |
-| 修改 Git/OpenSpec/隐私/跨语言规则 | `scripts/checks/<domain>/` | `_registry.py`、对应领域 Gate YAML、Python contract |
-| 修改 Ruff/Pytest/Bash/Playwright 等 Gate | typed run 指向的公开 tool 或固定 suite | 对应领域 Gate YAML、实现 contract、对应 target |
-| 修改普通 Gradle 检查 | 对应 `build.gradle.kts` 或 build logic task | 对应领域 Gate YAML、Gradle contract、对应 target |
-| 修改 Gate 的 trigger、Target tag 或 run registration | `config/gates/README.md` 指向的领域 YAML | catalog/planner/documentation contract 与 dry-run |
-| 修改 plan、执行或状态归约 | `scripts/gates/` | 双模式、timeout、Gradle outcome、report contract |
-| 修改 Python 环境解析 | `scripts/harness/python_env.py` | Python resolver/lock contract |
-| 修改 OpenSpec 结构 | `scripts/openspec/` | layout、schema、active-change validators |
-| 修改发布流程 | `scripts/release/` | release contract、shell syntax 与 dry-run |
+| 修改 Gate 的 Trigger、Target、recipe 或时间目标 | `scripts/gates/definitions.py` | catalog、planner、README contract、dry-run |
+| 修改 Python 领域规则 | `scripts/gates/checks/<domain>/check_*.py` | registry 与对应 `tests/checks/` |
+| 修改 Java/Web resource 规则 | `java/tests/quality-gates/` | 对应 Java test 与 Gate |
+| 修改普通 Gradle 检查 | 对应 `build.gradle.kts` 或 build logic | 对应 task 与 java-build Target |
+| 修改计划、执行或状态归约 | `scripts/gates/{planner,executor,report}.py` | `tests/gates/` |
+| 修改 Python 环境或 Harness 结构 | `scripts/harness/` | `tests/harness/`、doctor |
+| 修改 OpenSpec 结构 | `scripts/openspec/` | 三个 OpenSpec validator |
+| 修改发布流程 | `scripts/release/`、`.github/workflows/release.yml` | shell syntax、release contract |
 
-## 一屏故障定位
+## 状态定位
 
-| 现象 | 先看 | 下一步 |
+| 现象 | 含义 | 先看 |
 |---|---|---|
-| Gate 未进入计划 | `config/gates/README.md`、对应领域 YAML 与 `cli.py --dry-run` | 检查 Gate `trigger` 和 `NOT_TRIGGERED` 原因 |
-| Java rule 失败 | summary 中的 rule id | 查 `QualityGateCli` registry、对应 `*Rule.java` 和 Java contract |
-| Python check 失败 | 输出中的 Check ID | 查 `scripts/checks/_registry.py`、唯一 `check_*.py` 和 Python contract |
-| Gradle task 失败 | typed run 的 `gradle-task.tasks` | 查对应 task 定义和 Gradle test/report |
-| `BLOCKED` | Gate 已完整执行并发现问题 | 先修改仓库内容，再重跑 |
-| timeout、skip/no-source 或 `FAIL` | Gate 未得到可信结论 | 查 `scripts/gates/executor.py`、`runtime/` 和 reason code |
+| `NOT_TRIGGERED` | incremental 路径没有选中 Gate | `definitions.py` 的 Trigger 和 `--dry-run` |
+| `BLOCKED` | 检查完成并确认仓库存在问题 | summary 的 Gate/leaf 诊断 |
+| `FAIL` | 检查没有完成或无法判断 | reason、owner、`executor.py`/`runtime/` |
+| Python leaf 失败 | 一个 check ID 返回问题 | `checks/_registry.py` 和唯一 `check_*.py` |
+| Java rule 失败 | 一个 Java rule ID 返回问题 | `QualityGateCli` registry 和唯一 `*Rule.java` |
 
-`BLOCKED` 表示检查完成但结论阻断交付；`FAIL` 表示 Gate 自身执行失败。两者都不是
-`PASS`；`NOT_TRIGGERED` 仅表示自动 incremental 没有选中，不是 Gate 终态。
-
-移动实现入口时必须在同一批次迁移实现、catalog registration、registry/task、tests、docs 和直接 caller；
-旧名称与路径负向搜索为零后直接删除，不保留 wrapper、alias 或 re-export。
-
-客户端拥有 Session 与 checkout 生命周期，平台配置不为普通修改接线仓库状态控制器。非平凡变更先
-复用 OpenSpec change。提交或交接前显式运行
-`python3 scripts/gates/cli.py --mode incremental`；任何 `BLOCKED`、`FAIL` 或未完整执行都不得称为 PASS。
+文件浏览器中的 `__pycache__/`、`*.pyc` 和任意层级 `.local/` 都是忽略的本地内容；真实源码清单以
+`git ls-files scripts` 为准。移动入口时同步实现、声明、测试、文档和直接 caller，删除旧路径，不留 alias。

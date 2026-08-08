@@ -16,7 +16,7 @@ from scripts.gates.catalog import (
     target_by_name,
     validate_catalog_schema,
 )
-from scripts.gates.model import ExecutionMode, FileClassification, GatePlan, GateSpec, TriggerMode
+from scripts.gates.model import ExecutionMode, GatePlan, GateSpec, TriggerMode
 
 if TYPE_CHECKING:
     from collections.abc import Iterable
@@ -43,22 +43,6 @@ def pattern_matches(path: str, pattern: str) -> bool:
     regex = regex.replace('\x00/', '(?:.+/)?')
     regex = regex.replace('\x00', '.*')
     return bool(re.fullmatch(regex, normalized_path))
-
-
-def classify_path(path: str) -> FileClassification:
-    """按首个命中规则分类路径，但不再由分类派生 Target。"""
-
-    normalized = normalize_repo_path(path)
-    for rule in CATALOG.path_rules:
-        if any(pattern_matches(normalized, pattern) for pattern in rule.patterns):
-            return FileClassification(normalized, rule.category, rule.risk_level, rule.allowed)
-    return FileClassification(normalized, 'unknown', 'low', True)
-
-
-def classify_files(paths: Iterable[str]) -> tuple[FileClassification, ...]:
-    """保持输入顺序返回路径治理分类。"""
-
-    return tuple(classify_path(path) for path in paths)
 
 
 def gate_matches(gate: GateSpec, changed_files: Iterable[str]) -> bool:

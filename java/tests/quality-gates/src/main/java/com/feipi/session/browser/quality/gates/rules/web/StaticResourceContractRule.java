@@ -42,6 +42,22 @@ public final class StaticResourceContractRule implements QualityRule {
           Pattern.MULTILINE);
   private static final Pattern SELECTOR_COMBINATOR = Pattern.compile("\\s*(?:>|[+~])\\s*|\\s+");
   private static final Pattern PARENTHESIZED = Pattern.compile("\\([^)]*\\)");
+  private static final Pattern JS_LINE_COMMENT = Pattern.compile("//.*?$", Pattern.MULTILINE);
+  private static final Pattern JS_BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
+  private static final Pattern LEGACY_COMPAT_SELECTOR =
+      Pattern.compile(
+          "\\.(?:old[-_]?|legacy[-_]?|deprecated[-_]?|compat[-_]?|v\\d[-_]?)",
+          Pattern.CASE_INSENSITIVE);
+  private static final List<Pattern> UNSUPPORTED_VIEWPORT_PATTERNS =
+      List.of(
+          Pattern.compile("max-width\\s*:\\s*767px", Pattern.CASE_INSENSITIVE),
+          Pattern.compile("max-width\\s*:\\s*768px", Pattern.CASE_INSENSITIVE),
+          Pattern.compile("max-width\\s*:\\s*820px", Pattern.CASE_INSENSITIVE),
+          Pattern.compile(
+              "min-width\\s*:\\s*768px.*max-width\\s*:\\s*1024px", Pattern.CASE_INSENSITIVE),
+          Pattern.compile("@media[^{]*(?:mobile|tablet|ipad)", Pattern.CASE_INSENSITIVE));
+  private static final List<String> ALLOWED_DESKTOP_VIEWPORTS =
+      List.of("1400px", "1440px", "1512px", "1920px", "2560px");
 
   private static final Set<String> BASE_CSS_NAMES =
       Set.of("tokens.css", "base.css", "shell.css", "ui-primitives.css");
@@ -124,7 +140,10 @@ public final class StaticResourceContractRule implements QualityRule {
 
     checkNoImportant(cssSources, violations);
     checkCssLoadOrder(context, htmlSources, violations);
+    checkSupportedViewports(cssSources, jsSources, violations);
     checkNoDeadCss(cssSources, violations);
+    checkNoDeadJavaScript(jsSources, violations);
+    checkLegacyHiddenCompatibilitySelectors(cssSources, violations);
     checkNoDuplicateBaseCss(context, htmlSources, violations);
     checkPayloadModalOwnership(cssSources, violations);
     checkNoEval(jsSources, violations);
@@ -260,6 +279,88 @@ public final class StaticResourceContractRule implements QualityRule {
                 "DEAD_CSS_NO_RULE_BODY",
                 "死 CSS 文件(无 CSS rule body).",
                 Map.of()));
+      }
+    }
+  }
+
+  private static void checkSupportedViewports(
+      List<SourceText> cssSources, List<SourceText> jsSources, List<QualityViolation> violations) {
+    var webSources = new ArrayList<SourceText>(cssSources);
+    webSources.addAll(jsSources);
+    for (var source : webSources) {
+      var lines = source.text().split("\\R", -1);
+      for (int index = 0; index < lines.length; index++) {
+        var line = lines[index];
+        var stripped = line.strip();
+        if (stripped.startsWith("/*") || stripped.startsWith("*") || stripped.startsWith("//")) {
+          continue;
+        }
+        for (var pattern : UNSUPPORTED_VIEWPORT_PATTERNS) {
+          var matcher = pattern.matcher(line);
+          if (matcher.find() && !containsAllowedDesktopViewport(line)) {
+            violations.add(
+                violation(
+                    source.relativePath(),
+                    index + 1,
+                    "UNSUPPORTED_VIEWPORT",
+                    "supported-viewports-only：禁止移动/平板视口支持，仅支持桌面端视口。",
+                    Map.of("match", matcher.group())));
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  private static boolean containsAllowedDesktopViewport(String line) {
+    return ALLOWED_DESKTOP_VIEWPORTS.stream().anyMatch(line::contains);
+  }
+
+  private static void checkNoDeadJavaScript(
+      List<SourceText> jsSources, List<QualityViolation> violations) {
+    for (var source : jsSources) {
+      var withoutLineComments = JS_LINE_COMMENT.matcher(source.text()).replaceAll("");
+      var stripped = JS_BLOCK_COMMENT.matcher(withoutLineComments).replaceAll("").strip();
+      if (stripped.isEmpty()) {
+        violations.add(
+            violation(
+                source.relativePath(),
+                1,
+                "DEAD_JS_EMPTY",
+                "死 JS 文件（只有注释或空白，无有效代码；rule: no-dead-compat-shim）。",
+                Map.of()));
+      }
+    }
+  }
+
+  private static void checkLegacyHiddenCompatibilitySelectors(
+      List<SourceText> cssSources, List<QualityViolation> violations) {
+    for (var source : cssSources) {
+      var lines = source.text().split("\\R", -1);
+      for (int index = 0; index < lines.length; index++) {
+        if (!lines[index].contains("display") || !lines[index].contains("none")) {
+          continue;
+        }
+        var selectorText = new StringBuilder();
+        for (int previous = index - 1; previous >= Math.max(0, index - 9); previous--) {
+          if (!selectorText.isEmpty()) {
+            selectorText.append(' ');
+          }
+          selectorText.append(lines[previous]);
+          if (lines[previous].contains("{")) {
+            break;
+          }
+        }
+        var matcher = LEGACY_COMPAT_SELECTOR.matcher(selectorText);
+        if (matcher.find()) {
+          violations.add(
+              violation(
+                  source.relativePath(),
+                  index + 1,
+                  "LEGACY_DISPLAY_NONE_COMPAT",
+                  "no-dead-compat-shim：display:none 用于疑似旧兼容选择器，" + "请删除垫片或改为当前选择器。",
+                  Map.of("selector", matcher.group())));
+        }
       }
     }
   }

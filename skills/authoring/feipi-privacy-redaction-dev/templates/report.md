@@ -19,9 +19,9 @@
 
 列出运行的 gate 及结果：
 
-- `repository.no-real-session-fixtures` — PASS/FAIL
-- `security.secret-like-content` — PASS/FAIL
-- `agent.skill-registry` — PASS/FAIL
+- `testDataPolicy` — PASS/FAIL
+- `secretLikeContent` — PASS/FAIL
+- `governanceStructure` — PASS/FAIL
 - `minimal harness structure` — PASS/FAIL
 - `doctor.sh` — PASS/FAIL
 

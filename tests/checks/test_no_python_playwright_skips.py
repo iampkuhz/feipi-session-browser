@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-from scripts.checks.repository import check_no_python_playwright_skips as subject
+from scripts.gates.checks.repository import check_no_python_playwright_skips as subject
 
 
 def _write(path: Path, text: str) -> None:

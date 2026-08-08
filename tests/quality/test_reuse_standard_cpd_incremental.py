@@ -1,4 +1,4 @@
-"""验证 Gradle-owned incremental PMD CPD Gate 的双模式契约。"""
+"""验证 javaReusePolicy single recipe 中的 incremental PMD CPD owner 契约。"""
 
 from pathlib import Path
 
@@ -12,12 +12,30 @@ def _root_build_text() -> str:
     return (REPO_ROOT / 'build.gradle.kts').read_text(encoding='utf-8')
 
 
-def test_catalog_registers_only_the_gradle_owner() -> None:
-    gate = gate_by_name('reuseStandardCpd')
+def test_catalog_registers_cpd_in_java_reuse_policy_recipe() -> None:
+    gate = gate_by_name('javaReusePolicy')
 
-    assert gate.run.kind is RunKind.GRADLE_TASK
-    assert gate.run.incremental.tasks == ('reuseStandardCpd',)
-    assert gate.run.full.tasks == ('reuseStandardCpd',)
+    assert tuple((step.name, step.kind, step.tasks) for step in gate.run.steps) == (
+        ('reuseStandardCpd', RunKind.GRADLE_TASK, ('reuseStandardCpd',)),
+    )
+
+
+def test_root_check_owns_pmd_zero_skip_and_the_java_rule_registry() -> None:
+    root_text = _root_build_text()
+    quality_build_text = (REPO_ROOT / 'java/tests/quality-gates/build.gradle.kts').read_text(
+        encoding='utf-8'
+    )
+
+    assert 'dependsOn(leafSubprojects.map { "${it.path}:check" })' in root_text
+    assert 'dependsOn(verifyNoSkippedJavaTests)' in root_text
+    assert 'dependsOn(":java:tests:quality-gates:runJavaQualityGates")' in root_text
+    assert (
+        '.orElse("java-comment-language,record-component-javadocs,no-pmd-suppressions")'
+        in quality_build_text
+    )
+    assert 'reuseAnalyzeIncremental' not in root_text
+    assert 'incremental-result.json' not in root_text
+    assert '"delegatedTo": "pmdMain"' not in root_text
 
 
 def test_gradle_owner_uses_changed_files_json_and_incremental_default() -> None:

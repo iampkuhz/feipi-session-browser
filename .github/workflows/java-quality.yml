@@ -13,7 +13,7 @@ on:
       - 'gradle.properties'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
-      - 'scripts/checks/**'
+      - 'scripts/gates/checks/**'
       - 'config/**'
       - '.github/workflows/java-quality.yml'
   pull_request:
@@ -24,7 +24,7 @@ on:
       - 'gradle.properties'
       - 'build.gradle.kts'
       - 'settings.gradle.kts'
-      - 'scripts/checks/**'
+      - 'scripts/gates/checks/**'
       - 'config/**'
       - '.github/workflows/java-quality.yml'
   workflow_dispatch:

@@ -5,7 +5,7 @@ from typing import TYPE_CHECKING
 if TYPE_CHECKING:
     from pathlib import Path
 
-from scripts.checks.repository.check_acceptance_case_mapping import (
+from scripts.gates.checks.repository.check_acceptance_case_mapping import (
     EXPECTED_FEATURE_TABLES,
     _validate_acceptance_case_mapping,
 )

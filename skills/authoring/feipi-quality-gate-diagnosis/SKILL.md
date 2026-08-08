@@ -11,7 +11,7 @@ Gate 和 Trigger，再区分 `BLOCKED`（检查结论阻断交付）与 `FAIL`�
 
 ## 何时使用
 
-- 增量或全量 Gate 返回 `BLOCKED`/`FAIL`（如 `agent.skill-registry`、OpenSpec 或产品 Gate）。
+- 增量或全量 Gate 返回 `BLOCKED`/`FAIL`（如 `governanceStructure`、OpenSpec 或产品 Gate）。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败。
 - Java gates（编译、测试、PMD）失败。
 - UI gates（静态检查、JS action handler 检查）失败。
@@ -62,7 +62,7 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 ## 文件边界
 
 - Gate 唯一公开入口：`scripts/gates/cli.py`；内部 catalog/planner/executor/receipt/report 不直接运行。
-- 领域检查器：`scripts/checks/<domain>/*.py`；只在定位单个失败时运行报告给出的精确 rerun 命令。
+- 领域检查器：`scripts/gates/checks/<domain>/*.py`；只在定位单个失败时运行报告给出的精确 rerun 命令。
 - Harness 体检：`scripts/harness/doctor.sh`。
 - Registry 配置：`harness/skill-registry.yaml`。
 - Harness 配置：`harness/manifest.yaml` 与 `harness/agent-policy.manifest.yaml`。
@@ -77,14 +77,14 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 以下命令用于分层诊断；被选 Gate 未完整执行时必须返回 FAIL：
 
 - 触发失败的 gate — 必须重跑并 PASS。
-- `python3 -m scripts.checks agent.skill-registry` — registry 完整性。
+- `python3 scripts/gates/cli.py --mode incremental --gate governanceStructure` — registry 完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
 - `python3 scripts/gates/cli.py --mode incremental` — 普通提交和交接的增量检查。
 
 选择策略：
 
 - 单个 gate 失败 → 修复后重跑该 gate + `doctor.sh`。
-- Registry/manifest 相关 → 追加 `agent.skill-registry` 与 minimal harness 结构检查。
+- Registry/manifest 相关 → 追加 `governanceStructure` 与 minimal harness 结构检查。
 - 收口前 → 运行 `python3 scripts/gates/cli.py --mode incremental`。
 
 若诊断结果需要新增、修改或删除 Gate，退出本 skill 的单点修复模式，按

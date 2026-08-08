@@ -4,7 +4,6 @@
 - CLI 入口：`java:app-cli`。
 - Gradle 构建配置：`gradle/build-logic/`、各模块 `build.gradle.kts`。
 - 测试代码：`java/<module>/src/test/`、`java:tests:support`、`java:tests:architecture`、`java:tests:contracts`。
-- API snapshot：`config/api-snapshots/`。
 - 模块边界配置：`config/architecture/java-modules.yaml`。
 
 ## 禁止范围
@@ -22,19 +21,16 @@
 3. `java/<module>/build.gradle.kts` → 模块依赖。
 4. `java/<module>/src/main/java/` → 生产代码。
 5. `java/<module>/src/test/java/` → 测试代码。
-6. `config/api-snapshots/` → API 一致性快照。
 
 ## 常见误区
 
 - 误以为可以直接 `import` 任意模块的类。实际有 forbiddenImports 和 allowedProjectDeps 约束。
 - 误以为测试模块可以随意依赖生产模块。`java:tests:*` 有独立的依赖规则。
-- 误以为 API 签名改了只需重新编译。需要更新 `config/api-snapshots/` 下的 snapshot。
 - 误用历史根模块路径 `:app-cli`。CLI 任务统一使用 `:java:app-cli`。
 
 ## 触发门禁
 
 - `./scripts/session-browser.sh test`
 - `./gradlew check`
-- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot`
 - `python3 scripts/gates/cli.py --mode incremental`（普通提交或交接）
 - `python3 scripts/gates/cli.py --mode full`（仅发布、周期审计或大迁移）

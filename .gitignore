@@ -4,9 +4,10 @@
 /data/
 /output/
 /tmp/*
+/config/api-snapshots/
 
 # Python
-/.local/
+.local/
 __pycache__/
 *.pyc
 *.pyo

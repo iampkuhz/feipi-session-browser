@@ -8,7 +8,6 @@
   - `java/<module>/src/main/java/...`
   - `java/<module>/src/test/java/...`
   - `java/<module>/build.gradle.kts`（如需）
-  - `config/api-snapshots/...`（如需）
 
 ## Forbidden scope
 
@@ -34,7 +33,6 @@
 按需追加：
 
 ```bash
-./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot
 python3 scripts/gates/cli.py --mode incremental
 ```
 

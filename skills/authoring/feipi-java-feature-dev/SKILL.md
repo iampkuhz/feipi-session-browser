@@ -31,7 +31,6 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 2. 目标模块的 `build.gradle.kts` — 只需 dependencies 块。
 3. `config/architecture/java-modules.yaml` — 只需目标模块的条目和 forbiddenImports。
 4. 相邻测试文件 — 只读与当前变更直接相关的测试。
-5. API snapshot 文件 — 只在涉及 API 变更时读取。
 
 不要整模块扫描。不要预读无关模块的 build 文件或源码。
 
@@ -39,7 +38,7 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 1. 搜索定位模块和入口：使用 `rg` 定位目标类名或方法，确定所属 Gradle 模块。
 2. 读取 `settings.gradle.kts` 和相关模块 build 文件，只读必要片段（include 块和 dependencies 块）。
-3. 查找相邻测试和 API snapshot：在 `src/test/` 下查找对应测试，在 `config/api-snapshots/` 下查找 API snapshot。
+3. 查找并读取 `src/test/` 下与改动直接相关的相邻测试或 fixture。
 4. 先改测试或 fixture，再改实现；如果当前仓库模式不是 TDD，可以改完立即补测试。
 5. 不跨层访问：API/CLI 不直接读底层存储，Service 不写 UI 模板，Repo 不做渲染。
 6. DTO/Mapping/DAO/Repo/Service 命名按现有模块模式，不新发明一套分层。
@@ -52,7 +51,6 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 - 生产代码：`java/<module>/src/main/java/` 下对应模块的包路径。
 - 测试代码：`java/<module>/src/test/java/` 下对应模块的包路径。
 - 构建配置：`java/<module>/build.gradle.kts`，`gradle/build-logic/`。
-- API snapshot：`config/api-snapshots/`。
 - 模块边界配置：`config/architecture/java-modules.yaml`。
 - 脚本入口：`scripts/session-browser.sh`。
 
@@ -64,13 +62,11 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
 - `./gradlew check` — 模块边界、package 归属、forbidden import。
-- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=java-api-snapshot` — API snapshot 一致性。
 - `python3 scripts/gates/cli.py --mode incremental` — 根据当前改动自动选择并运行相关 Gate。
 
 选择策略：
 
 - 只改 Java 源码 → 至少运行 `test` + `Gradle check`。
-- 改 API 签名 → 追加 Java `java-api-snapshot` rule。
 - 改构建配置或模块依赖 → 必须运行 `./gradlew check`。
 - 普通提交或交接收口前 → 运行 `python3 scripts/gates/cli.py --mode incremental`。
 - 发布、周期审计或大迁移 → 运行 `python3 scripts/gates/cli.py --mode full`。

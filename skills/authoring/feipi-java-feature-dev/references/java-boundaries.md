@@ -41,7 +41,7 @@
 
 - API controller 只接收请求参数和返回 DTO，不暴露内部实体。
 - CLI 入口只做参数解析和调用 Service，不包含业务逻辑。
-- API snapshot 文件（`config/api-snapshots/`）记录公共 API 签名，修改 API 时必须同步更新。
+- 公开 API 修改必须在 Git diff 中清晰可见，并由编译、测试和契约测试保护；仓库不维护生成式 API snapshot。
 
 ## 测试和 fixture
 

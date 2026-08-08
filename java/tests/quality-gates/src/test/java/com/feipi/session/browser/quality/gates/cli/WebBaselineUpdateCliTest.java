@@ -32,10 +32,10 @@ class WebBaselineUpdateCliTest {
     write("java/web/src/main/resources/static/js/current.js", "node.innerHTML = value;\n");
     var before = readBaseline();
 
-    var first = update("raw-innerhtml", "raw-innerhtml", false);
+    var first = update("raw-innerhtml", "raw-innerhtml");
     var firstBytes = Files.readAllBytes(repo.resolve(BASELINE));
     var updated = readBaseline();
-    var second = update("raw-innerhtml", "raw-innerhtml", false);
+    var second = update("raw-innerhtml", "raw-innerhtml");
 
     assertThat(first.exitCode()).isZero();
     assertThat(second.exitCode()).isZero();
@@ -67,11 +67,9 @@ class WebBaselineUpdateCliTest {
         "<div style=\"display:grid\">page</div>\n");
     var beforeStatic = readBaseline().path("rules").path("static-resource-contract").deepCopy();
 
-    var reverse =
-        update("layout-inline-style,raw-innerhtml", "layout-inline-style,raw-innerhtml", false);
+    var reverse = update("layout-inline-style,raw-innerhtml", "layout-inline-style,raw-innerhtml");
     var reverseBytes = Files.readAllBytes(repo.resolve(BASELINE));
-    var forward =
-        update("raw-innerhtml,layout-inline-style", "raw-innerhtml,layout-inline-style", false);
+    var forward = update("raw-innerhtml,layout-inline-style", "raw-innerhtml,layout-inline-style");
     var updated = readBaseline();
 
     assertThat(reverse.exitCode()).isZero();
@@ -92,7 +90,7 @@ class WebBaselineUpdateCliTest {
     writeCanonicalBaseline(
         "[\"keep-raw.js:3\"]", "[\"stale-layout.html:4\"]", "[\"keep-static-selector\"]");
 
-    var result = update("layout-inline-style", "layout-inline-style", false);
+    var result = update("layout-inline-style", "layout-inline-style");
     var updated = readBaseline();
 
     assertThat(result.exitCode()).isZero();
@@ -113,7 +111,6 @@ class WebBaselineUpdateCliTest {
         update(
             "raw-innerhtml,layout-inline-style",
             "raw-innerhtml,layout-inline-style",
-            false,
             Map.of("QUALITY_CHANGED_FILES", "[\"README.md\"]"));
     var updated = readBaseline();
 
@@ -130,9 +127,9 @@ class WebBaselineUpdateCliTest {
     Files.deleteIfExists(repo.resolve(BASELINE));
     write("scripts/browser.js", "node.innerHTML = value;\n");
 
-    var first = update("raw-innerhtml", "raw-innerhtml", false);
+    var first = update("raw-innerhtml", "raw-innerhtml");
     var firstBytes = Files.readAllBytes(repo.resolve(BASELINE));
-    var second = update("raw-innerhtml", "raw-innerhtml", false);
+    var second = update("raw-innerhtml", "raw-innerhtml");
 
     assertThat(first.exitCode()).isZero();
     assertThat(second.exitCode()).isZero();
@@ -147,17 +144,15 @@ class WebBaselineUpdateCliTest {
     writeCanonicalBaseline("[]", "[]", "[]");
     var original = Files.readAllBytes(repo.resolve(BASELINE));
 
-    var unknown = update("raw-innerhtml", "missing-rule", false);
-    var unsupported = update("static-resource-contract", "static-resource-contract", false);
+    var unknown = update("raw-innerhtml", "missing-rule");
+    var unsupported = update("static-resource-contract", "static-resource-contract");
     var unsupportedBeforeChangedFiles =
         update(
             "record-component-javadocs",
             "record-component-javadocs",
-            false,
             Map.of("QUALITY_CHANGED_FILES", "not-json"));
-    var mismatch = update("raw-innerhtml,layout-inline-style", "raw-innerhtml", false);
-    var empty = update("raw-innerhtml", ",, ", false);
-    var mixedApiMode = update("raw-innerhtml", "raw-innerhtml", true);
+    var mismatch = update("raw-innerhtml,layout-inline-style", "raw-innerhtml");
+    var empty = update("raw-innerhtml", ",, ");
 
     assertThat(unknown.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(unsupported.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
@@ -169,12 +164,11 @@ class WebBaselineUpdateCliTest {
     assertThat(mismatch.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(empty.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(empty.err()).contains("requires at least one rule");
-    assertThat(mixedApiMode.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(Files.readAllBytes(repo.resolve(BASELINE))).isEqualTo(original);
 
     Files.writeString(repo.resolve(BASELINE), "{not-json", StandardCharsets.UTF_8);
     var malformedBytes = Files.readAllBytes(repo.resolve(BASELINE));
-    var malformed = update("raw-innerhtml", "raw-innerhtml", false);
+    var malformed = update("raw-innerhtml", "raw-innerhtml");
 
     assertThat(malformed.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(Files.readAllBytes(repo.resolve(BASELINE))).isEqualTo(malformedBytes);
@@ -199,7 +193,7 @@ class WebBaselineUpdateCliTest {
       write(BASELINE, invalid);
       var original = Files.readAllBytes(repo.resolve(BASELINE));
 
-      var result = update("raw-innerhtml", "raw-innerhtml", false);
+      var result = update("raw-innerhtml", "raw-innerhtml");
 
       assertThat(result.exitCode()).as(invalid).isEqualTo(QualityGateExitCodes.ERROR);
       assertThat(Files.readAllBytes(repo.resolve(BASELINE))).as(invalid).isEqualTo(original);
@@ -231,12 +225,11 @@ class WebBaselineUpdateCliTest {
     }
   }
 
-  private Result update(String rules, String updateRules, boolean writeApiSnapshot) {
-    return update(rules, updateRules, writeApiSnapshot, Map.of());
+  private Result update(String rules, String updateRules) {
+    return update(rules, updateRules, Map.of());
   }
 
-  private Result update(
-      String rules, String updateRules, boolean writeApiSnapshot, Map<String, String> environment) {
+  private Result update(String rules, String updateRules, Map<String, String> environment) {
     var args = new ArrayList<String>();
     java.util.Collections.addAll(
         args,
@@ -248,9 +241,6 @@ class WebBaselineUpdateCliTest {
         rules,
         "--update-baselines",
         updateRules);
-    if (writeApiSnapshot) {
-      args.add("--write-api-snapshot");
-    }
     var out = new ByteArrayOutputStream();
     var err = new ByteArrayOutputStream();
     var exitCode =

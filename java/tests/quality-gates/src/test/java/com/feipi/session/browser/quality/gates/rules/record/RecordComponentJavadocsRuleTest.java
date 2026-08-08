@@ -27,8 +27,6 @@ class RecordComponentJavadocsRuleTest {
                       repo,
                       sourceSet,
                       new RepositorySourceSet(java.util.List.of()),
-                      repo.resolve("unused"),
-                      false,
                       repo.resolve("tmp/quality/test")));
 
       assertThat(violations).hasSize(6);

@@ -9,7 +9,7 @@
   - `java/web/src/main/resources/templates/` — 导出相关 Jinja 模板
   - `java/web/src/main/resources/static/` — 需要内联的 CSS/JS 资源
   - `tests/backend/test_mhtml_export.py` — 导出测试
-  - `scripts/checks/` — 导出相关检查脚本（如需）
+  - `scripts/gates/checks/` — 导出相关检查脚本（如需）
 
 ## Forbidden scope
 
@@ -33,7 +33,7 @@
 
 ```bash
 ./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
-python3 -m scripts.checks web.js-action-handlers
+python3 scripts/gates/cli.py --mode incremental --gate browserInteraction
 ```
 
 按需追加：

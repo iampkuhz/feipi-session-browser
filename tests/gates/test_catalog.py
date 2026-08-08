@@ -1,46 +1,78 @@
-"""双模式 Gate Catalog 的严格 schema 与不可变模型契约。"""
+"""Typed Python Gate Catalog 的声明、引用与 recipe 契约。"""
 
 from __future__ import annotations
 
-import copy
-import shutil
-from dataclasses import FrozenInstanceError
-from pathlib import Path
+from dataclasses import FrozenInstanceError, replace
 
 import pytest
-import yaml
-from scripts.gates.catalog import CATALOG, _load_catalog, gate_by_name, target_by_name
-from scripts.gates.model import ExecutionMode, RunKind, TriggerMode
+from scripts.gates.catalog import (
+    CATALOG,
+    gate_by_name,
+    target_by_name,
+    validate_catalog_schema,
+)
+from scripts.gates.model import ExecutionMode, GateTrigger, RunKind, RunStep, TriggerMode
+from scripts.gates.planner import pattern_matches
 
-GATE_FILES = tuple(f'gates/{path.name}' for path in sorted(Path('config/gates').glob('*.yaml')))
+REMOVED_GATES = {
+    'pythonFormat',
+    'pythonLint',
+    'bashSyntax',
+    'pythonDependencyDeclarations',
+    'pythonSourceSecurity',
+    'pythonDeadCode',
+    'agentEntryParity',
+    'agentPermissionPolicy',
+    'protectedRootsSync',
+    'subagentHandoffProtocol',
+    'agentPolicySize',
+    'scriptCommentLanguage',
+    'skillRegistry',
+    'harnessStructure',
+    'openspecLayout',
+    'rawInnerhtml',
+    'layoutInlineStyle',
+    'templateContract',
+    'staticCssContract',
+    'cssOwnership',
+    'javaChineseComments',
+    'javaRecordComponentJavadocs',
+    'noJavaSuppressWarnings',
+    'reuseStandardCpd',
+    'reuseAnalyzeIncremental',
+    'javaSourcePolicy',
+    'noJavaTestSkips',
+    'doctor',
+}
+
+COMPOSITE_LEAF_NAMES = {
+    'scriptSourceStandard': (
+        'pythonFormat',
+        'pythonLint',
+        'bashSyntax',
+        'pythonDependencyDeclarations',
+        'pythonSourceSecurity',
+        'pythonDeadCode',
+    ),
+    'agentPolicy': (
+        'agentRuntimePolicy',
+        'agentDocumentPolicy',
+    ),
+    'languagePolicy': ('languagePolicy', 'scriptCommentLanguage'),
+    'governanceStructure': ('skillRegistry', 'harnessStructure', 'openspecLayout'),
+    'webSourcePolicy': (
+        'rawInnerhtml',
+        'layoutInlineStyle',
+        'templateContract',
+        'staticCssContract',
+        'cssOwnership',
+    ),
+}
 
 
-@pytest.fixture
-def catalog_tree(tmp_path: Path) -> Path:
-    """复制当前 Catalog，让失败用例只修改隔离配置。"""
-
-    root = tmp_path / 'gates.yaml'
-    shutil.copy2('config/gates.yaml', root)
-    fragment_dir = tmp_path / 'gates'
-    fragment_dir.mkdir()
-    for source in Path('config/gates').glob('*.yaml'):
-        shutil.copy2(source, fragment_dir / source.name)
-    return root
-
-
-def _read(path: Path) -> dict[str, object]:
-    return yaml.safe_load(path.read_text(encoding='utf-8'))
-
-
-def _write(path: Path, value: object) -> None:
-    path.write_text(yaml.safe_dump(value, allow_unicode=True, sort_keys=False), encoding='utf-8')
-
-
-def _first_gate(catalog_tree: Path) -> tuple[Path, dict[str, object], dict[str, object]]:
-    root = _read(catalog_tree)
-    fragment = catalog_tree.parent / root['gate_files'][0]  # type: ignore[index]
-    data = _read(fragment)
-    return fragment, data, data['gates'][0]  # type: ignore[index,return-value]
+def _catalog_with_gate(gate):
+    gates = tuple(gate if item.name == gate.name else item for item in CATALOG.gates)
+    return replace(CATALOG, gates=gates)
 
 
 def test_current_catalog_has_stable_inventory_and_all_six_run_kinds() -> None:
@@ -52,45 +84,131 @@ def test_current_catalog_has_stable_inventory_and_all_six_run_kinds() -> None:
         'java-build',
         'scan-script-smoke',
     )
-    assert len(CATALOG.gates) == 41
+    assert len(CATALOG.gates) == 20
     assert tuple(gate.name for gate in CATALOG.gates[:3]) == (
-        'pythonFormat',
-        'pythonLint',
+        'scriptSourceStandard',
         'pythonHarnessTests',
+        'pythonDependencyVulnerabilities',
     )
     assert tuple(gate.name for gate in CATALOG.gates[-3:]) == (
-        'javaApiSnapshot',
+        'javaReusePolicy',
         'scanScriptSmoke',
         'sessionSamples',
     )
-    assert {gate.run.kind for gate in CATALOG.gates} == set(RunKind)
-    assert len(CATALOG.path_rules) == 18
+    assert {step.kind for gate in CATALOG.gates for step in gate.run.steps} == set(RunKind)
 
 
-def test_every_gate_has_five_field_model_and_two_complete_timing_profiles() -> None:
+def test_every_gate_has_one_recipe_and_two_non_blocking_targets() -> None:
+    validate_catalog_schema(CATALOG)
     for gate in CATALOG.gates:
         assert gate.name and gate.description
-        assert gate.trigger.mode in TriggerMode
-        if gate.trigger.mode is TriggerMode.CHANGED:
-            assert gate.trigger.paths
-        else:
-            assert not gate.trigger.paths
+        assert gate.run.steps
+        assert len({step.name for step in gate.run.steps}) == len(gate.run.steps)
+        for step in gate.run.steps:
+            if step.kind is RunKind.GRADLE_TASK:
+                assert len(step.tasks) == 1
+            elif step.kind is RunKind.JAVA_RULE:
+                assert len(step.rules) == 1
         for mode in ExecutionMode:
-            profile = gate.run.profile_for(mode)
-            assert profile.target_seconds > 0
-            assert profile.timeout_seconds >= profile.target_seconds
+            assert gate.run.target_for(mode) > 0
 
 
-def test_same_as_copies_execution_only_and_keeps_explicit_full_timing() -> None:
-    gate = gate_by_name('pythonFormat')
-    incremental = gate.run.incremental
-    full = gate.run.full
-    assert full.argv == incremental.argv
-    assert full is not incremental
-    assert full.target_seconds > 0
-    assert full.timeout_seconds >= full.target_seconds
-    assert gate.run.profile_for('incremental') is incremental
-    assert gate.run.profile_for('full') is full
+def test_standard_source_gate_owns_all_stable_external_tool_checks() -> None:
+    run = gate_by_name('scriptSourceStandard').run
+    assert tuple(step.name for step in run.steps) == COMPOSITE_LEAF_NAMES['scriptSourceStandard']
+    assert run.target_for('incremental') == 80
+    assert run.target_for('full') == 165
+    assert not hasattr(run, 'incremental')
+    assert not hasattr(run, 'full')
+
+
+def test_all_merged_gates_keep_explicit_leaf_owners() -> None:
+    for gate_name, leaf_names in COMPOSITE_LEAF_NAMES.items():
+        assert tuple(step.name for step in gate_by_name(gate_name).run.steps) == leaf_names
+
+    web_steps = gate_by_name('webSourcePolicy').run.steps
+    assert tuple((step.name, step.kind, step.rules) for step in web_steps) == (
+        ('rawInnerhtml', RunKind.JAVA_RULE, ('raw-innerhtml',)),
+        ('layoutInlineStyle', RunKind.JAVA_RULE, ('layout-inline-style',)),
+        ('templateContract', RunKind.JAVA_RULE, ('template-contract',)),
+        ('staticCssContract', RunKind.JAVA_RULE, ('static-resource-contract',)),
+        ('cssOwnership', RunKind.JAVA_RULE, ('css-ownership',)),
+    )
+    assert tuple(
+        (step.name, step.kind, step.tasks) for step in gate_by_name('javaReusePolicy').run.steps
+    ) == (('reuseStandardCpd', RunKind.GRADLE_TASK, ('reuseStandardCpd',)),)
+
+
+@pytest.mark.parametrize(
+    ('gate_name', 'representative_paths'),
+    [
+        (
+            'scriptSourceStandard',
+            ('pyproject.toml', 'scripts/gates/cli.py', 'tests/gates/test_cli.py', 'scripts/run.sh'),
+        ),
+        (
+            'agentPolicy',
+            (
+                'AGENTS.md',
+                '.claude/commands/diagnose-ui-gate.md',
+                'skills/authoring/example/SKILL.md',
+                'harness/agent-policy.manifest.yaml',
+                'scripts/gates/checks/agent/check_agent_document_policy.py',
+            ),
+        ),
+        (
+            'languagePolicy',
+            (
+                'CLAUDE.md',
+                'openspec/changes/example/proposal.md',
+                'scripts/gates/checks/source/check_language_policy.py',
+                'config/technical-terms.json',
+            ),
+        ),
+        (
+            'governanceStructure',
+            (
+                'harness/skill-registry.yaml',
+                'skills/authoring/example/SKILL.md',
+                'scripts/gates/checks/agent/check_skill_registry.py',
+                'openspec/changes/example/proposal.md',
+            ),
+        ),
+        (
+            'webSourcePolicy',
+            (
+                'java/web/src/main/resources/static/js/session/detail.js',
+                'java/web/src/main/resources/templates/session/detail.html',
+                'java/tests/quality-gates/build.gradle.kts',
+                'config/web-quality-baselines.json',
+                'tests/playwright/session-detail.spec.js',
+            ),
+        ),
+        (
+            'javaCheck',
+            (
+                'java/core/src/main/java/example/Session.java',
+                'java/core/src/test/kotlin/example/SessionTest.kt',
+                'gradle/build-logic/src/main/kotlin/example/plugin.gradle.kts',
+                'build.gradle.kts',
+            ),
+        ),
+        (
+            'javaReusePolicy',
+            (
+                'java/core/src/main/java/example/Session.java',
+                'config/reuse-policy/policy.json',
+                'java/web/build.gradle.kts',
+            ),
+        ),
+    ],
+)
+def test_merged_gate_triggers_cover_each_maintenance_boundary(
+    gate_name: str, representative_paths: tuple[str, ...]
+) -> None:
+    patterns = gate_by_name(gate_name).trigger.paths
+    for path in representative_paths:
+        assert any(pattern_matches(path, pattern) for pattern in patterns), (gate_name, path)
 
 
 def test_lookup_and_models_are_strict_and_frozen() -> None:
@@ -99,170 +217,105 @@ def test_lookup_and_models_are_strict_and_frozen() -> None:
         gate_by_name('missing')
     with pytest.raises(ValueError, match='Unknown quality target'):
         target_by_name('missing')
+    for name in REMOVED_GATES:
+        with pytest.raises(ValueError, match='Unknown quality gate'):
+            gate_by_name(name)
     with pytest.raises(FrozenInstanceError):
         CATALOG.gates = ()  # type: ignore[misc]
 
 
-@pytest.mark.parametrize(
-    'old_key',
-    [
-        'gate_defaults',
-        'target_triggers',
-        'minimum_tier',
-        'timeout',
-        'changed_files',
-        'network_failure',
-        'policy',
-        'inputs',
-    ],
-)
-def test_old_root_or_gate_fields_are_rejected(catalog_tree: Path, old_key: str) -> None:
-    if old_key in {'gate_defaults', 'target_triggers'}:
-        root = _read(catalog_tree)
-        root[old_key] = {}
-        _write(catalog_tree, root)
-    else:
-        fragment, data, gate = _first_gate(catalog_tree)
-        gate[old_key] = 'legacy'
-        _write(fragment, data)
-    with pytest.raises(ValueError, match='unexpected='):
-        _load_catalog(catalog_tree)
+def test_duplicate_unknown_and_unused_targets_fail_closed() -> None:
+    duplicate = replace(CATALOG, targets=(*CATALOG.targets, CATALOG.targets[0]))
+    with pytest.raises(ValueError, match='must not contain duplicates'):
+        validate_catalog_schema(duplicate)
 
+    gate = replace(CATALOG.gates[0], targets=('missing-target',))
+    with pytest.raises(ValueError, match='unknown Targets'):
+        validate_catalog_schema(_catalog_with_gate(gate))
 
-def test_target_rule_object_is_rejected(catalog_tree: Path) -> None:
-    fragment, data, gate = _first_gate(catalog_tree)
-    gate['targets'] = [{'name': 'python-standard', 'order': 0, 'patterns': ['scripts/**']}]
-    _write(fragment, data)
-    with pytest.raises(ValueError):
-        _load_catalog(catalog_tree)
-
-
-@pytest.mark.parametrize('location', ['root', 'target', 'path-rule', 'gate', 'trigger', 'run'])
-def test_required_fields_are_rejected_at_every_level(catalog_tree: Path, location: str) -> None:
-    root = _read(catalog_tree)
-    fragment, data, gate = _first_gate(catalog_tree)
-    if location == 'root':
-        del root['path_rules']
-        _write(catalog_tree, root)
-    elif location == 'target':
-        del root['targets'][0]['description']  # type: ignore[index]
-        _write(catalog_tree, root)
-    elif location == 'path-rule':
-        del root['path_rules'][0]['patterns']  # type: ignore[index]
-        _write(catalog_tree, root)
-    elif location == 'gate':
-        del gate['description']
-        _write(fragment, data)
-    elif location == 'trigger':
-        del gate['trigger']['paths']  # type: ignore[index]
-        _write(fragment, data)
-    else:
-        del gate['run']['full']  # type: ignore[index]
-        _write(fragment, data)
-    with pytest.raises(ValueError, match='missing='):
-        _load_catalog(catalog_tree)
-
-
-def test_always_trigger_forbids_paths(catalog_tree: Path) -> None:
-    fragment, data, gate = _first_gate(catalog_tree)
-    gate['trigger'] = {'mode': 'always', 'paths': ['scripts/**']}
-    _write(fragment, data)
-    with pytest.raises(ValueError, match='unexpected='):
-        _load_catalog(catalog_tree)
-
-
-@pytest.mark.parametrize(
-    ('mutation', 'message'),
-    [
-        ({'same_as': 'full', 'target_seconds': 1, 'timeout_seconds': 2}, 'same_as'),
-        (
-            {
-                'same_as': 'incremental',
-                'argv': ['tool'],
-                'target_seconds': 1,
-                'timeout_seconds': 2,
-            },
-            'unexpected=',
-        ),
-        ({'target_seconds': 10, 'timeout_seconds': 9, 'argv': ['tool']}, '>='),
-    ],
-)
-def test_same_as_and_timing_fail_closed(
-    catalog_tree: Path, mutation: dict[str, object], message: str
-) -> None:
-    fragment, data, gate = _first_gate(catalog_tree)
-    gate['run']['full'] = mutation  # type: ignore[index]
-    _write(fragment, data)
-    with pytest.raises(ValueError, match=message):
-        _load_catalog(catalog_tree)
-
-
-def test_unknown_target_and_duplicate_gate_are_rejected(catalog_tree: Path) -> None:
-    fragment, data, gate = _first_gate(catalog_tree)
-    gate['targets'] = ['missing-target']
-    data['gates'].append(copy.deepcopy(gate))  # type: ignore[index]
-    _write(fragment, data)
-    with pytest.raises(ValueError):
-        _load_catalog(catalog_tree)
-
-
-def test_unused_target_is_rejected(catalog_tree: Path) -> None:
-    root = _read(catalog_tree)
-    root['targets'].append({'name': 'unused', 'description': '人工运行未绑定的 Gate。'})  # type: ignore[index]
-    _write(catalog_tree, root)
+    unused = replace(CATALOG.targets[0], name='unused')
     with pytest.raises(ValueError, match='selects no Gate'):
-        _load_catalog(catalog_tree)
+        validate_catalog_schema(replace(CATALOG, targets=(*CATALOG.targets, unused)))
 
 
-@pytest.mark.parametrize(
-    ('mutation', 'message'),
-    [
-        (('target-description', 'not Chinese.'), 'Chinese sentence'),
-        (('path-risk', 'urgent'), 'invalid value'),
-        (('required-path', '../outside'), 'repository-relative paths'),
-        (('append-glob', '/absolute/**'), 'repository-relative globs'),
-    ],
-)
-def test_human_text_and_repository_paths_are_strict(
-    catalog_tree: Path, mutation: tuple[str, str], message: str
-) -> None:
-    kind, value = mutation
-    root = _read(catalog_tree)
-    if kind == 'target-description':
-        root['targets'][0]['description'] = value  # type: ignore[index]
-        _write(catalog_tree, root)
-    elif kind == 'path-risk':
-        root['path_rules'][0]['risk'] = value  # type: ignore[index]
-        _write(catalog_tree, root)
-    else:
-        fragment = catalog_tree.parent / 'gates/python-tooling.yaml'
-        data = _read(fragment)
-        profile = data['gates'][2]['run']['incremental']  # type: ignore[index]
-        profile['required_paths' if kind == 'required-path' else 'append_globs'] = [value]
-        _write(fragment, data)
-    with pytest.raises(ValueError, match=message):
-        _load_catalog(catalog_tree)
+def test_trigger_description_path_and_timing_invariants_fail_closed() -> None:
+    source = CATALOG.gates[0]
+    mutations = (
+        (replace(source, description='not Chinese.'), 'Chinese sentence'),
+        (
+            replace(source, trigger=GateTrigger(TriggerMode.ALWAYS, ('scripts/**',))),
+            'cannot contain paths',
+        ),
+        (replace(source, trigger=GateTrigger(TriggerMode.CHANGED)), 'requires paths'),
+        (
+            replace(source, trigger=GateTrigger(TriggerMode.CHANGED, ('../outside',))),
+            'invalid repository path',
+        ),
+        (
+            replace(
+                source,
+                run=replace(
+                    source.run,
+                    target_seconds=replace(source.run.target_seconds, incremental=0),
+                ),
+            ),
+            'positive integer',
+        ),
+    )
+    for gate, message in mutations:
+        with pytest.raises(ValueError, match=message):
+            validate_catalog_schema(_catalog_with_gate(gate))
 
 
-@pytest.mark.parametrize('syntax', ['anchor', 'duplicate', 'merge'])
-def test_yaml_indirection_and_duplicate_keys_are_rejected(catalog_tree: Path, syntax: str) -> None:
-    source = catalog_tree.read_text(encoding='utf-8')
-    if syntax == 'anchor':
-        source = source.replace('targets:', 'targets: &targets', 1)
-    elif syntax == 'duplicate':
-        source += '\ntargets: []\n'
-    else:
-        source += '\n<<: {}\n'
-    catalog_tree.write_text(source, encoding='utf-8')
-    with pytest.raises(ValueError):
-        _load_catalog(catalog_tree)
+def test_leaf_names_and_owner_fields_fail_closed() -> None:
+    source = gate_by_name('scriptSourceStandard')
+    duplicate_steps = (source.run.steps[0], source.run.steps[0])
+    with pytest.raises(ValueError, match='must not contain duplicates'):
+        validate_catalog_schema(
+            _catalog_with_gate(replace(source, run=replace(source.run, steps=duplicate_steps)))
+        )
+
+    reuse = gate_by_name('javaReusePolicy')
+    bad_task = replace(reuse.run.steps[0], tasks=('reuseStandardCpd', 'check'))
+    with pytest.raises(ValueError, match='exactly one item'):
+        validate_catalog_schema(
+            _catalog_with_gate(
+                replace(reuse, run=replace(reuse.run, steps=(bad_task, *reuse.run.steps[1:])))
+            )
+        )
+
+    web = gate_by_name('webSourcePolicy')
+    bad_rule = replace(web.run.steps[0], rules=('raw-innerhtml', 'other'))
+    with pytest.raises(ValueError, match='exactly one item'):
+        validate_catalog_schema(
+            _catalog_with_gate(
+                replace(web, run=replace(web.run, steps=(bad_rule, *web.run.steps[1:])))
+            )
+        )
+
+    command_with_rule = replace(source.run.steps[0], rules=('hidden-owner',))
+    with pytest.raises(ValueError, match='fields unused'):
+        validate_catalog_schema(
+            _catalog_with_gate(
+                replace(
+                    source,
+                    run=replace(source.run, steps=(command_with_rule, *source.run.steps[1:])),
+                )
+            )
+        )
 
 
-def test_fragments_are_unique_canonical_and_cannot_escape(catalog_tree: Path) -> None:
-    root = _read(catalog_tree)
-    for bad in ([], [*GATE_FILES, GATE_FILES[0]], ['/tmp/gates.yaml'], ['gates/../bad.yaml']):
-        changed = copy.deepcopy(root)
-        changed['gate_files'] = bad
-        _write(catalog_tree, changed)
-        with pytest.raises(ValueError):
-            _load_catalog(catalog_tree)
+def test_duplicate_java_rule_owner_is_rejected() -> None:
+    source = gate_by_name('webSourcePolicy')
+    duplicate = replace(
+        source,
+        run=replace(
+            source.run,
+            steps=(
+                *source.run.steps,
+                RunStep('duplicateRule', RunKind.JAVA_RULE, rules=(source.run.steps[0].rules[0],)),
+            ),
+        ),
+    )
+    with pytest.raises(ValueError, match='duplicate Java rule ownership'):
+        validate_catalog_schema(_catalog_with_gate(duplicate))

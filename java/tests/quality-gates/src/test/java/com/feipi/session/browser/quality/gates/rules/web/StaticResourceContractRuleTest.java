@@ -15,7 +15,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-/** HOOK-HARNESS-013：静态资源 retained rules 的有效、违规、baseline 与非迁移 corpus。 */
+/** HOOK-HARNESS-013：静态资源规则的有效、违规、基线与边界样本。 */
 class StaticResourceContractRuleTest {
 
   private static final String STATIC = "java/web/src/main/resources/static";
@@ -116,6 +116,73 @@ class StaticResourceContractRuleTest {
 
     assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(invalid.out()).contains("DEAD_CSS_EMPTY").contains("DEAD_CSS_NO_RULE_BODY");
+  }
+
+  @Test
+  void viewportPolicyAllowsDesktopWidthsAndBlocksMigratedMobilePatterns() throws Exception {
+    write(
+        STATIC + "/css/desktop.css",
+        """
+        /* @media tablet and (max-width: 768px) */
+        @media (min-width: 1512px) { .desktop { display: grid; } }
+        """);
+    write(
+        STATIC + "/js/viewport-notes.js",
+        "// @media tablet breakpoint\nconst desktopViewport = '1440px';\n");
+
+    assertThat(run(null).exitCode()).isZero();
+
+    write(
+        STATIC + "/css/mobile.css",
+        """
+        @media (max-width: 768px) { .compact { display: block; } }
+        @media screen and (min-width: 768px) and (max-width: 1024px) {
+          .tablet { display: block; }
+        }
+        """);
+
+    var invalid = run(null);
+
+    assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(invalid.out())
+        .contains("UNSUPPORTED_VIEWPORT")
+        .contains("mobile.css")
+        .contains("supported-viewports-only");
+  }
+
+  @Test
+  void emptyJavaScriptIsReportedAfterRemovingLineAndBlockComments() throws Exception {
+    write(
+        STATIC + "/js/comment-only.js",
+        """
+        // retired handler
+        /* no executable statements remain */
+        """);
+
+    var result = run(null);
+
+    assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(result.out())
+        .contains("DEAD_JS_EMPTY")
+        .contains("comment-only.js")
+        .contains("no-dead-compat-shim");
+  }
+
+  @Test
+  void legacyDisplayNoneSelectorBlocksWhileCurrentSelectorPasses() throws Exception {
+    write(STATIC + "/css/current-hidden.css", ".sr-only {\n  display: none;\n}\n");
+
+    assertThat(run(null).exitCode()).isZero();
+
+    write(STATIC + "/css/legacy-hidden.css", ".old-header {\n  display: none;\n}\n");
+
+    var invalid = run(null);
+
+    assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
+    assertThat(invalid.out())
+        .contains("LEGACY_DISPLAY_NONE_COMPAT")
+        .contains("legacy-hidden.css")
+        .contains(".old-");
   }
 
   @Test
