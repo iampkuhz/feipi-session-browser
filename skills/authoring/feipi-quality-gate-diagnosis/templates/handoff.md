@@ -33,9 +33,9 @@
 <失败的命令>
 
 # 运行 required baseline
-python3 scripts/gates/cli.py --mode incremental --gate governanceStructure
+python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation
 bash scripts/harness/doctor.sh
-python3 scripts/gates/cli.py --mode incremental
+python3 scripts/gates/cli.py run --mode incremental
 ```
 
 ## Expected output

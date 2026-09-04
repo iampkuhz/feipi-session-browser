@@ -17,7 +17,7 @@
 - 包含真实用户 home 绝对路径的 fixture。
 - 包含真实 API key 或 token 的任何文件。
 
-gate 脚本 `testDataPolicy` 和 `secretLikeContent` 负责检测。
+gate 脚本 `testDataPrivacy` 和 `credentialLeakScan` 负责检测。
 
 ## 允许的最小样例
 
@@ -46,5 +46,5 @@ fixture 文件命名规则：
 - [ ] 是否包含真实 token 或密钥？
 - [ ] 文件路径是否使用占位符？
 - [ ] 是否在 `tests/fixtures/synthetic/` 目录下？
-- [ ] 是否通过了 `testDataPolicy`？
-- [ ] 是否通过了 `secretLikeContent`？
+- [ ] 是否通过了 `testDataPrivacy`？
+- [ ] 是否通过了 `credentialLeakScan`？

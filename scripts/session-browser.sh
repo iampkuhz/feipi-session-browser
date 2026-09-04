@@ -66,7 +66,7 @@ run_test() {
 run_quality() {
     cd "$PROJECT_DIR"
     if [[ $# -eq 0 ]]; then
-        exec python3 scripts/gates/cli.py --mode incremental
+        exec python3 scripts/gates/cli.py run --mode incremental
     fi
     exec python3 scripts/gates/cli.py "$@"
 }

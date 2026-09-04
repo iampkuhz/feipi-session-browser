@@ -1,9 +1,8 @@
-"""验证 javaReusePolicy single recipe 中的 incremental PMD CPD owner 契约。"""
+"""验证 javaDuplicationAudit single recipe 中的 incremental PMD CPD owner 契约。"""
 
 from pathlib import Path
 
-from scripts.gates.catalog import gate_by_name
-from scripts.gates.model import RunKind
+from scripts.gates.catalog import RecipeStepKind, gate_by_name
 
 REPO_ROOT = Path(__file__).resolve().parents[2]
 
@@ -13,10 +12,10 @@ def _root_build_text() -> str:
 
 
 def test_catalog_registers_cpd_in_java_reuse_policy_recipe() -> None:
-    gate = gate_by_name('javaReusePolicy')
+    gate = gate_by_name('javaDuplicationAudit')
 
-    assert tuple((step.name, step.kind, step.tasks) for step in gate.run.steps) == (
-        ('reuseStandardCpd', RunKind.GRADLE_TASK, ('reuseStandardCpd',)),
+    assert tuple((step.name, step.kind, step.tasks) for step in gate.recipe.steps) == (
+        ('reuseStandardCpd', RecipeStepKind.GRADLE_TASK, ('reuseStandardCpd',)),
     )
 
 

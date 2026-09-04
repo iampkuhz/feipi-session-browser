@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.gates.checks._framework import CheckStatus
+from scripts.gates.checks.check_protocol import CheckStatus
 from scripts.gates.checks.repository.check_current_source_policy import (
     _check_current_source_policy,
     _check_harness_current_state,

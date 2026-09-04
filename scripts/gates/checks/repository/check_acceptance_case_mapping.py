@@ -10,7 +10,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from scripts.gates.checks._framework import CheckResult, argument_parser
+from scripts.gates.checks.check_protocol import CheckResult, argument_parser
 
 EXPECTED_FEATURE_TABLES = {
     'DATA_INDEX.md',

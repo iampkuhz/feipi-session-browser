@@ -32,5 +32,5 @@
 - 自定义规则 `FeipiManualEnumValueBoilerplate` 检测纯手动枚举样板，提示改用受控 Lombok。
 - 不使用 `@SuppressWarnings("PMD.")` 压制自定义 PMD 规则；遇到违规时直接修复源码。
 - Gradle root `check` 通过 Java rule `no-pmd-suppressions` 扫描 `java/**/src/main/java/**/*.java`，发现
-  `@SuppressWarnings("PMD.` 即阻断 `javaCheck`。
+  `@SuppressWarnings("PMD.` 即阻断 `javaBuildVerification`。
 - Java 标准编译器告警（`unchecked`、`deprecation` 等）的 `@SuppressWarnings` 不受此限制。

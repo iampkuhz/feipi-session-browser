@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 import yaml
-from scripts.gates.checks.agent.check_agent_runtime_policy import _check_agent_entries
+from scripts.gates.checks.agent.check_entrypoints import _check_agent_entries
 
 ROOT = Path(__file__).resolve().parents[1]
 MANIFEST = ROOT / 'harness' / 'agent-runtime.manifest.yaml'
@@ -42,11 +42,11 @@ def test_domain_agent_entries_are_thin_on_all_platforms():
 
 def test_shared_agent_entry_parity_check_passes():
     result = subprocess.run(
-        [sys.executable, '-m', 'scripts.gates.checks', 'agent.runtime-policy'],
+        [sys.executable, '-m', 'scripts.gates.checks', 'agent.entrypoints'],
         cwd=ROOT,
         text=True,
         capture_output=True,
         check=False,
     )
     assert result.returncode == 0, result.stdout + result.stderr
-    assert 'GATE_RESULT status=PASS check=agent.runtime-policy' in result.stdout
+    assert 'GATE_RESULT status=PASS check=agent.entrypoints' in result.stdout

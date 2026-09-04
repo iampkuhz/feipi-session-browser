@@ -33,7 +33,7 @@
 
 ```bash
 ./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
-python3 scripts/gates/cli.py --mode incremental --gate browserInteraction
+python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests
 ```
 
 按需追加：

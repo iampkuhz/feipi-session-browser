@@ -33,9 +33,9 @@
 
 列出必须运行的验证命令：
 
-- `python3 scripts/gates/cli.py --mode incremental --gate testDataPolicy`
-- `python3 scripts/gates/cli.py --mode incremental --gate secretLikeContent`
-- `python3 scripts/gates/cli.py --mode incremental --gate governanceStructure`
+- `python3 scripts/gates/cli.py run --mode incremental --gate testDataPrivacy`
+- `python3 scripts/gates/cli.py run --mode incremental --gate credentialLeakScan`
+- `python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation`
 - `python3 scripts/harness/validate_harness_structure.py`
 - `bash scripts/harness/doctor.sh`
 

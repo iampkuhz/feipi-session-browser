@@ -15,9 +15,8 @@ REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from scripts.gates import support as gate_support  # noqa: E402
-
 KEBAB_RE = re.compile(r'^[a-z0-9][a-z0-9-]*$')
+SAFE_SEGMENT_RE = re.compile(r'[^A-Za-z0-9._-]+')
 
 PROTECTED_ROOTS = [
     'openspec/',
@@ -67,6 +66,13 @@ def _templates_dir(root: Path) -> Path:
         if c.is_dir():
             return c
     return candidates[0]  # 缺失时返回最接近的候选路径，交由调用方报告
+
+
+def _safe_identity_segment(value: str | None, fallback: str) -> str:
+    """把显式 OpenSpec 调用身份限制为安全的单路径段。"""
+
+    cleaned = SAFE_SEGMENT_RE.sub('-', str(value or '').strip()).strip('.-_')
+    return (cleaned or fallback)[:80]
 
 
 def write_file_if_missing(path: Path, content: str, label: str = '') -> bool:
@@ -127,13 +133,21 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
     title = title or change_id
     now = datetime.now(UTC).strftime('%Y-%m-%dT%H:%M:%SZ')
 
-    identity = gate_support.identity_from_values(
-        agent_client=agent_client,
-        session_id=session_id or os.environ.get('FEIPI_SESSION_ID') or '',
-        agent_id=agent_id or os.environ.get('FEIPI_AGENT_ID') or '',
-    )
+    raw_session_id = session_id or os.environ.get('FEIPI_SESSION_ID') or ''
+    raw_agent_id = agent_id or os.environ.get('FEIPI_AGENT_ID') or ''
+    client = _safe_identity_segment(agent_client or os.environ.get('FEIPI_AGENT_CLIENT'), 'unknown')
     change_dir = root / 'openspec' / 'changes' / change_id
-    agent_dir = gate_support.agent_log_dir(root, identity) if identity.has_session else root / 'tmp'
+    if raw_session_id:
+        session_root = (
+            root / 'tmp' / 'agent_logs' / client / _safe_identity_segment(raw_session_id, 'unknown')
+        )
+        agent_dir = (
+            session_root / 'agents' / _safe_identity_segment(raw_agent_id, 'agent')
+            if raw_agent_id
+            else session_root / 'main'
+        )
+    else:
+        agent_dir = root / 'tmp'
     active_change_file = agent_dir / 'active_change.json'
 
     created: list[str] = []
@@ -168,9 +182,9 @@ def create_active_change(  # noqa: PLR0912 - idempotent OpenSpec scaffold.
         'source_request': source,
         'protected_roots': PROTECTED_ROOTS,
         'required_gates': REQUIRED_GATES,
-        'agent_client': identity.client if identity.has_session else '',
-        'session_id': identity.raw_session_id,
-        'agent_id': identity.raw_agent_id,
+        'agent_client': client if raw_session_id else '',
+        'session_id': raw_session_id,
+        'agent_id': raw_agent_id,
     }
 
     if not active_change_file.exists():

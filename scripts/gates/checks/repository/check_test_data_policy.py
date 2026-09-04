@@ -14,7 +14,7 @@ import subprocess
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-from scripts.gates.checks._framework import CheckResult, argument_parser, repository_root
+from scripts.gates.checks.check_protocol import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from collections.abc import Iterable

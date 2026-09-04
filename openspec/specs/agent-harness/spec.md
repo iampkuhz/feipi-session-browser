@@ -44,7 +44,7 @@ Stop、SessionEnd、post-tool 或其他自动事件 SHALL NOT stage、commit、m
 - **Given** 变更已完成实现
 - **When** Agent 准备提交或交接
 - **Then** Agent SHALL 使用 Gate Trigger 按变更范围选择检查
-- **And** Stop/handoff 前唯一交付命令 SHALL 为 `python3 scripts/gates/cli.py --mode incremental`
+- **And** Stop/handoff 前唯一交付命令 SHALL 为 `python3 scripts/gates/cli.py run --mode incremental`
 
 ### Requirement: 真实验证状态
 

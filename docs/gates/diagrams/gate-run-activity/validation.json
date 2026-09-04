@@ -1,0 +1,77 @@
+{
+  "schema_version": "1.2",
+  "render_contract_version": "3",
+  "skill_name": "feipi-plantuml-generate-diagram",
+  "diagram_id": "gate-run-activity",
+  "diagram_type": "activity",
+  "profile": "activity",
+  "profile_version": "1.1",
+  "brief_path": "brief.normalized.yaml",
+  "diagram_path": "diagram.puml",
+  "svg_path": "diagram.svg",
+  "brief_check": "ok",
+  "coverage_check": "ok",
+  "layout_check": "ok",
+  "render_result": "ok",
+  "render_server": "http://127.0.0.1:8199",
+  "brief_sha256": "b4b9df00996dc120c14b5c35697ab3924ff9dd38dfc2ce5b941714acb38a7a00",
+  "puml_sha256": "d5bf158e8a66a3c3790ba7a38b8df74610e83374e9343b9b7b8fb61d71c3465b",
+  "normalized_puml_sha256": "d5bf158e8a66a3c3790ba7a38b8df74610e83374e9343b9b7b8fb61d71c3465b",
+  "svg_sha256": "bcf20d2b4c17f2ad954fe2ee6ccfb96e1578dac8f5efd26884746725441bf730",
+  "parent_brief_path": "",
+  "parent_brief_sha256": "",
+  "parent_component_ref": {},
+  "artifacts": {
+    "brief": {
+      "path": "brief.normalized.yaml",
+      "sha256": "b4b9df00996dc120c14b5c35697ab3924ff9dd38dfc2ce5b941714acb38a7a00"
+    },
+    "diagram": {
+      "path": "diagram.puml",
+      "sha256": "d5bf158e8a66a3c3790ba7a38b8df74610e83374e9343b9b7b8fb61d71c3465b"
+    },
+    "svg": {
+      "path": "diagram.svg",
+      "sha256": "bcf20d2b4c17f2ad954fe2ee6ccfb96e1578dac8f5efd26884746725441bf730"
+    }
+  },
+  "metrics": {
+    "node_count": 7,
+    "edge_count": 6,
+    "max_degree": 2
+  },
+  "timings": {
+    "total_ms": 3467.379,
+    "render_ms": 545.27,
+    "static_validation_ms": 2922.109
+  },
+  "last_run_timings": {
+    "total_ms": 601.137,
+    "render_ms": 0.0,
+    "static_validation_ms": 601.137,
+    "cache_hit": true
+  },
+  "counters": {
+    "render_http_requests": 1,
+    "render_rounds": 1,
+    "package_validation_runs": 1,
+    "package_verifier_runs": 1,
+    "cache_hits": 0
+  },
+  "last_run_counters": {
+    "render_http_requests": 0,
+    "render_rounds": 0,
+    "package_validation_runs": 1,
+    "package_verifier_runs": 1,
+    "cache_hits": 1
+  },
+  "final_status": "success",
+  "blocked_reason": "",
+  "failure_class": "none",
+  "repairable": false,
+  "issues": [],
+  "attempt_index": 2,
+  "max_render_attempts": 2,
+  "attempts_remaining": 0,
+  "brief_validation_reused": true
+}

@@ -18,10 +18,10 @@
 
 | Gate | Result |
 |---|---|
-| `webResourceTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `browserInteraction` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `webResourceContracts` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `browserBehaviorTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | fixture-based 导出测试 | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `agentPolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `agentConfigurationPolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 
 ## Risks
 

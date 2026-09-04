@@ -53,7 +53,7 @@ platforms:
     skills_dir: .qoder/skills
 
 validation:
-  delivery_command: python3 scripts/gates/cli.py --mode incremental
+  delivery_command: python3 scripts/gates/cli.py run --mode incremental
   invocation: explicit
   passing_requires_success: true
   non_passing_results: [BLOCKED, FAIL]

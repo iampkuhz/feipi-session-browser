@@ -1,0 +1,92 @@
+"""RecipeStep 到 CommandInvocation 的 typed adapter contract。"""
+
+from pathlib import Path
+
+from scripts.gates.catalog.gate_contracts import ExecutionMode
+from scripts.gates.catalog.registry import gate_by_name
+from scripts.gates.execution import command_adapter
+
+
+def _adapt(gate_name: str, root: Path, monkeypatch):
+    monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
+    gate = gate_by_name(gate_name)
+    return command_adapter.adapt_recipe_step(
+        gate,
+        gate.recipe.steps[0],
+        root,
+        mode=ExecutionMode.INCREMENTAL,
+        changed_files=('scripts/a.py',),
+    )
+
+
+def test_python_check_uses_declared_check_id(tmp_path: Path, monkeypatch) -> None:
+    (invocation,) = _adapt('testSkipProhibition', tmp_path, monkeypatch)
+    assert invocation.kind == 'python-check'
+    assert invocation.argv == (
+        '/tmp/python',
+        '-m',
+        'scripts.gates.checks',
+        'repository.no-python-playwright-skips',
+    )
+    assert dict(invocation.environment) == {
+        'QUALITY_CHANGED_FILES': '["scripts/a.py"]',
+        'QUALITY_EXECUTION_MODE': 'incremental',
+    }
+
+
+def test_gradle_and_java_rule_are_plain_console_invocations(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / 'gradlew').write_text('', encoding='utf-8')
+    gradle = _adapt('webResourceContracts', tmp_path, monkeypatch)[0]
+    java_rule = _adapt('webStaticRules', tmp_path, monkeypatch)[0]
+    assert gradle.kind == 'gradle-task'
+    assert gradle.argv[-2:] == (':java:web:test', '--console=plain')
+    assert java_rule.kind == 'java-rule'
+    assert any(value.startswith('-PfeipiJavaQualityRules=') for value in java_rule.argv)
+
+
+def test_scan_step_freezes_two_real_processes(tmp_path: Path, monkeypatch) -> None:
+    (tmp_path / 'gradlew').write_text('', encoding='utf-8')
+    invocations = _adapt('scanCommandSmoke', tmp_path, monkeypatch)
+    assert [invocation.kind for invocation in invocations] == [
+        'gradle-prerequisite',
+        'scan-smoke',
+    ]
+    assert len({invocation.invocation_id for invocation in invocations}) == 2
+    assert all(invocation.gate_name == 'scanCommandSmoke' for invocation in invocations)
+
+
+def test_playwright_adapter_freezes_base_url(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
+    gate = gate_by_name('browserVisualTests')
+    (invocation,) = command_adapter.adapt_recipe_step(
+        gate,
+        gate.recipe.steps[0],
+        tmp_path,
+        mode='full',
+        base_url='http://127.0.0.1:8080',
+    )
+    assert invocation.argv[:5] == ('npm', '--prefix', 'tests/playwright', 'test', '--')
+    assert dict(invocation.environment)['BASE_URL'] == 'http://127.0.0.1:8080'
+    assert 'QUALITY_CHANGED_FILES' not in dict(invocation.environment)
+
+
+def test_sanitized_environment_removes_provider_private_values() -> None:
+    result = command_adapter.sanitized_environment(
+        {'SAFE': 'yes'},
+        base={'CODEX_TOKEN': 'secret', 'QODER_MODE': 'private', 'PATH': '/bin'},
+    )
+    assert result == {'PATH': '/bin', 'SAFE': 'yes'}
+
+
+def test_missing_required_command_is_not_counted_as_process(tmp_path: Path, monkeypatch) -> None:
+    monkeypatch.setattr(command_adapter, '_project_python', lambda _root, dev=False: '/tmp/python')
+    gate = gate_by_name('gateFrameworkTests')
+    assert (
+        command_adapter.adapt_recipe_step(
+            gate,
+            gate.recipe.steps[0],
+            tmp_path,
+            mode='full',
+        )
+        == ()
+    )

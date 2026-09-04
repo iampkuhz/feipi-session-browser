@@ -33,13 +33,13 @@ public_executables:
 
 quality:
   runner: scripts/gates/cli.py
-  delivery_command: python3 scripts/gates/cli.py --mode incremental
-  full_command: python3 scripts/gates/cli.py --mode full
-  targets: [harness, java-src, java-build]
+  delivery_command: python3 scripts/gates/cli.py run --mode incremental
+  full_command: python3 scripts/gates/cli.py run --mode full
+  target_presets: [agent-governance, java-source, java-build]
 
 quality_gates:
   - name: incremental
-    command: "python3 scripts/gates/cli.py --mode incremental"
+    command: "python3 scripts/gates/cli.py run --mode incremental"
     required: true
 
 docs:
@@ -47,7 +47,7 @@ docs:
   - skills/authoring/feipi-openspec-orchestrate-change/SKILL.md
   - harness/README.md
   - scripts/README.md
-  - scripts/gates/README.md
+  - docs/gates/gate-control-plane.md
   - scripts/gates/checks/README.md
 
 local_only:

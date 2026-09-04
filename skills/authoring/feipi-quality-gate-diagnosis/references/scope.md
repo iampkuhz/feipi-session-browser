@@ -27,7 +27,7 @@
 3. `scripts/harness/doctor.sh` → 环境体检脚本。
 4. `harness/skill-registry.yaml` → skill 注册表。
 5. `harness/manifest.yaml` 与 `harness/agent-policy.manifest.yaml` → minimal harness 真相。
-6. Gate `agentPolicy` → Agent 入口、权限和共享政策检查。
+6. Gate `agentConfigurationPolicy` → Agent 入口、权限和共享政策检查。
 7. `skills/authoring/<skill-name>/SKILL.md` → 各 skill 源文件。
 8. `.claude/agents/*.md`、`.codex/agents/*.toml` → agent 入口文件。
 
@@ -42,7 +42,7 @@
 
 ## 触发门禁
 
-- `python3 scripts/gates/cli.py --mode incremental --gate governanceStructure`
-- `python3 scripts/gates/cli.py --mode incremental --gate agentPolicy`
+- `python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation`
+- `python3 scripts/gates/cli.py run --mode incremental --gate agentConfigurationPolicy`
 - `bash scripts/harness/doctor.sh`
-- `python3 scripts/gates/cli.py --mode incremental`
+- `python3 scripts/gates/cli.py run --mode incremental`

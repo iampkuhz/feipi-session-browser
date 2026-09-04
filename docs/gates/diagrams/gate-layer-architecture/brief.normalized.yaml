@@ -1,0 +1,151 @@
+diagram_id: gate-layer-architecture
+diagram_type: architecture
+title: "Gate 分层架构与允许依赖方向"
+summary: "冻结 Gate 控制面的阶段职责、核心术语，以及从 Catalog 到 Maintenance 的唯一正向依赖方向。"
+
+layers:
+  - id: catalog
+    name: Catalog
+    description: 声明 Gate、TargetPreset、RecipeStep 与 Python Check
+    color: "#D6EAF8"
+  - id: planning
+    name: Planning
+    description: 捕获输入、匹配 Trigger 并冻结唯一 GatePlan
+    color: "#D5F5E3"
+  - id: execution
+    name: Execution
+    description: 适配命令、监管进程并分类步骤与 Gate 结果
+    color: "#FDEBD0"
+  - id: evidence-presentation
+    name: Evidence / Presentation
+    description: 持久化不可变 RunReceipt 并呈现终端事件
+    color: "#E8DAEF"
+  - id: maintenance
+    name: Maintenance
+    description: 审计 Catalog、边界、命名和运行证据健康度
+    color: "#FADBD8"
+
+components:
+  - id: gate_contracts
+    name: Gate / TargetPreset
+    layer: catalog
+    type: component
+    description: 用户可见逻辑门与人工选择的门集合
+  - id: recipe_dsl
+    name: RecipeStep
+    layer: catalog
+    type: component
+    description: Gate 内由 owner 执行的职责步骤
+  - id: check_registry
+    name: Python Check
+    layer: catalog
+    type: component
+    description: 仅用于 Python 领域规则的 owner 注册表
+  - id: change_snapshot
+    name: Input Snapshot
+    layer: planning
+    type: component
+    description: 冻结 Git 或显式 changed-files 输入及内容指纹
+  - id: trigger_matcher
+    name: Trigger Matcher
+    layer: planning
+    type: component
+    description: 记录 file 到 pattern 再到 Gate 的选择理由
+  - id: gate_plan
+    name: GatePlan
+    layer: planning
+    type: component
+    description: 输入、选择结果、Gate 与命令的唯一冻结计划
+  - id: command_invocation
+    name: CommandInvocation
+    layer: execution
+    type: component
+    description: 代表一个真实 OS 进程
+  - id: run_orchestrator
+    name: Run Orchestrator
+    layer: execution
+    type: component
+    description: 串行驱动 RecipeStep 和进程监管
+  - id: execution_results
+    name: StepResult / GateResult
+    layer: execution
+    type: component
+    description: 区分步骤级与 Gate 级 PASS BLOCKED FAIL
+  - id: run_receipt
+    name: RunReceipt
+    layer: evidence-presentation
+    type: database
+    description: 保存整次运行的不可覆盖证据与规范重跑命令
+  - id: terminal_events
+    name: Terminal Events
+    layer: evidence-presentation
+    type: interface
+    description: 呈现 PLAN START HEARTBEAT STALL RESULT DONE
+  - id: health_audit
+    name: Health Audit
+    layer: maintenance
+    type: component
+    description: 审计命名、导入边界、Trigger 和 receipt 合同
+
+flows:
+  - id: S1
+    from: gate_contracts
+    to: trigger_matcher
+    description: 提供 Gate 与 TargetPreset 合同
+  - id: S2
+    from: recipe_dsl
+    to: gate_plan
+    description: 提供 RecipeStep 合同
+  - id: S3
+    from: check_registry
+    to: gate_plan
+    description: 提供 Python Check owner
+  - id: S4
+    from: change_snapshot
+    to: trigger_matcher
+    description: 提供冻结输入
+  - id: S5
+    from: trigger_matcher
+    to: gate_plan
+    description: 提供匹配与未触发理由
+  - id: S6
+    from: gate_plan
+    to: command_invocation
+    description: 适配真实进程
+  - id: S7
+    from: gate_plan
+    to: run_orchestrator
+    description: 编排冻结计划
+  - id: S8
+    from: command_invocation
+    to: run_orchestrator
+    description: 监管进程生命周期
+  - id: S9
+    from: run_orchestrator
+    to: execution_results
+    description: 分类 owner outcome
+  - id: S10
+    from: execution_results
+    to: run_receipt
+    description: 固化运行证据
+  - id: S11
+    from: execution_results
+    to: terminal_events
+    description: 呈现执行状态
+  - id: S12
+    from: run_receipt
+    to: health_audit
+    description: 审计不可变证据
+  - id: S13
+    from: terminal_events
+    to: health_audit
+    description: 审计可解释事件
+
+layout:
+  direction: top_to_bottom
+  include_legend: true
+
+out_of_scope:
+  - Gate 数量减少与命令进程合并
+  - 并行执行自动重试与 hard timeout
+  - 具体领域 Gate 的完整清单

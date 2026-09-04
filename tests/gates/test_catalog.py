@@ -1,73 +1,56 @@
-"""Typed Python Gate Catalog 的声明、引用与 recipe 契约。"""
+"""Catalog 声明、公共 ID、RecipeStep owner 与 Trigger 契约。"""
 
 from __future__ import annotations
 
 from dataclasses import FrozenInstanceError, replace
 
 import pytest
-from scripts.gates.catalog import (
-    CATALOG,
-    gate_by_name,
-    target_by_name,
-    validate_catalog_schema,
+from scripts.gates.catalog.gate_contracts import (
+    ExecutionMode,
+    GateTrigger,
+    RecipeStep,
+    RecipeStepKind,
+    TriggerMode,
 )
-from scripts.gates.model import ExecutionMode, GateTrigger, RunKind, RunStep, TriggerMode
-from scripts.gates.planner import pattern_matches
+from scripts.gates.catalog.registry import (
+    CATALOG,
+    GATES,
+    TARGET_PRESETS,
+    gate_by_name,
+    target_preset_by_name,
+)
+from scripts.gates.catalog.validation import validate_gate_catalog
 
-REMOVED_GATES = {
-    'pythonFormat',
-    'pythonLint',
-    'bashSyntax',
-    'pythonDependencyDeclarations',
-    'pythonSourceSecurity',
-    'pythonDeadCode',
-    'agentEntryParity',
-    'agentPermissionPolicy',
-    'protectedRootsSync',
-    'subagentHandoffProtocol',
-    'agentPolicySize',
-    'scriptCommentLanguage',
-    'skillRegistry',
-    'harnessStructure',
-    'openspecLayout',
-    'rawInnerhtml',
-    'layoutInlineStyle',
-    'templateContract',
-    'staticCssContract',
-    'cssOwnership',
-    'javaChineseComments',
-    'javaRecordComponentJavadocs',
-    'noJavaSuppressWarnings',
-    'reuseStandardCpd',
-    'reuseAnalyzeIncremental',
-    'javaSourcePolicy',
-    'noJavaTestSkips',
-    'doctor',
-}
-
-COMPOSITE_LEAF_NAMES = {
-    'scriptSourceStandard': (
-        'pythonFormat',
-        'pythonLint',
-        'bashSyntax',
-        'pythonDependencyDeclarations',
-        'pythonSourceSecurity',
-        'pythonDeadCode',
-    ),
-    'agentPolicy': (
-        'agentRuntimePolicy',
-        'agentDocumentPolicy',
-    ),
-    'languagePolicy': ('languagePolicy', 'scriptCommentLanguage'),
-    'governanceStructure': ('skillRegistry', 'harnessStructure', 'openspecLayout'),
-    'webSourcePolicy': (
-        'rawInnerhtml',
-        'layoutInlineStyle',
-        'templateContract',
-        'staticCssContract',
-        'cssOwnership',
-    ),
-}
+GATE_IDS = (
+    'scriptToolchainQuality',
+    'gateFrameworkTests',
+    'pythonDependencyAudit',
+    'repositoryBoundaryAudit',
+    'testSkipProhibition',
+    'currentVersionPolicy',
+    'acceptanceTraceability',
+    'testDataPrivacy',
+    'credentialLeakScan',
+    'maintenanceLanguagePolicy',
+    'agentConfigurationPolicy',
+    'governanceLayoutValidation',
+    'webStaticRules',
+    'webResourceContracts',
+    'browserVisualTests',
+    'browserBehaviorTests',
+    'javaBuildVerification',
+    'javaDuplicationAudit',
+    'scanCommandSmoke',
+    'sessionSampleContracts',
+)
+TARGET_PRESET_IDS = (
+    'gate-infrastructure',
+    'agent-governance',
+    'web-interface',
+    'java-source',
+    'java-build',
+    'session-pipeline',
+)
 
 
 def _catalog_with_gate(gate):
@@ -75,198 +58,126 @@ def _catalog_with_gate(gate):
     return replace(CATALOG, gates=gates)
 
 
-def test_current_catalog_has_stable_inventory_and_all_six_run_kinds() -> None:
-    assert tuple(target.name for target in CATALOG.targets) == (
-        'python-standard',
-        'harness',
-        'session-detail',
-        'java-src',
-        'java-build',
-        'scan-script-smoke',
-    )
-    assert len(CATALOG.gates) == 20
-    assert tuple(gate.name for gate in CATALOG.gates[:3]) == (
-        'scriptSourceStandard',
-        'pythonHarnessTests',
-        'pythonDependencyVulnerabilities',
-    )
-    assert tuple(gate.name for gate in CATALOG.gates[-3:]) == (
-        'javaReusePolicy',
-        'scanScriptSmoke',
-        'sessionSamples',
-    )
-    assert {step.kind for gate in CATALOG.gates for step in gate.run.steps} == set(RunKind)
+def test_catalog_has_exact_public_inventory_and_all_recipe_step_kinds() -> None:
+    assert tuple(preset.name for preset in TARGET_PRESETS) == TARGET_PRESET_IDS
+    assert tuple(gate.name for gate in GATES) == GATE_IDS
+    assert {step.kind for gate in GATES for step in gate.recipe.steps} == set(RecipeStepKind)
 
 
-def test_every_gate_has_one_recipe_and_two_non_blocking_targets() -> None:
-    validate_catalog_schema(CATALOG)
+def test_each_gate_has_one_recipe_and_two_non_blocking_duration_expectations() -> None:
+    validate_gate_catalog(CATALOG)
     for gate in CATALOG.gates:
-        assert gate.name and gate.description
-        assert gate.run.steps
-        assert len({step.name for step in gate.run.steps}) == len(gate.run.steps)
-        for step in gate.run.steps:
-            if step.kind is RunKind.GRADLE_TASK:
+        assert gate.recipe.steps
+        assert len({step.name for step in gate.recipe.steps}) == len(gate.recipe.steps)
+        for step in gate.recipe.steps:
+            if step.kind is RecipeStepKind.GRADLE_TASK:
                 assert len(step.tasks) == 1
-            elif step.kind is RunKind.JAVA_RULE:
+            elif step.kind is RecipeStepKind.JAVA_RULE:
                 assert len(step.rules) == 1
         for mode in ExecutionMode:
-            assert gate.run.target_for(mode) > 0
+            assert gate.recipe.duration_for(mode) > 0
 
 
-def test_standard_source_gate_owns_all_stable_external_tool_checks() -> None:
-    run = gate_by_name('scriptSourceStandard').run
-    assert tuple(step.name for step in run.steps) == COMPOSITE_LEAF_NAMES['scriptSourceStandard']
-    assert run.target_for('incremental') == 80
-    assert run.target_for('full') == 165
-    assert not hasattr(run, 'incremental')
-    assert not hasattr(run, 'full')
-
-
-def test_all_merged_gates_keep_explicit_leaf_owners() -> None:
-    for gate_name, leaf_names in COMPOSITE_LEAF_NAMES.items():
-        assert tuple(step.name for step in gate_by_name(gate_name).run.steps) == leaf_names
-
-    web_steps = gate_by_name('webSourcePolicy').run.steps
-    assert tuple((step.name, step.kind, step.rules) for step in web_steps) == (
-        ('rawInnerhtml', RunKind.JAVA_RULE, ('raw-innerhtml',)),
-        ('layoutInlineStyle', RunKind.JAVA_RULE, ('layout-inline-style',)),
-        ('templateContract', RunKind.JAVA_RULE, ('template-contract',)),
-        ('staticCssContract', RunKind.JAVA_RULE, ('static-resource-contract',)),
-        ('cssOwnership', RunKind.JAVA_RULE, ('css-ownership',)),
+def test_composite_gate_steps_keep_explicit_owner_names() -> None:
+    assert tuple(step.name for step in gate_by_name('scriptToolchainQuality').recipe.steps) == (
+        'pythonFormat',
+        'pythonLint',
+        'bashSyntax',
+        'pythonDependencyDeclarations',
+        'pythonSourceSecurity',
+        'pythonDeadCode',
+    )
+    assert tuple(step.name for step in gate_by_name('agentConfigurationPolicy').recipe.steps) == (
+        'agentEntrypoints',
+        'agentDocumentation',
     )
     assert tuple(
-        (step.name, step.kind, step.tasks) for step in gate_by_name('javaReusePolicy').run.steps
-    ) == (('reuseStandardCpd', RunKind.GRADLE_TASK, ('reuseStandardCpd',)),)
+        step.check_id for step in gate_by_name('maintenanceLanguagePolicy').recipe.steps
+    ) == (
+        'repository.maintenance-language',
+        'source.code-comment-language',
+    )
+    web_steps = gate_by_name('webStaticRules').recipe.steps
+    assert tuple((step.name, step.kind, step.rules) for step in web_steps) == (
+        ('rawInnerhtml', RecipeStepKind.JAVA_RULE, ('raw-innerhtml',)),
+        ('layoutInlineStyle', RecipeStepKind.JAVA_RULE, ('layout-inline-style',)),
+        ('templateContract', RecipeStepKind.JAVA_RULE, ('template-contract',)),
+        ('staticCssContract', RecipeStepKind.JAVA_RULE, ('static-resource-contract',)),
+        ('cssOwnership', RecipeStepKind.JAVA_RULE, ('css-ownership',)),
+    )
 
 
-@pytest.mark.parametrize(
-    ('gate_name', 'representative_paths'),
-    [
-        (
-            'scriptSourceStandard',
-            ('pyproject.toml', 'scripts/gates/cli.py', 'tests/gates/test_cli.py', 'scripts/run.sh'),
-        ),
-        (
-            'agentPolicy',
-            (
-                'AGENTS.md',
-                '.claude/commands/diagnose-ui-gate.md',
-                'skills/authoring/example/SKILL.md',
-                'harness/agent-policy.manifest.yaml',
-                'scripts/gates/checks/agent/check_agent_document_policy.py',
-            ),
-        ),
-        (
-            'languagePolicy',
-            (
-                'CLAUDE.md',
-                'openspec/changes/example/proposal.md',
-                'scripts/gates/checks/source/check_language_policy.py',
-                'config/technical-terms.json',
-            ),
-        ),
-        (
-            'governanceStructure',
-            (
-                'harness/skill-registry.yaml',
-                'skills/authoring/example/SKILL.md',
-                'scripts/gates/checks/agent/check_skill_registry.py',
-                'openspec/changes/example/proposal.md',
-            ),
-        ),
-        (
-            'webSourcePolicy',
-            (
-                'java/web/src/main/resources/static/js/session/detail.js',
-                'java/web/src/main/resources/templates/session/detail.html',
-                'java/tests/quality-gates/build.gradle.kts',
-                'config/web-quality-baselines.json',
-                'tests/playwright/session-detail.spec.js',
-            ),
-        ),
-        (
-            'javaCheck',
-            (
-                'java/core/src/main/java/example/Session.java',
-                'java/core/src/test/kotlin/example/SessionTest.kt',
-                'gradle/build-logic/src/main/kotlin/example/plugin.gradle.kts',
-                'build.gradle.kts',
-            ),
-        ),
-        (
-            'javaReusePolicy',
-            (
-                'java/core/src/main/java/example/Session.java',
-                'config/reuse-policy/policy.json',
-                'java/web/build.gradle.kts',
-            ),
-        ),
-    ],
-)
-def test_merged_gate_triggers_cover_each_maintenance_boundary(
-    gate_name: str, representative_paths: tuple[str, ...]
-) -> None:
-    patterns = gate_by_name(gate_name).trigger.paths
-    for path in representative_paths:
-        assert any(pattern_matches(path, pattern) for pattern in patterns), (gate_name, path)
+def test_repaired_triggers_use_current_paths_and_exclude_unrelated_gate_core() -> None:
+    scan_paths = gate_by_name('scanCommandSmoke').trigger.paths
+    sample_paths = gate_by_name('sessionSampleContracts').trigger.paths
+    agent_paths = gate_by_name('agentConfigurationPolicy').trigger.paths
+    web_paths = gate_by_name('webStaticRules').trigger.paths
+
+    assert 'java/index-store-sqlite/**' in scan_paths
+    assert 'java/index-sqlite/**' not in scan_paths
+    assert (
+        'java/scan-engine/src/main/java/com/feipi/session/browser/scan/artifact/**' in sample_paths
+    )
+    assert 'java/artifact-normalized/**' not in sample_paths
+    assert 'scripts/gates/**/*.py' not in agent_paths
+    assert all('scripts/gates/execution/' not in pattern for pattern in web_paths)
 
 
-def test_java_check_runs_complete_root_check_without_task_exclusions() -> None:
-    """javaCheck 必须真实执行完整 root check，不得隐藏原生任务。"""
-
-    step = gate_by_name('javaCheck').run.steps[0]
-
+def test_java_build_verification_runs_complete_root_check() -> None:
+    step = gate_by_name('javaBuildVerification').recipe.steps[0]
     assert step.tasks == ('check',)
     assert step.args == ('--parallel', '--build-cache')
     assert '-x' not in step.args
 
 
-def test_lookup_and_models_are_strict_and_frozen() -> None:
-    assert target_by_name('java-src').description.startswith('人工运行')
-    with pytest.raises(ValueError, match='Unknown quality gate'):
+def test_lookup_is_strict_frozen_and_has_no_old_aliases() -> None:
+    assert target_preset_by_name('java-source').description.startswith('人工运行')
+    with pytest.raises(ValueError, match='unknown Gate'):
         gate_by_name('missing')
-    with pytest.raises(ValueError, match='Unknown quality target'):
-        target_by_name('missing')
-    for name in REMOVED_GATES:
-        with pytest.raises(ValueError, match='Unknown quality gate'):
-            gate_by_name(name)
+    with pytest.raises(ValueError, match='unknown TargetPreset'):
+        target_preset_by_name('missing')
     with pytest.raises(FrozenInstanceError):
         CATALOG.gates = ()  # type: ignore[misc]
 
 
-def test_duplicate_unknown_and_unused_targets_fail_closed() -> None:
-    duplicate = replace(CATALOG, targets=(*CATALOG.targets, CATALOG.targets[0]))
+def test_duplicate_unknown_and_unused_target_presets_fail_closed() -> None:
+    duplicate = replace(
+        CATALOG, target_presets=(*CATALOG.target_presets, CATALOG.target_presets[0])
+    )
     with pytest.raises(ValueError, match='must not contain duplicates'):
-        validate_catalog_schema(duplicate)
+        validate_gate_catalog(duplicate)
 
-    gate = replace(CATALOG.gates[0], targets=('missing-target',))
-    with pytest.raises(ValueError, match='unknown Targets'):
-        validate_catalog_schema(_catalog_with_gate(gate))
+    gate = replace(CATALOG.gates[0], target_presets=('missing-target',))
+    with pytest.raises(ValueError, match='unknown TargetPresets'):
+        validate_gate_catalog(_catalog_with_gate(gate))
 
-    unused = replace(CATALOG.targets[0], name='unused')
+    unused = replace(CATALOG.target_presets[0], name='unused')
     with pytest.raises(ValueError, match='selects no Gate'):
-        validate_catalog_schema(replace(CATALOG, targets=(*CATALOG.targets, unused)))
+        validate_gate_catalog(replace(CATALOG, target_presets=(*CATALOG.target_presets, unused)))
 
 
-def test_trigger_description_path_and_timing_invariants_fail_closed() -> None:
+def test_trigger_description_path_and_duration_invariants_fail_closed() -> None:
     source = CATALOG.gates[0]
     mutations = (
         (replace(source, description='not Chinese.'), 'Chinese sentence'),
         (
             replace(source, trigger=GateTrigger(TriggerMode.ALWAYS, ('scripts/**',))),
-            'cannot contain paths',
+            'cannot contain',
         ),
         (replace(source, trigger=GateTrigger(TriggerMode.CHANGED)), 'requires paths'),
         (
             replace(source, trigger=GateTrigger(TriggerMode.CHANGED, ('../outside',))),
-            'invalid repository path',
+            'invalid repository',
         ),
         (
             replace(
                 source,
-                run=replace(
-                    source.run,
-                    target_seconds=replace(source.run.target_seconds, incremental=0),
+                recipe=replace(
+                    source.recipe,
+                    duration_expectations=replace(
+                        source.recipe.duration_expectations,
+                        incremental=0,
+                    ),
                 ),
             ),
             'positive integer',
@@ -274,58 +185,35 @@ def test_trigger_description_path_and_timing_invariants_fail_closed() -> None:
     )
     for gate, message in mutations:
         with pytest.raises(ValueError, match=message):
-            validate_catalog_schema(_catalog_with_gate(gate))
+            validate_gate_catalog(_catalog_with_gate(gate))
 
 
-def test_leaf_names_and_owner_fields_fail_closed() -> None:
-    source = gate_by_name('scriptSourceStandard')
-    duplicate_steps = (source.run.steps[0], source.run.steps[0])
+def test_recipe_step_names_and_owner_fields_fail_closed() -> None:
+    source = gate_by_name('scriptToolchainQuality')
+    duplicate_steps = (source.recipe.steps[0], source.recipe.steps[0])
     with pytest.raises(ValueError, match='must not contain duplicates'):
-        validate_catalog_schema(
-            _catalog_with_gate(replace(source, run=replace(source.run, steps=duplicate_steps)))
+        validate_gate_catalog(
+            _catalog_with_gate(
+                replace(source, recipe=replace(source.recipe, steps=duplicate_steps))
+            )
         )
 
-    reuse = gate_by_name('javaReusePolicy')
-    bad_task = replace(reuse.run.steps[0], tasks=('reuseStandardCpd', 'check'))
+    reuse = gate_by_name('javaDuplicationAudit')
+    bad_task = replace(reuse.recipe.steps[0], tasks=('reuseStandardCpd', 'check'))
     with pytest.raises(ValueError, match='exactly one item'):
-        validate_catalog_schema(
-            _catalog_with_gate(
-                replace(reuse, run=replace(reuse.run, steps=(bad_task, *reuse.run.steps[1:])))
-            )
+        validate_gate_catalog(
+            _catalog_with_gate(replace(reuse, recipe=replace(reuse.recipe, steps=(bad_task,))))
         )
 
-    web = gate_by_name('webSourcePolicy')
-    bad_rule = replace(web.run.steps[0], rules=('raw-innerhtml', 'other'))
-    with pytest.raises(ValueError, match='exactly one item'):
-        validate_catalog_schema(
-            _catalog_with_gate(
-                replace(web, run=replace(web.run, steps=(bad_rule, *web.run.steps[1:])))
-            )
-        )
-
-    command_with_rule = replace(source.run.steps[0], rules=('hidden-owner',))
-    with pytest.raises(ValueError, match='fields unused'):
-        validate_catalog_schema(
-            _catalog_with_gate(
-                replace(
-                    source,
-                    run=replace(source.run, steps=(command_with_rule, *source.run.steps[1:])),
-                )
-            )
-        )
-
-
-def test_duplicate_java_rule_owner_is_rejected() -> None:
-    source = gate_by_name('webSourcePolicy')
-    duplicate = replace(
-        source,
-        run=replace(
-            source.run,
-            steps=(
-                *source.run.steps,
-                RunStep('duplicateRule', RunKind.JAVA_RULE, rules=(source.run.steps[0].rules[0],)),
-            ),
-        ),
+    web = gate_by_name('webStaticRules')
+    duplicate_rule = RecipeStep(
+        'duplicateRule',
+        RecipeStepKind.JAVA_RULE,
+        rules=web.recipe.steps[0].rules,
     )
     with pytest.raises(ValueError, match='duplicate Java rule ownership'):
-        validate_catalog_schema(_catalog_with_gate(duplicate))
+        validate_gate_catalog(
+            _catalog_with_gate(
+                replace(web, recipe=replace(web.recipe, steps=(*web.recipe.steps, duplicate_rule)))
+            )
+        )

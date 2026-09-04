@@ -8,20 +8,20 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.gates.planner import plan
+from scripts.gates.planning import ChangeSnapshot, compile_gate_plan
 
 ROOT = Path(__file__).resolve().parents[1]
 EXPECTED_PATH_GATES = {
-    '.claude/agents/qwen-main-default.md': 'languagePolicy',
-    'skills/authoring/feipi-java-feature-dev/SKILL.md': 'governanceStructure',
-    'docs/acceptance-cases/features/HOOK_HARNESS.md': 'acceptanceCaseMapping',
-    'scripts/gates/planner.py': 'pythonHarnessTests',
-    'java/web/src/main/java/com/feipi/session/browser/X.java': 'javaCheck',
-    'build.gradle.kts': 'javaCheck',
-    'java/web/src/main/resources/templates/session-detail.html': 'browserInteraction',
-    '.qoder/settings.json': 'agentPolicy',
-    'scripts/session-browser.sh': 'scanScriptSmoke',
-    '.agents/experimental/new-policy.yaml': 'agentPolicy',
+    '.claude/agents/qwen-main-default.md': 'maintenanceLanguagePolicy',
+    'skills/authoring/feipi-java-feature-dev/SKILL.md': 'governanceLayoutValidation',
+    'docs/acceptance-cases/features/HOOK_HARNESS.md': 'acceptanceTraceability',
+    'scripts/gates/planning/plan_compiler.py': 'gateFrameworkTests',
+    'java/web/src/main/java/com/feipi/session/browser/X.java': 'javaBuildVerification',
+    'build.gradle.kts': 'javaBuildVerification',
+    'java/web/src/main/resources/templates/session-detail.html': 'browserBehaviorTests',
+    '.qoder/settings.json': 'agentConfigurationPolicy',
+    'scripts/session-browser.sh': 'scanCommandSmoke',
+    '.agents/experimental/new-policy.yaml': 'agentConfigurationPolicy',
 }
 
 
@@ -33,16 +33,18 @@ def _env() -> dict[str, str]:
     return env
 
 
-def test_dry_run_selects_harness_gates_for_agent_config_change() -> None:
+def test_plan_selects_governance_gates_for_agent_config_change() -> None:
     result = subprocess.run(
         [
             sys.executable,
             'scripts/gates/cli.py',
-            '--change-id',
-            'reset-minimal-agent-harness',
+            'plan',
+            '--mode',
+            'incremental',
             '--changed-files',
             '[".claude/agents/qwen-main-default.md"]',
-            '--dry-run',
+            '--format',
+            'json',
         ],
         cwd=ROOT,
         text=True,
@@ -53,10 +55,13 @@ def test_dry_run_selects_harness_gates_for_agent_config_change() -> None:
 
     combined = result.stdout + result.stderr
     assert result.returncode == 0, combined
-    assert {'languagePolicy', 'agentPolicy'} <= set(json.loads(combined)['gates'])
+    assert {'maintenanceLanguagePolicy', 'agentConfigurationPolicy'} <= {
+        item['id'] for item in json.loads(combined)['gates']
+    }
 
 
 def test_high_risk_paths_select_their_required_gate() -> None:
     for path, expected in EXPECTED_PATH_GATES.items():
-        selected = {gate.name for gate in plan([path]).gates}
+        snapshot = ChangeSnapshot('test', 'head', None, (path,), 'fingerprint')
+        selected = {gate.name for gate in compile_gate_plan(snapshot).gates}
         assert expected in selected, (path, selected)

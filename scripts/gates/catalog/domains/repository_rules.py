@@ -1,0 +1,192 @@
+"""负责声明仓库规则与隐私领域的 Gate；不负责执行领域 Check。
+
+由 Catalog registry 调用并汇总这些声明。"""
+
+from scripts.gates.catalog.gate_contracts import Gate
+from scripts.gates.catalog.recipe_dsl import (
+    changed,
+    python_check,
+    recipe,
+)
+
+GATES = (
+    Gate(
+        name='repositoryBoundaryAudit',
+        description='统一检查仓库文件、退役路径、Git 追踪和公开脚本入口边界。',
+        trigger=changed(
+            '.gitignore',
+            'AGENTS.md',
+            'CLAUDE.md',
+            '.github/**',
+            '.agents/**',
+            '.claude/**',
+            '.codex/**',
+            '.qoder/**',
+            'docs/**',
+            'harness/**',
+            'skills/**',
+            'src/session_browser/**',
+            'scripts/README.md',
+            'scripts/gates/**',
+        ),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            15,
+            30,
+            python_check(
+                'repositoryBoundaryAudit',
+                'repository.file-boundary',
+                '--root',
+                '{repo_root}',
+                '--all-tracked',
+            ),
+        ),
+    ),
+    Gate(
+        name='testSkipProhibition',
+        description='阻止 Python 与 Playwright 测试使用会产生 skipped 结果的 API。',
+        trigger=changed(
+            'tests/**/*.py',
+            'tests/**/*.js',
+            'tests/**/*.ts',
+            'tests/playwright/playwright.config.js',
+            'scripts/gates/checks/repository/check_no_python_playwright_skips.py',
+        ),
+        target_presets=('web-interface',),
+        recipe=recipe(
+            8,
+            15,
+            python_check(
+                'testSkipProhibition',
+                'repository.no-python-playwright-skips',
+            ),
+        ),
+    ),
+    Gate(
+        name='currentVersionPolicy',
+        description='检查仓库只描述当前版本和当前 Harness 状态。',
+        trigger=changed(
+            'README.md',
+            'docs/**',
+            'harness/**',
+            'java/**',
+            'openspec/specs/**',
+            'scripts/**',
+            'tests/**/*.py',
+            'scripts/gates/checks/repository/check_current_source_policy.py',
+            'tests/quality/test_current_source_policy.py',
+        ),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            10,
+            20,
+            python_check(
+                'currentVersionPolicy',
+                'repository.current-source-policy',
+            ),
+        ),
+    ),
+    Gate(
+        name='acceptanceTraceability',
+        description='检查验收用例表中的 ID 与自动化测试绑定完整一致。',
+        trigger=changed(
+            'docs/acceptance-cases/**/*.md',
+            'tests/**/*.py',
+            'tests/**/*.js',
+            'tests/**/*.ts',
+            'java/**/src/test/java/**/*.java',
+            'scripts/gates/checks/repository/check_acceptance_case_mapping.py',
+            'tests/checks/test_acceptance_case_mapping.py',
+            'pyproject.toml',
+        ),
+        target_presets=(),
+        recipe=recipe(
+            15,
+            30,
+            python_check(
+                'acceptanceTraceability',
+                'repository.acceptance-case-mapping',
+            ),
+        ),
+    ),
+    Gate(
+        name='testDataPrivacy',
+        description='确保测试输入数据受 Git 管理、可复现，并且不依赖个人电脑或真实 Session。',
+        trigger=changed(
+            'tests/**',
+            'java/**/src/test/**',
+            'scripts/gates/checks/repository/check_test_data_policy.py',
+        ),
+        target_presets=('gate-infrastructure', 'java-source'),
+        recipe=recipe(
+            15,
+            30,
+            python_check(
+                'testDataPrivacy',
+                'repository.test-data-policy',
+                '--repo-root',
+                '{repo_root}',
+            ),
+        ),
+    ),
+    Gate(
+        name='credentialLeakScan',
+        description='扫描仓库中的密钥、Token 与凭据形态内容。',
+        trigger=changed(
+            'tests/**',
+            'docs/**',
+            'java/**',
+            '.claude/**',
+            '.codex/**',
+            '.qoder/**',
+            '.agents/**',
+            'skills/**',
+            'harness/**',
+            'scripts/**',
+            'scripts/gates/checks/privacy/check_credential_leak.py',
+        ),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            20,
+            45,
+            python_check(
+                'credentialLeakScan',
+                'privacy.credential-leak',
+            ),
+        ),
+    ),
+    Gate(
+        name='maintenanceLanguagePolicy',
+        description='统一检查仓库政策文本与脚本注释符合中文维护规范。',
+        trigger=changed(
+            'AGENTS.md',
+            'CLAUDE.md',
+            'skills/**',
+            '.agents/**',
+            '.codex/**',
+            '.claude/**',
+            '.qoder/**',
+            'harness/**',
+            'openspec/changes/**',
+            'scripts/**/*.py',
+            'scripts/**/*.sh',
+            'config/technical-terms.json',
+        ),
+        target_presets=('agent-governance', 'gate-infrastructure', 'java-build'),
+        recipe=recipe(
+            18,
+            35,
+            python_check(
+                'maintenanceLanguagePolicy',
+                'repository.maintenance-language',
+            ),
+            python_check(
+                'scriptCommentLanguage',
+                'source.code-comment-language',
+                'scripts',
+                '--policy',
+                '{repo_root}/config/technical-terms.json',
+            ),
+        ),
+    ),
+)

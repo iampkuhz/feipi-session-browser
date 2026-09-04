@@ -3,8 +3,8 @@ from __future__ import annotations
 from pathlib import Path
 
 import yaml
-from scripts.gates.checks._framework import CheckStatus
-from scripts.gates.checks.agent import check_agent_document_policy as sync_gate
+from scripts.gates.checks.agent import check_documentation as sync_gate
+from scripts.gates.checks.check_protocol import CheckStatus
 
 ROOT = Path(__file__).resolve().parents[1]
 

@@ -23,7 +23,7 @@
 
 - 本次增量 Gate 全过才能完成；`BLOCKED` 表示检查完成后发现阻断问题，`FAIL` 表示 Gate 未能完成；两者都不得称 `PASS`。
 - 不得新增 Python/Playwright skip、skipif、fixme API。
-- 按任务范围显式运行相关检查；普通提交和交接统一运行 `python3 scripts/gates/cli.py --mode incremental`。
+- 按任务范围显式运行相关检查；普通提交和交接统一运行 `python3 scripts/gates/cli.py run --mode incremental`。
 - 改产品代码或测试：`./scripts/session-browser.sh test`。
 - 改 build 配置：触发 `java-build` target。
 - 改 Java 源码时参考 `openspec/specs/java-code-conciseness/spec.md`。

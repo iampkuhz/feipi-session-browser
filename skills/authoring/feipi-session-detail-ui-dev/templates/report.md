@@ -17,13 +17,13 @@
 
 | Gate | Result |
 |---|---|
-| `webResourceTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `webSourcePolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `webResourceContracts` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `webStaticRules` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | ↳ Java `css-ownership` rule | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `browserInteraction` | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `currentSourcePolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `browserBehaviorTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `currentVersionPolicy` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | ↳ Java `layout-inline-style` rule | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `webResourceTests` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `webResourceContracts` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | Node Playwright 交互门禁 | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | Node Playwright 布局门禁 | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | ↳ Java `raw-innerhtml` rule | <PASS/BLOCKED/FAIL/NOT_RUN> |

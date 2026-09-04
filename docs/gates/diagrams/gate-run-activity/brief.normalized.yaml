@@ -1,0 +1,31 @@
+diagram_id: gate-run-activity
+diagram_type: activity
+title: "Gate 计划、执行、证据与重跑流程"
+summary: "展示从确定性输入快照、Trigger 匹配和 GatePlan，到结果分类、不可变 RunReceipt 与 canonical rerun 的控制流程。"
+
+steps:
+  - {id: S1, name: 捕获输入快照}
+  - {id: S2, name: 匹配 Trigger}
+  - {id: S3, name: 冻结 GatePlan}
+  - {id: S4, name: 执行 GatePlan}
+  - {id: S5, name: 分类执行状态}
+  - {id: S6, name: 写入不可变收据}
+  - {id: S7, name: 生成规范重跑}
+
+transitions:
+  - {from: S1, to: S2}
+  - {from: S2, to: S3}
+  - {from: S3, to: S4}
+  - {from: S4, to: S5}
+  - {from: S5, to: S6}
+  - {from: S6, to: S7}
+
+narrative_step_ids: [S1, S2, S3, S4, S5, S6, S7]
+
+layout:
+  direction: top_to_bottom
+  include_legend: false
+
+out_of_scope:
+  - 并行执行、自动 retry 与 hard timeout
+  - 各领域 RecipeStep 的具体命令参数

@@ -11,21 +11,20 @@
 
 ## 输入
 
-- 可选参数：变更 ID（change id）。
-- 如无参数，读取 `ACTIVE_CHANGE_ID` 环境变量或 `tmp/active_change.json` 文件。
-- 读取 `tmp/quality/<change-id>/quality-gate-summary.session-detail.json`。
-- 读取 `notPassReasons` / `artifacts` 中引用的每个未通过 Gate 产物。
+- 可选参数：明确的 run id。
+- 如无参数，读取 `tmp/quality/runs/latest.json` 指向的 immutable run。
+- 读取 `tmp/quality/runs/<run-id>/summary.json`、`plan.json` 和 `logs/`。
 
 ## 步骤
 
-1. **读取质量门禁摘要** `tmp/quality/<change-id>/quality-gate-summary.session-detail.json`。
-   - 确认哪些顶层门禁失败了（`webSourcePolicy`、`webResourceTests`、`browserLayout`）。
-   - 读取 `notPassReasons` 获取失败代码和信息。
+1. **读取质量门禁摘要** `tmp/quality/runs/<run-id>/summary.json`。
+   - 确认哪些顶层门禁失败了（`webStaticRules`、`webResourceContracts`、`browserVisualTests`）。
+   - 读取 `gateResults` 的状态、reason、RecipeStep 和日志路径。
 
 2. **读取具体门禁结果 JSON**。
-   - `webSourcePolicy`：展开 Java `static-resource-contract`、`template-contract`、`css-ownership` 等内部 rule 输出。
-   - `webResourceTests`：读取 `:java:web:test` 中资源契约测试的输出。
-   - `browserLayout`：读取 `session-detail-layout-result.json` 获取计算指标。
+   - `webStaticRules`：展开 Java `static-resource-contract`、`template-contract`、`css-ownership` 等内部 rule 输出。
+   - `webResourceContracts`：读取 `:java:web:test` 中资源契约测试的输出。
+   - `browserVisualTests`：读取 `session-detail-layout-result.json` 获取计算指标。
 
 3. **将失败代码映射到根因**：
    - `MISSING_PHASE1_HIDE_LEFT_OVERRIDE` → CSS 特异性级联冲突。
@@ -48,7 +47,7 @@
    - 说明哪些是确定性判断，哪些是 LLM 推断。
 
 6. **提供精确验证命令**：
-   - `python3 scripts/gates/cli.py --target session-detail`
+   - `python3 scripts/gates/cli.py run --mode full --target web-interface`
    - 或具体门禁：`./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
 
 ## 输出格式
@@ -68,7 +67,7 @@
 2. [具体改动]
 
 验证命令：
-python3 scripts/gates/cli.py --target session-detail
+python3 scripts/gates/cli.py run --mode full --target web-interface
 
 确定性 vs 推断：[说明哪些是确定性的，哪些是 LLM 推断的]
 ```

@@ -13,7 +13,7 @@ def _read(relative: str) -> str:
 
 def test_subagent_protocol_checker_passes():
     result = subprocess.run(
-        [sys.executable, "-m", "scripts.gates.checks", "agent.document-policy"],
+        [sys.executable, "-m", "scripts.gates.checks", "agent.documentation"],
         cwd=ROOT,
         text=True,
         stdout=subprocess.PIPE,
@@ -21,7 +21,7 @@ def test_subagent_protocol_checker_passes():
         check=False,
     )
     assert result.returncode == 0, result.stdout
-    assert "GATE_RESULT status=PASS check=agent.document-policy" in result.stdout
+    assert "GATE_RESULT status=PASS check=agent.documentation" in result.stdout
 
 
 def test_required_handoff_fields_are_declared_for_all_platforms():

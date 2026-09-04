@@ -15,7 +15,7 @@ repos:
       - id: python-comment-language
         name: python comment language
         entry: >-
-          python3 scripts/gates/cli.py --mode incremental --gate languagePolicy
+          python3 scripts/gates/cli.py run --mode incremental --gate maintenanceLanguagePolicy
         language: system
         types_or: [python, pyi]
         pass_filenames: false

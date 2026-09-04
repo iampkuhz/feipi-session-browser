@@ -11,7 +11,7 @@ import re
 from typing import TYPE_CHECKING
 
 import yaml
-from scripts.gates.checks._framework import CheckResult, argument_parser, repository_root
+from scripts.gates.checks.check_protocol import CheckResult, argument_parser, repository_root
 
 if TYPE_CHECKING:
     from pathlib import Path

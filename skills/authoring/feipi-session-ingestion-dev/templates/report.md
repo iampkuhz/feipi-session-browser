@@ -33,7 +33,7 @@
 |------|------|------|
 | `./scripts/session-browser.sh test` | ✅ / ❌ | |
 | `./gradlew check` | ✅ / ❌ | |
-| `python3 scripts/gates/cli.py --mode incremental` | ✅ / ❌ | |
+| `python3 scripts/gates/cli.py run --mode incremental` | ✅ / ❌ | |
 
 ## 风险
 

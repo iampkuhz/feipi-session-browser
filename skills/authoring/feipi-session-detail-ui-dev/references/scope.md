@@ -23,17 +23,17 @@
 1. `src/templates/` → Jinja 模板文件，session detail 页面结构。
 2. `src/static/css/` → CSS 样式文件，ownership 分区。
 3. `src/static/js/` → JS 交互脚本，action handler 绑定。
-4. Gate `webResourceTests` → 静态检查入口。
-5. catalog Gate `webSourcePolicy` / 内部 Java `css-ownership` rule → CSS ownership 校验。
-6. Gate `browserInteraction` → 用真实浏览器行为验证 JS handler。
+4. Gate `webResourceContracts` → 静态检查入口。
+5. catalog Gate `webStaticRules` / 内部 Java `css-ownership` rule → CSS ownership 校验。
+6. Gate `browserBehaviorTests` → 用真实浏览器行为验证 JS handler。
 7. `config/web-quality-baselines.json` → `raw-innerhtml` 与 `layout-inline-style` 的 canonical baseline section；
    CSS ownership 由 Java rule 管理，并继续写出按运行隔离的 artifact；该 artifact 不是 baseline。
 
 ## 常见误区
 
 - 误以为可以直接添加全局 CSS 类。实际每个 CSS 规则必须有明确 ownership，通过 catalog Gate
-  `webSourcePolicy` 的 `css-ownership` rule 校验。
-- 误以为 inline style 是快速修复的好方法。实际 inline style 会被 catalog Gate `webSourcePolicy` 的
+  `webStaticRules` 的 `css-ownership` rule 校验。
+- 误以为 inline style 是快速修复的好方法。实际 inline style 会被 catalog Gate `webStaticRules` 的
   `layout-inline-style` rule 拦截。
 - 误以为删除模板中的按钮只需改 HTML。实际必须同步删除对应的 JS action handler。
 - 误以为修改 macro 只影响当前页面。实际必须检查所有调用点。
@@ -45,8 +45,8 @@
 - `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
 - `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js`
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js`
-- `python3 scripts/gates/cli.py --mode incremental --gate browserInteraction`
+- `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership`
-- `python3 scripts/gates/cli.py --mode incremental --gate currentSourcePolicy`
+- `python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml`

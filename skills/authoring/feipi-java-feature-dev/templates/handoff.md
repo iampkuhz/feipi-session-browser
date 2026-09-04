@@ -33,7 +33,7 @@
 按需追加：
 
 ```bash
-python3 scripts/gates/cli.py --mode incremental
+python3 scripts/gates/cli.py run --mode incremental
 ```
 
 `--mode full` 仅用于发布、周期审计或大迁移，不作为普通提交或交接的默认模式。

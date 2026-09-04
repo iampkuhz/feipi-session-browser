@@ -46,14 +46,14 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 6. **禁止复制 `~/.claude`、`~/.codex`、`~/.qoder` 原始文件入仓**：检查变更中没有从用户 home 目录复制真实文件。
 7. **对必须展示的字段给最小化片段**：只展示字段名前缀或占位符（如 `sk-***`、`<REDACTED>`），不展示完整值。
 8. **增加 gate 或 fixture contract**：如果需要新增检查，在 `scripts/gates/checks/privacy/` 创建对应
-   leaf check，并接入共享 check registry。
-9. **运行隐私 gate**：执行 `testDataPolicy` 和 `secretLikeContent`，确认无敏感数据泄露。
+   Python Check，并接入共享 Check registry。
+9. **运行隐私 gate**：执行 `testDataPrivacy` 和 `credentialLeakScan`，确认无敏感数据泄露。
 10. **输出风险和残留敏感字段**：在报告中列出仍可能存在的风险，如第三方 API 返回内容中的用户数据。
 
 ## 文件边界
 
 - Skill 源目录：`skills/authoring/feipi-privacy-redaction-dev/`。
-- 隐私 Gate：`testDataPolicy`、`secretLikeContent`。
+- 隐私 Gate：`testDataPrivacy`、`credentialLeakScan`。
 - 测试 fixture 目录：`tests/fixtures/synthetic/`。
 - 配置引用：`harness/skill-registry.yaml`、`harness/manifest.yaml`。
 
@@ -61,9 +61,9 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 
 ## 验证门禁
 
-- `python3 scripts/gates/cli.py --mode incremental --gate testDataPolicy` — 检测真实 session fixture。
-- `python3 scripts/gates/cli.py --mode incremental --gate secretLikeContent` — 检测类密钥内容。
-- `python3 scripts/gates/cli.py --mode incremental --gate governanceStructure` — registry 完整性。
+- `python3 scripts/gates/cli.py run --mode incremental --gate testDataPrivacy` — 检测真实 session fixture。
+- `python3 scripts/gates/cli.py run --mode incremental --gate credentialLeakScan` — 检测类密钥内容。
+- `python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation` — registry 完整性。
 - `python3 scripts/harness/validate_harness_structure.py` — minimal harness 结构完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
 

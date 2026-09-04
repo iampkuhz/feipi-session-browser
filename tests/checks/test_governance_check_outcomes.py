@@ -6,12 +6,12 @@ import subprocess
 from typing import TYPE_CHECKING
 
 import pytest
-from scripts.gates.checks._framework import CheckStatus
-from scripts.gates.checks.agent import check_agent_document_policy as document_policy
-from scripts.gates.checks.agent import check_agent_runtime_policy as runtime_policy
+from scripts.gates.checks.agent import check_documentation as document_policy
+from scripts.gates.checks.agent import check_entrypoints as runtime_policy
 from scripts.gates.checks.agent import check_skill_registry as skill_registry
+from scripts.gates.checks.check_protocol import CheckStatus
+from scripts.gates.checks.repository import check_maintenance_language as language_policy
 from scripts.gates.checks.source import check_code_comment_language as comment_language
-from scripts.gates.checks.source import check_language_policy as language_policy
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -143,7 +143,7 @@ def test_language_policy_blocks_english_narrative(line: str) -> None:
     [
         '默认使用简体中文, 命令名如 `pytest` 保持英文。',
         'model = "gpt-5.4-mini"',
-        '- Validation: `python3 scripts/gates/cli.py --target harness` passed.',
+        '- Validation: `python3 scripts/gates/cli.py run --mode full --target agent-governance` passed.',
     ],
 )
 def test_language_policy_allows_chinese_or_technical_lines(line: str) -> None:

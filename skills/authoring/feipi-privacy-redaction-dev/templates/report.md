@@ -19,9 +19,9 @@
 
 列出运行的 gate 及结果：
 
-- `testDataPolicy` — PASS/FAIL
-- `secretLikeContent` — PASS/FAIL
-- `governanceStructure` — PASS/FAIL
+- `testDataPrivacy` — PASS/FAIL
+- `credentialLeakScan` — PASS/FAIL
+- `governanceLayoutValidation` — PASS/FAIL
 - `minimal harness structure` — PASS/FAIL
 - `doctor.sh` — PASS/FAIL
 

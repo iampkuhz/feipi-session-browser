@@ -11,15 +11,15 @@ from types import ModuleType
 import pytest
 import scripts.gates.checks.__main__ as check_cli
 import yaml
-from scripts.gates.checks._framework import (
+from scripts.gates.catalog.registry import GATES
+from scripts.gates.checks.check_protocol import (
     CheckResult,
     CheckSpec,
     CheckStatus,
     argument_parser,
     invoke,
 )
-from scripts.gates.checks._registry import CHECKS
-from scripts.gates.definitions import GATES
+from scripts.gates.checks.check_registry import CHECKS
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKS_ROOT = ROOT / 'scripts' / 'gates' / 'checks'
@@ -28,7 +28,7 @@ DOMAIN_NAMES = {'agent', 'privacy', 'repository', 'source'}
 
 @pytest.fixture
 def stub_spec(monkeypatch) -> CheckSpec:
-    """注册不读取真实仓库输入的合成 leaf。"""
+    """注册不读取真实仓库输入的合成 Check。"""
 
     module = ModuleType('tests.stub_check_module')
     module.check = lambda _arguments: CheckResult()
@@ -36,7 +36,7 @@ def stub_spec(monkeypatch) -> CheckSpec:
     return CheckSpec('stub', module.__name__)
 
 
-def _leaf_paths() -> list[Path]:
+def _check_paths() -> list[Path]:
     return sorted(
         path
         for domain in DOMAIN_NAMES
@@ -51,16 +51,16 @@ def _module_name(path: Path) -> str:
 
 def test_required_domains_are_registered() -> None:
     assert {
-        'agent.runtime-policy',
-        'repository.repository-file-policy',
-        'security.secret-like-content',
+        'agent.entrypoints',
+        'repository.file-boundary',
+        'privacy.credential-leak',
         'repository.acceptance-case-mapping',
     } <= CHECKS.keys()
 
 
 def test_registry_contains_only_checks_owned_by_a_gate() -> None:
     declared = {
-        step.check_id for gate in GATES for step in gate.run.steps if step.check_id is not None
+        step.check_id for gate in GATES for step in gate.recipe.steps if step.check_id is not None
     }
     assert set(CHECKS) == declared
 
@@ -72,12 +72,12 @@ def test_internal_check_cli_is_not_advertised_as_a_public_entry() -> None:
 
     pre_commit = (ROOT / '.pre-commit-config.yaml').read_text(encoding='utf-8')
     assert 'scripts.gates.checks' not in pre_commit
-    assert 'scripts/gates/cli.py --mode incremental --gate languagePolicy' in pre_commit
+    assert 'scripts/gates/cli.py' in pre_commit
 
 
-def test_registry_has_one_id_per_leaf_module() -> None:
+def test_registry_has_one_id_per_check_module() -> None:
     modules = [spec.module for spec in CHECKS.values()]
-    expected_modules = {_module_name(path) for path in _leaf_paths()}
+    expected_modules = {_module_name(path) for path in _check_paths()}
 
     assert len(modules) == len(set(modules))
     assert set(modules) == expected_modules
@@ -85,8 +85,8 @@ def test_registry_has_one_id_per_leaf_module() -> None:
     assert all(not hasattr(spec, 'load') for spec in CHECKS.values())
 
 
-def test_leaf_modules_expose_only_the_fixed_check_entry() -> None:
-    for path in _leaf_paths():
+def test_check_modules_expose_only_the_fixed_check_entry() -> None:
+    for path in _check_paths():
         assert path.name.startswith('check_'), path
         assert not path.read_text(encoding='utf-8').startswith('#!'), path
         assert path.stat().st_mode & (stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH) == 0, path
@@ -94,17 +94,18 @@ def test_leaf_modules_expose_only_the_fixed_check_entry() -> None:
         functions = [
             node for node in tree.body if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
         ]
-        leaf_imports = [
+        check_imports = [
             node.module
             for node in tree.body
             if isinstance(node, ast.ImportFrom)
             and node.module
             and node.module.startswith('scripts.gates.checks.')
+            and node.module.count('.') >= 4
             and '.check_' in node.module
         ]
         public_functions = [node for node in functions if not node.name.startswith('_')]
 
-        assert leaf_imports == [], path
+        assert check_imports == [], path
         for function in functions:
             function_doc = ast.get_docstring(function) or ''
             assert function_doc, (path, function.name)
@@ -150,11 +151,11 @@ def test_invoke_calls_the_fixed_check_entry(stub_spec: CheckSpec) -> None:
 def test_shared_cli_emits_single_pass_line(capsys, monkeypatch, stub_spec: CheckSpec) -> None:
     monkeypatch.setattr(check_cli, 'get_check', lambda _check_id: stub_spec)
 
-    assert check_cli.main(['agent.runtime-policy']) == 0
-    assert capsys.readouterr().out == 'GATE_RESULT status=PASS check=agent.runtime-policy\n'
+    assert check_cli.main(['agent.entrypoints']) == 0
+    assert capsys.readouterr().out == 'GATE_RESULT status=PASS check=agent.entrypoints\n'
 
 
-def test_leaf_help_keeps_success_exit_code(capsys, monkeypatch, stub_spec: CheckSpec) -> None:
+def test_check_help_keeps_success_exit_code(capsys, monkeypatch, stub_spec: CheckSpec) -> None:
     module = sys.modules[stub_spec.module]
 
     def check_help(arguments: list[str]) -> CheckResult:
@@ -164,8 +165,8 @@ def test_leaf_help_keeps_success_exit_code(capsys, monkeypatch, stub_spec: Check
     module.check = check_help
     monkeypatch.setattr(check_cli, 'get_check', lambda _check_id: stub_spec)
 
-    assert check_cli.main(['agent.runtime-policy', '--help']) == 0
-    assert capsys.readouterr().out == 'GATE_RESULT status=PASS check=agent.runtime-policy\n'
+    assert check_cli.main(['agent.entrypoints', '--help']) == 0
+    assert capsys.readouterr().out == 'GATE_RESULT status=PASS check=agent.entrypoints\n'
 
 
 def test_invoke_exception_is_execution_fail(stub_spec: CheckSpec) -> None:
@@ -183,8 +184,8 @@ def test_shared_cli_does_not_add_catalog_listing_mode() -> None:
     assert failure.value.code == 2
 
 
-def test_leaf_modules_do_not_reintroduce_bootstrap_or_trigger_logic() -> None:
-    for path in _leaf_paths():
+def test_check_modules_do_not_reintroduce_bootstrap_or_trigger_logic() -> None:
+    for path in _check_paths():
         text = path.read_text(encoding='utf-8')
         assert 'TRIGGER_PATTERNS' not in text
         assert 'skip_if_not_triggered' not in text

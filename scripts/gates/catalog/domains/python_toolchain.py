@@ -1,0 +1,141 @@
+"""负责声明 Python 工具链领域的 Gate；不负责运行 Python 工具。
+
+由 Catalog registry 调用并汇总这些声明。"""
+
+from scripts.gates.catalog.gate_contracts import Gate
+from scripts.gates.catalog.recipe_dsl import (
+    changed,
+    command,
+    python_check,
+    recipe,
+)
+
+GATES = (
+    Gate(
+        name='scriptToolchainQuality',
+        description='统一检查 Python 格式、静态问题、依赖声明、安全与死代码，以及 Shell 语法。',
+        trigger=changed(
+            'pyproject.toml',
+            'scripts/**/*.py',
+            'tests/**/*.py',
+            'scripts/**/*.sh',
+        ),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            80,
+            165,
+            command(
+                'pythonFormat',
+                '{dev_python}',
+                '-m',
+                'ruff',
+                'format',
+                '--check',
+                '.',
+            ),
+            command(
+                'pythonLint',
+                '{dev_python}',
+                '-m',
+                'ruff',
+                'check',
+                '.',
+            ),
+            command(
+                'bashSyntax',
+                'bash',
+                '-n',
+                append_globs=('scripts/**/*.sh',),
+            ),
+            command(
+                'pythonDependencyDeclarations',
+                '{dev_python}',
+                '-m',
+                'deptry',
+                'scripts',
+            ),
+            command(
+                'pythonSourceSecurity',
+                '{dev_python}',
+                '-m',
+                'bandit',
+                '-q',
+                '-c',
+                'pyproject.toml',
+                '-r',
+                'scripts',
+                '--severity-level',
+                'high',
+            ),
+            command(
+                'pythonDeadCode',
+                '{dev_python}',
+                '-m',
+                'vulture',
+            ),
+        ),
+    ),
+    Gate(
+        name='gateFrameworkTests',
+        description='运行 Harness、Gate 与质量契约的固定 Pytest 单测集合。',
+        trigger=changed(
+            'pyproject.toml',
+            'scripts/gates/**/*.py',
+            'scripts/gates/checks/**/*.py',
+            'scripts/harness/**/*.py',
+            'scripts/openspec/**/*.py',
+            'tests/gates/**/*.py',
+            'tests/checks/**/*.py',
+            'tests/harness/**/*.py',
+            'tests/misc/**/*.py',
+            'tests/quality/**/*.py',
+            'tests/*.py',
+        ),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            60,
+            180,
+            command(
+                'gateFrameworkTests',
+                '{dev_python}',
+                '-m',
+                'pytest',
+                '-W',
+                'error',
+                'tests/harness',
+                'tests/gates',
+                'tests/checks',
+                'tests/quality',
+                'tests/misc',
+                required_paths=(
+                    'tests/harness',
+                    'tests/gates',
+                    'tests/checks',
+                    'tests/quality',
+                    'tests/misc',
+                ),
+                append_globs=('tests/test_*.py',),
+            ),
+        ),
+    ),
+    Gate(
+        name='pythonDependencyAudit',
+        description='审计 Python 锁定依赖中的已知漏洞。',
+        trigger=changed(
+            'pyproject.toml',
+            'uv.lock',
+        ),
+        target_presets=('gate-infrastructure',),
+        recipe=recipe(
+            60,
+            120,
+            python_check(
+                'pythonDependencyAudit',
+                'repository.python-dependency-vulnerabilities',
+                '--root',
+                '{repo_root}',
+                runtime='dev',
+            ),
+        ),
+    ),
+)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from scripts.gates.checks.repository import check_repository_file_policy as checker
+from scripts.gates.checks.repository import check_file_boundary as checker
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -29,10 +29,10 @@ def test_scan_references_extracts_only_explicit_script_commands(tmp_path: Path) 
     source.write_text(
         "\n".join(
             (
-                "`python3 scripts/gates/cli.py --mode incremental`",
+                "`python3 scripts/gates/cli.py run --mode incremental`",
                 "`bash scripts/harness/doctor.sh`",
                 "`./scripts/session-browser.sh test`",
-                "reference scripts/gates/catalog.py without executing it",
+                "reference scripts/gates/catalog/registry.py without executing it",
             )
         ),
         encoding="utf-8",

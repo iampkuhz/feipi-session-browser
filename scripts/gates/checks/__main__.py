@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import argparse
 
-from scripts.gates.checks._framework import CheckStatus, invoke
-from scripts.gates.checks._registry import CHECKS, get_check
+from scripts.gates.checks.check_protocol import CheckStatus, invoke
+from scripts.gates.checks.check_registry import CHECKS, get_check
 
 
 def build_parser() -> argparse.ArgumentParser:

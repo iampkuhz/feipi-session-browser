@@ -74,13 +74,13 @@ description: 用于本仓库 session ingestion / token attribution 专项开发�
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
 - `./gradlew check` — 模块边界检查。
-- `python3 scripts/gates/cli.py --mode incremental` — 收口前增量 quality gates。
+- `python3 scripts/gates/cli.py run --mode incremental` — 收口前增量 quality gates。
 
 选择策略：
 
 - 只改 parser 或数据模型 → 至少运行 `test` + `Gradle check`。
 - 改 schema 契约 → 运行 `test` + `Gradle check`，由 Java 测试验证真实 schema 语义。
-- 收口前 → 运行 `python3 scripts/gates/cli.py --mode incremental`。
+- 收口前 → 运行 `python3 scripts/gates/cli.py run --mode incremental`。
 
 ## 输出格式
 

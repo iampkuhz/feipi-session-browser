@@ -62,14 +62,14 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
 - `./gradlew check` — 模块边界、package 归属、forbidden import。
-- `python3 scripts/gates/cli.py --mode incremental` — 根据当前改动自动选择并运行相关 Gate。
+- `python3 scripts/gates/cli.py run --mode incremental` — 根据当前改动自动选择并运行相关 Gate。
 
 选择策略：
 
 - 只改 Java 源码 → 至少运行 `test` + `Gradle check`。
 - 改构建配置或模块依赖 → 必须运行 `./gradlew check`。
-- 普通提交或交接收口前 → 运行 `python3 scripts/gates/cli.py --mode incremental`。
-- 发布、周期审计或大迁移 → 运行 `python3 scripts/gates/cli.py --mode full`。
+- 普通提交或交接收口前 → 运行 `python3 scripts/gates/cli.py run --mode incremental`。
+- 发布、周期审计或大迁移 → 运行 `python3 scripts/gates/cli.py run --mode full`。
 
 ## 输出格式
 

@@ -12,7 +12,7 @@ import os
 import re
 from pathlib import Path
 
-from scripts.gates.checks._framework import CheckResult, argument_parser
+from scripts.gates.checks.check_protocol import CheckResult, argument_parser
 
 # 当前态文档和源码中禁止保留的历史版本标记。
 HISTORICAL_VERSION_PATTERNS = [

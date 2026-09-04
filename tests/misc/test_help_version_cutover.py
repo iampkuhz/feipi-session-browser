@@ -256,6 +256,7 @@ def test_quality_defaults_to_incremental_gate(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         'PY_ARG=<scripts/gates/cli.py>',
+        'PY_ARG=<run>',
         'PY_ARG=<--mode>',
         'PY_ARG=<incremental>',
     ]
@@ -267,10 +268,11 @@ def test_quality_forwards_explicit_gate_arguments(tmp_path: Path) -> None:
     result = _run_shell(
         script,
         'quality',
+        'plan',
         '--mode',
         'full',
-        '--changed-file',
-        'path with spaces.java',
+        '--format',
+        'json',
         cwd=tmp_path,
         env=_quality_env(tmp_path),
     )
@@ -278,10 +280,11 @@ def test_quality_forwards_explicit_gate_arguments(tmp_path: Path) -> None:
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines() == [
         'PY_ARG=<scripts/gates/cli.py>',
+        'PY_ARG=<plan>',
         'PY_ARG=<--mode>',
         'PY_ARG=<full>',
-        'PY_ARG=<--changed-file>',
-        'PY_ARG=<path with spaces.java>',
+        'PY_ARG=<--format>',
+        'PY_ARG=<json>',
     ]
 
 

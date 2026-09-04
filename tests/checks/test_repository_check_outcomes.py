@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import pytest
-from scripts.gates.checks._framework import CheckStatus
-from scripts.gates.checks.privacy import check_secret_like_content as secret_policy
+from scripts.gates.checks.check_protocol import CheckStatus
+from scripts.gates.checks.privacy import check_credential_leak as secret_policy
 from scripts.gates.checks.repository import check_current_source_policy as current_source
+from scripts.gates.checks.repository import check_file_boundary as repository_files
 from scripts.gates.checks.repository import check_no_python_playwright_skips as no_skips
-from scripts.gates.checks.repository import check_repository_file_policy as repository_files
 from scripts.gates.checks.repository import check_test_data_policy as test_data
 
 

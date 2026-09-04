@@ -17,7 +17,7 @@
 | Gate | Result |
 |---|---|
 | <触发失败的 gate> | <PASS/BLOCKED/FAIL/NOT_RUN> |
-| `governanceStructure` | <PASS/BLOCKED/FAIL/NOT_RUN> |
+| `governanceLayoutValidation` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | `minimal harness structure` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 | `doctor.sh` | <PASS/BLOCKED/FAIL/NOT_RUN> |
 

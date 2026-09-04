@@ -36,8 +36,8 @@
 按需追加：
 
 ```bash
-python3 scripts/gates/cli.py --mode incremental --gate browserInteraction
-python3 scripts/gates/cli.py --mode incremental --gate currentSourcePolicy
+python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests
+python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style
 ./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
 npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js

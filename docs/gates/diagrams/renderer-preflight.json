@@ -1,0 +1,19 @@
+{
+  "schema_version": "1",
+  "final_status": "success",
+  "renderer_url": "http://127.0.0.1:8199",
+  "blocked_reason": "",
+  "issue": "",
+  "connect_timeout_seconds": 1,
+  "total_timeout_seconds": 2,
+  "elapsed_ms": 538.781,
+  "http_requests": 1,
+  "probe_attempts": 1,
+  "podman_start_attempted": false,
+  "podman_start_result": "not_needed",
+  "podman_start_exit_code": null,
+  "podman_start_timeout_seconds": 30,
+  "podman_readiness_delay_seconds": 1,
+  "startup_policy": "podman_once",
+  "process_management_allowed": false
+}

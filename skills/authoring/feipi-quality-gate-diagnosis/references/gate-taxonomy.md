@@ -1,13 +1,13 @@
 # Gate 诊断分类
 
-本页只提供失败分类，不保存 Gate 清单。当前 Target、Gate、Trigger、mode 与命令必须从 `scripts/gates/catalog.py` 和 `python3 scripts/gates/cli.py --dry-run` 派生。
+本页只提供失败分类，不保存 Gate 清单。当前 TargetPreset、Gate、Trigger 与命令必须从 `cli.py list/explain/plan` 派生。
 
 ## 增量交付检查
 
 显式入口：
 
 ```bash
-python3 scripts/gates/cli.py --mode incremental
+python3 scripts/gates/cli.py run --mode incremental
 ```
 
 所有已触发 Gate 必须完成并通过。`BLOCKED` 表示检查已完成但结论阻断交付；`FAIL` 表示 Gate 未能完成。
@@ -20,7 +20,7 @@ python3 scripts/gates/cli.py --mode incremental
 ## 领域分类
 
 - **Harness/OpenSpec**：目录结构、agent policy、skill registry、active change 或规格 contract。
-- **Gate framework**：catalog、planner、executor、resource lock、receipt 或报告。
+- **Gate framework**：Catalog、Planning、Execution、Evidence、Presentation 或 Maintenance。
 - **Java/build**：编译、测试、Javadoc、静态分析、Gradle 配置或发行 task。
 - **UI/browser**：模板、CSS、交互、布局、fixture server 或 Playwright contract。
 - **数据/隐私**：index、session sample、敏感内容与脱敏 contract。

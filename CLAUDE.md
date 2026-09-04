@@ -15,7 +15,7 @@
 
 - Scripts 与 Gate 的目录职责和公开命令从 `scripts/README.md` 开始定位。
 - 按任务范围显式运行验证；普通提交和交接命令是
-  `python3 scripts/gates/cli.py --mode incremental`。
+  `python3 scripts/gates/cli.py run --mode incremental`。
 - `BLOCKED` 表示检查完成后发现阻断问题；`FAIL` 表示 Gate 未能完成；两者都不得描述为 `PASS`。
 
 ## Subagent 协议索引

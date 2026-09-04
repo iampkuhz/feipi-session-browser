@@ -20,8 +20,8 @@
 ## 关键路径
 
 - `skills/authoring/feipi-privacy-redaction-dev/` — skill 源目录。
-- Gate `testDataPolicy` — 测试数据来源与可复现性门禁。
-- Gate `secretLikeContent` — 类密钥内容门禁。
+- Gate `testDataPrivacy` — 测试数据来源与可复现性门禁。
+- Gate `credentialLeakScan` — 类密钥内容门禁。
 - `tests/fixtures/synthetic/` — synthetic fixture 目录。
 - `harness/skill-registry.yaml` — skill registry。
 - `harness/manifest.yaml` — 最小 harness 清单。
@@ -35,7 +35,7 @@
 
 ## 触发门禁
 
-- `testDataPolicy` — 扫描测试 fixture、`docs/`、Qoder 配置和 harness report，检测真实 session 标记。
-- `secretLikeContent` — 扫描 `tests/`、`docs/`、`java/`、agent 平台入口和共享 skill，检测 `sk-` token、`Authorization: Bearer`、`api_key` 赋值。
-- `governanceStructure` — 确认 skill registry 条目完整。
+- `testDataPrivacy` — 扫描测试 fixture、`docs/`、Qoder 配置和 harness report，检测真实 session 标记。
+- `credentialLeakScan` — 扫描 `tests/`、`docs/`、`java/`、agent 平台入口和共享 skill，检测 `sk-` token、`Authorization: Bearer`、`api_key` 赋值。
+- `governanceLayoutValidation` — 确认 skill registry 条目完整。
 - `minimal harness structure` — 确认 minimal harness 与 skill 入口完整。

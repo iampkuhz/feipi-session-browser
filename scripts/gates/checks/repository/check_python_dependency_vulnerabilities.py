@@ -14,7 +14,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from scripts.gates.checks._framework import CheckResult, argument_parser, repository_root
+from scripts.gates.checks.check_protocol import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
 _NETWORK_ENV_KEYS = (

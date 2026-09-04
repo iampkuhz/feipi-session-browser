@@ -1,7 +1,6 @@
-# Java 质量门 —— 三平台 CI 与供应链安全
-# 所有平台并行执行 compile/test/check/launcher smoke；
-# Linux 额外运行 qualityFull + distribution + 中文注释检查。
-name: Java Quality
+# Java 跨平台可移植性验证；统一 Gate receipt 由 quality.yml 负责。
+# 所有平台并行执行 compile/test/check/launcher smoke；Linux 额外验证 distribution。
+name: Java Portability
 
 on:
   push:
@@ -38,9 +37,9 @@ permissions:
 
 jobs:
   # ============================================================
-  # 三平台并行 —— compile / test / check / launcher smoke
+  # 三平台并行 portability；不代表统一 Gate 全部 PASS。
   # ============================================================
-  java-check:
+  java-portability:
     strategy:
       fail-fast: false
       matrix:
@@ -105,7 +104,7 @@ jobs:
   # ============================================================
   java-full:
     runs-on: ubuntu-latest
-    needs: java-check
+    needs: java-portability
     steps:
       - name: Checkout
         uses: actions/checkout@v6

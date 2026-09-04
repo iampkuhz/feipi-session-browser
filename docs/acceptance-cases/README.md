@@ -34,8 +34,8 @@ docs/acceptance-cases/
 
 ## 与 Gate 的关系
 
-- `acceptanceCaseMapping` Gate 只校验用例定义、结构化绑定和代码位置，不执行测试。
+- `acceptanceTraceability` Gate 只校验用例定义、结构化绑定和代码位置，不执行测试。
 - 修改本目录、Python/JUnit/Playwright 测试、marker/annotation 配置或映射实现时，
-  `acceptanceCaseMapping` 由它自己的 `trigger.paths` 直接选中。
+  `acceptanceTraceability` 由它自己的 `trigger.paths` 直接选中。
 - 测试源码同时会触发它所属的 Pytest、Gradle 或 Playwright Gate；映射 Gate 不替代这些执行 Gate。
-- Target 仅是人工调用的 Gate preset/tag；本目录不注册也不需要 `acceptance-cases` Target。
+- TargetPreset 仅是人工调用的 Gate 分组；本目录不注册也不需要 `acceptance-cases` TargetPreset。

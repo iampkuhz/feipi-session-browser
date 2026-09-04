@@ -14,7 +14,7 @@ from scripts.gates.catalog import gate_by_name
 
 def test_doctor_is_not_a_catalog_gate() -> None:
     """Doctor remains standalone and is invoked only by explicit health maintenance."""
-    with pytest.raises(ValueError, match='Unknown quality gate: doctor'):
+    with pytest.raises(ValueError, match='unknown Gate: doctor'):
         gate_by_name('doctor')
 
 

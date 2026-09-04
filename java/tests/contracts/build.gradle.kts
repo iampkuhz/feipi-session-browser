@@ -2,8 +2,6 @@ plugins {
     id("feipi.java-test")
 }
 
-import org.gradle.api.plugins.quality.Pmd
-
 dependencies {
     testImplementation(project(":java:core-domain"))
     testImplementation(project(":java:source-spi"))
@@ -20,12 +18,6 @@ dependencies {
     testImplementation(libs.jackson.databind)
     testImplementation(libs.sqlite.jdbc)
     testImplementation(libs.javalin.testtools)
-}
-
-// PMD 7.9.0 StackOverflow 在分析 Jackson 类型时触发，tests:contracts 为纯测试模块，
-// Checkstyle + Spotless 已覆盖格式和基础质量。
-tasks.withType<Pmd>().configureEach {
-    enabled = false
 }
 
 // 默认 test task 排除 sample-integration 标签的测试，

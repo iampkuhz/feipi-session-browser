@@ -11,7 +11,7 @@ Gate 和 Trigger，再区分 `BLOCKED`（检查结论阻断交付）与 `FAIL`�
 
 ## 何时使用
 
-- 增量或全量 Gate 返回 `BLOCKED`/`FAIL`（如 `governanceStructure`、OpenSpec 或产品 Gate）。
+- 增量或全量 Gate 返回 `BLOCKED`/`FAIL`（如 `governanceLayoutValidation`、OpenSpec 或产品 Gate）。
 - Doctor 脚本（`scripts/harness/doctor.sh`）失败。
 - Java gates（编译、测试、PMD）失败。
 - UI gates（静态检查、JS action handler 检查）失败。
@@ -35,15 +35,15 @@ Gate 和 Trigger，再区分 `BLOCKED`（检查结论阻断交付）与 `FAIL`�
 3. 失败输出中具体的错误信息、Gate Trigger 和 mode。
 4. 与失败直接相关的文件片段。
 
-Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导航；当前 Gate/Target 名称从
-`scripts/gates/catalog.py` 或 `python3 scripts/gates/cli.py --dry-run` 派生，不读取文档静态矩阵。
+Gate 状态、模块边界与 rerun 入口以 `docs/gates/gate-control-plane.md` 为导航；当前 Gate/TargetPreset 名称从
+`python3 scripts/gates/cli.py list` 派生，具体选择从 `plan` 派生，不读取文档静态矩阵。
 
 不要全仓库扫描。不要预读无关 gate 脚本或实现文件。不要读取真实 session 数据。
 
 ## 执行步骤
 
 1. **记录失败命令和完整 exit code**：复制触发失败的完整命令，记录 exit code（不是 0 的值）。不要截断或概括输出。
-2. **定位 Gate 和 mode**：从失败输出中提取 Gate 名称、`incremental/full` 与 changed files；Target 只在显式 selector 调用中出现。
+2. **定位 Gate 和 mode**：从失败输出中提取 Gate 名称、`incremental/full` 与 changed files；TargetPreset 只在显式 selector 调用中出现。
 3. **读取 gate 脚本，不读无关实现**：只读触发失败的 gate 脚本源码，理解它的检查逻辑和断言条件。不要读取与当前失败无关的其他 gate 脚本或产品代码。
 4. **找到失败文件和具体断言**：从 gate 输出中定位具体失败的文件路径和断言信息（如 "缺少必需文件"、"symlink 目标不存在"、"required skill 目录不存在"）。
 5. **判断失败类别**：将失败归类为以下五类之一：
@@ -61,7 +61,7 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 
 ## 文件边界
 
-- Gate 唯一公开入口：`scripts/gates/cli.py`；内部 catalog/planner/executor/receipt/report 不直接运行。
+- Gate 唯一公开入口：`scripts/gates/cli.py`；内部 catalog/planning/execution/evidence/presentation 不直接运行。
 - 领域检查器：`scripts/gates/checks/<domain>/*.py`；只在定位单个失败时运行报告给出的精确 rerun 命令。
 - Harness 体检：`scripts/harness/doctor.sh`。
 - Registry 配置：`harness/skill-registry.yaml`。
@@ -77,18 +77,18 @@ Gate 状态、模块边界与 rerun 入口以 `scripts/gates/README.md` 为导�
 以下命令用于分层诊断；被选 Gate 未完整执行时必须返回 FAIL：
 
 - 触发失败的 gate — 必须重跑并 PASS。
-- `python3 scripts/gates/cli.py --mode incremental --gate governanceStructure` — registry 完整性。
+- `python3 scripts/gates/cli.py run --mode incremental --gate governanceLayoutValidation` — registry 完整性。
 - `bash scripts/harness/doctor.sh` — 全量环境体检。
-- `python3 scripts/gates/cli.py --mode incremental` — 普通提交和交接的增量检查。
+- `python3 scripts/gates/cli.py run --mode incremental` — 普通提交和交接的增量检查。
 
 选择策略：
 
 - 单个 gate 失败 → 修复后重跑该 gate + `doctor.sh`。
-- Registry/manifest 相关 → 追加 `governanceStructure` 与 minimal harness 结构检查。
-- 收口前 → 运行 `python3 scripts/gates/cli.py --mode incremental`。
+- Registry/manifest 相关 → 追加 `governanceLayoutValidation` 与 minimal harness 结构检查。
+- 收口前 → 运行 `python3 scripts/gates/cli.py run --mode incremental`。
 
 若诊断结果需要新增、修改或删除 Gate，退出本 skill 的单点修复模式，按
-`scripts/gates/README.md` 的 catalog + 对应 check + contract 唯一流程执行；不得新增 runner 或文档矩阵。
+`docs/gates/gate-control-plane.md` 的 catalog + 对应 check + contract 唯一流程执行；不得新增 runner 或文档矩阵。
 
 ## 输出格式
 

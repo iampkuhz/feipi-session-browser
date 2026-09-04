@@ -35,7 +35,7 @@
 按需追加：
 
 ```bash
-python3 scripts/gates/cli.py --mode incremental
+python3 scripts/gates/cli.py run --mode incremental
 ```
 
 ## Expected output
