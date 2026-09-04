@@ -1,125 +1,182 @@
-# Gate 控制面维护手册
+# Gate 控制面：架构与触发流程
 
-Gate 只有一个公开入口：`scripts/gates/cli.py`。Catalog 是唯一声明真源；文档不复制 20 个 Gate 的静态表。
+本文回答四个问题：**本次检查哪些文件、哪些 Gate 会被选中、实际会启动什么命令、结果保存在哪里**。
+唯一公开入口是 `scripts/gates/cli.py`，Gate 规则目录是唯一声明真源。
 
-## 操作者入口
+## 术语
+
+下表先用业务含义解释术语；括号中的英文是代码类型或公开名称，用于后续查代码和读 JSON。
+
+| 术语 | 含义 | 例子 |
+|---|---|---|
+| 运行范围（`incremental` / `full`） | 决定根据变更文件选 Gate，还是检查整个仓库 | 提交前通常用 `incremental`，人工全量检查用 `full` |
+| Gate | 用户可见的一道逻辑质量门，负责回答一个质量问题 | `javaBuildVerification` 回答 Java build 是否完整通过 |
+| 触发条件（`Trigger`） | 路径匹配规则，说明某个变更为什么需要某个 Gate | 修改 `java/web/**` 会选中 Web 相关 Gate |
+| 人工分组（`TargetPreset`） | 方便人工一次选择一组 Gate；只表示分组，不表示执行强度或耗时 | `web-interface` |
+| Gate 检查步骤（`RecipeStep`） | 一个 Gate 内由某类工具负责的一项检查动作 | 运行 Ruff、一个 Python Check、一组 Playwright 测试或 Gradle task |
+| 系统命令（`CommandInvocation`） | 真正启动的一个 OS 进程；一个检查步骤可以产生多个系统命令 | scan smoke 会先构建 launcher，再执行 smoke 命令 |
+| 执行计划（`GatePlan`） | 本次运行唯一的冻结清单，包含输入、选择原因、Gate、检查步骤和系统命令 | `plan --format json` 的主体 |
+| 步骤结果（`StepResult`） | 一个 Gate 检查步骤的综合结果 | Python Check 完成后得到 PASS/BLOCKED/FAIL |
+| Gate 结果（`GateResult`） | 一个 Gate 下全部步骤合并后的结果 | 任一步 FAIL，则该 Gate FAIL |
+| 运行凭证（`RunReceipt`） | 一次 `run` 的不可覆盖证据，保存输入、命令、日志、结果和精确重跑命令 | `tmp/quality/runs/<run-id>/summary.json` |
+| Python 规则（`Check`） | 仅指 `scripts/gates/checks/` 中的 Python 领域规则，是一种检查步骤 owner | `privacy.credential-leak` |
+| `NOT_TRIGGERED` | Gate 没被选入本次计划的选择状态，不是执行结果 | 没有路径命中某个 Gate 的 Trigger |
+
+## 命令入口
+
+| 命令 | 回答的问题 | 是否执行 Gate owner | 是否写运行凭证 |
+|---|---|---:|---:|
+| `list` | 有哪些 Gate 和人工分组？ | 否 | 否 |
+| `explain` | 一个 Gate/分组检查什么、何时触发？ | 否 | 否 |
+| `plan` | 这次会选哪些 Gate、启动多少命令？ | 否 | 否 |
+| `run` | 执行计划后结果是什么？ | 是 | 是 |
+| `health` | 规则目录、计划编译、命令适配和 Harness 是否可用？ | 只执行一个 Harness doctor | 否 |
+
+常用入口：
 
 ```bash
-# 查看全部 Gate 与 TargetPreset
 python3 scripts/gates/cli.py list
-python3 scripts/gates/cli.py list --format json
-
-# 解释一个逻辑 Gate 或人工分组
 python3 scripts/gates/cli.py explain --gate javaBuildVerification
-python3 scripts/gates/cli.py explain --target agent-governance
+python3 scripts/gates/cli.py explain --target web-interface
 
-# 只生成冻结计划，不执行；空自动输入也是合法的空计划
 python3 scripts/gates/cli.py plan --mode incremental
 python3 scripts/gates/cli.py plan --mode incremental --base <commit>
 python3 scripts/gates/cli.py plan --mode incremental --changed-files '["scripts/gates/cli.py"]'
 
-# 执行当前 Git staged/working/untracked 改动
 python3 scripts/gates/cli.py run --mode incremental
-
-# 人工选择必须有明确范围；无增量输入时使用 full
+python3 scripts/gates/cli.py run --mode full
 python3 scripts/gates/cli.py run --mode full --gate javaBuildVerification
 python3 scripts/gates/cli.py run --mode full --target agent-governance
 
-# 快速检查 Catalog、RecipeStep 适配、工具可用性和 Harness
 python3 scripts/gates/cli.py health
 python3 scripts/gates/cli.py health --format json
-
-# 完整仓库验证
-python3 scripts/gates/cli.py run --mode full
 ```
 
-incremental 输入来自当前 Git staged/working/untracked、显式 `--base` 或显式
-`--changed-files`；后两者互斥。`plan` 的 `snapshot.source` 与 `snapshot.files` 是本次选择的唯一输入证据。
+## 架构与触发流程
 
-`plan` 只编译 GatePlan：它展示 Trigger 因果、RecipeStep、CommandInvocation、进程数和时间目标。
-空 incremental plan 以退出码 0 展示 `gates=0`。`run` 执行同一冻结计划并写 RunReceipt；空输入会写
-`FAIL reason=input-empty`，因为没有 Gate 执行不能成为 PASS 证据。
+图中的步骤展示运行顺序，图内右侧表格同时说明**阶段职责和代码归属**。主流程分为 `plan` 与 `run`；
+`health` 是快速体检旁路，不会执行完整 Gate，也不会读取或生成运行凭证。
 
-`health` 编译 full GatePlan 以检查全部声明和适配，只启动 Harness doctor 一个进程，并报告真实总耗时。
-它的 `planned_processes` 是声明完整性证据，`executed_processes=1` 是实际体检成本。
+```plantuml
+@startuml
+title Gate 控制面：规则、触发、执行与证据
+top to bottom direction
+skinparam shadowing false
+skinparam nodesep 28
+skinparam ranksep 38
+skinparam activity {
+  BackgroundColor #F8FAFC
+  BorderColor #475569
+  FontColor #0F172A
+  DiamondBackgroundColor #FFF7D6
+  DiamondBorderColor #B7791F
+}
 
-## 唯一流程
+activity "S1 选择命令与运行范围" as S1
+activity "S2 校验 Gate 规则目录" as S2
+activity "S3 编译全量静态计划" as S3
+activity "S4 运行 Harness 体检" as S4
+activity "S5 输出体检结果" as S5
+activity "S6 读取 Gate 规则目录" as S6
+activity "S7 冻结并匹配输入范围" as S7
+activity "S8 生成唯一执行计划" as S8
+activity "S9 执行并判定检查" as S9
+activity "S10 保存并展示运行凭证" as S10
 
-两张冻结图是流程和依赖的图形真源：
+(*) --> S1
+S1 --> S2 : health
+S2 --> S3
+S3 --> S4
+S4 --> S5
+S5 --> (*)
+S1 --> S6 : plan / run
+S6 --> S7
+S7 --> S8
+S8 --> (*) : plan
+S8 --> S9 : run
+S9 --> S10
+S10 --> (*)
 
-- [Gate 分层架构](diagrams/gate-layer-architecture/diagram.svg)
-- [Gate 运行活动](diagrams/gate-run-activity/diagram.svg)
-
-```text
-ChangeSnapshot
-  → TriggerMatch(file → pattern → Gate)
-  → GatePlan(Gate + RecipeStep + CommandInvocation)
-  → Run(StepResult → GateResult)
-  → RunReceipt(schema v5)
-  → canonical rerun
+legend right
+  |= 步骤 |= 阶段职责 |= 代码归属 |
+  | S1 | 互斥选择 health、plan 或 run | cli.py |
+  | S2 | 校验 Gate 规则目录 | catalog/ + maintenance/ |
+  | S3 | 编译计划并检查命令适配 | planning/ + execution/ + maintenance/ |
+  | S4 | 监管唯一 Harness doctor 进程 | execution/ + maintenance/ |
+  | S5 | 展示体检结果 | presentation/ |
+  | S6 | 声明 Gate、Trigger、分组与检查步骤 | catalog/ |
+  | S7-S8 | 冻结输入、解释触发并生成计划 | planning/ + execution/ |
+  | S9 | 监管进程并分类 owner 结果；checks/ 提供 Python owner | execution/ + checks/ |
+  | S10 | 保存凭证并展示摘要 | evidence/ + presentation/ |
+endlegend
+@enduml
 ```
 
-1. `capture_change_snapshot` 冻结输入来源、HEAD/base、文件和内容指纹。
-2. `match_trigger` 保存每个 `file → pattern → Gate` 命中；未命中为 `NOT_TRIGGERED`，不是 PASS。
-3. `compile_gate_plan` 一次性冻结 Gate、RecipeStep、真实命令、进程数和非阻断时间目标；run 不重新读取输入。
-4. `orchestrate_gate_run` 串行执行完整 recipe，不 fail-fast；本阶段不做进程合并、并行、retry 或 hard timeout。
-5. `classify_owner_outcome` 按 Python Check、pytest、Playwright、Gradle 类型化证据归类结果。
-6. `store_run_receipt` 写入新的 `tmp/quality/runs/<run-id>/`；历史 run 不覆盖，`latest.json` 只作导航。
+### 图中步骤说明
 
-运行时 stderr 事件固定为 `PLAN / START / HEARTBEAT / STALL / RESULT / DONE`。长步骤每 30 秒 heartbeat；
-日志 120 秒不增长只报告 STALL，不 kill。显式中断会清理受管进程组。
+- **S1**：操作者选择 `plan`、`run` 或 `health`，并明确 `incremental`/`full` 范围。
+- **S2–S5**：`health` 校验全部声明和适配能力，只执行一个 Harness doctor，然后直接展示体检结果。
+- **S6**：规则目录提供“有哪些 Gate、何时触发、每个 Gate 包含哪些检查步骤”。
+- **S7**：计划阶段先冻结输入，再保存每条 `文件 → pattern → Gate` 的命中原因。
+- **S8**：把选中的 Gate 展开为检查步骤，再把每个步骤适配为可执行的系统命令；到这里 `plan` 已完成。
+- **S9**：只有 `run` 进入执行阶段；每个命令完成后按 Python Check、pytest、Playwright 或 Gradle 的证据规则判定。
+- **S10**：合并步骤/Gate 状态，复制日志并保存运行凭证；终端只展示凭证摘要和重跑入口。
 
-## 术语
+依赖只能沿图中主干向下：规则目录 → 计划 → 执行 → 证据/展示。`maintenance/` 只走图中的 health 旁路；
+禁止用跨目录 `support.py`、`utils.py` 或同名 helper 绕过边界。
 
-| 术语 | 唯一含义 |
+## 输入与触发规则
+
+### 输入从哪里来
+
+| 调用方式 | 冻结的输入 |
 |---|---|
-| `Gate` | 用户可见的逻辑门 |
-| `TargetPreset` | 人工选择的一组 Gate；不表示耗时 |
-| `RecipeStep` | Gate 内一个 owner 步骤 |
-| `CommandInvocation` | 一个真实 OS 进程 |
-| `GatePlan` | 输入、匹配、Gate、步骤和命令的唯一冻结计划 |
-| `StepResult` / `GateResult` / `RunReceipt` | 步骤、Gate、整次运行结果 |
-| `Check` | 仅指 Python 领域规则 |
-| `NOT_TRIGGERED` | 选择状态，不是执行状态 |
+| `--mode incremental` | 当前 Git staged、working、untracked 文件 |
+| `--mode incremental --base <commit>` | `<commit>...HEAD` 的 changed files |
+| `--mode incremental --changed-files '[...]'` | 调用者给出的仓库相对路径 |
+| `--mode full` | 全部 Gate；记录 HEAD，不携带 changed-files 列表 |
 
-## 阶段与文件归属
+`--base` 与 `--changed-files` 互斥。`plan` 输出中的 `snapshot.source`、`snapshot.files` 和
+`contentFingerprint` 共同证明计划使用了哪一份输入。
 
-```text
-catalog → planning → execution → evidence / presentation
-                                  ↘ maintenance（只经公开契约审计）
-checks 只实现 Python Check，由 Catalog recipe 引用
-```
+### Gate 怎么被选中
 
-| 阶段 | 文件职责 |
-|---|---|
-| `catalog/` | contracts、recipe DSL、registry、validation、六个 domain declaration |
-| `planning/` | Git 输入快照、Trigger 匹配、唯一 GatePlan |
-| `execution/` | RecipeStep 适配、进程监督、owner 结果分类、运行编排 |
-| `evidence/` | schema v5 immutable receipt |
-| `presentation/` | human/JSON 输出与终端事件；不改业务状态 |
-| `maintenance/` | 快速 health audit；编译完整计划并只运行 Harness doctor |
-| `checks/` | Python Check protocol、registry 和领域实现 |
+1. `full` 且没有 selector：选择全部 Gate。
+2. 指定 `--gate`：只选择该 Gate；指定 `--target`：按规则目录展开该人工分组。
+3. 普通 `incremental`：`always` Gate 固定选中，其他 Gate 根据 changed file 与 Trigger pattern 匹配。
+4. 每条命中保存为 `file → pattern → Gate`；未选中的 Gate 记录具体原因，例如
+   `no-trigger-pattern-matched` 或 `excluded-by-selector`。
+5. `incremental` selector 需要非空输入；没有变更但需要人工执行时使用 `full --gate/--target`。
 
-禁止逆向 import、跨阶段 helper、第二份 Gate 清单和泛化文件名。除 `__init__.py` 外，不同阶段 basename 必须唯一；
-`cli.py` 不超过 250 行，核心阶段文件不超过 400 行，domain declaration 不超过 300 行。
-
-## 状态与证据
+## 状态、进度与证据
 
 | 状态 | 含义 |
 |---|---|
-| `PASS` | 所有 required RecipeStep 完整执行且通过 |
-| `BLOCKED` | 验证完整执行并发现源码/规则/测试问题，`reason=verification-failed` |
-| `FAIL` | 输入、依赖、运行时、中断或结果不可判定导致未完成 |
+| `PASS` | required 检查完整执行且全部通过 |
+| `BLOCKED` | 检查完整执行并发现源码、规则或测试问题，通常是 `reason=verification-failed` |
+| `FAIL` | 输入、依赖、运行时、中断或结果不可判定，导致检查没有完整完成 |
 
-Composite 规则：任一 FAIL 则 Gate FAIL；否则任一 BLOCKED 则 Gate BLOCKED；全部 StepResult PASS 才 Gate PASS。
-类型化 owner evidence 中的 warning、skipped、not-run 和 unavailable 均不得描述为 PASS；Gradle
-传递图里正常无源码的非 owner task 与 Kotlin DSL housekeeping task 不进入公开 owner evidence。
+合并规则：任一 Gate 为 FAIL，则整次运行 FAIL；否则任一 Gate 为 BLOCKED，则整次运行 BLOCKED；全部
+`StepResult` 和 `GateResult` 为 PASS，整次运行才是 PASS。`NOT_TRIGGERED` 只说明没有执行，不参与状态合并。
 
-## 修改步骤
+运行期间 stderr 事件固定为 `PLAN / START / HEARTBEAT / STALL / RESULT / DONE`。长步骤每 30 秒输出 heartbeat；
+日志 120 秒没有增长时报告 STALL，但不终止进程。显式中断会清理受管进程组。
 
-1. 在 `catalog/domains/` 的唯一业务 domain 中修改 Gate、Trigger、TargetPreset、RecipeStep 或时间目标。
-2. Python 规则在 `checks/<domain>/check_*.py` 实现，并只在 `checks/check_registry.py` 登记；Java/Gradle/Playwright
-   继续由原生 owner 实现。
-3. 运行 `list` / `explain` / `plan --format json` 确认公开名称、匹配理由和进程数。
-4. 运行相关定向测试，再运行 `python3 scripts/gates/cli.py run --mode incremental`。
-5. required Gate 非 PASS 时不得提交或交接为完成。
+`run` 将输入快照、触发原因、HEAD/base、内容指纹、系统命令、类型化结果、日志和 canonical rerun 保存到新的
+`tmp/quality/runs/<run-id>/`。run-id 目录不可覆盖，`latest.json` 只用于导航。
+
+## 代码导航：排查某一步时看哪里
+
+这些函数不是命令参数，而是上图各步骤的实现入口：
+
+| 排查场景 | 实现入口 | 接收什么 | 产出什么 |
+|---|---|---|---|
+| S7 的输入文件不符合预期 | `capture_change_snapshot` | repo、mode、可选 base/changed-files | 冻结的 `ChangeSnapshot` |
+| S7 某个 Gate 触发原因不对 | `match_trigger` | changed files、规则目录中的 Gate | `TriggerMatch` 因果记录 |
+| S8 选中的 Gate 或进程数不对 | `compile_gate_plan` | 输入快照、mode、selector、命令适配器 | 唯一 `GatePlan` |
+| S8 某个检查步骤生成了错误命令 | `adapt_recipe_step` | Gate、检查步骤、mode、changed files | 一个或多个 `CommandInvocation` |
+| S9 进程启动、heartbeat 或清理异常 | `supervise_process` | 一个系统命令、工作目录、日志路径 | `ProcessObservation` |
+| S9 PASS/BLOCKED/FAIL 分类异常 | `classify_owner_outcome` | 系统命令及进程观察结果 | `InvocationResult` |
+| S9 Gate 内步骤合并异常 | `orchestrate_gate_run` | 冻结执行计划 | `StepResult` 与 `GateResult` |
+| S10 凭证、日志或重跑命令异常 | `store_run_receipt` | 执行计划与 Gate 结果 | schema v5 `RunReceipt` |
+| S2–S5 health 结果异常 | `audit_gate_health` | 当前 repo 与事件输出入口 | `GateHealthAudit` |

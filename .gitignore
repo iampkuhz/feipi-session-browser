@@ -55,3 +55,6 @@ openspec/changes/
 
 harness/reports/
 tests/test-results/
+
+# Generated Gate diagram packages; PlantUML source lives in the Markdown document
+/docs/gates/diagrams/
