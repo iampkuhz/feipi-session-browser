@@ -150,6 +150,48 @@ function copyFixtures(runtimeDir) {
   return { dataDir, indexDir };
 }
 
+async function fetchFixtureJson(baseURL, pathname) {
+  const response = await fetch(`${baseURL}${pathname}`, {
+    headers: { accept: 'application/json' },
+    signal: AbortSignal.timeout(5_000),
+  });
+  if (!response.ok) {
+    throw new Error(`fixture isolation check ${pathname} returned HTTP ${response.status}`);
+  }
+  return response.json();
+}
+
+async function validateFixtureIsolation(baseURL) {
+  const { SPEC } = require('../fixtures/generate-session-fixtures');
+  const expectedSessionCount = SPEC.mockCount + 2;
+  const [summary, rowsResponse] = await Promise.all([
+    fetchFixtureJson(baseURL, '/api/sessions/summary'),
+    fetchFixtureJson(baseURL, '/api/sessions/rows?page_size=100'),
+  ]);
+  const rows = Array.isArray(rowsResponse.rows) ? rowsResponse.rows : [];
+  const distinctProjects = new Set(rows.map((row) => row.projectKey));
+  const expectedProjects = new Set([
+    SPEC.project,
+    'synthetic/workspace/projects/feipi-session-browser',
+  ]);
+  const isolated = summary.totalCount === expectedSessionCount
+    && summary.projectCount === expectedProjects.size
+    && rowsResponse.pagination?.totalItems === expectedSessionCount
+    && rows.length === expectedSessionCount
+    && rows.every((row) => row.agent === 'claude_code')
+    && distinctProjects.size === expectedProjects.size
+    && [...distinctProjects].every((project) => expectedProjects.has(project));
+  if (!isolated) {
+    throw new Error(
+      'fixture isolation mismatch: '
+        + `expected=${expectedSessionCount}, summaryTotal=${summary.totalCount}, `
+        + `summaryProjects=${summary.projectCount}, rowsTotal=${rowsResponse.pagination?.totalItems}, `
+        + `rows=${rows.length}, claudeOnly=${rows.every((row) => row.agent === 'claude_code')}, `
+        + `distinctProjects=${distinctProjects.size}`,
+    );
+  }
+}
+
 async function waitUntilReady(baseURL, server) {
   const paths = [
     '/dashboard',
@@ -206,8 +248,14 @@ async function startServer({ claimToken = '' } = {}) {
     fs.mkdirSync(runTmpRoot, { recursive: true });
     runtimeDir = fs.mkdtempSync(path.join(runTmpRoot, 'playwright-java-fixture-'));
     const { dataDir, indexDir } = copyFixtures(runtimeDir);
+    const codexDataDir = path.join(runtimeDir, 'empty-codex-data');
+    const qoderDataDir = path.join(runtimeDir, 'empty-qoder-data');
+    fs.mkdirSync(codexDataDir, { recursive: true });
+    fs.mkdirSync(qoderDataDir, { recursive: true });
     javaEnv = {
       CLAUDE_DATA_DIR: dataDir,
+      CODEX_DATA_DIR: codexDataDir,
+      QODER_DATA_DIR: qoderDataDir,
       INDEX_DIR: indexDir,
       SESSION_BROWSER_LOG_LEVEL: 'WARN',
     };
@@ -269,6 +317,13 @@ async function startServer({ claimToken = '' } = {}) {
     if (diagnostics.trim()) console.error(diagnostics);
     stop('SIGTERM');
     process.exit(1);
+  }
+  try {
+    await validateFixtureIsolation(innerURL);
+  } catch (error) {
+    console.error(`[playwright-fixture] ${error.message}`);
+    stop('SIGTERM', 1);
+    return;
   }
   try {
     proxy = await startIdentityProxy(port, innerPort);

@@ -318,6 +318,12 @@
             container.replaceChildren.apply(container, Array.prototype.slice.call(parsed.body.childNodes));
         }
 
+        function setTableBodyMarkup(container, markup) {
+            var parsed = new DOMParser().parseFromString('<table><tbody>' + markup + '</tbody></table>', 'text/html');
+            var tbody = parsed.querySelector('tbody');
+            container.replaceChildren.apply(container, Array.prototype.slice.call(tbody.childNodes));
+        }
+
         function xPct(index, length) {
             return length <= 1 ? 50 : (index / (length - 1) * 100);
         }
@@ -892,11 +898,28 @@
         }
 
         function updateChartStats(sessions, tokens, prompts, cache) {
+            var latestSession = lastPoint(sessions);
+            var latestToken = lastPoint(tokens);
+            var latestPrompt = lastPoint(prompts);
+            setStatText('latest-sessions', 'Latest: ' + (latestSession
+                ? formatNumber(latestSession.totalCount)
+                : 'N/A'));
+            setStatText('latest-tokens', 'Latest: ' + (latestToken
+                ? formatTokens(latestToken.tokens && latestToken.tokens.total)
+                : 'N/A'));
+            setStatText('latest-prompts', 'Latest: ' + (latestPrompt
+                ? formatNumber(latestPrompt.totalPrompts)
+                : 'N/A'));
             setStatText('range-total-sessions', 'Range total: ' + formatNumber(sessions && sessions.rangeTotal));
             setStatText('range-total-tokens', 'Range total: ' + formatTokens(tokens && tokens.rangeTotals && tokens.rangeTotals.total));
             setStatText('range-total-prompts', 'Range total: ' + formatNumber(prompts && prompts.rangeTotalPrompts));
             setStatText('latest-ratio', 'Latest ratio: ' + ratioText(cache && cache.latestRatio));
             setStatText('lowest-ratio', 'Lowest ratio: ' + ratioText(cache && cache.lowestRatio));
+        }
+
+        function lastPoint(response) {
+            var points = response && response.points;
+            return Array.isArray(points) && points.length ? points[points.length - 1] : null;
         }
 
         function ratioText(ratio) {
@@ -917,7 +940,7 @@
             if (!table) return;
             var tbody = table.querySelector('tbody');
             if (!tbody) return;
-            setChartMarkup(tbody, resp.rows.map(function(row) {
+            setTableBodyMarkup(tbody, resp.rows.map(function(row) {
                 var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
                 return '<tr class="agent-row" data-action="switch-agent-scope" data-scope="' + escapeHtml(scope) + '">' +
                     '<td data-sort-value="' + escapeHtml(row.label) + '"><span class="agent-badge agent-badge--' + escapeHtml(row.agent) + '">' + escapeHtml(row.label) + '</span></td>' +
@@ -949,13 +972,31 @@
             if (table && allResp && Array.isArray(allResp.rows)) {
                 var tbody = table.querySelector('tbody');
                 if (tbody) {
-                    setChartMarkup(tbody, allResp.rows.map(efficiencyRowHtml).join(''));
+                    setTableBodyMarkup(tbody, allResp.rows.map(efficiencyRowHtml).join(''));
                 }
+            }
+            var modelMixTable = document.querySelector('section[data-chart-card="model-mix"] table.data-table tbody');
+            if (modelMixTable && deepResp && Array.isArray(deepResp.rows)) {
+                setTableBodyMarkup(modelMixTable, deepResp.rows.length
+                    ? deepResp.rows.map(modelMixRowHtml).join('')
+                    : '<tr><td colspan="4"><div class="empty-state" role="status" aria-live="polite">' +
+                        '<h2 class="empty-state__title">No model mix data</h2>' +
+                        '<p class="empty-state__text">No model rows are available for this agent and time range.</p>' +
+                        '</div></td></tr>');
             }
             var detailTable = document.querySelector('section[aria-label="Model Efficiency Detail"] table.data-table tbody');
             if (detailTable && deepResp && Array.isArray(deepResp.rows)) {
-                setChartMarkup(detailTable, deepResp.rows.map(efficiencyDetailRowHtml).join(''));
+                setTableBodyMarkup(detailTable, deepResp.rows.map(efficiencyDetailRowHtml).join(''));
             }
+        }
+
+        function modelMixRowHtml(row) {
+            var scope = row.agent === 'claude_code' ? 'claude-code' : row.agent;
+            return '<tr class="clickable-row" data-action="go-sessions-agent-model" data-agent="' + escapeHtml(scope) + '" data-model="' + escapeHtml(row.model) + '">' +
+                '<td class="mono">' + escapeHtml(row.model) + '</td>' +
+                '<td class="numeric">' + formatNumber(row.sessionCount) + '</td>' +
+                '<td class="numeric">' + formatTokens(row.avgTokensPerSession) + '</td>' +
+                '<td class="numeric">' + (row.cacheReuseRatio == null ? 'N/A' : formatPct(row.cacheReuseRatio * 100)) + '</td></tr>';
         }
 
         function efficiencyRowHtml(row) {

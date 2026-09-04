@@ -141,7 +141,7 @@
             <span class="spacer"></span>
             <form class="project-session-filter" method="get" action="/projects/{{ project.projectKey | urlencode }}" role="search" aria-label="Project sessions search">
                 <input type="hidden" name="grain" value="{{ trend_grain }}">
-                <input class="input search" id="project-session-search" type="search" name="q" value="{{ filter_q }}" placeholder="Search title, session id" aria-label="Search project sessions by title or session id">
+                <input class="input search" id="project-session-search" type="search" name="q" value="{{ filter_q }}" placeholder="Search title, session id" aria-label="Search project sessions by title or session id" data-action="search">
                 <button class="btn sm" type="submit" data-action="apply-search">Apply</button>
                 {% if filter_q is not empty %}<a class="btn sm ghost" href="/projects/{{ project.projectKey | urlencode }}?grain={{ trend_grain }}" data-action="clear-search">Clear current filter</a>{% endif %}
             </form>

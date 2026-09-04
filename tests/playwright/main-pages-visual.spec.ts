@@ -108,4 +108,62 @@ test.describe('main page visual smoke', () => {
       expect(unexpectedBrowserErrors, `${smoke.name} console/page errors`).toEqual([]);
     });
   }
+
+  test('Dashboard hydration replaces loading placeholders in all and agent scopes', async ({ page }) => {
+    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 15_000 });
+
+    for (const stat of ['latest-sessions', 'latest-prompts', 'latest-tokens']) {
+      await expect(page.locator(`[data-stat="${stat}"]`), `${stat} should finish loading`).not.toContainText(
+        'Loading',
+      );
+    }
+    await expect(page.locator('main'), 'all-agent Dashboard should finish hydration').not.toContainText(
+      /Loading (?:agent summary|agent\/model efficiency|session share|token share|prompt share)/,
+    );
+
+    await Promise.all([
+      page.waitForURL((url) => url.pathname === '/dashboard' && url.searchParams.get('agent') === 'claude-code'),
+      page.getByRole('button', { name: 'Claude Code' }).click(),
+    ]);
+
+    const modelMixBody = page.locator('section[data-chart-card="model-mix"] tbody');
+    await expect(modelMixBody, 'agent Model Mix should finish hydration').not.toContainText(
+      'Loading model mix',
+    );
+    const modelRows = modelMixBody.locator('tr.clickable-row');
+    await expect(modelRows.first(), 'fixture should render at least one model row').toBeVisible();
+    await expect(modelRows.first().locator('td'), 'Model Mix rows should have four columns').toHaveCount(4);
+    await expect(page.locator('main'), 'agent Dashboard should not retain loading placeholders').not.toContainText(
+      'Loading',
+    );
+  });
+
+  test('Project Detail search filters API-backed session rows', async ({ page }) => {
+    await page.goto('/projects/test-hifi-project', { waitUntil: 'domcontentloaded', timeout: 15_000 });
+
+    const search = page.getByLabel('Search project sessions by title or session id');
+    await search.fill('Synthetic mock request 43');
+    await page.getByRole('button', { name: 'Apply' }).click();
+
+    await expect(page).toHaveURL(/(?:\?|&)q=Synthetic\+mock\+request\+43(?:&|$)/);
+    await expect(page.locator('#project-sessions-table tbody tr')).toHaveCount(1);
+    await expect(page.locator('#project-sessions-table tbody')).toContainText('Synthetic mock request 43');
+    await expect(page.locator('#project-sessions-table tbody')).not.toContainText('Synthetic mock request 42');
+  });
+
+  test('Glossary only shows its empty state for an unmatched search', async ({ page }) => {
+    await page.goto('/glossary', { waitUntil: 'domcontentloaded', timeout: 15_000 });
+
+    const emptyState = page.locator('#glossary-empty');
+    await expect(emptyState).toBeHidden();
+
+    const search = page.getByLabel('Search glossary terms');
+    await search.fill('no-such-glossary-term');
+    await expect(emptyState).toBeVisible();
+    await expect(page.locator('#glossary-match-count')).toHaveText('0 条匹配');
+
+    await search.fill('cache read');
+    await expect(emptyState).toBeHidden();
+    await expect(page.locator('[data-glossary-term]:visible')).not.toHaveCount(0);
+  });
 });

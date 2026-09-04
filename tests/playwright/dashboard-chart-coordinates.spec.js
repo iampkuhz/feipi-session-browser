@@ -88,7 +88,7 @@ async function assertLineLayerAligned(page, spec) {
 test.describe('Dashboard chart coordinates', () => {
   test('[DASHBOARD-CHART-001] Prompt Activity and Cache Health line markers align with SVG paths', async ({ page }) => {
     await page.setViewportSize({ width: 1880, height: 1400 });
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.goto('/dashboard?grain=month', { waitUntil: 'domcontentloaded', timeout: 15000 });
     await expect(page.locator('#prompt-activity-chart svg.line-plot--bar-aligned')).toBeAttached({ timeout: 10000 });
     await expect(page.locator('#cache-health-chart svg.line-plot--bar-aligned')).toBeAttached({ timeout: 10000 });
 
@@ -109,7 +109,7 @@ test.describe('Dashboard chart coordinates', () => {
 
   test('[DASHBOARD-CHART-002] Cache Health highlighted markers stay inside plot bounds', async ({ page }) => {
     await page.setViewportSize({ width: 1880, height: 1400 });
-    await page.goto('/dashboard', { waitUntil: 'domcontentloaded', timeout: 15000 });
+    await page.goto('/dashboard?grain=month', { waitUntil: 'domcontentloaded', timeout: 15000 });
     await expect(page.locator('#cache-health-chart svg.line-plot--bar-aligned')).toBeAttached({ timeout: 10000 });
 
     const result = await page.evaluate(() => {
