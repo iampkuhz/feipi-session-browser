@@ -1,14 +1,24 @@
-"""Maintenance health audit 的公开契约与状态归约。"""
+"""Maintenance 快速控制面体检的公开契约与状态归约。"""
 
 import ast
 from pathlib import Path
-from types import SimpleNamespace
 
-from scripts.gates.execution import ExecutionStatus, GateResult, InvocationResult
+from scripts.gates.catalog.gate_contracts import (
+    DurationExpectations,
+    ExecutionMode,
+    Gate,
+    GateRecipe,
+    GateTrigger,
+    RecipeStep,
+    RecipeStepKind,
+    TriggerMode,
+)
+from scripts.gates.execution import ExecutionEvent, ExecutionStatus, InvocationResult
 from scripts.gates.maintenance import health_audit
+from scripts.gates.planning import ChangeSnapshot, CommandInvocation, GatePlan
 
 
-def _invocation(status: ExecutionStatus, reason: str = '') -> InvocationResult:
+def _doctor(status: ExecutionStatus, reason: str = '') -> InvocationResult:
     return InvocationResult(
         'gate-health:harnessDoctor:run',
         'gate-health',
@@ -16,116 +26,130 @@ def _invocation(status: ExecutionStatus, reason: str = '') -> InvocationResult:
         status,
         reason,
         0 if status is ExecutionStatus.PASS else 1,
-        0.01,
+        0.05,
         '/tmp/doctor.log',
         '',
     )
 
 
-def _gate(
-    status: ExecutionStatus = ExecutionStatus.PASS,
-    *,
-    timing: str = 'WITHIN_TARGET',
-    reason: str = '',
-) -> GateResult:
-    return GateResult(
+def _plan(*, executable: str = 'true', include_invocation: bool = True) -> GatePlan:
+    step = RecipeStep('catalogContract', RecipeStepKind.COMMAND, argv=(executable,))
+    gate = Gate(
         'gateFrameworkTests',
-        status,
-        reason,
-        0.1,
-        10,
-        timing,
+        '校验 Gate 控制面契约。',
+        GateTrigger(TriggerMode.ALWAYS),
         (),
-        'python3 scripts/gates/cli.py run --mode full --gate gateFrameworkTests',
+        GateRecipe(DurationExpectations(1, 1), (step,)),
+    )
+    invocation = CommandInvocation(
+        'gateFrameworkTests:catalogContract:run',
+        'command',
+        (executable,),
+        (),
+        gate.name,
+        step.name,
+    )
+    return GatePlan(
+        ExecutionMode.FULL,
+        ChangeSnapshot('full', 'head', None, (), 'fingerprint'),
+        (gate,),
+        (),
+        (),
+        command_invocations=(invocation,) if include_invocation else (),
     )
 
 
 def _install(
     monkeypatch,
-    tmp_path: Path,
     *,
+    plan: GatePlan,
     doctor: InvocationResult,
-    gates: tuple[GateResult, ...],
-) -> tuple[list[dict], object]:
-    plan = object()
-    receipt = SimpleNamespace(summary_path=tmp_path / 'summary.json')
+) -> list[dict]:
     calls: list[dict] = []
     monkeypatch.setattr(health_audit, 'validate_gate_catalog', lambda _catalog: None)
     monkeypatch.setattr(health_audit, '_full_plan', lambda _root: plan)
-    monkeypatch.setattr(health_audit, 'supervise_process', lambda *_args, **kwargs: kwargs)
+
+    def supervise(*_args, **kwargs):
+        calls.append(kwargs)
+        return object()
+
+    monkeypatch.setattr(health_audit, 'supervise_process', supervise)
     monkeypatch.setattr(health_audit, 'classify_owner_outcome', lambda *_args: doctor)
-
-    def run(selected_plan, root, **kwargs):
-        calls.append({'plan': selected_plan, 'root': root, **kwargs})
-        return gates
-
-    monkeypatch.setattr(health_audit, 'orchestrate_gate_run', run)
-    monkeypatch.setattr(
-        health_audit,
-        'store_run_receipt',
-        lambda selected_plan, _selected_gates, **_kwargs: receipt,
-    )
-    return calls, receipt
+    return calls
 
 
-def test_doctor_blocked_still_runs_full_gate_plan(tmp_path: Path, monkeypatch) -> None:
-    calls, receipt = _install(
-        monkeypatch,
-        tmp_path,
-        doctor=_invocation(ExecutionStatus.BLOCKED, 'verification-failed'),
-        gates=(_gate(),),
+def test_health_checks_full_plan_and_runs_only_doctor(tmp_path: Path, monkeypatch) -> None:
+    calls = _install(monkeypatch, plan=_plan(), doctor=_doctor(ExecutionStatus.PASS))
+    ticks = iter((10.0, 10.25))
+    events: list[ExecutionEvent] = []
+
+    result = health_audit.audit_gate_health(
+        repo_root=tmp_path,
+        event_sink=events.append,
+        clock=lambda: next(ticks),
     )
 
-    result = health_audit.audit_gate_health(repo_root=tmp_path)
-
-    assert result.status is ExecutionStatus.BLOCKED
-    assert result.reason == 'verification-failed'
+    assert result.status is ExecutionStatus.PASS
+    assert (result.gate_count, result.recipe_step_count) == (1, 1)
+    assert (result.planned_process_count, result.executed_process_count) == (1, 1)
+    assert result.elapsed_seconds == 0.25
     assert len(calls) == 1
-    assert calls[0]['log_dir'].name == 'gates'
-    assert 'timeout' not in calls[0]
-    assert result.receipt is receipt
+    assert calls[0]['log_path'].name == 'harness-doctor.log'
+    assert [event.kind for event in events] == ['PLAN', 'RESULT', 'DONE']
+    assert events[-1].elapsed_seconds == 0.25
 
 
-def test_over_target_is_health_blocked_without_reclassifying_gate(
-    tmp_path: Path, monkeypatch
-) -> None:
+def test_missing_recipe_mapping_is_health_fail(tmp_path: Path, monkeypatch) -> None:
     _install(
         monkeypatch,
-        tmp_path,
-        doctor=_invocation(ExecutionStatus.PASS),
-        gates=(_gate(timing='OVER_TARGET'),),
-    )
-
-    result = health_audit.audit_gate_health(repo_root=tmp_path)
-
-    assert result.status is ExecutionStatus.BLOCKED
-    assert result.gate_results[0].status is ExecutionStatus.PASS
-    assert result.over_target_gates == ('gateFrameworkTests',)
-
-
-def test_incomplete_gate_execution_is_health_fail(tmp_path: Path, monkeypatch) -> None:
-    _install(
-        monkeypatch,
-        tmp_path,
-        doctor=_invocation(ExecutionStatus.PASS),
-        gates=(_gate(ExecutionStatus.FAIL, reason='runtime-missing'),),
+        plan=_plan(include_invocation=False),
+        doctor=_doctor(ExecutionStatus.PASS),
     )
 
     result = health_audit.audit_gate_health(repo_root=tmp_path)
 
     assert result.status is ExecutionStatus.FAIL
     assert result.reason == 'runtime-missing'
+    assert result.missing_recipe_steps == ('gateFrameworkTests:catalogContract',)
 
 
-def test_health_audit_imports_only_public_stage_contracts() -> None:
+def test_unavailable_executable_is_health_fail(tmp_path: Path, monkeypatch) -> None:
+    missing = str(tmp_path / 'missing-command')
+    _install(
+        monkeypatch,
+        plan=_plan(executable=missing),
+        doctor=_doctor(ExecutionStatus.PASS),
+    )
+
+    result = health_audit.audit_gate_health(repo_root=tmp_path)
+
+    assert result.status is ExecutionStatus.FAIL
+    assert result.unavailable_executables == (missing,)
+
+
+def test_doctor_blocked_is_preserved(tmp_path: Path, monkeypatch) -> None:
+    _install(
+        monkeypatch,
+        plan=_plan(),
+        doctor=_doctor(ExecutionStatus.BLOCKED, 'verification-failed'),
+    )
+
+    result = health_audit.audit_gate_health(repo_root=tmp_path)
+
+    assert result.status is ExecutionStatus.BLOCKED
+    assert result.reason == 'verification-failed'
+
+
+def test_health_audit_has_no_gate_execution_or_receipt_dependency() -> None:
     source = Path(health_audit.__file__).read_text(encoding='utf-8')
-    imports = {
-        node.module
-        for node in ast.walk(ast.parse(source))
-        if isinstance(node, ast.ImportFrom) and node.module
+    tree = ast.parse(source)
+    imported_names = {
+        alias.name
+        for node in ast.walk(tree)
+        if isinstance(node, ast.ImportFrom)
+        for alias in node.names
     }
 
-    assert not any(module.startswith('scripts.gates.catalog.') for module in imports)
-    assert not any(module.startswith('scripts.gates.planning.') for module in imports)
-    assert not any(module.startswith('scripts.gates.execution.') for module in imports)
-    assert not any(module.startswith('scripts.gates.evidence.') for module in imports)
+    assert 'orchestrate_gate_run' not in imported_names
+    assert 'store_run_receipt' not in imported_names
+    assert 'RunReceipt' not in imported_names

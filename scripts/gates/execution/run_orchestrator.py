@@ -173,6 +173,7 @@ def orchestrate_gate_run(
 ) -> tuple[GateResult, ...]:
     """串行执行全部 RecipeStep；业务 BLOCKED/FAIL 不阻断后续步骤。"""
 
+    started = time.monotonic()
     overrides = environment_overrides or {}
     reserved = RESERVED_ENVIRONMENT_KEYS & overrides.keys()
     if reserved:
@@ -227,7 +228,14 @@ def orchestrate_gate_run(
         gate_result = _gate_result(gate, gate_plan.mode, tuple(step_results))
         results.append(gate_result)
     aggregate, reason = _aggregate_gate_status(tuple(results))
-    _emit(event_sink, 'DONE', status=aggregate, reason=reason)
+    _emit(
+        event_sink,
+        'DONE',
+        status=aggregate,
+        reason=reason,
+        elapsed=time.monotonic() - started,
+        process_count=gate_plan.process_count,
+    )
     return tuple(results)
 
 

@@ -77,7 +77,7 @@ GATES = (
     ),
     Gate(
         name='browserBehaviorTests',
-        description='用 Playwright 验证 Session、列表与迁移页面交互。',
+        description='用 Playwright 验证 Session 详情与列表页交互。',
         trigger=changed(
             'java/web/src/main/resources/templates/**',
             'java/web/src/main/resources/static/**',
@@ -91,7 +91,7 @@ GATES = (
                 'browserBehaviorTests',
                 (
                     'session-detail.spec.js',
-                    'session-detail-migrated-gates.spec.js',
+                    'session-detail-behavior-contracts.spec.js',
                     'sessions-list.spec.js',
                 ),
                 '--grep-invert',

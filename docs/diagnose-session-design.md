@@ -2,18 +2,8 @@
 
 ## 使用场景
 
-一次命令替代多次 `find/grep/curl/python3 -c` 探测，观察 session 数据管道各层状态。
-
-替代的命令链示例：
-
-| 旧式调查 | diagnose 等价 |
-|---|---|
-| `find ~/.claude -name "*.jsonl" \| grep <session-id>` | `source` 段 |
-| `head -5 <file>.jsonl` | `raw.eventTypeCounts` |
-| `python3 -c "import json; ..."` 统计 tool_use | `raw.toolUseCount` / `raw.toolResultCount` |
-| `cat normalized-<session>.json \| jq '.calls \| length'` | `normalization.callCount` |
-| `curl localhost:8848/api/sessions/<key>` | `projection` 段 |
-| 人工比较各层数据 | `divergence.first` |
+`diagnose session` 在一次调用中展示 source、raw、normalization、projection 和 divergence，
+用于定位 session 数据管道的首个差异。
 
 ## 命令
 
@@ -76,5 +66,5 @@ warm run < 2s（合成 fixture）；主要耗时在 JSONL 解析。各阶段 tim
 - 不启动 Web server、不依赖 index/SQLite。
 - 不修改 session 文件、index、Git 状态。
 - 不复制 `SessionDetailParityAnalyzer` 业务逻辑。
-- 不支持 `--file` 直接输入（后续可扩展）。
+- 输入通过 `--agent`、`--session-id` 和可选 `--source-dir` 定位。
 - 不实现 Python diagnose 业务逻辑。

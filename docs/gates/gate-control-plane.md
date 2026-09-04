@@ -25,13 +25,23 @@ python3 scripts/gates/cli.py run --mode incremental
 python3 scripts/gates/cli.py run --mode full --gate javaBuildVerification
 python3 scripts/gates/cli.py run --mode full --target agent-governance
 
-# 维护性环境审计，不替代交付 Gate
+# 快速检查 Catalog、RecipeStep 适配、工具可用性和 Harness
 python3 scripts/gates/cli.py health
+python3 scripts/gates/cli.py health --format json
+
+# 完整仓库验证
+python3 scripts/gates/cli.py run --mode full
 ```
 
-旧无子命令语法和 `--dry-run` 不受支持。incremental 输入只有三种：当前 Git
-staged/working/untracked、显式 `--base`、显式 `--changed-files`；后两者互斥。它不读取 session evidence、
-session base commit 或 active change fallback。
+incremental 输入来自当前 Git staged/working/untracked、显式 `--base` 或显式
+`--changed-files`；后两者互斥。`plan` 的 `snapshot.source` 与 `snapshot.files` 是本次选择的唯一输入证据。
+
+`plan` 只编译 GatePlan：它展示 Trigger 因果、RecipeStep、CommandInvocation、进程数和时间目标。
+空 incremental plan 以退出码 0 展示 `gates=0`。`run` 执行同一冻结计划并写 RunReceipt；空输入会写
+`FAIL reason=input-empty`，因为没有 Gate 执行不能成为 PASS 证据。
+
+`health` 编译 full GatePlan 以检查全部声明和适配，只启动 Harness doctor 一个进程，并报告真实总耗时。
+它的 `planned_processes` 是声明完整性证据，`executed_processes=1` 是实际体检成本。
 
 ## 唯一流程
 
@@ -87,7 +97,7 @@ checks 只实现 Python Check，由 Catalog recipe 引用
 | `execution/` | RecipeStep 适配、进程监督、owner 结果分类、运行编排 |
 | `evidence/` | schema v5 immutable receipt |
 | `presentation/` | human/JSON 输出与终端事件；不改业务状态 |
-| `maintenance/` | health audit；不是第 21 个 Gate |
+| `maintenance/` | 快速 health audit；编译完整计划并只运行 Harness doctor |
 | `checks/` | Python Check protocol、registry 和领域实现 |
 
 禁止逆向 import、跨阶段 helper、第二份 Gate 清单和泛化文件名。除 `__init__.py` 外，不同阶段 basename 必须唯一；

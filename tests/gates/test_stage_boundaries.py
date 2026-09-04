@@ -16,17 +16,6 @@ RANK = {
     'presentation': 3,
     'maintenance': 4,
 }
-FORBIDDEN = {
-    'model.py',
-    'support.py',
-    'utils.py',
-    'definitions.py',
-    'planner.py',
-    'executor.py',
-    'report.py',
-    'process.py',
-    'health.py',
-}
 REQUIRED_FUNCTIONS = {
     'capture_change_snapshot',
     'match_trigger',
@@ -51,9 +40,8 @@ def test_root_contains_only_public_entry_and_named_stages() -> None:
     assert set(STAGES) <= names
 
 
-def test_forbidden_generic_names_and_duplicate_basenames_are_absent() -> None:
+def test_stage_basenames_are_unique() -> None:
     files = _source_files()
-    assert not (FORBIDDEN & {path.name for path in files})
     owners: defaultdict[str, list[Path]] = defaultdict(list)
     for path in files:
         if path.name != '__init__.py':

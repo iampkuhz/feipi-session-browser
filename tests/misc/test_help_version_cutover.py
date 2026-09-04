@@ -179,23 +179,21 @@ def test_deps_builds_launcher_then_runs_java_preflight(tmp_path: Path) -> None:
     assert f'CWD=<{project}>' in result.stdout
 
 
-def test_deps_dry_run_has_no_side_effect(tmp_path: Path) -> None:
+def test_deps_plan_has_no_side_effect(tmp_path: Path) -> None:
     project, script = _create_fake_project(tmp_path)
     marker = project / 'unexpected-execution'
     _write_executable(project / 'gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
 
-    result = _run_shell(script, 'deps', '--dry-run', cwd=tmp_path)
+    result = _run_shell(script, 'deps', 'plan', cwd=tmp_path)
 
     assert result.returncode == 0, result.stderr
-    assert '[DRY-RUN]' in result.stdout
+    assert result.stdout.splitlines()[0].startswith('PLAN ./gradlew')
     assert not marker.exists()
     assert 'ARG=<' not in result.stdout
 
 
-@pytest.mark.parametrize('arguments', [('--dev',), ('--dry-run', '--dev'), ('unexpected',)])
-def test_deps_rejects_removed_python_and_extra_options(
-    tmp_path: Path, arguments: tuple[str, ...]
-) -> None:
+@pytest.mark.parametrize('arguments', [('--dev',), ('unexpected',), ('plan', 'extra')])
+def test_deps_rejects_invalid_arguments(tmp_path: Path, arguments: tuple[str, ...]) -> None:
     project, script = _create_fake_project(tmp_path)
     marker = project / 'unexpected-execution'
     _write_executable(project / 'gradlew', f'#!/bin/sh\ntouch "{marker}"\n')
@@ -371,23 +369,10 @@ def test_generated_launcher_keeps_user_heap_override_last(tmp_path: Path) -> Non
     assert args.index('JVM_ARG=<-Xmx512m>') < args.index('JVM_ARG=<-Xmx2g>')
 
 
-def test_removed_inline_branches_do_not_return() -> None:
+def test_shell_entrypoint_has_three_owned_commands_and_java_forwarding() -> None:
     source = SHELL_SCRIPT.read_text(encoding='utf-8')
 
-    for removed in (
-        'SESSION_BROWSER_SERVE_AUTO_KILL_PORT',
-        'SESSION_BROWSER_LOCAL_DATA_DIR',
-        'APP_CLI_OPTS',
-        'set_version',
-        'run_format',
-        'run_lint',
-        'run_coverage',
-        'run_audit',
-        'run_complexity',
-        'run_dead_code',
-        'run_deps_check',
-        'lsof',
-        'fuser',
-        'kill -9',
-    ):
-        assert removed not in source
+    assert source.count('run_deps()') == 1
+    assert source.count('run_test()') == 1
+    assert source.count('run_quality()') == 1
+    assert 'exec "$JAVA_LAUNCHER" "$COMMAND" "$@"' in source

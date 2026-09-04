@@ -124,7 +124,7 @@ class CssOwnershipRuleTest {
   }
 
   @Test
-  void blockAndAdvisoryRulesKeepLegacyOrderAndSeverity() throws Exception {
+  void blockAndAdvisoryRulesKeepStableOrderAndSeverity() throws Exception {
     writeCss(
         "base.css",
         """

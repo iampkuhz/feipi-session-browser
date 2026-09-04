@@ -6,7 +6,7 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 
 # Session Detail UI 开发
 
-本 skill 为 session detail 页面、Jinja 模板、CSS ownership、前端 JS 交互和视觉质量门相关开发提供最小上下文执行规则。解决 UI 改造时上下文过长、legacy CSS 回流、按钮失效、视觉回归漏测等问题。
+本 skill 为 session detail 页面、Jinja 模板、CSS ownership、前端 JS 交互和视觉质量门相关开发提供最小上下文执行规则。解决 UI 改造时上下文过长、CSS ownership 模糊、按钮失效、视觉回归漏测等问题。
 
 ## 何时使用
 
@@ -44,7 +44,7 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 3. 确认是否涉及 session detail shell、layout、interaction：判断变更范围是否超出单个组件，影响整体 shell 或 layout。
 4. 先用 fixture 页面复现，不读取真实 session：使用已有 fixture 或 mock 数据验证 UI 变更效果。
 5. 修改模板时优先使用已有 macro 和 class：不重新发明已有组件，复用现有 macro。
-6. 不新增 legacy alias CSS，不新增无 owner 的全局样式：每个 CSS 规则必须有明确 ownership。
+6. CSS 使用当前组件命名且每个规则必须有明确 ownership。
 7. 修改 JS 时同步交互测试：确保 `browserBehaviorTests` 用真实浏览器行为覆盖新增或修改的 handler。
 8. 跑静态 UI gate 和必要 Playwright gate：至少运行 `webResourceContracts`，涉及布局时追加 layout gate。
 9. 输出截图/布局风险和未覆盖交互：报告视觉风险和交互覆盖盲区。
@@ -69,12 +69,12 @@ description: 用于 Session Detail UI、Jinja 模板、CSS、前端交互和视�
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
 - `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查与 shell CSS 一致性。
-- `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js` — 交互 gate。
+- `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js` — 交互 gate。
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js` — 布局 gate。
 - `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests` — 浏览器交互 Gate。
 - `python3 scripts/gates/cli.py run --gate webStaticRules --mode incremental` — 顶层 Web 源码政策 Gate；报告内部
   Java rule IDs 用于定位 CSS ownership、inline style 与 raw innerHTML。
-- `python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy` — legacy CSS 检查。
+- `python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy` — 稳定内部标识检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style` — inline style 检查。
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml` — raw innerHTML 检查。
 

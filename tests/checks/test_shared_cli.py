@@ -54,7 +54,7 @@ def test_required_domains_are_registered() -> None:
         'agent.entrypoints',
         'repository.file-boundary',
         'privacy.credential-leak',
-        'repository.acceptance-case-mapping',
+        'repository.acceptance-traceability',
     } <= CHECKS.keys()
 
 

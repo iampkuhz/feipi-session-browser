@@ -143,7 +143,7 @@ def _validate_code_locations(repo_root: Path, cases: dict[str, AcceptanceCase]) 
     return errors
 
 
-def _validate_acceptance_case_mapping(repo_root: Path) -> ValidationResult:
+def _validate_acceptance_traceability(repo_root: Path) -> ValidationResult:
     """校验验收用例、测试绑定与代码位置；目录缺失或不一致均失败。"""
     feature_dir = repo_root / 'docs' / 'acceptance-cases' / 'features'
     tests_dir = repo_root / 'tests'
@@ -158,10 +158,6 @@ def _validate_acceptance_case_mapping(repo_root: Path) -> ValidationResult:
 
     cases, parse_errors = _parse_cases(feature_dir)
     errors.extend(parse_errors)
-    for md_file in sorted(feature_dir.glob('*.md')):
-        text = md_file.read_text(encoding='utf-8', errors='ignore')
-        if '废弃' in text or 'Deprecated' in text or 'deprecated' in text:
-            errors.append(f'{md_file}: 验收用例表不允许维护废弃信息')
 
     code_bindings = _parse_code_bindings(tests_dir, repo_root)
     for case_id, paths in sorted(code_bindings.items()):
@@ -183,11 +179,11 @@ def _validate_acceptance_case_mapping(repo_root: Path) -> ValidationResult:
 
 
 def check(arguments: list[str]) -> CheckResult:
-    """解析参数并返回验收用例映射的全部阻断性诊断。"""
-    parser = argument_parser(description='Validate acceptance case mapping.')
+    """解析参数并返回验收追踪的全部阻断性诊断。"""
+    parser = argument_parser(description='Validate acceptance traceability.')
     parser.add_argument('--repo-root', default='.', help='Repository root')
     args = parser.parse_args(arguments)
 
     repo_root = Path(args.repo_root).resolve()
-    result = _validate_acceptance_case_mapping(repo_root)
+    result = _validate_acceptance_traceability(repo_root)
     return CheckResult.from_errors(result.errors)

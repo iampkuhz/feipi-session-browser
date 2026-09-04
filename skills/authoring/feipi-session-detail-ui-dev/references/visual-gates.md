@@ -8,11 +8,11 @@
 |---|---|---|
 | `webResourceContracts` | Session detail 页面静态结构检查 | 改模板时必跑 |
 | `webResourceContracts` | Session detail shell CSS 一致性检查 | 改 shell/layout CSS 时必跑 |
-| `session-detail.spec.js` + `session-detail-migrated-gates.spec.js` | Session detail 交互 gate（Node Playwright） | 改 JS handler 时必跑 |
+| `session-detail.spec.js` + `session-detail-behavior-contracts.spec.js` | Session detail 交互 gate（Node Playwright） | 改 JS handler 时必跑 |
 | `session-detail-layout.spec.js` | Session detail 布局 gate（Node Playwright） | 改布局或 shell 时必跑 |
 | `browserBehaviorTests` | 真实浏览器交互与 handler 行为 | 改 JS 或模板按钮时必跑 |
 | `webStaticRules` | 顶层 catalog Gate；内部 Java `css-ownership` rule 校验 ownership 并写出隔离 artifact | 改 CSS 时必跑 |
-| `currentVersionPolicy` | Legacy CSS 检查 | 改 CSS 时必跑 |
+| `currentVersionPolicy` | 稳定内部标识检查 | 改 CSS 时必跑 |
 | `webStaticRules` | 内部 Java `layout-inline-style` rule | 改模板时必跑 |
 | `webStaticRules` | 内部 Java `raw-innerhtml` rule | 改 JS 时必跑 |
 

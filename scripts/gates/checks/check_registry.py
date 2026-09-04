@@ -12,32 +12,32 @@ _ROWS = (
     ('agent.documentation', 'scripts.gates.checks.agent.check_documentation'),
     ('agent.skill-registry', 'scripts.gates.checks.agent.check_skill_registry'),
     (
-        'repository.acceptance-case-mapping',
-        'scripts.gates.checks.repository.check_acceptance_case_mapping',
+        'repository.acceptance-traceability',
+        'scripts.gates.checks.repository.check_acceptance_traceability',
     ),
     (
-        'repository.current-source-policy',
-        'scripts.gates.checks.repository.check_current_source_policy',
+        'repository.current-version',
+        'scripts.gates.checks.repository.check_current_version',
     ),
     (
         'repository.maintenance-language',
         'scripts.gates.checks.repository.check_maintenance_language',
     ),
     (
-        'repository.no-python-playwright-skips',
-        'scripts.gates.checks.repository.check_no_python_playwright_skips',
+        'repository.test-skip-prohibition',
+        'scripts.gates.checks.repository.check_test_skip_prohibition',
     ),
     (
-        'repository.python-dependency-vulnerabilities',
-        'scripts.gates.checks.repository.check_python_dependency_vulnerabilities',
+        'repository.python-dependency-audit',
+        'scripts.gates.checks.repository.check_python_dependency_audit',
     ),
     (
         'repository.file-boundary',
         'scripts.gates.checks.repository.check_file_boundary',
     ),
     (
-        'repository.test-data-policy',
-        'scripts.gates.checks.repository.check_test_data_policy',
+        'repository.test-data-privacy',
+        'scripts.gates.checks.repository.check_test_data_privacy',
     ),
     ('privacy.credential-leak', 'scripts.gates.checks.privacy.check_credential_leak'),
     ('source.code-comment-language', 'scripts.gates.checks.source.check_code_comment_language'),

@@ -376,7 +376,7 @@ private class ReuseStandardCpdAction(
             if (mode != "incremental" && mode != "full") {
                 throw CpdExecutionFailure(
                     "input-unavailable",
-                    "Unsupported feipiReuseCpdMode=$mode",
+                    "Invalid feipiReuseCpdMode=$mode",
                 )
             }
 

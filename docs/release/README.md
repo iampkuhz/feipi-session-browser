@@ -26,11 +26,11 @@ git status
 ### 2. 创建 Release Candidate
 
 ```bash
-# 验证模式（不创建 tag）
-scripts/release/create-release-candidate.sh --dry-run
+# 验证 release candidate 前置条件
+scripts/release/create-release-candidate.sh verify
 
-# 正式发布模式（创建 annotated tag）
-scripts/release/create-release-candidate.sh
+# 验证后创建 annotated tag
+scripts/release/create-release-candidate.sh create
 ```
 
 脚本验证：
@@ -58,9 +58,8 @@ git push origin v$(cat VERSION)
 
 ## 当前发行物完整性
 
-当前 workflow 上传未签名的跨平台归档，并为每个平台生成和交叉验证 SHA-256 manifest。仓库不声明
-平台签名或公证能力：原步骤发生在归档与 checksum 之后，签名不会进入最终上传文件，
-因此已删除这套无效流程。未来只有在“签名 → 重新归档 → 重算 checksum → 验证签名”的闭环方案明确后才重建。
+当前 workflow 上传未签名的跨平台归档，并为每个平台生成和交叉验证 SHA-256 manifest。
+平台签名或公证能力需同时满足“签名 → 归档 → 计算 checksum → 验证签名”的完整链路，当前发行范围不包含该能力。
 
 ## 失败原子性
 

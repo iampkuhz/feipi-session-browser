@@ -31,12 +31,12 @@ def check(arguments: list[str]) -> CheckResult:
 
 - `agent.entrypoints`：跨客户端 Agent 入口、权限与 runtime 配置。
 - `agent.documentation`：Agent 维护文档、受保护路径与 handoff 协议。
-- `repository.file-boundary`：仓库文件、退役路径和 Git 追踪边界。
+- `repository.file-boundary`：仓库文件、Gate 阶段布局和 Git 追踪边界。
 - `repository.maintenance-language`：仓库维护文本语言规则。
 - `privacy.credential-leak`：凭据与类密钥内容扫描。
 - `source.code-comment-language`：源码注释语言规则。
 
-完整清单动态读取 `check_registry.py`；旧 ID 不提供 alias。
+完整清单动态读取 `check_registry.py`，registry 中每个 ID 只对应一个实现模块。
 
 ## 执行与状态
 
@@ -51,4 +51,4 @@ Execution adapter 内部调用 `python3 -m scripts.gates.checks <check-id>`。�
 发现领域违规为 `BLOCKED reason=verification-failed`；输入、依赖或运行时无法形成结论为 `FAIL`。
 
 新增 Check 时必须同批完成：实现文件、`check_registry.py` 唯一登记、Catalog RecipeStep owner、Trigger、
-定向测试和维护文档。移动或删除时同步移除所有 caller；不得保留 wrapper、re-export 或旧 ID alias。
+定向测试和维护文档。名称、registry、RecipeStep owner、Trigger 和测试始终使用同一 ID。

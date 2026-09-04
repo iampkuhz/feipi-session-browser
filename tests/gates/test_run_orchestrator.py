@@ -1,5 +1,6 @@
 """冻结 GatePlan 的串行执行、聚合与事件 contract。"""
 
+import importlib
 from pathlib import Path
 
 from scripts.gates.catalog.gate_contracts import (
@@ -106,7 +107,10 @@ def test_blocked_does_not_fail_fast_or_exceed_target_status(tmp_path: Path) -> N
     assert result.timing_state == 'OVER_TARGET'
 
 
-def test_plan_result_done_events_are_stable(tmp_path: Path) -> None:
+def test_plan_result_done_events_are_stable(tmp_path: Path, monkeypatch) -> None:
+    module = importlib.import_module('scripts.gates.execution.run_orchestrator')
+    ticks = iter((10.0, 12.5))
+    monkeypatch.setattr(module.time, 'monotonic', lambda: next(ticks))
     step = RecipeStep('only', RecipeStepKind.COMMAND, argv=('tool',))
     gate = _gate(step)
     events: list[ExecutionEvent] = []
@@ -120,6 +124,8 @@ def test_plan_result_done_events_are_stable(tmp_path: Path) -> None:
     assert [event.kind for event in events] == ['PLAN', 'RESULT', 'DONE']
     assert events[0].process_count == 1
     assert events[-1].status == 'PASS'
+    assert events[-1].elapsed_seconds == 2.5
+    assert events[-1].process_count == 1
     assert '--gate sampleGate' in result.canonical_rerun
 
 

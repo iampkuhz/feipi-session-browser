@@ -39,7 +39,7 @@ class TemplateContractRuleTest {
   }
 
   @Test
-  void reportsEachLegacyViolationInStableFileOrder() throws Exception {
+  void reportsEachViolationInStableFileOrder() throws Exception {
     write("b.html", "<p>{{ value</p>\n");
     write("a.html", "{% if ready\n<button onclick=\"run()\">运行</button>\n");
 

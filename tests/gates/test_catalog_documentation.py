@@ -53,20 +53,16 @@ def test_gate_descriptions_and_recipe_owners_are_explanatory() -> None:
             assert step.name
 
 
-def test_catalog_uses_frozen_vocabulary_and_no_generic_module_names() -> None:
-    forbidden_basenames = {
-        'model.py',
-        'support.py',
-        'utils.py',
-        'definitions.py',
-        'planner.py',
-        'executor.py',
-        'report.py',
-        'process.py',
-        'health.py',
+def test_catalog_uses_frozen_vocabulary_and_exact_module_names() -> None:
+    assert {path.name for path in CATALOG_ROOT.iterdir() if path.name != '__pycache__'} == {
+        '__init__.py',
+        'gate_contracts.py',
+        'recipe_dsl.py',
+        'registry.py',
+        'validation.py',
+        'domains',
     }
     paths = tuple(CATALOG_ROOT.rglob('*.py'))
-    assert not ({path.name for path in paths} & forbidden_basenames)
     content = '\n'.join(path.read_text(encoding='utf-8') for path in paths)
     assert 'leaf' not in content.lower()
     assert 'RunStep' not in content

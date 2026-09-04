@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import argparse
 import json
 import subprocess
 from typing import TYPE_CHECKING
@@ -22,7 +23,7 @@ def _init_repo(root: Path) -> None:
     subprocess.run(['git', 'commit', '-qm', 'fixture'], cwd=root, check=True)
 
 
-def test_list_json_exposes_only_new_public_names(capsys) -> None:
+def test_list_json_exposes_catalog_names(capsys) -> None:
     assert cli.main(['list', '--format', 'json']) == 0
     payload = json.loads(capsys.readouterr().out)
     assert len(payload['gates']) == 20
@@ -97,14 +98,16 @@ def test_incremental_selector_without_input_requires_full(tmp_path: Path, monkey
     )
 
 
-@pytest.mark.parametrize(
-    'arguments',
-    [
-        ['--mode', 'incremental'],
-        ['plan', '--mode', 'incremental', '--dry-run'],
-    ],
-)
-def test_old_cli_forms_are_rejected(arguments: list[str]) -> None:
-    with pytest.raises(SystemExit) as raised:
-        cli.main(arguments)
-    assert raised.value.code == 2
+def test_parser_exposes_exact_current_command_surface() -> None:
+    parser = cli._parser()
+    subcommands = next(
+        action for action in parser._actions if isinstance(action, argparse._SubParsersAction)
+    )
+
+    assert set(subcommands.choices) == {'list', 'explain', 'plan', 'run', 'health'}
+    health_options = {
+        option
+        for action in subcommands.choices['health']._actions
+        for option in action.option_strings
+    }
+    assert health_options == {'-h', '--help', '--format'}

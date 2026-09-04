@@ -94,7 +94,7 @@ def _validate_recipe_step(step: RecipeStep, label: str) -> None:
         if not step.tests or not step.prerequisite_tasks:
             raise ValueError(f'{label} requires tests and prerequisite_tasks')
     else:  # pragma: no cover - 新 adapter 必须先显式声明字段协议。
-        raise ValueError(f'{label}.kind is unsupported: {step.kind}')
+        raise ValueError(f'{label}.kind is unknown: {step.kind}')
 
     unexpected = _unused_fields(step, allowed)
     if unexpected:

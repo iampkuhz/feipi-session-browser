@@ -198,7 +198,7 @@ def _scan_text_files(root: Path, files: Iterable[Path]) -> list[str]:
     return errors
 
 
-def _validate_test_data_policy(root: Path) -> list[str]:
+def _validate_test_data_privacy(root: Path) -> list[str]:
     """执行完整测试数据政策并返回稳定、脱敏的诊断。"""
     managed_data = _iter_managed_data(root)
     tracked, git_error = _git_tracked_files(root)
@@ -216,12 +216,12 @@ def _validate_test_data_policy(root: Path) -> list[str]:
 
 
 def check(arguments: list[str]) -> CheckResult:
-    """解析仓库根目录并返回测试数据政策的全部诊断。"""
+    """解析仓库根目录并返回测试数据隐私边界的全部诊断。"""
     parser = argument_parser(description='检查测试数据可复现性与隐私边界')
     parser.add_argument('--repo-root', default=str(ROOT), help='Repository root')
     args = parser.parse_args(arguments)
     try:
-        errors = _validate_test_data_policy(Path(args.repo_root).resolve())
+        errors = _validate_test_data_privacy(Path(args.repo_root).resolve())
     except (OSError, UnicodeError) as exc:
         return CheckResult.execution_failure(
             [f'无法完整读取测试数据检查输入: {exc}'], reason='input-unavailable'

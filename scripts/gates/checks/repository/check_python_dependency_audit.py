@@ -95,7 +95,7 @@ def _output(process: subprocess.CompletedProcess) -> str:
 def _failure(tool: str, process: subprocess.CompletedProcess) -> CheckResult:
     """区分漏洞结论与审计工具自身未完成，避免 executor 猜测日志。"""
     detail = _output(process) or f'exit code {process.returncode}'
-    message = f'[python-dependency-vulnerabilities] {tool}:\n{detail}'
+    message = f'[python-dependency-audit] {tool}:\n{detail}'
     if any(marker in detail for marker in _NETWORK_MARKERS):
         return CheckResult.execution_failure([message], reason='network-unavailable')
     if tool == 'pip-audit':
@@ -116,7 +116,7 @@ def check(arguments: list[str]) -> CheckResult:
     uv = shutil.which('uv')
     if uv is None:
         return CheckResult.execution_failure(
-            ['[python-dependency-vulnerabilities] uv: command not found'],
+            ['[python-dependency-audit] uv: command not found'],
             reason='runtime-missing',
         )
 

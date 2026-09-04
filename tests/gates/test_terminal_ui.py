@@ -23,6 +23,7 @@ from scripts.gates.presentation.terminal_ui import (
     render_explanation,
     render_gate_catalog,
     render_gate_plan,
+    render_health_audit,
     render_run_receipt,
     render_terminal_event,
 )
@@ -120,7 +121,8 @@ def test_terminal_event_is_one_line_and_does_not_reclassify_status() -> None:
     assert render_terminal_event('heartbeat', elapsed_seconds=30) == (
         'HEARTBEAT elapsed_seconds=30'
     )
-    with pytest.raises(ValueError, match='unsupported terminal event'):
+    assert render_terminal_event('start', process_count=0) == 'START'
+    with pytest.raises(ValueError, match='unknown terminal event'):
         render_terminal_event('WARNING', status='PASS')
 
 
@@ -140,5 +142,30 @@ def test_receipt_rendering_preserves_final_status(tmp_path) -> None:
     payload = json.loads(render_run_receipt(receipt, output_format='json'))
 
     assert 'status=FAIL reason=input-empty' in human
+    assert "next='python3 scripts/gates/cli.py plan --mode incremental'" in human
     assert payload['status'] == 'FAIL'
     assert payload['schemaVersion'] == 5
+    assert payload['nextAction'] == 'python3 scripts/gates/cli.py plan --mode incremental'
+
+
+def test_health_rendering_reports_static_plan_and_one_executed_process(tmp_path) -> None:
+    audit = SimpleNamespace(
+        status='PASS',
+        reason='',
+        doctor_result=SimpleNamespace(status='PASS', log_path=tmp_path / 'doctor.log'),
+        gate_count=20,
+        recipe_step_count=33,
+        planned_process_count=34,
+        executed_process_count=1,
+        missing_recipe_steps=(),
+        unavailable_executables=(),
+        elapsed_seconds=0.25,
+    )
+
+    human = render_health_audit(audit)
+    payload = json.loads(render_health_audit(audit, output_format='json'))
+
+    assert 'gates=20 recipe_steps=33' in human
+    assert 'planned_processes=34 executed_processes=1 elapsed_ms=250' in human
+    assert payload['executedProcessCount'] == 1
+    assert payload['doctorLog'] == str(tmp_path / 'doctor.log')

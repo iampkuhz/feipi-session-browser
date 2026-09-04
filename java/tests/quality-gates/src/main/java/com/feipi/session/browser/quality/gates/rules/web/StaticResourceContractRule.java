@@ -44,11 +44,7 @@ public final class StaticResourceContractRule implements QualityRule {
   private static final Pattern PARENTHESIZED = Pattern.compile("\\([^)]*\\)");
   private static final Pattern JS_LINE_COMMENT = Pattern.compile("//.*?$", Pattern.MULTILINE);
   private static final Pattern JS_BLOCK_COMMENT = Pattern.compile("/\\*.*?\\*/", Pattern.DOTALL);
-  private static final Pattern LEGACY_COMPAT_SELECTOR =
-      Pattern.compile(
-          "\\.(?:old[-_]?|legacy[-_]?|deprecated[-_]?|compat[-_]?|v\\d[-_]?)",
-          Pattern.CASE_INSENSITIVE);
-  private static final List<Pattern> UNSUPPORTED_VIEWPORT_PATTERNS =
+  private static final List<Pattern> NON_DESKTOP_VIEWPORT_PATTERNS =
       List.of(
           Pattern.compile("max-width\\s*:\\s*767px", Pattern.CASE_INSENSITIVE),
           Pattern.compile("max-width\\s*:\\s*768px", Pattern.CASE_INSENSITIVE),
@@ -143,7 +139,6 @@ public final class StaticResourceContractRule implements QualityRule {
     checkSupportedViewports(cssSources, jsSources, violations);
     checkNoDeadCss(cssSources, violations);
     checkNoDeadJavaScript(jsSources, violations);
-    checkLegacyHiddenCompatibilitySelectors(cssSources, violations);
     checkNoDuplicateBaseCss(context, htmlSources, violations);
     checkPayloadModalOwnership(cssSources, violations);
     checkNoEval(jsSources, violations);
@@ -295,15 +290,15 @@ public final class StaticResourceContractRule implements QualityRule {
         if (stripped.startsWith("/*") || stripped.startsWith("*") || stripped.startsWith("//")) {
           continue;
         }
-        for (var pattern : UNSUPPORTED_VIEWPORT_PATTERNS) {
+        for (var pattern : NON_DESKTOP_VIEWPORT_PATTERNS) {
           var matcher = pattern.matcher(line);
           if (matcher.find() && !containsAllowedDesktopViewport(line)) {
             violations.add(
                 violation(
                     source.relativePath(),
                     index + 1,
-                    "UNSUPPORTED_VIEWPORT",
-                    "supported-viewports-only：禁止移动/平板视口支持，仅支持桌面端视口。",
+                    "VIEWPORT_OUTSIDE_DESKTOP_CONTRACT",
+                    "desktop-viewports-only：静态资源仅允许桌面端视口。",
                     Map.of("match", matcher.group())));
             break;
           }
@@ -327,40 +322,8 @@ public final class StaticResourceContractRule implements QualityRule {
                 source.relativePath(),
                 1,
                 "DEAD_JS_EMPTY",
-                "死 JS 文件（只有注释或空白，无有效代码；rule: no-dead-compat-shim）。",
+                "死 JS 文件（只有注释或空白，无有效代码；rule: non-empty-static-resource）。",
                 Map.of()));
-      }
-    }
-  }
-
-  private static void checkLegacyHiddenCompatibilitySelectors(
-      List<SourceText> cssSources, List<QualityViolation> violations) {
-    for (var source : cssSources) {
-      var lines = source.text().split("\\R", -1);
-      for (int index = 0; index < lines.length; index++) {
-        if (!lines[index].contains("display") || !lines[index].contains("none")) {
-          continue;
-        }
-        var selectorText = new StringBuilder();
-        for (int previous = index - 1; previous >= Math.max(0, index - 9); previous--) {
-          if (!selectorText.isEmpty()) {
-            selectorText.append(' ');
-          }
-          selectorText.append(lines[previous]);
-          if (lines[previous].contains("{")) {
-            break;
-          }
-        }
-        var matcher = LEGACY_COMPAT_SELECTOR.matcher(selectorText);
-        if (matcher.find()) {
-          violations.add(
-              violation(
-                  source.relativePath(),
-                  index + 1,
-                  "LEGACY_DISPLAY_NONE_COMPAT",
-                  "no-dead-compat-shim：display:none 用于疑似旧兼容选择器，" + "请删除垫片或改为当前选择器。",
-                  Map.of("selector", matcher.group())));
-        }
       }
     }
   }
@@ -492,18 +455,18 @@ public final class StaticResourceContractRule implements QualityRule {
       if (found.isEmpty()) {
         continue;
       }
-      var legacy =
-          legacyRelativePath(source)
+      var baselineKey =
+          baselineRelativePath(source)
               + ": 页面 CSS 裸定义原语根组件: "
               + String.join(", ", found)
               + ",应收敛至 ui-primitives.css 或使用后代/页面前缀选择器.";
-      if (!isKnownDebt(legacy, baselineEntries)) {
+      if (!isKnownDebt(baselineKey, baselineEntries)) {
         violations.add(
             violation(
                 source.relativePath(),
                 lineAt(stripped, firstIndex),
                 "COMPONENT_OVERRIDE_NEW",
-                "[component-override] 新增: " + legacy,
+                "[component-override] 新增: " + baselineKey,
                 Map.of("components", String.join(",", found))));
       }
     }
@@ -542,19 +505,19 @@ public final class StaticResourceContractRule implements QualityRule {
         continue;
       }
       var preview = depthViolations.subList(0, Math.min(5, depthViolations.size()));
-      var legacy =
-          legacyRelativePath(source)
+      var baselineKey =
+          baselineRelativePath(source)
               + ": 选择器深度超过 "
               + SELECTOR_BLOCK_DEPTH
               + ": "
               + String.join("; ", preview);
-      if (!isKnownDebt(legacy, baselineEntries)) {
+      if (!isKnownDebt(baselineKey, baselineEntries)) {
         violations.add(
             violation(
                 source.relativePath(),
                 lineAt(stripped, firstIndex),
                 "SELECTOR_DEPTH_NEW",
-                "[selector-depth] 新增: " + legacy,
+                "[selector-depth] 新增: " + baselineKey,
                 Map.of("findingCount", Integer.toString(depthViolations.size()))));
       }
     }
@@ -626,7 +589,7 @@ public final class StaticResourceContractRule implements QualityRule {
     return CSS_COMMENT.matcher(text).replaceAll("");
   }
 
-  private static String legacyRelativePath(SourceText source) {
+  private static String baselineRelativePath(SourceText source) {
     var ancestor = source.path();
     for (int depth = 0; depth < 4 && ancestor != null; depth++) {
       ancestor = ancestor.getParent();

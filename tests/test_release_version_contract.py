@@ -9,9 +9,11 @@ from pathlib import Path
 PROJECT_DIR = Path(__file__).resolve().parents[1]
 SCRIPT = PROJECT_DIR / 'scripts' / 'session-browser.sh'
 RELEASE_WORKFLOW = PROJECT_DIR / '.github' / 'workflows' / 'release.yml'
+RELEASE_CANDIDATE = PROJECT_DIR / 'scripts' / 'release' / 'create-release-candidate.sh'
+HARNESS_MANIFEST = PROJECT_DIR / 'harness' / 'manifest.yaml'
 
 
-def test_help_does_not_advertise_removed_shell_release_commands():
+def test_help_lists_java_owned_product_commands():
     result = subprocess.run(
         [str(SCRIPT), 'help'],
         cwd=PROJECT_DIR,
@@ -21,27 +23,41 @@ def test_help_does_not_advertise_removed_shell_release_commands():
     )
 
     assert result.returncode == 0
-    assert 'set-version' not in result.stdout
-    assert 'build-dist' not in result.stdout
-    assert 'verify-dist' not in result.stdout
-    assert 'release-check' not in result.stdout
-    assert 'release' not in result.stdout
+    assert {'scan', 'serve', 'stop', 'status', 'doctor', 'deps', 'version', 'diagnose'} <= set(
+        result.stdout.split()
+    )
 
 
-def test_set_version_is_not_a_shell_mutation_command():
+def test_version_command_is_read_only():
     version_file = PROJECT_DIR / 'VERSION'
     before = version_file.read_bytes()
 
     result = subprocess.run(
-        [str(SCRIPT), 'set-version', '0.4'],
+        [str(SCRIPT), 'version'],
         cwd=PROJECT_DIR,
         text=True,
         capture_output=True,
         check=False,
     )
-    assert result.returncode == 2
-    assert 'set-version' in result.stderr
+    assert result.returncode == 0
+    assert result.stdout.strip()
     assert version_file.read_bytes() == before
+
+
+def test_release_candidate_requires_explicit_action():
+    result = subprocess.run(
+        [str(RELEASE_CANDIDATE)],
+        cwd=PROJECT_DIR,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+
+    assert result.returncode == 2
+    assert '<verify|create>' in result.stderr
+    manifest = HARNESS_MANIFEST.read_text(encoding='utf-8')
+    assert 'create-release-candidate.sh verify' in manifest
+    assert 'create-release-candidate.sh create' in manifest
 
 
 def _workflow_regex_after(marker: str) -> str:

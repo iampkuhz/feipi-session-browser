@@ -51,9 +51,13 @@ class HealthAuditView(Protocol):
     status: object
     reason: str
     doctor_result: object
-    gate_results: tuple[object, ...]
-    over_target_gates: tuple[str, ...]
-    receipt: ReceiptView
+    gate_count: int
+    recipe_step_count: int
+    planned_process_count: int
+    executed_process_count: int
+    missing_recipe_steps: tuple[str, ...]
+    unavailable_executables: tuple[str, ...]
+    elapsed_seconds: float
 
 
 def _public_value(value: Any) -> Any:
@@ -76,7 +80,7 @@ def _render_json(payload: object) -> str:
 
 def _require_format(output_format: str) -> None:
     if output_format not in _FORMATS:
-        raise ValueError(f'unsupported format: {output_format}')
+        raise ValueError(f'invalid format: {output_format}')
 
 
 def _gate_payload(gate: Gate) -> dict[str, Any]:
@@ -276,7 +280,7 @@ def render_terminal_event(
 
     kind = str(event).upper()
     if kind not in _EVENT_KINDS:
-        raise ValueError(f'unsupported terminal event: {event}')
+        raise ValueError(f'unknown terminal event: {event}')
     values = dict(fields_map or {})
     values.update(fields_values)
     rendered = [kind]
@@ -285,6 +289,8 @@ def render_terminal_event(
     for key in ordered_keys:
         value = values[key]
         if value is None or value == '':
+            continue
+        if key == 'process_count' and value == 0:
             continue
         normalized = str(value.value if isinstance(value, Enum) else value)
         rendered.append(f'{key}={shlex.quote(normalized)}')
@@ -295,6 +301,11 @@ def render_run_receipt(receipt: ReceiptView, *, output_format: str = 'human') ->
     """展示一次已持久化运行的最终状态和可复现入口。"""
 
     _require_format(output_format)
+    next_action = (
+        'python3 scripts/gates/cli.py plan --mode incremental'
+        if receipt.reason == 'input-empty'
+        else receipt.canonical_rerun
+    )
     payload = {
         'schemaVersion': receipt.schema_version,
         'runId': receipt.run_id,
@@ -304,6 +315,7 @@ def render_run_receipt(receipt: ReceiptView, *, output_format: str = 'human') ->
         'planFingerprint': receipt.plan_fingerprint,
         'summaryPath': str(receipt.summary_path),
         'canonicalRerun': receipt.canonical_rerun,
+        'nextAction': next_action,
     }
     if output_format == 'json':
         return _render_json(payload)
@@ -311,31 +323,36 @@ def render_run_receipt(receipt: ReceiptView, *, output_format: str = 'human') ->
     return (
         f'DONE run={receipt.run_id} status={receipt.status}{reason} '
         f'duration_ms={receipt.duration_ms} receipt={receipt.summary_path} '
-        f'rerun={shlex.quote(receipt.canonical_rerun)}'
+        f'rerun={shlex.quote(receipt.canonical_rerun)} next={shlex.quote(next_action)}'
     )
 
 
 def render_health_audit(audit: HealthAuditView, *, output_format: str = 'human') -> str:
-    """展示 health 审计，不把超时效或 doctor 问题改写成 Gate PASS。"""
+    """展示快速控制面体检，不宣称 Gate owner 已执行。"""
 
     _require_format(output_format)
     status = str(audit.status)
     doctor_status = str(getattr(audit.doctor_result, 'status', 'FAIL'))
-    passed = sum(str(getattr(item, 'status', '')) == 'PASS' for item in audit.gate_results)
     payload = {
         'status': status,
         'reason': audit.reason,
         'doctorStatus': doctor_status,
-        'gateCount': len(audit.gate_results),
-        'passedGateCount': passed,
-        'overTargetGates': list(audit.over_target_gates),
-        'receipt': str(audit.receipt.summary_path),
+        'gateCount': audit.gate_count,
+        'recipeStepCount': audit.recipe_step_count,
+        'plannedProcessCount': audit.planned_process_count,
+        'executedProcessCount': audit.executed_process_count,
+        'missingRecipeSteps': list(audit.missing_recipe_steps),
+        'unavailableExecutables': list(audit.unavailable_executables),
+        'elapsedMs': round(audit.elapsed_seconds * 1000),
+        'doctorLog': str(getattr(audit.doctor_result, 'log_path', '')),
     }
     if output_format == 'json':
         return _render_json(payload)
     reason = f' reason={audit.reason}' if audit.reason else ''
     return (
         f'GATE_HEALTH status={status}{reason} doctor={doctor_status} '
-        f'gates={passed}/{len(audit.gate_results)} '
-        f'over_target={len(audit.over_target_gates)} receipt={audit.receipt.summary_path}'
+        f'gates={audit.gate_count} recipe_steps={audit.recipe_step_count} '
+        f'planned_processes={audit.planned_process_count} '
+        f'executed_processes={audit.executed_process_count} '
+        f'elapsed_ms={payload["elapsedMs"]} doctor_log={payload["doctorLog"]}'
     )

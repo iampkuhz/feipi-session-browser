@@ -174,7 +174,7 @@ def _step_command(step: RecipeStep, repo_root: Path) -> tuple[str, ...]:
             *step.args,
             *step.tests,
         )
-    raise ValueError(f'unsupported RecipeStepKind: {kind}')
+    raise ValueError(f'unknown RecipeStepKind: {kind}')
 
 
 def _request_environment(

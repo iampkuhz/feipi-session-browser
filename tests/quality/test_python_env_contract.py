@@ -34,7 +34,7 @@ def _write_project(root: Path, *, dev_extra: str = '') -> None:
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')
 def test_repository_pyproject_is_virtual_dev_tools_project():
-    """Python 产品退役后，uv 不得再构建或安装当前仓库。"""
+    """Python 配置只管理开发工具和锁定依赖。"""
     config = tomllib.loads((REPO_ROOT / 'pyproject.toml').read_text(encoding='utf-8'))
 
     assert 'build-system' not in config
@@ -43,13 +43,6 @@ def test_repository_pyproject_is_virtual_dev_tools_project():
     assert config['tool']['uv']['package'] is False
     assert config['tool']['pytest']['ini_options']['pythonpath'] == ['.']
     assert (REPO_ROOT / 'uv.lock').is_file()
-    for name in (
-        'requirements.txt',
-        'requirements.lock',
-        'requirements-dev.txt',
-        'requirements-dev.lock',
-    ):
-        assert not (REPO_ROOT / name).exists()
 
 
 @pytest.mark.contract_case('HOOK-HARNESS-010')

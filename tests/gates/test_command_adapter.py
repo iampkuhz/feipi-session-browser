@@ -26,7 +26,7 @@ def test_python_check_uses_declared_check_id(tmp_path: Path, monkeypatch) -> Non
         '/tmp/python',
         '-m',
         'scripts.gates.checks',
-        'repository.no-python-playwright-skips',
+        'repository.test-skip-prohibition',
     )
     assert dict(invocation.environment) == {
         'QUALITY_CHANGED_FILES': '["scripts/a.py"]',

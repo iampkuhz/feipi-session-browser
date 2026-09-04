@@ -34,7 +34,7 @@ final class BaselineUpdateWriter {
     mergeAndWrite(path, replacements, BaselineUpdateWriter::moveAtomically);
   }
 
-  /** 允许测试注入不支持原子移动的文件系统结果；生产路径始终要求原子替换。 */
+  /** 允许测试注入原子移动失败结果；生产路径始终要求原子替换。 */
   static void mergeAndWrite(
       Path path, Map<String, Map<String, List<String>>> replacements, AtomicMover atomicMover)
       throws IOException {
@@ -143,7 +143,7 @@ final class BaselineUpdateWriter {
     Files.move(source, target, StandardCopyOption.ATOMIC_MOVE, StandardCopyOption.REPLACE_EXISTING);
   }
 
-  /** 原子移动边界；不支持时必须把异常返回给 CLI，不能降级为普通替换。 */
+  /** 原子移动边界；失败时必须把异常返回给 CLI，禁止降级为普通替换。 */
   @FunctionalInterface
   interface AtomicMover {
     void move(Path source, Path target) throws IOException;

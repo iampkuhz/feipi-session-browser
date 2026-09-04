@@ -7,24 +7,21 @@
 # 3. 验证当前分支与远程同步
 # 4. 创建 release tag 并输出 candidate 元数据
 #
-# 追加 --dry-run 时仍执行全部前置验证，但不创建 tag。
 set -euo pipefail
 
-DRY_RUN=false
-
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --dry-run)
-            DRY_RUN=true
-            shift
-            ;;
-        *)
-            echo "未知参数: $1" >&2
-            echo "用法: $0 [--dry-run]" >&2
-            exit 1
-            ;;
-    esac
-done
+if [[ $# -ne 1 ]]; then
+    echo "用法: $0 <verify|create>" >&2
+    exit 2
+fi
+ACTION="$1"
+case "$ACTION" in
+    verify|create) ;;
+    *)
+        echo "无效动作: $ACTION" >&2
+        echo "用法: $0 <verify|create>" >&2
+        exit 2
+        ;;
+esac
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
@@ -100,15 +97,15 @@ echo ""
 # 阶段 5：创建 tag
 echo "--- 阶段 5：创建 release tag ---"
 
-if [[ "$DRY_RUN" == "true" ]]; then
-    echo "  DRY-RUN: 跳过 tag 创建"
+if [[ "$ACTION" == "verify" ]]; then
+    echo "  PASS: release candidate 前置验证完成"
     echo ""
     echo "===== Candidate 元数据 ====="
     echo "版本: $VERSION"
     echo "Tag: $TAG"
     echo "Commit: $(git rev-parse --short=12 HEAD)"
     echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-    echo "模式: dry-run"
+    echo "动作: verify"
 else
     git tag -a "$TAG" -m "Release v$VERSION"
     echo "  PASS: tag $TAG 已创建"
@@ -118,7 +115,7 @@ else
     echo "Tag: $TAG"
     echo "Commit: $(git rev-parse --short=12 HEAD)"
     echo "Branch: $(git rev-parse --abbrev-ref HEAD)"
-    echo "模式: release"
+    echo "动作: create"
     echo ""
     echo "下一步: git push origin $TAG"
 fi

@@ -43,7 +43,7 @@
 ## 触发门禁
 
 - `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
-- `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js`
+- `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js`
 - `npm --prefix tests/playwright test -- session-detail-layout.spec.js`
 - `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests`
 - `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership`

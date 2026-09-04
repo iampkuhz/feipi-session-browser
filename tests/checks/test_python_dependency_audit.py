@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import subprocess
 
-from scripts.gates.checks.repository import check_python_dependency_vulnerabilities as audit
+from scripts.gates.checks.repository import check_python_dependency_audit as audit
 
 
 def _completed(
@@ -13,7 +13,7 @@ def _completed(
     return subprocess.CompletedProcess([], returncode, stdout, stderr)
 
 
-def test_dependency_vulnerability_check_exports_then_audits(monkeypatch, tmp_path) -> None:
+def test_python_dependency_audit_check_exports_then_audits(monkeypatch, tmp_path) -> None:
     calls: list[tuple[list[str], str | None]] = []
     results = iter((_completed(stdout='locked requirements'), _completed()))
     monkeypatch.setattr(audit.shutil, 'which', lambda name: f'/tool/{name}')
@@ -33,7 +33,7 @@ def test_dependency_vulnerability_check_exports_then_audits(monkeypatch, tmp_pat
     assert len(calls) == 2
 
 
-def test_dependency_vulnerability_check_fails_closed_when_uv_is_missing(
+def test_python_dependency_audit_check_fails_closed_when_uv_is_missing(
     monkeypatch, tmp_path
 ) -> None:
     monkeypatch.setattr(audit.shutil, 'which', lambda _name: None)
@@ -46,7 +46,7 @@ def test_dependency_vulnerability_check_fails_closed_when_uv_is_missing(
     assert 'command not found' in result.diagnostics[0].message
 
 
-def test_dependency_vulnerability_check_stops_when_export_fails(monkeypatch, tmp_path) -> None:
+def test_python_dependency_audit_check_stops_when_export_fails(monkeypatch, tmp_path) -> None:
     calls = 0
     monkeypatch.setattr(audit.shutil, 'which', lambda _name: '/tool/uv')
 
@@ -67,7 +67,7 @@ def test_dependency_vulnerability_check_stops_when_export_fails(monkeypatch, tmp
     assert calls == 1
 
 
-def test_dependency_vulnerability_check_reports_audit_vulnerability(monkeypatch, tmp_path) -> None:
+def test_python_dependency_audit_check_reports_audit_vulnerability(monkeypatch, tmp_path) -> None:
     results = iter(
         (
             _completed(stdout='locked requirements'),
@@ -85,7 +85,7 @@ def test_dependency_vulnerability_check_reports_audit_vulnerability(monkeypatch,
     assert 'GHSA-example' in result.diagnostics[0].message
 
 
-def test_dependency_vulnerability_check_preserves_network_error(monkeypatch, tmp_path) -> None:
+def test_python_dependency_audit_check_preserves_network_error(monkeypatch, tmp_path) -> None:
     results = iter(
         (
             _completed(stdout='locked requirements'),
@@ -103,7 +103,7 @@ def test_dependency_vulnerability_check_preserves_network_error(monkeypatch, tmp
     assert 'requests.exceptions.SSLError' in result.diagnostics[0].message
 
 
-def test_dependency_vulnerability_environment_drops_proxy_unless_enabled(
+def test_python_dependency_audit_environment_drops_proxy_unless_enabled(
     monkeypatch,
 ) -> None:
     monkeypatch.setenv('HTTPS_PROXY', 'http://proxy.invalid')

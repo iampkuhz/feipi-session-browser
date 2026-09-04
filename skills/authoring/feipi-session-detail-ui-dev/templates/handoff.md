@@ -40,7 +40,7 @@ python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests
 python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style
 ./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
-npm --prefix tests/playwright test -- session-detail.spec.js session-detail-migrated-gates.spec.js
+npm --prefix tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js
 npm --prefix tests/playwright test -- session-detail-layout.spec.js
 ./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml
 ```

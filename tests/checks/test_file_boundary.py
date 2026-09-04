@@ -68,19 +68,27 @@ def test_missing_required_path_fails(tmp_path: Path, monkeypatch):
     assert '缺少必需路径: missing-entry.py' in result.diagnostics[0].message
 
 
-def test_retired_gate_core_path_fails(tmp_path: Path, monkeypatch) -> None:
+def test_gate_root_rejects_unregistered_source_path(tmp_path: Path) -> None:
     root = tmp_path / 'repo'
     _init_repo(root)
-    retired = root / 'scripts' / 'gates' / 'model.py'
-    retired.parent.mkdir(parents=True, exist_ok=True)
-    retired.write_text('', encoding='utf-8')
-    monkeypatch.setattr(policy, 'RETIRED_GATE_CORE_PATHS', ('scripts/gates/model.py',))
+    extra = root / policy.GATE_ROOT / 'extra.py'
+    extra.write_text('', encoding='utf-8')
 
     result = policy.check(['--root', str(root)])
 
     assert any(
-        '退役 Gate 核心路径仍存在: scripts/gates/model.py' in d.message for d in result.diagnostics
+        'Gate 根目录路径未登记: scripts/gates/extra.py' in d.message for d in result.diagnostics
     )
+
+
+def test_gate_root_allows_current_stage_layout_and_runtime_cache(tmp_path: Path) -> None:
+    root = tmp_path / 'repo'
+    _init_repo(root)
+    for name in policy.ALLOWED_GATE_ROOT_DIRECTORIES:
+        (root / policy.GATE_ROOT / name).mkdir(exist_ok=True)
+    (root / policy.GATE_ROOT / '__pycache__').mkdir()
+
+    assert policy.check(['--root', str(root)]).passed
 
 
 def test_forbidden_path_on_disk_fails_even_when_ignored(tmp_path: Path):
@@ -147,11 +155,11 @@ def test_staged_deletion_is_allowed_for_cleanup(tmp_path: Path):
     _init_repo(root, ['generated/'])
     (root / '.gitignore').write_text('/cache/\n', encoding='utf-8')
     (root / 'cache').mkdir()
-    (root / 'cache' / 'legacy.txt').write_text('legacy\n', encoding='utf-8')
+    (root / 'cache' / 'tracked.txt').write_text('tracked\n', encoding='utf-8')
     _git(root, 'add', '.gitignore')
-    _git(root, 'add', '-f', 'cache/legacy.txt')
-    _git(root, 'commit', '-m', 'legacy ignored file')
-    _git(root, 'rm', 'cache/legacy.txt')
+    _git(root, 'add', '-f', 'cache/tracked.txt')
+    _git(root, 'commit', '-m', 'tracked ignored file')
+    _git(root, 'rm', 'cache/tracked.txt')
 
     assert policy.check(['--root', str(root), '--staged']).passed
 
@@ -183,17 +191,19 @@ def test_tracked_database_fails(tmp_path: Path):
     )
 
 
-def test_retired_product_python_path_fails(tmp_path: Path):
+def test_product_python_path_outside_repository_boundary_fails(tmp_path: Path):
     root = tmp_path / 'repo'
     _init_repo(root)
-    legacy = root / 'src' / 'session_browser' / 'legacy.py'
-    legacy.parent.mkdir(parents=True)
-    legacy.write_text('print("legacy")\n', encoding='utf-8')
+    source = root / 'src' / 'session_browser' / 'module.py'
+    source.parent.mkdir(parents=True)
+    source.write_text('VALUE = 1\n', encoding='utf-8')
 
     result = policy.check(['--root', str(root), '--all-tracked'])
 
     assert not result.passed
-    assert any('产品 Python 已退役' in diagnostic.message for diagnostic in result.diagnostics)
+    assert any(
+        '产品 Python 路径不符合仓库边界' in diagnostic.message for diagnostic in result.diagnostics
+    )
 
 
 def test_git_read_error_fails_closed(tmp_path: Path):

@@ -89,7 +89,8 @@ def _parser() -> argparse.ArgumentParser:
     _plan_arguments(
         commands.add_parser('run', help='Compile, execute, and store receipt'), include_format=False
     )
-    commands.add_parser('health', help='Run explicit full maintenance audit')
+    health = commands.add_parser('health', help='Check Gate control-plane health')
+    health.add_argument('--format', choices=_FORMATS, default='human')
     return parser
 
 
@@ -154,9 +155,9 @@ def _run(args: argparse.Namespace, repo_root: Path) -> int:
     return {'PASS': 0, 'BLOCKED': 1}.get(receipt.status, 2)
 
 
-def _health(repo_root: Path) -> int:
+def _health(args: argparse.Namespace, repo_root: Path) -> int:
     audit = audit_gate_health(repo_root=repo_root, event_sink=_event_sink)
-    print(render_health_audit(audit))
+    print(render_health_audit(audit, output_format=args.format))
     return {'PASS': 0, 'BLOCKED': 1}.get(str(audit.status), 2)
 
 
@@ -177,7 +178,7 @@ def main(argv: list[str] | None = None) -> int:
             return 0
         if args.command == 'run':
             return _run(args, repo_root)
-        return _health(repo_root)
+        return _health(args, repo_root)
     except KeyboardInterrupt:
         print('DONE status=FAIL reason=interrupted', file=sys.stderr)
         return 130

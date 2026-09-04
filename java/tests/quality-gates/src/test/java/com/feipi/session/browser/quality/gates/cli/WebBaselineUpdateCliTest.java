@@ -140,13 +140,13 @@ class WebBaselineUpdateCliTest {
   }
 
   @Test
-  void invalidUnsupportedOrMalformedUpdatesFailBeforeReplacingTheSharedFile() throws Exception {
+  void invalidRuleSelectionOrMalformedUpdatesFailBeforeReplacingTheSharedFile() throws Exception {
     writeCanonicalBaseline("[]", "[]", "[]");
     var original = Files.readAllBytes(repo.resolve(BASELINE));
 
     var unknown = update("raw-innerhtml", "missing-rule");
-    var unsupported = update("static-resource-contract", "static-resource-contract");
-    var unsupportedBeforeChangedFiles =
+    var capabilityMissing = update("static-resource-contract", "static-resource-contract");
+    var capabilityCheckedBeforeChangedFiles =
         update(
             "record-component-javadocs",
             "record-component-javadocs",
@@ -155,11 +155,12 @@ class WebBaselineUpdateCliTest {
     var empty = update("raw-innerhtml", ",, ");
 
     assertThat(unknown.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
-    assertThat(unsupported.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
-    assertThat(unsupported.err()).contains("Rule does not support baseline updates");
-    assertThat(unsupportedBeforeChangedFiles.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
-    assertThat(unsupportedBeforeChangedFiles.err())
-        .contains("Rule does not support baseline updates")
+    assertThat(capabilityMissing.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
+    assertThat(capabilityMissing.err()).contains("Baseline update capability required");
+    assertThat(capabilityCheckedBeforeChangedFiles.exitCode())
+        .isEqualTo(QualityGateExitCodes.ERROR);
+    assertThat(capabilityCheckedBeforeChangedFiles.err())
+        .contains("Baseline update capability required")
         .doesNotContain("changed-files");
     assertThat(mismatch.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(empty.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
@@ -201,7 +202,7 @@ class WebBaselineUpdateCliTest {
   }
 
   @Test
-  void unsupportedAtomicMoveFailsClosedAndPreservesOriginal() throws Exception {
+  void atomicMoveFailureFailsClosedAndPreservesOriginal() throws Exception {
     writeCanonicalBaseline("[]", "[]", "[]");
     var baseline = repo.resolve(BASELINE);
     var original = Files.readAllBytes(baseline);

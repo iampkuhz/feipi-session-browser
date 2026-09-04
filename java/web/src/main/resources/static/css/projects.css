@@ -331,7 +331,7 @@
   background: var(--red-soft);
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project detail: sessions table toolbar ───────────────────` */
-/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`T086: Removed .page-section .card-title override that added margin-bottom and disrupted table-card toolbar layout. .card-title sizing is governed by ui-primitives.css.` */
+/* .card-title 尺寸由 ui-primitives.css 统一管理。 */
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Project sessions table column widths (T086) ─────────────` */
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Column min-widths via CSS classes, not inline styles, to satisfy the layout-inline-style quality gate.` */
 .p-projects .project-sessions-table col.col-title {

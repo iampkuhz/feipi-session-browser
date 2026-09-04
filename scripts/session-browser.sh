@@ -22,21 +22,22 @@ run_deps() {
     case "${1:-}" in
         "")
             ;;
-        --dry-run)
+        plan)
             if [[ $# -ne 1 ]]; then
-                echo "错误：deps --dry-run 不接受额外参数。" >&2
+                echo "错误：deps plan 不接受额外参数。" >&2
                 return 2
             fi
-            echo "[DRY-RUN] 将执行：./gradlew :java:app-cli:installDist"
-            echo "[DRY-RUN] 构建后将执行：$JAVA_LAUNCHER deps"
+            echo "PLAN ./gradlew :java:app-cli:installDist"
+            echo "PLAN $JAVA_LAUNCHER deps"
             return 0
             ;;
         -h|--help)
-            echo "用法：./scripts/session-browser.sh deps [--dry-run]"
+            echo "用法：./scripts/session-browser.sh deps [plan]"
             return 0
             ;;
         *)
-            echo "错误：deps 仅支持 --dry-run，不接受：$*" >&2
+            echo "错误：deps 参数无效：$*" >&2
+            echo "用法：./scripts/session-browser.sh deps [plan]" >&2
             return 2
             ;;
     esac
@@ -52,7 +53,7 @@ run_deps() {
     exec "$JAVA_LAUNCHER" deps
 }
 
-# test 是固定的 Java 产品验证；定向 Python 测试不再伪装成产品命令。
+# test 是固定的 Java 产品验证入口。
 run_test() {
     if [[ $# -ne 0 ]]; then
         echo "错误：test 不接受额外参数；该入口固定执行 Java 产品测试。" >&2

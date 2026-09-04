@@ -37,12 +37,12 @@
 - Layout 变更应优先消除 inline style；只有经审阅确认保留时，才显式更新
   `config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries`。
 
-## 禁止 legacy CSS
+## CSS 当前命名与 ownership
 
-- 不新增 legacy alias CSS 类。
-- 使用 `currentVersionPolicy` 检查是否有 legacy CSS 引入。
-- 已有的 legacy CSS 不在本 skill 范围内清理，除非任务明确要求。
-- 新增样式必须使用当前命名约定，不使用已废弃的前缀或别名。
+- 样式类使用当前组件语义和 BEM 命名。
+- `webStaticRules` 中的 `css-ownership` 检查 selector 归属。
+- `currentVersionPolicy` 检查内部标识是否稳定且无版本后缀。
+- 全局样式必须有明确 owner，组件样式放在对应 ownership 区域。
 
 ## 无真实 session 原则
 

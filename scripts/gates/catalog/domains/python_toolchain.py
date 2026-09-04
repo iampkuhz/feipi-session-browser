@@ -131,7 +131,7 @@ GATES = (
             120,
             python_check(
                 'pythonDependencyAudit',
-                'repository.python-dependency-vulnerabilities',
+                'repository.python-dependency-audit',
                 '--root',
                 '{repo_root}',
                 runtime='dev',

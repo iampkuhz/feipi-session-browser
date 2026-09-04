@@ -1,7 +1,7 @@
 """统一检查仓库文件边界。
 
 本文件统一守护仓库文件和公开脚本边界：必需入口必须存在；禁止路径、忽略文件和数据库
-不得进入 Git；退役的产品 Python 目录不得回流；维护资料中的脚本命令必须指向 manifest
+不得进入 Git；Gate 根目录必须符合当前阶段布局；维护资料中的脚本命令必须指向 manifest
 登记的公开入口。Git 或配置无法可靠读取时直接失败，避免检查异常被误当成通过。唯一公开
 入口是 ``check(arguments)``，返回诊断表示仓库边界不符合政策。
 """
@@ -41,7 +41,7 @@ REQUIRED_PATHS = (
     'scripts/gates/maintenance/health_audit.py',
     'scripts/gates/checks/check_protocol.py',
     'scripts/gates/checks/check_registry.py',
-    'scripts/gates/checks/repository/check_acceptance_case_mapping.py',
+    'scripts/gates/checks/repository/check_acceptance_traceability.py',
     'harness/agent-policy.manifest.yaml',
     'harness/skill-registry.yaml',
     'skills/authoring/feipi-openspec-orchestrate-change/SKILL.md',
@@ -51,17 +51,18 @@ REQUIRED_PATHS = (
     'harness/README.md',
     'docs/acceptance-cases/README.md',
 )
-RETIRED_GATE_CORE_PATHS = (
-    'scripts/gates/catalog.py',
-    'scripts/gates/definitions.py',
-    'scripts/gates/model.py',
-    'scripts/gates/planner.py',
-    'scripts/gates/support.py',
-    'scripts/gates/executor.py',
-    'scripts/gates/report.py',
-    'scripts/gates/health.py',
-    'scripts/gates/runtime/environment.py',
-    'scripts/gates/runtime/process.py',
+GATE_ROOT = Path('scripts/gates')
+ALLOWED_GATE_ROOT_FILES = frozenset({'cli.py'})
+ALLOWED_GATE_ROOT_DIRECTORIES = frozenset(
+    {
+        'catalog',
+        'planning',
+        'execution',
+        'evidence',
+        'presentation',
+        'maintenance',
+        'checks',
+    }
 )
 DATABASE_SUFFIXES = ('.sqlite', '.sqlite3', '.db')
 COMMAND_REFERENCE_PATTERN = re.compile(
@@ -180,7 +181,7 @@ def _check_command_references(root: Path) -> tuple[str, ...]:
 
 
 def _product_python_paths(root: Path) -> tuple[str, ...]:
-    """列出退役产品目录中意外回流的 Python 源码。"""
+    """列出当前仓库边界之外的产品 Python 源码。"""
 
     source_root = root / 'src' / 'session_browser'
     if not source_root.is_dir():
@@ -317,16 +318,32 @@ def _is_below(path: str, root_path: str) -> bool:
     return path == root_path or path.startswith(f'{root_path}/')
 
 
+def _gate_root_layout_errors(root: Path) -> list[str]:
+    """返回 Gate 根目录中不属于当前阶段布局的源码路径。"""
+
+    gate_root = root / GATE_ROOT
+    if not gate_root.is_dir():
+        return []
+    errors: list[str] = []
+    for entry in sorted(gate_root.iterdir(), key=lambda path: path.name):
+        if entry.name == '__pycache__':
+            continue
+        allowed = (
+            entry.name in ALLOWED_GATE_ROOT_DIRECTORIES
+            if entry.is_dir()
+            else entry.name in ALLOWED_GATE_ROOT_FILES
+        )
+        if not allowed:
+            errors.append(f'Gate 根目录路径未登记: {entry.relative_to(root).as_posix()}')
+    return errors
+
+
 def _validate(root: Path, manifest_path: Path, all_tracked: bool) -> list[str]:
     """一次完成公开入口、磁盘路径和 Git 追踪边界检查。"""
 
     forbidden_paths = _load_forbidden_paths(manifest_path)
     errors = [f'缺少必需路径: {path}' for path in REQUIRED_PATHS if not _path_exists(root / path)]
-    errors.extend(
-        f'退役 Gate 核心路径仍存在: {path}'
-        for path in RETIRED_GATE_CORE_PATHS
-        if _path_exists(root / path)
-    )
+    errors.extend(_gate_root_layout_errors(root))
     errors.extend(
         f'禁止根路径不应出现在仓库磁盘: {path}'
         for path in forbidden_paths
@@ -343,9 +360,7 @@ def _validate(root: Path, manifest_path: Path, all_tracked: bool) -> list[str]:
             errors.append(f'禁止根路径不应进入 Git tracked: {path}')
         if path.lower().endswith(DATABASE_SUFFIXES):
             errors.append(f'数据库文件不应进入 Git tracked: {path}')
-    errors.extend(
-        f'产品 Python 已退役，但文件仍存在: {path}' for path in _product_python_paths(root)
-    )
+    errors.extend(f'产品 Python 路径不符合仓库边界: {path}' for path in _product_python_paths(root))
     errors.extend(f'公开命令违规: {error}' for error in _check_command_references(root))
     return errors
 

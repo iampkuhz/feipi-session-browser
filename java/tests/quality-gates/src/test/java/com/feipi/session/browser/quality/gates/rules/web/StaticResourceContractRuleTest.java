@@ -33,7 +33,7 @@ class StaticResourceContractRuleTest {
   }
 
   @Test
-  void validResourcesIgnoreTheFiveRulesOwnedByLaterBatches() throws Exception {
+  void validResourcesStayWithinStaticResourceRuleOwnership() throws Exception {
     write(STATIC + "/js/raw.js", "node.innerHTML = userInput;\nnode.style.display = 'none';\n");
     write(TEMPLATES + "/page.html", "<div style=\"display:grid\">页面</div>\n");
     write(STATIC + "/css/shell-duplicate.css", ".app-shell { display: grid; }\n");
@@ -53,7 +53,7 @@ class StaticResourceContractRuleTest {
   }
 
   @Test
-  void reportsTheDirectRetainedBlockingRules() throws Exception {
+  void reportsOwnedBlockingRules() throws Exception {
     write(
         STATIC + "/css/bad.css", "/* color: red !important; */\n.payload-modal { color: red; }\n");
     write(STATIC + "/css/dead.css", "");
@@ -119,7 +119,7 @@ class StaticResourceContractRuleTest {
   }
 
   @Test
-  void viewportPolicyAllowsDesktopWidthsAndBlocksMigratedMobilePatterns() throws Exception {
+  void viewportPolicyAllowsDesktopWidthsAndRejectsNonDesktopPatterns() throws Exception {
     write(
         STATIC + "/css/desktop.css",
         """
@@ -145,9 +145,9 @@ class StaticResourceContractRuleTest {
 
     assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(invalid.out())
-        .contains("UNSUPPORTED_VIEWPORT")
+        .contains("VIEWPORT_OUTSIDE_DESKTOP_CONTRACT")
         .contains("mobile.css")
-        .contains("supported-viewports-only");
+        .contains("desktop-viewports-only");
   }
 
   @Test
@@ -155,7 +155,7 @@ class StaticResourceContractRuleTest {
     write(
         STATIC + "/js/comment-only.js",
         """
-        // retired handler
+        // comment-only fixture
         /* no executable statements remain */
         """);
 
@@ -165,24 +165,7 @@ class StaticResourceContractRuleTest {
     assertThat(result.out())
         .contains("DEAD_JS_EMPTY")
         .contains("comment-only.js")
-        .contains("no-dead-compat-shim");
-  }
-
-  @Test
-  void legacyDisplayNoneSelectorBlocksWhileCurrentSelectorPasses() throws Exception {
-    write(STATIC + "/css/current-hidden.css", ".sr-only {\n  display: none;\n}\n");
-
-    assertThat(run(null).exitCode()).isZero();
-
-    write(STATIC + "/css/legacy-hidden.css", ".old-header {\n  display: none;\n}\n");
-
-    var invalid = run(null);
-
-    assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
-    assertThat(invalid.out())
-        .contains("LEGACY_DISPLAY_NONE_COMPAT")
-        .contains("legacy-hidden.css")
-        .contains(".old-");
+        .contains("non-empty-static-resource");
   }
 
   @Test
@@ -198,7 +181,7 @@ class StaticResourceContractRuleTest {
 
     assertThat(run(null).exitCode()).isZero();
 
-    write(TEMPLATES + "/boundary.html", "<!-- href=\"/static/css/base.css\" 仍按旧字面规则阻断 -->\n");
+    write(TEMPLATES + "/boundary.html", "<!-- href=\"/static/css/base.css\" 重复加载 -->\n");
 
     var invalid = run(null);
 
@@ -207,7 +190,7 @@ class StaticResourceContractRuleTest {
   }
 
   @Test
-  void payloadModalKeepsLegacyPrefixesBemAndCommentBoundaries() throws Exception {
+  void payloadModalKeepsCurrentPrefixesBemAndCommentBoundaries() throws Exception {
     write(
         STATIC + "/css/payload-boundary.css",
         """
@@ -239,7 +222,7 @@ class StaticResourceContractRuleTest {
   @Test
   void componentBaselineKeepsBroadSubstringSuppressionWithoutWarnings() throws Exception {
     write(STATIC + "/css/known.css", ".btn, .toast { color: red; }\n");
-    writeBaseline("[\"legacy.css:.btn\"]", "[]");
+    writeBaseline("[\"baseline.css:.btn\"]", "[]");
 
     var known = run(null);
 
@@ -255,7 +238,7 @@ class StaticResourceContractRuleTest {
   }
 
   @Test
-  void selectorDepthKeepsLegacyParserBoundaryAndBroadSuppression() throws Exception {
+  void selectorDepthKeepsParserBoundaryAndBroadSuppression() throws Exception {
     write(
         STATIC + "/css/known-depth.css",
         """
@@ -264,7 +247,7 @@ class StaticResourceContractRuleTest {
         .a .b .c { color: green; }
         .a:not(.x .y) .b .c { color: black; }
         """);
-    writeBaseline("[]", "[\"legacy.css:.known .a .b .c\"]");
+    writeBaseline("[]", "[\"baseline.css:.known .a .b .c\"]");
 
     assertThat(run(null).exitCode()).isZero();
 

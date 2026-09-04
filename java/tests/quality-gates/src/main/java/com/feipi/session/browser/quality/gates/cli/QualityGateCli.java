@@ -217,7 +217,7 @@ public final class QualityGateCli {
     var updaters = new ArrayList<BaselineUpdatableRule>();
     for (var rule : selectedRules) {
       if (!(rule instanceof BaselineUpdatableRule updater)) {
-        throw new IllegalArgumentException("Rule does not support baseline updates: " + rule.id());
+        throw new IllegalArgumentException("Baseline update capability required: " + rule.id());
       }
       updaters.add(updater);
     }

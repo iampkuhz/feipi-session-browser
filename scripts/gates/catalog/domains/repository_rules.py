@@ -12,7 +12,7 @@ from scripts.gates.catalog.recipe_dsl import (
 GATES = (
     Gate(
         name='repositoryBoundaryAudit',
-        description='统一检查仓库文件、退役路径、Git 追踪和公开脚本入口边界。',
+        description='统一检查仓库文件、Gate 阶段布局、Git 追踪和公开脚本入口边界。',
         trigger=changed(
             '.gitignore',
             'AGENTS.md',
@@ -50,7 +50,7 @@ GATES = (
             'tests/**/*.js',
             'tests/**/*.ts',
             'tests/playwright/playwright.config.js',
-            'scripts/gates/checks/repository/check_no_python_playwright_skips.py',
+            'scripts/gates/checks/repository/check_test_skip_prohibition.py',
         ),
         target_presets=('web-interface',),
         recipe=recipe(
@@ -58,13 +58,13 @@ GATES = (
             15,
             python_check(
                 'testSkipProhibition',
-                'repository.no-python-playwright-skips',
+                'repository.test-skip-prohibition',
             ),
         ),
     ),
     Gate(
         name='currentVersionPolicy',
-        description='检查仓库只描述当前版本和当前 Harness 状态。',
+        description='检查仓库内部标识使用稳定且无版本后缀的名称。',
         trigger=changed(
             'README.md',
             'docs/**',
@@ -73,8 +73,8 @@ GATES = (
             'openspec/specs/**',
             'scripts/**',
             'tests/**/*.py',
-            'scripts/gates/checks/repository/check_current_source_policy.py',
-            'tests/quality/test_current_source_policy.py',
+            'scripts/gates/checks/repository/check_current_version.py',
+            'tests/quality/test_current_version.py',
         ),
         target_presets=('gate-infrastructure',),
         recipe=recipe(
@@ -82,7 +82,7 @@ GATES = (
             20,
             python_check(
                 'currentVersionPolicy',
-                'repository.current-source-policy',
+                'repository.current-version',
             ),
         ),
     ),
@@ -95,8 +95,8 @@ GATES = (
             'tests/**/*.js',
             'tests/**/*.ts',
             'java/**/src/test/java/**/*.java',
-            'scripts/gates/checks/repository/check_acceptance_case_mapping.py',
-            'tests/checks/test_acceptance_case_mapping.py',
+            'scripts/gates/checks/repository/check_acceptance_traceability.py',
+            'tests/checks/test_acceptance_traceability.py',
             'pyproject.toml',
         ),
         target_presets=(),
@@ -105,7 +105,7 @@ GATES = (
             30,
             python_check(
                 'acceptanceTraceability',
-                'repository.acceptance-case-mapping',
+                'repository.acceptance-traceability',
             ),
         ),
     ),
@@ -115,7 +115,7 @@ GATES = (
         trigger=changed(
             'tests/**',
             'java/**/src/test/**',
-            'scripts/gates/checks/repository/check_test_data_policy.py',
+            'scripts/gates/checks/repository/check_test_data_privacy.py',
         ),
         target_presets=('gate-infrastructure', 'java-source'),
         recipe=recipe(
@@ -123,7 +123,7 @@ GATES = (
             30,
             python_check(
                 'testDataPrivacy',
-                'repository.test-data-policy',
+                'repository.test-data-privacy',
                 '--repo-root',
                 '{repo_root}',
             ),

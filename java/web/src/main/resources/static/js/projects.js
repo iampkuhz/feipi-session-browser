@@ -19,7 +19,7 @@
     }
     window.showToast = showToast;
 
-    /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Copy project path — REMOVED (T044) ─────────────────── * Copy behavior now handled exclusively by the unified * handler in ui_primitives.js via data-copy-text. * ───────────────────────────────────────────────────────────` */
+    /* 项目路径复制由 ui_primitives.js 的 data-copy-text handler 统一管理。 */
 
     /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`=========================================================== * LIST PAGE behaviors (scoped to #projects-table) * ===========================================================` */
 
@@ -490,7 +490,7 @@
                 });
             }
 
-            /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Detail: copy session ID — REMOVED (T044) ──────────── * Copy behavior now handled exclusively by the unified * handler in ui_primitives.js. * ───────────────────────────────────────────────────────────` */
+            /* Session ID 复制由 ui_primitives.js 的 data-copy-text handler 统一管理。 */
 
             /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Detail: row click navigation ──────────────────────` */
             detailTable.addEventListener('click', function(e) {

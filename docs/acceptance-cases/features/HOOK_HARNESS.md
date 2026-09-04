@@ -7,11 +7,7 @@
 | 模块 | 显式 Gate、OpenSpec、共享 agent/skill 入口与静态安全策略 |
 | 关联源码 | `scripts/gates/`、`scripts/gates/checks/`、`scripts/harness/python_env.py`、`scripts/openspec/`、`harness/` |
 | 关联测试 | `tests/gates/`、`tests/harness/`、`tests/quality/` |
-| 主要风险 | Gate 伪 PASS、错误 path routing、隐私/密钥检查缺失、工具环境不确定或本地 Hook 再次阻断普通修改 |
-
-## 已退役边界
-
-仓库不再维护平台 Hook adapter、Session Registry、checkout writer lease、mutation baseline、Stop controller、自动 commit 或自动 integration。对应历史用例 `HOOK-HARNESS-001`–`006`、`016`–`024` 随生产能力一起退役，不保留兼容测试。
+| 主要风险 | Gate 伪 PASS、错误 path routing、隐私/密钥检查缺失、工具环境不确定或隐式生命周期动作 |
 
 ## 验收用例
 
@@ -21,8 +17,8 @@
 | HOOK-HARNESS-008 | P0 | data | 高价值质量门禁 | 运行领域质量检查 contract | 隐私、密钥、生成路径、skip/warning 等规则按预期触发 | pytest / JUnit | — | `tests/checks/test_repository_check_outcomes.py`; `tests/gates/test_outcome_classifier.py`; `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/CssOwnershipRuleTest.java`; `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/RawInnerHtmlRuleTest.java`; `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/LayoutInlineStyleRuleTest.java` |
 | HOOK-HARNESS-009 | P0 | data | 质量产物结构 | 测试 Gate service 的当次运行产物 | 产物使用 ignored 质量目录，路径稳定且不会进入 candidate | pytest | — | `tests/gates/test_cli.py`; `tests/harness/test_doctor_output.py` |
 | HOOK-HARNESS-010 | P0 | data | Gate execution | 测试 command adapter、process supervisor、outcome classifier 与 run orchestrator | Catalog 命令自然完成；heartbeat/STALL 不 kill；仅显式中断清理进程组；warning/skip/not-run/unavailable 不得 PASS | pytest | — | `tests/gates/test_command_adapter.py`; `tests/gates/test_process_supervisor.py`; `tests/gates/test_outcome_classifier.py`; `tests/gates/test_run_orchestrator.py`; `tests/quality/test_python_env_contract.py` |
-| HOOK-HARNESS-011 | P0 | data | 当前源码政策 | 测试跨仓库当前态规则 | 源码不保留历史版本标记，Harness 只描述当前可执行状态 | pytest | — | `tests/quality/test_current_source_policy.py` |
+| HOOK-HARNESS-011 | P0 | data | 稳定内部标识 | 测试 full 与 incremental 文本范围 | 仓库内部 catalog、payload、schema 和 profile 标识使用稳定无版本后缀名称 | pytest | — | `tests/quality/test_current_version.py` |
 | HOOK-HARNESS-012 | P0 | data | Gate 失败语义 | 测试 Gate run fail-closed 逻辑 | incremental Gate 的 BLOCKED/FAIL 保留真实状态并写入 immutable receipt | pytest | — | `tests/gates/test_cli.py`; `tests/gates/test_receipt_store.py` |
-| HOOK-HARNESS-013 | P1 | data | 静态产品契约 | 测试模板/CSS/JS 等静态契约 | 只支持桌面 viewport，JS 不为空，CSS 有有效规则且不保留旧 `display:none` 兼容选择器 | JUnit | — | `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java` |
-| HOOK-HARNESS-014 | P1 | data | Minimal Harness 结构 | 验证 manifest、agent policy、skill registry 与公开入口 | 不要求 Hook/Session Runtime 文件存在，保留共享 agent/skill 与 Gate 入口 | pytest | — | `tests/harness/test_doctor_output.py`; `scripts/harness/validate_harness_structure.py` |
+| HOOK-HARNESS-013 | P1 | data | 静态产品契约 | 测试模板/CSS/JS 等静态契约 | 桌面 viewport 约束明确，JS 内容完整，CSS 规则和 selector ownership 有效 | JUnit | — | `java/tests/quality-gates/src/test/java/com/feipi/session/browser/quality/gates/rules/web/StaticResourceContractRuleTest.java` |
+| HOOK-HARNESS-014 | P1 | data | Minimal Harness 结构 | 验证 manifest、agent policy、skill registry 与公开入口 | 共享 agent/skill、OpenSpec 和 Gate 入口完整，生命周期动作由客户端显式管理 | pytest | — | `tests/harness/test_doctor_output.py`; `scripts/harness/validate_harness_structure.py` |
 | HOOK-HARNESS-015 | P1 | data | OpenSpec 布局 | 验证 OpenSpec specs/changes/schema/template | 非平凡变更可显式创建和验证，不依赖 pre-write Hook 授权 | manual | — | `scripts/openspec/validate_layout.py`; `scripts/openspec/validate_active_change.py` |

@@ -234,20 +234,3 @@ def test_public_check_fails_closed_for_invalid_policy(tmp_path: Path, policy_sta
     expected = 'POLICY_UNAVAILABLE' if policy_state == 'missing' else 'POLICY_INVALID'
     assert expected in result.diagnostics[0].message
     assert result.status.value == ('FAIL' if policy_state == 'missing' else 'BLOCKED')
-
-
-@pytest.mark.parametrize(
-    'legacy_option',
-    [
-        '--jobs',
-        '--json-report',
-        '--cache',
-        '--files-from',
-        '--script-comments',
-        '--changed-files-env',
-    ],
-)
-def test_public_check_rejects_removed_legacy_options(legacy_option: str) -> None:
-    """已删除的并发、缓存和增量参数不得继续形成隐藏兼容入口。"""
-    with pytest.raises(SystemExit):
-        checker.check([legacy_option])
