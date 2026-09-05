@@ -142,7 +142,11 @@ def _run_step_invocations(
         if results and invocations[0].kind == 'gradle-prerequisite':
             prerequisite = results[0]
             if prerequisite.status is not ExecutionStatus.PASS:
-                forced_reason = 'dependency-unavailable'
+                forced_reason = (
+                    'process-stalled'
+                    if prerequisite.reason == 'process-stalled'
+                    else 'dependency-unavailable'
+                )
                 break
         observation = supervisor(
             invocation,

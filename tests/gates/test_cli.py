@@ -9,6 +9,8 @@ from typing import TYPE_CHECKING
 
 import pytest
 from scripts.gates import cli
+from scripts.gates.execution.process_supervisor import ProcessObservation
+from scripts.gates.planning.plan_compiler import CommandInvocation
 
 if TYPE_CHECKING:
     from pathlib import Path
@@ -96,6 +98,67 @@ def test_incremental_selector_without_input_requires_full(tmp_path: Path, monkey
         )
         == 2
     )
+
+
+def test_stalled_run_returns_fail_and_preserves_immutable_receipt(
+    tmp_path: Path, monkeypatch, capsys
+) -> None:
+    _init_repo(tmp_path)
+    monkeypatch.chdir(tmp_path)
+    stalled = True
+
+    def adapt(gate, step, *_args, **_kwargs):
+        return (
+            CommandInvocation(
+                f'{gate.name}:{step.name}', 'command', ('synthetic-tool',), (), gate.name, step.name
+            ),
+        )
+
+    def supervise(_invocation, **kwargs):
+        log = kwargs['log_path']
+        log.parent.mkdir(parents=True, exist_ok=True)
+        log.write_text('GATE_RESULT status=PASS\n', encoding='utf-8')
+        return ProcessObservation(
+            0, 'EXITED', 'c', 'e', 's', 'f', 0.1, 1, str(log), '', stalled=stalled
+        )
+
+    orchestrate = cli.orchestrate_gate_run
+
+    def run(plan, root, **kwargs):
+        return orchestrate(plan, root, supervisor=supervise, **kwargs)
+
+    monkeypatch.setattr(cli, 'adapt_recipe_step', adapt)
+    monkeypatch.setattr(cli, 'orchestrate_gate_run', run)
+    arguments = ['run', '--mode', 'full', '--gate', 'javaBuildVerification']
+    assert cli.main(arguments) == 2
+    output = capsys.readouterr()
+    assert 'FAIL' in output.out
+    assert 'PASS' not in output.out
+    assert 'status=PASS' not in output.err
+    assert any(
+        line.startswith('DONE ') and 'status=FAIL' in line and 'reason=process-stalled' in line
+        for line in output.err.splitlines()
+    )
+    runs_root = tmp_path / 'tmp/quality/runs'
+    summary = next(runs_root.glob('*/summary.json'))
+    original = summary.read_bytes()
+    payload = json.loads(original)
+    assert (payload['status'], payload['reason']) == ('FAIL', 'process-stalled')
+    invocation = payload['gateResults'][0]['recipeSteps'][0]['invocationResults'][0]
+    assert (invocation['status'], invocation['reason'], invocation['returnCode']) == (
+        'FAIL',
+        'process-stalled',
+        0,
+    )
+
+    stalled = False
+    assert cli.main(arguments) == 0
+    capsys.readouterr()
+    assert summary.read_bytes() == original
+    assert len(list(runs_root.glob('*/summary.json'))) == 2
+    latest = json.loads((runs_root / 'latest.json').read_text(encoding='utf-8'))
+    latest_payload = json.loads((runs_root / latest['summary']).read_text(encoding='utf-8'))
+    assert latest_payload['status'] == 'PASS'
 
 
 def test_parser_exposes_exact_current_command_surface() -> None:

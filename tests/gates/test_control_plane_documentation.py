@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -36,8 +37,19 @@ def test_one_inline_diagram_combines_flow_responsibility_and_code_ownership() ->
         'evidence/ + presentation/',
     ):
         assert location in text
-    for step_id in range(1, 11):
-        assert f'activity "S{step_id} ' in text
+    diagram = text.split('```plantuml\n', 1)[1].split('\n```', 1)[0]
+    assert re.findall(r'^\s*:(S\d+) [^;\n]+;\s*$', diagram, re.MULTILINE) == [
+        f'S{step_id}' for step_id in range(1, 11)
+    ]
+
+
+def test_stall_is_documented_as_persistent_execution_failure() -> None:
+    text = _document_text()
+
+    assert '不可清除的停滞事实' in text
+    assert 'FAIL reason=process-stalled' in text
+    assert 'CLI 返回 2' in text
+    assert 'STALL 不自动终止进程' in text
 
 
 def test_internal_functions_are_contextualized_as_navigation_entries() -> None:

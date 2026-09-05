@@ -58,6 +58,7 @@ class ProcessObservation:
     child_pid: int | None
     log_path: str
     output_tail: str
+    stalled: bool = False
 
     def as_dict(self) -> dict[str, Any]:
         """返回可序列化的进程观察事实，不补充业务状态。"""
@@ -213,6 +214,7 @@ def supervise_process(
     process: subprocess.Popen[bytes] | None = None
     return_code: int | None = None
     exit_reason = 'SPAWN_ERROR'
+    stalled = False
     previous_sigterm_handler: signal.Handlers | None = None
     handles_sigterm = threading.current_thread() is threading.main_thread()
     flags = os.O_WRONLY | os.O_CREAT | os.O_TRUNC | getattr(os, 'O_NOFOLLOW', 0)
@@ -260,6 +262,7 @@ def supervise_process(
                     while next_heartbeat <= now:
                         next_heartbeat += heartbeat_seconds
                 if not stall_reported and now - last_growth >= stall_seconds:
+                    stalled = True
                     _emit(
                         event_sink,
                         'STALL',
@@ -299,4 +302,5 @@ def supervise_process(
         child_pid=process.pid if process else None,
         log_path=str(selected_log),
         output_tail=_tail(selected_log),
+        stalled=stalled,
     )

@@ -1,6 +1,8 @@
 """冻结 GatePlan 的串行执行、聚合与事件 contract。"""
 
 import importlib
+import json
+from dataclasses import replace
 from pathlib import Path
 
 from scripts.gates.catalog.gate_contracts import (
@@ -13,6 +15,7 @@ from scripts.gates.catalog.gate_contracts import (
     RecipeStepKind,
     TriggerMode,
 )
+from scripts.gates.evidence.receipt_store import store_run_receipt
 from scripts.gates.execution.outcome_classifier import ExecutionStatus
 from scripts.gates.execution.process_supervisor import ExecutionEvent, ProcessObservation
 from scripts.gates.execution.run_orchestrator import orchestrate_gate_run
@@ -43,7 +46,7 @@ def _invocation(step: str) -> CommandInvocation:
     )
 
 
-def _supervisor(codes: iter, observed: list[str]):
+def _supervisor(codes: iter, observed: list[str], *, stalled_steps: tuple[str, ...] = ()):
     def run(invocation, **kwargs):
         observed.append(invocation.recipe_step_name)
         code = next(codes)
@@ -61,9 +64,79 @@ def _supervisor(codes: iter, observed: list[str]):
             1,
             str(log),
             '',
+            stalled=invocation.recipe_step_name in stalled_steps,
         )
 
     return run
+
+
+def test_stall_exit_zero_fails_all_layers_despite_later_pass(tmp_path: Path) -> None:
+    steps = tuple(
+        RecipeStep(name, RecipeStepKind.COMMAND, argv=('tool',))
+        for name in ('stalled', 'independent')
+    )
+    plan = _plan(_gate(*steps), tuple(_invocation(step.name) for step in steps))
+    observed: list[str] = []
+    events: list[ExecutionEvent] = []
+    results = orchestrate_gate_run(
+        plan,
+        tmp_path,
+        supervisor=_supervisor(iter((0, 0)), observed, stalled_steps=('stalled',)),
+        event_sink=events.append,
+    )
+    gate = results[0]
+    stalled, independent = gate.step_results
+    invocation = stalled.invocation_results[0]
+    assert observed == ['stalled', 'independent']
+    assert invocation.return_code == 0
+    for result in (invocation, stalled, gate):
+        assert result.status is ExecutionStatus.FAIL
+        assert result.reason == 'process-stalled'
+    assert independent.status is ExecutionStatus.PASS
+    assert [(event.status, event.reason) for event in events if event.kind == 'RESULT'] == [
+        ('FAIL', 'process-stalled'),
+        ('PASS', ''),
+    ]
+    assert (events[-1].kind, events[-1].status, events[-1].reason) == (
+        'DONE',
+        'FAIL',
+        'process-stalled',
+    )
+    receipt = store_run_receipt(plan, results, repo_root=tmp_path)
+    assert (receipt.status, receipt.reason) == ('FAIL', 'process-stalled')
+    payload = json.loads(receipt.summary_path.read_text(encoding='utf-8'))
+    gate_payload = payload['gateResults'][0]
+    step_payload = gate_payload['recipeSteps'][0]
+    invocation_payload = step_payload['invocationResults'][0]
+    for layer in (payload, gate_payload, step_payload, invocation_payload):
+        assert (layer['status'], layer['reason']) == ('FAIL', 'process-stalled')
+    assert invocation_payload['returnCode'] == 0
+    assert gate_payload['recipeSteps'][1]['status'] == 'PASS'
+
+
+def test_stalled_prerequisite_preserves_reason_and_skips_dependent_command(tmp_path: Path) -> None:
+    steps = tuple(
+        RecipeStep(name, RecipeStepKind.COMMAND, argv=('tool',))
+        for name in ('dependent', 'independent')
+    )
+    prerequisite = replace(
+        _invocation('dependent'), invocation_id='prerequisite', kind='gradle-prerequisite'
+    )
+    invocations = (prerequisite, _invocation('dependent'), _invocation('independent'))
+    observed: list[str] = []
+    result = orchestrate_gate_run(
+        _plan(_gate(*steps), invocations),
+        tmp_path,
+        supervisor=_supervisor(iter((0, 0)), observed, stalled_steps=('dependent',)),
+    )[0]
+    assert observed == ['dependent', 'independent']
+    dependent, independent = result.step_results
+    assert len(dependent.invocation_results) == 1
+    assert dependent.invocation_results[0].invocation_id == 'prerequisite'
+    assert dependent.invocation_results[0].return_code == 0
+    for layer in (dependent.invocation_results[0], dependent, result):
+        assert (layer.status, layer.reason) == (ExecutionStatus.FAIL, 'process-stalled')
+    assert independent.status is ExecutionStatus.PASS
 
 
 def test_composite_runs_every_step_and_fail_dominates(tmp_path: Path) -> None:

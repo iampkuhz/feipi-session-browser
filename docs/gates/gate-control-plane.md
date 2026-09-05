@@ -148,13 +148,16 @@ endlegend
 |---|---|
 | `PASS` | required 检查完整执行且全部通过 |
 | `BLOCKED` | 检查完整执行并发现源码、规则或测试问题，通常是 `reason=verification-failed` |
-| `FAIL` | 输入、依赖、运行时、中断或结果不可判定，导致检查没有完整完成 |
+| `FAIL` | 输入、依赖、运行时、停滞、中断或结果不可判定，导致检查未能有效完成 |
 
 合并规则：任一 Gate 为 FAIL，则整次运行 FAIL；否则任一 Gate 为 BLOCKED，则整次运行 BLOCKED；全部
 `StepResult` 和 `GateResult` 为 PASS，整次运行才是 PASS。`NOT_TRIGGERED` 只说明没有执行，不参与状态合并。
 
 运行期间 stderr 事件固定为 `PLAN / START / HEARTBEAT / STALL / RESULT / DONE`。长步骤每 30 秒输出 heartbeat；
-日志 120 秒没有增长时报告 STALL，但不终止进程。显式中断会清理受管进程组。
+日志 120 秒没有增长时报告 STALL，并记录不可清除的停滞事实。即使后续日志恢复、进程以 0 退出或 owner
+报告 PASS，该命令仍归为 `FAIL reason=process-stalled`，并向步骤、Gate、整次运行及凭证传播；CLI 返回 2。
+显式中断、信号终止或启动失败保留其更具体的运行失败原因。STALL 不自动终止进程，也不自动重试；显式中断
+会清理受管进程组。HEARTBEAT 只表示仍在等待，本身不改变执行状态。
 
 `run` 将输入快照、触发原因、HEAD/base、内容指纹、系统命令、类型化结果、日志和 canonical rerun 保存到新的
 `tmp/quality/runs/<run-id>/`。run-id 目录不可覆盖，`latest.json` 只用于导航。

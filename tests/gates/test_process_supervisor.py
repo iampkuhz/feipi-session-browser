@@ -10,6 +10,7 @@ from pathlib import Path
 
 import pytest
 from scripts.gates.execution import process_supervisor
+from scripts.gates.execution.outcome_classifier import ExecutionStatus, classify_owner_outcome
 from scripts.gates.planning.plan_compiler import CommandInvocation
 
 
@@ -62,6 +63,7 @@ def test_supervisor_reports_fake_clock_heartbeat_and_stall(tmp_path: Path, monke
         sleeper=clock.sleep,
     )
     assert observation.return_code == 0
+    assert observation.stalled
     assert [event.kind for event in events] == [
         'START',
         'HEARTBEAT',
@@ -71,6 +73,60 @@ def test_supervisor_reports_fake_clock_heartbeat_and_stall(tmp_path: Path, monke
         'STALL',
     ]
     assert events[-1].elapsed_seconds == 120
+
+
+@pytest.mark.parametrize('capture_events', [True, False])
+@pytest.mark.parametrize(
+    ('growth_times', 'finish_at', 'stall_count'),
+    [
+        ((), 180, 1),
+        ((150,), 180, 1),
+        ((150,), 330, 2),
+        ((30, 60, 90, 120, 150), 180, 0),
+    ],
+)
+def test_stall_fact_survives_recovery_and_does_not_depend_on_event_sink(
+    tmp_path: Path, monkeypatch, capture_events, growth_times, finish_at, stall_count
+) -> None:
+    clock = FakeClock()
+    process = CompletingProcess(clock, finish_at=finish_at)
+    monkeypatch.setattr(process_supervisor.subprocess, 'Popen', lambda *_args, **_kwargs: process)
+    signals = []
+    monkeypatch.setattr(process_supervisor.os, 'killpg', lambda *args: signals.append(args))
+    log = tmp_path / 'progress.log'
+    events = []
+
+    def sleep_and_write(seconds: float) -> None:
+        clock.sleep(seconds)
+        if clock.value in growth_times:
+            with log.open('ab') as output:
+                output.write(b'progress\n')
+
+    observation = process_supervisor.supervise_process(
+        _invocation(),
+        cwd=tmp_path,
+        log_path=log,
+        event_sink=events.append if capture_events else None,
+        clock=clock,
+        sleeper=sleep_and_write,
+        poll_interval=30,
+    )
+    assert observation.stalled is bool(stall_count)
+    assert observation.as_dict()['stalled'] is bool(stall_count)
+    assert observation.return_code == 0
+    assert observation.exit_reason == 'EXITED'
+    assert clock.value == finish_at
+    assert signals == []
+    if capture_events:
+        assert sum(event.kind == 'STALL' for event in events) == stall_count
+        assert any(event.kind == 'HEARTBEAT' for event in events)
+    if growth_times:
+        assert 'progress' in observation.output_tail
+    result = classify_owner_outcome(_invocation(), observation)
+    expected = (
+        (ExecutionStatus.FAIL, 'process-stalled') if stall_count else (ExecutionStatus.PASS, '')
+    )
+    assert (result.status, result.reason) == expected
 
 
 def test_supervisor_has_no_execution_timeout_parameter() -> None:

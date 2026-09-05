@@ -186,6 +186,8 @@ def _base_status(
         return ExecutionStatus.FAIL, 'process-signaled'
     if not invocation.argv:
         return ExecutionStatus.FAIL, 'runtime-missing'
+    if observation.stalled:
+        return ExecutionStatus.FAIL, 'process-stalled'
     return None
 
 
