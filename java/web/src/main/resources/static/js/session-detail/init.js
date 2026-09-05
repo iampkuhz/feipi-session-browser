@@ -426,6 +426,12 @@
       + timeline + '</section>';
   }
 
+  // 折线与 tooltip 共用输入侧口径，不包含输出 token。
+  function roundCacheReadRatio(tokens) {
+    var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
+    return inputSide > 0 ? Math.max(0, Math.min(100, Number(tokens.cacheRead || 0) / inputSide * 100)) : 0;
+  }
+
   function tokenRoundChartHtml(rounds, label) {
     if (!rounds || !rounds.length) {
       return '<div class="sd-card-empty">Round timeline is loading from /rounds API.</div>';
@@ -434,8 +440,7 @@
     var plotWidth = Math.max(320, rounds.length * 32 + 44);
     var points = rounds.map(function (round, idx) {
       var tokens = round.tokens || {};
-      var inputSide = Number(tokens.fresh || 0) + Number(tokens.cacheRead || 0) + Number(tokens.cacheWrite || 0);
-      var ratio = inputSide > 0 ? (Number(tokens.cacheRead || 0) / inputSide) * 100 : 0;
+      var ratio = roundCacheReadRatio(tokens);
       return (idx * 32) + ',' + (100 - Math.max(0, Math.min(100, ratio))).toFixed(1);
     }).join(' ');
     var buttons = rounds.map(function (round) {
@@ -458,16 +463,20 @@
         + '<span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height:' + write + '%"></span>'
         + '<span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height:' + out + '%"></span></span>'
         + '<span class="sd-token-round-tooltip" role="tooltip"><b>R' + escapeHtml(round.roundIndex) + ' · ' + escapeHtml(parity.time || '') + '</b>'
+        + '<div>Token shares below use Total, including Output.</div>'
         + '<span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>' + formatSessionCompact(tokens.fresh) + '</em><strong>' + fresh + '%</strong></span>'
         + '<span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>' + formatSessionCompact(tokens.cacheRead) + '</em><strong>' + read + '%</strong></span>'
         + '<span><i class="sd-tooltip-mark sd-tooltip-mark--write"></i><small>Cache Write</small><em>' + formatSessionCompact(tokens.cacheWrite) + '</em><strong>' + write + '%</strong></span>'
         + '<span><i class="sd-tooltip-mark sd-tooltip-mark--out"></i><small>Output</small><em>' + formatSessionCompact(tokens.output) + '</em><strong>' + out + '%</strong></span>'
         + '<span class="sd-token-round-tooltip__total"><i></i><small>Total</small><em>' + formatSessionCompact(total) + '</em><strong>100.0%</strong></span>'
+        + '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--line"></i><small>Cache Read / Input</small><em>' + roundCacheReadRatio(tokens).toFixed(1) + '%</em></span>'
+        + '<div>Line = Cache Read / (Fresh + Cache Read + Cache Write). Excludes Output; no input = 0%.</div>'
         + (tags.length ? '<span class="sd-token-round-tooltip__tags"><i class="sd-tooltip-mark sd-tooltip-mark--spike"></i><small>Badge Text</small><em>' + escapeHtml(tags.join(', ')) + '</em></span>' : '')
         + '</span><span class="sd-token-round__signal-slot" aria-hidden="true">' + (tags.length ? '<span class="sd-token-round__spike"></span>' : '') + '</span>'
         + '<span class="sd-token-round__label">R' + escapeHtml(round.roundIndex) + '</span></button>';
     }).join('');
-    return '<div class="sd-token-round-chart" aria-label="' + escapeHtml(label || 'agent') + ' token composition">'
+    return '<div><small><i class="sd-tooltip-mark sd-tooltip-mark--line" aria-hidden="true"></i> Black line: Cache Read / Input (0–100%, excludes Output). Bars: token totals.</small></div>'
+      + '<div class="sd-token-round-chart" aria-label="' + escapeHtml(label || 'agent') + ' token composition">'
       + '<div class="sd-token-round-plot" style="--plot-width:' + plotWidth + 'px; --ratio-line-left:22px; --ratio-line-width:' + Math.max(0, plotWidth - 44) + 'px">'
       + '<svg class="sd-token-ratio-line" viewBox="0 0 ' + Math.max(1, plotWidth - 44) + ' 100" preserveAspectRatio="none" aria-label="Agent cache read ratio line">'
       + '<polyline points="' + escapeHtml(points) + '"></polyline></svg>' + buttons + '</div></div>';
