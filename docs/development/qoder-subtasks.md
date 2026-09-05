@@ -5,14 +5,22 @@
 `scripts/harness/qoder_task.py` 提供 Qoder CLI 子任务的显式委派入口。主线程（如 Codex）仅负责交代任务和复核结果，不 busy wait。
 
 **重要说明**：
-- 脚本无法主动唤醒已经结束的 Codex 回合
-- 调用者应在下一回合按需读取结果，而非循环查询状态
-- 权限不足时任务会 BLOCKED，脚本不默认绕过权限
+- Codex 子任务完成后通过 `codex queue` 向精确父会话排入复核消息；需要可用的 Codex CLI 与本地服务
+- 主会话收到完成消息后读取结果并独立复核，无需循环查询；回调故障时可人工读取结果
+- 权限不足时任务会 BLOCKED，脚本按用户明确授权默认使用 `bypass_permissions`；仍可能受 OS 权限限制
 - **这些是提示约束而非 OS 沙箱**：脚本通过 prompt 指导 Qoder 行为，但不提供真正的隔离
 - **不要发送密钥、真实 session 数据或个人配置**：任务 JSON 会被记录到 tmp/qoder-tasks/
 - **本机 qodercli 1.1.44 的环境问题（如 agent 配置加载提示、Bash 拒绝）不会被此脚本修复**
 
 ## 命令
+
+### 轻量预检查与任务命名
+
+- 同机同用户的标准 `qodercli` 进程共享检查范围，不受 checkout、worktree 或 `QODER_TASK_DIR` 影响；GUI Qoder 不算 CLI 任务。
+- 仅读取 PID/程序名，不读取其他任务的 prompt 或命令参数。不查询历史状态、不写共享运行登记、不自动停止进程。
+- `BUSY` 时由调用方稍后重试，不自动排队。进程退出后即可通过下一次检查；极端同时启动不保证互斥。改名 CLI 或解释器包装可能无法识别；所有正常委派仍应走脚本入口。
+- 建议 `title: "修复会话详情摘要与完整输入输出"`，`task_id: "fix-session-detail-summary-and-payload"`。`title` 是可选非空中文展示名，写入 prompt 和完成记录；`task_id` 保持 ASCII 稳定标识，日期/轮次不必堆叠；执行实例由 `run_id` UUID 区分。
+- 不修改正在运行任务的 ID 或标题；新任务采用可读命名。
 
 ### start — 启动子任务
 
@@ -34,7 +42,7 @@ python scripts/harness/qoder_task.py start --task task.json
 | validation_command | 验证命令 |
 | failure_policy | 失败策略 |
 
-可选字段：`agent_id`（自动生成）、`session_id`（自动生成 UUID）、`parent_client`、`parent_session_id`、`permission_mode`（枚举：`default`/`accept_edits`/`dont_ask`）。**`client` 强制为 `qoder`，不可覆盖**。
+可选字段：`agent_id`（自动生成）、`session_id`（自动生成 UUID）、`parent_client`、`parent_session_id`、`permission_mode`（枚举：`default`/`accept_edits`/`dont_ask`/`bypass_permissions`）。**`client` 强制为 `qoder`，不可覆盖**。
 
 **示例 task.json**（只读总结 AGENTS.md，不修改脚本；parent_session_id 使用占位符）：
 ```json
@@ -55,7 +63,7 @@ python scripts/harness/qoder_task.py start --task task.json
 }
 ```
 
-启动后立即返回唯一 run_id（UUID 格式）。Worker 进程在后台阻塞等待 qodercli 退出，原子写入完成记录。
+启动后立即返回唯一 run_id（UUID 格式）。Worker 进程在后台阻塞等待 qodercli 退出，先原子写入完成记录，再向已绑定 Codex 父会话排入复核消息。
 
 ### status — 查询状态
 
@@ -105,6 +113,7 @@ python scripts/harness/qoder_task.py resume <run_id> --followup followup.json
 
 - `task.json` — 任务输入（含完整 handoff 和身份）
 - `completion.json` — 完成记录（原子写入，权限 0600）
+- `callback.json` — 独立回调状态；失败不覆盖 Qoder 原始结果
 - `stdout.log` — qodercli 标准输出
 - `stderr.log` — qodercli 标准错误
 - `worker.pid` — Worker 进程 PID
@@ -130,9 +139,9 @@ python scripts/harness/qoder_task.py resume <run_id> --followup followup.json
 - 无 `shell=True`、无 `eval`
 - Run ID 使用 UUID，严格正则校验，防路径穿越
 - 拒绝任务文件、任务目录及读取文件的任何祖先为符号链接
-- `permission_mode` 仅接受 `default`/`accept_edits`/`dont_ask`，拒绝 `bypass_permissions` 等危险标志
+- `permission_mode` 仅接受 `default`/`accept_edits`/`dont_ask`/`bypass_permissions`；缺省为用户授权的 `bypass_permissions`，拒绝其他未知值
 - 退出 0 仅说明进程结束，不自动等价于质量验收 PASS
-- 默认不绕过权限，不传自动提交/重试参数
+- 默认传 `--permission-mode bypass_permissions`，不叠加 `--dangerously-skip-permissions`，不传自动提交/重试参数
 - 缺少 CLI 或非法输入时明确非零退出，不创建假的成功任务
 
 ## 身份与归属
@@ -149,3 +158,19 @@ python scripts/harness/qoder_task.py resume <run_id> --followup followup.json
 - `--resume <saved UUID>` 用于恢复会话
 - `--session-id` 仅用于新会话
 - 不使用 `--continue`
+
+## 用户授权的默认权限
+
+当前用户已明确授权默认 `bypass_permissions`：跳过 Qoder 工具权限审批，包括文件编辑与脚本执行，但不会授予 OS 管理员权限，也不是目录沙箱。任务范围、禁止 Git mutation 和真实数据访问等约束仍须遵守。
+
+新任务省略 `permission_mode` 时使用并记录该默认值；显式 `default`、`accept_edits` 或 `dont_ask` 优先。`resume` 保留原任务已记录模式，升级旧任务须在 followup JSON 中明确设置 `"permission_mode": "bypass_permissions"`。无需临时 Bash 授权 wrapper。权限设置与完成回调相互独立。
+
+## Codex 完成回调
+
+`parent_client: "codex"` 启用回调。新任务必须有精确的 `parent_session_id` UUID；省略时可从当前 `CODEX_THREAD_ID` 补全并写入任务记录。不能用任务名称、`--last` 或历史目录猜测。恢复任务保留原绑定，不因调用环境切换而改绑父会话。
+
+worker 在成功、非零退出或执行异常后先保存 `completion.json`，再执行参数数组形式的 `codex queue --thread <UUID> --message <通知>`。只通知 run id、结果位置及复核要求，不把原始日志、prompt 或响应复制到父会话。收到通知后主线程必须核对身份并独立验收；exit 0 不代表 PASS。
+
+回调状态与任务状态分离：`queued` 只表示 CLI 已接受消息，不证明主会话已经消费；`failed` 表示发送失败；`unknown` 表示发送结果不确定。调用有超时、同一 run 不自动重复发送，避免重复执行。超时或回执中断不得伪造成功。CLI/本地服务不可用、worker 被强制结束等情况不能保证接续。
+
+验收必须覆盖真实 Qoder 退出后，原 Codex 会话无需用户输入自动读取结果；桌面通知、结果文件生成、模拟测试或单纯 queued 均不能替代此项。旧的已完成任务不会被批量补发。

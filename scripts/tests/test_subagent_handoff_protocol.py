@@ -4,6 +4,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 ROOT = Path(__file__).resolve().parents[2]
 
 
@@ -71,3 +73,16 @@ def test_agents_md_remains_short_index():
     agents_path = ROOT / "AGENTS.md"
     assert agents_path.stat().st_size <= limit
     assert "subagent_instance_protocol" not in _read("AGENTS.md")
+
+
+def test_qoder_completion_callback_keeps_exact_parent_and_no_retry():
+    policy = yaml.safe_load(_read("harness/agent-policy.manifest.yaml"))["qoder_delegation"]
+    callback = policy["completion_callback"]
+    assert callback == {
+        "transport": "codex-queue",
+        "target": "exact-parent-session-uuid",
+        "completion_record_first": True,
+        "automatic_retry": False,
+        "queued_is_delivery_proof": False,
+    }
+    assert "Codex 父会话回调" in _read("openspec/specs/qoder-subtask-cli/spec.md")

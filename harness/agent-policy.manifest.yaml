@@ -71,3 +71,13 @@ subagent_instance_protocol:
     - main agent 只能聚合同一 client/session_id 的 subagent evidence。
     - subagent 返回 FAIL 或 BLOCKED 时，main agent 不得静默跳过 validation。
   skipped_semantics: required validation 出现 skipped、not-run、unavailable 或 excluded 均不得描述为 PASS。
+
+qoder_delegation:
+  default_permission_mode: bypass_permissions
+  permission_authorization: 用户明确授权默认跳过 Qoder 工具审批；可显式降权，不绕过 OS 权限。
+  completion_callback:
+    transport: codex-queue
+    target: exact-parent-session-uuid
+    completion_record_first: true
+    automatic_retry: false
+    queued_is_delivery_proof: false
