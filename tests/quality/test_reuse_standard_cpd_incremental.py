@@ -73,3 +73,19 @@ def test_gradle_owner_reports_structured_blocked_and_fail_task_markers() -> None
     assert '"GATE_TASK_RESULT task=${task.path} status=BLOCKED"' in text
     assert '"GATE_TASK_RESULT task=${task.path} status=FAIL reason=${exc.reasonCode}"' in text
     assert '"input-unavailable"' in text
+
+
+def test_cpd_runtime_is_local_to_execution_and_keeps_same_file_analysis() -> None:
+    text = _root_build_text()
+    action = text.split('private class ReuseStandardCpdAction(', 1)[1].split(
+        '\ngradle.projectsEvaluated {', 1
+    )[0]
+    fields = action.split('override fun execute(task: Task)', 1)[0]
+
+    assert 'URLClassLoader' not in fields
+    assert 'java.lang.reflect.Method' not in fields
+    assert 'ProcessBuilder' not in action
+    assert 'getDeclaredMethod("mainWithoutExit", Array<String>::class.java)' in action
+    assert 'cpdInputFiles.forEach { sourceFile ->' in action
+    assert 'listOf(sourceFile)' in action
+    assert '"tool-execution-error"' in action

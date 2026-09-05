@@ -162,6 +162,13 @@ endlegend
 `run` 将输入快照、触发原因、HEAD/base、内容指纹、系统命令、类型化结果、日志和 canonical rerun 保存到新的
 `tmp/quality/runs/<run-id>/`。run-id 目录不可覆盖，`latest.json` 只用于导航。
 
+### Owner 运行约定
+
+- Python 依赖审计沿用调用进程配置的代理、代理绕过列表和 TLS 证书；网络不可达或证书错误返回
+  `FAIL reason=network-unavailable`，没有完成审计就不能判定依赖安全。Gate 不修改系统网络配置。
+- Java 重复审计保持全源精确匹配与逐文件归一化匹配两种范围；一次任务复用隔离的 PMD CLI 加载，
+  逐次分析使用独立参数与报告，结束后恢复运行上下文。重复发现为 BLOCKED，解析或工具故障为 FAIL。
+
 ## 代码导航：排查某一步时看哪里
 
 这些函数不是命令参数，而是上图各步骤的实现入口：

@@ -116,21 +116,28 @@ test.describe('会话列表页', () => {
   });
 
   test('[UI-SESSIONS-007][UI-SESSIONS-011][UI-INTERACTION-002] next 一次到 page 2 且使用 JSON rows API', async ({ page }) => {
-    // Regression test for S-09: duplicate JS listeners caused next click
-    // to jump from page 1 to page 3 instead of page 2.
-    await page.goto('/sessions?page=1');
-    await expect(page.locator('body')).toBeVisible();
-
+    // 暂停首屏 rows 请求，确定性覆盖加载期间的禁用态，仍由真实 API 返回分页数据。
+    let releaseInitialRows;
+    const initialRowsReleased = new Promise((resolve) => { releaseInitialRows = resolve; });
+    await page.route('**/api/sessions/rows**', async (route) => {
+      const requestedPage = new URL(route.request().url()).searchParams.get('page') || '1';
+      if (requestedPage === '1') await initialRowsReleased;
+      await route.continue();
+    });
     const nextBtn = page.locator('.pagination [data-action="next-page"]');
-    await expect(nextBtn).toBeVisible();
-
-    const isDisabled = await nextBtn.isDisabled();
-    expect(isDisabled, 'fixture must contain enough sessions for pagination').toBe(false);
+    try {
+      await page.goto('/sessions?page=1');
+      await expect(nextBtn).toBeVisible();
+      await expect(nextBtn).toBeDisabled();
+    } finally {
+      releaseInitialRows();
+    }
+    await expect(nextBtn, 'fixture must contain enough sessions for pagination').toBeEnabled();
 
     const pageInput = page.locator('.page-input');
     await expect(pageInput).toHaveValue('1');
 
-    // JSON pagination updates the DOM and history.pushState without a load navigation.
+    // 单击必须仅前进一页，JSON 分页同步更新 DOM 和 history.pushState。
     const page2Response = page.waitForResponse((response) => {
       const url = new URL(response.url());
       return url.pathname === '/api/sessions/rows'

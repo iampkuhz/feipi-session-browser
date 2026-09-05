@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import os
 import subprocess
 
+import pytest
 from scripts.gates.checks.repository import check_python_dependency_audit as audit
 
 
@@ -103,15 +105,59 @@ def test_python_dependency_audit_check_preserves_network_error(monkeypatch, tmp_
     assert 'requests.exceptions.SSLError' in result.diagnostics[0].message
 
 
-def test_python_dependency_audit_environment_drops_proxy_unless_enabled(
+@pytest.mark.parametrize(
+    'name',
+    (
+        'HTTPS_PROXY',
+        'HTTP_PROXY',
+        'ALL_PROXY',
+        'https_proxy',
+        'http_proxy',
+        'all_proxy',
+        'NO_PROXY',
+        'no_proxy',
+        'REQUESTS_CA_BUNDLE',
+        'SSL_CERT_FILE',
+    ),
+)
+def test_python_dependency_audit_preserves_configured_transport(
     monkeypatch,
+    tmp_path,
+    name,
 ) -> None:
-    monkeypatch.setenv('HTTPS_PROXY', 'http://proxy.invalid')
-    monkeypatch.delenv('SESSION_BROWSER_AUDIT_USE_PROXY', raising=False)
-    assert 'HTTPS_PROXY' not in audit._environment()
+    value = (
+        str(tmp_path / 'ca.pem') if name.endswith(('BUNDLE', 'FILE')) else 'http://proxy.invalid'
+    )
+    monkeypatch.setenv(name, value)
+    captured = {}
 
-    monkeypatch.setenv('SESSION_BROWSER_AUDIT_USE_PROXY', '1')
-    assert audit._environment()['HTTPS_PROXY'] == 'http://proxy.invalid'
+    def run(command, **kwargs):
+        captured.update(kwargs)
+        assert command == ['auditor']
+        return _completed()
+
+    monkeypatch.setattr(audit.subprocess, 'run', run)
+    assert audit._run(['auditor'], root=tmp_path, input_text='locked requirements').returncode == 0
+    assert captured['env'][name] == value
+    assert captured['env'] is not os.environ
+    assert captured['cwd'] == tmp_path
+    assert captured['input'] == 'locked requirements'
+    assert os.environ[name] == value
+
+
+def test_python_dependency_audit_does_not_invent_proxy_configuration(monkeypatch, tmp_path) -> None:
+    keys = ('HTTPS_PROXY', 'HTTP_PROXY', 'ALL_PROXY', 'https_proxy', 'http_proxy', 'all_proxy')
+    for name in keys:
+        monkeypatch.delenv(name, raising=False)
+    captured = {}
+
+    def run(_command, **kwargs):
+        captured.update(kwargs)
+        return _completed()
+
+    monkeypatch.setattr(audit.subprocess, 'run', run)
+    audit._run(['auditor'], root=tmp_path)
+    assert not set(keys).intersection(captured['env'])
 
 
 def test_failure_diagnostic_is_bounded_redacted_and_keeps_network_marker() -> None:
@@ -127,3 +173,22 @@ def test_failure_diagnostic_is_bounded_redacted_and_keeps_network_marker() -> No
     assert 'private-' not in message
     assert 'token=<redacted>' in message
     assert 'requests.exceptions.ProxyError' in message
+
+
+@pytest.mark.parametrize('scheme', ('http', 'https', 'socks5', 'socks5h'))
+def test_proxy_failure_redacts_url_credentials(scheme) -> None:
+    process = _completed(
+        1,
+        stderr=(
+            f'requests.exceptions.ProxyError: {scheme}://fixture-user:fixture-pass@proxy.invalid'
+        ),
+    )
+
+    result = audit._failure('pip-audit', process)
+    message = result.diagnostics[0].message
+
+    assert result.status.value == 'FAIL'
+    assert result.reason == 'network-unavailable'
+    assert f'{scheme}://<redacted>@proxy.invalid' in message
+    assert 'fixture-user' not in message
+    assert 'fixture-pass' not in message

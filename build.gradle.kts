@@ -350,7 +350,8 @@ private class ReuseStandardCpdAction(
     private class CpdExecutionFailure(
         val reasonCode: String,
         message: String,
-    ) : RuntimeException(message)
+        cause: Throwable? = null,
+    ) : RuntimeException(message, cause)
 
     override fun execute(task: Task) {
         val root = java.io.File(rootPath)
@@ -362,14 +363,13 @@ private class ReuseStandardCpdAction(
         workDir.mkdirs()
         var profiles = emptyList<Profile>()
         val failures = mutableListOf<String>()
-        val javaExecutable = java.io.File(System.getProperty("java.home"), "bin/java").absolutePath
-        val pmdClasspath = pmdClasspathEntries.joinToString(java.io.File.pathSeparator)
         val allSourceFiles = sourceDirs.flatMap { dir ->
             dir.walkTopDown().filter { it.isFile && it.extension == "java" }.toList()
         }.distinctBy { it.toPath().toAbsolutePath().normalize().toString() }
             .sortedBy { relativePath(root, it) }
         val summaryFile = reportDir.resolve("standard-cpd-summary.json")
         var changedFiles = emptyList<String>()
+        var cpdInputFiles = emptyList<java.io.File>()
         var changedFilesSource = if (mode == "full") "full-scan" else "QUALITY_CHANGED_FILES"
 
         try {
@@ -380,7 +380,7 @@ private class ReuseStandardCpdAction(
                 )
             }
 
-            val cpdInputFiles = if (mode == "full") {
+            cpdInputFiles = if (mode == "full") {
                 allSourceFiles
             } else {
                 changedFiles = changedFilesJson?.let { parseChangedFiles(it, root) }
@@ -423,42 +423,86 @@ private class ReuseStandardCpdAction(
                 return
             }
 
-            fun runCpd(profile: Profile, fileList: java.io.File, reportFile: java.io.File): Int {
-                reportFile.parentFile.mkdirs()
-                val command = listOf(
-                    javaExecutable,
-                    "-cp",
-                    pmdClasspath,
-                    "net.sourceforge.pmd.cli.PmdCli",
-                ) + reuseCpdArgs(profile, fileList, reportFile, root)
-                return ProcessBuilder(command).directory(root).inheritIO().start().waitFor()
-            }
+            val thread = Thread.currentThread()
+            val originalLoader = thread.contextClassLoader
+            val propertyName = "picocli.disable.closures"
+            val originalProperty = System.getProperty(propertyName)
+            val rootLogger = java.util.logging.Logger.getLogger("")
+            val originalHandlers = rootLogger.handlers
+            var toolErrors = false
+            try {
+                // 局部隔离 PMD 依赖并复用 CLI，避免每个文件冷启动 JVM；不写入 Action 配置缓存。
+                java.net.URLClassLoader(
+                    pmdClasspathEntries.map { java.io.File(it).toURI().toURL() }.toTypedArray(),
+                    ClassLoader.getPlatformClassLoader(),
+                ).use { loader ->
+                    thread.contextClassLoader = loader
+                    val cli = loader.loadClass("net.sourceforge.pmd.cli.PmdCli")
+                        .getDeclaredMethod("mainWithoutExit", Array<String>::class.java)
+                        .apply { isAccessible = true }
 
-            profiles.forEach { profile ->
-                if (profile.scope == "same-file") {
-                    cpdInputFiles.forEach { sourceFile ->
-                        val relative = relativePath(root, sourceFile)
-                        val reportName = sanitizeProfileId(relative) + ".xml"
-                        val reportFile = reportDir.resolve("cpd-${profile.id}").resolve(reportName)
-                        val singleFileList = writeFileList(
-                            listOf(sourceFile),
-                            workDir.resolve("cpd-${profile.id}")
-                                .resolve(sanitizeProfileId(relative) + ".file-list.txt"),
-                        )
-                        val exitValue = runCpd(profile, singleFileList, reportFile)
+                    fun runCpd(
+                        profile: Profile,
+                        fileList: java.io.File,
+                        reportFile: java.io.File,
+                        sourcePath: String? = null,
+                    ) {
+                        reportFile.parentFile.mkdirs()
+                        val arguments = reuseCpdArgs(profile, fileList, reportFile, root).toTypedArray()
+                        val exitValue = cli.invoke(null, arguments as Any) as Int
+                        // PMD 7: 4 是重复违规；1/2/5 是执行、用法或恢复错误，不能当作已完成检查。
                         if (exitValue != 0) {
-                            failures.add(
-                                "${profile.id}:${relative}(exit=$exitValue, report=${reportFile.absolutePath})"
-                            )
+                            val analysisId = profile.id + (sourcePath?.let { ":$it" } ?: "")
+                            failures.add("$analysisId(exit=$exitValue, report=${reportFile.absolutePath})")
+                            if (exitValue != 4) toolErrors = true
                         }
                     }
-                } else {
-                    val reportFile = reportDir.resolve("cpd-${profile.id}.xml")
-                    val exitValue = runCpd(profile, sharedFileList, reportFile)
-                    if (exitValue != 0) {
-                        failures.add("${profile.id}(exit=$exitValue, report=${reportFile.absolutePath})")
+
+                    profiles.forEach { profile ->
+                        val started = System.nanoTime()
+                        if (profile.scope == "same-file") {
+                            cpdInputFiles.forEach { sourceFile ->
+                                val relative = relativePath(root, sourceFile)
+                                val reportName = sanitizeProfileId(relative) + ".xml"
+                                val reportFile = reportDir.resolve("cpd-${profile.id}").resolve(reportName)
+                                val singleFileList = writeFileList(
+                                    listOf(sourceFile),
+                                    workDir.resolve("cpd-${profile.id}")
+                                        .resolve(sanitizeProfileId(relative) + ".file-list.txt"),
+                                )
+                                runCpd(profile, singleFileList, reportFile, relative)
+                            }
+                        } else {
+                            val reportFile = reportDir.resolve("cpd-${profile.id}.xml")
+                            runCpd(profile, sharedFileList, reportFile)
+                        }
+                        val analyses = if (profile.scope == "same-file") cpdInputFiles.size else 1
+                        task.logger.lifecycle(
+                            "reuseStandardCpd: completed profile=${profile.id}, analyses=$analyses, " +
+                                "elapsedMs=${(System.nanoTime() - started) / 1_000_000}",
+                        )
                     }
                 }
+            } catch (exc: Exception) {
+                throw CpdExecutionFailure("tool-execution-error", "PMD CPD invocation failed: $exc", exc)
+            } catch (exc: LinkageError) {
+                throw CpdExecutionFailure("tool-execution-error", "PMD CPD loading failed: $exc", exc)
+            } finally {
+                // PMD CLI 修改 picocli 属性和 JUL root handlers；成功/失败都不得污染 Gradle daemon。
+                thread.contextClassLoader = originalLoader
+                if (originalProperty == null) System.clearProperty(propertyName)
+                else System.setProperty(propertyName, originalProperty)
+                rootLogger.handlers.forEach { handler ->
+                    rootLogger.removeHandler(handler)
+                    if (originalHandlers.none { it === handler }) handler.close()
+                }
+                originalHandlers.forEach { rootLogger.addHandler(it) }
+            }
+            if (toolErrors) {
+                throw CpdExecutionFailure(
+                    "tool-execution-error",
+                    "PMD CPD did not complete successfully: ${failures.joinToString(", ")}",
+                )
             }
             writeReuseCpdSummary(
                 summaryFile,
@@ -491,7 +535,7 @@ private class ReuseStandardCpdAction(
                 "FAIL",
                 profiles,
                 changedFiles,
-                emptyList(),
+                cpdInputFiles,
                 changedFilesSource,
                 reportDir,
                 failures,

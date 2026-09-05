@@ -2,7 +2,7 @@
 
 为确保提交使用的完整锁定依赖没有已知漏洞，唯一入口 ``check(arguments)`` 串行执行 frozen
 lock export 和 pip-audit。Check 自己返回结构化失败诊断：真实漏洞为 ``BLOCKED``，工具、依赖或网络导致
-审计未完成时为 ``FAIL``；Executor 不再猜测自然语言日志。
+审计未完成时为 ``FAIL``；执行层读取结构化结论。
 """
 
 from __future__ import annotations
@@ -17,14 +17,6 @@ from pathlib import Path
 from scripts.gates.checks.check_protocol import CheckResult, argument_parser, repository_root
 
 ROOT = repository_root()
-_NETWORK_ENV_KEYS = (
-    'HTTPS_PROXY',
-    'HTTP_PROXY',
-    'ALL_PROXY',
-    'https_proxy',
-    'http_proxy',
-    'all_proxy',
-)
 _NETWORK_MARKERS = (
     'requests.exceptions.SSLError',
     'requests.exceptions.ProxyError',
@@ -39,23 +31,14 @@ _MAX_DIAGNOSTIC_LINES = 40
 _MAX_DIAGNOSTIC_CHARS = 4000
 
 
-def _environment() -> dict[str, str]:
-    """返回审计子进程环境；默认不继承可能改变结果的本机代理。"""
-    environment = os.environ.copy()
-    if environment.get('SESSION_BROWSER_AUDIT_USE_PROXY') != '1':
-        for key in _NETWORK_ENV_KEYS:
-            environment.pop(key, None)
-    return environment
-
-
 def _run(
     command: list[str], *, root: Path, input_text: str | None = None
 ) -> subprocess.CompletedProcess:
-    """执行一个安全工具并完整捕获文本输出。"""
+    """沿用调用进程的网络与证书配置，执行安全工具并捕获文本输出。"""
     return subprocess.run(
         command,
         cwd=root,
-        env=_environment(),
+        env=os.environ.copy(),
         input=input_text,
         capture_output=True,
         text=True,
@@ -67,7 +50,7 @@ def _redact(line: str) -> str:
     """遮盖常见凭据形式，避免底层工具错误把本机认证信息带入诊断。"""
     line = re.sub(r'(?i)(authorization:\s*(?:bearer\s+)?)[^\s]+', r'\1<redacted>', line)
     line = re.sub(r'(?i)((?:token|api[_-]?key|secret|password)=)[^&\s]+', r'\1<redacted>', line)
-    return re.sub(r'(https?://)[^/@\s]+:[^/@\s]+@', r'\1<redacted>@', line)
+    return re.sub(r'([A-Za-z][A-Za-z0-9+.-]*://)[^/@\s]+@', r'\1<redacted>@', line)
 
 
 def _output(process: subprocess.CompletedProcess) -> str:
