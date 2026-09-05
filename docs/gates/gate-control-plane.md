@@ -60,7 +60,6 @@ python3 scripts/gates/cli.py health --format json
 ```plantuml
 @startuml
 title Gate 控制面：规则、触发、执行与证据
-top to bottom direction
 skinparam shadowing false
 skinparam nodesep 28
 skinparam ranksep 38
@@ -71,31 +70,26 @@ skinparam activity {
   DiamondBackgroundColor #FFF7D6
   DiamondBorderColor #B7791F
 }
-
-activity "S1 选择命令与运行范围" as S1
-activity "S2 校验 Gate 规则目录" as S2
-activity "S3 编译全量静态计划" as S3
-activity "S4 运行 Harness 体检" as S4
-activity "S5 输出体检结果" as S5
-activity "S6 读取 Gate 规则目录" as S6
-activity "S7 冻结并匹配输入范围" as S7
-activity "S8 生成唯一执行计划" as S8
-activity "S9 执行并判定检查" as S9
-activity "S10 保存并展示运行凭证" as S10
-
-(*) --> S1
-S1 --> S2 : health
-S2 --> S3
-S3 --> S4
-S4 --> S5
-S5 --> (*)
-S1 --> S6 : plan / run
-S6 --> S7
-S7 --> S8
-S8 --> (*) : plan
-S8 --> S9 : run
-S9 --> S10
-S10 --> (*)
+start
+:S1 选择命令与运行范围;
+if (选择哪个命令？) then (health)
+  :S2 校验 Gate 规则目录;
+  :S3 编译全量静态计划;
+  :S4 运行 Harness 体检;
+  :S5 输出体检结果;
+  stop
+else (plan / run)
+  :S6 读取 Gate 规则目录;
+  :S7 冻结并匹配输入范围;
+  :S8 生成唯一执行计划;
+  if (执行 Gate？) then (run)
+    :S9 执行并判定检查;
+    :S10 保存并展示运行凭证;
+    stop
+  else (plan)
+    stop
+  endif
+endif
 
 legend right
   |= 步骤 |= 阶段职责 |= 代码归属 |
