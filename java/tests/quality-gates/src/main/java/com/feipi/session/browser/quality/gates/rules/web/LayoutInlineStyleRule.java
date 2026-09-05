@@ -18,7 +18,8 @@ public final class LayoutInlineStyleRule implements BaselineUpdatableRule {
   private static final String ID = "layout-inline-style";
   private static final String TEMPLATES_ROOT = "java/web/src/main/resources/templates";
   private static final String STATIC_JS_ROOT = "java/web/src/main/resources/static/js";
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
   private static final String SPACE = PythonTextSemantics.WHITESPACE_CLASS;
   private static final Pattern STYLE_ATTRIBUTE =
       Pattern.compile(

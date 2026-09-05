@@ -16,7 +16,7 @@
 
 ## 受保护路径
 
-- `.claude/`、`.codex/`、`.qoder/`、`.agents/`、`skills/`、`harness/`、`scripts/`、`openspec/`、`src/session_browser/`、`tests/`、`AGENTS.md`、`CLAUDE.md`。
+- `.claude/`、`.codex/`、`.qoder/`、`.agents/`、`skills/`、`harness/`、`scripts/`、`openspec/`、`src/session_browser/`、`scripts/tests/`、`java/tests/`、`AGENTS.md`、`.claude/CLAUDE.md`。
 - 目标明确、范围最小、检查 diff；不提交 ignored 文件；`openspec/changes/*` 不得 `git add -f`。
 
 ## 验证原则

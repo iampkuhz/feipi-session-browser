@@ -9,7 +9,7 @@
   - `src/static/css/` 下 session detail 相关 CSS 文件
   - `src/static/js/` 下 session detail 相关 JS 文件
   - `scripts/gates/checks/web/check_session_detail_*.py`（如需）
-  - `config/web-quality-baselines.json` 的 `raw-innerhtml` / `layout-inline-style` section（仅在审阅后维护）
+  - `java/tests/quality-gates/config/web-quality-baselines.json` 的 `raw-innerhtml` / `layout-inline-style` section（仅在审阅后维护）
 
 ## Forbidden scope
 
@@ -29,8 +29,8 @@
 ## Validation
 
 ```bash
-./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
-./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
+./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'
+./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
 ```
 
 按需追加：
@@ -38,11 +38,11 @@
 ```bash
 python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests
 python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy
-./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style
-./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
-npm --prefix tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js
-npm --prefix tests/playwright test -- session-detail-layout.spec.js
-./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml
+./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style
+./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'
+npm --prefix java/tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js
+npm --prefix java/tests/playwright test -- session-detail-layout.spec.js
+./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml
 ```
 
 ## Expected output

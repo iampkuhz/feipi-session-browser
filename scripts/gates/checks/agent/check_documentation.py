@@ -29,12 +29,13 @@ POLICY_REQUIRED_ROOTS = [
     'scripts/',
     'openspec/',
     'AGENTS.md',
-    'CLAUDE.md',
+    '.claude/CLAUDE.md',
 ]
 DOCUMENTED_REQUIRED_ROOTS = [
     *POLICY_REQUIRED_ROOTS[:-2],
     'src/session_browser/',
-    'tests/',
+    'scripts/tests/',
+    'java/tests/',
     *POLICY_REQUIRED_ROOTS[-2:],
 ]
 MAIN_DOCS = {
@@ -44,7 +45,7 @@ MAIN_DOCS = {
 }
 SKIP_POLICY_DOCS = {
     'AGENTS.md': 'AGENTS.md',
-    'CLAUDE.md': 'CLAUDE.md',
+    '.claude/CLAUDE.md': '.claude/CLAUDE.md',
     '.qoder/AGENTS.md': '.qoder/AGENTS.md',
     **MAIN_DOCS,
 }

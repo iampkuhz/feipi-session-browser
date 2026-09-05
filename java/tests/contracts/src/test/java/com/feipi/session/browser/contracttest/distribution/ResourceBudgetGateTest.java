@@ -152,7 +152,7 @@ class ResourceBudgetGateTest {
   private static Path findProjectRoot() {
     Path dir = Path.of(System.getProperty("user.dir"));
     while (dir != null) {
-      if (Files.exists(dir.resolve("settings.gradle.kts"))) {
+      if (Files.exists(dir.resolve("java/settings.gradle.kts"))) {
         return dir;
       }
       dir = dir.getParent();

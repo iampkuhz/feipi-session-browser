@@ -68,21 +68,6 @@ class RuntimePathsTest {
     }
   }
 
-  // ===== PathResolver 源数据目录 =====
-
-  @Nested
-  @DisplayName("PathResolver 源数据目录解析")
-  class SourceDataDirContract {
-
-    @Test
-    @DisplayName("环境变量未设置时使用默认路径")
-    void usesDefaultWhenEnvNotSet() {
-      Path defaultPath = tempDir.resolve("default-source");
-      Path result = PathResolver.resolveSourceDataDir("NONEXISTENT_ENV_VAR_FOR_TEST", defaultPath);
-      assertThat(result).isEqualTo(defaultPath);
-    }
-  }
-
   // ===== PathResolver XDG 默认路径 =====
 
   @Nested

@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 
 POLICY_PATTERNS = [
     'AGENTS.md',
-    'CLAUDE.md',
+    '.claude/CLAUDE.md',
     'skills/**/*.md',
     '.agents/skills/**/*.md',
     '.codex/skills/**/*.md',

@@ -78,7 +78,7 @@ echo ""
 # 阶段 2：校验 VERSION 一致性
 echo "--- Phase 2: VERSION consistency ---"
 
-file_version="$(tr -d '[:space:]' < VERSION)"
+file_version="$(tr -d '[:space:]' < java/gradle/VERSION)"
 if [[ "$file_version" != "$VERSION" ]]; then
     echo "FAIL: VERSION file ($file_version) != release version ($VERSION)" >&2
     exit 1

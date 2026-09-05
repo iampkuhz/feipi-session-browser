@@ -85,7 +85,7 @@ class Violation:
 
 def _load_policy(path: Path | None = None) -> tuple[set[str], tuple[str, ...]]:
     """从集中策略加载规范技术术语与禁用翻译，策略缺失或结构错误时 fail-closed。"""
-    target = path or REPO_ROOT / 'config' / 'technical-terms.json'
+    target = path or REPO_ROOT / 'scripts/gates/config/technical-terms.json'
     data = json.loads(target.read_text(encoding='utf-8'))
     terms = data.get('canonical_terms')
     forbidden = data.get('forbidden_translations', [])
@@ -127,7 +127,7 @@ def _check_comment(
                     comment.line,
                     'TECH_TERM_NOT_CANONICAL',
                     f'技术术语必须使用集中策略中的规范写法，发现“{word}”',
-                    '替换为 config/technical-terms.json 中的 canonical_terms 写法',
+                    '替换为 scripts/gates/config/technical-terms.json 中的 canonical_terms 写法',
                     first[:160],
                 )
             ]
@@ -413,7 +413,9 @@ def _discover(values: list[str]) -> list[Path]:
                 if (
                     candidate.is_file()
                     and candidate.suffix in suffixes
-                    and not set(candidate.parts) & EXCLUDED_PARTS
+                    and not set(candidate.relative_to(path).parts) & EXCLUDED_PARTS
+                    # 测试下沉不改变原先仅扫描脚本实现的边界。
+                    and not (path.name == 'scripts' and candidate.is_relative_to(path / 'tests'))
                 ):
                     result.add(candidate)
     return sorted(result, key=lambda item: item.as_posix())
@@ -427,7 +429,9 @@ def check(arguments: list[str]) -> CheckResult:
         nargs='*',
         default=['scripts'],
     )
-    parser.add_argument('--policy', default=str(REPO_ROOT / 'config' / 'technical-terms.json'))
+    parser.add_argument(
+        '--policy', default=str(REPO_ROOT / 'scripts/gates/config/technical-terms.json')
+    )
     args = parser.parse_args(arguments)
     try:
         terms, forbidden = _load_policy(Path(args.policy))

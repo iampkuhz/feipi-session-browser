@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | 数据源解析（Claude / Codex / Qoder） |
 | 关联源码 | `src/session_browser/sources/claude.py`、`codex_session_source.py`、`qoder.py` |
-| 关联测试 | `tests/backend/test_claude_source.py`、`test_codex_source.py`、`test_qoder_model_contract.py`、`test_qoder_token_estimation.py` |
+| 关联测试 | `tests/backend/test_claude_source.py`、`test_codex_source.py`、`test_qoder_model_contract.py`、`test_qoder_token_estimation.py` |（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
 | 主要风险 | 不同 agent 的 JSONL 事件格式差异导致解析失败；token 估算偏差；模型名解析不正确 |
 
 ## 验收用例

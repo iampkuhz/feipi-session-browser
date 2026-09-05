@@ -20,7 +20,7 @@ Session 状态，也不要求平台事件先完成初始化。机器契约见
 `openspec/changes/<change-id>/`，再按 `tasks.md` 推进。OpenSpec 是规划和长期规格流程，不是每次文件
 写入的状态令牌。普通定位和单文件小改只读取必要上下文。
 
-策略约束来自 `AGENTS.md`、`CLAUDE.md`、`harness/agent-policy.manifest.yaml` 和共享 skills。平台配置只保留
+策略约束来自 `AGENTS.md`、`.claude/CLAUDE.md`、`harness/agent-policy.manifest.yaml` 和共享 skills。平台配置只保留
 入口、agent 发现和静态安全限制，不承担仓库状态协调。
 
 ## 显式验证
@@ -31,7 +31,7 @@ Session 状态，也不要求平台事件先完成初始化。机器契约见
 python3 scripts/gates/cli.py run --mode incremental
 ```
 
-若锁定依赖环境是当前变更的既定要求，可使用对应的 `uv run --frozen python ...` 入口。已经触发的
+若锁定依赖环境是当前变更的既定要求，可从仓库根使用 `UV_PROJECT_ENVIRONMENT="$PWD/.local/python/venv" uv run --project scripts --frozen --extra dev python ...` 入口。已经触发的
 本次选中的检查必须成功；`BLOCKED` 表示检查完成并发现阻断问题，`FAIL` 表示 Gate 未能完成，二者均不得
 描述为 PASS。`NOT_TRIGGERED` 仅表示自动增量规划没有选择该 Gate，不是执行结果。
 

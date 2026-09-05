@@ -48,7 +48,7 @@
 
 6. **提供精确验证命令**：
    - `python3 scripts/gates/cli.py run --mode full --target web-interface`
-   - 或具体门禁：`./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
+   - 或具体门禁：`./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'`
 
 ## 输出格式
 

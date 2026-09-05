@@ -18,7 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
 /** raw-innerHTML 的逐行匹配、扫描范围、baseline 与诊断长度 corpus。 */
 class RawInnerHtmlRuleTest {
 
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
   private static final String STATIC_JS = "java/web/src/main/resources/static/js";
 
   @TempDir Path repo;

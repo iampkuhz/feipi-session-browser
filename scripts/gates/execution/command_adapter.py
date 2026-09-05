@@ -14,7 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING
 
 from scripts.gates.catalog.gate_contracts import ExecutionMode, RecipeStepKind
-from scripts.harness.python_env import project_venv_dir, resolve_python
+from scripts.harness.python_env import project_venv_dir, resolve_python, tool_config_path
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -114,6 +114,7 @@ def _expand(argument: str, repo_root: Path) -> str:
             'python': _project_python(repo_root),
             'dev_python': _project_python(repo_root, dev=True),
             'repo_root': str(repo_root),
+            'tool_config': str(tool_config_path(repo_root)),
             'playwright_workers': str(_playwright_workers()),
         }
     )
@@ -128,6 +129,13 @@ def _repository_files(repo_root: Path, patterns: tuple[str, ...]) -> tuple[str, 
             if path.is_file()
         )
     return tuple(dict.fromkeys(files))
+
+
+def _gradle_command_prefix(repo_root: Path) -> tuple[str, ...]:
+    """选取平台 wrapper 并显式冻结构建根；缺少 wrapper 时不生成进程。"""
+    build_root = repo_root / 'java'
+    wrapper = build_root / ('gradlew.bat' if sys.platform == 'win32' else 'gradlew')
+    return (str(wrapper), '-p', str(build_root)) if wrapper.is_file() else ()
 
 
 def _step_command(step: RecipeStep, repo_root: Path) -> tuple[str, ...]:
@@ -150,17 +158,17 @@ def _step_command(step: RecipeStep, repo_root: Path) -> tuple[str, ...]:
             *(_expand(value, repo_root) for value in step.args),
         )
     if kind in {RecipeStepKind.GRADLE_TASK, RecipeStepKind.JAVA_RULE}:
-        gradlew = repo_root / 'gradlew'
-        if not gradlew.exists():
+        gradle_prefix = _gradle_command_prefix(repo_root)
+        if not gradle_prefix:
             return ()
         tasks = step.tasks or (':java:tests:quality-gates:runJavaQualityGates',)
         rules = (f'{JAVA_QUALITY_RULES_PROPERTY}{",".join(step.rules)}',) if step.rules else ()
-        return (str(gradlew), *tasks, *rules, *step.args, '--console=plain')
+        return (*gradle_prefix, *tasks, *rules, *step.args, '--console=plain')
     if kind is RecipeStepKind.PLAYWRIGHT:
         return (
             'npm',
             '--prefix',
-            'tests/playwright',
+            'java/tests/playwright',
             'test',
             '--',
             *step.tests,
@@ -171,6 +179,10 @@ def _step_command(step: RecipeStep, repo_root: Path) -> tuple[str, ...]:
             _project_python(repo_root, dev=True),
             '-m',
             'pytest',
+            '-c',
+            str(tool_config_path(repo_root)),
+            '--rootdir',
+            str(repo_root),
             *step.args,
             *step.tests,
         )
@@ -223,9 +235,10 @@ def adapt_recipe_step(
     prefix = f'{gate.name}:{step.name}'
     command = _step_command(step, root)
     if step.kind is RecipeStepKind.SCAN_SMOKE:
+        gradle_prefix = _gradle_command_prefix(root)
         prerequisite = (
-            (str(root / 'gradlew'), *step.prerequisite_tasks, '--console=plain')
-            if (root / 'gradlew').exists() and step.prerequisite_tasks
+            (*gradle_prefix, *step.prerequisite_tasks, '--console=plain')
+            if gradle_prefix and step.prerequisite_tasks
             else ()
         )
         if not prerequisite or not command:

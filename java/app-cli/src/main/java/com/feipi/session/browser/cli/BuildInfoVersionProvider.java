@@ -7,7 +7,7 @@ import java.util.Properties;
 /**
  * 从 {@code build-info.properties} 读取版本信息。
  *
- * <p>版本信息由 Gradle 在构建时从根 {@code VERSION} 文件生成，运行时不依赖源码树。
+ * <p>版本信息由 Gradle 从 {@code java/gradle/VERSION} 生成，运行时不依赖源码树。
  */
 final class BuildInfoVersionProvider {
 

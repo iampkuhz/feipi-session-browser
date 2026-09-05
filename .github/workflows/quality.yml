@@ -37,18 +37,17 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
           cache-read-only: true
           build-scan-publish: false
 
       - name: Verify dependency lock
-        run: uv lock --check
+        run: uv lock --project scripts --check
 
       - name: Install dependencies
-        run: UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.local/python/venv" uv sync --frozen --extra dev
+        run: UV_PROJECT_ENVIRONMENT="$GITHUB_WORKSPACE/.local/python/venv" uv sync --project scripts --frozen --extra dev
 
       - name: Install Playwright dependencies
-        run: npm ci --prefix tests/playwright
+        run: npm ci --prefix java/tests/playwright
 
       - name: Unified quality gates
         shell: bash

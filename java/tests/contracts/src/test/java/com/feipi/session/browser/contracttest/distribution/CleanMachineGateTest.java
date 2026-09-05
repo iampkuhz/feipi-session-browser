@@ -87,7 +87,7 @@ class CleanMachineGateTest {
   }
 
   /**
-   * VERSION 文件存在于项目根目录。
+   * 源码 VERSION 文件由 Gradle 配套目录统一管理。
    *
    * <p>VERSION 文件由 DS-020 引入，打包到发行根目录供 launcher 读取。
    */
@@ -96,9 +96,9 @@ class CleanMachineGateTest {
   class VersionFile {
 
     @Test
-    @DisplayName("项目根目录 VERSION 文件存在且非空")
+    @DisplayName("Gradle 配套目录 VERSION 文件存在且非空")
     void versionFileExists() throws IOException {
-      Path versionFile = findProjectRoot().resolve("VERSION");
+      Path versionFile = findProjectRoot().resolve("java/gradle/VERSION");
       if (!Files.exists(versionFile)) {
         // 在非标准工作目录运行时跳过
         return;
@@ -170,12 +170,12 @@ class CleanMachineGateTest {
   /**
    * 从项目工作目录向上查找根目录。
    *
-   * @return 包含 VERSION 文件或 settings.gradle.kts 的目录
+   * @return 包含 java/settings.gradle.kts 的仓库目录
    */
   private static Path findProjectRoot() {
     Path dir = Path.of(System.getProperty("user.dir"));
     while (dir != null) {
-      if (Files.exists(dir.resolve("settings.gradle.kts"))) {
+      if (Files.exists(dir.resolve("java/settings.gradle.kts"))) {
         return dir;
       }
       dir = dir.getParent();

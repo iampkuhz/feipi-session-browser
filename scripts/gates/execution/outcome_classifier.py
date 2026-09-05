@@ -129,7 +129,7 @@ def _playwright_command(invocation: CommandInvocation) -> bool:
     return invocation.kind == 'playwright' or (
         len(argv) >= 5
         and Path(argv[0]).name == 'npm'
-        and argv[1:5] == ('--prefix', 'tests/playwright', 'test', '--')
+        and argv[1:5] == ('--prefix', 'java/tests/playwright', 'test', '--')
     )
 
 

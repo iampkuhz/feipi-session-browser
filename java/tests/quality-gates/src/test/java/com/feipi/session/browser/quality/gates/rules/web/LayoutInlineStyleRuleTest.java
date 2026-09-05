@@ -18,7 +18,8 @@ import org.junit.jupiter.api.io.TempDir;
 /** layout-inline-style 的 HTML/JS 边界、扫描范围、baseline 与诊断长度 corpus。 */
 class LayoutInlineStyleRuleTest {
 
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
   private static final String TEMPLATES = "java/web/src/main/resources/templates";
   private static final String STATIC_JS = "java/web/src/main/resources/static/js";
 

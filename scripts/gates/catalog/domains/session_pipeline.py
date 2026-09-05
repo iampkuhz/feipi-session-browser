@@ -21,7 +21,7 @@ GATES = (
             'java/sources/**',
             'java/index-store-sqlite/**',
             'scripts/gates/checks/**',
-            'tests/script_commands/**',
+            'scripts/tests/script_commands/**',
         ),
         target_presets=('session-pipeline',),
         recipe=recipe(
@@ -29,7 +29,7 @@ GATES = (
             180,
             scan_smoke(
                 'scanCommandSmoke',
-                ('tests/script_commands/test_session_browser_scan_smoke.py',),
+                ('scripts/tests/script_commands/test_session_browser_scan_smoke.py',),
                 (':java:app-cli:installDist',),
                 '-q',
                 '-W',
@@ -41,7 +41,7 @@ GATES = (
         name='sessionSampleContracts',
         description='用合成 Session 样本验证解析、标准化与契约集成。',
         trigger=changed(
-            'tests/fixtures/session_samples/**',
+            'java/tests/fixtures/session_samples/**',
             'java/core-domain/src/main/java/com/feipi/session/browser/domain/normalized/**',
             'java/sources/**',
             'java/normalization-engine/**',

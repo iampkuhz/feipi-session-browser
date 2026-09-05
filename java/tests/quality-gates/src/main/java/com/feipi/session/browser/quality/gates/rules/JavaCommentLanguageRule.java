@@ -57,7 +57,7 @@ public final class JavaCommentLanguageRule implements QualityRule {
   public List<QualityViolation> check(QualityContext context) throws Exception {
     var policy =
         TechnicalTermsPolicy.load(
-            context.repoRoot().resolve("config/technical-terms.json").normalize());
+            context.repoRoot().resolve("scripts/gates/config/technical-terms.json").normalize());
     var violations = new ArrayList<QualityViolation>();
     for (var source : context.repositorySources().sources()) {
       for (var comment : JvmCommentLexer.extract(source.text())) {
@@ -82,7 +82,7 @@ public final class JavaCommentLanguageRule implements QualityRule {
                 comment,
                 "TECH_TERM_NOT_CANONICAL",
                 "技术术语必须使用集中策略中的规范写法，发现“" + word + "”",
-                "替换为 config/technical-terms.json 中的 canonical_terms 写法",
+                "替换为 scripts/gates/config/technical-terms.json 中的 canonical_terms 写法",
                 first,
                 Map.of("term", word)));
       }

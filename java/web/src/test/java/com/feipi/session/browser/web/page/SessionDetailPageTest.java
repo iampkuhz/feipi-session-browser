@@ -5,14 +5,18 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
+import com.feipi.session.browser.index.store.sqlite.repository.SqliteSessionQueryRepository;
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.SchemaVersion;
 import com.feipi.session.browser.web.WebCompositionRoot;
 import com.feipi.session.browser.web.WebConfig;
 import io.javalin.testtools.JavalinTest;
+import io.javalin.testtools.Response;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -29,8 +33,13 @@ import org.junit.jupiter.api.io.TempDir;
 @DisplayName("SessionDetailPage 集成测试")
 class SessionDetailPageTest {
 
+  private static final String APP_MARKER_HEADER = "X-Test-App-Marker";
+
   @TempDir Path tempDir;
   private IndexConnection indexConnection;
+  private WebCompositionRoot activeWebRoot;
+  private String appMarker;
+  private boolean fixturePresent;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -44,9 +53,37 @@ class SessionDetailPageTest {
 
   @AfterEach
   void tearDown() {
-    if (indexConnection != null) {
-      indexConnection.close();
+    // JavalinTest 在断言失败时不会停止服务；先停止服务，再释放数据库 fixture。
+    try {
+      if (activeWebRoot != null) {
+        activeWebRoot.app().stop();
+      }
+    } finally {
+      if (indexConnection != null) {
+        indexConnection.close();
+      }
     }
+  }
+
+  /** 标记当前测试的服务实例，区分路由错误与响应来自其他实例。 */
+  private WebCompositionRoot createWebRoot(QueryCompositionRoot root) {
+    activeWebRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    appMarker = UUID.randomUUID().toString();
+    activeWebRoot.app().unsafe.routes.before(ctx -> ctx.header(APP_MARKER_HEADER, appMarker));
+    return activeWebRoot;
+  }
+
+  /** 先验证实例身份，诊断仅包含状态码与固定布尔值，不输出正文或响应头值。 */
+  private String assertCurrentAppResponse(Response response) {
+    List<String> markers = response.headers().get(APP_MARKER_HEADER);
+    boolean markerMatches = markers != null && markers.equals(List.of(appMarker));
+    boolean cspPresent = response.headers().get("Content-Security-Policy") != null;
+    boolean sessionNotFound = response.body().string().contains("会话不存在");
+    String diagnostics =
+        "HTTP %d; fixturePresent=%s, markerMatches=%s, CSPpresent=%s, sessionNotFound=%s"
+            .formatted(response.code(), fixturePresent, markerMatches, cspPresent, sessionNotFound);
+    assertThat(markerMatches).as(diagnostics).isTrue();
+    return diagnostics;
   }
 
   @Test
@@ -55,13 +92,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/nonexistent-id");
-          assertThat(response.code()).isEqualTo(404);
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(404);
           String body = response.body().string();
           assertThat(body).containsIgnoringCase("Not Found");
         });
@@ -75,13 +113,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/test-session-1");
-          assertThat(response.code()).isEqualTo(200);
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(200);
           String body = response.body().string();
           assertThat(body).contains("Agent Run Profiler");
           assertThat(body).contains("data-trace-page");
@@ -98,13 +137,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/test-session-1");
-          assertThat(response.code()).isEqualTo(200);
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(200);
           String body = response.body().string();
           assertThat(body).contains("data-summary-strip");
           assertThat(body).contains("data-session-updated");
@@ -121,13 +161,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/test-session-1");
-          assertThat(response.code()).isEqualTo(200);
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(200);
           String body = response.body().string();
           assertThat(body).doesNotContain("Export session as HTML");
           assertThat(body).doesNotContain(">HTML</a>");
@@ -143,12 +184,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/test-session-1");
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(200);
           String body = response.body().string();
           assertThat(body).contains("session-detail/lazy_rounds.js");
           assertThat(body).contains("payload-api-base");
@@ -163,12 +206,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/test-session-1");
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(200);
           String body = response.body().string();
           assertThat(body).contains("sd-trace-panel");
           assertThat(body).contains("data-trace-list");
@@ -182,13 +227,14 @@ class SessionDetailPageTest {
     QueryCompositionRoot root =
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
-    WebCompositionRoot webRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    WebCompositionRoot webRoot = createWebRoot(root);
 
     JavalinTest.test(
         webRoot.app(),
         (testApp, client) -> {
           var response = client.get("/sessions/claude_code/test%20session%20id");
-          assertThat(response.code()).isEqualTo(404);
+          String diagnostics = assertCurrentAppResponse(response);
+          assertThat(response.code()).as(diagnostics).isEqualTo(404);
         });
   }
 
@@ -211,5 +257,10 @@ class SessionDetailPageTest {
             + " 50000, 25000, 15000, 10000, 100000, 0, 2,"
             + " 1704067200, 1704067200, '/f1')";
     indexConnection.writerConnection().createStatement().execute(sql);
+    fixturePresent =
+        new SqliteSessionQueryRepository(indexConnection)
+            .getSession("claude_code:test-session-1")
+            .isPresent();
+    assertThat(fixturePresent).as("独立读连接必须可见已插入的 synthetic fixture").isTrue();
   }
 }

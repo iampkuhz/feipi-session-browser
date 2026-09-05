@@ -24,7 +24,7 @@ PROTECTED_ROOTS = [
     '.claude/',
     '.codex/',
     '.qoder/',
-    'CLAUDE.md',
+    '.claude/CLAUDE.md',
     'AGENTS.md',
 ]
 

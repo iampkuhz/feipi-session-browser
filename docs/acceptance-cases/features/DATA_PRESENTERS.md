@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | Presenter 层（数据→视图模型转换） |
 | 关联源码 | `src/session_browser/web/presenters/`（sessions, dashboard, projects, session_detail） |
-| 关联测试 | `tests/web/test_sessions_presenter.py`、`test_dashboard_presenter.py`、`test_projects_presenter.py`、`web/test_make_round.py`、`web/test_round_signals.py` 等 |
+| 关联测试 | `tests/web/test_sessions_presenter.py`、`test_dashboard_presenter.py`、`test_projects_presenter.py`、`web/test_make_round.py`、`web/test_round_signals.py` 等 |（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
 | 主要风险 | presenter 数据模型与模板期望不匹配；分页计算错误；token 归一化丢失精度 |
 
 ## 验收用例
@@ -24,5 +24,5 @@
 | DATA-PRESENTER-009 | P1 | data | LLM attribution summary shape | 调用真实 Java attribution API | model 与 fresh/output/cache/tool count 为稳定数值字段 | JUnit | — | `java/web/src/test/java/com/feipi/session/browser/web/api/SessionApiHandlerTest.java` |
 | DATA-PRESENTER-010 | P1 | data | LLM Payload API 语义（payload 文本不截断） | 调用 payload API 端点 | 返回的 payload text 包含完整内容，未被预览长度截断 | pytest | — | 待补充 |
 | DATA-PRESENTER-011 | P1 | data | 轮次一致性（round 数 = user+assistant 消息对数） | 给定 N 个 user msg 和 M 个 assistant msg | `build_rounds` 返回的 round 数与预期一致，无 orphan 消息 | pytest | — | 待补充 |
-| DATA-PRESENTER-013 | P2 | data | Token 分段 API/render 同源 | 加载 sessions rows | API token invariant 与页面四段 tokenbar 一致 | Playwright + JUnit | — | `tests/playwright/sessions-list.spec.js` |
+| DATA-PRESENTER-013 | P2 | data | Token 分段 API/render 同源 | 加载 sessions rows | API token invariant 与页面四段 tokenbar 一致 | Playwright + JUnit | — | `java/tests/playwright/sessions-list.spec.js` |
 | DATA-PRESENTER-014 | P2 | data | 页面大小一致性（所有列表页默认 page_size 一致） | 检查各 presenter 默认 page_size 参数 | 所有列表页 page_size 统一为 20（或配置值） | pytest | — | 待补充 |

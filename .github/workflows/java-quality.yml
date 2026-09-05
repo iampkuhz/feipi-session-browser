@@ -7,24 +7,24 @@ on:
     branches: [main, main_java]
     paths:
       - 'java/**'
-      - 'gradle/build-logic/**'
-      - 'gradle/**'
-      - 'gradle.properties'
-      - 'build.gradle.kts'
-      - 'settings.gradle.kts'
+      - 'java/gradle/build-logic/**'
+      - 'java/gradle/**'
+      - 'java/gradle.properties'
+      - 'java/build.gradle.kts'
+      - 'java/settings.gradle.kts'
       - 'scripts/gates/checks/**'
-      - 'config/**'
+      - 'scripts/gates/config/technical-terms.json'
       - '.github/workflows/java-quality.yml'
   pull_request:
     paths:
       - 'java/**'
-      - 'gradle/build-logic/**'
-      - 'gradle/**'
-      - 'gradle.properties'
-      - 'build.gradle.kts'
-      - 'settings.gradle.kts'
+      - 'java/gradle/build-logic/**'
+      - 'java/gradle/**'
+      - 'java/gradle.properties'
+      - 'java/build.gradle.kts'
+      - 'java/settings.gradle.kts'
       - 'scripts/gates/checks/**'
-      - 'config/**'
+      - 'scripts/gates/config/technical-terms.json'
       - '.github/workflows/java-quality.yml'
   workflow_dispatch:
 
@@ -63,19 +63,24 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/main_java' }}
           build-scan-publish: false
 
       # 依赖校验：Gradle 9.x 默认不写入 lock/checksum（只验证）
-      - name: Gradle check
-        run: ./gradlew check
+      - name: Gradle check (POSIX)
+        if: runner.os != 'Windows'
+        run: ./java/gradlew -p java check
+
+      - name: Gradle check (Windows)
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: .\java\gradlew.bat -p java check
 
       # Launcher smoke test —— 三平台均执行（跨平台路径处理）
       - name: CLI smoke test (POSIX)
         if: runner.os != 'Windows'
         run: |
-          ./gradlew :java:app-cli:installDist
+          ./java/gradlew -p java :java:app-cli:installDist
           ./java/app-cli/build/install/app-cli/bin/app-cli --help
           ./java/app-cli/build/install/app-cli/bin/app-cli --version
 
@@ -83,7 +88,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          .\gradlew.bat :java:app-cli:installDist
+          .\java\gradlew.bat -p java :java:app-cli:installDist
           java\app-cli\build\install\app-cli\bin\app-cli.bat --help
           java\app-cli\build\install\app-cli\bin\app-cli.bat --version
 
@@ -121,22 +126,21 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
           cache-read-only: ${{ github.ref != 'refs/heads/main' && github.ref != 'refs/heads/main_java' }}
           build-scan-publish: false
 
       # qualityFull —— check + JaCoCo 根报告 + functional fixtures
       - name: qualityFull
-        run: ./gradlew qualityFull
+        run: ./java/gradlew -p java qualityFull
 
       # 中文注释检查
       - name: verifyChineseJavaComments
-        run: ./gradlew verifyChineseJavaComments
+        run: ./java/gradlew -p java verifyChineseJavaComments
 
       # Distribution 构建
       - name: Build distribution
         run: |
-          ./gradlew :java:app-cli:installDist :java:app-cli:distZip
+          ./java/gradlew -p java :java:app-cli:installDist :java:app-cli:distZip
           ./java/app-cli/build/install/app-cli/bin/app-cli --help
           ./java/app-cli/build/install/app-cli/bin/app-cli --version
 

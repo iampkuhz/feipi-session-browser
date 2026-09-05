@@ -31,7 +31,7 @@ final class JavaModuleBuildFileGuardTest {
   @Test
   @DisplayName("settings.gradle.kts must not include removed Java modules")
   void settingsMustNotIncludeRemovedModules() throws IOException {
-    String settings = readRepoFile("settings.gradle.kts");
+    String settings = readRepoFile("java/settings.gradle.kts");
 
     assertThat(settings)
         .as("settings.gradle.kts must not include :java:artifact-normalized")

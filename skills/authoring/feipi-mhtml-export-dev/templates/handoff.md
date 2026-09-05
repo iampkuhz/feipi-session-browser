@@ -8,7 +8,7 @@
   - `src/session_browser/web/mhtml.py` — 导出后端入口
   - `java/web/src/main/resources/templates/` — 导出相关 Jinja 模板
   - `java/web/src/main/resources/static/` — 需要内联的 CSS/JS 资源
-  - `tests/backend/test_mhtml_export.py` — 导出测试
+  - `tests/backend/test_mhtml_export.py` — 导出测试（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
   - `scripts/gates/checks/` — 导出相关检查脚本（如需）
 
 ## Forbidden scope
@@ -32,14 +32,14 @@
 ## Validation
 
 ```bash
-./gradlew :java:web:test --tests '*WebStaticResourceContractTest'
+./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'
 python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests
 ```
 
 按需追加：
 
 ```bash
-pytest tests/backend/test_mhtml_export.py
+./scripts/session-browser.sh test
 ```
 
 ## Expected output

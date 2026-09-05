@@ -4,7 +4,7 @@
 
 ## 版本管理
 
-- **VERSION 文件**是版本号唯一真源，位于仓库根目录。
+- **`java/gradle/VERSION`** 是源码版本号唯一真源；发行包仍在包根提供 `VERSION`。
 - 版本格式：`X.Y` 或 `X.Y.Z`，可选后缀如 `-rc.1`、`-alpha.1`。
 - 所有构建、发行包和 GitHub Release 均从 VERSION 文件读取版本号。
 
@@ -14,13 +14,13 @@
 
 ```bash
 # 确认版本号
-cat VERSION
+cat java/gradle/VERSION
 
 # 验证工作区干净
 git status
 
 # 运行本地验证
-./gradlew check
+./java/gradlew -p java check
 ```
 
 ### 2. 创建 Release Candidate
@@ -37,17 +37,17 @@ scripts/release/create-release-candidate.sh create
 - VERSION 文件格式合法
 - 工作区无未提交改动
 - tag 不存在重复
-- `./gradlew check` 全部通过
+- `./java/gradlew -p java check` 全部通过
 
 ### 3. 推送 Tag 触发 CI
 
 ```bash
-git push origin v$(cat VERSION)
+git push origin v$(cat java/gradle/VERSION)
 ```
 
 推送后 GitHub Actions 自动执行 release workflow：
 1. **validate**：VERSION 与 tag 一致性校验
-2. **quality**：`./gradlew check` 全量测试
+2. **quality**：`./java/gradlew -p java check` 全量测试
 3. **build**：四平台并行构建（macOS arm64/x64、Linux x64、Windows x64）
 4. **verify-and-drill**：checksum 交叉验证 + 升级/回滚 drill
 5. **publish-release**：创建 GitHub Release

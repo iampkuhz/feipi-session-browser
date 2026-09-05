@@ -24,7 +24,7 @@
 - Repo 层不做渲染或格式化。
 - Domain 层不依赖任何上层模块。
 
-分层规则由 `config/architecture/java-modules.yaml` 中的 `allowedProjectDeps` 和 `forbiddenImports` 强制。
+分层规则由 `java/gradle/config/architecture/java-modules.yaml` 中的 `allowedProjectDeps` 和 `forbiddenImports` 强制。
 
 ## DTO / Mapper / DAO / Repo / Service 分层
 

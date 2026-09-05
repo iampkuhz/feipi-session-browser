@@ -16,7 +16,9 @@ dependencies {
     testAnnotationProcessor(libs.lombok)
 }
 
+val repoRoot = rootProject.extra["repoRoot"] as org.gradle.api.file.Directory
+
 tasks.withType<Test>().configureEach {
-    systemProperty("repo.root.dir", rootProject.projectDir.absolutePath)
+    systemProperty("repo.root.dir", repoRoot.asFile.absolutePath)
     jvmArgs("--add-modules", "jdk.compiler")
 }

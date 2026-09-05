@@ -56,7 +56,7 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 - 导出功能入口：`src/session_browser/web/mhtml.py` 或等效后端导出模块。
 - Jinja 模板：`java/web/src/main/resources/templates/` 下导出相关模板。
 - 静态资源内联：`java/web/src/main/resources/static/` 下需要内联的 CSS/JS。
-- 导出测试：`tests/backend/test_mhtml_export.py` 或等效测试文件。
+- 导出测试：`tests/backend/test_mhtml_export.py` 或等效测试文件。（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
 - UI 导出按钮：session detail 模板中的导出触发元素。
 - 导出 gate：`scripts/gates/checks/` 下导出相关检查脚本。
 
@@ -66,7 +66,7 @@ description: 用于 Session Detail 离线 HTML/MHTML 导出功能研发；普通
 
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
-- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查。
+- `./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'` — session detail 静态检查。
 - `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests` — 真实浏览器交互检查。
 - fixture-based 导出测试 — 验证内联完整性和交互保真。
 - `python3 scripts/gates/cli.py run --mode incremental --gate agentConfigurationPolicy` — agent parity gate。

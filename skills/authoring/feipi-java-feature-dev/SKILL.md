@@ -27,9 +27,9 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 只读取以下必要片段：
 
-1. `settings.gradle.kts` — 只需 include 块。
-2. 目标模块的 `build.gradle.kts` — 只需 dependencies 块。
-3. `config/architecture/java-modules.yaml` — 只需目标模块的条目和 forbiddenImports。
+1. `java/settings.gradle.kts` — 只需 include 块。
+2. 目标模块的 `java/build.gradle.kts` — 只需 dependencies 块。
+3. `java/gradle/config/architecture/java-modules.yaml` — 只需目标模块的条目和 forbiddenImports。
 4. 相邻测试文件 — 只读与当前变更直接相关的测试。
 
 不要整模块扫描。不要预读无关模块的 build 文件或源码。
@@ -37,7 +37,7 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 ## 执行步骤
 
 1. 搜索定位模块和入口：使用 `rg` 定位目标类名或方法，确定所属 Gradle 模块。
-2. 读取 `settings.gradle.kts` 和相关模块 build 文件，只读必要片段（include 块和 dependencies 块）。
+2. 读取 `java/settings.gradle.kts` 和相关模块 build 文件，只读必要片段（include 块和 dependencies 块）。
 3. 查找并读取 `src/test/` 下与改动直接相关的相邻测试或 fixture。
 4. 先改测试或 fixture，再改实现；如果当前仓库模式不是 TDD，可以改完立即补测试。
 5. 不跨层访问：API/CLI 不直接读底层存储，Service 不写 UI 模板，Repo 不做渲染。
@@ -50,8 +50,8 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 
 - 生产代码：`java/<module>/src/main/java/` 下对应模块的包路径。
 - 测试代码：`java/<module>/src/test/java/` 下对应模块的包路径。
-- 构建配置：`java/<module>/build.gradle.kts`，`gradle/build-logic/`。
-- 模块边界配置：`config/architecture/java-modules.yaml`。
+- 构建配置：`java/<module>/build.gradle.kts`，`java/gradle/build-logic/`。
+- 模块边界配置：`java/gradle/config/architecture/java-modules.yaml`。
 - 脚本入口：`scripts/session-browser.sh`。
 
 不要跨模块引入类。不要在 API/CLI 层直接操作底层存储。
@@ -61,13 +61,13 @@ description: 用于本仓库 Java/Gradle/API/CLI 功能研发的最小上下文�
 以下门禁不是每次都全部运行；被选中的 Gate 必须完整执行并给出明确结论：
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
-- `./gradlew check` — 模块边界、package 归属、forbidden import。
+- `./java/gradlew -p java check` — 模块边界、package 归属、forbidden import。
 - `python3 scripts/gates/cli.py run --mode incremental` — 根据当前改动自动选择并运行相关 Gate。
 
 选择策略：
 
 - 只改 Java 源码 → 至少运行 `test` + `Gradle check`。
-- 改构建配置或模块依赖 → 必须运行 `./gradlew check`。
+- 改构建配置或模块依赖 → 必须运行 `./java/gradlew -p java check`。
 - 普通提交或交接收口前 → 运行 `python3 scripts/gates/cli.py run --mode incremental`。
 - 发布、周期审计或大迁移 → 运行 `python3 scripts/gates/cli.py run --mode full`。
 

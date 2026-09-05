@@ -76,11 +76,11 @@ main agent 调用 `Agent(implementer)` 时，应传入以下字段。字段说�
 4. validation 相关文件
     - 仅在理解或运行 `Validation command` 必需时读取 test、script 或 report。
 
-注意：这里的”不读取”是指不要主动通过 `Read` 或 `Bash` + 搜索命令展开相关文件；它不能阻止 Claude Code 在 session 或 subagent 启动时注入已经存在的上下文。如果 `CLAUDE.md` 或其他 memory 已经出现在上下文里，只把它当作背景约束，不要主动再次读取或展开全文。
+注意：这里的”不读取”是指不要主动通过 `Read` 或 `Bash` + 搜索命令展开相关文件；它不能阻止 Claude Code 在 session 或 subagent 启动时注入已经存在的上下文。如果 `.claude/CLAUDE.md` 或其他 memory 已经出现在上下文里，只把它当作背景约束，不要主动再次读取或展开全文。
 
 除非 handoff payload 明确列入 `Required context files`，不要主动读取或展开：
 
-- 完整 `CLAUDE.md`；
+- 完整 `.claude/CLAUDE.md`；
 - 完整 `AGENTS.md`；
 - 无关 `openspec/changes/*`；
 - 无关 `harness/`；

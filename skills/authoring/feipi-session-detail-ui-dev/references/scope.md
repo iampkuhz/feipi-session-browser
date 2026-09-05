@@ -26,7 +26,7 @@
 4. Gate `webResourceContracts` → 静态检查入口。
 5. catalog Gate `webStaticRules` / 内部 Java `css-ownership` rule → CSS ownership 校验。
 6. Gate `browserBehaviorTests` → 用真实浏览器行为验证 JS handler。
-7. `config/web-quality-baselines.json` → `raw-innerhtml` 与 `layout-inline-style` 的 canonical baseline section；
+7. `java/tests/quality-gates/config/web-quality-baselines.json` → `raw-innerhtml` 与 `layout-inline-style` 的 canonical baseline section；
    CSS ownership 由 Java rule 管理，并继续写出按运行隔离的 artifact；该 artifact 不是 baseline。
 
 ## 常见误区
@@ -42,11 +42,11 @@
 
 ## 触发门禁
 
-- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
-- `npm --prefix tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js`
-- `npm --prefix tests/playwright test -- session-detail-layout.spec.js`
+- `./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'`
+- `npm --prefix java/tests/playwright test -- session-detail.spec.js session-detail-behavior-contracts.spec.js`
+- `npm --prefix java/tests/playwright test -- session-detail-layout.spec.js`
 - `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests`
-- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership`
+- `./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership`
 - `python3 scripts/gates/cli.py run --mode incremental --gate currentVersionPolicy`
-- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style`
-- `./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml`
+- `./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=layout-inline-style`
+- `./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=raw-innerhtml`

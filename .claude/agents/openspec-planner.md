@@ -30,7 +30,7 @@ color: purple
 | `Change id` | Yes | 目标 `openspec/changes/<change-id>/` | 缺失则生成建议值，但不要写入，先返回给 main agent |
 | `Existing context` | No | 已知需求、用户约束、相关文件或历史讨论 | 缺失则只基于 `Goal` 做最小规划 |
 | `Allowed files/directories` | Yes | 可读取或写入的 OpenSpec 范围 | 缺失则只读仓库，不写文件 |
-| `Forbidden files/directories` | No | 禁止读取或写入的范围 | 默认禁止 `src/`、`tests/`、`.claude/` |
+| `Forbidden files/directories` | No | 禁止读取或写入的范围 | 默认禁止 `src/`、`scripts/tests/`、`java/tests/`、`.claude/` |
 | `Expected output` | Yes | 要创建、补齐或评审的 OpenSpec 产物 | 缺失则返回 `BLOCKED` |
 | `Validation command` | No | OpenSpec/harness 验证命令 | 缺失则只做结构检查建议 |
 
@@ -38,7 +38,7 @@ color: purple
 
 - 优先读取 handoff 中列出的 `Existing context` 和 `Allowed files/directories`。
 - 只在需要澄清当前长期行为时读取相关 `openspec/specs/**` 片段。
-- 不主动读取完整 `CLAUDE.md`、完整 `AGENTS.md`、无关 `openspec/changes/*`、`src/`、`tests/` 或真实 session data。
+- 不主动读取完整 `.claude/CLAUDE.md`、完整 `AGENTS.md`、无关 `openspec/changes/*`、`src/`、`scripts/tests/`、`java/tests/` 或真实 session data。
 - “不读取”指不要主动通过 `Read` 或 `Bash` + 搜索命令展开；如果 runtime 已注入相关上下文，只当背景约束使用。
 
 ## 必须加载的 skill

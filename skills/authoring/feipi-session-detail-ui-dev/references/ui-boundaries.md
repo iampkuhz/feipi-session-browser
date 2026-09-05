@@ -32,10 +32,10 @@
 ## Session Detail Shell
 
 - Session detail shell 是页面的外层容器，控制整体布局结构。
-- Shell 变更影响所有子组件的布局，必须运行 `npm --prefix tests/playwright test -- session-detail-layout.spec.js`。
+- Shell 变更影响所有子组件的布局，必须运行 `npm --prefix java/tests/playwright test -- session-detail-layout.spec.js`。
 - Shell CSS 由 `webResourceContracts` 守护，不允许随意修改 shell 类名。
 - Layout 变更应优先消除 inline style；只有经审阅确认保留时，才显式更新
-  `config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries`。
+  `java/tests/quality-gates/config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries`。
 
 ## CSS 当前命名与 ownership
 

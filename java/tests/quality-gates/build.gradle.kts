@@ -16,28 +16,23 @@ val javaQualityRules = providers.gradleProperty("feipiJavaQualityRules")
     .orElse("java-comment-language,record-component-javadocs,no-pmd-suppressions")
 val changedFiles = providers.environmentVariable("QUALITY_CHANGED_FILES").orElse("")
 val baselineUpdateRules = providers.gradleProperty("feipiJavaQualityBaselineUpdateRules").orElse("")
-val technicalTermsPolicy = rootProject.layout.projectDirectory.file("config/technical-terms.json")
-val templatesRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/templates")
-val staticRoot = rootProject.layout.projectDirectory.dir("java/web/src/main/resources/static")
+val buildRoot = rootProject.layout.projectDirectory
+val repoRoot = rootProject.extra["repoRoot"] as org.gradle.api.file.Directory
+val technicalTermsPolicy = repoRoot.file("scripts/gates/config/technical-terms.json")
+val templatesRoot = buildRoot.dir("web/src/main/resources/templates")
+val staticRoot = buildRoot.dir("web/src/main/resources/static")
 val cssRoot = staticRoot.dir("css")
-val webQualityBaseline = rootProject.layout.projectDirectory.file("config/web-quality-baselines.json")
+val webQualityBaseline = layout.projectDirectory.file("config/web-quality-baselines.json")
 val summary = layout.buildDirectory.file("reports/java-quality-gates/summary.json")
-val javaMainSources = rootProject.fileTree("java") {
+val javaMainSources = fileTree(buildRoot) {
     include("**/src/main/java/**/*.java")
     exclude("**/build/**")
 }
-val jvmCommentSources = rootProject.files(
-    rootProject.fileTree("java") {
-        include("**/*.java", "**/*.kt", "**/*.kts")
-        exclude("**/build/**", "**/.gradle/**", "**/generated/**", "**/gen/**")
-    },
-    rootProject.fileTree("gradle/build-logic") {
-        include("**/*.java", "**/*.kt", "**/*.kts")
-        exclude("**/build/**", "**/.gradle/**", "**/generated/**")
-    },
-    rootProject.layout.projectDirectory.file("build.gradle.kts"),
-    rootProject.layout.projectDirectory.file("settings.gradle.kts"),
-)
+// 构建根已经包含 build-logic 与根脚本，只扫描一次避免重复输入。
+val jvmCommentSources = fileTree(buildRoot) {
+    include("**/*.java", "**/*.kt", "**/*.kts")
+    exclude("**/build/**", "**/.gradle/**", "**/generated/**", "**/gen/**")
+}
 val templateSources = rootProject.fileTree(templatesRoot) {
     include("**/*.html")
 }
@@ -50,10 +45,11 @@ val cssOwnershipSources = rootProject.fileTree(cssRoot) {
 val staticJavaScriptSources = rootProject.fileTree(staticRoot.dir("js")) {
     include("**/*.js")
 }
-val testJavaScriptSources = rootProject.fileTree("tests") {
+val testJavaScriptSources = fileTree(buildRoot.dir("tests")) {
     include("**/*.js")
+    exclude("**/node_modules/**", "**/build/**", "**/.local/**")
 }
-val scriptJavaScriptSources = rootProject.fileTree("scripts") {
+val scriptJavaScriptSources = fileTree(repoRoot.dir("scripts")) {
     include("**/*.js")
 }
 
@@ -143,17 +139,10 @@ tasks.register<JavaExec>("runJavaQualityGates") {
 
     val sourcePaths = linkedSetOf<File>()
     if (selectedRules.any(javaSourceRules::contains)) {
-        sourcePaths.add(rootProject.file("java"))
+        sourcePaths.add(buildRoot.asFile)
     }
     if ("java-comment-language" in selectedRules) {
-        sourcePaths.addAll(
-            listOf(
-                rootProject.file("java"),
-                rootProject.file("gradle/build-logic"),
-                rootProject.file("build.gradle.kts"),
-                rootProject.file("settings.gradle.kts"),
-            )
-        )
+        sourcePaths.add(buildRoot.asFile)
     }
     if (selectedRules.any(setOf("template-contract", "static-resource-contract", "layout-inline-style")::contains)) {
         sourcePaths.add(templatesRoot.asFile)
@@ -168,11 +157,12 @@ tasks.register<JavaExec>("runJavaQualityGates") {
         sourcePaths.add(staticRoot.dir("js").asFile)
     }
     if ("raw-innerhtml" in selectedRules) {
-        sourcePaths.add(rootProject.file("tests"))
-        sourcePaths.add(rootProject.file("scripts"))
+        sourcePaths.add(buildRoot.dir("tests/playwright").asFile)
+        sourcePaths.add(buildRoot.dir("tests/fixtures").asFile)
+        sourcePaths.add(repoRoot.dir("scripts").asFile)
     }
     args(
-        "--repo-root", rootProject.projectDir.absolutePath,
+        "--repo-root", repoRoot.asFile.absolutePath,
         "--paths", sourcePaths.joinToString(",") { it.absolutePath },
         "--rules", javaQualityRules.get(),
         "--report-file", summary.get().asFile.absolutePath,

@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 required = [
-    'CLAUDE.md',
+    '.claude/CLAUDE.md',
     'AGENTS.md',
     '.claude/settings.json',
     '.claude/commands',

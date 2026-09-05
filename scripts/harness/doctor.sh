@@ -112,16 +112,17 @@ check_dir() {
 }
 
 check_file AGENTS.md
-check_file CLAUDE.md
+check_file .claude/CLAUDE.md
 check_file README.md
-check_file pyproject.toml
-check_file uv.lock
+check_file scripts/pyproject.toml
+check_file scripts/uv.lock
 check_file scripts/session-browser.sh
 check_file harness/agent-policy.manifest.yaml
 check_file harness/skill-registry.yaml
 check_file scripts/harness/validate_harness_structure.py
 check_file scripts/openspec/validate_layout.py
-check_dir tests
+check_dir scripts/tests
+check_dir java/tests/playwright
 check_dir skills
 check_dir openspec/specs
 
@@ -135,7 +136,7 @@ else
 fi
 
 if command -v uv >/dev/null 2>&1; then
-  run_check "uv lock is current" uv lock --check
+  run_check "uv lock is current" uv lock --project scripts --check
 else
   fail_check "uv is required for the Python dependency lock"
 fi

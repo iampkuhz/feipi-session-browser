@@ -25,7 +25,8 @@ public final class StaticResourceContractRule implements QualityRule {
   private static final String STATIC_ROOT = "java/web/src/main/resources/static";
   private static final String TEMPLATES_ROOT = "java/web/src/main/resources/templates";
   private static final String BASE_TEMPLATE = TEMPLATES_ROOT + "/base.html";
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
   private static final String COMPONENT_BASELINE = "component_override_violations";
   private static final String SELECTOR_BASELINE = "selector_depth_violations";
   private static final int SELECTOR_BLOCK_DEPTH = 3;

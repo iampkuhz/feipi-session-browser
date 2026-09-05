@@ -18,8 +18,8 @@ GATES = (
         trigger=changed(
             'java/web/src/main/resources/**',
             'java/tests/quality-gates/**',
-            'config/web-quality-baselines.json',
-            'tests/**/*.js',
+            'java/tests/quality-gates/config/web-quality-baselines.json',
+            'java/tests/**/*.js',
             'scripts/**/*.js',
         ),
         target_presets=('web-interface', 'gate-infrastructure', 'java-source'),
@@ -56,7 +56,7 @@ GATES = (
         trigger=changed(
             'java/web/src/main/resources/templates/**',
             'java/web/src/main/resources/static/**',
-            'tests/playwright/**',
+            'java/tests/playwright/**',
         ),
         target_presets=('web-interface',),
         recipe=recipe(
@@ -81,7 +81,7 @@ GATES = (
         trigger=changed(
             'java/web/src/main/resources/templates/**',
             'java/web/src/main/resources/static/**',
-            'tests/playwright/**',
+            'java/tests/playwright/**',
         ),
         target_presets=('web-interface',),
         recipe=recipe(

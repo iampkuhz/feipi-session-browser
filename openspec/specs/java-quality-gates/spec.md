@@ -9,6 +9,19 @@
 - main code：gate 框架、规则实现和 CLI 入口，供 `JavaExec` 调用。
 - test code：JUnit 测试和 fixtures，保护规则本身。
 
+## Requirements
+
+### Requirement: Gradle 工程根与仓库根分离
+
+Gradle settings、根 build、properties 和 wrapper SHALL 位于 `java/`；从仓库根调用 SHALL 使用 `./java/gradlew -p java`。原 `:java:*` project ID MUST 保留并显式映射 projectDir；中间父项目 SHALL 使用独立聚合目录，不重复加载根脚本。构建 MUST 区分 `buildRoot` 与 `repoRoot`，按资源职责定位配置、测试、脚本与缓存。
+
+#### Scenario: 从两个根目录启动同一构建
+
+- **Given** 顶层不再保留 Gradle 入口或转发文件
+- **When** 从仓库根指定 `-p java` 或在 `java/` 内执行 wrapper
+- **Then** 项目 ID、任务语义、依赖锁与质量阈值 SHALL 一致
+- **And** Checkstyle SHALL 同时设置新 configFile 与 configDirectory，使 suppressions 实际生效
+
 ## Record component Javadoc owner
 
 Java gate id：
@@ -37,7 +50,7 @@ Java registry 当前负责：
 
 - `record-component-javadocs`：record 类型与 component 中文 `@param`。
 - `no-pmd-suppressions`：禁止未审批的 `@SuppressWarnings("PMD.*")`。
-- `java-comment-language`：Java 生产源码注释使用中文，并复用 `config/technical-terms.json`。
+- `java-comment-language`：Java 生产源码注释使用中文，并复用 `scripts/gates/config/technical-terms.json`。
 
 以下内容不属于 Java registry：
 

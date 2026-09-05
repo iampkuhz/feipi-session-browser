@@ -32,7 +32,7 @@ gate 脚本 `testDataPrivacy` 和 `credentialLeakScan` 负责检测。
 
 fixture 文件命名规则：
 
-- synthetic fixture 放在 `tests/fixtures/synthetic/` 下。
+- synthetic fixture 放在 `java/tests/fixtures/synthetic/` 下。
 - 文件名包含 `synthetic` 或 `sample` 标识。
 - 不使用真实用户路径或 token 作为文件名。
 - 大 JSONL fixture 必须在 synthetic 目录下。
@@ -45,6 +45,6 @@ fixture 文件命名规则：
 - [ ] 是否包含真实 home 路径？
 - [ ] 是否包含真实 token 或密钥？
 - [ ] 文件路径是否使用占位符？
-- [ ] 是否在 `tests/fixtures/synthetic/` 目录下？
+- [ ] 是否在 `java/tests/fixtures/synthetic/` 目录下？
 - [ ] 是否通过了 `testDataPrivacy`？
 - [ ] 是否通过了 `credentialLeakScan`？

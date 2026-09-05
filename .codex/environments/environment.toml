@@ -16,14 +16,14 @@ repo_root="$(git rev-parse --show-toplevel 2>/dev/null)" || {
 cd "$repo_root"
 echo "LOCAL_ENV_REPO_ROOT=$repo_root"
 
-if [ ! -f pyproject.toml ]; then
+if [ ! -f scripts/pyproject.toml ]; then
   echo "BLOCKED_LOCAL_ENV_MISSING_PYPROJECT: repo_root=$repo_root" >&2
   exit 2
 fi
 
-if [ ! -f uv.lock ]; then
+if [ ! -f scripts/uv.lock ]; then
   echo "BLOCKED_LOCAL_ENV_MISSING_UV_LOCK: repo_root=$repo_root" >&2
   exit 2
 fi
 
-UV_PROJECT_ENVIRONMENT="$repo_root/.local/python/venv" uv sync --frozen'''
+UV_PROJECT_ENVIRONMENT="$repo_root/.local/python/venv" uv sync --project scripts --frozen'''

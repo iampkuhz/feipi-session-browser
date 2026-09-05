@@ -460,7 +460,7 @@ public final class ServerLifecycle {
   }
 
   /**
-   * 构建源条目列表，根据 agent 过滤和环境变量解析源根目录。
+   * 构建源条目列表，根据 agent 过滤选择用户主目录下的默认源目录。
    *
    * <p>校验放置：源目录存在性在此边界检查一次。ScanConfig 紧凑构造器验证 sourceEntries 非空， 但当 noScan+allowEmpty 时返回空列表绕过此校验。
    *
@@ -476,27 +476,21 @@ public final class ServerLifecycle {
     boolean includeQoder = agentFilter.isEmpty() || agentFilter.contains("qoder");
 
     if (includeClaude) {
-      Path root =
-          PathResolver.resolveSourceDataDir(
-              "CLAUDE_DATA_DIR", Path.of(System.getProperty("user.home"), ".claude"));
+      Path root = Path.of(System.getProperty("user.home"), ".claude");
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new ClaudeSourceAdapter(), root));
       }
     }
 
     if (includeCodex) {
-      Path root =
-          PathResolver.resolveSourceDataDir(
-              "CODEX_DATA_DIR", Path.of(System.getProperty("user.home"), ".codex"));
+      Path root = Path.of(System.getProperty("user.home"), ".codex");
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new CodexSourceAdapter(), root));
       }
     }
 
     if (includeQoder) {
-      Path root =
-          PathResolver.resolveSourceDataDir(
-              "QODER_DATA_DIR", Path.of(System.getProperty("user.home"), ".qoder"));
+      Path root = Path.of(System.getProperty("user.home"), ".qoder");
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new QoderSourceAdapter(), root));
       }

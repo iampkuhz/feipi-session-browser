@@ -7,6 +7,12 @@ plugins {
     id("feipi.java-test")
 }
 
+val repoRoot = rootProject.extra["repoRoot"] as org.gradle.api.file.Directory
+val sourceVersionFile = rootProject.layout.projectDirectory.file("gradle/VERSION")
+// 发行工具跟随实际 Gradle JVM，不再各自从 PATH/JAVA_HOME 选择另一套 JDK。
+val distributionJdk = File(System.getProperty("java.home"))
+val jdkExecutableSuffix = if (System.getProperty("os.name").startsWith("Windows")) ".exe" else ""
+
 // 产品 launcher 是 JVM profile 的唯一 owner；full scan 需要更大的有界堆。
 val standardLauncherJvmArgs = listOf(
     "-XX:+UseSerialGC",
@@ -98,8 +104,8 @@ dependencies {
 // git commit 和 build timestamp 通过环境变量可覆盖，确保相同输入可复现。
 // ============================================================
 val generateBuildInfo = tasks.register("generateBuildInfo") {
-    val versionFile = rootProject.file("VERSION")
-    val projectDirFile = rootProject.projectDir
+    val versionFile = sourceVersionFile.asFile
+    val projectDirFile = repoRoot.asFile
     val outputDir = layout.buildDirectory.dir("generated/build-info")
 
     // 通过环境变量提供可复现输入；相同输入时 distribution 可复现。
@@ -239,7 +245,7 @@ distributions {
         distributionBaseName.set(project.name)
         contents {
             // VERSION 文件打包到发行根目录，供 launcher 读取版本信息。
-            from(rootProject.file("VERSION")) {
+            from(sourceVersionFile) {
                 into("")
             }
         }
@@ -260,7 +266,11 @@ val jdepsModuleList = tasks.register("jdepsModuleList") {
         .get().asFile.absolutePath
     val outputDir = layout.buildDirectory.dir("reports/jdeps")
     val outputFile = outputDir.map { it.file("module-deps.txt") }
+    val jdepsExecutable = distributionJdk.resolve("bin/jdeps$jdkExecutableSuffix")
 
+    inputs.property("jdkHome", distributionJdk.absolutePath)
+    inputs.file(distributionJdk.resolve("release")).withPropertyName("jdkRelease")
+    inputs.file(jdepsExecutable).withPropertyName("jdepsExecutable")
     inputs.dir(layout.buildDirectory.dir("install/app-cli/lib"))
         .withPropertyName("distLibDir")
     outputs.file(outputFile).withPropertyName("moduleDepsFile")
@@ -273,7 +283,7 @@ val jdepsModuleList = tasks.register("jdepsModuleList") {
             throw org.gradle.api.GradleException("jdepsModuleList: dist lib 目录为空，请先运行 installDist")
         }
 
-        val jdepsCmd = listOf("jdeps", "--multi-release", "base", "--print-module-deps",
+        val jdepsCmd = listOf(jdepsExecutable.absolutePath, "--multi-release", "base", "--print-module-deps",
             "--ignore-missing-deps") + allJars.map { it.absolutePath }
 
         val process = ProcessBuilder(jdepsCmd)
@@ -323,7 +333,12 @@ val jlinkImage = tasks.register("jlinkImage") {
 
     val imageDir = layout.buildDirectory.dir("jlink-image")
     val moduleDepsFile = layout.buildDirectory.file("reports/jdeps/module-deps.txt")
+    val jlinkExecutable = distributionJdk.resolve("bin/jlink$jdkExecutableSuffix")
 
+    inputs.property("jdkHome", distributionJdk.absolutePath)
+    inputs.file(distributionJdk.resolve("release")).withPropertyName("jdkRelease")
+    inputs.file(jlinkExecutable).withPropertyName("jlinkExecutable")
+    inputs.dir(distributionJdk.resolve("jmods")).withPropertyName("jdkModules")
     inputs.file(moduleDepsFile).withPropertyName("moduleDeps")
     outputs.dir(imageDir).withPropertyName("imageDir")
 
@@ -341,11 +356,8 @@ val jlinkImage = tasks.register("jlinkImage") {
             outDir.deleteRecursively()
         }
 
-        val javaHome = System.getenv("JAVA_HOME") ?: System.getProperty("java.home")
-        val jlinkBin = File(javaHome, "bin/jlink")
-
         val jlinkArgs = listOf(
-            jlinkBin.absolutePath,
+            jlinkExecutable.absolutePath,
             "--add-modules", modules.joinToString(","),
             "--no-header-files",
             "--no-man-pages",
@@ -375,6 +387,7 @@ val jlinkImage = tasks.register("jlinkImage") {
 // Runtime distribution —— 包含自包含 runtime 的发行包
 // ============================================================
 val runtimeDistBase = layout.buildDirectory.dir("distributions/runtime-base")
+val runtimeAppDirectory = layout.buildDirectory.dir("distributions/runtime-base/${project.name}")
 
 val prepareRuntimeDist = tasks.register<Sync>("prepareRuntimeDist") {
     group = "distribution"
@@ -384,12 +397,23 @@ val prepareRuntimeDist = tasks.register<Sync>("prepareRuntimeDist") {
 
     // 使用预解析路径，避免 configuration cache 序列化 Task 引用。
     val installDistDirPath = layout.buildDirectory.dir("install/app-cli").get().asFile.absolutePath
+    val runtimeCopy = runtimeAppDirectory.get().dir("runtime").asFile
+
+    // jlink 的 legal 文件只读；重建前仅清理生成的 runtime 副本，避免覆盖失败。
+    doFirst {
+        if (runtimeCopy.exists()) {
+            runtimeCopy.walkTopDown().filter { it.isFile && !it.canWrite() }.forEach {
+                check(it.setWritable(true)) { "无法清理生成的 runtime 文件: $it" }
+            }
+            check(runtimeCopy.deleteRecursively()) { "无法清理生成的 runtime 目录: $runtimeCopy" }
+        }
+    }
 
     from(installDistDirPath) { into("app") }
     from(jlinkImage) { into("runtime") }
-    from(rootProject.file("VERSION")) { into("") }
+    from(sourceVersionFile) { into("") }
 
-    into(runtimeDistBase.map { it.dir(project.name) })
+    into(runtimeAppDirectory)
 }
 
 // runtime launcher 脚本生成
@@ -399,8 +423,11 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
 
     dependsOn(prepareRuntimeDist)
 
-    val distRoot = runtimeDistBase.map { it.dir(project.name) }
+    val distRoot = runtimeAppDirectory
     val mainClassName = application.mainClass.get()
+    // 配置期冻结共享 JVM 参数，执行期不再捕获 Gradle script 对象。
+    val standardJvmArgs = standardLauncherJvmArgs.joinToString(" ")
+    val fullScanJvmArgs = fullScanLauncherJvmArgs.joinToString(" ")
 
     outputs.dir(distRoot)
 
@@ -408,10 +435,6 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
         val root = distRoot.get().asFile
         val binDir = root.resolve("bin")
         binDir.mkdirs()
-
-        // runtime distribution 与 installDist 共用同一组 JVM profile 真源。
-        val standardJvmArgs = standardLauncherJvmArgs.joinToString(" ")
-        val fullScanJvmArgs = fullScanLauncherJvmArgs.joinToString(" ")
 
         // Unix launcher —— 使用自包含 runtime java，无需系统 JDK。
         val unixScript = binDir.resolve("run")

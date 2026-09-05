@@ -4,7 +4,7 @@ generated_by: repository-maintained-minimal-agent-contract
 
 policy_files:
   - AGENTS.md
-  - CLAUDE.md
+  - .claude/CLAUDE.md
   - .codex/model-instructions.md
   - .codex/config.toml
   - .qoder/AGENTS.md
@@ -20,9 +20,10 @@ protected_roots:
   - scripts/
   - openspec/
   - src/session_browser/
-  - tests/
+  - scripts/tests/
+  - java/tests/
   - AGENTS.md
-  - CLAUDE.md
+  - .claude/CLAUDE.md
 
 lifecycle:
   owner: client

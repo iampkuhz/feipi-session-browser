@@ -33,9 +33,9 @@ UI 展示默认遮盖，不依赖用户手动操作。管理界面如需查看�
 测试中遵循：
 
 - fixture 必须使用 synthetic 数据。
-- 禁止复制真实 session 文件到 `tests/`。
+- 禁止复制真实 session 文件到 `scripts/tests/`、`java/tests/`。
 - 如需真实数据格式，只保留结构，值用占位符替代。
-- synthetic fixture 放在 `tests/fixtures/synthetic/` 下。
+- synthetic fixture 放在 `java/tests/fixtures/synthetic/` 下。
 
 ## 报告策略
 

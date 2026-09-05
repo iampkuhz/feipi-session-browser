@@ -412,7 +412,8 @@ class PythonRuntimeZeroGateTest {
               "scripts/start_",
               "scripts/generate_",
               "scripts/validate_",
-              "tests/",
+              "scripts/tests/",
+              "java/tests/",
               "tmp/",
               // 遗留 Python 产品源码，PR-020/PR-030 清理中
               "src/session_browser/");
@@ -428,8 +429,8 @@ class PythonRuntimeZeroGateTest {
     @DisplayName("pyproject.toml 与 uv.lock 是唯一 Python 依赖真相")
     void pythonDependenciesHaveSingleTruth() {
       Path projectRoot = findProjectRoot();
-      assertThat(projectRoot.resolve("pyproject.toml")).isRegularFile();
-      assertThat(projectRoot.resolve("uv.lock")).isRegularFile();
+      assertThat(projectRoot.resolve("scripts/pyproject.toml")).isRegularFile();
+      assertThat(projectRoot.resolve("scripts/uv.lock")).isRegularFile();
       for (String legacy :
           List.of(
               "requirements.txt",
@@ -448,7 +449,7 @@ class PythonRuntimeZeroGateTest {
   private static Path findProjectRoot() {
     Path dir = Path.of(System.getProperty("user.dir"));
     while (dir != null) {
-      if (Files.exists(dir.resolve("settings.gradle.kts"))) {
+      if (Files.exists(dir.resolve("java/settings.gradle.kts"))) {
         return dir;
       }
       dir = dir.getParent();

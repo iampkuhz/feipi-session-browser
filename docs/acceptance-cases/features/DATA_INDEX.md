@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | SQLite 索引器（查询接口、只读连接） |
 | 关联源码 | `src/session_browser/index/indexer.py`、`queries.py`、`writers.py`（只读） |
-| 关联测试 | `tests/index/test_sessions_filters.py` |
+| 关联测试 | `tests/index/test_sessions_filters.py` |（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
 | 主要风险 | 查询过滤逻辑不正确；只读连接无法读取 Java 创建的 schema |
 
 > **SI-110 变更说明**：Python full/incremental scan 写路径已退休，

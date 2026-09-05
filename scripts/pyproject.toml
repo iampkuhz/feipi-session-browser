@@ -1,0 +1,112 @@
+[project]
+name = "feipi-session-browser-dev-tools"
+version = "0"
+description = "Python developer tooling for the Java session browser repository."
+readme = "../README.md"
+requires-python = ">=3.12,<3.13"
+dependencies = ["pyyaml"]
+
+[project.optional-dependencies]
+dev = [
+  "bandit",
+  "deptry",
+  "pip-audit",
+  "pytest",
+  "pytest-xdist",
+  "pre-commit",
+  "ruff",
+  "vulture",
+]
+
+[tool.uv]
+package = false
+
+[tool.pytest.ini_options]
+pythonpath = [".."]
+testpaths = ["scripts/tests"]
+addopts = "-n auto"
+cache_dir = ".local/python/pytest-cache"
+markers = [
+    "contract_case: Mark test with acceptance case ID(s)",
+]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+cache-dir = ".local/python/ruff-cache"
+src = ["scripts"]
+extend-exclude = [
+  "tmp",
+  "data",
+  "output",
+  ".local",
+  ".pytest_cache",
+  "__pycache__",
+]
+
+[tool.ruff.format]
+quote-style = "preserve"
+indent-style = "space"
+line-ending = "lf"
+
+[tool.ruff.lint]
+select = [
+  "E",
+  "W",
+  "F",
+  "I",
+  "N",
+  "UP",
+  "B",
+  "A",
+  "C4",
+  "RET",
+  "TCH",
+  "RUF",
+  "PLC",
+  "PLE",
+  "PLW",
+]
+ignore = [
+  "E501",
+  "PLC0415",
+  "PLW0603",
+  "PLW1510",
+  "PLW2901",
+  "RET504",
+  "RUF001",
+  "RUF002",
+  "RUF003",
+  "RUF059",
+  "RUF100",
+  "B007",
+  "E741",
+  "F541",
+]
+
+[tool.bandit]
+targets = ["scripts"]
+exclude_dirs = ["scripts/tests", "tmp", "data", "output", ".local"]
+skips = []
+
+[tool.deptry]
+known_first_party = ["scripts"]
+optional_dependencies_dev_groups = ["dev"]
+extend_exclude = [
+  "scripts/tests",
+  "tmp",
+  "data",
+  "output",
+  "build",
+  "dist",
+]
+
+[tool.vulture]
+paths = ["scripts"]
+exclude = [
+  "tmp",
+  "data",
+  "output",
+  ".local",
+]
+min_confidence = 90

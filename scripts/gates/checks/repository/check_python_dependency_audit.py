@@ -15,6 +15,7 @@ import sys
 from pathlib import Path
 
 from scripts.gates.checks.check_protocol import CheckResult, argument_parser, repository_root
+from scripts.harness.python_env import DEFAULT_VENV_RELATIVE_PATH, tool_project_dir
 
 ROOT = repository_root()
 _NETWORK_MARKERS = (
@@ -38,7 +39,10 @@ def _run(
     return subprocess.run(
         command,
         cwd=root,
-        env=os.environ.copy(),
+        env={
+            **os.environ,
+            'UV_PROJECT_ENVIRONMENT': str((root / DEFAULT_VENV_RELATIVE_PATH).resolve()),
+        },
         input=input_text,
         capture_output=True,
         text=True,
@@ -107,6 +111,8 @@ def check(arguments: list[str]) -> CheckResult:
         [
             uv,
             'export',
+            '--project',
+            str(tool_project_dir(root)),
             '--frozen',
             '--extra',
             'dev',

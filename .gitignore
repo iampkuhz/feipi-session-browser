@@ -1,48 +1,56 @@
-.DS_Store
+# 路径约定：/ 开头限定仓库根目录，/ 结尾表示目录，! 表示显式保留。
+# 白名单紧跟对应的忽略规则；无路径前缀的文件名与扩展名规则匹配任意层级。
 
-# Runtime output
+# ── 系统与编辑器 ──
+.DS_Store
+/.idea/
+/.vscode/
+
+# ── 个人配置与环境变量 ──
+/.claude/settings.local.json
+/.qoder/settings.local.json
+.mcp.json
+.env
+
+# ── 本地运行数据、工具缓存与报告 ──
+.local/
 /data/
 /output/
 /tmp/*
-/config/api-snapshots/
+/harness/reports/
+/java/tests/playwright/test-results/
+# PlantUML 源码保存在 Markdown 中，图包为生成产物。
+/docs/gates/diagrams/
 
-# Python
-.local/
+# ── Python 生成文件 ──
 __pycache__/
 *.pyc
 *.pyo
 *.egg-info/
 
-# SQLite index
+# ── SQLite 本地索引 ──
 *.sqlite
 *.sqlite3
 
-# Personal config
-.claude/settings.local.json
-.qoder/settings.local.json
-.mcp.json
-.env
+# ── Node / Playwright 依赖 ──
+/java/tests/playwright/node_modules/
 
-# IDE
-/.idea/
-/.vscode/
-
-# OpenSpec local runtime state
-openspec/active_change.json
-openspec/changes/
-
-# Node / Playwright
-/tests/playwright/node_modules/
-
-# Gradle build output
+# ── Gradle 构建产物 ──
 /java/**/build/
-/gradle/build-logic/build/
-/gradle/build-logic/.gradle/
+/java/gradle/build-logic/build/
+/java/gradle/build-logic/.gradle/
 
-# Qoder/Claude local runtime state
+# ── OpenSpec 本地变更状态 ──
+/openspec/active_change.json
+/openspec/changes/
+
+# ── 客户端运行状态 ──
+/.claude/worktrees/
 /.qoder/task-packs/
+
+# ── Qoder Agent 入口白名单 ──
+# 忽略生成文件，仅保留以下共享入口；增加入口时同步维护此清单。
 /.qoder/agents/*
-!/.qoder/agents/
 !/.qoder/agents/qoder-main-default.md
 !/.qoder/agents/runtime-isolation-diagnoser.md
 !/.qoder/agents/quality-gate-diagnoser.md
@@ -51,10 +59,3 @@ openspec/changes/
 !/.qoder/agents/ui-implementation-specialist.md
 !/.qoder/agents/mhtml-export-specialist.md
 !/.qoder/agents/privacy-reviewer.md
-/.claude/worktrees/
-
-harness/reports/
-tests/test-results/
-
-# Generated Gate diagram packages; PlantUML source lives in the Markdown document
-/docs/gates/diagrams/

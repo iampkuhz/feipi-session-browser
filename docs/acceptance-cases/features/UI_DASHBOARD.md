@@ -6,7 +6,7 @@
 |---|---|
 | 模块 | Dashboard 页面（概览统计、趋势图、模型/Agent 分布） |
 | 关联源码 | `java/web/src/main/resources/templates/dashboard.html`、`java/web/src/main/resources/static/js/dashboard.js`、`java/web/src/main/resources/static/css/dashboard.css` |
-| 关联测试 | `java/web/src/test/java/com/feipi/session/browser/web/page/WebStaticResourceContractTest.java`、`java/web/src/test/java/com/feipi/session/browser/web/api/DashboardResourceApiTest.java`、`tests/playwright/ui-contract.spec.ts`、`tests/playwright/macbook-smoke.spec.js` |
+| 关联测试 | `java/web/src/test/java/com/feipi/session/browser/web/page/WebStaticResourceContractTest.java`、`java/web/src/test/java/com/feipi/session/browser/web/api/DashboardResourceApiTest.java`、`java/tests/playwright/ui-contract.spec.ts`、`java/tests/playwright/macbook-smoke.spec.js` |
 | 主要风险 | metric-card 数值与索引不一致；趋势图数据为空；多视口布局错乱 |
 
 ## 验收用例

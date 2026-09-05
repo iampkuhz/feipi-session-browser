@@ -33,7 +33,7 @@ echo ""
 # 阶段 1：验证 VERSION 文件
 echo "--- 阶段 1：验证 VERSION 文件 ---"
 
-VERSION_FILE="VERSION"
+VERSION_FILE="java/gradle/VERSION"
 if [[ ! -f "$VERSION_FILE" ]]; then
     echo "FAIL: VERSION 文件不存在" >&2
     exit 1
@@ -86,12 +86,12 @@ echo ""
 # 阶段 4：验证 Gradle 构建
 echo "--- 阶段 4：验证构建 ---"
 
-if ! ./gradlew check --no-daemon --quiet 2>&1; then
-    echo "FAIL: ./gradlew check 失败" >&2
+if ! ./java/gradlew -p java check --no-daemon --quiet 2>&1; then
+    echo "FAIL: ./java/gradlew -p java check 失败" >&2
     exit 1
 fi
 
-echo "  PASS: ./gradlew check 通过"
+echo "  PASS: ./java/gradlew -p java check 通过"
 echo ""
 
 # 阶段 5：创建 tag

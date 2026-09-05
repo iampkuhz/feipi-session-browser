@@ -16,7 +16,7 @@ GATES = (
         description='统一检查 Agent 运行配置与维护文档政策。',
         trigger=changed(
             'AGENTS.md',
-            'CLAUDE.md',
+            '.claude/CLAUDE.md',
             '.agents/**',
             '.claude/**',
             '.codex/**',

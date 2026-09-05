@@ -24,7 +24,7 @@
 1. `src/session_browser/web/mhtml.py` → 导出后端入口。
 2. `java/web/src/main/resources/templates/` → 导出相关 Jinja 模板。
 3. `java/web/src/main/resources/static/` → 需要内联的 CSS/JS 资源。
-4. `tests/backend/test_mhtml_export.py` → 导出功能测试。
+4. `tests/backend/test_mhtml_export.py` → 导出功能测试。（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
 5. `references/export-contract.md` → 导出契约。
 6. `references/offline-resource-contract.md` → 离线资源契约。
 7. `references/security-contract.md` → 安全脱敏契约。
@@ -40,7 +40,7 @@
 
 ## 触发门禁
 
-- `./gradlew :java:web:test --tests '*WebStaticResourceContractTest'`
+- `./java/gradlew -p java :java:web:test --tests '*WebStaticResourceContractTest'`
 - `python3 scripts/gates/cli.py run --mode incremental --gate browserBehaviorTests`
 - fixture-based 导出测试
 - `python3 scripts/gates/cli.py run --mode incremental --gate agentConfigurationPolicy`

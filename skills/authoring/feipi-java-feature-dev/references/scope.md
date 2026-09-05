@@ -2,9 +2,9 @@
 
 - Java 产品模块的功能开发：`common`、`validation`、`core-domain`、`source-spi`、`sources`、`normalization-engine`、`index-api`、`index-store-sqlite`、`scan-engine`、`application`、`web`。
 - CLI 入口：`java:app-cli`。
-- Gradle 构建配置：`gradle/build-logic/`、各模块 `build.gradle.kts`。
+- Gradle 构建配置：`java/gradle/build-logic/`、各模块 `java/<module>/build.gradle.kts`。
 - 测试代码：`java/<module>/src/test/`、`java:tests:support`、`java:tests:architecture`、`java:tests:contracts`。
-- 模块边界配置：`config/architecture/java-modules.yaml`。
+- 模块边界配置：`java/gradle/config/architecture/java-modules.yaml`。
 
 ## 禁止范围
 
@@ -16,8 +16,8 @@
 
 ## 关键路径
 
-1. `settings.gradle.kts` → 模块列表。
-2. `config/architecture/java-modules.yaml` → 模块边界、allowedProjectDeps、transitionProjectDeps、packageRoots、forbiddenImports。
+1. `java/settings.gradle.kts` → 模块列表。
+2. `java/gradle/config/architecture/java-modules.yaml` → 模块边界、allowedProjectDeps、transitionProjectDeps、packageRoots、forbiddenImports。
 3. `java/<module>/build.gradle.kts` → 模块依赖。
 4. `java/<module>/src/main/java/` → 生产代码。
 5. `java/<module>/src/test/java/` → 测试代码。
@@ -31,6 +31,6 @@
 ## 触发门禁
 
 - `./scripts/session-browser.sh test`
-- `./gradlew check`
+- `./java/gradlew -p java check`
 - `python3 scripts/gates/cli.py run --mode incremental`（普通提交或交接）
 - `python3 scripts/gates/cli.py run --mode full`（仅发布、周期审计或大迁移）

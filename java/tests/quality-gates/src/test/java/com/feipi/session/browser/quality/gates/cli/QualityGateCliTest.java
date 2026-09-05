@@ -105,7 +105,7 @@ class QualityGateCliTest {
   @Test
   void mixedRulesApplyChangedFilesPerRule() throws Exception {
     write(
-        "config/technical-terms.json",
+        "scripts/gates/config/technical-terms.json",
         "{\"canonical_terms\":[\"Java\"],\"forbidden_translations\":[]}\n");
     write(
         "java/sample/src/main/java/example/Unmodified.java",
@@ -178,7 +178,7 @@ class QualityGateCliTest {
   void staticResourceRuleStaysRepositoryWideWhenAggregatedWithIncrementalJavaRule()
       throws Exception {
     write(
-        "config/web-quality-baselines.json",
+        "java/tests/quality-gates/config/web-quality-baselines.json",
         "{\"version\":1,\"rules\":{\"static-resource-contract\":{"
             + "\"component_override_violations\":[],\"selector_depth_violations\":[]}}}\n");
     write(
@@ -224,7 +224,7 @@ class QualityGateCliTest {
   @Test
   void rawAndLayoutRulesStayIndependentAndRepositoryWideWithIncrementalJavaRule() throws Exception {
     write(
-        "config/web-quality-baselines.json",
+        "java/tests/quality-gates/config/web-quality-baselines.json",
         "{\"version\":1,\"rules\":{"
             + "\"raw-innerhtml\":{\"entries\":[]},"
             + "\"layout-inline-style\":{\"entries\":[]}}}\n");
@@ -267,7 +267,7 @@ class QualityGateCliTest {
   @Test
   void testOnlyJavaDoesNotTurnZeroCandidateMainRuleIntoPassed() throws Exception {
     write(
-        "config/technical-terms.json",
+        "scripts/gates/config/technical-terms.json",
         "{\"canonical_terms\":[\"Java\"],\"forbidden_translations\":[]}\n");
     var source =
         write(

@@ -14,7 +14,6 @@ ROOT = repository_root()
 
 
 SCAN_DIRS = [
-    "tests",
     "docs",
     "java",
     ".claude",
@@ -92,6 +91,14 @@ def _is_excluded_path(path: Path) -> bool:
         relative = path.relative_to(ROOT)
     except ValueError:
         return True
+    # 只排除真实 Gradle 工程直属输出；src 内同名 package/fixture 仍完整扫描。
+    if relative.parts and relative.parts[0] == "java":
+        for index, name in enumerate(relative.parts[1:], start=1):
+            owner_parts = relative.parts[:index]
+            if name not in {"build", ".gradle"} or "src" in owner_parts:
+                continue
+            if ROOT.joinpath(*owner_parts, "build.gradle.kts").is_file():
+                return True
     return any(relative == prefix or prefix in relative.parents for prefix in _SKIP_RELATIVE_DIRS)
 
 

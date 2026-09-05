@@ -27,7 +27,7 @@ run_deps() {
                 echo "错误：deps plan 不接受额外参数。" >&2
                 return 2
             fi
-            echo "PLAN ./gradlew :java:app-cli:installDist"
+            echo "PLAN ./java/gradlew -p java :java:app-cli:installDist"
             echo "PLAN $JAVA_LAUNCHER deps"
             return 0
             ;;
@@ -42,13 +42,13 @@ run_deps() {
             ;;
     esac
 
-    if [[ ! -x "$PROJECT_DIR/gradlew" ]]; then
-        echo "错误：Gradle wrapper 不可执行：$PROJECT_DIR/gradlew" >&2
+    if [[ ! -x "$PROJECT_DIR/java/gradlew" ]]; then
+        echo "错误：Gradle wrapper 不可执行：$PROJECT_DIR/java/gradlew" >&2
         return 1
     fi
 
     cd "$PROJECT_DIR"
-    ./gradlew :java:app-cli:installDist
+    ./java/gradlew -p java :java:app-cli:installDist
     require_java_launcher
     exec "$JAVA_LAUNCHER" deps
 }
@@ -60,7 +60,7 @@ run_test() {
         return 2
     fi
     cd "$PROJECT_DIR"
-    exec ./gradlew verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
+    exec ./java/gradlew -p java verifyNoSkippedJavaTests --no-daemon --no-build-cache --no-parallel --max-workers=1
 }
 
 # quality 默认执行增量 Gate；显式参数原样交给 Gate CLI。

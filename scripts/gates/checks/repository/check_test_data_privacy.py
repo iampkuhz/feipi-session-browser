@@ -72,7 +72,11 @@ def _is_fixture_path(path: Path, root: Path) -> bool:
         parts = path.relative_to(root).parts
     except ValueError:
         return False
-    return len(parts) >= 3 and parts[0] == 'tests' and 'fixtures' in parts[1:-1]
+    return (
+        len(parts) >= 4
+        and parts[:2] in {('scripts', 'tests'), ('java', 'tests')}
+        and 'fixtures' in parts[2:-1]
+    )
 
 
 def _is_fixture_documentation(path: Path, root: Path) -> bool:
@@ -96,7 +100,7 @@ def _is_managed_data(path: Path, root: Path) -> bool:
 
 def _iter_managed_data(root: Path) -> list[Path]:
     """枚举 fixture 和 Java test resource 中真正会作为输入的数据文件。"""
-    roots = [root / 'tests', root / 'java']
+    roots = [root / 'scripts/tests', root / 'java']
     return sorted(
         path
         for scan_root in roots
@@ -112,9 +116,13 @@ def _iter_managed_data(root: Path) -> list[Path]:
 def _iter_test_sources(root: Path) -> list[Path]:
     """枚举 Python/Playwright 及 Java 测试源码，不扫描构建产物。"""
     candidates: list[Path] = []
-    tests_root = root / 'tests'
-    if tests_root.is_dir():
-        candidates.extend(tests_root.rglob('*'))
+    for tests_root in (
+        root / 'scripts/tests',
+        root / 'java/tests/playwright',
+        root / 'java/tests/fixtures',
+    ):
+        if tests_root.is_dir():
+            candidates.extend(tests_root.rglob('*'))
     java_root = root / 'java'
     if java_root.is_dir():
         candidates.extend(java_root.glob('**/src/test/**/*'))
@@ -131,7 +139,7 @@ def _git_tracked_files(root: Path) -> tuple[set[str], str | None]:
     """读取 Git 跟踪清单；任何调用或解码失败都返回关闭式错误。"""
     try:
         result = subprocess.run(
-            ['git', '-C', str(root), 'ls-files', '-z', '--', 'tests', 'java'],
+            ['git', '-C', str(root), 'ls-files', '-z', '--', 'scripts/tests', 'java'],
             capture_output=True,
             check=False,
         )

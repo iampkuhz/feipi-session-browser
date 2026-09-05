@@ -19,7 +19,7 @@
 
 ## Required reading
 
-- `config/architecture/java-modules.yaml` — 目标模块的边界规则。
+- `java/gradle/config/architecture/java-modules.yaml` — 目标模块的边界规则。
 - `java/<module>/build.gradle.kts` — 模块依赖。
 - 相邻测试文件 — 只读与当前变更直接相关的测试。
 
@@ -27,7 +27,7 @@
 
 ```bash
 ./scripts/session-browser.sh test
-./gradlew check
+./java/gradlew -p java check
 ```
 
 按需追加：

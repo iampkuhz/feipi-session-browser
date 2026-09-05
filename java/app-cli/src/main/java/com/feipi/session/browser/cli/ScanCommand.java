@@ -160,7 +160,7 @@ final class ScanCommand implements Callable<Integer> {
 
     if (sourceEntries.isEmpty()) {
       System.out.println("未找到可扫描的源目录，已创建空索引。");
-      System.out.println("可配置 CLAUDE_DATA_DIR / CODEX_DATA_DIR / QODER_DATA_DIR 后重新运行 scan。");
+      System.out.println("请确认 ~/.claude、~/.codex 或 ~/.qoder 中存在会话数据后重新运行 scan。");
       System.out.println("  Claude Code: 0 sessions");
       System.out.println("  Codex:       0 sessions");
       System.out.println("  Total:       0 sessions");
@@ -218,7 +218,7 @@ final class ScanCommand implements Callable<Integer> {
     return summary.errorCount() == 0 ? 0 : 1;
   }
 
-  /** 构建源条目列表，根据 agent 过滤和环境变量解析源根目录。 */
+  /** 构建源条目列表，根据 agent 过滤选择用户主目录下的默认源目录。 */
   private List<ScanConfig.SourceEntry> buildSourceEntries(Set<String> agentFilter) {
     List<ScanConfig.SourceEntry> entries = new ArrayList<>();
 
@@ -227,21 +227,21 @@ final class ScanCommand implements Callable<Integer> {
     boolean includeQoder = agentFilter.isEmpty() || agentFilter.contains("qoder");
 
     if (includeClaude) {
-      Path root = resolveClaudeRoot();
+      Path root = Path.of(System.getProperty("user.home"), ".claude");
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new ClaudeSourceAdapter(), root));
       }
     }
 
     if (includeCodex) {
-      Path root = resolveCodexRoot();
+      Path root = Path.of(System.getProperty("user.home"), ".codex");
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new CodexSourceAdapter(), root));
       }
     }
 
     if (includeQoder) {
-      Path root = resolveQoderRoot();
+      Path root = Path.of(System.getProperty("user.home"), ".qoder");
       if (Files.isDirectory(root)) {
         entries.add(new ScanConfig.SourceEntry(new QoderSourceAdapter(), root));
       }
@@ -260,24 +260,6 @@ final class ScanCommand implements Callable<Integer> {
       throw new IllegalArgumentException("未知 agent: " + agent + "（支持 claude_code, codex, qoder）");
     }
     return Set.of(normalized);
-  }
-
-  /** 解析 Claude 数据根目录。 */
-  private static Path resolveClaudeRoot() {
-    return PathResolver.resolveSourceDataDir(
-        "CLAUDE_DATA_DIR", Path.of(System.getProperty("user.home"), ".claude"));
-  }
-
-  /** 解析 Codex 数据根目录。 */
-  private static Path resolveCodexRoot() {
-    return PathResolver.resolveSourceDataDir(
-        "CODEX_DATA_DIR", Path.of(System.getProperty("user.home"), ".codex"));
-  }
-
-  /** 解析 Qoder 数据根目录。 */
-  private static Path resolveQoderRoot() {
-    return PathResolver.resolveSourceDataDir(
-        "QODER_DATA_DIR", Path.of(System.getProperty("user.home"), ".qoder"));
   }
 
   /** 解析扫描锁超时（毫秒）。 */

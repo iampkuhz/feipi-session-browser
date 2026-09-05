@@ -64,11 +64,11 @@ gates.cli
 | 需求 | 唯一入口 | 同批验证 |
 |---|---|---|
 | 修改 Gate 的 Trigger、TargetPreset、recipe 或时间目标 | `scripts/gates/catalog/domains/` | catalog、plan/explain、Trigger characterization |
-| 修改 Python 领域规则 | `scripts/gates/checks/<domain>/check_*.py` | registry 与对应 `tests/checks/` |
+| 修改 Python 领域规则 | `scripts/gates/checks/<domain>/check_*.py` | registry 与对应 `scripts/tests/checks/` |
 | 修改 Java/Web resource 规则 | `java/tests/quality-gates/` | 对应 Java test 与 Gate |
-| 修改普通 Gradle 检查 | 对应 `build.gradle.kts` 或 build logic | 对应 task 与 `java-build` TargetPreset |
-| 修改计划、执行或状态归约 | `scripts/gates/{planning,execution,evidence,presentation}/` | 对应职责命名的 `tests/gates/` |
-| 修改 Python 环境或 Harness 结构 | `scripts/harness/` | `tests/harness/`、doctor |
+| 修改普通 Gradle 检查 | 对应 `java/build.gradle.kts` 或 build logic | 对应 task 与 `java-build` TargetPreset |
+| 修改计划、执行或状态归约 | `scripts/gates/{planning,execution,evidence,presentation}/` | 对应职责命名的 `scripts/tests/gates/` |
+| 修改 Python 环境或 Harness 结构 | `scripts/harness/` | `scripts/tests/harness/`、doctor |
 | 修改 OpenSpec 结构 | `scripts/openspec/` | 三个 OpenSpec validator |
 | 修改发布流程 | `scripts/release/`、`.github/workflows/release.yml` | shell syntax、release contract |
 

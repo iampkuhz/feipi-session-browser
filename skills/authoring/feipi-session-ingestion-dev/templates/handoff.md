@@ -29,7 +29,7 @@
 
 ```bash
 ./scripts/session-browser.sh test
-./gradlew check
+./java/gradlew -p java check
 ```
 
 按需追加：

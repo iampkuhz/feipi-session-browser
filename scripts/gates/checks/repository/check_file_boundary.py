@@ -56,6 +56,7 @@ ALLOWED_GATE_ROOT_FILES = frozenset({'cli.py'})
 ALLOWED_GATE_ROOT_DIRECTORIES = frozenset(
     {
         'catalog',
+        'config',
         'planning',
         'execution',
         'evidence',
@@ -81,7 +82,7 @@ COMMAND_REFERENCE_GLOBS = (
 )
 COMMAND_REFERENCE_FILES = (
     'AGENTS.md',
-    'CLAUDE.md',
+    '.claude/CLAUDE.md',
     '.qoder/AGENTS.md',
     '.codex/model-instructions.md',
     'scripts/README.md',

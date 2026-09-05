@@ -24,4 +24,4 @@
 | ROUTE-API-010 | P1 | data | 404 路由返回状态页 | 访问未映射路径 `/__test-404-not-found__` | HTTP 404（或 200 + 状态页模板），含 `.state-panel` | Playwright | snapshot 更新条件：当 states.css 样式/布局变更时需更新快照 | 待补充 |
 | ROUTE-API-011 | P1 | data | Presenter + Route 集成测试 | 通过路由访问各页面，验证 presenter 数据渲染到模板 | 页面上显示的数值与 presenter 返回的 view_model 一致 | pytest | — | 待补充 |
 | ROUTE-API-012 | P2 | data | Sessions AJAX 部分渲染端点 | 发送 AJAX 请求到 sessions 部分渲染 API | 返回 HTML 片段含会话行，不包含完整页面模板 | pytest | — | `java/web/src/test/java/com/feipi/session/browser/web/api/SessionApiHandlerTest.java` |
-| ACCEPTANCE-001 | P2 | data | CLI 命令执行与超时处理 | 运行 `_run_command` 并测试正常和超时场景 | 返回码正确，超时后清理进程组 | pytest | — | `tests/misc/test_cli.py` |
+| ACCEPTANCE-001 | P2 | data | CLI 命令执行与超时处理 | 运行 `_run_command` 并测试正常和超时场景 | 返回码正确，超时后清理进程组 | pytest | — | `scripts/tests/misc/test_cli.py` |

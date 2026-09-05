@@ -22,7 +22,7 @@ class JavaCommentLanguageRuleTest {
   @BeforeEach
   void writePolicy() throws Exception {
     write(
-        "config/technical-terms.json",
+        "scripts/gates/config/technical-terms.json",
         """
         {
           "canonical_terms": ["Java", "JSON", "source", "error"],
@@ -91,6 +91,7 @@ class JavaCommentLanguageRuleTest {
         .contains("COMMENT_NOT_CHINESE_DOMINANT")
         .contains("COMMENT_LOW_INFORMATION")
         .contains("TECH_TERM_NOT_CANONICAL")
+        .contains("scripts/gates/config/technical-terms.json")
         .contains("INHERITDOC_WITHOUT_CHINESE")
         .contains("\"line\":2")
         .contains("\"line\":3")
@@ -108,7 +109,7 @@ class JavaCommentLanguageRuleTest {
         }
         """);
     write(
-        "gradle/build-logic/src/main/kotlin/sample.gradle.kts",
+        "java/gradle/build-logic/src/main/kotlin/sample.gradle.kts",
         """
         // Read cached execution result from local storage.
         plugins {}
@@ -119,7 +120,7 @@ class JavaCommentLanguageRuleTest {
     assertThat(result.exitCode()).isEqualTo(QualityGateExitCodes.VIOLATIONS);
     assertThat(result.out())
         .contains("java/sample/src/main/kotlin/example/Sample.kt")
-        .contains("gradle/build-logic/src/main/kotlin/sample.gradle.kts")
+        .contains("java/gradle/build-logic/src/main/kotlin/sample.gradle.kts")
         .contains("COMMENT_NOT_CHINESE_DOMINANT");
   }
 
@@ -140,13 +141,15 @@ class JavaCommentLanguageRuleTest {
   void missingOrInvalidPolicyFailsClosed() throws Exception {
     var source =
         write("java/sample/src/main/java/example/Sample.java", "class Sample { // 中文边界\n}\n");
-    Files.delete(repo.resolve("config/technical-terms.json"));
+    Files.delete(repo.resolve("scripts/gates/config/technical-terms.json"));
     var missing = run(source, null);
-    write("config/technical-terms.json", "{\"canonical_terms\": \"Java\"}\n");
+    write("scripts/gates/config/technical-terms.json", "{\"canonical_terms\": \"Java\"}\n");
     var invalid = run(source, null);
 
     assertThat(missing.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
-    assertThat(missing.err()).contains("failed closed").contains("technical-terms.json");
+    assertThat(missing.err())
+        .contains("failed closed")
+        .contains(repo.resolve("scripts/gates/config/technical-terms.json").toString());
     assertThat(invalid.exitCode()).isEqualTo(QualityGateExitCodes.ERROR);
     assertThat(invalid.err()).contains("failed closed").contains("canonical_terms");
   }

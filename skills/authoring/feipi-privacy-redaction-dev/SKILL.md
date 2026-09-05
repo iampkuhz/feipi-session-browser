@@ -42,7 +42,7 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 2. **标注敏感字段**：识别 token、api key、authorization、cookie、本地路径、邮箱、原始 prompt、response 中的敏感内容。参考 `references/sensitive-fields.md`。
 3. **检查 UI 默认是否隐藏敏感字段**：确认前端展示默认遮盖或省略敏感字段，不依赖用户手动操作。参考 `references/redaction-policy.md`。
 4. **检查导出是否遵循当前脱敏策略**：确认导出逻辑（JSON、HTML、日志）对敏感字段执行替换或省略。
-5. **检查测试 fixture 是否 synthetic**：确认 `tests/` 下的 fixture 文件使用合成数据，不包含真实 session 内容。参考 `references/fixture-policy.md`。
+5. **检查测试 fixture 是否 synthetic**：确认 `scripts/tests/`、`java/tests/` 下的 fixture 文件使用合成数据，不包含真实 session 内容。参考 `references/fixture-policy.md`。
 6. **禁止复制 `~/.claude`、`~/.codex`、`~/.qoder` 原始文件入仓**：检查变更中没有从用户 home 目录复制真实文件。
 7. **对必须展示的字段给最小化片段**：只展示字段名前缀或占位符（如 `sk-***`、`<REDACTED>`），不展示完整值。
 8. **增加 gate 或 fixture contract**：如果需要新增检查，在 `scripts/gates/checks/privacy/` 创建对应
@@ -54,7 +54,7 @@ description: 用于 request/response、token、路径、环境变量、真实 se
 
 - Skill 源目录：`skills/authoring/feipi-privacy-redaction-dev/`。
 - 隐私 Gate：`testDataPrivacy`、`credentialLeakScan`。
-- 测试 fixture 目录：`tests/fixtures/synthetic/`。
+- 测试 fixture 目录：`java/tests/fixtures/synthetic/`。
 - 配置引用：`harness/skill-registry.yaml`、`harness/manifest.yaml`。
 
 不要跨边界修改产品脱敏逻辑。不要修改真实 session 数据。不要重新引入平台 Hook 或真实运行数据。

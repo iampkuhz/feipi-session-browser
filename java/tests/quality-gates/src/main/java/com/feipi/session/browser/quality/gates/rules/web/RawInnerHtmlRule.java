@@ -20,7 +20,8 @@ public final class RawInnerHtmlRule implements BaselineUpdatableRule {
   private static final String STATIC_JS_ROOT = "java/web/src/main/resources/static/js";
   private static final String TESTS_ROOT = "tests";
   private static final String SCRIPTS_ROOT = "scripts";
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
   private static final String SPACE = PythonTextSemantics.WHITESPACE_CLASS;
   private static final Pattern ASSIGNMENT = Pattern.compile("\\.innerHTML" + SPACE + "*=");
   private static final Pattern COMMENT_LINE = Pattern.compile("^" + SPACE + "*(?://|/\\*|\\*)");

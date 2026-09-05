@@ -22,21 +22,21 @@
 - **只改 CSS**：`webStaticRules`（看 `css-ownership` RecipeStep）+ `currentVersionPolicy` + `webResourceContracts`（如涉及 shell）。
 - **只改 JS**：`browserBehaviorTests` + `webStaticRules`（看 `raw-innerhtml` RecipeStep）。
 - **改布局或 shell**：Node Playwright 布局 gate + `webResourceContracts` + `webStaticRules`。
-- **收口前**：运行静态 gate 与 `npm --prefix tests/playwright test --`。
+- **收口前**：运行静态 gate 与 `npm --prefix java/tests/playwright test --`。
 
 ## Baseline 文件与显式维护
 
-- `config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries` — 行内样式基线。
-- `config/web-quality-baselines.json` 的 `rules.raw-innerhtml.entries` — innerHTML 基线。
+- `java/tests/quality-gates/config/web-quality-baselines.json` 的 `rules.layout-inline-style.entries` — 行内样式基线。
+- `java/tests/quality-gates/config/web-quality-baselines.json` 的 `rules.raw-innerhtml.entries` — innerHTML 基线。
 
 修改 baseline 前必须确认变更是有意为之，不是为了绕过 gate。完成审阅后，才可显式执行唯一 Gradle task：
 
 ```bash
-./gradlew :java:tests:quality-gates:runJavaQualityGates \
+./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates \
   -PfeipiJavaQualityRules=layout-inline-style \
   -PfeipiJavaQualityBaselineUpdateRules=layout-inline-style
 
-./gradlew :java:tests:quality-gates:runJavaQualityGates \
+./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates \
   -PfeipiJavaQualityRules=raw-innerhtml \
   -PfeipiJavaQualityBaselineUpdateRules=raw-innerhtml
 ```
@@ -45,5 +45,5 @@ CSS ownership 没有可维护 baseline；运行 catalog 顶层 Gate `webStaticRu
 `css-ownership` rule 并保留隔离 artifact。单 rule 命令只用于 RecipeStep 诊断：
 
 ```bash
-./gradlew :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
+./java/gradlew -p java :java:tests:quality-gates:runJavaQualityGates -PfeipiJavaQualityRules=css-ownership
 ```

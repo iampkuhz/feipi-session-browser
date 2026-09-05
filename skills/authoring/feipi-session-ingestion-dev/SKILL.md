@@ -51,7 +51,7 @@ description: 用于本仓库 session ingestion / token attribution 专项开发�
 - 数据模型：`java/core-domain/src/main/java/` 下的 `NormalizedCall` / `NormalizedSession` / `NormalizedMessage`。
 - Parser：`java/parser-claude-code/`、`java/parser-codex/`、`java/parser-qoder/`。
 - 测试代码：对应模块 `src/test/java/`。
-- 构建配置：对应模块 `build.gradle.kts`。
+- 构建配置：对应模块 `java/build.gradle.kts`。
 - Schema 契约：`shared/SESSION_SCHEMA.md`。
 
 不要跨模块引入类。不要在 parser 层直接操作索引或查询 API。
@@ -73,7 +73,7 @@ description: 用于本仓库 session ingestion / token attribution 专项开发�
 以下门禁不是每次都全部运行，但触发时 required gate 不能 skipped：
 
 - `./scripts/session-browser.sh test` — Java 编译和测试。
-- `./gradlew check` — 模块边界检查。
+- `./java/gradlew -p java check` — 模块边界检查。
 - `python3 scripts/gates/cli.py run --mode incremental` — 收口前增量 quality gates。
 
 选择策略：

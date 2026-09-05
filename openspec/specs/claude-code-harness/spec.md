@@ -4,7 +4,7 @@
 
 ### Requirement: 项目级 Claude 配置
 
-仓库 SHALL 在 `.claude/` 下提供项目 agent、commands、skills 与 settings 入口；共享规则 SHALL 由 `skills/`、`harness/` 和顶层规则维护。
+仓库 SHALL 在 `.claude/` 下提供项目 agent、commands、skills 与 settings 入口；项目说明 SHALL 使用 Claude 原生支持的 `.claude/CLAUDE.md`，顶层不保留副本。共享规则 SHALL 由 `skills/`、`harness/` 和顶层 `AGENTS.md` 维护。
 
 #### Scenario: 加载默认 Agent
 

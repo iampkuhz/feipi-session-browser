@@ -32,7 +32,7 @@
 | 门禁 | 状态 | 输出 |
 |------|------|------|
 | `./scripts/session-browser.sh test` | ✅ / ❌ | |
-| `./gradlew check` | ✅ / ❌ | |
+| `./java/gradlew -p java check` | ✅ / ❌ | |
 | `python3 scripts/gates/cli.py run --mode incremental` | ✅ / ❌ | |
 
 ## 风险

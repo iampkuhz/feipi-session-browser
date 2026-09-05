@@ -1,7 +1,7 @@
 version: 1
 size_limits:
   AGENTS.md: 2800
-  CLAUDE.md: 12000
+  .claude/CLAUDE.md: 12000
 required_phrases:
   - "增量 Gate"
   - "不纳入真实 session"
@@ -17,7 +17,7 @@ protected_roots:
   - scripts/
   - openspec/
   - AGENTS.md
-  - CLAUDE.md
+  - .claude/CLAUDE.md
 gate_semantics:
   - "失败、未运行、跳过不得描述为 PASS"
   - "不得新增 skip"

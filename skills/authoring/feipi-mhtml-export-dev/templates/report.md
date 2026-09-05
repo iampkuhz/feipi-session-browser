@@ -7,7 +7,7 @@
 - `src/session_browser/web/mhtml.py`
 - `java/web/src/main/resources/templates/...`
 - `java/web/src/main/resources/static/...`
-- `tests/backend/test_mhtml_export.py`
+- `tests/backend/test_mhtml_export.py`（历史 Python 路径，当前验证使用 `java/` 对应模块测试与 `./scripts/session-browser.sh test`，不作为现行文件入口。）
 - ...
 
 ## Decisions

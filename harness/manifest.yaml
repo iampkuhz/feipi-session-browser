@@ -31,6 +31,7 @@ public_executables:
   release_candidate_create: "bash scripts/release/create-release-candidate.sh create"
   release_checksums: "bash scripts/release/generate-checksums.sh"
   release_rollback_drill: "bash scripts/release/drill-upgrade-rollback.sh"
+  qoder_task: "python3 scripts/harness/qoder_task.py"
 
 quality:
   runner: scripts/gates/cli.py
@@ -72,13 +73,13 @@ forbidden_root_paths:
   - "node_modules/"
   - "reports/"
   - "harness/reports/"
-  - "tests/test-results/"
+  - "java/tests/playwright/test-results/"
   - "harness/.local/"
-  - "tests/.local/"
+  - "scripts/tests/.local/"
   - ".agent/"
   - ".traces/"
   - ".refactor-artifacts/"
-  - "config/reuse-analysis/"
+  - "config/"
   - "feipi_jakarta_validation_prompt_tasks/"
   - "out/"
   - "data/"

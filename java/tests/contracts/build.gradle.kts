@@ -20,6 +20,12 @@ dependencies {
     testImplementation(libs.javalin.testtools)
 }
 
+val repoRoot = rootProject.extra["repoRoot"] as org.gradle.api.file.Directory
+
+tasks.withType<Test>().configureEach {
+    systemProperty("repo.root.dir", repoRoot.asFile.absolutePath)
+}
+
 // 默认 test task 排除 sample-integration 标签的测试，
 // 这些测试由独立的 sampleIntegrationTest task 执行。
 tasks.named<Test>("test") {

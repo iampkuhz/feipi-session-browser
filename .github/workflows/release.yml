@@ -52,7 +52,7 @@ jobs:
         run: |
           set -euo pipefail
 
-          file_version="$(tr -d '[:space:]' < VERSION)"
+          file_version="$(tr -d '[:space:]' < java/gradle/VERSION)"
           publish="false"
 
           if [[ "${GITHUB_EVENT_NAME}" == "push" && "${GITHUB_REF_TYPE}" == "tag" ]]; then
@@ -110,12 +110,11 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
           cache-read-only: true
           build-scan-publish: false
 
       - name: 运行全部测试与质量检查
-        run: ./gradlew check --no-daemon
+        run: ./java/gradlew -p java check --no-daemon
 
   # ============================================================
   # 阶段 3：四平台并行构建
@@ -164,7 +163,6 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
         with:
-          gradle-version: wrapper
           cache-read-only: true
           build-scan-publish: false
 
@@ -172,19 +170,19 @@ jobs:
       - name: Build distribution (POSIX)
         if: runner.os != 'Windows'
         run: |
-          ./gradlew :java:app-cli:runtimeDistTar :java:app-cli:distZip --no-daemon
+          ./java/gradlew -p java :java:app-cli:runtimeDistTar :java:app-cli:distZip --no-daemon
 
       - name: Build distribution (Windows)
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          .\gradlew.bat :java:app-cli:runtimeDistZip :java:app-cli:distZip --no-daemon
+          .\java\gradlew.bat -p java :java:app-cli:runtimeDistZip :java:app-cli:distZip --no-daemon
 
       # Smoke test：验证产物可运行
       - name: Smoke test (POSIX)
         if: runner.os != 'Windows'
         run: |
-          ./gradlew :java:app-cli:installDist --no-daemon
+          ./java/gradlew -p java :java:app-cli:installDist --no-daemon
           ./java/app-cli/build/install/app-cli/bin/app-cli --version
           ./java/app-cli/build/install/app-cli/bin/app-cli --help
 
@@ -192,7 +190,7 @@ jobs:
         if: runner.os == 'Windows'
         shell: cmd
         run: |
-          .\gradlew.bat :java:app-cli:installDist --no-daemon
+          .\java\gradlew.bat -p java :java:app-cli:installDist --no-daemon
           java\app-cli\build\install\app-cli\bin\app-cli.bat --version
           java\app-cli\build\install\app-cli\bin\app-cli.bat --help
 

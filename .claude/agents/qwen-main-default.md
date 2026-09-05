@@ -26,7 +26,7 @@ color: cyan
 # 项目级 hooks 由 .claude/settings.json 统一管理。
 
 # 不配置 memory：
-# 避免 main agent 跨任务记忆污染；长期规则应放在 CLAUDE.md、AGENTS.md 或 path-scoped rules。
+# 避免 main agent 跨任务记忆污染；长期规则应放在 .claude/CLAUDE.md、AGENTS.md 或 path-scoped rules。
 
 # 不配置 initialPrompt：
 # 正文已经是 main agent 的 system prompt；额外 initialPrompt 容易制造重复。

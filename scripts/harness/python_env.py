@@ -30,7 +30,10 @@ UV_PYTHON_REQUIRES = '==3.12.*'
 _PYTHON_VERSION_LOCK = '.python-version'
 _UV_LOCK = 'uv.lock'
 DEFAULT_VENV_RELATIVE_PATH = Path('.local/python/venv')
-DEV_SYNC_COMMAND = 'UV_PROJECT_ENVIRONMENT=.local/python/venv uv sync --frozen --extra dev'
+DEV_SYNC_COMMAND = (
+    'UV_PROJECT_ENVIRONMENT="$(pwd)/.local/python/venv" '
+    'uv sync --project scripts --frozen --extra dev'
+)
 _TEST_PACKAGES = {'pytest', 'pytest-xdist'}
 _NORMALIZE_RE = re.compile(r'[-_.]+')
 _IMPORT_NAME_OVERRIDES = {'pyyaml': 'yaml'}
@@ -82,6 +85,16 @@ def _is_executable(path: str) -> bool:
     return shutil.which(path) is not None
 
 
+def tool_project_dir(repo_root: Path = REPO_ROOT) -> Path:
+    """返回工具项目目录，不改变仓库资源根。"""
+    return Path(repo_root).resolve() / 'scripts'
+
+
+def tool_config_path(repo_root: Path = REPO_ROOT) -> Path:
+    """集中定位 Python 工具配置真源。"""
+    return tool_project_dir(repo_root) / 'pyproject.toml'
+
+
 def project_venv_dir(repo_root: Path = REPO_ROOT) -> Path:
     """返回显式配置或仓库默认 Python venv 的绝对路径。"""
 
@@ -119,7 +132,7 @@ def _candidate_specs(repo_root: Path) -> list[tuple[str, str]]:
 def _runtime_import_names(repo_root: Path) -> tuple[str, ...]:
     """从 pyproject 读取 runtime dependency，并映射为最小 import 名。"""
 
-    path = repo_root / 'pyproject.toml'
+    path = tool_config_path(repo_root)
     if not path.is_file():
         return ()
     if tomllib is None:
@@ -247,16 +260,16 @@ def _uv_requires_python(path: Path) -> str:
 def _python_contract_problems(repo_root: Path) -> list[str]:
     """汇总 pyproject、uv.lock 与 .python-version 之间的版本口径漂移。"""
     problems: list[str] = []
-    pyproject_requires = _pyproject_requires_python(repo_root / 'pyproject.toml')
+    pyproject_requires = _pyproject_requires_python(tool_config_path(repo_root))
     if pyproject_requires != PYTHON_REQUIRES:
         problems.append(f'pyproject requires-python 应为 {PYTHON_REQUIRES}: {pyproject_requires}')
-    uv_requires = _uv_requires_python(repo_root / 'uv.lock')
+    uv_requires = _uv_requires_python(tool_project_dir(repo_root) / _UV_LOCK)
     if uv_requires and uv_requires not in {PYTHON_REQUIRES, UV_PYTHON_REQUIRES}:
         problems.append(
             f'uv.lock requires-python 应为 {PYTHON_REQUIRES} '
             f'或等价的 {UV_PYTHON_REQUIRES}: {uv_requires}'
         )
-    lock_path = repo_root / _PYTHON_VERSION_LOCK
+    lock_path = tool_project_dir(repo_root) / _PYTHON_VERSION_LOCK
     if not lock_path.is_file():
         problems.append(f'缺少 Python 版本契约: {_PYTHON_VERSION_LOCK}')
         return problems
@@ -310,14 +323,14 @@ def check_locks(repo_root: Path = REPO_ROOT) -> list[str]:
     """检查 Python 版本文件与唯一 uv lock 是否齐全、口径一致。"""
     problems: list[str] = []
     problems.extend(_python_contract_problems(repo_root))
-    if not (repo_root / _UV_LOCK).is_file():
+    if not (tool_project_dir(repo_root) / _UV_LOCK).is_file():
         problems.append(f'缺少锁文件: {_UV_LOCK}')
     return problems
 
 
 def installed_problems(profile: str, repo_root: Path = REPO_ROOT) -> list[str]:
     """汇总指定依赖 profile 中尚未安装的 distribution。"""
-    runtime, dev = pyproject_names(repo_root / 'pyproject.toml')
+    runtime, dev = pyproject_names(tool_config_path(repo_root))
     if profile == 'runtime':
         names = set(runtime)
     elif profile == 'test':

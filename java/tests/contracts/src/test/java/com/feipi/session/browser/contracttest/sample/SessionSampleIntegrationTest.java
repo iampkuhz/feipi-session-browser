@@ -32,7 +32,7 @@ class SessionSampleIntegrationTest {
   private static final ObjectMapper MAPPER = new ObjectMapper();
   private static final Path PROJECT_ROOT = resolveProjectRoot();
   private static final Path SAMPLES_ROOT =
-      PROJECT_ROOT.resolve("tests/fixtures/session_samples/synthetic");
+      PROJECT_ROOT.resolve("java/tests/fixtures/session_samples/synthetic");
 
   @Test
   @Tag("sample-integration")
@@ -146,7 +146,7 @@ class SessionSampleIntegrationTest {
   private static Path resolveProjectRoot() {
     Path current = Path.of(System.getProperty("user.dir")).toAbsolutePath();
     while (current != null) {
-      if (Files.isDirectory(current.resolve("tests/fixtures/session_samples"))) {
+      if (Files.isDirectory(current.resolve("java/tests/fixtures/session_samples"))) {
         return current;
       }
       current = current.getParent();

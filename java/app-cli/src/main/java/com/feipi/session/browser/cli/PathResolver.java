@@ -40,23 +40,6 @@ public final class PathResolver {
   }
 
   /**
-   * 解析 agent 数据源目录。
-   *
-   * <p>优先级：环境变量值 > 默认路径。默认路径通常为 agent 在用户主目录下的配置目录。
-   *
-   * @param envVar 环境变量名
-   * @param defaultPath 默认路径
-   * @return 解析后的数据源目录路径
-   */
-  public static Path resolveSourceDataDir(String envVar, Path defaultPath) {
-    String envValue = System.getenv(envVar);
-    if (envValue != null && !envValue.isBlank()) {
-      return Path.of(PathUtils.expandTilde(envValue));
-    }
-    return defaultPath;
-  }
-
-  /**
    * 默认数据目录，遵循 XDG Base Directory 规范。
    *
    * <ul>

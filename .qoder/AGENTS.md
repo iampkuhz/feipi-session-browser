@@ -28,7 +28,7 @@
 
 ## Protected Path Rules
 
-- Treat `.qoder/`, `.claude/`, `.codex/`, `.agents/`, `skills/`, `harness/`, `scripts/`, `openspec/`, `src/session_browser/`, `tests/`, `AGENTS.md`, and `CLAUDE.md` as protected roots.
+- Treat `.qoder/`, `.claude/`, `.codex/`, `.agents/`, `skills/`, `harness/`, `scripts/`, `openspec/`, `src/session_browser/`, `scripts/tests/`、`java/tests/`, `AGENTS.md`, and `.claude/CLAUDE.md` as protected roots.
 - Require a valid active OpenSpec change before modifying protected paths unless the task explicitly authorizes the scoped change.
 - Modify only allowed paths and never copy task packs, real session data, secrets, tokens, caches, or personal local config into the repository.
 

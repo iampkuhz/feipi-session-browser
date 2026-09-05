@@ -20,7 +20,8 @@ class StaticResourceContractRuleTest {
 
   private static final String STATIC = "java/web/src/main/resources/static";
   private static final String TEMPLATES = "java/web/src/main/resources/templates";
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
 
   @TempDir Path repo;
 

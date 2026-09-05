@@ -146,7 +146,7 @@ def _validate_code_locations(repo_root: Path, cases: dict[str, AcceptanceCase]) 
 def _validate_acceptance_traceability(repo_root: Path) -> ValidationResult:
     """校验验收用例、测试绑定与代码位置；目录缺失或不一致均失败。"""
     feature_dir = repo_root / 'docs' / 'acceptance-cases' / 'features'
-    tests_dir = repo_root / 'tests'
+    tests_dir = repo_root / 'scripts/tests'
 
     errors: list[str] = []
     if not feature_dir.is_dir():

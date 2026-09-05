@@ -35,7 +35,7 @@ color: blue
 
 - 使用 `Bash` 执行受限范围内的 `find` / `rg` 缩小范围。
 - 只读取与 `Scope` 和 `Questions` 直接相关的文件片段。
-- 不主动读取完整 `CLAUDE.md`、完整 `AGENTS.md`、大型日志、真实 session data 或无关目录。
+- 不主动读取完整 `.claude/CLAUDE.md`、完整 `AGENTS.md`、大型日志、真实 session data 或无关目录。
 - 不编辑文件。
 
 ## Output

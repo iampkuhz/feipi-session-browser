@@ -21,7 +21,8 @@ import org.junit.jupiter.api.io.TempDir;
 class WebBaselineUpdateCliTest {
 
   private static final ObjectMapper MAPPER = new ObjectMapper();
-  private static final String BASELINE = "config/web-quality-baselines.json";
+  private static final String BASELINE =
+      "java/tests/quality-gates/config/web-quality-baselines.json";
 
   @TempDir Path repo;
 
@@ -39,6 +40,7 @@ class WebBaselineUpdateCliTest {
 
     assertThat(first.exitCode()).isZero();
     assertThat(second.exitCode()).isZero();
+    assertThat(repo.resolve("config/web-quality-baselines.json")).doesNotExist();
     assertThat(first.out())
         .contains("\"rule\":\"raw-innerhtml\"")
         .contains("\"status\":\"PASSED\"");
@@ -74,6 +76,7 @@ class WebBaselineUpdateCliTest {
 
     assertThat(reverse.exitCode()).isZero();
     assertThat(forward.exitCode()).isZero();
+    assertThat(repo.resolve("config/web-quality-baselines.json")).doesNotExist();
     assertThat(forward.out())
         .contains("\"rule\":\"raw-innerhtml\"")
         .contains("\"rule\":\"layout-inline-style\"");
@@ -133,6 +136,8 @@ class WebBaselineUpdateCliTest {
 
     assertThat(first.exitCode()).isZero();
     assertThat(second.exitCode()).isZero();
+    assertThat(repo.resolve("config/web-quality-baselines.json")).doesNotExist();
+    assertThat(repo.resolve("config")).doesNotExist();
     assertThat(Files.readAllBytes(repo.resolve(BASELINE))).isEqualTo(firstBytes);
     assertThat(readBaseline().path("version").asInt()).isEqualTo(1);
     assertThat(readBaseline().path("rules").path("raw-innerhtml").path("entries"))

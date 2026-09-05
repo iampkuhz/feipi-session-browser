@@ -32,6 +32,7 @@ class WebSecurityContractTest {
 
   @TempDir Path tempDir;
   private IndexConnection indexConnection;
+  private WebCompositionRoot activeWebRoot;
 
   @BeforeEach
   void setUp() throws Exception {
@@ -45,21 +46,40 @@ class WebSecurityContractTest {
 
   @AfterEach
   void tearDown() {
-    if (indexConnection != null) {
-      indexConnection.close();
+    // JavalinTest 在断言失败时不会停止服务；先停止服务，再释放数据库 fixture。
+    try {
+      if (activeWebRoot != null) {
+        activeWebRoot.app().stop();
+      }
+    } finally {
+      if (indexConnection != null) {
+        indexConnection.close();
+      }
     }
   }
 
   private WebCompositionRoot createWebRoot() {
     QueryCompositionRoot root =
         ContractTestComposition.queryRoot(indexConnection, new SchemaVersion(1));
-    return new WebCompositionRoot(root, WebConfig.defaults());
+    activeWebRoot = new WebCompositionRoot(root, WebConfig.defaults());
+    return activeWebRoot;
   }
 
   /** 从测试响应中提取指定 header 的第一个值。 */
   private static String firstHeader(io.javalin.testtools.Response response, String name) {
     List<String> values = response.headers().get(name);
     return (values != null && !values.isEmpty()) ? values.get(0) : null;
+  }
+
+  /** 只记录状态码与固定安全头是否存在，不输出响应正文或任意响应头值。 */
+  private static String safeResponseDiagnostics(io.javalin.testtools.Response response) {
+    return ("HTTP %d; security headers present: CSP=%s, X-Frame-Options=%s, "
+            + "X-Content-Type-Options=%s")
+        .formatted(
+            response.code(),
+            firstHeader(response, "Content-Security-Policy") != null,
+            firstHeader(response, "X-Frame-Options") != null,
+            firstHeader(response, "X-Content-Type-Options") != null);
   }
 
   @Nested
@@ -282,9 +302,15 @@ class WebSecurityContractTest {
           webRoot.app(),
           (testApp, client) -> {
             var response = client.get("/nonexistent-route-xyz");
-            assertThat(firstHeader(response, "Content-Security-Policy")).isNotNull();
-            assertThat(firstHeader(response, "X-Frame-Options")).isEqualTo("DENY");
-            assertThat(firstHeader(response, "X-Content-Type-Options")).isEqualTo("nosniff");
+            String diagnostics = safeResponseDiagnostics(response);
+            assertThat(response.code()).as(diagnostics).isEqualTo(404);
+            assertThat(firstHeader(response, "Content-Security-Policy"))
+                .as(diagnostics)
+                .isNotNull();
+            assertThat(firstHeader(response, "X-Frame-Options")).as(diagnostics).isEqualTo("DENY");
+            assertThat(firstHeader(response, "X-Content-Type-Options"))
+                .as(diagnostics)
+                .isEqualTo("nosniff");
           });
     }
 
@@ -296,8 +322,14 @@ class WebSecurityContractTest {
           webRoot.app(),
           (testApp, client) -> {
             var response = client.get("/api/sessions/only-two-parts");
-            assertThat(firstHeader(response, "Content-Security-Policy")).isNotNull();
-            assertThat(firstHeader(response, "X-Content-Type-Options")).isEqualTo("nosniff");
+            String diagnostics = safeResponseDiagnostics(response);
+            assertThat(response.code()).as(diagnostics).isEqualTo(400);
+            assertThat(firstHeader(response, "Content-Security-Policy"))
+                .as(diagnostics)
+                .isNotNull();
+            assertThat(firstHeader(response, "X-Content-Type-Options"))
+                .as(diagnostics)
+                .isEqualTo("nosniff");
           });
     }
 
