@@ -157,6 +157,7 @@ public final class IncrementalScanEngine {
     Objects.requireNonNull(indexWriter, "indexWriter 不得为 null");
     Objects.requireNonNull(config, "config 不得为 null");
 
+    long startNanos = System.nanoTime();
     long startMs = clock.millis();
     double startEpoch = startMs / 1000.0;
 
@@ -258,7 +259,7 @@ public final class IncrementalScanEngine {
         }
 
         if (!Files.isDirectory(entry.rootPath())) {
-          log.info("源根目录不存在或不是目录: {} {}", agentValue, entry.rootPath());
+          log.info("源根目录不存在或不是目录: {}", agentValue);
           continue;
         }
 
@@ -420,6 +421,15 @@ public final class IncrementalScanEngine {
       }
 
       long duration = endMs - startMs;
+      log.info(
+          "增量扫描完成: 候选={} 新增={} 变化={} 未变={} 跳过={} 错误={} 耗时={}ms",
+          totalCandidates,
+          stateCounts[0],
+          stateCounts[1],
+          stateCounts[2],
+          skippedByAgeCount,
+          errorCount,
+          (System.nanoTime() - startNanos) / 1_000_000);
       return new IncrementalScanSummary(
           totalCandidates,
           successCount,

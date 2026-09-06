@@ -113,10 +113,12 @@ public final class ServerLifecycle {
    * @throws Exception 启动过程中任何阶段失败
    */
   public int start() throws Exception {
+    long startNanos = System.nanoTime();
     Path dbPath = indexDir.resolve(RuntimePaths.DB_FILE_NAME);
     Path artifactDir = indexDir.resolve("artifacts/normalized-sessions");
     Files.createDirectories(indexDir);
     Files.createDirectories(artifactDir);
+    LOG.info("运行时目录就绪");
 
     // 阶段 0：升级前备份 + schema migration + 版本兼容性检查
     String appVersion = BuildInfoVersionProvider.readAppVersion();
@@ -131,6 +133,7 @@ public final class ServerLifecycle {
 
     // 构建源条目（noScan 时仍构建，用于 background scanner 配置；allowEmpty 控制空源行为）
     List<ScanConfig.SourceEntry> sourceEntries = buildSourceEntries(artifactDir);
+    LOG.info("发现 {} 个源", sourceEntries.size());
 
     // 阶段 1：打开数据库连接并初始化 schema
     String jdbcUrl = "jdbc:sqlite:" + dbPath.toAbsolutePath();
@@ -142,10 +145,12 @@ public final class ServerLifecycle {
       if (schemaVersion == null) {
         schemaVersion = IndexSchema.CURRENT_VERSION;
       }
+      LOG.info("数据库 schema 就绪 (v{})", schemaVersion.version());
 
       // 阶段 2：创建 query composition root
       indexConnection = IndexConnection.withDefaults(jdbcConnection, jdbcUrl);
       QueryCompositionRoot queryRoot = createQueryCompositionRoot(indexConnection, schemaVersion);
+      LOG.info("查询引擎就绪");
 
       // 阶段 3：可选启动扫描
       if (!noScan && !sourceEntries.isEmpty()) {
@@ -153,6 +158,8 @@ public final class ServerLifecycle {
         if (!scanOk && !allowEmpty) {
           throw new IOException("启动扫描失败，使用 --allow-empty 忽略");
         }
+      } else {
+        LOG.info("跳过扫描: {}", noScan ? "--no-scan" : "无可用源");
       }
 
       // 阶段 4：创建并绑定 Web 服务器
@@ -160,6 +167,7 @@ public final class ServerLifecycle {
       WebCompositionRoot webRoot = new WebCompositionRoot(queryRoot, webConfig);
       webServer = webRoot.createServer();
       installShutdownHook(queryRoot, sourceEntries, artifactDir);
+      LOG.info("启动 Web 服务器");
       webServer.start();
       int actualPort = webServer.actualPort();
       waitForHealth(actualPort);
@@ -169,10 +177,11 @@ public final class ServerLifecycle {
         startBackgroundScanner(sourceEntries, artifactDir, queryRoot);
       }
 
-      LOG.info("serve 已就绪: {}:{}", host, actualPort);
-
       // 写入 PID 文件供 stop 命令使用
       writePidFile(actualPort);
+
+      long elapsedMs = (System.nanoTime() - startNanos) / 1_000_000;
+      LOG.info("serve 启动完成: 耗时 {}ms", elapsedMs);
 
       return actualPort;
 
@@ -338,9 +347,6 @@ public final class ServerLifecycle {
               queryRoot.invalidateCache();
             },
             scanLock);
-    if (ok) {
-      LOG.info("启动扫描完成");
-    }
     return ok;
   }
 
@@ -355,7 +361,6 @@ public final class ServerLifecycle {
     backgroundScanner =
         createBackgroundScanner(indexConnection.writerConnection(), config, scanLock, queryRoot);
     backgroundScanner.start();
-    LOG.info("后台扫描调度器已启动");
   }
 
   /**

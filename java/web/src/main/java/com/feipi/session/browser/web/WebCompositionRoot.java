@@ -126,6 +126,9 @@ public final class WebCompositionRoot {
       QueryCompositionRoot queryRoot,
       PebbleEnvironment templates) {
 
+    // 访问日志：记录开始时间
+    javalinConfig.routes.before(RuntimeAccessLog::before);
+
     // 全局安全头（CSP、X-Frame-Options 等），在所有路由前注入
     javalinConfig.routes.before(SecurityHeaders::apply);
 
@@ -171,6 +174,9 @@ public final class WebCompositionRoot {
           String sessionIdParam = ctx.pathParam("sessionId");
           exportHandler.exportSessionHtml(ctx, agentParam, sessionIdParam);
         });
+
+    // 访问日志：记录请求摘要
+    javalinConfig.routes.after(RuntimeAccessLog::after);
   }
 
   /** 注册 JSON API 路由。 */

@@ -157,7 +157,7 @@ public final class DatabaseUpgrader {
       if (backupPath != null) {
         try {
           restoreFromBackup(backupPath, dbPath);
-          log.info("已从备份恢复数据库: {}", backupPath);
+          log.info("已从备份恢复数据库: {}", backupPath.getFileName());
         } catch (IOException restoreEx) {
           UpgradeException fatal = new UpgradeException("数据库升级失败且备份恢复失败: " + backupPath, e);
           fatal.addSuppressed(restoreEx);
@@ -222,7 +222,7 @@ public final class DatabaseUpgrader {
         backupPath,
         StandardCopyOption.REPLACE_EXISTING,
         StandardCopyOption.COPY_ATTRIBUTES);
-    log.info("数据库已备份: {} -> {}", dbPath.getFileName(), backupPath);
+    log.info("数据库已备份: {} -> {}", dbPath.getFileName(), backupPath.getFileName());
 
     // 同步复制 WAL 和 SHM 文件（如果存在），确保备份数据一致性
     copyIfExists(

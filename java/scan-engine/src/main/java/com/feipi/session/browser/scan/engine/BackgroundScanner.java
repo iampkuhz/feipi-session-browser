@@ -261,9 +261,10 @@ public final class BackgroundScanner {
   private void runWithHandle(
       ScanLock.ScanLockHandle handle, ScanCancelToken token, boolean needsHot, boolean needsWarm) {
     if (needsHot) {
-      log.debug("执行 hot 层级扫描: window={}s", hotTier.windowSeconds());
+      log.info("开始 hot 层级扫描");
       try {
         hotAction.accept(token);
+        log.info("hot 层级扫描完成");
       } catch (CancellationException e) {
         log.info("hot 层级扫描已取消");
       } catch (Exception e) {
@@ -273,9 +274,10 @@ public final class BackgroundScanner {
     }
 
     if (needsWarm && !token.isCancelled()) {
-      log.debug("执行 warm 层级扫描: window={}s", warmTier.windowSeconds());
+      log.info("开始 warm 层级扫描");
       try {
         warmAction.accept(token);
+        log.info("warm 层级扫描完成");
       } catch (CancellationException e) {
         log.info("warm 层级扫描已取消");
       } catch (Exception e) {

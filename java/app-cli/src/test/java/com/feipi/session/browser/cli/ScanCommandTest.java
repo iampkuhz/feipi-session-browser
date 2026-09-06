@@ -141,7 +141,7 @@ class ScanCommandTest {
         CliExecution result = execute("scan", "--index-dir", indexDir.toString());
 
         assertThat(result.exitCode()).isZero();
-        assertThat(result.stderr()).isEmpty();
+        assertThat(result.stderr()).doesNotContain("ERROR").doesNotContain("WARN");
         assertThat(result.stdout()).contains("未找到可扫描的源目录");
         assertThat(result.stdout()).contains("空索引");
         assertThat(Files.exists(indexDir.resolve(RuntimePaths.DB_FILE_NAME))).isTrue();

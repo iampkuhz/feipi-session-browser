@@ -187,7 +187,7 @@ public final class FullScanEngine {
 
       // 空根目录检查
       if (!Files.isDirectory(entry.rootPath())) {
-        log.info("源根目录不存在或不是目录: {} {}", agentValue, entry.rootPath());
+        log.info("源根目录不存在或不是目录: {}", agentValue);
         continue;
       }
 
