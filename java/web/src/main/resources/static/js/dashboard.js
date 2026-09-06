@@ -948,7 +948,7 @@
                     '<td class="numeric token-cell" data-sort-value="' + escapeHtml(row.tokens && row.tokens.total) + '">' + formatTokens(row.tokens && row.tokens.total) + ' <span class="muted">· ' + formatPct(row.tokenShare) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.prompts) + '">' + formatNumber(row.prompts) + ' <span class="muted">· ' + formatPct(row.promptShare) + '</span></td>' +
                     '<td class="numeric" data-sort-value="' + escapeHtml(row.projectCount) + '">' + formatNumber(row.projectCount) + '</td>' +
-                    '<td class="numeric" data-sort-value="' + escapeHtml(row.failedTools) + '">' + formatNumber(row.failedTools) + ' failed</td><td class="numeric">—</td></tr>';
+                    '<td class="numeric" data-sort-value="' + escapeHtml(row.failedTools) + '">' + formatNumber(row.failedTools) + ' failed <span class="muted">· ' + (Number(row.prompts) > 0 ? (Number(row.failedTools || 0) / Number(row.prompts)).toFixed(2) : 'N/A') + ' / prompt</span></td></tr>';
             }).join(''));
         }
 
@@ -957,10 +957,23 @@
             if (!bar) return;
             setChartMarkup(bar, rows.filter(function(row) { return valueOf(row, valueKey) > 0; }).map(function(row) {
                 var value = valueOf(row, valueKey);
-                var shareValue = row[shareKey] || 0;
-                return '<div class="hbar-seg hbar-seg--' + escapeHtml(row.agent) + '" style="--seg-width: ' + Math.max(2, shareValue) + '%" data-agent="' + escapeHtml(row.label) + '" data-value="' + escapeHtml(value) + '" data-share="' + escapeHtml(formatPct(shareValue)) + '">' +
-                    '<span class="hbar-seg__label">' + escapeHtml(row.label) + '</span><span class="hbar-seg__pct">' + escapeHtml(formatPct(shareValue)) + '</span></div>';
+                var shareValue = Math.min(100, Math.max(0, Number(row[shareKey]) || 0));
+                return '<div class="hbar-seg hbar-seg--' + escapeHtml(row.agent) + '" style="--seg-width: ' + shareValue + '%" data-agent="' + escapeHtml(row.label) + '" data-value="' + escapeHtml(value) + '" data-share="' + escapeHtml(formatPct(shareValue)) + '">' +
+                    '</div>';
             }).join(''));
+            var legend = bar.parentElement.querySelector('.hbar-legend');
+            if (legend) {
+                legend.replaceChildren();
+                rows.forEach(function(row) {
+                    var item = document.createElement('span');
+                    item.className = 'hbar-legend__item';
+                    var dot = document.createElement('span');
+                    dot.className = 'hbar-legend__dot hbar-legend__dot--' + row.agent;
+                    dot.setAttribute('aria-hidden', 'true');
+                    item.append(dot, document.createTextNode(row.label + ' · ' + formatter(valueOf(row, valueKey)) + ' · ' + formatPct(row[shareKey] || 0)));
+                    legend.append(item);
+                });
+            }
         }
 
         function valueOf(row, key) {

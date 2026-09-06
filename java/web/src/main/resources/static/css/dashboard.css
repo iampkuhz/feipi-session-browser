@@ -977,10 +977,12 @@
   display: inline-flex;
   align-items: center;
   gap: 4px;
-  white-space: nowrap;
+  white-space: normal;
+  overflow-wrap: anywhere;
 }
 
 .hbar-legend__dot {
+  flex-shrink: 0;
   width: 7px;
   height: 7px;
   border-radius: 999px;
