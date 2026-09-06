@@ -62,6 +62,7 @@ public final class WebCompositionRoot {
   private final QueryCompositionRoot queryRoot;
   private final WebConfig config;
   private final PebbleEnvironment templates;
+  private final SessionApiService apiService;
 
   /**
    * 创建 Composition Root。
@@ -75,7 +76,8 @@ public final class WebCompositionRoot {
     this.queryRoot = Objects.requireNonNull(queryRoot, "queryRoot 不得为 null");
     this.config = Objects.requireNonNull(config, "config 不得为 null");
     this.templates = new PebbleEnvironment();
-    this.app = createAndConfigureJavalin(queryRoot, config, templates);
+    this.apiService = new SessionApiService(queryRoot.sessionDetail());
+    this.app = createAndConfigureJavalin(queryRoot, config, templates, apiService);
     LOG.debug("Web Composition Root 初始化完成");
   }
 
@@ -88,12 +90,15 @@ public final class WebCompositionRoot {
    * @return 配置完成的 Javalin 实例
    */
   private static Javalin createAndConfigureJavalin(
-      QueryCompositionRoot queryRoot, WebConfig config, PebbleEnvironment templates) {
+      QueryCompositionRoot queryRoot,
+      WebConfig config,
+      PebbleEnvironment templates,
+      SessionApiService apiService) {
     return Javalin.create(
         javalinConfig -> {
           configureHttp(javalinConfig);
           configureStaticFiles(javalinConfig, config);
-          registerRoutes(javalinConfig, queryRoot, templates);
+          registerRoutes(javalinConfig, queryRoot, templates, apiService);
           registerExceptionHandlers(javalinConfig, templates);
         });
   }
@@ -124,7 +129,8 @@ public final class WebCompositionRoot {
   private static void registerRoutes(
       io.javalin.config.JavalinConfig javalinConfig,
       QueryCompositionRoot queryRoot,
-      PebbleEnvironment templates) {
+      PebbleEnvironment templates,
+      SessionApiService apiService) {
 
     // 访问日志：记录开始时间
     javalinConfig.routes.before(RuntimeAccessLog::before);
@@ -162,7 +168,7 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get("/glossary", glossaryPage::handle);
 
     // JSON API 路由
-    registerApiRoutes(javalinConfig, queryRoot);
+    registerApiRoutes(javalinConfig, queryRoot, apiService);
 
     // 导出路由
     ExportHandler exportHandler = new ExportHandler(templates, queryRoot);
@@ -181,7 +187,9 @@ public final class WebCompositionRoot {
 
   /** 注册 JSON API 路由。 */
   private static void registerApiRoutes(
-      io.javalin.config.JavalinConfig javalinConfig, QueryCompositionRoot queryRoot) {
+      io.javalin.config.JavalinConfig javalinConfig,
+      QueryCompositionRoot queryRoot,
+      SessionApiService apiService) {
     DashboardApiHandler dashboardApiHandler = new DashboardApiHandler(queryRoot);
     javalinConfig.routes.get("/api/dashboard/summary", dashboardApiHandler::handleSummary);
     javalinConfig.routes.get(
@@ -255,7 +263,6 @@ public final class WebCompositionRoot {
     javalinConfig.routes.get(
         "/api/sessions/{agent}/{sessionId}/payloads", sessionDetailApiHandler::handlePayloads);
 
-    SessionApiService apiService = new SessionApiService(queryRoot.sessionDetail());
     SessionApiHandler apiHandler = new SessionApiHandler(apiService);
     SessionApiRouter apiRouter = new SessionApiRouter(apiHandler);
 
@@ -391,6 +398,16 @@ public final class WebCompositionRoot {
    */
   public QueryCompositionRoot queryRoot() {
     return queryRoot;
+  }
+
+  /**
+   * 失效全部缓存：查询缓存和详情 API 缓存。
+   *
+   * <p>扫描或数据变更后调用，确保后续请求读取新数据。
+   */
+  public void invalidateCache() {
+    queryRoot.invalidateCache();
+    apiService.invalidateCache();
   }
 
   /**

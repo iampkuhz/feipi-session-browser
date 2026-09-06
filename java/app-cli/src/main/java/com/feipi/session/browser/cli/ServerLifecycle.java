@@ -34,7 +34,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Set;
-import java.util.concurrent.CancellationException;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.Consumer;
 import org.slf4j.Logger;
@@ -43,8 +42,8 @@ import org.slf4j.LoggerFactory;
 /**
  * serve 命令的服务器生命周期管理。
  *
- * <p>按固定顺序装配和启动 scan、query、web 三个子系统，并在 JVM 关闭时按逆序释放资源。 启动顺序：config → schema/query → optional scan
- * → bind server → background scheduler。 关闭顺序：background scheduler → server → DB。
+ * <p>按固定顺序装配和启动 scan、query、web 三个子系统，并在 JVM 关闭时按逆序释放资源。 启动顺序：config → schema/query → bind server →
+ * ready → background scheduler。 关闭顺序：background scheduler → server → DB。
  *
  * <p>所有资源（JDBC 连接、WebServer、BackgroundScanner）的生命周期由本类统一管理， 任何阶段失败都会清理已创建的资源，确保无孤儿进程或线程泄漏。
  *
@@ -72,11 +71,14 @@ public final class ServerLifecycle {
   private final Set<String> agentFilter;
 
   private volatile WebServer webServer;
+  private volatile WebCompositionRoot webRoot;
   private volatile BackgroundScanner backgroundScanner;
   private volatile IndexConnection indexConnection;
   private volatile Connection jdbcConnection;
   private volatile Thread shutdownHook;
   private final CountDownLatch shutdownLatch = new CountDownLatch(1);
+  private volatile List<ScanConfig.SourceEntry> sourceEntries;
+  private volatile Path artifactDir;
 
   /**
    * 创建服务器生命周期管理器。
@@ -106,7 +108,7 @@ public final class ServerLifecycle {
   /**
    * 启动服务器并阻塞直到关闭信号。
    *
-   * <p>启动顺序：config → schema/query → optional scan → bind server → background scheduler。
+   * <p>启动顺序：config → schema/query → bind server；ready 后显式激活 background scheduler。
    * 任何阶段失败时清理已创建资源并抛出异常。
    *
    * @return 实际监听端口
@@ -152,30 +154,17 @@ public final class ServerLifecycle {
       QueryCompositionRoot queryRoot = createQueryCompositionRoot(indexConnection, schemaVersion);
       LOG.info("查询引擎就绪");
 
-      // 阶段 3：可选启动扫描
-      if (!noScan && !sourceEntries.isEmpty()) {
-        boolean scanOk = runStartupScan(jdbcConnection, sourceEntries, artifactDir, queryRoot);
-        if (!scanOk && !allowEmpty) {
-          throw new IOException("启动扫描失败，使用 --allow-empty 忽略");
-        }
-      } else {
-        LOG.info("跳过扫描: {}", noScan ? "--no-scan" : "无可用源");
-      }
-
-      // 阶段 4：创建并绑定 Web 服务器
+      // 阶段 3：创建并绑定 Web 服务器（先于扫描，确保尽快可访问）
       WebConfig webConfig = new WebConfig(host, port, "/static");
-      WebCompositionRoot webRoot = new WebCompositionRoot(queryRoot, webConfig);
+      webRoot = new WebCompositionRoot(queryRoot, webConfig);
       webServer = webRoot.createServer();
+      this.sourceEntries = sourceEntries;
+      this.artifactDir = artifactDir;
       installShutdownHook(queryRoot, sourceEntries, artifactDir);
       LOG.info("启动 Web 服务器");
       webServer.start();
       int actualPort = webServer.actualPort();
       waitForHealth(actualPort);
-
-      // 阶段 5：启动后台扫描调度器
-      if (!noScan && !sourceEntries.isEmpty()) {
-        startBackgroundScanner(sourceEntries, artifactDir, queryRoot);
-      }
 
       // 写入 PID 文件供 stop 命令使用
       writePidFile(actualPort);
@@ -228,6 +217,28 @@ public final class ServerLifecycle {
     return webServer != null ? webServer.actualPort() : -1;
   }
 
+  /**
+   * 激活后台扫描调度器。
+   *
+   * <p>应在 ServeCommand 打印 "ready" 后调用，确保 ready 输出先于任何 bootstrap 开始。 如果 noScan 或无可用源，则跳过扫描。
+   */
+  public synchronized void activateBackgroundScanner() {
+    if (!isRunning() || backgroundScanner != null) {
+      return;
+    }
+    if (noScan) {
+      LOG.info("跳过扫描: --no-scan");
+      return;
+    }
+    List<ScanConfig.SourceEntry> entries = this.sourceEntries;
+    Path dir = this.artifactDir;
+    if (entries == null || entries.isEmpty()) {
+      LOG.info("跳过扫描: 无可用源");
+      return;
+    }
+    startBackgroundScanner(entries, dir);
+  }
+
   // ===== 私有方法 =====
 
   /** 使用具体 SQLite 适配器装配 application 查询用例。 */
@@ -249,7 +260,7 @@ public final class ServerLifecycle {
   }
 
   /** 执行关闭序列：scanner → server → DB → 清理 PID 文件。 */
-  private void doShutdown() {
+  private synchronized void doShutdown() {
     LOG.info("正在关闭 serve...");
 
     if (backgroundScanner != null) {
@@ -323,91 +334,61 @@ public final class ServerLifecycle {
     }
   }
 
-  /**
-   * 执行启动扫描。
-   *
-   * <p>使用 {@link BackgroundScanner#runStartupScan} 的非阻塞锁机制， 锁被占用时跳过，不阻塞启动。
-   *
-   * @return 扫描是否成功
-   */
-  private boolean runStartupScan(
-      Connection conn,
-      List<ScanConfig.SourceEntry> sourceEntries,
-      Path artifactDir,
-      QueryCompositionRoot queryRoot) {
-    ScanLock scanLock = new ScanLock(indexDir);
-    ScanConfig config = ScanConfig.defaults(sourceEntries, artifactDir);
-    IncrementalScanEngine engine = new IncrementalScanEngine();
-
-    LOG.info("执行启动扫描...");
-    boolean ok =
-        BackgroundScanner.runStartupScan(
-            () -> {
-              engine.scan(new SqliteIndexWriter(conn), config);
-              queryRoot.invalidateCache();
-            },
-            scanLock);
-    return ok;
-  }
-
-  /** 启动后台扫描调度器，复用已有的 {@link BackgroundScanner} 分层调度逻辑。 */
+  /** 启动后台扫描调度器，含引导扫描和 hot/warm 周期调度。 */
   private void startBackgroundScanner(
-      List<ScanConfig.SourceEntry> sourceEntries,
-      Path artifactDir,
-      QueryCompositionRoot queryRoot) {
+      List<ScanConfig.SourceEntry> sourceEntries, Path artifactDir) {
     ScanLock scanLock = new ScanLock(indexDir);
     ScanConfig config = ScanConfig.defaults(sourceEntries, artifactDir);
     // conn 由 IndexConnection 管理生命周期，此处通过参数传递避免 PMD CloseResource 警告
     backgroundScanner =
-        createBackgroundScanner(indexConnection.writerConnection(), config, scanLock, queryRoot);
+        createBackgroundScanner(indexConnection.writerConnection(), config, scanLock);
     backgroundScanner.start();
   }
 
   /**
-   * 创建后台扫描调度器实例。
+   * 创建后台扫描调度器实例，含引导动作。
    *
-   * <p>Connection 作为参数传入（由调用方管理生命周期），不在本方法创建。 PMD 不标记方法参数为 CloseResource 违规。
+   * <p>Connection 作为参数传入（由调用方管理生命周期），不在本方法创建。
    *
    * @param conn writer 连接，由 IndexConnection 持有
    * @param config 扫描配置
    * @param scanLock 跨进程扫描锁
-   * @param queryRoot 查询组合根，用于扫描后失效缓存
    * @return 配置完成的后台扫描调度器
    */
-  private static BackgroundScanner createBackgroundScanner(
-      Connection conn, ScanConfig config, ScanLock scanLock, QueryCompositionRoot queryRoot) {
+  private BackgroundScanner createBackgroundScanner(
+      Connection conn, ScanConfig config, ScanLock scanLock) {
     IncrementalScanEngine engine = new IncrementalScanEngine();
 
-    Consumer<ScanCancelToken> hotAction =
-        token -> {
-          try {
-            engine.scan(new SqliteIndexWriter(conn), config, null, token);
-            queryRoot.invalidateCache();
-          } catch (CancellationException e) {
-            LOG.info("hot 层级扫描已取消");
-          } catch (Exception e) {
-            LOG.warn("hot 层级后台扫描失败", e);
-          }
-        };
-
+    Consumer<ScanCancelToken> bootstrapAction = createScanAction(engine, conn, config, null);
+    Consumer<ScanCancelToken> hotAction = createScanAction(engine, conn, config, null);
     Consumer<ScanCancelToken> warmAction =
-        token -> {
-          try {
-            engine.scan(
-                new SqliteIndexWriter(conn),
-                config,
-                (double) TierConfig.DEFAULT_WARM_WINDOW,
-                token);
-            queryRoot.invalidateCache();
-          } catch (CancellationException e) {
-            LOG.info("warm 层级扫描已取消");
-          } catch (Exception e) {
-            LOG.warn("warm 层级后台扫描失败", e);
-          }
-        };
+        createScanAction(engine, conn, config, (double) TierConfig.DEFAULT_WARM_WINDOW);
 
     return new BackgroundScanner(
-        TierConfig.DEFAULT_HOT, TierConfig.DEFAULT_WARM, scanLock, hotAction, warmAction);
+        TierConfig.DEFAULT_HOT,
+        TierConfig.DEFAULT_WARM,
+        scanLock,
+        hotAction,
+        warmAction,
+        bootstrapAction,
+        java.time.Clock.systemUTC());
+  }
+
+  /** 将引擎的取消和失败结果传回调度器，已写入的部分结果同样需要清除查询缓存。 */
+  private Consumer<ScanCancelToken> createScanAction(
+      IncrementalScanEngine engine, Connection conn, ScanConfig config, Double maxAgeSeconds) {
+    return token -> {
+      token.throwIfCancelled();
+      try {
+        var summary = engine.scan(new SqliteIndexWriter(conn), config, maxAgeSeconds, token);
+        token.throwIfCancelled();
+        if (summary.errorCount() > 0 || !summary.issues().isEmpty()) {
+          throw new IllegalStateException("后台扫描返回失败结果: errors=" + summary.errorCount());
+        }
+      } finally {
+        webRoot.invalidateCache();
+      }
+    };
   }
 
   /**

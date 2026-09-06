@@ -394,6 +394,7 @@ public final class IncrementalScanEngine {
           indexWriter.flushPendingWrites();
         } catch (RuntimeException e) {
           log.error("index writer 最终 flush 失败", e);
+          issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
           scanFailed = true;
         }
       }

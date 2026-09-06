@@ -32,8 +32,10 @@ import java.util.concurrent.ConcurrentHashMap;
 public final class SessionApiService {
 
   private final SessionDetailUseCase detailUseCase;
-  private final ConcurrentHashMap<String, SessionApiContext> contextCache =
+  private final ConcurrentHashMap<String, VersionedContext> contextCache =
       new ConcurrentHashMap<>();
+  private final java.util.concurrent.atomic.AtomicLong cacheVersion =
+      new java.util.concurrent.atomic.AtomicLong(0);
 
   /** 缓存最大条目数。 */
   private static final int MAX_CACHE_SIZE = 16;
@@ -50,7 +52,7 @@ public final class SessionApiService {
   /**
    * 获取指定会话的 API 上下文。
    *
-   * <p>优先从缓存读取，缓存未命中时加载会话行和归一化制品，构建上下文并缓存。
+   * <p>优先从缓存读取，缓存未命中或版本过期时加载会话行和归一化制品，构建上下文并缓存。
    *
    * @param sessionKey 会话主键
    * @param visibility payload 可见性策略
@@ -62,13 +64,14 @@ public final class SessionApiService {
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
     String cacheKey = sessionKey + ":" + visibility.name();
-    SessionApiContext cached = contextCache.get(cacheKey);
-    if (cached != null) {
-      return Optional.of(cached);
+    long currentVersion = cacheVersion.get();
+    VersionedContext cached = contextCache.get(cacheKey);
+    if (cached != null && cached.version == currentVersion) {
+      return Optional.of(cached.context);
     }
 
     Optional<SessionApiContext> context = loadContext(sessionKey, visibility);
-    context.ifPresent(ctx -> putCache(cacheKey, ctx));
+    context.ifPresent(ctx -> putCache(cacheKey, ctx, currentVersion));
     return context;
   }
 
@@ -110,13 +113,27 @@ public final class SessionApiService {
     return PayloadLookup.fromArtifact(empty, visibility);
   }
 
+  /** 失效全部详情缓存，扫描或数据变更后调用。 */
+  public void invalidateCache() {
+    cacheVersion.incrementAndGet();
+    contextCache.clear();
+  }
+
   /** 有界缓存写入。 */
-  private void putCache(String key, SessionApiContext ctx) {
+  private void putCache(String key, SessionApiContext ctx, long version) {
     if (contextCache.size() >= MAX_CACHE_SIZE) {
       contextCache.clear();
     }
-    contextCache.put(key, ctx);
+    contextCache.put(key, new VersionedContext(ctx, version));
   }
+
+  /**
+   * 带版本的缓存条目，用于防止失效后的竞态回填。
+   *
+   * @param context 会话 API 上下文
+   * @param version 缓存版本号
+   */
+  private record VersionedContext(SessionApiContext context, long version) {}
 
   /**
    * 会话数据加载异常。

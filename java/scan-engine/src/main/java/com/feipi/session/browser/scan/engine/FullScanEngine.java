@@ -614,14 +614,14 @@ public final class FullScanEngine {
     return value == null ? "" : value.toString();
   }
 
-  private static String meaningfulProject(String preferred, String fallback) {
+  static String meaningfulProject(String preferred, String fallback) {
     if (isMeaningfulProject(preferred)) {
       return preferred;
     }
     return fallback == null ? "" : fallback;
   }
 
-  private static boolean isMeaningfulProject(String value) {
+  static boolean isMeaningfulProject(String value) {
     return value != null && !value.isBlank() && !".".equals(value) && !value.startsWith("./");
   }
 

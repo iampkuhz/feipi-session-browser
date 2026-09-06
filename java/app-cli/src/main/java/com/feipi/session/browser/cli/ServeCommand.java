@@ -95,6 +95,7 @@ final class ServeCommand implements Callable<Integer> {
       int actualPort = lifecycle.start();
       LOG.info("serve 已就绪: http://{}:{}", host, actualPort);
       System.out.println("serve 已就绪: http://" + host + ":" + actualPort);
+      lifecycle.activateBackgroundScanner();
       lifecycle.awaitShutdown();
       return 0;
     } catch (java.net.BindException e) {

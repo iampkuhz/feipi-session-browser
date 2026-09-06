@@ -9,6 +9,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -244,6 +245,217 @@ class BackgroundScannerTest {
     } finally {
       holder.close();
     }
+  }
+
+  @Test
+  void bootstrapCompletionStartsIndependentTierIntervals() {
+    AtomicInteger bootstrapCount = new AtomicInteger();
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    BackgroundScanner scanner =
+        bootstrapScanner(
+            clock,
+            hotCount,
+            warmCount,
+            token -> {
+              bootstrapCount.incrementAndGet();
+              clock.setMillis(1_100_000);
+            });
+    try {
+      scanner.checkAndScan();
+      assertThat(scanner.bootstrapDone()).isTrue();
+      assertThat(scanner.lastHotScanMs()).isEqualTo(1_100_000);
+      assertThat(scanner.lastWarmScanMs()).isEqualTo(1_100_000);
+      scanner.checkAndScan();
+      clock.setMillis(1_129_999);
+      scanner.checkAndScan();
+      assertThat(hotCount.get()).isZero();
+      assertThat(warmCount.get()).isZero();
+      clock.setMillis(1_130_000);
+      scanner.checkAndScan();
+      assertThat(hotCount.get()).isEqualTo(1);
+      assertThat(warmCount.get()).isZero();
+      clock.setMillis(1_399_999);
+      scanner.checkAndScan();
+      assertThat(hotCount.get()).isEqualTo(2);
+      assertThat(warmCount.get()).isZero();
+      clock.setMillis(1_400_000);
+      scanner.checkAndScan();
+      assertThat(hotCount.get()).isEqualTo(2);
+      assertThat(warmCount.get()).isEqualTo(1);
+      assertThat(bootstrapCount.get()).isEqualTo(1);
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void failedBootstrapRetriesOnlyWhenDueAndFallsBackWithoutClaimingSuccess() {
+    AtomicInteger attempts = new AtomicInteger();
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    BackgroundScanner scanner =
+        bootstrapScanner(
+            clock,
+            hotCount,
+            warmCount,
+            token -> {
+              attempts.incrementAndGet();
+              throw new IllegalStateException("synthetic failure");
+            });
+    try {
+      for (int attempt = 0; attempt < 4; attempt++) {
+        clock.setMillis(1_000_000 + attempt * 5000L);
+        scanner.checkAndScan();
+        assertThat(attempts.get()).isEqualTo(attempt + 1);
+        assertThat(scanner.bootstrapDone()).isFalse();
+        clock.setMillis(clock.millis() + 4999);
+        scanner.checkAndScan();
+        assertThat(attempts.get()).isEqualTo(attempt + 1);
+        assertThat(hotCount.get()).isZero();
+        assertThat(warmCount.get()).isZero();
+      }
+      clock.setMillis(1_045_000);
+      scanner.checkAndScan();
+      assertThat(hotCount.get()).isEqualTo(1);
+      assertThat(warmCount.get()).isZero();
+      assertThat(attempts.get()).isEqualTo(4);
+      assertThat(scanner.bootstrapDone()).isFalse();
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void lockBusyBootstrapRetriesAfterDelayThenSucceeds() throws Exception {
+    AtomicInteger attempts = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    BackgroundScanner scanner =
+        bootstrapScanner(
+            clock, new AtomicInteger(), new AtomicInteger(), token -> attempts.incrementAndGet());
+    try {
+      try (var handle = new ScanLock(tempDir).acquire("synthetic blocker", 1000)) {
+        assertThat(handle).isNotNull();
+        scanner.checkAndScan();
+        assertThat(attempts.get()).isZero();
+        assertThat(scanner.bootstrapDone()).isFalse();
+      }
+      clock.setMillis(1_004_999);
+      scanner.checkAndScan();
+      assertThat(attempts.get()).isZero();
+      clock.setMillis(1_005_000);
+      scanner.checkAndScan();
+      assertThat(attempts.get()).isEqualTo(1);
+      assertThat(scanner.bootstrapDone()).isTrue();
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void cancelledBootstrapIsNotSuccessfulEvenWhenActionReturnsNormally() {
+    FixedClock clock = new FixedClock(1_000_000);
+    AtomicInteger attempts = new AtomicInteger();
+    BackgroundScanner scanner =
+        bootstrapScanner(
+            clock,
+            new AtomicInteger(),
+            new AtomicInteger(),
+            token -> {
+              if (attempts.incrementAndGet() == 1) {
+                token.cancel();
+              }
+            });
+    try {
+      scanner.checkAndScan();
+      assertThat(scanner.bootstrapDone()).isFalse();
+      clock.setMillis(1_005_000);
+      scanner.checkAndScan();
+      assertThat(attempts.get()).isEqualTo(2);
+      assertThat(scanner.bootstrapDone()).isTrue();
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void shutdownCancelsBootstrapAndDoesNotScheduleRetry() throws Exception {
+    CountDownLatch started = new CountDownLatch(1);
+    CountDownLatch exited = new CountDownLatch(1);
+    AtomicInteger attempts = new AtomicInteger();
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    BackgroundScanner scanner =
+        bootstrapScanner(
+            clock,
+            hotCount,
+            warmCount,
+            token -> {
+              attempts.incrementAndGet();
+              started.countDown();
+              try {
+                while (true) {
+                  token.throwIfCancelled();
+                  Thread.onSpinWait();
+                }
+              } finally {
+                exited.countDown();
+              }
+            });
+    try {
+      scanner.start();
+      assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
+    } finally {
+      scanner.shutdown(2, TimeUnit.SECONDS);
+    }
+    assertThat(exited.getCount()).isZero();
+    assertThat(scanner.bootstrapDone()).isFalse();
+    assertThat(scanner.isRunning()).isFalse();
+    clock.setMillis(2_000_000);
+    scanner.checkAndScan();
+    assertThat(attempts.get()).isEqualTo(1);
+    assertThat(hotCount.get()).isZero();
+    assertThat(warmCount.get()).isZero();
+  }
+
+  @Test
+  void noBootstrapMeansImmediateHotWarm() {
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            TierConfig.DEFAULT_HOT,
+            TierConfig.DEFAULT_WARM,
+            new ScanLock(tempDir),
+            hotCount::incrementAndGet,
+            warmCount::incrementAndGet,
+            new FixedClock(1_000_000));
+    try {
+      scanner.checkAndScan();
+      assertThat(scanner.bootstrapDone()).isTrue();
+      assertThat(hotCount.get()).isEqualTo(1);
+      assertThat(warmCount.get()).isEqualTo(1);
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  private BackgroundScanner bootstrapScanner(
+      Clock clock,
+      AtomicInteger hotCount,
+      AtomicInteger warmCount,
+      Consumer<ScanCancelToken> bootstrapAction) {
+    return new BackgroundScanner(
+        TierConfig.DEFAULT_HOT,
+        TierConfig.DEFAULT_WARM,
+        new ScanLock(tempDir),
+        token -> hotCount.incrementAndGet(),
+        token -> warmCount.incrementAndGet(),
+        bootstrapAction,
+        clock);
   }
 
   /** 用于测试的固定时钟。 */

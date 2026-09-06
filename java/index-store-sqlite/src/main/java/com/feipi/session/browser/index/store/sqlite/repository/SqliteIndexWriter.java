@@ -105,7 +105,9 @@ public final class SqliteIndexWriter implements IndexWriterPort {
 
   @Override
   public Map<String, StoredSessionFingerprint> loadStoredSessionFingerprints() {
-    String sql = "SELECT session_key, file_path, file_mtime, agent, ended_at FROM sessions";
+    String sql =
+        "SELECT session_key, file_path, file_mtime, agent, ended_at, title, project_key, cwd"
+            + " FROM sessions";
     Map<String, StoredSessionFingerprint> result = new LinkedHashMap<>();
     try (PreparedStatement stmt = conn.prepareStatement(sql);
         ResultSet rs = stmt.executeQuery()) {
@@ -118,7 +120,10 @@ public final class SqliteIndexWriter implements IndexWriterPort {
                 rs.getString("file_path"),
                 rs.getDouble("file_mtime"),
                 rs.getString("agent"),
-                rs.getString("ended_at")));
+                rs.getString("ended_at"),
+                rs.getString("title"),
+                rs.getString("project_key"),
+                rs.getString("cwd")));
       }
       return Map.copyOf(result);
     } catch (SQLException e) {

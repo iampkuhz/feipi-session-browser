@@ -129,7 +129,7 @@ class IncrementalScanEngineTest {
     // 直接测试 FingerprintComparator
     StoredSessionFingerprint stored =
         new StoredSessionFingerprint(
-            "session-1", "", 1000.0, "claude_code", "2025-01-01T00:00:00Z");
+            "session-1", "", 1000.0, "claude_code", "2025-01-01T00:00:00Z", "", "", "");
     CandidateState state = FingerprintComparator.compare(unchangedCandidate, stored);
     // stored filePath 为空 → CHANGED
     assertThat(state).isEqualTo(CandidateState.CHANGED);
@@ -160,7 +160,10 @@ class IncrementalScanEngineTest {
             storedFile.toString(),
             fileMtimeSec,
             "claude_code",
-            "2025-01-01T00:00:00Z");
+            "2025-01-01T00:00:00Z",
+            "",
+            "",
+            "");
 
     CandidateState state = FingerprintComparator.compare(candidate, stored);
     assertThat(state).isEqualTo(CandidateState.UNCHANGED);
@@ -186,7 +189,14 @@ class IncrementalScanEngineTest {
 
     StoredSessionFingerprint stored =
         new StoredSessionFingerprint(
-            "session-1", storedFile.toString(), storedMtime, "claude_code", "2025-01-01T00:00:00Z");
+            "session-1",
+            storedFile.toString(),
+            storedMtime,
+            "claude_code",
+            "2025-01-01T00:00:00Z",
+            "",
+            "",
+            "");
 
     CandidateState state = FingerprintComparator.compare(candidate, stored);
     assertThat(state).isEqualTo(CandidateState.CHANGED);
@@ -208,7 +218,7 @@ class IncrementalScanEngineTest {
     // stored 路径指向不存在的文件，但 mtime 比较结果为 changed
     StoredSessionFingerprint stored =
         new StoredSessionFingerprint(
-            "session-1", "/nonexistent/path.jsonl", 1.0, "claude_code", "");
+            "session-1", "/nonexistent/path.jsonl", 1.0, "claude_code", "", "", "", "");
 
     CandidateState state = FingerprintComparator.compare(candidate, stored);
     assertThat(state).isEqualTo(CandidateState.CHANGED);
@@ -336,7 +346,14 @@ class IncrementalScanEngineTest {
         new Candidate(fpUnchanged, "session-unchanged", "proj", Map.of());
     StoredSessionFingerprint storedUnchanged =
         new StoredSessionFingerprint(
-            "session-unchanged", unchangedFile.toString(), unchangedMtimeSec, "claude_code", "");
+            "session-unchanged",
+            unchangedFile.toString(),
+            unchangedMtimeSec,
+            "claude_code",
+            "",
+            "",
+            "",
+            "");
 
     assertThat(FingerprintComparator.compare(unchangedCandidate, storedUnchanged))
         .isEqualTo(CandidateState.UNCHANGED);
@@ -355,14 +372,14 @@ class IncrementalScanEngineTest {
     Candidate changedCandidate = new Candidate(fpChanged, "session-changed", "proj", Map.of());
     StoredSessionFingerprint storedChanged =
         new StoredSessionFingerprint(
-            "session-changed", changedFile.toString(), 1000.0, "claude_code", "");
+            "session-changed", changedFile.toString(), 1000.0, "claude_code", "", "", "", "");
 
     assertThat(FingerprintComparator.compare(changedCandidate, storedChanged))
         .isEqualTo(CandidateState.CHANGED);
 
     // CHANGED: stored filePath 为空
     StoredSessionFingerprint storedEmpty =
-        new StoredSessionFingerprint("session-empty", "", 1000.0, "claude_code", "");
+        new StoredSessionFingerprint("session-empty", "", 1000.0, "claude_code", "", "", "", "");
     assertThat(FingerprintComparator.compare(newCandidate, storedEmpty))
         .isEqualTo(CandidateState.CHANGED);
   }

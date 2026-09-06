@@ -29,17 +29,28 @@ public final class BackgroundScanner {
   /** 调度检查频率（毫秒）。每 tick 检查一次是否有层级需要扫描。 */
   private static final long TICK_MS = 1000;
 
+  /** 引导扫描最大重试次数。 */
+  private static final int MAX_BOOTSTRAP_RETRIES = 3;
+
+  /** 引导扫描重试间隔（毫秒）。 */
+  private static final long BOOTSTRAP_RETRY_DELAY_MS = 5000;
+
   private final TierConfig hotTier;
   private final TierConfig warmTier;
   private final ScanLock scanLock;
   private final Consumer<ScanCancelToken> hotAction;
   private final Consumer<ScanCancelToken> warmAction;
+  private final Consumer<ScanCancelToken> bootstrapAction;
   private final Clock clock;
 
   private final ScheduledExecutorService scheduler;
   private volatile long lastHotScanMs;
   private volatile long lastWarmScanMs;
   private volatile boolean running;
+  private volatile boolean bootstrapDone;
+  private volatile int bootstrapRetryCount;
+  private volatile boolean bootstrapFinished;
+  private volatile long nextBootstrapMs;
   private volatile ScanCancelToken currentCancelToken;
 
   /**
@@ -85,11 +96,38 @@ public final class BackgroundScanner {
       Consumer<ScanCancelToken> hotAction,
       Consumer<ScanCancelToken> warmAction,
       Clock clock) {
+    this(hotTier, warmTier, scanLock, hotAction, warmAction, null, clock);
+  }
+
+  /**
+   * 创建支持引导扫描和协作取消的后台扫描调度器。
+   *
+   * <p>引导动作在首次 {@link #start()} 时异步执行一次（无年龄窗口），完成后按 hot/warm 间隔正常调度。
+   *
+   * @param hotTier hot 层级配置
+   * @param warmTier warm 层级配置
+   * @param scanLock 跨进程扫描锁
+   * @param hotAction 接收当前取消令牌的 hot 层级扫描动作
+   * @param warmAction 接收当前取消令牌的 warm 层级扫描动作
+   * @param bootstrapAction 可选的引导扫描动作，null 表示无引导
+   * @param clock 时间源
+   */
+  public BackgroundScanner(
+      TierConfig hotTier,
+      TierConfig warmTier,
+      ScanLock scanLock,
+      Consumer<ScanCancelToken> hotAction,
+      Consumer<ScanCancelToken> warmAction,
+      Consumer<ScanCancelToken> bootstrapAction,
+      Clock clock) {
     this.hotTier = Objects.requireNonNull(hotTier, "hotTier 不得为 null");
     this.warmTier = Objects.requireNonNull(warmTier, "warmTier 不得为 null");
     this.scanLock = Objects.requireNonNull(scanLock, "scanLock 不得为 null");
     this.hotAction = Objects.requireNonNull(hotAction, "hotAction 不得为 null");
     this.warmAction = Objects.requireNonNull(warmAction, "warmAction 不得为 null");
+    this.bootstrapAction = bootstrapAction;
+    this.bootstrapFinished = bootstrapAction == null;
+    this.bootstrapDone = bootstrapAction == null;
     this.clock = Objects.requireNonNull(clock, "clock 不得为 null");
 
     AtomicInteger threadCount = new AtomicInteger(0);
@@ -138,17 +176,16 @@ public final class BackgroundScanner {
     this(hotTier, warmTier, scanLock, hotAction, warmAction, Clock.systemUTC());
   }
 
-  /** 启动后台调度。启动后立即调度首次检查。 */
-  public void start() {
-    if (running) {
+  /** 启动后台调度。有引导动作时先异步执行引导，再按间隔调度 hot/warm。 */
+  public synchronized void start() {
+    if (running || scheduler.isShutdown()) {
       return;
     }
     running = true;
-    lastHotScanMs = 0;
-    lastWarmScanMs = 0;
     scheduler.scheduleWithFixedDelay(this::checkAndScan, 0, TICK_MS, TimeUnit.MILLISECONDS);
     log.info(
-        "后台扫描调度器已启动: hotInterval={}s warmInterval={}s",
+        "后台扫描调度器已启动: bootstrap={} hotInterval={}s warmInterval={}s",
+        bootstrapAction != null,
         hotTier.intervalSeconds(),
         warmTier.intervalSeconds());
   }
@@ -188,12 +225,11 @@ public final class BackgroundScanner {
   }
 
   private void doShutdown(Long timeout, TimeUnit unit) {
-    if (!running) {
-      return;
+    synchronized (this) {
+      running = false;
+      cancelCurrentScan();
+      scheduler.shutdown();
     }
-    running = false;
-    cancelCurrentScan();
-    scheduler.shutdown();
     try {
       if (timeout != null && unit != null) {
         if (!scheduler.awaitTermination(timeout, unit)) {
@@ -210,9 +246,67 @@ public final class BackgroundScanner {
     log.info("后台扫描调度器已停止");
   }
 
+  /** 引导扫描：获取锁 → 执行一次 → 启动常规调度。失败时有界重试。 */
+  private void runBootstrap() {
+    log.info("开始引导扫描 (尝试 {}/{})", bootstrapRetryCount + 1, MAX_BOOTSTRAP_RETRIES + 1);
+    boolean success = false;
+    try (ScanLock.ScanLockHandle handle = scanLock.tryLock("bootstrap scan")) {
+      if (handle == null) {
+        log.info("引导扫描跳过：另一个扫描持有锁");
+      } else {
+        ScanCancelToken token = new ScanCancelToken();
+        currentCancelToken = token;
+        if (scheduler.isShutdown()) {
+          token.cancel();
+        }
+        token.throwIfCancelled();
+        bootstrapAction.accept(token);
+        token.throwIfCancelled();
+        log.info("引导扫描完成");
+        success = true;
+      }
+    } catch (CancellationException e) {
+      log.info("引导扫描已取消");
+    } catch (Exception e) {
+      log.warn("引导扫描失败", e);
+    } finally {
+      currentCancelToken = null;
+    }
+
+    scheduleBootstrapRetryOrFinish(success);
+  }
+
+  /** 引导扫描成功或耗尽重试后，延迟一个完整层级间隔再开始周期扫描。 */
+  private void scheduleBootstrapRetryOrFinish(boolean success) {
+    if (scheduler.isShutdown()) {
+      return;
+    }
+    if (success || bootstrapRetryCount >= MAX_BOOTSTRAP_RETRIES) {
+      bootstrapDone = success;
+      bootstrapFinished = true;
+      updateTimestamps(true, true);
+      if (!success) {
+        log.warn("引导扫描重试已耗尽，后续按 hot/warm 间隔恢复");
+      }
+    } else {
+      bootstrapRetryCount++;
+      nextBootstrapMs = clock.millis() + BOOTSTRAP_RETRY_DELAY_MS;
+      log.info("引导扫描将在 {}ms 后重试", BOOTSTRAP_RETRY_DELAY_MS);
+    }
+  }
+
   /** 调度 tick：检查是否有层级需要扫描。 */
   void checkAndScan() {
+    if (bootstrapAction != null && scheduler.isShutdown()) {
+      return;
+    }
     long now = clock.millis();
+    if (!bootstrapFinished) {
+      if (now >= nextBootstrapMs) {
+        runBootstrap();
+      }
+      return;
+    }
     boolean needsHot = (now - lastHotScanMs) >= hotTier.intervalSeconds() * 1000;
     boolean needsWarm = (now - lastWarmScanMs) >= warmTier.intervalSeconds() * 1000;
 
@@ -351,5 +445,9 @@ public final class BackgroundScanner {
 
   long lastWarmScanMs() {
     return lastWarmScanMs;
+  }
+
+  boolean bootstrapDone() {
+    return bootstrapDone;
   }
 }
