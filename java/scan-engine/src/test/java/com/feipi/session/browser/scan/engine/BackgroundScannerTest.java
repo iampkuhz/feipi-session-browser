@@ -458,6 +458,103 @@ class BackgroundScannerTest {
         clock);
   }
 
+  @Test
+  void runtimeExceptionInCheckAndScanDoesNotKillScheduler() throws Exception {
+    CountDownLatch attempts = new CountDownLatch(2);
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(1800, 1),
+            new TierConfig(86400, 300),
+            new ScanLock(tempDir),
+            token -> {
+              attempts.countDown();
+              throw new IllegalStateException("synthetic recoverable failure");
+            },
+            token -> {},
+            Clock.systemUTC());
+    try {
+      scanner.start();
+      assertThat(attempts.await(5, TimeUnit.SECONDS)).isTrue();
+      assertThat(scanner.isRunning()).isTrue();
+      assertThat(scanner.hasFatalError()).isFalse();
+    } finally {
+      scanner.shutdown(5, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void isRunningReturnsFalseWhenSchedulerFutureIsDone() {
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(60_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(1800, 30),
+            new TierConfig(86400, 300),
+            scanLock,
+            token -> hotCount.incrementAndGet(),
+            token -> warmCount.incrementAndGet(),
+            clock);
+
+    scanner.start();
+    assertThat(scanner.isRunning()).isTrue();
+    assertThat(scanner.isSchedulerFutureDone()).isFalse();
+
+    scanner.shutdown(1, TimeUnit.SECONDS);
+    assertThat(scanner.isRunning()).isFalse();
+  }
+
+  @Test
+  void errorInActionSetsFatalAndPreventsSubsequentScans() throws Exception {
+    AtomicInteger attempts = new AtomicInteger();
+    CountDownLatch errorLogged = new CountDownLatch(1);
+    var logger =
+        (ch.qos.logback.classic.Logger) org.slf4j.LoggerFactory.getLogger(BackgroundScanner.class);
+    var appender =
+        new ch.qos.logback.core.AppenderBase<ch.qos.logback.classic.spi.ILoggingEvent>() {
+          @Override
+          protected void append(ch.qos.logback.classic.spi.ILoggingEvent event) {
+            if (event.getLevel() == ch.qos.logback.classic.Level.ERROR
+                && event.getFormattedMessage().contains("java.lang.AssertionError")) {
+              errorLogged.countDown();
+            }
+          }
+        };
+    appender.start();
+    logger.addAppender(appender);
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            TierConfig.DEFAULT_HOT,
+            TierConfig.DEFAULT_WARM,
+            new ScanLock(tempDir),
+            token -> {},
+            token -> {},
+            token -> {
+              attempts.incrementAndGet();
+              throw new AssertionError("synthetic fatal error");
+            },
+            Clock.systemUTC());
+    try {
+      scanner.start();
+      assertThat(errorLogged.await(5, TimeUnit.SECONDS)).isTrue();
+      long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+      while (!scanner.isSchedulerFutureDone() && System.nanoTime() < deadline) {
+        Thread.onSpinWait();
+      }
+      assertThat(scanner.isSchedulerFutureDone()).isTrue();
+      assertThat(scanner.isRunning()).isFalse();
+      assertThat(scanner.hasFatalError()).isTrue();
+      scanner.checkAndScan();
+      assertThat(attempts.get()).isEqualTo(1);
+    } finally {
+      scanner.shutdown(5, TimeUnit.SECONDS);
+      logger.detachAppender(appender);
+      appender.stop();
+    }
+  }
+
   /** 用于测试的固定时钟。 */
   private static final class FixedClock extends Clock {
     private volatile long millis;

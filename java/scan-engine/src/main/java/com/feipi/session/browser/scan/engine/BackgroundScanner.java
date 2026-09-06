@@ -44,6 +44,7 @@ public final class BackgroundScanner {
   private final Clock clock;
 
   private final ScheduledExecutorService scheduler;
+  private volatile java.util.concurrent.ScheduledFuture<?> scheduledFuture;
   private volatile long lastHotScanMs;
   private volatile long lastWarmScanMs;
   private volatile boolean running;
@@ -52,6 +53,7 @@ public final class BackgroundScanner {
   private volatile boolean bootstrapFinished;
   private volatile long nextBootstrapMs;
   private volatile ScanCancelToken currentCancelToken;
+  private volatile boolean fatalError;
 
   /**
    * 创建后台扫描调度器。
@@ -182,7 +184,8 @@ public final class BackgroundScanner {
       return;
     }
     running = true;
-    scheduler.scheduleWithFixedDelay(this::checkAndScan, 0, TICK_MS, TimeUnit.MILLISECONDS);
+    scheduledFuture =
+        scheduler.scheduleWithFixedDelay(this::checkAndScanSafe, 0, TICK_MS, TimeUnit.MILLISECONDS);
     log.info(
         "后台扫描调度器已启动: bootstrap={} hotInterval={}s warmInterval={}s",
         bootstrapAction != null,
@@ -219,9 +222,14 @@ public final class BackgroundScanner {
     }
   }
 
-  /** 查询调度器是否正在运行。 */
+  /**
+   * 查询调度器是否正在运行。
+   *
+   * <p>同时检查 running 标志和调度 Future 状态。若调度任务因未捕获的 Error 终止， Future 会标记为 done， 此方法返回 false，避免假装仍在运行。
+   */
   public boolean isRunning() {
-    return running;
+    java.util.concurrent.ScheduledFuture<?> future = scheduledFuture;
+    return running && (future == null || !future.isDone());
   }
 
   private void doShutdown(Long timeout, TimeUnit unit) {
@@ -295,8 +303,27 @@ public final class BackgroundScanner {
     }
   }
 
-  /** 调度 tick：检查是否有层级需要扫描。 */
+  /**
+   * 调度任务安全包装。捕获 Throwable 确保致命错误可见：RuntimeException 记录 WARN 并继续调度； Error（OOM、StackOverflowError
+   * 等）记录 ERROR 后设置 {@code fatalError} 标志并重新抛出， 由 {@link #isRunning()} 通过 Future 状态感知调度终止。
+   */
+  void checkAndScanSafe() {
+    try {
+      checkAndScan();
+    } catch (RuntimeException e) {
+      log.warn("调度检查异常，后续调度继续: {}", e.getMessage(), e);
+    } catch (Error e) {
+      fatalError = true;
+      log.error("调度任务致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
+      throw e;
+    }
+  }
+
+  /** 调度 tick：检查是否有层级需要扫描。致命错误后跳过。 */
   void checkAndScan() {
+    if (fatalError) {
+      return;
+    }
     if (bootstrapAction != null && scheduler.isShutdown()) {
       return;
     }
@@ -361,7 +388,7 @@ public final class BackgroundScanner {
         log.info("hot 层级扫描完成");
       } catch (CancellationException e) {
         log.info("hot 层级扫描已取消");
-      } catch (Exception e) {
+      } catch (RuntimeException e) {
         log.warn("hot 层级扫描失败", e);
       }
       lastHotScanMs = clock.millis();
@@ -374,7 +401,7 @@ public final class BackgroundScanner {
         log.info("warm 层级扫描完成");
       } catch (CancellationException e) {
         log.info("warm 层级扫描已取消");
-      } catch (Exception e) {
+      } catch (RuntimeException e) {
         log.warn("warm 层级扫描失败", e);
       }
       lastWarmScanMs = clock.millis();
@@ -432,7 +459,7 @@ public final class BackgroundScanner {
       scanAction.run();
       log.info("启动扫描完成");
       return true;
-    } catch (Exception e) {
+    } catch (RuntimeException e) {
       log.warn("启动扫描失败", e);
       return false;
     }
@@ -449,5 +476,14 @@ public final class BackgroundScanner {
 
   boolean bootstrapDone() {
     return bootstrapDone;
+  }
+
+  boolean isSchedulerFutureDone() {
+    java.util.concurrent.ScheduledFuture<?> future = scheduledFuture;
+    return future != null && future.isDone();
+  }
+
+  boolean hasFatalError() {
+    return fatalError;
   }
 }

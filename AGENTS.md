@@ -18,7 +18,7 @@
 
 - Codex 主调度时，功能、修复、重构、测试、脚本、配置、文档修改默认交给 Qoder；Codex 负责拆分、复核与验收。
 - 极小任务/设计或 Qoder 不可用/权限不足/两轮返工失败时，Codex 接管并说明；禁递归派发。
-- Qoder 最多 1 个任务，其余排队；确认结束再派发，状态不明不补开。Codex 可并行无冲突工作。
+- Qoder 同时最多 1 个任务，其余排队；确认结束再派发，状态不明不补开。Codex 可并行无冲突工作。
 - 单目标；派发前公开 task id、读写范围、验收；集成串行。
 - 首次派发/每次返工的最终回复须在正文放详情卡：标题/task id、目标/范围、验收、Qoder session/run id、权限、运行/回调/验收状态、绝对结果链接；不可只写“已派发”或藏于工具记录。模板见用法文档。
 - 规则：`harness/agent-policy.manifest.yaml` 的 `qoder_delegation`；用法：`docs/development/qoder-subtasks.md`。

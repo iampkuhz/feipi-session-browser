@@ -379,13 +379,16 @@ public final class ServerLifecycle {
       IncrementalScanEngine engine, Connection conn, ScanConfig config, Double maxAgeSeconds) {
     return token -> {
       token.throwIfCancelled();
+      var progress = new com.feipi.session.browser.scan.engine.LoggingScanProgress();
       try {
-        var summary = engine.scan(new SqliteIndexWriter(conn), config, maxAgeSeconds, token);
+        var summary =
+            engine.scan(new SqliteIndexWriter(conn), config, maxAgeSeconds, token, progress);
         token.throwIfCancelled();
         if (summary.errorCount() > 0 || !summary.issues().isEmpty()) {
           throw new IllegalStateException("后台扫描返回失败结果: errors=" + summary.errorCount());
         }
       } finally {
+        progress.close();
         webRoot.invalidateCache();
       }
     };

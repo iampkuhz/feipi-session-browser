@@ -171,7 +171,11 @@ public final class IncrementalScanEngine {
 
     // 1. 确保 schema
     try {
+      long phaseStart = System.nanoTime();
+      if (progress != null) progress.onPhaseStart("schema");
       indexWriter.ensureSchema();
+      if (progress != null)
+        progress.onPhaseEnd("schema", (System.nanoTime() - phaseStart) / 1_000_000);
     } catch (RuntimeException e) {
       log.error("schema 初始化失败", e);
       return buildErrorSummary(startMs, "Schema initialization failed: " + exceptionMessage(e));
@@ -191,12 +195,17 @@ public final class IncrementalScanEngine {
     Map<com.feipi.session.browser.source.spi.SourceId, Integer> perSourceCount =
         new LinkedHashMap<>();
     long scanLogIdFinal = scanLogId;
+    boolean scanLogFinalized = false;
 
     try {
       // 3. 加载已索引会话指纹
       Map<String, StoredSessionFingerprint> storedFingerprints;
       try {
+        long phaseStart = System.nanoTime();
+        if (progress != null) progress.onPhaseStart("load_fingerprints");
         storedFingerprints = indexWriter.loadStoredSessionFingerprints();
+        if (progress != null)
+          progress.onPhaseEnd("load_fingerprints", (System.nanoTime() - phaseStart) / 1_000_000);
       } catch (RuntimeException e) {
         log.error("加载已索引指纹失败", e);
         return buildErrorSummary(
@@ -208,14 +217,19 @@ public final class IncrementalScanEngine {
       int storedVersion = indexWriter.loadScanLogicVersion();
       if (storedVersion != CURRENT_SCAN_LOGIC_VERSION) {
         log.info(
-            "scan logic version 变化: stored={}, current={} — 触发重建",
+            "scan logic version 变化: stored={}, current={} — 触发重建 (已索引 {} 个会话)",
             storedVersion,
-            CURRENT_SCAN_LOGIC_VERSION);
+            CURRENT_SCAN_LOGIC_VERSION,
+            storedFingerprints.size());
         rebuildTriggered = true;
 
         // 真 full rebuild：DELETE 旧 sessions 和 artifacts，避免残留
         try {
+          long phaseStart = System.nanoTime();
+          if (progress != null) progress.onPhaseStart("clear_index");
           indexWriter.clearExistingIndex();
+          if (progress != null)
+            progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
           storedFingerprints = Map.of(); // 清空内存指纹缓存
         } catch (RuntimeException e) {
           log.error("rebuild 清理旧 index 失败", e);
@@ -266,7 +280,12 @@ public final class IncrementalScanEngine {
         // 发现候选项
         BoundedStream<Candidate> candidates;
         try {
+          String discoverPhase = "discover:" + agentValue;
+          long phaseStart = System.nanoTime();
+          if (progress != null) progress.onPhaseStart(discoverPhase);
           candidates = entry.adapter().discover(entry.rootPath());
+          if (progress != null)
+            progress.onPhaseEnd(discoverPhase, (System.nanoTime() - phaseStart) / 1_000_000);
         } catch (Exception e) {
           issues.add(new ScanIssue("", agentValue, ScanIssue.ScanPhase.DISCOVERY, e.getMessage()));
           continue;
@@ -371,7 +390,11 @@ public final class IncrementalScanEngine {
 
           if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
             try {
+              long phaseStart = System.nanoTime();
+              if (progress != null) progress.onPhaseStart("flush");
               indexWriter.flushPendingWrites();
+              if (progress != null)
+                progress.onPhaseEnd("flush", (System.nanoTime() - phaseStart) / 1_000_000);
             } catch (RuntimeException e) {
               log.error("index writer flush 失败", e);
               issues.add(
@@ -391,7 +414,11 @@ public final class IncrementalScanEngine {
       // 6. 最终 flush
       if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
         try {
+          long phaseStart = System.nanoTime();
+          if (progress != null) progress.onPhaseStart("flush_final");
           indexWriter.flushPendingWrites();
+          if (progress != null)
+            progress.onPhaseEnd("flush_final", (System.nanoTime() - phaseStart) / 1_000_000);
         } catch (RuntimeException e) {
           log.error("index writer 最终 flush 失败", e);
           issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
@@ -399,16 +426,9 @@ public final class IncrementalScanEngine {
         }
       }
 
-      // 7. 更新 scan logic version
-      if (!scanFailed) {
-        try {
-          indexWriter.saveScanLogicVersion(CURRENT_SCAN_LOGIC_VERSION, clock.instant());
-        } catch (RuntimeException e) {
-          log.warn("保存 scan logic version 失败", e);
-        }
-      }
+      scanFailed = scanFailed || !issues.isEmpty() || errorCount > 0;
 
-      // 8. 完成 scan_log
+      // 7. 完成 scan_log
       long endMs = clock.millis();
       double endEpoch = endMs / 1000.0;
       try {
@@ -417,8 +437,22 @@ public final class IncrementalScanEngine {
         } else {
           indexWriter.completeScan(scanLogIdFinal, endEpoch, perSourceCountByValue);
         }
+        scanLogFinalized = true;
       } catch (RuntimeException e) {
+        issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+        scanFailed = true;
         log.error("scan_log 完成记录失败", e);
+      }
+
+      // 8. 更新 scan logic version（仅在 scan_log 成功完成后）
+      if (!scanFailed && scanLogFinalized) {
+        try {
+          indexWriter.saveScanLogicVersion(CURRENT_SCAN_LOGIC_VERSION, clock.instant());
+        } catch (RuntimeException e) {
+          issues.add(new ScanIssue("", "", ScanIssue.ScanPhase.INDEX_WRITE, exceptionMessage(e)));
+          scanLogFinalized = false;
+          log.warn("保存 scan logic version 失败", e);
+        }
       }
 
       long duration = endMs - startMs;
@@ -447,16 +481,23 @@ public final class IncrementalScanEngine {
           rebuildTriggered);
 
     } catch (CancellationException e) {
-      // 标记 scan_log 为失败，确保不留 running 状态
-      long endMs = clock.millis();
-      double endEpoch = endMs / 1000.0;
-      try {
-        indexWriter.failScan(scanLogIdFinal, endEpoch, perSourceCountByValue);
-      } catch (RuntimeException writeEx) {
-        log.error("取消后更新 scan_log 失败", writeEx);
-      }
+      scanLogFinalized = false;
       log.info("增量扫描已取消");
       throw e;
+    } catch (Error e) {
+      scanLogFinalized = false;
+      log.error("扫描致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
+      throw e;
+    } finally {
+      if (!scanLogFinalized) {
+        long endMs = clock.millis();
+        double endEpoch = endMs / 1000.0;
+        try {
+          indexWriter.failScan(scanLogIdFinal, endEpoch, perSourceCountByValue);
+        } catch (RuntimeException writeEx) {
+          log.error("scan_log 最终标记失败", writeEx);
+        }
+      }
     }
   }
 

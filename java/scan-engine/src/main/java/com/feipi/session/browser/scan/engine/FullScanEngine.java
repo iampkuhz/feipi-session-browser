@@ -131,7 +131,11 @@ public final class FullScanEngine {
 
     // 1. 确保 schema
     try {
+      long phaseStart = System.nanoTime();
+      if (progress != null) progress.onPhaseStart("schema");
       indexWriter.ensureSchema();
+      if (progress != null)
+        progress.onPhaseEnd("schema", (System.nanoTime() - phaseStart) / 1_000_000);
     } catch (RuntimeException e) {
       log.error("schema 初始化失败", e);
       return buildErrorSummary(startMs, "Schema initialization failed: " + exceptionMessage(e));
@@ -139,7 +143,11 @@ public final class FullScanEngine {
 
     // 1b. 清理旧 index 数据（full scan 每次重建完整索引，避免旧逻辑残留）
     try {
+      long phaseStart = System.nanoTime();
+      if (progress != null) progress.onPhaseStart("clear_index");
       indexWriter.clearExistingIndex();
+      if (progress != null)
+        progress.onPhaseEnd("clear_index", (System.nanoTime() - phaseStart) / 1_000_000);
     } catch (RuntimeException e) {
       log.error("清理旧 index 失败", e);
       return buildErrorSummary(startMs, "Clear existing index failed: " + exceptionMessage(e));
@@ -194,7 +202,12 @@ public final class FullScanEngine {
       // 发现候选项
       BoundedStream<Candidate> candidates;
       try {
+        String discoverPhase = "discover:" + agentValue;
+        long phaseStart = System.nanoTime();
+        if (progress != null) progress.onPhaseStart(discoverPhase);
         candidates = entry.adapter().discover(entry.rootPath());
+        if (progress != null)
+          progress.onPhaseEnd(discoverPhase, (System.nanoTime() - phaseStart) / 1_000_000);
       } catch (Exception e) {
         issues.add(new ScanIssue("", agentValue, ScanIssue.ScanPhase.DISCOVERY, e.getMessage()));
         continue;
@@ -253,7 +266,11 @@ public final class FullScanEngine {
         // 定期 flush
         if (processedInBatch >= FLUSH_INTERVAL && indexWriter.pendingWriteCount() > 0) {
           try {
+            long phaseStart = System.nanoTime();
+            if (progress != null) progress.onPhaseStart("flush");
             indexWriter.flushPendingWrites();
+            if (progress != null)
+              progress.onPhaseEnd("flush", (System.nanoTime() - phaseStart) / 1_000_000);
           } catch (RuntimeException e) {
             log.error("index writer flush 失败", e);
             issues.add(
@@ -273,7 +290,11 @@ public final class FullScanEngine {
     // 4. 最终 flush
     if (!scanFailed && indexWriter.pendingWriteCount() > 0) {
       try {
+        long phaseStart = System.nanoTime();
+        if (progress != null) progress.onPhaseStart("flush_final");
         indexWriter.flushPendingWrites();
+        if (progress != null)
+          progress.onPhaseEnd("flush_final", (System.nanoTime() - phaseStart) / 1_000_000);
       } catch (RuntimeException e) {
         log.error("index writer 最终 flush 失败", e);
         scanFailed = true;

@@ -10,6 +10,24 @@ package com.feipi.session.browser.scan.engine;
 public interface ScanProgress {
 
   /**
+   * 某个扫描阶段开始前调用。
+   *
+   * <p>阶段名称包括：{@code "schema"}、{@code "load_fingerprints"}、{@code "clear_index"}（重建时）、 {@code
+   * "discover:<source>"}（每源发现）、{@code "flush"}（批量写入刷盘）。
+   *
+   * @param phaseName 阶段标识
+   */
+  default void onPhaseStart(String phaseName) {}
+
+  /**
+   * 某个扫描阶段完成后调用。
+   *
+   * @param phaseName 阶段标识
+   * @param durationMs 该阶段耗时（毫秒）
+   */
+  default void onPhaseEnd(String phaseName, long durationMs) {}
+
+  /**
    * 某个源开始处理前调用。
    *
    * @param sourceName 源标识，如 {@code "claude_code"}、{@code "codex"}、{@code "qoder"}
