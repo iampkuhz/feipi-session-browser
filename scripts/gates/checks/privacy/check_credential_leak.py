@@ -82,6 +82,12 @@ _SKIP_BASENAMES = {
 }
 _SKIP_RELATIVE_DIRS = {
     Path(".claude/worktrees"),
+    # 仅排除确认的工具输出位置，不按任意路径段豁免同名源码或 fixture。
+    Path("java/.local"),
+    Path("java/tests/.local"),
+    Path("java/gradle/aggregates/.local"),
+    Path("scripts/.local"),
+    Path("java/tests/playwright/node_modules"),
 }
 
 
@@ -176,14 +182,18 @@ def _check_sensitive_marker(line: str) -> str | None:
 
 
 def _scan_file(filepath: Path) -> list[str]:
-    """扫描单个文本文件并返回类密钥诊断；不可读取时由公开入口报告失败。"""
+    """扫描单个文本文件并返回类密钥诊断；不可读取时返回包含文件路径的诊断。"""
     errors: list[str] = []
     if filepath.name in _SKIP_BASENAMES:
         return errors
 
-    text = filepath.read_text(encoding="utf-8")
-
     rel = filepath.relative_to(ROOT)
+
+    try:
+        text = filepath.read_text(encoding="utf-8")
+    except UnicodeError as exc:
+        errors.append(f"{rel}: 文件不可读（编码错误: {type(exc).__name__}）")
+        return errors
 
     for lineno, line in enumerate(text.splitlines(), start=1):
         # 注释常包含规则说明或合成示例，不作为凭据内容扫描。
@@ -273,9 +283,14 @@ def check(arguments: list[str]) -> CheckResult:
                 ):
                     continue
                 all_errors.extend(_scan_file(filepath))
-    except (OSError, UnicodeError) as exc:
+    except OSError as exc:
         return CheckResult.execution_failure(
             [f'无法完整扫描类密钥内容: {exc}'], reason='input-unavailable'
         )
+
+    # 检查是否有编码错误诊断；若有则 fail-closed。
+    encoding_errors = [e for e in all_errors if '编码错误' in e]
+    if encoding_errors:
+        return CheckResult.execution_failure(all_errors, reason='input-unavailable')
 
     return CheckResult.from_errors(all_errors)

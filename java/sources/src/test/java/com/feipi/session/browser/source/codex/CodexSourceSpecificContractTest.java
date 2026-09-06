@@ -26,6 +26,68 @@ class CodexSourceSpecificContractTest {
   private final CodexSourceAdapter adapter = new CodexSourceAdapter();
 
   @Test
+  @DisplayName("有 token_count 时保留响应正文而不新增 assistant 帧或用量")
+  void preservesResponseContentWithoutChangingTokenFrames() throws IOException {
+    SourceResult.Success success = parseContentFixture(codexRollout());
+
+    assertThat(success.records()).hasSize(7);
+    assertThat(success.records().stream().filter(r -> "assistant".equals(r.eventType())))
+        .hasSize(1);
+    assertThat(success.records().get(4).content()).isEqualTo("ok");
+    assertThat(success.records().get(5).eventType()).isEqualTo("response_item");
+    assertThat(success.records().get(5).content()).isEqualTo("done");
+    assertThat(success.records().get(5).usage().total()).isZero();
+    assertThat(success.records().stream().mapToLong(r -> r.usage().inputTokens()).sum())
+        .isEqualTo(60);
+    assertThat(success.records().stream().mapToLong(r -> r.usage().cacheReadInputTokens()).sum())
+        .isEqualTo(40);
+    assertThat(success.records().stream().mapToLong(r -> r.usage().outputTokens()).sum())
+        .isEqualTo(20);
+    assertThat(success.records().stream().mapToLong(r -> r.usage().total()).sum()).isEqualTo(120);
+  }
+
+  @Test
+  @DisplayName("消息与工具正文保持空白，元数据和工具调用不作为助手正文")
+  void preservesTextBlocksAndExcludesNonMessagePayloads() throws IOException {
+    SourceResult.Success success =
+        parseContentFixture(
+            """
+            {"type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"  ask\\n"},{"type":"input_image","text":"excluded"},{"type":"text","text":"next  "}]}}
+            {"type":"response_item","payload":{"type":"message","role":"assistant","content":[{"type":"output_text","text":"  reply\\n"},{"text":"end  "}]}}
+            {"type":"response_item","payload":{"type":"custom_tool_call","call_id":"tool-1","name":"shell","content":"excluded"}}
+            {"type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"tool-1","output":[{"type":"text","text":"  result\\n"},{"type":"output_text","text":"done  "}]}}
+            {"type":"response_item","payload":{"type":"message","role":"developer","content":[{"text":"excluded"}]}}
+            {"type":"response_item","payload":{"type":"reasoning","content":[{"text":"excluded"}]}}
+            {"type":"session_meta","payload":{"content":"excluded"}}
+            """);
+
+    assertThat(eventTypes(success))
+        .containsExactly(
+            "user",
+            "assistant",
+            "tool_use",
+            "tool_result",
+            "response_item",
+            "assistant",
+            "session_meta");
+    assertThat(success.records())
+        .extracting(SourceRecord::content)
+        .containsExactly("  ask\nnext  ", "  reply\nend  ", "", "  result\ndone  ", "", "", "");
+    assertThat(success.records()).allSatisfy(r -> assertThat(r.usage().total()).isZero());
+  }
+
+  private SourceResult.Success parseContentFixture(String content) throws IOException {
+    Path rollout = tempDir.resolve("content-fixture.jsonl");
+    Files.writeString(rollout, content, StandardCharsets.UTF_8);
+    Candidate candidate =
+        new Candidate(
+            adapter.fingerprint(rollout), "codex:content-fixture", "", java.util.Map.of());
+    SourceResult result = adapter.parse(candidate, null);
+    assertThat(result).isInstanceOf(SourceResult.Success.class);
+    return (SourceResult.Success) result;
+  }
+
+  @Test
   @DisplayName("发现 session index 布局并解析 rollout/tool/subagent/token 语义")
   void parsesCodexRolloutSemanticsWithoutMutatingSourceRoot() throws IOException {
     String sessionId = "thread-main";

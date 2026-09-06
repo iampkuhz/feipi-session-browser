@@ -10,6 +10,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedCallResponse;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
+import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.query.api.PayloadSourceKind;
 import com.feipi.session.browser.query.api.PayloadVisibility;
 import java.util.List;
@@ -148,6 +149,121 @@ class PayloadLookupTest {
     }
   }
 
+  @Nested
+  @DisplayName("Payload 内容提取")
+  class PayloadContentExtraction {
+
+    @Test
+    @DisplayName("sourceUnits 有内容时 request 条目包含提取的文本")
+    void requestContentExtracted() {
+      Map<String, Object> userUnit =
+          Map.of("role", "user", "type", "text", "text", "Analyze this file");
+      NormalizedCall call = makeCallWithUnits("c1", List.of(userUnit));
+      NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
+      PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
+
+      var entry = lookup.lookup("main:req:c1");
+      assertThat(entry).isPresent();
+      assertThat(entry.get().content()).isEqualTo("Analyze this file");
+    }
+
+    @Test
+    @DisplayName("sourceUnits 有内容时 response 条目包含提取的文本")
+    void responseContentExtracted() {
+      Map<String, Object> assistantUnit =
+          Map.of("role", "assistant", "type", "text", "text", "Here is the analysis");
+      NormalizedCall call = makeCallWithUnits("c1", List.of(assistantUnit));
+      NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
+      PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
+
+      var entry = lookup.lookup("main:resp:c1");
+      assertThat(entry).isPresent();
+      assertThat(entry.get().content()).isEqualTo("Here is the analysis");
+    }
+
+    @Test
+    @DisplayName("sourceUnits 为空时 content 为空字符串")
+    void emptyContentWhenNoSourceUnits() {
+      NormalizedCall call = makeCall("c1");
+      NormalizedSessionArtifact artifact = makeArtifact(List.of(call));
+      PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
+
+      assertThat(lookup.lookup("main:req:c1").get().content()).isEmpty();
+      assertThat(lookup.lookup("main:resp:c1").get().content()).isEmpty();
+    }
+
+    @Test
+    @DisplayName("工具执行生成 tool:result payload 条目")
+    void toolResultEntryCreated() {
+      Map<String, Object> toolResultUnit =
+          Map.of(
+              "role", "user",
+              "type", "tool_result",
+              "tool_call_id", "tool-001",
+              "content", "File contents here");
+      NormalizedCall call = makeCallWithUnits("c2", List.of(toolResultUnit));
+      var exec =
+          new NormalizedToolExecution(
+              "tool-001",
+              "Read",
+              CallScope.MAIN,
+              "c1",
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              100L,
+              List.of(),
+              Optional.empty());
+      NormalizedSessionArtifact artifact =
+          new NormalizedSessionArtifact(
+              NormalizedConstants.SCHEMA_VERSION,
+              NormalizedAgent.CLAUDE_CODE,
+              List.of(),
+              Map.of("session_key", "cc:s1"),
+              List.of(call),
+              List.of(exec),
+              List.of(),
+              Map.of(),
+              Map.of());
+      PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
+
+      var entry = lookup.lookup("tool:result:tool-001");
+      assertThat(entry).isPresent();
+      assertThat(entry.get().content()).isEqualTo("File contents here");
+      assertThat(entry.get().kind()).isEqualTo(PayloadSourceKind.TOOL_RESULT);
+    }
+
+    @Test
+    @DisplayName("subagent 调用使用 sa 前缀")
+    void subagentPrefix() {
+      Map<String, Object> assistantUnit =
+          Map.of("role", "assistant", "type", "text", "text", "Subagent response");
+      NormalizedCall call =
+          new NormalizedCall(
+              "sc1",
+              1,
+              "C1",
+              CallScope.SUBAGENT,
+              Optional.empty(),
+              Optional.empty(),
+              Optional.empty(),
+              "claude-3",
+              Optional.empty(),
+              new NormalizedCallUsage(50, 30, 20, 100, 200),
+              NormalizedCallRequest.empty(),
+              NormalizedCallResponse.empty(),
+              List.of(),
+              List.of(assistantUnit),
+              Map.of(),
+              Map.of());
+      NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
+      PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.FULL);
+
+      assertThat(lookup.allPayloadIds()).contains("sa:req:sc1", "sa:resp:sc1");
+      assertThat(lookup.lookup("sa:resp:sc1").get().content()).isEqualTo("Subagent response");
+    }
+  }
+
   private static NormalizedCall makeCall(String callId) {
     return new NormalizedCall(
         callId,
@@ -168,7 +284,41 @@ class PayloadLookupTest {
         Map.of());
   }
 
+  private static NormalizedCall makeCallWithUnits(
+      String callId, List<Map<String, Object>> sourceUnits) {
+    return new NormalizedCall(
+        callId,
+        1,
+        "C1",
+        CallScope.MAIN,
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        "claude-3",
+        Optional.empty(),
+        new NormalizedCallUsage(50, 30, 20, 100, 200),
+        NormalizedCallRequest.empty(),
+        NormalizedCallResponse.empty(),
+        List.of(),
+        sourceUnits,
+        Map.of(),
+        Map.of());
+  }
+
   private static NormalizedSessionArtifact makeArtifact(List<NormalizedCall> calls) {
+    return new NormalizedSessionArtifact(
+        NormalizedConstants.SCHEMA_VERSION,
+        NormalizedAgent.CLAUDE_CODE,
+        List.of(),
+        Map.of("session_key", "cc:s1"),
+        calls,
+        List.of(),
+        List.of(),
+        Map.of(),
+        Map.of());
+  }
+
+  private static NormalizedSessionArtifact makeArtifactWithCalls(List<NormalizedCall> calls) {
     return new NormalizedSessionArtifact(
         NormalizedConstants.SCHEMA_VERSION,
         NormalizedAgent.CLAUDE_CODE,

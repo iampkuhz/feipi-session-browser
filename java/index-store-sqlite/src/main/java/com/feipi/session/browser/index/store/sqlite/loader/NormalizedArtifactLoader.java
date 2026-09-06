@@ -170,11 +170,21 @@ public final class NormalizedArtifactLoader {
         request,
         response,
         List.of(),
-        List.of(),
+        asMapList(firstValue(cm, "sourceUnits", "source_units")),
         Map.of(),
         Map.of(),
         optionalString(cm, "subagentId", "subagent_id"),
         optionalString(cm, "parentToolName", "parent_tool_name"));
+  }
+
+  private static List<Map<String, Object>> asMapList(Object value) {
+    if (!(value instanceof List<?> list)) {
+      return List.of();
+    }
+    return list.stream()
+        .filter(Map.class::isInstance)
+        .map(NormalizedArtifactLoader::asMap)
+        .toList();
   }
 
   /** 解析调用用量。 */

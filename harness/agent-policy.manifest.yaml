@@ -71,13 +71,73 @@ subagent_instance_protocol:
     - main agent 只能聚合同一 client/session_id 的 subagent evidence。
     - subagent 返回 FAIL 或 BLOCKED 时，main agent 不得静默跳过 validation。
   skipped_semantics: required validation 出现 skipped、not-run、unavailable 或 excluded 均不得描述为 PASS。
-
 qoder_delegation:
+  applies_when:
+    - Codex 担任主调度时生效。
+  default_implementer: qoder
   default_permission_mode: bypass_permissions
   permission_authorization: 用户明确授权默认跳过 Qoder 工具审批；可显式降权，不绕过 OS 权限。
+  max_active_runs: 1
+  scheduling:
+    overflow: queue
+    next_run_requires_confirmed_completion: true
+    unknown_status_blocks_dispatch: true
+    short_overlap_by_default: false
+    codex_independent_work_allowed: true
+    enforcement: process-preflight-best-effort
+  default_scope:
+    - 功能实现
+    - 修复
+    - 重构
+    - 测试
+    - 脚本
+    - 配置
+    - 文档
+  exceptions_codex_keeps:
+    - 极小修改
+    - 设计决策
+    - Qoder 不可用
+    - 权限不足
+    - 两轮返工不收敛
+  task_granularity:
+    - 单一可验收目标
+    - 实现与关联测试一起交付
+    - 跨模块先定边界再拆分
+    - 只读查询按同一主题批处理
+  max_rework_rounds: 2
+  visible_dispatch_card:
+    - task_id
+    - goal_or_source
+    - allowed_files
+    - forbidden_files
+    - required_context
+    - acceptance_criteria
+    - permission_mode
+    - failure_policy
+    - change_version
+  post_dispatch_fields:
+    - run_id
+    - result_path
+  parallel_constraints:
+    - 仅允许 Codex 与单个 Qoder 并行；多个 Qoder 任务串行，不能通过另开 session 绕过。
+    - 写写冲突
+    - 读写冲突
+    - 接口变更冲突
+    - 运行输出冲突
+    - 集成验证串行
+  identity_rules:
+    - 保留各 client/session 来源。
+    - Codex 独立复核和产出验收证据。
+    - Qoder 不得递归委派给自身。
   completion_callback:
     transport: codex-queue
     target: exact-parent-session-uuid
     completion_record_first: true
     automatic_retry: false
     queued_is_delivery_proof: false
+  no_auto_features:
+    - 无自动重发
+    - 无取消
+    - 无 OS 沙箱
+    - 不因失败自动扩大权限
+    - 不降低 Gate

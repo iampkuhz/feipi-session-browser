@@ -56,24 +56,43 @@ public final class PayloadLookup {
     boolean truncated = visibility == PayloadVisibility.STANDARD;
     Map<String, PayloadEntry> map = new LinkedHashMap<>();
 
+    Map<String, String> toolResultContents =
+        PayloadCallContentExtractor.extractToolResultContents(artifact);
+
     for (NormalizedCall call : artifact.calls()) {
       boolean isSubagent = call.scope().name().toLowerCase().contains("subagent");
       String prefix = isSubagent ? "sa" : "main";
 
-      // 每次调用都有请求和响应两侧
+      String reqContent = PayloadCallContentExtractor.extractRequestContent(call, artifact);
       String reqPayloadId = prefix + ":req:" + call.callId();
       PayloadSourceKind requestKind =
           isSubagent ? PayloadSourceKind.SUBAGENT_REQUEST : PayloadSourceKind.LLM_REQUEST;
       map.put(
-          reqPayloadId, new PayloadEntry(reqPayloadId, requestKind, call.callId(), "", truncated));
+          reqPayloadId,
+          new PayloadEntry(reqPayloadId, requestKind, call.callId(), reqContent, truncated));
 
+      String respContent = PayloadCallContentExtractor.extractResponseContent(call, artifact);
       String respPayloadId = prefix + ":resp:" + call.callId();
       PayloadSourceKind responseKind =
           isSubagent ? PayloadSourceKind.SUBAGENT_RESPONSE : PayloadSourceKind.LLM_RESPONSE;
       map.put(
           respPayloadId,
-          new PayloadEntry(respPayloadId, responseKind, call.callId(), "", truncated));
+          new PayloadEntry(respPayloadId, responseKind, call.callId(), respContent, truncated));
     }
+
+    for (var exec : artifact.toolExecutions()) {
+      String toolPayloadId = "tool:result:" + exec.toolCallId();
+      String toolContent = toolResultContents.getOrDefault(exec.toolCallId(), "");
+      map.put(
+          toolPayloadId,
+          new PayloadEntry(
+              toolPayloadId,
+              PayloadSourceKind.TOOL_RESULT,
+              exec.toolCallId(),
+              toolContent,
+              truncated));
+    }
+
     return new PayloadLookup(map);
   }
 

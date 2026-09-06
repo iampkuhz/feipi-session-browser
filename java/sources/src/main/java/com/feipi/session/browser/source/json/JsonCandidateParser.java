@@ -98,11 +98,13 @@ public final class JsonCandidateParser {
         JsonNode event = result.events().get(eventIndex);
         String eventType = eventTypeExtractor.apply(event);
         diagnosticCollector.collect(event, eventIndex, eventType, locator, diagnostics);
-        SourceRecord record =
-            JsonSourceRecordMapper.toSourceRecord(locator, eventIndex, event, eventType);
-        record = enrichToolResultError(record, event, toolNamesById);
-        records.add(record);
-        rememberToolNames(record, toolNamesById);
+        List<SourceRecord> eventRecords =
+            JsonSourceRecordMapper.toSourceRecords(locator, eventIndex, event, eventType);
+        for (SourceRecord record : eventRecords) {
+          record = enrichToolResultError(record, toolNamesById);
+          records.add(record);
+          rememberToolNames(record, toolNamesById);
+        }
       }
 
       completionDiagnostics.accept(diagnostics, result.events().size());
@@ -126,7 +128,7 @@ public final class JsonCandidateParser {
   }
 
   private static SourceRecord enrichToolResultError(
-      SourceRecord record, JsonNode event, Map<String, String> toolNamesById) {
+      SourceRecord record, Map<String, String> toolNamesById) {
     if (!"tool_result".equals(record.eventType()) || record.toolUseId().isEmpty()) {
       return record;
     }
@@ -137,7 +139,7 @@ public final class JsonCandidateParser {
     }
     Optional<String> toolError = record.toolError();
     if (toolError.isEmpty()) {
-      String content = JsonSourceRecordMapper.toolResultContentString(event);
+      String content = record.content();
       if (!content.isBlank() && ToolFailureClassifier.looksFailed(content, toolName)) {
         toolError = Optional.of("text_heuristic_failure");
       }
@@ -157,6 +159,8 @@ public final class JsonCandidateParser {
         record.toolCalls(),
         record.toolUseId(),
         Optional.of(toolName),
-        toolError);
+        toolError,
+        record.relation(),
+        record.content());
   }
 }

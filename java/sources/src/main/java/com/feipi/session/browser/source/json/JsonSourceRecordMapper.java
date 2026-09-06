@@ -22,18 +22,45 @@ public final class JsonSourceRecordMapper {
   private JsonSourceRecordMapper() {}
 
   /**
-   * 将 JSON 事件映射为源中性记录。
+   * 将 JSON 事件映射为源中性记录列表。
+   *
+   * <p>含 tool_result 的 user 事件按块保持顺序，文本仍归属 user，工具结果独立归属且用量只记录一次。其他事件返回单元素列表。
    *
    * @param locator 源记录定位符
    * @param eventIndex 事件在源输入中的序号
    * @param event JSON 事件对象
    * @param eventType 已由 adapter 判定的源中性事件类型
-   * @return 源中性记录
+   * @return 源中性记录列表
    */
-  public static SourceRecord toSourceRecord(
+  public static List<SourceRecord> toSourceRecords(
       String locator, int eventIndex, JsonNode event, String eventType) {
     String recordLocator = locator + "#event[" + eventIndex + "]";
     String normalizedEventType = normalizeEventType(event, eventType);
+
+    if (("user".equals(eventType) || "tool_result".equals(eventType))
+        && hasToolResultBlock(event)) {
+      List<JsonNode> blocks = new ArrayList<>();
+      for (JsonNode container : contentContainers(event)) {
+        if (container.isArray()) {
+          container.forEach(blocks::add);
+        } else {
+          blocks.add(container);
+        }
+      }
+      List<SourceRecord> records = new ArrayList<>();
+      for (int i = 0; i < blocks.size(); i++) {
+        JsonNode block = blocks.get(i);
+        String blockLocator = blocks.size() == 1 ? recordLocator : recordLocator + "[" + i + "]";
+        SourceRecordUsage usage = i == 0 ? extractUsage(event) : SourceRecordUsage.empty();
+        records.add(createBlockRecord(blockLocator, eventIndex, event, block, usage));
+      }
+      return List.copyOf(records);
+    }
+    return List.of(createSingleRecord(recordLocator, eventIndex, event, normalizedEventType));
+  }
+
+  private static SourceRecord createSingleRecord(
+      String recordLocator, int eventIndex, JsonNode event, String normalizedEventType) {
     return new SourceRecord(
         recordLocator,
         eventIndex,
@@ -46,7 +73,48 @@ public final class JsonSourceRecordMapper {
         extractToolCalls(event),
         extractToolUseId(event, normalizedEventType),
         extractToolName(event),
-        extractToolError(event, normalizedEventType));
+        extractToolError(event, normalizedEventType),
+        com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
+        extractContent(event));
+  }
+
+  private static SourceRecord createBlockRecord(
+      String blockLocator,
+      int eventIndex,
+      JsonNode event,
+      JsonNode block,
+      SourceRecordUsage usage) {
+    boolean toolResult = "tool_result".equals(block.path("type").asText());
+    String eventType = toolResult ? "tool_result" : "user";
+    StringBuilder content = new StringBuilder();
+    appendTextValue(content, block, false);
+    Optional<String> toolName =
+        toolResult
+            ? firstText(block, "name").or(() -> firstTextDeep(event, "name"))
+            : Optional.empty();
+    Optional<String> toolError = Optional.empty();
+    if (toolResult) {
+      if (block.path("is_error").asBoolean(false) || event.path("is_error").asBoolean(false)) {
+        toolError = Optional.of("tool_error");
+      } else if (ToolFailureClassifier.looksFailed(content.toString(), toolName.orElse(""))) {
+        toolError = Optional.of("text_heuristic_failure");
+      }
+    }
+    return new SourceRecord(
+        blockLocator,
+        eventIndex,
+        eventType,
+        toolResult ? Optional.empty() : firstTextDeep(event, "id", "uuid", "call_id"),
+        firstTextDeep(event, "model"),
+        firstTextDeep(event, "timestamp"),
+        extractTurnId(event, eventType),
+        usage,
+        List.of(),
+        toolResult ? firstText(block, "tool_use_id", "call_id", "id") : Optional.empty(),
+        toolName,
+        toolError,
+        com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
+        content.toString());
   }
 
   private static String normalizeEventType(JsonNode event, String eventType) {
@@ -413,37 +481,59 @@ public final class JsonSourceRecordMapper {
     return sb.toString();
   }
 
+  /**
+   * 从事件提取实际文本内容，用于归一化时填充 sourceUnits。
+   *
+   * @param event JSON 事件节点
+   * @return 提取的文本内容，无内容时返回空串
+   */
+  private static String extractContent(JsonNode event) {
+    if (event == null) {
+      return "";
+    }
+    StringBuilder sb = new StringBuilder();
+    for (JsonNode container : contentContainers(event)) {
+      appendTextValue(sb, container, false);
+    }
+    return sb.toString();
+  }
+
   private static void appendTextValue(StringBuilder sb, JsonNode value) {
+    appendTextValue(sb, value, true);
+  }
+
+  private static void appendTextValue(StringBuilder sb, JsonNode value, boolean separateLines) {
     if (value == null) {
       return;
     }
     if (value.isTextual()) {
-      appendLine(sb, value.asText());
+      appendText(sb, value.asText(), separateLines);
       return;
     }
     if (value.isArray()) {
       for (JsonNode item : value) {
-        appendTextValue(sb, item);
+        appendTextValue(sb, item, separateLines);
       }
       return;
     }
     if (value.isObject()) {
       JsonNode text = value.get("text");
       if (text != null && text.isTextual()) {
-        appendLine(sb, text.asText());
+        appendText(sb, text.asText(), separateLines);
       }
+      appendTextValue(sb, value.get("parts"), separateLines);
       JsonNode content = value.get("content");
       if (content != null) {
-        appendTextValue(sb, content);
+        appendTextValue(sb, content, separateLines);
       }
     }
   }
 
-  private static void appendLine(StringBuilder sb, String text) {
-    if (text == null || text.isBlank()) {
+  private static void appendText(StringBuilder sb, String text, boolean separateLines) {
+    if (text == null || (separateLines && text.isBlank())) {
       return;
     }
-    if (!sb.isEmpty()) {
+    if (separateLines && !sb.isEmpty()) {
       sb.append("\n");
     }
     sb.append(text);

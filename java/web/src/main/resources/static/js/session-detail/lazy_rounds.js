@@ -120,12 +120,16 @@
       tpl.setAttribute('data-payload-token-estimate', src.token_estimate || '');
       if (src.html) {
         setHtml(tpl, src.html);
-      } else if (typeof payloadNodeFromJson === 'function') {
-        tpl.content.appendChild(payloadNodeFromJson(src));
-      } else if (src.text) {
-        var pre = document.createElement('pre');
-        pre.textContent = src.text;
-        tpl.content.appendChild(pre);
+      } else if (src.text || src.content) {
+        if (typeof payloadNodeFromJson === 'function') {
+          tpl.content.appendChild(payloadNodeFromJson(src));
+        } else if (src.text) {
+          var pre = document.createElement('pre');
+          pre.textContent = src.text;
+          tpl.content.appendChild(pre);
+        }
+      } else {
+        tpl.setAttribute('data-payload-index-only', 'true');
       }
       container.appendChild(tpl);
     }
@@ -136,6 +140,7 @@
     var calls = Array.isArray(round.calls) ? round.calls : [];
     var toolCallIds = Array.isArray(round.toolCallIds) ? round.toolCallIds : [];
     var tools = Array.isArray(round.tools) ? round.tools : [];
+    var assistantTexts = round.callAssistantTexts || {};
     var mainCalls = calls.filter(function (call) { return !call || call.scope !== 'subagent'; });
     var subagentCalls = calls.filter(function (call) { return call && call.scope === 'subagent'; });
     var summaryText = rowText(row, '.summary-title') || 'Round R' + roundId;
@@ -145,30 +150,32 @@
       html += '<div class="sd-card-empty">No normalized calls returned by the round API.</div>';
     } else {
       mainCalls.forEach(function (call, idx) {
-        html += renderAssistantTimelineItem(roundId, call, idx + 1, summaryText, timeText);
+        var callText = assistantTexts[call.callId] || '';
+        html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, summaryText, timeText);
         html += renderToolTimelineItems(toolsForCall(call, tools), roundId, false);
       });
       if (!mainCalls.length && toolCallIds.length) {
         html += renderToolTimelineItems(tools, roundId, false);
       }
-      html += renderSubagentTimeline(subagentCalls, tools, roundId);
+      html += renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts);
     }
     html += '</div></div>';
     return html;
   }
 
-  function renderAssistantTimelineItem(roundId, call, callIndex, summaryText, timeText) {
+  function renderAssistantTimelineItem(roundId, call, callIndex, callText, summaryText, timeText) {
     call = call || {};
     var usage = call.usage || {};
     var callLabel = call.callKey || ('C' + callIndex);
     var payloadId = payloadIdFor(call, 'resp');
     var payloadKind = payloadKindFor(call, 'resp');
+    var displayText = callText || summaryText || 'Assistant response';
     return '<div class="sd-timeline-item" data-timeline-item="assistant_text">'
       + '<span class="sd-timeline-dot sd-timeline-dot--text"></span>'
       + '<section class="sd-tool-group sd-tool-group--flat">'
       + '<div class="sd-tool-row sd-event-row sd-event-row--compact sd-event-row--assistant_text">'
       + '<span class="sd-tool-kind">TEXT</span>'
-      + '<span class="sd-tool-cmd sd-event-row__text" title="' + escapeRoundHtml(summaryText) + '">' + escapeRoundHtml(summaryText) + '</span>'
+      + '<span class="sd-tool-cmd sd-event-row__text" title="' + escapeRoundHtml(displayText) + '">' + escapeRoundHtml(displayText) + '</span>'
       + '<span class="sd-tool-result" title="' + escapeRoundHtml(call.model || 'Assistant Text') + '">' + escapeRoundHtml(call.model || 'Assistant Text') + '</span>'
       + '<span class="sd-tool-time">' + escapeRoundHtml(localTime(call.timestamp) || timeText || '—') + '</span>'
       + '<span class="sd-exit sd-exit--muted">#' + escapeRoundHtml(callLabel.replace(/^C/, '')) + '</span>'
@@ -184,6 +191,7 @@
     return tools.map(function (tool, idx) {
       var status = toolStatusLabel(tool);
       var failed = isFailedTool(tool);
+      var toolPayloadId = 'tool:result:' + (tool.toolCallId || '');
       return '<div class="sd-timeline-item" data-timeline-item="tool-call">'
         + '<span class="sd-timeline-dot sd-timeline-dot--tool"></span>'
         + '<section class="sd-tool-group sd-tool-group--flat">'
@@ -194,12 +202,14 @@
         + '<span class="sd-tool-time">—</span>'
         + '<span class="sd-exit' + (failed ? ' sd-exit--err' : '') + '">' + escapeRoundHtml(durationLabel(tool.durationMs)) + '</span>'
         + '<span class="sd-tool-tokens">' + escapeRoundHtml(isSubagent ? 'sub' : 'main') + '</span>'
-        + '<span></span>'
+        + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
+        + escapeRoundHtml(toolPayloadId) + '" data-payload-kind="tool_result" data-payload-title="'
+        + escapeRoundHtml(tool.name || 'Tool') + ' · Result">Result</button>'
         + '</div></section></div>';
     }).join('');
   }
 
-  function renderSubagentTimeline(subagentCalls, tools, roundId) {
+  function renderSubagentTimeline(subagentCalls, tools, roundId, assistantTexts) {
     if (!subagentCalls.length) return '';
     var groups = groupSubagentCalls(subagentCalls);
     var html = '';
@@ -222,23 +232,24 @@
         + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-subagent__toggle" data-action="toggle-subagent-rounds" aria-expanded="false">Expand all</button>'
         + '</div><div class="sd-sub-rounds">';
       groupCalls.forEach(function (call, idx) {
-        html += renderSubRound(call, toolsForCall(call, tools), subagentId, idx + 1);
+        html += renderSubRound(call, toolsForCall(call, tools), subagentId, idx + 1, assistantTexts || {});
       });
       html += '</div></section></div></div>';
     });
     return html;
   }
 
-  function renderSubRound(call, tools, subagentId, indexInSubagent) {
+  function renderSubRound(call, tools, subagentId, indexInSubagent, assistantTexts) {
     var usage = call.usage || {};
     var sr = subRoundLabel(call, indexInSubagent);
     var requestId = 'sub-' + subagentId + '-IX' + indexInSubagent + '-request-attribution';
     var responseId = 'sub-' + subagentId + '-IX' + indexInSubagent + '-response-attribution';
+    var callText = (assistantTexts || {})[call.callId] || 'Assistant response';
     return '<div class="sd-sub-round" data-sub-round-id="' + escapeRoundHtml(String(indexInSubagent)) + '" data-sub-round-open="false">'
       + '<div class="sd-sub-round__summary" data-sub-round-toggle>'
       + '<button type="button" class="sd-sub-round__toggle" data-action="toggle-sub-round" aria-expanded="false" aria-label="Toggle subround ' + escapeRoundHtml(sr) + '"><span aria-hidden="true">›</span></button>'
       + '<span class="sd-sub-id">' + escapeRoundHtml(sr) + '</span>'
-      + '<span class="sd-sub-title">Assistant response</span>'
+      + '<span class="sd-sub-title" title="' + escapeRoundHtml(callText) + '">' + escapeRoundHtml(callText) + '</span>'
       + '<span class="sd-attribution-actions sd-attribution-actions--subround" aria-label="LLM attribution">'
       + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(requestId) + '" data-payload-kind="llm.request_attribution" data-payload-title="Subagent · Request Attribution">request</button> '
       + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(responseId) + '" data-payload-kind="llm.response_attribution" data-payload-title="Subagent · Response Attribution">response</button>'

@@ -98,6 +98,31 @@ class CallBuilderTest {
     }
 
     @Test
+    @DisplayName("sourceUnits 包含 SourceRecord.content 的内容")
+    void sourceUnitsContainsContentFromSourceRecord() {
+      ObjectNode event = MAPPER.createObjectNode();
+      event.put("type", "assistant");
+      event.put("id", "call-1");
+      event.put("model", "claude-3-sonnet");
+      ArrayNode content = event.putArray("content");
+      ObjectNode textBlock = content.addObject();
+      textBlock.put("type", "text");
+      textBlock.put("text", "Test content");
+
+      EventClassifier.ClassifiedEvents classified =
+          EventClassifier.classify(TestSourceRecords.records(event));
+
+      List<NormalizedCall> calls =
+          CallBuilder.buildCalls(TestSourceRecords.records(event), classified);
+
+      assertThat(calls).hasSize(1);
+      NormalizedCall call = calls.get(0);
+      assertThat(call.sourceUnits()).isNotEmpty();
+      assertThat(call.sourceUnits().get(0)).containsEntry("text", "Test content");
+      assertThat(call.sourceUnits().get(0)).containsEntry("role", "assistant");
+    }
+
+    @Test
     @DisplayName("从 content 中提取 tool_use 块到 response.toolCallIds")
     void extractsToolUseFromContent() {
       ObjectNode event = createAssistantWithToolUse("call-1", "toolu_1", "Read");

@@ -493,7 +493,8 @@ public final class CodexSourceAdapter implements SourceAdapter {
         record.toolUseId(),
         record.toolName(),
         record.toolError(),
-        relation == null ? SourceRecordRelation.empty() : relation);
+        relation == null ? SourceRecordRelation.empty() : relation,
+        record.content());
   }
 
   private static SourceRecordRelation relationForEvent(
@@ -825,7 +826,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
           List.of(),
           optionalText(text(payload, "call_id")),
           Optional.empty(),
-          extractCodexToolError(payload));
+          extractCodexToolError(payload),
+          SourceRecordRelation.empty(),
+          responseText(payload.get("output")));
     }
     if ("message".equals(payloadType)) {
       String role = text(payload, "role");
@@ -842,13 +845,15 @@ public final class CodexSourceAdapter implements SourceAdapter {
             List.of(),
             Optional.empty(),
             Optional.empty(),
-            Optional.empty());
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            responseText(payload.get("content")));
       }
-      if ("assistant".equals(role) && !hasTokenUsage) {
+      if ("assistant".equals(role)) {
         return new SourceRecord(
             recordLocator,
             eventIndex,
-            "assistant",
+            hasTokenUsage ? "response_item" : "assistant",
             Optional.empty(),
             optionalText(currentModel),
             optionalText(timestamp),
@@ -857,7 +862,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
             List.of(),
             Optional.empty(),
             Optional.empty(),
-            Optional.empty());
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            responseText(payload.get("content")));
       }
     }
     if ("reasoning".equals(payloadType) && !hasTokenUsage) {
@@ -876,6 +883,32 @@ public final class CodexSourceAdapter implements SourceAdapter {
           Optional.empty());
     }
     return basicRecord(recordLocator, eventIndex, "response_item", timestamp);
+  }
+
+  /** 提取文本块，保持源顺序和空白，不将非文本结构序列化为响应内容。 */
+  private static String responseText(JsonNode node) {
+    if (node == null) {
+      return "";
+    }
+    if (node.isTextual()) {
+      return node.asText();
+    }
+    if (node.isArray()) {
+      StringBuilder content = new StringBuilder();
+      for (JsonNode part : node) {
+        content.append(responseText(part));
+      }
+      return content.toString();
+    }
+    String type = text(node, "type");
+    if (type.isEmpty()
+        || "text".equals(type)
+        || "input_text".equals(type)
+        || "output_text".equals(type)) {
+      JsonNode value = node.get("text");
+      return value != null && value.isTextual() ? value.asText() : "";
+    }
+    return "";
   }
 
   private static SourceRecord basicRecord(

@@ -3,13 +3,17 @@ package com.feipi.session.browser.contracttest.shadow;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.domain.normalized.NormalizedAgent;
 import com.feipi.session.browser.domain.normalized.NormalizedConstants;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedSourceFile;
 import com.feipi.session.browser.domain.normalized.SourceFileRole;
 import com.feipi.session.browser.domain.source.SourceRecord;
+import com.feipi.session.browser.index.store.sqlite.loader.NormalizedArtifactLoader;
 import com.feipi.session.browser.normalization.NormalizationEngine;
+import com.feipi.session.browser.query.api.PayloadVisibility;
+import com.feipi.session.browser.scan.artifact.CanonicalJsonWriter;
 import com.feipi.session.browser.source.common.JsonlReader;
 import com.feipi.session.browser.source.common.JsonlReaderResult;
 import com.feipi.session.browser.source.json.JsonSourceRecordMapper;
@@ -81,7 +85,7 @@ class ShadowFixtureTest {
     for (int i = 0; i < readerResult.events().size(); i++) {
       JsonNode event = readerResult.events().get(i);
       String eventType = extractEventType(event);
-      records.add(JsonSourceRecordMapper.toSourceRecord(locator, i, event, eventType));
+      records.addAll(JsonSourceRecordMapper.toSourceRecords(locator, i, event, eventType));
     }
     return new ParseResult(records, readerResult.diagnostics());
   }
@@ -99,6 +103,40 @@ class ShadowFixtureTest {
   }
 
   record ParseResult(List<SourceRecord> records, List<SourceDiagnostic> diagnostics) {}
+
+  @Test
+  void preservesMixedPayloadThroughJsonlNormalizationAndArtifactReload() throws IOException {
+    Path input = Files.createTempFile("synthetic-content-", ".jsonl");
+    Path stored = Files.createTempFile("synthetic-artifact-", ".json");
+    try {
+      Files.writeString(
+          input,
+          """
+          {"type":"user","message":{"content":" initial request\\n"}}
+          {"type":"assistant","id":"a1","message":{"content":[{"type":"text","text":"answer one"},{"type":"tool_use","id":"t1","name":"Read"},{"type":"tool_use","id":"t2","name":"Read"}]}}
+          {"type":"user","message":{"content":[{"type":"tool_result","tool_use_id":"t1","content":" A\\n"},{"type":"text","text":"middle"},{"type":"tool_result","tool_use_id":"t2","content":" B\\n"}]}}
+          {"type":"assistant","id":"a2","message":{"content":"answer two"}}
+          {"type":"user","message":{"content":"future input"}}
+          """);
+      ParseResult parsed = parseFixture(input, "synthetic.jsonl");
+      var artifact =
+          runPipeline(NormalizedAgent.CLAUDE_CODE, parsed.records(), parsed.diagnostics());
+      Files.write(stored, new CanonicalJsonWriter().serialize(artifact));
+      var reloaded = NormalizedArtifactLoader.load(stored);
+      var lookup = PayloadLookup.fromArtifact(reloaded, PayloadVisibility.STANDARD);
+      assertThat(reloaded.calls()).hasSize(2);
+      assertThat(lookup.lookup("main:req:a1").orElseThrow().content())
+          .isEqualTo(" initial request\n");
+      assertThat(lookup.lookup("main:resp:a1").orElseThrow().content()).isEqualTo("answer one");
+      assertThat(lookup.lookup("main:req:a2").orElseThrow().content())
+          .isEqualTo(" A\n\nmiddle\n B\n");
+      assertThat(lookup.lookup("tool:result:t1").orElseThrow().content()).isEqualTo(" A\n");
+      assertThat(lookup.lookup("tool:result:t2").orElseThrow().content()).isEqualTo(" B\n");
+    } finally {
+      Files.deleteIfExists(input);
+      Files.deleteIfExists(stored);
+    }
+  }
 
   @Nested
   @DisplayName("Claude Code golden fixture")

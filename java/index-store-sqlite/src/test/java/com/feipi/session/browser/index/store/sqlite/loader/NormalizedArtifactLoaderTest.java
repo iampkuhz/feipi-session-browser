@@ -13,6 +13,29 @@ import org.junit.jupiter.api.Test;
 class NormalizedArtifactLoaderTest {
 
   @Test
+  void preservesInlinePayloadUnitsWithBothFieldStyles() {
+    List<Map<String, Object>> units =
+        List.of(
+            Map.of("role", "user", "text", " synthetic request\n"),
+            Map.of("role", "assistant", "text", "synthetic response\n"),
+            Map.of("type", "tool_result", "tool_call_id", "tool-1", "text", "result"));
+    for (String field : List.of("source_units", "sourceUnits")) {
+      var artifact =
+          NormalizedArtifactLoader.fromMap(
+              Map.of(
+                  "schema_version",
+                  NormalizedConstants.SCHEMA_VERSION,
+                  "agent",
+                  "claude_code",
+                  "session",
+                  Map.of("session_key", "claude_code:synthetic", "session_id", "synthetic"),
+                  "calls",
+                  List.of(Map.of("call_id", "C1", field, units))));
+      assertThat(artifact.calls().get(0).sourceUnits()).containsExactlyElementsOf(units);
+    }
+  }
+
+  @Test
   @DisplayName("支持 main/Python-era snake_case 归一化制品字段")
   void supportsSnakeCaseNormalizedArtifact() {
     Map<String, Object> artifact =

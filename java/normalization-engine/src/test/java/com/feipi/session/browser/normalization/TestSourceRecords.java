@@ -34,7 +34,9 @@ final class TestSourceRecords {
         text(node, "name"),
         text(node, "is_error").filter("true"::equals).isPresent()
             ? Optional.of("tool_error")
-            : Optional.empty());
+            : Optional.empty(),
+        com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
+        content(node));
   }
 
   static List<SourceRecord> records(JsonNode... nodes) {
@@ -116,5 +118,34 @@ final class TestSourceRecords {
       }
     }
     return List.copyOf(calls);
+  }
+
+  private static String content(JsonNode node) {
+    if (node == null || !node.isObject()) {
+      return "";
+    }
+    JsonNode content = node.get("content");
+    if (content == null) {
+      return "";
+    }
+    if (content.isTextual()) {
+      return content.asText();
+    }
+    if (content.isArray()) {
+      StringBuilder sb = new StringBuilder();
+      for (JsonNode block : content) {
+        if (block != null && block.isObject()) {
+          Optional<String> text = text(block, "text");
+          if (text.isPresent()) {
+            if (!sb.isEmpty()) {
+              sb.append("\n");
+            }
+            sb.append(text.get());
+          }
+        }
+      }
+      return sb.toString();
+    }
+    return "";
   }
 }

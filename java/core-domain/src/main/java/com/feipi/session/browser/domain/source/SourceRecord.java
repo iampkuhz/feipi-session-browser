@@ -14,7 +14,7 @@ import java.util.Optional;
  * 源中性的已解析事件记录。
  *
  * <p>该模型是 adapter parse 阶段与 normalization engine 之间的共享 core model。它只承载归一化所需的稳定字段，不保存 Jackson {@code
- * JsonNode}、SQLite row、文件句柄或 provider 原始 payload。locator 应为可复现定位标识，不得把绝对 home path 作为长期身份。
+ * JsonNode}、SQLite row 或文件句柄；content 仅承载实际文本且不得进入日志。locator 应为可复现定位标识。
  *
  * @param locator 源记录定位符，来源于相对路径/会话内偏移等稳定信息
  * @param eventIndex 事件在源输入中的序号，从 0 开始
@@ -29,6 +29,7 @@ import java.util.Optional;
  * @param toolName 独立工具调用记录的工具名称，缺失时为空
  * @param toolError 工具结果中的错误信息，非空表示工具执行失败；缺失时为空
  * @param relation 该记录携带的父子关系证据，缺失时为空关系
+ * @param content 实际文本内容，缺失时为空且不输出到日志
  */
 @DomainModel
 public record SourceRecord(
@@ -69,7 +70,10 @@ public record SourceRecord(
     @NotNull Optional<String> toolError,
 
     /* 该记录携带的父子关系证据，缺失时为空关系。 */
-    @NotNull SourceRecordRelation relation) {
+    @NotNull SourceRecordRelation relation,
+
+    /* 记录的实际文本内容，用于归一化时填充 sourceUnits；缺失时为空。 */
+    @NotNull String content) {
 
   /**
    * 兼容旧调用点的构造器。
@@ -102,7 +106,65 @@ public record SourceRecord(
         toolUseId,
         toolName,
         toolError,
-        SourceRecordRelation.empty());
+        SourceRecordRelation.empty(),
+        "");
+  }
+
+  /** 兼容未传入文本内容的关系记录。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        "");
+  }
+
+  /** 返回仅替换文本内容的不可变副本。 */
+  public SourceRecord withContent(String replacementContent) {
+    return new SourceRecord(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        replacementContent);
+  }
+
+  /** 日志摘要不包含文本或其他 provider 原始字段。 */
+  @Override
+  public String toString() {
+    return "SourceRecord[eventIndex=" + eventIndex + ", contentLength=" + content.length() + "]";
   }
 
   /**
@@ -115,6 +177,8 @@ public record SourceRecord(
     if (eventType == null || eventType.isBlank()) {
       eventType = "unknown";
     }
+    // content 默认值处理
+    content = content == null ? "" : content;
     // 集合防御性拷贝
     toolCalls = List.copyOf(toolCalls);
     try {
@@ -132,7 +196,8 @@ public record SourceRecord(
           toolUseId,
           toolName,
           toolError,
-          relation);
+          relation,
+          content);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }
@@ -159,7 +224,9 @@ public record SourceRecord(
         List.of(),
         Optional.empty(),
         Optional.empty(),
-        Optional.empty());
+        Optional.empty(),
+        SourceRecordRelation.empty(),
+        "");
   }
 
   /**

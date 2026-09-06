@@ -329,7 +329,7 @@ test('[UI-SD-021][UI-SD-041] payload typed content remains accessible in the cur
   expect((await rendered.innerText()).trim()).not.toBe('(No rendered content)');
   await expect(modal.locator('.sd-payload-shell')).toBeVisible();
   await expect(modal.locator('.sd-payload-meta')).toContainText('Metadata');
-  await expect(modal.locator('.sd-payload-empty')).toHaveText('No content');
+  await expect(modal.locator('.sd-payload-empty')).toHaveCount(0);
 
   await page.keyboard.press('Escape');
   await expect(modal).toBeHidden({ timeout: 5_000 });

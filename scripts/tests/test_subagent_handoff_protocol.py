@@ -75,6 +75,70 @@ def test_agents_md_remains_short_index():
     assert "subagent_instance_protocol" not in _read("AGENTS.md")
 
 
+def test_qoder_delegation_structure_in_manifest():
+    manifest = yaml.safe_load(_read("harness/agent-policy.manifest.yaml"))
+    qd = manifest["qoder_delegation"]
+    assert qd["default_implementer"] == "qoder"
+    assert isinstance(qd["default_scope"], list)
+    assert len(qd["default_scope"]) >= 5
+    assert isinstance(qd["exceptions_codex_keeps"], list)
+    assert len(qd["exceptions_codex_keeps"]) >= 3
+    assert qd["max_rework_rounds"] == 2
+    assert isinstance(qd["visible_dispatch_card"], list)
+    assert "task_id" in qd["visible_dispatch_card"]
+    assert "failure_policy" in qd["visible_dispatch_card"]
+    assert isinstance(qd["parallel_constraints"], list)
+    assert len(qd["parallel_constraints"]) >= 3
+    assert isinstance(qd["identity_rules"], list)
+    assert isinstance(qd["no_auto_features"], list)
+    assert any("自动重发" in f for f in qd["no_auto_features"])
+
+
+def test_agents_md_references_delegation_docs():
+    text = _read("AGENTS.md")
+    assert "默认实现归属" in text
+    assert "qoder_delegation" in text
+    assert "docs/development/qoder-subtasks.md" in text
+
+
+def test_qoder_subtasks_doc_has_delegation_section():
+    text = _read("docs/development/qoder-subtasks.md")
+    assert "默认实现归属" in text
+    assert "单一可验收目标" in text
+    assert "最多 2 轮返工" in text
+    assert "task id" in text.lower() or "task_id" in text
+    assert "codex queue" in text
+    assert "queued" in text
+    assert "无需用户输入" in text
+
+
+def test_qoder_runs_are_serial_even_when_codex_can_work_in_parallel():
+    policy = yaml.safe_load(_read("harness/agent-policy.manifest.yaml"))["qoder_delegation"]
+    assert policy["max_active_runs"] == 1
+    assert policy["scheduling"] == {
+        "overflow": "queue",
+        "next_run_requires_confirmed_completion": True,
+        "unknown_status_blocks_dispatch": True,
+        "short_overlap_by_default": False,
+        "codex_independent_work_allowed": True,
+        "enforcement": "process-preflight-best-effort",
+    }
+    assert "Qoder 同时最多 1 个任务" in _read("AGENTS.md")
+    doc = _read("docs/development/qoder-subtasks.md")
+    assert "无锁、无自动队列" in doc
+    assert "运行状态不明时不补开" in doc
+    assert "Qoder 单任务调度" in _read("openspec/specs/qoder-subtask-cli/spec.md")
+
+
+def test_spec_has_delegation_requirement():
+    text = _read("openspec/specs/qoder-subtask-cli/spec.md")
+    assert "默认实现归属" in text
+    assert "SHALL" in text
+    assert "SHALL NOT" in text
+    assert "派发可见性" in text
+    assert "返工上限" in text
+
+
 def test_qoder_completion_callback_keeps_exact_parent_and_no_retry():
     policy = yaml.safe_load(_read("harness/agent-policy.manifest.yaml"))["qoder_delegation"]
     callback = policy["completion_callback"]

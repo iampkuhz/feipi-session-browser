@@ -37,8 +37,16 @@ public final class CallBuilder {
   public static List<NormalizedCall> buildCalls(
       List<? extends SourceRecord> records, EventClassifier.ClassifiedEvents classified) {
     CallBuildContext context = CallBuildContext.create(records, classified.assistantMessages());
-    return context.frames().stream()
-        .map(frame -> buildCall(context, classified.toolResults(), frame))
+    List<List<Map<String, Object>>> units =
+        CallSourceUnitBuilder.build(records, record -> displaySubagentId(record).orElse(""));
+    return IntStream.range(0, context.frames().size())
+        .mapToObj(
+            index ->
+                buildCall(
+                    context,
+                    classified.toolResults(),
+                    context.frames().get(index),
+                    units.get(index)))
         .toList();
   }
 
@@ -70,7 +78,10 @@ public final class CallBuilder {
   }
 
   private static NormalizedCall buildCall(
-      CallBuildContext context, List<SourceRecord> toolResults, AssistantCallFrame frame) {
+      CallBuildContext context,
+      List<SourceRecord> toolResults,
+      AssistantCallFrame frame,
+      List<Map<String, Object>> sourceUnits) {
     SourceRecord record = frame.record();
     NormalizedCallUsage usage = TokenAccountant.extractUsage(record);
 
@@ -90,7 +101,7 @@ public final class CallBuilder {
         new NormalizedCallResponse(
             record.toolCalls().stream().map(SourceToolCall::toolCallId).toList()),
         List.of(),
-        List.of(),
+        sourceUnits,
         Map.of(),
         Map.of(),
         frame.subagentId(),

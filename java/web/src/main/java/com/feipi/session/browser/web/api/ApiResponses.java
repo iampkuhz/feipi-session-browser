@@ -4,6 +4,7 @@ import com.feipi.session.browser.common.validation.ParamChecks;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,6 +28,7 @@ public final class ApiResponses {
    * @param content payload 内容，标准可见性下可能为空
    * @param truncated 内容是否被截断
    * @param schemaVersion 响应 schema 版本
+   * @param text payload 文本内容，与 content 一致，供前端 payloadNodeFromJson 读取
    */
   public record PayloadResponse(
       String payloadId,
@@ -34,7 +36,8 @@ public final class ApiResponses {
       String callId,
       String content,
       boolean truncated,
-      String schemaVersion) {
+      String schemaVersion,
+      String text) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -47,6 +50,7 @@ public final class ApiResponses {
       Objects.requireNonNull(callId, "callId 不得为 null");
       content = content == null ? "" : content;
       schemaVersion = schemaVersion == null ? "" : schemaVersion;
+      text = text == null ? content : text;
     }
   }
 
@@ -82,6 +86,7 @@ public final class ApiResponses {
    * @param totalTokens 本轮次累计 token 用量
    * @param isSubagent 是否为子 agent 轮次
    * @param parentCallId 父调用 ID，主会话轮次为空
+   * @param callAssistantTexts 每个调用的 assistant 可见文本预览，key 为 callId
    */
   public record RoundSummary(
       List<String> callIds,
@@ -90,7 +95,8 @@ public final class ApiResponses {
       List<CallSummary> calls,
       long totalTokens,
       boolean isSubagent,
-      String parentCallId) {
+      String parentCallId,
+      Map<String, String> callAssistantTexts) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -107,6 +113,7 @@ public final class ApiResponses {
       tools = List.copyOf(tools);
       calls = List.copyOf(calls);
       parentCallId = parentCallId == null ? "" : parentCallId;
+      callAssistantTexts = callAssistantTexts == null ? Map.of() : Map.copyOf(callAssistantTexts);
     }
   }
 

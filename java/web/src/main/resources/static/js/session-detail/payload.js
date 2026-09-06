@@ -215,9 +215,9 @@
   function payloadNodeFromJson(payload) {
     payload = payload || {};
     var kind = payload.kind || "unknown";
-    var status = payload.status || "available";
+    var status = payload.status || (payload.truncated ? "truncated" : "available");
     var size = payload.size || "—";
-    var text = payload.text || "";
+    var text = payload.text || payload.content || "";
     var toolName = payload.tool_name || "";
     var toolStatus = payload.tool_status || "";
     var toolCommand = payload.tool_command || "";

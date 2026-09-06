@@ -14,6 +14,14 @@
 
 - 非平凡产品、agent、harness、gate 或跨模块变更先走 OpenSpec `openspec/changes/<id>/`；`openspec/specs/` 是长期真相。
 
+## 默认实现归属
+
+- Codex 主调度时，功能、修复、重构、测试、脚本、配置、文档修改默认交给 Qoder；Codex 负责拆分、复核与验收。
+- 极小任务、设计决策、Qoder 不可用/权限不足/两轮返工失败由 Codex 接管并说明；禁止递归派发。
+- Qoder 同时最多 1 个任务，其余排队；确认结束才派发下一个，状态不明不补开。Codex 可并行做无冲突工作。
+- 单目标；派发前公开 task id、读写范围、验收；集成串行。
+- 规则：`harness/agent-policy.manifest.yaml` 的 `qoder_delegation`；用法：`docs/development/qoder-subtasks.md`。
+
 ## 受保护路径
 
 - `.claude/`、`.codex/`、`.qoder/`、`.agents/`、`skills/`、`harness/`、`scripts/`、`openspec/`、`src/session_browser/`、`scripts/tests/`、`java/tests/`、`AGENTS.md`、`.claude/CLAUDE.md`。

@@ -1,5 +1,6 @@
 package com.feipi.session.browser.web.api;
 
+import com.feipi.session.browser.application.sessiondetail.PayloadCallContentExtractor;
 import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
@@ -23,7 +24,9 @@ import com.feipi.session.browser.web.api.SessionApiService.SessionDataException;
 import io.javalin.http.Context;
 import io.javalin.http.HttpStatus;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import org.slf4j.Logger;
@@ -115,7 +118,8 @@ public final class SessionApiHandler {
                   entry.callId(),
                   entry.content(),
                   entry.truncated(),
-                  ApiResponses.SCHEMA_VERSION));
+                  ApiResponses.SCHEMA_VERSION,
+                  entry.content()));
         });
   }
 
@@ -331,6 +335,19 @@ public final class SessionApiHandler {
 
     boolean isSubagent = !round.parentCallId().isEmpty();
 
+    Map<String, String> callAssistantTexts = new LinkedHashMap<>();
+    if (sessionCtx.artifact() != null) {
+      Map<String, String> allTexts =
+          PayloadCallContentExtractor.buildCallAssistantTextMap(
+              sessionCtx.calls(), sessionCtx.artifact());
+      for (NormalizedCall call : roundCalls) {
+        String text = allTexts.get(call.callId());
+        if (text != null && !text.isEmpty()) {
+          callAssistantTexts.put(call.callId(), text);
+        }
+      }
+    }
+
     return new RoundSummary(
         round.calls(),
         toolExecIds,
@@ -338,7 +355,8 @@ public final class SessionApiHandler {
         callSummaries,
         totalTokens,
         isSubagent,
-        round.parentCallId());
+        round.parentCallId(),
+        callAssistantTexts);
   }
 
   /** 查找轮次关联的工具执行 ID。 */
