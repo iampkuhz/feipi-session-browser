@@ -233,21 +233,20 @@ public final class NormalizationEngine {
     // Dashboard 必需字段
     if (agent == NormalizedAgent.CODEX) {
       // Codex 语义子类型计数：通过 turnId 编码的 payload 子类型精确统计
-      long codexUserCount = 0;
+      // 用户消息按相邻跨表示配对，避免全会话格式优先导致混合记录漏计。
       long codexAgentMessageCount = 0;
       long codexToolCount = 0;
       for (SourceRecord record : records) {
         String et = record.eventType();
         String ti = record.turnId().orElse("");
-        if ("event_msg".equals(et) && "user_message".equals(ti)) {
-          codexUserCount++;
-        } else if ("event_msg".equals(et) && "agent_message".equals(ti)) {
+        if ("event_msg".equals(et) && "agent_message".equals(ti)) {
           codexAgentMessageCount++;
         } else if ("tool_use".equals(et)
             && ("function_call".equals(ti) || "custom_tool_call".equals(ti))) {
           codexToolCount++;
         }
       }
+      long codexUserCount = countCodexUserMessages(records);
       long codexLlmCallCount =
           countCodexTokenCountAssistantMessages(classified.assistantMessages());
       long codexAssistantCount =
@@ -423,6 +422,38 @@ public final class NormalizationEngine {
       String key = call.turnId().orElse(call.callId());
       if (seen.add(key)) {
         count++;
+      }
+    }
+    return count;
+  }
+
+  /** 只配对相邻的异种表示；时间戳不是消息身份，同文重复轮次仍分别计数。 */
+  private static long countCodexUserMessages(List<? extends SourceRecord> records) {
+    long count = 0;
+    SourceRecord pending = null;
+    for (SourceRecord record : records) {
+      String type = record.eventType();
+      boolean user =
+          "user".equals(type)
+              || ("event_msg".equals(type) && "user_message".equals(record.turnId().orElse("")));
+      if (!user) {
+        if ("assistant".equals(type)
+            || "tool_use".equals(type)
+            || "tool_result".equals(type)
+            || "response_item".equals(type)
+            || "event_msg".equals(type)) {
+          pending = null;
+        }
+        continue;
+      }
+      if (pending != null
+          && !pending.eventType().equals(type)
+          && !record.content().isBlank()
+          && record.content().equals(pending.content())) {
+        pending = null;
+      } else {
+        count++;
+        pending = record;
       }
     }
     return count;

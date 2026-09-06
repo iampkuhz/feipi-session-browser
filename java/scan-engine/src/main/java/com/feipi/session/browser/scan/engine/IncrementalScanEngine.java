@@ -53,7 +53,7 @@ public final class IncrementalScanEngine {
   private static final int FLUSH_INTERVAL = 100;
 
   /** 当前 scan logic 版本，变化时触发全量重建。 */
-  public static final int CURRENT_SCAN_LOGIC_VERSION = 4;
+  public static final int CURRENT_SCAN_LOGIC_VERSION = 5;
 
   private final NormalizationEngine normalizationEngine;
   private final NormalizedArtifactWriter artifactWriter;

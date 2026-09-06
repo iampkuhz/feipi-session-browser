@@ -557,6 +557,125 @@ class NormalizationEngineTest {
     }
 
     @Test
+    @DisplayName("Codex 双表示共存时相邻同文只计数一次")
+    void codexPairsAdjacentRepresentations() {
+      // 旧格式：event_msg + user_message
+      ObjectNode oldFormatUserMsg =
+          MAPPER
+              .createObjectNode()
+              .put("type", "event_msg")
+              .put("turnId", "user_message")
+              .put("content", "hello");
+      // 新格式：eventType="user"（来自 response_item with role="user"）
+      ObjectNode newFormatUserMsg =
+          MAPPER.createObjectNode().put("type", "user").put("content", "hello");
+      // 助手消息
+      ObjectNode agentMsg =
+          MAPPER.createObjectNode().put("type", "event_msg").put("turnId", "agent_message");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(oldFormatUserMsg, newFormatUserMsg, agentMsg),
+              List.of(),
+              List.of());
+
+      // 双表示共存时，配对计数（1 条），不重复计数
+      assertThat(artifact.session()).containsEntry("userMessageCount", 1L);
+      assertThat(artifact.session()).containsEntry("assistantMessageCount", 1L);
+    }
+
+    @Test
+    @DisplayName("Codex 仅有 eventType=user 时正常计数")
+    void codexCountsUserEventTypeWhenNoEventMsg() {
+      // 仅有新格式：eventType="user"
+      ObjectNode userMsg1 = MAPPER.createObjectNode().put("type", "user");
+      ObjectNode userMsg2 = MAPPER.createObjectNode().put("type", "user");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(userMsg1, userMsg2),
+              List.of(),
+              List.of());
+
+      // 仅有 eventType="user" 时，正常计数 2 条
+      assertThat(artifact.session()).containsEntry("userMessageCount", 2L);
+    }
+
+    @Test
+    @DisplayName("Codex 相同文本不同轮次分别计数")
+    void codexCountsRepeatedTextAtDifferentPositions() {
+      // 用户第一次提问
+      ObjectNode firstUserMsg =
+          MAPPER.createObjectNode().put("type", "user").put("content", "hello");
+      // 用户重复相同提问（不同位置）
+      ObjectNode secondUserMsg =
+          MAPPER.createObjectNode().put("type", "user").put("content", "hello");
+
+      NormalizedSessionArtifact artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(firstUserMsg, secondUserMsg),
+              List.of(),
+              List.of());
+
+      // 相同文本不同轮次，应该计数 2 条用户消息
+      assertThat(artifact.session()).containsEntry("userMessageCount", 2L);
+    }
+
+    @Test
+    @DisplayName("Codex 混合表示不吞独立轮次，缺时间戳与同时间戳仍计数")
+    void codexMixedRepresentationsKeepIndependentMessages() {
+      ObjectNode event =
+          MAPPER
+              .createObjectNode()
+              .put("type", "event_msg")
+              .put("turnId", "user_message")
+              .put("content", "first");
+      ObjectNode mirror = MAPPER.createObjectNode().put("type", "user").put("content", "first");
+      ObjectNode different =
+          MAPPER
+              .createObjectNode()
+              .put("type", "user")
+              .put("content", "second")
+              .put("timestamp", "2026-09-06T10:00:00Z");
+      ObjectNode repeated =
+          MAPPER
+              .createObjectNode()
+              .put("type", "user")
+              .put("content", "second")
+              .put("timestamp", "2026-09-06T10:00:00Z");
+      var artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(event, mirror, different, repeated),
+              List.of(),
+              List.of());
+      assertThat(artifact.session()).containsEntry("userMessageCount", 3L);
+    }
+
+    @Test
+    @DisplayName("Codex 异种同文在助手响应后不配对")
+    void codexPairingStopsAtAssistantBoundary() {
+      ObjectNode event =
+          MAPPER
+              .createObjectNode()
+              .put("type", "event_msg")
+              .put("turnId", "user_message")
+              .put("content", "again");
+      ObjectNode assistant = MAPPER.createObjectNode().put("type", "assistant");
+      ObjectNode response = MAPPER.createObjectNode().put("type", "user").put("content", "again");
+      var artifact =
+          ENGINE.normalize(
+              NormalizedAgent.CODEX,
+              TestSourceRecords.records(event, assistant, response),
+              List.of(),
+              List.of());
+      assertThat(artifact.session()).containsEntry("userMessageCount", 2L);
+    }
+
+    @Test
     @DisplayName("非 CODEX agent 使用通用分类计数")
     void nonCodexAgentUsesGenericCounting() {
       ObjectNode user = MAPPER.createObjectNode().put("type", "user");

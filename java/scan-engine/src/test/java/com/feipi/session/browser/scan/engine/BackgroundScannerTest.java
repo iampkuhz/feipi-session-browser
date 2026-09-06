@@ -268,19 +268,19 @@ class BackgroundScannerTest {
       assertThat(scanner.lastHotScanMs()).isEqualTo(1_100_000);
       assertThat(scanner.lastWarmScanMs()).isEqualTo(1_100_000);
       scanner.checkAndScan();
-      clock.setMillis(1_129_999);
+      clock.setMillis(1_219_999);
       scanner.checkAndScan();
       assertThat(hotCount.get()).isZero();
       assertThat(warmCount.get()).isZero();
-      clock.setMillis(1_130_000);
+      clock.setMillis(1_220_000);
       scanner.checkAndScan();
       assertThat(hotCount.get()).isEqualTo(1);
       assertThat(warmCount.get()).isZero();
-      clock.setMillis(1_399_999);
+      clock.setMillis(1_999_999);
       scanner.checkAndScan();
       assertThat(hotCount.get()).isEqualTo(2);
       assertThat(warmCount.get()).isZero();
-      clock.setMillis(1_400_000);
+      clock.setMillis(2_000_000);
       scanner.checkAndScan();
       assertThat(hotCount.get()).isEqualTo(2);
       assertThat(warmCount.get()).isEqualTo(1);
@@ -317,7 +317,7 @@ class BackgroundScannerTest {
         assertThat(hotCount.get()).isZero();
         assertThat(warmCount.get()).isZero();
       }
-      clock.setMillis(1_045_000);
+      clock.setMillis(1_140_000);
       scanner.checkAndScan();
       assertThat(hotCount.get()).isEqualTo(1);
       assertThat(warmCount.get()).isZero();

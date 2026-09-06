@@ -768,7 +768,14 @@ public final class CodexSourceAdapter implements SourceAdapter {
               List.of(),
               Optional.empty(),
               Optional.empty(),
-              Optional.empty()),
+              Optional.empty(),
+              SourceRecordRelation.empty(),
+              "user_message".equals(payloadType)
+                  ? responseText(
+                      payload.hasNonNull("message")
+                          ? payload.get("message")
+                          : payload.get("content"))
+                  : ""),
           previousTotals);
     }
 
