@@ -5,6 +5,30 @@ ADDED
 
 ## Requirements
 
+### Requirement: 项目 Agent 可加载
+项目 Qoder agent SHALL 使用 YAML frontmatter，包含与文件名一致的 name 和非空 description；模型 SHALL 继承而非固定。入口 Gate SHALL 检查全部项目 agent、领域薄入口和 settings 的默认项目 agent 引用。真实 CLI 列表的 exit 0 SHALL NOT 代替所有项目入口加载成功的证据。
+
+#### Scenario: 未登记的坏入口
+- **Given** 项目 agents 目录包含未登记到领域 manifest 的缺失或无效 metadata 文件
+- **When** 运行入口 Gate
+- **Then** 返回 BLOCKED，不能仅检查领域映射而漏掉该文件。
+
+### Requirement: 单层执行与验证职责
+委派入口 SHALL 在 start/resume 禁用 Agent 工具，明确执行子任务而非再次调度；此限制 SHALL NOT 宣称为 OS 或 Bash 沙箱。共享 policy SHALL 定义分层验证：Qoder 执行 handoff 指定的定向检查，主线程独立完成全部交付 required checks；不新增自动重试或取消。
+
+#### Scenario: 定向验证交回
+- **Given** Qoder 已完成自身定向检查，主线程尚未运行完整交付 Gate
+- **When** 返回 Status、Changed files、Validation、Effect checks、Risks
+- **Then** 状态仅描述本轮定向检查，整体验收仍待复核；缺失检查不能伪装为交付 PASS。
+
+### Requirement: 验证证据完整
+每条验证 SHALL 保存原命令退出码及完整日志；Gate SHALL 引用本次运行 receipt 并按 gateResults 统计数量。SHALL NOT 用摘要管道退出码、其他 run 日志、删除正向断言或篡改原回归输入来掩盖失败；没有相关输入变化时 SHALL 读取已有日志而非重跑检查取摘要。
+
+#### Scenario: 失败日志摘要
+- **Given** 被测命令失败而 tail 或 grep 成功
+- **When** 记录验证结果
+- **Then** 保留原命令失败状态，不把摘要成功作为验证 PASS。
+
 ### Requirement: 显式低开销委派
 脚本 SHALL 显式启动带完整 handoff 与独立身份的 qodercli 子任务，立即返回唯一 run id（UUID）。SHALL NOT 持续轮询、无限续跑或自动进行 Git mutation；用户已明确授权默认 bypass_permissions。
 

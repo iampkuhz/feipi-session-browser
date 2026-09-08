@@ -237,6 +237,8 @@ def _build_qodercli_args(task: dict[str, Any], cwd: Path) -> list[str]:
     args = [str(cli), "-p", prompt, "--cwd", str(cwd)]
     perm = task.get("permission_mode", DEFAULT_PERMISSION_MODE)
     args.extend(["--permission-mode", perm])
+    # 委派入口只执行当前目标，不暴露递归调度工具；Bash 仍不构成目录沙箱。
+    args.extend(["--disallowed-tools", "Agent"])
     args.extend(["--output-format", "json"])
     session_id = task.get("session_id", "")
     if session_id:

@@ -1,3 +1,7 @@
+---
+name: java-backend-implementer
+description: 用于执行本仓库 Java/Gradle 功能研发的 scoped task。需要 Java 模块边界、分层约束和质量门上下文时使用。纯 UI、纯文档、纯 OpenSpec 编排不要使用。
+---
 # java-backend-implementer
 
 ## When To Use

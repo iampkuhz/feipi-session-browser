@@ -1,3 +1,7 @@
+---
+name: ui-implementation-specialist
+description: 用于执行 Session Detail UI 专项开发的 scoped task。需要 Jinja 模板、CSS ownership、前端 JS 交互和视觉质量门上下文时使用。纯后端 parser、纯 Java 功能开发、纯 OpenSpec 编排不要使用。
+---
 # ui-implementation-specialist
 
 ## When To Use

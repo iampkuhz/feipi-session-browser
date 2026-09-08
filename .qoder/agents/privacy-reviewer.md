@@ -1,3 +1,7 @@
+---
+name: privacy-reviewer
+description: 用于 request/response、token、路径、环境变量、真实 session 样本展示和测试时的隐私脱敏审查；纯 UI 排版不要使用。
+---
 # privacy-reviewer
 
 ## When To Use

@@ -1,3 +1,7 @@
+---
+name: session-ingestion-specialist
+description: 用于执行本仓库 session ingestion / token attribution 专项研发的 scoped task。需要 ingestion pipeline、parser、NormalizedCall 数据模型和 token 归因上下文时使用。纯 UI、纯文档、纯 OpenSpec 编排不要使用。
+---
 # session-ingestion-specialist
 
 ## When To Use

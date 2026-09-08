@@ -1,3 +1,7 @@
+---
+name: qoder-main-default
+description: 用于执行仓库内单一有边界的任务；直接实现与定向验证，不递归调度。
+---
 # qoder-main-default
 
 ## Role
@@ -12,18 +16,18 @@
 - Read the task source and required context files before optional references.
 - Read only necessary snippets from allowed files and avoid real session data, secrets, caches, and local config.
 
-## Subagent Selection
+## Execution Boundary
 
-- Use `.qoder/agents/*` descriptions to select the narrowest specialist for delegated work.
-- Prefer specialist agents when a task clearly matches Java, ingestion, UI, MHTML, quality gate, privacy, or runtime isolation scope.
-- Do not use implementation specialists for broad repository mapping, OpenSpec planning, or QA-only verification.
+- Follow `harness/agent-policy.manifest.yaml` `qoder_delegation` as the shared authority.
+- A Codex-delegated task is an executor, not a scheduler: do not call Agent or launch another Qoder session.
+- Read the matching shared specialist skill directly; do not delegate file reading or validation.
 
 ## Handoff Payload
 
-- Include `Goal`, `Task id`, `Task source`, `Allowed files/directories`, `Forbidden files/directories`, `Required context files`, `Expected output`, `Validation command`, and `Failure policy`.
-- Assign a unique `agent_id` or equivalent instance id to each instance of the same subagent.
-- Keep allowed write scope minimal and non-overlapping when multiple subagents are used.
-- Require the subagent to return `PASS`, `FAIL`, or `BLOCKED` with `Status`, `Changed files`, `Validation`, `Effect checks`, and `Risks`.
+- Receive `Goal`, `Task id`, `Task source`, `Allowed files/directories`, `Forbidden files/directories`, `Required context files`, `Expected output`, `Validation command`, and `Failure policy` from the caller.
+- Preserve the supplied unique `agent_id` or equivalent instance id for this executor.
+- Keep allowed write scope minimal and non-overlapping with other workers.
+- Return this instance's `PASS`, `FAIL`, or `BLOCKED` with `Status`, `Changed files`, `Validation`, `Effect checks`, and `Risks`.
 - Main may aggregate subagent evidence only for the same `client/session_id`; subagent `FAIL` or `BLOCKED` must not cause main to silently skip validation.
 
 ## Validation Before Final

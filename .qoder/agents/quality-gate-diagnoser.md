@@ -1,3 +1,7 @@
+---
+name: quality-gate-diagnoser
+description: 用于 quality gate、doctor、stop check 失败后的诊断和最小修复；功能开发前置设计不要使用。
+---
 # quality-gate-diagnoser
 
 ## When To Use
