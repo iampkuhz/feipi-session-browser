@@ -8,49 +8,157 @@ import java.time.ZoneId;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Consumer;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 /**
  * {@link BackgroundScanner} 单元测试。
  *
- * <p>覆盖分层调度、锁互斥、取消和 shutdown 语义。 使用 {@link FixedClock} 控制时间推进，不依赖真实 sleep。
+ * <p>覆盖分层调度、唯一 tier 选择（warm 优先）、warm 后 hot 不补跑、启动后 hot 立即执行/warm 延迟 300s、 锁互斥、取消和 shutdown 语义。 使用
+ * {@link FixedClock} 控制时间推进，不依赖真实 sleep。
  */
 class BackgroundScannerTest {
 
   @TempDir java.nio.file.Path tempDir;
 
   @Test
-  void checkAndScanRunsHotTierWhenDue() {
+  void hotRunsFirstAtStartup() {
+    // 启动后 hot 立即可执行，warm 延迟 300s
     AtomicInteger hotCount = new AtomicInteger();
     AtomicInteger warmCount = new AtomicInteger();
-    FixedClock clock = new FixedClock(10_000);
+    FixedClock clock = new FixedClock(1_000_000);
     ScanLock scanLock = new ScanLock(tempDir);
 
     BackgroundScanner scanner =
         new BackgroundScanner(
-            new TierConfig(1800, 30), // hot: 30 分钟窗口, 30 秒间隔
-            new TierConfig(86400, 300), // warm: 24 小时窗口, 5 分钟间隔
+            new TierConfig(300, 120), // hot: 120 秒间隔
+            new TierConfig(86400, 3600), // warm: 3600 秒间隔
             scanLock,
             hotCount::incrementAndGet,
             warmCount::incrementAndGet,
             clock);
 
-    // start 使 running=true，然后 shutdown 停止定时调度但保留状态
     scanner.start();
-    scanner.shutdown(1, TimeUnit.SECONDS);
+    // 不调用 shutdown()，保持 scheduler 运行
 
-    clock.setMillis(60_000); // 60 秒 > hot interval 30 秒
+    // 启动后立即 checkAndScan：hot 到期，warm 未到期（需等 300s）
     scanner.checkAndScan();
-
     assertThat(hotCount.get()).isEqualTo(1);
-    assertThat(warmCount.get()).isZero(); // 60 秒小于 warm 间隔 300 秒
+    assertThat(warmCount.get()).isZero();
+    scanner.shutdown(1, TimeUnit.SECONDS);
   }
 
   @Test
-  void checkAndScanRunsBothTiersWhenDue() {
+  void warmNotDueAt299sButDueAt300s() {
+    // warm 在 299s 不执行，在 300s 执行
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(300, 120),
+            new TierConfig(86400, 3600),
+            scanLock,
+            hotCount::incrementAndGet,
+            warmCount::incrementAndGet,
+            clock);
+
+    // 使用测试方法设置时间戳，模拟 start() 后的状态，但不启动调度器
+    long now = 1_000_000;
+    scanner.setLastHotScanMsForTest(now - 120_000); // hot 立即可执行
+    scanner.setLastWarmScanMsForTest(now - 3_600_000 + 300_000); // warm 在 300s 后到期
+
+    // 299s：warm 未到期
+    clock.setMillis(1_000_000 + 299_000);
+    scanner.checkAndScan();
+    assertThat(warmCount.get()).isZero();
+
+    // 300s：warm 到期
+    clock.setMillis(1_000_000 + 300_000);
+    scanner.checkAndScan();
+    assertThat(warmCount.get()).isEqualTo(1);
+    scanner.shutdown(1, TimeUnit.SECONDS);
+  }
+
+  @Test
+  void warmCycleIs3600s() {
+    // warm 周期 3600s：3599s 不执行，3600s 执行
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(300, 120),
+            new TierConfig(86400, 3600),
+            scanLock,
+            hotCount::incrementAndGet,
+            warmCount::incrementAndGet,
+            clock);
+
+    // 使用测试方法设置时间戳，模拟 start() 后的状态
+    long now = 1_000_000;
+    scanner.setLastHotScanMsForTest(now - 120_000);
+    scanner.setLastWarmScanMsForTest(now - 3_600_000 + 300_000);
+
+    // 首次 warm 在 300s 执行
+    clock.setMillis(1_000_000 + 300_000);
+    scanner.checkAndScan();
+    assertThat(warmCount.get()).isEqualTo(1);
+
+    // 3599s 后（相对首次 warm）：warm 未到期
+    clock.setMillis(1_000_000 + 300_000 + 3599_000);
+    scanner.checkAndScan();
+    assertThat(warmCount.get()).isEqualTo(1); // 仍为 1
+
+    // 3600s 后：warm 到期
+    clock.setMillis(1_000_000 + 300_000 + 3600_000);
+    scanner.checkAndScan();
+    assertThat(warmCount.get()).isEqualTo(2);
+    scanner.shutdown(1, TimeUnit.SECONDS);
+  }
+
+  @Test
+  void afterWarmRunsHotDoesNotRunOnNextTick() {
+    // warm 执行后，下一 tick hot 不补跑
+    AtomicInteger hotCount = new AtomicInteger();
+    AtomicInteger warmCount = new AtomicInteger();
+    FixedClock clock = new FixedClock(1_000_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(300, 120),
+            new TierConfig(86400, 3600),
+            scanLock,
+            hotCount::incrementAndGet,
+            warmCount::incrementAndGet,
+            clock);
+
+    // 使用测试方法设置时间戳，模拟 start() 后的状态
+    long now = 1_000_000;
+    scanner.setLastHotScanMsForTest(now - 120_000);
+    scanner.setLastWarmScanMsForTest(now - 3_600_000 + 300_000);
+
+    // warm 在 300s 执行
+    clock.setMillis(1_000_000 + 300_000);
+    scanner.checkAndScan();
+    assertThat(warmCount.get()).as("warm should have run").isEqualTo(1);
+    assertThat(hotCount.get()).as("hot should not have run (warm priority)").isZero();
+
+    // 下一 tick（+1s）：hot 不应补跑
+    clock.setMillis(1_000_000 + 301_000);
+    scanner.checkAndScan();
+    assertThat(hotCount.get()).as("hot should not run after warm (warm covers hot range)").isZero();
+    scanner.shutdown(1, TimeUnit.SECONDS);
+  }
+
+  @Test
+  void checkAndScanRunsOnlyWarmWhenBothDue() {
+    // warm 到期时优先 warm，绝不顺序执行两个 tier
     AtomicInteger hotCount = new AtomicInteger();
     AtomicInteger warmCount = new AtomicInteger();
     FixedClock clock = new FixedClock(600_000); // 10 分钟
@@ -58,48 +166,46 @@ class BackgroundScannerTest {
 
     BackgroundScanner scanner =
         new BackgroundScanner(
-            new TierConfig(1800, 30), // hot: 30 秒间隔
+            new TierConfig(300, 30), // hot: 30 秒间隔
             new TierConfig(86400, 300), // warm: 300 秒间隔
             scanLock,
             hotCount::incrementAndGet,
             warmCount::incrementAndGet,
             clock);
 
-    // start 使 running=true，然后 shutdown 停止定时调度
-    scanner.start();
-    scanner.shutdown(1, TimeUnit.SECONDS);
-
-    // 10 分钟 > warm interval 300 秒，两个层级都应触发
+    // 不调用 start()，lastScanMs=0，两个 tier 都到期
     scanner.checkAndScan();
 
-    assertThat(hotCount.get()).isEqualTo(1);
+    // warm 优先：只执行 warm，不执行 hot
     assertThat(warmCount.get()).isEqualTo(1);
+    assertThat(hotCount.get()).isZero();
+    scanner.shutdown(1, TimeUnit.SECONDS);
   }
 
   @Test
   void checkAndScanSkipsWhenNotDue() {
     AtomicInteger hotCount = new AtomicInteger();
     AtomicInteger warmCount = new AtomicInteger();
-    FixedClock clock = new FixedClock(5_000); // 五秒，未达到任何 tier 间隔
+    FixedClock clock = new FixedClock(1_000_000);
     ScanLock scanLock = new ScanLock(tempDir);
 
     BackgroundScanner scanner =
         new BackgroundScanner(
-            new TierConfig(1800, 30), // hot: 30 秒间隔
+            new TierConfig(300, 30), // hot: 30 秒间隔
             new TierConfig(86400, 300), // warm: 300 秒间隔
             scanLock,
             hotCount::incrementAndGet,
             warmCount::incrementAndGet,
             clock);
 
-    // 手动设置 lastScanMs 为当前时间，模拟刚刚扫描过
-    scanner.start();
-    // start 会把 lastHotScanMs 设为 0，我们需要手动触发一次让时间更新
-    // 直接调用 checkAndScan 在 5 秒时：5000 > 30*1000=30000 不成立
-    scanner.checkAndScan();
+    // 使用测试方法设置时间戳，模拟 hot 刚执行过的状态
+    long now = 1_000_000;
+    scanner.setLastHotScanMsForTest(now); // hot 刚执行
+    scanner.setLastWarmScanMsForTest(now); // warm 刚执行
 
-    // 5 秒 < hot interval 30 秒，不应触发
-    // 但 start() 设置了 lastHotScanMs=0，所以 5000-0=5000 < 30000 成立，不触发
+    // 5 秒后：hot 未到期（需 30s），warm 未到期（需 300s）
+    clock.setMillis(1_000_000 + 5_000);
+    scanner.checkAndScan();
     assertThat(hotCount.get()).isZero();
     assertThat(warmCount.get()).isZero();
     scanner.shutdown(1, TimeUnit.SECONDS);
@@ -135,10 +241,11 @@ class BackgroundScannerTest {
     FixedClock clock = new FixedClock(100_000);
     ScanLock scanLock = new ScanLock(tempDir);
 
+    // hot 在启动时立即可执行，循环动作放在 hot 位置
     BackgroundScanner scanner =
         new BackgroundScanner(
-            new TierConfig(1800, 30),
-            new TierConfig(86400, 60),
+            new TierConfig(300, 30),
+            new TierConfig(86400, 3600),
             scanLock,
             token -> {
               actionStarted.countDown();
@@ -166,19 +273,16 @@ class BackgroundScannerTest {
 
   @Test
   void cancelCurrentScanSignalsTokenDuringScan() throws Exception {
-    AtomicReference<ScanCancelToken> capturedToken = new AtomicReference<>();
     FixedClock clock = new FixedClock(100_000);
     ScanLock scanLock = new ScanLock(tempDir);
 
-    // 使用一个持有自身引用的 holder 避免 lambda 中未初始化变量问题
     BackgroundScanner[] scannerHolder = new BackgroundScanner[1];
     scannerHolder[0] =
         new BackgroundScanner(
-            new TierConfig(1800, 30),
+            new TierConfig(300, 30),
             new TierConfig(86400, 300),
             scanLock,
             () -> {
-              // 通过 cancelCurrentScan 间接验证 token 存在
               scannerHolder[0].cancelCurrentScan();
             },
             () -> {},
@@ -187,7 +291,6 @@ class BackgroundScannerTest {
     scannerHolder[0].start();
     scannerHolder[0].shutdown(1, TimeUnit.SECONDS);
 
-    // 触发扫描（cancelCurrentScan 在 action 内部被调用不会抛异常）
     scannerHolder[0].checkAndScan();
   }
 
@@ -207,12 +310,9 @@ class BackgroundScannerTest {
     AtomicInteger count = new AtomicInteger();
     ScanLock scanLock = new ScanLock(tempDir);
 
-    // 先持有锁
     ScanLock.ScanLockHandle holder = scanLock.acquire("holder", 1000);
     try {
       boolean result = BackgroundScanner.runStartupScan(count::incrementAndGet, scanLock);
-      // 同一 JVM 内 FileLock 可能抛异常或返回 null
-      // runStartupScan 会捕获异常返回 false
       assertThat(result).isFalse();
       assertThat(count.get()).isZero();
     } finally {
@@ -226,205 +326,29 @@ class BackgroundScannerTest {
     FixedClock clock = new FixedClock(100_000);
     ScanLock scanLock = new ScanLock(tempDir);
 
-    // 先持有锁
     ScanLock.ScanLockHandle holder = scanLock.acquire("blocker", 1000);
     try {
       BackgroundScanner scanner =
           new BackgroundScanner(
-              new TierConfig(1800, 30),
+              new TierConfig(300, 30),
               new TierConfig(86400, 300),
               scanLock,
               hotCount::incrementAndGet,
               () -> {},
               clock);
 
-      // checkAndScan 应该跳过（锁被占用）
       scanner.checkAndScan();
-      // hotCount 可能为 0（锁被占用跳过）或因同一 JVM 的 FileLock 语义而为 1
-      // 关键是不抛异常
     } finally {
       holder.close();
     }
   }
 
   @Test
-  void bootstrapCompletionStartsIndependentTierIntervals() {
-    AtomicInteger bootstrapCount = new AtomicInteger();
+  void noBootstrapMeansImmediateTierSelection() {
+    // 无 bootstrap：首次 checkAndScan 直接选择到期层级
     AtomicInteger hotCount = new AtomicInteger();
     AtomicInteger warmCount = new AtomicInteger();
-    FixedClock clock = new FixedClock(1_000_000);
-    BackgroundScanner scanner =
-        bootstrapScanner(
-            clock,
-            hotCount,
-            warmCount,
-            token -> {
-              bootstrapCount.incrementAndGet();
-              clock.setMillis(1_100_000);
-            });
-    try {
-      scanner.checkAndScan();
-      assertThat(scanner.bootstrapDone()).isTrue();
-      assertThat(scanner.lastHotScanMs()).isEqualTo(1_100_000);
-      assertThat(scanner.lastWarmScanMs()).isEqualTo(1_100_000);
-      scanner.checkAndScan();
-      clock.setMillis(1_219_999);
-      scanner.checkAndScan();
-      assertThat(hotCount.get()).isZero();
-      assertThat(warmCount.get()).isZero();
-      clock.setMillis(1_220_000);
-      scanner.checkAndScan();
-      assertThat(hotCount.get()).isEqualTo(1);
-      assertThat(warmCount.get()).isZero();
-      clock.setMillis(1_999_999);
-      scanner.checkAndScan();
-      assertThat(hotCount.get()).isEqualTo(2);
-      assertThat(warmCount.get()).isZero();
-      clock.setMillis(2_000_000);
-      scanner.checkAndScan();
-      assertThat(hotCount.get()).isEqualTo(2);
-      assertThat(warmCount.get()).isEqualTo(1);
-      assertThat(bootstrapCount.get()).isEqualTo(1);
-    } finally {
-      scanner.shutdown(1, TimeUnit.SECONDS);
-    }
-  }
-
-  @Test
-  void failedBootstrapRetriesOnlyWhenDueAndFallsBackWithoutClaimingSuccess() {
-    AtomicInteger attempts = new AtomicInteger();
-    AtomicInteger hotCount = new AtomicInteger();
-    AtomicInteger warmCount = new AtomicInteger();
-    FixedClock clock = new FixedClock(1_000_000);
-    BackgroundScanner scanner =
-        bootstrapScanner(
-            clock,
-            hotCount,
-            warmCount,
-            token -> {
-              attempts.incrementAndGet();
-              throw new IllegalStateException("synthetic failure");
-            });
-    try {
-      for (int attempt = 0; attempt < 4; attempt++) {
-        clock.setMillis(1_000_000 + attempt * 5000L);
-        scanner.checkAndScan();
-        assertThat(attempts.get()).isEqualTo(attempt + 1);
-        assertThat(scanner.bootstrapDone()).isFalse();
-        clock.setMillis(clock.millis() + 4999);
-        scanner.checkAndScan();
-        assertThat(attempts.get()).isEqualTo(attempt + 1);
-        assertThat(hotCount.get()).isZero();
-        assertThat(warmCount.get()).isZero();
-      }
-      clock.setMillis(1_140_000);
-      scanner.checkAndScan();
-      assertThat(hotCount.get()).isEqualTo(1);
-      assertThat(warmCount.get()).isZero();
-      assertThat(attempts.get()).isEqualTo(4);
-      assertThat(scanner.bootstrapDone()).isFalse();
-    } finally {
-      scanner.shutdown(1, TimeUnit.SECONDS);
-    }
-  }
-
-  @Test
-  void lockBusyBootstrapRetriesAfterDelayThenSucceeds() throws Exception {
-    AtomicInteger attempts = new AtomicInteger();
-    FixedClock clock = new FixedClock(1_000_000);
-    BackgroundScanner scanner =
-        bootstrapScanner(
-            clock, new AtomicInteger(), new AtomicInteger(), token -> attempts.incrementAndGet());
-    try {
-      try (var handle = new ScanLock(tempDir).acquire("synthetic blocker", 1000)) {
-        assertThat(handle).isNotNull();
-        scanner.checkAndScan();
-        assertThat(attempts.get()).isZero();
-        assertThat(scanner.bootstrapDone()).isFalse();
-      }
-      clock.setMillis(1_004_999);
-      scanner.checkAndScan();
-      assertThat(attempts.get()).isZero();
-      clock.setMillis(1_005_000);
-      scanner.checkAndScan();
-      assertThat(attempts.get()).isEqualTo(1);
-      assertThat(scanner.bootstrapDone()).isTrue();
-    } finally {
-      scanner.shutdown(1, TimeUnit.SECONDS);
-    }
-  }
-
-  @Test
-  void cancelledBootstrapIsNotSuccessfulEvenWhenActionReturnsNormally() {
-    FixedClock clock = new FixedClock(1_000_000);
-    AtomicInteger attempts = new AtomicInteger();
-    BackgroundScanner scanner =
-        bootstrapScanner(
-            clock,
-            new AtomicInteger(),
-            new AtomicInteger(),
-            token -> {
-              if (attempts.incrementAndGet() == 1) {
-                token.cancel();
-              }
-            });
-    try {
-      scanner.checkAndScan();
-      assertThat(scanner.bootstrapDone()).isFalse();
-      clock.setMillis(1_005_000);
-      scanner.checkAndScan();
-      assertThat(attempts.get()).isEqualTo(2);
-      assertThat(scanner.bootstrapDone()).isTrue();
-    } finally {
-      scanner.shutdown(1, TimeUnit.SECONDS);
-    }
-  }
-
-  @Test
-  void shutdownCancelsBootstrapAndDoesNotScheduleRetry() throws Exception {
-    CountDownLatch started = new CountDownLatch(1);
-    CountDownLatch exited = new CountDownLatch(1);
-    AtomicInteger attempts = new AtomicInteger();
-    AtomicInteger hotCount = new AtomicInteger();
-    AtomicInteger warmCount = new AtomicInteger();
-    FixedClock clock = new FixedClock(1_000_000);
-    BackgroundScanner scanner =
-        bootstrapScanner(
-            clock,
-            hotCount,
-            warmCount,
-            token -> {
-              attempts.incrementAndGet();
-              started.countDown();
-              try {
-                while (true) {
-                  token.throwIfCancelled();
-                  Thread.onSpinWait();
-                }
-              } finally {
-                exited.countDown();
-              }
-            });
-    try {
-      scanner.start();
-      assertThat(started.await(2, TimeUnit.SECONDS)).isTrue();
-    } finally {
-      scanner.shutdown(2, TimeUnit.SECONDS);
-    }
-    assertThat(exited.getCount()).isZero();
-    assertThat(scanner.bootstrapDone()).isFalse();
-    assertThat(scanner.isRunning()).isFalse();
-    clock.setMillis(2_000_000);
-    scanner.checkAndScan();
-    assertThat(attempts.get()).isEqualTo(1);
-    assertThat(hotCount.get()).isZero();
-    assertThat(warmCount.get()).isZero();
-  }
-
-  @Test
-  void noBootstrapMeansImmediateHotWarm() {
-    AtomicInteger hotCount = new AtomicInteger();
-    AtomicInteger warmCount = new AtomicInteger();
+    // 使用大时钟值确保两个 tier 都到期
     BackgroundScanner scanner =
         new BackgroundScanner(
             TierConfig.DEFAULT_HOT,
@@ -432,30 +356,15 @@ class BackgroundScannerTest {
             new ScanLock(tempDir),
             hotCount::incrementAndGet,
             warmCount::incrementAndGet,
-            new FixedClock(1_000_000));
+            new FixedClock(10_000_000)); // 一万秒已超过一小时的扫描间隔
     try {
       scanner.checkAndScan();
-      assertThat(scanner.bootstrapDone()).isTrue();
-      assertThat(hotCount.get()).isEqualTo(1);
+      // 两个 tier 都到期（lastScanMs=0），warm 优先
       assertThat(warmCount.get()).isEqualTo(1);
+      assertThat(hotCount.get()).isZero();
     } finally {
       scanner.shutdown(1, TimeUnit.SECONDS);
     }
-  }
-
-  private BackgroundScanner bootstrapScanner(
-      Clock clock,
-      AtomicInteger hotCount,
-      AtomicInteger warmCount,
-      Consumer<ScanCancelToken> bootstrapAction) {
-    return new BackgroundScanner(
-        TierConfig.DEFAULT_HOT,
-        TierConfig.DEFAULT_WARM,
-        new ScanLock(tempDir),
-        token -> hotCount.incrementAndGet(),
-        token -> warmCount.incrementAndGet(),
-        bootstrapAction,
-        clock);
   }
 
   @Test
@@ -463,7 +372,7 @@ class BackgroundScannerTest {
     CountDownLatch attempts = new CountDownLatch(2);
     BackgroundScanner scanner =
         new BackgroundScanner(
-            new TierConfig(1800, 1),
+            new TierConfig(300, 1),
             new TierConfig(86400, 300),
             new ScanLock(tempDir),
             token -> {
@@ -491,7 +400,7 @@ class BackgroundScannerTest {
 
     BackgroundScanner scanner =
         new BackgroundScanner(
-            new TierConfig(1800, 30),
+            new TierConfig(300, 30),
             new TierConfig(86400, 300),
             scanLock,
             token -> hotCount.incrementAndGet(),
@@ -524,17 +433,17 @@ class BackgroundScannerTest {
         };
     appender.start();
     logger.addAppender(appender);
+    // hot 在启动时立即可执行，错误动作放在 hot 位置
     BackgroundScanner scanner =
         new BackgroundScanner(
             TierConfig.DEFAULT_HOT,
             TierConfig.DEFAULT_WARM,
             new ScanLock(tempDir),
-            token -> {},
-            token -> {},
             token -> {
               attempts.incrementAndGet();
               throw new AssertionError("synthetic fatal error");
             },
+            token -> {},
             Clock.systemUTC());
     try {
       scanner.start();
@@ -553,6 +462,87 @@ class BackgroundScannerTest {
       logger.detachAppender(appender);
       appender.stop();
     }
+  }
+
+  @Test
+  void summarySupplierIsCalledAfterScan() {
+    AtomicInteger summaryCalls = new AtomicInteger();
+    FixedClock clock = new FixedClock(100_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(300, 30),
+            new TierConfig(86400, 300),
+            scanLock,
+            token -> {},
+            token -> {},
+            () -> {
+              summaryCalls.incrementAndGet();
+              return null;
+            },
+            clock);
+
+    try {
+      scanner.checkAndScan();
+      assertThat(summaryCalls.get()).isEqualTo(1);
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
+  }
+
+  @Test
+  void summarySupplierNotCalledOnActionException() {
+    AtomicInteger summaryCalls = new AtomicInteger();
+    FixedClock clock = new FixedClock(100_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner scanner =
+        new BackgroundScanner(
+            new TierConfig(300, 30),
+            new TierConfig(86400, 300),
+            scanLock,
+            token -> {
+              throw new IllegalStateException("synthetic failure");
+            },
+            token -> {},
+            () -> {
+              summaryCalls.incrementAndGet();
+              return null;
+            },
+            clock);
+
+    scanner.checkAndScan();
+    assertThat(summaryCalls.get()).isZero();
+    scanner.shutdown(1, TimeUnit.SECONDS);
+  }
+
+  @Test
+  void summarySupplierNotCalledOnCancellation() {
+    AtomicInteger summaryCalls = new AtomicInteger();
+    FixedClock clock = new FixedClock(100_000);
+    ScanLock scanLock = new ScanLock(tempDir);
+
+    BackgroundScanner[] scannerHolder = new BackgroundScanner[1];
+    scannerHolder[0] =
+        new BackgroundScanner(
+            new TierConfig(300, 30),
+            new TierConfig(86400, 300),
+            scanLock,
+            token -> {
+              scannerHolder[0].cancelCurrentScan();
+              token.throwIfCancelled();
+            },
+            token -> {},
+            () -> {
+              summaryCalls.incrementAndGet();
+              return null;
+            },
+            clock);
+
+    scannerHolder[0].checkAndScan();
+    assertThat(summaryCalls.get()).isZero();
+    scannerHolder[0].shutdown(1, TimeUnit.SECONDS);
   }
 
   /** 用于测试的固定时钟。 */

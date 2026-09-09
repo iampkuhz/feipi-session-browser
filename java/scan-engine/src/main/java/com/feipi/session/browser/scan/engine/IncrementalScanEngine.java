@@ -49,6 +49,45 @@ public final class IncrementalScanEngine {
 
   private static final Logger log = LoggerFactory.getLogger(IncrementalScanEngine.class);
 
+  /**
+   * 跟踪当前线程是否已记录致命错误堆栈。
+   *
+   * <p>当 IncrementalScanEngine 记录致命错误时设置为 true，BackgroundScanner 检查此标志以避免重复记录。
+   */
+  private static final ThreadLocal<Boolean> FATAL_ERROR_STACK_LOGGED =
+      ThreadLocal.withInitial(() -> false);
+
+  /**
+   * 检查当前线程是否已记录致命错误堆栈。
+   *
+   * <p>供 BackgroundScanner 在捕获 Error 时调用，避免重复记录完整堆栈。
+   *
+   * @return 如果已记录则为 true
+   */
+  static boolean hasFatalErrorStackBeenLogged() {
+    return FATAL_ERROR_STACK_LOGGED.get();
+  }
+
+  /**
+   * 清除当前线程的致命错误堆栈标记。
+   *
+   * <p>供 BackgroundScanner 在每次调度开始前调用，确保标记不会跨调度泄漏。
+   */
+  static void clearFatalErrorStackLogged() {
+    FATAL_ERROR_STACK_LOGGED.remove();
+  }
+
+  /**
+   * 设置当前线程的致命错误堆栈标记。
+   *
+   * <p>仅供测试使用，模拟 IncrementalScanEngine 记录致命错误的行为。
+   *
+   * @param logged 是否已记录
+   */
+  static void setFatalErrorStackLogged(boolean logged) {
+    FATAL_ERROR_STACK_LOGGED.set(logged);
+  }
+
   /** 每 N 个候选项 flush 一次 index writer。 */
   private static final int FLUSH_INTERVAL = 100;
 
@@ -216,7 +255,7 @@ public final class IncrementalScanEngine {
       boolean rebuildTriggered = false;
       int storedVersion = indexWriter.loadScanLogicVersion();
       if (storedVersion != CURRENT_SCAN_LOGIC_VERSION) {
-        log.info(
+        log.debug(
             "scan logic version 变化: stored={}, current={} — 触发重建 (已索引 {} 个会话)",
             storedVersion,
             CURRENT_SCAN_LOGIC_VERSION,
@@ -238,7 +277,9 @@ public final class IncrementalScanEngine {
       }
 
       // 计算 age cutoff 时间戳
-      String cutoffIso = computeAgeCutoff(maxAgeSeconds);
+      // scan logic 版本变化会先清空旧索引，此时必须完整重建；若继续套用 hot/warm
+      // cutoff，会把窗口外的历史会话永久从索引中删除。
+      String cutoffIso = rebuildTriggered ? null : computeAgeCutoff(maxAgeSeconds);
 
       // 5. 处理各源
       List<ScanIssue> issues = new ArrayList<>();
@@ -256,7 +297,7 @@ public final class IncrementalScanEngine {
 
         // agent 过滤
         if (!config.isAgentAllowed(agentValue)) {
-          log.info("跳过被过滤的源: {}", agentValue);
+          log.debug("跳过被过滤的源: {}", agentValue);
           continue;
         }
 
@@ -273,7 +314,7 @@ public final class IncrementalScanEngine {
         }
 
         if (!Files.isDirectory(entry.rootPath())) {
-          log.info("源根目录不存在或不是目录: {}", agentValue);
+          log.debug("源根目录不存在或不是目录: {}", agentValue);
           continue;
         }
 
@@ -339,9 +380,26 @@ public final class IncrementalScanEngine {
           }
 
           // Age cutoff 过滤
-          if (cutoffIso != null && stored != null) {
-            String endedAt = stored.endedAt();
-            if (!endedAt.isEmpty() && endedAt.compareTo(cutoffIso) < 0) {
+          if (cutoffIso != null) {
+            boolean skipByAge = false;
+            if (stored != null) {
+              // 已索引候选：使用 stored.endedAt
+              String endedAt = stored.endedAt();
+              if (!endedAt.isEmpty() && endedAt.compareTo(cutoffIso) < 0) {
+                skipByAge = true;
+              }
+            } else {
+              // NEW 候选：使用 fingerprint.lastModifiedMs
+              long lastModifiedMs = candidate.fingerprint().lastModifiedMs();
+              if (lastModifiedMs > 0) {
+                Instant lastModified = Instant.ofEpochMilli(lastModifiedMs);
+                Instant cutoffInstant = Instant.parse(cutoffIso);
+                if (lastModified.isBefore(cutoffInstant)) {
+                  skipByAge = true;
+                }
+              }
+            }
+            if (skipByAge) {
               skippedByAgeCount++;
               progressCount++;
               if (progress != null) {
@@ -456,7 +514,7 @@ public final class IncrementalScanEngine {
       }
 
       long duration = endMs - startMs;
-      log.info(
+      log.debug(
           "增量扫描完成: 候选={} 新增={} 变化={} 未变={} 跳过={} 错误={} 耗时={}ms",
           totalCandidates,
           stateCounts[0],
@@ -486,6 +544,7 @@ public final class IncrementalScanEngine {
       throw e;
     } catch (Error e) {
       scanLogFinalized = false;
+      FATAL_ERROR_STACK_LOGGED.set(true);
       log.error("扫描致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
       throw e;
     } finally {

@@ -346,9 +346,10 @@ public final class ServerLifecycle {
   }
 
   /**
-   * 创建后台扫描调度器实例，含引导动作。
+   * 创建后台扫描调度器实例，无引导扫描。
    *
-   * <p>Connection 作为参数传入（由调用方管理生命周期），不在本方法创建。
+   * <p>Connection 作为参数传入（由调用方管理生命周期），不在本方法创建。 hot 和 warm 动作共享同一个 {@code AtomicReference}
+   * 用于捕获最新扫描摘要， 供 BackgroundScanner 输出 INFO 摘要日志。
    *
    * @param conn writer 连接，由 IndexConnection 持有
    * @param config 扫描配置
@@ -359,10 +360,15 @@ public final class ServerLifecycle {
       Connection conn, ScanConfig config, ScanLock scanLock) {
     IncrementalScanEngine engine = new IncrementalScanEngine();
 
-    Consumer<ScanCancelToken> bootstrapAction = createScanAction(engine, conn, config, null);
-    Consumer<ScanCancelToken> hotAction = createScanAction(engine, conn, config, null);
+    java.util.concurrent.atomic.AtomicReference<
+            com.feipi.session.browser.scan.engine.IncrementalScanSummary>
+        lastSummary = new java.util.concurrent.atomic.AtomicReference<>();
+
+    Consumer<ScanCancelToken> hotAction =
+        createScanAction(engine, conn, config, (double) TierConfig.DEFAULT_HOT_WINDOW, lastSummary);
     Consumer<ScanCancelToken> warmAction =
-        createScanAction(engine, conn, config, (double) TierConfig.DEFAULT_WARM_WINDOW);
+        createScanAction(
+            engine, conn, config, (double) TierConfig.DEFAULT_WARM_WINDOW, lastSummary);
 
     return new BackgroundScanner(
         TierConfig.DEFAULT_HOT,
@@ -370,19 +376,32 @@ public final class ServerLifecycle {
         scanLock,
         hotAction,
         warmAction,
-        bootstrapAction,
+        lastSummary::get,
         java.time.Clock.systemUTC());
   }
 
-  /** 将引擎的取消和失败结果传回调度器，已写入的部分结果同样需要清除查询缓存。 */
+  /**
+   * 将引擎的取消和失败结果传回调度器，已写入的部分结果同样需要清除查询缓存。
+   *
+   * <p>扫描完成后将 {@link com.feipi.session.browser.scan.engine.IncrementalScanSummary} 存入 {@code
+   * summaryRef}， 供 BackgroundScanner 输出 INFO 摘要日志。
+   */
   private Consumer<ScanCancelToken> createScanAction(
-      IncrementalScanEngine engine, Connection conn, ScanConfig config, Double maxAgeSeconds) {
+      IncrementalScanEngine engine,
+      Connection conn,
+      ScanConfig config,
+      Double maxAgeSeconds,
+      java.util.concurrent.atomic.AtomicReference<
+              com.feipi.session.browser.scan.engine.IncrementalScanSummary>
+          summaryRef) {
     return token -> {
       token.throwIfCancelled();
+      summaryRef.set(null);
       var progress = new com.feipi.session.browser.scan.engine.LoggingScanProgress();
       try {
         var summary =
             engine.scan(new SqliteIndexWriter(conn), config, maxAgeSeconds, token, progress);
+        summaryRef.set(summary);
         token.throwIfCancelled();
         if (summary.errorCount() > 0 || !summary.issues().isEmpty()) {
           throw new IllegalStateException("后台扫描返回失败结果: errors=" + summary.errorCount());

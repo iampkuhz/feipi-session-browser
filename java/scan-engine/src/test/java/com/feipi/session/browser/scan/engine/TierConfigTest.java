@@ -36,10 +36,10 @@ class TierConfigTest {
 
   @Test
   void defaultConstants() {
-    assertThat(TierConfig.DEFAULT_HOT.windowSeconds()).isEqualTo(30 * 60);
+    assertThat(TierConfig.DEFAULT_HOT.windowSeconds()).isEqualTo(5 * 60);
     assertThat(TierConfig.DEFAULT_HOT.intervalSeconds()).isEqualTo(120);
     assertThat(TierConfig.DEFAULT_WARM.windowSeconds()).isEqualTo(24 * 3600);
-    assertThat(TierConfig.DEFAULT_WARM.intervalSeconds()).isEqualTo(900);
+    assertThat(TierConfig.DEFAULT_WARM.intervalSeconds()).isEqualTo(3600);
   }
 
   @Test

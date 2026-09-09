@@ -1,6 +1,8 @@
 package com.feipi.session.browser.scan.engine;
 
+import com.feipi.session.browser.source.spi.SourceId;
 import java.time.Clock;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.Executors;
@@ -9,6 +11,7 @@ import java.util.concurrent.ThreadFactory;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
+import java.util.function.Supplier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -18,9 +21,13 @@ import org.slf4j.LoggerFactory;
  * <p>支持 hot 和 warm 两个扫描层级，各层有独立的窗口（max age）和间隔配置。 使用 {@link ScheduledExecutorService} 驱动定时检查，不使用
  * while/sleep 循环。
  *
+ * <p>每个调度 tick 最多选择一个层级执行：warm 到期时优先 warm，否则 hot。 绝不顺序执行两个层级。
+ *
  * <p>通过 {@link ScanLock} 实现跨进程互斥，确保同一时刻最多只有一个扫描在运行。 支持 {@link ScanCancelToken} 取消当前扫描和优雅 shutdown。
  *
- * <p>生命周期：{@link #start()} 启动调度 → 定时检查层级需求 → 获取锁 → 执行扫描 → {@link #shutdown()} 停止。
+ * <p>无引导扫描（bootstrap）：启动后直接按间隔调度 hot/warm。
+ *
+ * <p>生命周期：{@link #start()} 启动调度 → 定时检查层级需求 → 获取锁 → 执行单层级扫描 → {@link #shutdown()} 停止。
  */
 public final class BackgroundScanner {
 
@@ -29,18 +36,12 @@ public final class BackgroundScanner {
   /** 调度检查频率（毫秒）。每 tick 检查一次是否有层级需要扫描。 */
   private static final long TICK_MS = 1000;
 
-  /** 引导扫描最大重试次数。 */
-  private static final int MAX_BOOTSTRAP_RETRIES = 3;
-
-  /** 引导扫描重试间隔（毫秒）。 */
-  private static final long BOOTSTRAP_RETRY_DELAY_MS = 5000;
-
   private final TierConfig hotTier;
   private final TierConfig warmTier;
   private final ScanLock scanLock;
   private final Consumer<ScanCancelToken> hotAction;
   private final Consumer<ScanCancelToken> warmAction;
-  private final Consumer<ScanCancelToken> bootstrapAction;
+  private final Supplier<IncrementalScanSummary> summarySupplier;
   private final Clock clock;
 
   private final ScheduledExecutorService scheduler;
@@ -48,10 +49,6 @@ public final class BackgroundScanner {
   private volatile long lastHotScanMs;
   private volatile long lastWarmScanMs;
   private volatile boolean running;
-  private volatile boolean bootstrapDone;
-  private volatile int bootstrapRetryCount;
-  private volatile boolean bootstrapFinished;
-  private volatile long nextBootstrapMs;
   private volatile ScanCancelToken currentCancelToken;
   private volatile boolean fatalError;
 
@@ -98,20 +95,20 @@ public final class BackgroundScanner {
       Consumer<ScanCancelToken> hotAction,
       Consumer<ScanCancelToken> warmAction,
       Clock clock) {
-    this(hotTier, warmTier, scanLock, hotAction, warmAction, null, clock);
+    this(hotTier, warmTier, scanLock, hotAction, warmAction, () -> null, clock);
   }
 
   /**
-   * 创建支持引导扫描和协作取消的后台扫描调度器。
+   * 创建支持扫描摘要回调的后台扫描调度器。
    *
-   * <p>引导动作在首次 {@link #start()} 时异步执行一次（无年龄窗口），完成后按 hot/warm 间隔正常调度。
+   * <p>每次扫描完成后，通过 {@code summarySupplier} 获取最新的 {@link IncrementalScanSummary}， 用于输出 INFO 摘要日志。
    *
    * @param hotTier hot 层级配置
    * @param warmTier warm 层级配置
    * @param scanLock 跨进程扫描锁
    * @param hotAction 接收当前取消令牌的 hot 层级扫描动作
    * @param warmAction 接收当前取消令牌的 warm 层级扫描动作
-   * @param bootstrapAction 可选的引导扫描动作，null 表示无引导
+   * @param summarySupplier 获取最新扫描摘要的提供者
    * @param clock 时间源
    */
   public BackgroundScanner(
@@ -120,16 +117,14 @@ public final class BackgroundScanner {
       ScanLock scanLock,
       Consumer<ScanCancelToken> hotAction,
       Consumer<ScanCancelToken> warmAction,
-      Consumer<ScanCancelToken> bootstrapAction,
+      Supplier<IncrementalScanSummary> summarySupplier,
       Clock clock) {
     this.hotTier = Objects.requireNonNull(hotTier, "hotTier 不得为 null");
     this.warmTier = Objects.requireNonNull(warmTier, "warmTier 不得为 null");
     this.scanLock = Objects.requireNonNull(scanLock, "scanLock 不得为 null");
     this.hotAction = Objects.requireNonNull(hotAction, "hotAction 不得为 null");
     this.warmAction = Objects.requireNonNull(warmAction, "warmAction 不得为 null");
-    this.bootstrapAction = bootstrapAction;
-    this.bootstrapFinished = bootstrapAction == null;
-    this.bootstrapDone = bootstrapAction == null;
+    this.summarySupplier = Objects.requireNonNull(summarySupplier, "summarySupplier 不得为 null");
     this.clock = Objects.requireNonNull(clock, "clock 不得为 null");
 
     AtomicInteger threadCount = new AtomicInteger(0);
@@ -178,18 +173,24 @@ public final class BackgroundScanner {
     this(hotTier, warmTier, scanLock, hotAction, warmAction, Clock.systemUTC());
   }
 
-  /** 启动后台调度。有引导动作时先异步执行引导，再按间隔调度 hot/warm。 */
+  /** 启动后台调度，直接按 hot/warm 间隔调度，无引导扫描。 */
   public synchronized void start() {
     if (running || scheduler.isShutdown()) {
       return;
     }
     running = true;
+    long now = clock.millis();
+    // hot 立即可执行：设置 lastHotScanMs 使 (now - lastHotScanMs) >= hotInterval
+    lastHotScanMs = now - hotTier.intervalSeconds() * 1000;
+    // warm 首次约 300 秒后到期：设置 lastWarmScanMs 使 warm 在 start+300s 时到期
+    lastWarmScanMs = now - warmTier.intervalSeconds() * 1000 + 300_000;
     scheduledFuture =
         scheduler.scheduleWithFixedDelay(this::checkAndScanSafe, 0, TICK_MS, TimeUnit.MILLISECONDS);
     log.info(
-        "后台扫描调度器已启动: bootstrap={} hotInterval={}s warmInterval={}s",
-        bootstrapAction != null,
+        "后台扫描调度器已启动: hotWindow={}s hotInterval={}s warmWindow={}s warmInterval={}s",
+        hotTier.windowSeconds(),
         hotTier.intervalSeconds(),
+        warmTier.windowSeconds(),
         warmTier.intervalSeconds());
   }
 
@@ -254,86 +255,40 @@ public final class BackgroundScanner {
     log.info("后台扫描调度器已停止");
   }
 
-  /** 引导扫描：获取锁 → 执行一次 → 启动常规调度。失败时有界重试。 */
-  private void runBootstrap() {
-    log.info("开始引导扫描 (尝试 {}/{})", bootstrapRetryCount + 1, MAX_BOOTSTRAP_RETRIES + 1);
-    boolean success = false;
-    try (ScanLock.ScanLockHandle handle = scanLock.tryLock("bootstrap scan")) {
-      if (handle == null) {
-        log.info("引导扫描跳过：另一个扫描持有锁");
-      } else {
-        ScanCancelToken token = new ScanCancelToken();
-        currentCancelToken = token;
-        if (scheduler.isShutdown()) {
-          token.cancel();
-        }
-        token.throwIfCancelled();
-        bootstrapAction.accept(token);
-        token.throwIfCancelled();
-        log.info("引导扫描完成");
-        success = true;
-      }
-    } catch (CancellationException e) {
-      log.info("引导扫描已取消");
-    } catch (Exception e) {
-      log.warn("引导扫描失败", e);
-    } finally {
-      currentCancelToken = null;
-    }
-
-    scheduleBootstrapRetryOrFinish(success);
-  }
-
-  /** 引导扫描成功或耗尽重试后，延迟一个完整层级间隔再开始周期扫描。 */
-  private void scheduleBootstrapRetryOrFinish(boolean success) {
-    if (scheduler.isShutdown()) {
-      return;
-    }
-    if (success || bootstrapRetryCount >= MAX_BOOTSTRAP_RETRIES) {
-      bootstrapDone = success;
-      bootstrapFinished = true;
-      updateTimestamps(true, true);
-      if (!success) {
-        log.warn("引导扫描重试已耗尽，后续按 hot/warm 间隔恢复");
-      }
-    } else {
-      bootstrapRetryCount++;
-      nextBootstrapMs = clock.millis() + BOOTSTRAP_RETRY_DELAY_MS;
-      log.info("引导扫描将在 {}ms 后重试", BOOTSTRAP_RETRY_DELAY_MS);
-    }
-  }
-
   /**
    * 调度任务安全包装。捕获 Throwable 确保致命错误可见：RuntimeException 记录 WARN 并继续调度； Error（OOM、StackOverflowError
    * 等）记录 ERROR 后设置 {@code fatalError} 标志并重新抛出， 由 {@link #isRunning()} 通过 Future 状态感知调度终止。
    */
   void checkAndScanSafe() {
+    IncrementalScanEngine.clearFatalErrorStackLogged();
     try {
       checkAndScan();
     } catch (RuntimeException e) {
-      log.warn("调度检查异常，后续调度继续: {}", e.getMessage(), e);
+      if (IncrementalScanEngine.hasFatalErrorStackBeenLogged()) {
+        log.warn("调度检查异常（stack 已由内层记录），后续调度继续: {}: {}", e.getClass().getName(), e.getMessage());
+      } else {
+        log.warn("调度检查异常，后续调度继续: {}", e.getMessage(), e);
+      }
     } catch (Error e) {
       fatalError = true;
-      log.error("调度任务致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
+      if (IncrementalScanEngine.hasFatalErrorStackBeenLogged()) {
+        log.error("调度任务致命错误（stack 已由内层记录）[{}]: {}", e.getClass().getName(), e.getMessage());
+      } else {
+        log.error("调度任务致命错误 [{}]: {}", e.getClass().getName(), e.getMessage(), e);
+      }
       throw e;
     }
   }
 
-  /** 调度 tick：检查是否有层级需要扫描。致命错误后跳过。 */
+  /** 调度 tick：选择唯一一个到期层级执行。warm 到期时优先 warm，否则 hot。 绝不顺序执行两个层级。 */
   void checkAndScan() {
     if (fatalError) {
       return;
     }
-    if (bootstrapAction != null && scheduler.isShutdown()) {
+    if (scheduler.isShutdown()) {
       return;
     }
     long now = clock.millis();
-    if (!bootstrapFinished) {
-      if (now >= nextBootstrapMs) {
-        runBootstrap();
-      }
-      return;
-    }
     boolean needsHot = (now - lastHotScanMs) >= hotTier.intervalSeconds() * 1000;
     boolean needsWarm = (now - lastWarmScanMs) >= warmTier.intervalSeconds() * 1000;
 
@@ -341,70 +296,116 @@ public final class BackgroundScanner {
       return;
     }
 
-    executeScan(needsHot, needsWarm);
+    // warm 到期时优先 warm，否则 hot；每 tick 只选一个层级
+    boolean runWarm = needsWarm;
+    boolean runHot = needsHot && !needsWarm;
+
+    executeScan(runHot, runWarm);
   }
 
-  /** 执行扫描：获取锁 → 运行 → 更新时间戳。 */
+  /** 执行扫描：获取锁 → 运行唯一一个层级 → 更新时间戳。 */
   @SuppressWarnings("PMD.CloseResource") // handle 通过 try-with-resources 关闭
-  private void executeScan(boolean needsHot, boolean needsWarm) {
+  private void executeScan(boolean runHot, boolean runWarm) {
     ScanLock.ScanLockHandle handle;
     try {
       handle = scanLock.tryLock("background scan");
     } catch (Exception e) {
       log.warn("后台扫描获取锁失败", e);
-      updateTimestamps(needsHot, needsWarm);
+      updateTimestamps(runHot, runWarm);
       return;
     }
 
     if (handle == null) {
       log.debug("后台扫描跳过：另一个扫描持有锁");
-      updateTimestamps(needsHot, needsWarm);
+      updateTimestamps(runHot, runWarm);
       return;
     }
 
     ScanCancelToken token = new ScanCancelToken();
     currentCancelToken = token;
     try (handle) {
-      runWithHandle(handle, token, needsHot, needsWarm);
+      runWithHandle(token, runHot, runWarm);
     } finally {
       currentCancelToken = null;
     }
   }
 
   /**
-   * 在持有锁期间执行扫描动作。
+   * 在持有锁期间执行唯一一个层级的扫描动作，仅在成功完成时输出 INFO 摘要。
    *
-   * @param handle 扫描锁句柄
    * @param token 取消令牌
-   * @param needsHot 是否需要 hot 层级扫描
-   * @param needsWarm 是否需要 warm 层级扫描
+   * @param runHot 是否执行 hot 层级
+   * @param runWarm 是否执行 warm 层级
    */
-  private void runWithHandle(
-      ScanLock.ScanLockHandle handle, ScanCancelToken token, boolean needsHot, boolean needsWarm) {
-    if (needsHot) {
-      log.info("开始 hot 层级扫描");
+  private void runWithHandle(ScanCancelToken token, boolean runHot, boolean runWarm) {
+    String tierName;
+    long windowSeconds;
+    boolean success = false;
+    if (runWarm) {
+      tierName = "warm";
+      windowSeconds = warmTier.windowSeconds();
+      log.debug("开始 warm 层级扫描");
+      try {
+        warmAction.accept(token);
+        log.debug("warm 层级扫描完成");
+        success = !token.isCancelled();
+      } catch (CancellationException e) {
+        log.debug("warm 层级扫描已取消");
+      } catch (RuntimeException e) {
+        log.warn("warm 层级扫描失败", e);
+      }
+      long now = clock.millis();
+      lastWarmScanMs = now;
+      // warm 覆盖 0-24h 范围，已包含 hot 的 0-5min 范围，重置 hot 防止下一 tick 补跑
+      lastHotScanMs = now;
+    } else {
+      tierName = "hot";
+      windowSeconds = hotTier.windowSeconds();
+      log.debug("开始 hot 层级扫描");
       try {
         hotAction.accept(token);
-        log.info("hot 层级扫描完成");
+        log.debug("hot 层级扫描完成");
+        success = !token.isCancelled();
       } catch (CancellationException e) {
-        log.info("hot 层级扫描已取消");
+        log.debug("hot 层级扫描已取消");
       } catch (RuntimeException e) {
         log.warn("hot 层级扫描失败", e);
       }
       lastHotScanMs = clock.millis();
     }
 
-    if (needsWarm && !token.isCancelled()) {
-      log.info("开始 warm 层级扫描");
-      try {
-        warmAction.accept(token);
-        log.info("warm 层级扫描完成");
-      } catch (CancellationException e) {
-        log.info("warm 层级扫描已取消");
-      } catch (RuntimeException e) {
-        log.warn("warm 层级扫描失败", e);
+    if (success) {
+      logScanSummary(tierName, windowSeconds);
+    }
+  }
+
+  /** 输出后台扫描完成 INFO 摘要：实际模式、窗口、成功更新数和按来源计数。 */
+  private void logScanSummary(String tierName, long windowSeconds) {
+    IncrementalScanSummary summary = summarySupplier.get();
+    if (summary == null) {
+      log.info("后台扫描完成: tier={} window={}s", tierName, windowSeconds);
+      return;
+    }
+    StringBuilder perSource = new StringBuilder();
+    for (Map.Entry<SourceId, Integer> entry : summary.perSourceCount().entrySet()) {
+      if (perSource.length() > 0) {
+        perSource.append(' ');
       }
-      lastWarmScanMs = clock.millis();
+      perSource.append(entry.getKey().getValue()).append(':').append(entry.getValue());
+    }
+    String groupedUpdates = perSource.length() > 0 ? perSource.toString() : "none";
+    if (summary.rebuildTriggered()) {
+      log.info(
+          "后台扫描完成: tier=full window=all updated={} perSource={}",
+          summary.successCount(),
+          groupedUpdates);
+    } else {
+      log.info(
+          "后台扫描完成: tier={} window={}s updated={} perSource={}",
+          tierName,
+          windowSeconds,
+          summary.successCount(),
+          groupedUpdates);
     }
   }
 
@@ -416,6 +417,8 @@ public final class BackgroundScanner {
     }
     if (needsWarm) {
       lastWarmScanMs = now;
+      // warm 覆盖 0-24h 范围，已包含 hot 的 0-5min 范围，重置 hot 防止下一 tick 补跑
+      lastHotScanMs = now;
     }
   }
 
@@ -474,8 +477,13 @@ public final class BackgroundScanner {
     return lastWarmScanMs;
   }
 
-  boolean bootstrapDone() {
-    return bootstrapDone;
+  // 仅供测试使用：设置时间戳而不启动调度器
+  void setLastHotScanMsForTest(long ms) {
+    this.lastHotScanMs = ms;
+  }
+
+  void setLastWarmScanMsForTest(long ms) {
+    this.lastWarmScanMs = ms;
   }
 
   boolean isSchedulerFutureDone() {

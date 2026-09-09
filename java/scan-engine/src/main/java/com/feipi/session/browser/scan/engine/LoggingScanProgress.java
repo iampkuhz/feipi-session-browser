@@ -7,7 +7,6 @@ import org.slf4j.LoggerFactory;
 public final class LoggingScanProgress implements ScanProgress, AutoCloseable {
 
   private static final Logger log = LoggerFactory.getLogger(LoggingScanProgress.class);
-  private static final int CANDIDATE_LOG_INTERVAL = 50;
   static final long DEFAULT_HEARTBEAT_INTERVAL_MS = 30_000;
 
   private final long heartbeatIntervalMs;
@@ -15,8 +14,10 @@ public final class LoggingScanProgress implements ScanProgress, AutoCloseable {
   private Thread heartbeatThread;
   private Phase activePhase;
   private Phase sourcePhase;
-  private int lastLoggedProcessed;
-  private long lastCandidateLogNanos;
+  // 候选进度独立时间戳，仅由 onCandidateProcessed 和 onSourceStart 更新
+  private long lastCandidateProgressNanos;
+  // 心跳独立时间戳，仅由心跳线程更新
+  private long lastHeartbeatLogNanos;
   private boolean closed;
 
   /**
@@ -44,25 +45,24 @@ public final class LoggingScanProgress implements ScanProgress, AutoCloseable {
   public synchronized void onPhaseStart(String phaseName) {
     if (closed) return;
     activePhase = new Phase(safePhase(phaseName), System.nanoTime());
-    log.info("扫描阶段开始: {}", activePhase.name());
+    log.debug("扫描阶段开始: {}", activePhase.name());
     ensureHeartbeatRunning();
   }
 
   @Override
   public synchronized void onPhaseEnd(String phaseName, long durationMs) {
     if (closed || activePhase == null || !activePhase.name().equals(safePhase(phaseName))) return;
-    log.info("扫描阶段完成: {} ({}ms)", activePhase.name(), durationMs);
+    log.debug("扫描阶段完成: {} ({}ms)", activePhase.name(), durationMs);
     activePhase = sourcePhase;
   }
 
   @Override
   public synchronized void onSourceStart(String sourceName, int candidateCount) {
     if (closed) return;
-    lastLoggedProcessed = -CANDIDATE_LOG_INTERVAL;
-    lastCandidateLogNanos = System.nanoTime();
-    sourcePhase = new Phase("process:" + safeSource(sourceName), lastCandidateLogNanos);
+    lastCandidateProgressNanos = System.nanoTime();
+    sourcePhase = new Phase("process:" + safeSource(sourceName), lastCandidateProgressNanos);
     activePhase = sourcePhase;
-    log.info("开始处理源: {} ({} 个候选)", safeSource(sourceName), candidateCount);
+    log.debug("开始处理源: {} ({} 个候选)", safeSource(sourceName), candidateCount);
     ensureHeartbeatRunning();
   }
 
@@ -70,12 +70,11 @@ public final class LoggingScanProgress implements ScanProgress, AutoCloseable {
   public synchronized void onCandidateProcessed(String sourceName, int processed, int total) {
     if (closed) return;
     long now = System.nanoTime();
-    if (processed - lastLoggedProcessed >= CANDIDATE_LOG_INTERVAL
-        || processed == total
-        || (now - lastCandidateLogNanos) / 1_000_000 >= heartbeatIntervalMs) {
-      lastLoggedProcessed = processed;
-      lastCandidateLogNanos = now;
-      log.info("扫描进度: {}/{} ({})", processed, total, safeSource(sourceName));
+    boolean isLast = processed == total;
+    boolean timeElapsed = (now - lastCandidateProgressNanos) / 1_000_000 >= heartbeatIntervalMs;
+    if (isLast || timeElapsed) {
+      lastCandidateProgressNanos = now;
+      log.debug("扫描进度: {}/{} ({})", processed, total, safeSource(sourceName));
     }
   }
 
@@ -84,7 +83,7 @@ public final class LoggingScanProgress implements ScanProgress, AutoCloseable {
     if (closed) return;
     activePhase = null;
     sourcePhase = null;
-    log.info("源处理完成: {} (成功 {})", safeSource(sourceName), successCount);
+    log.debug("源处理完成: {} (成功 {})", safeSource(sourceName), successCount);
   }
 
   /** 幂等关闭；返回前真实等待线程终止，即使调用线程已被取消/中断。 */
@@ -128,9 +127,19 @@ public final class LoggingScanProgress implements ScanProgress, AutoCloseable {
         Thread.sleep(heartbeatIntervalMs);
         synchronized (this) {
           if (closed) return;
+          long now = System.nanoTime();
+          // 若候选进度刚记录过（同一窗口内），跳过心跳避免重复
+          if ((now - lastCandidateProgressNanos) / 1_000_000 < heartbeatIntervalMs) {
+            continue;
+          }
+          // 若心跳刚记录过，跳过避免频繁
+          if ((now - lastHeartbeatLogNanos) / 1_000_000 < heartbeatIntervalMs) {
+            continue;
+          }
           if (activePhase != null) {
-            long elapsedSeconds = (System.nanoTime() - activePhase.startNanos()) / 1_000_000_000;
-            log.info("扫描阶段心跳: {} 已运行 {}s", activePhase.name(), elapsedSeconds);
+            lastHeartbeatLogNanos = now;
+            long elapsedSeconds = (now - activePhase.startNanos()) / 1_000_000_000;
+            log.debug("扫描阶段心跳: {} 已运行 {}s", activePhase.name(), elapsedSeconds);
           }
         }
       }

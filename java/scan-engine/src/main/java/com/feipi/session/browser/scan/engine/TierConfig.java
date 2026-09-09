@@ -20,8 +20,8 @@ public record TierConfig(
     /* 层级扫描间隔（秒），两次扫描之间的最小等待时间。 */
     @Positive long intervalSeconds) {
 
-  /** hot 层级默认窗口：30 分钟。 */
-  public static final long DEFAULT_HOT_WINDOW = 30 * 60;
+  /** hot 层级默认窗口：5 分钟。 */
+  public static final long DEFAULT_HOT_WINDOW = 5 * 60;
 
   /** hot 层级默认间隔：120 秒。 */
   public static final long DEFAULT_HOT_INTERVAL = 120;
@@ -29,8 +29,8 @@ public record TierConfig(
   /** warm 层级默认窗口：24 小时。 */
   public static final long DEFAULT_WARM_WINDOW = 24 * 3600;
 
-  /** warm 层级默认间隔：900 秒。 */
-  public static final long DEFAULT_WARM_INTERVAL = 900;
+  /** warm 层级默认间隔：3600 秒。 */
+  public static final long DEFAULT_WARM_INTERVAL = 3600;
 
   /** 默认 hot 层级配置。 */
   public static final TierConfig DEFAULT_HOT =

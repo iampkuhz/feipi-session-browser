@@ -250,6 +250,34 @@ class IncrementalScanEngineTest {
   }
 
   @Test
+  void ageCutoffFiltersNewCandidatesByMtime() throws Exception {
+    Path root = tempDir.resolve("age-new");
+    Files.createDirectories(root);
+
+    setScanLogicVersion(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION);
+
+    // 不插入 stored session，候选项为 NEW 状态
+    // mtimeMs = 2000L 对应 1970-01-01T00:00:02Z，远早于任何合理的 cutoff
+    Candidate candidate = makeCandidate("old-new-file.jsonl", "session-brand-new", 100, 2000L);
+
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(new ScanConfig.SourceEntry(new SkippedAdapter(List.of(candidate)), root)),
+            tempDir.resolve("artifacts"));
+
+    IncrementalScanEngine engine = new IncrementalScanEngine();
+    // maxAgeSeconds = 1.0 → cutoff = now - 1s，1970 年的 mtime 会被过滤
+    IncrementalScanSummary summary =
+        engine.scan(SqliteTestHelper.createIndexWriter(conn), config, 1.0);
+
+    // NEW 候选项使用 fingerprint.lastModifiedMs 进行 age 比较，应被跳过
+    // 候选项先被分类为 NEW，然后被 age cutoff 跳过
+    assertThat(summary.totalCandidates()).isEqualTo(1);
+    assertThat(summary.skippedCount()).isEqualTo(1);
+    assertThat(summary.successCount()).isZero();
+  }
+
+  @Test
   void scanLogicVersionTriggersRebuild() throws Exception {
     Path root = tempDir.resolve("rebuild");
     Files.createDirectories(root);
@@ -280,6 +308,26 @@ class IncrementalScanEngineTest {
     // rebuild 后 scan logic version 应更新到当前版本
     int version = loadScanLogicVersion();
     assertThat(version).isEqualTo(IncrementalScanEngine.CURRENT_SCAN_LOGIC_VERSION);
+  }
+
+  @Test
+  void rebuildIgnoresAgeCutoffToPreserveHistoricalSessions() throws Exception {
+    Path root = tempDir.resolve("bounded-rebuild");
+    Files.createDirectories(root);
+    setScanLogicVersion(0);
+
+    Candidate historical = makeCandidate("historical.jsonl", "session-historical", 100, 2000L);
+    ScanConfig config =
+        ScanConfig.defaults(
+            List.of(new ScanConfig.SourceEntry(new TestSourceAdapter(List.of(historical)), root)),
+            tempDir.resolve("artifacts"));
+
+    IncrementalScanSummary summary =
+        new IncrementalScanEngine().scan(SqliteTestHelper.createIndexWriter(conn), config, 300.0);
+
+    assertThat(summary.rebuildTriggered()).isTrue();
+    assertThat(summary.skippedCount()).isZero();
+    assertThat(summary.successCount()).isEqualTo(1);
   }
 
   @Test

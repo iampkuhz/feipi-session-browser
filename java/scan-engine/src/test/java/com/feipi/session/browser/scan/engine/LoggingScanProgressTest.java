@@ -27,7 +27,7 @@ class LoggingScanProgressTest {
   @BeforeEach
   void captureLogs() {
     previousLevel = logger.getLevel();
-    logger.setLevel(Level.INFO);
+    logger.setLevel(Level.DEBUG);
     appender.start();
     logger.addAppender(appender);
   }
@@ -112,21 +112,16 @@ class LoggingScanProgressTest {
   }
 
   @Test
-  void candidateCountsResetForEverySourceAndAreRateLimited() {
+  void fastScanProducesOnlyLastCandidateLogPerSource() {
+    // 纯时间限频：快速循环（无时间流逝）只产生末条候选日志
     try (var progress = new LoggingScanProgress(60_000)) {
       for (String source : List.of("codex", "qoder")) {
-        progress.onSourceStart(source, 53);
-        for (int i = 1; i <= 53; i++) progress.onCandidateProcessed(source, i, 53);
-        progress.onSourceEnd(source, 53);
+        progress.onSourceStart(source, 1000);
+        for (int i = 1; i <= 1000; i++) progress.onCandidateProcessed(source, i, 1000);
+        progress.onSourceEnd(source, 1000);
       }
       assertThat(appender.messages().stream().filter(m -> m.startsWith("扫描进度:")))
-          .containsExactly(
-              "扫描进度: 1/53 (codex)",
-              "扫描进度: 51/53 (codex)",
-              "扫描进度: 53/53 (codex)",
-              "扫描进度: 1/53 (qoder)",
-              "扫描进度: 51/53 (qoder)",
-              "扫描进度: 53/53 (qoder)");
+          .containsExactly("扫描进度: 1000/1000 (codex)", "扫描进度: 1000/1000 (qoder)");
     }
   }
 
@@ -135,10 +130,12 @@ class LoggingScanProgressTest {
     try (var progress = new LoggingScanProgress(20)) {
       progress.onSourceStart("codex", 100);
       progress.onCandidateProcessed("codex", 1, 100);
-      // 两次真实心跳构成时间屏障，不以固定 sleep 猜测调度完成。
+      // 等待心跳触发，验证心跳与候选进度使用独立时间戳
       CountDownLatch heartbeats = new CountDownLatch(2);
       appender.onHeartbeat = heartbeats::countDown;
       assertThat(heartbeats.await(3, TimeUnit.SECONDS)).isTrue();
+      // 等待足够长时间，确保心跳间隔已流逝（心跳间隔 20ms，等待 100ms 确保安全）
+      Thread.sleep(100);
       progress.onCandidateProcessed("codex", 2, 100);
       assertThat(appender.messages()).contains("扫描进度: 2/100 (codex)");
     }
