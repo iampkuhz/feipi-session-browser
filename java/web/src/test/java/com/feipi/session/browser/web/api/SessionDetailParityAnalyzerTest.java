@@ -227,6 +227,215 @@ class SessionDetailParityAnalyzerTest {
         .containsEntry("isUserInput", true);
   }
 
+  @Test
+  @DisplayName("Qoder raw rollout 使用 stop_reason 识别 round 边界且 tool_result 不冒充用户输入")
+  void qoderStopReasonDetectsRoundBoundariesAndToolResultNotUserInput() throws Exception {
+    Path source = tempDir.resolve("qoder-session.jsonl");
+    Files.writeString(source, qoderRollout());
+
+    SessionRow row =
+        new SessionRow(
+            "qoder:qoder-session",
+            "qoder",
+            "qoder-session",
+            "Qoder fixture",
+            "/repo",
+            "repo",
+            "/repo",
+            "2026-07-06T02:00:00Z",
+            "2026-07-06T02:03:00Z",
+            180,
+            0,
+            0,
+            "claude-test",
+            "main_java",
+            "qoder",
+            2,
+            2,
+            1,
+            20,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            source.toString());
+    SessionDetail detail =
+        new SessionDetail(
+            row,
+            List.of(
+                new CallRound(1, List.of("call-1"), List.of("tool-1"), null, 0, 0, 0, 0, 0),
+                new CallRound(2, List.of("call-2"), List.of(), null, 0, 0, 0, 0, 0)),
+            List.of(),
+            PayloadVisibility.STANDARD,
+            "",
+            "",
+            "cache");
+
+    SessionDetailParityAnalyzer.Result result = SessionDetailParityAnalyzer.analyze(detail);
+
+    assertThat(result.round(1).toMap())
+        .containsEntry("summary", "请帮我修复这个 bug")
+        .containsEntry("time", "10:00:02")
+        .containsEntry("isUserInput", true);
+    assertThat(result.round(2).toMap())
+        .containsEntry("summary", "已找到问题并修复")
+        .containsEntry("time", "10:00:04")
+        .containsEntry("isUserInput", false);
+  }
+
+  @Test
+  @DisplayName("Qoder tool-only round 使用工具名摘要而非 Round N 占位")
+  void qoderToolOnlyRoundUsesToolNameSummary() throws Exception {
+    Path source = tempDir.resolve("qoder-tool-only.jsonl");
+    Files.writeString(source, qoderToolOnlyRollout());
+
+    SessionRow row =
+        new SessionRow(
+            "qoder:qoder-tool-only",
+            "qoder",
+            "qoder-tool-only",
+            "Qoder tool-only fixture",
+            "/repo",
+            "repo",
+            "/repo",
+            "2026-07-06T02:00:00Z",
+            "2026-07-06T02:03:00Z",
+            180,
+            0,
+            0,
+            "claude-test",
+            "main_java",
+            "qoder",
+            1,
+            3,
+            3,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            source.toString());
+    SessionDetail detail =
+        new SessionDetail(
+            row,
+            List.of(
+                new CallRound(1, List.of("call-1"), List.of("t1"), null, 0, 0, 0, 0, 0),
+                new CallRound(2, List.of("call-2"), List.of("t2", "t3"), null, 0, 0, 0, 0, 0),
+                new CallRound(3, List.of("call-3"), List.of(), null, 0, 0, 0, 0, 0)),
+            List.of(),
+            PayloadVisibility.STANDARD,
+            "",
+            "",
+            "cache");
+
+    SessionDetailParityAnalyzer.Result result = SessionDetailParityAnalyzer.analyze(detail);
+
+    // 第 1 轮存在用户输入，优先使用用户文本。
+    assertThat(result.round(1).toMap())
+        .containsEntry("summary", "fix it")
+        .containsEntry("isUserInput", true);
+    assertThat(result.round(1).time).isNotEmpty();
+
+    // 第 2 轮没有用户输入和助手文本，使用多个工具名生成摘要。
+    assertThat(result.round(2).toMap())
+        .containsEntry("summary", "Tool: Write, Edit")
+        .containsEntry("isUserInput", false);
+    assertThat(result.round(2).time).isNotEmpty();
+
+    // 第 3 轮存在助手文本，使用该文本而不是工具摘要。
+    assertThat(result.round(3).toMap())
+        .containsEntry("summary", "Done")
+        .containsEntry("isUserInput", false);
+  }
+
+  @Test
+  @DisplayName("Qoder 纯 tool_use round（无用户输入无 assistant text）使用单工具名摘要")
+  void qoderPureToolOnlyRoundUsesSingleToolNameSummary() throws Exception {
+    Path source = tempDir.resolve("qoder-pure-tool-only.jsonl");
+    Files.writeString(source, qoderPureToolOnlyRollout());
+
+    SessionRow row =
+        new SessionRow(
+            "qoder:qoder-pure-tool-only",
+            "qoder",
+            "qoder-pure-tool-only",
+            "Qoder pure tool-only fixture",
+            "/repo",
+            "repo",
+            "/repo",
+            "2026-07-06T02:00:00Z",
+            "2026-07-06T02:03:00Z",
+            180,
+            0,
+            0,
+            "claude-test",
+            "main_java",
+            "qoder",
+            0,
+            1,
+            1,
+            0,
+            0,
+            0,
+            0,
+            0,
+            0,
+            1,
+            1,
+            1,
+            source.toString());
+    SessionDetail detail =
+        new SessionDetail(
+            row,
+            List.of(new CallRound(1, List.of("call-1"), List.of("t1"), null, 0, 0, 0, 0, 0)),
+            List.of(),
+            PayloadVisibility.STANDARD,
+            "",
+            "",
+            "cache");
+
+    SessionDetailParityAnalyzer.Result result = SessionDetailParityAnalyzer.analyze(detail);
+
+    assertThat(result.round(1).toMap())
+        .containsEntry("summary", "Tool: Read")
+        .containsEntry("isUserInput", false);
+    assertThat(result.round(1).time).isNotEmpty();
+  }
+
+  private static String qoderPureToolOnlyRollout() {
+    return ""
+        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-pure-tool-only\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{}}],\"stop_reason\":\"tool_use\"}}\n";
+  }
+
+  private static String qoderToolOnlyRollout() {
+    return ""
+        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-tool-only\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"fix it\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"Read\",\"input\":{}}],\"stop_reason\":\"tool_use\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t1\",\"content\":\"data\"}]}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"tool_use\",\"id\":\"t2\",\"name\":\"Write\",\"input\":{}},{\"type\":\"tool_use\",\"id\":\"t3\",\"name\":\"Edit\",\"input\":{}}],\"stop_reason\":\"tool_use\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:05Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"t2\",\"content\":\"ok\"},{\"type\":\"tool_result\",\"tool_use_id\":\"t3\",\"content\":\"ok\"}]}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:06Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"Done\"}],\"stop_reason\":\"end_turn\"}}\n";
+  }
+
+  private static String qoderRollout() {
+    return ""
+        + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"qoder-session\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:01Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":\"请帮我修复这个 bug\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:02Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"我来看看代码\"},{\"type\":\"tool_use\",\"id\":\"tool-1\",\"name\":\"read_file\",\"input\":{\"path\":\"main.java\"}}],\"stop_reason\":\"tool_use\"}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:03Z\",\"type\":\"user\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"tool-1\",\"content\":\"file content here\"}]}}\n"
+        + "{\"timestamp\":\"2026-07-06T02:00:04Z\",\"type\":\"assistant\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"已找到问题并修复\"}],\"stop_reason\":\"end_turn\"}}\n";
+  }
+
   private static String parentRollout(Path child) {
     return ""
         + "{\"timestamp\":\"2026-07-06T02:00:00Z\",\"type\":\"session_meta\",\"payload\":{\"id\":\"parent-session\"}}\n"

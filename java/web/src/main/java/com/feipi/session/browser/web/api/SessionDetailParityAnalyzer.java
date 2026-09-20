@@ -248,6 +248,7 @@ final class SessionDetailParityAnalyzer {
     long previousTotal = -1;
     String pendingAssistant = "";
     String pendingUser = "";
+    List<String> pendingToolNames = new ArrayList<>();
     try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
       String line;
       int index = 0;
@@ -264,7 +265,10 @@ final class SessionDetailParityAnalyzer {
           continue;
         }
         if ("response_item".equals(type)) {
-          handleResponseItem(stats, payload, timestamp, index);
+          String responseToolName = handleResponseItem(stats, payload, timestamp, index);
+          if (!responseToolName.isBlank()) {
+            pendingToolNames.add(responseToolName);
+          }
           String payloadType = text(payload, FIELD_TYPE);
           if ("message".equals(payloadType)) {
             String role = text(payload, "role");
@@ -285,11 +289,11 @@ final class SessionDetailParityAnalyzer {
               stats.sessionId = agentId;
             }
           }
-          String messageText = messageText(root.path("message").path(FIELD_CONTENT));
+          String messageText = userVisibleMessageText(root.path("message").path(FIELD_CONTENT));
           if (isVisibleUserInput(messageText)) {
             pendingUser = messageText;
           }
-          // 从 Claude Code 原生格式提取 tool_result blocks
+          // 从 Claude Code / Qoder 原生格式提取 tool_result blocks
           JsonNode content = root.path("message").path(FIELD_CONTENT);
           if (content.isArray()) {
             final int lineIndex = index;
@@ -329,7 +333,7 @@ final class SessionDetailParityAnalyzer {
           if (!messageText.isBlank()) {
             pendingAssistant = messageText;
           }
-          // 从 Claude Code 原生格式提取 tool_use blocks
+          // 从 Claude Code / Qoder 原生格式提取 tool_use blocks
           JsonNode content = message.path(FIELD_CONTENT);
           if (content.isArray()) {
             for (JsonNode part : content) {
@@ -339,15 +343,21 @@ final class SessionDetailParityAnalyzer {
                   String name = firstNonBlank(text(part, "name"), FIELD_TOOL);
                   stats.tools.put(
                       callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
+                  if (!name.isBlank() && !FIELD_TOOL.equals(name)) {
+                    pendingToolNames.add(name);
+                  }
                 }
               }
             }
           }
           UsageDelta usage = usageFromMessage(message.path("usage"));
-          if (usage.output > 0) {
-            recordLlmRound(stats, usage, pendingUser, pendingAssistant, timestamp);
+          boolean hasStopReason = !text(message, "stop_reason").isBlank();
+          if (usage.output > 0 || hasStopReason) {
+            recordLlmRound(
+                stats, usage, pendingUser, pendingAssistant, pendingToolNames, timestamp);
             pendingAssistant = "";
             pendingUser = "";
+            pendingToolNames = new ArrayList<>();
           }
           continue;
         }
@@ -362,9 +372,10 @@ final class SessionDetailParityAnalyzer {
           if (usage.total <= 0 && totalTokens > 0 && stats.llmCalls > 0) {
             continue;
           }
-          recordLlmRound(stats, usage, pendingUser, pendingAssistant, timestamp);
+          recordLlmRound(stats, usage, pendingUser, pendingAssistant, pendingToolNames, timestamp);
           pendingAssistant = "";
           pendingUser = "";
+          pendingToolNames = new ArrayList<>();
         }
       }
     } catch (IOException ignored) {
@@ -396,35 +407,36 @@ final class SessionDetailParityAnalyzer {
       UsageDelta usage,
       String pendingUser,
       String pendingAssistant,
+      List<String> pendingToolNames,
       String timestamp) {
     stats.llmCalls++;
     stats.inputSideTokens += usage.fresh + usage.cacheRead + usage.cacheWrite;
     stats.llmTokens += usage.total;
+    String summary = firstNonBlank(pendingUser, pendingAssistant);
+    if (summary.isBlank()) {
+      summary = toolSummaryLabel(pendingToolNames);
+    }
     stats.roundSummaries.add(
-        new RawRoundSummary(
-            stats.llmCalls,
-            firstNonBlank(pendingUser, pendingAssistant),
-            localTime(timestamp),
-            !pendingUser.isBlank()));
+        new RawRoundSummary(stats.llmCalls, summary, localTime(timestamp), !pendingUser.isBlank()));
   }
 
-  private static void handleResponseItem(
+  private static String handleResponseItem(
       RolloutStats stats, JsonNode payload, String timestamp, int index) {
     String payloadType = text(payload, FIELD_TYPE);
     if ("function_call".equals(payloadType) || "custom_tool_call".equals(payloadType)) {
       String callId = text(payload, "call_id");
       if (callId.isBlank()) {
-        return;
+        return "";
       }
       String name = firstNonBlank(text(payload, "name"), FIELD_TOOL);
       stats.tools.put(callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
-      return;
+      return !name.isBlank() && !FIELD_TOOL.equals(name) ? name : "";
     }
     if ("function_call_output".equals(payloadType)
         || "custom_tool_call_output".equals(payloadType)) {
       String callId = text(payload, "call_id");
       if (callId.isBlank()) {
-        return;
+        return "";
       }
       ToolEvent tool =
           stats.tools.computeIfAbsent(
@@ -433,6 +445,7 @@ final class SessionDetailParityAnalyzer {
           payload.path(FIELD_OUTPUT).isMissingNode() ? "" : payload.path(FIELD_OUTPUT).asText("");
       tool.failed = isFailedOutput(tool.output);
     }
+    return "";
   }
 
   private static UsageDelta usageDelta(JsonNode total, Map<String, Long> previousUsage) {
@@ -997,6 +1010,27 @@ final class SessionDetailParityAnalyzer {
     return text.toString();
   }
 
+  /** 从 user 消息 content 提取可见用户文本，跳过 tool_result 部件。 */
+  private static String userVisibleMessageText(JsonNode content) {
+    if (!content.isArray()) {
+      return content.isTextual() ? content.asText() : "";
+    }
+    StringBuilder text = new StringBuilder();
+    for (JsonNode part : content) {
+      if ("tool_result".equals(text(part, FIELD_TYPE))) {
+        continue;
+      }
+      String value = firstNonBlank(text(part, "text"), text(part, FIELD_CONTENT));
+      if (!value.isBlank()) {
+        if (!text.isEmpty()) {
+          text.append("\n\n");
+        }
+        text.append(value);
+      }
+    }
+    return text.toString();
+  }
+
   private static boolean isVisibleUserInput(String messageText) {
     if (messageText == null || messageText.isBlank()) {
       return false;
@@ -1011,6 +1045,15 @@ final class SessionDetailParityAnalyzer {
 
   private static String firstNonBlank(String first, String second) {
     return first != null && !first.isBlank() ? first : (second == null ? "" : second);
+  }
+
+  /** 从工具名列表生成稳定安全摘要，例如 "Tool: Read" 或 "Tool: Read, Write"。 */
+  private static String toolSummaryLabel(List<String> toolNames) {
+    if (toolNames == null || toolNames.isEmpty()) {
+      return "";
+    }
+    LinkedHashSet<String> unique = new LinkedHashSet<>(toolNames);
+    return "Tool: " + String.join(", ", unique);
   }
 
   private static long firstPositive(long first, long second) {
