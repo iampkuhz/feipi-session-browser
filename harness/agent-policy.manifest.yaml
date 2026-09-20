@@ -135,9 +135,26 @@ qoder_delegation:
     completion_record_first: true
     automatic_retry: false
     queued_is_delivery_proof: false
+  lifecycle:
+    dispatch_handoff_in_final_reply: true
+    end_turn_after_dispatch: true
+    llm_polling_forbidden: true
+    per_run_watchdog: true
+    watchdog_initial_delay_seconds: 300
+    watchdog_interval_seconds: 600
+    watchdog_max_lifetime_seconds: 86400
+    watchdog_no_llm: true
+    explicit_ack_required: true
+    ack_identity_check: exact-parent-session-uuid-and-codex-thread-id
+    ack_idempotent: true
+    ack_is_not_pass: true
+    supersession_on_confirmed_startup: true
+    result_and_status_read_only: true
   no_auto_features:
     - 无自动重发
     - 无取消
     - 无 OS 沙箱
     - 不因失败自动扩大权限
     - 不降低 Gate
+    - 无全局 daemon 或队列
+    - 无可靠 queue 撤回承诺

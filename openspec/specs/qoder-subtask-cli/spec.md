@@ -30,7 +30,7 @@ ADDED
 - **Then** 保留原命令失败状态，不把摘要成功作为验证 PASS。
 
 ### Requirement: 显式低开销委派
-脚本 SHALL 显式启动带完整 handoff 与独立身份的 qodercli 子任务，立即返回唯一 run id（UUID）。SHALL NOT 持续轮询、无限续跑或自动进行 Git mutation；用户已明确授权默认 bypass_permissions。
+脚本 SHALL 显式启动带完整 handoff 与独立身份的 qodercli 子任务，立即返回唯一 run id（UUID）。主线程 SHALL NOT 通过 LLM 持续轮询，脚本 SHALL NOT 无限续跑 Qoder 或自动进行 Git mutation；无 LLM 的有界后台兜底按下文生命周期要求执行；用户已明确授权默认 bypass_permissions。
 
 #### Scenario: 后台执行
 - **Given** 有效任务输入和可运行 qodercli
@@ -104,3 +104,54 @@ worker SHALL 在成功、非零退出或异常后先写 completion.json，再用
 - **Given** Codex 不可用、回调超时或回执写入中断
 - **When** 回调不能确认成功
 - **Then** 保留完成记录，明确回调失败或不确定，不自动重发，不宣称父会话已接续。
+
+### Requirement: 每 run 低频兜底
+
+绑定 Codex 父会话的成功启动 run SHALL 拥有唯一 claim 保护的独立后台 watchdog，不调用 LLM；首次在 300 秒、后续每 600 秒检查，最多存活 24 小时后 SHALL 记录 exhausted 并退出，不自动重启。running 且无变化 SHALL 静默；acknowledged 或 superseded SHALL 停止。worker 与 watchdog SHALL 共享同 run 原子 callback claim，至多自动尝试一次通知。worker 死亡无 completion SHALL 记录 unknown 异常状态并经同 run 发送闸门至多尝试一次异常通知，不伪造 completion、退出码或验收结果。SHALL NOT 引入全局 daemon/队列、读取 Codex 数据库、自动 Qoder 重试/取消或权限升级。
+
+#### Scenario: 正常等待无开销唤醒
+- **Given** 同 run 重复请求启动 watchdog，worker 仍运行
+- **When** fake clock 经过首次 300 秒及后续 600 秒
+- **Then** 只有一个 watchdog 生效，不 queue 进度消息、不调用 LLM。
+
+#### Scenario: 兜底到期
+- **Given** run 未消费且未替代，watchdog 已运行 24 小时
+- **When** fake clock 到达生命周期上限
+- **Then** watchdog 记录 exhausted 后退出，不自动重启或重发。
+
+### Requirement: 显式且幂等消费
+
+CLI SHALL 提供 `ack <run_id> --parent-session-id <UUID>`，将保存的 codex 父身份、显式 UUID 和当前 CODEX_THREAD_ID 精确核对；缺失/错误身份 SHALL 拒绝。ack SHALL 仅接受合法 completion 终态或已确认 worker 死亡并持久化的 unknown 异常终态，拒绝运行中与跨 run/session 证据。ack SHALL 原子幂等且独立于 completion/callback/验收；status/result SHALL 始终只读。ack SHALL NOT 产生 PASS。
+
+#### Scenario: 正确身份首次消费
+- **Given** 同 run 合法终态且父身份匹配
+- **When** 精确父会话执行 ack，随后再次 ack 或读取 result/status
+- **Then** 首次记录消费，重复 ack 返回已消费；查询不修改任何生命周期。
+
+#### Scenario: 非法消费
+- **Given** run 运行中、父 UUID 不符、当前父环境身份缺失
+- **When** 执行 ack
+- **Then** 非零退出，不写消费标记。
+
+### Requirement: 成功恢复后的替代链
+
+resume SHALL 保留精确 Qoder session 和父会话绑定，记录 previous/next run 关系，且仅在 worker 实际创建 Qoder 子进程并持久化真实 PID/run/session 启动证据后标记旧 run superseded。预检或启动失败 SHALL 保留旧 run 原状态与结果。关系写入部分失败 SHALL 显示真实新 run 身份及错误，不伪造成功、不补开第二个 Qoder。
+
+#### Scenario: 成功返工替代旧 run
+- **Given** 可恢复的旧 run 具有合法 session 及父绑定
+- **When** 新 run 的 Qoder 子进程启动得到确认
+- **Then** 保存双向关系并将旧 run 标记 superseded；旧 completion 仍可读取。
+
+#### Scenario: 返工启动失败
+- **Given** 旧 run 可读取且新 run 尚未确认成功启动
+- **When** 预检或 worker 启动失败
+- **Then** 旧 run 不被标记 superseded，不吞旧结果。
+
+
+### Requirement: 最终交接与禁止 LLM 等待轮询
+Codex SHALL 在每次 start/resume 后的最终回复正文保留任务标题、task id、目标/范围、验收、真实 run/session、权限、运行/回调/验收状态和结果链接并结束回合；SHALL NOT 只在 commentary 或工具记录展示。主线程 SHALL NOT 用 sleep、ps、status/result 循环或反复等待工具维持 LLM 回合；正常完成由即时回调接续，300/600 秒兜底仅在不调用 LLM 的后台执行。
+
+#### Scenario: 返工派发后交接
+- **Given** 已确认上一 run 结束且本轮 resume 成功返回新 run
+- **When** 主线程向用户报告派发结果
+- **Then** 最终回复标明返工轮次、复用 session 和新 run，结束回合等待自动回调，不循环查询。

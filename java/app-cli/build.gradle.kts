@@ -37,18 +37,23 @@ tasks.named<CreateStartScripts>("startScripts") {
     val unixProfile = """
         $unixMarker
 
-        # full scan 的有界堆由 launcher 统一选择；用户 JAVA_OPTS/APP_CLI_OPTS 仍可覆盖。
-        if [ "\${'$'}{1:-}" = "scan" ]
-        then
-            for arg in "\${'$'}@"
-            do
-                if [ "\${'$'}arg" = "--full" ]
-                then
-                    DEFAULT_JVM_OPTS=$fullScanUnix
-                    break
-                fi
-            done
-        fi
+        # full scan 和 serve 的有界堆由 launcher 统一选择；用户 JAVA_OPTS/APP_CLI_OPTS 仍可覆盖。
+        # serve 在后台执行 bootstrap 全量重建，需要与 scan --full 相当的堆预算。
+        case "\${'$'}{1:-}" in
+            scan)
+                for arg in "\${'$'}@"
+                do
+                    if [ "\${'$'}arg" = "--full" ]
+                    then
+                        DEFAULT_JVM_OPTS=$fullScanUnix
+                        break
+                    fi
+                done
+                ;;
+            serve)
+                DEFAULT_JVM_OPTS=$fullScanUnix
+                ;;
+        esac
     """.trimIndent()
     val unixGenerator = unixStartScriptGenerator as TemplateBasedScriptGenerator
     val unixTemplate = unixGenerator.template.asString()
@@ -59,10 +64,11 @@ tasks.named<CreateStartScripts>("startScripts") {
     val windowsMarker = "set DEFAULT_JVM_OPTS=${'$'}{defaultJvmOpts}"
     val windowsProfile = """
         $windowsMarker
-        @rem full scan 的有界堆由 launcher 统一选择。
+        @rem full scan 和 serve 的有界堆由 launcher 统一选择。
         if "%~1"=="scan" (
             for %%a in (%*) do if "%%~a"=="--full" set DEFAULT_JVM_OPTS=$fullScanWindows
         )
+        if "%~1"=="serve" set DEFAULT_JVM_OPTS=$fullScanWindows
     """.trimIndent()
     val windowsGenerator = windowsStartScriptGenerator as TemplateBasedScriptGenerator
     val windowsTemplate = windowsGenerator.template.asString()
@@ -458,11 +464,16 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             "    fi\n" +
             "done\n\n" +
             "JVM_ARGS=\"$standardJvmArgs\"\n" +
-            "if [ \"\${1:-}\" = \"scan\" ]; then\n" +
-            "    for arg in \"\$@\"; do\n" +
-            "        if [ \"\$arg\" = \"--full\" ]; then JVM_ARGS=\"$fullScanJvmArgs\"; break; fi\n" +
-            "    done\n" +
-            "fi\n\n" +
+            "case \"\${1:-}\" in\n" +
+            "    scan)\n" +
+            "        for arg in \"\$@\"; do\n" +
+            "            if [ \"\$arg\" = \"--full\" ]; then JVM_ARGS=\"$fullScanJvmArgs\"; break; fi\n" +
+            "        done\n" +
+            "        ;;\n" +
+            "    serve)\n" +
+            "        JVM_ARGS=\"$fullScanJvmArgs\"\n" +
+            "        ;;\n" +
+            "esac\n\n" +
             "exec \"\$RUNTIME_JAVA\" \$JVM_ARGS -cp \"\$CLASSPATH\" $mainClassName \"\$@\"\n",
             Charsets.UTF_8,
         )
@@ -490,6 +501,7 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             ":run\r\n" +
             "set JVM_ARGS=$standardJvmArgs\r\n" +
             "if \"%~1\"==\"scan\" for %%a in (%*) do if \"%%~a\"==\"--full\" set JVM_ARGS=$fullScanJvmArgs\r\n" +
+            "if \"%~1\"==\"serve\" set JVM_ARGS=$fullScanJvmArgs\r\n" +
             "\"%RUNTIME_JAVA%\" %JVM_ARGS% -cp \"%CLASSPATH%\" $mainClassName %*\r\n",
             Charsets.UTF_8,
         )

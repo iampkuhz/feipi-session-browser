@@ -32,6 +32,13 @@ def block_real_codex_transport():
         yield
 
 
+@pytest.fixture(autouse=True)
+def suppress_watchdog_start():
+    """仅隔离长寿命外部进程，保留真实启动和替代状态逻辑。"""
+    with patch.object(qoder_task, "_maybe_start_watchdog") as spawn:
+        yield spawn
+
+
 @pytest.mark.parametrize("name", ["qodercli", "/opt/bin/qodercli"])
 def test_preflight_detects_cli_without_reading_arguments(idle_process_snapshot, name):
     """跨目录检测 CLI，只读取当前用户 PID 与进程名。"""

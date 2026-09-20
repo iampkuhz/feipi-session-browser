@@ -408,6 +408,9 @@ public final class CodexSourceAdapter implements SourceAdapter {
               spawnRelations,
               diagnostics,
               records);
+      // 注意：此处设置 events = null 无法降低峰值内存，因为 result.events() 仍持有同一 List 引用。
+      // JsonlReaderResult 是不可变 record，其 events 字段在 parse() 方法作用域结束前不会被释放。
+      // 真正的内存优化需要流式解析或修改 JsonlReaderResult 接口，当前不在范围内。
 
       Map<String, String> parentMeta = readFirstSessionMeta(filePath);
       if (!CodexDiscovery.isSubagentMetaEvent(parentMeta)) {

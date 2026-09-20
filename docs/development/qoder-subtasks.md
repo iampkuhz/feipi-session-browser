@@ -24,7 +24,7 @@
 - **单任务调度**：Qoder 同时最多运行 1 个任务，其余任务由主调度排队；确认前一个已结束才启动下一个，运行状态不明时不补开。即使短时间可容纳两个任务，也不默认使用重叠运行，不通过另开 session 绕过限制。
 - **并行约束**：只允许 Codex 与单个 Qoder 做独立工作，避开写写、读写、接口变更和运行输出冲突；集成验证串行。没有独立工作时结束 Codex 回合，不循环查询；已绑定 Codex 父会话的任务由完成回调请求接续。
 - **身份与归属**：保留各 client/session 来源；Codex 独立复核和产出验收证据；Qoder 不得递归委派给自身。
-- **当前能力边界**：提供 Codex 完成回调；无自动重发、无取消、无 OS 沙箱；`start`/`resume` 通过当前用户的 `qodercli` 进程快照做跨 checkout 预检查，发现占用返回含 PID 的 `BUSY`，检查失败则拒绝启动。无锁、无自动队列，接受检查到启动之间的极小并发窗口。不因失败自动扩大权限、不降低 Gate。
+- **当前能力边界**：提供 Codex 完成回调；无自动重发、无取消、无 OS 沙箱；`start`/`resume` 通过当前用户的 `qodercli` 进程快照做跨 checkout 预检查，发现占用返回含 PID 的 `BUSY`，检查失败则拒绝启动。跨任务调度层仍是“无锁、无自动队列”；新增 per-run 锁仅保护消费/恢复状态，进程预检仍接受检查到启动之间的极小并发窗口。不因失败自动扩大权限、不降低 Gate。
 
 详细共享规则见 `harness/agent-policy.manifest.yaml` 的 `qoder_delegation` 段。
 
@@ -49,6 +49,7 @@
 | 本次 run | `run_id` |
 | 父任务 | `parent_client` · `parent_session_id` |
 | 目标与范围 | 一句话目标；精确写范围摘要 |
+| 验收 | 本轮需要证明的行为与检查；未运行项明确待复核 |
 | 权限 | 实际 `permission_mode` |
 | 状态 | 运行：已派发/已结束/未知；回调：未确认/queued/failed；验收：待复核/PASS/FAIL/BLOCKED |
 | 结果 | [结果目录](绝对结果目录路径) |
@@ -148,6 +149,24 @@ python scripts/harness/qoder_task.py resume <run_id> --followup followup.json
 
 启动后立即返回新 run_id（UUID 格式），worker 后台执行。与 `start` 一样是非阻塞的。
 
+入口返回不表示 Qoder 已成功启动。worker 在实际创建 Qoder 子进程后记录真实 PID，并异步提交 `previous_run_id`/`next_run_id` 替代链，旧 run 才标记 `superseded`。启动失败时释放该 run 的恢复占位，旧结果保持不变；启动尚未确认时不得再次派发。
+
+### ack — 显式消费确认
+
+```bash
+python scripts/harness/qoder_task.py ack <run_id> --parent-session-id <UUID>
+```
+
+显式确认已读取并处理某 run 的完成通知。需要精确身份核对：
+
+- 保存的 `parent_session_id` 必须匹配提供的 UUID
+- 当前 `CODEX_THREAD_ID` 环境变量也必须匹配
+- 仅接受终态（`finished`/`failed`/`unknown` 异常），运行中不可 ack
+- ack 幂等：同身份重复 ack 返回已消费记录
+- **ack 不代表验收 PASS**，仅证明父会话已认领消费
+
+`status`/`result` 始终只读，不隐式 ack。
+
 ## 输出目录
 
 所有任务文件存储在 `tmp/qoder-tasks/<run_id>/`（已被 .gitignore 忽略）：
@@ -155,11 +174,64 @@ python scripts/harness/qoder_task.py resume <run_id> --followup followup.json
 - `task.json` — 任务输入（含完整 handoff 和身份）
 - `completion.json` — 完成记录（原子写入，权限 0600）
 - `callback.json` — 独立回调状态；失败不覆盖 Qoder 原始结果
+- `callback.claim` — 共享回调认领（worker 与 watchdog 共用）
+- `lifecycle.json` — 生命周期状态（acknowledged/superseded/exhausted/unknown）
+- `ack.json` — 显式消费确认记录
+- `started.json` — Qoder 子进程启动确认（真实 child PID、run/session）
+- `resume.reservation` — 防止同一旧 run 并发恢复；不构成全局任务锁
+- `lifecycle.lock` — 本 run 生命周期原子更新锁
+- `watchdog.status.json` / `watchdog.log` — 兜底状态和错误诊断
+- `watchdog.claim` — watchdog 唯一实例认领
 - `stdout.log` — qodercli 标准输出
 - `stderr.log` — qodercli 标准错误
 - `worker.pid` — Worker 进程 PID
 
 目录权限 0700，文件权限 0600。
+
+## 生命周期与兜底
+
+每次 `start` / `resume` 后，在**最终回复**展示完整任务卡并结束回合，不能只留在 commentary 或工具输出中。禁止主线程用 `sleep`、`ps`、`status/result` 循环或反复等待工具维持 LLM 回合；5/10 分钟检查只由后台 watchdog 执行。仓库规则不能强制关闭客户端回合，需要主调度遵守。
+
+### 每 run 独立 watchdog
+
+绑定 Codex 父会话的成功启动 run 自动建立后台 watchdog：
+
+- **不调用 LLM**，不占用第二个 Qoder
+- 首次 300 秒（5 分钟）后检查，之后每 600 秒（10 分钟）检查
+- 最多存活 24 小时，到期记录 `exhausted` 并退出，不自动重启
+- 运行中且无变化时静默，不反复提醒
+- 收到 `acknowledged` 或 `superseded` 后停止
+- 只在 completion 存在且从未尝试通知时补发首次通知（与 worker 共享 callback.claim）
+- worker 死亡无 completion 时记录 `unknown`，至多一次异常通知，不伪造结果
+
+**注意**：watchdog 被杀或宿主重启后不保证唤醒，不建立自动复活服务。
+
+### 显式消费（ack）
+
+父会话收到回调后应显式 ack：
+
+1. 读取 run 的 lifecycle，已 `acknowledged` 或 `superseded` 立即结束，不重复业务验收
+2. 核对身份（parent_session_id + CODEX_THREAD_ID）
+3. 显式 ack 成功后独立验收
+
+**ack 仅证明已处理，不等于验收 PASS。**
+
+### 返工替代链
+
+`resume` 创建的新 worker 确认实际 Qoder 子进程成功启动后：
+
+- 新 run 记录 `previous_run_id`
+- 旧 run 标记 `superseded` 并记录 `next_run_id`
+- 旧 run 的 watchdog 停止
+- 旧 completion 仍可读取
+
+启动失败时旧 run 不变，不吞旧结果。
+
+### 能力边界
+
+- 已入队的旧 `codex queue` 消息无法撤回，仍可能唤醒父会话
+- 消费/替代前置检查阻止重复业务验收，但不保证 0 次迟到唤醒
+- watchdog 不建立全局队列或 OS 常驻服务
 
 ## 环境变量
 
