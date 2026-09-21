@@ -400,8 +400,9 @@
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Modal width constraint ──` */
-.sd-payload-modal .sd-payload-modal__panel {
-  max-width: 1500px;
+.sd-payload-modal .sd-modal-panel,
+.sd-payload-modal .payload-modal__panel {
+  max-width: 1200px;
 }
 
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Attribution overview section` */
@@ -431,4 +432,82 @@
   font-size: 13px;
   color: var(--sd-muted);
   line-height: 1.5;
+}
+
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution topgrid spacing modifier ──` */
+.sd-attribution-topgrid--spaced {
+  margin-top: 8px;
+}
+
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution-scoped kv layout overrides ──` */
+.sd-attribution-topcard .sd-kv {
+  grid-template-columns: minmax(100px, max-content) minmax(0, 1fr);
+  gap: 0;
+  align-items: center;
+}
+
+.sd-attribution-topcard .sd-kv > span:first-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding-right: 12px;
+}
+
+.sd-attribution-topcard .sd-kv > span:last-child {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  padding-left: 8px;
+}
+
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution tool count section ──` */
+.sd-attribution-topcard .sd-attribution-summary-grid {
+  padding: 4px 0;
+}
+
+.sd-attribution-topcard .sd-attribution-summary-grid .sd-kv {
+  grid-template-columns: minmax(120px, max-content) minmax(60px, auto);
+  padding: 2px 10px;
+}
+
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Attribution unavailable note ──` */
+.sd-attribution-unavailable {
+  padding: 12px 14px;
+  border-radius: 8px;
+  background: #f8fafc;
+  border: 1px dashed var(--sd-line-soft, #e2e8f0);
+  color: var(--sd-muted, #94a3b8);
+  font-size: 12px;
+  line-height: 1.5;
+  margin-top: 8px;
+}
+
+/* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Responsive attribution layout ──` */
+@media (max-width: 900px) {
+  .session-detail-page .sd-attribution-topgrid,
+  .sd-payload-modal .sd-attribution-topgrid {
+    grid-template-columns: 1fr;
+  }
+  .session-detail-page .sd-payload-shell {
+    grid-template-columns: 1fr;
+  }
+  .session-detail-page .sd-payload-meta {
+    max-width: 100%;
+  }
+  .sd-attribution-topcard .sd-kv {
+    grid-template-columns: minmax(80px, max-content) minmax(0, 1fr);
+  }
+}
+
+/* 手机宽度下内部 KV 卡片也退为单列，避免两层 grid 的最小列宽挤压值。 */
+@media (max-width: 700px) {
+  .sd-payload-modal .sd-attribution-identity-grid,
+  .sd-payload-modal .sd-attribution-summary-grid,
+  .sd-payload-modal .sd-attribution-call-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
 }

@@ -22,10 +22,11 @@ class BackgroundScannerTest {
   @TempDir java.nio.file.Path tempDir;
 
   @Test
-  void hotRunsFirstAtStartup() {
+  void hotRunsFirstAtStartup() throws InterruptedException {
     // 启动后 hot 立即可执行，warm 延迟 300s
     AtomicInteger hotCount = new AtomicInteger();
     AtomicInteger warmCount = new AtomicInteger();
+    CountDownLatch hotCompleted = new CountDownLatch(1);
     FixedClock clock = new FixedClock(1_000_000);
     ScanLock scanLock = new ScanLock(tempDir);
 
@@ -34,18 +35,23 @@ class BackgroundScannerTest {
             new TierConfig(300, 120), // hot: 120 秒间隔
             new TierConfig(86400, 3600), // warm: 3600 秒间隔
             scanLock,
-            hotCount::incrementAndGet,
+            () -> {
+              hotCount.incrementAndGet();
+              hotCompleted.countDown();
+            },
             warmCount::incrementAndGet,
             clock);
 
-    scanner.start();
-    // 不调用 shutdown()，保持 scheduler 运行
-
-    // 启动后立即 checkAndScan：hot 到期，warm 未到期（需等 300s）
-    scanner.checkAndScan();
-    assertThat(hotCount.get()).isEqualTo(1);
-    assertThat(warmCount.get()).isZero();
-    scanner.shutdown(1, TimeUnit.SECONDS);
+    try {
+      scanner.start();
+      // 等待启动调度实际执行，不能把异步检查尚在进行误判为未扫描。
+      assertThat(hotCompleted.await(2, TimeUnit.SECONDS)).isTrue();
+      scanner.checkAndScan();
+      assertThat(hotCount.get()).isEqualTo(1);
+      assertThat(warmCount.get()).isZero();
+    } finally {
+      scanner.shutdown(1, TimeUnit.SECONDS);
+    }
   }
 
   @Test

@@ -10,12 +10,11 @@ import com.feipi.session.browser.query.api.CallRound;
 import com.feipi.session.browser.web.api.PageApiDtos.TokenSegments;
 import com.feipi.session.browser.web.api.SessionDetailApiResponses.RoundIndexDto;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.stream.Collectors;
-import java.util.stream.Stream;
 
 /** 将包含 subagent 调用的归一化 round 投影为页面 round row 口径。 */
 final class RoundIndexProjection {
@@ -66,8 +65,7 @@ final class RoundIndexProjection {
     }
     boolean hasSubagent = containsSubagentCall(roundCalls);
     List<NormalizedCall> displayCalls = displayCalls(roundCalls);
-    return Projection.fromCalls(
-        displayCalls, toolIdsFor(round, artifact, displayCalls), hasSubagent);
+    return Projection.fromCalls(displayCalls, toolIdsFor(artifact, displayCalls), hasSubagent);
   }
 
   private static RoundIndexDto toPageDto(
@@ -77,12 +75,13 @@ final class RoundIndexProjection {
       SessionDetailParityAnalyzer.RoundParity parity) {
     Map<String, Object> parityMap = parity.toMap();
     List<String> failedToolIds =
-        parity.failedToolIds.isEmpty()
-            ? round.failedToolCallIds()
-            : List.copyOf(parity.failedToolIds);
+        displayedFailures(
+            round,
+            artifact,
+            parity.failedToolIds.isEmpty() ? round.failedToolCallIds() : parity.failedToolIds);
     List<String> signals =
         parity.signals.isEmpty()
-            ? failedSignals(round.failedToolCount())
+            ? failedSignals(failedToolIds.size())
             : List.copyOf(parity.signals);
     boolean failed = !failedToolIds.isEmpty() || Boolean.TRUE.equals(parityMap.get("hasIssues"));
     return toDto(round, sessionTokens, artifact, failedToolIds, failed, signals, parityMap);
@@ -90,14 +89,22 @@ final class RoundIndexProjection {
 
   private static RoundIndexDto toExportDto(
       CallRound round, long sessionTokens, NormalizedSessionArtifact artifact) {
+    List<String> failures = displayedFailures(round, artifact, round.failedToolCallIds());
     return toDto(
         round,
         sessionTokens,
         artifact,
-        round.failedToolCallIds(),
-        round.failedToolCount() > 0,
-        failedSignals(round.failedToolCount()),
+        failures,
+        !failures.isEmpty(),
+        failedSignals(failures.size()),
         Map.of());
+  }
+
+  private static List<String> displayedFailures(
+      CallRound round, NormalizedSessionArtifact artifact, List<String> failures) {
+    if (artifact == null) return List.copyOf(failures);
+    List<String> visibleIds = project(round, artifact).toolCallIds();
+    return failures.stream().filter(visibleIds::contains).distinct().toList();
   }
 
   private static List<NormalizedCall> callsForRound(
@@ -132,50 +139,33 @@ final class RoundIndexProjection {
   }
 
   private static List<String> toolIdsFor(
-      CallRound round, NormalizedSessionArtifact artifact, List<NormalizedCall> displayCalls) {
-    LinkedHashSet<String> toolIds =
-        displayCalls.stream()
-            .flatMap(RoundIndexProjection::callToolIdStream)
-            .collect(Collectors.toCollection(LinkedHashSet::new));
-    if (shouldUseRoundToolFallback(toolIds, displayCalls)) {
-      return List.copyOf(round.toolCallIds());
+      NormalizedSessionArtifact artifact, List<NormalizedCall> displayCalls) {
+    // 仅统计当前展示调用实际声明的工具执行，不计请求消费的历史结果。
+    LinkedHashSet<String> toolIds = collectExecutionToolIds(artifact, displayCalls);
+    if (!toolIds.isEmpty()) {
+      return List.copyOf(toolIds);
     }
-    addDeclaredToolIds(artifact, displayCalls, toolIds);
-    return List.copyOf(toolIds);
-  }
-
-  private static Stream<String> callToolIdStream(NormalizedCall call) {
-    return Stream.concat(
-        call.response().toolCallIds().stream(), call.request().toolResultIds().stream());
-  }
-
-  private static boolean shouldUseRoundToolFallback(
-      LinkedHashSet<String> toolIds, List<NormalizedCall> displayCalls) {
-    return toolIds.isEmpty() && !hasMainCall(displayCalls);
-  }
-
-  private static boolean hasMainCall(List<NormalizedCall> calls) {
-    for (NormalizedCall call : calls) {
-      if (call.scope() == CallScope.MAIN) {
-        return true;
-      }
-    }
-    return false;
-  }
-
-  private static void addDeclaredToolIds(
-      NormalizedSessionArtifact artifact,
-      List<NormalizedCall> displayCalls,
-      LinkedHashSet<String> toolIds) {
-    Set<String> declaredByDisplay = new LinkedHashSet<>();
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Fallback: response toolCallIds only — never requestToolResultIds`
+    LinkedHashSet<String> responseToolIds = new LinkedHashSet<>();
     for (NormalizedCall call : displayCalls) {
-      declaredByDisplay.add(call.callId());
+      responseToolIds.addAll(call.response().toolCallIds());
     }
+    return List.copyOf(responseToolIds);
+  }
+
+  private static LinkedHashSet<String> collectExecutionToolIds(
+      NormalizedSessionArtifact artifact, List<NormalizedCall> displayCalls) {
+    Set<String> displayCallIds = new LinkedHashSet<>();
+    for (NormalizedCall call : displayCalls) {
+      displayCallIds.add(call.callId());
+    }
+    LinkedHashSet<String> toolIds = new LinkedHashSet<>();
     for (NormalizedToolExecution exec : artifact.toolExecutions()) {
-      if (declaredByDisplay.contains(exec.declaredByCallId())) {
+      if (displayCallIds.contains(exec.declaredByCallId())) {
         toolIds.add(exec.toolCallId());
       }
     }
+    return toolIds;
   }
 
   private static RoundIndexDto toDto(
@@ -187,6 +177,11 @@ final class RoundIndexProjection {
       List<String> signals,
       Map<String, Object> parity) {
     Projection projection = project(round, artifact);
+    Map<String, Object> displayParity = new LinkedHashMap<>(parity);
+    String toolSummary = toolCountSummary(projection.toolCallIds(), artifact);
+    if (!toolSummary.isBlank()) {
+      displayParity.put("summary", toolSummary);
+    }
     List<String> safeFailedToolIds = safeList(failedToolIds);
     return new RoundIndexDto(
         round.roundIndex(),
@@ -205,7 +200,23 @@ final class RoundIndexProjection {
         tokenShare(sessionTokens, projection.totalTokens()),
         failed ? "failed" : "ok",
         mergedSignals(signals, safeFailedToolIds, projection.hasSubagent()),
-        parity);
+        displayParity);
+  }
+
+  /** 汇总与详情共用工具 ID 集合；参数只在工具明细展示。 */
+  static String toolCountSummary(List<String> toolIds, NormalizedSessionArtifact artifact) {
+    if (artifact == null || toolIds.isEmpty()) {
+      return "";
+    }
+    Set<String> remaining = new LinkedHashSet<>(toolIds);
+    Map<String, Integer> counts = new LinkedHashMap<>();
+    for (NormalizedToolExecution tool : artifact.toolExecutions()) {
+      if (remaining.remove(tool.toolCallId())) {
+        counts.merge(tool.name(), 1, Integer::sum);
+      }
+    }
+    return String.join(
+        " · ", counts.entrySet().stream().map(e -> e.getKey() + " × " + e.getValue()).toList());
   }
 
   private static List<String> safeList(List<String> values) {

@@ -3,6 +3,7 @@ package com.feipi.session.browser.web.api;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.feipi.session.browser.application.sessiondetail.SessionDetail;
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.index.api.query.SessionRecord;
 import com.feipi.session.browser.query.api.CallRound;
@@ -96,9 +97,21 @@ final class SessionDetailParityAnalyzer {
       }
     }
 
-    Map<Integer, RoundParity> rounds = buildRoundParity(detail.rounds(), parent, row.sessionId());
+    Map<Integer, RoundParity> rounds =
+        buildRoundParity(detail.rounds(), parent, row.sessionId(), artifact);
     long subagentCalls = children.stream().mapToLong(child -> child.llmCalls).sum();
     long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : detail.roundCount();
+    if (artifact != null) {
+      // 计数必须与 Trace 使用同一归一化集合，不能再把累计 usage 的响应分片算作多次调用。
+      mainCalls = artifact.calls().stream().filter(call -> call.scope() == CallScope.MAIN).count();
+      subagentCalls = artifact.calls().size() - mainCalls;
+      for (RolloutStats child : children) {
+        child.llmCalls =
+            artifact.calls().stream()
+                .filter(call -> call.subagentId().filter(child.sessionId::equals).isPresent())
+                .count();
+      }
+    }
     long workload = mainCalls + subagentCalls;
     long rawToolCount =
         parent.tools.size() + children.stream().mapToLong(child -> child.tools.size()).sum();
@@ -125,7 +138,8 @@ final class SessionDetailParityAnalyzer {
             totalTools, failedTools, payloadGaps, attributionGaps, issueRounds, issues);
     Map<String, Object> diagnostics =
         diagnosticsMap(
-            new DiagnosticsInput(row, sourcePath, parent, children, rounds, issueSummary));
+            new DiagnosticsInput(
+                row, sourcePath, parent, children, rounds, issueSummary, mainCalls));
     Map<String, Object> metrics =
         metricsMap(
             new MetricsInput(
@@ -249,6 +263,7 @@ final class SessionDetailParityAnalyzer {
     String pendingAssistant = "";
     String pendingUser = "";
     List<String> pendingToolNames = new ArrayList<>();
+    List<String> pendingToolInputPreviews = new ArrayList<>();
     try (BufferedReader reader = Files.newBufferedReader(path, StandardCharsets.UTF_8)) {
       String line;
       int index = 0;
@@ -268,6 +283,7 @@ final class SessionDetailParityAnalyzer {
           String responseToolName = handleResponseItem(stats, payload, timestamp, index);
           if (!responseToolName.isBlank()) {
             pendingToolNames.add(responseToolName);
+            pendingToolInputPreviews.add("");
           }
           String payloadType = text(payload, FIELD_TYPE);
           if ("message".equals(payloadType)) {
@@ -341,10 +357,12 @@ final class SessionDetailParityAnalyzer {
                 String callId = text(part, "id");
                 if (!callId.isBlank()) {
                   String name = firstNonBlank(text(part, "name"), FIELD_TOOL);
-                  stats.tools.put(
-                      callId, new ToolEvent(callId, name, stats.scope, timestamp, index));
+                  ToolEvent toolEvent = new ToolEvent(callId, name, stats.scope, timestamp, index);
+                  toolEvent.inputPreview = extractToolUseInputPreview(name, part);
+                  stats.tools.put(callId, toolEvent);
                   if (!name.isBlank() && !FIELD_TOOL.equals(name)) {
                     pendingToolNames.add(name);
+                    pendingToolInputPreviews.add(toolEvent.inputPreview);
                   }
                 }
               }
@@ -354,10 +372,17 @@ final class SessionDetailParityAnalyzer {
           boolean hasStopReason = !text(message, "stop_reason").isBlank();
           if (usage.output > 0 || hasStopReason) {
             recordLlmRound(
-                stats, usage, pendingUser, pendingAssistant, pendingToolNames, timestamp);
+                stats,
+                usage,
+                pendingUser,
+                pendingAssistant,
+                pendingToolNames,
+                pendingToolInputPreviews,
+                timestamp);
             pendingAssistant = "";
             pendingUser = "";
             pendingToolNames = new ArrayList<>();
+            pendingToolInputPreviews = new ArrayList<>();
           }
           continue;
         }
@@ -372,10 +397,18 @@ final class SessionDetailParityAnalyzer {
           if (usage.total <= 0 && totalTokens > 0 && stats.llmCalls > 0) {
             continue;
           }
-          recordLlmRound(stats, usage, pendingUser, pendingAssistant, pendingToolNames, timestamp);
+          recordLlmRound(
+              stats,
+              usage,
+              pendingUser,
+              pendingAssistant,
+              pendingToolNames,
+              pendingToolInputPreviews,
+              timestamp);
           pendingAssistant = "";
           pendingUser = "";
           pendingToolNames = new ArrayList<>();
+          pendingToolInputPreviews = new ArrayList<>();
         }
       }
     } catch (IOException ignored) {
@@ -408,13 +441,14 @@ final class SessionDetailParityAnalyzer {
       String pendingUser,
       String pendingAssistant,
       List<String> pendingToolNames,
+      List<String> pendingToolInputPreviews,
       String timestamp) {
     stats.llmCalls++;
     stats.inputSideTokens += usage.fresh + usage.cacheRead + usage.cacheWrite;
     stats.llmTokens += usage.total;
     String summary = firstNonBlank(pendingUser, pendingAssistant);
     if (summary.isBlank()) {
-      summary = toolSummaryLabel(pendingToolNames);
+      summary = toolSummaryLabel(pendingToolNames, pendingToolInputPreviews);
     }
     stats.roundSummaries.add(
         new RawRoundSummary(stats.llmCalls, summary, localTime(timestamp), !pendingUser.isBlank()));
@@ -466,7 +500,10 @@ final class SessionDetailParityAnalyzer {
   }
 
   private static Map<Integer, RoundParity> buildRoundParity(
-      List<CallRound> detailRounds, RolloutStats parent, String sessionId) {
+      List<CallRound> detailRounds,
+      RolloutStats parent,
+      String sessionId,
+      NormalizedSessionArtifact artifact) {
     List<Long> freshValues =
         detailRounds.stream().map(CallRound::freshInputTokens).sorted().toList();
     double medianFresh = median(freshValues);
@@ -478,8 +515,15 @@ final class SessionDetailParityAnalyzer {
     }
     Map<Integer, RoundParity> result = new LinkedHashMap<>();
     for (CallRound round : detailRounds) {
+      List<String> executionIds =
+          artifact == null
+              ? round.toolCallIds()
+              : RoundIndexProjection.project(round, artifact).toolCallIds();
       List<String> failedInRound =
-          round.toolCallIds().stream().filter(failedIds::contains).distinct().toList();
+          executionIds.stream()
+              .filter(id -> failedIds.contains(id) || round.failedToolCallIds().contains(id))
+              .distinct()
+              .toList();
       long inputSide =
           round.freshInputTokens() + round.cacheReadTokens() + round.cacheWriteTokens();
       boolean lowCache = inputSide > 0 && (round.cacheReadTokens() * 100.0 / inputSide) < 20.0;
@@ -489,6 +533,12 @@ final class SessionDetailParityAnalyzer {
       parity.summary = firstNonBlank(raw.summary, "Round " + round.roundIndex());
       parity.time = firstNonBlank(raw.time, "");
       parity.userInput = raw.userInput;
+      if (artifact != null) {
+        RoundContentProjection content = RoundContentProjection.from(round, artifact);
+        parity.summary = content.summary();
+        parity.time = content.time();
+        parity.userInput = content.userInput();
+      }
       parity.lowCache = lowCache;
       parity.freshSpike = freshSpike;
       parity.failedToolIds.addAll(failedInRound);
@@ -658,7 +708,9 @@ final class SessionDetailParityAnalyzer {
     map.put("payloadGaps", payloadGaps);
     map.put("attributionGaps", attributionGaps);
     map.put("issueStrip", issueStrip(issues));
-    map.put("agents", agentRows(input.row, input.sourcePath, input.parent, input.children));
+    map.put(
+        "agents",
+        agentRows(input.row, input.sourcePath, input.parent, input.children, input.mainCalls));
     map.put("contextSegments", contextSegments(input.row, input.parent, input.children));
     map.put("toolImpact", toolImpact(input.parent, input.children, totalTools, failedTools));
     map.put("issues", issueRows(issues));
@@ -668,8 +720,11 @@ final class SessionDetailParityAnalyzer {
   }
 
   private static List<Map<String, Object>> agentRows(
-      SessionRecord row, String sourcePath, RolloutStats parent, List<RolloutStats> children) {
-    long mainCalls = parent.llmCalls > 0 ? parent.llmCalls : row.assistantMessageCount();
+      SessionRecord row,
+      String sourcePath,
+      RolloutStats parent,
+      List<RolloutStats> children,
+      long mainCalls) {
     long parentSubagentTools =
         parent.tools.values().stream().filter(tool -> !tool.subagentId.isBlank()).count();
     long mainTools = Math.max(parent.tools.size() - parentSubagentTools, 0);
@@ -1031,7 +1086,7 @@ final class SessionDetailParityAnalyzer {
     return text.toString();
   }
 
-  private static boolean isVisibleUserInput(String messageText) {
+  static boolean isVisibleUserInput(String messageText) {
     if (messageText == null || messageText.isBlank()) {
       return false;
     }
@@ -1047,13 +1102,61 @@ final class SessionDetailParityAnalyzer {
     return first != null && !first.isBlank() ? first : (second == null ? "" : second);
   }
 
-  /** 从工具名列表生成稳定安全摘要，例如 "Tool: Read" 或 "Tool: Read, Write"。 */
-  private static String toolSummaryLabel(List<String> toolNames) {
+  /**
+   * 从工具名列表和输入预览生成稳定安全摘要。
+   *
+   * <p>如果有输入预览，格式为 "Read: path, Grep: pattern in path"；否则回退到 "Tool: Read, Write"。
+   */
+  private static String toolSummaryLabel(List<String> toolNames, List<String> inputPreviews) {
     if (toolNames == null || toolNames.isEmpty()) {
       return "";
     }
+    // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Build labeled summaries with input previews when available`
+    if (inputPreviews != null && inputPreviews.size() == toolNames.size()) {
+      List<String> labeled = new ArrayList<>();
+      for (int i = 0; i < toolNames.size(); i++) {
+        String name = toolNames.get(i);
+        String preview = inputPreviews.get(i);
+        if (preview != null && !preview.isBlank()) {
+          labeled.add(name + ": " + preview);
+        } else {
+          labeled.add(name);
+        }
+      }
+      return "Tool: " + String.join(", ", labeled);
+    }
     LinkedHashSet<String> unique = new LinkedHashSet<>(toolNames);
     return "Tool: " + String.join(", ", unique);
+  }
+
+  /**
+   * 从 tool_use JSON 节点中提取安全输入预览。
+   *
+   * <p>Read → file_path，Grep → pattern + path，Bash → command，其他 → 空字符串。
+   */
+  private static String extractToolUseInputPreview(String toolName, JsonNode toolUseNode) {
+    if (toolUseNode == null) return "";
+    JsonNode inputNode = toolUseNode.path("input");
+    if (!inputNode.isObject()) return "";
+    String name = toolName == null ? "" : toolName.toLowerCase();
+    if (name.contains("read") || name.contains("write") || name.contains("edit")) {
+      String path = inputNode.path("file_path").asText("");
+      if (!path.isBlank()) return path;
+    }
+    if (name.contains("grep") || name.contains("search")) {
+      String pattern = inputNode.path("pattern").asText("");
+      String path = inputNode.path("path").asText("");
+      if (!pattern.isBlank() && !path.isBlank()) return pattern + " in " + path;
+      if (!pattern.isBlank()) return pattern;
+    }
+    if (name.contains("bash") || name.contains("shell") || name.contains("exec")) {
+      String cmd = inputNode.path("command").asText("");
+      if (!cmd.isBlank()) {
+        String singleLine = cmd.replace('\n', ' ').replace('\r', ' ').trim();
+        return singleLine.length() <= 80 ? singleLine : singleLine.substring(0, 79) + "…";
+      }
+    }
+    return "";
   }
 
   private static long firstPositive(long first, long second) {
@@ -1274,6 +1377,7 @@ final class SessionDetailParityAnalyzer {
     final int lineIndex;
     String output = "";
     String subagentId = "";
+    String inputPreview = "";
     boolean failed;
     int resultTokens;
 
@@ -1433,6 +1537,7 @@ final class SessionDetailParityAnalyzer {
     final List<RolloutStats> children;
     final Map<Integer, RoundParity> rounds;
     final RunIssueSummary issueSummary;
+    final long mainCalls;
 
     DiagnosticsInput(
         SessionRecord row,
@@ -1440,13 +1545,15 @@ final class SessionDetailParityAnalyzer {
         RolloutStats parent,
         List<RolloutStats> children,
         Map<Integer, RoundParity> rounds,
-        RunIssueSummary issueSummary) {
+        RunIssueSummary issueSummary,
+        long mainCalls) {
       this.row = row;
       this.sourcePath = sourcePath;
       this.parent = parent;
       this.children = children;
       this.rounds = rounds;
       this.issueSummary = issueSummary;
+      this.mainCalls = mainCalls;
     }
   }
 

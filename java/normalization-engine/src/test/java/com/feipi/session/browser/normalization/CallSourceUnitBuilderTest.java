@@ -5,6 +5,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import com.feipi.session.browser.domain.source.SourceRecord;
 import com.feipi.session.browser.domain.source.SourceRecordRelation;
 import com.feipi.session.browser.domain.source.SourceRecordUsage;
+import com.feipi.session.browser.domain.source.SourceToolCall;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -66,6 +67,55 @@ class CallSourceUnitBuilderTest {
     assertThat(texts(unfinished.get(0))).containsExactly("U1", "", "A1");
   }
 
+  @Test
+  void assistantWithToolCallsEmitsIndependentToolUseUnits() {
+    var toolCalls =
+        List.of(
+            new SourceToolCall("t1", "Read", "{\"file_path\":\"/a.md\"}"),
+            new SourceToolCall("t2", "Write", "{\"file_path\":\"/b.md\"}"));
+    var records =
+        List.of(
+            record("main", "user", "request", ""),
+            assistantWithTools("main", "I will help", toolCalls));
+    var calls = CallSourceUnitBuilder.build(records, SourceRecord::locator);
+    assertThat(calls).hasSize(1);
+    var units = calls.get(0);
+
+    assertThat(units).hasSize(4);
+
+    assertThat(units.get(0)).containsEntry("type", "user");
+    assertThat(units.get(0)).containsEntry("role", "user");
+    assertThat(units.get(0)).containsEntry("text", "request");
+
+    assertThat(units.get(1)).containsEntry("type", "assistant");
+    assertThat(units.get(1)).containsEntry("role", "assistant");
+    assertThat(units.get(1)).containsEntry("text", "I will help");
+
+    assertThat(units.get(2)).containsEntry("type", "tool_use");
+    assertThat(units.get(2)).containsEntry("role", "assistant");
+    assertThat(units.get(2)).containsEntry("id", "t1");
+    assertThat(units.get(2)).containsEntry("name", "Read");
+    assertThat(units.get(2)).containsEntry("input", "{\"file_path\":\"/a.md\"}");
+
+    assertThat(units.get(3)).containsEntry("type", "tool_use");
+    assertThat(units.get(3)).containsEntry("id", "t2");
+    assertThat(units.get(3)).containsEntry("name", "Write");
+    assertThat(units.get(3)).containsEntry("input", "{\"file_path\":\"/b.md\"}");
+  }
+
+  @Test
+  void assistantWithOnlyToolCallsAndNoTextStillEmitsTextUnit() {
+    var toolCalls = List.of(new SourceToolCall("t1", "Read", ""));
+    var records = List.of(assistantWithTools("main", "", toolCalls));
+    var calls = CallSourceUnitBuilder.build(records, SourceRecord::locator);
+    assertThat(calls).hasSize(1);
+    assertThat(calls.get(0)).hasSize(2);
+    assertThat(calls.get(0).get(0)).containsEntry("type", "assistant");
+    assertThat(calls.get(0).get(0)).containsEntry("text", "");
+    assertThat(calls.get(0).get(1)).containsEntry("type", "tool_use");
+    assertThat(calls.get(0).get(1)).containsEntry("id", "t1");
+  }
+
   private static List<Object> texts(List<Map<String, Object>> units) {
     return units.stream().map(unit -> unit.get("text")).toList();
   }
@@ -82,6 +132,25 @@ class CallSourceUnitBuilderTest {
         SourceRecordUsage.empty(),
         List.of(),
         toolId.isEmpty() ? Optional.empty() : Optional.of(toolId),
+        Optional.empty(),
+        Optional.empty(),
+        SourceRecordRelation.empty(),
+        text);
+  }
+
+  private static SourceRecord assistantWithTools(
+      String scope, String text, List<SourceToolCall> toolCalls) {
+    return new SourceRecord(
+        scope,
+        0,
+        "assistant",
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        Optional.empty(),
+        SourceRecordUsage.empty(),
+        toolCalls,
+        Optional.empty(),
         Optional.empty(),
         Optional.empty(),
         SourceRecordRelation.empty(),

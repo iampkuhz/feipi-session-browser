@@ -96,6 +96,14 @@ public final class SensitiveFieldPolicy {
     }
     String result = content;
     for (String field : sensitiveFields) {
+      // JSON 字符串和带引号的 shell 值不能被裸值规则漏掉。
+      String escaped = escapeRegex(field);
+      result =
+          result.replaceAll(
+              "(?i)(\"" + escaped + "\"\\s*:\\s*)\"(?:\\\\.|[^\"\\\\])*\"", "$1\"[REDACTED]\"");
+      result =
+          result.replaceAll(
+              "(?i)(\\b" + escaped + "\\s*[=:]\\s*)(['\"])(?:\\\\.|(?!\\2).)*?\\2", "$1[REDACTED]");
       // 匹配 key=value 和 key: value 两种格式
       result =
           result.replaceAll(

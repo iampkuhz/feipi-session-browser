@@ -113,11 +113,20 @@ final class TestSourceRecords {
         Optional<String> id = text(block, "id");
         Optional<String> name = text(block, "name");
         if (id.isPresent() && name.isPresent()) {
-          calls.add(new SourceToolCall(id.get(), name.get()));
+          String input = serializeInput(block);
+          calls.add(new SourceToolCall(id.get(), name.get(), input));
         }
       }
     }
     return List.copyOf(calls);
+  }
+
+  private static String serializeInput(JsonNode toolUseBlock) {
+    JsonNode inputNode = toolUseBlock.get("input");
+    if (inputNode == null || inputNode.isNull()) {
+      return "";
+    }
+    return inputNode.toString();
   }
 
   private static String content(JsonNode node) {

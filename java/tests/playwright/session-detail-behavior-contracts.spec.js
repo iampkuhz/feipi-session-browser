@@ -55,74 +55,21 @@ async function openAttribution(page, kind) {
 }
 
 function detailedAttributionPayload(kind) {
-  const request = kind === 'request';
   return {
     kind: `llm.${kind}_attribution`,
     data: {
+      callId: 'fixture-call-id-001',
+      callKey: 'C1',
       model: 'fixture-detailed-model',
-      source_label: 'local fixture logs',
-      call_id: 'fixture-call-1',
-      call_identity: {
-        agent_runtime: 'claude_code',
-        api_family: 'Messages',
-        provider_or_broker: 'fixture-provider',
-        model: 'fixture-detailed-model',
-        billing_units: ['tokens'],
-        mapping_confidence: 1,
-      },
-      timing: { request_at: '10:00:00', response_at: '10:00:01', duration: '1s' },
-      usage: request
-        ? {
-            fresh: { value: 120, precision: 'exact' },
-            cache_read: { value: 30, precision: 'provider_reported' },
-            cache_write: { value: 10, precision: 'provider_reported' },
-            coverage: { value: 1, precision: 'exact' },
-            unknown: { value: 0, precision: 'exact' },
-          }
-        : {
-            total_output: { value: 90, precision: 'exact' },
-            visible_text: { value: 70, precision: 'exact' },
-            tool_call: { value: 20, precision: 'exact' },
-            metadata: { value: 0, precision: 'exact' },
-            coverage: { value: 1, precision: 'exact' },
-            unknown: { value: 0, precision: 'exact' },
-          },
-      coverage: request
-        ? {
-            provider_request_input: 160,
-            input_side_component_total: 160,
-            request_content_denominator: 120,
-            reconstructed_total: 120,
-            coverage_ratio: 1,
-            residual_tokens: 0,
-          }
-        : null,
-      buckets: [
-        {
-          key: request ? 'current_user_input' : 'tool_call',
-          canonical_key: request ? 'current_user_input' : 'tool_call',
-          color_key: request ? 'current_user_input' : 'tool_call',
-          label: request ? '当前用户输入' : '工具调用',
-          tokens: request ? 120 : 90,
-          percent: 100,
-          precision: 'exact',
-          contributes_to_total: true,
-          count_label: '1 item',
-          details: {
-            explanation: ['本地日志中的可见内容用于归因展示。'],
-            items: [
-              {
-                label: request ? '用户消息' : '工具调用 block',
-                role: request ? 'user' : 'assistant',
-                content_type: request ? 'text' : 'tool_use',
-                tokens: request ? 120 : 90,
-                summary: '稳定的可见内容摘要',
-                full_content: request ? '请分析当前会话。' : '{"name":"Read","input":{"path":"fixture.md"}}',
-              },
-            ],
-          },
-        },
-      ],
+      scope: 'main',
+      timestamp: '2026-09-21T10:00:00Z',
+      totalTokens: 210,
+      freshInputTokens: 120,
+      outputTokens: 90,
+      cacheReadTokens: 30,
+      cacheWriteTokens: 10,
+      requestToolResultCount: 3,
+      responseToolCallCount: 2,
     },
   };
 }
@@ -143,10 +90,12 @@ async function assertDetailedAttributionContract(page, modal, kind) {
   const requiredCopy = [
     '基于本地日志重建',
     '不等同于真实提供方',
-    '用量分布',
-    '贡献来源',
-    kind === 'request' ? '请求摘要' : '响应摘要',
-    kind === 'request' ? '当前用户输入' : '工具调用',
+    '调用身份',
+    // h3 使用 text-transform: uppercase，innerText 返回大写形式
+    kind === 'request' ? '请求 TOKEN' : '响应 TOKEN',
+    '工具计数',
+    'Request Tool Results',
+    'Response Tool Calls',
   ];
   for (const copy of requiredCopy) {
     expect(visibleText, `${kind} attribution modal must contain ${copy}`).toContain(copy);
@@ -156,15 +105,10 @@ async function assertDetailedAttributionContract(page, modal, kind) {
     expect(lowerText, `${kind} attribution modal must not expose ${copy}`).not.toContain(copy);
   }
 
-  const bucketToggle = modal.locator('[data-bucket-toggle]').first();
-  await expect(bucketToggle).toHaveAttribute('aria-expanded', 'false');
-  await bucketToggle.click();
-  await expect(bucketToggle).toHaveAttribute('aria-expanded', 'true');
-  const leafToggle = modal.locator('[data-bucket-leaf-toggle]').first();
-  await expect(leafToggle).toBeVisible();
-  await leafToggle.click();
-  await expect(leafToggle).toHaveAttribute('aria-expanded', 'true');
-  await expect(modal.locator('.sd-bucket-detail-preview').first()).toBeVisible();
+  // 中文说明：维护当前前端逻辑，原注释作为代码上下文保留：`Verify identity and token cards are present`
+  await expect(modal.locator('[data-attribution-card="identity"]')).toBeVisible();
+  await expect(modal.locator('[data-attribution-card="tokens"]')).toBeVisible();
+  await expect(modal.locator('[data-attribution-card="tool-counts"]')).toBeVisible();
 
   const geometry = await page.evaluate(() => {
     const dialog = document.querySelector('dialog.payload-modal');
@@ -172,24 +116,23 @@ async function assertDetailedAttributionContract(page, modal, kind) {
       const element = document.querySelector(selector);
       if (!element) return null;
       const bounds = element.getBoundingClientRect();
-      return { left: bounds.left, right: bounds.right };
+      return { left: bounds.left, right: bounds.right, width: bounds.width, height: bounds.height };
     };
     const bounds = dialog.getBoundingClientRect();
     return {
       viewportWidth: window.innerWidth,
       scrollWidth: document.documentElement.scrollWidth,
       modal: { left: bounds.left, right: bounds.right },
-      distribution: rect('.sd-attribution-distribution__bar'),
+      identityGrid: rect('.sd-attribution-identity-grid'),
       summaryGrid: rect('.sd-attribution-summary-grid'),
-      bucketList: rect('.sd-attribution-bucket-list'),
-      preview: rect('.sd-bucket-detail-preview'),
+      toolCountsCard: rect('[data-attribution-card="tool-counts"]'),
     };
   });
   expect(geometry.scrollWidth).toBeLessThanOrEqual(geometry.viewportWidth + 2);
   expect(geometry.modal.left).toBeGreaterThanOrEqual(-2);
   expect(geometry.modal.right).toBeLessThanOrEqual(geometry.viewportWidth + 2);
-  for (const key of ['distribution', 'summaryGrid', 'bucketList', 'preview']) {
-    expect(geometry[key], `${key} must exist in the current detailed renderer`).not.toBeNull();
+  for (const key of ['identityGrid', 'summaryGrid', 'toolCountsCard']) {
+    expect(geometry[key], `${key} must exist in the current attribution renderer`).not.toBeNull();
     expect(geometry[key].right, `${key} must stay inside the modal`).toBeLessThanOrEqual(geometry.modal.right + 2);
   }
 }

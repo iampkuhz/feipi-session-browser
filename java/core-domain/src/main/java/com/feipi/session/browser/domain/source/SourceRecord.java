@@ -30,6 +30,8 @@ import java.util.Optional;
  * @param toolError 工具结果中的错误信息，非空表示工具执行失败；缺失时为空
  * @param relation 该记录携带的父子关系证据，缺失时为空关系
  * @param content 实际文本内容，缺失时为空且不输出到日志
+ * @param responseMessageId assistant 响应的显式 message.id，仅 Qoder 合并使用，缺失时为空
+ * @param responseStopReason assistant 响应的 stop_reason（如 end_turn、tool_use），缺失时为空
  */
 @DomainModel
 public record SourceRecord(
@@ -73,12 +75,18 @@ public record SourceRecord(
     @NotNull SourceRecordRelation relation,
 
     /* 记录的实际文本内容，用于归一化时填充 sourceUnits；缺失时为空。 */
-    @NotNull String content) {
+    @NotNull String content,
+
+    /* assistant 响应的显式 message.id，仅 Qoder 合并使用，缺失时为空。 */
+    @NotNull Optional<String> responseMessageId,
+
+    /* assistant 响应的 stop_reason（如 end_turn、tool_use），缺失时为空。 */
+    @NotNull Optional<String> responseStopReason) {
 
   /**
    * 兼容旧调用点的构造器。
    *
-   * <p>未显式传入关系时使用空关系。
+   * <p>未显式传入关系时使用空关系，新元数据默认为空。
    */
   public SourceRecord(
       String locator,
@@ -110,7 +118,7 @@ public record SourceRecord(
         "");
   }
 
-  /** 兼容未传入文本内容的关系记录。 */
+  /** 兼容未传入文本内容的关系记录，新元数据默认为空。 */
   public SourceRecord(
       String locator,
       int eventIndex,
@@ -142,7 +150,42 @@ public record SourceRecord(
         "");
   }
 
-  /** 返回仅替换文本内容的不可变副本。 */
+  /** 兼容未传入新元数据的 14 参数构造器。 */
+  public SourceRecord(
+      String locator,
+      int eventIndex,
+      String eventType,
+      Optional<String> callId,
+      Optional<String> model,
+      Optional<String> timestamp,
+      Optional<String> turnId,
+      SourceRecordUsage usage,
+      List<SourceToolCall> toolCalls,
+      Optional<String> toolUseId,
+      Optional<String> toolName,
+      Optional<String> toolError,
+      SourceRecordRelation relation,
+      String content) {
+    this(
+        locator,
+        eventIndex,
+        eventType,
+        callId,
+        model,
+        timestamp,
+        turnId,
+        usage,
+        toolCalls,
+        toolUseId,
+        toolName,
+        toolError,
+        relation,
+        content,
+        Optional.empty(),
+        Optional.empty());
+  }
+
+  /** 返回仅替换文本内容的不可变副本，保留全部元数据。 */
   public SourceRecord withContent(String replacementContent) {
     return new SourceRecord(
         locator,
@@ -158,7 +201,9 @@ public record SourceRecord(
         toolName,
         toolError,
         relation,
-        replacementContent);
+        replacementContent,
+        responseMessageId,
+        responseStopReason);
   }
 
   /** 日志摘要不包含文本或其他 provider 原始字段。 */
@@ -170,7 +215,7 @@ public record SourceRecord(
   /**
    * 紧凑构造器，处理默认值并校验约束。
    *
-   * <p>当 {@code eventType} 为空时默认为 {@code "unknown"}。
+   * <p>当 {@code eventType} 为空时默认为 {@code "unknown"}。新元数据规范化为 Optional.empty()。
    */
   public SourceRecord {
     // eventType 默认值处理
@@ -181,6 +226,9 @@ public record SourceRecord(
     content = content == null ? "" : content;
     // 集合防御性拷贝
     toolCalls = List.copyOf(toolCalls);
+    // 新元数据规范化
+    responseMessageId = responseMessageId == null ? Optional.empty() : responseMessageId;
+    responseStopReason = responseStopReason == null ? Optional.empty() : responseStopReason;
     try {
       ValidationSupport.validateCanonicalConstructor(
           SourceRecord.class,
@@ -197,7 +245,9 @@ public record SourceRecord(
           toolName,
           toolError,
           relation,
-          content);
+          content,
+          responseMessageId,
+          responseStopReason);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }
@@ -226,7 +276,9 @@ public record SourceRecord(
         Optional.empty(),
         Optional.empty(),
         SourceRecordRelation.empty(),
-        "");
+        "",
+        Optional.empty(),
+        Optional.empty());
   }
 
   /**

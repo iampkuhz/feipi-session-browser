@@ -143,6 +143,7 @@
   color: var(--sd-err);
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`5) Payload body layout.` */
+.sd-payload-modal .sd-payload-shell,
 .session-detail-page .sd-payload-shell,
 .session-detail-page .payload-shell,
 .sd-page .sd-payload-shell,
@@ -150,14 +151,17 @@
 .sd-shell .sd-payload-shell,
 .sd-shell .payload-shell {
   display: grid;
-  grid-template-columns: 180px minmax(0, 1fr);
+  grid-template-columns: 200px minmax(0, 1fr);
   gap: 14px;
   align-items: start;
 }
+.sd-payload-modal .sd-payload-meta,
 .session-detail-page .sd-payload-meta,
 .session-detail-page .payload-meta,
+.sd-payload-modal .sd-payload-section,
 .session-detail-page .sd-payload-section,
 .session-detail-page .payload-section,
+.sd-payload-modal .sd-result-output,
 .session-detail-page .sd-result-output,
 .session-detail-page .result-output,
 .sd-page .sd-payload-meta,
@@ -177,10 +181,13 @@
   background: #fff;
   overflow: hidden;
 }
+.sd-payload-modal .sd-payload-meta h3,
 .session-detail-page .sd-payload-meta h3,
 .session-detail-page .payload-meta h3,
+.sd-payload-modal .sd-payload-section h3,
 .session-detail-page .sd-payload-section h3,
 .session-detail-page .payload-section h3,
+.sd-payload-modal .sd-result-output h3,
 .session-detail-page .sd-result-output h3,
 .session-detail-page .result-output h3,
 .sd-page .sd-payload-meta h3,
@@ -205,8 +212,10 @@
   font-size: 12px;
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`5b) Payload metadata key/value grid rail.` */
+.sd-payload-modal .sd-kv,
 .session-detail-page .sd-kv,
 .session-detail-page .payload-kv,
+.sd-payload-modal .sd-payload-meta__row,
 .session-detail-page .sd-payload-meta__row,
 .session-detail-page .payload-meta__row,
 .sd-page .sd-kv,
@@ -221,8 +230,10 @@
   grid-template-columns: 72px minmax(0, 1fr);
   margin: 0;
 }
+.sd-payload-modal .sd-kv > span,
 .session-detail-page .sd-kv > span,
 .session-detail-page .payload-kv > span,
+.sd-payload-modal .sd-payload-meta__row > span,
 .session-detail-page .sd-payload-meta__row > span,
 .session-detail-page .payload-meta__row > span,
 .sd-page .sd-kv > span,
@@ -239,8 +250,10 @@
   font-size: 12px;
   line-height: 1.35;
 }
+.sd-payload-modal .sd-kv > span:first-child,
 .session-detail-page .sd-kv > span:first-child,
 .session-detail-page .payload-kv > span:first-child,
+.sd-payload-modal .sd-payload-meta__row > span:first-child,
 .session-detail-page .sd-payload-meta__row > span:first-child,
 .session-detail-page .payload-meta__row > span:first-child,
 .sd-page .sd-kv > span:first-child,
@@ -256,8 +269,10 @@
   font-family: var(--sd-mono);
   font-weight: 700;
 }
+.sd-payload-modal .sd-kv > span:last-child,
 .session-detail-page .sd-kv > span:last-child,
 .session-detail-page .payload-kv > span:last-child,
+.sd-payload-modal .sd-payload-meta__row > span:last-child,
 .session-detail-page .sd-payload-meta__row > span:last-child,
 .session-detail-page .payload-meta__row > span:last-child,
 .sd-page .sd-kv > span:last-child,
@@ -273,6 +288,7 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.sd-payload-modal .sd-payload-main,
 .session-detail-page .sd-payload-main,
 .session-detail-page .payload-main,
 .sd-page .sd-payload-main,
@@ -284,6 +300,7 @@
   flex-direction: column;
   gap: 10px;
 }
+.sd-payload-modal .sd-payload-warning,
 .session-detail-page .sd-payload-warning,
 .session-detail-page .payload-warning,
 .sd-page .sd-payload-warning,
@@ -297,6 +314,7 @@
   padding: 10px;
   font-size: 13px;
 }
+.sd-payload-modal .sd-context-tool-list,
 .session-detail-page .sd-context-tool-list,
 .session-detail-page .context-tool-list,
 .sd-page .sd-context-tool-list,
@@ -308,6 +326,7 @@
   gap: 7px;
   padding: 10px;
 }
+.sd-payload-modal .sd-context-tool-row,
 .session-detail-page .sd-context-tool-row,
 .session-detail-page .context-tool-row,
 .sd-page .sd-context-tool-row,
@@ -323,6 +342,7 @@
   border-radius: 10px;
   background: #fff;
 }
+.sd-payload-modal .sd-context-tool-row--failed,
 .session-detail-page .sd-context-tool-row--failed,
 .session-detail-page .context-tool-row.failed,
 .sd-page .sd-context-tool-row--failed,
@@ -332,7 +352,9 @@
   border-color: var(--sd-err-line);
   background: #fff7f7;
 }
+.sd-payload-modal .sd-context-tool-summary,
 .session-detail-page .sd-context-tool-summary,
+.sd-payload-modal .sd-context-tool-excerpt,
 .session-detail-page .sd-context-tool-excerpt,
 .sd-page .sd-context-tool-summary,
 .sd-page .sd-context-tool-excerpt,
@@ -342,12 +364,14 @@
   text-overflow: ellipsis;
   white-space: nowrap;
 }
+.sd-payload-modal .sd-context-tool-summary,
 .session-detail-page .sd-context-tool-summary,
 .sd-page .sd-context-tool-summary,
 .sd-shell .sd-context-tool-summary {
   color: var(--sd-text-2);
   font-size: 12px;
 }
+.sd-payload-modal .sd-context-tool-excerpt,
 .session-detail-page .sd-context-tool-excerpt,
 .sd-page .sd-context-tool-excerpt,
 .sd-shell .sd-context-tool-excerpt {
@@ -356,6 +380,7 @@
   font: 11.5px/1.45 var(--sd-mono);
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Response blocks.` */
+.sd-payload-modal .sd-response-block-list,
 .session-detail-page .sd-response-block-list,
 .session-detail-page .block-list,
 .sd-page .sd-response-block-list,
@@ -366,6 +391,7 @@
   flex-direction: column;
   gap: 8px;
 }
+.sd-payload-modal .sd-response-block,
 .session-detail-page .sd-response-block,
 .session-detail-page .content-block,
 .sd-page .sd-response-block,
@@ -377,6 +403,7 @@
   overflow: hidden;
   background: #fff;
 }
+.sd-payload-modal .sd-response-block--text,
 .session-detail-page .sd-response-block--text,
 .session-detail-page .content-block.text,
 .sd-page .sd-response-block--text,
@@ -386,6 +413,7 @@
   border-color: #e9d5ff;
   background: #fdfaff;
 }
+.sd-payload-modal .sd-response-block--tool,
 .session-detail-page .sd-response-block--tool,
 .session-detail-page .content-block.tool,
 .sd-page .sd-response-block--tool,
@@ -395,6 +423,7 @@
   border-color: var(--sd-blue-line);
   background: #f8fbff;
 }
+.sd-payload-modal .sd-response-block-head,
 .session-detail-page .sd-response-block-head,
 .session-detail-page .block-head,
 .sd-page .sd-response-block-head,
@@ -408,6 +437,7 @@
   padding: 0 10px;
   border-bottom: 1px solid var(--sd-line-soft);
 }
+.sd-payload-modal .sd-response-block-body,
 .session-detail-page .sd-response-block-body,
 .session-detail-page .block-body,
 .sd-page .sd-response-block-body,
@@ -417,6 +447,7 @@
   padding: 9px 10px;
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Result payload.` */
+.sd-payload-modal .sd-result-status,
 .session-detail-page .sd-result-status,
 .session-detail-page .result-status,
 .sd-page .sd-result-status,
@@ -431,6 +462,7 @@
   background: #fbfcff;
   padding: 10px;
 }
+.sd-payload-modal .sd-result-status--failed,
 .session-detail-page .sd-result-status--failed,
 .session-detail-page .result-status.failed,
 .sd-page .sd-result-status--failed,
@@ -622,5 +654,19 @@
   .sd-shell .sd-round-detail-chips,
   .sd-shell .sd-round-call-actions {
     justify-content: flex-start;
+  }
+}
+
+/* Payload dialog 独立挂在 body；窄屏将 metadata 移到内容上方。 */
+.sd-payload-modal .sd-payload-shell {
+  min-width: 0;
+}
+.sd-payload-modal .sd-kv > span {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+@media (max-width: 700px) {
+  .sd-payload-modal .sd-payload-shell {
+    grid-template-columns: minmax(0, 1fr);
   }
 }

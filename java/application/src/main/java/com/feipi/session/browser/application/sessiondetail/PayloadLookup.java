@@ -1,5 +1,6 @@
 package com.feipi.session.browser.application.sessiondetail;
 
+import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.query.api.PayloadSource;
@@ -42,7 +43,7 @@ public final class PayloadLookup {
   /**
    * 从归一化制品构建 payload 查找表。
    *
-   * <p>为每个有 sourceRef 的调用创建请求和响应条目。 标准可见性下内容标记为截断；完整可见性下保留全部内容。
+   * <p>为每个有 sourceRef 的调用创建请求和响应条目。 标准可见性下遮盖敏感字段；两种模式均保留完整的已记录文本，不假报截断。
    *
    * @param artifact 已验证的归一化制品
    * @param visibility 可见性策略
@@ -53,11 +54,13 @@ public final class PayloadLookup {
     Objects.requireNonNull(artifact, "artifact 不得为 null");
     Objects.requireNonNull(visibility, "visibility 不得为 null");
 
-    boolean truncated = visibility == PayloadVisibility.STANDARD;
+    boolean truncated = false;
+    SensitiveFieldPolicy policy = SensitiveFieldPolicy.fromVisibility(visibility);
     Map<String, PayloadEntry> map = new LinkedHashMap<>();
 
     Map<String, String> toolResultContents =
         PayloadCallContentExtractor.extractToolResultContents(artifact);
+    Map<String, ToolInputContents.Input> toolInputs = ToolInputContents.all(artifact);
 
     for (NormalizedCall call : artifact.calls()) {
       boolean isSubagent = call.scope().name().toLowerCase().contains("subagent");
@@ -69,7 +72,12 @@ public final class PayloadLookup {
           isSubagent ? PayloadSourceKind.SUBAGENT_REQUEST : PayloadSourceKind.LLM_REQUEST;
       map.put(
           reqPayloadId,
-          new PayloadEntry(reqPayloadId, requestKind, call.callId(), reqContent, truncated));
+          new PayloadEntry(
+              reqPayloadId,
+              requestKind,
+              call.callId(),
+              policy.applyMasking(reqContent),
+              truncated));
 
       String respContent = PayloadCallContentExtractor.extractResponseContent(call, artifact);
       String respPayloadId = prefix + ":resp:" + call.callId();
@@ -77,9 +85,25 @@ public final class PayloadLookup {
           isSubagent ? PayloadSourceKind.SUBAGENT_RESPONSE : PayloadSourceKind.LLM_RESPONSE;
       map.put(
           respPayloadId,
-          new PayloadEntry(respPayloadId, responseKind, call.callId(), respContent, truncated));
+          new PayloadEntry(
+              respPayloadId,
+              responseKind,
+              call.callId(),
+              policy.applyMasking(respContent),
+              truncated));
     }
 
+    for (var input : toolInputs.values()) {
+      String id = "tool:input:" + input.id();
+      map.put(
+          id,
+          new PayloadEntry(
+              id,
+              PayloadSourceKind.TOOL_INPUT,
+              input.id(),
+              policy.applyMasking(input.input()),
+              false));
+    }
     for (var exec : artifact.toolExecutions()) {
       String toolPayloadId = "tool:result:" + exec.toolCallId();
       String toolContent = toolResultContents.getOrDefault(exec.toolCallId(), "");
@@ -89,11 +113,56 @@ public final class PayloadLookup {
               toolPayloadId,
               PayloadSourceKind.TOOL_RESULT,
               exec.toolCallId(),
-              toolContent,
+              policy.applyMasking(toolContent),
               truncated));
+      String inputId = "tool:input:" + exec.toolCallId();
+      ToolInputContents.Input input = toolInputs.get(exec.toolCallId());
+      map.putIfAbsent(
+          inputId,
+          new PayloadEntry(
+              inputId,
+              PayloadSourceKind.TOOL_INPUT,
+              exec.toolCallId(),
+              policy.applyMasking(input == null ? "" : input.input()),
+              false));
+    }
+
+    for (var round :
+        SessionDetailAssembler.buildRounds(artifact.calls(), artifact.toolExecutions())) {
+      List<NormalizedCall> calls =
+          artifact.calls().stream().filter(call -> round.calls().contains(call.callId())).toList();
+      List<NormalizedCall> mainCalls =
+          calls.stream().filter(call -> call.scope() == CallScope.MAIN).toList();
+      if (!mainCalls.isEmpty()) calls = mainCalls;
+      addRoundPayload(map, calls, round.roundIndex(), "req", PayloadSourceKind.LLM_REQUEST);
+      addRoundPayload(map, calls, round.roundIndex(), "resp", PayloadSourceKind.LLM_RESPONSE);
     }
 
     return new PayloadLookup(map);
+  }
+
+  private static void addRoundPayload(
+      Map<String, PayloadEntry> entries,
+      List<NormalizedCall> calls,
+      int roundIndex,
+      String side,
+      PayloadSourceKind kind) {
+    List<String> contents =
+        calls.stream()
+            .map(
+                call -> {
+                  String prefix = call.scope() == CallScope.SUBAGENT ? "sa" : "main";
+                  PayloadEntry entry = entries.get(prefix + ":" + side + ":" + call.callId());
+                  return entry == null || entry.content().isEmpty()
+                      ? ""
+                      : call.callKey() + " · " + call.callId() + "\n" + entry.content();
+                })
+            .filter(content -> !content.isEmpty())
+            .toList();
+    String id = "round:" + side + ":" + roundIndex;
+    entries.put(
+        id,
+        new PayloadEntry(id, kind, "round:" + roundIndex, String.join("\n\n", contents), false));
   }
 
   /**
@@ -135,7 +204,7 @@ public final class PayloadLookup {
    * @param kind payload 类型分类
    * @param callId 关联的归一化调用 ID
    * @param content payload 内容（可能已被 masking）
-   * @param truncated 内容是否被截断
+   * @param truncated 内容是否确实被裁剪（字段遮盖不算截断）
    */
   public record PayloadEntry(
       /* 全局唯一的 payload 标识符。 */

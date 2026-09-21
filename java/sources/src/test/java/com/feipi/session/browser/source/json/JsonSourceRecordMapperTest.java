@@ -57,6 +57,62 @@ class JsonSourceRecordMapperTest {
   }
 
   @Test
+  @DisplayName("tool_use.input 保留为 JSON 序列化文本")
+  void toolUseInputPreservedAsJsonString() throws IOException {
+    JsonNode event =
+        MAPPER.readTree(
+            """
+            {
+              "type": "assistant",
+              "message": {
+                "id": "msg-1",
+                "content": [
+                  {
+                    "type": "tool_use",
+                    "id": "toolu_1",
+                    "name": "Read",
+                    "input": {"file_path": "/synthetic/test.md"}
+                  }
+                ]
+              }
+            }
+            """);
+
+    List<SourceRecord> records =
+        JsonSourceRecordMapper.toSourceRecords("test.jsonl", 0, event, "assistant");
+    SourceRecord record = records.get(0);
+
+    assertThat(record.toolCalls()).hasSize(1);
+    assertThat(record.toolCalls().get(0).toolCallId()).isEqualTo("toolu_1");
+    assertThat(record.toolCalls().get(0).name()).isEqualTo("Read");
+    assertThat(record.toolCalls().get(0).input()).contains("/synthetic/test.md");
+  }
+
+  @Test
+  @DisplayName("tool_use 无 input 时 input 为空字符串，空对象 {} 有区别")
+  void toolUseMissingInputDiffersFromEmptyObject() throws IOException {
+    JsonNode event =
+        MAPPER.readTree(
+            """
+            {
+              "type": "assistant",
+              "message": {
+                "content": [
+                  {"type": "tool_use", "id": "t1", "name": "Bash"},
+                  {"type": "tool_use", "id": "t2", "name": "Read", "input": {}}
+                ]
+              }
+            }
+            """);
+
+    List<SourceRecord> records =
+        JsonSourceRecordMapper.toSourceRecords("test.jsonl", 0, event, "assistant");
+
+    assertThat(records.get(0).toolCalls().get(0).input()).isEmpty();
+    assertThat(records.get(0).toolCalls().get(1).input()).isEqualTo("{}");
+  }
+
+  @Test
   @DisplayName("user 事件提取 content 字段到 SourceRecord.content")
   void userEventExtractsContent() throws IOException {
     JsonNode event =
@@ -300,5 +356,46 @@ class JsonSourceRecordMapperTest {
     assertThat(records).hasSize(1);
     assertThat(records.get(0).toolError()).contains("tool_error");
     assertThat(records.get(0).toolName()).contains("Read");
+  }
+
+  @Test
+  @DisplayName("stop_reason 优先从 message.stop_reason 读取，回退到顶层")
+  void stopReasonReadsFromMessageFirstThenTopLevel() throws IOException {
+    // message.stop_reason 优先
+    JsonNode eventWithMessageStop =
+        MAPPER.readTree(
+            """
+            {
+              "type": "assistant",
+              "stop_reason": "top_level_value",
+              "message": {
+                "id": "msg-1",
+                "stop_reason": "end_turn",
+                "content": [{"type": "text", "text": "hello"}]
+              }
+            }
+            """);
+
+    List<SourceRecord> records1 =
+        JsonSourceRecordMapper.toSourceRecords("test.jsonl", 0, eventWithMessageStop, "assistant");
+    assertThat(records1.get(0).responseStopReason()).contains("end_turn");
+
+    // 无 message.stop_reason 时回退到顶层
+    JsonNode eventWithTopLevelOnly =
+        MAPPER.readTree(
+            """
+            {
+              "type": "assistant",
+              "stop_reason": "tool_use",
+              "message": {
+                "id": "msg-2",
+                "content": [{"type": "text", "text": "hello"}]
+              }
+            }
+            """);
+
+    List<SourceRecord> records2 =
+        JsonSourceRecordMapper.toSourceRecords("test.jsonl", 1, eventWithTopLevelOnly, "assistant");
+    assertThat(records2.get(0).responseStopReason()).contains("tool_use");
   }
 }

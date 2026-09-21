@@ -47,19 +47,20 @@ class PayloadLookupTest {
       NormalizedCall call = makeCall("c1");
       NormalizedSessionArtifact artifact = makeArtifact(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.STANDARD);
-      assertThat(lookup.size()).isEqualTo(2);
-      assertThat(lookup.allPayloadIds()).containsExactly("main:req:c1", "main:resp:c1");
+      assertThat(lookup.size()).isEqualTo(4);
+      assertThat(lookup.allPayloadIds())
+          .containsExactly("main:req:c1", "main:resp:c1", "round:req:1", "round:resp:1");
     }
 
     @Test
-    @DisplayName("标准可见性标记截断")
+    @DisplayName("标准可见性没有实际裁剪时不得标记截断")
     void standardVisibilityTruncated() {
       NormalizedCall call = makeCall("c1");
       NormalizedSessionArtifact artifact = makeArtifact(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.STANDARD);
       var entry = lookup.lookup("main:req:c1");
       assertThat(entry).isPresent();
-      assertThat(entry.get().truncated()).isTrue();
+      assertThat(entry.get().truncated()).isFalse();
     }
 
     @Test
@@ -127,14 +128,14 @@ class PayloadLookupTest {
   class PayloadEntryContent {
 
     @Test
-    @DisplayName("标准可见性下条目标记为截断")
+    @DisplayName("标准可见性下完整本地内容不标记为截断")
     void standardVisibilityTruncated() {
       NormalizedCall call = makeCall("c1");
       NormalizedSessionArtifact artifact = makeArtifact(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.STANDARD);
       var entry = lookup.lookup("main:req:c1");
       assertThat(entry).isPresent();
-      assertThat(entry.get().truncated()).isTrue();
+      assertThat(entry.get().truncated()).isFalse();
     }
 
     @Test

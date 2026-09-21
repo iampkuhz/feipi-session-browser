@@ -201,7 +201,7 @@ class SessionDetailAssemblerTest {
           SessionDetailAssembler.buildPayloadSources(List.of(call), PayloadVisibility.STANDARD);
       assertThat(sources).hasSize(2);
       assertThat(sources.get(0).kind()).isEqualTo(PayloadSourceKind.LLM_REQUEST);
-      assertThat(sources.get(0).truncated()).isTrue();
+      assertThat(sources.get(0).truncated()).isFalse();
       assertThat(sources.get(1).kind()).isEqualTo(PayloadSourceKind.LLM_RESPONSE);
     }
 

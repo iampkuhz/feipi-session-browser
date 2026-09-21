@@ -143,15 +143,13 @@
     var assistantTexts = round.callAssistantTexts || {};
     var mainCalls = calls.filter(function (call) { return !call || call.scope !== 'subagent'; });
     var subagentCalls = calls.filter(function (call) { return call && call.scope === 'subagent'; });
-    var summaryText = rowText(row, '.summary-title') || 'Round R' + roundId;
-    var timeText = rowText(row, '.round-time') || '—';
     var html = '<div class="sd-round-detail"><div class="sd-timeline">';
     if (!calls.length) {
       html += '<div class="sd-card-empty">No normalized calls returned by the round API.</div>';
     } else {
       mainCalls.forEach(function (call, idx) {
         var callText = assistantTexts[call.callId] || '';
-        html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, summaryText, timeText);
+        html += renderAssistantTimelineItem(roundId, call, idx + 1, callText, toolsForCall(call, tools).length);
         html += renderToolTimelineItems(toolsForCall(call, tools), roundId, false);
       });
       if (!mainCalls.length && toolCallIds.length) {
@@ -163,27 +161,36 @@
     return html;
   }
 
-  function renderAssistantTimelineItem(roundId, call, callIndex, callText, summaryText, timeText) {
+  function contentPayloadButton(payloadId, kind, title, label) {
+    return '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
+      + escapeRoundHtml(payloadId) + '" data-payload-kind="' + escapeRoundHtml(kind)
+      + '" data-payload-title="' + escapeRoundHtml(title) + '">' + escapeRoundHtml(label) + '</button>';
+  }
+
+  function renderAssistantTimelineItem(roundId, call, callIndex, callText, toolCount) {
     call = call || {};
     var usage = call.usage || {};
     var callLabel = call.callKey || ('C' + callIndex);
-    var payloadId = payloadIdFor(call, 'resp');
-    var payloadKind = payloadKindFor(call, 'resp');
-    var displayText = callText || summaryText || 'Assistant response';
+    var displayText = callText || (toolCount ? toolCount + ' 个工具指令 · 响应文本未记录' : '响应文本未记录');
+    var timeDisplay = localTime(call.timestamp) || '未记录';
+    var tokenDisplay = usage.total > 0 ? escapeRoundHtml(compactTokens(usage.total)) + ' tokens' : '未记录';
+    var scopeDisplay = call.scope === 'subagent' ? '子 agent' : '主会话';
+    var callTitle = '本地响应记录 ' + callLabel + ' · ' + scopeDisplay + ' · callId: ' + (call.callId || '未记录') + '；不代表独立 provider 请求';
+    var payloadTitle = 'R' + roundId + ' · ' + callLabel;
     return '<div class="sd-timeline-item" data-timeline-item="assistant_text">'
       + '<span class="sd-timeline-dot sd-timeline-dot--text"></span>'
       + '<section class="sd-tool-group sd-tool-group--flat">'
       + '<div class="sd-tool-row sd-event-row sd-event-row--compact sd-event-row--assistant_text">'
-      + '<span class="sd-tool-kind">TEXT</span>'
+      + '<span class="sd-tool-kind">' + (callText ? 'TEXT' : 'RESPONSE') + '</span>'
       + '<span class="sd-tool-cmd sd-event-row__text" title="' + escapeRoundHtml(displayText) + '">' + escapeRoundHtml(displayText) + '</span>'
-      + '<span class="sd-tool-result" title="' + escapeRoundHtml(call.model || 'Assistant Text') + '">' + escapeRoundHtml(call.model || 'Assistant Text') + '</span>'
-      + '<span class="sd-tool-time">' + escapeRoundHtml(localTime(call.timestamp) || timeText || '—') + '</span>'
-      + '<span class="sd-exit sd-exit--muted">#' + escapeRoundHtml(callLabel.replace(/^C/, '')) + '</span>'
-      + '<span class="sd-tool-tokens">' + escapeRoundHtml(compactTokens(usage.total || 0)) + '</span>'
-      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
-      + escapeRoundHtml(payloadId) + '" data-payload-kind="' + escapeRoundHtml(payloadKind)
-      + '" data-payload-title="R' + escapeRoundHtml(roundId) + ' · ' + escapeRoundHtml(callLabel) + ' · Response">Payload</button>'
-      + '</div></section></div>';
+      + '<span class="sd-tool-result" title="' + escapeRoundHtml(call.model || '模型未记录') + '">' + escapeRoundHtml(call.model || '模型未记录') + '</span>'
+      + '<span class="sd-tool-time">' + escapeRoundHtml(timeDisplay) + '</span>'
+      + '<span class="sd-exit sd-exit--muted" title="' + escapeRoundHtml(callTitle) + '">记录 ' + escapeRoundHtml(callLabel) + '</span>'
+      + '<span class="sd-tool-tokens">' + tokenDisplay + '</span>'
+      + '<span class="sd-tool-actions">'
+      + contentPayloadButton(payloadIdFor(call, 'req'), payloadKindFor(call, 'req'), payloadTitle + ' · Request', 'Request')
+      + contentPayloadButton(payloadIdFor(call, 'resp'), payloadKindFor(call, 'resp'), payloadTitle + ' · Response', 'Response')
+      + '</span></div></section></div>';
   }
 
   function renderToolTimelineItems(tools, roundId, isSubagent) {
@@ -191,20 +198,25 @@
     return tools.map(function (tool, idx) {
       var status = toolStatusLabel(tool);
       var failed = isFailedTool(tool);
-      var toolPayloadId = 'tool:result:' + (tool.toolCallId || '');
+      var preview = tool.inputPreview || '';
+      var cmdText = preview || '输入未记录';
+      var cmdTitle = (preview ? tool.name + ': ' : '') + cmdText;
+      var timeText = tool.durationMs != null ? durationLabel(tool.durationMs) : '未记录';
+      var scopeText = isSubagent ? '子 agent' : '主会话';
       return '<div class="sd-timeline-item" data-timeline-item="tool-call">'
         + '<span class="sd-timeline-dot sd-timeline-dot--tool"></span>'
         + '<section class="sd-tool-group sd-tool-group--flat">'
         + '<div class="sd-tool-row' + (failed ? ' sd-tool-row--failed sd-tool-row--fail' : '') + '" data-status="' + (failed ? 'failed' : 'ok') + '" data-tool-call-id="' + escapeRoundHtml(tool.toolCallId || '') + '">'
         + '<span class="sd-tool-kind">' + escapeRoundHtml(toolKind(tool.name)) + '</span>'
-        + '<span class="sd-tool-cmd" title="' + escapeRoundHtml(tool.name || tool.toolCallId || 'tool') + '">' + escapeRoundHtml(tool.name || tool.toolCallId || 'tool') + '</span>'
+        + '<span class="sd-tool-cmd" title="' + escapeRoundHtml(cmdTitle) + '">' + escapeRoundHtml(cmdText) + '</span>'
         + '<span class="sd-tool-result' + (failed ? ' sd-tool-result--failed sd-tool-result--fail' : '') + '" title="' + escapeRoundHtml(status) + '">' + escapeRoundHtml(status) + '</span>'
-        + '<span class="sd-tool-time">—</span>'
-        + '<span class="sd-exit' + (failed ? ' sd-exit--err' : '') + '">' + escapeRoundHtml(durationLabel(tool.durationMs)) + '</span>'
-        + '<span class="sd-tool-tokens">' + escapeRoundHtml(isSubagent ? 'sub' : 'main') + '</span>'
-        + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="'
-        + escapeRoundHtml(toolPayloadId) + '" data-payload-kind="tool_result" data-payload-title="'
-        + escapeRoundHtml(tool.name || 'Tool') + ' · Result">Result</button>'
+        + '<span class="sd-tool-time">' + escapeRoundHtml(timeText) + '</span>'
+        + '<span class="sd-exit' + (failed ? ' sd-exit--err' : '') + '">' + escapeRoundHtml(scopeText) + '</span>'
+        + '<span class="sd-tool-tokens" title="未记录此工具的独立 token 用量；请查看模型调用归因">无独立 token</span>'
+        + '<span class="sd-tool-actions">'
+        + contentPayloadButton('tool:input:' + (tool.toolCallId || ''), 'tool_input', (tool.name || 'Tool') + ' · Input', 'Input')
+        + contentPayloadButton('tool:result:' + (tool.toolCallId || ''), 'tool_result', (tool.name || 'Tool') + ' · Result', 'Result')
+        + '</span>'
         + '</div></section></div>';
     }).join('');
   }
@@ -244,17 +256,19 @@
     var sr = subRoundLabel(call, indexInSubagent);
     var requestId = 'sub-' + subagentId + '-IX' + indexInSubagent + '-request-attribution';
     var responseId = 'sub-' + subagentId + '-IX' + indexInSubagent + '-response-attribution';
-    var callText = (assistantTexts || {})[call.callId] || 'Assistant response';
+    var callText = (assistantTexts || {})[call.callId] || (tools.length ? tools.length + ' 个工具指令' : '响应文本未记录');
     return '<div class="sd-sub-round" data-sub-round-id="' + escapeRoundHtml(String(indexInSubagent)) + '" data-sub-round-open="false">'
       + '<div class="sd-sub-round__summary" data-sub-round-toggle>'
       + '<button type="button" class="sd-sub-round__toggle" data-action="toggle-sub-round" aria-expanded="false" aria-label="Toggle subround ' + escapeRoundHtml(sr) + '"><span aria-hidden="true">›</span></button>'
       + '<span class="sd-sub-id">' + escapeRoundHtml(sr) + '</span>'
       + '<span class="sd-sub-title" title="' + escapeRoundHtml(callText) + '">' + escapeRoundHtml(callText) + '</span>'
-      + '<span class="sd-attribution-actions sd-attribution-actions--subround" aria-label="LLM attribution">'
-      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(requestId) + '" data-payload-kind="llm.request_attribution" data-payload-title="Subagent · Request Attribution">request</button> '
-      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(responseId) + '" data-payload-kind="llm.response_attribution" data-payload-title="Subagent · Response Attribution">response</button>'
+      + '<span class="sd-attribution-actions sd-attribution-actions--subround" aria-label="内容与 Token 归因">'
+      + contentPayloadButton(payloadIdFor(call, 'req'), payloadKindFor(call, 'req'), 'Subagent · Request', 'Request')
+      + contentPayloadButton(payloadIdFor(call, 'resp'), payloadKindFor(call, 'resp'), 'Subagent · Response', 'Response')
+      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(requestId) + '" data-payload-kind="llm.request_attribution" data-payload-title="Subagent · Request Attribution">输入归因</button> '
+      + '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--warn" data-action="open-payload" data-payload-id="' + escapeRoundHtml(responseId) + '" data-payload-kind="llm.response_attribution" data-payload-title="Subagent · Response Attribution">输出归因</button>'
       + '</span>'
-      + '<span class="sd-sub-time">' + escapeRoundHtml(localTime(call.timestamp) || '—') + '</span>'
+      + '<span class="sd-sub-time">' + escapeRoundHtml(localTime(call.timestamp) || '未记录') + '</span>'
       + tokenbarSub(usage)
       + '</div><div class="sd-sub-steps" data-sub-round-steps hidden>'
       + renderToolTimelineItems(tools, '', true)
@@ -296,10 +310,9 @@
 
   function toolBelongsToCall(tool, call) {
     if (!tool || !call) return false;
-    if (tool.declaredByCallId && tool.declaredByCallId === call.callId) return true;
-    var ids = [];
-    if (Array.isArray(call.requestToolResultIds)) ids = ids.concat(call.requestToolResultIds);
-    if (Array.isArray(call.responseToolCallIds)) ids = ids.concat(call.responseToolCallIds);
+    if (tool.declaredByCallId) return tool.declaredByCallId === call.callId;
+    // 消费先前结果不代表重新执行；声明身份缺失时只使用 response 边。
+    var ids = Array.isArray(call.responseToolCallIds) ? call.responseToolCallIds : [];
     return ids.indexOf(tool.toolCallId) !== -1;
   }
 
@@ -324,8 +337,8 @@
 
   function durationLabel(ms) {
     var value = Number(ms || 0);
-    if (!value) return '—';
-    if (value < 1000) return (value / 1000).toFixed(1) + 's';
+    if (!Number.isFinite(value) || value < 0) return '未记录';
+    if (value < 1000) return value + ' ms';
     return (value / 1000).toFixed(value < 10000 ? 1 : 0) + 's';
   }
 

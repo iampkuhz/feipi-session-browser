@@ -5,6 +5,7 @@ import com.feipi.session.browser.domain.normalized.NormalizedSessionArtifact;
 import com.feipi.session.browser.domain.normalized.NormalizedToolExecution;
 import com.feipi.session.browser.domain.normalized.SourceUnitCatalogEntry;
 import com.feipi.session.browser.domain.normalized.SourceUnitRefRange;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -38,6 +39,44 @@ public final class PayloadCallContentExtractor {
 
   private PayloadCallContentExtractor() {}
 
+  /** 只提取显式用户消息，不把 request 中的工具结果或系统上下文当用户输入。 */
+  public static List<String> extractUserMessageTexts(
+      NormalizedCall call, NormalizedSessionArtifact artifact) {
+    List<String> texts = new ArrayList<>();
+    for (Map<String, Object> unit : call.sourceUnits()) {
+      if (ROLE_USER.equals(unit.get(FIELD_ROLE))
+          && !TYPE_TOOL_RESULT.equals(unit.get(FIELD_TYPE))) {
+        texts.add(extractTextValue(unit));
+      }
+    }
+    for (SourceUnitRefRange range : call.sourceUnitRefRanges()) {
+      for (String ref : catalogRefs(range, artifact)) {
+        SourceUnitCatalogEntry entry = artifact.sourceUnitCatalog().get(ref);
+        if (entry == null
+            || !"request".equals(entry.direction().getValue())
+            || TYPE_TOOL_RESULT.equals(entry.unitType())) continue;
+        Map<?, ?> payload = entry.payload() instanceof Map<?, ?> map ? map : Map.of();
+        if (TYPE_TOOL_RESULT.equals(payload.get(FIELD_TYPE))) continue;
+        if (ROLE_USER.equals(payload.get(FIELD_ROLE))
+            || range.role().filter(ROLE_USER::equals).isPresent()
+            || List.of("user_message", "user_text", "input_text").contains(entry.unitType())
+            || "current_user_message".equals(entry.candidate())) {
+          texts.add(catalogEntryText(entry));
+        }
+      }
+    }
+    return List.copyOf(texts);
+  }
+
+  private static List<String> catalogRefs(
+      SourceUnitRefRange range, NormalizedSessionArtifact artifact) {
+    if (!range.refs().isEmpty() || range.sequence().isEmpty()) return range.refs();
+    List<String> sequence =
+        artifact.sourceUnitSequences().getOrDefault(range.sequence().get(), List.of());
+    return sequence.subList(
+        Math.min(range.start(), sequence.size()), Math.min(range.end(), sequence.size()));
+  }
+
   /**
    * 从调用中提取 request 侧文本内容。
    *
@@ -61,6 +100,17 @@ public final class PayloadCallContentExtractor {
    */
   public static String extractResponseContent(
       NormalizedCall call, NormalizedSessionArtifact artifact) {
+    String text = extractResponseText(call, artifact);
+    Map<String, ToolInputContents.Input> inputs = ToolInputContents.forCall(call, artifact);
+    if (inputs.isEmpty()) return text;
+    String commands =
+        String.join(
+            "\n\n", inputs.values().stream().map(ToolInputContents.Input::display).toList());
+    return (text.isEmpty() ? "" : text + "\n\n") + "工具指令\n" + commands;
+  }
+
+  private static String extractResponseText(
+      NormalizedCall call, NormalizedSessionArtifact artifact) {
     Objects.requireNonNull(call, "call 不得为 null");
     Objects.requireNonNull(artifact, "artifact 不得为 null");
     String catalogContent = resolveFromCatalog(call, artifact, false);
@@ -77,7 +127,7 @@ public final class PayloadCallContentExtractor {
    */
   public static String extractAssistantText(
       NormalizedCall call, NormalizedSessionArtifact artifact) {
-    String responseContent = extractResponseContent(call, artifact);
+    String responseContent = extractResponseText(call, artifact);
     if (responseContent.isEmpty()) {
       return "";
     }
@@ -150,6 +200,11 @@ public final class PayloadCallContentExtractor {
         }
       }
       String text = extractTextValue(unit);
+      if (ROLE_USER.equals(targetRole)
+          && TYPE_TOOL_RESULT.equals(unit.get(FIELD_TYPE))
+          && !text.isEmpty()) {
+        text = "Tool result [" + stringField(unit, FIELD_TOOL_CALL_ID) + "]\n" + text;
+      }
       if (!text.isEmpty()) {
         if (!sb.isEmpty()) {
           sb.append("\n");
@@ -204,14 +259,7 @@ public final class PayloadCallContentExtractor {
     StringBuilder sb = new StringBuilder();
     for (SourceUnitRefRange range : call.sourceUnitRefRanges()) {
       Optional<String> rangeRole = range.role();
-      List<String> refs = range.refs();
-      if (refs.isEmpty() && range.sequence().isPresent()) {
-        String seqKey = range.sequence().get();
-        List<String> sequence = artifact.sourceUnitSequences().getOrDefault(seqKey, List.of());
-        int start = Math.min(range.start(), sequence.size());
-        int end = Math.min(range.end(), sequence.size());
-        refs = sequence.subList(start, end);
-      }
+      List<String> refs = catalogRefs(range, artifact);
       for (String ref : refs) {
         SourceUnitCatalogEntry entry = catalog.get(ref);
         if (entry == null) {
@@ -225,6 +273,8 @@ public final class PayloadCallContentExtractor {
             && !matchesRole(rangeRole.get(), requestSide ? ROLE_USER : ROLE_ASSISTANT)) {
           continue;
         }
+        if (List.of("tool_use", "function_call", "custom_tool_call").contains(entry.unitType()))
+          continue;
         String text = catalogEntryText(entry);
         if (!text.isEmpty()) {
           if (!sb.isEmpty()) {
@@ -241,7 +291,11 @@ public final class PayloadCallContentExtractor {
   private static String resolveToolResultFromCatalog(
       String toolCallId, NormalizedSessionArtifact artifact) {
     for (SourceUnitCatalogEntry entry : artifact.sourceUnitCatalog().values()) {
-      if (!"response".equalsIgnoreCase(entry.direction().getValue())) {
+      boolean resultUnit =
+          TYPE_TOOL_RESULT.equals(entry.unitType())
+              || (entry.payload() instanceof Map<?, ?> value
+                  && TYPE_TOOL_RESULT.equals(value.get(FIELD_TYPE)));
+      if (!resultUnit) {
         continue;
       }
       Optional<String> label = entry.label();
@@ -270,10 +324,6 @@ public final class PayloadCallContentExtractor {
     Optional<String> text = entry.text();
     if (text.isPresent() && !text.get().isEmpty()) {
       return text.get();
-    }
-    Optional<String> preview = entry.preview();
-    if (preview.isPresent() && !preview.get().isEmpty()) {
-      return preview.get();
     }
     Object payload = entry.payload();
     if (payload instanceof String s && !s.isEmpty()) {

@@ -5,6 +5,7 @@ import com.feipi.session.browser.validation.ValidationSupport;
 import jakarta.validation.ConstraintViolation;
 import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 
 /**
  * 源中性工具调用声明。
@@ -14,6 +15,7 @@ import jakarta.validation.constraints.NotBlank;
  *
  * @param toolCallId 工具调用标识，来源于 provider 事件中的稳定 id
  * @param name 工具名称，来源于 provider 事件中的工具名字段
+ * @param input 工具输入参数的 JSON 序列化文本（对象/数组/原文），缺失时为空字符串；不保存 JsonNode
  */
 @DomainModel
 public record SourceToolCall(
@@ -21,12 +23,26 @@ public record SourceToolCall(
     @NotBlank String toolCallId,
 
     /* 工具名称，来源于 provider 事件中的工具名字段。 */
-    @NotBlank String name) {
+    @NotBlank String name,
 
-  /** 紧凑构造器，校验约束。 */
+    /* 工具输入参数的 JSON 序列化文本，缺失时为空字符串。 */
+    @NotNull String input) {
+
+  /**
+   * 兼容旧调用点的二参数构造器，input 默认为空字符串。
+   *
+   * @param toolCallId 工具调用标识
+   * @param name 工具名称
+   */
+  public SourceToolCall(String toolCallId, String name) {
+    this(toolCallId, name, "");
+  }
+
+  /** 紧凑构造器，校验约束并规范化 input 默认值。 */
   public SourceToolCall {
+    input = input == null ? "" : input;
     try {
-      ValidationSupport.validateCanonicalConstructor(SourceToolCall.class, toolCallId, name);
+      ValidationSupport.validateCanonicalConstructor(SourceToolCall.class, toolCallId, name, input);
     } catch (ConstraintViolationException e) {
       translateValidation(e);
     }

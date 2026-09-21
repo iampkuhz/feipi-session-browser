@@ -301,7 +301,7 @@
     var isUserInput = Boolean(parity.isUserInput);
     var visualStatus = hasIssues ? 'failed' : (isUserInput ? 'user' : (round.status || 'ok'));
     var firstCallIndex = 1;
-    var globalLabel = 'LLM Call #' + formatNumber(globalCallIndex || round.roundIndex || 1);
+    var globalLabel = 'Round R' + round.roundIndex + ' · 首条本地记录';
     var requestPayloadId = 'llm-R' + round.roundIndex + '-IX' + firstCallIndex + '-request-attribution';
     var responsePayloadId = 'llm-R' + round.roundIndex + '-IX' + firstCallIndex + '-response-attribution';
     tr.className = 'round-row sd-trace-round-row' + (isUserInput ? ' sd-user-round' : '') + (hasIssues ? ' sd-failed-round' : '');
@@ -319,12 +319,14 @@
       '<td class="round-col"><button type="button" class="sd-round-toggle round-id', hasIssues ? ' failed' : '', '" data-action="toggle-round" aria-controls="round-', round.roundIndex, '-detail" aria-expanded="false" aria-label="Toggle round ', round.roundIndex, '">',
       'R', round.roundIndex, '</button></td>',
       '<td><span class="summary-title">', escapeHtml(parity.summary || ('Round ' + round.roundIndex)), '</span></td>',
-      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-tools">', formatNumber(round.toolCallCount), ' tools</span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
-      '<td class="attribution-col"><span class="sd-attribution-actions sd-attribution-actions--row" aria-label="', escapeHtml(globalLabel), ' attribution">',
-      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(requestPayloadId), '" data-payload-kind="llm.request_attribution" data-payload-title="Request attribution · ', escapeHtml(globalLabel), '">request</button> ',
-      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(responsePayloadId), '" data-payload-kind="llm.response_attribution" data-payload-title="Response attribution · ', escapeHtml(globalLabel), '">response</button></span></td>',
+      '<td class="metrics-col mono"><div class="metric-cell"><span class="metric-calls-tools">', formatNumber(round.callCount), ' records · ', formatNumber(round.toolCallCount), ' tools</span>', tokenbarHtml(tokens, maxRoundTokens), '</div></td>',
+      '<td class="attribution-col"><span class="sd-attribution-actions sd-attribution-actions--row" aria-label="Round 内容与 Token 归因">',
+      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="round:req:', round.roundIndex, '" data-payload-kind="llm_request" data-payload-title="Round R', round.roundIndex, ' · Request">Request</button>',
+      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm" data-action="open-payload" data-payload-id="round:resp:', round.roundIndex, '" data-payload-kind="llm_response" data-payload-title="Round R', round.roundIndex, ' · Response">Response</button>',
+      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(requestPayloadId), '" data-payload-kind="llm.request_attribution" data-payload-title="Request attribution · ', escapeHtml(globalLabel), '">输入归因</button> ',
+      '<button type="button" class="sd-btn sd-btn--secondary sd-btn--sm sd-attr-btn sd-attr-btn--ok" data-action="open-payload" data-payload-id="', escapeHtml(responsePayloadId), '" data-payload-kind="llm.response_attribution" data-payload-title="Response attribution · ', escapeHtml(globalLabel), '">输出归因</button></span></td>',
       '<td class="status-col">', statusBadges(round, hasIssues, isLowCache), '</td>',
-      '<td class="time-col"><span class="round-time">', escapeHtml(parity.time || ''), '</span></td>'
+      '<td class="time-col"><span class="round-time">', escapeHtml(parity.time || '未记录'), '</span></td>'
     ].join(''));
     return tr;
   }
@@ -462,7 +464,7 @@
         + '<span class="sd-token-round__seg sd-token-round__seg--read" style="--seg-height:' + read + '%"></span>'
         + '<span class="sd-token-round__seg sd-token-round__seg--write" style="--seg-height:' + write + '%"></span>'
         + '<span class="sd-token-round__seg sd-token-round__seg--out" style="--seg-height:' + out + '%"></span></span>'
-        + '<span class="sd-token-round-tooltip" role="tooltip"><b>R' + escapeHtml(round.roundIndex) + ' · ' + escapeHtml(parity.time || '') + '</b>'
+        + '<span class="sd-token-round-tooltip" role="tooltip"><b>R' + escapeHtml(round.roundIndex) + ' · ' + escapeHtml(parity.time || '未记录') + '</b>'
         + '<div>Token shares below use Total, including Output.</div>'
         + '<span><i class="sd-tooltip-mark sd-tooltip-mark--fresh"></i><small>Fresh</small><em>' + formatSessionCompact(tokens.fresh) + '</em><strong>' + fresh + '%</strong></span>'
         + '<span><i class="sd-tooltip-mark sd-tooltip-mark--read"></i><small>Cache Read</small><em>' + formatSessionCompact(tokens.cacheRead) + '</em><strong>' + read + '%</strong></span>'

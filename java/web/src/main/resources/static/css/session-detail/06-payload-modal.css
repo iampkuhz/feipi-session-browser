@@ -49,6 +49,16 @@
   line-height: 1.3;
 }
 
+/* 标题允许在关闭按钮旁换行，避免 focus 滚动将整个 panel 向左推。 */
+.sd-modal-head > div:first-child {
+  min-width: 0;
+}
+.sd-modal-head .sd-modal-title,
+.sd-modal-head .sd-modal-subtitle {
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
 .sd-modal-sub,
 .sd-modal-subtitle {
   font-size: 12px;
@@ -132,14 +142,16 @@
   align-items: start;
 }
 
-.session-detail-page .sd-attribution-topgrid {
+.session-detail-page .sd-attribution-topgrid,
+.sd-payload-modal .sd-attribution-topgrid {
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   gap: 10px;
   margin-bottom: 12px;
 }
 
-.session-detail-page .sd-attribution-topcard {
+.session-detail-page .sd-attribution-topcard,
+.sd-payload-modal .sd-attribution-topcard {
   min-width: 0;
   border: 1px solid var(--sd-line-soft, #e2e8f0);
   border-radius: 10px;
@@ -147,7 +159,8 @@
   overflow-x: auto;
 }
 
-.session-detail-page .sd-attribution-topcard--wide {
+.session-detail-page .sd-attribution-topcard--wide,
+.sd-payload-modal .sd-attribution-topcard--wide {
   grid-column: 1 / -1;
 }
 
@@ -158,7 +171,8 @@
   margin: 4px 0;
 }
 
-.session-detail-page .sd-attribution-topcard h3 {
+.session-detail-page .sd-attribution-topcard h3,
+.sd-payload-modal .sd-attribution-topcard h3 {
   margin: 0;
   padding: 7px 10px;
   border-bottom: 1px solid var(--sd-line-soft, #e2e8f0);
@@ -172,7 +186,10 @@
 
 .session-detail-page .sd-attribution-identity-grid,
 .session-detail-page .sd-attribution-summary-grid,
-.session-detail-page .sd-attribution-call-grid {
+.session-detail-page .sd-attribution-call-grid,
+.sd-payload-modal .sd-attribution-identity-grid,
+.sd-payload-modal .sd-attribution-summary-grid,
+.sd-payload-modal .sd-attribution-call-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }

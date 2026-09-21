@@ -20,6 +20,9 @@ public enum PayloadSourceKind {
   /** 工具调用结果。 */
   TOOL_RESULT("tool_result"),
 
+  /** 工具调用的完整输入参数。 */
+  TOOL_INPUT("tool_input"),
+
   /** 子 agent 请求正文。 */
   SUBAGENT_REQUEST("subagent_request"),
 

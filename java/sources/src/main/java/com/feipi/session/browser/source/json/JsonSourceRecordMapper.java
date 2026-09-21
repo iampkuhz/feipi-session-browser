@@ -75,7 +75,9 @@ public final class JsonSourceRecordMapper {
         extractToolName(event),
         extractToolError(event, normalizedEventType),
         com.feipi.session.browser.domain.source.SourceRecordRelation.empty(),
-        extractContent(event));
+        extractContent(event),
+        extractResponseMessageId(event, normalizedEventType),
+        extractResponseStopReason(event, normalizedEventType));
   }
 
   private static SourceRecord createBlockRecord(
@@ -137,6 +139,44 @@ public final class JsonSourceRecordMapper {
       }
     }
     return firstTextDeep(event, "turn_id", "turnId");
+  }
+
+  /**
+   * 提取 assistant 响应的显式 message.id。
+   *
+   * <p>仅从 message.id 提取，不使用 uuid/parentUuid 回退。非 assistant 事件返回空。
+   *
+   * @param event JSON 事件节点
+   * @param eventType 事件类型
+   * @return 显式 message.id，缺失时为空
+   */
+  private static Optional<String> extractResponseMessageId(JsonNode event, String eventType) {
+    if (!"assistant".equals(eventType)) {
+      return Optional.empty();
+    }
+    JsonNode message = JsonNodeReaders.objectChild(event, "message");
+    return firstText(message, "id");
+  }
+
+  /**
+   * 提取 assistant 响应的 stop_reason。
+   *
+   * <p>优先从 message.stop_reason 提取，回退到事件顶层 stop_reason（如 end_turn、tool_use）。非 assistant 事件返回空。
+   *
+   * @param event JSON 事件节点
+   * @param eventType 事件类型
+   * @return stop_reason，缺失时为空
+   */
+  private static Optional<String> extractResponseStopReason(JsonNode event, String eventType) {
+    if (!"assistant".equals(eventType)) {
+      return Optional.empty();
+    }
+    JsonNode message = JsonNodeReaders.objectChild(event, "message");
+    Optional<String> messageStopReason = firstText(message, "stop_reason");
+    if (messageStopReason.isPresent()) {
+      return messageStopReason;
+    }
+    return firstText(event, "stop_reason");
   }
 
   private static Optional<String> extractToolUseId(JsonNode event, String eventType) {
@@ -302,10 +342,27 @@ public final class JsonSourceRecordMapper {
         Optional<String> id = firstText(block, "id");
         Optional<String> name = firstText(block, "name");
         if (id.isPresent() && name.isPresent()) {
-          calls.add(new SourceToolCall(id.get(), name.get()));
+          String input = serializeToolInput(block);
+          calls.add(new SourceToolCall(id.get(), name.get(), input));
         }
       }
     }
+  }
+
+  /**
+   * 将 tool_use block 的 input 字段序列化为紧凑 JSON 文本。
+   *
+   * <p>缺失或 null 时返回空字符串；空对象 {@code {}} 返回 {@code "{}"}，与缺失有区别。
+   *
+   * @param toolUseBlock tool_use 内容块
+   * @return input 的 JSON 序列化文本
+   */
+  private static String serializeToolInput(JsonNode toolUseBlock) {
+    JsonNode inputNode = toolUseBlock.get("input");
+    if (inputNode == null || inputNode.isNull()) {
+      return "";
+    }
+    return inputNode.toString();
   }
 
   private static boolean hasUserText(JsonNode event) {

@@ -2,6 +2,7 @@ package com.feipi.session.browser.web.api;
 
 import com.feipi.session.browser.application.sessiondetail.PayloadCallContentExtractor;
 import com.feipi.session.browser.application.sessiondetail.PayloadLookup;
+import com.feipi.session.browser.application.sessiondetail.ToolInputContents;
 import com.feipi.session.browser.domain.enums.CallScope;
 import com.feipi.session.browser.domain.normalized.NormalizedCall;
 import com.feipi.session.browser.domain.normalized.NormalizedCallUsage;
@@ -119,7 +120,8 @@ public final class SessionApiHandler {
                   entry.content(),
                   entry.truncated(),
                   ApiResponses.SCHEMA_VERSION,
-                  entry.content()));
+                  entry.content(),
+                  entry.content().isEmpty() ? "missing" : "available"));
         });
   }
 
@@ -330,8 +332,12 @@ public final class SessionApiHandler {
     List<NormalizedToolExecution> toolExecutions = findToolExecutionsForRound(round, sessionCtx);
     List<String> toolExecIds =
         toolExecutions.stream().map(NormalizedToolExecution::toolCallId).toList();
+    Map<String, ToolInputContents.Input> inputs =
+        sessionCtx.artifact() == null ? Map.of() : ToolInputContents.all(sessionCtx.artifact());
     List<ToolExecutionSummary> toolSummaries =
-        toolExecutions.stream().map(SessionApiHandler::toolSummary).toList();
+        toolExecutions.stream()
+            .map(exec -> toolSummary(exec, inputs.get(exec.toolCallId())))
+            .toList();
 
     boolean isSubagent = !round.parentCallId().isEmpty();
 
@@ -363,19 +369,20 @@ public final class SessionApiHandler {
   private static List<NormalizedToolExecution> findToolExecutionsForRound(
       CallRound round, SessionApiContext sessionCtx) {
     List<NormalizedToolExecution> allToolExecs = sessionCtx.toolExecutions();
-    List<NormalizedToolExecution> result = new ArrayList<>();
+    Map<String, NormalizedToolExecution> result = new LinkedHashMap<>();
     for (String callId : round.calls()) {
       for (NormalizedToolExecution exec : allToolExecs) {
         if (callId.equals(exec.declaredByCallId())) {
-          result.add(exec);
+          result.putIfAbsent(exec.toolCallId(), exec);
         }
       }
     }
-    return result;
+    return List.copyOf(result.values());
   }
 
   /** 构建工具执行摘要。 */
-  private static ToolExecutionSummary toolSummary(NormalizedToolExecution exec) {
+  private static ToolExecutionSummary toolSummary(
+      NormalizedToolExecution exec, ToolInputContents.Input input) {
     return new ToolExecutionSummary(
         exec.toolCallId(),
         exec.name(),
@@ -383,8 +390,9 @@ public final class SessionApiHandler {
         exec.declaredByCallId(),
         exec.status().orElse(""),
         exec.exitCode().orElse(null),
-        exec.durationMs(),
-        exec.subagentId().orElse(""));
+        exec.durationMs() > 0 ? exec.durationMs() : null,
+        exec.subagentId().orElse(""),
+        ToolInputPreview.from(input));
   }
 
   /** 构建 attribution 响应。 */
@@ -395,8 +403,11 @@ public final class SessionApiHandler {
 
     AttributionData data =
         new AttributionData(
+            call.callId(),
+            call.callKey(),
             call.model(),
             call.scope().name().toLowerCase(),
+            call.timestamp().orElse(""),
             usage.total(),
             usage.fresh(),
             usage.output(),

@@ -140,6 +140,7 @@ class DetailTypesTest {
               PayloadSourceKind.LLM_REQUEST,
               PayloadSourceKind.LLM_RESPONSE,
               PayloadSourceKind.TOOL_RESULT,
+              PayloadSourceKind.TOOL_INPUT,
               PayloadSourceKind.SUBAGENT_REQUEST,
               PayloadSourceKind.SUBAGENT_RESPONSE);
     }

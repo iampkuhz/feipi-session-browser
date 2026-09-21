@@ -127,9 +127,11 @@ class ShadowFixtureTest {
       assertThat(reloaded.calls()).hasSize(2);
       assertThat(lookup.lookup("main:req:a1").orElseThrow().content())
           .isEqualTo(" initial request\n");
-      assertThat(lookup.lookup("main:resp:a1").orElseThrow().content()).isEqualTo("answer one");
+      assertThat(lookup.lookup("main:resp:a1").orElseThrow().content())
+          .isEqualTo(
+              "answer one\n\n工具指令\nRead [t1]\n输入未记录（旧索引可能需要重新扫描）\n\nRead [t2]\n输入未记录（旧索引可能需要重新扫描）");
       assertThat(lookup.lookup("main:req:a2").orElseThrow().content())
-          .isEqualTo(" A\n\nmiddle\n B\n");
+          .isEqualTo("Tool result [t1]\n A\n\nmiddle\nTool result [t2]\n B\n");
       assertThat(lookup.lookup("tool:result:t1").orElseThrow().content()).isEqualTo(" A\n");
       assertThat(lookup.lookup("tool:result:t2").orElseThrow().content()).isEqualTo(" B\n");
     } finally {

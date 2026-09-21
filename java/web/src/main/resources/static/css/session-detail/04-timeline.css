@@ -32,7 +32,7 @@
   border: 0;
   background: #fff;
   display: grid;
-  grid-template-columns: 56px 96px minmax(0, 1fr) 112px 96px 118px;
+  grid-template-columns: 56px 96px minmax(0, 1fr) 112px 80px 118px;
   column-gap: 10px;
   align-items: center;
   padding-inline: 12px;
@@ -326,7 +326,12 @@
   width: 100%;
 }
 .sd-attribution-actions--row {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   justify-content: flex-start;
+}
+.sd-attribution-actions--subround {
+  flex-wrap: wrap;
 }
 .sd-attribution-actions--inline {
   padding-left: 2px;
@@ -552,16 +557,16 @@
   background: transparent;
   border: 0;
   --sd-tool-kind-col: 78px;
-  --sd-tool-meta-col: minmax(150px, .52fr);
+  --sd-tool-meta-col: minmax(80px, .35fr);
   --sd-tool-time-col: 82px;
-  --sd-tool-status-col: 54px;
-  --sd-tool-token-col: 72px;
-  --sd-tool-action-col: 96px;
+  --sd-tool-status-col: 82px;
+  --sd-tool-token-col: 86px;
+  --sd-tool-action-col: 148px;
 }
 .sd-tool-group--flat .sd-tool-row {
   grid-template-columns:
     var(--sd-tool-kind-col)
-    minmax(200px, 1fr)
+    minmax(0, 1fr)
     var(--sd-tool-meta-col)
     var(--sd-tool-time-col)
     var(--sd-tool-status-col)
@@ -574,6 +579,13 @@
 }
 .sd-tool-group--flat .sd-tool-result {
   justify-self: stretch;
+}
+.sd-tool-group--flat .sd-tool-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+  min-width: 0;
 }
 .sd-tool-group--flat .sd-tool-time {
   justify-self: end;
@@ -1019,7 +1031,7 @@
   width: 180px;
 }
 .trace-table col.col-status {
-  width: 180px;
+  width: 120px;
 }
 .trace-table col.col-time {
   width: 90px;
@@ -1400,16 +1412,16 @@
 @media (max-width: 1180px) {
   .sd-tool-group--flat {
     --sd-tool-kind-col: 64px;
-    --sd-tool-meta-col: minmax(120px, .5fr);
+    --sd-tool-meta-col: minmax(60px, .3fr);
     --sd-tool-time-col: 76px;
-    --sd-tool-status-col: 48px;
-    --sd-tool-token-col: 64px;
-    --sd-tool-action-col: 84px;
+    --sd-tool-status-col: 78px;
+    --sd-tool-token-col: 86px;
+    --sd-tool-action-col: 148px;
   }
   .sd-tool-group--flat .sd-tool-row {
     grid-template-columns:
       var(--sd-tool-kind-col)
-      minmax(160px, 1fr)
+      minmax(0, 1fr)
       var(--sd-tool-meta-col)
       var(--sd-tool-time-col)
       var(--sd-tool-status-col)
@@ -1419,3 +1431,19 @@
 }
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`Badge variants moved to ui-primitives.css (.badge-manual, .badge-err, .badge-warn, .badge-info, .badge-model) Page CSS should not redefine global primitives.` */
 /* 中文说明：维护当前前端样式或交互约束，原注释作为代码上下文保留：`── Trace table (T089 HIFI migration) END ──` */
+
+/* Trace detail owner: preserve content and actions on compact screens. */
+@media (max-width: 800px) {
+  .sd-tool-group--flat .sd-tool-row {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    padding-block: 8px;
+  }
+  .sd-tool-group--flat .sd-tool-cmd {
+    grid-column: 1 / -1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+  .sd-tool-group--flat .sd-tool-actions {
+    grid-column: 1 / -1;
+  }
+}

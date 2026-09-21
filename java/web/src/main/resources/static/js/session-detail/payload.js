@@ -228,14 +228,23 @@
     appendKv(meta, "kind", kind);
     appendKv(meta, "status", status);
     appendKv(meta, "size", size);
-    if (tokenSummary) appendKv(meta, "result tokens", tokenSummary);
+    if (tokenSummary) appendKv(meta, "tokens", tokenSummary);
     if (toolName) appendKv(meta, "tool", toolName);
     if (toolStatus) appendKv(meta, "tool status", toolStatus);
 
     var main = makeEl("main", "sd-payload-main payload-main");
     if (toolCommand) appendPreBlock(main, "Command", toolCommand, "tool");
-    if (text) appendPreBlock(main, "Result", text, "text");
-    else main.appendChild(makeEl("div", "sd-payload-empty", "No content"));
+    var contentTitle = {
+      llm_request: "Request", subagent_request: "Request",
+      llm_response: "Response", subagent_response: "Response",
+      tool_input: "Input", tool_result: "Result"
+    }[kind] || "Content";
+    if (contentTitle === "Request" || contentTitle === "Response") {
+      main.appendChild(makeEl("p", "sd-payload-warning", "仅展示本地可见记录，不代表完整 provider context。"));
+    }
+    if (payload.truncated) main.appendChild(makeEl("p", "sd-payload-warning", "内容已截断。"));
+    if (text) appendPreBlock(main, contentTitle, text, "text");
+    else main.appendChild(makeEl("div", "sd-payload-empty", contentTitle + " 内容未记录"));
 
     shell.appendChild(meta);
     shell.appendChild(main);

@@ -86,6 +86,11 @@ public final class NormalizationEngine {
 
     records = List.copyOf(records);
 
+    // 0. Qoder 专用预处理：合并同 turnId 的 assistant 分片
+    if (agent == NormalizedAgent.QODER) {
+      records = QoderResponseRecords.merge(records);
+    }
+
     // 1. 事件分类
     EventClassifier.ClassifiedEvents classified = EventClassifier.classify(records);
 

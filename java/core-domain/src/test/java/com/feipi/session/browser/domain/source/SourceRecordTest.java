@@ -59,5 +59,81 @@ class SourceRecordTest {
             Optional.empty());
     assertThat(record.content()).isEmpty();
     assertThat(record.relation()).isEqualTo(SourceRecordRelation.empty());
+    assertThat(record.responseMessageId()).isEmpty();
+    assertThat(record.responseStopReason()).isEmpty();
+  }
+
+  @Test
+  void canonicalConstructorPreservesResponseMetadata() {
+    SourceRecord record =
+        new SourceRecord(
+            "synthetic.jsonl#event[0]",
+            0,
+            "assistant",
+            Optional.of("call-1"),
+            Optional.of("model"),
+            Optional.of("time"),
+            Optional.of("turn"),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            "content",
+            Optional.of("msg-123"),
+            Optional.of("end_turn"));
+    assertThat(record.responseMessageId()).contains("msg-123");
+    assertThat(record.responseStopReason()).contains("end_turn");
+  }
+
+  @Test
+  void withContentPreservesResponseMetadata() {
+    SourceRecord record =
+        new SourceRecord(
+            "synthetic.jsonl#event[0]",
+            0,
+            "assistant",
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            "original",
+            Optional.of("msg-456"),
+            Optional.of("tool_use"));
+    SourceRecord copy = record.withContent("replaced");
+    assertThat(copy.content()).isEqualTo("replaced");
+    assertThat(copy.responseMessageId()).contains("msg-456");
+    assertThat(copy.responseStopReason()).contains("tool_use");
+  }
+
+  @Test
+  void nullResponseMetadataDefaultsToEmpty() {
+    SourceRecord record =
+        new SourceRecord(
+            "synthetic.jsonl#event[0]",
+            0,
+            "assistant",
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordUsage.empty(),
+            List.of(),
+            Optional.empty(),
+            Optional.empty(),
+            Optional.empty(),
+            SourceRecordRelation.empty(),
+            "",
+            null,
+            null);
+    assertThat(record.responseMessageId()).isEmpty();
+    assertThat(record.responseStopReason()).isEmpty();
   }
 }

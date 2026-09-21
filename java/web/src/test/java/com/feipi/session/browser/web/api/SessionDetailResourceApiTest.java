@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
 import com.feipi.session.browser.application.QueryCompositionRoot;
 import com.feipi.session.browser.index.store.sqlite.connection.IndexConnection;
 import com.feipi.session.browser.index.store.sqlite.connection.PragmaConfig;
@@ -15,6 +16,8 @@ import io.javalin.testtools.JavalinTest;
 import java.nio.file.Path;
 import java.sql.Connection;
 import java.sql.DriverManager;
+import java.util.List;
+import java.util.Map;
 import org.assertj.core.data.Offset;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -176,8 +179,8 @@ class SessionDetailResourceApiTest {
           assertThat(standardBody.get("payloadCount").asLong()).isEqualTo(4);
           assertThat(standardBody.at("/payloads/0/payloadId").asText())
               .isEqualTo("main:req:alpha-call-1");
-          assertThat(standardBody.at("/payloads/0/truncated").asBoolean()).isTrue();
-          assertThat(standardBody.at("/payloads/0/status").asText()).isEqualTo("hidden");
+          assertThat(standardBody.at("/payloads/0/truncated").asBoolean()).isFalse();
+          assertThat(standardBody.at("/payloads/0/status").asText()).isEqualTo("available");
           assertThat(standardBody.at("/payloads/0/apiUrl").asText())
               .isEqualTo("/api/sessions/claude_code/s-alpha-001/payload/main%3Areq%3Aalpha-call-1");
 
@@ -230,6 +233,93 @@ class SessionDetailResourceApiTest {
         com.feipi.session.browser.web.WebTestComposition.queryRoot(
             indexConnection, new SchemaVersion(1));
     return new WebCompositionRoot(root, WebConfig.defaults());
+  }
+
+  @Test
+  @DisplayName("Round content 与工具 Input API 保留指令并与归因分离")
+  void roundAndToolContentRoutesPreserveInstructions() throws Exception {
+    Path path = tempDir.resolve("alpha-001.normalized.json");
+    ObjectNode artifact = (ObjectNode) MAPPER.readTree(path.toFile());
+    String command =
+        "{\"command\":\"printf 'synthetic command'\",\"api_key\":\"synthetic-secret\"}";
+    ((ObjectNode) artifact.at("/calls/0"))
+        .set(
+            "source_units",
+            MAPPER.valueToTree(
+                List.of(
+                    Map.of("role", "user", "type", "text", "text", "inspect synthetic files"),
+                    Map.of("role", "assistant", "type", "text", "text", "I will inspect them"),
+                    Map.of(
+                        "role",
+                        "assistant",
+                        "type",
+                        "tool_use",
+                        "id",
+                        "tool-call-1",
+                        "name",
+                        "exec_command",
+                        "input",
+                        command))));
+    ((ObjectNode) artifact.at("/tool_executions/0")).put("duration_ms", 0);
+    MAPPER.writeValue(path.toFile(), artifact);
+
+    JavalinTest.test(
+        createWebRoot().app(),
+        (app, client) -> {
+          var response = client.get(ALPHA_URL + "/payload/round%3Aresp%3A1");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode body = MAPPER.readTree(response.body().string());
+          assertThat(body.path("kind").asText()).isEqualTo("llm_response");
+          assertThat(body.path("status").asText()).isEqualTo("available");
+          assertThat(body.path("truncated").asBoolean()).isFalse();
+          assertThat(body.path("content").asText())
+              .contains(
+                  "I will inspect them",
+                  "exec_command [tool-call-1]",
+                  "printf 'synthetic command'",
+                  "[REDACTED]")
+              .doesNotContain("inspect synthetic files", "synthetic-secret");
+          var request = client.get(ALPHA_URL + "/payload/round%3Areq%3A1");
+          assertThat(request.code()).isEqualTo(200);
+          assertThat(MAPPER.readTree(request.body().string()).path("content").asText())
+              .contains("inspect synthetic files")
+              .doesNotContain("synthetic command");
+          var input = client.get(ALPHA_URL + "/payload/tool%3Ainput%3Atool-call-1");
+          assertThat(input.code()).isEqualTo(200);
+          JsonNode inputBody = MAPPER.readTree(input.body().string());
+          assertThat(inputBody.path("kind").asText()).isEqualTo("tool_input");
+          assertThat(inputBody.path("content").asText())
+              .contains("printf 'synthetic command'", "[REDACTED]")
+              .doesNotContain("synthetic-secret");
+          var round = client.get(ALPHA_URL + "/round/1");
+          assertThat(round.code()).isEqualTo(200);
+          JsonNode detail = MAPPER.readTree(round.body().string());
+          assertThat(detail.at("/round/tools/0/inputPreview").asText())
+              .isEqualTo("printf 'synthetic command'");
+          assertThat(detail.at("/round/tools/0/durationMs").isNull()).isTrue();
+        });
+  }
+
+  @Test
+  @DisplayName("子任务失败不回填到仅统计 MAIN 的 Round metrics")
+  void subagentFailureDoesNotBecomeMainFailure() throws Exception {
+    Path path = tempDir.resolve("alpha-001.normalized.json");
+    ObjectNode artifact = (ObjectNode) MAPPER.readTree(path.toFile());
+    ((ObjectNode) artifact.at("/tool_executions/0")).remove("status");
+    ((ObjectNode) artifact.at("/tool_executions/1")).put("status", "error: exit 1");
+    MAPPER.writeValue(path.toFile(), artifact);
+
+    JavalinTest.test(
+        createWebRoot().app(),
+        (app, client) -> {
+          var response = client.get(ALPHA_URL + "/rounds");
+          assertThat(response.code()).isEqualTo(200);
+          JsonNode round = MAPPER.readTree(response.body().string()).at("/rounds/0");
+          assertThat(round.path("failedToolCount").asInt()).isZero();
+          assertThat(round.path("status").asText()).isEqualTo("ok");
+          assertThat(round.path("signals").toString()).doesNotContain("Failed");
+          assertThat(round.at("/parity/hasIssues").asBoolean()).isFalse();
+        });
   }
 
   private static void assertTokens(

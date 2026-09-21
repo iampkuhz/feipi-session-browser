@@ -678,7 +678,7 @@ test.describe('会话详情 — Phase 1', () => {
     }
   });
 
-  test('[UI-SD-020] trace request / response 点击打开 attribution modal', async ({ page }) => {
+  test('[UI-SD-020] trace 输入归因 / 输出归因点击打开 attribution modal', async ({ page }) => {
     expect(sessionUrl, 'sessionUrl must be configured by playwright.config.js').toBeTruthy();
 
     await gotoSessionDetail(page, sessionUrl);

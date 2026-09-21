@@ -190,14 +190,7 @@ public final class SessionDetailAssembler {
   }
 
   private static List<String> toolIds(NormalizedCall call) {
-    List<String> result = new ArrayList<>();
-    result.addAll(call.response().toolCallIds());
-    for (String toolResultId : call.request().toolResultIds()) {
-      if (!result.contains(toolResultId)) {
-        result.add(toolResultId);
-      }
-    }
-    return result;
+    return call.response().toolCallIds();
   }
 
   private static void addUnique(List<String> target, List<String> values) {
@@ -229,7 +222,7 @@ public final class SessionDetailAssembler {
   /**
    * 从调用列表生成 payload 来源。
    *
-   * <p>为每个调用生成请求和响应 payload 来源。归一化调用始终代表一次 LLM 交互， 具有请求和响应两侧内容。 标准可见性下标记为截断，完整可见性下不截断。
+   * <p>为每个调用生成请求和响应 payload 来源。归一化调用始终代表一次 LLM 交互， 具有请求和响应两侧内容。 标准可见性仅遮蔽敏感值，不表示内容截断。
    *
    * <p>内容解析通过 source unit 引用完成，本层只负责生成标识符和可见性标记。
    *
@@ -239,7 +232,7 @@ public final class SessionDetailAssembler {
    */
   static List<PayloadSource> buildPayloadSources(
       List<NormalizedCall> calls, PayloadVisibility visibility) {
-    boolean truncated = visibility == PayloadVisibility.STANDARD;
+    boolean truncated = false;
     List<PayloadSource> sources = new ArrayList<>();
 
     for (NormalizedCall call : calls) {

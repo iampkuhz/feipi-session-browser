@@ -29,6 +29,7 @@ public final class ApiResponses {
    * @param truncated 内容是否被截断
    * @param schemaVersion 响应 schema 版本
    * @param text payload 文本内容，与 content 一致，供前端 payloadNodeFromJson 读取
+   * @param status 内容可用状态，区分已记录内容与缺失内容
    */
   public record PayloadResponse(
       String payloadId,
@@ -37,7 +38,8 @@ public final class ApiResponses {
       String content,
       boolean truncated,
       String schemaVersion,
-      String text) {
+      String text,
+      String status) {
 
     /**
      * 紧凑构造器，验证不变量。
@@ -128,6 +130,7 @@ public final class ApiResponses {
    * @param exitCode 退出码，缺失时为 null
    * @param durationMs 执行耗时毫秒
    * @param subagentId 子 agent 标识，主会话为空
+   * @param inputPreview 安全输入预览（路径、查询或命令）
    */
   public record ToolExecutionSummary(
       String toolCallId,
@@ -136,8 +139,9 @@ public final class ApiResponses {
       String declaredByCallId,
       String status,
       Integer exitCode,
-      long durationMs,
-      String subagentId) {
+      Long durationMs,
+      String subagentId,
+      String inputPreview) {
 
     /** 校验字段和业务不变量。 */
     public ToolExecutionSummary {
@@ -147,7 +151,8 @@ public final class ApiResponses {
       Objects.requireNonNull(declaredByCallId, "declaredByCallId 不得为 null");
       status = status == null ? "" : status;
       subagentId = subagentId == null ? "" : subagentId;
-      if (durationMs < 0) {
+      inputPreview = inputPreview == null ? "" : inputPreview;
+      if (durationMs != null && durationMs < 0) {
         throw new IllegalArgumentException("durationMs must be non-negative");
       }
     }
@@ -250,8 +255,11 @@ public final class ApiResponses {
   /**
    * attribution 数据内容。
    *
+   * @param callId 调用 ID
+   * @param callKey 调用展示键
    * @param model 模型名称
    * @param scope 调用作用域
+   * @param timestamp 调用时间戳
    * @param totalTokens 总 token 用量
    * @param freshInputTokens 非缓存输入 token
    * @param outputTokens 输出 token
@@ -261,8 +269,11 @@ public final class ApiResponses {
    * @param responseToolCallCount 响应侧工具调用数量
    */
   public record AttributionData(
+      String callId,
+      String callKey,
       String model,
       String scope,
+      String timestamp,
       long totalTokens,
       long freshInputTokens,
       long outputTokens,
@@ -277,8 +288,11 @@ public final class ApiResponses {
      * @throws NullPointerException 当必填字段为 null 时
      */
     public AttributionData {
+      Objects.requireNonNull(callId, "callId 不得为 null");
+      Objects.requireNonNull(callKey, "callKey 不得为 null");
       Objects.requireNonNull(model, "model 不得为 null");
       Objects.requireNonNull(scope, "scope 不得为 null");
+      timestamp = timestamp == null ? "" : timestamp;
     }
   }
 

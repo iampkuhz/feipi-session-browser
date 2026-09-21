@@ -165,12 +165,12 @@ class SessionDetailContractTest {
       NormalizedSessionArtifact artifact = makeArtifactWithCalls(List.of(call));
       PayloadLookup lookup = PayloadLookup.fromArtifact(artifact, PayloadVisibility.STANDARD);
 
-      assertThat(lookup.size()).isEqualTo(2);
+      assertThat(lookup.size()).isEqualTo(4);
       var reqEntry = lookup.lookup("main:req:c1");
       assertThat(reqEntry).isPresent();
-      assertThat(reqEntry.get().truncated()).isTrue();
-      // 注意：当前实现未存储实际内容，content 为空字符串
-      assertThat(reqEntry.get().content()).isEmpty();
+      assertThat(reqEntry.get().truncated()).isFalse();
+      // 标准可见性保留文本，仅遮蔽敏感值，不伪称截断。
+      assertThat(reqEntry.get().content()).isEqualTo("api_key=[REDACTED] data");
     }
 
     @Test
@@ -185,8 +185,7 @@ class SessionDetailContractTest {
       var reqEntry = lookup.lookup("main:req:c1");
       assertThat(reqEntry).isPresent();
       assertThat(reqEntry.get().truncated()).isFalse();
-      // 注意：当前实现未存储实际内容，content 为空字符串
-      assertThat(reqEntry.get().content()).isEmpty();
+      assertThat(reqEntry.get().content()).isEqualTo("api_key=secret123 data");
     }
 
     @Test
@@ -267,7 +266,9 @@ class SessionDetailContractTest {
         NormalizedCallRequest.empty(),
         NormalizedCallResponse.empty(),
         List.of(),
-        List.of(),
+        List.of(
+            Map.of("role", "user", "type", "text", "text", requestRef),
+            Map.of("role", "assistant", "type", "text", "text", responseRef)),
         Map.of(),
         Map.of());
   }
