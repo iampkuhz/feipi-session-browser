@@ -87,6 +87,20 @@ final class ServeCommand implements Callable<Integer> {
       return 1;
     }
 
+    if (port > 0 && StopCommand.isPortListening(port)) {
+      try {
+        int stopExitCode = StopCommand.stopIfRunning(indexDir, port);
+        if (stopExitCode != 0) {
+          System.err.println("错误：端口 " + port + " 已被占用，且无法确认是可替换的 session-browser serve 进程");
+          return 1;
+        }
+      } catch (Exception e) {
+        System.err.println("错误：无法停止端口 " + port + " 上的旧 serve 进程: " + e.getMessage());
+        LOG.debug("停止旧 serve 进程失败", e);
+        return 1;
+      }
+    }
+
     boolean effectiveAllowEmpty = allowEmpty || !strictSources;
     ServerLifecycle lifecycle =
         new ServerLifecycle(paths.dataDir(), host, port, noScan, effectiveAllowEmpty, Set.of());

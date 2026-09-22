@@ -222,6 +222,32 @@ class StopCommandTest {
   class HealthVerificationContract {
 
     @Test
+    @DisplayName("仅识别 session-browser serve command line")
+    void identifiesOwnedServeCommand() {
+      assertThat(
+              StopCommand.isSessionBrowserServeCommand(
+                  "/usr/bin/java -cp app.jar com.feipi.session.browser.cli.App serve --port 8848"))
+          .isTrue();
+      assertThat(
+              StopCommand.isSessionBrowserServeCommand(
+                  "/usr/bin/java -cp app.jar com.feipi.session.browser.cli.App status"))
+          .isFalse();
+      assertThat(
+              StopCommand.isSessionBrowserServeCommand(
+                  "/usr/bin/java -cp app.jar com.example.OtherApp serve --port 8848"))
+          .isFalse();
+      assertThat(
+              StopCommand.isSessionBrowserServeCommand(
+                  "/usr/bin/java -cp app.jar com.feipi.session.browser.cli.App serve", 8848))
+          .isTrue();
+      assertThat(
+              StopCommand.isSessionBrowserServeCommand(
+                  "/usr/bin/java -cp app.jar com.feipi.session.browser.cli.App serve --port 0",
+                  8848))
+          .isFalse();
+    }
+
+    @Test
     @DisplayName("checkHealthEndpoint 对运行中的服务器返回 true")
     void healthCheckOnRunningServer() throws Exception {
       Path indexDir = tempDir.resolve("health-index");

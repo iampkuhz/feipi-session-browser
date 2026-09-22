@@ -10,6 +10,7 @@ import java.nio.file.Path;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.concurrent.Callable;
+import java.util.regex.Pattern;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import picocli.CommandLine.Command;
@@ -58,6 +59,12 @@ final class StopCommand implements Callable<Integer> {
 
   /** health endpoint 验证超时（毫秒）。 */
   private static final int HEALTH_TIMEOUT_MS = 2000;
+
+  /** serve 进程的 Java main class，用于 PID 文件缺失时的安全识别。 */
+  private static final String APP_MAIN_CLASS = "com.feipi.session.browser.cli.App";
+
+  /** serve 子命令 token，用于避免误匹配其他 Java 进程。 */
+  private static final Pattern SERVE_COMMAND_TOKEN = Pattern.compile("(^|\\s)serve(\\s|$)");
 
   /** 默认索引目录环境变量名。 */
   private static final String INDEX_DIR_ENV = "INDEX_DIR";
@@ -136,22 +143,123 @@ final class StopCommand implements Callable<Integer> {
   }
 
   /**
+   * 在启动新 serve 前停止已占用目标端口的 session-browser 进程。
+   *
+   * <p>该入口复用 stop 的 PID/health/进程终止策略；无法确认端口归属时返回非零，不会终止未知进程。
+   *
+   * @param indexDir 索引目录
+   * @param port 目标端口
+   * @return 退出码
+   * @throws IOException 停止已识别进程失败时
+   */
+  static int stopIfRunning(Path indexDir, int port) throws IOException {
+    StopCommand command = new StopCommand();
+    command.port = port;
+    command.indexDirOption = indexDir.toAbsolutePath().normalize().toString();
+    return command.executeStop(indexDir);
+  }
+
+  /**
    * 处理 PID 文件缺失的情况。
    *
-   * <p>检查端口是否仍有进程监听，提供诊断信息帮助用户手动处理。
+   * <p>先通过 health endpoint 和 Java command line 识别没有 PID 文件的 session-browser
+   * 进程；无法确认归属时拒绝终止，避免误杀无关进程。
    *
    * @param indexDir 索引目录
    * @return 退出码
    * @throws IOException 当端口检查失败时
    */
   private int handleMissingPidFile(Path indexDir) throws IOException {
+    Optional<ProcessHandle> processOpt = findOwnedServeProcess(port);
+    if (processOpt.isPresent()) {
+      long pid = processOpt.get().pid();
+      terminateProcess(processOpt.get(), pid);
+      System.out.println("serve 进程已停止 (PID " + pid + ", PID 文件缺失)");
+      return 0;
+    }
+
     if (isPortListening(port)) {
       System.err.println("端口 " + port + " 有进程在监听，但未找到 PID 文件。");
-      System.err.println("  可能 serve 使用了其他索引目录，请使用 --index-dir 指定正确的索引目录。");
+      System.err.println("  无法确认进程归属，未终止未知进程；请使用 --index-dir 指定正确索引目录。");
       return 1;
     }
     System.out.println("serve 未在运行（未找到 PID 文件且端口 " + port + " 无监听）");
     return 0;
+  }
+
+  /**
+   * 查找监听指定端口且可识别为 session-browser serve 的进程。
+   *
+   * <p>health endpoint 验证服务身份，command line 验证进程身份；两者缺一不可。
+   *
+   * @param port 目标端口
+   * @return 可安全终止的进程，未找到时为空
+   */
+  static Optional<ProcessHandle> findOwnedServeProcess(int port) {
+    if (!isPortListening(port) || !checkHealthEndpoint("http://127.0.0.1:" + port + "/healthz")) {
+      return Optional.empty();
+    }
+
+    try {
+      return ProcessHandle.allProcesses()
+          .filter(ProcessHandle::isAlive)
+          .filter(process -> process.pid() != ProcessHandle.current().pid())
+          .filter(
+              process ->
+                  isSessionBrowserServeCommand(process.info().commandLine().orElse(""), port))
+          .findFirst();
+    } catch (SecurityException e) {
+      LOG.debug("无法读取系统进程列表", e);
+      return Optional.empty();
+    }
+  }
+
+  /**
+   * 判断 command line 是否明确表示 session-browser serve。
+   *
+   * @param commandLine 完整 command line
+   * @return 是否为 session-browser serve
+   */
+  static boolean isSessionBrowserServeCommand(String commandLine) {
+    return commandLine != null
+        && commandLine.contains(APP_MAIN_CLASS)
+        && SERVE_COMMAND_TOKEN.matcher(commandLine).find();
+  }
+
+  /**
+   * 判断 command line 是否为监听指定端口的 session-browser serve。
+   *
+   * <p>没有显式端口时按默认端口 8848 处理；显式使用 {@code --port 0} 的随机端口进程无法仅凭 command line 确认归属，因此不自动终止。
+   *
+   * @param commandLine 完整 command line
+   * @param targetPort 目标端口
+   * @return 是否匹配
+   */
+  static boolean isSessionBrowserServeCommand(String commandLine, int targetPort) {
+    if (!isSessionBrowserServeCommand(commandLine) || targetPort <= 0) {
+      return false;
+    }
+
+    String[] tokens = commandLine.trim().split("\\s+");
+    for (int i = 0; i < tokens.length; i++) {
+      String token = tokens[i];
+      String portValue = null;
+      if (token.equals("--port") || token.equals("-p")) {
+        if (i + 1 < tokens.length) {
+          portValue = tokens[++i];
+        }
+      } else if (token.startsWith("--port=")) {
+        portValue = token.substring("--port=".length());
+      }
+      if (portValue != null) {
+        try {
+          return Integer.parseInt(portValue) == targetPort;
+        } catch (NumberFormatException e) {
+          return false;
+        }
+      }
+    }
+    return targetPort == DEFAULT_PORT;
   }
 
   /**

@@ -29,7 +29,7 @@ python3 scripts/gates/cli.py run --mode incremental
 python3 scripts/gates/cli.py run --mode incremental --target java-build
 ```
 
-`session-browser.sh` 只直接处理 `deps`、`test`、`quality`；`serve` 启动前先执行 `:java:app-cli:installDist` 的 Gradle 增量构建（不运行测试），其他子命令原样转发给 Java CLI。详细工程规则见 [AGENTS.md](../../AGENTS.md)，脚本说明见 [scripts/README.md](../../scripts/README.md)。
+`session-browser.sh` 只直接处理 `deps`、`test`、`quality`；`serve` 启动前先执行 `:java:app-cli:installDist` 的 Gradle 增量构建（不运行测试），并由 Java CLI 安全替换同端口且可识别的旧 serve 进程，其他子命令原样转发给 Java CLI。详细工程规则见 [AGENTS.md](../../AGENTS.md)，脚本说明见 [scripts/README.md](../../scripts/README.md)。
 
 Python 项目配置和 pre-commit 配置集中在 `scripts/`；从仓库根安装或运行 hooks 时必须显式指定配置：
 

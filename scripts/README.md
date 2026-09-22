@@ -20,7 +20,7 @@ Gate 的完整中文手册是 `docs/gates/gate-control-plane.md`；机器声明�
 
 ```text
 scripts/
-├── session-browser.sh        产品/本地开发入口，serve 增量构建后透传 Java CLI
+├── session-browser.sh        产品/本地开发入口，serve 增量构建后透传 Java CLI；启动前安全替换可识别的旧 serve
 ├── gates/                    Gate 分阶段控制面与 Python Check
 │   ├── cli.py                唯一公开 Gate CLI
 │   ├── catalog/              contracts、registry、validation、业务声明
