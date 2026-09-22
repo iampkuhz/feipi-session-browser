@@ -51,6 +51,15 @@ def _create_fake_project(
         )
         _write_executable(project / LAUNCHER_RELATIVE, body)
 
+    _write_executable(
+        project / 'java/gradlew',
+        '#!/usr/bin/env bash\n'
+        'if [[ -n "${FAKE_GRADLE_LOG:-}" ]]; then\n'
+        '  printf "GRADLE_ARG=<%s>\\n" "$@" > "$FAKE_GRADLE_LOG"\n'
+        'fi\n'
+        'exit "${FAKE_GRADLE_EXIT:-0}"\n',
+    )
+
     return project, script
 
 
@@ -110,6 +119,41 @@ def test_java_commands_are_forwarded_without_rewriting(
 
     assert result.returncode == 0, result.stderr
     assert result.stdout.splitlines()[-len(expected) :] == [f'ARG=<{arg}>' for arg in expected]
+
+
+def test_java_commands_build_launcher_before_forwarding(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    gradle_log = project / 'gradle.args'
+    env = {**os.environ, 'FAKE_GRADLE_LOG': str(gradle_log)}
+
+    result = _run_shell(script, 'serve', '--port', '19000', cwd=tmp_path, env=env)
+
+    assert result.returncode == 0, result.stderr
+    assert gradle_log.read_text(encoding='utf-8').splitlines() == [
+        'GRADLE_ARG=<-p>',
+        'GRADLE_ARG=<java>',
+        'GRADLE_ARG=<:java:app-cli:installDist>',
+    ]
+    assert result.stdout.splitlines()[-3:] == [
+        'ARG=<serve>',
+        'ARG=<--port>',
+        'ARG=<19000>',
+    ]
+
+
+def test_java_command_does_not_start_when_incremental_build_fails(tmp_path: Path) -> None:
+    project, script = _create_fake_project(tmp_path)
+    marker = project / 'launcher-ran'
+    _write_executable(
+        project / LAUNCHER_RELATIVE,
+        f'#!/usr/bin/env bash\ntouch "{marker}"\n',
+    )
+    env = {**os.environ, 'FAKE_GRADLE_EXIT': '23'}
+
+    result = _run_shell(script, 'serve', cwd=tmp_path, env=env)
+
+    assert result.returncode == 23
+    assert not marker.exists()
 
 
 def test_argument_boundaries_survive_spaces(tmp_path: Path) -> None:
@@ -379,4 +423,4 @@ def test_shell_entrypoint_has_three_owned_commands_and_java_forwarding() -> None
     assert source.count('run_deps()') == 1
     assert source.count('run_test()') == 1
     assert source.count('run_quality()') == 1
-    assert 'exec "$JAVA_LAUNCHER" "$COMMAND" "$@"' in source
+    assert 'run_java_command "$COMMAND" "$@"' in source

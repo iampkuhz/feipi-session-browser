@@ -29,6 +29,7 @@ import io.javalin.http.HttpStatus;
 import io.javalin.http.staticfiles.Location;
 import java.time.Instant;
 import java.util.HashMap;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
@@ -181,8 +182,23 @@ public final class WebCompositionRoot {
           exportHandler.exportSessionHtml(ctx, agentParam, sessionIdParam);
         });
 
+    // 页面 handler 的 ctx.html() 会覆盖 defaultContentType；在响应提交前补齐 HTML charset。
+    javalinConfig.routes.after(WebCompositionRoot::ensureHtmlCharset);
+
     // 访问日志：记录请求摘要
     javalinConfig.routes.after(RuntimeAccessLog::after);
+  }
+
+  /** 确保 HTML 响应显式声明 UTF-8，避免浏览器依赖内容嗅探。 */
+  private static void ensureHtmlCharset(Context ctx) {
+    String contentType = ctx.contentType();
+    if (contentType == null) {
+      return;
+    }
+    String normalized = contentType.toLowerCase(Locale.ROOT);
+    if (normalized.startsWith("text/html") && !normalized.contains("charset=")) {
+      ctx.contentType("text/html; charset=utf-8");
+    }
   }
 
   /** 注册 JSON API 路由。 */

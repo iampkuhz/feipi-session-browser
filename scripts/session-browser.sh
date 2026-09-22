@@ -17,7 +17,20 @@ require_java_launcher() {
     return 1
 }
 
-# deps 只负责构建 launcher，随后交给 Java deps 执行运行时 preflight。
+# 使用 Gradle 的增量能力刷新 launcher；不执行测试。
+build_java_launcher() {
+    if [[ ! -x "$PROJECT_DIR/java/gradlew" ]]; then
+        echo "错误：Gradle wrapper 不可执行：$PROJECT_DIR/java/gradlew" >&2
+        return 1
+    fi
+
+    (
+        cd "$PROJECT_DIR"
+        ./java/gradlew -p java :java:app-cli:installDist
+    )
+}
+
+# deps 构建 launcher，随后交给 Java deps 执行运行时 preflight。
 run_deps() {
     case "${1:-}" in
         "")
@@ -42,14 +55,9 @@ run_deps() {
             ;;
     esac
 
-    if [[ ! -x "$PROJECT_DIR/java/gradlew" ]]; then
-        echo "错误：Gradle wrapper 不可执行：$PROJECT_DIR/java/gradlew" >&2
-        return 1
-    fi
-
-    cd "$PROJECT_DIR"
-    ./java/gradlew -p java :java:app-cli:installDist
+    build_java_launcher
     require_java_launcher
+    cd "$PROJECT_DIR"
     exec "$JAVA_LAUNCHER" deps
 }
 
@@ -72,9 +80,17 @@ run_quality() {
     exec python3 scripts/gates/cli.py "$@"
 }
 
-if [[ $# -eq 0 ]]; then
+# serve 是本地开发启动命令；每次启动前刷新 launcher，Gradle 自行判断是否需要编译。
+run_java_command() {
+    if [[ "${1:-}" == "serve" ]]; then
+        build_java_launcher
+    fi
     require_java_launcher
-    exec "$JAVA_LAUNCHER" --help
+    exec "$JAVA_LAUNCHER" "$@"
+}
+
+if [[ $# -eq 0 ]]; then
+    run_java_command --help
 fi
 
 COMMAND="$1"
@@ -91,7 +107,6 @@ case "$COMMAND" in
         run_quality "$@"
         ;;
     *)
-        require_java_launcher
-        exec "$JAVA_LAUNCHER" "$COMMAND" "$@"
+        run_java_command "$COMMAND" "$@"
         ;;
 esac
