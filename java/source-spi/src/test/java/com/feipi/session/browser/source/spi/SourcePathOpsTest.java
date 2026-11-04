@@ -32,7 +32,7 @@ class SourcePathOpsTest {
       Path root = Path.of("/home/user/data");
       Path file = Path.of("/home/user/data/projects/session.jsonl");
       Path result = SourcePathOps.toRelative(root, file);
-      assertThat(result.toString()).isEqualTo("projects/session.jsonl");
+      assertThat(result.toString()).isEqualTo(Path.of("projects", "session.jsonl").toString());
     }
 
     @Test

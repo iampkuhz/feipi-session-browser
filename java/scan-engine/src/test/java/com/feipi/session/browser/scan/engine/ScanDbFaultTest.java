@@ -1,6 +1,7 @@
 package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import com.feipi.session.browser.index.store.sqlite.schema.IndexSchema;
 import com.feipi.session.browser.index.store.sqlite.schema.MigrationRunner;
@@ -46,14 +47,21 @@ class ScanDbFaultTest {
     void readOnlyConnectionSchemaFailure() throws Exception {
       // 使用只读连接尝试 scan，schema 操作应失败
       Path dbFile = tempDir.resolve("readonly.db");
-      Connection setupConn = DriverManager.getConnection("jdbc:sqlite:" + dbFile.toAbsolutePath());
-      SqliteTestHelper.configureConnection(setupConn);
-      setupConn.close();
+      try (Connection setupConn =
+          DriverManager.getConnection("jdbc:sqlite:" + dbFile.toAbsolutePath())) {
+        SqliteTestHelper.configureConnection(setupConn);
+      }
 
-      // 以只读模式打开
+      // 使用 file URI，确保 mode=ro 是连接参数而不是 Windows 文件名的一部分
       Connection readOnlyConn =
-          DriverManager.getConnection("jdbc:sqlite:" + dbFile.toAbsolutePath() + "?mode=ro");
+          DriverManager.getConnection("jdbc:sqlite:" + dbFile.toUri() + "?mode=ro");
       try {
+        try (Statement stmt = readOnlyConn.createStatement()) {
+          assertThatThrownBy(() -> stmt.execute("CREATE TABLE readonly_probe (id INTEGER)"))
+              .isInstanceOf(SQLException.class)
+              .hasMessageContaining("SQLITE_READONLY");
+        }
+
         Path root = tempDir.resolve("schema-fail");
         Files.createDirectories(root);
         ScanConfig config =
@@ -66,6 +74,10 @@ class ScanDbFaultTest {
 
         // schema 失败应返回错误汇总
         assertThat(summary.errorCount()).isGreaterThanOrEqualTo(0);
+        assertThat(summary.issues())
+            .singleElement()
+            .satisfies(
+                issue -> assertThat(issue.message()).startsWith("Schema initialization failed:"));
       } finally {
         SqliteTestHelper.closeQuietly(readOnlyConn);
       }

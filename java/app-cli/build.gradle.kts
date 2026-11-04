@@ -443,6 +443,8 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
     val standardJvmArgs = standardLauncherJvmArgs.joinToString(" ")
     val fullScanJvmArgs = fullScanLauncherJvmArgs.joinToString(" ")
 
+    // 内联 launcher 模板变化必须使已有发行目录失效并重新生成。
+    inputs.file(layout.projectDirectory.file("build.gradle.kts"))
     outputs.dir(distRoot)
 
     doLast {
@@ -500,13 +502,8 @@ val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {
             "    echo 错误: runtime image 未找到，请确认发行包完整。\r\n" +
             "    exit /b 1\r\n" +
             ")\r\n\r\n" +
-            "set CLASSPATH=\r\n" +
-            "for %%j in (\"%APP_HOME%\\lib\\*.jar\") do call :addcp \"%%j\"\r\n" +
-            "goto :run\r\n\r\n" +
-            ":addcp\r\n" +
-            "if \"%CLASSPATH%\"==\"\" (set CLASSPATH=%~1) else (set CLASSPATH=%CLASSPATH%;%~1)\r\n" +
-            "goto :eof\r\n\r\n" +
-            ":run\r\n" +
+            // 交给 Java 展开 JAR 通配符，避免 cmd 逐 JAR 拼接超过 8191 字符。
+            "set \"CLASSPATH=%APP_HOME%\\lib\\*\"\r\n" +
             "set JVM_ARGS=$standardJvmArgs\r\n" +
             "if \"%~1\"==\"scan\" for %%a in (%*) do if \"%%~a\"==\"--full\" set JVM_ARGS=$fullScanJvmArgs\r\n" +
             "if \"%~1\"==\"serve\" set JVM_ARGS=$fullScanJvmArgs\r\n" +

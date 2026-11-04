@@ -1,6 +1,7 @@
 package com.feipi.session.browser.scan.engine;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -41,15 +42,12 @@ class ScanLockContentionTest {
       ScanLock.ScanLockHandle holder = lock.acquire("holder", 1000);
       try {
         ScanLock lock2 = new ScanLock(tempDir);
-        // 同一 JVM 内 FileLock 会抛 OverlappingFileLockException（继承 RuntimeException）
-        // 或者超时后抛 ScanLockUnavailableException（继承 IOException）
-        // 两种行为都是正确的
-        try {
-          lock2.acquire("contender", 500);
-        } catch (Exception e) {
-          // OverlappingFileLockException 或 IOException 都是正确行为
-          assertThat(e).isNotNull();
-        }
+        long start = System.nanoTime();
+        assertThatThrownBy(() -> lock2.acquire("contender", 500))
+            .isInstanceOf(ScanLock.ScanLockUnavailableException.class)
+            .hasMessageContaining("owner=holder");
+        assertThat(TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - start))
+            .isGreaterThanOrEqualTo(500);
       } finally {
         holder.close();
       }
@@ -61,17 +59,13 @@ class ScanLockContentionTest {
       ScanLock lock = new ScanLock(tempDir);
       ScanLock.ScanLockHandle holder = lock.acquire("holder-info", 1000);
       try {
-        // 在同一个 JVM 中 tryLock 可能抛异常而非返回 null
-        try {
-          ScanLock.ScanLockHandle inner = lock.tryLock("contender-info");
-          if (inner != null) {
-            // 某些平台允许同 JVM 重入，验证锁文件内容
-            inner.close();
-          }
-        } catch (Exception e) {
-          // 预期行为
-          assertThat(e).isNotNull();
-        }
+        assertThatThrownBy(() -> lock.acquire("contender-info", 0))
+            .isInstanceOfSatisfying(
+                ScanLock.ScanLockUnavailableException.class,
+                error -> {
+                  assertThat(error.lockPath()).isEqualTo(lock.lockPath());
+                  assertThat(error.holder()).contains("owner=holder-info");
+                });
       } finally {
         holder.close();
       }
@@ -84,13 +78,9 @@ class ScanLockContentionTest {
       ScanLock.ScanLockHandle holder = lock.acquire("holder-zero", 1000);
       try {
         long startMs = System.currentTimeMillis();
-        try {
-          lock.acquire("contender-zero", 0);
-        } catch (Exception e) {
-          long elapsed = System.currentTimeMillis() - startMs;
-          // 零超时应在 1 秒内返回或抛异常
-          assertThat(elapsed).isLessThan(1000);
-        }
+        assertThatThrownBy(() -> lock.acquire("contender-zero", 0))
+            .isInstanceOf(ScanLock.ScanLockUnavailableException.class);
+        assertThat(System.currentTimeMillis() - startMs).isLessThan(1000);
       } finally {
         holder.close();
       }

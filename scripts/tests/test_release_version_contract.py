@@ -38,6 +38,35 @@ def test_distribution_tasks_track_jdk_identity_and_runtime_modules():
             assert 'inputs.dir(distributionJdk.resolve("jmods"))' in inputs
 
 
+def test_windows_runtime_launcher_delegates_classpath_expansion_to_java():
+    source = CLI_BUILD.read_text(encoding='utf-8')
+    launcher = source.split('val winScript = binDir.resolve("run.bat")', 1)[1]
+    launcher = launcher.split('        logger.lifecycle(', 1)[0]
+
+    assert r'set \"CLASSPATH=%APP_HOME%\\lib\\*\"\r\n' in launcher
+    assert r'\"%RUNTIME_JAVA%\" %JVM_ARGS% -cp \"%CLASSPATH%\" $mainClassName %*\r\n' in launcher
+    assert '*.jar' not in launcher
+    assert ':addcp' not in launcher
+    assert 'for %%j' not in launcher
+    assert r'if not exist \"%RUNTIME_JAVA%\" (' in launcher
+    assert r'exit /b 1\r\n' in launcher
+    assert 'set JVM_ARGS=$standardJvmArgs' in launcher
+    assert (
+        r'if \"%~1\"==\"scan\" for %%a in (%*) do if \"%%~a\"==\"--full\" set JVM_ARGS=$fullScanJvmArgs'
+        in launcher
+    )
+    assert r'if \"%~1\"==\"serve\" set JVM_ARGS=$fullScanJvmArgs' in launcher
+
+
+def test_runtime_launcher_tracks_its_inline_template_for_regeneration():
+    source = CLI_BUILD.read_text(encoding='utf-8')
+    task = source.split(
+        'val generateRuntimeLauncher = tasks.register("generateRuntimeLauncher") {', 1
+    )[1]
+    inputs = task.split('    doLast {', 1)[0]
+    assert 'inputs.file(layout.projectDirectory.file("build.gradle.kts"))' in inputs
+
+
 def test_help_lists_java_owned_product_commands():
     result = subprocess.run(
         [str(SCRIPT), 'help'],
